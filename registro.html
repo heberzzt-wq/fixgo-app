@@ -11,28 +11,30 @@ if (form) {
         submitBtn.disabled = true;
 
         try {
-            // Capturamos los campos de texto de forma precisa
-            const nombre = form.querySelector('input[placeholder*="Ej: Juan"]').value;
-            const cedula = form.querySelector('input[placeholder*="8 dígitos"]').value;
-            const vehiculo = form.querySelector('input[placeholder*="Nissan"]').value;
-            const placas = form.querySelector('input[placeholder*="UTP"]').value;
-
-            // Guardar en Firestore
-            await addDoc(collection(db, "solicitudes_tecnicos"), {
-                nombre: nombre,
-                cedula: cedula || "No provista",
-                vehiculo: vehiculo,
-                placas: placas,
+            // Seleccionamos todos los campos de texto del formulario
+            const campos = form.querySelectorAll('input[type="text"]');
+            
+            // Los capturamos por su posición (orden en el que aparecen en el HTML)
+            const datos = {
+                nombre: campos[0] ? campos[0].value : "Sin nombre",
+                cedula: campos[1] ? campos[1].value : "Sin cédula",
+                vehiculo: campos[2] ? campos[2].value : "Sin vehículo",
+                placas: campos[3] ? campos[3].value : "Sin placas",
                 estatus: "pendiente",
                 fechaRegistro: new Date().toISOString()
-            });
+            };
 
-            alert("¡ÉXITO! Tu solicitud ha sido enviada a FixGo.");
+            console.log("Intentando guardar datos:", datos);
+
+            // Guardar en la colección de Firebase
+            await addDoc(collection(db, "solicitudes_tecnicos"), datos);
+
+            alert("¡ÉXITO! Tu solicitud ha sido enviada correctamente.");
             form.reset();
 
         } catch (error) {
-            console.error("Error detallado:", error);
-            alert("Error al enviar: " + error.message);
+            console.error("Error completo:", error);
+            alert("Error al enviar. Verifica tu conexión a Internet.");
         } finally {
             submitBtn.innerText = "ENVIAR SOLICITUD DE ALTA";
             submitBtn.disabled = false;
