@@ -17,25 +17,16 @@ if (!form) {
         submitBtn.disabled = true;
 
         try {
-            const campos = form.querySelectorAll('input[type="text"]');
-            const datos = {
-                nombre: campos[0] ? campos[0].value : "Sin nombre",
-                cedula: campos[1] ? campos[1].value : "Sin cédula",
-                vehiculo: campos[2] ? campos[2].value : "Sin vehículo",
-                placas: campos[3] ? campos[3].value : "Sin placas",
-                estatus: "pendiente",
-                fechaRegistro: new Date().toISOString()
-            };
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl text-xl shadow-lg shadow-blue-500/20 transition-all transform hover:scale-[1.01] active:scale-[0.99]">
+                ENVIAR SOLICITUD DE ALTA
+            </button>
+        </form>
 
-            await addDoc(collection(db, "solicitudes_tecnicos"), datos);
-            alert("¡ÉXITO! Datos guardados.");
-            form.reset();
-        } catch (error) {
-            console.error("Error de Firebase:", error);
-            alert("Error: " + error.message);
-        } finally {
-            submitBtn.innerText = "ENVIAR SOLICITUD DE ALTA";
-            submitBtn.disabled = false;
-        }
-    });
-}
+        <footer class="mt-12 text-center text-gray-600 text-xs">
+            © 2026 FIXGO & FINISH | Seguridad e Ingeniería en Quintana Roo.
+        </footer>
+    </div>
+
+    <script type="module" src="app-registro.js"></script>
+</body>
+</html>
