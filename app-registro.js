@@ -1,40 +1,36 @@
-import { db, storage, collection, addDoc, ref, uploadBytes, getDownloadURL } from './firebase-config.js';
+import { db, collection, addDoc } from './firebase-config.js';
+
+console.log("🚀 El archivo app-registro.js se ha cargado correctamente");
 
 const form = document.getElementById('registroForm');
 
-form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    console.log("Formulario detectado, iniciando envío...");
-    
-    const submitBtn = form.querySelector('button');
-    submitBtn.innerText = "PROCESANDO...";
-    submitBtn.disabled = true;
+if (form) {
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = form.querySelector('button');
+        submitBtn.innerText = "PROCESANDO...";
+        submitBtn.disabled = true;
 
-    try {
-        // Capturamos los campos
-        const nombre = form.querySelector('input[type="text"]').value;
-        // Buscamos el campo de cédula (el segundo input de texto)
-        const inputs = form.querySelectorAll('input[type="text"]');
-        const cedula = inputs[1] ? inputs[1].value : "No provista";
+        try {
+            const campos = form.querySelectorAll('input[type="text"]');
+            const datos = {
+                nombre: campos[0]?.value || "Sin nombre",
+                cedula: campos[1]?.value || "Sin cédula",
+                vehiculo: campos[2]?.value || "Sin vehículo",
+                placas: campos[3]?.value || "Sin placas",
+                estatus: "pendiente",
+                fechaRegistro: new Date().toISOString()
+            };
 
-        console.log("Enviando datos de:", nombre);
-
-        // Guardar en Firestore
-        await addDoc(collection(db, "solicitudes_tecnicos"), {
-            nombre: nombre,
-            cedula: cedula,
-            estatus: "pendiente",
-            fechaRegistro: new Date().toISOString()
-        });
-
-        alert("¡ÉXITO! Datos guardados en la base de datos.");
-        form.reset();
-
-    } catch (error) {
-        console.error("Error detallado:", error);
-        alert("Error de conexión: " + error.message);
-    } finally {
-        submitBtn.innerText = "ENVIAR SOLICITUD DE ALTA";
-        submitBtn.disabled = false;
-    }
-});
+            await addDoc(collection(db, "solicitudes_tecnicos"), datos);
+            alert("¡ÉXITO! Datos guardados en la base de datos.");
+            form.reset();
+        } catch (error) {
+            console.error("Error:", error);
+            alert("Error de conexión: " + error.message);
+        } finally {
+            submitBtn.innerText = "ENVIAR SOLICITUD DE ALTA";
+            submitBtn.disabled = false;
+        }
+    });
+}
