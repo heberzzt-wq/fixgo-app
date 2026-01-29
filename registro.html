@@ -1,20 +1,23 @@
 import { db, collection, addDoc } from './firebase-config.js';
 
+// Esto nos dirá en la consola si el archivo cargó
+console.log("🚀 El archivo app-registro.js se ha cargado correctamente");
+
 const form = document.getElementById('registroForm');
 
-if (form) {
+if (!form) {
+    console.error("❌ ERROR: No se encontró el formulario con ID 'registroForm'");
+} else {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        console.log("Boton presionado, iniciando proceso...");
         
         const submitBtn = form.querySelector('button');
         submitBtn.innerText = "PROCESANDO...";
         submitBtn.disabled = true;
 
         try {
-            // Seleccionamos todos los campos de texto del formulario
             const campos = form.querySelectorAll('input[type="text"]');
-            
-            // Los capturamos por su posición (orden en el que aparecen en el HTML)
             const datos = {
                 nombre: campos[0] ? campos[0].value : "Sin nombre",
                 cedula: campos[1] ? campos[1].value : "Sin cédula",
@@ -24,17 +27,12 @@ if (form) {
                 fechaRegistro: new Date().toISOString()
             };
 
-            console.log("Intentando guardar datos:", datos);
-
-            // Guardar en la colección de Firebase
             await addDoc(collection(db, "solicitudes_tecnicos"), datos);
-
-            alert("¡ÉXITO! Tu solicitud ha sido enviada correctamente.");
+            alert("¡ÉXITO! Datos guardados.");
             form.reset();
-
         } catch (error) {
-            console.error("Error completo:", error);
-            alert("Error al enviar. Verifica tu conexión a Internet.");
+            console.error("Error de Firebase:", error);
+            alert("Error: " + error.message);
         } finally {
             submitBtn.innerText = "ENVIAR SOLICITUD DE ALTA";
             submitBtn.disabled = false;
