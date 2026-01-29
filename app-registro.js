@@ -1,33 +1,36 @@
 import { db, collection, addDoc } from './firebase-config.js';
 
-console.log("🚀 El archivo app-registro.js se ha cargado correctamente");
+console.log("🚀 Sistema FixGo activado");
 
 const form = document.getElementById('registroForm');
 
 if (form) {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const submitBtn = form.querySelector('button');
+        
+        const submitBtn = document.getElementById('submitBtn');
         submitBtn.innerText = "PROCESANDO...";
         submitBtn.disabled = true;
 
         try {
             const campos = form.querySelectorAll('input[type="text"]');
             const datos = {
-                nombre: campos[0]?.value || "Sin nombre",
-                cedula: campos[1]?.value || "Sin cédula",
-                vehiculo: campos[2]?.value || "Sin vehículo",
-                placas: campos[3]?.value || "Sin placas",
+                nombre: campos[0].value,
+                cedula: campos[1].value,
+                vehiculo: campos[2].value,
+                placas: campos[3].value,
                 estatus: "pendiente",
                 fechaRegistro: new Date().toISOString()
             };
 
             await addDoc(collection(db, "solicitudes_tecnicos"), datos);
-            alert("¡ÉXITO! Datos guardados en la base de datos.");
+
+            alert("¡ÉXITO! Tu solicitud ha sido enviada correctamente.");
             form.reset();
+
         } catch (error) {
             console.error("Error:", error);
-            alert("Error de conexión: " + error.message);
+            alert("Error al enviar. Revisa tu conexión.");
         } finally {
             submitBtn.innerText = "ENVIAR SOLICITUD DE ALTA";
             submitBtn.disabled = false;
