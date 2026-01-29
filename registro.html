@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro PRO | FixGo & Finish</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-card { background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px); }
+        input[type="file"]::file-selector-button {
+            background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; margin-right: 10px;
+        }
+    </style>
+</head>
+<body class="bg-[#050510] text-gray-200 min-h-screen">
+
+    <div class="max-w-4xl mx-auto py-12 px-6">
+        <div class="mb-12">
+            <a href="index.html" class="text-blue-500 text-sm font-bold hover:underline">← Volver al Inicio</a>
+            <h1 class="text-4xl font-black mt-4 text-white">Registro de Técnico <span class="text-blue-500 text-6xl">PRO</span></h1>
+            <p class="text-gray-400 mt-2 text-lg">Únete a la red de infraestructura más confiable de Quintana Roo.</p>
+        </div>
+
+        <form id="registroForm" class="space-y-8">
+            
+            <div class="glass-card p-8 rounded-[2rem]">
+                <h2 class="text-xl font-bold mb-6 flex items-center gap-3 text-blue-400">
+                    <span class="w-2 h-8 bg-blue-500 rounded-full"></span> 1. Validación Profesional
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <label class="block text-xs uppercase font-bold text-gray-500 tracking-wider">Nombre Completo (como aparece en ID)</label>
+                        <input type="text" required class="w-full bg-white/5 border border-white/10 p-4 rounded-xl focus:outline-none focus:border-blue-500" placeholder="Ej: Juan Pérez Morales">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-xs uppercase font-bold text-gray-500 tracking-wider">Cédula Profesional (Opcional si aplica)</label>
+                        <input type="text" class="w-full bg-white/5 border border-white/10 p-4 rounded-xl focus:outline-none focus:border-blue-500" placeholder="Número de 8 dígitos">
+                    </div>
+                    <div class="md:col-span-2 space-y-2">
+                        <label class="block text-xs uppercase font-bold text-gray-500 tracking-wider">Diplomas y Certificaciones (PDF/JPG)</label>
+                        <div class="border-2 border-dashed border-white/10 p-6 rounded-xl text-center hover:border-blue-500/50 transition cursor-pointer">
+                            <input type="file" multiple class="text-sm">
+                            <p class="text-xs text-gray-500 mt-2">Sube certificados de marca o cursos técnicos especializados.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card p-8 rounded-[2rem]">
+                <h2 class="text-xl font-bold mb-6 flex items-center gap-3 text-blue-400">
+                    <span class="w-2 h-8 bg-blue-500 rounded-full"></span> 2. Identificación Vehicular
+                </h2>
+                <p class="text-sm text-gray-500 mb-6">Esta información se utiliza únicamente para autorizar tu acceso en casetas de Hoteles y Residenciales de lujo.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <label class="block text-xs uppercase font-bold text-gray-500 tracking-wider">Marca, Modelo y Color</label>
+                        <input type="text" class="w-full bg-white/5 border border-white/10 p-4 rounded-xl focus:outline-none focus:border-blue-500" placeholder="Ej: Nissan NP300 Blanco">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-xs uppercase font-bold text-gray-500 tracking-wider">Placas</label>
+                        <input type="text" class="w-full bg-white/5 border border-white/10 p-4 rounded-xl focus:outline-none focus:border-blue-500" placeholder="Ej: UTP-123-K">
+                    </div>
+                    <div class="md:col-span-2 space-y-2">
+                        <label class="block text-xs uppercase font-bold text-gray-500 tracking-wider">Foto del Vehículo (Visible)</label>
+                        <input type="file" class="w-full bg-white/5 p-3 rounded-xl border border-white/10">
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6 bg-blue-500/5 rounded-2xl border border-blue-500/20">
+                <p class="text-xs text-gray-400 leading-relaxed">
+                    <strong>DECLARACIÓN:</strong> Al enviar este formulario, certifico que toda la documentación cargada es auténtica. Entiendo que FixGo & Finish validará mi cédula profesional y antecedentes. La falsificación de documentos resultará en el veto permanente de la plataforma.
+                </p>
+            </div>
+
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl text-xl shadow-lg shadow-blue-500/20 transition-all transform hover:scale-[1.01] active:scale-[0.99]">
+                ENVIAR SOLICITUD DE ALTA
+            </button>
+
+        </form>
+
+        <footer class="mt-12 text-center text-gray-600 text-xs">
+            © 2026 FIXGO & FINISH | Seguridad e Ingeniería en Quintana Roo.
+        </footer>
+    </div>
+
+</body>
+</html>
