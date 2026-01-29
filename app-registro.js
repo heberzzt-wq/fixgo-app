@@ -4,49 +4,35 @@ const form = document.getElementById('registroForm');
 
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    console.log("Formulario detectado, iniciando envío...");
     
-    // Cambiamos el botón para mostrar que está cargando
     const submitBtn = form.querySelector('button');
-    submitBtn.innerText = "PROCESANDO SOLICITUD...";
+    submitBtn.innerText = "PROCESANDO...";
     submitBtn.disabled = true;
 
     try {
-        // 1. Capturamos los datos del formulario
-        const nombre = form.querySelector('input[placeholder*="Nombre"]').value;
-        const cedula = form.querySelector('input[placeholder*="Cédula"]').value;
-        const vehiculoDesc = form.querySelector('input[placeholder*="Marca"]').value;
-        const placas = form.querySelector('input[placeholder*="Placas"]').value;
-        
-        // 2. Subir imagen del vehículo (si existe)
-        const fotoVehiculo = form.querySelectorAll('input[type="file"]')[1].files[0];
-        let fotoURL = "";
-        
-        if (fotoVehiculo) {
-            const storageRef = ref(storage, `vehiculos/${Date.now()}_${fotoVehiculo.name}`);
-            await uploadBytes(storageRef, fotoVehiculo);
-            fotoURL = await getDownloadURL(storageRef);
-        }
+        // Capturamos los campos
+        const nombre = form.querySelector('input[type="text"]').value;
+        // Buscamos el campo de cédula (el segundo input de texto)
+        const inputs = form.querySelectorAll('input[type="text"]');
+        const cedula = inputs[1] ? inputs[1].value : "No provista";
 
-        // 3. Guardar todo en la base de datos Firestore
+        console.log("Enviando datos de:", nombre);
+
+        // Guardar en Firestore
         await addDoc(collection(db, "solicitudes_tecnicos"), {
-            nombre,
-            cedula,
-            vehiculo: {
-                descripcion: vehiculoDesc,
-                placas: placas,
-                foto: fotoURL
-            },
+            nombre: nombre,
+            cedula: cedula,
             estatus: "pendiente",
             fechaRegistro: new Date().toISOString()
         });
 
-        alert("¡Solicitud enviada con éxito! Revisaremos tus documentos pronto.");
+        alert("¡ÉXITO! Datos guardados en la base de datos.");
         form.reset();
-        window.location.href = "index.html";
 
     } catch (error) {
-        console.error("Error al registrar:", error);
-        alert("Hubo un error al enviar. Revisa tu conexión.");
+        console.error("Error detallado:", error);
+        alert("Error de conexión: " + error.message);
     } finally {
         submitBtn.innerText = "ENVIAR SOLICITUD DE ALTA";
         submitBtn.disabled = false;
