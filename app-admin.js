@@ -6,59 +6,49 @@ const firebaseConfig = {
     authDomain: "fixgo-44e4d.firebaseapp.com",
     projectId: "fixgo-44e4d",
     storageBucket: "fixgo-44e4d.appspot.com",
-    messagingSenderId: "54271811634",
     appId: "1:54271811634:web:53a6f4e1f727774e74e64f"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 let map;
-let markers = {};
+let markers = {}; 
 
-// 1. DEFINICIÓN GLOBAL INMEDIATA PARA EVITAR EL ERROR DE LA CAPTURA 198
 window.initMap = function() {
-    console.log("🛰️ Sistema de Rastreo FixGo Iniciado");
-    
-    const mapElement = document.getElementById("map");
-    map = new google.maps.Map(mapElement, {
-        center: { lat: 21.1619, lng: -86.8515 }, // Cancún
-        zoom: 13,
+    map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 21.1619, lng: -86.8515 },
+        zoom: 12,
         styles: [{ "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] }],
         disableDefaultUI: true
     });
-    
-    // Iniciar escucha de Firebase una vez el mapa esté listo
-    escucharBaseDatos();
+    escucharFlota();
 };
 
-function escucharBaseDatos() {
+function escucharFlota() {
     onSnapshot(collection(db, "tecnicos"), (snapshot) => {
         snapshot.forEach((docSnap) => {
             const t = docSnap.data();
             const id = docSnap.id;
+            const lat = Number(t.lat);
+            const lng = Number(t.lng);
 
-            // 2. TRATAMIENTO FLEXIBLE DE COORDENADAS (Captura 187)
-            // Forzamos conversión a número sin importar si Firebase lo envía como String o Number
-            const latitud = Number(t.lat);
-            const longitud = Number(t.lng);
-
-            if (!isNaN(latitud) && !isNaN(longitud)) {
-                // Si el técnico ya tiene marcador, lo movemos en lugar de crear uno nuevo
+            if (!isNaN(lat) && !isNaN(lng)) {
+                // Si el técnico ya tiene marcador, lo actualizamos; si no, lo creamos
                 if (markers[id]) {
-                    markers[id].setPosition({ lat: latitud, lng: longitud });
+                    markers[id].setPosition({ lat, lng });
                 } else {
                     markers[id] = new google.maps.Marker({
-                        position: { lat: latitud, lng: longitud },
+                        position: { lat, lng },
                         map: map,
                         title: t.nombre,
-                        // 3. ICONO DE EMERGENCIA (Si el AdBlock bloquea el PNG, usaremos el marcador estándar)
                         icon: {
-                            url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
-                            scaledSize: new google.maps.Size(40, 40)
+                            // ICONO: Camioneta Blanca (Estilo Isometric)
+                            url: "https://img.icons8.com/isometric/50/ffffff/delivery-truck.png", 
+                            scaledSize: new google.maps.Size(45, 45),
+                            anchor: new google.maps.Point(22, 22)
                         }
                     });
                 }
-                console.log(`📍 Pedro (ID: ${id}) renderizado en: ${latitud}, ${longitud}`);
             }
         });
     });
