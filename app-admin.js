@@ -14,12 +14,29 @@ const firebaseConfig = {
 // Inicializamos Firebase dentro de este archivo
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+// ... (mismo encabezado e inicialización de arriba)
 
 async function cargarDatos() {
-    console.log("🚀 Iniciando conexión directa...");
+    console.log("🚀 Probando conexión directa a Firestore...");
     const tablaTec = document.getElementById('tablaTecnicos');
-    const listaCli = document.getElementById('listaClientes');
 
+    try {
+        // Intento de lectura simple
+        const colRef = collection(db, "tecnicos");
+        const snapshot = await getDocs(colRef);
+        
+        console.log("✅ Conexión establecida. Documentos encontrados:", snapshot.size);
+
+        if (snapshot.empty) {
+            tablaTec.innerHTML = "<tr><td colspan='3' class='py-4 text-center'>Base de datos vacía.</td></tr>";
+        } else {
+            // ... resto del código para llenar la tabla
+        }
+    } catch (e) {
+        console.error("❌ ERROR DETECTADO:", e.code, e.message);
+        // Si el error es 'permission-denied', el problema es 100% las Reglas de Firebase
+    }
+}
     try {
         // Consulta Técnicos
         const queryTec = await getDocs(collection(db, "tecnicos"));
