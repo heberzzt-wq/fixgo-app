@@ -6,6 +6,7 @@ const firebaseConfig = {
     authDomain: "fixgo-44e4d.firebaseapp.com",
     projectId: "fixgo-44e4d",
     storageBucket: "fixgo-44e4d.appspot.com",
+    messagingSenderId: "54271811634",
     appId: "1:54271811634:web:53a6f4e1f727774e74e64f"
 };
 
@@ -15,41 +16,73 @@ let map;
 let markers = {}; 
 
 window.initMap = function() {
+    console.log("🚚 Central FixGo: Buscando camionetas blancas...");
     map = new google.maps.Map(document.getElementById("map"), {
         center: { lat: 21.1619, lng: -86.8515 },
         zoom: 12,
-        styles: [{ "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] }],
+        styles: [
+            { "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] },
+            { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
+            { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#020617" }] }
+        ],
         disableDefaultUI: true
     });
     escucharFlota();
 };
 
 function escucharFlota() {
+    const tabla = document.getElementById('tablaTecnicos');
+    const contador = document.getElementById('contadorActivos'); // Si tienes un ID para el "0" de tu foto
+
     onSnapshot(collection(db, "tecnicos"), (snapshot) => {
+        if (tabla) tabla.innerHTML = "";
+        let activos = 0;
+
         snapshot.forEach((docSnap) => {
             const t = docSnap.data();
             const id = docSnap.id;
+            
+            // Forzamos que lat/lng sean números reales
             const lat = Number(t.lat);
             const lng = Number(t.lng);
 
             if (!isNaN(lat) && !isNaN(lng)) {
-                // Si el técnico ya tiene marcador, lo actualizamos; si no, lo creamos
+                activos++;
+                const pos = { lat, lng };
+
+                // Actualizar o crear marcador de Camioneta Blanca
                 if (markers[id]) {
-                    markers[id].setPosition({ lat, lng });
+                    markers[id].setPosition(pos);
                 } else {
                     markers[id] = new google.maps.Marker({
-                        position: { lat, lng },
+                        position: pos,
                         map: map,
                         title: t.nombre,
                         icon: {
-                            // ICONO: Camioneta Blanca (Estilo Isometric)
-                            url: "https://img.icons8.com/isometric/50/ffffff/delivery-truck.png", 
-                            scaledSize: new google.maps.Size(45, 45),
-                            anchor: new google.maps.Point(22, 22)
+                            // Camioneta Blanca Isométrica
+                            url: "https://img.icons8.com/isometric/50/ffffff/delivery-truck.png",
+                            scaledSize: new google.maps.Size(45, 45)
                         }
                     });
                 }
+
+                // Llenar la tabla para que no marque 0 (Captura 204)
+                if (tabla) {
+                    tabla.innerHTML += `
+                    <tr class="border-b border-white/5">
+                        <td class="py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                                <span class="font-bold text-blue-400">${t.nombre}</span>
+                            </div>
+                        </td>
+                        <td class="py-4 text-slate-400 text-xs">${t.vehiculo || 'Camioneta Blanca'}</td>
+                        <td class="py-4 text-right text-[10px] text-slate-500">${t.estado || 'ACTIVO'}</td>
+                    </tr>`;
+                }
             }
         });
+        // Actualizar el número de la cabecera
+        if (contador) contador.innerText = activos;
     });
 }
