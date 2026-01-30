@@ -1,4 +1,6 @@
+// Importamos solo lo necesario de la configuración que ya creaste
 import { db } from './firebase-config.js';
+// Importamos las funciones de lectura directamente de la librería oficial
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 console.log("🛠️ Intentando conectar con la base de datos...");
@@ -8,14 +10,16 @@ async function cargarDatos() {
     const listaCli = document.getElementById('listaClientes');
 
     try {
-        // LEER TÉCNICOS
+        // 1. LEER TÉCNICOS
         console.log("Consultando técnicos...");
-        const queryTec = await getDocs(collection(db, "tecnicos"));
+        const colTecnicos = collection(db, "tecnicos"); // Referencia corregida
+        const queryTec = await getDocs(colTecnicos);
+        
+        tablaTec.innerHTML = ""; // Limpiamos la tabla
         
         if (queryTec.empty) {
-            tablaTec.innerHTML = "<tr><td colspan='3' class='py-4 text-center text-slate-500'>No hay técnicos registrados aún.</td></tr>";
+            tablaTec.innerHTML = "<tr><td colspan='3' class='py-4 text-center text-slate-500'>No hay técnicos aún.</td></tr>";
         } else {
-            tablaTec.innerHTML = "";
             queryTec.forEach((doc) => {
                 const t = doc.data();
                 tablaTec.innerHTML += `
@@ -28,20 +32,22 @@ async function cargarDatos() {
             });
         }
 
-        // LEER CLIENTES
+        // 2. LEER CLIENTES
         console.log("Consultando clientes...");
-        const queryCli = await getDocs(collection(db, "clientes"));
+        const colClientes = collection(db, "clientes"); // Referencia corregida
+        const queryCli = await getDocs(colClientes);
+        
+        listaCli.innerHTML = ""; // Limpiamos la lista
         
         if (queryCli.empty) {
-            listaCli.innerHTML = "<p class='text-slate-500 text-sm'>No hay clientes registrados.</p>";
+            listaCli.innerHTML = "<p class='text-slate-500 text-sm italic'>No hay clientes registrados.</p>";
         } else {
-            listaCli.innerHTML = "";
             queryCli.forEach((doc) => {
                 const c = doc.data();
                 listaCli.innerHTML += `
                     <div class="bg-slate-900/50 p-4 rounded-2xl border border-slate-700 mb-3">
-                        <p class="font-bold text-indigo-300 text-sm">${c.nombre || 'Cliente Anónimo'}</p>
-                        <p class="text-xs text-slate-500">${c.telefono || 'Sin tel'} | ${c.direccion || 'Sin dir'}</p>
+                        <p class="font-bold text-indigo-300 text-sm">${c.nombre || 'Cliente'}</p>
+                        <p class="text-xs text-slate-500">${c.telefono || ''} | ${c.direccion || ''}</p>
                     </div>
                 `;
             });
@@ -49,9 +55,8 @@ async function cargarDatos() {
 
     } catch (error) {
         console.error("❌ Error al cargar datos:", error);
-        alert("Error de conexión. Revisa la consola (F12).");
     }
 }
 
-// Ejecutar la carga
+// Ejecutamos la función al cargar la página
 cargarDatos();
