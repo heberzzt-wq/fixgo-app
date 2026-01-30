@@ -31,8 +31,9 @@ window.initMap = function() {
 };
 
 function escucharFlota() {
+    // AJUSTE DE IDS SEGÚN TU HTML:
     const tabla = document.getElementById('tablaTecnicos');
-    const contador = document.getElementById('contadorActivos'); // Si tienes un ID para el "0" de tu foto
+    const contador = document.getElementById('countTec'); // Cambiado de 'contadorActivos' a 'countTec'
 
     onSnapshot(collection(db, "tecnicos"), (snapshot) => {
         if (tabla) tabla.innerHTML = "";
@@ -42,7 +43,7 @@ function escucharFlota() {
             const t = docSnap.data();
             const id = docSnap.id;
             
-            // Forzamos que lat/lng sean números reales
+            // Forzamos conversión a número (por si vienen como texto desde Firebase)
             const lat = Number(t.lat);
             const lng = Number(t.lng);
 
@@ -50,7 +51,7 @@ function escucharFlota() {
                 activos++;
                 const pos = { lat, lng };
 
-                // Actualizar o crear marcador de Camioneta Blanca
+                // Gestionar marcadores en el mapa
                 if (markers[id]) {
                     markers[id].setPosition(pos);
                 } else {
@@ -59,30 +60,37 @@ function escucharFlota() {
                         map: map,
                         title: t.nombre,
                         icon: {
-                            // Camioneta Blanca Isométrica
-                            url: "https://img.icons8.com/isometric/50/ffffff/delivery-truck.png",
+                            url: "https://img.icons8.com/isometric/50/ffffff/delivery-truck.png", // CAMIONETA BLANCA
                             scaledSize: new google.maps.Size(45, 45)
                         }
                     });
                 }
 
-                // Llenar la tabla para que no marque 0 (Captura 204)
+                // Inyectar filas en la tabla (ID Operador / Vehículo / Acción)
                 if (tabla) {
                     tabla.innerHTML += `
-                    <tr class="border-b border-white/5">
+                    <tr class="border-b border-white/5 hover:bg-white/5 transition">
                         <td class="py-4">
                             <div class="flex items-center gap-3">
                                 <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                                <span class="font-bold text-blue-400">${t.nombre}</span>
+                                <div>
+                                    <div class="font-bold text-blue-400">${t.nombre}</div>
+                                    <div class="text-[10px] text-slate-500 font-mono">${id.substring(0,6)}</div>
+                                </div>
                             </div>
                         </td>
                         <td class="py-4 text-slate-400 text-xs">${t.vehiculo || 'Camioneta Blanca'}</td>
-                        <td class="py-4 text-right text-[10px] text-slate-500">${t.estado || 'ACTIVO'}</td>
+                        <td class="py-4 text-right">
+                             <span class="text-[10px] text-emerald-500 font-bold bg-emerald-500/10 px-2 py-1 rounded-md">EN LÍNEA</span>
+                        </td>
                     </tr>`;
                 }
             }
         });
-        // Actualizar el número de la cabecera
-        if (contador) contador.innerText = activos;
+
+        // Actualizar el contador visual "Unidades Activas"
+        if (contador) {
+            contador.innerText = activos;
+        }
     });
 }
