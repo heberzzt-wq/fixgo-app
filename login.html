@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>FixGo | Login</title>
+</head>
+<body>
+
+<h2>Iniciar sesión FixGo</h2>
+
+<input id="email" type="email" placeholder="Correo"><br><br>
+<input id="password" type="password" placeholder="Contraseña"><br><br>
+
+<button id="loginEmail">Entrar</button>
+<button id="loginGoogle">Entrar con Google</button>
+
+<p id="msg"></p>
+
+<script type="module">
+import {
+  auth,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  googleProvider
+} from "./firebase-auth.js";
+
+const msg = document.getElementById("msg");
+
+document.getElementById("loginEmail").onclick = async () => {
+  try {
+    await signInWithEmailAndPassword(
+      auth,
+      email.value,
+      password.value
+    );
+    window.location.href = "index.html";
+  } catch (e) {
+    msg.innerText = e.message;
+  }
+};
+
+document.getElementById("loginGoogle").onclick = async () => {
+  try {
+    await signInWithPopup(auth, googleProvider);
+    window.location.href = "index.html";
+  } catch (e) {
+    msg.innerText = e.message;
+  }
+};
+</script>
+
+</body>
+</html>
