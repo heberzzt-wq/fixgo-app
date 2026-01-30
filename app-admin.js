@@ -11,42 +11,38 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-import { getFirestore, collection, getDocs, terminate } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-// ... (después de inicializar la app)
 const db = getFirestore(app);
 
 async function cargarDatos() {
-    console.log("🚀 Iniciando carga de datos en Panel Admin...");
-    
+    console.log("🚀 Iniciando carga de datos final...");
     const tablaTec = document.getElementById('tablaTecnicos');
     const listaCli = document.getElementById('listaClientes');
 
     try {
-        // --- SECCIÓN TÉCNICOS ---
+        // Cargar Técnicos
         const queryTec = await getDocs(collection(db, "tecnicos"));
-        console.log("✅ Técnicos leídos:", queryTec.size);
-        
+        console.log("✅ Técnicos en BD:", queryTec.size);
         tablaTec.innerHTML = "";
+        
         if (queryTec.empty) {
-            tablaTec.innerHTML = "<tr><td colspan='3' class='py-4 text-center text-slate-500'>No hay técnicos registrados.</td></tr>";
+            tablaTec.innerHTML = "<tr><td colspan='3' class='py-10 text-center text-slate-500'>No hay técnicos registrados aún.</td></tr>";
         } else {
             queryTec.forEach((doc) => {
                 const t = doc.data();
                 tablaTec.innerHTML += `
                     <tr class="border-b border-slate-700/50">
-                        <td class="py-4 font-bold text-blue-400">${t.nombre || 'Sin nombre'}</td>
+                        <td class="py-4 font-bold text-blue-400">${t.nombre || 'N/A'}</td>
                         <td class="py-4 text-slate-400 text-xs">${t.vehiculo || 'N/A'}</td>
                         <td class="py-4"><span class="bg-green-500/10 text-green-400 px-2 py-1 rounded-md text-[10px] font-black italic">ACTIVO</span></td>
                     </tr>`;
             });
         }
 
-        // --- SECCIÓN CLIENTES ---
+        // Cargar Clientes
         const queryCli = await getDocs(collection(db, "clientes"));
-        console.log("✅ Clientes leídos:", queryCli.size);
-        
+        console.log("✅ Clientes en BD:", queryCli.size);
         listaCli.innerHTML = "";
+        
         if (queryCli.empty) {
             listaCli.innerHTML = "<p class='text-slate-500 text-sm p-4'>No hay clientes registrados.</p>";
         } else {
@@ -54,17 +50,13 @@ async function cargarDatos() {
                 const c = doc.data();
                 listaCli.innerHTML += `
                     <div class="bg-slate-900/50 p-4 rounded-2xl border border-slate-700 mb-3 shadow-sm">
-                        <p class="font-bold text-indigo-300 text-sm">${c.nombre || 'Anónimo'}</p>
-                        <p class="text-xs text-slate-500">${c.telefono || 'Sin tel'} | ${c.direccion || 'Sin dir'}</p>
+                        <p class="font-bold text-indigo-300 text-sm">${c.nombre || 'Cliente'}</p>
+                        <p class="text-xs text-slate-500">${c.telefono || ''} | ${c.direccion || ''}</p>
                     </div>`;
             });
         }
-
     } catch (e) {
-        console.error("❌ ERROR CRÍTICO:", e.code, e.message);
-        if (e.code === 'permission-denied') {
-            alert("⚠️ Error de permisos: Revisa las REGLAS en la consola de Firebase.");
-        }
+        console.error("❌ Error al leer:", e);
     }
 }
 
