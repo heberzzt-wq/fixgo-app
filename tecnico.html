@@ -3,32 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo - Panel de Operador</title>
+    <title>FixGo - Operador</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
-<body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-6">
-    <div class="max-w-md w-full bg-slate-800 rounded-[2.5rem] p-8 border border-white/10 shadow-2xl">
-        <div class="text-center mb-8">
-            <div class="w-20 h-20 bg-blue-500 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl">
-                <i class="fas fa-user-tie"></i>
+<body class="bg-[#0a0a16] text-white min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-md w-full bg-slate-900/50 backdrop-blur-xl border border-white/10 p-8 rounded-[3rem] shadow-2xl text-center">
+        <div class="mb-6">
+            <div class="w-20 h-20 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-3xl shadow-lg shadow-blue-500/20">
+                <i class="fas fa-truck-loading"></i>
             </div>
-            <h1 class="text-2xl font-bold" id="nombreTecnico">Cargando...</h1>
-            <p class="text-slate-400 text-sm" id="unidadTecnico">Unidad No Identificada</p>
+            <h1 id="nombreTecnico" class="text-2xl font-black mt-4">Cargando...</h1>
+            <p id="unidadTecnico" class="text-slate-500 text-sm uppercase tracking-widest">Sincronizando Unidad</p>
         </div>
 
-        <div class="space-y-4">
-            <button onclick="cambiarEstado('DISPONIBLE')" class="w-full py-4 bg-emerald-500 hover:bg-emerald-600 rounded-2xl font-bold flex items-center justify-center gap-3 transition">
-                <i class="fas fa-check-circle"></i> ESTOY DISPONIBLE
+        <div class="grid gap-4">
+            <button onclick="cambiarEstado('DISPONIBLE')" class="group bg-emerald-500/10 border border-emerald-500/20 p-6 rounded-3xl hover:bg-emerald-500 transition-all duration-300">
+                <i class="fas fa-check-circle text-emerald-500 group-hover:text-white text-2xl mb-2"></i>
+                <span class="block font-bold group-hover:text-white">ESTOY DISPONIBLE</span>
             </button>
-            <button onclick="cambiarEstado('EN SERVICIO')" class="w-full py-4 bg-orange-500 hover:bg-orange-600 rounded-2xl font-bold flex items-center justify-center gap-3 transition">
-                <i class="fas fa-tools"></i> EN SERVICIO (OCUPADO)
+
+            <button onclick="cambiarEstado('EN SERVICIO')" class="group bg-orange-500/10 border border-orange-500/20 p-6 rounded-3xl hover:bg-orange-500 transition-all duration-300">
+                <i class="fas fa-tools text-orange-500 group-hover:text-white text-2xl mb-2"></i>
+                <span class="block font-bold group-hover:text-white">EN SERVICIO</span>
             </button>
         </div>
         
-        <p class="text-center text-[10px] text-slate-500 mt-8 tracking-widest uppercase font-bold">FixGo Logistic System v2.0</p>
+        <p class="mt-8 text-[10px] text-slate-600 font-bold uppercase tracking-widest">FixGo Live Status v2.0</p>
     </div>
-
     <script type="module" src="app-tecnico.js"></script>
 </body>
 </html>
