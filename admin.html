@@ -3,34 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo Admin - Panel de Control</title>
+    <title>FixGo Admin - Torre de Control</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); }
+        #map { height: 400px; width: 100%; border-radius: 24px; }
+    </style>
 </head>
-<body class="bg-slate-900 text-white min-h-screen p-6">
+<body class="bg-[#0a0a16] text-white min-h-screen p-4 md:p-8">
 
     <div class="max-w-7xl mx-auto">
-        <header class="flex justify-between items-center mb-10">
+        <header class="flex justify-between items-center mb-8">
             <div>
-                <h1 class="text-4xl font-black text-blue-400 italic">FIXGO <span class="text-white">CONTROL</span></h1>
-                <p class="text-slate-400">Gestión de flota y clientes en tiempo real</p>
+                <h1 class="text-3xl font-black text-blue-500 tracking-tighter">FIXGO <span class="text-white text-xl">CENTRAL</span></h1>
+                <p class="text-slate-400 text-sm">Monitoreo de flota y servicios en tiempo real</p>
             </div>
-            <a href="index.html" class="bg-slate-800 px-6 py-2 rounded-xl text-sm font-bold border border-slate-700 hover:bg-slate-700 transition">Cerrar Sesión</a>
+            <div class="flex gap-3">
+                <button onclick="location.reload()" class="bg-slate-800 p-3 rounded-xl hover:bg-slate-700 transition">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <a href="index.html" class="bg-red-500/10 text-red-500 px-6 py-2 rounded-xl font-bold border border-red-500/20 hover:bg-red-500 hover:text-white transition">Salir</a>
+            </div>
         </header>
 
+        <div class="grid grid-cols-1 gap-8 mb-8">
+            <div class="glass border border-white/10 p-4 rounded-[2.5rem] shadow-2xl">
+                <div id="map" class="bg-slate-900"></div>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div class="bg-slate-800/50 border border-slate-700 rounded-3xl p-8 backdrop-blur-md">
-                <div class="flex items-center gap-3 mb-6 text-blue-400">
-                    <i class="fas fa-hard-hat text-2xl"></i>
-                    <h2 class="text-xl font-bold text-white">Técnicos Registrados</h2>
-                </div>
+            
+            <div class="glass border border-white/10 p-6 rounded-[2rem]">
+                <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+                    <i class="fas fa-hard-hat text-blue-500"></i> Técnicos Activos
+                </h2>
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="text-slate-500 text-xs uppercase tracking-widest border-b border-slate-700">
-                                <th class="pb-4">Nombre</th>
+                    <table class="w-full text-left">
+                        <thead class="text-slate-500 text-xs uppercase border-b border-white/5">
+                            <tr>
+                                <th class="pb-4">Técnico</th>
                                 <th class="pb-4">Vehículo</th>
-                                <th class="pb-4">Estado</th>
+                                <th class="pb-4 text-right">Acción</th>
                             </tr>
                         </thead>
                         <tbody id="tablaTecnicos" class="text-sm">
@@ -39,17 +54,18 @@
                 </div>
             </div>
 
-            <div class="bg-slate-800/50 border border-slate-700 rounded-3xl p-8 backdrop-blur-md">
-                <div class="flex items-center gap-3 mb-6 text-indigo-400">
-                    <i class="fas fa-users text-2xl"></i>
-                    <h2 class="text-xl font-bold text-white">Clientes Nuevos</h2>
-                </div>
+            <div class="glass border border-white/10 p-6 rounded-[2rem]">
+                <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+                    <i class="fas fa-user-tie text-indigo-500"></i> Clientes Nuevos
+                </h2>
                 <div id="listaClientes" class="space-y-4">
                     </div>
             </div>
+
         </div>
     </div>
 
     <script type="module" src="app-admin.js"></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDyplCp33LneGhqr6yd1VsIYBMdsLDK7gA&callback=initMap"></script>
 </body>
 </html>
