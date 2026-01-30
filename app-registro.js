@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// USAMOS EL ID 44e4d QUE ES EL QUE YA FUNCIONÓ EN EL ADMIN
 const firebaseConfig = {
     apiKey: "AIzaSyDyplCp33LneGhqr6yd1VsIYBMdsLDK7gA",
     authDomain: "fixgo-44e4d.firebaseapp.com",
@@ -16,36 +15,43 @@ const db = getFirestore(app);
 
 const form = document.getElementById('registroForm');
 
-form.addEventListener('submit', async (e) => {
+form.addEventListener('submit', (e) => {
     e.preventDefault();
-    
     const btn = document.getElementById('submitBtn');
-    btn.innerText = "REGISTRANDO...";
+    btn.innerText = "OBTENIENDO GPS...";
     btn.disabled = true;
 
-    // Obtenemos los valores de los inputs por su orden
-    const inputs = form.querySelectorAll('input');
-    
-    const datosTecnico = {
-        nombre: inputs[0].value,
-        cedula: inputs[1].value,
-        vehiculo: inputs[2].value,
-        placas: inputs[3].value,
-        fechaRegistro: new Date().toISOString()
-    };
+    // SOLICITAR UBICACIÓN REAL
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
 
-    try {
-        // ENVIAMOS A LA COLECCIÓN "tecnicos"
-        await addDoc(collection(db, "tecnicos"), datosTecnico);
-        
-        alert("✅ ¡Técnico registrado con éxito!");
-        form.reset();
-        window.location.href = "index.html"; // Redirigir al inicio después de registrar
-    } catch (error) {
-        console.error("Error al registrar:", error);
-        alert("❌ Error: " + error.message);
-    } finally {
-        btn.innerText = "ENVIAR SOLICITUD DE ALTA";
-        btn.disabled = false;
+            const inputs = form.querySelectorAll('input');
+            const datosTecnico = {
+                nombre: inputs[0].value,
+                cedula: inputs[1].value,
+                vehiculo: inputs[2].value,
+                placas: inputs[3].value,
+                lat: lat,
+                lng: lng,
+                ultimaConexion: new Date().toISOString(),
+                estado: "ACTIVO"
+            };
+
+            try {
+                await addDoc(collection(db, "tecnicos"), datosTecnico);
+                alert("✅ Registrado con éxito en tu ubicación actual.");
+                window.location.href = "index.html";
+            } catch (error) {
+                alert("Error: " + error.message);
+            }
+        }, (error) => {
+            alert("⚠️ Por favor activa el GPS para registrarte.");
+            btn.innerText = "ENVIAR SOLICITUD DE ALTA";
+            btn.disabled = false;
+        });
+    } else {
+        alert("Tu navegador no soporta GPS.");
     }
 });
