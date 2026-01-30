@@ -3,9 +3,9 @@ import { getFirestore, collection, getDocs } from "https://www.gstatic.com/fireb
 
 const firebaseConfig = {
     apiKey: "AIzaSyDyplCp33LneGhqr6yd1VsIYBMdsLDK7gA",
-    authDomain: "fixgo-bd.firebaseapp.com",
-    projectId: "fixgo-bd",
-    storageBucket: "fixgo-bd.appspot.com",
+    authDomain: "fixgo-44e4d.firebaseapp.com", // Cambiado a 44e4d
+    projectId: "fixgo-44e4d",                 // Cambiado a 44e4d
+    storageBucket: "fixgo-44e4d.appspot.com",   // Cambiado a 44e4d
     messagingSenderId: "54271811634",
     appId: "1:54271811634:web:53a6f4e1f727774e74e64f"
 };
