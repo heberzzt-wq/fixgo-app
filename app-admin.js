@@ -11,6 +11,9 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+import { getFirestore, collection, getDocs, terminate } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+// ... (después de inicializar la app)
 const db = getFirestore(app);
 
 async function cargarDatos() {
