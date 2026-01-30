@@ -1,6 +1,7 @@
 import { db, collection, addDoc } from './firebase-config.js';
 
-console.log("🚀 Sistema FixGo activado");
+// Esto nos confirmará en la consola que el cerebro está encendido
+console.log("🚀 Cerebro de FixGo activado y conectado");
 
 const form = document.getElementById('registroForm');
 
@@ -9,11 +10,16 @@ if (form) {
         e.preventDefault();
         
         const submitBtn = document.getElementById('submitBtn');
-        submitBtn.innerText = "PROCESANDO...";
+        const originalText = submitBtn.innerText;
+        
+        // Bloqueamos el botón para evitar múltiples envíos
+        submitBtn.innerText = "ENVIANDO...";
         submitBtn.disabled = true;
 
         try {
-            const campos = form.querySelectorAll('input[type="text"]');
+            // Capturamos los datos de los 4 campos
+            const campos = form.querySelectorAll('input');
+            
             const datos = {
                 nombre: campos[0].value,
                 cedula: campos[1].value,
@@ -23,17 +29,21 @@ if (form) {
                 fechaRegistro: new Date().toISOString()
             };
 
+            // Enviamos a la colección "solicitudes_tecnicos"
             await addDoc(collection(db, "solicitudes_tecnicos"), datos);
 
-            alert("¡ÉXITO! Tu solicitud ha sido enviada correctamente.");
+            alert("¡ÉXITO! Tu registro ha sido enviado a la base de datos.");
             form.reset();
 
         } catch (error) {
-            console.error("Error:", error);
-            alert("Error al enviar. Revisa tu conexión.");
+            console.error("Error al guardar:", error);
+            alert("Hubo un error de conexión. Intenta de nuevo.");
         } finally {
-            submitBtn.innerText = "ENVIAR SOLICITUD DE ALTA";
+            // Devolvemos el botón a su estado normal
+            submitBtn.innerText = originalText;
             submitBtn.disabled = false;
         }
     });
+} else {
+    console.error("❌ No se encontró el formulario con ID 'registroForm'");
 }
