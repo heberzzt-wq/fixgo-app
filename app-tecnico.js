@@ -13,31 +13,24 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-async function cargarDatos() {
-    // Buscamos a Pedro en la base de datos
+async function cargarPerfil() {
     const q = query(collection(db, "tecnicos"), where("nombre", "==", "Pedro"));
     const querySnapshot = await getDocs(q);
     
-    if (querySnapshot.empty) {
-        document.getElementById('nombreTecnico').innerText = "No encontrado";
-        return;
-    }
-
     querySnapshot.forEach((documento) => {
         document.getElementById('nombreTecnico').innerText = documento.data().nombre;
         document.getElementById('unidadTecnico').innerText = documento.data().vehiculo;
-        window.tecnicoId = documento.id; 
+        window.currentTecId = documento.id; 
     });
 }
 
 window.cambiarEstado = async function(nuevoEstado) {
-    if (!window.tecnicoId) return alert("Error: ID no encontrado");
-    
-    const tecRef = doc(db, "tecnicos", window.tecnicoId);
+    if (!window.currentTecId) return;
+    const tecRef = doc(db, "tecnicos", window.currentTecId);
     try {
         await updateDoc(tecRef, { estado: nuevoEstado });
-        alert("Estado actualizado: " + nuevoEstado);
-    } catch (e) { alert("Error al conectar"); }
+        alert("Estado: " + nuevoEstado);
+    } catch (e) { alert("Error de red"); }
 }
 
-cargarDatos();
+cargarPerfil();
