@@ -1,49 +1,51 @@
-import { db, collection, addDoc } from './firebase-config.js';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Esto nos confirmará en la consola que el cerebro está encendido
-console.log("🚀 Cerebro de FixGo activado y conectado");
+// USAMOS EL ID 44e4d QUE ES EL QUE YA FUNCIONÓ EN EL ADMIN
+const firebaseConfig = {
+    apiKey: "AIzaSyDyplCp33LneGhqr6yd1VsIYBMdsLDK7gA",
+    authDomain: "fixgo-44e4d.firebaseapp.com",
+    projectId: "fixgo-44e4d",
+    storageBucket: "fixgo-44e4d.appspot.com",
+    messagingSenderId: "54271811634",
+    appId: "1:54271811634:web:53a6f4e1f727774e74e64f"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 const form = document.getElementById('registroForm');
 
-if (form) {
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const btn = document.getElementById('submitBtn');
+    btn.innerText = "REGISTRANDO...";
+    btn.disabled = true;
+
+    // Obtenemos los valores de los inputs por su orden
+    const inputs = form.querySelectorAll('input');
+    
+    const datosTecnico = {
+        nombre: inputs[0].value,
+        cedula: inputs[1].value,
+        vehiculo: inputs[2].value,
+        placas: inputs[3].value,
+        fechaRegistro: new Date().toISOString()
+    };
+
+    try {
+        // ENVIAMOS A LA COLECCIÓN "tecnicos"
+        await addDoc(collection(db, "tecnicos"), datosTecnico);
         
-        const submitBtn = document.getElementById('submitBtn');
-        const originalText = submitBtn.innerText;
-        
-        // Bloqueamos el botón para evitar múltiples envíos
-        submitBtn.innerText = "ENVIANDO...";
-        submitBtn.disabled = true;
-
-        try {
-            // Capturamos los datos de los 4 campos
-            const campos = form.querySelectorAll('input');
-            
-            const datos = {
-                nombre: campos[0].value,
-                cedula: campos[1].value,
-                vehiculo: campos[2].value,
-                placas: campos[3].value,
-                estatus: "pendiente",
-                fechaRegistro: new Date().toISOString()
-            };
-
-            // Enviamos a la colección "solicitudes_tecnicos"
-            await addDoc(collection(db, "solicitudes_tecnicos"), datos);
-
-            alert("¡ÉXITO! Tu registro ha sido enviado a la base de datos.");
-            form.reset();
-
-        } catch (error) {
-            console.error("Error al guardar:", error);
-            alert("Hubo un error de conexión. Intenta de nuevo.");
-        } finally {
-            // Devolvemos el botón a su estado normal
-            submitBtn.innerText = originalText;
-            submitBtn.disabled = false;
-        }
-    });
-} else {
-    console.error("❌ No se encontró el formulario con ID 'registroForm'");
-}
+        alert("✅ ¡Técnico registrado con éxito!");
+        form.reset();
+        window.location.href = "index.html"; // Redirigir al inicio después de registrar
+    } catch (error) {
+        console.error("Error al registrar:", error);
+        alert("❌ Error: " + error.message);
+    } finally {
+        btn.innerText = "ENVIAR SOLICITUD DE ALTA";
+        btn.disabled = false;
+    }
+});
