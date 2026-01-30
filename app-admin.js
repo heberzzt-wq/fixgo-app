@@ -17,14 +17,14 @@ let map;
 let markers = {}; 
 
 function initMap() {
-    console.log("🛠️ Reiniciando Mapa: Modo Rescate");
+    // Centro inicial en Cancún
     map = new google.maps.Map(document.getElementById("map"), {
         center: { lat: 21.1619, lng: -86.8515 },
-        zoom: 13,
+        zoom: 12,
         styles: [
-            { "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] },
+            { "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] },
             { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
-            { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] }
+            { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#020617" }] }
         ],
         disableDefaultUI: true,
         zoomControl: true
@@ -35,6 +35,7 @@ function initMap() {
 function conectarFlota() {
     const tablaTec = document.getElementById('tablaTecnicos');
     
+    // Escucha directa sin filtros de estado
     onSnapshot(collection(db, "tecnicos"), (snapshot) => {
         if (tablaTec) tablaTec.innerHTML = "";
         
@@ -42,36 +43,41 @@ function conectarFlota() {
             const t = docSnap.data();
             const id = docSnap.id;
 
-            // REGLA DE ORO: Si hay coordenadas, hay marcador. Sin excusas.
-            if (t.lat && t.lng) {
-                // Limpiamos marcador previo si existe
-                if (markers[id]) markers[id].setMap(null); 
+            // VALIDACIÓN ÚNICA: ¿Tiene coordenadas válidas?
+            const lat = parseFloat(t.lat);
+            const lng = parseFloat(t.lng);
 
-                // Forzamos el uso de una camioneta blanca básica para asegurar visibilidad
-                const iconoFinal = "https://img.icons8.com/isometric/50/ffffff/delivery-truck.png";
+            if (!isNaN(lat) && !isNaN(lng)) {
+                // Borrar marcador viejo si existe para evitar duplicados
+                if (markers[id]) {
+                    markers[id].setMap(null);
+                }
 
+                // Creamos el marcador SIEMPRE (Color blanco para máxima visibilidad)
                 markers[id] = new google.maps.Marker({
-                    position: { lat: Number(t.lat), lng: Number(t.lng) },
+                    position: { lat: lat, lng: lng },
                     map: map,
                     icon: { 
-                        url: iconoFinal, 
-                        scaledSize: new google.maps.Size(45, 45) 
+                        url: "https://img.icons8.com/isometric/50/ffffff/delivery-truck.png", 
+                        scaledSize: new google.maps.Size(40, 40) 
                     },
-                    title: t.nombre || "Técnico FixGo"
+                    title: t.nombre || "Técnico"
                 });
             }
 
-            // Actualizamos la tabla lateral
+            // Llenado de tabla (Inmune a errores de campo)
             if (tablaTec) {
                 tablaTec.innerHTML += `
-                <tr class="border-b border-white/5">
-                    <td class="py-4">
-                        <div class="font-bold text-blue-300">${t.nombre || 'Pedro'}</div>
-                        <div class="text-[10px] uppercase text-slate-500">${t.estado || 'ACTIVO'}</div>
+                <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                    <td class="py-4 font-bold text-blue-400 text-sm">
+                        ${t.nombre || 'Sin nombre'}
                     </td>
-                    <td class="py-4 text-slate-400 text-xs">${t.vehiculo || 'Unidad'}</td>
+                    <td class="py-4 text-slate-400 text-xs">
+                        ${t.vehiculo || 'Unidad'} <br>
+                        <span class="text-[10px] text-emerald-500">${t.estado || 'En línea'}</span>
+                    </td>
                     <td class="py-4 text-right">
-                        <button onclick="eliminarRegistro('tecnicos', '${id}')" class="text-red-500/20 hover:text-red-500">
+                        <button onclick="eliminarRegistro('tecnicos', '${id}')" class="text-red-500/20 hover:text-red-500 p-2">
                             <i class="fas fa-trash-alt"></i>
                         </button>
                     </td>
@@ -81,21 +87,22 @@ function conectarFlota() {
     });
 }
 
+// Función global de borrado
 window.eliminarRegistro = async function(coleccion, id) {
-    if (confirm("🚨 ¿Eliminar este registro?")) {
+    if (confirm("¿Eliminar registro del mapa y la base de datos?")) {
         try {
             if (markers[id]) markers[id].setMap(null);
             await deleteDoc(doc(db, coleccion, id));
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Error al eliminar:", e); }
     }
 }
 
-// Inicialización limpia
+// Inicialización por evento de carga
 window.addEventListener('load', () => {
-    const checkGoogle = setInterval(() => {
+    const timer = setInterval(() => {
         if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
             initMap();
-            clearInterval(checkGoogle);
+            clearInterval(timer);
         }
     }, 1000);
 });
