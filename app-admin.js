@@ -18,7 +18,6 @@ let markers = {};
 let infoWindow; 
 
 function initMap() {
-    console.log("🛰️ Central FixGo: Unidades de Alta Visibilidad Activas");
     map = new google.maps.Map(document.getElementById("map"), {
         center: { lat: 21.1619, lng: -86.8515 },
         zoom: 13,
@@ -50,31 +49,30 @@ function conectarFlota() {
             if (t.lat && t.lng) {
                 if (markers[id]) markers[id].setMap(null); 
                 
-                // USAMOS UN ICONO DE CAMIONETA BLANCA/AMARILLA PARA ALTO CONTRASTE
+                // ICONO SVG BLANCO PURO (INMUNE A ERRORES DE COLOR EXTERNOS)
+                const camionetaBlanca = {
+                    path: "M15.39,3L13.07,5H21V16H19V14H5V16H3V5H10.93L8.61,3H3A2,2 0 0,0 1,5V16A2,2 0 0,0 3,18H4A2,2 0 0,0 6,20A2,2 0 0,0 8,18H16A2,2 0 0,0 18,20A2,2 0 0,0 20,18H21A2,2 0 0,0 23,16V5A2,2 0 0,0 21,3H15.39M15,11V9H19V11H15M10,11V9H14V11H10M5,11V9H9V11H5M6,18A1,1 0 0,1 5,17A1,1 0 0,1 6,16A1,1 0 0,1 7,17A1,1 0 0,1 6,18M18,18A1,1 0 0,1 17,17A1,1 0 0,1 18,16A1,1 0 0,1 19,17A1,1 0 0,1 18,18Z",
+                    fillColor: "#FFFFFF", // Blanco brillante
+                    fillOpacity: 1,
+                    strokeWeight: 2,
+                    strokeColor: "#3b82f6", // Contorno azul para que resalte más
+                    scale: 1.8,
+                    anchor: new google.maps.Point(12, 12)
+                };
+
                 const marker = new google.maps.Marker({
                     position: { lat: Number(t.lat), lng: Number(t.lng) },
                     map: map,
-                    title: t.nombre,
-                    icon: {
-                        // Icono de camioneta de servicio blanca (resalta en fondo oscuro)
-                        url: "https://cdn-icons-png.flaticon.com/512/3202/3202926.png", 
-                        scaledSize: new google.maps.Size(45, 45),
-                        anchor: new google.maps.Point(22, 22)
-                    },
+                    icon: camionetaBlanca,
                     animation: google.maps.Animation.DROP
                 });
 
                 marker.addListener("click", () => {
-                    const contenido = `
-                        <div style="color:#0f172a; padding:12px; font-family:sans-serif; min-width:150px;">
-                            <b style="font-size:14px; color:#2563eb;">${t.nombre.toUpperCase()}</b><br>
-                            <div style="margin-top:5px; font-size:12px;">
-                                🚐 <b>Vehículo:</b> ${t.vehiculo}<br>
-                                🆔 <b>ID:</b> ${t.cedula || 'N/A'}<br>
-                                📍 <b>Estado:</b> <span style="color:green">EN LINEA</span>
-                            </div>
-                        </div>`;
-                    infoWindow.setContent(contenido);
+                    infoWindow.setContent(`
+                        <div style="color:#0f172a; padding:10px; font-family:sans-serif;">
+                            <b style="color:#2563eb;">${t.nombre.toUpperCase()}</b><br>
+                            <span style="font-size:12px;">🚐 ${t.vehiculo}</span>
+                        </div>`);
                     infoWindow.open(map, marker);
                 });
 
@@ -82,17 +80,13 @@ function conectarFlota() {
             }
 
             tablaTec.innerHTML += `
-                <tr class="border-b border-white/5 hover:bg-white/5 transition">
-                    <td class="py-5 pl-2">
+                <tr class="border-b border-white/5">
+                    <td class="py-4">
                         <div class="font-bold text-blue-300 text-base">${t.nombre}</div>
-                        <div class="text-[10px] text-slate-500 uppercase tracking-tighter">Técnico Certificado</div>
                     </td>
-                    <td class="py-5">
-                        <div class="text-white font-medium text-xs">${t.vehiculo}</div>
-                        <div class="text-[10px] text-blue-500/70 font-black">${t.placas || '---'}</div>
-                    </td>
-                    <td class="py-5 text-right pr-2">
-                        <button onclick="eliminarRegistro('tecnicos', '${id}')" class="bg-red-500/10 p-2 rounded-xl text-red-500 hover:bg-red-600 hover:text-white transition shadow-lg shadow-red-500/10">
+                    <td class="py-4 text-slate-400 text-xs">${t.vehiculo}</td>
+                    <td class="py-4 text-right">
+                        <button onclick="eliminarRegistro('tecnicos', '${id}')" class="text-red-500/50 hover:text-red-500 transition">
                             <i class="fas fa-trash-alt"></i>
                         </button>
                     </td>
@@ -103,22 +97,16 @@ function conectarFlota() {
     onSnapshot(collection(db, "clientes"), (snapshot) => {
         listaCli.innerHTML = "";
         document.getElementById('countCli').innerText = snapshot.size;
-        
         snapshot.forEach((docSnap) => {
             const c = docSnap.data();
             const id = docSnap.id;
             listaCli.innerHTML += `
-                <div class="bg-white/5 p-5 rounded-2xl flex justify-between items-center border border-white/5 shadow-inner">
-                    <div class="flex items-center gap-4">
-                        <div class="bg-indigo-500/20 w-10 h-10 rounded-full flex items-center justify-center text-indigo-400 border border-indigo-500/30">
-                            <i class="fas fa-user-check text-xs"></i>
-                        </div>
-                        <div>
-                            <p class="font-bold text-sm text-indigo-100">${c.nombre}</p>
-                            <p class="text-[10px] text-slate-400 font-mono">${c.telefono} • ${c.direccion}</p>
-                        </div>
+                <div class="bg-white/5 p-4 rounded-2xl flex justify-between items-center border border-white/5 mb-2">
+                    <div>
+                        <p class="font-bold text-sm text-indigo-300">${c.nombre}</p>
+                        <p class="text-[10px] text-slate-500">${c.telefono} | ${c.direccion}</p>
                     </div>
-                    <button onclick="eliminarRegistro('clientes', '${id}')" class="text-slate-600 hover:text-red-500 transition-colors">
+                    <button onclick="eliminarRegistro('clientes', '${id}')" class="text-slate-600 hover:text-red-500">
                         <i class="fas fa-times-circle text-xl"></i>
                     </button>
                 </div>`;
@@ -127,14 +115,11 @@ function conectarFlota() {
 }
 
 window.eliminarRegistro = async function(coleccion, id) {
-    if (confirm("⚠️ ¿ELIMINAR ESTE REGISTRO? Esta acción no se puede deshacer.")) {
+    if (confirm("🚨 ¿ELIMINAR REGISTRO?")) {
         try {
-            if (markers[id]) {
-                markers[id].setMap(null);
-                delete markers[id];
-            }
+            if (markers[id]) markers[id].setMap(null);
             await deleteDoc(doc(db, coleccion, id));
-        } catch (e) { console.error("Error al borrar:", e); }
+        } catch (e) { console.error(e); }
     }
 }
 
