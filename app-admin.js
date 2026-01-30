@@ -14,13 +14,14 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 let map;
-let markers = []; // Para limpiar marcadores viejos si se mueve el GPS
+let markers = [];
 
+// Función para iniciar el mapa
 function initMap() {
-    console.log("📍 Inicializando mapa...");
+    console.log("📍 Iniciando mapa de control...");
     map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: 21.1619, lng: -86.8515 }, // Cancún
-        zoom: 12,
+        center: { lat: 21.1619, lng: -86.8515 },
+        zoom: 13,
         styles: [
             { "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] },
             { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
@@ -30,29 +31,27 @@ function initMap() {
         zoomControl: true
     });
     
-    // Escuchar cambios en tiempo real (GPS en vivo)
-    escucharTecnicos();
-    cargarClientes();
+    // Iniciar monitoreo en vivo
+    escucharBaseDeDatos();
 }
 
-// 1. ESCUCHAR TÉCNICOS EN TIEMPO REAL
-function escucharTecnicos() {
+function escucharBaseDeDatos() {
     const tablaTec = document.getElementById('tablaTecnicos');
-    
+    const listaCli = document.getElementById('listaClientes');
+
+    // 1. Escuchar Técnicos (Marcadores + Tabla)
     onSnapshot(collection(db, "tecnicos"), (snapshot) => {
         tablaTec.innerHTML = "";
-        // Limpiar marcadores anteriores
         markers.forEach(m => m.setMap(null));
         markers = [];
 
-        snapshot.forEach((documento) => {
-            const t = documento.data();
-            const id = documento.id;
+        snapshot.forEach((docSnap) => {
+            const t = docSnap.data();
+            const id = docSnap.id;
 
-            // Pintar en Mapa si tiene GPS
             if (t.lat && t.lng) {
                 const marker = new google.maps.Marker({
-                    position: { lat: t.lat, lng: t.lng },
+                    position: { lat: Number(t.lat), lng: Number(t.lng) },
                     map: map,
                     title: t.nombre,
                     icon: {
@@ -67,54 +66,57 @@ function escucharTecnicos() {
                 markers.push(marker);
             }
 
-            // Pintar en Tabla
             tablaTec.innerHTML += `
-                <tr class="border-b border-white/5">
-                    <td class="py-4 font-bold text-blue-300">${t.nombre}</td>
-                    <td class="py-4 text-slate-500 text-xs">${t.vehiculo}</td>
+                <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                    <td class="py-4">
+                        <div class="font-bold text-blue-300">${t.nombre}</div>
+                        <div class="text-[10px] text-slate-500">${t.cedula || 'Sin ID'}</div>
+                    </td>
+                    <td class="py-4 text-slate-400 text-xs">${t.vehiculo} <br> <span class="text-blue-500/50">${t.placas || ''}</span></td>
                     <td class="py-4 text-right">
-                        <button onclick="eliminarRegistro('tecnicos', '${id}')" class="text-red-500/50 hover:text-red-500 p-2">
+                        <button onclick="eliminarRegistro('tecnicos', '${id}')" class="text-red-500/30 hover:text-red-500 p-2 transition">
                             <i class="fas fa-trash-alt"></i>
                         </button>
                     </td>
                 </tr>`;
         });
     });
-}
 
-// 2. CARGAR CLIENTES
-async function cargarClientes() {
-    const listaCli = document.getElementById('listaClientes');
-    const queryCli = await getDocs(collection(db, "clientes"));
-    listaCli.innerHTML = "";
-    queryCli.forEach((documento) => {
-        const c = documento.data();
-        const id = documento.id;
-        listaCli.innerHTML += `
-            <div class="bg-white/5 p-4 rounded-2xl flex justify-between items-center border border-white/5">
-                <div>
-                    <p class="font-bold text-sm text-indigo-300">${c.nombre || 'Cliente'}</p>
-                    <p class="text-[10px] text-slate-500">${c.telefono || ''} | ${c.direccion || ''}</p>
-                </div>
-                <button onclick="eliminarRegistro('clientes', '${id}')" class="text-slate-600 hover:text-red-500">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>`;
+    // 2. Escuchar Clientes
+    onSnapshot(collection(db, "clientes"), (snapshot) => {
+        listaCli.innerHTML = "";
+        snapshot.forEach((docSnap) => {
+            const c = docSnap.data();
+            const id = docSnap.id;
+            listaCli.innerHTML += `
+                <div class="bg-white/5 p-4 rounded-2xl flex justify-between items-center border border-white/5 hover:border-indigo-500/30 transition">
+                    <div>
+                        <p class="font-bold text-sm text-indigo-300">${c.nombre}</p>
+                        <p class="text-[10px] text-slate-500">${c.telefono} | ${c.direccion}</p>
+                    </div>
+                    <button onclick="eliminarRegistro('clientes', '${id}')" class="text-slate-600 hover:text-red-500 p-2">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>`;
+        });
     });
 }
 
-// 3. ELIMINAR REGISTROS
+// Globalizar función de eliminar
 window.eliminarRegistro = async function(coleccion, id) {
-    if (confirm("¿Borrar este registro permanentemente?")) {
+    if (confirm("¿Estás seguro de eliminar este registro del sistema?")) {
         try {
             await deleteDoc(doc(db, coleccion, id));
-            // No hace falta recargar, onSnapshot actualiza la tabla solo
-        } catch (e) { alert("Error al borrar"); }
+        } catch (e) { console.error("Error al borrar:", e); }
     }
 }
 
-// DISPARAR INICIO AL CARGAR VENTANA
-window.onload = () => {
-    // Esperar un segundo para asegurar que Google Maps cargó
-    setTimeout(initMap, 1000);
-};
+// CARGADOR DE SEGURIDAD (Espera a que Google Maps exista)
+window.addEventListener('load', () => {
+    const checkGoogle = setInterval(() => {
+        if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+            initMap();
+            clearInterval(checkGoogle);
+        }
+    }, 1000);
+});
