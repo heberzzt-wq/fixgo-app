@@ -15,64 +15,50 @@ const db = getFirestore(app);
 let map;
 let markers = {};
 
-function initMap() {
-    console.log("🛰️ Mapa sincronizado. Buscando a Pedro...");
-    map = new google.maps.Map(document.getElementById("map"), {
+// 1. DEFINICIÓN GLOBAL INMEDIATA PARA EVITAR EL ERROR DE LA CAPTURA 198
+window.initMap = function() {
+    console.log("🛰️ Sistema de Rastreo FixGo Iniciado");
+    
+    const mapElement = document.getElementById("map");
+    map = new google.maps.Map(mapElement, {
         center: { lat: 21.1619, lng: -86.8515 }, // Cancún
         zoom: 13,
-        styles: [
-            { "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] },
-            { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
-            { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] }
-        ],
-        disableDefaultUI: true,
-        zoomControl: true
+        styles: [{ "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] }],
+        disableDefaultUI: true
     });
     
-    escucharFlota();
-}
+    // Iniciar escucha de Firebase una vez el mapa esté listo
+    escucharBaseDatos();
+};
 
-// Hacemos que la función sea visible para la API de Google
-window.initMap = initMap;
-
-function escucharFlota() {
-    const tabla = document.getElementById('tablaTecnicos');
-
+function escucharBaseDatos() {
     onSnapshot(collection(db, "tecnicos"), (snapshot) => {
-        if (tabla) tabla.innerHTML = "";
-        
         snapshot.forEach((docSnap) => {
             const t = docSnap.data();
             const id = docSnap.id;
 
-            // Validación ultra-segura de coordenadas
-            const lat = parseFloat(t.lat);
-            const lng = parseFloat(t.lng);
+            // 2. TRATAMIENTO FLEXIBLE DE COORDENADAS (Captura 187)
+            // Forzamos conversión a número sin importar si Firebase lo envía como String o Number
+            const latitud = Number(t.lat);
+            const longitud = Number(t.lng);
 
-            if (!isNaN(lat) && !isNaN(lng)) {
-                // Borrar marcador viejo si existe
-                if (markers[id]) markers[id].setMap(null);
-
-                // Crear marcador nuevo
-                markers[id] = new google.maps.Marker({
-                    position: { lat: lat, lng: lng },
-                    map: map,
-                    title: t.nombre || "Técnico",
-                    icon: {
-                        url: "https://img.icons8.com/isometric/50/38bdf8/delivery-truck.png",
-                        scaledSize: new google.maps.Size(40, 40)
-                    }
-                });
-                
-                console.log("✅ Pedro ubicado en el mapa");
-            }
-
-            if (tabla) {
-                tabla.innerHTML += `
-                <tr class="border-b border-white/5">
-                    <td class="py-4 font-bold text-blue-400 text-sm">${t.nombre || 'Pedro'}</td>
-                    <td class="py-4 text-slate-400 text-xs">${t.vehiculo || 'Unidad'}</td>
-                </tr>`;
+            if (!isNaN(latitud) && !isNaN(longitud)) {
+                // Si el técnico ya tiene marcador, lo movemos en lugar de crear uno nuevo
+                if (markers[id]) {
+                    markers[id].setPosition({ lat: latitud, lng: longitud });
+                } else {
+                    markers[id] = new google.maps.Marker({
+                        position: { lat: latitud, lng: longitud },
+                        map: map,
+                        title: t.nombre,
+                        // 3. ICONO DE EMERGENCIA (Si el AdBlock bloquea el PNG, usaremos el marcador estándar)
+                        icon: {
+                            url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+                            scaledSize: new google.maps.Size(40, 40)
+                        }
+                    });
+                }
+                console.log(`📍 Pedro (ID: ${id}) renderizado en: ${latitud}, ${longitud}`);
             }
         });
     });
