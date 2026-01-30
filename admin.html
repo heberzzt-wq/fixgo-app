@@ -7,44 +7,46 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); }
-        #map { height: 450px; width: 100%; border-radius: 24px; }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        .glass { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(16px); }
+        #map { height: 480px; width: 100%; border-radius: 24px; transition: all 0.3s; }
+        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; }
     </style>
 </head>
-<body class="bg-[#0a0a16] text-white min-h-screen p-4 md:p-8">
+<body class="bg-[#05050a] text-white min-h-screen p-4 md:p-8 font-sans">
 
     <div class="max-w-7xl mx-auto">
         <header class="flex justify-between items-center mb-8">
             <div>
-                <h1 class="text-3xl font-black text-blue-500 tracking-tighter italic">FIXGO <span class="text-white text-xl not-italic">CENTRAL</span></h1>
-                <p class="text-slate-400 text-sm">Monitoreo de flota y servicios en tiempo real</p>
+                <h1 class="text-3xl font-black text-blue-500 tracking-tighter italic">FIXGO <span class="text-white text-xl not-italic tracking-normal">CENTRAL</span></h1>
+                <p class="text-slate-400 text-xs mt-1 uppercase tracking-widest font-semibold">Panel de Monitoreo Satelital</p>
             </div>
-            <div class="flex gap-3">
-                <button onclick="location.reload()" class="bg-slate-800 p-3 rounded-xl hover:bg-slate-700 transition">
-                    <i class="fas fa-sync-alt"></i>
+            <div class="flex gap-4">
+                <button onclick="location.reload()" class="bg-white/5 hover:bg-white/10 p-3 rounded-2xl border border-white/10 transition">
+                    <i class="fas fa-sync-alt text-blue-400"></i>
                 </button>
-                <a href="index.html" class="bg-red-500/10 text-red-500 px-6 py-2 rounded-xl font-bold border border-red-500/20 hover:bg-red-500 hover:text-white transition">Salir</a>
+                <a href="index.html" class="bg-red-500/10 text-red-500 px-6 py-3 rounded-2xl font-bold border border-red-500/20 hover:bg-red-600 hover:text-white transition flex items-center gap-2">
+                    <i class="fas fa-power-off"></i> Salir
+                </a>
             </div>
         </header>
 
-        <div class="glass border border-white/10 p-4 rounded-[2.5rem] shadow-2xl mb-8">
-            <div id="map" class="bg-slate-900 flex items-center justify-center text-slate-500">
-                <p>Cargando mapa satelital...</p>
-            </div>
-        </div>
+        <section class="glass border border-white/10 p-2 rounded-[2.5rem] shadow-2xl mb-8 overflow-hidden">
+            <div id="map" class="bg-slate-900"></div>
+        </section>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div class="glass border border-white/10 p-6 rounded-[2rem]">
-                <h2 class="text-xl font-bold mb-6 flex items-center gap-2 text-blue-400">
-                    <i class="fas fa-hard-hat"></i> Técnicos Activos
-                </h2>
+            <div class="glass border border-white/10 p-8 rounded-[2rem]">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-bold flex items-center gap-3">
+                        <i class="fas fa-satellite-dish text-blue-500"></i> Unidades Activas
+                    </h2>
+                    <span id="countTec" class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs font-bold">0</span>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left">
-                        <thead class="text-slate-500 text-xs uppercase border-b border-white/5">
+                        <thead class="text-slate-500 text-[10px] uppercase tracking-widest border-b border-white/5">
                             <tr>
-                                <th class="pb-4">Técnico</th>
+                                <th class="pb-4">Operador / ID</th>
                                 <th class="pb-4">Vehículo</th>
                                 <th class="pb-4 text-right">Acción</th>
                             </tr>
@@ -55,10 +57,13 @@
                 </div>
             </div>
 
-            <div class="glass border border-white/10 p-6 rounded-[2rem]">
-                <h2 class="text-xl font-bold mb-6 flex items-center gap-2 text-indigo-400">
-                    <i class="fas fa-user-tie"></i> Clientes Nuevos
-                </h2>
+            <div class="glass border border-white/10 p-8 rounded-[2rem]">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-bold flex items-center gap-3">
+                        <i class="fas fa-bell text-yellow-500"></i> Alertas de Servicio
+                    </h2>
+                    <span id="countCli" class="bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-full text-xs font-bold">0</span>
+                </div>
                 <div id="listaClientes" class="space-y-4 max-h-[400px] overflow-y-auto pr-2">
                     </div>
             </div>
