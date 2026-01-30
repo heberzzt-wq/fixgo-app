@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sigue tu Servicio - FixGo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style> 
+        #map { height: 100vh; width: 100%; position: absolute; top: 0; left: 0; } 
+        .glass-panel { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); }
+    </style>
+</head>
+<body class="bg-slate-900 text-white overflow-hidden">
+    
+    <div id="map"></div>
+
+    <div class="absolute bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-md glass-panel border border-white/10 p-6 rounded-[2.5rem] shadow-2xl z-10">
+        <div class="flex items-center gap-4">
+            <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-2xl shadow-lg border border-white/10">
+                <i class="fas fa-truck-fast"></i>
+            </div>
+            <div class="flex-1">
+                <h2 id="nombreTecnico" class="text-xl font-black">Buscando técnico...</h2>
+                <p id="vehiculoTecnico" class="text-blue-400 text-sm font-bold tracking-tight">Cargando datos satelitales</p>
+            </div>
+        </div>
+        
+        <div class="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
+            <div>
+                <span class="text-[10px] text-slate-500 uppercase font-black tracking-widest">Estado de Unidad</span>
+                <p id="estadoTecnico" class="text-emerald-400 font-bold text-sm italic">SINCRONIZANDO...</p>
+            </div>
+            <a id="btnLlamar" href="#" class="bg-white/10 w-12 h-12 flex items-center justify-center rounded-full hover:bg-emerald-500 transition-all group">
+                <i class="fas fa-phone-alt text-white group-hover:rotate-12"></i>
+            </a>
+        </div>
+    </div>
+
+    <script type="module" src="app-cliente.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k"></script>
+</body>
+</html>
