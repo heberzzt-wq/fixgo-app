@@ -17,10 +17,10 @@ let map;
 let markers = {}; 
 
 function initMap() {
-    console.log("🚀 Iniciando Mapa Forzado...");
+    console.log("🛠️ Reiniciando Mapa: Modo Rescate");
     map = new google.maps.Map(document.getElementById("map"), {
         center: { lat: 21.1619, lng: -86.8515 },
-        zoom: 12, // Un poco más lejos para ver todo
+        zoom: 13,
         styles: [
             { "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] },
             { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
@@ -36,44 +36,40 @@ function conectarFlota() {
     const tablaTec = document.getElementById('tablaTecnicos');
     
     onSnapshot(collection(db, "tecnicos"), (snapshot) => {
-        console.log("📡 Datos recibidos de Firebase:", snapshot.size);
         if (tablaTec) tablaTec.innerHTML = "";
         
         snapshot.forEach((docSnap) => {
             const t = docSnap.data();
             const id = docSnap.id;
 
-            // REGRESO A LO BÁSICO: Si tiene latitud, se dibuja SÍ O SÍ
+            // REGLA DE ORO: Si hay coordenadas, hay marcador. Sin excusas.
             if (t.lat && t.lng) {
-                console.log("📍 Dibujando a:", t.nombre, t.lat, t.lng);
-                
+                // Limpiamos marcador previo si existe
                 if (markers[id]) markers[id].setMap(null); 
 
-                // Elegimos color, pero si falla algo, siempre será BLANCO
-                let urlIcono = "https://img.icons8.com/isometric/50/ffffff/delivery-truck.png";
-                
-                const estadoLimpio = t.estado ? t.estado.toUpperCase() : "";
-                
-                if (estadoLimpio === "ACTIVO") urlIcono = "https://img.icons8.com/isometric/50/38bdf8/delivery-truck.png";
-                if (estadoLimpio === "DISPONIBLE") urlIcono = "https://img.icons8.com/isometric/50/22c55e/delivery-truck.png";
-                if (estadoLimpio === "EN SERVICIO") urlIcono = "https://img.icons8.com/isometric/50/f97316/delivery-truck.png";
+                // Forzamos el uso de una camioneta blanca básica para asegurar visibilidad
+                const iconoFinal = "https://img.icons8.com/isometric/50/ffffff/delivery-truck.png";
 
                 markers[id] = new google.maps.Marker({
-                    position: { lat: parseFloat(t.lat), lng: parseFloat(t.lng) },
+                    position: { lat: Number(t.lat), lng: Number(t.lng) },
                     map: map,
-                    icon: { url: urlIcono, scaledSize: new google.maps.Size(45, 45) },
-                    title: t.nombre || "Técnico"
+                    icon: { 
+                        url: iconoFinal, 
+                        scaledSize: new google.maps.Size(45, 45) 
+                    },
+                    title: t.nombre || "Técnico FixGo"
                 });
             }
 
+            // Actualizamos la tabla lateral
             if (tablaTec) {
                 tablaTec.innerHTML += `
                 <tr class="border-b border-white/5">
                     <td class="py-4">
-                        <div class="font-bold text-white">${t.nombre || 'Sin nombre'}</div>
-                        <div class="text-[10px] uppercase text-blue-400">${t.estado || 'SIN ESTADO'}</div>
+                        <div class="font-bold text-blue-300">${t.nombre || 'Pedro'}</div>
+                        <div class="text-[10px] uppercase text-slate-500">${t.estado || 'ACTIVO'}</div>
                     </td>
-                    <td class="py-4 text-slate-400 text-xs">${t.vehiculo || 'No asignado'}</td>
+                    <td class="py-4 text-slate-400 text-xs">${t.vehiculo || 'Unidad'}</td>
                     <td class="py-4 text-right">
                         <button onclick="eliminarRegistro('tecnicos', '${id}')" class="text-red-500/20 hover:text-red-500">
                             <i class="fas fa-trash-alt"></i>
@@ -86,7 +82,7 @@ function conectarFlota() {
 }
 
 window.eliminarRegistro = async function(coleccion, id) {
-    if (confirm("🚨 ¿Eliminar registro?")) {
+    if (confirm("🚨 ¿Eliminar este registro?")) {
         try {
             if (markers[id]) markers[id].setMap(null);
             await deleteDoc(doc(db, coleccion, id));
@@ -94,12 +90,12 @@ window.eliminarRegistro = async function(coleccion, id) {
     }
 }
 
-// Cargador ultra-seguro
-window.onload = () => {
-    const loader = setInterval(() => {
-        if (typeof google !== 'undefined') {
+// Inicialización limpia
+window.addEventListener('load', () => {
+    const checkGoogle = setInterval(() => {
+        if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
             initMap();
-            clearInterval(loader);
+            clearInterval(checkGoogle);
         }
     }, 1000);
-};
+});
