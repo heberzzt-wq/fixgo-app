@@ -7,14 +7,30 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
+
 <body class="bg-[#0a0a16] text-white min-h-screen flex items-center justify-center p-4">
+
+    <!-- 🔐 PROTECCIÓN LOGIN -->
+    <script type="module">
+        import { auth, onAuthStateChanged } from "./firebase-auth.js";
+
+        onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                window.location.href = "login.html";
+            }
+        });
+    </script>
+
+    <!-- 🧑‍🔧 PANEL TÉCNICO -->
     <div class="max-w-md w-full bg-slate-900/50 backdrop-blur-xl border border-white/10 p-8 rounded-[3rem] shadow-2xl text-center">
         <div class="mb-6">
             <div class="w-20 h-20 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-3xl shadow-lg shadow-blue-500/20">
                 <i class="fas fa-truck-loading"></i>
             </div>
             <h1 id="nombreTecnico" class="text-2xl font-black mt-4">Cargando...</h1>
-            <p id="unidadTecnico" class="text-slate-500 text-sm uppercase tracking-widest">Sincronizando Unidad</p>
+            <p id="unidadTecnico" class="text-slate-500 text-sm uppercase tracking-widest">
+                Sincronizando Unidad
+            </p>
         </div>
 
         <div class="grid gap-4">
@@ -28,9 +44,15 @@
                 <span class="block font-bold group-hover:text-white">EN SERVICIO</span>
             </button>
         </div>
-        
-        <p class="mt-8 text-[10px] text-slate-600 font-bold uppercase tracking-widest">FixGo Live Status v2.0</p>
+
+        <p class="mt-8 text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+            FixGo Live Status v2.0
+        </p>
     </div>
+
+    <!-- ⚙️ JS PRINCIPAL -->
     <script type="module" src="app-tecnico.js"></script>
+
 </body>
 </html>
+
