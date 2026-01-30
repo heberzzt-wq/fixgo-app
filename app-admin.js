@@ -14,10 +14,11 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 let map;
-let markers = {}; // Usamos un objeto para rastrear marcadores por ID
+let markers = {}; 
+let infoWindow; // Ventana para mostrar info del técnico al hacer clic
 
 function initMap() {
-    console.log("🛰️ Sistema de Rastreo FixGo Iniciado");
+    console.log("🛰️ Central FixGo: Monitoreo de Camionetas Activo");
     map = new google.maps.Map(document.getElementById("map"), {
         center: { lat: 21.1619, lng: -86.8515 },
         zoom: 13,
@@ -30,6 +31,7 @@ function initMap() {
         zoomControl: true
     });
     
+    infoWindow = new google.maps.InfoWindow();
     conectarFlota();
 }
 
@@ -37,7 +39,6 @@ function conectarFlota() {
     const tablaTec = document.getElementById('tablaTecnicos');
     const listaCli = document.getElementById('listaClientes');
 
-    // ESCUCHA DE TÉCNICOS
     onSnapshot(collection(db, "tecnicos"), (snapshot) => {
         tablaTec.innerHTML = "";
         document.getElementById('countTec').innerText = snapshot.size;
@@ -46,30 +47,43 @@ function conectarFlota() {
             const t = docSnap.data();
             const id = docSnap.id;
 
-            // Actualizar Marcador
+            // CONFIGURACIÓN DE LA CAMIONETA EN EL MAPA
             if (t.lat && t.lng) {
-                if (markers[id]) markers[id].setMap(null); // Limpiar anterior
+                if (markers[id]) markers[id].setMap(null); 
                 
-                markers[id] = new google.maps.Marker({
+                const marker = new google.maps.Marker({
                     position: { lat: Number(t.lat), lng: Number(t.lng) },
                     map: map,
                     title: t.nombre,
                     icon: {
-                        path: google.maps.SymbolPath.CIRCLE,
-                        scale: 10,
-                        fillColor: '#3b82f6',
-                        fillOpacity: 1,
-                        strokeWeight: 3,
-                        strokeColor: 'white'
-                    }
+                        url: "https://cdn-icons-png.flaticon.com/512/3202/3202926.png", // Icono de Van Blanca
+                        scaledSize: new google.maps.Size(40, 40),
+                        anchor: new google.maps.Point(20, 20)
+                    },
+                    animation: google.maps.Animation.DROP
                 });
+
+                // Evento al hacer clic en la camioneta
+                marker.addListener("click", () => {
+                    const contenido = `
+                        <div style="color:#1e293b; padding:10px; font-family:sans-serif;">
+                            <h3 style="margin:0; font-weight:bold;">${t.nombre}</h3>
+                            <p style="margin:5px 0 0; font-size:12px;">🚐 ${t.vehiculo}</p>
+                            <p style="margin:2px 0 0; font-size:10px; color:#64748b;">Placas: ${t.placas || 'N/A'}</p>
+                        </div>`;
+                    infoWindow.setContent(contenido);
+                    infoWindow.open(map, marker);
+                });
+
+                markers[id] = marker;
             }
 
+            // TABLA DE TÉCNICOS
             tablaTec.innerHTML += `
                 <tr class="border-b border-white/5">
                     <td class="py-5">
                         <div class="font-bold text-blue-300 text-base">${t.nombre}</div>
-                        <div class="text-[10px] text-slate-500">ID: ${t.cedula || 'T-GLOBAL'}</div>
+                        <div class="text-[10px] text-slate-500 italic">Unidad Rastreada</div>
                     </td>
                     <td class="py-5">
                         <div class="text-white font-medium">${t.vehiculo}</div>
@@ -84,7 +98,6 @@ function conectarFlota() {
         });
     });
 
-    // ESCUCHA DE CLIENTES
     onSnapshot(collection(db, "clientes"), (snapshot) => {
         listaCli.innerHTML = "";
         document.getElementById('countCli').innerText = snapshot.size;
@@ -93,13 +106,13 @@ function conectarFlota() {
             const c = docSnap.data();
             const id = docSnap.id;
             listaCli.innerHTML += `
-                <div class="bg-white/5 p-5 rounded-2xl flex justify-between items-center border border-white/5">
+                <div class="bg-white/5 p-5 rounded-2xl flex justify-between items-center border border-white/5 shadow-sm">
                     <div class="flex items-center gap-4">
-                        <div class="bg-yellow-500/20 p-3 rounded-full text-yellow-500">
+                        <div class="bg-indigo-500/20 p-3 rounded-full text-indigo-400">
                             <i class="fas fa-user"></i>
                         </div>
                         <div>
-                            <p class="font-bold text-sm text-indigo-300">${c.nombre}</p>
+                            <p class="font-bold text-sm text-indigo-200">${c.nombre}</p>
                             <p class="text-[10px] text-slate-500">${c.telefono} • ${c.direccion}</p>
                         </div>
                     </div>
@@ -111,20 +124,18 @@ function conectarFlota() {
     });
 }
 
-// ELIMINAR REGISTRO
 window.eliminarRegistro = async function(coleccion, id) {
-    if (confirm("🚨 ¿Deseas dar de baja este registro?")) {
+    if (confirm("🚨 ¿Dar de baja este registro?")) {
         try {
             if (markers[id]) {
                 markers[id].setMap(null);
                 delete markers[id];
             }
             await deleteDoc(doc(db, coleccion, id));
-        } catch (e) { alert("Error al procesar solicitud"); }
+        } catch (e) { console.error(e); }
     }
 }
 
-// INICIO AUTOMÁTICO
 window.addEventListener('load', () => {
     const loader = setInterval(() => {
         if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
