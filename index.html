@@ -72,5 +72,32 @@
     <footer class="py-10 text-center text-gray-600 text-xs border-t border-white/5">
         &copy; 2026 FIXGO & FINISH | Quintana Roo, México.
     </footer>
+    <script>
+        function initMap() {
+            // Ubicación central entre Cancún y Chetumal
+            const centro = { lat: 19.5761, lng: -88.0441 }; 
+            
+            const map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 7,
+                center: centro,
+                styles: [
+                    { "elementType": "geometry", "stylers": [{ "color": "#111827" }] },
+                    { "elementType": "labels.text.fill", "stylers": [{ "color": "#9ca3af" }] },
+                    { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#0a0a16" }] }
+                ],
+                disableDefaultUI: true
+            });
+
+            // Marcador de ejemplo en Cancún
+            new google.maps.Marker({
+                position: { lat: 21.1619, lng: -86.8515 },
+                map: map,
+                title: "Sede Cancún"
+            });
+        }
+    </script>
+
+    <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDyplCp33LneGhqr6yd1VsIYBMdsLDK7gA&callback=initMap">
+    </script>
 </body>
 </html>
