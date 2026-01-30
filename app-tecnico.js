@@ -13,26 +13,31 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Para esta demo, buscaremos al técnico llamado "Pedro"
-// En un sistema real, usaríamos un Login.
 async function cargarDatos() {
+    // Buscamos a Pedro en la base de datos
     const q = query(collection(db, "tecnicos"), where("nombre", "==", "Pedro"));
     const querySnapshot = await getDocs(q);
-    querySnapshot.forEach((doc) => {
-        document.getElementById('nombreTecnico').innerText = doc.data().nombre;
-        document.getElementById('unidadTecnico').innerText = doc.data().vehiculo;
-        window.tecnicoId = doc.id; // Guardamos el ID para actualizar
+    
+    if (querySnapshot.empty) {
+        document.getElementById('nombreTecnico').innerText = "No encontrado";
+        return;
+    }
+
+    querySnapshot.forEach((documento) => {
+        document.getElementById('nombreTecnico').innerText = documento.data().nombre;
+        document.getElementById('unidadTecnico').innerText = documento.data().vehiculo;
+        window.tecnicoId = documento.id; 
     });
 }
 
 window.cambiarEstado = async function(nuevoEstado) {
-    if (!window.tecnicoId) return alert("No se detectó ID de técnico");
+    if (!window.tecnicoId) return alert("Error: ID no encontrado");
     
     const tecRef = doc(db, "tecnicos", window.tecnicoId);
     try {
         await updateDoc(tecRef, { estado: nuevoEstado });
-        alert("Estado actualizado a: " + nuevoEstado);
-    } catch (e) { console.error(e); }
+        alert("Estado actualizado: " + nuevoEstado);
+    } catch (e) { alert("Error al conectar"); }
 }
 
 cargarDatos();
