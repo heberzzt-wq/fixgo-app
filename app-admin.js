@@ -1,96 +1,73 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// app-admin.js
+import { app } from "./firebase-config.js";
+import { getAuth, onAuthStateChanged, signOut, signInWithPopup, googleProvider } from "./firebase-auth.js";
+import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-const firebaseConfig = {
-    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
-    authDomain: "fixgo-44e4d.firebaseapp.com",
-    projectId: "fixgo-44e4d",
-    storageBucket: "fixgo-44e4d.appspot.com",
-    messagingSenderId: "54271811634",
-    appId: "1:54271811634:web:53a6f4e1f727774e74e64f"
-};
-
-const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const db = getFirestore(app);
-let map;
-let markers = {}; 
 
-window.initMap = function() {
-    console.log("🚚 Central FixGo: Buscando camionetas blancas...");
-    map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: 21.1619, lng: -86.8515 },
-        zoom: 12,
-        styles: [
-            { "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] },
-            { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
-            { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#020617" }] }
-        ],
-        disableDefaultUI: true
-    });
-    escucharFlota();
+// 🔐 Verificación de sesión y rol
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        // No hay sesión
+        window.location.href = "login.html";
+        return;
+    }
+
+    try {
+        // Verificar si es admin
+        const adminRef = doc(db, "admins", user.uid);
+        const adminSnap = await getDoc(adminRef);
+
+        if (!adminSnap.exists() || adminSnap.data().rol !== "ADMIN") {
+            alert("❌ Acceso denegado. Solo administradores.");
+            await signOut(auth);
+            window.location.href = "login.html";
+            return;
+        }
+
+        // Mostrar info del admin
+        const data = adminSnap.data();
+        document.getElementById("nombreAdmin").innerText = data.nombre || "Administrador";
+
+        // Puedes cargar datos adicionales aquí, por ejemplo lista de técnicos y clientes
+        cargarTecnicos();
+        cargarClientes();
+
+    } catch (error) {
+        console.error("Error verificando rol admin:", error);
+        alert("❌ Error en la verificación de sesión.");
+        await signOut(auth);
+        window.location.href = "login.html";
+    }
+});
+
+// ===== Funciones de botones =====
+window.verTecnicos = async () => {
+    const coleccion = "tecnicos";
+    const snapshot = await getDocs(collection(db, coleccion));
+    const tecnicos = snapshot.docs.map(doc => doc.data());
+    console.log("Técnicos:", tecnicos);
+    alert(`📋 ${tecnicos.length} técnicos encontrados. Revisa la consola para detalles.`);
 };
 
-function escucharFlota() {
-    // AJUSTE DE IDS SEGÚN TU HTML:
-    const tabla = document.getElementById('tablaTecnicos');
-    const contador = document.getElementById('countTec'); // Cambiado de 'contadorActivos' a 'countTec'
+window.verClientes = async () => {
+    const coleccion = "clientes";
+    const snapshot = await getDocs(collection(db, coleccion));
+    const clientes = snapshot.docs.map(doc => doc.data());
+    console.log("Clientes:", clientes);
+    alert(`👥 ${clientes.length} clientes encontrados. Revisa la consola para detalles.`);
+};
 
-    onSnapshot(collection(db, "tecnicos"), (snapshot) => {
-        if (tabla) tabla.innerHTML = "";
-        let activos = 0;
+window.verServicios = () => {
+    alert("🛠 Función de servicios pendiente de implementar.");
+};
 
-        snapshot.forEach((docSnap) => {
-            const t = docSnap.data();
-            const id = docSnap.id;
-            
-            // Forzamos conversión a número (por si vienen como texto desde Firebase)
-            const lat = Number(t.lat);
-            const lng = Number(t.lng);
+// ===== Función de carga inicial =====
+async function cargarTecnicos() {
+    // Aquí puedes implementar lógica adicional para sincronizar datos de técnicos
+}
 
-            if (!isNaN(lat) && !isNaN(lng)) {
-                activos++;
-                const pos = { lat, lng };
-
-                // Gestionar marcadores en el mapa
-                if (markers[id]) {
-                    markers[id].setPosition(pos);
-                } else {
-                    markers[id] = new google.maps.Marker({
-                        position: pos,
-                        map: map,
-                        title: t.nombre,
-                        icon: {
-                            url: "https://img.icons8.com/isometric/50/ffffff/delivery-truck.png", // CAMIONETA BLANCA
-                            scaledSize: new google.maps.Size(45, 45)
-                        }
-                    });
-                }
-
-                // Inyectar filas en la tabla (ID Operador / Vehículo / Acción)
-                if (tabla) {
-                    tabla.innerHTML += `
-                    <tr class="border-b border-white/5 hover:bg-white/5 transition">
-                        <td class="py-4">
-                            <div class="flex items-center gap-3">
-                                <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                                <div>
-                                    <div class="font-bold text-blue-400">${t.nombre}</div>
-                                    <div class="text-[10px] text-slate-500 font-mono">${id.substring(0,6)}</div>
-                                </div>
-                            </div>
-                        </td>
-                        <td class="py-4 text-slate-400 text-xs">${t.vehiculo || 'Camioneta Blanca'}</td>
-                        <td class="py-4 text-right">
-                             <span class="text-[10px] text-emerald-500 font-bold bg-emerald-500/10 px-2 py-1 rounded-md">EN LÍNEA</span>
-                        </td>
-                    </tr>`;
-                }
-            }
-        });
-
-        // Actualizar el contador visual "Unidades Activas"
-        if (contador) {
-            contador.innerText = activos;
-        }
-    });
+async function cargarClientes() {
+    // Aquí puedes implementar lógica adicional para sincronizar datos de clientes
 }
