@@ -3,161 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo | Panel Cliente</title>
+    <title>FixGo - Cliente</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
-<body class="bg-slate-900 text-white min-h-screen p-4 flex flex-col items-center">
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4">
 
-    <!-- HEADER -->
-    <header class="w-full max-w-3xl flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-black tracking-tight" id="nombreCliente">Cargando...</h1>
-        <button id="cerrarSesion" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl text-white font-bold shadow-md">
-            Cerrar sesión
-        </button>
-    </header>
+    <!-- PANEL CLIENTE -->
+    <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 border border-slate-100">
+        <div class="text-center mb-6">
+            <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200">
+                <i class="fas fa-tools text-white text-2xl"></i>
+            </div>
+            <h1 class="text-2xl font-black text-slate-800">Solicitar Servicio</h1>
+            <p class="text-slate-500 font-medium">Completa los datos para solicitar un técnico</p>
+        </div>
 
-    <!-- FORMULARIO NUEVA SOLICITUD -->
-    <section class="w-full max-w-3xl mb-6">
-        <form id="solicitudForm" class="bg-slate-800/50 backdrop-blur-xl p-6 rounded-2xl shadow-md space-y-4">
-            <h2 class="text-xl font-bold mb-2">Nueva Solicitud de Servicio</h2>
+        <form id="solicitudForm" class="space-y-4">
 
-            <input type="text" name="nombre" placeholder="Nombre" required
-                class="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 outline-none text-white">
+            <div>
+                <input type="text" name="nombre" placeholder="Nombre Completo" required
+                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none">
+            </div>
 
-            <input type="tel" name="telefono" placeholder="Teléfono de contacto" required
-                class="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 outline-none text-white">
+            <div>
+                <input type="tel" name="telefono" placeholder="Teléfono / WhatsApp" required
+                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none">
+            </div>
 
-            <input type="text" name="direccion" placeholder="Dirección / Colonia" required
-                class="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 outline-none text-white">
+            <div>
+                <input type="text" name="direccion" placeholder="Dirección / Colonia" required
+                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none">
+            </div>
 
-            <textarea name="descripcion" placeholder="Descripción del servicio (opcional)"
-                class="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 outline-none text-white resize-none"></textarea>
+            <div>
+                <textarea name="descripcion" placeholder="Descripción del problema (opcional)" rows="3"
+                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none resize-none"></textarea>
+            </div>
 
-            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-2xl font-black shadow-md text-lg">
-                Enviar Solicitud
+            <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl text-xl shadow-lg shadow-blue-500/30 transition-all transform active:scale-[0.98]">
+                ENVIAR SOLICITUD
             </button>
+
+            <p id="msg" class="text-center mt-3 text-red-500 font-medium"></p>
         </form>
-    </section>
+    </div>
 
-    <!-- LISTA DE SOLICITUDES -->
-    <section class="w-full max-w-3xl mb-6">
-        <h2 class="text-xl font-bold mb-4">Mis Solicitudes</h2>
-        <div id="listaServicios" class="space-y-3">
-            <p class="text-slate-400">Cargando...</p>
-        </div>
-    </section>
+    <!-- BOTÓN SALIR -->
+    <div class="fixed top-6 left-6 z-50">
+        <button id="logoutBtn" class="flex items-center gap-2 bg-white/80 backdrop-blur-md px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold shadow-sm hover:shadow-md hover:bg-white transition-all group">
+            <i class="fas fa-sign-out-alt text-sm group-hover:-translate-x-1 transition-transform"></i>
+            <span>Salir</span>
+        </button>
+    </div>
 
-    <!-- LISTA DE TÉCNICOS DISPONIBLES -->
-    <section class="w-full max-w-3xl">
-        <h2 class="text-xl font-bold mb-4">Técnicos Disponibles</h2>
-        <div id="listaTecnicos" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <p class="text-slate-400">Cargando técnicos...</p>
-        </div>
-    </section>
-
-    <!-- FOOTER -->
-    <footer class="mt-auto text-slate-500 text-xs text-center py-4">
-        © 2026 FIXGO | Seguridad e Ingeniería
-    </footer>
-
-    <!-- JS PRINCIPAL CLIENTE -->
+    <!-- 🔐 JS CLIENTE -->
     <script type="module">
         import { auth, signOut, onAuthStateChanged } from "./firebase-auth.js";
-        import { getFirestore, collection, doc, getDoc, addDoc, onSnapshot, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { app } from "./firebase-config.js";
+        import "./app-cliente.js"; // flujo solicitudes
 
-        const db = getFirestore(app);
+        const logoutBtn = document.getElementById("logoutBtn");
 
-        const nombreCliente = document.getElementById("nombreCliente");
-        const cerrarSesion = document.getElementById("cerrarSesion");
-        const solicitudForm = document.getElementById("solicitudForm");
-        const listaServicios = document.getElementById("listaServicios");
-        const listaTecnicos = document.getElementById("listaTecnicos");
-
-        let uidCliente;
-
-        // 🔐 Protege acceso
-        onAuthStateChanged(auth, async (user) => {
-            if (!user) return window.location.href = "login.html";
-            uidCliente = user.uid;
-
-            // Obtener datos del cliente
-            const docRef = doc(db, "clientes", uidCliente);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                nombreCliente.innerText = docSnap.data().nombre || "Cliente";
-            }
-
-            cargarSolicitudes();
-            cargarTecnicos();
+        // Asegurar que hay sesión
+        onAuthStateChanged(auth, (user) => {
+            if (!user) window.location.href = "login.html";
         });
 
         // Cerrar sesión
-        cerrarSesion.addEventListener("click", async () => {
+        logoutBtn.addEventListener("click", async () => {
             await signOut(auth);
             window.location.href = "login.html";
         });
-
-        // Crear nueva solicitud
-        solicitudForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const data = {
-                uidCliente,
-                nombre: solicitudForm.nombre.value.trim(),
-                telefono: solicitudForm.telefono.value.trim(),
-                direccion: solicitudForm.direccion.value.trim(),
-                descripcion: solicitudForm.descripcion.value.trim(),
-                estado: "PENDIENTE",
-                creadoEn: new Date().toISOString()
-            };
-            await addDoc(collection(db, "solicitudes"), data);
-            solicitudForm.reset();
-        });
-
-        // Lista de solicitudes en tiempo real
-        function cargarSolicitudes() {
-            const q = query(collection(db, "solicitudes"), where("uidCliente", "==", uidCliente), orderBy("creadoEn", "desc"));
-            onSnapshot(q, (snapshot) => {
-                listaServicios.innerHTML = "";
-                if (snapshot.empty) {
-                    listaServicios.innerHTML = "<p class='text-slate-400'>No tienes solicitudes aún.</p>";
-                } else {
-                    snapshot.forEach(doc => {
-                        const s = doc.data();
-                        listaServicios.innerHTML += `
-                            <div class="bg-slate-800/50 p-4 rounded-xl shadow-md">
-                                <p><strong>Dirección:</strong> ${s.direccion}</p>
-                                <p><strong>Teléfono:</strong> ${s.telefono}</p>
-                                <p><strong>Estado:</strong> ${s.estado}</p>
-                            </div>
-                        `;
-                    });
-                }
-            });
-        }
-
-        // Lista de técnicos disponibles en tiempo real
-        function cargarTecnicos() {
-            const q = query(collection(db, "tecnicos"), where("estado", "==", "ACTIVO"));
-            onSnapshot(q, (snapshot) => {
-                listaTecnicos.innerHTML = "";
-                if (snapshot.empty) {
-                    listaTecnicos.innerHTML = "<p class='text-slate-400'>No hay técnicos disponibles.</p>";
-                } else {
-                    snapshot.forEach(doc => {
-                        const t = doc.data();
-                        listaTecnicos.innerHTML += `
-                            <div class="bg-slate-800/50 p-4 rounded-xl shadow-md">
-                                <p><strong>Nombre:</strong> ${t.nombre}</p>
-                                <p><strong>Unidad:</strong> ${t.vehiculo || 'Sin unidad'}</p>
-                                <p><strong>Estado:</strong> ${t.estado}</p>
-                            </div>
-                        `;
-                    });
-                }
-            });
-        }
     </script>
 
 </body>
