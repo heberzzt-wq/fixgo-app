@@ -1,31 +1,39 @@
 import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { app } from "./firebase-config.js"; // 👈 CLAVE
+import { app } from "./firebase-config.js";
 
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const form = document.getElementById('registroForm');
+const form = document.getElementById("registroForm");
+const btn = document.getElementById("submitBtn");
 
-form.addEventListener('submit', async (e) => {
+form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const btn = document.getElementById('submitBtn');
     btn.innerText = "OBTENIENDO GPS...";
     btn.disabled = true;
 
-    const inputs = form.querySelectorAll('input');
+    // Acceder a los inputs por ID para mayor seguridad
+    const nombre = document.getElementById("nombre").value.trim();
+    const cedula = document.getElementById("cedula").value.trim();
+    const vehiculo = document.getElementById("vehiculo").value.trim();
+    const placas = document.getElementById("placas").value.trim();
+    const correo = document.getElementById("correo").value.trim();
+    const contraseña = document.getElementById("contraseña").value;
+    const confirmarContraseña = document.getElementById("confirmarContraseña").value;
 
-    const nombre = inputs[0].value.trim();
-    const cedula = inputs[1].value.trim();
-    const vehiculo = inputs[2].value.trim();
-    const placas = inputs[3].value.trim();
-    const correo = inputs[4].value.trim();
-    const contraseña = inputs[5].value;
-    const confirmarContraseña = inputs[6].value;
-
+    // Validación de contraseñas
     if (contraseña !== confirmarContraseña) {
         alert("⚠️ Las contraseñas no coinciden");
+        btn.innerText = "ENVIAR SOLICITUD DE ALTA";
+        btn.disabled = false;
+        return;
+    }
+
+    // Validación mínima de longitud
+    if (contraseña.length < 8) {
+        alert("⚠️ La contraseña debe tener al menos 8 caracteres");
         btn.innerText = "ENVIAR SOLICITUD DE ALTA";
         btn.disabled = false;
         return;
@@ -44,14 +52,11 @@ form.addEventListener('submit', async (e) => {
             const lng = position.coords.longitude;
 
             try {
-                const userCredential = await createUserWithEmailAndPassword(
-                    auth,
-                    correo,
-                    contraseña
-                );
-
+                // Crear usuario en Firebase Auth
+                const userCredential = await createUserWithEmailAndPassword(auth, correo, contraseña);
                 const uid = userCredential.user.uid;
 
+                // Guardar datos adicionales en Firestore
                 await addDoc(collection(db, "tecnicos"), {
                     uid,
                     nombre,
@@ -74,8 +79,20 @@ form.addEventListener('submit', async (e) => {
                 btn.disabled = false;
             }
         },
-        () => {
-            alert("⚠️ Activa el GPS para continuar.");
+        (error) => {
+            switch (error.code) {
+                case error.PERMISSION_DENIED:
+                    alert("⚠️ Por favor permite el acceso a tu ubicación.");
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    alert("⚠️ Ubicación no disponible.");
+                    break;
+                case error.TIMEOUT:
+                    alert("⚠️ Tiempo de espera agotado para obtener tu ubicación.");
+                    break;
+                default:
+                    alert("⚠️ Error desconocido al obtener ubicación.");
+            }
             btn.innerText = "ENVIAR SOLICITUD DE ALTA";
             btn.disabled = false;
         }
