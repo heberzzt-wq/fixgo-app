@@ -3,83 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo Central - Torre de Control</title>
+    <title>FixGo - Panel Administrativo</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        .glass { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(16px); }
-        #map { height: 480px; width: 100%; border-radius: 24px; transition: all 0.3s; }
-        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; }
-    </style>
 </head>
-<body class="bg-[#05050a] text-white min-h-screen p-4 md:p-8 font-sans">
 
-    <div class="max-w-7xl mx-auto">
-        <header class="flex justify-between items-center mb-8">
-            <div>
-                <h1 class="text-3xl font-black text-blue-500 tracking-tighter italic">FIXGO <span class="text-white text-xl not-italic tracking-normal">CENTRAL</span></h1>
-                <p class="text-slate-400 text-xs mt-1 uppercase tracking-widest font-semibold">Panel de Monitoreo Satelital</p>
-            </div>
-            <div class="flex gap-4">
-                <button onclick="location.reload()" class="bg-white/5 hover:bg-white/10 p-3 rounded-2xl border border-white/10 transition">
-                    <i class="fas fa-sync-alt text-blue-400"></i>
-                </button>
-                <a href="index.html" class="bg-red-500/10 text-red-500 px-6 py-3 rounded-2xl font-bold border border-red-500/20 hover:bg-red-600 hover:text-white transition flex items-center gap-2">
-                    <i class="fas fa-power-off"></i> Salir
-                </a>
-            </div>
-        </header>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
 
-        <section class="glass border border-white/10 p-2 rounded-[2.5rem] shadow-2xl mb-8 overflow-hidden">
-            <div id="map" class="bg-slate-900"></div>
-        </section>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div class="glass border border-white/10 p-8 rounded-[2rem]">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-xl font-bold flex items-center gap-3">
-                        <i class="fas fa-satellite-dish text-blue-500"></i> Unidades Activas
-                    </h2>
-                    <span id="countTec" class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs font-bold">0</span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left">
-                        <thead class="text-slate-500 text-[10px] uppercase tracking-widest border-b border-white/5">
-                            <tr>
-                                <th class="pb-4">Operador / ID</th>
-                                <th class="pb-4">Vehículo</th>
-                                <th class="pb-4 text-right">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tablaTecnicos" class="text-sm">
-                            </tbody>
-                    </table>
-                </div>
+    <!-- 🧑‍💼 PANEL ADMIN -->
+    <div id="panelAdmin" data-rol="ADMIN" class="max-w-2xl w-full bg-gray-800/50 backdrop-blur-xl border border-white/10 p-8 rounded-[2rem] shadow-2xl text-center">
+        <div class="mb-6">
+            <div class="w-24 h-24 bg-indigo-600 rounded-full mx-auto flex items-center justify-center text-4xl shadow-lg shadow-indigo-500/20">
+                <i class="fas fa-user-cog"></i>
             </div>
-
-            <div class="glass border border-white/10 p-8 rounded-[2rem]">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-xl font-bold flex items-center gap-3">
-                        <i class="fas fa-bell text-yellow-500"></i> Alertas de Servicio
-                    </h2>
-                    <span id="countCli" class="bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-full text-xs font-bold">0</span>
-                </div>
-                <div id="listaClientes" class="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-                    </div>
-            </div>
+            <h1 id="nombreAdmin" class="text-3xl font-black mt-4">Cargando...</h1>
+            <p class="text-gray-400 text-sm uppercase tracking-widest">
+                Panel Administrativo
+            </p>
         </div>
+
+        <div class="grid gap-4">
+            <button onclick="verTecnicos()" class="group bg-blue-600/10 border border-blue-500/20 p-6 rounded-3xl hover:bg-blue-600 transition-all duration-300">
+                <i class="fas fa-users text-blue-500 group-hover:text-white text-2xl mb-2"></i>
+                <span class="block font-bold group-hover:text-white">Gestión de Técnicos</span>
+            </button>
+
+            <button onclick="verClientes()" class="group bg-green-600/10 border border-green-500/20 p-6 rounded-3xl hover:bg-green-600 transition-all duration-300">
+                <i class="fas fa-user-check text-green-500 group-hover:text-white text-2xl mb-2"></i>
+                <span class="block font-bold group-hover:text-white">Gestión de Clientes</span>
+            </button>
+
+            <button onclick="verServicios()" class="group bg-orange-500/10 border border-orange-500/20 p-6 rounded-3xl hover:bg-orange-500 transition-all duration-300">
+                <i class="fas fa-tools text-orange-500 group-hover:text-white text-2xl mb-2"></i>
+                <span class="block font-bold group-hover:text-white">Servicios</span>
+            </button>
+        </div>
+
+        <p class="mt-8 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+            FixGo Admin v2.0
+        </p>
     </div>
-<script type="module">
-import { auth, onAuthStateChanged } from "./firebase-auth.js";
 
-onAuthStateChanged(auth, (user) => {
-  if (!user) {
-    window.location.href = "login.html";
-  }
-});
-</script>
+    <!-- 🔐 PROTECCIÓN LOGIN + VERIFICACIÓN DE ROL -->
+    <script type="module">
+        import { auth, onAuthStateChanged } from "./firebase-auth.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { app } from "./firebase-config.js";
 
+        const db = getFirestore(app);
+
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                // No hay sesión, redirigir a login
+                window.location.href = "login.html";
+                return;
+            }
+
+            try {
+                // Verificar rol desde Firestore
+                const docRef = doc(db, "admins", user.uid);
+                const docSnap = await getDoc(docRef);
+
+                if (!docSnap.exists() || docSnap.data().rol !== "ADMIN") {
+                    alert("❌ Acceso denegado. No tienes permisos de administrador.");
+                    await auth.signOut();
+                    window.location.href = "login.html";
+                    return;
+                }
+
+                // Mostrar info del admin
+                const data = docSnap.data();
+                document.getElementById("nombreAdmin").innerText = data.nombre || "Administrador";
+
+            } catch (error) {
+                console.error("Error verificando rol:", error);
+                alert("❌ Error verificando permisos.");
+                await auth.signOut();
+                window.location.href = "login.html";
+            }
+        });
+
+        // Funciones dummy de botones, reemplazar con lógica real
+        window.verTecnicos = () => alert("📋 Gestionar técnicos");
+        window.verClientes = () => alert("👥 Gestionar clientes");
+        window.verServicios = () => alert("🛠 Gestionar servicios");
+    </script>
+
+    <!-- ⚙️ JS ADMIN -->
     <script type="module" src="app-admin.js"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k&callback=initMap" async defer></script>
+
 </body>
 </html>
