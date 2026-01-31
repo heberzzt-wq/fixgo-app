@@ -1,98 +1,105 @@
 // app-tecnico.js
 import { app } from "./firebase-config.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, query, where, onSnapshot, updateDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Elementos del DOM
-const solicitudesContainer = document.getElementById("solicitudesPendientes");
-const btnCerrarSesion = document.getElementById("cerrarSesionTecnico");
+const panel = document.getElementById("panelTecnico");
+const cerrarBtn = document.getElementById("cerrarSesionTecnico");
 
-// Estado del técnico
-let tecnicoData = null;
+let tecnicoUid = null;
+let tecnicoNombre = null;
 
-// Verificar usuario logueado y rol
-onAuthStateChanged(auth, async (user) => {
+// ===== Verificar sesión y rol =====
+onAuthStateChanged(auth, async user => {
     if (!user) {
         window.location.href = "login.html";
         return;
     }
 
+    tecnicoUid = user.uid;
+
     try {
-        const docRef = doc(db, "tecnicos", user.uid);
-        const docSnap = await getDoc(docRef);
+        const docRef = doc(db, "tecnicos", tecnicoUid);
+        const docSnap = await (await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js")).getDoc(docRef);
 
         if (!docSnap.exists() || docSnap.data().rol !== "TECNICO") {
-            alert("❌ Acceso denegado. No eres técnico.");
+            alert("❌ Acceso denegado. No tienes permisos de técnico.");
             await signOut(auth);
             window.location.href = "login.html";
             return;
         }
 
-        tecnicoData = docSnap.data();
-        document.getElementById("nombreTecnico").innerText = tecnicoData.nombre || "Técnico";
-        document.getElementById("unidadTecnico").innerText = tecnicoData.vehiculo || "Sin unidad asignada";
+        tecnicoNombre = docSnap.data().nombre || "Técnico";
+        document.getElementById("nombreTecnico").innerText = tecnicoNombre;
+        document.getElementById("unidadTecnico").innerText = docSnap.data().vehiculo || "Sin unidad asignada";
 
-        // Escuchar solicitudes pendientes
         escucharSolicitudesPendientes();
-    } catch (error) {
-        console.error("Error verificando rol:", error);
+
+    } catch (err) {
+        console.error("Error verificando rol:", err);
         alert("❌ Error verificando permisos.");
         await signOut(auth);
         window.location.href = "login.html";
     }
 });
 
-// Función para escuchar solicitudes pendientes
+// ===== Escuchar solicitudes pendientes =====
 function escucharSolicitudesPendientes() {
     const q = query(collection(db, "solicitudes"), where("estado", "==", "PENDIENTE"));
-    onSnapshot(q, (snapshot) => {
-        solicitudesContainer.innerHTML = ""; // limpiar
-        snapshot.forEach((docSnap) => {
+
+    onSnapshot(q, snapshot => {
+        const contenedor = document.getElementById("solicitudesPendientes");
+        if (!contenedor) {
+            const div = document.createElement("div");
+            div.id = "solicitudesPendientes";
+            div.className = "mt-6 space-y-4";
+            panel.appendChild(div);
+        } else {
+            contenedor.innerHTML = "";
+        }
+
+        snapshot.forEach(docSnap => {
             const data = docSnap.data();
+            const solicitudId = docSnap.id;
+
             const card = document.createElement("div");
-            card.className = "bg-white p-4 rounded-xl shadow mb-4 text-gray-800";
+            card.className = "bg-slate-800 p-4 rounded-xl shadow-md flex justify-between items-center";
+
             card.innerHTML = `
-                <p><strong>Cliente:</strong> ${data.clienteNombre}</p>
-                <p><strong>Dirección:</strong> ${data.direccion}</p>
-                <p><strong>Teléfono:</strong> ${data.telefono}</p>
-                <button class="acceptBtn bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded mt-2">
-                    Aceptar solicitud
+                <div>
+                    <p class="font-bold">${data.nombre || "Cliente"}</p>
+                    <p class="text-sm text-slate-400">${data.direccion || ""}</p>
+                    <p class="text-xs text-slate-500">Tel: ${data.telefono || data.correo || ""}</p>
+                </div>
+                <button class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl text-white font-bold text-sm">
+                    Tomar
                 </button>
             `;
 
-            const btn = card.querySelector(".acceptBtn");
-            btn.addEventListener("click", async () => aceptarSolicitud(docSnap.id, data));
+            const btn = card.querySelector("button");
+            btn.addEventListener("click", async () => {
+                try {
+                    await updateDoc(doc(db, "solicitudes", solicitudId), {
+                        estado: "EN SERVICIO",
+                        tecnicoUid,
+                        tecnicoNombre
+                    });
+                    alert("✅ Solicitud tomada correctamente.");
+                } catch (err) {
+                    alert("❌ Error al tomar la solicitud: " + err.message);
+                }
+            });
 
-            solicitudesContainer.appendChild(card);
+            contenedor.appendChild(card);
         });
     });
 }
 
-// Función para aceptar solicitud
-async function aceptarSolicitud(solicitudId, solicitudData) {
-    if (!tecnicoData) return;
-
-    try {
-        const docRef = doc(db, "solicitudes", solicitudId);
-        await updateDoc(docRef, {
-            estado: "EN SERVICIO",
-            tecnicoUid: auth.currentUser.uid,
-            tecnicoNombre: tecnicoData.nombre,
-            aceptadoEn: new Date().toISOString()
-        });
-        alert("✅ Solicitud aceptada correctamente.");
-    } catch (error) {
-        alert("❌ Error al aceptar solicitud: " + error.message);
-    }
-}
-
-// Cerrar sesión
-if (btnCerrarSesion) {
-    btnCerrarSesion.addEventListener("click", async () => {
-        await signOut(auth);
-        window.location.href = "login.html";
-    });
-}
+// ===== Cerrar sesión =====
+cerrarBtn.addEventListener("click", async () => {
+    await signOut(auth);
+    window.location.href = "login.html";
+});
