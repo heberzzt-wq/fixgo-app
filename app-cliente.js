@@ -1,36 +1,114 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FixGo & Finish | Inicio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-[#0a0a16] text-white">
 
-const firebaseConfig = {
-    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", // Nueva API Key
-    authDomain: "fixgo-44e4d.firebaseapp.com",
-    projectId: "fixgo-44e4d",
-    appId: "1:54271811634:web:53a6f4e1f727774e74e64f"
-};
+    <!-- HEADER / AUTH CONTROL -->
+    <header class="p-6 flex justify-between items-center max-w-7xl mx-auto">
+        <div class="text-2xl font-black tracking-tighter italic">FIXGO<span class="text-blue-500">&</span>FINISH</div>
+        <div class="flex gap-4">
+            <button id="btnLogin" class="text-gray-400 hover:text-white text-sm font-bold transition">Iniciar Sesión</button>
+            <button id="btnLogout" class="hidden bg-red-500 hover:bg-red-600 px-6 py-2 rounded-full text-sm font-bold transition shadow-lg shadow-red-500/20">Cerrar Sesión</button>
+        </div>
+    </header>
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const urlParams = new URLSearchParams(window.location.search);
-const tecId = urlParams.get('id');
+    <main class="text-center py-16 px-6 max-w-5xl mx-auto">
+        <h1 class="text-5xl md:text-7xl font-black mb-6 gradient-text">Mantenimiento de Élite.</h1>
+        <p class="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-10">
+            Técnicos certificados y procesos blindados en el Caribe Mexicano.
+        </p>
 
-function initRastreo() {
-    const map = new google.maps.Map(document.getElementById("map"), {
-        zoom: 15, center: { lat: 21.1619, lng: -86.8515 },
-        styles: [{ "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] }],
-        disableDefaultUI: true
-    });
-    let marker;
-    if (tecId) {
-        onSnapshot(doc(db, "tecnicos", tecId), (docSnap) => {
-            if (docSnap.exists()) {
-                const d = docSnap.data();
-                const pos = { lat: parseFloat(d.lat), lng: parseFloat(d.lng) };
-                if (marker) marker.setPosition(pos);
-                else marker = new google.maps.Marker({ position: pos, map, icon: { url: "https://img.icons8.com/isometric/50/ffffff/delivery-truck.png", scaledSize: new google.maps.Size(50, 50) }});
-                map.panTo(pos);
-                document.getElementById('nombreTecnico').innerText = d.nombre;
+        <div class="flex flex-col md:flex-row gap-4 justify-center mb-12">
+            <button id="solicitarServicioBtn" class="bg-white text-black px-8 py-4 rounded-2xl font-bold text-lg hover:bg-gray-200 transition shadow-xl">
+                🛠 Solicitar Servicio
+            </button>
+            <button onclick="alert('📍 Nuestra Cobertura actual: Cancún y Chetumal.')" class="glass border border-white/10 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/5 transition">
+                📍 Ver Cobertura
+            </button>
+        </div>
+
+        <!-- LISTA DE SERVICIOS DEL CLIENTE -->
+        <section id="serviciosCliente" class="hidden text-left">
+            <h2 class="text-2xl font-bold mb-4">Tus Solicitudes</h2>
+            <ul id="listaServicios" class="space-y-2">
+                <!-- Se llenará dinámicamente -->
+            </ul>
+        </section>
+    </main>
+
+    <footer class="py-10 text-center text-gray-600 text-xs border-t border-white/5">
+        © 2026 FIXGO & FINISH | Quintana Roo, México.
+    </footer>
+
+    <!-- AUTH + REDIRECCIÓN -->
+    <script type="module">
+        import { app } from "./firebase-config.js";
+        import { getAuth, onAuthStateChanged, signOut } from "./firebase-auth.js";
+        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const btnLogin = document.getElementById("btnLogin");
+        const btnLogout = document.getElementById("btnLogout");
+        const solicitarBtn = document.getElementById("solicitarServicioBtn");
+        const serviciosSection = document.getElementById("serviciosCliente");
+        const listaServicios = document.getElementById("listaServicios");
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                btnLogin.classList.add("hidden");
+                btnLogout.classList.remove("hidden");
+
+                // Mostrar servicios si es cliente
+                try {
+                    const serviciosQuery = query(collection(db, "servicios"), where("clienteUid", "==", user.uid));
+                    const querySnapshot = await getDocs(serviciosQuery);
+                    listaServicios.innerHTML = "";
+
+                    if (querySnapshot.empty) {
+                        listaServicios.innerHTML = "<li class='text-gray-400'>No tienes servicios solicitados aún.</li>";
+                    } else {
+                        querySnapshot.forEach(doc => {
+                            const data = doc.data();
+                            listaServicios.innerHTML += `
+                                <li class="bg-gray-800/40 p-4 rounded-lg shadow-sm">
+                                    <p><strong>Servicio:</strong> ${data.tipo || "Desconocido"}</p>
+                                    <p><strong>Estado:</strong> ${data.estado || "Pendiente"}</p>
+                                    <p><strong>Fecha:</strong> ${new Date(data.fecha || Date.now()).toLocaleString()}</p>
+                                </li>
+                            `;
+                        });
+                    }
+                    serviciosSection.classList.remove("hidden");
+                } catch (error) {
+                    console.error("Error cargando servicios:", error);
+                }
+
+                // Botón de solicitud redirige a registro-cliente o panel
+                solicitarBtn.onclick = () => window.location.href = "registro-cliente.html";
+
+            } else {
+                btnLogin.classList.remove("hidden");
+                btnLogout.classList.add("hidden");
+                serviciosSection.classList.add("hidden");
+                solicitarBtn.onclick = () => window.location.href = "login.html";
             }
         });
-    }
-}
-window.onload = initRastreo;
+
+        btnLogin.onclick = () => window.location.href = "login.html";
+
+        btnLogout.onclick = async () => {
+            await signOut(auth);
+            window.location.href = "login.html";
+        };
+    </script>
+
+</body>
+</html>
