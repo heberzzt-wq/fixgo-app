@@ -1,125 +1,120 @@
 // app-registro-universal.js
 import { app } from "./firebase-config.js";
-import { 
-    getAuth, 
-    createUserWithEmailAndPassword, 
-    GoogleAuthProvider, 
-    signInWithPopup 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore, collection, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
-// Detectar formulario presente
-const form = document.querySelector("form[data-rol]");
-if (!form) throw new Error("No se encontró un formulario con data-rol");
+// Detectar qué formulario está en la página
+const form = document.querySelector("form");
+if (!form) throw new Error("❌ No se encontró ningún formulario en esta página.");
 
-const rol = form.dataset.rol.toUpperCase(); // TECNICO o CLIENTE
+const rol = form.dataset.rol || "CLIENTE"; // Default cliente si no existe data-rol
+
+// Campos por rol
+const camposTecnico = ["nombre", "cedula", "vehiculo", "placas", "correo", "contraseña", "confirmarContraseña"];
+const camposCliente = ["nombre", "telefono", "direccion", "correo"];
+
+const campos = rol === "TECNICO" ? camposTecnico : camposCliente;
+
 const submitBtn = form.querySelector("#submitBtn");
 const googleBtn = form.querySelector("#loginGoogle");
 
-// Función de redirección según rol
-const redirectByRol = (rol) => {
-    if (rol === "TECNICO") return "tecnico.html";
-    return "index.html"; // CLIENTE u otros
-};
-
-// ---------------- REGISTRO CON CORREO/CONTRASEÑA ----------------
+// ===== Registro por correo + contraseña =====
 form.addEventListener("submit", async (e) => {
     e.preventDefault();
     submitBtn.disabled = true;
-    submitBtn.innerText = rol === "TECNICO" ? "OBTENIENDO GPS..." : "REGISTRANDO...";
-
-    const inputs = form.querySelectorAll("input");
-    const datos = {};
-    inputs.forEach(input => datos[input.name] = input.value.trim());
-
-    // Validación de contraseña (solo si existe)
-    if (datos.contraseña && datos.confirmarContraseña && datos.contraseña !== datos.confirmarContraseña) {
-        alert("⚠️ Las contraseñas no coinciden");
-        submitBtn.disabled = false;
-        submitBtn.innerText = "ENVIAR SOLICITUD DE ALTA";
-        return;
-    }
-
-    // Función para crear documento Firestore
-    const crearFirestore = async (uid, extra = {}) => {
-        const docData = {
-            uid,
-            rol,
-            estado: "ACTIVO",
-            creadoEn: new Date().toISOString(),
-            ...datos,
-            ...extra
-        };
-        await addDoc(collection(db, rol === "TECNICO" ? "tecnicos" : "clientes"), docData);
-    };
+    submitBtn.innerText = "Registrando...";
 
     try {
-        let extra = {};
-        // GPS solo para TECNICO
+        // Recolectar datos del formulario
+        const data = {};
+        campos.forEach((name) => {
+            const input = form.querySelector(`[name="${name}"]`);
+            if (input) data[name] = input.value.trim();
+        });
+
+        // Validaciones para técnico
         if (rol === "TECNICO") {
-            if (!navigator.geolocation) throw new Error("Tu navegador no soporta GPS");
-            const position = await new Promise((res, rej) => {
-                navigator.geolocation.getCurrentPosition(res, rej);
-            });
-            extra.lat = position.coords.latitude;
-            extra.lng = position.coords.longitude;
+            if (!data.contraseña || !data.confirmarContraseña) throw new Error("Las contraseñas son obligatorias.");
+            if (data.contraseña !== data.confirmarContraseña) throw new Error("Las contraseñas no coinciden.");
         }
 
         // Crear usuario en Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, datos.correo, datos.contraseña);
+        const userCredential = await createUserWithEmailAndPassword(auth, data.correo, data.contraseña || "TempPass123!");
         const uid = userCredential.user.uid;
 
-        await crearFirestore(uid, extra);
+        // Guardar en Firestore
+        const coleccion = rol === "TECNICO" ? "tecnicos" : "clientes";
+        const docRef = doc(db, coleccion, uid);
 
-        alert("✅ Registro completado correctamente");
-        window.location.href = redirectByRol(rol);
+        const firestoreData = { uid, rol, estado: "ACTIVO", creadoEn: new Date().toISOString(), ...data };
 
-    } catch (error) {
-        alert("❌ Error: " + error.message);
-        submitBtn.disabled = false;
-        submitBtn.innerText = "ENVIAR SOLICITUD DE ALTA";
-    }
-});
-
-// ---------------- REGISTRO CON GOOGLE ----------------
-googleBtn?.addEventListener("click", async () => {
-    googleBtn.disabled = true;
-    googleBtn.innerText = "CONECTANDO CON GOOGLE...";
-    try {
-        const userCredential = await signInWithPopup(auth, googleProvider);
-        const user = userCredential.user;
-
-        const extra = {};
-        // GPS solo para técnicos
+        // Para técnicos añadimos ubicación si está disponible
         if (rol === "TECNICO" && navigator.geolocation) {
-            const position = await new Promise((res, rej) => {
-                navigator.geolocation.getCurrentPosition(res, rej);
+            navigator.geolocation.getCurrentPosition((pos) => {
+                firestoreData.lat = pos.coords.latitude;
+                firestoreData.lng = pos.coords.longitude;
+                setDoc(docRef, firestoreData)
+                    .then(() => {
+                        alert("✅ Registrado correctamente con ubicación.");
+                        window.location.href = "index.html";
+                    })
+                    .catch((err) => {
+                        alert("❌ Error guardando en Firestore: " + err.message);
+                        submitBtn.disabled = false;
+                        submitBtn.innerText = "ENVIAR SOLICITUD DE ALTA";
+                    });
+            }, () => {
+                alert("⚠️ Activa el GPS para registrar ubicación. Se guardará sin GPS.");
+                setDoc(docRef, firestoreData).then(() => {
+                    window.location.href = "index.html";
+                });
             });
-            extra.lat = position.coords.latitude;
-            extra.lng = position.coords.longitude;
+        } else {
+            await setDoc(docRef, firestoreData);
+            alert("✅ Registro completado correctamente.");
+            window.location.href = "index.html";
         }
 
-        // Guardar info en Firestore si no existe
-        await addDoc(collection(db, rol === "TECNICO" ? "tecnicos" : "clientes"), {
-            uid: user.uid,
-            rol,
-            correo: user.email,
-            nombre: user.displayName || "",
-            estado: "ACTIVO",
-            creadoEn: new Date().toISOString(),
-            ...extra
-        });
-
-        alert("✅ Registrado correctamente con Google");
-        window.location.href = redirectByRol(rol);
-
     } catch (error) {
-        alert("❌ Error: " + error.message);
-        googleBtn.disabled = false;
-        googleBtn.innerText = "Registrarse con Google";
+        alert("❌ " + error.message);
+        submitBtn.disabled = false;
+        submitBtn.innerText = rol === "TECNICO" ? "ENVIAR SOLICITUD DE ALTA" : "CREAR MI CUENTA";
     }
 });
+
+// ===== Registro con Google =====
+if (googleBtn) {
+    googleBtn.addEventListener("click", async () => {
+        googleBtn.disabled = true;
+        googleBtn.innerText = "Redirigiendo a Google...";
+
+        try {
+            const userCredential = await signInWithPopup(auth, googleProvider);
+            const user = userCredential.user;
+            const coleccion = rol === "TECNICO" ? "tecnicos" : "clientes";
+            const docRef = doc(db, coleccion, user.uid);
+
+            // Verificar si ya existe
+            await setDoc(docRef, {
+                uid: user.uid,
+                rol,
+                estado: "ACTIVO",
+                creadoEn: new Date().toISOString(),
+                correo: user.email,
+                nombre: user.displayName || ""
+            }, { merge: true });
+
+            alert("✅ Registro completado con Google.");
+            window.location.href = rol === "TECNICO" ? "tecnico.html" : "index.html";
+
+        } catch (error) {
+            alert("❌ " + error.message);
+            googleBtn.disabled = false;
+            googleBtn.innerText = "Registrarse con Google";
+        }
+    });
+}
