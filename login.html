@@ -21,14 +21,12 @@
         <form id="loginForm" class="space-y-5">
             <div>
                 <input type="email" id="correo" placeholder="Correo Electrónico" required
-                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none text-slate-700">
+                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none text-slate-700">
             </div>
-
             <div>
                 <input type="password" id="contraseña" placeholder="Contraseña" required
-                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none text-slate-700">
+                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none text-slate-700">
             </div>
-
             <button type="submit" id="loginEmail" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl text-xl shadow-lg shadow-blue-500/30 transition-all transform active:scale-[0.98]">
                 Iniciar sesión
             </button>
@@ -52,7 +50,7 @@
         </a>
     </div>
 
-    <!-- 🔐 LOGIN UNIVERSAL -->
+    <!-- 🔐 LOGIN UNIVERSAL CON GOOGLE Y ROLES -->
     <script type="module">
         import { auth, signInWithEmailAndPassword, signInWithPopup, googleProvider } from "./firebase-auth.js";
         import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -63,8 +61,7 @@
 
         const redirectByRol = async (user) => {
             try {
-                // Revisar si es técnico, cliente o admin
-                const roles = ["tecnicos", "clientes", "admins"];
+                const roles = ["admins", "tecnicos", "clientes"];
                 for (const rol of roles) {
                     const docRef = doc(db, rol, user.uid);
                     const docSnap = await getDoc(docRef);
@@ -75,7 +72,6 @@
                         return;
                     }
                 }
-                // Si no tiene rol
                 msg.innerText = "❌ Usuario sin rol asignado en Firestore.";
                 await auth.signOut();
             } catch (error) {
@@ -108,6 +104,5 @@
             }
         });
     </script>
-
 </body>
 </html>
