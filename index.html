@@ -41,10 +41,18 @@
     </section>
 
     <!-- LISTA DE SOLICITUDES -->
-    <section class="w-full max-w-3xl">
+    <section class="w-full max-w-3xl mb-6">
         <h2 class="text-xl font-bold mb-4">Mis Solicitudes</h2>
         <div id="listaServicios" class="space-y-3">
             <p class="text-slate-400">Cargando...</p>
+        </div>
+    </section>
+
+    <!-- LISTA DE TÉCNICOS DISPONIBLES -->
+    <section class="w-full max-w-3xl">
+        <h2 class="text-xl font-bold mb-4">Técnicos Disponibles</h2>
+        <div id="listaTecnicos" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <p class="text-slate-400">Cargando técnicos...</p>
         </div>
     </section>
 
@@ -54,7 +62,103 @@
     </footer>
 
     <!-- JS PRINCIPAL CLIENTE -->
-    <script type="module" src="app-cliente.js"></script>
+    <script type="module">
+        import { auth, signOut, onAuthStateChanged } from "./firebase-auth.js";
+        import { getFirestore, collection, doc, getDoc, addDoc, onSnapshot, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { app } from "./firebase-config.js";
+
+        const db = getFirestore(app);
+
+        const nombreCliente = document.getElementById("nombreCliente");
+        const cerrarSesion = document.getElementById("cerrarSesion");
+        const solicitudForm = document.getElementById("solicitudForm");
+        const listaServicios = document.getElementById("listaServicios");
+        const listaTecnicos = document.getElementById("listaTecnicos");
+
+        let uidCliente;
+
+        // 🔐 Protege acceso
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) return window.location.href = "login.html";
+            uidCliente = user.uid;
+
+            // Obtener datos del cliente
+            const docRef = doc(db, "clientes", uidCliente);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                nombreCliente.innerText = docSnap.data().nombre || "Cliente";
+            }
+
+            cargarSolicitudes();
+            cargarTecnicos();
+        });
+
+        // Cerrar sesión
+        cerrarSesion.addEventListener("click", async () => {
+            await signOut(auth);
+            window.location.href = "login.html";
+        });
+
+        // Crear nueva solicitud
+        solicitudForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const data = {
+                uidCliente,
+                nombre: solicitudForm.nombre.value.trim(),
+                telefono: solicitudForm.telefono.value.trim(),
+                direccion: solicitudForm.direccion.value.trim(),
+                descripcion: solicitudForm.descripcion.value.trim(),
+                estado: "PENDIENTE",
+                creadoEn: new Date().toISOString()
+            };
+            await addDoc(collection(db, "solicitudes"), data);
+            solicitudForm.reset();
+        });
+
+        // Lista de solicitudes en tiempo real
+        function cargarSolicitudes() {
+            const q = query(collection(db, "solicitudes"), where("uidCliente", "==", uidCliente), orderBy("creadoEn", "desc"));
+            onSnapshot(q, (snapshot) => {
+                listaServicios.innerHTML = "";
+                if (snapshot.empty) {
+                    listaServicios.innerHTML = "<p class='text-slate-400'>No tienes solicitudes aún.</p>";
+                } else {
+                    snapshot.forEach(doc => {
+                        const s = doc.data();
+                        listaServicios.innerHTML += `
+                            <div class="bg-slate-800/50 p-4 rounded-xl shadow-md">
+                                <p><strong>Dirección:</strong> ${s.direccion}</p>
+                                <p><strong>Teléfono:</strong> ${s.telefono}</p>
+                                <p><strong>Estado:</strong> ${s.estado}</p>
+                            </div>
+                        `;
+                    });
+                }
+            });
+        }
+
+        // Lista de técnicos disponibles en tiempo real
+        function cargarTecnicos() {
+            const q = query(collection(db, "tecnicos"), where("estado", "==", "ACTIVO"));
+            onSnapshot(q, (snapshot) => {
+                listaTecnicos.innerHTML = "";
+                if (snapshot.empty) {
+                    listaTecnicos.innerHTML = "<p class='text-slate-400'>No hay técnicos disponibles.</p>";
+                } else {
+                    snapshot.forEach(doc => {
+                        const t = doc.data();
+                        listaTecnicos.innerHTML += `
+                            <div class="bg-slate-800/50 p-4 rounded-xl shadow-md">
+                                <p><strong>Nombre:</strong> ${t.nombre}</p>
+                                <p><strong>Unidad:</strong> ${t.vehiculo || 'Sin unidad'}</p>
+                                <p><strong>Estado:</strong> ${t.estado}</p>
+                            </div>
+                        `;
+                    });
+                }
+            });
+        }
+    </script>
 
 </body>
 </html>
