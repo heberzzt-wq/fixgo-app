@@ -8,7 +8,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 
-<body class="bg-[#0a0a16] text-white min-h-screen flex items-center justify-center p-4">
+<body class="bg-[#0a0a16] text-white min-h-screen flex flex-col items-center justify-start p-4 gap-6">
 
     <!-- 🧑‍🔧 PANEL TÉCNICO -->
     <div id="panelTecnico" data-rol="TECNICO" class="max-w-md w-full bg-slate-900/50 backdrop-blur-xl border border-white/10 p-8 rounded-[3rem] shadow-2xl text-center">
@@ -17,9 +17,7 @@
                 <i class="fas fa-truck-loading"></i>
             </div>
             <h1 id="nombreTecnico" class="text-2xl font-black mt-4">Cargando...</h1>
-            <p id="unidadTecnico" class="text-slate-500 text-sm uppercase tracking-widest">
-                Sincronizando Unidad
-            </p>
+            <p id="unidadTecnico" class="text-slate-500 text-sm uppercase tracking-widest">Sincronizando Unidad</p>
         </div>
 
         <div class="grid gap-4">
@@ -33,20 +31,32 @@
                 <span class="block font-bold group-hover:text-white">EN SERVICIO</span>
             </button>
         </div>
-
-        <p class="mt-8 text-[10px] text-slate-600 font-bold uppercase tracking-widest">
-            FixGo Live Status v2.0
-        </p>
     </div>
+
+    <!-- 📝 SOLICITUDES PENDIENTES -->
+    <div id="solicitudesContainer" class="max-w-md w-full bg-slate-800/50 backdrop-blur-xl border border-white/10 p-6 rounded-2xl shadow-2xl text-center">
+        <h2 class="text-xl font-bold mb-4">Solicitudes Pendientes</h2>
+        <div id="solicitudesList" class="flex flex-col gap-4">
+            <p class="text-slate-400">No hay solicitudes pendientes.</p>
+        </div>
+    </div>
+
+    <p class="mt-4 text-[10px] text-slate-600 font-bold uppercase tracking-widest">FixGo Live Status v2.0</p>
 
     <!-- 🔐 PROTECCIÓN LOGIN + VERIFICACIÓN DE ROL -->
     <script type="module">
+        import { auth, onAuthStateChanged } from "./firebase-auth.js";
+        import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { app } from "./firebase-config.js";
-        import { getAuth, onAuthStateChanged, signOut } from "./firebase-auth.js";
-        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        const auth = getAuth(app);
         const db = getFirestore(app);
+
+        const nombreTecnicoEl = document.getElementById("nombreTecnico");
+        const unidadTecnicoEl = document.getElementById("unidadTecnico");
+        const solicitudesListEl = document.getElementById("solicitudesList");
+
+        let tecnicoUid = null;
+        let tecnicoDisponible = false;
 
         onAuthStateChanged(auth, async (user) => {
             if (!user) {
@@ -54,28 +64,78 @@
                 return;
             }
 
+            tecnicoUid = user.uid;
+
             try {
-                const docRef = doc(db, "tecnicos", user.uid);
+                const docRef = doc(db, "tecnicos", tecnicoUid);
                 const docSnap = await getDoc(docRef);
 
                 if (!docSnap.exists() || docSnap.data().rol !== "TECNICO") {
-                    alert("❌ Acceso denegado. Solo técnicos.");
-                    await signOut(auth);
+                    alert("❌ Acceso denegado. No tienes permisos de técnico.");
+                    await auth.signOut();
                     window.location.href = "login.html";
                     return;
                 }
 
                 const data = docSnap.data();
-                document.getElementById("nombreTecnico").innerText = data.nombre || "Técnico";
-                document.getElementById("unidadTecnico").innerText = data.vehiculo || "Sin unidad asignada";
+                nombreTecnicoEl.innerText = data.nombre || "Técnico";
+                unidadTecnicoEl.innerText = data.vehiculo || "Sin unidad asignada";
+
+                // Escuchar solicitudes pendientes en tiempo real
+                escucharSolicitudesPendientes();
 
             } catch (error) {
                 console.error("Error verificando rol:", error);
-                alert("❌ Error en la verificación.");
-                await signOut(auth);
+                alert("❌ Error verificando permisos.");
+                await auth.signOut();
                 window.location.href = "login.html";
             }
         });
+
+        function cambiarEstado(estado) {
+            if (!tecnicoUid) return;
+            updateDoc(doc(db, "tecnicos", tecnicoUid), { estado });
+            tecnicoDisponible = estado === "DISPONIBLE";
+        }
+
+        function escucharSolicitudesPendientes() {
+            const q = query(collection(db, "solicitudes"), where("estado", "==", "PENDIENTE"));
+            onSnapshot(q, (snapshot) => {
+                solicitudesListEl.innerHTML = "";
+                if (snapshot.empty) {
+                    solicitudesListEl.innerHTML = '<p class="text-slate-400">No hay solicitudes pendientes.</p>';
+                    return;
+                }
+
+                snapshot.forEach((docu) => {
+                    const data = docu.data();
+                    const div = document.createElement("div");
+                    div.className = "bg-slate-700/70 p-4 rounded-xl flex flex-col gap-2";
+                    div.innerHTML = `
+                        <p><strong>Cliente:</strong> ${data.nombre || data.correo}</p>
+                        <p><strong>Servicio:</strong> ${data.servicio || "No definido"}</p>
+                        <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg mt-2">
+                            ACEPTAR
+                        </button>
+                    `;
+                    const btn = div.querySelector("button");
+                    btn.addEventListener("click", async () => {
+                        if (!tecnicoDisponible) {
+                            alert("⚠️ Debes estar disponible para aceptar solicitudes.");
+                            return;
+                        }
+                        await updateDoc(doc(db, "solicitudes", docu.id), {
+                            estado: "EN SERVICIO",
+                            tecnicoUid,
+                            aceptadaEn: new Date().toISOString()
+                        });
+                        alert("✅ Solicitud aceptada.");
+                    });
+
+                    solicitudesListEl.appendChild(div);
+                });
+            });
+        }
     </script>
 
     <!-- ⚙️ JS PRINCIPAL -->
