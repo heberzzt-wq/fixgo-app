@@ -1,100 +1,108 @@
 // app-cliente.js
 import { app } from "./firebase-config.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, serverTimestamp, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, doc, getDoc, onSnapshot, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// 🔐 Verificar sesión
+let clienteUID = null;
+let clienteData = null;
+
+// UI Elements
+const nombreClienteEl = document.getElementById("nombreCliente");
+const solicitudesContainer = document.getElementById("solicitudesCliente");
+const nuevaSolicitudForm = document.getElementById("nuevaSolicitudForm");
+
+// Validar sesión y rol
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
         window.location.href = "login.html";
         return;
     }
 
-    // Mostrar el UID o información del cliente si quieres
-    console.log("Cliente conectado:", user.uid);
+    clienteUID = user.uid;
+    const docSnap = await getDoc(doc(db, "clientes", clienteUID));
 
-    // Escuchar solicitudes pendientes del cliente en tiempo real
-    const solicitudesRef = collection(db, "solicitudes");
-    const q = query(solicitudesRef, where("clienteUid", "==", user.uid));
-    onSnapshot(q, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            const data = change.doc.data();
-            if (change.type === "added") {
-                console.log("Nueva solicitud:", data);
-                mostrarSolicitud(data);
-            }
-            if (change.type === "modified") {
-                console.log("Solicitud actualizada:", data);
-                actualizarSolicitud(data);
-            }
-        });
-    });
+    if (!docSnap.exists() || docSnap.data().rol !== "CLIENTE") {
+        alert("❌ No tienes permisos de cliente.");
+        await signOut(auth);
+        window.location.href = "login.html";
+        return;
+    }
+
+    clienteData = docSnap.data();
+    nombreClienteEl.innerText = clienteData.nombre || "Cliente";
+
+    // Escuchar solicitudes en tiempo real
+    escucharSolicitudes();
 });
 
-// 📄 Crear nueva solicitud
-const formSolicitud = document.getElementById("solicitudForm");
-if (formSolicitud) {
-    formSolicitud.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const btn = formSolicitud.querySelector("button[type=submit]");
-        btn.disabled = true;
-        btn.innerText = "Enviando solicitud...";
+// Función para crear nueva solicitud
+nuevaSolicitudForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-        try {
-            const user = auth.currentUser;
-            if (!user) throw new Error("Usuario no autenticado");
+    const formData = {};
+    nuevaSolicitudForm.querySelectorAll("input, textarea").forEach(input => {
+        formData[input.name] = input.value.trim();
+    });
 
-            const descripcion = formSolicitud.querySelector('[name="descripcion"]').value.trim();
-            const direccion = formSolicitud.querySelector('[name="direccion"]').value.trim();
+    if (!formData.direccion || !formData.descripcion) {
+        alert("⚠️ Completa todos los campos.");
+        return;
+    }
 
-            const nuevaSolicitud = {
-                clienteUid: user.uid,
-                descripcion,
-                direccion,
-                estado: "PENDIENTE", // inicial
-                tecnicoUid: null, // aún no asignado
-                creadoEn: new Date().toISOString(),
-            };
+    try {
+        await addDoc(collection(db, "solicitudes"), {
+            clienteUID,
+            nombre: clienteData.nombre || "",
+            telefono: clienteData.telefono || "",
+            direccion: formData.direccion,
+            descripcion: formData.descripcion,
+            estado: "PENDIENTE",
+            creadoEn: serverTimestamp(),
+            tecnicoUID: null
+        });
 
-            await addDoc(collection(db, "solicitudes"), nuevaSolicitud);
+        alert("✅ Solicitud creada correctamente.");
+        nuevaSolicitudForm.reset();
+    } catch (error) {
+        console.error("Error creando solicitud:", error);
+        alert("❌ Error al crear la solicitud");
+    }
+});
 
-            alert("✅ Solicitud enviada correctamente.");
-            formSolicitud.reset();
-            btn.disabled = false;
-            btn.innerText = "Enviar solicitud";
+// Escuchar solicitudes del cliente en tiempo real
+const escucharSolicitudes = () => {
+    const q = collection(db, "solicitudes");
+    onSnapshot(q, (snapshot) => {
+        solicitudesContainer.innerHTML = "";
 
-        } catch (error) {
-            alert("❌ Error: " + error.message);
-            btn.disabled = false;
-            btn.innerText = "Enviar solicitud";
+        snapshot.forEach(docSnap => {
+            const sol = docSnap.data();
+            if (sol.clienteUID !== clienteUID) return;
+
+            const div = document.createElement("div");
+            div.className = "p-4 mb-3 bg-white/10 rounded-xl shadow-md";
+            div.innerHTML = `
+                <p><strong>Dirección:</strong> ${sol.direccion}</p>
+                <p><strong>Descripción:</strong> ${sol.descripcion}</p>
+                <p><strong>Estado:</strong> ${sol.estado}</p>
+                <p><strong>Técnico:</strong> ${sol.tecnicoUID || "Pendiente"}</p>
+            `;
+
+            // Notificación simple si fue aceptada
+            if (sol.estado === "ACEPTADA") {
+                div.classList.add("bg-green-600/30");
+            } else if (sol.estado === "RECHAZADA") {
+                div.classList.add("bg-red-600/30");
+            }
+
+            solicitudesContainer.appendChild(div);
+        });
+
+        if (solicitudesContainer.innerHTML === "") {
+            solicitudesContainer.innerHTML = "<p class='text-slate-400 text-sm'>No tienes solicitudes activas</p>";
         }
     });
-}
-
-// ==== Funciones UI básicas ====
-function mostrarSolicitud(data) {
-    // Aquí se puede renderizar la solicitud en el panel del cliente
-    // Ejemplo simple:
-    const contenedor = document.getElementById("misSolicitudes");
-    if (contenedor) {
-        const div = document.createElement("div");
-        div.id = data.id || data.clienteUid + "_" + data.creadoEn;
-        div.className = "border p-4 my-2 rounded bg-white/10";
-        div.innerHTML = `
-            <p><strong>Descripción:</strong> ${data.descripcion}</p>
-            <p><strong>Dirección:</strong> ${data.direccion}</p>
-            <p><strong>Estado:</strong> <span id="estado_${div.id}">${data.estado}</span></p>
-            <p><strong>Técnico asignado:</strong> ${data.tecnicoUid || "Sin asignar"}</p>
-        `;
-        contenedor.appendChild(div);
-    }
-}
-
-function actualizarSolicitud(data) {
-    const id = data.id || data.clienteUid + "_" + data.creadoEn;
-    const estadoSpan = document.getElementById("estado_" + id);
-    if (estadoSpan) estadoSpan.innerText = data.estado;
-}
+};
