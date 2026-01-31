@@ -1,5 +1,6 @@
 import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { app } from "./firebase-config.js"; // 👈 CLAVE
 
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -8,20 +9,21 @@ const form = document.getElementById('registroForm');
 
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
+
     const btn = document.getElementById('submitBtn');
     btn.innerText = "OBTENIENDO GPS...";
     btn.disabled = true;
 
     const inputs = form.querySelectorAll('input');
-    const nombre = inputs[0].value;
-    const cedula = inputs[1].value;
-    const vehiculo = inputs[2].value;
-    const placas = inputs[3].value;
-    const correo = inputs[4].value;
+
+    const nombre = inputs[0].value.trim();
+    const cedula = inputs[1].value.trim();
+    const vehiculo = inputs[2].value.trim();
+    const placas = inputs[3].value.trim();
+    const correo = inputs[4].value.trim();
     const contraseña = inputs[5].value;
     const confirmarContraseña = inputs[6].value;
 
-    // Validación de confirmación de contraseña
     if (contraseña !== confirmarContraseña) {
         alert("⚠️ Las contraseñas no coinciden");
         btn.innerText = "ENVIAR SOLICITUD DE ALTA";
@@ -29,17 +31,27 @@ form.addEventListener('submit', async (e) => {
         return;
     }
 
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(async (position) => {
+    if (!navigator.geolocation) {
+        alert("❌ Tu navegador no soporta GPS.");
+        btn.innerText = "ENVIAR SOLICITUD DE ALTA";
+        btn.disabled = false;
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        async (position) => {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
 
             try {
-                // Crear usuario en Firebase Auth
-                const userCredential = await createUserWithEmailAndPassword(auth, correo, contraseña);
+                const userCredential = await createUserWithEmailAndPassword(
+                    auth,
+                    correo,
+                    contraseña
+                );
+
                 const uid = userCredential.user.uid;
 
-                // Guardar datos adicionales en Firestore
                 await addDoc(collection(db, "tecnicos"), {
                     uid,
                     nombre,
@@ -48,28 +60,25 @@ form.addEventListener('submit', async (e) => {
                     placas,
                     lat,
                     lng,
-                    ultimaConexion: new Date().toISOString(),
-                    estado: "ACTIVO"
+                    rol: "TECNICO",
+                    estado: "ACTIVO",
+                    creadoEn: new Date().toISOString()
                 });
 
-                alert("✅ Registrado con éxito en tu ubicación actual.");
+                alert("✅ Registro completado correctamente.");
                 window.location.href = "index.html";
 
             } catch (error) {
-                alert("Error: " + error.message);
+                alert("❌ Error: " + error.message);
                 btn.innerText = "ENVIAR SOLICITUD DE ALTA";
                 btn.disabled = false;
             }
-
-        }, (error) => {
-            alert("⚠️ Por favor activa el GPS para registrarte.");
+        },
+        () => {
+            alert("⚠️ Activa el GPS para continuar.");
             btn.innerText = "ENVIAR SOLICITUD DE ALTA";
             btn.disabled = false;
-        });
-    } else {
-        alert("Tu navegador no soporta GPS.");
-        btn.innerText = "ENVIAR SOLICITUD DE ALTA";
-        btn.disabled = false;
-    }
+        }
+    );
 });
 
