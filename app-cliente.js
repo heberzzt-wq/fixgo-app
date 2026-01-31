@@ -1,114 +1,127 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FixGo & Finish | Inicio</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-</head>
-<body class="bg-[#0a0a16] text-white">
+// app-cliente.js
+import { app } from "./firebase-config.js";
+import { auth, onAuthStateChanged, signOut } from "./firebase-auth.js";
+import { getFirestore, collection, addDoc, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    <!-- HEADER / AUTH CONTROL -->
-    <header class="p-6 flex justify-between items-center max-w-7xl mx-auto">
-        <div class="text-2xl font-black tracking-tighter italic">FIXGO<span class="text-blue-500">&</span>FINISH</div>
-        <div class="flex gap-4">
-            <button id="btnLogin" class="text-gray-400 hover:text-white text-sm font-bold transition">Iniciar Sesión</button>
-            <button id="btnLogout" class="hidden bg-red-500 hover:bg-red-600 px-6 py-2 rounded-full text-sm font-bold transition shadow-lg shadow-red-500/20">Cerrar Sesión</button>
-        </div>
-    </header>
+const db = getFirestore(app);
 
-    <main class="text-center py-16 px-6 max-w-5xl mx-auto">
-        <h1 class="text-5xl md:text-7xl font-black mb-6 gradient-text">Mantenimiento de Élite.</h1>
-        <p class="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-10">
-            Técnicos certificados y procesos blindados en el Caribe Mexicano.
-        </p>
+// Elementos DOM
+const listaServicios = document.getElementById("listaServicios");
+const formSolicitud = document.getElementById("solicitudForm");
+const btnCerrarSesion = document.getElementById("cerrarSesion");
 
-        <div class="flex flex-col md:flex-row gap-4 justify-center mb-12">
-            <button id="solicitarServicioBtn" class="bg-white text-black px-8 py-4 rounded-2xl font-bold text-lg hover:bg-gray-200 transition shadow-xl">
-                🛠 Solicitar Servicio
-            </button>
-            <button onclick="alert('📍 Nuestra Cobertura actual: Cancún y Chetumal.')" class="glass border border-white/10 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/5 transition">
-                📍 Ver Cobertura
-            </button>
-        </div>
+// ===== PROTECCIÓN LOGIN =====
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        window.location.href = "login.html";
+        return;
+    }
 
-        <!-- LISTA DE SERVICIOS DEL CLIENTE -->
-        <section id="serviciosCliente" class="hidden text-left">
-            <h2 class="text-2xl font-bold mb-4">Tus Solicitudes</h2>
-            <ul id="listaServicios" class="space-y-2">
-                <!-- Se llenará dinámicamente -->
-            </ul>
-        </section>
-    </main>
-
-    <footer class="py-10 text-center text-gray-600 text-xs border-t border-white/5">
-        © 2026 FIXGO & FINISH | Quintana Roo, México.
-    </footer>
-
-    <!-- AUTH + REDIRECCIÓN -->
-    <script type="module">
-        import { app } from "./firebase-config.js";
-        import { getAuth, onAuthStateChanged, signOut } from "./firebase-auth.js";
-        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        const btnLogin = document.getElementById("btnLogin");
-        const btnLogout = document.getElementById("btnLogout");
-        const solicitarBtn = document.getElementById("solicitarServicioBtn");
-        const serviciosSection = document.getElementById("serviciosCliente");
-        const listaServicios = document.getElementById("listaServicios");
-
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                btnLogin.classList.add("hidden");
-                btnLogout.classList.remove("hidden");
-
-                // Mostrar servicios si es cliente
-                try {
-                    const serviciosQuery = query(collection(db, "servicios"), where("clienteUid", "==", user.uid));
-                    const querySnapshot = await getDocs(serviciosQuery);
-                    listaServicios.innerHTML = "";
-
-                    if (querySnapshot.empty) {
-                        listaServicios.innerHTML = "<li class='text-gray-400'>No tienes servicios solicitados aún.</li>";
-                    } else {
-                        querySnapshot.forEach(doc => {
-                            const data = doc.data();
-                            listaServicios.innerHTML += `
-                                <li class="bg-gray-800/40 p-4 rounded-lg shadow-sm">
-                                    <p><strong>Servicio:</strong> ${data.tipo || "Desconocido"}</p>
-                                    <p><strong>Estado:</strong> ${data.estado || "Pendiente"}</p>
-                                    <p><strong>Fecha:</strong> ${new Date(data.fecha || Date.now()).toLocaleString()}</p>
-                                </li>
-                            `;
-                        });
-                    }
-                    serviciosSection.classList.remove("hidden");
-                } catch (error) {
-                    console.error("Error cargando servicios:", error);
-                }
-
-                // Botón de solicitud redirige a registro-cliente o panel
-                solicitarBtn.onclick = () => window.location.href = "registro-cliente.html";
-
-            } else {
-                btnLogin.classList.remove("hidden");
-                btnLogout.classList.add("hidden");
-                serviciosSection.classList.add("hidden");
-                solicitarBtn.onclick = () => window.location.href = "login.html";
-            }
-        });
-
-        btnLogin.onclick = () => window.location.href = "login.html";
-
-        btnLogout.onclick = async () => {
+    try {
+        // Verificar rol en Firestore
+        const q = query(collection(db, "clientes"), where("uid", "==", user.uid));
+        const querySnap = await getDocs(q);
+        if (querySnap.empty) {
+            alert("❌ Acceso denegado. No eres cliente.");
             await signOut(auth);
             window.location.href = "login.html";
-        };
-    </script>
+            return;
+        }
 
-</body>
-</html>
+        // Mostrar nombre del cliente
+        const clienteData = querySnap.docs[0].data();
+        document.getElementById("nombreCliente").innerText = clienteData.nombre || "Cliente";
+
+        // Cargar solicitudes existentes
+        cargarSolicitudes(user.uid);
+
+    } catch (error) {
+        console.error("Error verificando rol cliente:", error);
+        alert("❌ Error verificando permisos.");
+        await signOut(auth);
+        window.location.href = "login.html";
+    }
+});
+
+// ===== FUNCION CREAR NUEVA SOLICITUD =====
+if (formSolicitud) {
+    formSolicitud.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = formSolicitud.querySelector("button[type='submit']");
+        btn.disabled = true;
+        btn.innerText = "Enviando...";
+
+        try {
+            const user = auth.currentUser;
+            if (!user) throw new Error("Usuario no autenticado.");
+
+            const data = {
+                clienteUid: user.uid,
+                nombreCliente: formSolicitud.nombre.value.trim(),
+                telefono: formSolicitud.telefono.value.trim(),
+                direccion: formSolicitud.direccion.value.trim(),
+                descripcion: formSolicitud.descripcion?.value.trim() || "",
+                estado: "PENDIENTE",
+                creadoEn: new Date().toISOString()
+            };
+
+            await addDoc(collection(db, "servicios"), data);
+            alert("✅ Solicitud enviada correctamente.");
+            formSolicitud.reset();
+            btn.disabled = false;
+            btn.innerText = "Enviar Solicitud";
+
+            // Refrescar lista
+            cargarSolicitudes(user.uid);
+
+        } catch (error) {
+            alert("❌ " + error.message);
+            btn.disabled = false;
+            btn.innerText = "Enviar Solicitud";
+        }
+    });
+}
+
+// ===== FUNCION PARA CARGAR SOLICITUDES =====
+async function cargarSolicitudes(uid) {
+    if (!listaServicios) return;
+
+    listaServicios.innerHTML = "<p class='text-slate-400'>Cargando...</p>";
+
+    try {
+        const q = query(
+            collection(db, "servicios"),
+            where("clienteUid", "==", uid),
+            orderBy("creadoEn", "desc")
+        );
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            listaServicios.innerHTML = "<p class='text-slate-400'>No tienes solicitudes registradas.</p>";
+            return;
+        }
+
+        listaServicios.innerHTML = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return `
+                <div class="p-4 bg-slate-800/50 rounded-xl mb-3 shadow-md">
+                    <p class="font-bold text-white">${data.descripcion || "Servicio sin descripción"}</p>
+                    <p class="text-slate-400 text-sm">Dirección: ${data.direccion}</p>
+                    <p class="text-slate-400 text-sm">Teléfono: ${data.telefono}</p>
+                    <p class="text-slate-400 text-xs uppercase tracking-widest mt-1">Estado: ${data.estado}</p>
+                </div>
+            `;
+        }).join("");
+
+    } catch (error) {
+        listaServicios.innerHTML = `<p class="text-red-500">Error cargando solicitudes: ${error.message}</p>`;
+    }
+}
+
+// ===== CERRAR SESIÓN =====
+if (btnCerrarSesion) {
+    btnCerrarSesion.addEventListener("click", async () => {
+        await signOut(auth);
+        window.location.href = "login.html";
+    });
+}
