@@ -7,19 +7,15 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
-
 <body class="bg-[#0a0a16] text-white min-h-screen flex items-center justify-center p-4">
 
-    <!-- 🧑‍🔧 PANEL TÉCNICO -->
     <div id="panelTecnico" data-rol="TECNICO" class="max-w-md w-full bg-slate-900/50 backdrop-blur-xl border border-white/10 p-8 rounded-[3rem] shadow-2xl text-center">
         <div class="mb-6">
             <div class="w-20 h-20 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-3xl shadow-lg shadow-blue-500/20">
                 <i class="fas fa-truck-loading"></i>
             </div>
             <h1 id="nombreTecnico" class="text-2xl font-black mt-4">Cargando...</h1>
-            <p id="unidadTecnico" class="text-slate-500 text-sm uppercase tracking-widest">
-                Sincronizando Unidad
-            </p>
+            <p id="unidadTecnico" class="text-slate-500 text-sm uppercase tracking-widest">Sincronizando Unidad</p>
         </div>
 
         <div class="grid gap-4">
@@ -39,7 +35,7 @@
         </p>
     </div>
 
-    <!-- 🔐 PROTECCIÓN LOGIN + VERIFICACIÓN DE ROL -->
+    <!-- 🔐 PROTECCIÓN LOGIN Y VERIFICACIÓN DE ROL -->
     <script type="module">
         import { auth, onAuthStateChanged } from "./firebase-auth.js";
         import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -49,13 +45,11 @@
 
         onAuthStateChanged(auth, async (user) => {
             if (!user) {
-                // No hay sesión, redirigir a login
                 window.location.href = "login.html";
                 return;
             }
 
             try {
-                // Verificar rol desde Firestore
                 const docRef = doc(db, "tecnicos", user.uid);
                 const docSnap = await getDoc(docRef);
 
@@ -66,7 +60,6 @@
                     return;
                 }
 
-                // Mostrar info del técnico
                 const data = docSnap.data();
                 document.getElementById("nombreTecnico").innerText = data.nombre || "Técnico";
                 document.getElementById("unidadTecnico").innerText = data.vehiculo || "Sin unidad asignada";
@@ -80,9 +73,6 @@
         });
     </script>
 
-    <!-- ⚙️ JS PRINCIPAL -->
     <script type="module" src="app-tecnico.js"></script>
-
 </body>
 </html>
-
