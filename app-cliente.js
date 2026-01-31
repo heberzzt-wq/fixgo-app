@@ -1,119 +1,77 @@
-// app-tecnico.js
+// app-cliente.js
 import { app } from "./firebase-config.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, onSnapshot, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, query, where, onSnapshot, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const panel = document.getElementById("panelTecnico");
+// Elementos del DOM
+const form = document.getElementById("solicitudForm");
+const solicitudesContainer = document.getElementById("misSolicitudes");
+const btnCerrarSesion = document.getElementById("cerrarSesion");
 
-// Variables de estado
-let tecnicoUid = null;
-let tecnicoData = null;
-
-// ===== MONITOREAR AUTENTICACIÓN =====
+// Verificar usuario logueado
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
         window.location.href = "login.html";
         return;
     }
-    tecnicoUid = user.uid;
 
-    // Traer datos del técnico
-    const tecnicoRef = doc(db, "tecnicos", tecnicoUid);
-    const tecnicoSnap = await tecnicoRef.get ? await tecnicoRef.get() : null;
-
-    // Mostrar info del técnico
-    tecnicoData = tecnicoSnap?.data() || {};
-    document.getElementById("nombreTecnico").innerText = tecnicoData.nombre || "Técnico";
-    document.getElementById("unidadTecnico").innerText = tecnicoData.vehiculo || "Sin unidad asignada";
-
-    // Monitorear solicitudes pendientes
-    initSolicitudes();
+    // Escuchar solicitudes del cliente en tiempo real
+    const q = query(collection(db, "solicitudes"), where("clienteUid", "==", user.uid));
+    onSnapshot(q, (snapshot) => {
+        solicitudesContainer.innerHTML = ""; // limpiar
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const card = document.createElement("div");
+            card.className = "bg-white p-4 rounded-xl shadow mb-4 text-gray-800";
+            card.innerHTML = `
+                <p><strong>Servicio:</strong> ${data.direccion}</p>
+                <p><strong>Estado:</strong> ${data.estado}</p>
+                <p><strong>Técnico:</strong> ${data.tecnicoNombre || "Pendiente"}</p>
+            `;
+            solicitudesContainer.appendChild(card);
+        });
+    });
 });
 
-// ===== FUNCIONES DE ESTADO =====
-window.cambiarEstado = async (estado) => {
-    if (!tecnicoUid) return;
-    try {
-        const tecnicoRef = doc(db, "tecnicos", tecnicoUid);
-        await updateDoc(tecnicoRef, { estado });
-        alert(`✅ Estado cambiado a ${estado}`);
-    } catch (error) {
-        console.error("Error cambiando estado:", error);
-    }
-};
+// Crear nueva solicitud
+if (form) {
+    form.addEventListener("submit", async (e) => {
+        e.preventDefault();
 
-// ===== MONITOREAR SOLICITUDES PENDIENTES =====
-const initSolicitudes = () => {
-    const solicitudesRef = collection(db, "solicitudes");
-    const q = query(solicitudesRef, where("estado", "==", "PENDIENTE"));
+        const nombre = form.nombre.value.trim();
+        const telefono = form.telefono.value.trim();
+        const direccion = form.direccion.value.trim();
 
-    onSnapshot(q, (snapshot) => {
-        renderSolicitudes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        if (!nombre || !telefono || !direccion) {
+            alert("⚠️ Completa todos los campos");
+            return;
+        }
+
+        try {
+            const user = auth.currentUser;
+            await addDoc(collection(db, "solicitudes"), {
+                clienteUid: user.uid,
+                clienteNombre: nombre,
+                telefono,
+                direccion,
+                estado: "PENDIENTE",
+                creadoEn: new Date().toISOString()
+            });
+            alert("✅ Solicitud enviada, esperando técnico disponible.");
+            form.reset();
+        } catch (error) {
+            alert("❌ Error creando solicitud: " + error.message);
+        }
     });
-};
+}
 
-// ===== RENDERIZAR SOLICITUDES =====
-const renderSolicitudes = (solicitudes) => {
-    let container = document.getElementById("solicitudesContainer");
-
-    // Crear contenedor si no existe
-    if (!container) {
-        container = document.createElement("div");
-        container.id = "solicitudesContainer";
-        container.className = "mt-6 grid gap-4";
-        panel.appendChild(container);
-    }
-
-    container.innerHTML = ""; // Limpiar
-
-    if (solicitudes.length === 0) {
-        container.innerHTML = `<p class="text-slate-400 text-sm text-center">No hay solicitudes pendientes.</p>`;
-        return;
-    }
-
-    solicitudes.forEach((sol) => {
-        const card = document.createElement("div");
-        card.className = "bg-slate-800/60 border border-white/10 p-4 rounded-2xl flex justify-between items-center";
-
-        card.innerHTML = `
-            <div>
-                <p class="font-bold text-white">${sol.nombre || "Cliente"}</p>
-                <p class="text-slate-300 text-sm">${sol.direccion || "Sin dirección"}</p>
-                <p class="text-slate-300 text-sm">${sol.descripcion || ""}</p>
-            </div>
-            <button class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-4 rounded-xl text-sm">
-                Aceptar
-            </button>
-        `;
-
-        // Evento aceptar solicitud
-        card.querySelector("button").addEventListener("click", () => aceptarSolicitud(sol.id));
-        container.appendChild(card);
+// Cerrar sesión
+if (btnCerrarSesion) {
+    btnCerrarSesion.addEventListener("click", async () => {
+        await signOut(auth);
+        window.location.href = "login.html";
     });
-};
-
-// ===== ACEPTAR SOLICITUD =====
-const aceptarSolicitud = async (solId) => {
-    if (!tecnicoUid) return;
-
-    try {
-        const solRef = doc(db, "solicitudes", solId);
-        await updateDoc(solRef, {
-            estado: "EN PROCESO",
-            tecnicoAsignado: tecnicoUid,
-            aceptadoEn: new Date().toISOString()
-        });
-
-        // Cambiar estado técnico automáticamente a "EN SERVICIO"
-        const tecnicoRef = doc(db, "tecnicos", tecnicoUid);
-        await updateDoc(tecnicoRef, { estado: "EN SERVICIO" });
-
-        alert("✅ Solicitud aceptada!");
-    } catch (error) {
-        console.error("Error aceptando solicitud:", error);
-        alert("❌ No se pudo aceptar la solicitud.");
-    }
-};
+}
