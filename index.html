@@ -1,114 +1,60 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FixGo & Finish | Inicio</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FixGo | Panel Cliente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
-<body class="bg-[#0a0a16] text-white">
+<body class="bg-slate-900 text-white min-h-screen p-4 flex flex-col items-center">
 
-    <!-- HEADER / AUTH CONTROL -->
-    <header class="p-6 flex justify-between items-center max-w-7xl mx-auto">
-        <div class="text-2xl font-black tracking-tighter italic">FIXGO<span class="text-blue-500">&</span>FINISH</div>
-        <div class="flex gap-4">
-            <button id="btnLogin" class="text-gray-400 hover:text-white text-sm font-bold transition">Iniciar Sesión</button>
-            <button id="btnLogout" class="hidden bg-red-500 hover:bg-red-600 px-6 py-2 rounded-full text-sm font-bold transition shadow-lg shadow-red-500/20">Cerrar Sesión</button>
-        </div>
+    <!-- HEADER -->
+    <header class="w-full max-w-3xl flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-black tracking-tight" id="nombreCliente">Cargando...</h1>
+        <button id="cerrarSesion" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl text-white font-bold shadow-md">
+            Cerrar sesión
+        </button>
     </header>
 
-    <main class="text-center py-16 px-6 max-w-5xl mx-auto">
-        <h1 class="text-5xl md:text-7xl font-black mb-6 gradient-text">Mantenimiento de Élite.</h1>
-        <p class="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-10">
-            Técnicos certificados y procesos blindados en el Caribe Mexicano.
-        </p>
+    <!-- FORMULARIO NUEVA SOLICITUD -->
+    <section class="w-full max-w-3xl mb-6">
+        <form id="solicitudForm" class="bg-slate-800/50 backdrop-blur-xl p-6 rounded-2xl shadow-md space-y-4">
+            <h2 class="text-xl font-bold mb-2">Nueva Solicitud de Servicio</h2>
 
-        <div class="flex flex-col md:flex-row gap-4 justify-center mb-12">
-            <button id="solicitarServicioBtn" class="bg-white text-black px-8 py-4 rounded-2xl font-bold text-lg hover:bg-gray-200 transition shadow-xl">
-                🛠 Solicitar Servicio
+            <input type="text" name="nombre" placeholder="Nombre" required
+                class="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 outline-none text-white">
+
+            <input type="tel" name="telefono" placeholder="Teléfono de contacto" required
+                class="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 outline-none text-white">
+
+            <input type="text" name="direccion" placeholder="Dirección / Colonia" required
+                class="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 outline-none text-white">
+
+            <textarea name="descripcion" placeholder="Descripción del servicio (opcional)"
+                class="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 outline-none text-white resize-none"></textarea>
+
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-2xl font-black shadow-md text-lg">
+                Enviar Solicitud
             </button>
-            <button onclick="alert('📍 Nuestra Cobertura actual: Cancún y Chetumal.')" class="glass border border-white/10 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/5 transition">
-                📍 Ver Cobertura
-            </button>
+        </form>
+    </section>
+
+    <!-- LISTA DE SOLICITUDES -->
+    <section class="w-full max-w-3xl">
+        <h2 class="text-xl font-bold mb-4">Mis Solicitudes</h2>
+        <div id="listaServicios" class="space-y-3">
+            <p class="text-slate-400">Cargando...</p>
         </div>
+    </section>
 
-        <!-- LISTA DE SERVICIOS DEL CLIENTE -->
-        <section id="serviciosCliente" class="hidden text-left">
-            <h2 class="text-2xl font-bold mb-4">Tus Solicitudes</h2>
-            <ul id="listaServicios" class="space-y-2">
-                <!-- Se llenará dinámicamente -->
-            </ul>
-        </section>
-    </main>
-
-    <footer class="py-10 text-center text-gray-600 text-xs border-t border-white/5">
-        © 2026 FIXGO & FINISH | Quintana Roo, México.
+    <!-- FOOTER -->
+    <footer class="mt-auto text-slate-500 text-xs text-center py-4">
+        © 2026 FIXGO | Seguridad e Ingeniería
     </footer>
 
-    <!-- AUTH + REDIRECCIÓN -->
-    <script type="module">
-        import { app } from "./firebase-config.js";
-        import { getAuth, onAuthStateChanged, signOut } from "./firebase-auth.js";
-        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        const btnLogin = document.getElementById("btnLogin");
-        const btnLogout = document.getElementById("btnLogout");
-        const solicitarBtn = document.getElementById("solicitarServicioBtn");
-        const serviciosSection = document.getElementById("serviciosCliente");
-        const listaServicios = document.getElementById("listaServicios");
-
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                btnLogin.classList.add("hidden");
-                btnLogout.classList.remove("hidden");
-
-                // Mostrar servicios si es cliente
-                try {
-                    const serviciosQuery = query(collection(db, "servicios"), where("clienteUid", "==", user.uid));
-                    const querySnapshot = await getDocs(serviciosQuery);
-                    listaServicios.innerHTML = "";
-
-                    if (querySnapshot.empty) {
-                        listaServicios.innerHTML = "<li class='text-gray-400'>No tienes servicios solicitados aún.</li>";
-                    } else {
-                        querySnapshot.forEach(doc => {
-                            const data = doc.data();
-                            listaServicios.innerHTML += `
-                                <li class="bg-gray-800/40 p-4 rounded-lg shadow-sm">
-                                    <p><strong>Servicio:</strong> ${data.tipo || "Desconocido"}</p>
-                                    <p><strong>Estado:</strong> ${data.estado || "Pendiente"}</p>
-                                    <p><strong>Fecha:</strong> ${new Date(data.fecha || Date.now()).toLocaleString()}</p>
-                                </li>
-                            `;
-                        });
-                    }
-                    serviciosSection.classList.remove("hidden");
-                } catch (error) {
-                    console.error("Error cargando servicios:", error);
-                }
-
-                // Botón de solicitud redirige a registro-cliente o panel
-                solicitarBtn.onclick = () => window.location.href = "registro-cliente.html";
-
-            } else {
-                btnLogin.classList.remove("hidden");
-                btnLogout.classList.add("hidden");
-                serviciosSection.classList.add("hidden");
-                solicitarBtn.onclick = () => window.location.href = "login.html";
-            }
-        });
-
-        btnLogin.onclick = () => window.location.href = "login.html";
-
-        btnLogout.onclick = async () => {
-            await signOut(auth);
-            window.location.href = "login.html";
-        };
-    </script>
+    <!-- JS PRINCIPAL CLIENTE -->
+    <script type="module" src="app-cliente.js"></script>
 
 </body>
 </html>
