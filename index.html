@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo & Finish | Inicio</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FixGo & Finish | Inicio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body class="bg-[#0a0a16] text-white">
 
@@ -18,12 +18,13 @@
         </div>
     </header>
 
-    <main class="text-center py-20 px-6">
+    <main class="text-center py-16 px-6 max-w-5xl mx-auto">
         <h1 class="text-5xl md:text-7xl font-black mb-6 gradient-text">Mantenimiento de Élite.</h1>
         <p class="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-10">
             Técnicos certificados y procesos blindados en el Caribe Mexicano.
         </p>
-        <div class="flex flex-col md:flex-row gap-4 justify-center">
+
+        <div class="flex flex-col md:flex-row gap-4 justify-center mb-12">
             <button id="solicitarServicioBtn" class="bg-white text-black px-8 py-4 rounded-2xl font-bold text-lg hover:bg-gray-200 transition shadow-xl">
                 🛠 Solicitar Servicio
             </button>
@@ -31,6 +32,14 @@
                 📍 Ver Cobertura
             </button>
         </div>
+
+        <!-- LISTA DE SERVICIOS DEL CLIENTE -->
+        <section id="serviciosCliente" class="hidden text-left">
+            <h2 class="text-2xl font-bold mb-4">Tus Solicitudes</h2>
+            <ul id="listaServicios" class="space-y-2">
+                <!-- Se llenará dinámicamente -->
+            </ul>
+        </section>
     </main>
 
     <footer class="py-10 text-center text-gray-600 text-xs border-t border-white/5">
@@ -41,7 +50,7 @@
     <script type="module">
         import { app } from "./firebase-config.js";
         import { getAuth, onAuthStateChanged, signOut } from "./firebase-auth.js";
-        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const auth = getAuth(app);
         const db = getFirestore(app);
@@ -49,44 +58,56 @@
         const btnLogin = document.getElementById("btnLogin");
         const btnLogout = document.getElementById("btnLogout");
         const solicitarBtn = document.getElementById("solicitarServicioBtn");
+        const serviciosSection = document.getElementById("serviciosCliente");
+        const listaServicios = document.getElementById("listaServicios");
 
-        // Mostrar/Ocultar botones según estado de sesión
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 btnLogin.classList.add("hidden");
                 btnLogout.classList.remove("hidden");
 
-                // Optional: mostrar nombre o rol si quieres
-                const docRefs = [
-                    { col: "admins", home: "admin.html" },
-                    { col: "tecnicos", home: "tecnico.html" },
-                    { col: "clientes", home: "index.html" }
-                ];
+                // Revisar rol
+                const docRef = db.collection ? collection(db, "clientes") : null;
+                if (!docRef) return;
 
-                // Si ya está logueado, botón de solicitud puede redirigir a perfil/área específica
-                solicitarBtn.onclick = async () => {
-                    for (const info of docRefs) {
-                        const snap = await getDoc(doc(db, info.col, user.uid));
-                        if (snap.exists()) {
-                            return window.location.href = info.home;
-                        }
+                // Redirigir al botón según rol
+                solicitarBtn.onclick = () => window.location.href = "registro-cliente.html";
+
+                // Mostrar servicios si es cliente
+                try {
+                    const serviciosQuery = query(collection(db, "servicios"), where("clienteUid", "==", user.uid));
+                    const querySnapshot = await getDocs(serviciosQuery);
+                    listaServicios.innerHTML = "";
+
+                    if (querySnapshot.empty) {
+                        listaServicios.innerHTML = "<li class='text-gray-400'>No tienes servicios solicitados aún.</li>";
+                    } else {
+                        querySnapshot.forEach(doc => {
+                            const data = doc.data();
+                            listaServicios.innerHTML += `
+                                <li class="bg-gray-800/40 p-4 rounded-lg shadow-sm">
+                                    <p><strong>Servicio:</strong> ${data.tipo || "Desconocido"}</p>
+                                    <p><strong>Estado:</strong> ${data.estado || "Pendiente"}</p>
+                                    <p><strong>Fecha:</strong> ${new Date(data.fecha || Date.now()).toLocaleString()}</p>
+                                </li>
+                            `;
+                        });
                     }
-                    alert("⚠️ Aún no tienes rol asignado.");
-                };
+                    serviciosSection.classList.remove("hidden");
+                } catch (error) {
+                    console.error("Error cargando servicios:", error);
+                }
 
             } else {
                 btnLogin.classList.remove("hidden");
                 btnLogout.classList.add("hidden");
+                serviciosSection.classList.add("hidden");
                 solicitarBtn.onclick = () => window.location.href = "login.html";
             }
         });
 
-        // Login button
-        btnLogin.onclick = () => {
-            window.location.href = "login.html";
-        };
+        btnLogin.onclick = () => window.location.href = "login.html";
 
-        // Logout button
         btnLogout.onclick = async () => {
             await signOut(auth);
             window.location.href = "login.html";
@@ -95,4 +116,3 @@
 
 </body>
 </html>
-
