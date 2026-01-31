@@ -1,6 +1,10 @@
 import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const auth = getAuth(app);
+const db = getFirestore(app);
+
+const form = document.getElementById('registroForm');
 
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -15,6 +19,15 @@ form.addEventListener('submit', async (e) => {
     const placas = inputs[3].value;
     const correo = inputs[4].value;
     const contraseña = inputs[5].value;
+    const confirmarContraseña = inputs[6].value;
+
+    // Validación de confirmación de contraseña
+    if (contraseña !== confirmarContraseña) {
+        alert("⚠️ Las contraseñas no coinciden");
+        btn.innerText = "ENVIAR SOLICITUD DE ALTA";
+        btn.disabled = false;
+        return;
+    }
 
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(async (position) => {
@@ -59,3 +72,4 @@ form.addEventListener('submit', async (e) => {
         btn.disabled = false;
     }
 });
+
