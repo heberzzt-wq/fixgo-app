@@ -1,51 +1,53 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-const firebaseConfig = {
-    apiKey: "AIzaSyDyplCp33LneGhqr6yd1VsIYBMdsLDK7gA",
-    authDomain: "fixgo-44e4d.firebaseapp.com",
-    projectId: "fixgo-44e4d",
-    storageBucket: "fixgo-44e4d.appspot.com",
-    messagingSenderId: "54271811634",
-    appId: "1:54271811634:web:53a6f4e1f727774e74e64f"
-};
+const auth = getAuth(app);
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-const form = document.getElementById('registroForm');
-
-form.addEventListener('submit', (e) => {
+form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('submitBtn');
     btn.innerText = "OBTENIENDO GPS...";
     btn.disabled = true;
 
-    // SOLICITAR UBICACIÓN REAL
+    const inputs = form.querySelectorAll('input');
+    const nombre = inputs[0].value;
+    const cedula = inputs[1].value;
+    const vehiculo = inputs[2].value;
+    const placas = inputs[3].value;
+    const correo = inputs[4].value;
+    const contraseña = inputs[5].value;
+
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(async (position) => {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
 
-            const inputs = form.querySelectorAll('input');
-            const datosTecnico = {
-                nombre: inputs[0].value,
-                cedula: inputs[1].value,
-                vehiculo: inputs[2].value,
-                placas: inputs[3].value,
-                lat: lat,
-                lng: lng,
-                ultimaConexion: new Date().toISOString(),
-                estado: "ACTIVO"
-            };
-
             try {
-                await addDoc(collection(db, "tecnicos"), datosTecnico);
+                // Crear usuario en Firebase Auth
+                const userCredential = await createUserWithEmailAndPassword(auth, correo, contraseña);
+                const uid = userCredential.user.uid;
+
+                // Guardar datos adicionales en Firestore
+                await addDoc(collection(db, "tecnicos"), {
+                    uid,
+                    nombre,
+                    cedula,
+                    vehiculo,
+                    placas,
+                    lat,
+                    lng,
+                    ultimaConexion: new Date().toISOString(),
+                    estado: "ACTIVO"
+                });
+
                 alert("✅ Registrado con éxito en tu ubicación actual.");
                 window.location.href = "index.html";
+
             } catch (error) {
                 alert("Error: " + error.message);
+                btn.innerText = "ENVIAR SOLICITUD DE ALTA";
+                btn.disabled = false;
             }
+
         }, (error) => {
             alert("⚠️ Por favor activa el GPS para registrarte.");
             btn.innerText = "ENVIAR SOLICITUD DE ALTA";
@@ -53,5 +55,7 @@ form.addEventListener('submit', (e) => {
         });
     } else {
         alert("Tu navegador no soporta GPS.");
+        btn.innerText = "ENVIAR SOLICITUD DE ALTA";
+        btn.disabled = false;
     }
 });
