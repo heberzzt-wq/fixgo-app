@@ -1,60 +1,105 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// app-tecnico.js
+import { app } from "./firebase-config.js";
+import { auth, signOut, onAuthStateChanged } from "./firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-const firebaseConfig = {
-    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
-    authDomain: "fixgo-44e4d.firebaseapp.com",
-    projectId: "fixgo-44e4d",
-    appId: "1:54271811634:web:53a6f4e1f727774e74e64f"
-};
-
-const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 1. FUNCIÓN PARA CAMBIAR ESTADO (La que ya tenías)
-window.cambiarEstado = async function(nuevoEstado) {
-    if (!window.currentTecId) return alert("Error: ID no detectado");
-    const tecRef = doc(db, "tecnicos", window.currentTecId);
+const nombreTecnico = document.getElementById("nombreTecnico");
+const unidadTecnico = document.getElementById("unidadTecnico");
+const panelTecnico = document.getElementById("panelTecnico");
+
+// 🔐 Protege acceso y verifica rol
+onAuthStateChanged(auth, async (user) => {
+    if (!user) return window.location.href = "login.html";
+
     try {
-        await updateDoc(tecRef, { estado: nuevoEstado });
-        alert("Estado actualizado a " + nuevoEstado);
-    } catch (e) { console.error(e); }
-}
+        const docRef = doc(db, "tecnicos", user.uid);
+        const docSnap = await getDoc(docRef);
 
-// 2. MOTOR DE GPS EN TIEMPO REAL
-// Esta función se activa en cuanto el técnico entra a su panel
-function iniciarSeguimientoGPS() {
-    if (!navigator.geolocation) {
-        return alert("Tu navegador no soporta GPS");
-    }
-
-    // "watchPosition" sigue al técnico mientras se mueve
-    navigator.geolocation.watchPosition(async (position) => {
-        if (!window.currentTecId) return;
-
-        const { latitude, longitude } = position.coords;
-        const tecRef = doc(db, "tecnicos", window.currentTecId);
-
-        try {
-            await updateDoc(tecRef, {
-                lat: latitude,
-                lng: longitude,
-                ultimaActualizacion: new Date().toISOString()
-            });
-            console.log("📍 Ubicación actualizada:", latitude, longitude);
-        } catch (error) {
-            console.error("Error enviando GPS:", error);
+        if (!docSnap.exists() || docSnap.data().rol !== "TECNICO") {
+            alert("❌ Acceso denegado. No eres técnico.");
+            await signOut(auth);
+            return window.location.href = "login.html";
         }
-    }, 
-    (error) => {
-        console.warn("Error de GPS: ", error.message);
-    }, 
-    {
-        enableHighAccuracy: true, // Usa GPS de alta precisión
-        maximumAge: 0,
-        timeout: 5000
+
+        // Mostrar info
+        const data = docSnap.data();
+        nombreTecnico.innerText = data.nombre || "Técnico";
+        unidadTecnico.innerText = data.vehiculo || "Sin unidad";
+
+        // Monitorear estado actual
+        panelTecnico.dataset.estado = data.estado || "DISPONIBLE";
+
+        // Opcional: actualizar ubicación periódicamente
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                await updateDoc(docRef, {
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                });
+            });
+        }
+
+        // Cargar solicitudes asignadas al técnico en tiempo real
+        cargarSolicitudes(user.uid);
+
+    } catch (error) {
+        console.error("Error verificando rol:", error);
+        alert("❌ Error verificando permisos.");
+        await signOut(auth);
+        window.location.href = "login.html";
+    }
+});
+
+// Cambiar estado técnico
+window.cambiarEstado = async (nuevoEstado) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+        const docRef = doc(db, "tecnicos", user.uid);
+        await updateDoc(docRef, { estado: nuevoEstado });
+        panelTecnico.dataset.estado = nuevoEstado;
+        unidadTecnico.innerText = nuevoEstado === "DISPONIBLE" ? unidadTecnico.innerText : unidadTecnico.innerText;
+        alert(`✅ Estado cambiado a ${nuevoEstado}`);
+    } catch (error) {
+        console.error("Error cambiando estado:", error);
+        alert("❌ No se pudo cambiar el estado.");
+    }
+};
+
+// Función para mostrar solicitudes asignadas
+function cargarSolicitudes(uidTecnico) {
+    const solicitudesRef = collection(db, "solicitudes");
+    const q = query(solicitudesRef, where("asignadoA", "==", uidTecnico));
+
+    onSnapshot(q, (snapshot) => {
+        // Crear contenedor si no existe
+        let contenedor = document.getElementById("listaSolicitudes");
+        if (!contenedor) {
+            contenedor = document.createElement("div");
+            contenedor.id = "listaSolicitudes";
+            contenedor.className = "mt-6 space-y-3";
+            panelTecnico.appendChild(contenedor);
+        }
+        contenedor.innerHTML = "";
+
+        if (snapshot.empty) {
+            contenedor.innerHTML = "<p class='text-slate-400'>No tienes solicitudes asignadas.</p>";
+        } else {
+            snapshot.forEach(docu => {
+                const s = docu.data();
+                const div = document.createElement("div");
+                div.className = "bg-slate-800/50 p-4 rounded-xl shadow-md text-left";
+                div.innerHTML = `
+                    <p><strong>Cliente:</strong> ${s.nombre}</p>
+                    <p><strong>Dirección:</strong> ${s.direccion}</p>
+                    <p><strong>Teléfono:</strong> ${s.telefono}</p>
+                    <p><strong>Estado:</strong> ${s.estado}</p>
+                `;
+                contenedor.appendChild(div);
+            });
+        }
     });
 }
-
-// Iniciar el GPS automáticamente
-iniciarSeguimientoGPS();
