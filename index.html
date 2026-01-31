@@ -1,83 +1,49 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FixGo - Cliente</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FixGo - Cliente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
+<body class="bg-slate-50 min-h-screen p-4">
 
-<body class="bg-slate-50 min-h-screen flex flex-col items-center p-4">
-
-<!-- 🔐 PROTECCIÓN LOGIN -->
-<script type="module">
-    import { auth, onAuthStateChanged, signOut } from "./firebase-auth.js";
-    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-    import { app } from "./firebase-config.js";
-
-    const db = getFirestore(app);
-
-    onAuthStateChanged(auth, async user => {
-        if (!user) {
-            window.location.href = "login.html";
-            return;
-        }
-
-        try {
-            const docRef = doc(db, "clientes", user.uid);
-            const docSnap = await getDoc(docRef);
-
-            if (!docSnap.exists() || docSnap.data().rol !== "CLIENTE") {
-                alert("❌ Acceso denegado. No eres cliente.");
-                await signOut(auth);
-                window.location.href = "login.html";
-                return;
-            }
-
-            document.getElementById("nombreCliente").innerText = docSnap.data().nombre || "Cliente";
-
-        } catch (err) {
-            console.error("Error verificando rol:", err);
-            alert("❌ Error verificando permisos.");
-            await signOut(auth);
-            window.location.href = "login.html";
-        }
-    });
-</script>
-
-<!-- 🧑‍💼 PANEL CLIENTE -->
-<div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 border border-slate-100">
-    <h1 class="text-2xl font-black mb-4">Hola, <span id="nombreCliente">Cargando...</span></h1>
-
-    <form id="solicitudForm" class="space-y-4">
-        <div>
-            <label class="block text-sm font-bold text-slate-700 mb-1">Dirección / Colonia</label>
-            <input type="text" name="direccion" required placeholder="Dónde necesitas el servicio?"
-                class="w-full px-4 py-3 border rounded-xl outline-none">
-        </div>
-
-        <div>
-            <label class="block text-sm font-bold text-slate-700 mb-1">Teléfono de contacto</label>
-            <input type="tel" name="telefono" required placeholder="WhatsApp o Celular"
-                class="w-full px-4 py-3 border rounded-xl outline-none">
-        </div>
-
-        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl">
-            Solicitar Servicio
+    <header class="max-w-4xl mx-auto flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-black text-slate-800">Bienvenido, <span id="nombreCliente">Cargando...</span></h1>
+        <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-xl">
+            Cerrar Sesión
         </button>
-    </form>
+    </header>
 
-    <h2 class="mt-6 font-bold text-slate-700">Solicitudes Pendientes</h2>
-    <div id="solicitudesCliente" class="mt-4 space-y-2"></div>
+    <main class="max-w-4xl mx-auto">
+        <section class="mb-8">
+            <h2 class="text-xl font-bold mb-4">Crear Nueva Solicitud</h2>
+            <form id="nuevaSolicitudForm" class="space-y-4 bg-white p-6 rounded-3xl shadow-md">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Dirección / Colonia</label>
+                    <input type="text" name="direccion" placeholder="Ej: Calle 123, Colonia Centro" required class="w-full px-4 py-3 border rounded-2xl bg-slate-50 focus:ring-4 focus:ring-indigo-300 outline-none">
+                </div>
 
-    <button id="cerrarSesionCliente" class="mt-6 w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl">
-        Cerrar Sesión
-    </button>
-</div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Descripción del Servicio</label>
+                    <textarea name="descripcion" placeholder="Explícanos qué necesitas" required class="w-full px-4 py-3 border rounded-2xl bg-slate-50 focus:ring-4 focus:ring-indigo-300 outline-none"></textarea>
+                </div>
 
-<!-- ⚙️ JS CLIENTE -->
-<script type="module" src="app-cliente.js"></script>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl shadow-md transition-all">
+                    Enviar Solicitud
+                </button>
+            </form>
+        </section>
 
+        <section>
+            <h2 class="text-xl font-bold mb-4">Mis Solicitudes</h2>
+            <div id="solicitudesCliente" class="space-y-4">
+                <p class="text-slate-400 text-sm">Cargando solicitudes...</p>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="app-cliente.js"></script>
 </body>
 </html>
