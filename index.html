@@ -9,7 +9,7 @@
 </head>
 <body class="bg-[#0a0a16] text-white">
 
-    <!-- 🔐 HEADER / AUTH CONTROL -->
+    <!-- HEADER / AUTH CONTROL -->
     <header class="p-6 flex justify-between items-center max-w-7xl mx-auto">
         <div class="text-2xl font-black tracking-tighter italic">FIXGO<span class="text-blue-500">&</span>FINISH</div>
         <div class="flex gap-4">
@@ -46,7 +46,7 @@
         © 2026 FIXGO & FINISH | Quintana Roo, México.
     </footer>
 
-    <!-- 🔐 AUTH + REDIRECCIÓN -->
+    <!-- AUTH + REDIRECCIÓN -->
     <script type="module">
         import { app } from "./firebase-config.js";
         import { getAuth, onAuthStateChanged, signOut } from "./firebase-auth.js";
@@ -65,13 +65,6 @@
             if (user) {
                 btnLogin.classList.add("hidden");
                 btnLogout.classList.remove("hidden");
-
-                // Revisar rol
-                const docRef = db.collection ? collection(db, "clientes") : null;
-                if (!docRef) return;
-
-                // Redirigir al botón según rol
-                solicitarBtn.onclick = () => window.location.href = "registro-cliente.html";
 
                 // Mostrar servicios si es cliente
                 try {
@@ -97,6 +90,9 @@
                 } catch (error) {
                     console.error("Error cargando servicios:", error);
                 }
+
+                // Botón de solicitud redirige a registro-cliente o panel
+                solicitarBtn.onclick = () => window.location.href = "registro-cliente.html";
 
             } else {
                 btnLogin.classList.remove("hidden");
