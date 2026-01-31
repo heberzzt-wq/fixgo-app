@@ -44,43 +44,45 @@
         </p>
     </div>
 
-    <!-- 🔐 PROTECCIÓN LOGIN + VERIFICACIÓN DE ROL -->
+    <!-- 🔐 PROTECCIÓN LOGIN + GOOGLE AUTH + VERIFICACIÓN DE ROL -->
     <script type="module">
-        import { auth, onAuthStateChanged } from "./firebase-auth.js";
+        import { auth, onAuthStateChanged, signInWithPopup, googleProvider } from "./firebase-auth.js";
         import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { app } from "./firebase-config.js";
 
         const db = getFirestore(app);
 
+        const verificarRolAdmin = async (user) => {
+            try {
+                const docRef = doc(db, "admins", user.uid);
+                const docSnap = await getDoc(docRef);
+                if (!docSnap.exists() || docSnap.data().rol !== "ADMIN") {
+                    alert("❌ Acceso denegado. No tienes permisos de administrador.");
+                    await auth.signOut();
+                    window.location.href = "login.html";
+                    return false;
+                }
+                // Mostrar info del admin
+                const data = docSnap.data();
+                document.getElementById("nombreAdmin").innerText = data.nombre || "Administrador";
+                return true;
+            } catch (error) {
+                console.error("Error verificando rol:", error);
+                alert("❌ Error verificando permisos.");
+                await auth.signOut();
+                window.location.href = "login.html";
+                return false;
+            }
+        };
+
+        // Detectar sesión
         onAuthStateChanged(auth, async (user) => {
             if (!user) {
                 // No hay sesión, redirigir a login
                 window.location.href = "login.html";
                 return;
             }
-
-            try {
-                // Verificar rol desde Firestore
-                const docRef = doc(db, "admins", user.uid);
-                const docSnap = await getDoc(docRef);
-
-                if (!docSnap.exists() || docSnap.data().rol !== "ADMIN") {
-                    alert("❌ Acceso denegado. No tienes permisos de administrador.");
-                    await auth.signOut();
-                    window.location.href = "login.html";
-                    return;
-                }
-
-                // Mostrar info del admin
-                const data = docSnap.data();
-                document.getElementById("nombreAdmin").innerText = data.nombre || "Administrador";
-
-            } catch (error) {
-                console.error("Error verificando rol:", error);
-                alert("❌ Error verificando permisos.");
-                await auth.signOut();
-                window.location.href = "login.html";
-            }
+            await verificarRolAdmin(user);
         });
 
         // Funciones dummy de botones, reemplazar con lógica real
