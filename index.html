@@ -3,77 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo - Cliente</title>
+    <title>FixGo | Panel Cliente</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
-<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4">
+<body class="bg-slate-50 min-h-screen p-4">
 
-    <!-- PANEL CLIENTE -->
-    <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 border border-slate-100">
-        <div class="text-center mb-6">
+    <!-- 🔐 PANEL CLIENTE -->
+    <div class="max-w-3xl mx-auto bg-white rounded-3xl shadow-2xl p-8 border border-slate-100">
+
+        <div class="text-center mb-8">
             <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200">
-                <i class="fas fa-tools text-white text-2xl"></i>
+                <i class="fas fa-user-circle text-white text-2xl"></i>
             </div>
-            <h1 class="text-2xl font-black text-slate-800">Solicitar Servicio</h1>
-            <p class="text-slate-500 font-medium">Completa los datos para solicitar un técnico</p>
+            <h1 id="nombreCliente" class="text-3xl font-black text-slate-800 tracking-tight">Cargando...</h1>
+            <p class="text-slate-500 font-medium">Bienvenido al panel de cliente</p>
         </div>
 
-        <form id="solicitudForm" class="space-y-4">
-
+        <!-- 📝 FORMULARIO NUEVA SOLICITUD -->
+        <form id="clienteForm" class="space-y-5" data-rol="CLIENTE">
             <div>
-                <input type="text" name="nombre" placeholder="Nombre Completo" required
-                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none">
+                <input type="text" name="nombre" placeholder="Tu nombre" required
+                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
             </div>
 
             <div>
-                <input type="tel" name="telefono" placeholder="Teléfono / WhatsApp" required
-                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none">
+                <input type="tel" name="telefono" placeholder="WhatsApp o Celular" required
+                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
             </div>
 
             <div>
                 <input type="text" name="direccion" placeholder="Dirección / Colonia" required
-                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none">
+                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
             </div>
 
             <div>
-                <textarea name="descripcion" placeholder="Descripción del problema (opcional)" rows="3"
-                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none resize-none"></textarea>
+                <input type="email" name="correo" placeholder="Email" required
+                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
             </div>
 
-            <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl text-xl shadow-lg shadow-blue-500/30 transition-all transform active:scale-[0.98]">
-                ENVIAR SOLICITUD
+            <button type="submit" id="submitBtn"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-2xl text-xl shadow-lg shadow-indigo-500/30 transition-all transform active:scale-[0.98] mt-4">
+                Crear Solicitud
             </button>
-
-            <p id="msg" class="text-center mt-3 text-red-500 font-medium"></p>
         </form>
+
+        <!-- 🔔 LISTA DE SOLICITUDES -->
+        <div class="mt-10">
+            <h2 class="text-xl font-bold mb-4 text-slate-700">Mis Solicitudes</h2>
+            <ul id="listaSolicitudes" class="space-y-4">
+                <!-- Se llenará con JS -->
+            </ul>
+        </div>
+
     </div>
 
-    <!-- BOTÓN SALIR -->
-    <div class="fixed top-6 left-6 z-50">
-        <button id="logoutBtn" class="flex items-center gap-2 bg-white/80 backdrop-blur-md px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold shadow-sm hover:shadow-md hover:bg-white transition-all group">
-            <i class="fas fa-sign-out-alt text-sm group-hover:-translate-x-1 transition-transform"></i>
-            <span>Salir</span>
-        </button>
-    </div>
-
-    <!-- 🔐 JS CLIENTE -->
+    <!-- 🔐 SCRIPT PANEL CLIENTE -->
     <script type="module">
-        import { auth, signOut, onAuthStateChanged } from "./firebase-auth.js";
+        import { auth, onAuthStateChanged } from "./firebase-auth.js";
+        import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { app } from "./firebase-config.js";
-        import "./app-cliente.js"; // flujo solicitudes
+        import "./app-cliente.js"; // Formularios y envíos
 
-        const logoutBtn = document.getElementById("logoutBtn");
+        const db = getFirestore(app);
+        const nombreCliente = document.getElementById("nombreCliente");
+        const lista = document.getElementById("listaSolicitudes");
 
-        // Asegurar que hay sesión
-        onAuthStateChanged(auth, (user) => {
-            if (!user) window.location.href = "login.html";
-        });
+        let clienteUid = null;
 
-        // Cerrar sesión
-        logoutBtn.addEventListener("click", async () => {
-            await signOut(auth);
-            window.location.href = "login.html";
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                window.location.href = "login.html";
+                return;
+            }
+            clienteUid = user.uid;
+
+            // Mostrar nombre del cliente
+            const clienteRef = collection(db, "clientes");
+            const q = query(clienteRef, where("uid", "==", clienteUid));
+            onSnapshot(q, (snap) => {
+                snap.forEach(doc => {
+                    nombreCliente.innerText = doc.data().nombre || "Cliente";
+                });
+            });
+
+            // Mostrar solicitudes en tiempo real
+            const solicitudesRef = collection(db, "solicitudes");
+            const qSolicitudes = query(solicitudesRef, where("clienteUid", "==", clienteUid));
+            onSnapshot(qSolicitudes, (snap) => {
+                lista.innerHTML = "";
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    const li = document.createElement("li");
+                    li.className = "bg-slate-100/50 p-4 rounded-2xl shadow flex justify-between items-center";
+                    li.innerHTML = `
+                        <div>
+                            <p><strong>Dirección:</strong> ${data.direccion}</p>
+                            <p><strong>Teléfono:</strong> ${data.telefono}</p>
+                            <p><strong>Estado:</strong> ${data.estado}</p>
+                            <p><strong>Técnico:</strong> ${data.tecnicoUid || "Pendiente"}</p>
+                        </div>
+                    `;
+                    lista.appendChild(li);
+                });
+            });
         });
     </script>
 
