@@ -1,110 +1,83 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo | Cliente</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FixGo - Cliente</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
-<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4">
 
-    <!-- Panel Cliente -->
-    <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 border border-slate-100">
-        <div class="text-center mb-6">
-            <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200">
-                <i class="fas fa-user-clock text-white text-2xl"></i>
-            </div>
-            <h1 class="text-3xl font-black text-slate-800 tracking-tight">Solicitar Servicio</h1>
-        </div>
+<body class="bg-slate-50 min-h-screen flex flex-col items-center p-4">
 
-        <form id="clienteForm" class="space-y-4">
-            <input type="text" name="nombre" placeholder="Tu nombre" required
-                class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
-            <input type="tel" name="telefono" placeholder="WhatsApp o Celular" required
-                class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
-            <input type="text" name="direccion" placeholder="Dirección / Colonia" required
-                class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
-            <input type="email" name="correo" placeholder="Correo Electrónico" required
-                class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
+<!-- 🔐 PROTECCIÓN LOGIN -->
+<script type="module">
+    import { auth, onAuthStateChanged, signOut } from "./firebase-auth.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { app } from "./firebase-config.js";
 
-            <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-2xl text-xl shadow-lg shadow-indigo-500/30 transition-all">
-                Crear Solicitud
-            </button>
-        </form>
+    const db = getFirestore(app);
 
-        <div id="estadoSolicitud" class="mt-6 text-center text-gray-700"></div>
-
-        <button id="cerrarSesionCliente" class="w-full mt-6 bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 rounded-xl">
-            Cerrar sesión
-        </button>
-    </div>
-
-    <!-- 🔐 JS Cliente -->
-    <script type="module">
-        import { app } from "./firebase-config.js";
-        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        const form = document.getElementById("clienteForm");
-        const estadoDiv = document.getElementById("estadoSolicitud");
-        const cerrarBtn = document.getElementById("cerrarSesionCliente");
-
-        let clienteUid = null;
-        let solicitudActivaId = null;
-
-        // Verificar sesión
-        onAuthStateChanged(auth, user => {
-            if (!user) window.location.href = "login.html";
-            else clienteUid = user.uid;
-        });
-
-        // Crear nueva solicitud
-        form.addEventListener("submit", async e => {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(form));
-            if (!clienteUid) return;
-
-            try {
-                const docRef = await addDoc(collection(db, "solicitudes"), {
-                    ...data,
-                    clienteUid,
-                    estado: "PENDIENTE",
-                    creadoEn: new Date().toISOString()
-                });
-                solicitudActivaId = docRef.id;
-                estadoDiv.innerText = "📌 Solicitud creada. Esperando técnico...";
-                form.reset();
-                escucharActualizacionSolicitud();
-            } catch (err) {
-                alert("❌ Error creando solicitud: " + err.message);
-            }
-        });
-
-        // Escuchar cambios en la solicitud (aceptada por técnico)
-        function escucharActualizacionSolicitud() {
-            if (!solicitudActivaId) return;
-
-            const docRef = doc(db, "solicitudes", solicitudActivaId);
-            onSnapshot(docRef, docSnap => {
-                if (!docSnap.exists()) return;
-                const data = docSnap.data();
-                if (data.estado === "EN SERVICIO") {
-                    estadoDiv.innerText = `🚀 Técnico asignado: ${data.tecnicoNombre}`;
-                } else if (data.estado === "FINALIZADO") {
-                    estadoDiv.innerText = `✅ Servicio completado`;
-                }
-            });
+    onAuthStateChanged(auth, async user => {
+        if (!user) {
+            window.location.href = "login.html";
+            return;
         }
 
-        // Cerrar sesión
-        cerrarBtn.addEventListener("click", async () => {
+        try {
+            const docRef = doc(db, "clientes", user.uid);
+            const docSnap = await getDoc(docRef);
+
+            if (!docSnap.exists() || docSnap.data().rol !== "CLIENTE") {
+                alert("❌ Acceso denegado. No eres cliente.");
+                await signOut(auth);
+                window.location.href = "login.html";
+                return;
+            }
+
+            document.getElementById("nombreCliente").innerText = docSnap.data().nombre || "Cliente";
+
+        } catch (err) {
+            console.error("Error verificando rol:", err);
+            alert("❌ Error verificando permisos.");
             await signOut(auth);
             window.location.href = "login.html";
-        });
-    </script>
+        }
+    });
+</script>
+
+<!-- 🧑‍💼 PANEL CLIENTE -->
+<div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 border border-slate-100">
+    <h1 class="text-2xl font-black mb-4">Hola, <span id="nombreCliente">Cargando...</span></h1>
+
+    <form id="solicitudForm" class="space-y-4">
+        <div>
+            <label class="block text-sm font-bold text-slate-700 mb-1">Dirección / Colonia</label>
+            <input type="text" name="direccion" required placeholder="Dónde necesitas el servicio?"
+                class="w-full px-4 py-3 border rounded-xl outline-none">
+        </div>
+
+        <div>
+            <label class="block text-sm font-bold text-slate-700 mb-1">Teléfono de contacto</label>
+            <input type="tel" name="telefono" required placeholder="WhatsApp o Celular"
+                class="w-full px-4 py-3 border rounded-xl outline-none">
+        </div>
+
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl">
+            Solicitar Servicio
+        </button>
+    </form>
+
+    <h2 class="mt-6 font-bold text-slate-700">Solicitudes Pendientes</h2>
+    <div id="solicitudesCliente" class="mt-4 space-y-2"></div>
+
+    <button id="cerrarSesionCliente" class="mt-6 w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl">
+        Cerrar Sesión
+    </button>
+</div>
+
+<!-- ⚙️ JS CLIENTE -->
+<script type="module" src="app-cliente.js"></script>
+
 </body>
 </html>
