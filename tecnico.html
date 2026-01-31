@@ -10,19 +10,8 @@
 
 <body class="bg-[#0a0a16] text-white min-h-screen flex items-center justify-center p-4">
 
-    <!-- 🔐 PROTECCIÓN LOGIN -->
-    <script type="module">
-        import { auth, onAuthStateChanged } from "./firebase-auth.js";
-
-        onAuthStateChanged(auth, (user) => {
-            if (!user) {
-                window.location.href = "login.html";
-            }
-        });
-    </script>
-
     <!-- 🧑‍🔧 PANEL TÉCNICO -->
-    <div class="max-w-md w-full bg-slate-900/50 backdrop-blur-xl border border-white/10 p-8 rounded-[3rem] shadow-2xl text-center">
+    <div id="panelTecnico" data-rol="TECNICO" class="max-w-md w-full bg-slate-900/50 backdrop-blur-xl border border-white/10 p-8 rounded-[3rem] shadow-2xl text-center">
         <div class="mb-6">
             <div class="w-20 h-20 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-3xl shadow-lg shadow-blue-500/20">
                 <i class="fas fa-truck-loading"></i>
@@ -49,6 +38,47 @@
             FixGo Live Status v2.0
         </p>
     </div>
+
+    <!-- 🔐 PROTECCIÓN LOGIN + VERIFICACIÓN DE ROL -->
+    <script type="module">
+        import { auth, onAuthStateChanged } from "./firebase-auth.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { app } from "./firebase-config.js";
+
+        const db = getFirestore(app);
+
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                // No hay sesión, redirigir a login
+                window.location.href = "login.html";
+                return;
+            }
+
+            try {
+                // Verificar rol desde Firestore
+                const docRef = doc(db, "tecnicos", user.uid);
+                const docSnap = await getDoc(docRef);
+
+                if (!docSnap.exists() || docSnap.data().rol !== "TECNICO") {
+                    alert("❌ Acceso denegado. No tienes permisos de técnico.");
+                    await auth.signOut();
+                    window.location.href = "login.html";
+                    return;
+                }
+
+                // Mostrar info del técnico
+                const data = docSnap.data();
+                document.getElementById("nombreTecnico").innerText = data.nombre || "Técnico";
+                document.getElementById("unidadTecnico").innerText = data.vehiculo || "Sin unidad asignada";
+
+            } catch (error) {
+                console.error("Error verificando rol:", error);
+                alert("❌ Error verificando permisos.");
+                await auth.signOut();
+                window.location.href = "login.html";
+            }
+        });
+    </script>
 
     <!-- ⚙️ JS PRINCIPAL -->
     <script type="module" src="app-tecnico.js"></script>
