@@ -1,77 +1,79 @@
 // app-cliente.js
 import { app } from "./firebase-config.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, query, where, onSnapshot, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Elementos del DOM
-const form = document.getElementById("solicitudForm");
-const solicitudesContainer = document.getElementById("misSolicitudes");
-const btnCerrarSesion = document.getElementById("cerrarSesion");
+const form = document.getElementById("clienteForm");
+const estadoDiv = document.getElementById("estadoSolicitud");
+const cerrarBtn = document.getElementById("cerrarSesionCliente");
 
-// Verificar usuario logueado
-onAuthStateChanged(auth, async (user) => {
+let clienteUid = null;
+let solicitudActivaId = null;
+
+// ===== Verificar sesión =====
+onAuthStateChanged(auth, user => {
     if (!user) {
         window.location.href = "login.html";
-        return;
+    } else {
+        clienteUid = user.uid;
     }
-
-    // Escuchar solicitudes del cliente en tiempo real
-    const q = query(collection(db, "solicitudes"), where("clienteUid", "==", user.uid));
-    onSnapshot(q, (snapshot) => {
-        solicitudesContainer.innerHTML = ""; // limpiar
-        snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            const card = document.createElement("div");
-            card.className = "bg-white p-4 rounded-xl shadow mb-4 text-gray-800";
-            card.innerHTML = `
-                <p><strong>Servicio:</strong> ${data.direccion}</p>
-                <p><strong>Estado:</strong> ${data.estado}</p>
-                <p><strong>Técnico:</strong> ${data.tecnicoNombre || "Pendiente"}</p>
-            `;
-            solicitudesContainer.appendChild(card);
-        });
-    });
 });
 
-// Crear nueva solicitud
-if (form) {
-    form.addEventListener("submit", async (e) => {
-        e.preventDefault();
+// ===== Crear nueva solicitud =====
+form.addEventListener("submit", async e => {
+    e.preventDefault();
+    if (!clienteUid) return;
 
-        const nombre = form.nombre.value.trim();
-        const telefono = form.telefono.value.trim();
-        const direccion = form.direccion.value.trim();
+    const data = Object.fromEntries(new FormData(form));
 
-        if (!nombre || !telefono || !direccion) {
-            alert("⚠️ Completa todos los campos");
-            return;
-        }
+    try {
+        // Guardar solicitud en Firestore
+        const docRef = await addDoc(collection(db, "solicitudes"), {
+            ...data,
+            clienteUid,
+            estado: "PENDIENTE",
+            tecnicoUid: null,
+            tecnicoNombre: null,
+            creadoEn: new Date().toISOString()
+        });
 
-        try {
-            const user = auth.currentUser;
-            await addDoc(collection(db, "solicitudes"), {
-                clienteUid: user.uid,
-                clienteNombre: nombre,
-                telefono,
-                direccion,
-                estado: "PENDIENTE",
-                creadoEn: new Date().toISOString()
-            });
-            alert("✅ Solicitud enviada, esperando técnico disponible.");
-            form.reset();
-        } catch (error) {
-            alert("❌ Error creando solicitud: " + error.message);
+        solicitudActivaId = docRef.id;
+        estadoDiv.innerText = "📌 Solicitud creada. Esperando técnico...";
+        form.reset();
+
+        // Escuchar cambios en la solicitud
+        escucharActualizacionSolicitud();
+
+    } catch (err) {
+        alert("❌ Error creando solicitud: " + err.message);
+    }
+});
+
+// ===== Escuchar cambios en la solicitud =====
+function escucharActualizacionSolicitud() {
+    if (!solicitudActivaId) return;
+
+    const docRef = doc(db, "solicitudes", solicitudActivaId);
+
+    onSnapshot(docRef, docSnap => {
+        if (!docSnap.exists()) return;
+        const data = docSnap.data();
+
+        if (data.estado === "EN SERVICIO") {
+            estadoDiv.innerText = `🚀 Técnico asignado: ${data.tecnicoNombre}`;
+        } else if (data.estado === "FINALIZADO") {
+            estadoDiv.innerText = `✅ Servicio completado`;
+        } else if (data.estado === "CANCELADO") {
+            estadoDiv.innerText = `⚠️ Solicitud cancelada`;
         }
     });
 }
 
-// Cerrar sesión
-if (btnCerrarSesion) {
-    btnCerrarSesion.addEventListener("click", async () => {
-        await signOut(auth);
-        window.location.href = "login.html";
-    });
-}
+// ===== Cerrar sesión =====
+cerrarBtn.addEventListener("click", async () => {
+    await signOut(auth);
+    window.location.href = "login.html";
+});
