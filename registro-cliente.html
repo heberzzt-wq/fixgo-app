@@ -1,60 +1,32 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo - Registro de Cliente</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-</head>
-<body class="bg-indigo-50 min-h-screen flex items-center justify-center p-4">
+<form id="clienteForm" class="space-y-5" data-rol="CLIENTE">
 
-    <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 border border-indigo-100">
-        <div class="text-center mb-8">
-            <div class="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-200">
-                <i class="fas fa-user-check text-white text-2xl"></i>
-            </div>
-            <h1 class="text-3xl font-black text-slate-800 tracking-tight">¡Hola!</h1>
-            <p class="text-slate-500 font-medium">Regístrate para solicitar servicios</p>
-        </div>
-
-        <form id="clienteForm" class="space-y-5">
-            <div>
-                <label class="block text-sm font-bold text-slate-700 mb-2">Nombre Completo</label>
-                <input type="text" required placeholder="Tu nombre" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all">
-            </div>
-
-            <div>
-                <label class="block text-sm font-bold text-slate-700 mb-2">Teléfono de Contacto</label>
-                <input type="tel" required placeholder="WhatsApp o Celular" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all">
-            </div>
-
-            <div>
-                <label class="block text-sm font-bold text-slate-700 mb-2">Dirección / Colonia</label>
-                <input type="text" required placeholder="¿Dónde necesitas el servicio?" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all">
-            </div>
-
-            <div>
-                <label class="block text-sm font-bold text-slate-700 mb-2">Correo Electrónico</label>
-                <input type="email" required placeholder="email@ejemplo.com" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all">
-            </div>
-
-            <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-2xl text-xl shadow-lg shadow-indigo-500/30 transition-all transform active:scale-[0.98] mt-4">
-                CREAR MI CUENTA
-            </button>
-        </form>
-
-        <footer class="mt-8 text-center text-slate-400 text-xs font-medium">
-            © 2026 FIXGO | Calidad y Confianza
-        </footer>
+    <div>
+        <label class="block text-sm font-bold text-slate-700 mb-2">Nombre Completo</label>
+        <input type="text" name="nombre" required placeholder="Tu nombre" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all">
     </div>
 
-    <script type="module" src="app-cliente.js"></script>
-</body>
-    <div class="fixed top-6 left-6 z-50">
-    <a href="index.html" class="flex items-center gap-2 bg-white/80 backdrop-blur-md px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold shadow-sm hover:shadow-md hover:bg-white transition-all group">
-        <i class="fas fa-arrow-left text-sm group-hover:-translate-x-1 transition-transform"></i>
-        <span>Inicio</span>
-    </a>
-</div>
-</html>
+    <div>
+        <label class="block text-sm font-bold text-slate-700 mb-2">Teléfono de Contacto</label>
+        <input type="tel" name="telefono" required placeholder="WhatsApp o Celular" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all">
+    </div>
+
+    <div>
+        <label class="block text-sm font-bold text-slate-700 mb-2">Dirección / Colonia</label>
+        <input type="text" name="direccion" required placeholder="¿Dónde necesitas el servicio?" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all">
+    </div>
+
+    <div>
+        <label class="block text-sm font-bold text-slate-700 mb-2">Correo Electrónico</label>
+        <input type="email" name="correo" required placeholder="email@ejemplo.com" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all">
+    </div>
+
+    <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-2xl text-xl shadow-lg shadow-indigo-500/30 transition-all transform active:scale-[0.98] mt-4">
+        CREAR MI CUENTA
+    </button>
+
+    <!-- BOTÓN GOOGLE -->
+    <button type="button" id="loginGoogle" class="w-full bg-red-500 hover:bg-red-600 text-white font-black py-4 rounded-2xl text-lg shadow-lg shadow-red-500/30 transition-all mt-2">
+        Registrarse con Google
+    </button>
+
+</form>
