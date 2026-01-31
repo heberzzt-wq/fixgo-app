@@ -3,112 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo | Panel Cliente</title>
+    <title>FixGo | Cliente</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
-<body class="bg-slate-50 min-h-screen p-4">
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4">
 
-    <!-- 🔐 PANEL CLIENTE -->
-    <div class="max-w-3xl mx-auto bg-white rounded-3xl shadow-2xl p-8 border border-slate-100">
-
-        <div class="text-center mb-8">
+    <!-- Panel Cliente -->
+    <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 border border-slate-100">
+        <div class="text-center mb-6">
             <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200">
-                <i class="fas fa-user-circle text-white text-2xl"></i>
+                <i class="fas fa-user-clock text-white text-2xl"></i>
             </div>
-            <h1 id="nombreCliente" class="text-3xl font-black text-slate-800 tracking-tight">Cargando...</h1>
-            <p class="text-slate-500 font-medium">Bienvenido al panel de cliente</p>
+            <h1 class="text-3xl font-black text-slate-800 tracking-tight">Solicitar Servicio</h1>
         </div>
 
-        <!-- 📝 FORMULARIO NUEVA SOLICITUD -->
-        <form id="clienteForm" class="space-y-5" data-rol="CLIENTE">
-            <div>
-                <input type="text" name="nombre" placeholder="Tu nombre" required
-                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
-            </div>
+        <form id="clienteForm" class="space-y-4">
+            <input type="text" name="nombre" placeholder="Tu nombre" required
+                class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
+            <input type="tel" name="telefono" placeholder="WhatsApp o Celular" required
+                class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
+            <input type="text" name="direccion" placeholder="Dirección / Colonia" required
+                class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
+            <input type="email" name="correo" placeholder="Correo Electrónico" required
+                class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
 
-            <div>
-                <input type="tel" name="telefono" placeholder="WhatsApp o Celular" required
-                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
-            </div>
-
-            <div>
-                <input type="text" name="direccion" placeholder="Dirección / Colonia" required
-                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
-            </div>
-
-            <div>
-                <input type="email" name="correo" placeholder="Email" required
-                    class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none">
-            </div>
-
-            <button type="submit" id="submitBtn"
-                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-2xl text-xl shadow-lg shadow-indigo-500/30 transition-all transform active:scale-[0.98] mt-4">
+            <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-2xl text-xl shadow-lg shadow-indigo-500/30 transition-all">
                 Crear Solicitud
             </button>
         </form>
 
-        <!-- 🔔 LISTA DE SOLICITUDES -->
-        <div class="mt-10">
-            <h2 class="text-xl font-bold mb-4 text-slate-700">Mis Solicitudes</h2>
-            <ul id="listaSolicitudes" class="space-y-4">
-                <!-- Se llenará con JS -->
-            </ul>
-        </div>
+        <div id="estadoSolicitud" class="mt-6 text-center text-gray-700"></div>
 
+        <button id="cerrarSesionCliente" class="w-full mt-6 bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 rounded-xl">
+            Cerrar sesión
+        </button>
     </div>
 
-    <!-- 🔐 SCRIPT PANEL CLIENTE -->
+    <!-- 🔐 JS Cliente -->
     <script type="module">
-        import { auth, onAuthStateChanged } from "./firebase-auth.js";
-        import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { app } from "./firebase-config.js";
-        import "./app-cliente.js"; // Formularios y envíos
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+        const auth = getAuth(app);
         const db = getFirestore(app);
-        const nombreCliente = document.getElementById("nombreCliente");
-        const lista = document.getElementById("listaSolicitudes");
+
+        const form = document.getElementById("clienteForm");
+        const estadoDiv = document.getElementById("estadoSolicitud");
+        const cerrarBtn = document.getElementById("cerrarSesionCliente");
 
         let clienteUid = null;
+        let solicitudActivaId = null;
 
-        onAuthStateChanged(auth, async (user) => {
-            if (!user) {
-                window.location.href = "login.html";
-                return;
+        // Verificar sesión
+        onAuthStateChanged(auth, user => {
+            if (!user) window.location.href = "login.html";
+            else clienteUid = user.uid;
+        });
+
+        // Crear nueva solicitud
+        form.addEventListener("submit", async e => {
+            e.preventDefault();
+            const data = Object.fromEntries(new FormData(form));
+            if (!clienteUid) return;
+
+            try {
+                const docRef = await addDoc(collection(db, "solicitudes"), {
+                    ...data,
+                    clienteUid,
+                    estado: "PENDIENTE",
+                    creadoEn: new Date().toISOString()
+                });
+                solicitudActivaId = docRef.id;
+                estadoDiv.innerText = "📌 Solicitud creada. Esperando técnico...";
+                form.reset();
+                escucharActualizacionSolicitud();
+            } catch (err) {
+                alert("❌ Error creando solicitud: " + err.message);
             }
-            clienteUid = user.uid;
+        });
 
-            // Mostrar nombre del cliente
-            const clienteRef = collection(db, "clientes");
-            const q = query(clienteRef, where("uid", "==", clienteUid));
-            onSnapshot(q, (snap) => {
-                snap.forEach(doc => {
-                    nombreCliente.innerText = doc.data().nombre || "Cliente";
-                });
-            });
+        // Escuchar cambios en la solicitud (aceptada por técnico)
+        function escucharActualizacionSolicitud() {
+            if (!solicitudActivaId) return;
 
-            // Mostrar solicitudes en tiempo real
-            const solicitudesRef = collection(db, "solicitudes");
-            const qSolicitudes = query(solicitudesRef, where("clienteUid", "==", clienteUid));
-            onSnapshot(qSolicitudes, (snap) => {
-                lista.innerHTML = "";
-                snap.forEach(doc => {
-                    const data = doc.data();
-                    const li = document.createElement("li");
-                    li.className = "bg-slate-100/50 p-4 rounded-2xl shadow flex justify-between items-center";
-                    li.innerHTML = `
-                        <div>
-                            <p><strong>Dirección:</strong> ${data.direccion}</p>
-                            <p><strong>Teléfono:</strong> ${data.telefono}</p>
-                            <p><strong>Estado:</strong> ${data.estado}</p>
-                            <p><strong>Técnico:</strong> ${data.tecnicoUid || "Pendiente"}</p>
-                        </div>
-                    `;
-                    lista.appendChild(li);
-                });
+            const docRef = doc(db, "solicitudes", solicitudActivaId);
+            onSnapshot(docRef, docSnap => {
+                if (!docSnap.exists()) return;
+                const data = docSnap.data();
+                if (data.estado === "EN SERVICIO") {
+                    estadoDiv.innerText = `🚀 Técnico asignado: ${data.tecnicoNombre}`;
+                } else if (data.estado === "FINALIZADO") {
+                    estadoDiv.innerText = `✅ Servicio completado`;
+                }
             });
+        }
+
+        // Cerrar sesión
+        cerrarBtn.addEventListener("click", async () => {
+            await signOut(auth);
+            window.location.href = "login.html";
         });
     </script>
-
 </body>
 </html>
