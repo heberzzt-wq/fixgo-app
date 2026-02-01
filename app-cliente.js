@@ -13,7 +13,7 @@ const darkStyle = [
     { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#020617" }] }
 ];
 
-// 1. Verificación de permisos de usuario
+// 1. Verificación de Inicio de Sesión
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "login.html"; return; }
     
@@ -24,53 +24,41 @@ onAuthStateChanged(auth, async (user) => {
         ]);
 
         if (adminSnap.exists() || clienteSnap.exists()) {
-            if (tecnicoId) {
-                iniciarSeguimiento(tecnicoId);
-            } else {
-                actualizarTextos("Selecciona Unidad", "ID no encontrado", "ERROR");
-            }
+            if (tecnicoId) iniciarSeguimiento(tecnicoId);
         } else {
             alert("Acceso no autorizado");
             window.location.href = "index.html";
         }
-    } catch (error) {
-        console.error("Error en autenticación:", error);
-    }
+    } catch (error) { console.error("Error Auth:", error); }
 });
 
-// 2. Escucha de Firebase (Datos en tiempo real)
+// 2. Escucha de coordenadas en tiempo real
 function iniciarSeguimiento(id) {
     onSnapshot(doc(db, "tecnicos", id), (docSnap) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
             
-            // Actualizar interfaz visual
-            actualizarTextos(
-                data.nombre || "Técnico", 
-                `${data.vehiculo || 'Unidad'} | ${data.placas || 'S/P'}`, 
-                data.estado || "EN RUTA"
-            );
+            // Actualización de UI
+            document.getElementById("nombreTecnico").innerText = data.nombre || "Técnico";
+            document.getElementById("vehiculoTecnico").innerText = `${data.vehiculo || 'Unidad'} | ${data.placas || 'S/P'}`;
+            document.getElementById("estadoTecnico").innerText = data.estado || "EN RUTA";
 
-            // Procesar ubicación
             if (data.lat && data.lng) {
-                const latitude = parseFloat(data.lat);
-                const longitude = parseFloat(data.lng);
-                
-                if (!isNaN(latitude) && !isNaN(longitude)) {
-                    renderizarMapa(latitude, longitude);
-                }
+                const lat = parseFloat(data.lat);
+                const lng = parseFloat(data.lng);
+                if (!isNaN(lat) && !isNaN(lng)) renderizarMapa(lat, lng);
             }
         }
     });
 }
 
-// 3. Inicialización y movimiento del mapa
+// 3. Renderizado del Mapa
 function renderizarMapa(lat, lng) {
     const pos = { lat, lng };
-    const mapDiv = document.getElementById("map");
 
     if (!map) {
-        if (typeof google === 'undefined') return; // Espera a que la API cargue
+        const mapDiv = document.getElementById("map");
+        if (!mapDiv || typeof google === 'undefined') return;
 
         map = new google.maps.Map(mapDiv, {
             center: pos,
@@ -88,19 +76,7 @@ function renderizarMapa(lat, lng) {
             }
         });
     } else {
-        // Actualización fluida del marcador
         marker.setPosition(pos);
         map.panTo(pos);
     }
-}
-
-// Función para evitar repetir document.getElementById
-function actualizarTextos(nombre, vehiculo, estado) {
-    const n = document.getElementById("nombreTecnico");
-    const v = document.getElementById("vehiculoTecnico");
-    const e = document.getElementById("estadoTecnico");
-
-    if (n) n.innerText = nombre;
-    if (v) v.innerText = vehiculo;
-    if (e) e.innerText = estado;
 }
