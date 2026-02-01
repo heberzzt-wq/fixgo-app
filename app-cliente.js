@@ -1,4 +1,4 @@
-// app-cliente.js - Versión Reforzada (Admin + Cliente)
+// app-cliente.js - Versión Final (Admin + Cliente)
 import { auth, db } from "./firebase-config.js";
 import { doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -73,7 +73,7 @@ function renderizarMapa(lat, lng) {
             const mapDiv = document.getElementById("map");
             if (!mapDiv) return;
 
-            // Pequeño delay para asegurar que el contenedor #map esté listo en el DOM
+            // El delay ayuda a que el mapa no se quede negro en la carga inicial
             setTimeout(() => {
                 map = new google.maps.Map(mapDiv, {
                     center: pos,
