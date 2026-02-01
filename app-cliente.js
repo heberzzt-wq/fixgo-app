@@ -18,38 +18,38 @@ onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "login.html"; return; }
     if (tecnicoId) {
         console.log("Rastreando a:", tecnicoId);
-        iniciarSeguimiento(tecnicoId); // <--- Corregido el nombre aquí
+        iniciarSeguimiento(tecnicoId);
+    } else {
+        console.warn("No se proporcionó un ID de técnico en la URL.");
     }
 });
 
 // 2. Conexión Real-Time con Firestore
 function iniciarSeguimiento(id) {
-    console.log("Iniciando rastreo para el ID:", id);
-    
     onSnapshot(doc(db, "tecnicos", id), (docSnap) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
-            console.log("Datos recibidos de Firebase:", data);
-
+            
             // Actualizar interfaz
             document.getElementById("nombreTecnico").innerText = data.nombre || "Técnico";
             document.getElementById("vehiculoTecnico").innerText = `${data.vehiculo || 'Unidad'} | ${data.placas || 'S/P'}`;
             document.getElementById("estadoTecnico").innerText = data.estado || "EN RUTA";
 
-            // LIMPIEZA DE COORDENADAS
-            if (data.lat && data.lng) {
-                const latFinal = parseFloat(String(data.lat).trim());
-                const lngFinal = parseFloat(String(data.lng).trim());
+            // LIMPIEZA Y VALIDACIÓN DE COORDENADAS
+            // Usamos data.lat y data.lng (asegúrate que coincidan con Firebase)
+            const latRaw = data.lat || data.lta; // Soporte por si sigue el error de dedo
+            const lngRaw = data.lng || data.Lng;
+
+            if (latRaw && lngRaw) {
+                const latFinal = parseFloat(String(latRaw).trim());
+                const lngFinal = parseFloat(String(lngRaw).trim());
                 
                 if (!isNaN(latFinal) && !isNaN(lngFinal)) {
-                    console.log("Coordenadas válidas para mapa:", latFinal, lngFinal);
-                    dibujarMapa(latFinal, lngFinal); // <--- Corregido el nombre aquí
-                } else {
-                    console.error("Coordenadas inválidas en Firebase:", data.lat, data.lng);
+                    dibujarMapa(latFinal, lngFinal);
                 }
             }
         } else {
-            console.error("No se encontró al técnico con ID:", id);
+            console.error("El técnico no existe en la base de datos.");
         }
     });
 }
@@ -60,10 +60,7 @@ function dibujarMapa(lat, lng) {
 
     if (!map) {
         const contenedor = document.getElementById("map");
-        if (!contenedor || typeof google === 'undefined') {
-            console.error("Google Maps no está listo o el contenedor no existe");
-            return;
-        }
+        if (!contenedor || typeof google === 'undefined') return;
 
         map = new google.maps.Map(contenedor, {
             center: posicion,
@@ -83,14 +80,8 @@ function dibujarMapa(lat, lng) {
             }
         });
     } else {
-        // Mover el marcador suavemente
+        // Actualización de posición en tiempo real
         marker.setPosition(posicion);
-
-        // PanTo ya es suave, pero esto asegura que no "brinque" la cámara
-        map.panTo(posicion);
-        
-        // Si quieres que el mapa rote según la dirección, se requiere más lógica,
-        // por ahora esto mantendrá al técnico siempre centrado.
-    }
+        map.panTo(posicion); // Movimiento suave de cámara
     }
 }
