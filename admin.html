@@ -1,98 +1,19 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo - Panel Administrativo</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <meta charset="UTF-8">
+  <title>FixGo Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
+<body class="bg-gray-900 text-white">
 
-<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
+<h1 id="nombreAdmin">Cargando...</h1>
 
-    <!-- 🧑‍💼 PANEL ADMIN -->
-    <div id="panelAdmin" data-rol="ADMIN" class="max-w-2xl w-full bg-gray-800/50 backdrop-blur-xl border border-white/10 p-8 rounded-[2rem] shadow-2xl text-center">
-        <div class="mb-6">
-            <div class="w-24 h-24 bg-indigo-600 rounded-full mx-auto flex items-center justify-center text-4xl shadow-lg shadow-indigo-500/20">
-                <i class="fas fa-user-cog"></i>
-            </div>
-            <h1 id="nombreAdmin" class="text-3xl font-black mt-4">Cargando...</h1>
-            <p class="text-gray-400 text-sm uppercase tracking-widest">
-                Panel Administrativo
-            </p>
-        </div>
+<button onclick="verTecnicos()">Técnicos</button>
+<button onclick="verClientes()">Clientes</button>
+<button onclick="verServicios()">Servicios</button>
+<button onclick="cerrarSesion()">Salir</button>
 
-        <div class="grid gap-4">
-            <button onclick="verTecnicos()" class="group bg-blue-600/10 border border-blue-500/20 p-6 rounded-3xl hover:bg-blue-600 transition-all duration-300">
-                <i class="fas fa-users text-blue-500 group-hover:text-white text-2xl mb-2"></i>
-                <span class="block font-bold group-hover:text-white">Gestión de Técnicos</span>
-            </button>
-
-            <button onclick="verClientes()" class="group bg-green-600/10 border border-green-500/20 p-6 rounded-3xl hover:bg-green-600 transition-all duration-300">
-                <i class="fas fa-user-check text-green-500 group-hover:text-white text-2xl mb-2"></i>
-                <span class="block font-bold group-hover:text-white">Gestión de Clientes</span>
-            </button>
-
-            <button onclick="verServicios()" class="group bg-orange-500/10 border border-orange-500/20 p-6 rounded-3xl hover:bg-orange-500 transition-all duration-300">
-                <i class="fas fa-tools text-orange-500 group-hover:text-white text-2xl mb-2"></i>
-                <span class="block font-bold group-hover:text-white">Servicios</span>
-            </button>
-        </div>
-
-        <p class="mt-8 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-            FixGo Admin v2.0
-        </p>
-    </div>
-
-    <!-- 🔐 PROTECCIÓN LOGIN + GOOGLE AUTH + VERIFICACIÓN DE ROL -->
-    <script type="module">
-        import { auth, onAuthStateChanged, signInWithPopup, googleProvider } from "./firebase-auth.js";
-        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { app } from "./firebase-config.js";
-
-        const db = getFirestore(app);
-
-        const verificarRolAdmin = async (user) => {
-            try {
-                const docRef = doc(db, "admins", user.uid);
-                const docSnap = await getDoc(docRef);
-                if (!docSnap.exists() || docSnap.data().rol !== "ADMIN") {
-                    alert("❌ Acceso denegado. No tienes permisos de administrador.");
-                    await auth.signOut();
-                    window.location.href = "login.html";
-                    return false;
-                }
-                // Mostrar info del admin
-                const data = docSnap.data();
-                document.getElementById("nombreAdmin").innerText = data.nombre || "Administrador";
-                return true;
-            } catch (error) {
-                console.error("Error verificando rol:", error);
-                alert("❌ Error verificando permisos.");
-                await auth.signOut();
-                window.location.href = "login.html";
-                return false;
-            }
-        };
-
-        // Detectar sesión
-        onAuthStateChanged(auth, async (user) => {
-            if (!user) {
-                // No hay sesión, redirigir a login
-                window.location.href = "login.html";
-                return;
-            }
-            await verificarRolAdmin(user);
-        });
-
-        // Funciones dummy de botones, reemplazar con lógica real
-        window.verTecnicos = () => alert("📋 Gestionar técnicos");
-        window.verClientes = () => alert("👥 Gestionar clientes");
-        window.verServicios = () => alert("🛠 Gestionar servicios");
-    </script>
-
-    <!-- ⚙️ JS ADMIN -->
-    <script type="module" src="app-admin.js"></script>
-
+<script type="module" src="app-admin.js"></script>
 </body>
 </html>
