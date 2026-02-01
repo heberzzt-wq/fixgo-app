@@ -6,7 +6,7 @@ let map, marker;
 const urlParams = new URLSearchParams(window.location.search);
 const tecnicoId = urlParams.get('id');
 
-// Estilo modo noche profesional
+// Estilo de Mapa Oscuro (Profesional)
 const darkStyle = [
     { "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] },
     { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
@@ -14,7 +14,7 @@ const darkStyle = [
     { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#020617" }] }
 ];
 
-// 1. Control de Acceso y Seguridad
+// 1. Verificación de Usuario
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "login.html"; return; }
     
@@ -25,45 +25,38 @@ onAuthStateChanged(auth, async (user) => {
         ]);
 
         if (adminSnap.exists() || clienteSnap.exists()) {
-            if (tecnicoId) {
-                iniciarSeguimiento(tecnicoId);
-            } else {
-                actualizarUI("ERROR", "ID de técnico no encontrado", "SIN ID");
-            }
+            if (tecnicoId) iniciarSeguimiento(tecnicoId);
         } else {
-            alert("Acceso denegado: No eres cliente ni admin");
+            alert("Acceso denegado");
             window.location.href = "index.html";
         }
-    } catch (error) {
-        console.error("Error de autenticación:", error);
-    }
+    } catch (e) { console.error("Error de auth:", e); }
 });
 
-// 2. Escucha en tiempo real de Firebase
+// 2. Escucha de Firebase en tiempo real
 function iniciarSeguimiento(id) {
     onSnapshot(doc(db, "tecnicos", id), (docSnap) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
             
-            // Actualización de textos en pantalla
-            actualizarUI(data.nombre, `${data.vehiculo || 'Unidad'} | ${data.placas || 'S/P'}`, data.estado);
+            // Actualizar interfaz
+            actualizarTexto("nombreTecnico", data.nombre || "Heberto");
+            actualizarTexto("vehiculoTecnico", `${data.vehiculo || 'Unidad'} | ${data.placas || 'S/P'}`);
+            actualizarTexto("estadoTecnico", data.estado || "EN RUTA");
 
-            // Gestión de Coordenadas
+            // Validar y convertir coordenadas
             if (data.lat && data.lng) {
-                const latitude = parseFloat(data.lat);
-                const longitude = parseFloat(data.lng);
-                
-                if (!isNaN(latitude) && !isNaN(longitude)) {
-                    renderizarMapa(latitude, longitude);
+                const lat = parseFloat(data.lat);
+                const lng = parseFloat(data.lng);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    renderizarMapa(lat, lng);
                 }
             }
-        } else {
-            actualizarUI("No disponible", "Buscando técnico...", "DESCONECTADO");
         }
     });
 }
 
-// 3. Renderizado del Mapa (Con el ajuste de API habilitada)
+// 3. Motor del Mapa
 function renderizarMapa(lat, lng) {
     const pos = { lat, lng };
 
@@ -76,8 +69,7 @@ function renderizarMapa(lat, lng) {
                 center: pos,
                 zoom: 17,
                 styles: darkStyle,
-                disableDefaultUI: true,
-                gestureHandling: "greedy" // Mejora el uso en móviles
+                disableDefaultUI: true
             });
 
             marker = new google.maps.Marker({
@@ -85,34 +77,125 @@ function renderizarMapa(lat, lng) {
                 map: map,
                 icon: {
                     url: "https://cdn-icons-png.flaticon.com/512/3063/3063822.png",
-                    scaledSize: new google.maps.Size(45, 45),
-                    anchor: new google.maps.Point(22, 22)
-                },
-                title: "Ubicación del Técnico"
+                    scaledSize: new google.maps.Size(45, 45)
+                }
             });
 
-            // Forzar actualización visual tras carga inicial
-            google.maps.event.addListenerOnce(map, 'idle', () => {
-                google.maps.event.trigger(map, 'resize');
+            // Quitar el color rojo de fondo una vez que el mapa cargue
+            google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
+                mapDiv.style.background = "transparent";
             });
 
         } else {
-            // Movimiento suave del marcador
             marker.setPosition(pos);
             map.panTo(pos);
         }
-    } catch (e) {
-        console.warn("Google Maps aún se está configurando. Reintentando...");
+    } catch (error) {
+        console.log("Esperando a Google Maps API...");
     }
 }
 
-// 4. Función Auxiliar para limpiar el código
-function actualizarUI(nombre, info, estado) {
-    const elNombre = document.getElementById("nombreTecnico");
-    const elInfo = document.getElementById("vehiculoTecnico");
-    const elEstado = document.getElementById("estadoTecnico");
+function actualizarTexto(id, texto) {
+    const el = document.getElementById(id);
+    if (el) el.innerText = texto;
+}import { auth, db } from "./firebase-config.js";
+import { doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-    if (elNombre) elNombre.innerText = nombre || "Heberto";
-    if (elInfo) elInfo.innerText = info || "Cargando...";
-    if (elEstado) elEstado.innerText = estado || "EN RUTA";
+let map, marker;
+const urlParams = new URLSearchParams(window.location.search);
+const tecnicoId = urlParams.get('id');
+
+// Estilo de Mapa Oscuro (Profesional)
+const darkStyle = [
+    { "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] },
+    { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
+    { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] },
+    { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#020617" }] }
+];
+
+// 1. Verificación de Usuario
+onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = "login.html"; return; }
+    
+    try {
+        const [adminSnap, clienteSnap] = await Promise.all([
+            getDoc(doc(db, "admins", user.uid)),
+            getDoc(doc(db, "clientes", user.uid))
+        ]);
+
+        if (adminSnap.exists() || clienteSnap.exists()) {
+            if (tecnicoId) iniciarSeguimiento(tecnicoId);
+        } else {
+            alert("Acceso denegado");
+            window.location.href = "index.html";
+        }
+    } catch (e) { console.error("Error de auth:", e); }
+});
+
+// 2. Escucha de Firebase en tiempo real
+function iniciarSeguimiento(id) {
+    onSnapshot(doc(db, "tecnicos", id), (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            
+            // Actualizar interfaz
+            actualizarTexto("nombreTecnico", data.nombre || "Heberto");
+            actualizarTexto("vehiculoTecnico", `${data.vehiculo || 'Unidad'} | ${data.placas || 'S/P'}`);
+            actualizarTexto("estadoTecnico", data.estado || "EN RUTA");
+
+            // Validar y convertir coordenadas
+            if (data.lat && data.lng) {
+                const lat = parseFloat(data.lat);
+                const lng = parseFloat(data.lng);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    renderizarMapa(lat, lng);
+                }
+            }
+        }
+    });
+}
+
+// 3. Motor del Mapa
+function renderizarMapa(lat, lng) {
+    const pos = { lat, lng };
+
+    try {
+        if (!map) {
+            const mapDiv = document.getElementById("map");
+            if (!mapDiv) return;
+
+            map = new google.maps.Map(mapDiv, {
+                center: pos,
+                zoom: 17,
+                styles: darkStyle,
+                disableDefaultUI: true
+            });
+
+            marker = new google.maps.Marker({
+                position: pos,
+                map: map,
+                icon: {
+                    url: "https://cdn-icons-png.flaticon.com/512/3063/3063822.png",
+                    scaledSize: new google.maps.Size(45, 45)
+                }
+            });
+
+            // Quitar el color rojo de fondo una vez que el mapa cargue
+            google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
+                mapDiv.style.background = "transparent";
+            });
+
+        } else {
+            marker.setPosition(pos);
+            map.panTo(pos);
+        }
+    } catch (error) {
+        console.log("Esperando a Google Maps API...");
+    }
+}
+
+function actualizarTexto(id, texto) {
+    const el = document.getElementById(id);
+    if (el) el.innerText = texto;
 }
