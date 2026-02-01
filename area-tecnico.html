@@ -3,44 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo - Panel Técnico</title>
+    <title>FixGo Pro - Panel Técnico</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #050505; color: white; }
+        .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.08); }
+        .status-badge { background: rgba(99, 102, 241, 0.1); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.2); }
+        .btn-glow { box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
+        @keyframes pulse-red { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .online-dot { width: 8px; height: 8px; background-color: #10b981; border-radius: 50%; box-shadow: 0 0 10px #10b981; }
+    </style>
 </head>
-<body class="bg-slate-900 text-white min-h-screen">
+<body class="min-h-screen">
 
-    <header class="p-6 flex justify-between items-center border-b border-slate-800">
-        <h1 class="text-2xl font-black text-indigo-400">FixGo Pro</h1>
-        <button id="logoutBtn" class="text-slate-400 hover:text-white transition-colors">
+    <header class="max-w-4xl mx-auto flex justify-between items-center p-6 border-b border-white/5">
+        <div class="flex items-center gap-2">
+            <div class="online-dot"></div>
+            <h1 class="text-xl font-black italic tracking-tighter">FIXGO<span class="text-indigo-500">PRO</span></h1>
+        </div>
+        <button id="logoutBtn" class="text-slate-500 hover:text-white transition-colors">
             <i class="fas fa-power-off text-xl"></i>
         </button>
     </header>
 
-    <main class="max-w-4xl mx-auto p-6">
-        <div class="bg-slate-800 rounded-3xl p-6 mb-8 border border-slate-700 shadow-2xl">
-            <div class="flex items-center gap-4 mb-6">
-                <div class="w-16 h-16 bg-indigo-500 rounded-2xl flex items-center justify-center text-3xl">
-                    <i class="fas fa-user-tie"></i>
+    <main class="max-w-2xl mx-auto p-6">
+        
+        <section class="uber-card rounded-[2.5rem] p-8 mb-8 shadow-2xl">
+            <div class="flex items-center gap-5 mb-8">
+                <div class="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center text-3xl shadow-lg shadow-indigo-500/20">
+                    <i class="fas fa-id-badge text-white"></i>
                 </div>
                 <div>
-                    <h2 id="nombreTecnico" class="text-xl font-bold">Cargando perfil...</h2>
-                    <p id="infoVehiculo" class="text-slate-400 text-sm italic">Verificando unidad...</p>
+                    <h2 id="nombreTecnico" class="text-2xl font-black tracking-tight">Cargando...</h2>
+                    <p id="infoVehiculo" class="text-slate-500 text-sm font-medium uppercase tracking-widest">Verificando Unidad</p>
                 </div>
             </div>
 
-            <button id="btnGps" class="w-full py-4 rounded-2xl font-black transition-all flex items-center justify-center gap-3 bg-slate-700 text-slate-300">
+            <button id="btnGps" class="w-full py-5 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 bg-white text-black hover:scale-[1.02] active:scale-95 btn-glow">
                 <i class="fas fa-location-arrow"></i>
                 <span>ACTIVAR RASTREO GPS</span>
             </button>
-            <p id="gpsStatus" class="text-center text-[10px] mt-2 text-slate-500">El rastreo está desactivado</p>
-        </div>
+            <p id="gpsStatus" class="text-center text-[11px] mt-4 text-slate-500 font-bold uppercase tracking-widest">El sistema está en pausa</p>
+        </section>
 
         <section>
-            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
-                <i class="fas fa-briefcase text-indigo-400"></i> Servicios Asignados
-            </h3>
+            <div class="flex justify-between items-center mb-6 px-2">
+                <h3 class="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Servicios en tu zona</h3>
+                <span class="text-[10px] status-badge px-3 py-1 rounded-full font-bold">REAL-TIME</span>
+            </div>
+
             <div id="listaServicios" class="space-y-4">
-                <p class="text-slate-500 italic text-center py-10">Buscando servicios en tu zona...</p>
+                <div class="text-center py-20">
+                    <i class="fas fa-circle-notch fa-spin text-indigo-500 text-3xl mb-4"></i>
+                    <p class="text-slate-600 text-sm italic">Buscando solicitudes cercanas...</p>
+                </div>
             </div>
         </section>
     </main>
