@@ -23,28 +23,37 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // 2. Conexión Real-Time con Firestore
-function comenzarRastreo(id) {
+function iniciarSeguimiento(id) {
+    console.log("Iniciando rastreo para el ID:", id);
+    
     onSnapshot(doc(db, "tecnicos", id), (docSnap) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
-            
-            // Actualizar Tarjeta de Info
-            document.getElementById("nombreTecnico").innerText = data.nombre || "Heberto";
+            console.log("Datos recibidos de Firebase:", data);
+
+            // Actualizar interfaz
+            document.getElementById("nombreTecnico").innerText = data.nombre || "Técnico";
             document.getElementById("vehiculoTecnico").innerText = `${data.vehiculo || 'Unidad'} | ${data.placas || 'S/P'}`;
             document.getElementById("estadoTecnico").innerText = data.estado || "EN RUTA";
 
-            // Procesar Coordenadas
+            // FORZAR LIMPIEZA DE COORDENADAS (El truco para Heberto)
             if (data.lat && data.lng) {
-                const lat = parseFloat(data.lat);
-                const lng = parseFloat(data.lng);
-                if (!isNaN(lat) && !isNaN(lng)) {
-                    dibujarMapa(lat, lng);
+                // Convertimos a string y luego a float para quitar caracteres raros o espacios
+                const latFinal = parseFloat(String(data.lat).trim());
+                const lngFinal = parseFloat(String(data.lng).trim());
+                
+                if (!isNaN(latFinal) && !isNaN(lngFinal)) {
+                    console.log("Coordenadas válidas para mapa:", latFinal, lngFinal);
+                    renderizarMapa(latFinal, lngFinal);
+                } else {
+                    console.error("Heberto tiene coordenadas inválidas en Firebase:", data.lat, data.lng);
                 }
             }
+        } else {
+            console.error("No se encontró al técnico con ID:", id);
         }
     });
 }
-
 // 3. Renderizado del Mapa
 function dibujarMapa(lat, lng) {
     const posicion = { lat, lng };
