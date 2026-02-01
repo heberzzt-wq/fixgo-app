@@ -18,7 +18,7 @@ onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "login.html"; return; }
     if (tecnicoId) {
         console.log("Rastreando a:", tecnicoId);
-        comenzarRastreo(tecnicoId);
+        iniciarSeguimiento(tecnicoId); // <--- Corregido el nombre aquí
     }
 });
 
@@ -36,17 +36,16 @@ function iniciarSeguimiento(id) {
             document.getElementById("vehiculoTecnico").innerText = `${data.vehiculo || 'Unidad'} | ${data.placas || 'S/P'}`;
             document.getElementById("estadoTecnico").innerText = data.estado || "EN RUTA";
 
-            // FORZAR LIMPIEZA DE COORDENADAS (El truco para Heberto)
+            // LIMPIEZA DE COORDENADAS
             if (data.lat && data.lng) {
-                // Convertimos a string y luego a float para quitar caracteres raros o espacios
                 const latFinal = parseFloat(String(data.lat).trim());
                 const lngFinal = parseFloat(String(data.lng).trim());
                 
                 if (!isNaN(latFinal) && !isNaN(lngFinal)) {
                     console.log("Coordenadas válidas para mapa:", latFinal, lngFinal);
-                    renderizarMapa(latFinal, lngFinal);
+                    dibujarMapa(latFinal, lngFinal); // <--- Corregido el nombre aquí
                 } else {
-                    console.error("Heberto tiene coordenadas inválidas en Firebase:", data.lat, data.lng);
+                    console.error("Coordenadas inválidas en Firebase:", data.lat, data.lng);
                 }
             }
         } else {
@@ -54,13 +53,17 @@ function iniciarSeguimiento(id) {
         }
     });
 }
+
 // 3. Renderizado del Mapa
 function dibujarMapa(lat, lng) {
     const posicion = { lat, lng };
 
     if (!map) {
         const contenedor = document.getElementById("map");
-        if (!contenedor || typeof google === 'undefined') return;
+        if (!contenedor || typeof google === 'undefined') {
+            console.error("Google Maps no está listo o el contenedor no existe");
+            return;
+        }
 
         map = new google.maps.Map(contenedor, {
             center: posicion,
@@ -80,7 +83,6 @@ function dibujarMapa(lat, lng) {
             }
         });
     } else {
-        // Mover marcador y centrar mapa suavemente
         marker.setPosition(posicion);
         map.panTo(posicion);
     }
