@@ -6,69 +6,60 @@ let map, marker;
 const urlParams = new URLSearchParams(window.location.search);
 const tecnicoId = urlParams.get('id');
 
-const darkStyle = [
+const mapStyle = [
     { "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] },
     { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
     { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] },
     { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#020617" }] }
 ];
 
-// 1. Verificación de Inicio de Sesión
+// Iniciar proceso al detectar usuario
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "login.html"; return; }
-    
-    try {
-        const [adminSnap, clienteSnap] = await Promise.all([
-            getDoc(doc(db, "admins", user.uid)),
-            getDoc(doc(db, "clientes", user.uid))
-        ]);
-
-        if (adminSnap.exists() || clienteSnap.exists()) {
-            if (tecnicoId) iniciarSeguimiento(tecnicoId);
-        } else {
-            alert("Acceso no autorizado");
-            window.location.href = "index.html";
-        }
-    } catch (error) { console.error("Error Auth:", error); }
+    if (tecnicoId) {
+        console.log("Rastreando técnico:", tecnicoId);
+        escucharUbicacion(tecnicoId);
+    }
 });
 
-// 2. Escucha de coordenadas en tiempo real
-function iniciarSeguimiento(id) {
+function escucharUbicacion(id) {
     onSnapshot(doc(db, "tecnicos", id), (docSnap) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
             
-            // Actualización de UI
-            document.getElementById("nombreTecnico").innerText = data.nombre || "Técnico";
+            // Actualizar Interfaz
+            document.getElementById("nombreTecnico").innerText = data.nombre || "Heberto";
             document.getElementById("vehiculoTecnico").innerText = `${data.vehiculo || 'Unidad'} | ${data.placas || 'S/P'}`;
             document.getElementById("estadoTecnico").innerText = data.estado || "EN RUTA";
 
+            // Ubicación
             if (data.lat && data.lng) {
                 const lat = parseFloat(data.lat);
                 const lng = parseFloat(data.lng);
-                if (!isNaN(lat) && !isNaN(lng)) renderizarMapa(lat, lng);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    initMap(lat, lng);
+                }
             }
         }
     });
 }
 
-// 3. Renderizado del Mapa
-function renderizarMapa(lat, lng) {
-    const pos = { lat, lng };
+function initMap(lat, lng) {
+    const coords = { lat, lng };
 
     if (!map) {
         const mapDiv = document.getElementById("map");
         if (!mapDiv || typeof google === 'undefined') return;
 
         map = new google.maps.Map(mapDiv, {
-            center: pos,
+            center: coords,
             zoom: 17,
-            styles: darkStyle,
+            styles: mapStyle,
             disableDefaultUI: true
         });
 
         marker = new google.maps.Marker({
-            position: pos,
+            position: coords,
             map: map,
             icon: {
                 url: "https://cdn-icons-png.flaticon.com/512/3063/3063822.png",
@@ -76,7 +67,7 @@ function renderizarMapa(lat, lng) {
             }
         });
     } else {
-        marker.setPosition(pos);
-        map.panTo(pos);
+        marker.setPosition(coords);
+        map.panTo(coords);
     }
 }
