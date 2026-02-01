@@ -1,117 +1,29 @@
 // app-tecnico.js
-import { app } from "./firebase-config.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-const auth = getAuth(app);
-const db = getFirestore(app);
+import { auth, db } from "./firebase-config.js"; // Usamos tu config centralizada
+import { 
+    doc, 
+    getDoc, 
+    updateDoc, 
+    collection, 
+    query, 
+    where, 
+    onSnapshot, 
+    serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 let tecnicoUID = null;
-let tecnicoData = null;
-let ubicacionInterval = null;
-const INTERVALO_ACTUALIZACION = 15000; // 15 segundos
+let watchID = null; // Cambiamos intervalo por watchPosition (más preciso)
 
-// UI Elements
+// Elementos de la Interfaz (IDs actualizados)
 const nombreTecnicoEl = document.getElementById("nombreTecnico");
-const unidadTecnicoEl = document.getElementById("unidadTecnico");
-const panelSolicitudes = document.getElementById("solicitudesContainer");
+const infoVehiculoEl = document.getElementById("infoVehiculo");
+const panelSolicitudes = document.getElementById("listaServicios");
+const btnGps = document.getElementById("btnGps");
+const gpsStatus = document.getElementById("gpsStatus");
+const logoutBtn = document.getElementById("logoutBtn");
 
-// Cambiar estado
-window.cambiarEstado = async (nuevoEstado) => {
-    if (!tecnicoUID) return;
-    try {
-        await updateDoc(doc(db, "tecnicos", tecnicoUID), { estado: nuevoEstado });
-        alert(`✅ Estado cambiado a: ${nuevoEstado}`);
-    } catch (error) {
-        console.error("Error cambiando estado:", error);
-    }
-};
-
-// Actualizar ubicación
-const actualizarUbicacion = async () => {
-    if (!tecnicoUID) return;
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-        try {
-            await updateDoc(doc(db, "tecnicos", tecnicoUID), {
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                ultimaConexion: serverTimestamp()
-            });
-        } catch (error) {
-            console.error("Error actualizando ubicación:", error);
-        }
-    });
-};
-
-// Escuchar solicitudes pendientes
-const escucharSolicitudes = () => {
-    const q = query(collection(db, "solicitudes"), where("estado", "==", "PENDIENTE"));
-    onSnapshot(q, (snapshot) => {
-        panelSolicitudes.innerHTML = "";
-        if (snapshot.empty) {
-            panelSolicitudes.innerHTML = "<p class='text-slate-400 text-sm'>No hay solicitudes pendientes</p>";
-            return;
-        }
-
-        snapshot.forEach(docSnap => {
-            const solicitud = docSnap.data();
-            const div = document.createElement("div");
-            div.className = "p-4 mb-3 bg-slate-800 rounded-xl shadow-md flex flex-col gap-2";
-            div.innerHTML = `
-                <p><strong>Cliente:</strong> ${solicitud.nombre}</p>
-                <p><strong>Dirección:</strong> ${solicitud.direccion || "Sin dirección"}</p>
-                <p><strong>Teléfono:</strong> ${solicitud.telefono || "Sin teléfono"}</p>
-                <div class="flex gap-2 mt-2">
-                    <button class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-4 rounded" data-id="${docSnap.id}">Aceptar</button>
-                    <button class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded" data-id="${docSnap.id}">Rechazar</button>
-                </div>
-            `;
-            panelSolicitudes.appendChild(div);
-
-            // Botones aceptar/rechazar
-            div.querySelector("button[data-id]").addEventListener("click", async (e) => {
-                const id = e.target.dataset.id;
-                await aceptarSolicitud(id);
-            });
-            div.querySelectorAll("button")[1].addEventListener("click", async (e) => {
-                const id = e.target.dataset.id;
-                await rechazarSolicitud(id);
-            });
-        });
-    });
-};
-
-// Aceptar solicitud
-const aceptarSolicitud = async (solicitudID) => {
-    try {
-        const docRef = doc(db, "solicitudes", solicitudID);
-        await updateDoc(docRef, {
-            tecnicoUID,
-            estado: "ACEPTADA",
-            aceptadaEn: serverTimestamp()
-        });
-
-        // Notificar al cliente
-        alert("✅ Has aceptado la solicitud. El cliente ha sido notificado.");
-    } catch (error) {
-        console.error("Error aceptando solicitud:", error);
-        alert("❌ Error al aceptar solicitud");
-    }
-};
-
-// Rechazar solicitud
-const rechazarSolicitud = async (solicitudID) => {
-    try {
-        await updateDoc(doc(db, "solicitudes", solicitudID), { estado: "RECHAZADA" });
-        alert("Solicitud rechazada");
-    } catch (error) {
-        console.error("Error rechazando solicitud:", error);
-        alert("❌ Error al rechazar solicitud");
-    }
-};
-
-// Login y verificación de rol
+// 1. Verificación de Usuario y Rol
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
         window.location.href = "login.html";
@@ -120,21 +32,106 @@ onAuthStateChanged(auth, async (user) => {
 
     tecnicoUID = user.uid;
     const docSnap = await getDoc(doc(db, "tecnicos", tecnicoUID));
-    if (!docSnap.exists() || docSnap.data().rol !== "TECNICO") {
-        alert("❌ No tienes permisos de técnico");
-        await signOut(auth);
-        window.location.href = "login.html";
-        return;
+
+    if (docSnap.exists()) {
+        const data = docSnap.data();
+        nombreTecnicoEl.innerText = data.nombre || "Técnico";
+        infoVehiculoEl.innerText = `${data.vehiculo || 'Unidad'} | ${data.placas || 'S/P'}`;
+        
+        // Iniciar escucha de servicios
+        escucharSolicitudes();
+    } else {
+        alert("Acceso denegado: No eres técnico.");
+        signOut(auth);
     }
-
-    tecnicoData = docSnap.data();
-    nombreTecnicoEl.innerText = tecnicoData.nombre || "Técnico";
-    unidadTecnicoEl.innerText = tecnicoData.vehiculo || "Sin unidad asignada";
-
-    // Actualizar ubicación cada INTERVALO_ACTUALIZACION
-    actualizarUbicacion();
-    ubicacionInterval = setInterval(actualizarUbicacion, INTERVALO_ACTUALIZACION);
-
-    // Escuchar solicitudes
-    escucharSolicitudes();
 });
+
+// 2. Control del GPS (Encendido/Apagado)
+btnGps.addEventListener("click", () => {
+    if (!watchID) {
+        activarRastreo();
+    } else {
+        desactivarRastreo();
+    }
+});
+
+function activarRastreo() {
+    if (!navigator.geolocation) return alert("Tu navegador no soporta GPS");
+
+    btnGps.classList.replace("bg-slate-700", "bg-emerald-500");
+    btnGps.classList.add("animate-pulse");
+    btnGps.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> <span>RASTREO ACTIVO</span>';
+    gpsStatus.innerText = "Transmitiendo ubicación en tiempo real...";
+    gpsStatus.classList.replace("text-slate-500", "text-emerald-400");
+
+    watchID = navigator.geolocation.watchPosition(async (pos) => {
+        try {
+            await updateDoc(doc(db, "tecnicos", tecnicoUID), {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                ultimaConexion: serverTimestamp(),
+                estado: "EN RUTA"
+            });
+        } catch (error) {
+            console.error("Error GPS:", error);
+        }
+    }, (err) => console.error(err), { enableHighAccuracy: true });
+}
+
+function desactivarRastreo() {
+    navigator.geolocation.clearWatch(watchID);
+    watchID = null;
+    btnGps.classList.replace("bg-emerald-500", "bg-slate-700");
+    btnGps.classList.remove("animate-pulse");
+    btnGps.innerHTML = '<i class="fas fa-location-arrow"></i> <span>ACTIVAR RASTREO GPS</span>';
+    gpsStatus.innerText = "El rastreo está desactivado";
+    gpsStatus.classList.replace("text-emerald-400", "text-slate-500");
+}
+
+// 3. Escuchar Solicitudes Pendientes
+function escucharSolicitudes() {
+    const q = query(collection(db, "solicitudes"), where("estado", "==", "PENDIENTE"));
+    
+    onSnapshot(q, (snapshot) => {
+        panelSolicitudes.innerHTML = "";
+        if (snapshot.empty) {
+            panelSolicitudes.innerHTML = "<p class='text-slate-500 text-center py-4 italic text-sm'>No hay servicios pendientes en este momento.</p>";
+            return;
+        }
+
+        snapshot.forEach(docSnap => {
+            const sol = docSnap.data();
+            const div = document.createElement("div");
+            div.className = "bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-lg";
+            div.innerHTML = `
+                <div class="flex justify-between items-start mb-3">
+                    <h4 class="font-bold text-indigo-400">${sol.clienteNombre || 'Cliente'}</h4>
+                    <span class="text-[10px] bg-slate-700 px-2 py-1 rounded">NUEVO</span>
+                </div>
+                <p class="text-sm text-slate-300 mb-1"><i class="fas fa-map-marker-alt text-red-400 mr-2"></i>${sol.direccion}</p>
+                <p class="text-xs text-slate-500 mb-4">${sol.descripcion}</p>
+                <button onclick="aceptarServicio('${docSnap.id}')" class="w-full bg-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-500 transition-all">
+                    ACEPTAR SERVICIO
+                </button>
+            `;
+            panelSolicitudes.appendChild(div);
+        });
+    });
+}
+
+// 4. Aceptar Servicio
+window.aceptarServicio = async (id) => {
+    try {
+        await updateDoc(doc(db, "solicitudes", id), {
+            estado: "EN CAMINO",
+            tecnicoId: tecnicoUID,
+            aceptadoEn: serverTimestamp()
+        });
+        alert("Servicio aceptado. ¡Ve con cuidado!");
+    } catch (error) {
+        alert("Error al aceptar el servicio");
+    }
+};
+
+// 5. Logout
+logoutBtn.addEventListener("click", () => signOut(auth));
