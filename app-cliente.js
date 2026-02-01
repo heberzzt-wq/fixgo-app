@@ -6,7 +6,7 @@ let map, marker;
 const urlParams = new URLSearchParams(window.location.search);
 const tecnicoId = urlParams.get('id');
 
-// Estilo de Mapa Oscuro (para que combine con tu diseño Slate-900)
+// Estilo de Mapa Oscuro (Mantenemos tu diseño Slate-900)
 const darkStyle = [
     { "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] },
     { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
@@ -21,7 +21,7 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     try {
-        // 🛡️ REVISIÓN DE PERMISOS (Admin o Cliente pueden ver)
+        // 🛡️ REVISIÓN DE PERMISOS (Corregido para que tú como Admin entres)
         const adminSnap = await getDoc(doc(db, "admins", user.uid));
         const clienteSnap = await getDoc(doc(db, "clientes", user.uid));
 
@@ -29,7 +29,8 @@ onAuthStateChanged(auth, async (user) => {
             if (tecnicoId) {
                 iniciarSeguimiento(tecnicoId);
             } else {
-                document.getElementById("nombreTecnico").innerText = "Selecciona una unidad";
+                const elNombre = document.getElementById("nombreTecnico");
+                if (elNombre) elNombre.innerText = "Selecciona una unidad";
             }
         } else {
             alert("❌ Acceso no autorizado");
@@ -46,13 +47,20 @@ function iniciarSeguimiento(id) {
         if (docSnap.exists()) {
             const data = docSnap.data();
             
-            // Actualizar Interfaz (IDs de tu HTML)
-            if(document.getElementById("nombreTecnico")) 
-                document.getElementById("nombreTecnico").innerText = data.nombre || "Técnico";
-            if(document.getElementById("vehiculoTecnico")) 
-                document.getElementById("vehiculoTecnico").innerText = `${data.vehiculo || "Unidad"} | ${data.placas || "S/P"}`;
-            if(document.getElementById("estadoTecnico")) 
-                document.getElementById("estadoTecnico").innerText = data.estado || "SINCRONIZANDO...";
+            // ✅ ACTUALIZACIÓN SEGURA: Verificamos que el ID exista antes de escribir
+            const txtNombre = document.getElementById("nombreTecnico");
+            const txtVehiculo = document.getElementById("vehiculoTecnico");
+            const txtEstado = document.getElementById("estadoTecnico");
+            const btnLlamar = document.getElementById("btnLlamar");
+
+            if(txtNombre) txtNombre.innerText = data.nombre || "Técnico";
+            if(txtVehiculo) txtVehiculo.innerText = `${data.vehiculo || "Unidad"} | ${data.placas || "S/P"}`;
+            if(txtEstado) txtEstado.innerText = data.estado || "SINCRONIZANDO...";
+            
+            // Si el técnico tiene teléfono en su perfil de Firebase, activamos el botón
+            if(btnLlamar && data.telefono) {
+                btnLlamar.href = `tel:${data.telefono}`;
+            }
 
             // Actualizar posición en el mapa
             if (data.lat && data.lng) {
@@ -63,10 +71,14 @@ function iniciarSeguimiento(id) {
 }
 
 function moverIcono(lat, lng) {
-    const pos = { lat: Number(lat), lng: Number(lng) };
+    // Forzamos que sean números para evitar errores de Google Maps
+    const pos = { lat: parseFloat(lat), lng: parseFloat(lng) };
 
     if (!map) {
-        map = new google.maps.Map(document.getElementById("map"), {
+        const mapElement = document.getElementById("map");
+        if (!mapElement) return; // Si no hay div 'map', no hacemos nada
+
+        map = new google.maps.Map(mapElement, {
             center: pos,
             zoom: 17,
             styles: darkStyle,
@@ -77,7 +89,7 @@ function moverIcono(lat, lng) {
             position: pos,
             map: map,
             icon: {
-                url: "https://cdn-icons-png.flaticon.com/512/3063/3063822.png", // Icono de camioneta
+                url: "https://cdn-icons-png.flaticon.com/512/3063/3063822.png",
                 scaledSize: new google.maps.Size(45, 45)
             }
         });
