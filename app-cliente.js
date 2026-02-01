@@ -7,7 +7,6 @@ let map, marker;
 const urlParams = new URLSearchParams(window.location.search);
 const tecnicoId = urlParams.get('id');
 
-// Estilo de Mapa Oscuro (Tu diseño Slate-900)
 const darkStyle = [
     { "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] },
     { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
@@ -22,7 +21,6 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     try {
-        // ✅ CAMBIO CLAVE: Permite acceso si es ADMIN o CLIENTE
         const adminSnap = await getDoc(doc(db, "admins", user.uid));
         const clienteSnap = await getDoc(doc(db, "clientes", user.uid));
 
@@ -42,12 +40,10 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function iniciarSeguimiento(id) {
-    // Escucha en tiempo real (Si el técnico se mueve, el mapa se mueve)
     onSnapshot(doc(db, "tecnicos", id), (docSnap) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
             
-            // ✅ ACTUALIZACIÓN SEGURA: Solo escribe si el ID existe en el HTML
             actualizarTextoSeguro("nombreTecnico", data.nombre || "Técnico");
             actualizarTextoSeguro("vehiculoTecnico", `${data.vehiculo || "Unidad"} | ${data.placas || "S/P"}`);
             actualizarTextoSeguro("estadoTecnico", data.estado || "EN RUTA");
@@ -57,7 +53,6 @@ function iniciarSeguimiento(id) {
                 btnLlamar.href = `tel:${data.telefono}`;
             }
 
-            // ✅ NÚMEROS PUROS: Forzamos que lat/lng sean números para Google Maps
             if (data.lat && data.lng) {
                 const latitude = parseFloat(data.lat);
                 const longitude = parseFloat(data.lng);
@@ -78,23 +73,26 @@ function renderizarMapa(lat, lng) {
             const mapDiv = document.getElementById("map");
             if (!mapDiv) return;
 
-            map = new google.maps.Map(mapDiv, {
-                center: pos,
-                zoom: 17,
-                styles: darkStyle,
-                disableDefaultUI: true
-            });
+            // Pequeño delay para asegurar que el contenedor #map esté listo en el DOM
+            setTimeout(() => {
+                map = new google.maps.Map(mapDiv, {
+                    center: pos,
+                    zoom: 17,
+                    styles: darkStyle,
+                    disableDefaultUI: true,
+                    gestureHandling: "greedy"
+                });
 
-            marker = new google.maps.Marker({
-                position: pos,
-                map: map,
-                icon: {
-                    url: "https://cdn-icons-png.flaticon.com/512/3063/3063822.png",
-                    scaledSize: new google.maps.Size(45, 45)
-                }
-            });
+                marker = new google.maps.Marker({
+                    position: pos,
+                    map: map,
+                    icon: {
+                        url: "https://cdn-icons-png.flaticon.com/512/3063/3063822.png",
+                        scaledSize: new google.maps.Size(45, 45)
+                    }
+                });
+            }, 100);
         } else {
-            // Actualiza la posición suavemente sin recargar el mapa
             marker.setPosition(pos);
             map.panTo(pos);
         }
@@ -103,7 +101,6 @@ function renderizarMapa(lat, lng) {
     }
 }
 
-// ✅ EL ESCUDO: Esta función evita que el código "muera" si no encuentra un ID
 function actualizarTextoSeguro(id, texto) {
     const elemento = document.getElementById(id);
     if (elemento) {
