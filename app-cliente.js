@@ -1,4 +1,3 @@
-// app-cliente.js - Versión Final (Admin + Cliente)
 import { auth, db } from "./firebase-config.js";
 import { doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -15,51 +14,33 @@ const darkStyle = [
 ];
 
 onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-        window.location.href = "login.html";
-        return;
-    }
-
+    if (!user) { window.location.href = "login.html"; return; }
     try {
-        const adminSnap = await getDoc(doc(db, "admins", user.uid));
-        const clienteSnap = await getDoc(doc(db, "clientes", user.uid));
+        const [adminSnap, clienteSnap] = await Promise.all([
+            getDoc(doc(db, "admins", user.uid)),
+            getDoc(doc(db, "clientes", user.uid))
+        ]);
 
         if (adminSnap.exists() || clienteSnap.exists()) {
-            if (tecnicoId) {
-                iniciarSeguimiento(tecnicoId);
-            } else {
-                actualizarTextoSeguro("nombreTecnico", "Selecciona una unidad");
-            }
+            if (tecnicoId) iniciarSeguimiento(tecnicoId);
         } else {
-            alert("❌ Acceso no autorizado");
             window.location.href = "index.html";
         }
-    } catch (error) {
-        console.error("Error en permisos:", error);
-    }
+    } catch (e) { console.error(e); }
 });
 
 function iniciarSeguimiento(id) {
     onSnapshot(doc(db, "tecnicos", id), (docSnap) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
-            
-            actualizarTextoSeguro("nombreTecnico", data.nombre || "Técnico");
-            actualizarTextoSeguro("vehiculoTecnico", `${data.vehiculo || "Unidad"} | ${data.placas || "S/P"}`);
-            actualizarTextoSeguro("estadoTecnico", data.estado || "EN RUTA");
-
-            const btnLlamar = document.getElementById("btnLlamar");
-            if (btnLlamar && data.telefono) {
-                btnLlamar.href = `tel:${data.telefono}`;
-            }
+            actualizarTextoSeguro("nombreTecnico", data.nombre);
+            actualizarTextoSeguro("vehiculoTecnico", `${data.vehiculo} | ${data.placas}`);
+            actualizarTextoSeguro("estadoTecnico", data.estado);
 
             if (data.lat && data.lng) {
-                const latitude = parseFloat(data.lat);
-                const longitude = parseFloat(data.lng);
-                
-                if (!isNaN(latitude) && !isNaN(longitude)) {
-                    renderizarMapa(latitude, longitude);
-                }
+                const lat = parseFloat(data.lat);
+                const lng = parseFloat(data.lng);
+                if (!isNaN(lat) && !isNaN(lng)) renderizarMapa(lat, lng);
             }
         }
     });
@@ -67,43 +48,39 @@ function iniciarSeguimiento(id) {
 
 function renderizarMapa(lat, lng) {
     const pos = { lat, lng };
+    const mapDiv = document.getElementById("map");
 
-    try {
-        if (!map) {
-            const mapDiv = document.getElementById("map");
-            if (!mapDiv) return;
+    if (!map) {
+        // CREACIÓN DEL MAPA CON PROTOCOLO DE ESPERA
+        map = new google.maps.Map(mapDiv, {
+            center: pos,
+            zoom: 17,
+            styles: darkStyle,
+            disableDefaultUI: true,
+            backgroundColor: 'transparent'
+        });
 
-            // El delay ayuda a que el mapa no se quede negro en la carga inicial
-            setTimeout(() => {
-                map = new google.maps.Map(mapDiv, {
-                    center: pos,
-                    zoom: 17,
-                    styles: darkStyle,
-                    disableDefaultUI: true,
-                    gestureHandling: "greedy"
-                });
+        marker = new google.maps.Marker({
+            position: pos,
+            map: map,
+            icon: {
+                url: "https://cdn-icons-png.flaticon.com/512/3063/3063822.png",
+                scaledSize: new google.maps.Size(45, 45)
+            }
+        });
 
-                marker = new google.maps.Marker({
-                    position: pos,
-                    map: map,
-                    icon: {
-                        url: "https://cdn-icons-png.flaticon.com/512/3063/3063822.png",
-                        scaledSize: new google.maps.Size(45, 45)
-                    }
-                });
-            }, 100);
-        } else {
-            marker.setPosition(pos);
-            map.panTo(pos);
-        }
-    } catch (err) {
-        console.error("Error cargando Google Maps:", err);
+        // ESTO ES CLAVE: Forzar a Google Maps a recalcular su tamaño
+        google.maps.event.addListenerOnce(map, 'idle', () => {
+            google.maps.event.trigger(map, 'resize');
+            map.setCenter(pos);
+        });
+    } else {
+        marker.setPosition(pos);
+        map.panTo(pos);
     }
 }
 
 function actualizarTextoSeguro(id, texto) {
-    const elemento = document.getElementById(id);
-    if (elemento) {
-        elemento.innerText = texto;
-    }
+    const el = document.getElementById(id);
+    if (el && texto) el.innerText = texto;
 }
