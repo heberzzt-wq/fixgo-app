@@ -15,49 +15,54 @@ const darkStyle = [
 
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "login.html"; return; }
-    try {
-        const [adminSnap, clienteSnap] = await Promise.all([
-            getDoc(doc(db, "admins", user.uid)),
-            getDoc(doc(db, "clientes", user.uid))
-        ]);
+    
+    // Verificación de acceso
+    const [adminSnap, clienteSnap] = await Promise.all([
+        getDoc(doc(db, "admins", user.uid)),
+        getDoc(doc(db, "clientes", user.uid))
+    ]);
 
-        if (adminSnap.exists() || clienteSnap.exists()) {
-            if (tecnicoId) iniciarSeguimiento(tecnicoId);
-        } else {
-            window.location.href = "index.html";
-        }
-    } catch (e) { console.error(e); }
+    if (adminSnap.exists() || clienteSnap.exists()) {
+        if (tecnicoId) iniciarSeguimiento(tecnicoId);
+    } else {
+        window.location.href = "index.html";
+    }
 });
 
 function iniciarSeguimiento(id) {
     onSnapshot(doc(db, "tecnicos", id), (docSnap) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
-            actualizarTextoSeguro("nombreTecnico", data.nombre);
-            actualizarTextoSeguro("vehiculoTecnico", `${data.vehiculo} | ${data.placas}`);
-            actualizarTextoSeguro("estadoTecnico", data.estado);
+            
+            // Actualización de UI
+            document.getElementById("nombreTecnico").innerText = data.nombre || "Técnico";
+            document.getElementById("vehiculoTecnico").innerText = `${data.vehiculo || 'Unidad'} | ${data.placas || '---'}`;
+            document.getElementById("estadoTecnico").innerText = data.estado || "EN RUTA";
 
             if (data.lat && data.lng) {
                 const lat = parseFloat(data.lat);
                 const lng = parseFloat(data.lng);
-                if (!isNaN(lat) && !isNaN(lng)) renderizarMapa(lat, lng);
+                
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    dibujarMapa(lat, lng);
+                }
             }
         }
     });
 }
 
-function renderizarMapa(lat, lng) {
+function dibujarMapa(lat, lng) {
     const pos = { lat, lng };
-    const mapDiv = document.getElementById("map");
 
     if (!map) {
-        // CREACIÓN DEL MAPA CON PROTOCOLO DE ESPERA
+        const mapDiv = document.getElementById("map");
+        
+        // Creamos el mapa
         map = new google.maps.Map(mapDiv, {
             center: pos,
             zoom: 17,
             styles: darkStyle,
-            disableDefaultUI: true,
-            backgroundColor: 'transparent'
+            disableDefaultUI: true
         });
 
         marker = new google.maps.Marker({
@@ -69,18 +74,10 @@ function renderizarMapa(lat, lng) {
             }
         });
 
-        // ESTO ES CLAVE: Forzar a Google Maps a recalcular su tamaño
-        google.maps.event.addListenerOnce(map, 'idle', () => {
-            google.maps.event.trigger(map, 'resize');
-            map.setCenter(pos);
-        });
+        // Forzar a Google a re-dibujar por si el div estaba oculto
+        google.maps.event.trigger(map, "resize");
     } else {
         marker.setPosition(pos);
         map.panTo(pos);
     }
-}
-
-function actualizarTextoSeguro(id, texto) {
-    const el = document.getElementById(id);
-    if (el && texto) el.innerText = texto;
 }
