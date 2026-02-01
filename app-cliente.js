@@ -83,7 +83,14 @@ function dibujarMapa(lat, lng) {
             }
         });
     } else {
+        // Mover el marcador suavemente
         marker.setPosition(posicion);
+
+        // PanTo ya es suave, pero esto asegura que no "brinque" la cámara
         map.panTo(posicion);
+        
+        // Si quieres que el mapa rote según la dirección, se requiere más lógica,
+        // por ahora esto mantendrá al técnico siempre centrado.
+    }
     }
 }
