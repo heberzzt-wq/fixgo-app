@@ -16,7 +16,7 @@ const darkStyle = [
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "login.html"; return; }
     
-    // Verificación de acceso
+    // Verificamos permisos
     const [adminSnap, clienteSnap] = await Promise.all([
         getDoc(doc(db, "admins", user.uid)),
         getDoc(doc(db, "clientes", user.uid))
@@ -25,6 +25,7 @@ onAuthStateChanged(auth, async (user) => {
     if (adminSnap.exists() || clienteSnap.exists()) {
         if (tecnicoId) iniciarSeguimiento(tecnicoId);
     } else {
+        alert("Sin permisos de acceso");
         window.location.href = "index.html";
     }
 });
@@ -34,9 +35,9 @@ function iniciarSeguimiento(id) {
         if (docSnap.exists()) {
             const data = docSnap.data();
             
-            // Actualización de UI
-            document.getElementById("nombreTecnico").innerText = data.nombre || "Técnico";
-            document.getElementById("vehiculoTecnico").innerText = `${data.vehiculo || 'Unidad'} | ${data.placas || '---'}`;
+            // Actualizamos la interfaz
+            document.getElementById("nombreTecnico").innerText = data.nombre || "Heberto";
+            document.getElementById("vehiculoTecnico").innerText = `${data.vehiculo || 'Unidad'} | ${data.placas || 'S/P'}`;
             document.getElementById("estadoTecnico").innerText = data.estado || "EN RUTA";
 
             if (data.lat && data.lng) {
@@ -44,20 +45,18 @@ function iniciarSeguimiento(id) {
                 const lng = parseFloat(data.lng);
                 
                 if (!isNaN(lat) && !isNaN(lng)) {
-                    dibujarMapa(lat, lng);
+                    renderizarMapa(lat, lng);
                 }
             }
         }
     });
 }
 
-function dibujarMapa(lat, lng) {
+function renderizarMapa(lat, lng) {
     const pos = { lat, lng };
 
     if (!map) {
         const mapDiv = document.getElementById("map");
-        
-        // Creamos el mapa
         map = new google.maps.Map(mapDiv, {
             center: pos,
             zoom: 17,
@@ -73,9 +72,9 @@ function dibujarMapa(lat, lng) {
                 scaledSize: new google.maps.Size(45, 45)
             }
         });
-
-        // Forzar a Google a re-dibujar por si el div estaba oculto
-        google.maps.event.trigger(map, "resize");
+        
+        // Forzamos el redibujado visual
+        setTimeout(() => google.maps.event.trigger(map, 'resize'), 300);
     } else {
         marker.setPosition(pos);
         map.panTo(pos);
