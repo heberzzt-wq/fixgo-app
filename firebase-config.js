@@ -1,7 +1,8 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+// firebase-config.js
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Tus credenciales reales de FixGo
 const firebaseConfig = {
   apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0",
   authDomain: "fixgo-44e4d.firebaseapp.com",
@@ -11,9 +12,8 @@ const firebaseConfig = {
   appId: "1:1005526685116:web:62f1a823ff8761da85c7b9"
 };
 
-// Inicializamos Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// Exportamos las herramientas para que otros archivos las usen
-export { db, collection, addDoc };
+// 🔥 Inicialización única
+export const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const googleProvider = new GoogleAuthProvider();
