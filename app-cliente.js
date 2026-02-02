@@ -77,7 +77,7 @@ function buscarServicioActivo() {
     });
 }
 
-// 4. Rastreo en Tiempo Real (Jonathan)
+// 4. Rastreo en Tiempo Real (Jonathan) - CORREGIDO
 function rastrearTecnico(tecnicoId) {
     onSnapshot(doc(db, "tecnicos", tecnicoId), (docSnap) => {
         if (!docSnap.exists()) return;
@@ -85,15 +85,23 @@ function rastrearTecnico(tecnicoId) {
         
         if (nombreTecnicoEl) nombreTecnicoEl.innerText = data.nombre || "Jonathan Catana";
         if (vehiculoTecnicoEl) vehiculoTecnicoEl.innerText = `${data.vehiculo || 'Thida'} | ${data.placas || '123456'}`;
+        
         if (estadoTecnicoEl) {
-            estadoTecnicoEl.innerText = "TECNICO EN RUTA";
-            estadoTecnicoEl.className = "text-emerald-400 font-black animate-pulse";
+            estadoTecnicoEl.innerText = data.estado === "DISPONIBLE" ? "ESPERANDO SOLICITUD" : "TECNICO EN RUTA";
+            estadoTecnicoEl.className = data.estado === "DISPONIBLE" ? "text-blue-400 font-black" : "text-emerald-400 font-black animate-pulse";
         }
 
-        if (data.lat && data.lng) {
-            const pos = { lat: data.lat, lng: data.lng };
+        // CORRECCIÓN AQUÍ: Leemos desde 'ubicacion' o directamente desde lat/lng
+        const lat = data.ubicacion?.lat || data.lat;
+        const lng = data.ubicacion?.lng || data.lng;
+
+        if (lat && lng) {
+            const pos = { lat: lat, lng: lng };
             marker.setPosition(pos);
             map.panTo(pos);
+            console.log("Mapa actualizado en:", pos);
+        } else {
+            console.warn("El técnico no está enviando coordenadas aún.");
         }
     });
 }
