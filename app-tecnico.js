@@ -5,57 +5,107 @@ import {
     collection, 
     query, 
     where, 
-    onSnapshot 
+    onSnapshot,
+    orderBy,
+    getDoc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { onAuthStateChanged, signOut } from "./firebase-auth.js";
 
-// Referencias a los botones de la Captura 307
-const btnDisponible = document.querySelector('button:contains("DISPONIBLE")') || document.querySelectorAll('button')[0];
-const btnEnServicio = document.querySelector('button:contains("EN SERVICIO")') || document.querySelectorAll('button')[1];
+// 1. Referencias al HTML
+const nombreTecnicoEl = document.getElementById("nombreTecnico");
+const unidadTecnicoEl = document.getElementById("unidadTecnico");
+const statusIndicator = document.getElementById("statusIndicator");
+const solicitudesList = document.getElementById("solicitudesList");
+const btnDisponible = document.getElementById("btnDisponible");
+const btnServicio = document.getElementById("btnServicio");
+const logoutBtn = document.getElementById("logoutBtn");
 
-// 1. Función para actualizar el estado del técnico (Jonathan)
-async function actualizarEstadoTecnico(nuevoEstado) {
+// 2. Control de Sesión
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        const tecRef = doc(db, "tecnicos", user.uid);
+        const tecSnap = await getDoc(tecRef);
+        
+        if (tecSnap.exists()) {
+            const data = tecSnap.data();
+            nombreTecnicoEl.innerText = data.nombre || "Jonathan Catana";
+            unidadTecnicoEl.innerText = `${data.vehiculo || 'Thida'} | ${data.placas || '123456'}`;
+            actualizarInterfazEstado(data.estado);
+        }
+        escucharSolicitudes();
+    } else {
+        window.location.href = "login.html";
+    }
+});
+
+// 3. Funciones de Estado
+async function cambiarEstado(nuevoEstado) {
     const user = auth.currentUser;
     if (!user) return;
-
     try {
-        const tecnicoRef = doc(db, "tecnicos", user.uid);
-        await updateDoc(tecnicoRef, {
-            estado: nuevoEstado // "DISPONIBLE" o "EN SERVICIO"
-        });
-        alert(`Estado actualizado a: ${nuevoEstado}`);
+        await updateDoc(doc(db, "tecnicos", user.uid), { estado: nuevoEstado });
+        actualizarInterfazEstado(nuevoEstado);
     } catch (error) {
-        console.error("Error al actualizar estado:", error);
+        console.error("Error:", error);
     }
 }
 
-// 2. Asignar clics a los botones
-if (btnDisponible) {
-    btnDisponible.addEventListener("click", () => actualizarEstadoTecnico("DISPONIBLE"));
+function actualizarInterfazEstado(estado) {
+    if (estado === "DISPONIBLE") {
+        statusIndicator.className = "w-20 h-20 bg-emerald-500 rounded-full mx-auto flex items-center justify-center text-3xl shadow-lg animate-pulse";
+        statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
+    } else {
+        statusIndicator.className = "w-20 h-20 bg-orange-500 rounded-full mx-auto flex items-center justify-center text-3xl shadow-lg";
+        statusIndicator.innerHTML = '<i class="fas fa-tools"></i>';
+    }
 }
 
-if (btnEnServicio) {
-    btnEnServicio.addEventListener("click", () => actualizarEstadoTecnico("EN SERVICIO"));
-}
+// Eventos de botones
+if(btnDisponible) btnDisponible.onclick = () => cambiarEstado("DISPONIBLE");
+if(btnServicio) btnServicio.onclick = () => cambiarEstado("EN SERVICIO");
+if(logoutBtn) logoutBtn.onclick = () => signOut(auth);
 
-// 3. Escuchar solicitudes entrantes (Esto requiere el índice de la Captura 307)
+// 4. Escuchar Solicitudes
 function escucharSolicitudes() {
-    const q = query(collection(db, "solicitudes"), where("estado", "==", "PENDIENTE"));
+    const q = query(
+        collection(db, "solicitudes"), 
+        where("estado", "==", "PENDIENTE"),
+        orderBy("fechaCreacion", "desc")
+    );
 
     onSnapshot(q, (snapshot) => {
-        const contenedor = document.getElementById("solicitudesEntrantesContainer"); // Asegúrate que este ID exista
-        if (!contenedor) return;
+        if (!solicitudesList) return;
+        solicitudesList.innerHTML = "";
         
-        contenedor.innerHTML = "";
+        if (snapshot.empty) {
+            solicitudesList.innerHTML = '<p class="text-slate-600 text-center text-xs italic">Buscando servicios cerca...</p>';
+            return;
+        }
+
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
-            // Aquí se genera la tarjeta de la solicitud con el botón "Aceptar"
-            contenedor.innerHTML += `
-                <div class="uber-card p-4 mb-4 rounded-2xl border border-white/10">
-                    <p class="text-indigo-400 font-black text-xs">${data.clienteNombre}</p>
-                    <p class="text-white font-bold">${data.direccion}</p>
-                    <button onclick="aceptarServicio('${docSnap.id}')" class="mt-3 w-full bg-indigo-600 py-2 rounded-xl">ACEPTAR</button>
-                </div>
+            const card = document.createElement("div");
+            card.className = "uber-card p-5 rounded-[1.5rem] border border-white/5 animate-fade mb-3";
+            card.innerHTML = `
+                <p class="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">${data.clienteNombre}</p>
+                <p class="text-sm font-bold text-white mb-1">${data.direccion}</p>
+                <button onclick="aceptarServicio('${docSnap.id}')" class="w-full bg-white text-black font-black py-3 rounded-xl mt-3 text-xs uppercase">Aceptar</button>
             `;
+            solicitudesList.appendChild(card);
         });
+    }, (error) => {
+        console.error("Error en Snapshot: ", error);
+        solicitudesList.innerHTML = '<p class="text-red-500 text-xs">Falta índice en Firebase. Revisa la consola.</p>';
     });
 }
+
+window.aceptarServicio = async (id) => {
+    try {
+        await updateDoc(doc(db, "solicitudes", id), {
+            estado: "EN CAMINO",
+            tecnicoId: auth.currentUser.uid
+        });
+        alert("Servicio Aceptado");
+        cambiarEstado("EN SERVICIO");
+    } catch (e) { alert("Error: " + e.message); }
+};
