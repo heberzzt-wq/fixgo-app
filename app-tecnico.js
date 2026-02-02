@@ -8,7 +8,6 @@ import { onAuthStateChanged, signOut } from "./firebase-auth.js";
 const getEl = (id) => document.getElementById(id);
 let watchId = null;
 
-// 1. Control de Sesión
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         const tecRef = doc(db, "tecnicos", user.uid);
@@ -16,6 +15,7 @@ onAuthStateChanged(auth, async (user) => {
         
         if (tecSnap.exists()) {
             const data = tecSnap.data();
+            // Actualización segura de textos
             if (getEl("nombreTecnico")) getEl("nombreTecnico").innerText = data.nombre || "Jonathan Catana";
             if (getEl("infoVehiculo")) getEl("infoVehiculo").innerText = `${data.vehiculo || 'Thida'} | ${data.placas || '123456'}`;
         } else {
@@ -32,7 +32,7 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// 2. Motor GPS (Ajustado a id="btnGps" e id="gpsStatus")
+// MOTOR GPS PROFESIONAL
 const btnGPS = getEl("btnGps");
 const gpsStatus = getEl("gpsStatus");
 
@@ -48,27 +48,25 @@ if (btnGPS) {
                         lat: pos.coords.latitude,
                         lng: pos.coords.longitude,
                         ubicacion: { lat: pos.coords.latitude, lng: pos.coords.longitude },
-                        ultimaActualizacion: new Date()
+                        ultimaActualizacion: new Date(),
+                        estado: "DISPONIBLE" // Asegura que el cliente lo vea activo
                     });
                 }
-            }, (err) => console.error(err), { enableHighAccuracy: true });
+            }, (err) => console.warn("Esperando señal GPS..."), { enableHighAccuracy: true });
 
-            // Cambiar visual a ACTIVO
             btnGPS.innerHTML = '<i class="fas fa-broadcast-tower animate-pulse"></i> <span>RASTREO ACTIVO</span>';
-            btnGPS.className = "w-full py-5 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 bg-emerald-500 text-white btn-glow";
-            if (gpsStatus) gpsStatus.innerText = "Transmitiendo en tiempo real";
+            btnGPS.className = "w-full py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 bg-emerald-500 text-white shadow-lg shadow-emerald-500/20";
+            if (gpsStatus) gpsStatus.innerText = "TRANSMITIENDO EN TIEMPO REAL";
         } else {
-            // DETENER
             navigator.geolocation.clearWatch(watchId);
             watchId = null;
             btnGPS.innerHTML = '<i class="fas fa-location-arrow"></i> <span>ACTIVAR RASTREO GPS</span>';
-            btnGPS.className = "w-full py-5 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 bg-white text-black btn-glow";
-            if (gpsStatus) gpsStatus.innerText = "El sistema está en pausa";
+            btnGPS.className = "w-full py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 bg-white text-black btn-glow";
+            if (gpsStatus) gpsStatus.innerText = "EL SISTEMA ESTÁ EN PAUSA";
         }
     };
 }
 
-// 3. Escuchar Solicitudes (Ajustado a id="listaServicios")
 function escucharSolicitudes() {
     const list = getEl("listaServicios");
     if (!list) return;
@@ -85,14 +83,13 @@ function escucharSolicitudes() {
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
             const card = document.createElement("div");
-            card.className = "uber-card p-6 rounded-[2rem] animate-fade";
+            card.className = "uber-card p-6 rounded-[2rem] mb-4 animate-fade";
             card.innerHTML = `
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <p class="text-[10px] font-black text-indigo-400 uppercase mb-1">${data.clienteNombre || 'Servicio Urgente'}</p>
                         <p class="text-lg font-bold text-white">${data.direccion}</p>
                     </div>
-                    <span class="bg-indigo-500/10 text-indigo-400 text-[9px] px-2 py-1 rounded font-black italic">NUEVO</span>
                 </div>
                 <button onclick="aceptarServicio('${docSnap.id}')" class="w-full bg-white text-black font-black py-4 rounded-xl text-xs uppercase hover:bg-indigo-500 hover:text-white transition-all">Aceptar Servicio</button>
             `;
@@ -107,8 +104,9 @@ window.aceptarServicio = async (id) => {
             estado: "EN CAMINO",
             tecnicoId: auth.currentUser.uid
         });
+        await updateDoc(doc(db, "tecnicos", auth.currentUser.uid), { estado: "EN SERVICIO" });
         alert("¡Servicio aceptado!");
-    } catch (e) { alert("Error: " + e.message); }
+    } catch (e) { console.error(e); }
 };
 
 if (getEl("logoutBtn")) getEl("logoutBtn").onclick = () => signOut(auth);
