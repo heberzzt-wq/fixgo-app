@@ -1,90 +1,87 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo | Registro Cliente</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #050505; color: white; }
-        .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.08); }
-        .uber-input { background-color: #1e1e1e; border: none; color: white; transition: all 0.3s; }
-        .uber-input:focus { ring: 2px solid #6366f1; background-color: #252525; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade { animation: fadeIn 0.5s ease-out; }
-    </style>
-</head>
-<body class="min-h-screen flex items-center justify-center p-4 relative">
+// app-registro-universal.js
+import { 
+    auth, 
+    db, 
+    googleProvider, 
+    signInWithPopup, 
+    createUserWithEmailAndPassword 
+} from "./firebase-auth.js";
 
-    <div class="fixed top-6 left-6 z-50">
-        <a href="index.html" class="flex items-center gap-2 bg-white/5 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/10 text-slate-300 font-bold shadow-xl hover:bg-white/10 transition-all group">
-            <i class="fas fa-arrow-left text-sm group-hover:-translate-x-1 transition-transform"></i>
-            <span class="text-xs uppercase tracking-widest">Inicio</span>
-        </a>
-    </div>
+import { 
+    doc, 
+    setDoc, 
+    serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    <div class="max-w-md w-full animate-fade">
-        <div class="text-center mb-10">
-            <h1 class="text-3xl font-black italic tracking-tighter text-white">
-                FIXGO<span class="text-indigo-500">&</span>FINISH
-            </h1>
-            <p class="text-slate-500 text-[10px] font-bold uppercase tracking-[0.4em] mt-2">Perfil de Usuario</p>
-        </div>
+const registroForm = document.getElementById("clienteForm");
+const googleBtn = document.getElementById("loginGoogle");
+const rol = registroForm.getAttribute("data-rol") || "CLIENTES"; // Detecta si es CLIENTE o TECNICO
 
-        <form id="clienteForm" class="uber-card p-8 md:p-10 rounded-[2.5rem] shadow-2xl space-y-6" data-rol="CLIENTE">
-            
-            <div class="text-center mb-4">
-                <h2 class="text-xl font-bold text-slate-200">Crea tu cuenta</h2>
-                <p class="text-slate-500 text-xs mt-1">Regístrate para solicitar técnicos en tiempo real</p>
-            </div>
+// --- REGISTRO CON EMAIL Y CONTRASEÑA ---
+registroForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("submitBtn");
+    const formData = new FormData(registroForm);
+    
+    // Generamos una contraseña genérica o podrías añadir un campo password al HTML
+    // Por simplicidad en el registro rápido, usaremos el teléfono como pass temporal 
+    // o puedes añadir el input en el HTML. Aquí asumiremos que ya existe o lo creamos.
+    const email = formData.get("correo");
+    const password = "FixGo" + formData.get("telefono").slice(-4); // Password temporal segura
 
-            <div>
-                <label class="block text-[10px] font-black text-slate-500 mb-2 ml-1 uppercase tracking-widest">Nombre Completo</label>
-                <input type="text" name="nombre" required placeholder="Tu nombre" 
-                    class="w-full uber-input px-5 py-4 rounded-2xl outline-none text-lg">
-            </div>
+    btn.innerText = "CREANDO CUENTA...";
+    btn.disabled = true;
 
-            <div>
-                <label class="block text-[10px] font-black text-slate-500 mb-2 ml-1 uppercase tracking-widest">Teléfono / WhatsApp</label>
-                <input type="tel" name="telefono" required placeholder="10 dígitos" 
-                    class="w-full uber-input px-5 py-4 rounded-2xl outline-none text-lg">
-            </div>
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
 
-            <div>
-                <label class="block text-[10px] font-black text-slate-500 mb-2 ml-1 uppercase tracking-widest">Dirección Principal</label>
-                <input type="text" name="direccion" required placeholder="Colonia y Calle" 
-                    class="w-full uber-input px-5 py-4 rounded-2xl outline-none text-lg">
-            </div>
+        await guardarEnFirestore(user, {
+            nombre: formData.get("nombre"),
+            telefono: formData.get("telefono"),
+            direccion: formData.get("direccion"),
+            correo: email,
+            rol: rol,
+            uid: user.uid
+        });
 
-            <div>
-                <label class="block text-[10px] font-black text-slate-500 mb-2 ml-1 uppercase tracking-widest">Correo Electrónico</label>
-                <input type="email" name="correo" required placeholder="email@ejemplo.com" 
-                    class="w-full uber-input px-5 py-4 rounded-2xl outline-none text-lg">
-            </div>
+        alert("¡Cuenta creada con éxito! Tu contraseña temporal es: " + password);
+        window.location.href = "index.html";
+    } catch (error) {
+        console.error("Error en registro:", error);
+        alert("Error: El correo ya existe o los datos son inválidos.");
+    } finally {
+        btn.innerText = "CREAR MI CUENTA";
+        btn.disabled = false;
+    }
+});
 
-            <div class="pt-4 space-y-4">
-                <button type="submit" id="submitBtn" class="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-500 transition-all uppercase tracking-tighter text-xl transform active:scale-95">
-                    CREAR MI CUENTA
-                </button>
+// --- REGISTRO CON GOOGLE ---
+googleBtn.addEventListener("click", async () => {
+    try {
+        const result = await signInWithPopup(auth, googleProvider);
+        const user = result.user;
 
-                <div class="relative text-center py-2">
-                    <hr class="border-white/5">
-                    <span class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#121212] px-4 text-[10px] text-slate-600 font-bold uppercase tracking-widest">O con tu red social</span>
-                </div>
+        // Para Google, como no tenemos formulario, guardamos datos básicos
+        await guardarEnFirestore(user, {
+            nombre: user.displayName,
+            correo: user.email,
+            rol: rol,
+            uid: user.uid,
+            registroSocial: true
+        });
 
-                <button type="button" id="loginGoogle" class="w-full bg-white text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 shadow-xl hover:bg-slate-200 transition-all active:scale-95 text-lg">
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" class="w-5 h-5" alt="Google">
-                    REGISTRARSE CON GOOGLE
-                </button>
-            </div>
-        </form>
+        window.location.href = "index.html";
+    } catch (error) {
+        console.error("Error Google:", error);
+    }
+});
 
-        <footer class="mt-10 text-center">
-            <p class="text-slate-600 text-[10px] font-bold uppercase tracking-[0.2em]">© 2026 FIXGO | EXPERIENCIA DE CLIENTE</p>
-        </footer>
-    </div>
-
-    <script type="module" src="app-registro-universal.js"></script>
-</body>
-</html>
+// Función auxiliar para centralizar el guardado
+async function guardarEnFirestore(user, datos) {
+    const coleccion = datos.rol === "CLIENTE" ? "clientes" : "tecnicos";
+    await setDoc(doc(db, coleccion, user.uid), {
+        ...datos,
+        fechaRegistro: serverTimestamp()
+    });
+}
