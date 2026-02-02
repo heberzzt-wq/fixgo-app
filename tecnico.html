@@ -1,111 +1,59 @@
-import { auth, db } from "./firebase-auth.js";
-import { 
-    doc, 
-    updateDoc, 
-    collection, 
-    query, 
-    where, 
-    onSnapshot,
-    orderBy,
-    getDoc
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { onAuthStateChanged, signOut } from "./firebase-auth.js";
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FixGo - Operador</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #050505; }
+        .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.08); }
+        .animate-fade { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
 
-// 1. Referencias al HTML
-const nombreTecnicoEl = document.getElementById("nombreTecnico");
-const unidadTecnicoEl = document.getElementById("unidadTecnico");
-const statusIndicator = document.getElementById("statusIndicator");
-const solicitudesList = document.getElementById("solicitudesList");
-const btnDisponible = document.getElementById("btnDisponible");
-const btnServicio = document.getElementById("btnServicio");
-const logoutBtn = document.getElementById("logoutBtn");
+<body class="text-white min-h-screen flex flex-col items-center p-4 gap-6">
 
-// 2. Control de Sesión
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        const tecRef = doc(db, "tecnicos", user.uid);
-        const tecSnap = await getDoc(tecRef);
+    <div id="panelTecnico" class="max-w-md w-full uber-card p-8 rounded-[3rem] shadow-2xl text-center animate-fade">
+        <div class="mb-6">
+            <div id="statusIndicator" class="w-20 h-20 bg-slate-800 rounded-full mx-auto flex items-center justify-center text-3xl transition-all duration-500 shadow-lg">
+                <i class="fas fa-truck-loading"></i>
+            </div>
+            <h1 id="nombreTecnico" class="text-2xl font-black mt-4 italic uppercase">Cargando...</h1>
+            <p id="unidadTecnico" class="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em]">Sincronizando Unidad</p>
+        </div>
+
+        <div class="grid gap-4">
+            <button id="btnDisponible" class="group bg-emerald-500/10 border border-emerald-500/20 p-6 rounded-3xl hover:bg-emerald-500 transition-all duration-300">
+                <i class="fas fa-check-circle text-emerald-500 group-hover:text-white text-2xl mb-2"></i>
+                <span class="block font-black text-xs group-hover:text-white uppercase tracking-widest">Disponible</span>
+            </button>
+
+            <button id="btnServicio" class="group bg-orange-500/10 border border-orange-500/20 p-6 rounded-3xl hover:bg-orange-500 transition-all duration-300">
+                <i class="fas fa-tools text-orange-500 group-hover:text-white text-2xl mb-2"></i>
+                <span class="block font-black text-xs group-hover:text-white uppercase tracking-widest">En Servicio</span>
+            </button>
+        </div>
         
-        if (tecSnap.exists()) {
-            const data = tecSnap.data();
-            nombreTecnicoEl.innerText = data.nombre || "Jonathan Catana";
-            unidadTecnicoEl.innerText = `${data.vehiculo || 'Thida'} | ${data.placas || '123456'}`;
-            actualizarInterfazEstado(data.estado);
-        }
-        escucharSolicitudes();
-    } else {
-        window.location.href = "login.html";
-    }
-});
+        <button id="logoutBtn" class="mt-8 text-slate-600 hover:text-red-400 text-[10px] font-bold uppercase tracking-widest transition-colors">
+            Cerrar Sesión
+        </button>
+    </div>
 
-// 3. Funciones de Estado
-async function cambiarEstado(nuevoEstado) {
-    const user = auth.currentUser;
-    if (!user) return;
-    try {
-        await updateDoc(doc(db, "tecnicos", user.uid), { estado: nuevoEstado });
-        actualizarInterfazEstado(nuevoEstado);
-    } catch (error) {
-        console.error("Error:", error);
-    }
-}
+    <div id="solicitudesContainer" class="max-w-md w-full uber-card p-6 rounded-[2rem] shadow-2xl">
+        <h2 class="text-sm font-black mb-6 text-center uppercase tracking-[0.2em] text-indigo-400">Solicitudes Entrantes</h2>
+        <div id="solicitudesList" class="flex flex-col gap-4">
+            <p class="text-slate-600 text-center text-xs italic animate-pulse">Buscando servicios cerca...</p>
+        </div>
+    </div>
 
-function actualizarInterfazEstado(estado) {
-    if (estado === "DISPONIBLE") {
-        statusIndicator.className = "w-20 h-20 bg-emerald-500 rounded-full mx-auto flex items-center justify-center text-3xl shadow-lg animate-pulse";
-        statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
-    } else {
-        statusIndicator.className = "w-20 h-20 bg-orange-500 rounded-full mx-auto flex items-center justify-center text-3xl shadow-lg";
-        statusIndicator.innerHTML = '<i class="fas fa-tools"></i>';
-    }
-}
+    <footer class="mt-4">
+        <p class="text-[9px] text-slate-700 font-bold uppercase tracking-[0.5em]">FixGo Live Status v2.0</p>
+    </footer>
 
-// Eventos de botones
-if(btnDisponible) btnDisponible.onclick = () => cambiarEstado("DISPONIBLE");
-if(btnServicio) btnServicio.onclick = () => cambiarEstado("EN SERVICIO");
-if(logoutBtn) logoutBtn.onclick = () => signOut(auth);
+    <script type="module" src="app-tecnico.js"></script>
 
-// 4. Escuchar Solicitudes (Requiere el índice de la Captura 307)
-function escucharSolicitudes() {
-    const q = query(
-        collection(db, "solicitudes"), 
-        where("estado", "==", "PENDIENTE"),
-        orderBy("fechaCreacion", "desc")
-    );
-
-    onSnapshot(q, (snapshot) => {
-        if (!solicitudesList) return;
-        solicitudesList.innerHTML = "";
-        
-        if (snapshot.empty) {
-            solicitudesList.innerHTML = '<p class="text-slate-600 text-center text-xs italic">Buscando servicios cerca...</p>';
-            return;
-        }
-
-        snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            const card = document.createElement("div");
-            card.className = "uber-card p-5 rounded-[1.5rem] border border-white/5 animate-fade mb-3";
-            card.innerHTML = `
-                <p class="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">${data.clienteNombre}</p>
-                <p class="text-sm font-bold text-white mb-1">${data.direccion}</p>
-                <button onclick="aceptarServicio('${docSnap.id}')" class="w-full bg-white text-black font-black py-3 rounded-xl mt-3 text-xs uppercase">Aceptar</button>
-            `;
-            solicitudesList.appendChild(card);
-        });
-    }, (error) => {
-        console.error("Error en Snapshot: ", error);
-        solicitudesList.innerHTML = '<p class="text-red-500 text-xs">Error de índice. Revisa la consola.</p>';
-    });
-}
-
-window.aceptarServicio = async (id) => {
-    try {
-        await updateDoc(doc(db, "solicitudes", id), {
-            estado: "EN CAMINO",
-            tecnicoId: auth.currentUser.uid
-        });
-        alert("Servicio Aceptado");
-        cambiarEstado("EN SERVICIO");
-    } catch (e) { alert("Error: " + e.message); }
-};
+</body>
+</html>
