@@ -1,4 +1,11 @@
-import { auth, db } from "./firebase-config.js";
+// app-main.js
+import { 
+    auth, 
+    db, 
+    signOut, 
+    onAuthStateChanged 
+} from "./firebase-auth.js";
+
 import { 
     doc, 
     getDoc, 
@@ -9,9 +16,8 @@ import {
     onSnapshot, 
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-// Referencias a la interfaz de tu index.html
+// Referencias a la interfaz
 const heroSection = document.getElementById("heroSection");
 const solicitudContainer = document.getElementById("solicitudContainer");
 const logoutBtn = document.getElementById("logoutBtn");
@@ -19,57 +25,64 @@ const nombreClienteDisp = document.getElementById("nombreCliente");
 const nuevaSolicitudForm = document.getElementById("nuevaSolicitudForm");
 const solicitudesLista = document.getElementById("solicitudesCliente");
 
-// --- LOGICA DE ROLES Y VISTAS ---
+// --- LÓGICA DE CONTROL DE ACCESO ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        console.log("Usuario logueado:", user.uid);
-        
-        // 1. Verificamos si es un Técnico en Firestore
+        // 1. Verificamos si es un Técnico
         const tecnicoDoc = await getDoc(doc(db, "tecnicos", user.uid));
         
         if (tecnicoDoc.exists()) {
-            // SI ES TÉCNICO: Lo mandamos a su panel
             window.location.href = "area-tecnico.html";
         } else {
-            // SI NO ES TÉCNICO: Asumimos que es cliente y mostramos el formulario
+            // Si no es técnico, cargamos la interfaz de cliente
             mostrarPanelCliente(user);
         }
     } else {
-        // NADIE LOGUEADO: Mostramos los 3 botones principales
-        heroSection.classList.remove("hidden");
-        solicitudContainer.classList.add("hidden");
-        logoutBtn.classList.add("hidden");
+        // Limpieza visual si no hay usuario
+        heroSection?.classList.remove("hidden");
+        solicitudContainer?.classList.add("hidden");
+        logoutBtn?.classList.add("hidden");
     }
 });
 
 // --- FUNCIONES DEL CLIENTE ---
 function mostrarPanelCliente(user) {
-    heroSection.classList.add("hidden");
-    solicitudContainer.classList.remove("hidden");
-    logoutBtn.classList.remove("hidden");
+    heroSection?.classList.add("hidden");
+    solicitudContainer?.classList.remove("hidden");
+    logoutBtn?.classList.remove("hidden");
     
-    // Mostramos nombre (si no tiene, usamos parte del correo)
-    nombreClienteDisp.innerText = user.displayName || user.email.split('@')[0];
+    // Nombre amigable
+    if (nombreClienteDisp) {
+        nombreClienteDisp.innerText = user.displayName || user.email.split('@')[0];
+    }
 
-    // Cargar solicitudes del cliente en tiempo real
+    // Escuchar solicitudes en tiempo real
     const q = query(collection(db, "solicitudes"), where("clienteId", "==", user.uid));
+    
     onSnapshot(q, (snapshot) => {
+        if (!solicitudesLista) return;
+        
         solicitudesLista.innerHTML = "";
+        
         if (snapshot.empty) {
-            solicitudesLista.innerHTML = '<p class="text-slate-400 text-sm">No tienes solicitudes pendientes.</p>';
+            solicitudesLista.innerHTML = '<p class="text-slate-500 text-sm italic">No tienes servicios registrados.</p>';
             return;
         }
+
         snapshot.forEach((doc) => {
             const data = doc.data();
             const div = document.createElement("div");
-            div.className = "bg-white p-4 rounded-2xl border-l-4 border-indigo-500 shadow-sm";
+            // Estilo Uber-Dark para las tarjetas
+            div.className = "uber-card p-5 rounded-3xl border border-white/5 flex justify-between items-center animate-fade";
             div.innerHTML = `
-                <div class="flex justify-between items-start">
-                    <div>
-                        <p class="font-bold text-slate-800">${data.direccion || 'Sin dirección'}</p>
-                        <p class="text-xs text-slate-500">${data.descripcion || 'Sin descripción'}</p>
-                    </div>
-                    <span class="px-2 py-1 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-lg uppercase">${data.estado || 'PENDIENTE'}</span>
+                <div>
+                    <p class="text-white font-bold text-sm">${data.direccion || 'Sin dirección'}</p>
+                    <p class="text-[10px] text-slate-500 uppercase tracking-widest mt-1">${data.descripcion || 'Sin detalles'}</p>
+                </div>
+                <div class="text-right">
+                    <span class="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-[10px] font-black rounded-full border border-indigo-500/20 uppercase">
+                        ${data.estado || 'PENDIENTE'}
+                    </span>
                 </div>
             `;
             solicitudesLista.appendChild(div);
@@ -77,12 +90,19 @@ function mostrarPanelCliente(user) {
     });
 }
 
-// --- ESCUCHAR EL FORMULARIO ---
+// --- ENVÍO DE SOLICITUD ---
 if (nuevaSolicitudForm) {
     nuevaSolicitudForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const user = auth.currentUser;
         if (!user) return;
+
+        const btn = nuevaSolicitudForm.querySelector('button');
+        const originalText = btn.innerText;
+        
+        // Feedback visual
+        btn.innerText = "ENVIANDO...";
+        btn.disabled = true;
 
         const formData = new FormData(nuevaSolicitudForm);
 
@@ -95,14 +115,27 @@ if (nuevaSolicitudForm) {
                 estado: "PENDIENTE",
                 fechaCreacion: serverTimestamp()
             });
-            alert("Solicitud enviada correctamente.");
+            
             nuevaSolicitudForm.reset();
+            alert("¡Solicitud recibida! Un técnico se pondrá en contacto.");
         } catch (error) {
-            console.error("Error al enviar:", error);
-            alert("Error al enviar solicitud.");
+            console.error("Error Firestore:", error);
+            alert("Error al conectar con el servidor.");
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
         }
     });
 }
 
-// --- CERRAR SESIÓN ---
-logoutBtn.addEventListener("click", () => signOut(auth));
+// --- LOGOUT ---
+if (logoutBtn) {
+    logoutBtn.addEventListener("click", async () => {
+        try {
+            await signOut(auth);
+            window.location.href = "login.html";
+        } catch (error) {
+            console.error("Error al cerrar sesión:", error);
+        }
+    });
+}
