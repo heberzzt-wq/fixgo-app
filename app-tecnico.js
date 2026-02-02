@@ -18,11 +18,12 @@ let watchID = null;
 // Elementos de la Interfaz (Aseguramos que coincidan con el HTML)
 const nombreTecnicoEl = document.getElementById("nombreTecnico");
 const infoVehiculoEl = document.getElementById("unidadTecnico"); // Ajustado a unidadTecnico según tu HTML
-const panelSolicitudes = document.getElementById("solicitudesList"); // Ajustado a solicitudesList
-const btnGps = document.getElementById("btnDisponible"); // Usamos el botón de disponibilidad como switch GPS
+// Elementos de la Interfaz (Sincronizados con tu HTML)
+const nombreTecnicoEl = document.getElementById("nombreTecnico");
+const infoVehiculoEl = document.getElementById("infoVehiculo"); // Antes era unidadTecnico
+const panelSolicitudes = document.getElementById("listaServicios"); // Antes era solicitudesList
+const btnGps = document.getElementById("btnGps"); // Antes era btnDisponible
 const logoutBtn = document.getElementById("logoutBtn");
-
-// 1. Verificación de Usuario y Rol
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
         window.location.href = "login.html";
