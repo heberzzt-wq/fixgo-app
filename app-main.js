@@ -1,78 +1,105 @@
-// app-admin.js
 import { auth, db } from "./firebase-auth.js";
 import { 
     collection, 
-    query, 
-    onSnapshot, 
-    orderBy,
-    doc,
-    deleteDoc,
-    updateDoc
+    addDoc, 
+    serverTimestamp,
+    query,
+    where,
+    onSnapshot,
+    orderBy
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-const listaGlobal = document.getElementById("listaGlobalSolicitudes");
-const statsTotal = document.getElementById("statsTotal");
+// 1. Referencias a los elementos del DOM (IDs de tu index.html)
+const solicitudForm = document.getElementById("nuevaSolicitudForm");
+const listaServicios = document.getElementById("solicitudesCliente");
+const nombreClienteHeader = document.getElementById("nombreCliente");
 
-// 1. Escuchar TODAS las solicitudes del sistema
-function cargarPanelAdmin() {
-    const q = query(collection(db, "solicitudes"), orderBy("fechaCreacion", "desc"));
+// 2. Manejo del Formulario de Solicitud
+if (solicitudForm) {
+    solicitudForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const user = auth.currentUser;
+        if (!user) {
+            alert("⚠️ Debes iniciar sesión para solicitar un servicio.");
+            return;
+        }
+
+        // Obtener datos de los inputs (usando el atributo 'name')
+        const formData = new FormData(solicitudForm);
+        const direccion = formData.get("direccion");
+        const descripcion = formData.get("descripcion");
+
+        try {
+            // CREAR SOLICITUD (Sincronizado con app-admin.js)
+            await addDoc(collection(db, "solicitudes"), {
+                clienteId: user.uid,
+                clienteNombre: user.displayName || "Cliente",
+                direccion: direccion,
+                descripcion: descripcion,
+                estado: "PENDIENTE",
+                fechaCreacion: serverTimestamp(), // Campo exacto que pide tu Admin
+                tecnicoId: null
+            });
+
+            alert("🚀 ¡Solicitud enviada con éxito!");
+            solicitudForm.reset();
+            
+            // Opcional: Redirigir al rastreo
+            // window.location.href = "rastrear.html";
+
+        } catch (error) {
+            console.error("Error al crear solicitud:", error);
+            alert("❌ Error al enviar la solicitud.");
+        }
+    });
+}
+
+// 3. Cargar Historial Personal del Cliente
+function cargarMisServicios(uid) {
+    if (!listaServicios) return;
+
+    // Consulta filtrada por el UID del cliente logueado
+    const q = query(
+        collection(db, "solicitudes"),
+        where("clienteId", "==", uid),
+        orderBy("fechaCreacion", "desc")
+    );
 
     onSnapshot(q, (snapshot) => {
-        if (!listaGlobal) return;
-        listaGlobal.innerHTML = "";
+        listaServicios.innerHTML = "";
         
-        // Actualizar contador rápido
-        if (statsTotal) statsTotal.innerText = snapshot.size;
+        if (snapshot.empty) {
+            listaServicios.innerHTML = `<p class="text-slate-600 text-sm italic">No tienes servicios recientes.</p>`;
+            return;
+        }
 
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
-            const id = docSnap.id;
-            const div = document.createElement("div");
+            const estadoColor = data.estado === 'PENDIENTE' ? 'text-orange-400' : 'text-emerald-400';
             
-            // Colores por estado
-            const colorEstado = {
-                'PENDIENTE': 'text-orange-400 bg-orange-400/10',
-                'EN CAMINO': 'text-emerald-400 bg-emerald-400/10',
-                'FINALIZADO': 'text-slate-500 bg-slate-500/10'
-            }[data.estado] || 'text-white bg-white/10';
-
-            div.className = "uber-card p-4 rounded-2xl border border-white/5 flex flex-col gap-3 mb-3 animate-fade";
-            div.innerHTML = `
+            const card = document.createElement("div");
+            card.className = "uber-card p-4 rounded-2xl border border-white/5 animate-fade mb-3";
+            card.innerHTML = `
                 <div class="flex justify-between items-start">
                     <div>
-                        <p class="text-xs font-black text-indigo-400 uppercase tracking-widest">${data.clienteNombre || 'Usuario'}</p>
-                        <p class="text-sm font-bold text-white">${data.direccion || 'Sin dirección'}</p>
+                        <p class="text-white font-bold text-sm">${data.direccion}</p>
+                        <p class="text-slate-400 text-xs">${data.descripcion}</p>
                     </div>
-                    <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${colorEstado}">
-                        ${data.estado}
-                    </span>
-                </div>
-                
-                <div class="flex justify-between items-center pt-2 border-t border-white/5">
-                    <p class="text-[10px] text-slate-500 font-mono">ID: ${id.slice(-6)}</p>
-                    <div class="flex gap-2">
-                        <button onclick="eliminarSolicitud('${id}')" class="text-red-500 hover:text-red-400 p-2 text-xs">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
+                    <span class="text-[10px] font-black uppercase ${estadoColor}">${data.estado}</span>
                 </div>
             `;
-            listaGlobal.appendChild(div);
+            listaServicios.appendChild(card);
         });
     });
 }
 
-// 2. Función para eliminar (Control de Admin)
-window.eliminarSolicitud = async (id) => {
-    if (confirm("¿Seguro que deseas eliminar este registro permanentemente?")) {
-        try {
-            await deleteDoc(doc(db, "solicitudes", id));
-            alert("Registro eliminado.");
-        } catch (error) {
-            console.error("Error al eliminar:", error);
-        }
-    }
-};
+// 4. Observador de estado de sesión
+import { onAuthStateChanged } from "./firebase-auth.js";
 
-// Ejecutar al cargar
-cargarPanelAdmin();
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        if (nombreClienteHeader) nombreClienteHeader.innerText = user.displayName || "Usuario";
+        cargarMisServicios(user.uid);
+    }
+});
