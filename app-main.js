@@ -32,13 +32,14 @@ onAuthStateChanged(auth, async (user) => {
         const tecnicoDoc = await getDoc(doc(db, "tecnicos", user.uid));
         
         if (tecnicoDoc.exists()) {
+            // SI ES TÉCNICO: Redirigir a su panel
             window.location.href = "area-tecnico.html";
         } else {
-            // Si no es técnico, cargamos la interfaz de cliente
+            // SI ES CLIENTE: Cargar panel de solicitudes
             mostrarPanelCliente(user);
         }
     } else {
-        // Limpieza visual si no hay usuario
+        // SIN SESIÓN: Mostrar Hero y ocultar herramientas
         heroSection?.classList.remove("hidden");
         solicitudContainer?.classList.add("hidden");
         logoutBtn?.classList.add("hidden");
@@ -51,12 +52,12 @@ function mostrarPanelCliente(user) {
     solicitudContainer?.classList.remove("hidden");
     logoutBtn?.classList.remove("hidden");
     
-    // Nombre amigable
+    // Mostrar nombre del usuario
     if (nombreClienteDisp) {
         nombreClienteDisp.innerText = user.displayName || user.email.split('@')[0];
     }
 
-    // Escuchar solicitudes en tiempo real
+    // Escuchar solicitudes del cliente en tiempo real
     const q = query(collection(db, "solicitudes"), where("clienteId", "==", user.uid));
     
     onSnapshot(q, (snapshot) => {
@@ -65,24 +66,44 @@ function mostrarPanelCliente(user) {
         solicitudesLista.innerHTML = "";
         
         if (snapshot.empty) {
-            solicitudesLista.innerHTML = '<p class="text-slate-500 text-sm italic">No tienes servicios registrados.</p>';
+            solicitudesLista.innerHTML = `
+                <div class="text-center py-10">
+                    <p class="text-slate-600 text-sm italic">No tienes servicios registrados actualmente.</p>
+                </div>`;
             return;
         }
 
-        snapshot.forEach((doc) => {
-            const data = doc.data();
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const id = docSnap.id;
             const div = document.createElement("div");
-            // Estilo Uber-Dark para las tarjetas
-            div.className = "uber-card p-5 rounded-3xl border border-white/5 flex justify-between items-center animate-fade";
+            
+            // Lógica de botón de rastreo: Solo aparece si el técnico ya aceptó (Estado EN CAMINO o EN SERVICIO)
+            const mostrarRastreo = (data.estado === "EN CAMINO" || data.estado === "EN SERVICIO");
+            const botonRastreo = mostrarRastreo ? 
+                `<button onclick="window.location.href='rastreo.html?id=${id}'" class="mt-3 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black px-4 py-2 rounded-xl transition-all uppercase tracking-widest shadow-lg shadow-indigo-500/20">
+                    <i class="fas fa-location-dot mr-1"></i> Rastrear Técnico
+                </button>` : '';
+
+            // Definir color del Badge según estado
+            let badgeClass = "bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
+            if (data.estado === "EN CAMINO") badgeClass = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+            if (data.estado === "FINALIZADO") badgeClass = "bg-slate-700/50 text-slate-400 border-white/5";
+
+            div.className = "uber-card p-6 rounded-[2rem] border border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-fade mb-4";
             div.innerHTML = `
-                <div>
-                    <p class="text-white font-bold text-sm">${data.direccion || 'Sin dirección'}</p>
-                    <p class="text-[10px] text-slate-500 uppercase tracking-widest mt-1">${data.descripcion || 'Sin detalles'}</p>
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                        <p class="text-white font-black text-base italic uppercase tracking-tighter">${data.direccion || 'Sin dirección'}</p>
+                    </div>
+                    <p class="text-xs text-slate-500 font-medium mb-2">${data.descripcion || 'Sin detalles proporcionados'}</p>
+                    ${botonRastreo}
                 </div>
-                <div class="text-right">
-                    <span class="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-[10px] font-black rounded-full border border-indigo-500/20 uppercase">
+                <div class="flex flex-col items-end gap-2">
+                    <span class="px-4 py-1.5 ${badgeClass} text-[10px] font-black rounded-full border uppercase tracking-widest">
                         ${data.estado || 'PENDIENTE'}
                     </span>
+                    <p class="text-[9px] text-slate-700 font-bold uppercase tracking-tighter">ID: ${id.slice(-6)}</p>
                 </div>
             `;
             solicitudesLista.appendChild(div);
@@ -90,7 +111,7 @@ function mostrarPanelCliente(user) {
     });
 }
 
-// --- ENVÍO DE SOLICITUD ---
+// --- ENVÍO DE NUEVA SOLICITUD ---
 if (nuevaSolicitudForm) {
     nuevaSolicitudForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -100,8 +121,8 @@ if (nuevaSolicitudForm) {
         const btn = nuevaSolicitudForm.querySelector('button');
         const originalText = btn.innerText;
         
-        // Feedback visual
-        btn.innerText = "ENVIANDO...";
+        // Bloquear botón y dar feedback
+        btn.innerText = "PROCESANDO...";
         btn.disabled = true;
 
         const formData = new FormData(nuevaSolicitudForm);
@@ -117,10 +138,10 @@ if (nuevaSolicitudForm) {
             });
             
             nuevaSolicitudForm.reset();
-            alert("¡Solicitud recibida! Un técnico se pondrá en contacto.");
+            alert("✅ Solicitud enviada. Buscando técnicos disponibles cerca de ti.");
         } catch (error) {
             console.error("Error Firestore:", error);
-            alert("Error al conectar con el servidor.");
+            alert("❌ Hubo un error al conectar con FixGo. Revisa tu conexión.");
         } finally {
             btn.innerText = originalText;
             btn.disabled = false;
@@ -128,14 +149,16 @@ if (nuevaSolicitudForm) {
     });
 }
 
-// --- LOGOUT ---
+// --- CERRAR SESIÓN ---
 if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
-        try {
-            await signOut(auth);
-            window.location.href = "login.html";
-        } catch (error) {
-            console.error("Error al cerrar sesión:", error);
+        if(confirm("¿Deseas cerrar tu sesión en FixGo?")) {
+            try {
+                await signOut(auth);
+                window.location.href = "login.html";
+            } catch (error) {
+                console.error("Error al salir:", error);
+            }
         }
     });
 }
