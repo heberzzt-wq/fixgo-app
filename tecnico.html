@@ -20,57 +20,53 @@ const btnDisponible = document.getElementById("btnDisponible");
 const btnServicio = document.getElementById("btnServicio");
 const logoutBtn = document.getElementById("logoutBtn");
 
-// 2. Control de Sesión y Datos del Técnico
+// 2. Control de Sesión
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // Cargar datos del perfil de Jonathan
         const tecRef = doc(db, "tecnicos", user.uid);
         const tecSnap = await getDoc(tecRef);
         
         if (tecSnap.exists()) {
             const data = tecSnap.data();
-            nombreTecnicoEl.innerText = data.nombre || "Técnico";
-            unidadTecnicoEl.innerText = `${data.vehiculo || 'Unidad'} | ${data.placas || 'S/P'}`;
+            nombreTecnicoEl.innerText = data.nombre || "Jonathan Catana";
+            unidadTecnicoEl.innerText = `${data.vehiculo || 'Thida'} | ${data.placas || '123456'}`;
             actualizarInterfazEstado(data.estado);
         }
-        
-        // Empezar a buscar solicitudes (REQUIERE EL ÍNDICE DE LA CAPTURA 307)
         escucharSolicitudes();
     } else {
         window.location.href = "login.html";
     }
 });
 
-// 3. Actualizar Estado (Botones)
+// 3. Funciones de Estado
 async function cambiarEstado(nuevoEstado) {
     const user = auth.currentUser;
     if (!user) return;
-
     try {
-        const tecRef = doc(db, "tecnicos", user.uid);
-        await updateDoc(tecRef, { estado: nuevoEstado });
+        await updateDoc(doc(db, "tecnicos", user.uid), { estado: nuevoEstado });
         actualizarInterfazEstado(nuevoEstado);
     } catch (error) {
-        console.error("Error al cambiar estado:", error);
+        console.error("Error:", error);
     }
 }
 
 function actualizarInterfazEstado(estado) {
     if (estado === "DISPONIBLE") {
-        statusIndicator.className = "w-20 h-20 bg-emerald-500 rounded-full mx-auto flex items-center justify-center text-3xl shadow-[0_0_20px_rgba(16,185,129,0.4)] animate-pulse";
+        statusIndicator.className = "w-20 h-20 bg-emerald-500 rounded-full mx-auto flex items-center justify-center text-3xl shadow-lg animate-pulse";
         statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
     } else {
-        statusIndicator.className = "w-20 h-20 bg-orange-500 rounded-full mx-auto flex items-center justify-center text-3xl shadow-[0_0_20px_rgba(249,115,22,0.4)]";
+        statusIndicator.className = "w-20 h-20 bg-orange-500 rounded-full mx-auto flex items-center justify-center text-3xl shadow-lg";
         statusIndicator.innerHTML = '<i class="fas fa-tools"></i>';
     }
 }
 
-btnDisponible.onclick = () => cambiarEstado("DISPONIBLE");
-btnServicio.onclick = () => cambiarEstado("EN SERVICIO");
+// Eventos de botones
+if(btnDisponible) btnDisponible.onclick = () => cambiarEstado("DISPONIBLE");
+if(btnServicio) btnServicio.onclick = () => cambiarEstado("EN SERVICIO");
+if(logoutBtn) logoutBtn.onclick = () => signOut(auth);
 
-// 4. Escuchar Solicitudes PENDIENTES
+// 4. Escuchar Solicitudes (Requiere el índice de la Captura 307)
 function escucharSolicitudes() {
-    // IMPORTANTE: Si el índice de la Captura 307 no está listo, esto dará error
     const q = query(
         collection(db, "solicitudes"), 
         where("estado", "==", "PENDIENTE"),
@@ -78,46 +74,38 @@ function escucharSolicitudes() {
     );
 
     onSnapshot(q, (snapshot) => {
+        if (!solicitudesList) return;
         solicitudesList.innerHTML = "";
         
         if (snapshot.empty) {
-            solicitudesList.innerHTML = '<p class="text-slate-600 text-center text-xs italic">No hay servicios pendientes...</p>';
+            solicitudesList.innerHTML = '<p class="text-slate-600 text-center text-xs italic">Buscando servicios cerca...</p>';
             return;
         }
 
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
-            const id = docSnap.id;
-
             const card = document.createElement("div");
-            card.className = "uber-card p-5 rounded-[1.5rem] border border-white/5 animate-fade";
+            card.className = "uber-card p-5 rounded-[1.5rem] border border-white/5 animate-fade mb-3";
             card.innerHTML = `
                 <p class="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">${data.clienteNombre}</p>
                 <p class="text-sm font-bold text-white mb-1">${data.direccion}</p>
-                <p class="text-xs text-slate-500 mb-4">${data.descripcion}</p>
-                <button onclick="aceptarServicio('${id}')" class="w-full bg-white text-black font-black py-3 rounded-xl hover:bg-indigo-500 hover:text-white transition-all text-xs uppercase">
-                    Aceptar Servicio
-                </button>
+                <button onclick="aceptarServicio('${docSnap.id}')" class="w-full bg-white text-black font-black py-3 rounded-xl mt-3 text-xs uppercase">Aceptar</button>
             `;
             solicitudesList.appendChild(card);
         });
+    }, (error) => {
+        console.error("Error en Snapshot: ", error);
+        solicitudesList.innerHTML = '<p class="text-red-500 text-xs">Error de índice. Revisa la consola.</p>';
     });
 }
 
-// 5. Aceptar Servicio
 window.aceptarServicio = async (id) => {
-    const user = auth.currentUser;
     try {
         await updateDoc(doc(db, "solicitudes", id), {
             estado: "EN CAMINO",
-            tecnicoId: user.uid
+            tecnicoId: auth.currentUser.uid
         });
-        alert("¡Servicio aceptado! El cliente ahora puede ver tu ubicación.");
+        alert("Servicio Aceptado");
         cambiarEstado("EN SERVICIO");
-    } catch (error) {
-        alert("Error al aceptar: " + error.message);
-    }
+    } catch (e) { alert("Error: " + e.message); }
 };
-
-// 6. Cerrar Sesión
-logoutBtn.onclick = () => signOut(auth);
