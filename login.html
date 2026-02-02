@@ -11,14 +11,12 @@
         .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.08); }
         .uber-input { background-color: #1e1e1e; border: none; color: white; transition: all 0.3s; }
         .uber-input:focus { ring: 2px solid #6366f1; background-color: #252525; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade { animation: fadeIn 0.5s ease-out; }
         .hidden { display: none; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
 
-    <div class="max-w-md w-full animate-fade">
+    <div class="max-w-md w-full">
         <div class="text-center mb-10">
             <h1 class="text-4xl font-black italic tracking-tighter">FIXGO<span class="text-indigo-500">&</span>FINISH</h1>
             <p class="text-slate-500 text-[10px] font-bold uppercase tracking-[0.4em] mt-2">Ingeniería de Servicios</p>
@@ -27,8 +25,8 @@
         <div class="uber-card rounded-[2.5rem] p-10 shadow-2xl">
             
             <div id="loginSection">
-                <button id="loginGoogle" class="w-full bg-white text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 mb-8 shadow-xl hover:bg-slate-200 transition-all active:scale-95">
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" class="w-5 h-5" alt="Google">
+                <button id="loginGoogle" class="w-full bg-white text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 mb-8 shadow-xl hover:bg-slate-200 transition-all">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" class="w-5 h-5">
                     CONTINUAR CON GOOGLE
                 </button>
 
@@ -40,63 +38,56 @@
                 <form id="loginForm" class="space-y-6">
                     <div>
                         <label class="block text-[10px] font-black text-slate-500 mb-2 ml-1 uppercase tracking-widest">Correo Electrónico</label>
-                        <input type="email" id="correo" placeholder="nombre@correo.com" required 
-                            class="w-full uber-input px-5 py-4 rounded-2xl outline-none text-lg">
+                        <input type="email" id="correo" placeholder="nombre@correo.com" required class="w-full uber-input px-5 py-4 rounded-2xl outline-none text-lg">
                     </div>
-
                     <div>
                         <label class="block text-[10px] font-black text-slate-500 mb-2 ml-1 uppercase tracking-widest">Contraseña</label>
-                        <input type="password" id="contrasena" placeholder="••••••••" required 
-                            class="w-full uber-input px-5 py-4 rounded-2xl outline-none text-lg">
+                        <input type="password" id="contrasena" placeholder="••••••••" required class="w-full uber-input px-5 py-4 rounded-2xl outline-none text-lg">
                     </div>
-
-                    <button type="submit" class="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-500 transition-all uppercase tracking-tighter text-xl transform active:scale-95">
+                    <button type="submit" class="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl shadow-lg hover:bg-indigo-500 transition-all uppercase tracking-tighter text-xl">
                         Iniciar Sesión
                     </button>
                 </form>
             </div>
 
             <div id="roleSelection" class="hidden text-center">
-                <h2 class="text-xl font-bold mb-4">¿Cómo quieres usar FixGo?</h2>
-                <p class="text-slate-400 text-sm mb-8">Parece que es tu primera vez aquí. Selecciona tu perfil para continuar.</p>
+                <h2 class="text-xl font-bold mb-4 italic">¿PERFIL NUEVO?</h2>
+                <p class="text-slate-400 text-xs mb-8 uppercase tracking-widest">Elige tu rol para completar el registro</p>
                 <div class="grid grid-cols-2 gap-4">
-                    <a href="registro-cliente.html" class="bg-indigo-600 p-6 rounded-3xl hover:bg-indigo-500 transition-all group">
-                        <i class="fas fa-user text-2xl mb-2 block"></i>
-                        <span class="font-black text-xs uppercase">Cliente</span>
+                    <a href="registro-cliente.html" class="bg-indigo-600 p-6 rounded-3xl hover:scale-105 transition-all">
+                        <i class="fas fa-user text-2xl mb-2"></i>
+                        <span class="font-black text-[10px] block uppercase">Cliente</span>
                     </a>
-                    <a href="registro-tecnico.html" class="bg-white text-black p-6 rounded-3xl hover:bg-slate-200 transition-all">
-                        <i class="fas fa-tools text-2xl mb-2 block"></i>
-                        <span class="font-black text-xs uppercase">Técnico</span>
+                    <a href="registro-tecnico.html" class="bg-white text-black p-6 rounded-3xl hover:scale-105 transition-all">
+                        <i class="fas fa-tools text-2xl mb-2"></i>
+                        <span class="font-black text-[10px] block uppercase">Técnico</span>
                     </a>
                 </div>
             </div>
 
-            <p id="msg" class="text-red-400 font-bold text-center mt-6 text-sm min-h-[1.25rem]"></p>
+            <p id="msg" class="text-indigo-400 font-bold text-center mt-6 text-xs uppercase tracking-widest"></p>
         </div>
-        
-        <footer class="mt-10 text-center">
-            <p class="text-slate-600 text-[10px] font-bold uppercase tracking-[0.2em]">© 2026 FIXGO | PRIVACIDAD Y SEGURIDAD</p>
-        </footer>
     </div>
 
     <script type="module">
-        // Importamos todo de firebase-auth que es donde centralizamos la config
-        import {
-            auth,
-            db,
-            signInWithEmailAndPassword,
-            signInWithPopup,
-            googleProvider
-        } from "./firebase-auth.js";
+        import { auth, db, googleProvider } from "./firebase-auth.js";
+        import { signInWithEmailAndPassword, signInWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { doc, getDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        // Intentar activar persistencia para evitar el error de "Offline" en el futuro
+        try {
+            await enableIndexedDbPersistence(db);
+        } catch (err) {
+            console.warn("Persistencia no activa");
+        }
 
         const msg = document.getElementById("msg");
         const loginSection = document.getElementById("loginSection");
         const roleSelection = document.getElementById("roleSelection");
 
-        async function redirectByRol(user) {
-            msg.textContent = "Verificando perfil...";
+        async function verificarRol(user) {
+            if (!user) return;
+            msg.textContent = "VERIFICANDO CREDENCIALES...";
             
             const roles = [
                 { col: "admins", url: "admin.html" },
@@ -106,50 +97,44 @@
 
             try {
                 for (const r of roles) {
-                    const ref = doc(db, r.col, user.uid);
-                    const snap = await getDoc(ref);
+                    const snap = await getDoc(doc(db, r.col, user.uid));
                     if (snap.exists()) {
                         window.location.href = r.url;
                         return;
                     }
                 }
-
-                // SI LLEGA AQUÍ, EL USUARIO EXISTE EN AUTH PERO NO EN FIRESTORE
-                msg.textContent = "";
+                // Si no tiene rol en Firestore, mostrar selección
                 loginSection.classList.add("hidden");
                 roleSelection.classList.remove("hidden");
-
-            } catch (error) {
-                console.error("Error en Firestore:", error);
-                msg.textContent = "❌ Error de conexión con la base de datos";
+                msg.textContent = "USUARIO IDENTIFICADO";
+            } catch (e) {
+                msg.textContent = "ERROR DE CONEXIÓN: VERIFICA TU INTERNET";
+                console.error(e);
             }
         }
+
+        // Manejar el resultado del redireccionamiento de Google
+        getRedirectResult(auth).then((result) => {
+            if (result?.user) verificarRol(result.user);
+        }).catch((error) => {
+            msg.textContent = "❌ ERROR AL VOLVER DE GOOGLE";
+        });
 
         // Login email
         document.getElementById("loginForm").addEventListener("submit", async (e) => {
             e.preventDefault();
-            msg.textContent = "Cargando...";
-
+            msg.textContent = "ACCEDIENDO...";
             try {
-                const email = document.getElementById("correo").value.trim();
-                const password = document.getElementById("contrasena").value;
-                const cred = await signInWithEmailAndPassword(auth, email, password);
-                await redirectByRol(cred.user);
+                const cred = await signInWithEmailAndPassword(auth, document.getElementById("correo").value, document.getElementById("contrasena").value);
+                await verificarRol(cred.user);
             } catch (error) {
-                msg.textContent = "❌ Correo o contraseña incorrectos";
+                msg.textContent = "❌ DATOS INCORRECTOS";
             }
         });
 
-        // Login Google
-        document.getElementById("loginGoogle").addEventListener("click", async () => {
-            msg.textContent = "Abriendo Google...";
-            try {
-                const cred = await signInWithPopup(auth, googleProvider);
-                await redirectByRol(cred.user);
-            } catch (error) {
-                msg.textContent = "❌ Error al iniciar con Google";
-                console.error(error);
-            }
+        // Login Google con Redirect (Más estable para el error COOP)
+        document.getElementById("loginGoogle").addEventListener("click", () => {
+            signInWithRedirect(auth, googleProvider);
         });
     </script>
 </body>
