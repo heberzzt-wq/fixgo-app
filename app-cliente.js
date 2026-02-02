@@ -13,7 +13,6 @@ import {
 const nombreTecnicoEl = document.getElementById("nombreTecnico");
 const vehiculoTecnicoEl = document.getElementById("vehiculoTecnico");
 const estadoTecnicoEl = document.getElementById("estadoTecnico");
-// Asegúrate de que el contenedor de carga tenga este ID o clase en tu HTML
 const loaderPantalla = document.querySelector(".fa-circle-notch")?.parentElement;
 
 let map;
@@ -22,7 +21,7 @@ let userUID = null;
 
 // 1. Inicializar el Mapa (Google Maps)
 function initMap(lat = 21.1619, lng = -86.8515) {
-    if (map) return; // Evita duplicar el mapa si ya existe
+    if (map) return; 
 
     const mapOptions = {
         center: { lat, lng },
@@ -36,31 +35,46 @@ function initMap(lat = 21.1619, lng = -86.8515) {
         ]
     };
 
-    map = new google.maps.Map(document.getElementById("map"), mapOptions);
-
-    marker = new google.maps.Marker({
-        position: { lat, lng },
-        map: map,
-        icon: {
-            url: "https://cdn-icons-png.flaticon.com/512/1048/1048329.png", 
-            scaledSize: new google.maps.Size(40, 40)
-        }
-    });
+    const mapElement = document.getElementById("map");
+    if (mapElement) {
+        map = new google.maps.Map(mapElement, mapOptions);
+        marker = new google.maps.Marker({
+            position: { lat, lng },
+            map: map,
+            icon: {
+                url: "https://cdn-icons-png.flaticon.com/512/1048/1048329.png", 
+                scaledSize: new google.maps.Size(40, 40)
+            }
+        });
+    }
 }
 
-// 2. Verificar Sesión
-onAuthStateChanged(auth, (user) => {
+// 2. Verificar Sesión con validación de "No Rebote"
+onAuthStateChanged(auth, async (user) => {
     if (user) {
         userUID = user.uid;
-        // Lanzamos el mapa de inmediato con una ubicación base
-        initMap(); 
-        buscarServicioActivo();
+        console.log("Usuario detectado:", userUID);
+        
+        // Verificamos si existe en la colección clientes antes de actuar
+        const clienteDoc = await getDoc(doc(db, "clientes", userUID));
+        
+        if (clienteDoc.exists()) {
+            initMap(); 
+            buscarServicioActivo();
+        } else {
+            console.warn("El UID no está en la colección 'clientes'. Revisa Firebase.");
+            // En lugar de botarte, mostramos el mapa por defecto para que no se vea roto
+            initMap();
+            if (estadoTecnicoEl) estadoTecnicoEl.innerText = "ERROR: PERFIL NO REGISTRADO";
+        }
     } else {
+        // Solo enviamos al login si realmente no hay una sesión de Firebase activa
+        console.log("No hay sesión activa, redirigiendo...");
         window.location.href = "login.html";
     }
 });
 
-// 3. Buscar Solicitud que ya fue aceptada por Jonathan (u otro técnico)
+// 3. Buscar Solicitud activa
 function buscarServicioActivo() {
     const q = query(
         collection(db, "solicitudes"), 
@@ -71,7 +85,7 @@ function buscarServicioActivo() {
     onSnapshot(q, (snapshot) => {
         if (snapshot.empty) {
             if (estadoTecnicoEl) {
-                estadoTecnicoEl.innerText = "ESPERANDO QUE UN TÉCNICO ACEPTE...";
+                estadoTecnicoEl.innerText = "BUSCANDO TÉCNICOS CERCANOS...";
                 estadoTecnicoEl.className = "text-amber-400 font-bold animate-pulse";
             }
             return;
@@ -79,37 +93,28 @@ function buscarServicioActivo() {
 
         const servicio = snapshot.docs[0].data();
         if (servicio.tecnicoId) {
-            // Si hay técnico, empezamos a rastrearlo
             rastrearTecnico(servicio.tecnicoId);
-            
-            // Quitamos el mensaje de "Sincronizando" de la pantalla
-            if (loaderPantalla) {
-                loaderPantalla.style.display = "none";
-            }
+            if (loaderPantalla) loaderPantalla.style.display = "none";
         }
     });
 }
 
-// 4. Escuchar Ubicación del Técnico en Tiempo Real
+// 4. Escuchar Ubicación del Técnico
 function rastrearTecnico(tecnicoId) {
     onSnapshot(doc(db, "tecnicos", tecnicoId), (docSnap) => {
         if (!docSnap.exists()) return;
         
         const data = docSnap.data();
         
-        // Actualizar Textos en la UI
-        if (nombreTecnicoEl) nombreTecnicoEl.innerText = data.nombre || "Técnico en camino";
+        if (nombreTecnicoEl) nombreTecnicoEl.innerText = data.nombre || "Jonathan Catana";
         if (vehiculoTecnicoEl) vehiculoTecnicoEl.innerText = `${data.vehiculo || 'UNIDAD'} | ${data.placas || 'S/P'}`;
         if (estadoTecnicoEl) {
-            estadoTecnicoEl.innerText = "TÉCNICO LOCALIZADO";
+            estadoTecnicoEl.innerText = "TÉCNICO EN RUTA";
             estadoTecnicoEl.className = "text-emerald-400 font-black";
         }
 
-        // Actualizar Posición en el Mapa
         if (data.lat && data.lng) {
             const pos = { lat: data.lat, lng: data.lng };
-            
-            // Si el mapa no se había creado por alguna razón, se crea ahora
             if (!map) {
                 initMap(pos.lat, pos.lng);
             } else {
