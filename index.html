@@ -58,7 +58,7 @@
         <section id="solicitudContainer" class="hidden animate-fade">
             <div class="flex items-center gap-3 mb-8">
                 <div class="w-2 h-10 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]"></div>
-                <h2 class="text-3xl font-black">Hola, <span id="nombreCliente" class="text-indigo-400">...</span></h2>
+                <h2 class="text-3xl font-black">Hola, <span id="nombreCliente" class="text-indigo-400 italic">...</span></h2>
             </div>
 
             <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl mb-10">
@@ -101,28 +101,26 @@
         const heroSection = document.getElementById("heroSection");
         const solicitudContainer = document.getElementById("solicitudContainer");
 
-        // Escuchar el estado de la sesión
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                // Usuario logueado: Mostramos interfaz de cliente y botón salir
                 logoutBtn.classList.remove("hidden");
                 heroSection.classList.add("hidden");
                 solicitudContainer.classList.remove("hidden");
             } else {
-                // Sin sesión: Mostramos bienvenida y ocultamos herramientas
                 logoutBtn.classList.add("hidden");
                 heroSection.classList.remove("hidden");
                 solicitudContainer.classList.add("hidden");
             }
         });
 
-        // Lógica del botón Salir
         logoutBtn.addEventListener("click", async () => {
-            try {
-                await signOut(auth);
-                window.location.reload();
-            } catch (error) {
-                console.error("Error al salir:", error);
+            if(confirm("¿Estás seguro de que quieres cerrar sesión?")) {
+                try {
+                    await signOut(auth);
+                    window.location.href = "login.html"; // Redirigir al login tras salir
+                } catch (error) {
+                    console.error("Error al salir:", error);
+                }
             }
         });
     </script>
