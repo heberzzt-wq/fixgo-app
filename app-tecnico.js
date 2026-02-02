@@ -5,10 +5,10 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "./firebase-auth.js";
 
-// --- 1. CONFIGURACIÓN Y REFERENCIAS ---
 const getEl = (id) => document.getElementById(id);
-let watchId = null; // Para controlar el GPS
+let watchId = null;
 
+// 1. Control de Sesión
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         const tecRef = doc(db, "tecnicos", user.uid);
@@ -17,17 +17,14 @@ onAuthStateChanged(auth, async (user) => {
         if (tecSnap.exists()) {
             const data = tecSnap.data();
             if (getEl("nombreTecnico")) getEl("nombreTecnico").innerText = data.nombre || "Jonathan Catana";
-            actualizarInterfazEstado(data.estado);
+            if (getEl("infoVehiculo")) getEl("infoVehiculo").innerText = `${data.vehiculo || 'Thida'} | ${data.placas || '123456'}`;
         } else {
-            // Si el técnico es nuevo, lo registramos en la base de datos
             await setDoc(tecRef, {
                 nombre: "Jonathan Catana",
                 estado: "DISPONIBLE",
                 vehiculo: "Thida",
-                placas: "123456",
-                fechaRegistro: new Date()
+                placas: "123456"
             });
-            actualizarInterfazEstado("DISPONIBLE");
         }
         escucharSolicitudes();
     } else {
@@ -35,115 +32,69 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// --- 2. GESTIÓN DE ESTADOS (DISPONIBLE / EN SERVICIO) ---
-async function cambiarEstado(nuevoEstado) {
-    const user = auth.currentUser;
-    if (!user) return;
-    try {
-        await updateDoc(doc(db, "tecnicos", user.uid), { estado: nuevoEstado });
-        actualizarInterfazEstado(nuevoEstado);
-    } catch (error) { 
-        console.error("Error al cambiar estado:", error); 
-    }
-}
-
-function actualizarInterfazEstado(estado) {
-    const indicator = getEl("statusIndicator");
-    const txtSistema = getEl("unidadTecnico"); // El texto que dice "Pausa"
-
-    if (indicator) {
-        if (estado === "DISPONIBLE") {
-            indicator.className = "w-20 h-20 bg-emerald-500 rounded-full mx-auto flex items-center justify-center text-3xl shadow-lg animate-pulse";
-            indicator.innerHTML = '<i class="fas fa-check"></i>';
-            if (txtSistema) {
-                txtSistema.innerText = "SISTEMA ACTIVO - ESPERANDO";
-                txtSistema.className = "text-emerald-400 text-[10px] font-bold uppercase tracking-[0.3em]";
-            }
-        } else {
-            indicator.className = "w-20 h-20 bg-orange-500 rounded-full mx-auto flex items-center justify-center text-3xl shadow-lg";
-            indicator.innerHTML = '<i class="fas fa-tools"></i>';
-            if (txtSistema) {
-                txtSistema.innerText = "SISTEMA EN RUTA - RASTREANDO";
-                txtSistema.className = "text-orange-400 text-[10px] font-bold uppercase tracking-[0.3em]";
-            }
-        }
-    }
-}
-
-// Eventos de los botones de estado
-if (getEl("btnDisponible")) getEl("btnDisponible").onclick = () => cambiarEstado("DISPONIBLE");
-if (getEl("btnServicio")) getEl("btnServicio").onclick = () => cambiarEstado("EN SERVICIO");
-
-// --- 3. MOTOR DE RASTREO GPS REAL-TIME ---
-const btnGPS = getEl("btnActivarGPS");
+// 2. Motor GPS (Ajustado a id="btnGps" e id="gpsStatus")
+const btnGPS = getEl("btnGps");
+const gpsStatus = getEl("gpsStatus");
 
 if (btnGPS) {
     btnGPS.onclick = () => {
         if (watchId === null) {
-            // INICIAR RASTREO
-            if (!navigator.geolocation) return alert("Tu dispositivo no tiene GPS");
+            if (!navigator.geolocation) return alert("GPS no soportado");
 
             watchId = navigator.geolocation.watchPosition(async (pos) => {
                 const user = auth.currentUser;
                 if (user) {
-                    const tecRef = doc(db, "tecnicos", user.uid);
-                    await updateDoc(tecRef, {
+                    await updateDoc(doc(db, "tecnicos", user.uid), {
                         lat: pos.coords.latitude,
                         lng: pos.coords.longitude,
-                        ubicacion: { 
-                            lat: pos.coords.latitude, 
-                            lng: pos.coords.longitude 
-                        },
+                        ubicacion: { lat: pos.coords.latitude, lng: pos.coords.longitude },
                         ultimaActualizacion: new Date()
                     });
-                    console.log("📍 GPS Actualizado");
                 }
-            }, (err) => {
-                console.error("Error GPS:", err);
-                alert("Activa el GPS de tu celular/navegador");
-            }, { enableHighAccuracy: true });
+            }, (err) => console.error(err), { enableHighAccuracy: true });
 
-            // Visual del botón activo
-            btnGPS.innerHTML = '<i class="fas fa-broadcast-tower animate-pulse mr-2"></i> RASTREO ACTIVO';
-            btnGPS.style.backgroundColor = "#10b981"; // Verde
-            btnGPS.style.color = "white";
+            // Cambiar visual a ACTIVO
+            btnGPS.innerHTML = '<i class="fas fa-broadcast-tower animate-pulse"></i> <span>RASTREO ACTIVO</span>';
+            btnGPS.className = "w-full py-5 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 bg-emerald-500 text-white btn-glow";
+            if (gpsStatus) gpsStatus.innerText = "Transmitiendo en tiempo real";
         } else {
-            // DETENER RASTREO
+            // DETENER
             navigator.geolocation.clearWatch(watchId);
             watchId = null;
-            btnGPS.innerHTML = '<i class="fas fa-location-arrow mr-2"></i> ACTIVAR RASTREO GPS';
-            btnGPS.style.backgroundColor = "white";
-            btnGPS.style.color = "black";
+            btnGPS.innerHTML = '<i class="fas fa-location-arrow"></i> <span>ACTIVAR RASTREO GPS</span>';
+            btnGPS.className = "w-full py-5 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 bg-white text-black btn-glow";
+            if (gpsStatus) gpsStatus.innerText = "El sistema está en pausa";
         }
     };
 }
 
-// --- 4. ESCUCHAR SOLICITUDES ENTRANTE ---
+// 3. Escuchar Solicitudes (Ajustado a id="listaServicios")
 function escucharSolicitudes() {
-    const list = getEl("solicitudesList");
+    const list = getEl("listaServicios");
     if (!list) return;
 
-    const q = query(
-        collection(db, "solicitudes"), 
-        where("estado", "==", "PENDIENTE"), 
-        orderBy("fechaCreacion", "desc")
-    );
+    const q = query(collection(db, "solicitudes"), where("estado", "==", "PENDIENTE"), orderBy("fechaCreacion", "desc"));
     
     onSnapshot(q, (snapshot) => {
         list.innerHTML = "";
         if (snapshot.empty) {
-            list.innerHTML = '<p class="text-slate-600 text-center text-xs italic">Buscando servicios cerca...</p>';
+            list.innerHTML = '<div class="text-center py-10 text-slate-600 text-sm italic">Buscando solicitudes cercanas...</div>';
             return;
         }
 
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
             const card = document.createElement("div");
-            card.className = "uber-card p-5 rounded-[1.5rem] border border-white/5 mb-3 animate-fade";
+            card.className = "uber-card p-6 rounded-[2rem] animate-fade";
             card.innerHTML = `
-                <p class="text-[10px] font-black text-indigo-400 uppercase mb-1">${data.clienteNombre || 'Cliente'}</p>
-                <p class="text-sm font-bold text-white mb-1">${data.direccion}</p>
-                <button onclick="aceptarServicio('${docSnap.id}')" class="w-full bg-white text-black font-black py-3 rounded-xl mt-3 text-xs uppercase">Aceptar</button>
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-[10px] font-black text-indigo-400 uppercase mb-1">${data.clienteNombre || 'Servicio Urgente'}</p>
+                        <p class="text-lg font-bold text-white">${data.direccion}</p>
+                    </div>
+                    <span class="bg-indigo-500/10 text-indigo-400 text-[9px] px-2 py-1 rounded font-black italic">NUEVO</span>
+                </div>
+                <button onclick="aceptarServicio('${docSnap.id}')" class="w-full bg-white text-black font-black py-4 rounded-xl text-xs uppercase hover:bg-indigo-500 hover:text-white transition-all">Aceptar Servicio</button>
             `;
             list.appendChild(card);
         });
@@ -156,9 +107,8 @@ window.aceptarServicio = async (id) => {
             estado: "EN CAMINO",
             tecnicoId: auth.currentUser.uid
         });
-        cambiarEstado("EN SERVICIO");
-        alert("¡Servicio aceptado! Dirígete al destino.");
-    } catch (e) { 
-        alert("Error al aceptar: " + e.message); 
-    }
+        alert("¡Servicio aceptado!");
+    } catch (e) { alert("Error: " + e.message); }
 };
+
+if (getEl("logoutBtn")) getEl("logoutBtn").onclick = () => signOut(auth);
