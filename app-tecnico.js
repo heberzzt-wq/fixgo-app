@@ -1,26 +1,17 @@
 import { auth, db } from "./firebase-auth.js";
 import { 
-    doc, 
-    updateDoc, 
-    collection, 
-    query, 
-    where, 
-    onSnapshot,
-    orderBy,
-    getDoc
+    doc, updateDoc, setDoc, collection, query, where, 
+    onSnapshot, orderBy, getDoc 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "./firebase-auth.js";
 
-// 1. Referencias al HTML
 const nombreTecnicoEl = document.getElementById("nombreTecnico");
-const unidadTecnicoEl = document.getElementById("unidadTecnico");
 const statusIndicator = document.getElementById("statusIndicator");
 const solicitudesList = document.getElementById("solicitudesList");
 const btnDisponible = document.getElementById("btnDisponible");
 const btnServicio = document.getElementById("btnServicio");
-const logoutBtn = document.getElementById("logoutBtn");
 
-// 2. Control de Sesión
+// 1. Control de Sesión y Creación de Perfil Automático
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         const tecRef = doc(db, "tecnicos", user.uid);
@@ -29,8 +20,17 @@ onAuthStateChanged(auth, async (user) => {
         if (tecSnap.exists()) {
             const data = tecSnap.data();
             nombreTecnicoEl.innerText = data.nombre || "Jonathan Catana";
-            unidadTecnicoEl.innerText = `${data.vehiculo || 'Thida'} | ${data.placas || '123456'}`;
             actualizarInterfazEstado(data.estado);
+        } else {
+            // SI NO EXISTE, LO CREAMOS PARA QUE NO DE ERROR
+            await setDoc(tecRef, {
+                nombre: user.displayName || "Nuevo Técnico",
+                estado: "DISPONIBLE",
+                vehiculo: "Thida",
+                placas: "123456"
+            });
+            nombreTecnicoEl.innerText = user.displayName || "Nuevo Técnico";
+            actualizarInterfazEstado("DISPONIBLE");
         }
         escucharSolicitudes();
     } else {
@@ -38,15 +38,16 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// 3. Funciones de Estado
+// 2. Funciones de Estado (CORREGIDAS)
 async function cambiarEstado(nuevoEstado) {
     const user = auth.currentUser;
     if (!user) return;
     try {
-        await updateDoc(doc(db, "tecnicos", user.uid), { estado: nuevoEstado });
+        const tecRef = doc(db, "tecnicos", user.uid);
+        await updateDoc(tecRef, { estado: nuevoEstado });
         actualizarInterfazEstado(nuevoEstado);
     } catch (error) {
-        console.error("Error:", error);
+        console.error("Error al actualizar:", error);
     }
 }
 
@@ -63,39 +64,29 @@ function actualizarInterfazEstado(estado) {
 // Eventos de botones
 if(btnDisponible) btnDisponible.onclick = () => cambiarEstado("DISPONIBLE");
 if(btnServicio) btnServicio.onclick = () => cambiarEstado("EN SERVICIO");
-if(logoutBtn) logoutBtn.onclick = () => signOut(auth);
 
-// 4. Escuchar Solicitudes
+// 3. Ver solicitudes
 function escucharSolicitudes() {
-    const q = query(
-        collection(db, "solicitudes"), 
-        where("estado", "==", "PENDIENTE"),
-        orderBy("fechaCreacion", "desc")
-    );
-
+    const q = query(collection(db, "solicitudes"), where("estado", "==", "PENDIENTE"), orderBy("fechaCreacion", "desc"));
     onSnapshot(q, (snapshot) => {
-        if (!solicitudesList) return;
         solicitudesList.innerHTML = "";
-        
         if (snapshot.empty) {
             solicitudesList.innerHTML = '<p class="text-slate-600 text-center text-xs italic">Buscando servicios cerca...</p>';
             return;
         }
-
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
             const card = document.createElement("div");
-            card.className = "uber-card p-5 rounded-[1.5rem] border border-white/5 animate-fade mb-3";
+            card.className = "uber-card p-5 rounded-[1.5rem] border border-white/5 mb-3 animate-fade";
             card.innerHTML = `
-                <p class="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">${data.clienteNombre}</p>
+                <p class="text-[10px] font-black text-indigo-400 uppercase mb-1">${data.clienteNombre || 'Cliente'}</p>
                 <p class="text-sm font-bold text-white mb-1">${data.direccion}</p>
                 <button onclick="aceptarServicio('${docSnap.id}')" class="w-full bg-white text-black font-black py-3 rounded-xl mt-3 text-xs uppercase">Aceptar</button>
             `;
             solicitudesList.appendChild(card);
         });
     }, (error) => {
-        console.error("Error en Snapshot: ", error);
-        solicitudesList.innerHTML = '<p class="text-red-500 text-xs">Falta índice en Firebase. Revisa la consola.</p>';
+        solicitudesList.innerHTML = '<p class="text-red-500 text-xs text-center">Falta índice. Revisa la consola.</p>';
     });
 }
 
