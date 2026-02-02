@@ -11,7 +11,7 @@
         .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.08); }
         .uber-input { background-color: #1e1e1e; border: none; color: white; transition: all 0.3s; }
         .uber-input:focus { ring: 2px solid #6366f1; background-color: #252525; }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -70,7 +70,6 @@
     </div>
 
     <script type="module">
-        // Importamos todo lo necesario desde tu archivo centralizado
         import { 
             auth, 
             db, 
@@ -82,21 +81,14 @@
 
         import { 
             doc, 
-            getDoc, 
-            enableIndexedDbPersistence 
+            getDoc 
         } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-        // Persistencia offline
-        try {
-            await enableIndexedDbPersistence(db);
-        } catch (err) {
-            console.warn("Persistencia offline no disponible");
-        }
 
         const msg = document.getElementById("msg");
         const loginSection = document.getElementById("loginSection");
         const roleSelection = document.getElementById("roleSelection");
 
+        // Función para verificar el rol en Firestore
         async function verificarRol(user) {
             if (!user) return;
             msg.textContent = "VERIFICANDO CREDENCIALES...";
@@ -115,24 +107,27 @@
                         return;
                     }
                 }
-                // Cambio a selección de rol si no existe en base de datos
+                // Si la autenticación fue exitosa pero no existe en Firestore, mostramos selección de rol
                 loginSection.classList.add("hidden");
                 roleSelection.classList.remove("hidden");
                 msg.textContent = "USUARIO IDENTIFICADO";
             } catch (e) {
-                msg.textContent = "ERROR DE CONEXIÓN: VERIFICA TU INTERNET";
+                console.error("Error al consultar rol:", e);
+                msg.textContent = "ERROR DE CONEXIÓN AL SERVIDOR";
             }
         }
 
-        // Manejar el resultado del redireccionamiento de Google
+        // 1. Manejar el regreso del Redirect de Google al cargar la página
         getRedirectResult(auth).then((result) => {
-            if (result?.user) verificarRol(result.user);
+            if (result?.user) {
+                verificarRol(result.user);
+            }
         }).catch((error) => {
-            console.error(error);
-            msg.textContent = "❌ ERROR AL VOLVER DE GOOGLE";
+            console.error("Error en Redirect:", error);
+            msg.textContent = "❌ ERROR DE AUTENTICACIÓN";
         });
 
-        // Login email
+        // 2. Login con Email
         document.getElementById("loginForm").addEventListener("submit", async (e) => {
             e.preventDefault();
             msg.textContent = "ACCEDIENDO...";
@@ -148,8 +143,9 @@
             }
         });
 
-        // Login Google con Redirect
+        // 3. Login Google con Redirect
         document.getElementById("loginGoogle").addEventListener("click", () => {
+            msg.textContent = "CONECTANDO CON GOOGLE...";
             signInWithRedirect(auth, googleProvider);
         });
     </script>
