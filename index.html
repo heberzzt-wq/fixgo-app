@@ -14,6 +14,7 @@
         .gradient-uber { background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%); }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade { animation: fadeIn 0.4s ease-out forwards; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body class="text-white min-h-screen">
@@ -93,6 +94,38 @@
 
     </main>
 
+    <script type="module">
+        import { auth, signOut, onAuthStateChanged } from "./firebase-auth.js";
+
+        const logoutBtn = document.getElementById("logoutBtn");
+        const heroSection = document.getElementById("heroSection");
+        const solicitudContainer = document.getElementById("solicitudContainer");
+
+        // Escuchar el estado de la sesión
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // Usuario logueado: Mostramos interfaz de cliente y botón salir
+                logoutBtn.classList.remove("hidden");
+                heroSection.classList.add("hidden");
+                solicitudContainer.classList.remove("hidden");
+            } else {
+                // Sin sesión: Mostramos bienvenida y ocultamos herramientas
+                logoutBtn.classList.add("hidden");
+                heroSection.classList.remove("hidden");
+                solicitudContainer.classList.add("hidden");
+            }
+        });
+
+        // Lógica del botón Salir
+        logoutBtn.addEventListener("click", async () => {
+            try {
+                await signOut(auth);
+                window.location.reload();
+            } catch (error) {
+                console.error("Error al salir:", error);
+            }
+        });
+    </script>
     <script type="module" src="app-main.js"></script>
 </body>
 </html>
