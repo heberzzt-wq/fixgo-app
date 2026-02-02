@@ -70,15 +70,27 @@
     </div>
 
     <script type="module">
-        import { auth, db, googleProvider } from "./firebase-auth.js";
-        import { signInWithEmailAndPassword, signInWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { doc, getDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        // Importamos todo lo necesario desde tu archivo centralizado
+        import { 
+            auth, 
+            db, 
+            googleProvider, 
+            signInWithEmailAndPassword, 
+            signInWithRedirect, 
+            getRedirectResult 
+        } from "./firebase-auth.js";
 
-        // Intentar activar persistencia para evitar el error de "Offline" en el futuro
+        import { 
+            doc, 
+            getDoc, 
+            enableIndexedDbPersistence 
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // Persistencia offline
         try {
             await enableIndexedDbPersistence(db);
         } catch (err) {
-            console.warn("Persistencia no activa");
+            console.warn("Persistencia offline no disponible");
         }
 
         const msg = document.getElementById("msg");
@@ -103,13 +115,12 @@
                         return;
                     }
                 }
-                // Si no tiene rol en Firestore, mostrar selección
+                // Cambio a selección de rol si no existe en base de datos
                 loginSection.classList.add("hidden");
                 roleSelection.classList.remove("hidden");
                 msg.textContent = "USUARIO IDENTIFICADO";
             } catch (e) {
                 msg.textContent = "ERROR DE CONEXIÓN: VERIFICA TU INTERNET";
-                console.error(e);
             }
         }
 
@@ -117,6 +128,7 @@
         getRedirectResult(auth).then((result) => {
             if (result?.user) verificarRol(result.user);
         }).catch((error) => {
+            console.error(error);
             msg.textContent = "❌ ERROR AL VOLVER DE GOOGLE";
         });
 
@@ -125,14 +137,18 @@
             e.preventDefault();
             msg.textContent = "ACCEDIENDO...";
             try {
-                const cred = await signInWithEmailAndPassword(auth, document.getElementById("correo").value, document.getElementById("contrasena").value);
+                const cred = await signInWithEmailAndPassword(
+                    auth, 
+                    document.getElementById("correo").value, 
+                    document.getElementById("contrasena").value
+                );
                 await verificarRol(cred.user);
             } catch (error) {
                 msg.textContent = "❌ DATOS INCORRECTOS";
             }
         });
 
-        // Login Google con Redirect (Más estable para el error COOP)
+        // Login Google con Redirect
         document.getElementById("loginGoogle").addEventListener("click", () => {
             signInWithRedirect(auth, googleProvider);
         });
