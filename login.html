@@ -10,7 +10,7 @@
         body { background-color: #050505; color: white; }
         .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.08); }
         .uber-input { background-color: #1e1e1e; border: none; color: white; transition: all 0.3s; }
-        .uber-input:focus { ring: 2px solid #6366f1; background-color: #252525; }
+        .uber-input:focus { outline: 2px solid #6366f1; background-color: #252525; }
         .hidden { display: none !important; }
     </style>
 </head>
@@ -24,6 +24,7 @@
 
         <div class="uber-card rounded-[2.5rem] p-10 shadow-2xl">
             
+            <!-- Login Section -->
             <div id="loginSection">
                 <button id="loginGoogle" class="w-full bg-white text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 mb-8 shadow-xl hover:bg-slate-200 transition-all">
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" class="w-5 h-5">
@@ -50,6 +51,7 @@
                 </form>
             </div>
 
+            <!-- Role Selection Section -->
             <div id="roleSelection" class="hidden text-center">
                 <h2 class="text-xl font-bold mb-4 italic">¿PERFIL NUEVO?</h2>
                 <p class="text-slate-400 text-xs mb-8 uppercase tracking-widest">Elige tu rol para completar el registro</p>
@@ -65,34 +67,25 @@
                 </div>
             </div>
 
+            <!-- Message -->
             <p id="msg" class="text-indigo-400 font-bold text-center mt-6 text-xs uppercase tracking-widest"></p>
         </div>
     </div>
 
+    <!-- Script -->
     <script type="module">
-        import { 
-            auth, 
-            db, 
-            googleProvider, 
-            signInWithEmailAndPassword, 
-            signInWithRedirect, 
-            getRedirectResult 
-        } from "./firebase-auth.js";
-
-        import { 
-            doc, 
-            getDoc 
-        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { auth, db, googleProvider, signInWithEmailAndPassword, signInWithRedirect, getRedirectResult } from "./firebase-auth.js";
+        import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const msg = document.getElementById("msg");
         const loginSection = document.getElementById("loginSection");
         const roleSelection = document.getElementById("roleSelection");
 
-        // Función para verificar el rol en Firestore
+        // Verificar rol en Firestore
         async function verificarRol(user) {
             if (!user) return;
             msg.textContent = "VERIFICANDO CREDENCIALES...";
-            
+
             const roles = [
                 { col: "admins", url: "admin.html" },
                 { col: "tecnicos", url: "area-tecnico.html" }, 
@@ -107,7 +100,7 @@
                         return;
                     }
                 }
-                // Si la autenticación fue exitosa pero no existe en Firestore, mostramos selección de rol
+                // Usuario nuevo: mostrar selección de rol
                 loginSection.classList.add("hidden");
                 roleSelection.classList.remove("hidden");
                 msg.textContent = "USUARIO IDENTIFICADO";
@@ -117,33 +110,32 @@
             }
         }
 
-        // 1. Manejar el regreso del Redirect de Google al cargar la página
+        // Manejar Redirect de Google al cargar la página
         getRedirectResult(auth).then((result) => {
-            if (result?.user) {
-                verificarRol(result.user);
-            }
+            if (result?.user) verificarRol(result.user);
         }).catch((error) => {
             console.error("Error en Redirect:", error);
             msg.textContent = "❌ ERROR DE AUTENTICACIÓN";
         });
 
-        // 2. Login con Email
+        // Login con Email
         document.getElementById("loginForm").addEventListener("submit", async (e) => {
             e.preventDefault();
             msg.textContent = "ACCEDIENDO...";
             try {
                 const cred = await signInWithEmailAndPassword(
-                    auth, 
-                    document.getElementById("correo").value, 
+                    auth,
+                    document.getElementById("correo").value,
                     document.getElementById("contrasena").value
                 );
                 await verificarRol(cred.user);
             } catch (error) {
+                console.error("Error login email:", error);
                 msg.textContent = "❌ DATOS INCORRECTOS";
             }
         });
 
-        // 3. Login Google con Redirect
+        // Login Google con Redirect
         document.getElementById("loginGoogle").addEventListener("click", () => {
             msg.textContent = "CONECTANDO CON GOOGLE...";
             signInWithRedirect(auth, googleProvider);
