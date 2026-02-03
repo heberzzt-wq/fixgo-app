@@ -92,7 +92,7 @@ function cargarMisServicios(uid) {
 }
 
 // 4. Observador de estado de sesión
-import { onAuthStateChanged } from "./firebase-auth.js";
+import { onAuthStateChanged } from "./firebase.js";
 
 onAuthStateChanged(auth, (user) => {
     if (user) {
