@@ -1,67 +1,102 @@
-import { auth, db, onAuthStateChanged, getDoc, doc } from "./firebase.js";
+import { auth, db } from "./firebase-auth.js";
+import { 
+    collection, 
+    addDoc, 
+    serverTimestamp, 
+    query, 
+    where, 
+    onSnapshot, 
+    orderBy 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// --- REFERENCIAS DE UI ---
-const getEl = (id) => document.getElementById(id);
+// 1. Referencias a los elementos del DOM (IDs de tu index.html)
+const solicitudForm = document.getElementById("nuevaSolicitudForm");
+const listaServicios = document.getElementById("solicitudesCliente");
+const nombreClienteHeader = document.getElementById("nombreCliente");
 
-// --- 1. DETECCIÓN AUTOMÁTICA DE PERFIL (AUTO-LOGIN) ---
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        console.log("Usuario detectado, verificando rol...");
-        
-        // Buscamos primero en la colección de técnicos
-        const tecRef = doc(db, "tecnicos", user.uid);
-        const tecSnap = await getDoc(tecRef);
+// 2. Manejo del Formulario de Solicitud
+if (solicitudForm) {
+    solicitudForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
 
-        if (tecSnap.exists()) {
-            console.log("Es Técnico. Redirigiendo...");
-            // Si quieres que entre directo al panel:
-            // window.location.href = "área-tecnico.html"; 
-            actualizarInterfazHome("tecnico", tecSnap.data().nombre);
-        } else {
-            // Si no es técnico, buscamos en clientes
-            const cliRef = doc(db, "clientes", user.uid);
-            const cliSnap = await getDoc(cliRef);
-            
-            if (cliSnap.exists()) {
-                console.log("Es Cliente. Redirigiendo...");
-                actualizarInterfazHome("cliente", cliSnap.data().nombre);
-            }
+        const user = auth.currentUser;
+        if (!user) {
+            alert("⚠️ Debes iniciar sesión para solicitar un servicio.");
+            return;
         }
-    } else {
-        console.log("No hay sesión activa.");
-        actualizarInterfazHome("visitante");
-    }
-});
 
-// --- 2. DINÁMICA DE LA LANDING PAGE ---
-function actualizarInterfazHome(rol, nombre = "") {
-    const btnPrincipal = getEl("btnAccionPrincipal");
-    const saludoUser = getEl("saludoUsuario");
+        // Obtener datos de los inputs (usando el atributo 'name')
+        const formData = new FormData(solicitudForm);
+        const direccion = formData.get("direccion");
+        const descripcion = formData.get("descripcion");
 
-    if (saludoUser) {
-        saludoUser.innerText = nombre ? `¡Hola, ${nombre}!` : "Tu servicio técnico, a un clic.";
-    }
+        try {
+            // CREAR SOLICITUD (Sincronizado con app-admin.js)
+            await addDoc(collection(db, "solicitudes"), {
+                clienteId: user.uid,
+                clienteNombre: user.displayName || "Cliente",
+                direccion: direccion,
+                descripcion: descripcion,
+                estado: "PENDIENTE",
+                fechaCreacion: serverTimestamp(), 
+                tecnicoId: null
+            });
 
-    // Si ya sabemos quién es, el botón principal lo lleva a su área de trabajo
-    if (btnPrincipal) {
-        if (rol === "tecnico") {
-            btnPrincipal.innerText = "IR A MI PANEL DE TRABAJO";
-            btnPrincipal.onclick = () => window.location.href = "área-tecnico.html";
-        } else if (rol === "cliente") {
-            btnPrincipal.innerText = "SOLICITAR TÉCNICO AHORA";
-            btnPrincipal.onclick = () => window.location.href = "index.html";
-        } else {
-            btnPrincipal.innerText = "EMPEZAR AHORA";
-            btnPrincipal.onclick = () => window.location.href = "login.html";
+            alert("🚀 ¡Solicitud enviada con éxito!");
+            solicitudForm.reset();
+
+        } catch (error) {
+            console.error("Error al crear solicitud:", error);
+            alert("❌ Error al enviar la solicitud.");
         }
-    }
+    });
 }
 
-// --- 3. EFECTOS VISUALES (Scroll y Navegación) ---
-window.addEventListener("scroll", () => {
-    const header = document.querySelector("header");
-    if (header) {
-        header.classList.toggle("bg-black/80", window.scrollY > 50);
-        header.classList.toggle("backdrop-blur-md", window.scrollY > 50);
+// 3. Cargar Historial Personal del Cliente
+function cargarMisServicios(uid) {
+    if (!listaServicios) return;
+
+    // Consulta filtrada por el UID del cliente logueado
+    const q = query(
+        collection(db, "solicitudes"),
+        where("clienteId", "==", uid),
+        orderBy("fechaCreacion", "desc")
+    );
+
+    onSnapshot(q, (snapshot) => {
+        listaServicios.innerHTML = "";
+
+        if (snapshot.empty) {
+            listaServicios.innerHTML = `<p class="text-slate-600 text-sm italic">No tienes servicios recientes.</p>`;
+            return;
+        }
+
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const estadoColor = data.estado === 'PENDIENTE' ? 'text-orange-400' : 'text-emerald-400';
+
+            const card = document.createElement("div");
+            card.className = "uber-card p-4 rounded-2xl border border-white/5 animate-fade mb-3";
+            card.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-white font-bold text-sm">${data.direccion}</p>
+                        <p class="text-slate-400 text-xs">${data.descripcion}</p>
+                    </div>
+                    <span class="text-[10px] font-black uppercase ${estadoColor}">${data.estado}</span>
+                </div>
+            `;
+            listaServicios.appendChild(card);
+        });
+    });
+}
+
+// 4. Observador de estado de sesión
+import { onAuthStateChanged } from "./firebase-auth.js";
+
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        if (nombreClienteHeader) nombreClienteHeader.innerText = user.displayName || "Usuario";
+        cargarMisServicios(user.uid);
     }
 });
