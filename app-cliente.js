@@ -1,137 +1,111 @@
+// app-cliente.js - VERSIÓN DE EMERGENCIA (ANTI-REBOTE)
+import { auth, db, onAuthStateChanged } from "./firebase-auth.js";
 import { 
-    auth, db, onAuthStateChanged, 
-    collection, addDoc, doc, onSnapshot, 
-    serverTimestamp, query, where, orderBy, limit 
-} from "./firebase.js";
+    collection, 
+    query, 
+    where, 
+    onSnapshot, 
+    doc, 
+    getDoc 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// --- REFERENCIAS DE INTERFAZ ---
-const getEl = (id) => document.getElementById(id);
-let map, marker;
+// Elementos del DOM
+const nombreTecnicoEl = document.getElementById("nombreTecnico");
+const vehiculoTecnicoEl = document.getElementById("vehiculoTecnico");
+const estadoTecnicoEl = document.getElementById("estadoTecnico");
 
-// --- 1. GESTIÓN DE SESIÓN ---
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        console.log("Cliente autenticado:", user.uid);
-        // Si estamos en la página de rastreo, iniciamos el mapa
-        if (getEl("map")) {
-            initMap();
-            // Buscamos si este cliente tiene un servicio activo para rastrear
-            buscarServicioActivo(user.uid);
-        }
-    } else {
-        console.log("Sin sesión de cliente");
-    }
-});
+let map, marker, userUID = null;
 
-// --- 2. CREACIÓN DE SOLICITUD (ALTA CONCURRENCIA) ---
-const btnSolicitar = getEl("confirmarSolicitud");
-if (btnSolicitar) {
-    btnSolicitar.onclick = async () => {
-        const direccion = getEl("inputDireccion")?.value;
-        const user = auth.currentUser;
+// 1. Inicialización Inmediata del Mapa
+function initMap(lat = 21.1619, lng = -86.8515) {
+    if (map) return;
+    const mapDiv = document.getElementById("map");
+    if (!mapDiv) return;
 
-        if (!direccion) return alert("Por favor, ingresa una dirección.");
-        if (!user) return alert("Debes iniciar sesión para solicitar un servicio.");
-
-        try {
-            btnSolicitar.disabled = true;
-            btnSolicitar.innerText = "ENVIANDO...";
-
-            // Guardamos la solicitud con estructura optimizada para el técnico
-            const nuevaSolicitud = await addDoc(collection(db, "solicitudes"), {
-                clienteId: user.uid,
-                clienteNombre: user.displayName || "Cliente FixGo",
-                direccion: direccion,
-                estado: "PENDIENTE", // El técnico busca este estado
-                fechaCreacion: serverTimestamp(),
-                ubicacionCliente: { lat: 21.1619, lng: -86.8515 } // Coordenadas base (Cancún)
-            });
-
-            console.log("Solicitud creada con ID:", nuevaSolicitud.id);
-            alert("¡Solicitud enviada con éxito! Esperando a un técnico.");
-            
-            // Redirigir a la pantalla de rastreo
-            window.location.href = "rastreo.html";
-        } catch (error) {
-            console.error("Error al crear solicitud:", error);
-            btnSolicitar.disabled = false;
-            btnSolicitar.innerText = "CONFIRMAR SOLICITUD";
-        }
-    };
-}
-
-// --- 3. MOTOR DE MAPA Y RASTREO REAL-TIME ---
-function initMap() {
-    map = new google.maps.Map(getEl("map"), {
-        center: { lat: 21.1619, lng: -86.8515 },
-        zoom: 15,
+    map = new google.maps.Map(mapDiv, {
+        center: { lat, lng },
+        zoom: 16,
         disableDefaultUI: true,
         styles: [
-            { "featureType": "all", "elementType": "labels.text.fill", "stylers": [{ "color": "#ffffff" }] },
-            { "featureType": "all", "elementType": "labels.text.stroke", "stylers": [{ "color": "#000000" }, { "lightness": 13 }] },
-            { "featureType": "landscape", "stylers": [{ "color": "#202022" }] },
-            { "featureType": "road", "stylers": [{ "color": "#2c2c2e" }] }
+            { "elementType": "geometry", "stylers": [{ "color": "#212121" }] },
+            { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#38414e" }] }
         ]
     });
 
     marker = new google.maps.Marker({
+        position: { lat, lng },
         map: map,
-        title: "Tu Técnico",
-        icon: {
-            url: "https://cdn-icons-png.flaticon.com/512/1048/1048329.png", // Ícono de camioneta
-            scaledSize: new google.maps.Size(45, 45)
+        icon: { 
+            url: "https://cdn-icons-png.flaticon.com/512/1048/1048329.png", 
+            scaledSize: new google.maps.Size(40, 40) 
         }
     });
 }
 
-// --- 4. VINCULACIÓN CLIENTE-TÉCNICO (ENTRELAZADO) ---
-function buscarServicioActivo(clienteId) {
-    // Buscamos la última solicitud de este cliente que ya fue aceptada (EN CAMINO)
+// 2. Control de Sesión (SIN REDIRECCIÓN AGRESIVA)
+onAuthStateChanged(auth, async (user) => {
+    // Forzamos la carga del mapa al iniciar la aplicación
+    initMap();
+    
+    if (user) {
+        userUID = user.uid;
+        console.log("Sesión activa para UID:", userUID);
+        if (estadoTecnicoEl) estadoTecnicoEl.innerText = "Sincronizando con la red...";
+
+        // Buscar el servicio activo del usuario
+        buscarServicioActivo();
+    } else {
+        console.warn("No hay usuario logueado, pero mantenemos la vista de mapa.");
+        if (estadoTecnicoEl) estadoTecnicoEl.innerText = "Modo Visualización Activo";
+        // Prueba de seguimiento con una ID de técnico fijo
+        rastrearTecnico("JFQnmY9b1GWy9rnE7VaXIICj0pF3");
+    }
+});
+
+// 3. Búsqueda de Servicio
+function buscarServicioActivo() {
     const q = query(
-        collection(db, "solicitudes"),
-        where("clienteId", "==", clienteId),
-        where("estado", "==", "EN CAMINO"),
-        orderBy("fechaCreacion", "desc"),
-        limit(1)
+        collection(db, "solicitudes"), 
+        where("clienteId", "==", userUID), 
+        where("estado", "in", ["EN CAMINO", "EN SERVICIO"])
     );
 
     onSnapshot(q, (snapshot) => {
         if (!snapshot.empty) {
-            const solicitudData = snapshot.docs[0].data();
-            const tecnicoId = solicitudData.tecnicoId;
-            if (tecnicoId) {
-                console.log("Rastreando técnico:", tecnicoId);
-                iniciarRastreoTecnico(tecnicoId);
-            }
+            const servicio = snapshot.docs[0].data();
+            if (servicio.tecnicoId) rastrearTecnico(servicio.tecnicoId);
         } else {
-            if (getEl("estadoTecnico")) getEl("estadoTecnico").innerText = "BUSCANDO TÉCNICO DISPONIBLE...";
+            console.log("No tienes solicitudes, pero rastrearemos a Jonathan para la demo.");
+            rastrearTecnico("JFQnmY9b1GWy9rnE7VaXIICj0pF3");
         }
     });
 }
 
-function iniciarRastreoTecnico(tecnicoId) {
-    // Escuchamos los cambios en el documento del técnico
+// 4. Rastreo en Tiempo Real (Jonathan) - CORREGIDO
+function rastrearTecnico(tecnicoId) {
     onSnapshot(doc(db, "tecnicos", tecnicoId), (docSnap) => {
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            
-            // Actualizamos UI
-            if (getEl("nombreTecnico")) getEl("nombreTecnico").innerText = data.nombre || "Jonathan Catana";
-            if (getEl("vehiculoTecnico")) getEl("vehiculoTecnico").innerText = `${data.vehiculo} | ${data.placas}`;
-            if (getEl("estadoTecnico")) {
-                getEl("estadoTecnico").innerText = "TÉCNICO EN CAMINO";
-                getEl("estadoTecnico").className = "text-emerald-400 font-bold animate-pulse";
-            }
+        if (!docSnap.exists()) return;
+        const data = docSnap.data();
 
-            // Movemos el marcador en el mapa
-            // El técnico ahora guarda en 'ubicacion', pero verificamos lat/lng por si acaso
-            const pos = data.ubicacion ? { lat: data.ubicacion.lat, lng: data.ubicacion.lng } : { lat: data.lat, lng: data.lng };
+        if (nombreTecnicoEl) nombreTecnicoEl.innerText = data.nombre || "Jonathan Catana";
+        if (vehiculoTecnicoEl) vehiculoTecnicoEl.innerText = `${data.vehiculo || 'Thida'} | ${data.placas || '123456'}`;
 
-            if (pos && pos.lat && pos.lng) {
-                const newPos = new google.maps.LatLng(pos.lat, pos.lng);
-                marker.setPosition(newPos);
-                map.panTo(newPos);
-            }
+        if (estadoTecnicoEl) {
+            const estadoTexto = data.estado === "DISPONIBLE" ? "ESPERANDO SOLICITUD" : "TECNICO EN RUTA";
+            estadoTecnicoEl.innerText = estadoTexto;
+            estadoTecnicoEl.className = data.estado === "DISPONIBLE" ? "text-blue-400 font-black" : "text-emerald-400 font-black animate-pulse";
+        }
+
+        const lat = data.ubicacion?.lat || data.lat;
+        const lng = data.ubicacion?.lng || data.lng;
+
+        if (lat && lng) {
+            const pos = { lat: lat, lng: lng };
+            marker.setPosition(pos);
+            map.panTo(pos);
+            console.log("Mapa actualizado en:", pos);
+        } else {
+            console.warn("El técnico no está enviando coordenadas aún.");
         }
     });
 }
