@@ -1,126 +1,183 @@
-import { 
-    auth, db, onAuthStateChanged, signOut,
-    collection, onSnapshot, query, orderBy, 
-    doc, getDoc, deleteDoc 
-} from "./firebase.js";
+// app-admin.js - Control Total FixGo
+import { auth, signOut } from "./firebase-auth.js";
+import { db } from "./firebase-config.js";
+import {
+    doc,
+    getDoc,
+    collection,
+    getDocs,
+    query,
+    where
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-const getEl = (id) => document.getElementById(id);
+console.log("🚀 Sistema de Acción Admin FixGo Activo");
 
-// --- 1. VERIFICACIÓN DE SEGURIDAD ---
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        // Verificamos si realmente es un admin en Firestore
-        const adminDoc = await getDoc(doc(db, "admins", user.uid));
-        if (adminDoc.exists()) {
-            getEl("nombreAdmin").innerText = `Bienvenido, ${adminDoc.data().nombre || 'Admin'}`;
-            inicializarDashboard();
+// --- 1. Acción: Cargar Técnicos con Rastreo ---
+async function cargarTecnicos() {
+    const cont = document.getElementById("sectionTecnicos");
+    if (!cont) return;
+
+    try {
+        const querySnapshot = await getDocs(collection(db, "tecnicos"));
+        cont.innerHTML = "";
+
+        if (querySnapshot.empty) {
+            cont.innerHTML = `<p class="text-slate-500 italic text-center py-4">Sin unidades reportadas.</p>`;
+            return;
+        }
+
+        querySnapshot.forEach((docSnap) => {
+            const t = docSnap.data();
+            const id = docSnap.id;
+
+            cont.innerHTML += `
+                <div class="bg-white p-4 rounded-[1.5rem] border border-slate-200 shadow-sm mb-4 transition-all hover:shadow-md">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-blue-200">
+                                <i class="fas fa-truck-pickup"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-slate-800 leading-tight">${t.nombre || "Técnico"}</h4>
+                                <p class="text-[10px] text-blue-600 font-bold uppercase tracking-tighter">${t.vehiculo || "Unidad"} | ${t.placas || "S/P"}</p>
+                            </div>
+                        </div>
+                        <span class="text-[9px] bg-emerald-100 text-emerald-600 px-2 py-1 rounded-lg font-black border border-emerald-200">EN LÍNEA</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="verMapaTecnico('${id}')" class="flex items-center justify-center gap-2 bg-slate-900 text-white text-[10px] font-bold py-3 rounded-xl hover:bg-blue-600 transition-all">
+                            <i class="fas fa-location-crosshairs"></i> RASTREAR
+                        </button>
+                        <button onclick="verDetalles('${id}', 'tecnicos')" class="flex items-center justify-center gap-2 bg-slate-100 text-slate-600 text-[10px] font-bold py-3 rounded-xl hover:bg-slate-200 transition-all">
+                            <i class="fas fa-info-circle"></i> PERFIL
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+    } catch (e) {
+        console.error("Error técnicos:", e);
+        cont.innerHTML = "Error de conexión.";
+    }
+}
+
+// --- 2. Acción: Cargar Clientes y sus Servicios ---
+async function cargarClientes() {
+    const cont = document.getElementById("sectionClientes");
+    if (!cont) return;
+
+    try {
+        const querySnapshot = await getDocs(collection(db, "clientes"));
+        cont.innerHTML = "";
+
+        if (querySnapshot.empty) {
+            cont.innerHTML = `<p class="text-slate-500 italic text-center py-4">No hay clientes en la base.</p>`;
+            return;
+        }
+
+        querySnapshot.forEach((docSnap) => {
+            const c = docSnap.data();
+            const id = docSnap.id;
+
+            cont.innerHTML += `
+                <div class="bg-slate-50 p-4 rounded-[1.5rem] border border-slate-200 mb-4 transition-all">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-slate-200 text-slate-500 rounded-full flex items-center justify-center">
+                                <i class="fas fa-user text-sm"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-slate-800">${c.nombre || "Usuario"}</h4>
+                                <p class="text-[10px] text-slate-400 font-medium">${c.correo || "Sin correo"}</p>
+                            </div>
+                        </div>
+                        <button onclick="verServiciosCliente('${id}', '${c.nombre}')" class="w-8 h-8 bg-white border border-slate-200 text-blue-600 rounded-lg flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm">
+                            <i class="fas fa-concierge-bell text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+    } catch (e) {
+        console.error("Error clientes:", e);
+    }
+}
+
+// --- 3. Funciones Globales de Acción (Window) ---
+
+// Acción: Abrir mapa de rastreo del técnico
+window.verMapaTecnico = (id) => {
+    // Redirige pasando el ID por la URL para que el mapa sepa a quién seguir
+    window.location.href = `rastreo.html?id=${id}`;
+};
+
+// Acción: Ver servicios activos de un cliente
+window.verServiciosCliente = async (clienteId, nombre) => {
+    try {
+        // Buscamos en una colección llamada "servicios" donde el clienteId coincida
+        const q = query(collection(db, "servicios"), where("clienteId", "==", clienteId));
+        const snap = await getDocs(q);
+
+        let detalle = `SOLICITUDES DE ${nombre.toUpperCase()}:\n`;
+
+        if (snap.empty) {
+            alert(`${detalle}\nActualmente no tiene servicios pendientes.`);
         } else {
-            alert("Acceso denegado: No tienes permisos de administrador.");
+            snap.forEach(s => {
+                const serv = s.data();
+                detalle += `\n- ${serv.descripcion || 'Servicio'} (${serv.estado || 'Pendiente'})`;
+            });
+            alert(detalle);
+        }
+    } catch (e) {
+        alert("Error al consultar servicios.");
+    }
+};
+
+// Acción: Ver detalles generales
+window.verDetalles = async (id, coleccion) => {
+    const docSnap = await getDoc(doc(db, coleccion, id));
+    if (docSnap.exists()) {
+        const d = docSnap.data();
+        alert(`Ficha FixGo:\nNombre: ${d.nombre}\nContacto: ${d.correo || d.telefono}\nEstado: ${d.estado || 'ACTIVO'}`);
+    }
+};
+
+// --- 4. Control de Acceso ---
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        window.location.href = "login.html";
+        return;
+    }
+
+    try {
+        const adminRef = doc(db, "admins", user.uid);
+        const adminSnap = await getDoc(adminRef);
+
+        if (adminSnap.exists() && adminSnap.data().rol === "ADMIN") {
+            const data = adminSnap.data();
+            const elNombre = document.getElementById("nombreAdmin");
+            if (elNombre) elNombre.textContent = data.nombre || "Admin FixGo";
+
+            // Disparar carga de datos
+            await cargarTecnicos();
+            await cargarClientes();
+        } else {
+            alert("No tienes permisos de administrador.");
+            await signOut(auth);
             window.location.href = "login.html";
         }
-    } else {
-        window.location.href = "login.html";
+    } catch (error) {
+        console.error("Error Auth:", error);
     }
 });
 
-// --- 2. INICIALIZADOR DE VIGILANCIA EN TIEMPO REAL ---
-function inicializarDashboard() {
-    escucharTecnicos();
-    escucharClientes();
-    escucharServicios();
-}
-
-// --- 3. VIGILAR TÉCNICOS (UNIDADES EN CAMPO) ---
-function escucharTecnicos() {
-    const contenedor = getEl("sectionTecnicos");
-    const q = query(collection(db, "tecnicos"), orderBy("online", "desc"));
-
-    onSnapshot(q, (snapshot) => {
-        contenedor.innerHTML = "";
-        if (snapshot.empty) {
-            contenedor.innerHTML = '<p class="text-slate-400 text-xs">No hay técnicos registrados.</p>';
-            return;
-        }
-
-        snapshot.forEach((docSnap) => {
-            const t = docSnap.data();
-            const card = document.createElement("div");
-            card.className = "flex items-center justify-between p-4 mb-3 rounded-2xl bg-slate-50 border border-slate-100";
-            card.innerHTML = `
-                <div class="flex items-center gap-3">
-                    <div class="w-2 h-2 rounded-full ${t.online ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}"></div>
-                    <div>
-                        <p class="font-bold text-slate-800 text-sm">${t.nombre}</p>
-                        <p class="text-[10px] text-slate-500 uppercase">${t.vehiculo} | ${t.placas}</p>
-                    </div>
-                </div>
-                <span class="text-[9px] font-black px-2 py-1 rounded bg-white border border-slate-200">${t.estado || 'S/E'}</span>
-            `;
-            contenedor.appendChild(card);
-        });
+// Botón Logout
+const btnLogout = document.getElementById("btnLogout");
+if (btnLogout) {
+    btnLogout.addEventListener("click", async () => {
+        await signOut(auth);
+        window.location.href = "login.html";
     });
 }
-
-// --- 4. VIGILAR CLIENTES ---
-function escucharClientes() {
-    const contenedor = getEl("sectionClientes");
-    const q = query(collection(db, "clientes"), orderBy("fechaRegistro", "desc"));
-
-    onSnapshot(q, (snapshot) => {
-        contenedor.innerHTML = "";
-        snapshot.forEach((docSnap) => {
-            const c = docSnap.data();
-            const item = document.createElement("div");
-            item.className = "flex items-center gap-3 p-3 border-b border-slate-50";
-            item.innerHTML = `
-                <div class="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold">
-                    ${c.nombre.charAt(0)}
-                </div>
-                <div>
-                    <p class="text-xs font-bold text-slate-700">${c.nombre}</p>
-                    <p class="text-[9px] text-slate-400">${c.email}</p>
-                </div>
-            `;
-            contenedor.appendChild(item);
-        });
-    });
-}
-
-// --- 5. VIGILAR ÓRDENES (SERVICIOS) ---
-function escucharServicios() {
-    const contenedor = getEl("sectionServicios");
-    const q = query(collection(db, "solicitudes"), orderBy("fechaCreacion", "desc"));
-
-    onSnapshot(q, (snapshot) => {
-        contenedor.innerHTML = "";
-        if (snapshot.empty) {
-            contenedor.innerHTML = '<p class="text-slate-400 text-xs text-center">Sin órdenes activas.</p>';
-            return;
-        }
-
-        snapshot.forEach((docSnap) => {
-            const s = docSnap.data();
-            const statusColor = s.estado === 'PENDIENTE' ? 'text-orange-500' : 'text-blue-500';
-            const card = document.createElement("div");
-            card.className = "p-4 mb-3 rounded-2xl border-2 border-slate-50 bg-white shadow-sm";
-            card.innerHTML = `
-                <div class="flex justify-between items-start mb-2">
-                    <p class="text-[10px] font-black ${statusColor}">${s.estado}</p>
-                    <button onclick="borrarOrden('${docSnap.id}')" class="text-slate-300 hover:text-red-500"><i class="fas fa-trash"></i></button>
-                </div>
-                <p class="text-xs font-bold">${s.direccion}</p>
-                <p class="text-[9px] text-slate-500 mt-1">Cliente ID: ${s.clienteId.slice(0,8)}...</p>
-            `;
-            contenedor.appendChild(card);
-        });
-    });
-}
-
-// --- 6. ACCIONES GLOBALES ---
-getEl("btnLogout").onclick = () => signOut(auth).then(() => window.location.href = "login.html");
-
-window.borrarOrden = async (id) => {
-    if(confirm("¿Eliminar esta orden del sistema?")) {
-        await deleteDoc(doc(db, "solicitudes", id));
-    }
-};
