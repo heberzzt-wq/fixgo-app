@@ -1,5 +1,5 @@
 // app-cliente.js - VERSIÓN DE EMERGENCIA (ANTI-REBOTE)
-import { auth, db, onAuthStateChanged } from "./firebase-auth.js";
+import { auth, db, onAuthStateChanged } from "./firebase.js";
 import { 
     collection, 
     query, 
