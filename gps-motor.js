@@ -13,16 +13,17 @@ export const MotorGPS = {
 
     // 1. Iniciar Rastreo para el Técnico
     iniciarRastreo: (userId, onUpdate) => {
-        if (!navigator.geolocation) return alert("GPS no disponible");
+        if (!navigator.geolocation) {
+            alert("GPS no disponible");
+            return;
+        }
 
         MotorGPS.watchId = navigator.geolocation.watchPosition(
             async (pos) => {
                 const { latitude, longitude } = pos.coords;
                 const nuevaPos = { lat: latitude, lng: longitude };
 
-                // Solo actualizamos si se ha movido lo suficiente (Ahorro de Datos)
                 if (!MotorGPS.ultimaPosicion || MotorGPS.calcularDistancia(MotorGPS.ultimaPosicion, nuevaPos) > CONFIG.distanciaMinima) {
-                    
                     MotorGPS.ultimaPosicion = nuevaPos;
 
                     // Actualizar Firebase
@@ -39,22 +40,22 @@ export const MotorGPS = {
                 }
             },
             (err) => console.warn("Error capturando GPS:", err),
-            { 
-                enableHighAccuracy: CONFIG.precisionAlta, 
-                timeout: CONFIG.timeout 
+            {
+                enableHighAccuracy: CONFIG.precisionAlta,
+                timeout: CONFIG.timeout
             }
         );
     },
 
     // 2. Detener Rastreo
     detenerRastreo: () => {
-        if (MotorGPS.watchId) {
+        if (MotorGPS.watchId !== null) {
             navigator.geolocation.clearWatch(MotorGPS.watchId);
             MotorGPS.watchId = null;
         }
     },
 
-    // 3. Cálculo de distancia (Haversine) para evitar escrituras basura
+    // 3. Cálculo de distancia (Haversine)
     calcularDistancia: (pos1, pos2) => {
         const R = 6371e3; // Radio de la Tierra en metros
         const φ1 = pos1.lat * Math.PI / 180;
@@ -79,8 +80,8 @@ export const SuavizadorMapa = {
             lat: marker.getPosition().lat(),
             lng: marker.getPosition().lng()
         };
+
         let i = 0;
-        
         const intervalo = setInterval(() => {
             i++;
             let lat = inicio.lat + (nuevaPos.lat - inicio.lat) * (i / pasos);
