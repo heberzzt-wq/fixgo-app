@@ -9,7 +9,7 @@ import {
     createUserWithEmailAndPassword, 
     GoogleAuthProvider, 
     signInWithPopup 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase.js";
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
     getFirestore, 
     doc, 
