@@ -1,89 +1,123 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
-    getAuth, 
+    auth, 
+    db, 
+    googleProvider, 
     createUserWithEmailAndPassword, 
-    GoogleAuthProvider 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { 
-    getFirestore, 
-    doc, 
-    setDoc, 
-    serverTimestamp 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    signInWithPopup 
+} from "./firebase-auth.js"; // Cambiado para que coincida con tu archivo central
+import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// --- CONFIGURACIÓN CON TU CLAVE CONFIRMADA ---
-const firebaseConfig = {
-    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", // Clave verificada
-    authDomain: "fixgo-app-sf2l.firebaseapp.com",
-    projectId: "fixgo-app-sf2l",
-    storageBucket: "fixgo-app-sf2l.appspot.com",
-    messagingSenderId: "331872151604",
-    appId: "1:331872151604:web:86786a344933a763866444"
-};
+// Detectar formulario
+const form = document.querySelector("form");
+if (!form) throw new Error("Formulario no encontrado");
 
-// Inicializar motores
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+const rol = form.dataset.rol || "CLIENTE";
 
-const registroForm = document.getElementById("registroForm");
+// Definir campos según el rol
+const camposTecnico = ["nombre", "cedula", "vehiculo", "placas", "correo", "contraseña", "confirmarContraseña"];
+const camposCliente = ["nombre", "telefono", "direccion", "correo"];
+const campos = rol === "TECNICO" ? camposTecnico : camposCliente;
 
-if (registroForm) {
-    registroForm.addEventListener("submit", async (e) => {
+const submitBtn = document.getElementById("submitBtn");
+const googleBtn = document.getElementById("loginGoogle");
+
+// Función para registrar usuarios por Email/Password
+if (submitBtn) {
+    form.addEventListener("submit", async (e) => {
         e.preventDefault();
-        const btn = document.getElementById("submitBtn");
-        const formData = new FormData(registroForm);
-        
-        // Obtener datos del formulario
-        const email = formData.get("correo");
-        const pass = formData.get("contraseña");
-        const nombre = formData.get("nombre");
-        const cedula = formData.get("cedula");
-        const vehiculo = formData.get("vehiculo");
-        const placas = formData.get("placas");
-        const rol = registroForm.getAttribute("data-rol") || "TECNICO"; 
-
-        if (btn) {
-            btn.innerText = "PROCESANDO ALTA...";
-            btn.disabled = true;
-        }
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Registrando...";
 
         try {
-            // 1. Crear usuario en Auth
-            const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-            const user = userCredential.user;
-
-            // 2. Guardar en Firestore (Colección según rol)
-            const coleccion = (rol === "TECNICO") ? "tecnicos" : "clientes";
-            
-            await setDoc(doc(db, coleccion, user.uid), {
-                uid: user.uid,
-                nombre: nombre,
-                correo: email,
-                cedula: cedula || "",
-                vehiculo: vehiculo || "",
-                placas: placas || "",
-                rol: rol,
-                estado: "DISPONIBLE",
-                fechaRegistro: serverTimestamp()
+            const data = {};
+            campos.forEach(c => {
+                const input = form.querySelector(`[name="${c}"]`);
+                if (input) data[c] = input.value.trim();
             });
 
-            alert("¡Usuario registrado con éxito en FixGo!");
-            window.location.href = (rol === "TECNICO") ? "área-tecnico.html" : "índice.html";
+            if (rol === "TECNICO" && data.contraseña !== data.confirmarContraseña) {
+                throw new Error("Las contraseñas no coinciden");
+            }
 
-        } catch (error) {
-            console.error("Error detectado:", error);
-            // Manejo de errores amigable
-            if (error.message.includes("identity-toolkit")) {
-                alert("ERROR CRÍTICO: Debes habilitar la API de Identity Toolkit en Google Cloud Console (Mira las instrucciones en el chat).");
-            } else {
-                alert("Error de registro: " + error.message);
+            const cred = await createUserWithEmailAndPassword(
+                auth,
+                data.correo,
+                data.contraseña || "TempPass123!"
+            );
+
+            const user = cred.user;
+            const firestoreData = {
+                uid: user.uid,
+                rol,
+                estado: "ACTIVO",
+                creadoEn: new Date().toISOString(),
+                nombre: data.nombre || "",
+                correo: data.correo || ""
+            };
+
+            if (rol === "TECNICO") {
+                firestoreData.cedula = data.cedula || "";
+                firestoreData.vehiculo = data.vehiculo || "";
+                firestoreData.placas = data.placas || "";
+
+                // Geolocalización opcional para técnicos
+                if (navigator.geolocation) {
+                    try {
+                        const pos = await new Promise((resolve, reject) => 
+                            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+                        );
+                        firestoreData.lat = pos.coords.latitude;
+                        firestoreData.lng = pos.coords.longitude;
+                    } catch (geoErr) {
+                        console.warn("No se pudo obtener ubicación inicial:", geoErr);
+                    }
+                }
             }
-        } finally {
-            if (btn) {
-                btn.innerText = "ENVIAR SOLICITUD DE ALTA";
-                btn.disabled = false;
+
+            const col = rol === "TECNICO" ? "tecnicos" : "clientes";
+            await setDoc(doc(db, col, user.uid), firestoreData);
+
+            alert("✅ Registro exitoso");
+            window.location.href = rol === "TECNICO" ? "area-tecnico.html" : "index.html";
+
+        } catch (e) {
+            alert("❌ " + e.message);
+            submitBtn.disabled = false;
+            submitBtn.textContent = "ENVIAR";
+        }
+    });
+}
+
+// Función para registro/autenticación con Google
+if (googleBtn) {
+    googleBtn.addEventListener("click", async () => {
+        try {
+            const res = await signInWithPopup(auth, googleProvider);
+            const user = res.user;
+            const col = rol === "TECNICO" ? "tecnicos" : "clientes";
+
+            const docRef = doc(db, col, user.uid);
+            const docSnap = await getDoc(docRef);
+
+            if (!docSnap.exists()) {
+                await setDoc(docRef, {
+                    uid: user.uid,
+                    rol,
+                    estado: "ACTIVO",
+                    creadoEn: new Date().toISOString(),
+                    nombre: user.displayName || "",
+                    correo: user.email || ""
+                });
+
+                if (rol === "TECNICO") {
+                    alert("Bienvenido. Por favor completa tus datos de vehículo en tu perfil.");
+                }
             }
+
+            window.location.href = rol === "TECNICO" ? "area-tecnico.html" : "index.html";
+        } catch (e) {
+            console.error("Error Google:", e);
+            alert("❌ " + e.message);
         }
     });
 }
