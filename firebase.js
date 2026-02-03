@@ -1,6 +1,6 @@
 // firebase.js - Módulo Centralizado de FixGo
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase.js";
 import { 
     getAuth, 
     onAuthStateChanged, 
@@ -9,7 +9,7 @@ import {
     createUserWithEmailAndPassword, 
     GoogleAuthProvider, 
     signInWithPopup 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase.js";
 import { 
     getFirestore, 
     doc, 
@@ -27,7 +27,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Configuración de Firebase
-const firebaseConfig = {
+const firebase.js = {
     apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
     authDomain: "fixgo-f1665.firebaseapp.com",
     projectId: "fixgo-f1665",
@@ -37,7 +37,7 @@ const firebaseConfig = {
 };
 
 // Inicializar Firebase
-const app = initializeApp(firebaseConfig);
+const app = initializeApp(firebase.js);
 
 // Inicializar servicios de Firebase
 const auth = getAuth(app);
