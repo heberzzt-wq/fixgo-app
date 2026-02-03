@@ -1,26 +1,68 @@
-// app-registro-universal.js
-import { auth, db } from "./firebase.js";
-import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { setDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { 
+    auth, db, 
+    createUserWithEmailAndPassword, 
+    setDoc, doc, 
+    serverTimestamp 
+} from "./firebase.js";
 
-// Registro universal para clientes y técnicos
-const formRegistro = document.getElementById("formRegistro");
+const getEl = (id) => document.getElementById(id);
 
-formRegistro.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const email = formRegistro.email.value;
-    const pass = formRegistro.password.value;
-    const rol = formRegistro.rol.value;
+// --- LÓGICA DE REGISTRO UNIFICADO ---
+const formRegistro = getEl("formRegistroUniversal");
 
-    try {
-        const cred = await createUserWithEmailAndPassword(auth, email, pass);
-        await setDoc(doc(db, "usuarios", cred.user.uid), {
-            email,
-            rol,
-            fechaRegistro: new Date()
-        });
-        console.log("Usuario registrado:", cred.user.uid);
-    } catch (error) {
-        console.error("Error registro:", error);
-    }
-});
+if (formRegistro) {
+    formRegistro.onsubmit = async (e) => {
+        e.preventDefault();
+
+        const email = getEl("regEmail").value;
+        const pass = getEl("regPass").value;
+        const nombre = getEl("regNombre").value;
+        const tipoUsuario = getEl("regTipo").value; // 'cliente' o 'tecnico'
+
+        if (!email || !pass || !nombre) {
+            return alert("Por favor, rellena todos los campos.");
+        }
+
+        try {
+            // 1. Crear usuario en Firebase Auth
+            const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+            const user = userCredential.user;
+
+            // 2. Crear el perfil en la colección correcta según el ROL
+            // Esto evita que un técnico aparezca en la lista de clientes
+            const coleccion = tipoUsuario === "tecnico" ? "tecnicos" : "clientes";
+            
+            const datosPerfil = {
+                uid: user.uid,
+                nombre: nombre,
+                email: email,
+                rol: tipoUsuario,
+                fechaRegistro: serverTimestamp(),
+                online: true
+            };
+
+            // Si es técnico, añadimos campos específicos de su trabajo
+            if (tipoUsuario === "tecnico") {
+                datosPerfil.estado = "DISPONIBLE";
+                datosPerfil.vehiculo = "Por definir";
+                datosPerfil.placas = "---";
+                datosPerfil.estrellas = 5;
+            }
+
+            await setDoc(doc(db, coleccion, user.uid), datosPerfil);
+
+            alert(`¡Registro exitoso como ${tipoUsuario}!`);
+            
+            // 3. Redirección inteligente
+            if (tipoUsuario === "tecnico") {
+                window.location.href = "área-tecnico.html";
+            } else {
+                window.location.href = "índice.html";
+            }
+
+        } catch (error) {
+            console.error("Error en registro:", error);
+            alert("Error al registrar: " + error.message);
+        }
+    };
+}
