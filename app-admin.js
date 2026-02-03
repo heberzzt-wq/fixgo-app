@@ -1,136 +1,126 @@
 import { 
-    auth, db, onAuthStateChanged, 
-    collection, query, where, onSnapshot, orderBy, 
-    doc, updateDoc, deleteDoc 
+    auth, db, onAuthStateChanged, signOut,
+    collection, onSnapshot, query, orderBy, 
+    doc, getDoc, deleteDoc 
 } from "./firebase.js";
 
 const getEl = (id) => document.getElementById(id);
-let map;
-let markers = {}; // Para rastrear múltiples técnicos sin duplicar iconos
 
-// --- 1. PROTECCIÓN DE RUTA (Solo Admin) ---
-onAuthStateChanged(auth, (user) => {
+// --- 1. VERIFICACIÓN DE SEGURIDAD ---
+onAuthStateChanged(auth, async (user) => {
     if (user) {
-        console.log("Admin logueado:", user.email);
-        initAdminDashboard();
+        // Verificamos si realmente es un admin en Firestore
+        const adminDoc = await getDoc(doc(db, "admins", user.uid));
+        if (adminDoc.exists()) {
+            getEl("nombreAdmin").innerText = `Bienvenido, ${adminDoc.data().nombre || 'Admin'}`;
+            inicializarDashboard();
+        } else {
+            alert("Acceso denegado: No tienes permisos de administrador.");
+            window.location.href = "login.html";
+        }
     } else {
         window.location.href = "login.html";
     }
 });
 
-function initAdminDashboard() {
-    initGlobalMap();
-    escucharTodosLosTecnicos();
-    escucharTodasLasSolicitudes();
+// --- 2. INICIALIZADOR DE VIGILANCIA EN TIEMPO REAL ---
+function inicializarDashboard() {
+    escucharTecnicos();
+    escucharClientes();
+    escucharServicios();
 }
 
-// --- 2. MAPA GLOBAL DE OPERACIONES ---
-function initGlobalMap() {
-    const mapDiv = getEl("mapaGlobal");
-    if (!mapDiv) return;
-
-    map = new google.maps.Map(mapDiv, {
-        center: { lat: 21.1619, lng: -86.8515 },
-        zoom: 12,
-        styles: [ { "stylers": [ { "color": "#131314" } ] } ] // Estilo oscuro Uber
-    });
-}
-
-// --- 3. RASTREO MULTI-USUARIO (10,000 técnicos potenciales) ---
-function escucharTodosLosTecnicos() {
-    // Escuchamos a todos los técnicos que estén online
-    const q = query(collection(db, "tecnicos"), where("online", "==", true));
+// --- 3. VIGILAR TÉCNICOS (UNIDADES EN CAMPO) ---
+function escucharTecnicos() {
+    const contenedor = getEl("sectionTecnicos");
+    const q = query(collection(db, "tecnicos"), orderBy("online", "desc"));
 
     onSnapshot(q, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            const data = change.doc.data();
-            const id = change.doc.id;
+        contenedor.innerHTML = "";
+        if (snapshot.empty) {
+            contenedor.innerHTML = '<p class="text-slate-400 text-xs">No hay técnicos registrados.</p>';
+            return;
+        }
 
-            if (change.type === "added" || change.type === "modified") {
-                const pos = data.ubicacion || { lat: data.lat, lng: data.lng };
-                
-                if (pos && pos.lat && pos.lng) {
-                    actualizarMarcadorTecnico(id, pos, data);
-                }
-            }
-            if (change.type === "removed") {
-                if (markers[id]) {
-                    markers[id].setMap(null);
-                    delete markers[id];
-                }
-            }
+        snapshot.forEach((docSnap) => {
+            const t = docSnap.data();
+            const card = document.createElement("div");
+            card.className = "flex items-center justify-between p-4 mb-3 rounded-2xl bg-slate-50 border border-slate-100";
+            card.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-2 h-2 rounded-full ${t.online ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}"></div>
+                    <div>
+                        <p class="font-bold text-slate-800 text-sm">${t.nombre}</p>
+                        <p class="text-[10px] text-slate-500 uppercase">${t.vehiculo} | ${t.placas}</p>
+                    </div>
+                </div>
+                <span class="text-[9px] font-black px-2 py-1 rounded bg-white border border-slate-200">${t.estado || 'S/E'}</span>
+            `;
+            contenedor.appendChild(card);
         });
     });
 }
 
-function actualizarMarcadorTecnico(id, pos, data) {
-    if (markers[id]) {
-        // Si ya existe, solo movemos la posición
-        markers[id].setPosition(pos);
-    } else {
-        // Si es nuevo, creamos el marcador
-        markers[id] = new google.maps.Marker({
-            position: pos,
-            map: map,
-            title: data.nombre,
-            icon: {
-                url: data.estado === "EN SERVICIO" ? 
-                     "https://maps.google.com/mapfiles/ms/icons/red-dot.png" : 
-                     "https://maps.google.com/mapfiles/ms/icons/green-dot.png",
-                scaledSize: new google.maps.Size(35, 35)
-            }
+// --- 4. VIGILAR CLIENTES ---
+function escucharClientes() {
+    const contenedor = getEl("sectionClientes");
+    const q = query(collection(db, "clientes"), orderBy("fechaRegistro", "desc"));
+
+    onSnapshot(q, (snapshot) => {
+        contenedor.innerHTML = "";
+        snapshot.forEach((docSnap) => {
+            const c = docSnap.data();
+            const item = document.createElement("div");
+            item.className = "flex items-center gap-3 p-3 border-b border-slate-50";
+            item.innerHTML = `
+                <div class="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold">
+                    ${c.nombre.charAt(0)}
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-slate-700">${c.nombre}</p>
+                    <p class="text-[9px] text-slate-400">${c.email}</p>
+                </div>
+            `;
+            contenedor.appendChild(item);
         });
-    }
+    });
 }
 
-// --- 4. GESTIÓN CENTRAL DE SOLICITUDES ---
-function escucharTodasLasSolicitudes() {
-    const container = getEl("listaSolicitudesAdmin");
-    if (!container) return;
-
+// --- 5. VIGILAR ÓRDENES (SERVICIOS) ---
+function escucharServicios() {
+    const contenedor = getEl("sectionServicios");
     const q = query(collection(db, "solicitudes"), orderBy("fechaCreacion", "desc"));
 
     onSnapshot(q, (snapshot) => {
-        container.innerHTML = "";
+        contenedor.innerHTML = "";
+        if (snapshot.empty) {
+            contenedor.innerHTML = '<p class="text-slate-400 text-xs text-center">Sin órdenes activas.</p>';
+            return;
+        }
+
         snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            const id = docSnap.id;
-            
-            const row = document.createElement("div");
-            row.className = "flex items-center justify-between p-4 border-b border-white/5 text-xs";
-            row.innerHTML = `
-                <div class="flex-1">
-                    <p class="text-white font-bold">${data.clienteNombre}</p>
-                    <p class="text-slate-400">${data.direccion}</p>
+            const s = docSnap.data();
+            const statusColor = s.estado === 'PENDIENTE' ? 'text-orange-500' : 'text-blue-500';
+            const card = document.createElement("div");
+            card.className = "p-4 mb-3 rounded-2xl border-2 border-slate-50 bg-white shadow-sm";
+            card.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <p class="text-[10px] font-black ${statusColor}">${s.estado}</p>
+                    <button onclick="borrarOrden('${docSnap.id}')" class="text-slate-300 hover:text-red-500"><i class="fas fa-trash"></i></button>
                 </div>
-                <div class="flex-1 text-center">
-                    <span class="px-2 py-1 rounded-full ${getEstadoClase(data.estado)}">
-                        ${data.estado}
-                    </span>
-                </div>
-                <div class="flex-1 text-right">
-                    <button onclick="eliminarSolicitud('${id}')" class="text-red-500 hover:text-red-300">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
+                <p class="text-xs font-bold">${s.direccion}</p>
+                <p class="text-[9px] text-slate-500 mt-1">Cliente ID: ${s.clienteId.slice(0,8)}...</p>
             `;
-            container.appendChild(row);
+            contenedor.appendChild(card);
         });
     });
 }
 
-function getEstadoClase(estado) {
-    switch(estado) {
-        case "PENDIENTE": return "bg-yellow-500/10 text-yellow-500";
-        case "EN CAMINO": return "bg-blue-500/10 text-blue-500";
-        case "TERMINADO": return "bg-emerald-500/10 text-emerald-500";
-        default: return "bg-slate-500/10 text-slate-500";
-    }
-}
+// --- 6. ACCIONES GLOBALES ---
+getEl("btnLogout").onclick = () => signOut(auth).then(() => window.location.href = "login.html");
 
-// Funciones globales para botones
-window.eliminarSolicitud = async (id) => {
-    if (confirm("¿Estás seguro de eliminar esta solicitud?")) {
+window.borrarOrden = async (id) => {
+    if(confirm("¿Eliminar esta orden del sistema?")) {
         await deleteDoc(doc(db, "solicitudes", id));
     }
 };
