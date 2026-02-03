@@ -7,123 +7,149 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background-color: #050505; }
-        .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); }
-        .uber-input { background-color: #1e1e1e; border: none; color: white; }
-        .uber-input:focus { ring: 2px solid #6366f1; }
-        .gradient-uber { background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%); }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade { animation: fadeIn 0.4s ease-out forwards; }
-        .hidden { display: none !important; }
+        body {
+            background-color: #050505;
+        }
+        .uber-card {
+            background-color: #121212;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .uber-input {
+            background-color: #1e1e1e;
+            border: none;
+            color: white;
+        }
+        .uber-input:focus {
+            outline: 2px solid #6366f1;
+        }
+        .gradient-uber {
+            background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%);
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-fade {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+        .hidden {
+            display: none !important;
+        }
     </style>
 </head>
 <body class="text-white min-h-screen">
 
-    <header class="max-w-4xl mx-auto flex justify-between items-center p-6">
-        <h1 class="text-3xl font-black tracking-tighter italic text-white">
-            FIXGO<span class="text-indigo-500">&</span>FINISH
-        </h1>
-        <button id="logoutBtn" class="hidden bg-red-600/10 text-red-500 border border-red-500/30 hover:bg-red-600 hover:text-white font-bold py-2 px-6 rounded-2xl transition-all text-sm uppercase">
-            Salir
-        </button>
-    </header>
+<header class="max-w-4xl mx-auto flex justify-between items-center p-6">
+    <h1 class="text-3xl font-black tracking-tighter italic text-white">
+        FIXGO<span class="text-indigo-500">&</span>FINISH
+    </h1>
+    <button id="logoutBtn" class="hidden bg-red-600/10 text-red-500 border border-red-500/30 hover:bg-red-600 hover:text-white font-bold py-2 px-6 rounded-2xl transition-all text-sm uppercase">
+        Salir
+    </button>
+</header>
 
-    <main class="max-w-4xl mx-auto px-4">
+<main class="max-w-4xl mx-auto px-4">
+
+    <section id="heroSection" class="text-center py-12 animate-fade">
+        <h2 class="text-5xl font-black mb-4 leading-tight">Tu servicio técnico,<br>a un clic de distancia.</h2>
+        <p class="text-slate-400 mb-10 text-lg">Selecciona tu perfil para comenzar.</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            <a href="login.html" class="gradient-uber p-8 rounded-[2.5rem] text-white shadow-2xl hover:scale-105 transition-all group">
+                <i class="fas fa-user-gear text-4xl mb-4 group-hover:rotate-12 transition-transform"></i>
+                <h3 class="font-black text-xl uppercase tracking-tighter">Soy Técnico</h3>
+                <p class="text-xs opacity-70 mt-1">Recibir trabajos en ruta</p>
+            </a>
+
+            <a href="login.html" class="uber-card p-8 rounded-[2.5rem] text-white shadow-2xl hover:scale-105 transition-all group">
+                <i class="fas fa-handshake text-4xl mb-4 text-indigo-500 group-hover:scale-110 transition-transform"></i>
+                <h3 class="font-black text-xl uppercase tracking-tighter">Soy Cliente</h3>
+                <p class="text-xs text-slate-500 mt-1">Solicitar reparación</p>
+            </a>
+
+            <button onclick="window.location.href='rastrear.html'" class="bg-emerald-600 p-8 rounded-[2.5rem] text-white shadow-2xl hover:scale-105 transition-all group">
+                <i class="fas fa-map-location-dot text-4xl mb-4 group-hover:bounce transition-all"></i>
+                <h3 class="font-black text-xl uppercase tracking-tighter">Rastrear</h3>
+                <p class="text-xs opacity-70 mt-1">Ver técnico en vivo</p>
+            </button>
+        </div>
+    </section>
+
+    <section id="solicitudContainer" class="hidden animate-fade">
+        <div class="flex items-center gap-3 mb-8">
+            <div class="w-2 h-10 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]"></div>
+            <h2 class="text-3xl font-black">Hola, <span id="nombreCliente" class="text-indigo-400 italic">...</span></h2>
+        </div>
         
-        <section id="heroSection" class="text-center py-12 animate-fade">
-            <h2 class="text-5xl font-black mb-4 leading-tight">Tu servicio técnico,<br>a un clic de distancia.</h2>
-            <p class="text-slate-400 mb-10 text-lg">Selecciona tu perfil para comenzar.</p>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                <a href="login.html" class="gradient-uber p-8 rounded-[2.5rem] text-white shadow-2xl hover:scale-105 transition-all group">
-                    <i class="fas fa-user-gear text-4xl mb-4 group-hover:rotate-12 transition-transform"></i>
-                    <h3 class="font-black text-xl uppercase tracking-tighter">Soy Técnico</h3>
-                    <p class="text-xs opacity-70 mt-1">Recibir trabajos en ruta</p>
-                </a>
-
-                <a href="login.html" class="uber-card p-8 rounded-[2.5rem] text-white shadow-2xl hover:scale-105 transition-all group">
-                    <i class="fas fa-handshake text-4xl mb-4 text-indigo-500 group-hover:scale-110 transition-transform"></i>
-                    <h3 class="font-black text-xl uppercase tracking-tighter">Soy Cliente</h3>
-                    <p class="text-xs text-slate-500 mt-1">Solicitar reparación</p>
-                </a>
-
-                <button onclick="window.location.href='rastrear.html'" class="bg-emerald-600 p-8 rounded-[2.5rem] text-white shadow-2xl hover:scale-105 transition-all group">
-                    <i class="fas fa-map-location-dot text-4xl mb-4 group-hover:bounce transition-all"></i>
-                    <h3 class="font-black text-xl uppercase tracking-tighter">Rastrear</h3>
-                    <p class="text-xs opacity-70 mt-1">Ver técnico en vivo</p>
-                </button>
-            </div>
-        </section>
-
-        <section id="solicitudContainer" class="hidden animate-fade">
-            <div class="flex items-center gap-3 mb-8">
-                <div class="w-2 h-10 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]"></div>
-                <h2 class="text-3xl font-black">Hola, <span id="nombreCliente" class="text-indigo-400 italic">...</span></h2>
-            </div>
-
-            <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl mb-10">
-                <h3 class="text-xl font-bold mb-6 text-slate-200">¿Qué necesitas hoy?</h3>
-                <form id="nuevaSolicitudForm" class="space-y-6">
-                    <div>
-                        <label class="block text-[10px] font-black text-slate-500 mb-2 ml-1 uppercase tracking-widest">Dirección del Servicio</label>
-                        <input type="text" name="direccion" placeholder="Ej: Av. Principal 456, Col. Norte" required 
-                            class="w-full uber-input px-5 py-4 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-lg">
-                    </div>
-
-                    <div>
-                        <label class="block text-[10px] font-black text-slate-500 mb-2 ml-1 uppercase tracking-widest">Descripción del Problema</label>
-                        <textarea name="descripcion" placeholder="Describe brevemente la falla..." required 
-                            class="w-full uber-input px-5 py-4 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all h-32 resize-none text-lg"></textarea>
-                    </div>
-
-                    <button type="submit" class="w-full bg-white text-black font-black py-5 rounded-2xl shadow-xl hover:bg-indigo-500 hover:text-white transition-all uppercase tracking-tighter text-xl transform active:scale-95">
-                        Confirmar Solicitud
-                    </button>
-                </form>
-            </div>
-
-            <div class="mt-12 pb-20">
-                <h2 class="text-xl font-black mb-6 flex items-center gap-3">
-                    <i class="fas fa-history text-indigo-500"></i> MIS SERVICIOS RECIENTES
-                </h2>
-                <div id="solicitudesCliente" class="space-y-4">
-                    <p class="text-slate-600 text-sm italic animate-pulse">Consultando historial con el servidor...</p>
+        <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl mb-10">
+            <h3 class="text-xl font-bold mb-6 text-slate-200">¿Qué necesitas hoy?</h3>
+            <form id="nuevaSolicitudForm" class="space-y-6">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-500 mb-2 ml-1 uppercase tracking-widest">Dirección del Servicio</label>
+                    <input type="text" name="direccion" placeholder="Ej: Av. Principal 456, Col. Norte" required
+                        class="w-full uber-input px-5 py-4 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-lg">
                 </div>
+                
+                <div>
+                    <label class="block text-[10px] font-black text-slate-500 mb-2 ml-1 uppercase tracking-widest">Descripción del Problema</label>
+                    <textarea name="descripcion" placeholder="Describe brevemente la falla..." required
+                        class="w-full uber-input px-5 py-4 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all h-32 resize-none text-lg"></textarea>
+                </div>
+                
+                <button type="submit" class="w-full bg-white text-black font-black py-5 rounded-2xl shadow-xl hover:bg-indigo-500 hover:text-white transition-all uppercase tracking-tighter text-xl transform active:scale-95">
+                    Confirmar Solicitud
+                </button>
+            </form>
+        </div>
+
+        <div class="mt-12 pb-20">
+            <h2 class="text-xl font-black mb-6 flex items-center gap-3">
+                <i class="fas fa-history text-indigo-500"></i> MIS SERVICIOS RECIENTES
+            </h2>
+            <div id="solicitudesCliente" class="space-y-4">
+                <p class="text-slate-600 text-sm italic animate-pulse">Consultando historial con el servidor...</p>
             </div>
-        </section>
+        </div>
+    </section>
 
-    </main>
+</main>
 
-    <script type="module">
-        import { auth, signOut, onAuthStateChanged } from "./firebase-auth.js";
+<script type="module">
+    import { auth, signOut, onAuthStateChanged } from "./firebase-auth.js";
 
-        const logoutBtn = document.getElementById("logoutBtn");
-        const heroSection = document.getElementById("heroSection");
-        const solicitudContainer = document.getElementById("solicitudContainer");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const heroSection = document.getElementById("heroSection");
+    const solicitudContainer = document.getElementById("solicitudContainer");
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                logoutBtn.classList.remove("hidden");
-                heroSection.classList.add("hidden");
-                solicitudContainer.classList.remove("hidden");
-            } else {
-                logoutBtn.classList.add("hidden");
-                heroSection.classList.remove("hidden");
-                solicitudContainer.classList.add("hidden");
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            logoutBtn.classList.remove("hidden");
+            heroSection.classList.add("hidden");
+            solicitudContainer.classList.remove("hidden");
+        } else {
+            logoutBtn.classList.add("hidden");
+            heroSection.classList.remove("hidden");
+            solicitudContainer.classList.add("hidden");
+        }
+    });
+
+    logoutBtn.addEventListener("click", async () => {
+        if (confirm("¿Estás seguro de que quieres cerrar sesión?")) {
+            try {
+                await signOut(auth);
+                window.location.href = "login.html"; // Redirigir al login tras salir
+            } catch (error) {
+                console.error("Error al salir:", error);
             }
-        });
-
-        logoutBtn.addEventListener("click", async () => {
-            if(confirm("¿Estás seguro de que quieres cerrar sesión?")) {
-                try {
-                    await signOut(auth);
-                    window.location.href = "login.html"; // Redirigir al login tras salir
-                } catch (error) {
-                    console.error("Error al salir:", error);
-                }
-            }
-        });
-    </script>
-    <script type="module" src="app-main.js"></script>
+        }
+    });
+</script>
+<script type="module" src="app-main.js"></script>
 </body>
 </html>
