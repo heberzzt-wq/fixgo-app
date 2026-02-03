@@ -5,14 +5,11 @@ import {
     db,
     googleProvider,
     signInWithPopup,
-    createUserWithEmailAndPassword
-} from "./firebase-auth.js";
-
-import {
+    createUserWithEmailAndPassword,
     doc,
     setDoc,
     serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "./firebase.js";
 
 const registroForm = document.getElementById("clienteForm");
 const googleBtn = document.getElementById("loginGoogle");
