@@ -27,7 +27,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Configuración de Firebase
-const firebase.js = {
+const firebasejs = {
     apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
     authDomain: "fixgo-f1665.firebaseapp.com",
     projectId: "fixgo-f1665",
