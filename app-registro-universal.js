@@ -1,80 +1,70 @@
+// Usamos importaciones directas desde la CDN para asegurar que siempre carguen
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
-    auth, db, 
+    getAuth, 
     createUserWithEmailAndPassword, 
-    setDoc, doc, 
+    GoogleAuthProvider, 
+    signInWithPopup 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { 
+    getFirestore, 
+    doc, 
+    setDoc, 
     serverTimestamp 
-} from "./firebase.js";
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Función para obtener elementos de forma segura
-const getEl = (id) => document.getElementById(id);
+// --- 1. CONFIGURACIÓN (Asegúrate de que estos datos sean los tuyos) ---
+const firebaseConfig = {
+    apiKey: "TU_API_KEY",
+    authDomain: "TU_PROYECTO.firebaseapp.com",
+    projectId: "TU_PROYECTO",
+    storageBucket: "TU_PROYECTO.appspot.com",
+    messagingSenderId: "TU_ID",
+    appId: "TU_APP_ID"
+};
 
-// --- LÓGICA DE REGISTRO ---
+// Inicializar
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
+
+// --- 2. LÓGICA DE REGISTRO ---
 const registroForm = document.getElementById("registroForm");
 
 if (registroForm) {
     registroForm.addEventListener("submit", async (e) => {
         e.preventDefault();
-
-        // 1. Extraer datos del formulario (usando el atributo name de tu HTML)
+        const btn = document.getElementById("submitBtn");
         const formData = new FormData(registroForm);
+        
         const email = formData.get("correo");
         const pass = formData.get("contraseña");
-        const confirmPass = formData.get("confirmarContraseña");
-        const nombre = formData.get("nombre");
-        const rol = registroForm.getAttribute("data-rol") || "CLIENTE"; // TECNICO o CLIENTE
+        const rol = registroForm.getAttribute("data-rol") || "CLIENTE";
 
-        // 2. Validaciones básicas
-        if (pass !== confirmPass) {
-            return alert("Las contraseñas no coinciden.");
-        }
-
-        const btn = document.getElementById("submitBtn");
-        btn.innerText = "PROCESANDO ALTA...";
+        btn.innerText = "REGISTRANDO...";
         btn.disabled = true;
 
         try {
-            // 3. Crear usuario en Firebase Auth
             const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
             const user = userCredential.user;
 
-            // 4. Preparar datos según el ROL
-            const coleccion = rol === "TECNICO" ? "tecnicos" : "clientes";
-            
-            let datosPerfil = {
+            await setDoc(doc(db, rol === "TECNICO" ? "tecnicos" : "clientes", user.uid), {
                 uid: user.uid,
-                nombre: nombre,
-                email: email,
+                nombre: formData.get("nombre"),
+                correo: email,
                 rol: rol,
-                fechaRegistro: serverTimestamp(),
-                online: true
-            };
+                vehiculo: formData.get("vehiculo") || "",
+                placas: formData.get("placas") || "",
+                fechaRegistro: serverTimestamp()
+            });
 
-            // Si es Técnico, guardamos los campos adicionales de tu HTML
-            if (rol === "TECNICO") {
-                datosPerfil.cedula = formData.get("cedula");
-                datosPerfil.vehiculo = formData.get("vehiculo");
-                datosPerfil.placas = formData.get("placas");
-                datosPerfil.estado = "DISPONIBLE"; // Estado inicial
-            } else {
-                // Si es cliente, campos adicionales de cliente
-                datosPerfil.telefono = formData.get("telefono") || "";
-                datosPerfil.direccion = formData.get("direccion") || "";
-            }
-
-            // 5. Guardar en Firestore
-            await setDoc(doc(db, coleccion, user.uid), datosPerfil);
-
-            alert(`¡Registro exitoso como ${rol}!`);
-            
-            // 6. Redirección
-            window.location.href = (rol === "TECNICO") ? "area-tecnico.html" : "index.html";
+            alert("¡Registro exitoso!");
+            window.location.href = rol === "TECNICO" ? "área-tecnico.html" : "índice.html";
 
         } catch (error) {
-            console.error("Error en registro:", error);
-            let mensaje = "Error al registrar.";
-            if (error.code === "auth/email-already-in-use") mensaje = "Este correo ya está registrado.";
-            if (error.code === "auth/weak-password") mensaje = "La contraseña es muy débil.";
-            alert(mensaje);
+            console.error(error);
+            alert("Error: " + error.message);
         } finally {
             btn.innerText = "ENVIAR SOLICITUD DE ALTA";
             btn.disabled = false;
