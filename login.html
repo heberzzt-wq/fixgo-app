@@ -1,74 +1,147 @@
-<script type="module">
-    // Importamos todo desde nuestro CEREBRO CENTRAL
-    import { 
-        auth, db, googleProvider, 
-        signInWithEmailAndPassword, signInWithPopup,
-        doc, getDoc 
-    } from "./firebase.js";
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FixGo | Acceso Premium</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #050505; color: white; font-family: sans-serif; }
+        .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.08); }
+        .uber-input { background-color: #1e1e1e; border: none; color: white; transition: all 0.3s; }
+        .uber-input:focus { outline: 2px solid #6366f1; background-color: #252525; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
 
-    const msg = document.getElementById("msg");
-    const loginSection = document.getElementById("loginSection");
-    const roleSelection = document.getElementById("roleSelection");
+    <div class="max-w-md w-full">
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-black italic tracking-tighter">FIXGO<span class="text-indigo-500">&</span>FINISH</h1>
+            <p class="text-slate-500 text-[10px] font-bold uppercase tracking-[0.4em] mt-2">Ingeniería de Servicios</p>
+        </div>
 
-    // --- 1. VERIFICADOR DE ROLES (TORRE DE CONTROL) ---
-    async function verificarRol(user) {
-        if (!user) return;
-        msg.textContent = "VERIFICANDO CREDENCIALES...";
+        <div class="uber-card rounded-[2.5rem] p-10 shadow-2xl">
+            
+            <div id="loginSection">
+                <button id="loginGoogle" class="w-full bg-white text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 mb-8 shadow-xl hover:bg-slate-200 transition-all">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" class="w-5 h-5">
+                    CONTINUAR CON GOOGLE
+                </button>
 
-        // Lista de colecciones y a dónde mandamos a cada quién
-        const rutas = [
-            { col: "admins", url: "administrador.html" },
-            { col: "tecnicos", url: "área-tecnico.html" }, 
-            { col: "clientes", url: "índice.html" }
-        ];
+                <div class="relative mb-8 text-center">
+                    <hr class="border-white/5">
+                    <span class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#121212] px-4 text-[10px] text-slate-500 font-bold uppercase tracking-widest">O accede con email</span>
+                </div>
 
-        try {
-            for (const r of rutas) {
-                const snap = await getDoc(doc(db, r.col, user.uid));
-                if (snap.exists()) {
-                    console.log(`Usuario encontrado en ${r.col}`);
-                    window.location.href = r.url;
-                    return;
+                <form id="loginForm" class="space-y-6">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-500 mb-2 ml-1 uppercase tracking-widest">Correo Electrónico</label>
+                        <input type="email" id="correo" placeholder="nombre@correo.com" required class="w-full uber-input px-5 py-4 rounded-2xl outline-none text-lg">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-500 mb-2 ml-1 uppercase tracking-widest">Contraseña</label>
+                        <input type="password" id="contrasena" placeholder="••••••••" required class="w-full uber-input px-5 py-4 rounded-2xl outline-none text-lg">
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl shadow-lg hover:bg-indigo-500 transition-all uppercase tracking-tighter text-xl">
+                        Iniciar Sesión
+                    </button>
+                </form>
+            </div>
+
+            <div id="roleSelection" class="hidden text-center">
+                <h2 class="text-xl font-bold mb-4 italic">¿PERFIL NUEVO?</h2>
+                <p class="text-slate-400 text-xs mb-8 uppercase tracking-widest">Elige tu rol para completar el registro</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <a href="registro-cliente.html" class="bg-indigo-600 p-6 rounded-3xl hover:scale-105 transition-all flex flex-col items-center">
+                        <i class="fas fa-user text-2xl mb-2"></i>
+                        <span class="font-black text-[10px] block uppercase">Cliente</span>
+                    </a>
+                    <a href="registro-tecnico.html" class="bg-white text-black p-6 rounded-3xl hover:scale-105 transition-all flex flex-col items-center">
+                        <i class="fas fa-tools text-2xl mb-2"></i>
+                        <span class="font-black text-[10px] block uppercase">Técnico</span>
+                    </a>
+                </div>
+            </div>
+
+            <p id="msg" class="text-indigo-400 font-bold text-center mt-6 text-xs uppercase tracking-widest"></p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { 
+            auth, db, googleProvider, 
+            signInWithEmailAndPassword, signInWithPopup,
+            doc, getDoc 
+        } from "./firebase.js";
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const msg = document.getElementById("msg");
+            const loginSection = document.getElementById("loginSection");
+            const roleSelection = document.getElementById("roleSelection");
+            const loginForm = document.getElementById("loginForm");
+            const googleBtn = document.getElementById("loginGoogle");
+
+            async function verificarRol(user) {
+                if (!user) return;
+                if (msg) msg.textContent = "VERIFICANDO PERFIL...";
+
+                // Mapeo de colecciones y archivos de destino
+                const rutas = [
+                    { col: "admins", url: "administrador.html" },
+                    { col: "tecnicos", url: "área-tecnico.html" }, 
+                    { col: "clientes", url: "índice.html" }
+                ];
+
+                try {
+                    for (const r of rutas) {
+                        const snap = await getDoc(doc(db, r.col, user.uid));
+                        if (snap.exists()) {
+                            window.location.href = r.url;
+                            return;
+                        }
+                    }
+                    
+                    // Si no existe en ninguna colección, es un registro nuevo (Google)
+                    if (loginSection && roleSelection) {
+                        loginSection.classList.add("hidden");
+                        roleSelection.classList.remove("hidden");
+                    }
+                    if (msg) msg.textContent = "IDENTIDAD CONFIRMADA";
+                } catch (e) {
+                    console.error("Error Firestore:", e);
+                    if (msg) msg.textContent = "ERROR DE CONEXIÓN";
                 }
             }
-            
-            // Si el código llega aquí, el usuario es nuevo y no tiene rol asignado
-            loginSection.classList.add("hidden");
-            roleSelection.classList.remove("hidden");
-            msg.textContent = "USUARIO IDENTIFICADO - ELIGE TU PERFIL";
-            
-        } catch (e) {
-            console.error("Error al consultar rol:", e);
-            msg.textContent = "ERROR DE CONEXIÓN AL SERVIDOR";
-        }
-    }
 
-    // --- 2. LOGIN CON EMAIL ---
-    document.getElementById("loginForm").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        msg.textContent = "ACCEDIENDO...";
-        
-        const email = document.getElementById("correo").value;
-        const pass = document.getElementById("contrasena").value;
+            if (loginForm) {
+                loginForm.addEventListener("submit", async (e) => {
+                    e.preventDefault();
+                    if (msg) msg.textContent = "CONECTANDO...";
+                    const email = document.getElementById("correo").value;
+                    const pass = document.getElementById("contrasena").value;
+                    try {
+                        const cred = await signInWithEmailAndPassword(auth, email, pass);
+                        await verificarRol(cred.user);
+                    } catch (error) {
+                        if (msg) msg.textContent = "❌ ACCESO DENEGADO";
+                    }
+                });
+            }
 
-        try {
-            const cred = await signInWithEmailAndPassword(auth, email, pass);
-            await verificarRol(cred.user);
-        } catch (error) {
-            console.error("Error login email:", error);
-            msg.textContent = "❌ CORREO O CONTRASEÑA INCORRECTOS";
-        }
-    });
-
-    // --- 3. LOGIN CON GOOGLE (MODO POPUP PARA ALTA CONCURRENCIA) ---
-    document.getElementById("loginGoogle").addEventListener("click", async () => {
-        msg.textContent = "CONECTANDO CON GOOGLE...";
-        try {
-            const result = await signInWithPopup(auth, googleProvider);
-            await verificarRol(result.user);
-        } catch (error) {
-            console.error("Error Google:", error);
-            msg.textContent = "❌ ERROR DE AUTENTICACIÓN";
-        }
-    });
-</script>
+            if (googleBtn) {
+                googleBtn.addEventListener("click", async () => {
+                    if (msg) msg.textContent = "LLAMANDO A GOOGLE...";
+                    try {
+                        const result = await signInWithPopup(auth, googleProvider);
+                        await verificarRol(result.user);
+                    } catch (error) {
+                        if (msg) msg.textContent = "❌ ERROR DE AUTENTICACIÓN";
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
