@@ -2,8 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebas
 import { 
     getAuth, 
     createUserWithEmailAndPassword, 
-    GoogleAuthProvider, 
-    signInWithPopup 
+    GoogleAuthProvider 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { 
     getFirestore, 
@@ -12,23 +11,21 @@ import {
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// --- CONFIGURACIÓN CON TU LLAVE REAL ---
+// --- CONFIGURACIÓN CON TU CLAVE CONFIRMADA ---
 const firebaseConfig = {
-    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
+    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", // Clave verificada
     authDomain: "fixgo-app-sf2l.firebaseapp.com",
     projectId: "fixgo-app-sf2l",
     storageBucket: "fixgo-app-sf2l.appspot.com",
-    messagingSenderId: "331872151604", // ID estándar para este proyecto
+    messagingSenderId: "331872151604",
     appId: "1:331872151604:web:86786a344933a763866444"
 };
 
-// Inicialización
+// Inicializar motores
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const googleProvider = new GoogleAuthProvider();
 
-// Selección del formulario
 const registroForm = document.getElementById("registroForm");
 
 if (registroForm) {
@@ -37,7 +34,7 @@ if (registroForm) {
         const btn = document.getElementById("submitBtn");
         const formData = new FormData(registroForm);
         
-        // Datos del formulario
+        // Obtener datos del formulario
         const email = formData.get("correo");
         const pass = formData.get("contraseña");
         const nombre = formData.get("nombre");
@@ -47,16 +44,16 @@ if (registroForm) {
         const rol = registroForm.getAttribute("data-rol") || "TECNICO"; 
 
         if (btn) {
-            btn.innerText = "CREANDO CUENTA...";
+            btn.innerText = "PROCESANDO ALTA...";
             btn.disabled = true;
         }
 
         try {
-            // 1. Crear usuario en Firebase Auth
+            // 1. Crear usuario en Auth
             const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
             const user = userCredential.user;
 
-            // 2. Guardar en la colección correcta
+            // 2. Guardar en Firestore (Colección según rol)
             const coleccion = (rol === "TECNICO") ? "tecnicos" : "clientes";
             
             await setDoc(doc(db, coleccion, user.uid), {
@@ -68,22 +65,20 @@ if (registroForm) {
                 placas: placas || "",
                 rol: rol,
                 estado: "DISPONIBLE",
-                online: true,
                 fechaRegistro: serverTimestamp()
             });
 
-            console.log("Registro exitoso en Firestore");
-            alert("¡Registro exitoso!");
-            
-            // 3. Redirección
+            alert("¡Usuario registrado con éxito en FixGo!");
             window.location.href = (rol === "TECNICO") ? "área-tecnico.html" : "índice.html";
 
         } catch (error) {
-            console.error("Error en el proceso:", error);
-            let mensajeError = "Error al registrar.";
-            if (error.code === "auth/email-already-in-use") mensajeError = "Este correo ya está en uso.";
-            if (error.code === "auth/weak-password") mensajeError = "La contraseña es muy corta.";
-            alert(mensajeError);
+            console.error("Error detectado:", error);
+            // Manejo de errores amigable
+            if (error.message.includes("identity-toolkit")) {
+                alert("ERROR CRÍTICO: Debes habilitar la API de Identity Toolkit en Google Cloud Console (Mira las instrucciones en el chat).");
+            } else {
+                alert("Error de registro: " + error.message);
+            }
         } finally {
             if (btn) {
                 btn.innerText = "ENVIAR SOLICITUD DE ALTA";
