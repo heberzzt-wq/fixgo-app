@@ -7,28 +7,11 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body {
-            background-color: #050505;
-            color: white;
-            font-family: sans-serif;
-        }
-        .uber-card {
-            background-color: #121212;
-            border: 1px solid rgba(255,255,255,0.08);
-        }
-        .uber-input {
-            background-color: #1e1e1e;
-            border: none;
-            color: white;
-            transition: all 0.3s;
-        }
-        .uber-input:focus {
-            outline: 2px solid #6366f1;
-            background-color: #252525;
-        }
-        .hidden {
-            display: none !important;
-        }
+        body { background-color: #050505; color: white; font-family: sans-serif; }
+        .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.08); }
+        .uber-input { background-color: #1e1e1e; border: none; color: white; transition: all 0.3s; }
+        .uber-input:focus { outline: 2px solid #6366f1; background-color: #252525; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -87,8 +70,9 @@
 </div>
 
 <script type="module">
+    // Importaciones corregidas desde tu firebase.js centralizado
     import {
-        auth, db, googleProvider,
+        auth, db, GoogleAuthProvider,
         signInWithEmailAndPassword, signInWithPopup,
         doc, getDoc
     } from "./firebase.js";
@@ -104,50 +88,59 @@
             if (!user) return;
             msg.textContent = "VERIFICANDO PERFIL...";
 
+            // Definición de rutas según colección en Firestore
             const rutas = [
                 { col: "admins", url: "administrador.html" },
-                { col: "tecnicos", url: "área-tecnico.html" },
-                { col: "clientes", url: "índice.html" }
+                { col: "tecnicos", url: "area-tecnico.html" }, // Quitamos acento para evitar errores de URL
+                { col: "clientes", url: "index.html" }
             ];
 
             try {
                 for (const r of rutas) {
                     const snap = await getDoc(doc(db, r.col, user.uid));
                     if (snap.exists()) {
+                        msg.textContent = "ACCESO AUTORIZADO";
                         window.location.href = r.url;
                         return;
                     }
                 }
 
+                // Si no existe en ninguna colección, mostrar selección de rol
                 loginSection.classList.add("hidden");
                 roleSelection.classList.remove("hidden");
-                msg.textContent = "IDENTIDAD CONFIRMADA";
+                msg.textContent = "USUARIO NUEVO DETECTADO";
             } catch (e) {
                 console.error("Error Firestore:", e);
-                msg.textContent = "ERROR DE CONEXIÓN";
+                msg.textContent = "ERROR DE PERMISOS / DB";
             }
         }
 
+        // Login Manual
         loginForm.addEventListener("submit", async (e) => {
             e.preventDefault();
-            msg.textContent = "CONECTANDO...";
+            msg.textContent = "AUTENTICANDO...";
             const email = document.getElementById("correo").value;
             const pass = document.getElementById("contrasena").value;
+            
             try {
                 const cred = await signInWithEmailAndPassword(auth, email, pass);
                 await verificarRol(cred.user);
             } catch (error) {
-                msg.textContent = "❌ ACCESO DENEGADO";
+                console.error("Login Error:", error.code);
+                msg.textContent = "❌ CREDENCIALES INVÁLIDAS";
             }
         });
 
+        // Login Google Corregido
         googleBtn.addEventListener("click", async () => {
-            msg.textContent = "LLAMANDO A GOOGLE...";
+            msg.textContent = "ABRIENDO GOOGLE...";
             try {
-                const result = await signInWithPopup(auth, googleProvider);
+                const provider = new GoogleAuthProvider(); // Instancia local
+                const result = await signInWithPopup(auth, provider);
                 await verificarRol(result.user);
             } catch (error) {
-                msg.textContent = "❌ ERROR DE AUTENTICACIÓN";
+                console.error("Google Error:", error.code);
+                msg.textContent = "❌ ERROR AL CANCELAR O CONECTAR";
             }
         });
     });
