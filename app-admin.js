@@ -1,6 +1,6 @@
 // app-admin.js - Control Total FixGo
-import { auth, signOut } from "./firebase-auth.js";
-import { db } from "./firebase-config.js";
+import { auth, signOut } from "./firebase.js";
+import { db } from "./firebase.js";
 import {
     doc,
     getDoc,
@@ -9,7 +9,7 @@ import {
     query,
     where
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase.js";
 
 console.log("🚀 Sistema de Acción Admin FixGo Activo");
 
