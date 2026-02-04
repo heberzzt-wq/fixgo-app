@@ -12,21 +12,23 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        /* Estilo para listas y scroll personalizado */
-        #sectionTecnicos, #sectionClientes, #sectionServicios {
-            height: 500px;
+        /* Ajuste de scroll para las listas laterales */
+        #sectionTecnicos, #sectionServicios {
+            height: 550px;
             overflow-y: auto;
         }
-        /* Estilo del contenedor del mapa */
+        /* Contenedor del Mapa */
         #map {
             width: 100%;
-            height: 500px;
-            z-index: 1;
+            height: 550px;
+            z-index: 10;
         }
-        /* Scrollbar estética */
-        ::-webkit-scrollbar { width: 4px; }
+        /* Scrollbar delgada y moderna */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        .custom-marker { background: none; border: none; }
     </style>
 </head>
 
@@ -46,7 +48,7 @@
     </button>
 </header>
 
-<main class="grid grid-cols-1 lg:grid-cols-4 gap-6" id="dashboard">
+<main class="grid grid-cols-1 lg:grid-cols-4 gap-6">
     
     <div class="flex flex-col gap-4">
         <div class="flex items-center gap-2 px-2">
@@ -63,7 +65,7 @@
             <i class="fas fa-map-marked-alt text-blue-600"></i>
             <h2 class="font-black text-slate-700 uppercase text-xs tracking-widest">Geolocalización en Vivo</h2>
         </div>
-        <div id="map" class="rounded-[2.5rem] shadow-xl border-4 border-white overflow-hidden">
+        <div id="map" class="rounded-[2.5rem] shadow-xl border-4 border-white overflow-hidden bg-slate-200">
             </div>
     </div>
 
@@ -80,10 +82,10 @@
     <div class="lg:col-span-4 mt-4">
         <div class="flex items-center gap-2 px-2 mb-4">
             <i class="fas fa-user-tie text-blue-600"></i>
-            <h2 class="font-black text-slate-700 uppercase text-xs tracking-widest">Base de Clientes Registrados</h2>
+            <h2 class="font-black text-slate-700 uppercase text-xs tracking-widest">Base de Clientes</h2>
         </div>
-        <div id="sectionClientes" class="p-6 bg-white rounded-[2rem] shadow-sm border border-slate-200 flex gap-4 overflow-x-auto min-h-0">
-            <p class="text-slate-400 text-sm">Consultando base de datos...</p>
+        <div id="sectionClientes" class="p-6 bg-white rounded-[2rem] shadow-sm border border-slate-200 flex gap-4 overflow-x-auto min-h-[100px]">
+            <p class="text-slate-400 text-sm">Consultando...</p>
         </div>
     </div>
 
