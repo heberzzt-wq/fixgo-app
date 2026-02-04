@@ -10,6 +10,7 @@
         body {
             background-color: #050505;
             color: white;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
         .uber-card {
             background-color: #121212;
@@ -35,9 +36,16 @@
             border-radius: 50%;
             box-shadow: 0 0 10px #10b981;
         }
+        .animate-fade {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen pb-12">
     <header class="max-w-4xl mx-auto flex justify-between items-center p-6 border-b border-white/5">
         <div class="flex items-center gap-2">
             <div class="online-dot"></div>
@@ -67,7 +75,10 @@
             <p id="gpsStatus" class="text-center text-[11px] mt-4 text-slate-500 font-bold uppercase tracking-widest">El sistema está en pausa</p>
         </section>
 
-        <section>
+        <section id="panelAccionesTecnico" class="hidden mb-10 animate-fade">
+            </section>
+
+        <section id="contenedorBusqueda">
             <div class="flex justify-between items-center mb-6 px-2">
                 <h3 class="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Servicios en tu zona</h3>
                 <span class="text-[10px] status-badge px-3 py-1 rounded-full font-bold">REAL-TIME</span>
