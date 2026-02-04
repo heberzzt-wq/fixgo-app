@@ -8,7 +8,7 @@ import {
     createUserWithEmailAndPassword, 
     GoogleAuthProvider, 
     signInWithPopup 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-Auth.js";
 import { 
     getFirestore, 
     doc, 
