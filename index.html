@@ -7,40 +7,35 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body {
-            background-color: #050505;
+        body { background-color: #050505; }
+        .uber-card { background-color: #121212; border: 1px solid rgba(255, 255, 255, 0.1); }
+        .uber-input { background-color: #1e1e1e; border: none; color: white; }
+        .uber-input:focus { outline: 2px solid #6366f1; }
+        .gradient-uber { background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%); }
+        
+        /* Estilo para las tarjetas de servicio */
+        .service-card {
+            background: #18181b;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .uber-card {
-            background-color: #121212;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        .service-card:hover {
+            border-color: #6366f1;
+            transform: translateY(-5px);
+            background: #202023;
         }
-        .uber-input {
-            background-color: #1e1e1e;
-            border: none;
-            color: white;
+        .service-card.selected {
+            border-color: #6366f1;
+            background: rgba(99, 102, 241, 0.1);
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
         }
-        .uber-input:focus {
-            outline: 2px solid #6366f1;
-        }
-        .gradient-uber {
-            background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%);
-        }
+
         @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        .animate-fade {
-            animation: fadeIn 0.4s ease-out forwards;
-        }
-        .hidden {
-            display: none !important;
-        }
+        .animate-fade { animation: fadeIn 0.4s ease-out forwards; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body class="text-white min-h-screen">
@@ -49,25 +44,25 @@
     <h1 class="text-3xl font-black tracking-tighter italic text-white">
         FIXGO<span class="text-indigo-500">&</span>FINISH
     </h1>
-    <button id="logoutBtn" class="hidden bg-red-600/10 text-red-500 border border-red-500/30 hover:bg-red-600 hover:text-white font-bold py-2 px-6 rounded-2xl transition-all text-sm uppercase">Salir</button>
+    <button id="logoutBtn" class="hidden bg-red-600/10 text-red-500 border border-red-500/30 hover:bg-red-600 hover:text-white font-bold py-2 px-6 rounded-2xl transition-all text-sm uppercase text-[10px] tracking-widest">Salir</button>
 </header>
 
 <main class="max-w-4xl mx-auto px-4">
     <section id="heroSection" class="text-center py-12 animate-fade">
-        <h2 class="text-5xl font-black mb-4 leading-tight">Tu servicio técnico,<br>a un clic de distancia.</h2>
+        <h2 class="text-5xl font-black mb-4 leading-tight tracking-tighter">Tu servicio técnico,<br>a un clic de distancia.</h2>
         <p class="text-slate-400 mb-10 text-lg">Selecciona tu perfil para comenzar.</p>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            <a href="login.html" class="gradient-uber p-8 rounded-[2.5rem] text-white shadow-2xl hover:scale-105 transition-all group">
+            <a href="login.html" class="gradient-uber p-8 rounded-[2.5rem] text-white shadow-2xl hover:scale-105 transition-all group text-center">
                 <i class="fas fa-user-gear text-4xl mb-4 group-hover:rotate-12 transition-transform"></i>
                 <h3 class="font-black text-xl uppercase tracking-tighter">Soy Técnico</h3>
                 <p class="text-xs opacity-70 mt-1">Recibir trabajos en ruta</p>
             </a>
-            <a href="login.html" class="uber-card p-8 rounded-[2.5rem] text-white shadow-2xl hover:scale-105 transition-all group">
+            <a href="login.html" class="uber-card p-8 rounded-[2.5rem] text-white shadow-2xl hover:scale-105 transition-all group text-center">
                 <i class="fas fa-handshake text-4xl mb-4 text-indigo-500 group-hover:scale-110 transition-transform"></i>
                 <h3 class="font-black text-xl uppercase tracking-tighter">Soy Cliente</h3>
                 <p class="text-xs text-slate-500 mt-1">Solicitar reparación</p>
             </a>
-            <button onclick="window.location.href='rastreo.html'" class="bg-emerald-600 p-8 rounded-[2.5rem] text-white shadow-2xl hover:scale-105 transition-all group">
+            <button onclick="window.location.href='rastreo.html'" class="bg-emerald-600 p-8 rounded-[2.5rem] text-white shadow-2xl hover:scale-105 transition-all group text-center">
                 <i class="fas fa-map-location-dot text-4xl mb-4 group-hover:bounce transition-all"></i>
                 <h3 class="font-black text-xl uppercase tracking-tighter">Rastrear</h3>
                 <p class="text-xs opacity-70 mt-1">Ver técnico en vivo</p>
@@ -78,12 +73,37 @@
     <section id="solicitudContainer" class="hidden animate-fade">
         <div class="flex items-center gap-3 mb-8">
             <div class="w-2 h-10 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]"></div>
-            <h2 class="text-3xl font-black">Hola, <span id="nombreCliente" class="text-indigo-400 italic">...</span></h2>
+            <h2 class="text-3xl font-black">Hola, <span id="nombreCliente" class="text-indigo-400 italic text-2xl">...</span></h2>
+        </div>
+
+        <h3 class="text-[10px] font-black text-slate-500 mb-6 uppercase tracking-[0.3em] ml-2">Selecciona una categoría</h3>
+        <div id="gridServicios" class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10">
+            <div class="service-card p-6 rounded-[2rem] cursor-pointer" data-category="ELÉCTRICO">
+                <i class="fas fa-bolt text-yellow-500 text-2xl mb-3"></i>
+                <h4 class="font-black text-sm uppercase">Eléctrico</h4>
+                <p class="text-[10px] text-slate-500 mt-1">Cortos, instalaciones y tableros.</p>
+            </div>
+            <div class="service-card p-6 rounded-[2rem] cursor-pointer" data-category="AIRE AC">
+                <i class="fas fa-snowflake text-sky-400 text-2xl mb-3"></i>
+                <h4 class="font-black text-sm uppercase">Aire AC</h4>
+                <p class="text-[10px] text-slate-500 mt-1">Mantenimiento y carga de gas.</p>
+            </div>
+            <div class="service-card p-6 rounded-[2rem] cursor-pointer" data-category="PLOMERÍA">
+                <i class="fas fa-faucet text-indigo-400 text-2xl mb-3"></i>
+                <h4 class="font-black text-sm uppercase">Plomería</h4>
+                <p class="text-[10px] text-slate-500 mt-1">Fugas, bombas y tuberías.</p>
+            </div>
+            <div class="service-card p-6 rounded-[2rem] cursor-pointer" data-category="MANTENIMIENTO">
+                <i class="fas fa-tools text-emerald-400 text-2xl mb-3"></i>
+                <h4 class="font-black text-sm uppercase">General</h4>
+                <p class="text-[10px] text-slate-500 mt-1">Pintura, acabados y reparaciones.</p>
+            </div>
         </div>
 
         <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl mb-10">
-            <h3 class="text-xl font-bold mb-6 text-slate-200">¿Qué necesitas hoy?</h3>
             <form id="nuevaSolicitudForm" class="space-y-6">
+                <input type="hidden" id="categoriaSeleccionada" name="categoria" required>
+                
                 <div>
                     <label class="block text-[10px] font-black text-slate-500 mb-2 ml-1 uppercase tracking-widest">Dirección del Servicio</label>
                     <input type="text" name="direccion" placeholder="Ej: Av. Principal 456, Col. Norte" required
@@ -97,14 +117,14 @@
                 </div>
 
                 <button type="submit" class="w-full bg-white text-black font-black py-5 rounded-2xl shadow-xl hover:bg-indigo-500 hover:text-white transition-all uppercase tracking-tighter text-xl transform active:scale-95">
-                    Confirmar Solicitud
+                    Confirmar <span id="btnLabel">Servicio</span>
                 </button>
             </form>
         </div>
 
         <div class="mt-12 pb-20">
-            <h2 class="text-xl font-black mb-6 flex items-center gap-3">
-                <i class="fas fa-history text-indigo-500"></i> MIS SERVICIOS RECIENTES
+            <h2 class="text-xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter">
+                <i class="fas fa-history text-indigo-500"></i> Mis Servicios Recientes
             </h2>
             <div id="solicitudesCliente" class="space-y-4">
                 <p class="text-slate-600 text-sm italic animate-pulse">Consultando historial con el servidor...</p>
@@ -114,17 +134,49 @@
 </main>
 
 <script type="module">
-    import { auth, signOut, onAuthStateChanged } from "./firebase.js";
+    import { auth, signOut, onAuthStateChanged, db, getDoc, doc } from "./firebase.js";
 
     const logoutBtn = document.getElementById("logoutBtn");
     const heroSection = document.getElementById("heroSection");
     const solicitudContainer = document.getElementById("solicitudContainer");
+    const nombreClienteSpan = document.getElementById("nombreCliente");
 
-    onAuthStateChanged(auth, (user) => {
+    // Lógica de Selección de Categoría
+    const cards = document.querySelectorAll('.service-card');
+    const inputCategoria = document.getElementById('categoriaSeleccionada');
+    const btnLabel = document.getElementById('btnLabel');
+
+    cards.forEach(card => {
+        card.addEventListener('click', () => {
+            // Quitar clase seleccionada de todas
+            cards.forEach(c => c.classList.remove('selected'));
+            // Agregar a la clicada
+            card.classList.add('selected');
+            // Guardar valor en el input oculto
+            const cat = card.getAttribute('data-category');
+            inputCategoria.value = cat;
+            btnLabel.textContent = cat;
+        });
+    });
+
+    onAuthStateChanged(auth, async (user) => {
         if (user) {
             logoutBtn.classList.remove("hidden");
             heroSection.classList.add("hidden");
             solicitudContainer.classList.remove("hidden");
+            
+            // Intentar obtener el nombre desde Firestore si no está en el perfil de Google
+            try {
+                const userDoc = await getDoc(doc(db, "clientes", user.uid));
+                if (userDoc.exists()) {
+                    nombreClienteSpan.textContent = userDoc.data().nombre.split(' ')[0].toUpperCase();
+                } else {
+                    nombreClienteSpan.textContent = user.displayName ? user.displayName.split(' ')[0].toUpperCase() : "USUARIO";
+                }
+            } catch (e) {
+                nombreClienteSpan.textContent = "USUARIO";
+            }
+
         } else {
             logoutBtn.classList.add("hidden");
             heroSection.classList.remove("hidden");
@@ -136,7 +188,7 @@
         if (confirm("¿Estás seguro de que quieres cerrar sesión?")) {
             try {
                 await signOut(auth);
-                window.location.href = "login.html"; // Redirigir al login tras salir
+                window.location.href = "login.html";
             } catch (error) {
                 console.error("Error al salir:", error);
             }
