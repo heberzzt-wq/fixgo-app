@@ -7,7 +7,7 @@ import {
     signOut, 
     signInWithEmailAndPassword, 
     createUserWithEmailAndPassword, 
-    GoogleAuthProvider, 
+    GoogleAuthProvider
     signInWithPopup 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
