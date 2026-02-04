@@ -1,4 +1,4 @@
-// firebase.js - Módulo Centralizado FixGo
+// firebase.js - CONFIGURACIÓN FINAL FIXGO
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
     getAuth, 
@@ -22,44 +22,30 @@ import {
     orderBy, 
     limit, 
     addDoc, 
-    getDocs, // Aseguramos que getDocs esté aquí para el admin
+    getDocs, 
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+// Estos datos son los de tu Captura 368
 const firebaseConfig = {
-    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
-    authDomain: "fixgo-44e4d.firebaseapp.com",
-    projectId: "fixgo-44e4d",
-    storageBucket: "fixgo-44e4d.appspot.com",
-    messagingSenderId: "36531388043",
-    appId: "1:36531388043:web:573f00199f7d4668744093"
+  apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0",
+  authDomain: "fixgo-44e4d.firebaseapp.com",
+  projectId: "fixgo-44e4d",
+  storageBucket: "fixgo-44e4d.firebasestorage.app",
+  messagingSenderId: "1005526685116",
+  appId: "1:1005526685116:web:62f1a823ff8761da85c7b9",
+  measurementId: "G-MXNHXSY9TG"
 };
 
-// INICIALIZACIÓN ÚNICA (Línea 36 corregida)
-const firebaseApp = initializeApp(firebaseConfig); 
+// Inicialización
+const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 
+// Exportación para que login.html y app-admin.js funcionen
 export { 
-    auth, 
-    db, 
-    GoogleAuthProvider, 
-    onAuthStateChanged, 
-    signOut, 
-    signInWithEmailAndPassword, 
-    createUserWithEmailAndPassword, 
-    signInWithPopup, 
-    doc, 
-    setDoc, 
-    updateDoc, 
-    getDoc, 
-    collection, 
-    query, 
-    where, 
-    onSnapshot, 
-    orderBy, 
-    limit, 
-    addDoc, 
-    getDocs,
-    serverTimestamp 
+    auth, db, GoogleAuthProvider, onAuthStateChanged, signOut, 
+    signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, 
+    doc, setDoc, updateDoc, getDoc, collection, query, where, 
+    onSnapshot, orderBy, limit, addDoc, serverTimestamp, getDocs
 };
