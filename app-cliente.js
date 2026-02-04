@@ -1,17 +1,67 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, doc, onSnapshot, collection, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { auth, db, onAuthStateChanged } from "./firebase.js";
+import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-const firebaseConfig = {
-    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", // Asegúrate que esta sea la de fixgo-44e4d
-    authDomain: "fixgo-44e4d.firebaseapp.com",
-    projectId: "fixgo-44e4d",
-    storageBucket: "fixgo-44e4d.appspot.com",
-    messagingSenderId: "36531388043", // Revisa este dato en tu consola
-    appId: "1:36531388043:web:573f00199f7d4668744093" // Revisa este dato en tu consola
-};
+let map, marker;
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export { GoogleAuthProvider, doc, onSnapshot, collection, query, where };
+// 1. FORZAR INICIALIZACIÓN (Independiente de Firebase)
+function initMap() {
+    const mapDiv = document.getElementById("map");
+    if (!mapDiv) return console.error("No se encontró el div #map");
+
+    // Coordenadas por defecto (Cancún)
+    const defaultPos = { lat: 21.1619, lng: -86.8515 };
+
+    map = new google.maps.Map(mapDiv, {
+        center: defaultPos,
+        zoom: 15,
+        disableDefaultUI: true,
+        mapId: "YOUR_MAP_ID" // Opcional, pero ayuda con AdvancedMarkers
+    });
+
+    marker = new google.maps.Marker({
+        position: defaultPos,
+        map: map,
+        title: "Buscando técnico...",
+        icon: { 
+            url: "https://cdn-icons-png.flaticon.com/512/1048/1048329.png", 
+            scaledSize: new google.maps.Size(40, 40) 
+        }
+    });
+    console.log("Mapa cargado correctamente.");
+}
+
+// Asegurar que el mapa cargue apenas abra la página
+window.onload = initMap;
+
+// 2. ESCUCHA DE DATOS (Solo si existen)
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        console.log("Usuario detectado, buscando servicios...");
+        // Aquí llamas a tu función de buscarServicioActivo()
+    } else {
+        console.warn("Sin sesión. Mapa en modo espera.");
+    }
+});
+
+// Función de rastreo protegida contra errores de datos vacíos
+export function rastrearTecnico(tecnicoId) {
+    if (!tecnicoId) return;
+
+    onSnapshot(doc(db, "tecnicos", tecnicoId), (docSnap) => {
+        if (!docSnap.exists()) {
+            console.error("El técnico no existe en la base de datos.");
+            return;
+        }
+
+        const data = docSnap.data();
+        const pos = { 
+            lat: parseFloat(data.lat || data.ubicacion?.lat), 
+            lng: parseFloat(data.lng || data.ubicacion?.lng) 
+        };
+
+        if (pos.lat && pos.lng) {
+            marker.setPosition(pos);
+            map.panTo(pos);
+        }
+    });
+}
