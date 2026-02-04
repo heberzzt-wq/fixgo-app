@@ -1,63 +1,90 @@
 import { auth, db, onAuthStateChanged } from "./firebase.js";
-import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { 
+    doc, 
+    onSnapshot, 
+    collection, 
+    query, 
+    where, 
+    orderBy, 
+    limit, 
+    getDocs 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 let map, marker;
 
-// 1. FORZAR INICIALIZACIÓN (Independiente de Firebase)
+// 1. INICIALIZACIÓN DEL MAPA
 function initMap() {
     const mapDiv = document.getElementById("map");
-    if (!mapDiv) return console.error("No se encontró el div #map");
+    if (!mapDiv) return;
 
-    // Coordenadas por defecto (Cancún)
-    const defaultPos = { lat: 21.1619, lng: -86.8515 };
+    const defaultPos = { lat: 21.1619, lng: -86.8515 }; // Cancún por defecto
 
     map = new google.maps.Map(mapDiv, {
         center: defaultPos,
-        zoom: 15,
+        zoom: 16,
         disableDefaultUI: true,
-        mapId: "YOUR_MAP_ID" // Opcional, pero ayuda con AdvancedMarkers
+        styles: [ // Estilo Dark para que combine con tu UI
+            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+            { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] }
+        ]
     });
 
     marker = new google.maps.Marker({
         position: defaultPos,
         map: map,
-        title: "Buscando técnico...",
         icon: { 
             url: "https://cdn-icons-png.flaticon.com/512/1048/1048329.png", 
-            scaledSize: new google.maps.Size(40, 40) 
+            scaledSize: new google.maps.Size(50, 50) 
         }
     });
-    console.log("Mapa cargado correctamente.");
 }
 
-// Asegurar que el mapa cargue apenas abra la página
 window.onload = initMap;
 
-// 2. ESCUCHA DE DATOS (Solo si existen)
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        console.log("Usuario detectado, buscando servicios...");
-        // Aquí llamas a tu función de buscarServicioActivo()
-    } else {
-        console.warn("Sin sesión. Mapa en modo espera.");
-    }
-});
+// 2. BUSCAR SERVICIO ACTIVO DEL CLIENTE
+async function buscarServicioActivo(uid) {
+    const q = query(
+        collection(db, "solicitudes"),
+        where("clienteId", "==", uid),
+        orderBy("fechaCreacion", "desc"),
+        limit(1)
+    );
 
-// Función de rastreo protegida contra errores de datos vacíos
-export function rastrearTecnico(tecnicoId) {
-    if (!tecnicoId) return;
+    // Escuchar cambios en la solicitud (por si el admin asigna técnico mientras el cliente ve el mapa)
+    onSnapshot(q, (snapshot) => {
+        if (!snapshot.empty) {
+            const solicitud = snapshot.docs[0].data();
+            actualizarPanelUI(solicitud);
 
-    onSnapshot(doc(db, "tecnicos", tecnicoId), (docSnap) => {
-        if (!docSnap.exists()) {
-            console.error("El técnico no existe en la base de datos.");
-            return;
+            if (solicitud.tecnicoId) {
+                rastrearTecnico(solicitud.tecnicoId);
+            } else {
+                document.getElementById("estadoTecnico").innerText = "BUSCANDO TÉCNICO...";
+            }
         }
+    });
+}
 
-        const data = docSnap.data();
+// 3. RASTREO EN TIEMPO REAL DEL TÉCNICO
+export function rastrearTecnico(tecnicoId) {
+    onSnapshot(doc(db, "tecnicos", tecnicoId), (docSnap) => {
+        if (!docSnap.exists()) return;
+
+        const t = docSnap.data();
         const pos = { 
-            lat: parseFloat(data.lat || data.ubicacion?.lat), 
-            lng: parseFloat(data.lng || data.ubicacion?.lng) 
+            lat: parseFloat(t.lat || t.ubicacion?.lat), 
+            lng: parseFloat(t.lng || t.ubicacion?.lng) 
         };
+
+        // Actualizar UI del técnico en el panel
+        document.getElementById("nombreTecnico").innerText = t.nombre || "Técnico FixGo";
+        document.getElementById("vehiculoTecnico").innerText = `${t.vehiculo || 'Unidad'} | ${t.placas || 'S/P'}`;
+        
+        if (t.telefono) {
+            document.getElementById("btnLlamar").href = `tel:${t.telefono}`;
+        }
 
         if (pos.lat && pos.lng) {
             marker.setPosition(pos);
@@ -65,3 +92,33 @@ export function rastrearTecnico(tecnicoId) {
         }
     });
 }
+
+// 4. ACTUALIZAR ESTADOS EN EL PANEL
+function actualizarPanelUI(solicitud) {
+    const txtEstado = document.getElementById("estadoTecnico");
+    const dot = document.getElementById("statusDot");
+    const badge = document.getElementById("badgeCategoria");
+    const iconBox = document.getElementById("iconContainer");
+
+    txtEstado.innerText = solicitud.estado;
+    badge.innerText = solicitud.categoria || "GRAL";
+
+    // Cambiar colores según estado
+    if (solicitud.estado === "EN_CAMINO") {
+        txtEstado.classList.add("text-indigo-400");
+        dot.className = "w-2 h-2 rounded-full bg-indigo-400 animate-ping";
+        iconBox.classList.replace("bg-indigo-600", "bg-emerald-500");
+    } else if (solicitud.estado === "FINALIZADO") {
+        txtEstado.className = "text-emerald-400 font-black";
+        dot.className = "w-2 h-2 rounded-full bg-emerald-400";
+    }
+}
+
+// 5. OBSERVAR SESIÓN
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        buscarServicioActivo(user.uid);
+    } else {
+        window.location.href = "login.html";
+    }
+});
