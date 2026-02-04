@@ -21,7 +21,7 @@ export {
     onSnapshot, orderBy, limit, addDoc, serverTimestamp,
     getDocs // <--- Y AGREGA ESTO AQUÍ TAMBIÉN
 };
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
 
 const firebaseConfig = {
     apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
