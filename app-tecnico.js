@@ -1,4 +1,4 @@
-import { auth, db } from "./firebase-auth.js";
+import { auth, db } from "./firebase.js";
 import { 
     doc, 
     updateDoc, 
@@ -10,7 +10,7 @@ import {
     orderBy, 
     getDoc 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { onAuthStateChanged, signOut } from "./firebase-auth.js";
+import { onAuthStateChanged, signOut } from "./firebase.js";
 
 const getEl = (id) => document.getElementById(id);
 let watchId = null;
