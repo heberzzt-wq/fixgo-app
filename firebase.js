@@ -34,15 +34,16 @@ const firebaseConfig = {
     appId: "1:36531388043:web:573f00199f7d4668744093"
 };
 
+// Inicializar
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// EXPORTACIÓN LIMPIA
+// Exportación corregida: Exportamos la CLASE GoogleAuthProvider, no una instancia.
 export { 
     auth, 
     db, 
-    GoogleAuthProvider, // Exportamos la clase original, no la instancia
+    GoogleAuthProvider, 
     onAuthStateChanged, 
     signOut, 
     signInWithEmailAndPassword, 
