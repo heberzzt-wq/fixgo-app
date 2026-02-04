@@ -42,7 +42,7 @@ const app = initializeApp(firebase.js);
 // Inicializar servicios de Firebase
 const auth = getAuth(app);
 const db = getFirestore(app);
-const googleProvider = new GoogleAuthProvider();
+GoogleAuthProvider();
 
 // Exportar funciones y servicios centrales
 export { 
