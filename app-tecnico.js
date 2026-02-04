@@ -1,18 +1,7 @@
-// app-tecnico.js - VERSIÓN UNIFICADA Y CORREGIDA
+// app-tecnico.js - VERSIÓN UNIFICADA
 import { 
-    auth, 
-    db, 
-    onAuthStateChanged, 
-    signOut, 
-    doc, 
-    getDoc, 
-    setDoc, 
-    updateDoc, 
-    collection, 
-    query, 
-    where, 
-    onSnapshot, 
-    serverTimestamp 
+    auth, db, onAuthStateChanged, signOut, doc, getDoc, setDoc, 
+    updateDoc, collection, query, where, onSnapshot, serverTimestamp 
 } from "./firebase.js";
 
 const getEl = (id) => document.getElementById(id);
@@ -30,7 +19,6 @@ onAuthStateChanged(auth, async (user) => {
             await registrarTecnicoPredeterminado(tecRef);
         }
         
-        // Ejecución de las dos funciones clave
         escucharSolicitudesDisponibles();
         escucharMiServicioActivo(user.uid);
     } else {
@@ -93,16 +81,12 @@ async function actualizarUbicacion(pos) {
 
 function manejarErrorGPS(err) { console.warn("Señal GPS débil...", err); }
 
-// --- 3. ESCUCHA DE SOLICITUDES DISPONIBLES ---
+// --- 3. SOLICITUDES DISPONIBLES ---
 function escucharSolicitudesDisponibles() {
     const list = getEl("listaServicios");
     if (!list) return;
 
-    // Lupa: Eliminamos el orderBy para evitar el error de índices compuestos
-    const q = query(
-        collection(db, "solicitudes"), 
-        where("estado", "==", "SOLICITADO")
-    );
+    const q = query(collection(db, "solicitudes"), where("estado", "==", "SOLICITADO"));
 
     onSnapshot(q, (snapshot) => {
         list.innerHTML = snapshot.empty ? '<div class="text-center py-10 text-slate-600 text-sm italic">Buscando solicitudes cercanas...</div>' : '';
@@ -147,19 +131,14 @@ window.aceptarServicio = async (id) => {
     }
 };
 
-// --- 4. PANEL DE CONTROL DINÁMICO (CORREGIDO SIN ERROR DE ÍNDICE) ---
+// --- 4. PANEL DE CONTROL DINÁMICO ---
 function escucharMiServicioActivo(uid) {
     const panelAcciones = getEl("panelAccionesTecnico");
     const contenedorBusqueda = getEl("contenedorBusqueda");
 
-    // Lupa: Consulta simple para evitar el error de Firebase
-    const q = query(
-        collection(db, "solicitudes"), 
-        where("tecnicoId", "==", uid)
-    );
+    const q = query(collection(db, "solicitudes"), where("tecnicoId", "==", uid));
 
     onSnapshot(q, (snapshot) => {
-        // Filtramos manualmente en JS para no saturar a Firebase
         const servicioActivo = snapshot.docs.find(doc => {
             const st = doc.data().estado;
             return st === "EN_CAMINO" || st === "EN_SITIO";
