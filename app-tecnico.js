@@ -30,6 +30,7 @@ onAuthStateChanged(auth, async (user) => {
             await registrarTecnicoPredeterminado(tecRef);
         }
         
+        // Iniciamos los escuchas de tiempo real
         escucharSolicitudesDisponibles();
         escucharMiServicioActivo(user.uid);
     } else {
@@ -98,7 +99,7 @@ function escucharSolicitudesDisponibles() {
     const list = getEl("listaServicios");
     if (!list) return;
 
-    // LUPA: Quitamos orderBy para que las solicitudes carguen sin necesidad de crear índices manuales
+    // LUPA: Query limpia sin orderBy para evitar errores de índice y asegurar carga inmediata
     const q = query(
         collection(db, "solicitudes"), 
         where("estado", "==", "SOLICITADO")
@@ -154,14 +155,14 @@ function escucharMiServicioActivo(uid) {
     const panelAcciones = getEl("panelAccionesTecnico");
     const contenedorBusqueda = getEl("contenedorBusqueda");
 
-    // LUPA: Simplificamos la query para evitar errores de índices compuestos
+    // LUPA: Filtramos por tecnicoId y gestionamos los estados en el cliente
     const q = query(
         collection(db, "solicitudes"), 
         where("tecnicoId", "==", uid)
     );
 
     onSnapshot(q, (snapshot) => {
-        // Buscamos el servicio que esté activo en este momento
+        // Buscamos manualmente si hay alguno en camino o en sitio
         const activo = snapshot.docs.find(doc => {
             const st = doc.data().estado;
             return st === "EN_CAMINO" || st === "EN_SITIO";
@@ -191,6 +192,8 @@ function escucharMiServicioActivo(uid) {
                 </div>
             `;
         }
+    }, (error) => {
+        console.error("Error en servicio activo:", error);
     });
 }
 
