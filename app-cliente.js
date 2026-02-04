@@ -76,7 +76,7 @@ function buscarServicioActivo() {
             if (servicio.tecnicoId) rastrearTecnico(servicio.tecnicoId);
         } else {
             console.log("No tienes solicitudes, pero rastrearemos a Jonathan para la demo.");
-            rastrearTecnico("JFQnmY9b1GWy9rnE7VaXIICj0pF3");
+            rastrearTecnico();
         }
     });
 }
