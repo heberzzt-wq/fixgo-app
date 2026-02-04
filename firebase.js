@@ -48,7 +48,7 @@ GoogleAuthProvider();
 export { 
     auth, 
     db, 
-    googleAuthProvider, 
+    googleProvider, 
     onAuthStateChanged, 
     signOut, 
     signInWithEmailAndPassword, 
