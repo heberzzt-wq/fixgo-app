@@ -1,123 +1,92 @@
-import { 
-    auth, 
-    db, 
-    googleProvider, 
-    createUserWithEmailAndPassword, 
-    signInWithPopup 
-} from "./firebase-auth.js"; // Cambiado para que coincida con tu archivo central
-import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import {
+    auth,
+    db,
+    googleProvider,
+    createUserWithEmailAndPassword,
+    signInWithPopup,
+    doc,
+    setDoc,
+    getDoc
+} from "./firebase.js";
 
 // Detectar formulario
 const form = document.querySelector("form");
 if (!form) throw new Error("Formulario no encontrado");
 
 const rol = form.dataset.rol || "CLIENTE";
+const submitBtn = document.getElementById("submitBtn");
+const googleBtn = document.getElementById("loginGoogle");
 
-// Definir campos según el rol
+// Campos
 const camposTecnico = ["nombre", "cedula", "vehiculo", "placas", "correo", "contraseña", "confirmarContraseña"];
 const camposCliente = ["nombre", "telefono", "direccion", "correo"];
 const campos = rol === "TECNICO" ? camposTecnico : camposCliente;
 
-const submitBtn = document.getElementById("submitBtn");
-const googleBtn = document.getElementById("loginGoogle");
+// Registro Email
+form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Registrando...";
 
-// Función para registrar usuarios por Email/Password
-if (submitBtn) {
-    form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        submitBtn.disabled = true;
-        submitBtn.textContent = "Registrando...";
+    try {
+        const data = {};
+        campos.forEach(c => {
+            const input = form.querySelector(`[name="${c}"]`);
+            if (input) data[c] = input.value.trim();
+        });
 
-        try {
-            const data = {};
-            campos.forEach(c => {
-                const input = form.querySelector(`[name="${c}"]`);
-                if (input) data[c] = input.value.trim();
-            });
+        if (rol === "TECNICO" && data.contraseña !== data.confirmarContraseña) {
+            throw new Error("Las contraseñas no coinciden");
+        }
 
-            if (rol === "TECNICO" && data.contraseña !== data.confirmarContraseña) {
-                throw new Error("Las contraseñas no coinciden");
-            }
+        const cred = await createUserWithEmailAndPassword(
+            auth,
+            data.correo,
+            data.contraseña || "FixGo123!"
+        );
 
-            const cred = await createUserWithEmailAndPassword(
-                auth,
-                data.correo,
-                data.contraseña || "TempPass123!"
-            );
+        const user = cred.user;
+        const col = rol === "TECNICO" ? "tecnicos" : "clientes";
 
-            const user = cred.user;
-            const firestoreData = {
+        await setDoc(doc(db, col, user.uid), {
+            uid: user.uid,
+            rol,
+            nombre: data.nombre || "",
+            correo: data.correo,
+            creadoEn: new Date().toISOString()
+        });
+
+        window.location.href = rol === "TECNICO" ? "area-tecnico.html" : "index.html";
+
+    } catch (err) {
+        alert("❌ " + err.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = "ENVIAR";
+    }
+});
+
+// Registro Google
+googleBtn?.addEventListener("click", async () => {
+    try {
+        const res = await signInWithPopup(auth, googleProvider);
+        const user = res.user;
+        const col = rol === "TECNICO" ? "tecnicos" : "clientes";
+
+        const ref = doc(db, col, user.uid);
+        const snap = await getDoc(ref);
+
+        if (!snap.exists()) {
+            await setDoc(ref, {
                 uid: user.uid,
                 rol,
-                estado: "ACTIVO",
-                creadoEn: new Date().toISOString(),
-                nombre: data.nombre || "",
-                correo: data.correo || ""
-            };
-
-            if (rol === "TECNICO") {
-                firestoreData.cedula = data.cedula || "";
-                firestoreData.vehiculo = data.vehiculo || "";
-                firestoreData.placas = data.placas || "";
-
-                // Geolocalización opcional para técnicos
-                if (navigator.geolocation) {
-                    try {
-                        const pos = await new Promise((resolve, reject) => 
-                            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
-                        );
-                        firestoreData.lat = pos.coords.latitude;
-                        firestoreData.lng = pos.coords.longitude;
-                    } catch (geoErr) {
-                        console.warn("No se pudo obtener ubicación inicial:", geoErr);
-                    }
-                }
-            }
-
-            const col = rol === "TECNICO" ? "tecnicos" : "clientes";
-            await setDoc(doc(db, col, user.uid), firestoreData);
-
-            alert("✅ Registro exitoso");
-            window.location.href = rol === "TECNICO" ? "area-tecnico.html" : "index.html";
-
-        } catch (e) {
-            alert("❌ " + e.message);
-            submitBtn.disabled = false;
-            submitBtn.textContent = "ENVIAR";
+                nombre: user.displayName || "",
+                correo: user.email,
+                creadoEn: new Date().toISOString()
+            });
         }
-    });
-}
 
-// Función para registro/autenticación con Google
-if (googleBtn) {
-    googleBtn.addEventListener("click", async () => {
-        try {
-            const res = await signInWithPopup(auth, googleProvider);
-            const user = res.user;
-            const col = rol === "TECNICO" ? "tecnicos" : "clientes";
-
-            const docRef = doc(db, col, user.uid);
-            const docSnap = await getDoc(docRef);
-
-            if (!docSnap.exists()) {
-                await setDoc(docRef, {
-                    uid: user.uid,
-                    rol,
-                    estado: "ACTIVO",
-                    creadoEn: new Date().toISOString(),
-                    nombre: user.displayName || "",
-                    correo: user.email || ""
-                });
-
-                if (rol === "TECNICO") {
-                    alert("Bienvenido. Por favor completa tus datos de vehículo en tu perfil.");
-                }
-            }
-
-            window.location.href = rol === "TECNICO" ? "area-tecnico.html" : "index.html";
-        } catch (e) {
-            console.error("Error Google:", e);
-            alert("❌ " + e.message);
-        }
-    });
-}
+        window.location.href = rol === "TECNICO" ? "area-tecnico.html" : "index.html";
+    } catch (err) {
+        alert("❌ " + err.message);
+    }
+});
