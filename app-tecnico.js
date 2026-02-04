@@ -16,7 +16,7 @@ import { onAuthStateChanged, signOut } from "./firebase.js";
 const getEl = (id) => document.getElementById(id);
 let watchId = null;
 
-// Monitor de sesión e inicialización
+// --- 1. MONITOR DE SESIÓN ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         const tecRef = doc(db, "tecnicos", user.uid);
@@ -28,10 +28,8 @@ onAuthStateChanged(auth, async (user) => {
             await registrarTecnicoPredeterminado(tecRef);
         }
         
-        // Iniciamos la escucha dual: solicitudes nuevas y mi servicio actual
         escucharSolicitudesDisponibles();
         escucharMiServicioActivo(user.uid);
-
     } else {
         window.location.href = "login.html";
     }
@@ -51,7 +49,7 @@ async function registrarTecnicoPredeterminado(tecRef) {
     });
 }
 
-// --- CONTROL GPS (Mantenido de tu original) ---
+// --- 2. CONTROL GPS (Optimizado) ---
 const btnGPS = getEl("btnGps");
 const gpsStatus = getEl("gpsStatus");
 
@@ -65,16 +63,17 @@ if (btnGPS) {
 function iniciarRastreoGPS() {
     if (!navigator.geolocation) return alert("GPS no soportado");
     watchId = navigator.geolocation.watchPosition(actualizarUbicacion, manejarErrorGPS, { enableHighAccuracy: true });
+    
     btnGPS.innerHTML = '<i class="fas fa-broadcast-tower animate-pulse"></i> <span>RASTREO ACTIVO</span>';
     btnGPS.className = "w-full py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 bg-emerald-500 text-white shadow-lg shadow-emerald-500/20";
     if (gpsStatus) gpsStatus.innerText = "TRANSMITIENDO EN TIEMPO REAL";
 }
 
 function detenerRastreoGPS() {
-    navigator.geolocation.clearWatch(watchId);
+    if (watchId) navigator.geolocation.clearWatch(watchId);
     watchId = null;
     btnGPS.innerHTML = '<i class="fas fa-location-arrow"></i> <span>ACTIVAR RASTREO GPS</span>';
-    btnGPS.className = "w-full py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 bg-white text-black";
+    btnGPS.className = "w-full py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 bg-white text-black btn-glow";
     if (gpsStatus) gpsStatus.innerText = "EL SISTEMA ESTÁ EN PAUSA";
 }
 
@@ -90,16 +89,14 @@ async function actualizarUbicacion(pos) {
     }
 }
 
-function manejarErrorGPS(err) { console.warn("Esperando señal GPS...", err); }
+function manejarErrorGPS(err) { console.warn("Señal GPS débil...", err); }
 
-// --- FLUJO DE AUTO-ASIGNACIÓN (UBER STYLE) ---
+// --- 3. FLUJO DE TRABAJO (AUTO-ASIGNACIÓN) ---
 
-// 1. Escuchar solicitudes que nadie ha tomado
 function escucharSolicitudesDisponibles() {
     const list = getEl("listaServicios");
     if (!list) return;
 
-    // Filtramos por "SOLICITADO" (que es el estado inicial del cliente)
     const q = query(
         collection(db, "solicitudes"), 
         where("estado", "==", "SOLICITADO"), 
@@ -107,23 +104,20 @@ function escucharSolicitudesDisponibles() {
     );
 
     onSnapshot(q, (snapshot) => {
-        // Si el técnico ya está en un servicio, no mostramos la lista para evitar distracciones
-        list.innerHTML = snapshot.empty ? '<div class="text-center py-10 text-slate-600 text-sm italic">Esperando nuevas solicitudes...</div>' : '';
+        list.innerHTML = snapshot.empty ? '<div class="text-center py-10 text-slate-600 text-sm italic">Buscando solicitudes cercanas...</div>' : '';
         
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
             const card = document.createElement("div");
             card.className = "uber-card p-6 rounded-[2rem] mb-4 animate-fade border border-white/5";
             card.innerHTML = `
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <span class="bg-indigo-500/10 text-indigo-400 text-[9px] font-black px-2 py-1 rounded-full uppercase">${data.categoria || 'GENERAL'}</span>
-                        <p class="text-lg font-bold text-white mt-2">${data.direccion}</p>
-                        <p class="text-slate-400 text-xs">${data.descripcion}</p>
-                    </div>
+                <div class="mb-4">
+                    <span class="status-badge text-[9px] font-black px-2 py-1 rounded-full uppercase">${data.categoria || 'GENERAL'}</span>
+                    <p class="text-lg font-bold text-white mt-2">${data.direccion}</p>
+                    <p class="text-slate-400 text-xs">${data.descripcion || ''}</p>
                 </div>
-                <button onclick="aceptarServicio('${docSnap.id}')" class="w-full bg-indigo-600 text-white font-black py-4 rounded-xl text-xs uppercase hover:bg-white hover:text-black transition-all shadow-lg">
-                    Aceptar y Ver Mapa
+                <button onclick="aceptarServicio('${docSnap.id}')" class="w-full bg-indigo-600 text-white font-black py-4 rounded-xl text-xs uppercase hover:bg-white hover:text-black transition-all">
+                    Aceptar Servicio
                 </button>
             `;
             list.appendChild(card);
@@ -131,34 +125,31 @@ function escucharSolicitudesDisponibles() {
     });
 }
 
-// 2. Función global para tomar el servicio
 window.aceptarServicio = async (id) => {
     const user = auth.currentUser;
     try {
-        // Actualizamos la solicitud: Le ponemos el técnico y cambiamos el estado
         await updateDoc(doc(db, "solicitudes", id), {
             estado: "EN_CAMINO",
             tecnicoId: user.uid,
             fechaAceptado: serverTimestamp()
         });
         
-        // Marcamos al técnico como ocupado
         await updateDoc(doc(db, "tecnicos", user.uid), { 
             estado: "EN SERVICIO",
             servicioActualId: id 
         });
 
-        alert("¡Servicio asignado! Dirígete a la ubicación.");
+        alert("¡Servicio aceptado!");
     } catch (e) {
-        console.error("Error al aceptar:", e);
-        alert("Este servicio ya no está disponible.");
+        console.error(e);
+        alert("Error: El servicio ya no está disponible.");
     }
 };
 
-// 3. Escuchar MI SERVICIO ACTIVO (Para mostrar botones de Llegué/Finalizar)
+// --- 4. PANEL DE CONTROL DINÁMICO ---
 function escucharMiServicioActivo(uid) {
-    const panelAcciones = getEl("panelAccionesTecnico"); // Asegúrate de tener este ID en tu HTML
-    if (!panelAcciones) return;
+    const panelAcciones = getEl("panelAccionesTecnico");
+    const contenedorBusqueda = getEl("contenedorBusqueda"); // Usamos el ID que pusimos en el HTML
 
     const q = query(
         collection(db, "solicitudes"), 
@@ -168,25 +159,25 @@ function escucharMiServicioActivo(uid) {
 
     onSnapshot(q, (snapshot) => {
         if (snapshot.empty) {
-            panelAcciones.classList.add("hidden");
-            getEl("listaServicios").classList.remove("hidden");
+            if (panelAcciones) panelAcciones.classList.add("hidden");
+            if (contenedorBusqueda) contenedorBusqueda.classList.remove("hidden");
         } else {
-            panelAcciones.classList.remove("hidden");
-            getEl("listaServicios").classList.add("hidden");
+            if (panelAcciones) panelAcciones.classList.remove("hidden");
+            if (contenedorBusqueda) contenedorBusqueda.classList.add("hidden");
             
             const serv = snapshot.docs[0].data();
             const servId = snapshot.docs[0].id;
             
             panelAcciones.innerHTML = `
-                <div class="bg-zinc-900 p-6 rounded-[2.5rem] border border-indigo-500/30">
-                    <h3 class="text-xs font-black text-indigo-400 uppercase tracking-widest mb-4">Servicio en Curso</h3>
-                    <p class="text-white font-bold mb-1">${serv.direccion}</p>
-                    <p class="text-slate-500 text-xs mb-6">${serv.descripcion}</p>
+                <div class="uber-card p-8 rounded-[2.5rem] border border-indigo-500/40 animate-fade">
+                    <h3 class="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-4">Trabajo en Curso</h3>
+                    <p class="text-white font-bold text-xl leading-tight mb-2">${serv.direccion}</p>
+                    <p class="text-slate-500 text-xs mb-8 italic">${serv.descripcion || ''}</p>
                     
-                    <div class="grid grid-cols-1 gap-3">
+                    <div class="grid grid-cols-1 gap-4">
                         ${serv.estado === 'EN_CAMINO' ? 
-                            `<button onclick="actualizarEstadoFlujo('${servId}', 'EN_SITIO')" class="bg-white text-black font-black py-4 rounded-2xl uppercase text-sm">Ya llegué al sitio</button>` : 
-                            `<button onclick="actualizarEstadoFlujo('${servId}', 'FINALIZADO')" class="bg-emerald-500 text-white font-black py-4 rounded-2xl uppercase text-sm">Finalizar Trabajo</button>`
+                            `<button onclick="actualizarEstadoFlujo('${servId}', 'EN_SITIO')" class="bg-white text-black font-black py-5 rounded-2xl uppercase text-sm shadow-lg active:scale-95 transition-transform">Ya llegué al sitio</button>` : 
+                            `<button onclick="actualizarEstadoFlujo('${servId}', 'FINALIZADO')" class="bg-emerald-500 text-white font-black py-5 rounded-2xl uppercase text-sm shadow-lg active:scale-95 transition-transform">Finalizar Trabajo</button>`
                         }
                     </div>
                 </div>
@@ -195,7 +186,6 @@ function escucharMiServicioActivo(uid) {
     });
 }
 
-// 4. Función para mover el flujo de estados
 window.actualizarEstadoFlujo = async (id, nuevoEstado) => {
     try {
         await updateDoc(doc(db, "solicitudes", id), { 
@@ -208,14 +198,13 @@ window.actualizarEstadoFlujo = async (id, nuevoEstado) => {
                 estado: "DISPONIBLE",
                 servicioActualId: null 
             });
-            alert("¡Trabajo completado con éxito!");
+            alert("¡Servicio completado!");
         }
     } catch (e) {
         console.error(e);
     }
 };
 
-// Logout
 if (getEl("logoutBtn")) {
     getEl("logoutBtn").onclick = () => signOut(auth);
 }
