@@ -9,7 +9,7 @@ import {
     query,
     where
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase.js";
 
 console.log("🚀 Sistema de Acción Admin FixGo Activo");
 
