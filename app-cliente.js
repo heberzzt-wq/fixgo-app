@@ -58,7 +58,7 @@ onAuthStateChanged(auth, async (user) => {
         console.warn("No hay usuario logueado, pero mantenemos la vista de mapa.");
         if (estadoTecnicoEl) estadoTecnicoEl.innerText = "Modo Visualización Activo";
         // Prueba de seguimiento con una ID de técnico fijo
-        rastrearTecnico("JFQnmY9b1GWy9rnE7VaXIICj0pF3");
+        rastrearTecnico();
     }
 });
 
