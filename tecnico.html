@@ -120,10 +120,7 @@
             </div>
         </div>
     </main>
-
-    <script type="module">
-        import { observarAuth } from './js/firebase.js';
-        
+    
         observarAuth((user) => {
             if (user) {
                 document.getElementById('userName').textContent = user.nombre || 'Socio FixGo';
