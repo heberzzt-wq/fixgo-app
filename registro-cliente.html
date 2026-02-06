@@ -1,85 +1,38 @@
-// app-registro-universal.js
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>FixGo | Registro Cliente</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen">
 
-import {
-    auth,
-    db,
-    googleProvider,
-    signInWithPopup,
-    createUserWithEmailAndPassword,
-    doc,
-    setDoc,
-    serverTimestamp
-} from "./firebase.js";
+<div class="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full">
+  <h1 class="text-xl font-black mb-6 text-center">Registro Cliente</h1>
 
-const registroForm = document.getElementById("clienteForm");
-const googleBtn = document.getElementById("loginGoogle");
-const rol = registroForm.getAttribute("data-rol") || "CLIENTES"; // Define roles: CLIENTE o TECNICO
+  <input id="email" placeholder="Correo" class="w-full mb-3 p-3 border rounded-xl">
+  <input id="password" type="password" placeholder="Contraseña"
+         class="w-full mb-4 p-3 border rounded-xl">
 
-// --- REGISTRO CON EMAIL Y CONTRASEÑA ---
-registroForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const submitBtn = document.getElementById("submitBtn");
-    const formData = new FormData(registroForm);
+  <button id="btnRegistro"
+    class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">
+    Crear Cuenta
+  </button>
+</div>
 
-    const email = formData.get("correo");
-    const password = "FixGo" + (formData.get("telefono") || '').slice(-4); // Contraseña temporal
+<script type="module">
+import { registrarUsuario } from "./firebase.js";
 
-    toggleButtonState(submitBtn, true, "CREANDO CUENTA...");
+btnRegistro.onclick = async () => {
+  try {
+    await registrarUsuario(email.value, password.value, "cliente");
+    location.href = "index.html";
+  } catch {
+    alert("Error al registrar");
+  }
+};
+</script>
 
-    try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-
-        await guardarEnFirestore(user, {
-            nombre: formData.get("nombre"),
-            telefono: formData.get("telefono"),
-            direccion: formData.get("direccion"),
-            correo: email,
-            rol: rol,
-            uid: user.uid
-        });
-
-        alert("¡Cuenta creada con éxito! Tu contraseña temporal es: " + password);
-        window.location.href = "index.html";
-    } catch (error) {
-        console.error("Error en registro:", error);
-        alert("Error: El correo ya existe o los datos son inválidos.");
-    } finally {
-        toggleButtonState(submitBtn, false, "CREAR MI CUENTA");
-    }
-});
-
-// --- REGISTRO CON GOOGLE ---
-googleBtn.addEventListener("click", async () => {
-    try {
-        const result = await signInWithPopup(auth, googleProvider);
-        const user = result.user;
-
-        await guardarEnFirestore(user, {
-            nombre: user.displayName,
-            correo: user.email,
-            rol: rol,
-            uid: user.uid,
-            registroSocial: true
-        });
-
-        window.location.href = "index.html";
-    } catch (error) {
-        console.error("Error Google:", error);
-    }
-});
-
-// Función auxiliar para guardar datos en Firestore
-async function guardarEnFirestore(user, datos) {
-    const coleccion = (datos.rol === "CLIENTES") ? "clientes" : "tecnicos";
-    await setDoc(doc(db, coleccion, user.uid), {
-        ...datos,
-        fechaRegistro: serverTimestamp()
-    });
-}
-
-// Función para alternar el estado del botón
-function toggleButtonState(button, disable, text) {
-    button.innerText = text;
-    button.disabled = disable;
-}
+</body>
+</html>
