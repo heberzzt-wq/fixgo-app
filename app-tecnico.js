@@ -37,7 +37,7 @@ let unsubscribeSolicitud = null;
 console.log("app-tecnico.js cargado");
 
  observarAuth((user) => {
-  if (!userData) {
+  if (user) {
     window.location.href = "login.html";
     return;
   }
