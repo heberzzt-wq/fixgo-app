@@ -1,100 +1,102 @@
-import { auth, db, onAuthStateChanged } from "./firebase.js";
-import { 
-    collection, addDoc, serverTimestamp, query, where, orderBy, limit, onSnapshot 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// ===============================
+// FIXGO - APP CLIENTE
+// ===============================
 
-// --- REFERENCIAS ---
-const formSolicitud = document.getElementById("nuevaSolicitudForm");
-const listaHistorial = document.getElementById("solicitudesCliente");
+import {
+  auth,
+  db,
+  observarAuth,
+  crearSolicitud,
+  collection,
+  query,
+  where,
+  onSnapshot
+} from "./firebase.js";
 
-// --- 1. CREAR SOLICITUD ---
-if (formSolicitud) {
-    formSolicitud.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const user = auth.currentUser;
-        if (!user) return alert("Inicia sesión primero");
+// ===============================
+// ELEMENTOS UI
+// ===============================
+const hero = document.getElementById("hero");
+const clientePanel = document.getElementById("clientePanel");
+const nombreCliente = document.getElementById("nombreCliente");
 
-        const catInput = document.getElementById("categoriaSeleccionada");
-        const categoria = catInput ? catInput.value : "GENERAL";
-        
-        const formData = new FormData(formSolicitud);
+const cards = document.querySelectorAll(".service-card");
+const servicioInput = document.getElementById("servicioSeleccionado");
+const form = document.getElementById("solicitudForm");
 
-        try {
-            await addDoc(collection(db, "solicitudes"), {
-                clienteId: user.uid,
-                clienteNombre: user.displayName || "Cliente",
-                clienteTelefono: "Sin registro", // Idealmente sacarlo del perfil
-                direccion: formData.get("direccion"),
-                descripcion: formData.get("descripcion"),
-                categoria: categoria,
-                estado: "SOLICITADO",
-                fechaCreacion: serverTimestamp(),
-                tecnicoId: null,
-                lat: null, lng: null // Pendiente: Geocoding Google Maps
-            });
+// ===============================
+// AUTH STATE
+// ===============================
+let usuarioActual = null;
 
-            alert("🚀 Solicitud enviada. Buscando técnicos...");
-            formSolicitud.reset();
-            if(catInput) catInput.value = "";
-            // Reset visual si usas grid de tarjetas
-            document.querySelectorAll('.service-card').forEach(c => c.classList.remove('ring-2', 'ring-indigo-500'));
+observarAuth((user) => {
+  usuarioActual = user;
 
-        } catch (error) {
-            console.error(error);
-            alert("Error al solicitar.");
-        }
-    });
-}
+  if (!user || user.rol !== "cliente") {
+    hero.classList.remove("hidden");
+    clientePanel.classList.add("hidden");
+    return;
+  }
 
-// --- 2. MONITOR DE SERVICIOS ACTIVOS ---
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        // Escuchar historial y estado
-        const q = query(
-            collection(db, "solicitudes"),
-            where("clienteId", "==", user.uid),
-            orderBy("fechaCreacion", "desc")
-        );
+  hero.classList.add("hidden");
+  clientePanel.classList.remove("hidden");
 
-        onSnapshot(q, (snapshot) => {
-            if (!listaHistorial) return;
-            listaHistorial.innerHTML = "";
-            
-            // Verificar si hay uno activo para mostrar en Panel Principal (Dashboard)
-            const activo = snapshot.docs.find(d => ['SOLICITADO', 'EN_CAMINO', 'EN_SITIO'].includes(d.data().estado));
-            if(activo) actualizarDashboardCliente(activo.data());
-
-            // Llenar Historial
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                const color = data.estado === 'FINALIZADO' ? 'text-emerald-500' : 'text-indigo-500';
-                
-                listaHistorial.innerHTML += `
-                    <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm mb-3">
-                        <div class="flex justify-between mb-2">
-                            <span class="text-[10px] font-black bg-slate-100 px-2 py-1 rounded text-slate-600">${data.categoria}</span>
-                            <span class="text-[10px] font-bold ${color}">${data.estado}</span>
-                        </div>
-                        <p class="text-xs text-slate-800 font-bold">${data.direccion}</p>
-                        <p class="text-[10px] text-slate-400 mt-1">${new Date(data.fechaCreacion?.seconds * 1000).toLocaleDateString()}</p>
-                    </div>
-                `;
-            });
-        });
-    }
+  nombreCliente.textContent = user.email.split("@")[0].toUpperCase();
+  escucharHistorial();
 });
 
-function actualizarDashboardCliente(solicitud) {
-    // Aquí puedes actualizar el div principal del cliente para mostrar que tiene un técnico en camino
-    // Ejemplo: ocultar formulario, mostrar mapa
-    const panelStatus = document.getElementById("panelStatusActivo"); // Asegúrate de tener este ID en HTML
-    if(panelStatus) {
-        panelStatus.innerHTML = `
-            <div class="bg-indigo-600 text-white p-4 rounded-xl shadow-lg animate-fade">
-                <p class="text-xs opacity-75 uppercase tracking-widest mb-1">Estado del Servicio</p>
-                <h2 class="text-2xl font-black mb-2">${solicitud.estado.replace('_', ' ')}</h2>
-                <p class="text-sm">Tu técnico está procesando la orden.</p>
-            </div>
-        `;
-    }
+// ===============================
+// SELECCIÓN SERVICIO
+// ===============================
+cards.forEach(card => {
+  card.addEventListener("click", () => {
+    if (card.classList.contains("cursor-not-allowed")) return;
+
+    cards.forEach(c => c.classList.remove("selected"));
+    card.classList.add("selected");
+
+    servicioInput.value = card.dataset.service;
+  });
+});
+
+// ===============================
+// CREAR SOLICITUD
+// ===============================
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  if (!servicioInput.value) {
+    alert("Selecciona un servicio");
+    return;
+  }
+
+  const direccion = form.querySelector("input").value;
+  const descripcion = form.querySelector("textarea").value;
+
+  await crearSolicitud({
+    clienteUid: usuarioActual.uid,
+    servicio: servicioInput.value,
+    direccion,
+    descripcion,
+    modelo: "DIRECTO",
+    ciudad: "CANCUN"
+  });
+
+  alert("Solicitud enviada. Buscando técnico...");
+  form.reset();
+  servicioInput.value = "";
+});
+
+// ===============================
+// HISTORIAL
+// ===============================
+function escucharHistorial() {
+  const q = query(
+    collection(db, "solicitudes"),
+    where("clienteUid", "==", usuarioActual.uid)
+  );
+
+  onSnapshot(q, (snap) => {
+    console.log("Historial cliente:", snap.docs.map(d => d.data()));
+  });
 }
