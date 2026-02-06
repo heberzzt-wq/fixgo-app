@@ -1,10 +1,11 @@
 // ======================================================
 // FIXGO - APP TÉCNICO
-// Control total del técnico:
-// - Estado
-// - GPS en vivo
-// - Órdenes activas
-// - Check-in por geocerca
+// Panel operativo del técnico
+// - Autenticación
+// - Registro técnico
+// - Escucha de solicitudes
+// - Control de estados
+// - GPS / Geocerca
 // ======================================================
 
 import {
@@ -26,79 +27,90 @@ import { verificarArribo } from "./gps-motor.js";
 // ======================================================
 
 let tecnico = null;
-let ordenActiva = null;
-let listenerOrden = null;
+let solicitudActiva = null;
+let unsubscribeSolicitud = null;
 
 // ======================================================
-// AUTH
+// AUTH CENTRAL (ÚNICO)
 // ======================================================
+
+console.log("app-tecnico.js cargado");
 
 observarAuth(async (userData) => {
-  if (!userData || userData.rol !== "tecnico") {
+  if (!userData) {
     window.location.href = "login.html";
+    return;
+  }
+
+  if (userData.rol !== "tecnico") {
+    window.location.href = "index.html";
     return;
   }
 
   tecnico = userData;
 
-  await registrarTecnico();
-  escucharOrdenActiva();
+  await registrarOActualizarTecnico();
+  escucharSolicitudActiva();
+  conectarBotones();
 });
 
 // ======================================================
-// REGISTRAR / ACTUALIZAR TÉCNICO
+// REGISTRO / UPDATE TÉCNICO
 // ======================================================
 
-async function registrarTecnico() {
+async function registrarOActualizarTecnico() {
   try {
     await setDoc(
       doc(db, "tecnicos", tecnico.uid),
       {
         uid: tecnico.uid,
         nombre: tecnico.nombre || "Técnico FixGo",
-        email: tecnico.email,
+        email: tecnico.email || "",
+        rol: "tecnico",
         disponible: true,
         enServicio: false,
         actualizado: serverTimestamp()
       },
       { merge: true }
     );
+
+    console.log("Técnico sincronizado");
   } catch (error) {
     console.error("Error registrando técnico:", error);
   }
 }
 
 // ======================================================
-// ESCUCHAR ORDEN ACTIVA
+// ESCUCHAR SOLICITUD ACTIVA (COLECCIÓN CORRECTA)
 // ======================================================
 
-function escucharOrdenActiva() {
-  if (listenerOrden) listenerOrden();
+function escucharSolicitudActiva() {
+  if (unsubscribeSolicitud) unsubscribeSolicitud();
 
-  const ref = doc(db, "ordenes", tecnico.uid);
+  const ref = doc(db, "solicitudes", tecnico.uid);
 
-  listenerOrden = onSnapshot(ref, (snap) => {
-    if (!snap.exists()) {
-      ordenActiva = null;
+  unsubscribeSolicitud = onSnapshot(ref, (snapshot) => {
+    if (!snapshot.exists()) {
+      solicitudActiva = null;
       renderEstadoLibre();
       return;
     }
 
-    ordenActiva = snap.data();
-    procesarEstadoOrden();
+    solicitudActiva = snapshot.data();
+    procesarEstadoSolicitud();
   });
 }
 
 // ======================================================
-// PROCESAR ESTADO DE ORDEN
+// PROCESAR ESTADO
 // ======================================================
 
-function procesarEstadoOrden() {
-  if (!ordenActiva) return;
+function procesarEstadoSolicitud() {
+  if (!solicitudActiva || !solicitudActiva.estado) return;
 
-  switch (ordenActiva.estado) {
+  switch (solicitudActiva.estado) {
     case "asignada":
-      renderOrdenAsignada();
+      renderAsignada();
       break;
 
     case "en_camino":
@@ -110,51 +122,54 @@ function procesarEstadoOrden() {
       break;
 
     case "finalizada":
-      cerrarOrden();
+      finalizarServicio();
       break;
+
+    default:
+      console.warn("Estado desconocido:", solicitudActiva.estado);
   }
 }
 
 // ======================================================
-// ACCIONES DE ESTADO
+// ACCIONES (BOTONES)
 // ======================================================
 
-window.marcarEnCamino = async () => {
-  if (!ordenActiva) return;
+async function marcarEnCamino() {
+  if (!solicitudActiva) return;
 
-  await actualizarEstadoOrden("en_camino");
-};
+  await actualizarEstadoSolicitud("en_camino");
+}
 
-window.marcarEnSitio = async () => {
-  if (!ordenActiva) return;
+async function marcarEnSitio() {
+  if (!solicitudActiva) return;
 
   const llego = await verificarArribo(
-    ordenActiva.lat,
-    ordenActiva.lng
+    solicitudActiva.lat,
+    solicitudActiva.lng
   );
 
   if (!llego) {
-    alert("Aún no estás en la ubicación del cliente");
+    alert("Aún no estás dentro del perímetro del cliente");
     return;
   }
 
-  await actualizarEstadoOrden("en_sitio");
-};
+  await actualizarEstadoSolicitud("en_sitio");
+}
 
-window.finalizarOrden = async () => {
-  if (!ordenActiva) return;
+async function marcarFinalizado() {
+  if (!solicitudActiva) return;
 
-  await actualizarEstadoOrden("finalizada");
-};
+  await actualizarEstadoSolicitud("finalizada");
+}
 
 // ======================================================
-// ACTUALIZAR ESTADO EN FIRESTORE
+// ACTUALIZAR FIRESTORE
 // ======================================================
 
-async function actualizarEstadoOrden(nuevoEstado) {
+async function actualizarEstadoSolicitud(nuevoEstado) {
   try {
     await updateDoc(
-      doc(db, "ordenes", tecnico.uid),
+      doc(db, "solicitudes", tecnico.uid),
       {
         estado: nuevoEstado,
         actualizado: serverTimestamp()
@@ -169,16 +184,18 @@ async function actualizarEstadoOrden(nuevoEstado) {
         actualizado: serverTimestamp()
       }
     );
+
+    console.log("Estado actualizado:", nuevoEstado);
   } catch (error) {
-    console.error("Error actualizando orden:", error);
+    console.error("Error actualizando estado:", error);
   }
 }
 
 // ======================================================
-// FINALIZAR ORDEN
+// CIERRE
 // ======================================================
 
-async function cerrarOrden() {
+async function finalizarServicio() {
   try {
     await updateDoc(
       doc(db, "tecnicos", tecnico.uid),
@@ -189,27 +206,27 @@ async function cerrarOrden() {
       }
     );
 
-    ordenActiva = null;
+    solicitudActiva = null;
     renderEstadoLibre();
   } catch (error) {
-    console.error("Error cerrando orden:", error);
+    console.error("Error cerrando servicio:", error);
   }
 }
 
 // ======================================================
-// RENDER (LÓGICA BASE, HTML YA EXISTE)
+// RENDER BASE (HTML YA EXISTE)
 // ======================================================
 
 function renderEstadoLibre() {
-  console.log("Técnico disponible, esperando servicio");
+  console.log("Técnico disponible");
 }
 
-function renderOrdenAsignada() {
-  console.log("Orden asignada:", ordenActiva);
+function renderAsignada() {
+  console.log("Servicio asignado:", solicitudActiva);
 }
 
 function renderEnCamino() {
-  console.log("Técnico en camino");
+  console.log("En camino al cliente");
 }
 
 function renderEnSitio() {
@@ -217,10 +234,32 @@ function renderEnSitio() {
 }
 
 // ======================================================
+// BOTONES CON CEREBRO
+// ======================================================
+
+function conectarBotones() {
+  const btnEnCamino = document.getElementById("btnEnCamino");
+  const btnEnSitio = document.getElementById("btnEnSitio");
+  const btnFinalizar = document.getElementById("btnFinalizar");
+
+  if (btnEnCamino) {
+    btnEnCamino.addEventListener("click", marcarEnCamino);
+  }
+
+  if (btnEnSitio) {
+    btnEnSitio.addEventListener("click", marcarEnSitio);
+  }
+
+  if (btnFinalizar) {
+    btnFinalizar.addEventListener("click", marcarFinalizado);
+  }
+}
+
+// ======================================================
 // DEBUG CONTROLADO
 // ======================================================
 
-window.__FIXGO_TECNICO_STATUS__ = () => ({
+window.__FIXGO_TECNICO_DEBUG__ = () => ({
   tecnico: tecnico?.uid || null,
-  orden: ordenActiva?.estado || null
+  solicitud: solicitudActiva?.estado || null
 });
