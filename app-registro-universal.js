@@ -1,92 +1,189 @@
+/**
+ * FixGo – app-registro-universal.js
+ * Registro Universal
+ * Roles: cliente | tecnico | admin
+ * Flujo:
+ *  - Crear usuario Auth
+ *  - Crear perfil Firestore
+ *  - Redirigir según rol
+ */
+
 import {
-    auth,
-    db,
-    googleProvider,
-    createUserWithEmailAndPassword,
-    signInWithPopup,
-    doc,
-    setDoc,
-    getDoc
+  auth,
+  registrarUsuario,
+  loginGoogle,
+  db
 } from "./firebase.js";
 
-// Detectar formulario
-const form = document.querySelector("form");
-if (!form) throw new Error("Formulario no encontrado");
+import {
+  doc,
+  setDoc,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const rol = form.dataset.rol || "CLIENTE";
-const submitBtn = document.getElementById("submitBtn");
-const googleBtn = document.getElementById("loginGoogle");
+/* ===============================
+   ELEMENTOS DOM
+================================ */
 
-// Campos
-const camposTecnico = ["nombre", "cedula", "vehiculo", "placas", "correo", "contraseña", "confirmarContraseña"];
-const camposCliente = ["nombre", "telefono", "direccion", "correo"];
-const campos = rol === "TECNICO" ? camposTecnico : camposCliente;
+const formRegistro = document.getElementById("registroForm");
+const rolInput = document.getElementById("rol");
+const googleBtn = document.getElementById("googleBtn");
 
-// Registro Email
-form.addEventListener("submit", async (e) => {
+/* ===============================
+   UTILIDADES
+================================ */
+
+function obtenerRol() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("rol") || rolInput?.value || "cliente";
+}
+
+function redirigirPorRol(rol) {
+  if (rol === "cliente") {
+    window.location.href = "index.html";
+  } else if (rol === "tecnico") {
+    window.location.href = "area-tecnico.html";
+  } else if (rol === "admin") {
+    window.location.href = "admin.html";
+  } else {
+    window.location.href = "index.html";
+  }
+}
+
+/* ===============================
+   REGISTRO EMAIL / PASSWORD
+================================ */
+
+if (formRegistro) {
+  formRegistro.addEventListener("submit", async (e) => {
     e.preventDefault();
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Registrando...";
+
+    const rol = obtenerRol();
+
+    const nombre = formRegistro.nombre?.value.trim() || "";
+    const email = formRegistro.email.value.trim();
+    const password = formRegistro.password.value.trim();
+
+    if (!email || !password) {
+      alert("Email y contraseña son obligatorios");
+      return;
+    }
 
     try {
-        const data = {};
-        campos.forEach(c => {
-            const input = form.querySelector(`[name="${c}"]`);
-            if (input) data[c] = input.value.trim();
-        });
-
-        if (rol === "TECNICO" && data.contraseña !== data.confirmarContraseña) {
-            throw new Error("Las contraseñas no coinciden");
+      const user = await registrarUsuario(
+        email,
+        password,
+        rol,
+        {
+          nombre,
+          nivel: rol === "tecnico" ? "bronce" : null,
+          activo: true,
+          validado: rol === "cliente",
+          creado_en: serverTimestamp()
         }
+      );
 
-        const cred = await createUserWithEmailAndPassword(
-            auth,
-            data.correo,
-            data.contraseña || "FixGo123!"
-        );
-
-        const user = cred.user;
-        const col = rol === "TECNICO" ? "tecnicos" : "clientes";
-
-        await setDoc(doc(db, col, user.uid), {
+      // Datos específicos por rol
+      if (rol === "tecnico") {
+        await setDoc(
+          doc(db, "tecnicos", user.uid),
+          {
             uid: user.uid,
-            rol,
-            nombre: data.nombre || "",
-            correo: data.correo,
-            creadoEn: new Date().toISOString()
-        });
+            nombre,
+            email,
+            nivel: "bronce",
+            servicios_realizados: 0,
+            disponible: false,
+            documentos: {
+              ine: false,
+              csf: false,
+              vehiculo: false,
+              selfie: false
+            },
+            creado_en: serverTimestamp()
+          }
+        );
+      }
 
-        window.location.href = rol === "TECNICO" ? "area-tecnico.html" : "index.html";
+      if (rol === "cliente") {
+        await setDoc(
+          doc(db, "clientes", user.uid),
+          {
+            uid: user.uid,
+            nombre,
+            email,
+            tipo: "PF",
+            tarjeta_registrada: false,
+            creado_en: serverTimestamp()
+          }
+        );
+      }
 
-    } catch (err) {
-        alert("❌ " + err.message);
-        submitBtn.disabled = false;
-        submitBtn.textContent = "ENVIAR";
+      alert("Registro exitoso");
+      redirigirPorRol(rol);
+
+    } catch (error) {
+      console.error("Error registro:", error);
+      alert(error.message || "Error al registrarse");
     }
-});
+  });
+}
 
-// Registro Google
-googleBtn?.addEventListener("click", async () => {
+/* ===============================
+   REGISTRO CON GOOGLE
+================================ */
+
+if (googleBtn) {
+  googleBtn.addEventListener("click", async () => {
+    const rol = obtenerRol();
+
     try {
-        const res = await signInWithPopup(auth, googleProvider);
-        const user = res.user;
-        const col = rol === "TECNICO" ? "tecnicos" : "clientes";
+      const user = await loginGoogle(rol);
 
-        const ref = doc(db, col, user.uid);
-        const snap = await getDoc(ref);
+      // Validar existencia de subcolecciones
+      if (rol === "cliente") {
+        await setDoc(
+          doc(db, "clientes", user.uid),
+          {
+            uid: user.uid,
+            nombre: user.displayName || "",
+            email: user.email,
+            tipo: "PF",
+            tarjeta_registrada: false,
+            creado_en: serverTimestamp()
+          },
+          { merge: true }
+        );
+      }
 
-        if (!snap.exists()) {
-            await setDoc(ref, {
-                uid: user.uid,
-                rol,
-                nombre: user.displayName || "",
-                correo: user.email,
-                creadoEn: new Date().toISOString()
-            });
-        }
+      if (rol === "tecnico") {
+        await setDoc(
+          doc(db, "tecnicos", user.uid),
+          {
+            uid: user.uid,
+            nombre: user.displayName || "",
+            email: user.email,
+            nivel: "bronce",
+            servicios_realizados: 0,
+            disponible: false,
+            documentos: {
+              ine: false,
+              csf: false,
+              vehiculo: false,
+              selfie: false
+            },
+            creado_en: serverTimestamp()
+          },
+          { merge: true }
+        );
+      }
 
-        window.location.href = rol === "TECNICO" ? "area-tecnico.html" : "index.html";
-    } catch (err) {
-        alert("❌ " + err.message);
+      alert("Ingreso exitoso");
+      redirigirPorRol(rol);
+
+    } catch (error) {
+      console.error("Error Google:", error);
+      alert("Error al ingresar con Google");
     }
-});
+  });
+}
