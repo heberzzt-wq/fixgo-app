@@ -1,38 +1,83 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>FixGo | Registro Cliente</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FixGo | Registro Cliente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #000000; font-family: 'Inter', sans-serif; }
+        .glass-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        .glass-input:focus {
+            border-color: #3b82f6;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+        }
+    </style>
 </head>
-<body class="bg-slate-100 flex items-center justify-center min-h-screen">
+<body class="text-white min-h-screen p-6">
+    <div class="max-w-md mx-auto">
+        <header class="flex items-center mb-10">
+            <a href="registro.html" class="text-slate-400 hover:text-white transition-colors">
+                <i class="fas fa-arrow-left text-xl"></i>
+            </a>
+            <h1 class="ml-4 text-xl font-bold uppercase tracking-tight">Datos de Cliente</h1>
+        </header>
 
-<div class="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full">
-  <h1 class="text-xl font-black mb-6 text-center">Registro Cliente</h1>
+        <form id="registroForm" class="space-y-6">
+            <input type="hidden" id="rol" value="cliente">
 
-  <input id="email" placeholder="Correo" class="w-full mb-3 p-3 border rounded-xl">
-  <input id="password" type="password" placeholder="Contraseña"
-         class="w-full mb-4 p-3 border rounded-xl">
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nombre Completo / Razón Social</label>
+                <input type="text" name="nombre" required placeholder="Ej. Juan Pérez o Constructora S.A." 
+                       class="w-full p-4 rounded-xl glass-input transition-all">
+            </div>
 
-  <button id="btnRegistro"
-    class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">
-    Crear Cuenta
-  </button>
-</div>
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Correo Electrónico</label>
+                <input type="email" name="email" required placeholder="correo@ejemplo.com" 
+                       class="w-full p-4 rounded-xl glass-input transition-all">
+            </div>
 
-<script type="module">
-import { registrarUsuario } from "./firebase.js";
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Contraseña</label>
+                <input type="password" name="password" required placeholder="••••••••" 
+                       class="w-full p-4 rounded-xl glass-input transition-all">
+            </div>
 
-btnRegistro.onclick = async () => {
-  try {
-    await registrarUsuario(email.value, password.value, "cliente");
-    location.href = "index.html";
-  } catch {
-    alert("Error al registrar");
-  }
-};
-</script>
+            <hr class="border-slate-800 my-8">
 
+            <div class="bg-blue-600/10 border border-blue-500/20 p-5 rounded-2xl mb-6">
+                <h3 class="text-blue-400 font-bold text-sm mb-2"><i class="fas fa-file-invoice mr-2"></i>Blindaje Fiscal</h3>
+                <p class="text-slate-400 text-xs mb-4">La Constancia de Situación Fiscal (CSF) es opcional ahora, pero obligatoria para solicitar facturas.</p>
+                
+                <div class="flex items-center justify-center w-full">
+                    <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-700 rounded-2xl cursor-pointer hover:bg-slate-900 transition-colors">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <i class="fas fa-cloud-upload-alt text-2xl text-slate-500 mb-2"></i>
+                            <p class="text-xs text-slate-500 font-bold">Subir CSF (PDF)</p>
+                        </div>
+                        <input type="file" class="hidden" accept=".pdf" />
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" class="w-full py-5 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-500 transition-all shadow-xl shadow-blue-900/20 transform active:scale-95">
+                CREAR CUENTA FIXGO
+            </button>
+
+            <button type="button" id="googleBtn" class="w-full py-4 bg-white text-black font-black rounded-2xl mt-4 flex items-center justify-center gap-2 hover:bg-slate-200 transition-all">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/pwa/google.svg" class="w-5" alt="Google">
+                REGISTRAR CON GOOGLE
+            </button>
+        </form>
+    </div>
+
+    <script type="module" src="js/app-registro-universal.js"></script>
 </body>
 </html>
