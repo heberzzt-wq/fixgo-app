@@ -1,99 +1,100 @@
 import { auth, db, onAuthStateChanged } from "./firebase.js";
-import {
-  collection,
-  addDoc,
-  serverTimestamp,
-  query,
-  where,
-  orderBy,
-  onSnapshot
+import { 
+    collection, addDoc, serverTimestamp, query, where, orderBy, limit, onSnapshot 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-/* =========================
-   FIXGO · CLIENTE APP
-========================= */
-
+// --- REFERENCIAS ---
 const formSolicitud = document.getElementById("nuevaSolicitudForm");
 const listaHistorial = document.getElementById("solicitudesCliente");
 
-/* ---------- CREAR SOLICITUD ---------- */
+// --- 1. CREAR SOLICITUD ---
 if (formSolicitud) {
-  formSolicitud.addEventListener("submit", async (e) => {
-    e.preventDefault();
+    formSolicitud.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const user = auth.currentUser;
+        if (!user) return alert("Inicia sesión primero");
 
-    const user = auth.currentUser;
-    if (!user) return alert("Debes iniciar sesión");
+        const catInput = document.getElementById("categoriaSeleccionada");
+        const categoria = catInput ? catInput.value : "GENERAL";
+        
+        const formData = new FormData(formSolicitud);
 
-    const categoria = document.getElementById("categoriaSeleccionada")?.value || "GENERAL";
-    const data = new FormData(formSolicitud);
+        try {
+            await addDoc(collection(db, "solicitudes"), {
+                clienteId: user.uid,
+                clienteNombre: user.displayName || "Cliente",
+                clienteTelefono: "Sin registro", // Idealmente sacarlo del perfil
+                direccion: formData.get("direccion"),
+                descripcion: formData.get("descripcion"),
+                categoria: categoria,
+                estado: "SOLICITADO",
+                fechaCreacion: serverTimestamp(),
+                tecnicoId: null,
+                lat: null, lng: null // Pendiente: Geocoding Google Maps
+            });
 
-    try {
-      await addDoc(collection(db, "solicitudes"), {
-        clienteId: user.uid,
-        clienteNombre: user.displayName || "Cliente FixGo",
-        clienteTelefono: "PENDIENTE",
-        direccion: data.get("direccion"),
-        descripcion: data.get("descripcion"),
-        categoria,
-        estado: "SOLICITADO",
-        tecnicoId: null,
-        lat: null,
-        lng: null,
-        fechaCreacion: serverTimestamp()
-      });
+            alert("🚀 Solicitud enviada. Buscando técnicos...");
+            formSolicitud.reset();
+            if(catInput) catInput.value = "";
+            // Reset visual si usas grid de tarjetas
+            document.querySelectorAll('.service-card').forEach(c => c.classList.remove('ring-2', 'ring-indigo-500'));
 
-      formSolicitud.reset();
-      alert("🚀 Servicio solicitado. Buscando técnico...");
-    } catch (err) {
-      console.error(err);
-      alert("Error al crear la solicitud");
-    }
-  });
+        } catch (error) {
+            console.error(error);
+            alert("Error al solicitar.");
+        }
+    });
 }
 
-/* ---------- HISTORIAL + SERVICIO ACTIVO ---------- */
+// --- 2. MONITOR DE SERVICIOS ACTIVOS ---
 onAuthStateChanged(auth, (user) => {
-  if (!user || !listaHistorial) return;
+    if (user) {
+        // Escuchar historial y estado
+        const q = query(
+            collection(db, "solicitudes"),
+            where("clienteId", "==", user.uid),
+            orderBy("fechaCreacion", "desc")
+        );
 
-  const q = query(
-    collection(db, "solicitudes"),
-    where("clienteId", "==", user.uid),
-    orderBy("fechaCreacion", "desc")
-  );
+        onSnapshot(q, (snapshot) => {
+            if (!listaHistorial) return;
+            listaHistorial.innerHTML = "";
+            
+            // Verificar si hay uno activo para mostrar en Panel Principal (Dashboard)
+            const activo = snapshot.docs.find(d => ['SOLICITADO', 'EN_CAMINO', 'EN_SITIO'].includes(d.data().estado));
+            if(activo) actualizarDashboardCliente(activo.data());
 
-  onSnapshot(q, (snap) => {
-    listaHistorial.innerHTML = "";
-
-    const activo = snap.docs.find(d =>
-      ["SOLICITADO", "EN_CAMINO", "EN_SITIO"].includes(d.data().estado)
-    );
-
-    if (activo) renderServicioActivo(activo.data());
-
-    snap.forEach(doc => {
-      const s = doc.data();
-      listaHistorial.innerHTML += `
-        <div class="bg-white p-4 rounded-xl shadow mb-3">
-          <div class="flex justify-between">
-            <span class="text-[10px] font-black">${s.categoria}</span>
-            <span class="text-[10px] font-bold">${s.estado}</span>
-          </div>
-          <p class="text-xs font-bold">${s.direccion}</p>
-        </div>
-      `;
-    });
-  });
+            // Llenar Historial
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const color = data.estado === 'FINALIZADO' ? 'text-emerald-500' : 'text-indigo-500';
+                
+                listaHistorial.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm mb-3">
+                        <div class="flex justify-between mb-2">
+                            <span class="text-[10px] font-black bg-slate-100 px-2 py-1 rounded text-slate-600">${data.categoria}</span>
+                            <span class="text-[10px] font-bold ${color}">${data.estado}</span>
+                        </div>
+                        <p class="text-xs text-slate-800 font-bold">${data.direccion}</p>
+                        <p class="text-[10px] text-slate-400 mt-1">${new Date(data.fechaCreacion?.seconds * 1000).toLocaleDateString()}</p>
+                    </div>
+                `;
+            });
+        });
+    }
 });
 
-function renderServicioActivo(s) {
-  const panel = document.getElementById("panelStatusActivo");
-  if (!panel) return;
-
-  panel.innerHTML = `
-    <div class="bg-indigo-600 text-white p-6 rounded-2xl shadow-xl">
-      <p class="text-xs uppercase opacity-70">Servicio activo</p>
-      <h2 class="text-2xl font-black">${s.estado.replace("_", " ")}</h2>
-      <p class="text-sm mt-2">Técnico en proceso</p>
-    </div>
-  `;
+function actualizarDashboardCliente(solicitud) {
+    // Aquí puedes actualizar el div principal del cliente para mostrar que tiene un técnico en camino
+    // Ejemplo: ocultar formulario, mostrar mapa
+    const panelStatus = document.getElementById("panelStatusActivo"); // Asegúrate de tener este ID en HTML
+    if(panelStatus) {
+        panelStatus.innerHTML = `
+            <div class="bg-indigo-600 text-white p-4 rounded-xl shadow-lg animate-fade">
+                <p class="text-xs opacity-75 uppercase tracking-widest mb-1">Estado del Servicio</p>
+                <h2 class="text-2xl font-black mb-2">${solicitud.estado.replace('_', ' ')}</h2>
+                <p class="text-sm">Tu técnico está procesando la orden.</p>
+            </div>
+        `;
+    }
 }
