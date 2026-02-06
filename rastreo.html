@@ -1,20 +1,72 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>FixGo | Rastreo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script async
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k">
-  </script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FixGo - Rastreo Técnico</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<style>
+    body { background-color: #050505; }
+    #map { width: 100%; height: 80vh; border-radius: 2rem; }
+</style>
 </head>
-<body class="h-screen">
+<body class="text-white min-h-screen">
 
-<div id="mapa" class="w-full h-full"></div>
+<header class="max-w-4xl mx-auto flex justify-between items-center p-6">
+    <h1 class="text-3xl font-black tracking-tighter italic text-white">FIXGO</h1>
+    <a href="index.html" class="text-indigo-500 font-bold">Inicio</a>
+</header>
 
-<script type="module" src="./app-cliente.js"></script>
+<main class="max-w-4xl mx-auto px-4 py-6">
+    <h2 class="text-2xl font-black mb-4">Rastreo en tiempo real</h2>
+    <div id="map"></div>
 
+    <div class="mt-6 uber-card p-6 rounded-2xl shadow-2xl">
+        <h3 class="font-black text-lg mb-2">Detalles del Técnico</h3>
+        <p id="nombreTecnico">Nombre: ...</p>
+        <p id="estadoTecnico">Estado: ...</p>
+        <p id="ubicacionTecnico">Ubicación: ...</p>
+    </div>
+</main>
+
+<script type="module">
+    import { db, onSnapshot, doc, auth, onAuthStateChanged } from './firebase.js';
+    import { actualizarMapaGPS } from './gps-motor.js';
+
+    let map;
+    let marcadorTecnico;
+
+    function initMap() {
+        map = new google.maps.Map(document.getElementById("map"), {
+            center: { lat: 21.1619, lng: -86.8515 }, // Cancún base
+            zoom: 13,
+        });
+    }
+
+    onAuthStateChanged(auth, user => {
+        if (!user) {
+            alert("Necesitas iniciar sesión para rastrear técnicos");
+            window.location.href = "login.html";
+            return;
+        }
+
+        const trackingDoc = doc(db, "rastreo", "tecnicoActivo");
+        onSnapshot(trackingDoc, data => {
+            if (data.exists()) {
+                const d = data.data();
+                document.getElementById("nombreTecnico").textContent = `Nombre: ${d.nombre}`;
+                document.getElementById("estadoTecnico").textContent = `Estado: ${d.estado}`;
+                document.getElementById("ubicacionTecnico").textContent = `Ubicación: ${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}`;
+
+                actualizarMapaGPS(map, marcadorTecnico, d.lat, d.lng);
+            }
+        });
+    });
+
+    window.initMap = initMap;
+</script>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k&callback=initMap" async defer></script>
 </body>
 </html>
