@@ -1,113 +1,43 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>FixGo | Área Técnico</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- Tailwind CDN (solo frontend estático) -->
+  <meta charset="UTF-8">
+  <title>FixGo | Registro Técnico</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Google Maps (GPS) -->
-  <script
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k"
-    defer
-  ></script>
 </head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen">
 
-<body class="bg-slate-950 text-white min-h-screen">
+<div class="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full">
+  <h1 class="text-xl font-black mb-6 text-center">Registro Técnico</h1>
 
-  <!-- HEADER -->
-  <header class="bg-slate-900 p-4 flex justify-between items-center">
-    <h1 class="text-xl font-bold text-indigo-400">FixGo · Técnico</h1>
-    <button
-      id="btnLogout"
-      class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded"
-    >
-      Salir
-    </button>
-  </header>
+  <input id="email" placeholder="Correo" class="w-full mb-3 p-3 border rounded-xl">
+  <input id="password" type="password" placeholder="Contraseña"
+         class="w-full mb-4 p-3 border rounded-xl">
 
-  <!-- CONTENEDOR PRINCIPAL -->
-  <main class="p-6 space-y-6">
+  <button id="btnRegistro"
+    class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold">
+    Enviar Solicitud
+  </button>
 
-    <!-- ESTADO GENERAL -->
-    <section class="bg-slate-900 rounded-xl p-6">
-      <h2 class="text-lg font-semibold mb-4">Estado</h2>
+  <p class="text-xs mt-4 text-center text-slate-500">
+    Requiere validación administrativa
+  </p>
+</div>
 
-      <p>
-        Estado actual:
-        <span
-          id="estadoTecnico"
-          class="font-bold text-emerald-400"
-        >
-          Disponible
-        </span>
-      </p>
-    </section>
+<script type="module">
+import { registrarUsuario } from "./firebase.js";
 
-    <!-- ORDEN ACTIVA -->
-    <section
-      id="ordenContainer"
-      class="bg-slate-900 rounded-xl p-6 hidden"
-    >
-      <h2 class="text-lg font-semibold mb-4">Servicio asignado</h2>
+btnRegistro.onclick = async () => {
+  await registrarUsuario(email.value, password.value, "tecnico", {
+    validado: false,
+    nivel: "bronce"
+  });
 
-      <div class="space-y-2 text-sm">
-        <p><strong>Cliente:</strong> <span id="ordenCliente"></span></p>
-        <p><strong>Dirección:</strong> <span id="ordenDireccion"></span></p>
-        <p><strong>Servicio:</strong> <span id="ordenServicio"></span></p>
-        <p><strong>Estado:</strong> <span id="ordenEstado"></span></p>
-      </div>
-
-      <!-- BOTONES DE ACCIÓN -->
-      <div class="mt-6 flex gap-3">
-        <button
-          id="btnEnCamino"
-          onclick="marcarEnCamino()"
-          class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded"
-        >
-          En camino
-        </button>
-
-        <button
-          id="btnEnSitio"
-          onclick="marcarEnSitio()"
-          class="bg-amber-600 hover:bg-amber-700 px-4 py-2 rounded"
-        >
-          Llegué al sitio
-        </button>
-
-        <button
-          id="btnFinalizar"
-          onclick="finalizarOrden()"
-          class="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded"
-        >
-          Finalizar servicio
-        </button>
-      </div>
-    </section>
-
-    <!-- MAPA -->
-    <section class="bg-slate-900 rounded-xl p-6">
-      <h2 class="text-lg font-semibold mb-4">Ubicación en tiempo real</h2>
-      <div
-        id="mapa"
-        class="w-full h-72 rounded-xl bg-slate-800"
-      ></div>
-    </section>
-
-  </main>
-
-  <!-- FOOTER -->
-  <footer class="text-center text-xs text-slate-500 py-4">
-    FixGo © 2026 · Técnico en servicio
-  </footer>
-
-  <!-- SCRIPTS -->
-  <script type="module" src="./firebase.js"></script>
-  <script type="module" src="./gps-motor.js"></script>
-  <script type="module" src="./app-tecnico.js"></script>
+  alert("Registro enviado. En espera de aprobación.");
+  location.href = "login.html";
+};
+</script>
 
 </body>
 </html>
