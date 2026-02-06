@@ -36,7 +36,7 @@ let unsubscribeSolicitud = null;
 
 console.log("app-tecnico.js cargado");
 
-observarAuth(async (userData) => {
+ observarAuth((user) => {
   if (!userData) {
     window.location.href = "login.html";
     return;
