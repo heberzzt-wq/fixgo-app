@@ -1,81 +1,113 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo - Operador</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body {
-            background-color: #050505;
-        }
+  <meta charset="UTF-8" />
+  <title>FixGo | Área Técnico</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-        .uber-card {
-            background-color: #121212;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
+  <!-- Tailwind CDN (solo frontend estático) -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-        .animate-fade {
-            animation: fadeIn 0.4s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-    </style>
+  <!-- Google Maps (GPS) -->
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=TU_API_KEY_AQUI"
+    defer
+  ></script>
 </head>
 
-<body class="text-white min-h-screen flex flex-col items-center p-4 gap-6">
+<body class="bg-slate-950 text-white min-h-screen">
 
-    <div id="panelTecnico" class="max-w-md w-full uber-card p-8 rounded-[3rem] shadow-2xl text-center animate-fade">
-        <div class="mb-6">
-            <div id="statusIndicator" class="w-20 h-20 bg-slate-800 rounded-full mx-auto flex items-center justify-center text-3xl transition-all duration-500 shadow-lg">
-                <i class="fas fa-truck-loading"></i>
-            </div>
-            <h1 id="nombreTecnico" class="text-2xl font-black mt-4 italic uppercase">Cargando...</h1>
-            <p id="unidadTecnico" class="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em]">Sincronizando Unidad</p>
-        </div>
+  <!-- HEADER -->
+  <header class="bg-slate-900 p-4 flex justify-between items-center">
+    <h1 class="text-xl font-bold text-indigo-400">FixGo · Técnico</h1>
+    <button
+      id="btnLogout"
+      class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded"
+    >
+      Salir
+    </button>
+  </header>
 
-        <div class="grid gap-4">
-            <button id="btnDisponible" class="group bg-emerald-500/10 border border-emerald-500/20 p-6 rounded-3xl hover:bg-emerald-500 transition-all duration-300">
-                <i class="fas fa-check-circle text-emerald-500 group-hover:text-white text-2xl mb-2"></i>
-                <span class="block font-black text-xs group-hover:text-white uppercase tracking-widest">Disponible</span>
-            </button>
+  <!-- CONTENEDOR PRINCIPAL -->
+  <main class="p-6 space-y-6">
 
-            <button id="btnServicio" class="group bg-orange-500/10 border border-orange-500/20 p-6 rounded-3xl hover:bg-orange-500 transition-all duration-300">
-                <i class="fas fa-tools text-orange-500 group-hover:text-white text-2xl mb-2"></i>
-                <span class="block font-black text-xs group-hover:text-white uppercase tracking-widest">En Servicio</span>
-            </button>
-        </div>
+    <!-- ESTADO GENERAL -->
+    <section class="bg-slate-900 rounded-xl p-6">
+      <h2 class="text-lg font-semibold mb-4">Estado</h2>
 
-        <button id="logoutBtn" class="mt-8 text-slate-600 hover:text-red-400 text-[10px] font-bold uppercase tracking-widest transition-colors">
-            Cerrar Sesión
+      <p>
+        Estado actual:
+        <span
+          id="estadoTecnico"
+          class="font-bold text-emerald-400"
+        >
+          Disponible
+        </span>
+      </p>
+    </section>
+
+    <!-- ORDEN ACTIVA -->
+    <section
+      id="ordenContainer"
+      class="bg-slate-900 rounded-xl p-6 hidden"
+    >
+      <h2 class="text-lg font-semibold mb-4">Servicio asignado</h2>
+
+      <div class="space-y-2 text-sm">
+        <p><strong>Cliente:</strong> <span id="ordenCliente"></span></p>
+        <p><strong>Dirección:</strong> <span id="ordenDireccion"></span></p>
+        <p><strong>Servicio:</strong> <span id="ordenServicio"></span></p>
+        <p><strong>Estado:</strong> <span id="ordenEstado"></span></p>
+      </div>
+
+      <!-- BOTONES DE ACCIÓN -->
+      <div class="mt-6 flex gap-3">
+        <button
+          id="btnEnCamino"
+          onclick="marcarEnCamino()"
+          class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded"
+        >
+          En camino
         </button>
-    </div>
 
-    <div id="solicitudesContainer" class="max-w-md w-full uber-card p-6 rounded-[2rem] shadow-2xl">
-        <h2 class="text-sm font-black mb-6 text-center uppercase tracking-[0.2em] text-indigo-400">Solicitudes Entrantes</h2>
-        <div id="solicitudesList" class="flex flex-col gap-4">
-            <div id="placeholder">
-    <p class="text-slate-600 text-center text-xs italic animate-pulse">
-        Buscando servicios cerca...
-    </p>
-</div>
+        <button
+          id="btnEnSitio"
+          onclick="marcarEnSitio()"
+          class="bg-amber-600 hover:bg-amber-700 px-4 py-2 rounded"
+        >
+          Llegué al sitio
+        </button>
 
-    </div>
+        <button
+          id="btnFinalizar"
+          onclick="finalizarOrden()"
+          class="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded"
+        >
+          Finalizar servicio
+        </button>
+      </div>
+    </section>
 
-    <footer class="mt-4">
-        <p class="text-[9px] text-slate-700 font-bold uppercase tracking-[0.5em]">FixGo Live Status v2.0</p>
-    </footer>
+    <!-- MAPA -->
+    <section class="bg-slate-900 rounded-xl p-6">
+      <h2 class="text-lg font-semibold mb-4">Ubicación en tiempo real</h2>
+      <div
+        id="mapa"
+        class="w-full h-72 rounded-xl bg-slate-800"
+      ></div>
+    </section>
 
-    <script type="module" src="app-tecnico.js"></script>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="text-center text-xs text-slate-500 py-4">
+    FixGo © 2026 · Técnico en servicio
+  </footer>
+
+  <!-- SCRIPTS -->
+  <script type="module" src="./firebase.js"></script>
+  <script type="module" src="./gps-motor.js"></script>
+  <script type="module" src="./app-tecnico.js"></script>
+
 </body>
 </html>
