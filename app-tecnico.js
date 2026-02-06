@@ -42,12 +42,12 @@ console.log("app-tecnico.js cargado");
     return;
   }
 
-  if (userData.rol !== "tecnico") {
+  if (user.rol !== "tecnico") {
     window.location.href = "index.html";
     return;
   }
 
-  tecnico = userData;
+  tecnico = user;
 
   await registrarOActualizarTecnico();
   escucharSolicitudActiva();
