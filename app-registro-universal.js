@@ -1,196 +1,186 @@
-// ===============================
-// FIXGO - APP REGISTRO UNIVERSAL 2026
-// ===============================
+// =======================================
+// FIXGO 2026 – REGISTRO & LOGIN UNIVERSAL
+// app-registro-universal.js
+// =======================================
 
-import { 
-    auth, 
-    registrarUsuario, 
-    loginUsuario, 
-    loginGoogle, 
-    cerrarSesion, 
-    db, 
-    setDoc, 
-    doc, 
-    onSnapshot, 
-    collection, 
-    addDoc, 
-    serverTimestamp,
-    actualizarUbicacion
+console.log("✅ app-registro-universal.js cargado");
+
+// ===============================
+// IMPORTS
+// ===============================
+import {
+  registrarUsuario,
+  loginUsuario,
+  loginGoogle,
+  cerrarSesion,
+  observarAuth,
+  db,
+  doc,
+  setDoc,
+  serverTimestamp
 } from "./firebase.js";
 
-import { initGPSMotor } from "./gps-motor.js";
-
-console.log("app-registro-universal.js cargado");
-
 // ===============================
-// BOTONES DE REGISTRO
+// HELPERS
 // ===============================
-
-// Cliente
-const btnRegistroCliente = document.getElementById("btnRegistroCliente");
-const formRegistroCliente = document.getElementById("formRegistroCliente");
-
-if (btnRegistroCliente && formRegistroCliente) {
-    btnRegistroCliente.addEventListener("click", async (e) => {
-        e.preventDefault();
-
-        const nombre = formRegistroCliente.nombre.value;
-        const email = formRegistroCliente.email.value;
-        const password = formRegistroCliente.password.value;
-        const telefono = formRegistroCliente.telefono.value;
-
-        if (!nombre || !email || !password || !telefono) {
-            alert("Completa todos los campos");
-            return;
-        }
-
-        try {
-            const user = await registrarUsuario(email, password, "cliente", { 
-                nombre,
-                telefono 
-            });
-
-            alert("Registro exitoso como cliente: " + nombre);
-            window.location.href = "index.html";
-        } catch (err) {
-            console.error("Error registro cliente:", err);
-            alert("Error al registrar cliente: " + err.message);
-        }
-    });
+function $(id) {
+  return document.getElementById(id);
 }
 
-// Técnico
-const btnRegistroTecnico = document.getElementById("btnRegistroTecnico");
-const formRegistroTecnico = document.getElementById("formRegistroTecnico");
-
-if (btnRegistroTecnico && formRegistroTecnico) {
-    btnRegistroTecnico.addEventListener("click", async (e) => {
-        e.preventDefault();
-
-        const nombre = formRegistroTecnico.nombre.value;
-        const email = formRegistroTecnico.email.value;
-        const password = formRegistroTecnico.password.value;
-        const telefono = formRegistroTecnico.telefono.value;
-
-        if (!nombre || !email || !password || !telefono) {
-            alert("Completa todos los campos");
-            return;
-        }
-
-        try {
-            const user = await registrarUsuario(email, password, "tecnico", {
-                nombre,
-                telefono,
-                nivel: "Bronce", // inicial
-                documentos: {},
-                activo: false // pendiente validación admin
-            });
-
-            alert("Registro exitoso como técnico: " + nombre);
-            window.location.href = "login.html";
-        } catch (err) {
-            console.error("Error registro técnico:", err);
-            alert("Error al registrar técnico: " + err.message);
-        }
-    });
+function redirigirPorRol(rol) {
+  if (rol === "cliente") window.location.href = "index.html";
+  if (rol === "tecnico") window.location.href = "area-tecnico.html";
+  if (rol === "admin") window.location.href = "admin.html";
 }
 
 // ===============================
-// BOTÓN LOGIN
+// REGISTRO CLIENTE
 // ===============================
-const btnLogin = document.getElementById("btnLogin");
-const formLogin = document.getElementById("formLogin");
+const btnRegistroCliente = $("btnRegistroCliente");
 
-if (btnLogin && formLogin) {
-    btnLogin.addEventListener("click", async (e) => {
-        e.preventDefault();
+if (btnRegistroCliente) {
+  btnRegistroCliente.addEventListener("click", async () => {
+    console.log("🟢 Click registro cliente");
 
-        const email = formLogin.email.value;
-        const password = formLogin.password.value;
+    const email = $("emailCliente").value;
+    const password = $("passwordCliente").value;
+    const nombre = $("nombreCliente").value;
+    const telefono = $("telefonoCliente").value;
 
-        if (!email || !password) {
-            alert("Ingresa tus credenciales");
-            return;
+    if (!email || !password || !nombre) {
+      alert("Completa todos los campos");
+      return;
+    }
+
+    try {
+      await registrarUsuario(email, password, "cliente", {
+        nombre,
+        telefono,
+        tipo: "cliente"
+      });
+
+      alert("Cliente registrado correctamente");
+      window.location.href = "login.html";
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    }
+  });
+}
+
+// ===============================
+// REGISTRO TECNICO
+// ===============================
+const btnRegistroTecnico = $("btnRegistroTecnico");
+
+if (btnRegistroTecnico) {
+  btnRegistroTecnico.addEventListener("click", async () => {
+    console.log("🟢 Click registro técnico");
+
+    const email = $("emailTecnico").value;
+    const password = $("passwordTecnico").value;
+    const nombre = $("nombreTecnico").value;
+    const especialidad = $("especialidadTecnico").value;
+
+    if (!email || !password || !nombre || !especialidad) {
+      alert("Completa todos los campos");
+      return;
+    }
+
+    try {
+      const user = await registrarUsuario(email, password, "tecnico", {
+        nombre,
+        especialidad,
+        tipo: "tecnico",
+        verificado: false,
+        online: false
+      });
+
+      await setDoc(
+        doc(db, "tecnicos", user.uid),
+        {
+          uid: user.uid,
+          nombre,
+          especialidad,
+          estado: "pendiente",
+          creado: serverTimestamp()
         }
+      );
 
-        try {
-            const user = await loginUsuario(email, password);
-            alert("Bienvenido " + email);
-            window.location.href = "index.html";
-        } catch (err) {
-            console.error("Error login:", err);
-            alert("Error al iniciar sesión: " + err.message);
-        }
-    });
+      alert("Técnico registrado. En espera de validación.");
+      window.location.href = "login.html";
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    }
+  });
+}
+
+// ===============================
+// LOGIN EMAIL / PASSWORD
+// ===============================
+const btnLogin = $("btnLogin");
+
+if (btnLogin) {
+  btnLogin.addEventListener("click", async () => {
+    console.log("🟢 Click login");
+
+    const email = $("loginEmail").value;
+    const password = $("loginPassword").value;
+
+    if (!email || !password) {
+      alert("Ingresa correo y contraseña");
+      return;
+    }
+
+    try {
+      await loginUsuario(email, password);
+    } catch (err) {
+      console.error(err);
+      alert("Credenciales incorrectas");
+    }
+  });
 }
 
 // ===============================
 // LOGIN GOOGLE
 // ===============================
-const btnLoginGoogle = document.getElementById("btnLoginGoogle");
-if (btnLoginGoogle) {
-    btnLoginGoogle.addEventListener("click", async () => {
-        try {
-            const user = await loginGoogle("cliente"); // Default cliente
-            alert("Sesión iniciada con Google: " + user.email);
-            window.location.href = "index.html";
-        } catch (err) {
-            console.error("Error Google login:", err);
-            alert("Error al iniciar sesión con Google: " + err.message);
-        }
-    });
+const btnGoogle = $("btnGoogleLogin");
+
+if (btnGoogle) {
+  btnGoogle.addEventListener("click", async () => {
+    console.log("🟢 Login Google");
+
+    try {
+      await loginGoogle("cliente");
+    } catch (err) {
+      console.error(err);
+      alert("Error con Google");
+    }
+  });
 }
 
 // ===============================
-// SUBIDA DE DOCUMENTOS TECNICO
+// LOGOUT
 // ===============================
-const subirINE = document.getElementById("btnSubirINE");
-const subirCSF = document.getElementById("btnSubirCSF");
-const inputINE = document.getElementById("inputINE");
-const inputCSF = document.getElementById("inputCSF");
+const btnLogout = $("logoutBtn");
 
-if (subirINE && inputINE) {
-    subirINE.addEventListener("click", () => inputINE.click());
-    inputINE.addEventListener("change", async () => {
-        const file = inputINE.files[0];
-        if (!file) return;
-        try {
-            const storageRef = firebase.storage().ref(`tecnicos/${auth.currentUser.uid}/INE/${file.name}`);
-            await storageRef.put(file);
-            const url = await storageRef.getDownloadURL();
-            await setDoc(doc(db, "tecnicos", auth.currentUser.uid), {
-                "documentos.ine": url
-            }, { merge: true });
-            alert("INE subido correctamente");
-        } catch (err) {
-            console.error("Error subiendo INE:", err);
-            alert("Error al subir INE: " + err.message);
-        }
-    });
-}
-
-if (subirCSF && inputCSF) {
-    subirCSF.addEventListener("click", () => inputCSF.click());
-    inputCSF.addEventListener("change", async () => {
-        const file = inputCSF.files[0];
-        if (!file) return;
-        try {
-            const storageRef = firebase.storage().ref(`tecnicos/${auth.currentUser.uid}/CSF/${file.name}`);
-            await storageRef.put(file);
-            const url = await storageRef.getDownloadURL();
-            await setDoc(doc(db, "tecnicos", auth.currentUser.uid), {
-                "documentos.csf": url
-            }, { merge: true });
-            alert("CSF subido correctamente");
-        } catch (err) {
-            console.error("Error subiendo CSF:", err);
-            alert("Error al subir CSF: " + err.message);
-        }
-    });
+if (btnLogout) {
+  btnLogout.addEventListener("click", async () => {
+    await cerrarSesion();
+    window.location.href = "login.html";
+  });
 }
 
 // ===============================
-// INICIALIZACIÓN GPS TECNICO
+// OBSERVADOR GLOBAL AUTH
 // ===============================
-initGPSMotor(); // Función que arranca seguimiento GPS para técnico
+observarAuth((userData) => {
+  if (!userData) {
+    console.log("🔴 No autenticado");
+    return;
+  }
 
+  console.log("🟢 Usuario autenticado:", userData.rol);
+  redirigirPorRol(userData.rol);
+});
