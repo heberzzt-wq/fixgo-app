@@ -1,56 +1,31 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>FixGo | Iniciar Sesión</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FixGo - Login</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
-<body class="bg-slate-100 flex items-center justify-center min-h-screen">
+<body class="text-white bg-black min-h-screen">
 
-  <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-    <h1 class="text-2xl font-black text-center mb-6">FixGo</h1>
+<header class="max-w-4xl mx-auto flex justify-between items-center p-6">
+    <h1 class="text-3xl font-black tracking-tighter italic text-white">FIXGO</h1>
+    <a href="index.html" class="text-indigo-500 font-bold">Inicio</a>
+</header>
 
-    <input id="email" type="email" placeholder="Correo"
-      class="w-full mb-3 p-3 rounded-xl border">
+<main class="max-w-4xl mx-auto px-4 py-12">
+    <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl">
+        <h2 class="text-2xl font-black mb-6">Iniciar Sesión</h2>
+        <form id="formLogin" class="space-y-4">
+            <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-4 py-3 rounded-2xl">
+            <input type="password" name="password" placeholder="Contraseña" required class="uber-input w-full px-4 py-3 rounded-2xl">
+            <button type="submit" id="btnLogin" class="w-full bg-indigo-500 py-4 rounded-2xl font-black hover:bg-indigo-600 transition-all">Entrar</button>
+        </form>
+        <button id="btnLoginGoogle" class="w-full mt-4 bg-white text-black py-4 rounded-2xl font-black hover:bg-indigo-500 hover:text-white transition-all">Login con Google</button>
+    </div>
+</main>
 
-    <input id="password" type="password" placeholder="Contraseña"
-      class="w-full mb-4 p-3 rounded-xl border">
-
-    <button id="btnLogin"
-      class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">
-      Entrar
-    </button>
-
-    <p class="text-center mt-4 text-sm">
-      ¿No tienes cuenta?
-      <a href="registro.html" class="text-indigo-600 font-semibold">Regístrate</a>
-    </p>
-  </div>
-
-<script type="module">
-import { loginUsuario, observarAuth } from "./firebase.js";
-
-document.getElementById("btnLogin").onclick = async () => {
-  const email = email.value;
-  const password = password.value;
-
-  try {
-    await loginUsuario(email, password);
-  } catch {
-    alert("Credenciales incorrectas");
-  }
-};
-
-observarAuth((user) => {
-  if (!user) return;
-
-  if (user.rol === "cliente") location.href = "index.html";
-  if (user.rol === "tecnico") location.href = "area-tecnico.html";
-  if (user.rol === "admin") location.href = "admin.html";
-});
-</script>
-
+<script type="module" src="./app-registro-universal.js"></script>
 </body>
 </html>
