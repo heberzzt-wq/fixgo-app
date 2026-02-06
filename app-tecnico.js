@@ -1,221 +1,146 @@
-// app-tecnico.js
-import { 
-    auth, 
-    db, 
-    onAuthStateChanged, 
-    signOut, 
-    doc, 
-    getDoc, 
-    setDoc, 
-    updateDoc, 
-    collection, 
-    query, 
-    where, 
-    onSnapshot, 
-    serverTimestamp 
+import {
+  auth,
+  db,
+  onAuthStateChanged,
+  signOut,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  onSnapshot,
+  serverTimestamp
 } from "./firebase.js";
 
-const getEl = (id) => document.getElementById(id);
-let watchId = null;
+/* =========================
+   FIXGO · TÉCNICO APP
+========================= */
 
-// --- 1. MONITOR DE SESIÓN ---
+const $ = id => document.getElementById(id);
+let gpsWatch = null;
+
+/* ---------- SESIÓN ---------- */
 onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        const tecRef = doc(db, "tecnicos", user.uid);
-        const tecSnap = await getDoc(tecRef);
+  if (!user) return location.href = "login.html";
 
-        if (tecSnap.exists()) {
-            actualizarVistaTecnico(tecSnap.data());
-        } else {
-            await registrarTecnicoPredeterminado(tecRef);
-        }
-        
-        // Iniciamos los escuchas de tiempo real
-        escucharSolicitudesDisponibles();
-        escucharMiServicioActivo(user.uid);
-    } else {
-        window.location.href = "login.html";
-    }
+  const ref = doc(db, "tecnicos", user.uid);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      nombre: "Técnico FixGo",
+      estado: "DISPONIBLE",
+      nivel: "BRONCE",
+      gpsActivo: false
+    });
+  }
+
+  escucharRadar();
+  escucharMision(user.uid);
 });
 
-function actualizarVistaTecnico(data) {
-    if (getEl("nombreTecnico")) getEl("nombreTecnico").innerText = data.nombre || "Jonathan Catana";
-    if (getEl("infoVehiculo")) getEl("infoVehiculo").innerText = `${data.vehiculo || 'Thida'} | ${data.placas || '123456'}`;
-}
+/* ---------- GPS ---------- */
+$("btnGps")?.addEventListener("click", () => {
+  gpsWatch ? detenerGPS() : iniciarGPS();
+});
 
-async function registrarTecnicoPredeterminado(tecRef) {
-    await setDoc(tecRef, {
-        nombre: "Jonathan Catana",
-        estado: "DISPONIBLE",
-        vehiculo: "Thida",
-        placas: "123456"
-    });
-}
-
-// --- 2. CONTROL GPS ---
-const btnGPS = getEl("btnGps");
-const gpsStatus = getEl("gpsStatus");
-
-if (btnGPS) {
-    btnGPS.onclick = () => {
-        if (watchId === null) iniciarRastreoGPS();
-        else detenerRastreoGPS();
-    };
-}
-
-function iniciarRastreoGPS() {
-    if (!navigator.geolocation) return alert("GPS no soportado");
-    watchId = navigator.geolocation.watchPosition(actualizarUbicacion, manejarErrorGPS, { enableHighAccuracy: true });
-    
-    btnGPS.innerHTML = '<i class="fas fa-broadcast-tower animate-pulse"></i> <span>RASTREO ACTIVO</span>';
-    btnGPS.className = "w-full py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 bg-emerald-500 text-white shadow-lg shadow-emerald-500/20";
-    if (gpsStatus) gpsStatus.innerText = "TRANSMITIENDO EN TIEMPO REAL";
-}
-
-function detenerRastreoGPS() {
-    if (watchId) navigator.geolocation.clearWatch(watchId);
-    watchId = null;
-    btnGPS.innerHTML = '<i class="fas fa-location-arrow"></i> <span>ACTIVAR RASTREO GPS</span>';
-    btnGPS.className = "w-full py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 bg-white text-black btn-glow";
-    if (gpsStatus) gpsStatus.innerText = "EL SISTEMA ESTÁ EN PAUSA";
-}
-
-async function actualizarUbicacion(pos) {
+function iniciarGPS() {
+  gpsWatch = navigator.geolocation.watchPosition(async pos => {
     const user = auth.currentUser;
-    if (user) {
-        await updateDoc(doc(db, "tecnicos", user.uid), {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            ubicacion: { lat: pos.coords.latitude, lng: pos.coords.longitude },
-            ultimaActualizacion: serverTimestamp()
-        });
-    }
-}
+    if (!user) return;
 
-function manejarErrorGPS(err) { console.warn("Señal GPS débil...", err); }
-
-// --- 3. ESCUCHA DE SOLICITUDES DISPONIBLES ---
-function escucharSolicitudesDisponibles() {
-    const list = getEl("listaServicios");
-    if (!list) return;
-
-    // LUPA: Query limpia sin orderBy para evitar errores de índice y asegurar carga inmediata
-    const q = query(
-        collection(db, "solicitudes"), 
-        where("estado", "==", "SOLICITADO")
-    );
-
-    onSnapshot(q, (snapshot) => {
-        list.innerHTML = snapshot.empty ? '<div class="text-center py-10 text-slate-600 text-sm italic">Buscando solicitudes cercanas...</div>' : '';
-        
-        snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            const card = document.createElement("div");
-            card.className = "uber-card p-6 rounded-[2rem] mb-4 animate-fade border border-white/5";
-            card.innerHTML = `
-                <div class="mb-4">
-                    <span class="status-badge text-[9px] font-black px-2 py-1 rounded-full uppercase">${data.categoria || 'GENERAL'}</span>
-                    <p class="text-lg font-bold text-white mt-2">${data.direccion}</p>
-                    <p class="text-slate-400 text-xs">${data.descripcion || ''}</p>
-                </div>
-                <button onclick="aceptarServicio('${docSnap.id}')" class="w-full bg-indigo-600 text-white font-black py-4 rounded-xl text-xs uppercase hover:bg-white hover:text-black transition-all">
-                    Aceptar Servicio
-                </button>
-            `;
-            list.appendChild(card);
-        });
-    }, (error) => {
-        console.error("Error en lista solicitudes:", error);
+    await updateDoc(doc(db, "tecnicos", user.uid), {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      gpsActivo: true,
+      ultimaActualizacion: serverTimestamp()
     });
+  });
+
+  $("gpsStatus").innerText = "GPS ACTIVO";
 }
 
-window.aceptarServicio = async (id) => {
-    const user = auth.currentUser;
-    try {
-        await updateDoc(doc(db, "solicitudes", id), {
-            estado: "EN_CAMINO",
-            tecnicoId: user.uid,
-            fechaAceptado: serverTimestamp()
-        });
-        
-        await updateDoc(doc(db, "tecnicos", user.uid), { 
-            estado: "EN SERVICIO",
-            servicioActualId: id 
-        });
+function detenerGPS() {
+  navigator.geolocation.clearWatch(gpsWatch);
+  gpsWatch = null;
+  $("gpsStatus").innerText = "GPS OFF";
+}
 
-        alert("¡Servicio aceptado!");
-    } catch (e) {
-        console.error(e);
-        alert("Error: El servicio ya no está disponible.");
-    }
+/* ---------- RADAR ---------- */
+function escucharRadar() {
+  const cont = $("listaServicios");
+  if (!cont) return;
+
+  const q = query(collection(db, "solicitudes"), where("estado", "==", "SOLICITADO"));
+
+  onSnapshot(q, snap => {
+    cont.innerHTML = "";
+    snap.forEach(docSnap => {
+      const s = docSnap.data();
+      cont.innerHTML += `
+        <div class="bg-slate-800 p-6 rounded-2xl mb-4">
+          <p class="text-white font-black">${s.direccion}</p>
+          <button onclick="aceptar('${docSnap.id}')" class="mt-4 w-full bg-blue-600 text-white py-3 rounded-xl">
+            Aceptar
+          </button>
+        </div>
+      `;
+    });
+  });
+}
+
+window.aceptar = async (id) => {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  await updateDoc(doc(db, "solicitudes", id), {
+    estado: "EN_CAMINO",
+    tecnicoId: user.uid,
+    fechaAceptado: serverTimestamp()
+  });
+
+  await updateDoc(doc(db, "tecnicos", user.uid), {
+    estado: "EN SERVICIO",
+    servicioActualId: id
+  });
+
+  iniciarGPS();
 };
 
-// --- 4. PANEL DE CONTROL DINÁMICO ---
-function escucharMiServicioActivo(uid) {
-    const panelAcciones = getEl("panelAccionesTecnico");
-    const contenedorBusqueda = getEl("contenedorBusqueda");
+/* ---------- MISIÓN ---------- */
+function escucharMision(uid) {
+  const q = query(collection(db, "solicitudes"), where("tecnicoId", "==", uid));
 
-    // LUPA: Filtramos por tecnicoId y gestionamos los estados en el cliente
-    const q = query(
-        collection(db, "solicitudes"), 
-        where("tecnicoId", "==", uid)
+  onSnapshot(q, snap => {
+    const activo = snap.docs.find(d =>
+      ["EN_CAMINO", "EN_SITIO"].includes(d.data().estado)
     );
 
-    onSnapshot(q, (snapshot) => {
-        // Buscamos manualmente si hay alguno en camino o en sitio
-        const activo = snapshot.docs.find(doc => {
-            const st = doc.data().estado;
-            return st === "EN_CAMINO" || st === "EN_SITIO";
-        });
+    if (!activo) return;
 
-        if (!activo) {
-            if (panelAcciones) panelAcciones.classList.add("hidden");
-            if (contenedorBusqueda) contenedorBusqueda.classList.remove("hidden");
-        } else {
-            if (panelAcciones) panelAcciones.classList.remove("hidden");
-            if (contenedorBusqueda) contenedorBusqueda.classList.add("hidden");
-            
-            const serv = activo.data();
-            const servId = activo.id;
-            
-            panelAcciones.innerHTML = `
-                <div class="uber-card p-8 rounded-[2.5rem] border border-indigo-500/40 animate-fade">
-                    <h3 class="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-4">Trabajo en Curso</h3>
-                    <p class="text-white font-bold text-xl leading-tight mb-2">${serv.direccion}</p>
-                    <p class="text-slate-500 text-xs mb-8 italic">${serv.descripcion || ''}</p>
-                    <div class="grid grid-cols-1 gap-4">
-                        ${serv.estado === 'EN_CAMINO' ? 
-                            `<button onclick="actualizarEstadoFlujo('${servId}', 'EN_SITIO')" class="bg-white text-black font-black py-5 rounded-2xl uppercase text-sm shadow-lg active:scale-95 transition-transform">Ya llegué al sitio</button>` : 
-                            `<button onclick="actualizarEstadoFlujo('${servId}', 'FINALIZADO')" class="bg-emerald-500 text-white font-black py-5 rounded-2xl uppercase text-sm shadow-lg active:scale-95 transition-transform">Finalizar Trabajo</button>`
-                        }
-                    </div>
-                </div>
-            `;
-        }
-    }, (error) => {
-        console.error("Error en servicio activo:", error);
-    });
+    $("panelAccionesTecnico").innerHTML = `
+      <button onclick="finalizar('${activo.id}')" class="w-full bg-emerald-600 text-white py-4 rounded-xl">
+        Finalizar Servicio
+      </button>
+    `;
+  });
 }
 
-window.actualizarEstadoFlujo = async (id, nuevoEstado) => {
-    try {
-        await updateDoc(doc(db, "solicitudes", id), { 
-            estado: nuevoEstado,
-            fechaCambio: serverTimestamp() 
-        });
-        
-        if (nuevoEstado === "FINALIZADO") {
-            await updateDoc(doc(db, "tecnicos", auth.currentUser.uid), { 
-                estado: "DISPONIBLE",
-                servicioActualId: null 
-            });
-            alert("¡Servicio completado!");
-        }
-    } catch (e) {
-        console.error("Error al actualizar estado:", e);
-    }
+window.finalizar = async (id) => {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  await updateDoc(doc(db, "solicitudes", id), {
+    estado: "FINALIZADO",
+    fechaFin: serverTimestamp()
+  });
+
+  await updateDoc(doc(db, "tecnicos", user.uid), {
+    estado: "DISPONIBLE",
+    servicioActualId: null
+  });
 };
 
-if (getEl("logoutBtn")) {
-    getEl("logoutBtn").onclick = () => signOut(auth);
-}
+$("btnLogout")?.addEventListener("click", () => signOut(auth));
