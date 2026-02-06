@@ -1,102 +1,121 @@
-// ===============================
-// FIXGO - APP CLIENTE
-// ===============================
-
-import {
-  auth,
-  db,
-  observarAuth,
-  crearSolicitud,
-  collection,
-  query,
-  where,
-  onSnapshot
+/**
+ * FIXGO - APP-CLIENTE.JS
+ * Control de Interfaz y Flujo de Usuario
+ */
+import { 
+    auth, 
+    db, 
+    observarAuth, 
+    crearSolicitud, 
+    escucharSolicitudesActivas,
+    actualizarUbicacion 
 } from "./firebase.js";
 
-// ===============================
-// ELEMENTOS UI
-// ===============================
+// Elementos de la UI
 const hero = document.getElementById("hero");
-const clientePanel = document.getElementById("clientePanel");
-const nombreCliente = document.getElementById("nombreCliente");
+const clientDashboard = document.getElementById("clientDashboard");
+const btnSolicitar = document.getElementById("btnSolicitar");
+const userInfo = document.getElementById("userInfo");
 
-const cards = document.querySelectorAll(".service-card");
-const servicioInput = document.getElementById("servicioSeleccionado");
-const form = document.getElementById("solicitudForm");
+/* ==========================================
+   1. GESTIÓN DE ESTADO DE SESIÓN (CALLBACK)
+   ========================================== */
 
-// ===============================
-// AUTH STATE
-// ===============================
-let usuarioActual = null;
-
+// Usamos observarAuth que definimos en firebase.js
 observarAuth((user) => {
-  usuarioActual = user;
+    if (user) {
+        // SI HAY USUARIO: Personalizar y mostrar Dashboard
+        console.log("Cliente autenticado:", user.uid);
+        
+        if (hero) hero.classList.add("hidden"); // Ocultamos el Hero
+        if (clientDashboard) clientDashboard.classList.remove("hidden"); // Mostramos App
+        
+        if (userInfo) {
+            userInfo.innerHTML = `
+                <p class="text-xs font-bold text-blue-500">BIENVENIDO</p>
+                <h2 class="text-xl font-black">${user.nombre || 'Usuario'}</h2>
+            `;
+        }
 
-  if (!user || user.rol !== "cliente") {
-    hero.classList.remove("hidden");
-    clientePanel.classList.add("hidden");
-    return;
-  }
+        // Iniciar rastreo de sus solicitudes actuales
+        iniciarEscuchaSolicitudes(user.uid);
 
-  hero.classList.add("hidden");
-  clientePanel.classList.remove("hidden");
-
-  nombreCliente.textContent = user.email.split("@")[0].toUpperCase();
-  escucharHistorial();
+    } else {
+        // CALLBACK(NULL): No hay sesión, volvemos al estado inicial
+        console.log("Sin sesión activa.");
+        
+        if (hero) hero.classList.remove("hidden"); // Mostramos el Hero (Login/Registro)
+        if (clientDashboard) clientDashboard.classList.add("hidden"); // Ocultamos App
+    }
 });
 
-// ===============================
-// SELECCIÓN SERVICIO
-// ===============================
-cards.forEach(card => {
-  card.addEventListener("click", () => {
-    if (card.classList.contains("cursor-not-allowed")) return;
+/* ==========================================
+   2. MOTOR DE SOLICITUDES (MARKETPLACE)
+   ========================================== */
 
-    cards.forEach(c => c.classList.remove("selected"));
-    card.classList.add("selected");
+async function manejarSolicitud() {
+    // 1. Obtener datos del formulario de la UI
+    const servicioSelect = document.getElementById("servicioTipo");
+    const descripcion = document.getElementById("descripcionTarea");
 
-    servicioInput.value = card.dataset.service;
-  });
-});
+    if (!servicioSelect.value) return alert("Selecciona un servicio");
 
-// ===============================
-// CREAR SOLICITUD
-// ===============================
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
+    // 2. Feedback visual (Loading)
+    btnSolicitar.disabled = true;
+    btnSolicitar.innerText = "BUSCANDO TÉCNICO...";
 
-  if (!servicioInput.value) {
-    alert("Selecciona un servicio");
-    return;
-  }
+    try {
+        // 3. Comunicación con Firebase (Punto 2 y 5 del Blueprint)
+        const nuevaSolicitud = {
+            vertical: "FIX", // O "ROAD" según UI
+            servicio: servicioSelect.value,
+            descripcion: descripcion.value,
+            montoBase: 250, // Tarifa base inicial
+            lat: 21.1619,   // Estos vendrían del GPS-MOTOR.JS
+            lng: -86.8515
+        };
 
-  const direccion = form.querySelector("input").value;
-  const descripcion = form.querySelector("textarea").value;
+        const docRef = await crearSolicitud(auth.currentUser.uid, nuevaSolicitud);
+        alert("Solicitud enviada con éxito. ID: " + docRef.id);
 
-  await crearSolicitud({
-    clienteUid: usuarioActual.uid,
-    servicio: servicioInput.value,
-    direccion,
-    descripcion,
-    modelo: "DIRECTO",
-    ciudad: "CANCUN"
-  });
+    } catch (error) {
+        console.error("Error al solicitar:", error);
+        alert("Hubo un error al conectar con el servidor.");
+    } finally {
+        btnSolicitar.disabled = false;
+        btnSolicitar.innerText = "SOLICITAR AHORA";
+    }
+}
 
-  alert("Solicitud enviada. Buscando técnico...");
-  form.reset();
-  servicioInput.value = "";
-});
+/* ==========================================
+   3. RASTREO EN TIEMPO REAL
+   ========================================== */
 
-// ===============================
-// HISTORIAL
-// ===============================
-function escucharHistorial() {
-  const q = query(
-    collection(db, "solicitudes"),
-    where("clienteUid", "==", usuarioActual.uid)
-  );
+function iniciarEscuchaSolicitudes(uid) {
+    // Escuchamos cambios en Firestore (Modo Uber)
+    escucharSolicitudesActivas('cliente', uid, (solicitudes) => {
+        const listaUI = document.getElementById("listaServiciosActivos");
+        if (!listaUI) return;
 
-  onSnapshot(q, (snap) => {
-    console.log("Historial cliente:", snap.docs.map(d => d.data()));
-  });
+        if (solicitudes.length === 0) {
+            listaUI.innerHTML = `<p class="text-slate-500 text-sm italic">No tienes servicios activos.</p>`;
+            return;
+        }
+
+        listaUI.innerHTML = solicitudes.map(s => `
+            <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 mb-3">
+                <div class="flex justify-between items-center">
+                    <span class="text-[10px] font-black bg-blue-600 px-2 py-1 rounded-lg">${s.estado}</span>
+                    <span class="text-slate-500 text-[10px]">${new Date(s.creadoEn?.toDate()).toLocaleTimeString()}</span>
+                </div>
+                <h4 class="font-bold mt-2">${s.servicio}</h4>
+                <p class="text-xs text-slate-400">${s.tecnicoId ? 'Técnico en camino' : 'Buscando al mejor técnico...'}</p>
+            </div>
+        `).join('');
+    });
+}
+
+// Event Listeners
+if (btnSolicitar) {
+    btnSolicitar.addEventListener("click", manejarSolicitud);
 }
