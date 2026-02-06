@@ -1,133 +1,236 @@
-import { auth, db } from "./firebase.js";
-import { 
-    collection, 
-    addDoc, 
-    serverTimestamp, 
-    query, 
-    where, 
-    onSnapshot, 
-    orderBy 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { onAuthStateChanged } from "./firebase.js";
+/**
+ * FixGo – app-main.js
+ * Rol: CLIENTE
+ * Función: 
+ *  - Cargar perfil del cliente
+ *  - Mostrar servicios disponibles
+ *  - Crear solicitudes
+ *  - Escuchar cambios de estado
+ */
 
-// 1. Referencias al DOM
-const solicitudForm = document.getElementById("nuevaSolicitudForm");
-const listaServicios = document.getElementById("solicitudesCliente");
-const nombreClienteHeader = document.getElementById("nombreCliente");
-const inputCategoria = document.getElementById("categoriaSeleccionada");
+import {
+  auth,
+  db,
+  observarAuth,
+  cerrarSesion
+} from "./firebase.js";
 
-// 2. Manejo del Formulario de Solicitud
-if (solicitudForm) {
-    solicitudForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  serverTimestamp,
+  getDoc,
+  doc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        const user = auth.currentUser;
-        if (!user) {
-            alert("⚠️ Debes iniciar sesión para solicitar un servicio.");
-            return;
-        }
+/* ===============================
+   VARIABLES DE UI
+================================ */
 
-        // Validar que haya seleccionado una categoría en la cuadrícula
-        if (!inputCategoria.value) {
-            alert("⚠️ Por favor, selecciona una categoría (Eléctrico, Aire AC, etc.)");
-            return;
-        }
+const heroSection = document.getElementById("heroSection");
+const solicitudContainer = document.getElementById("solicitudContainer");
+const logoutBtn = document.getElementById("logoutBtn");
+const nombreClienteSpan = document.getElementById("nombreCliente");
 
-        const formData = new FormData(solicitudForm);
-        const direccion = formData.get("direccion");
-        const descripcion = formData.get("descripcion");
-        const categoria = inputCategoria.value;
+const gridServicios = document.getElementById("gridServicios");
+const formulario = document.getElementById("nuevaSolicitudForm");
+const solicitudesCliente = document.getElementById("solicitudesCliente");
 
-        try {
-            // CREAR SOLICITUD CON LOS NUEVOS ESTADOS Y CATEGORÍA
-            await addDoc(collection(db, "solicitudes"), {
-                clienteId: user.uid,
-                clienteNombre: user.displayName || "Cliente",
-                categoria: categoria, // <-- Nueva data de la cuadrícula
-                direccion: direccion,
-                descripcion: descripcion,
-                estado: "SOLICITADO", // Iniciamos con el primer estado oficial
-                fechaCreacion: serverTimestamp(), 
-                tecnicoId: null,
-                pagoEstado: "PENDIENTE"
-            });
+/* ===============================
+   ESTADO GLOBAL
+================================ */
 
-            alert(`🚀 Solicitud de ${categoria} enviada con éxito.`);
-            solicitudForm.reset();
-            
-            // Limpiar selección visual de las tarjetas
-            document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
-            inputCategoria.value = "";
-            document.getElementById('btnLabel').textContent = "Servicio";
+let usuarioActual = null;
+let servicioSeleccionado = null;
 
-        } catch (error) {
-            console.error("Error al crear solicitud:", error);
-            alert("❌ Error al enviar la solicitud.");
-        }
-    });
-}
+/* ===============================
+   AUTENTICACIÓN
+================================ */
 
-// 3. Cargar Historial Personal del Cliente (Tiempo Real)
-function cargarMisServicios(uid) {
-    if (!listaServicios) return;
+observarAuth(async (user) => {
+  if (!user) {
+    heroSection.classList.remove("hidden");
+    solicitudContainer.classList.add("hidden");
+    logoutBtn.classList.add("hidden");
+    return;
+  }
 
-    const q = query(
-        collection(db, "solicitudes"),
-        where("clienteId", "==", uid),
-        orderBy("fechaCreacion", "desc")
-    );
+  usuarioActual = user;
+  logoutBtn.classList.remove("hidden");
+  heroSection.classList.add("hidden");
+  solicitudContainer.classList.remove("hidden");
 
-    onSnapshot(q, (snapshot) => {
-        listaServicios.innerHTML = "";
+  await cargarPerfilCliente();
+  escucharSolicitudesCliente();
+});
 
-        if (snapshot.empty) {
-            listaServicios.innerHTML = `<p class="text-slate-600 text-sm italic">No tienes servicios recientes.</p>`;
-            return;
-        }
+/* ===============================
+   PERFIL CLIENTE
+================================ */
 
-        snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            
-            // Lógica de colores por estado pulida
-            let estadoClase = "text-slate-400";
-            if (data.estado === 'SOLICITADO') estadoClase = "text-amber-500";
-            if (data.estado === 'EN_CAMINO') estadoClase = "text-indigo-400 animate-pulse";
-            if (data.estado === 'FINALIZADO') estadoClase = "text-emerald-500";
+async function cargarPerfilCliente() {
+  try {
+    const ref = doc(db, "users", usuarioActual.uid);
+    const snap = await getDoc(ref);
 
-            const card = document.createElement("div");
-            card.className = "uber-card p-5 rounded-[2rem] border border-white/5 animate-fade mb-4";
-            card.innerHTML = `
-                <div class="flex justify-between items-start">
-                    <div class="flex-1">
-                        <div class="flex items-center gap-2 mb-1">
-                            <span class="bg-indigo-500/10 text-indigo-400 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
-                                ${data.categoria || 'General'}
-                            </span>
-                            <span class="text-slate-600 text-[10px]">${data.fechaCreacion ? new Date(data.fechaCreacion.seconds*1000).toLocaleDateString() : ''}</span>
-                        </div>
-                        <p class="text-white font-bold text-sm leading-tight mb-1">${data.direccion}</p>
-                        <p class="text-slate-500 text-xs italic">${data.descripcion}</p>
-                    </div>
-                    <div class="text-right">
-                        <span class="text-[10px] font-black uppercase tracking-widest ${estadoClase}">
-                            ${data.estado}
-                        </span>
-                    </div>
-                </div>
-            `;
-            listaServicios.appendChild(card);
-        });
-    });
-}
-
-// 4. Observador de sesión
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        if (nombreClienteHeader) {
-            // Mostrar primer nombre en mayúsculas para estilo Uber
-            const nombre = user.displayName ? user.displayName.split(' ')[0].toUpperCase() : "CLIENTE";
-            nombreClienteHeader.innerText = nombre;
-        }
-        cargarMisServicios(user.uid);
+    if (snap.exists()) {
+      const data = snap.data();
+      nombreClienteSpan.textContent =
+        data.nombre
+          ? data.nombre.split(" ")[0].toUpperCase()
+          : "CLIENTE";
+    } else {
+      nombreClienteSpan.textContent = "CLIENTE";
     }
+  } catch (error) {
+    console.error("Error cargando perfil:", error);
+    nombreClienteSpan.textContent = "CLIENTE";
+  }
+}
+
+/* ===============================
+   SELECCIÓN DE SERVICIO
+================================ */
+
+const tarjetasServicio = document.querySelectorAll(".service-card");
+const inputCategoria = document.getElementById("categoriaSeleccionada");
+const btnLabel = document.getElementById("btnLabel");
+
+tarjetasServicio.forEach((card) => {
+  card.addEventListener("click", () => {
+    tarjetasServicio.forEach(c => c.classList.remove("selected"));
+    card.classList.add("selected");
+
+    servicioSeleccionado = card.getAttribute("data-category");
+    inputCategoria.value = servicioSeleccionado;
+    btnLabel.textContent = servicioSeleccionado;
+  });
+});
+
+/* ===============================
+   CREAR SOLICITUD
+================================ */
+
+formulario.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  if (!servicioSeleccionado) {
+    alert("Selecciona un servicio");
+    return;
+  }
+
+  const direccion = formulario.direccion.value.trim();
+  const descripcion = formulario.descripcion.value.trim();
+
+  if (!direccion || !descripcion) {
+    alert("Completa todos los campos");
+    return;
+  }
+
+  try {
+    await addDoc(collection(db, "services"), {
+      cliente_id: usuarioActual.uid,
+      categoria: servicioSeleccionado,
+      direccion,
+      descripcion,
+      estado: "pendiente",
+      tecnico_id: null,
+      eta: null,
+      created_at: serverTimestamp(),
+      zona: "auto",
+      pago_estado: "preautorizado"
+    });
+
+    formulario.reset();
+    tarjetasServicio.forEach(c => c.classList.remove("selected"));
+    btnLabel.textContent = "Servicio";
+    servicioSeleccionado = null;
+
+    alert("Solicitud enviada. Buscando técnico...");
+  } catch (error) {
+    console.error("Error creando solicitud:", error);
+    alert("Error al crear la solicitud");
+  }
+});
+
+/* ===============================
+   ESCUCHAR SOLICITUDES CLIENTE
+================================ */
+
+function escucharSolicitudesCliente() {
+  const q = query(
+    collection(db, "services"),
+    where("cliente_id", "==", usuarioActual.uid),
+    orderBy("created_at", "desc")
+  );
+
+  onSnapshot(q, (snapshot) => {
+    solicitudesCliente.innerHTML = "";
+
+    if (snapshot.empty) {
+      solicitudesCliente.innerHTML = `
+        <p class="text-slate-500 text-sm italic">
+          Aún no tienes servicios registrados.
+        </p>
+      `;
+      return;
+    }
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+
+      const card = document.createElement("div");
+      card.className =
+        "bg-zinc-900 border border-white/10 p-5 rounded-2xl";
+
+      card.innerHTML = `
+        <div class="flex justify-between items-center mb-2">
+          <h4 class="font-black text-sm uppercase">
+            ${data.categoria}
+          </h4>
+          <span class="text-xs px-3 py-1 rounded-full ${
+            data.estado === "pendiente"
+              ? "bg-yellow-500/20 text-yellow-400"
+              : data.estado === "asignado"
+              ? "bg-blue-500/20 text-blue-400"
+              : data.estado === "finalizado"
+              ? "bg-emerald-500/20 text-emerald-400"
+              : "bg-red-500/20 text-red-400"
+          }">
+            ${data.estado}
+          </span>
+        </div>
+
+        <p class="text-xs text-slate-400 mb-1">
+          ${data.direccion}
+        </p>
+
+        <p class="text-xs text-slate-500">
+          ${data.descripcion}
+        </p>
+      `;
+
+      solicitudesCliente.appendChild(card);
+    });
+  });
+}
+
+/* ===============================
+   LOGOUT
+================================ */
+
+logoutBtn.addEventListener("click", async () => {
+  const salir = confirm("¿Deseas cerrar sesión?");
+  if (!salir) return;
+
+  try {
+    await cerrarSesion();
+    location.href = "login.html";
+  } catch (error) {
+    console.error("Error al salir:", error);
+  }
 });
