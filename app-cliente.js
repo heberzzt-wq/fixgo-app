@@ -1,124 +1,99 @@
 import { auth, db, onAuthStateChanged } from "./firebase.js";
-import { 
-    doc, 
-    onSnapshot, 
-    collection, 
-    query, 
-    where, 
-    orderBy, 
-    limit, 
-    getDocs 
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  orderBy,
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-let map, marker;
+/* =========================
+   FIXGO · CLIENTE APP
+========================= */
 
-// 1. INICIALIZACIÓN DEL MAPA
-function initMap() {
-    const mapDiv = document.getElementById("map");
-    if (!mapDiv) return;
+const formSolicitud = document.getElementById("nuevaSolicitudForm");
+const listaHistorial = document.getElementById("solicitudesCliente");
 
-    const defaultPos = { lat: 21.1619, lng: -86.8515 }; // Cancún por defecto
+/* ---------- CREAR SOLICITUD ---------- */
+if (formSolicitud) {
+  formSolicitud.addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-    map = new google.maps.Map(mapDiv, {
-        center: defaultPos,
-        zoom: 16,
-        disableDefaultUI: true,
-        styles: [ // Estilo Dark para que combine con tu UI
-            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-            { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] }
-        ]
-    });
+    const user = auth.currentUser;
+    if (!user) return alert("Debes iniciar sesión");
 
-    marker = new google.maps.Marker({
-        position: defaultPos,
-        map: map,
-        icon: { 
-            url: "https://cdn-icons-png.flaticon.com/512/1048/1048329.png", 
-            scaledSize: new google.maps.Size(50, 50) 
-        }
-    });
+    const categoria = document.getElementById("categoriaSeleccionada")?.value || "GENERAL";
+    const data = new FormData(formSolicitud);
+
+    try {
+      await addDoc(collection(db, "solicitudes"), {
+        clienteId: user.uid,
+        clienteNombre: user.displayName || "Cliente FixGo",
+        clienteTelefono: "PENDIENTE",
+        direccion: data.get("direccion"),
+        descripcion: data.get("descripcion"),
+        categoria,
+        estado: "SOLICITADO",
+        tecnicoId: null,
+        lat: null,
+        lng: null,
+        fechaCreacion: serverTimestamp()
+      });
+
+      formSolicitud.reset();
+      alert("🚀 Servicio solicitado. Buscando técnico...");
+    } catch (err) {
+      console.error(err);
+      alert("Error al crear la solicitud");
+    }
+  });
 }
 
-window.onload = initMap;
+/* ---------- HISTORIAL + SERVICIO ACTIVO ---------- */
+onAuthStateChanged(auth, (user) => {
+  if (!user || !listaHistorial) return;
 
-// 2. BUSCAR SERVICIO ACTIVO DEL CLIENTE
-async function buscarServicioActivo(uid) {
-    const q = query(
-        collection(db, "solicitudes"),
-        where("clienteId", "==", uid),
-        orderBy("fechaCreacion", "desc"),
-        limit(1)
+  const q = query(
+    collection(db, "solicitudes"),
+    where("clienteId", "==", user.uid),
+    orderBy("fechaCreacion", "desc")
+  );
+
+  onSnapshot(q, (snap) => {
+    listaHistorial.innerHTML = "";
+
+    const activo = snap.docs.find(d =>
+      ["SOLICITADO", "EN_CAMINO", "EN_SITIO"].includes(d.data().estado)
     );
 
-    // Escuchar cambios en la solicitud (por si el admin asigna técnico mientras el cliente ve el mapa)
-    onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) {
-            const solicitud = snapshot.docs[0].data();
-            actualizarPanelUI(solicitud);
+    if (activo) renderServicioActivo(activo.data());
 
-            if (solicitud.tecnicoId) {
-                rastrearTecnico(solicitud.tecnicoId);
-            } else {
-                document.getElementById("estadoTecnico").innerText = "BUSCANDO TÉCNICO...";
-            }
-        }
+    snap.forEach(doc => {
+      const s = doc.data();
+      listaHistorial.innerHTML += `
+        <div class="bg-white p-4 rounded-xl shadow mb-3">
+          <div class="flex justify-between">
+            <span class="text-[10px] font-black">${s.categoria}</span>
+            <span class="text-[10px] font-bold">${s.estado}</span>
+          </div>
+          <p class="text-xs font-bold">${s.direccion}</p>
+        </div>
+      `;
     });
-}
-
-// 3. RASTREO EN TIEMPO REAL DEL TÉCNICO
-export function rastrearTecnico(tecnicoId) {
-    onSnapshot(doc(db, "tecnicos", tecnicoId), (docSnap) => {
-        if (!docSnap.exists()) return;
-
-        const t = docSnap.data();
-        const pos = { 
-            lat: parseFloat(t.lat || t.ubicacion?.lat), 
-            lng: parseFloat(t.lng || t.ubicacion?.lng) 
-        };
-
-        // Actualizar UI del técnico en el panel
-        document.getElementById("nombreTecnico").innerText = t.nombre || "Técnico FixGo";
-        document.getElementById("vehiculoTecnico").innerText = `${t.vehiculo || 'Unidad'} | ${t.placas || 'S/P'}`;
-        
-        if (t.telefono) {
-            document.getElementById("btnLlamar").href = `tel:${t.telefono}`;
-        }
-
-        if (pos.lat && pos.lng) {
-            marker.setPosition(pos);
-            map.panTo(pos);
-        }
-    });
-}
-
-// 4. ACTUALIZAR ESTADOS EN EL PANEL
-function actualizarPanelUI(solicitud) {
-    const txtEstado = document.getElementById("estadoTecnico");
-    const dot = document.getElementById("statusDot");
-    const badge = document.getElementById("badgeCategoria");
-    const iconBox = document.getElementById("iconContainer");
-
-    txtEstado.innerText = solicitud.estado;
-    badge.innerText = solicitud.categoria || "GRAL";
-
-    // Cambiar colores según estado
-    if (solicitud.estado === "EN_CAMINO") {
-        txtEstado.classList.add("text-indigo-400");
-        dot.className = "w-2 h-2 rounded-full bg-indigo-400 animate-ping";
-        iconBox.classList.replace("bg-indigo-600", "bg-emerald-500");
-    } else if (solicitud.estado === "FINALIZADO") {
-        txtEstado.className = "text-emerald-400 font-black";
-        dot.className = "w-2 h-2 rounded-full bg-emerald-400";
-    }
-}
-
-// 5. OBSERVAR SESIÓN
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        buscarServicioActivo(user.uid);
-    } else {
-        window.location.href = "login.html";
-    }
+  });
 });
+
+function renderServicioActivo(s) {
+  const panel = document.getElementById("panelStatusActivo");
+  if (!panel) return;
+
+  panel.innerHTML = `
+    <div class="bg-indigo-600 text-white p-6 rounded-2xl shadow-xl">
+      <p class="text-xs uppercase opacity-70">Servicio activo</p>
+      <h2 class="text-2xl font-black">${s.estado.replace("_", " ")}</h2>
+      <p class="text-sm mt-2">Técnico en proceso</p>
+    </div>
+  `;
+}
