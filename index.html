@@ -1,318 +1,149 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FixGo – Ecosistema Técnico en Movimiento</title>
-
-<!-- Tailwind + Icons -->
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
-
-<style>
-/* =========================
-   IDENTIDAD FIXGO
-========================= */
-body {
-    background:#050505;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont;
-}
-.uber-card {
-    background:#121212;
-    border:1px solid rgba(255,255,255,.08);
-}
-.uber-input {
-    background:#1e1e1e;
-    border:none;
-    color:white;
-}
-.uber-input:focus {
-    outline:2px solid #6366f1;
-}
-.service-card {
-    background:#18181b;
-    border:1px solid rgba(255,255,255,.06);
-    transition:.3s ease;
-}
-.service-card:hover {
-    border-color:#6366f1;
-    transform:translateY(-4px);
-}
-.service-card.selected {
-    border-color:#6366f1;
-    background:rgba(99,102,241,.12);
-    box-shadow:0 0 20px rgba(99,102,241,.25);
-}
-.hidden { display:none!important; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FixGo | Bienvenido</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #000000; font-family: 'Inter', sans-serif; }
+        .hero-bg {
+            background-image: radial-gradient(circle at center, #10b98120 0%, #000000 70%);
+        }
+    </style>
 </head>
+<body class="text-white min-h-screen flex flex-col">
 
-<body class="text-white min-h-screen">
+    <nav class="p-6 flex justify-between items-center border-b border-white/10 relative z-20">
+        <h1 class="font-black text-2xl italic tracking-tighter">FIX<span class="text-emerald-500">GO</span></h1>
+        
+        <div id="authActions">
+            <a href="login.html" class="text-sm font-bold text-gray-400 hover:text-white transition-colors">
+                INICIAR SESIÓN
+            </a>
+        </div>
+    </nav>
 
-<!-- =====================================================
-     HEADER
-===================================================== -->
-<header class="max-w-5xl mx-auto flex justify-between items-center p-6">
-    <h1 class="text-3xl font-black italic tracking-tight">
-        FIXGO<span class="text-indigo-500">&</span>FINISH
-    </h1>
-    <button id="logoutBtn"
-        class="hidden px-6 py-2 text-[11px] tracking-widest font-black rounded-xl
-               border border-red-500/30 text-red-500 hover:bg-red-600 hover:text-white">
-        SALIR
-    </button>
-</header>
-
-<!-- =====================================================
-     HERO / SELECCIÓN PERFIL
-===================================================== -->
-<section id="hero" class="max-w-4xl mx-auto text-center py-16">
-    <h2 class="text-5xl font-black tracking-tight mb-4">
-        Tu servicio técnico,<br>en menos de <span class="text-indigo-500">45 minutos</span>.
-    </h2>
-    <p class="text-slate-400 mb-12 text-lg">
-        Ecosistema FixGo · Marketplace técnico con blindaje fiscal y legal
-    </p>
-
-    <div class="grid md:grid-cols-3 gap-6">
-        <a href="login.html" class="uber-card p-8 rounded-[2.5rem] hover:scale-105 transition text-center">
-            <i class="fas fa-user-gear text-4xl text-indigo-400 mb-4"></i>
-            <h3 class="font-black uppercase">Soy Técnico</h3>
-            <p class="text-xs text-slate-500 mt-1">Recibir servicios</p>
-        </a>
-
-        <a href="login.html" class="uber-card p-8 rounded-[2.5rem] hover:scale-105 transition text-center">
-            <i class="fas fa-handshake text-4xl text-emerald-400 mb-4"></i>
-            <h3 class="font-black uppercase">Soy Cliente</h3>
-            <p class="text-xs text-slate-500 mt-1">Solicitar auxilio</p>
-        </a>
-
-        <button onclick="window.location.href='rastreo.html'"
-            class="bg-indigo-600 p-8 rounded-[2.5rem] hover:scale-105 transition text-center">
-            <i class="fas fa-map-location-dot text-4xl mb-4"></i>
-            <h3 class="font-black uppercase">Rastrear</h3>
-            <p class="text-xs opacity-80 mt-1">Ver técnico en vivo</p>
-        </button>
-    </div>
-</section>
-
-<!-- =====================================================
-     SOLICITUD CLIENTE
-===================================================== -->
-<section id="clientePanel" class="hidden max-w-4xl mx-auto px-4 pb-24">
-
-    <h2 class="text-3xl font-black mb-8">
-        Hola, <span id="nombreCliente" class="text-indigo-400 italic">USUARIO</span>
-    </h2>
-
-    <!-- ===============================
-         VERTICALES FIXGO
-    ================================ -->
-    <h3 class="text-xs tracking-widest font-black text-slate-500 mb-4 uppercase">
-        Selecciona una vertical
-    </h3>
-
-    <div class="grid md:grid-cols-2 gap-6 mb-10">
-
-        <!-- FIXGO ROAD -->
-        <div class="uber-card p-6 rounded-3xl">
-            <h4 class="font-black mb-4 flex items-center gap-2">
-                <i class="fas fa-car-burst text-red-500"></i> FixGo Road
-            </h4>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="service-card p-4 rounded-xl cursor-pointer" data-service="LLANTERA">
-                    Llantera móvil
-                </div>
-                <div class="service-card p-4 rounded-xl cursor-pointer" data-service="CERRAJERIA">
-                    Cerrajería 24/7
-                </div>
-                <div class="service-card p-4 rounded-xl opacity-40 cursor-not-allowed">
-                    Grúas (Próx.)
-                </div>
-                <div class="service-card p-4 rounded-xl opacity-40 cursor-not-allowed">
-                    Paso corriente
-                </div>
-            </div>
+    <main class="flex-1 flex flex-col items-center justify-center p-6 text-center hero-bg relative overflow-hidden">
+        
+        <div class="absolute inset-0 z-0">
+            <div class="absolute top-1/4 left-1/4 w-64 h-64 bg-emerald-500/10 rounded-full blur-[100px]"></div>
         </div>
 
-        <!-- FIXGO FIX -->
-        <div class="uber-card p-6 rounded-3xl">
-            <h4 class="font-black mb-4 flex items-center gap-2">
-                <i class="fas fa-house-chimney text-indigo-400"></i> FixGo Fix
-            </h4>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="service-card p-4 rounded-xl cursor-pointer" data-service="ELECTRICIDAD">Electricidad</div>
-                <div class="service-card p-4 rounded-xl cursor-pointer" data-service="PLOMERIA">Plomería</div>
-                <div class="service-card p-4 rounded-xl cursor-pointer" data-service="AC">Aire A/C</div>
-                <div class="service-card p-4 rounded-xl cursor-pointer" data-service="FUMIGACION">Fumigación</div>
+        <div class="relative z-10 max-w-lg w-full">
+            <div class="mb-8">
+                <span class="bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-3 py-1 rounded-full border border-emerald-500/20 uppercase tracking-widest">
+                    V 2.0 Stable
+                </span>
             </div>
-        </div>
 
-        <!-- FIXGO TECH -->
-        <div class="uber-card p-6 rounded-3xl">
-            <h4 class="font-black mb-4 flex items-center gap-2">
-                <i class="fas fa-shield-halved text-emerald-400"></i> FixGo Tech
-            </h4>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="service-card p-4 rounded-xl cursor-pointer" data-service="CCTV">CCTV</div>
-                <div class="service-card p-4 rounded-xl cursor-pointer" data-service="ALARMAS">Alarmas</div>
-                <div class="service-card p-4 rounded-xl cursor-pointer" data-service="ACCESOS">Control Acceso</div>
-                <div class="service-card p-4 rounded-xl opacity-40 cursor-not-allowed">
-                    Paneles Solares
-                </div>
-            </div>
-        </div>
-
-        <!-- FIXGO MAINT -->
-        <div class="uber-card p-6 rounded-3xl opacity-50">
-            <h4 class="font-black mb-2">
-                FixGo Maint (B2B)
-            </h4>
-            <p class="text-xs text-slate-400">
-                Próximamente · Contratos por m²
+            <h2 class="text-5xl font-black mb-4 tracking-tight leading-none">
+                Tu Técnico <br>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-700">
+                    EN CAMINO
+                </span>
+            </h2>
+            
+            <p class="text-gray-400 mb-10 text-lg font-light">
+                La plataforma de asistencia vial más rápida y segura. Conecta con expertos en tiempo real.
             </p>
+
+            <div id="actionArea" class="flex flex-col gap-4">
+                
+                <div id="loadingState" class="py-4">
+                    <i class="fas fa-circle-notch fa-spin text-emerald-500 text-2xl"></i>
+                </div>
+
+                <div id="guestOptions" class="hidden space-y-3">
+                    <a href="registro.html" class="block w-full bg-white text-black font-black py-4 rounded-xl hover:bg-gray-200 transition-transform active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+                        CREAR CUENTA NUEVA
+                    </a>
+                    <a href="login.html" class="block w-full bg-transparent border border-white/20 text-white font-bold py-4 rounded-xl hover:bg-white/5 transition-colors">
+                        YA TENGO CUENTA
+                    </a>
+                </div>
+
+                <div id="userOptions" class="hidden space-y-3">
+                    <div class="bg-emerald-900/30 border border-emerald-500/30 p-4 rounded-xl mb-4 text-left flex items-center gap-4">
+                        <div class="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center text-black font-bold text-lg">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Sesión Activa</p>
+                            <p id="userNameDisplay" class="font-bold text-white text-lg">Usuario</p>
+                        </div>
+                    </div>
+
+                    <button id="btnDashboard" class="block w-full bg-emerald-500 text-black font-black py-4 rounded-xl hover:bg-emerald-400 transition-all shadow-[0_0_30px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2">
+                        <span>IR A MI PANEL</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                    
+                    <button id="btnLogoutIndex" class="text-xs text-red-400 font-bold hover:text-red-300 mt-4 underline decoration-red-400/30">
+                        Cerrar Sesión Actual
+                    </button>
+                </div>
+
+            </div>
         </div>
-    </div>
+    </main>
 
-    <!-- ===============================
-         FORMULARIO SOLICITUD
-    ================================ -->
-    <div class="uber-card p-8 rounded-[2.5rem]">
-        <form id="solicitudForm" class="space-y-6">
+    <footer class="p-6 text-center text-[10px] text-gray-600 font-bold tracking-widest uppercase">
+        FixGo © 2026 Secured System
+    </footer>
 
-            <input type="hidden" id="servicioSeleccionado" required>
+    <script type="module">
+        import { auth, observarAuth, signOut } from './firebase.js';
 
-            <div>
-                <label class="text-xs tracking-widest font-black text-slate-500 uppercase">
-                    Dirección
-                </label>
-                <input class="uber-input w-full px-5 py-4 rounded-xl mt-2"
-                       placeholder="Ubicación exacta del servicio" required>
-            </div>
+        const loadingState = document.getElementById('loadingState');
+        const guestOptions = document.getElementById('guestOptions');
+        const userOptions = document.getElementById('userOptions');
+        const userNameDisplay = document.getElementById('userNameDisplay');
+        const btnDashboard = document.getElementById('btnDashboard');
+        const btnLogoutIndex = document.getElementById('btnLogoutIndex');
+        const authActions = document.getElementById('authActions');
 
-            <div>
-                <label class="text-xs tracking-widest font-black text-slate-500 uppercase">
-                    Descripción
-                </label>
-                <textarea class="uber-input w-full px-5 py-4 rounded-xl mt-2 h-28"
-                          placeholder="Describe el problema"></textarea>
-            </div>
+        // Escuchamos el estado SIN redirigir automáticamente
+        observarAuth((user) => {
+            loadingState.classList.add('hidden'); // Ocultar spinner
 
-            <button class="w-full py-5 bg-white text-black font-black rounded-2xl
-                           hover:bg-indigo-600 hover:text-white transition text-xl">
-                Solicitar Servicio
-            </button>
-        </form>
-    </div>
+            if (user) {
+                // SI HAY USUARIO: Mostramos opciones de usuario
+                console.log("Index: Usuario detectado", user.email);
+                
+                guestOptions.classList.add('hidden');
+                userOptions.classList.remove('hidden');
+                
+                userNameDisplay.textContent = user.nombre || user.email.split('@')[0];
+                authActions.innerHTML = ''; // Quitar botón de login del header
 
-</section>
+                // Configurar a dónde lleva el botón "Ir a mi Panel"
+                btnDashboard.onclick = () => {
+                    if (user.rol === 'tecnico') window.location.href = 'tecnico.html';
+                    else if (user.rol === 'cliente') window.location.href = 'cliente.html';
+                    else if (user.rol === 'admin') window.location.href = 'admin.html';
+                    else {
+                        // Si no tiene rol, lo mandamos a login para que se arregle
+                        alert("Error: Tu usuario no tiene un rol asignado.");
+                        window.location.href = 'login.html';
+                    }
+                };
 
-<!-- =====================================================
-     LÓGICA JS (PRODUCCIÓN)
-===================================================== -->
-<script type="module">
-/* =========================
-   FIREBASE CORE
-========================= */
-import {
-    initializeApp
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+                // Configurar Logout
+                btnLogoutIndex.onclick = async () => {
+                    await signOut(auth);
+                    window.location.reload(); // Recargar para mostrar opciones de invitado
+                };
 
-import {
-    getAuth,
-    onAuthStateChanged,
-    signOut
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-import {
-    getFirestore,
-    collection,
-    addDoc,
-    serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-/* =========================
-   CONFIG
-========================= */
-const firebaseConfig = {
-    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
-    authDomain: "fixgo-app.firebaseapp.com",
-    projectId: "fixgo-app",
-};
-
-/* =========================
-   INIT
-========================= */
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-/* =========================
-   UI STATE
-========================= */
-const hero = document.getElementById("hero");
-const panel = document.getElementById("clientePanel");
-const logoutBtn = document.getElementById("logoutBtn");
-
-/* =========================
-   AUTH STATE
-========================= */
-onAuthStateChanged(auth, user => {
-    if (user) {
-        hero.classList.add("hidden");
-        panel.classList.remove("hidden");
-        logoutBtn.classList.remove("hidden");
-    } else {
-        hero.classList.remove("hidden");
-        panel.classList.add("hidden");
-        logoutBtn.classList.add("hidden");
-    }
-});
-
-/* =========================
-   LOGOUT
-========================= */
-logoutBtn.onclick = async () => {
-    await signOut(auth);
-    location.reload();
-};
-
-/* =========================
-   SELECCIÓN SERVICIO
-========================= */
-const cards = document.querySelectorAll(".service-card");
-const servicioInput = document.getElementById("servicioSeleccionado");
-
-cards.forEach(card => {
-    card.onclick = () => {
-        if (card.classList.contains("cursor-not-allowed")) return;
-        cards.forEach(c => c.classList.remove("selected"));
-        card.classList.add("selected");
-        servicioInput.value = card.dataset.service;
-    };
-});
-
-/* =========================
-   CREAR SOLICITUD
-========================= */
-document.getElementById("solicitudForm").onsubmit = async e => {
-    e.preventDefault();
-    if (!servicioInput.value) {
-        alert("Selecciona un servicio");
-        return;
-    }
-
-    await addDoc(collection(db, "services"), {
-        servicio: servicioInput.value,
-        estado: "SOLICITADO",
-        creado: serverTimestamp(),
-        modelo_comision: "32%",
-        pais: "MX"
-    });
-
-    alert("Servicio enviado. Buscando técnico cercano...");
-};
-</script>
-
+            } else {
+                // SI NO HAY USUARIO: Mostramos botones de registro/login
+                console.log("Index: Modo invitado");
+                
+                userOptions.classList.add('hidden');
+                guestOptions.classList.remove('hidden');
+            }
+        });
+    </script>
 </body>
 </html>
