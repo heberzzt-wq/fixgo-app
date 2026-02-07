@@ -17,7 +17,6 @@ import {
 } from "./firebase.js";
 
 // Importamos el motor GPS para activarlo al entrar
-// (Asegúrate de que gps-motor.js tenga 'export function iniciarTracking')
 import { iniciarTracking } from "./gps-motor.js";
 
 // Variables
@@ -30,7 +29,7 @@ let suscripcionMisiones = null;
 console.log("🚀 Iniciando sistema técnico...");
 
 observarAuth(async (user) => {
-    // Si no hay sesión, al login
+    // Si no hay sesión en absoluto, solo ahí mandamos al login
     if (!user) {
         console.warn("No hay sesión activa. Redirigiendo...");
         window.location.href = "login.html";
@@ -40,10 +39,10 @@ observarAuth(async (user) => {
     usuarioActual = user;
     console.log("✅ Técnico detectado:", user.email);
 
-    // 2. PROTECCIÓN ANTI-EXPULSIÓN
-    // En lugar de botarte si falta el rol, intentamos arreglarlo
+    // 2. PROTECCIÓN ANTI-EXPULSIÓN (Auto-Corrección)
+    // Si el usuario existe pero no tiene el rol bien puesto, LO ARREGLAMOS, no lo botamos.
     if (user.rol !== "tecnico") {
-        console.log("⚠️ Rol no definido o incorrecto. Verificando perfil...");
+        console.log("⚠️ Rol no definido o incorrecto. Verificando y reparando perfil...");
         await asegurarPerfilTecnico(user);
     }
 
@@ -63,7 +62,7 @@ observarAuth(async (user) => {
 
 /**
  * FUNCIÓN CLAVE: Evita que el sistema te saque
- * Si el usuario existe en Auth pero no en Firestore, lo crea.
+ * Si el usuario existe en Auth pero no en Firestore, lo crea al vuelo.
  */
 async function asegurarPerfilTecnico(user) {
     const tecRef = doc(db, "tecnicos", user.uid);
@@ -76,7 +75,7 @@ async function asegurarPerfilTecnico(user) {
             disponible: true,
             ultimaConexion: serverTimestamp()
         }, { merge: true });
-        console.log("🔧 Perfil técnico sincronizado.");
+        console.log("🔧 Perfil técnico sincronizado y reparado.");
     } catch (e) {
         console.error("Error asegurando perfil:", e);
     }
