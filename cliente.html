@@ -7,54 +7,199 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background-color: #050505; }
-        .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); }
+        body { background-color: #050505; color: white; }
+        .service-btn { transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1); }
+        .service-btn:hover:not(:disabled) { border-color: #10b981; background: rgba(16, 185, 129, 0.1); transform: translateY(-2px); }
+        .service-btn:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(100%); }
     </style>
 </head>
-<body class="text-white min-h-screen">
+<body class="pb-20">
 
-    <header class="max-w-4xl mx-auto flex justify-between items-center p-6 border-b border-white/10">
-        <h1 class="text-2xl font-black italic">FIXGO <span class="text-indigo-500">CLIENTE</span></h1>
-        <button id="logoutBtn" class="text-red-500 text-sm font-bold">SALIR</button>
-    </header>
+    <nav class="p-5 flex justify-between items-center border-b border-white/10 sticky top-0 bg-black/95 z-40">
+        <h1 class="font-black text-2xl italic">FIX<span class="text-emerald-500">GO</span></h1>
+        <button id="btnLogout" class="text-xs font-bold text-red-500 border border-red-500/30 px-3 py-1 rounded-lg">SALIR</button>
+    </nav>
 
-    <main class="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        <div class="uber-card p-6 rounded-2xl">
-            <h2 class="text-xl font-bold">Hola, <span id="nombreCliente" class="text-indigo-400">Usuario</span></h2>
-            <p class="text-gray-400 text-sm">¿Qué necesitas arreglar hoy?</p>
+    <main class="max-w-xl mx-auto p-5">
+        
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold">Hola, <span id="userName" class="text-emerald-400">Cliente</span></h2>
+            <p class="text-gray-400 text-sm">Selecciona un servicio para comenzar.</p>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
-            <button class="uber-card p-6 rounded-2xl flex flex-col items-center hover:bg-white/5 transition">
-                <i class="fas fa-bolt text-3xl text-yellow-400 mb-3"></i>
-                <span class="font-bold">Electricidad</span>
-            </button>
-            <button class="uber-card p-6 rounded-2xl flex flex-col items-center hover:bg-white/5 transition">
-                <i class="fas fa-wrench text-3xl text-blue-400 mb-3"></i>
-                <span class="font-bold">Plomería</span>
-            </button>
-             <button class="uber-card p-6 rounded-2xl flex flex-col items-center hover:bg-white/5 transition">
-                <i class="fas fa-snowflake text-3xl text-cyan-400 mb-3"></i>
-                <span class="font-bold">A/C</span>
-            </button>
-             <button class="uber-card p-6 rounded-2xl flex flex-col items-center hover:bg-white/5 transition">
-                <i class="fas fa-key text-3xl text-orange-400 mb-3"></i>
-                <span class="font-bold">Cerrajería</span>
-            </button>
+        <div class="mb-6">
+            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">FIXGO ROAD (EMERGENCIA)</h3>
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="seleccionarServicio('Llantera Móvil', 'road')" class="service-btn bg-zinc-900 p-4 rounded-xl flex flex-col items-center">
+                    <i class="fas fa-car-burst text-2xl text-orange-500 mb-2"></i>
+                    <span class="font-bold text-sm">Llantera</span>
+                </button>
+                <button onclick="seleccionarServicio('Cerrajería Auto', 'road')" class="service-btn bg-zinc-900 p-4 rounded-xl flex flex-col items-center">
+                    <i class="fas fa-key text-2xl text-yellow-500 mb-2"></i>
+                    <span class="font-bold text-sm">Cerrajería</span>
+                </button>
+                <button disabled class="service-btn bg-zinc-900 p-4 rounded-xl flex flex-col items-center relative">
+                    <div class="absolute top-2 right-2 text-[8px] bg-zinc-700 px-1 rounded text-white">PRÓX</div>
+                    <i class="fas fa-truck-pickup text-2xl text-gray-500 mb-2"></i>
+                    <span class="font-bold text-sm">Grúas</span>
+                </button>
+                <button disabled class="service-btn bg-zinc-900 p-4 rounded-xl flex flex-col items-center relative">
+                    <div class="absolute top-2 right-2 text-[8px] bg-zinc-700 px-1 rounded text-white">PRÓX</div>
+                    <i class="fas fa-battery-full text-2xl text-gray-500 mb-2"></i>
+                    <span class="font-bold text-sm">Batería</span>
+                </button>
+            </div>
         </div>
+
+        <div class="mb-6">
+            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">FIXGO HOME (HOGAR)</h3>
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="seleccionarServicio('Electricidad', 'home')" class="service-btn bg-zinc-900 p-4 rounded-xl flex flex-col items-center">
+                    <i class="fas fa-bolt text-2xl text-yellow-400 mb-2"></i>
+                    <span class="font-bold text-sm">Electricidad</span>
+                </button>
+                <button onclick="seleccionarServicio('Plomería', 'home')" class="service-btn bg-zinc-900 p-4 rounded-xl flex flex-col items-center">
+                    <i class="fas fa-faucet text-2xl text-blue-400 mb-2"></i>
+                    <span class="font-bold text-sm">Plomería</span>
+                </button>
+                <button onclick="seleccionarServicio('Aires A/C', 'home')" class="service-btn bg-zinc-900 p-4 rounded-xl flex flex-col items-center">
+                    <i class="fas fa-snowflake text-2xl text-cyan-400 mb-2"></i>
+                    <span class="font-bold text-sm">Aires A/C</span>
+                </button>
+                 <button disabled class="service-btn bg-zinc-900 p-4 rounded-xl flex flex-col items-center relative">
+                    <div class="absolute top-2 right-2 text-[8px] bg-zinc-700 px-1 rounded text-white">PRÓX</div>
+                    <i class="fas fa-paint-roller text-2xl text-gray-500 mb-2"></i>
+                    <span class="font-bold text-sm">Pintura</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="formSolicitud" class="fixed bottom-0 left-0 w-full bg-zinc-900 rounded-t-3xl p-6 transform translate-y-full transition-transform duration-300 z-50 border-t border-emerald-500/30 shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-black text-lg text-emerald-400" id="lblServicioSeleccionado">--</h3>
+                <button onclick="cerrarForm()" class="text-gray-400"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs text-gray-500 font-bold uppercase">Ubicación / Domicilio</label>
+                    <input type="text" id="inputDireccion" class="w-full bg-black border border-gray-700 rounded-xl p-3 mt-1 focus:border-emerald-500 outline-none text-white" placeholder="Calle, Número, Colonia...">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 font-bold uppercase">Detalles del problema</label>
+                    <textarea id="inputDetalles" class="w-full bg-black border border-gray-700 rounded-xl p-3 mt-1 focus:border-emerald-500 outline-none text-white" rows="2" placeholder="Describe qué sucede..."></textarea>
+                </div>
+
+                <div class="bg-emerald-900/20 p-3 rounded-xl border border-emerald-500/20">
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-400">Visita Técnica</span>
+                        <span class="font-bold text-white">$250.00 MXN</span>
+                    </div>
+                    <p class="text-[10px] text-emerald-400">*Se descontará del precio final si aceptas el trabajo.</p>
+                </div>
+
+                <button id="btnPedir" class="w-full bg-emerald-500 text-black font-black py-4 rounded-xl hover:bg-emerald-400 transition">
+                    SOLICITAR SERVICIO
+                </button>
+            </div>
+        </div>
+
     </main>
 
-    <script type="module">
-        import { auth, observarAuth, signOut } from './firebase.js';
+    <div id="modalTC" class="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-zinc-900 rounded-2xl max-w-md w-full p-6 border border-white/10">
+            <h2 class="font-black text-xl mb-4">Términos y Condiciones</h2>
+            <div class="h-40 overflow-y-auto text-xs text-gray-400 mb-4 bg-black p-3 rounded-lg">
+                1. FixGo actúa como intermediario.<br>
+                2. Las tarifas son estimadas.<br>
+                3. Cancelaciones post 5min tienen costo.<br>
+                4. Pagos fuera de la app anulan garantía.<br>
+                5. Usted acepta el tratamiento de datos.
+                </div>
+            <label class="flex items-center gap-3 mb-4">
+                <input type="checkbox" id="checkTC" class="w-5 h-5 accent-emerald-500">
+                <span class="text-sm font-bold">He leído y acepto los T&C</span>
+            </label>
+            <button id="btnAceptarTC" disabled class="w-full bg-emerald-600 disabled:opacity-50 disabled:bg-gray-600 text-white font-bold py-3 rounded-xl">CONTINUAR</button>
+        </div>
+    </div>
 
-        observarAuth((user) => {
+    <script type="module">
+        import { auth, db, observingAuth, signOut, addDoc, collection, serverTimestamp, doc, getDoc, setDoc } from './firebase.js';
+
+        let usuarioActual = null;
+
+        observingAuth(async (user) => {
             if (!user) window.location.href = 'login.html';
-            document.getElementById('nombreCliente').innerText = user.nombre || "Cliente";
+            usuarioActual = user;
+            document.getElementById('userName').innerText = user.nombre || "Usuario";
+
+            // Verificar si ya aceptó T&C
+            if (!user.terminosAceptados) {
+                document.getElementById('modalTC').classList.remove('hidden');
+            }
         });
 
-        document.getElementById('logoutBtn').onclick = () => {
-            signOut(auth).then(() => window.location.href = 'login.html');
+        // Lógica T&C
+        const checkTC = document.getElementById('checkTC');
+        const btnAceptarTC = document.getElementById('btnAceptarTC');
+        
+        checkTC.addEventListener('change', () => {
+            btnAceptarTC.disabled = !checkTC.checked;
+        });
+
+        btnAceptarTC.addEventListener('click', async () => {
+            if (usuarioActual) {
+                await setDoc(doc(db, "clientes", usuarioActual.uid), { terminosAceptados: true }, { merge: true });
+                document.getElementById('modalTC').classList.add('hidden');
+            }
+        });
+
+        // Lógica Selección Servicio
+        window.seleccionarServicio = (nombre, tipo) => {
+            document.getElementById('lblServicioSeleccionado').innerText = nombre;
+            document.getElementById('formSolicitud').classList.remove('translate-y-full');
+            
+            // Listener del botón pedir
+            document.getElementById('btnPedir').onclick = async () => {
+                const direccion = document.getElementById('inputDireccion').value;
+                const detalles = document.getElementById('inputDetalles').value;
+
+                if(!direccion) return alert("Ingresa tu dirección");
+
+                const btn = document.getElementById('btnPedir');
+                btn.innerHTML = "BUSCANDO TÉCNICO...";
+                btn.disabled = true;
+
+                try {
+                    await addDoc(collection(db, "solicitudes"), {
+                        clienteId: usuarioActual.uid,
+                        clienteNombre: usuarioActual.nombre || "Cliente",
+                        servicio: nombre,
+                        tipo: tipo,
+                        direccion: direccion,
+                        detalles: detalles,
+                        estado: "pendiente", // pendiente, asignado, en_camino, finalizado
+                        fecha: serverTimestamp(),
+                        costoBase: 250
+                    });
+                    alert("¡Solicitud enviada! Un técnico aceptará pronto.");
+                    cerrarForm();
+                } catch (e) {
+                    console.error(e);
+                    alert("Error al solicitar.");
+                } finally {
+                    btn.innerHTML = "SOLICITAR SERVICIO";
+                    btn.disabled = false;
+                }
+            };
         };
+
+        window.cerrarForm = () => {
+            document.getElementById('formSolicitud').classList.add('translate-y-full');
+        };
+
+        document.getElementById('btnLogout').onclick = () => signOut(auth).then(() => window.location.href = 'index.html');
     </script>
 </body>
 </html>
