@@ -18,17 +18,20 @@
             border-radius: 99px;
             text-transform: uppercase;
         }
+        /* Panel Flotante de Acciones */
+        #panelAcciones {
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.8);
+            transition: transform 0.3s ease;
+        }
     </style>
 </head>
-<body class="text-white min-h-screen">
-
-    <nav class="p-6 flex justify-between items-center border-b border-slate-900">
+<body class="text-white min-h-screen pb-32"> <nav class="p-6 flex justify-between items-center border-b border-slate-900 sticky top-0 bg-black/95 z-10">
         <div>
             <h1 class="font-black text-xl italic tracking-tighter">FIX<span class="text-emerald-500">GO</span> PRO</h1>
             <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Socio Especialista</p>
         </div>
         <div id="statusBadge" class="bg-yellow-600/20 text-yellow-500 status-badge font-bold">
-            Pendiente de Validación
+            <span id="statusLabel">CONECTANDO...</span>
         </div>
     </nav>
 
@@ -43,10 +46,10 @@
                 </div>
             </div>
             <div>
-                <h2 id="userName" class="text-2xl font-black">--</h2>
-                <div class="flex items-center gap-2">
+                <h2 id="userName" class="text-2xl font-black">Cargando...</h2>
+                <div class="flex items-center gap-2 mt-1">
                     <span class="bg-orange-600/20 text-orange-500 text-[10px] font-black px-2 py-0.5 rounded border border-orange-500/30">NIVEL BRONCE</span>
-                    <span class="text-slate-500 text-[10px] font-bold">0 SERVICIOS</span>
+                    <button id="btnLogout" class="text-red-500 text-[10px] font-bold border border-red-900/50 px-2 py-0.5 rounded hover:bg-red-900/20">SALIR</button>
                 </div>
             </div>
         </div>
@@ -120,15 +123,26 @@
             </div>
         </div>
     </main>
+
+    <div id="panelAcciones" class="fixed bottom-0 left-0 w-full bg-zinc-900 border-t border-zinc-800 p-5 z-50 rounded-t-[2rem]">
+        <div class="max-w-4xl mx-auto flex flex-col gap-3">
+            <div class="flex justify-between items-center mb-2">
+                 <span class="text-[10px] font-black uppercase text-slate-500 tracking-widest">Control de Misión</span>
+                 <span class="text-emerald-500 text-xs font-bold animate-pulse">● EN VIVO</span>
+            </div>
+
+            <button id="btnEnCamino" class="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all">
+                <i class="fas fa-car-side text-xl"></i> 
+                <span>VOY EN CAMINO</span>
+            </button>
+            
+            <button id="btnLlegue" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all hidden">
+                <i class="fas fa-map-marker-alt text-xl"></i> 
+                <span>YA LLEGUÉ AL SITIO</span>
+            </button>
+        </div>
+    </div>
     
-        observarAuth((user) => {
-            if (user) {
-                document.getElementById('userName').textContent = user.nombre || 'Socio FixGo';
-                if (user.rol !== 'tecnico') window.location.href = 'index.html';
-            } else {
-                window.location.href = 'login.html';
-            }
-        });
-    </script>
+    <script type="module" src="./app-tecnico.js"></script>
 </body>
 </html>
