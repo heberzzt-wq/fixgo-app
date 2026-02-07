@@ -1,7 +1,7 @@
 /**
  * ======================================================
- * FIXGO - APP TÉCNICO v2.0 (MODO UBER BLACK)
- * Sincronización de Servicios y GPS
+ * FIXGO - APP TÉCNICO v2.0
+ * Lógica Completa: Auth + GPS + Botones
  * ======================================================
  */
 import {
@@ -9,7 +9,6 @@ import {
     db,
     observarAuth,
     doc,
-    getDoc,
     setDoc,
     updateDoc,
     onSnapshot,
@@ -18,181 +17,174 @@ import {
 } from "./firebase.js";
 
 // Importamos el motor GPS para activarlo al entrar
-// Asegúrate de que gps-motor.js tenga 'export function iniciarTracking'
+// (Asegúrate de que gps-motor.js tenga 'export function iniciarTracking')
 import { iniciarTracking } from "./gps-motor.js";
 
-// Variables de Estado Interno
+// Variables
 let usuarioActual = null;
-let suscripcionSolicitudes = null;
+let suscripcionMisiones = null;
 
 /**
- * INICIALIZACIÓN Y PROTECCIÓN DE RUTA
+ * 1. INICIALIZACIÓN
  */
+console.log("🚀 Iniciando sistema técnico...");
+
 observarAuth(async (user) => {
-    // 1. Si no hay usuario en absoluto, ahí sí mandamos a Login
+    // Si no hay sesión, al login
     if (!user) {
-        console.log("Sin sesión. Redirigiendo a Login...");
+        console.warn("No hay sesión activa. Redirigiendo...");
         window.location.href = "login.html";
         return;
     }
 
-    // 2. Si el usuario existe pero no tiene rol, lo arreglamos en vez de expulsarlo
-    if (!user.rol || user.rol !== "tecnico") {
-        console.warn("Usuario sin rol de técnico detectado. Intentando reparar perfil...");
+    usuarioActual = user;
+    console.log("✅ Técnico detectado:", user.email);
+
+    // 2. PROTECCIÓN ANTI-EXPULSIÓN
+    // En lugar de botarte si falta el rol, intentamos arreglarlo
+    if (user.rol !== "tecnico") {
+        console.log("⚠️ Rol no definido o incorrecto. Verificando perfil...");
         await asegurarPerfilTecnico(user);
-        // Recargamos el usuario con los nuevos datos (simulado)
-        user.rol = "tecnico"; 
     }
 
-    usuarioActual = user;
-    console.log("✅ Panel Técnico Activo para:", usuarioActual.email);
-
-    // Actualizar Interfaz
+    // 3. ACTUALIZAR UI
     actualizarInterfazBasica();
     
-    // Activar GPS automáticamente
-    if(typeof iniciarTracking === 'function') {
-        iniciarTracking(); 
+    // 4. ENCENDER GPS
+    if (typeof iniciarTracking === 'function') {
+        iniciarTracking();
+        console.log("📡 GPS Activado automáticante.");
     }
-    
-    // Activar Listeners
-    conectarEventosGlobales();
-    escucharMisionesActivas();
+
+    // 5. ACTIVAR BOTONES
+    conectarBotones();
+    escucharEstadoMision();
 });
 
 /**
- * REPARACIÓN DE PERFIL (Evita que te bote)
+ * FUNCIÓN CLAVE: Evita que el sistema te saque
+ * Si el usuario existe en Auth pero no en Firestore, lo crea.
  */
 async function asegurarPerfilTecnico(user) {
     const tecRef = doc(db, "tecnicos", user.uid);
-    const userRef = doc(db, "usuarios", user.uid);
-
     try {
-        // Datos base
-        const datosBase = {
+        await setDoc(tecRef, {
             uid: user.uid,
             email: user.email,
-            nombre: user.displayName || user.nombre || "Socio FixGo",
+            nombre: user.nombre || "Técnico FixGo",
             rol: "tecnico",
             disponible: true,
             ultimaConexion: serverTimestamp()
-        };
-
-        // Guardamos en ambas colecciones para asegurar compatibilidad
-        await setDoc(tecRef, datosBase, { merge: true });
-        await setDoc(userRef, datosBase, { merge: true });
-        
-        console.log("🔧 Perfil reparado exitosamente.");
+        }, { merge: true });
+        console.log("🔧 Perfil técnico sincronizado.");
     } catch (e) {
-        console.error("Error al reparar técnico:", e);
+        console.error("Error asegurando perfil:", e);
     }
 }
 
 /**
- * MONITOR DE MISIONES (RADAR)
+ * LÓGICA DE BOTONES
  */
-function escucharMisionesActivas() {
-    if (suscripcionSolicitudes) suscripcionSolicitudes();
-
-    // Escuchamos cambios en el documento global de rastreo
-    // Esto permite sincronizar los botones si recargas la página
-    const q = doc(db, "rastreo", "tecnicoActivo"); 
-
-    suscripcionSolicitudes = onSnapshot(q, (snapshot) => {
-        if (!snapshot.exists()) {
-            renderModoLibre();
-            return;
-        }
-        const datos = snapshot.data();
-        manejarCambioDeEstado(datos);
-    });
-}
-
-/**
- * LÓGICA DE INTERFAZ Y EVENTOS
- */
-function conectarEventosGlobales() {
-    // Botón de Cerrar Sesión
-    const btnLogout = document.getElementById("btnLogout");
-    if (btnLogout) {
-        btnLogout.onclick = () => signOut(auth).then(() => window.location.href = "login.html");
-    }
-
-    // Botones de Misión
+function conectarBotones() {
     const btnEnCamino = document.getElementById("btnEnCamino");
     const btnLlegue = document.getElementById("btnLlegue");
+    const btnLogout = document.getElementById("btnLogout");
 
+    // Botón: VOY EN CAMINO
     if (btnEnCamino) {
-        btnEnCamino.onclick = () => {
-            btnEnCamino.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> ENVIANDO...';
-            actualizarEstadoMision("En camino");
+        btnEnCamino.onclick = async () => {
+            btnEnCamino.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
+            await actualizarEstado("En camino");
+            
+            // Cambio visual local inmediato
+            btnEnCamino.classList.add("hidden");
+            btnLlegue.classList.remove("hidden");
         };
     }
 
+    // Botón: YA LLEGUÉ
     if (btnLlegue) {
-        btnLlegue.onclick = () => {
-            btnLlegue.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> ENVIANDO...';
-            actualizarEstadoMision("En sitio");
+        btnLlegue.onclick = async () => {
+            btnLlegue.innerHTML = '<i class="fas fa-spinner fa-spin"></i> FINALIZANDO...';
+            await actualizarEstado("En sitio");
+            
+            btnLlegue.innerText = "ESPERANDO CLIENTE...";
+            btnLlegue.disabled = true;
+            btnLlegue.classList.add("opacity-50");
+        };
+    }
+
+    // Botón: SALIR
+    if (btnLogout) {
+        btnLogout.onclick = () => {
+            if(confirm("¿Cerrar sesión?")) {
+                signOut(auth).then(() => window.location.href = "login.html");
+            }
         };
     }
 }
 
-async function actualizarEstadoMision(nuevoEstado) {
+/**
+ * ACTUALIZAR ESTADO EN FIREBASE
+ */
+async function actualizarEstado(nuevoEstado) {
     if (!usuarioActual) return;
-
-    // Actualizamos el documento que lee el mapa
-    const ref = doc(db, "rastreo", "tecnicoActivo");
+    
+    const refRastreo = doc(db, "rastreo", "tecnicoActivo");
+    
     try {
-        await updateDoc(ref, {
+        await updateDoc(refRastreo, {
             estado: nuevoEstado,
             updatedAt: serverTimestamp()
         });
-        console.log("Misión actualizada a:", nuevoEstado);
+        console.log("Estado actualizado a:", nuevoEstado);
     } catch (e) {
-        // Si no existe, lo creamos
-        await setDoc(ref, {
+        // Si falla porque no existe el documento, lo creamos
+        await setDoc(refRastreo, {
             uid: usuarioActual.uid,
             estado: nuevoEstado,
             lat: 21.1619,
             lng: -86.8515
-        });
+        }, { merge: true });
     }
 }
 
+/**
+ * UI BÁSICA
+ */
 function actualizarInterfazBasica() {
-    const labelNombre = document.getElementById("userName");
-    const statusLabel = document.getElementById("statusLabel");
+    const elNombre = document.getElementById("userName");
+    const elEstado = document.getElementById("statusLabel");
     
-    if (labelNombre) labelNombre.innerText = usuarioActual.nombre || "Socio FixGo";
-    if (statusLabel) {
-        statusLabel.innerText = "EN LÍNEA";
-        statusLabel.className = "bg-emerald-900/30 text-emerald-500 status-badge font-bold border border-emerald-500/20";
+    if (elNombre) elNombre.innerText = usuarioActual.nombre || "Socio FixGo";
+    if (elEstado) {
+        elEstado.innerText = "EN LÍNEA";
+        elEstado.className = "text-emerald-500 font-bold bg-emerald-900/20 px-3 py-1 rounded-full";
     }
 }
 
-function renderModoLibre() {
-    // Estado inicial
-}
-
-function manejarCambioDeEstado(datos) {
-    const btnEnCamino = document.getElementById("btnEnCamino");
-    const btnLlegue = document.getElementById("btnLlegue");
-    const statusLabel = document.getElementById("statusLabel");
-
-    if (!datos || !datos.estado) return;
-
-    if (datos.estado === "En camino") {
-        if(btnEnCamino) btnEnCamino.classList.add("hidden");
-        if(btnLlegue) btnLlegue.classList.remove("hidden");
-        if(statusLabel) statusLabel.innerText = "EN RUTA AL CLIENTE";
-    } else if (datos.estado === "En sitio") {
-        if(btnEnCamino) btnEnCamino.classList.add("hidden");
-        if(btnLlegue) {
-            btnLlegue.classList.remove("hidden");
-            btnLlegue.innerText = "ESPERANDO CLIENTE";
-            btnLlegue.disabled = true;
-            btnLlegue.classList.add("opacity-50");
+/**
+ * ESCUCHA DE ESTADO (Para persistencia al recargar)
+ */
+function escucharEstadoMision() {
+    const ref = doc(db, "rastreo", "tecnicoActivo");
+    onSnapshot(ref, (snap) => {
+        if(snap.exists()) {
+            const data = snap.data();
+            const btnEnCamino = document.getElementById("btnEnCamino");
+            const btnLlegue = document.getElementById("btnLlegue");
+            
+            if (data.estado === "En camino") {
+                if(btnEnCamino) btnEnCamino.classList.add("hidden");
+                if(btnLlegue) btnLlegue.classList.remove("hidden");
+            } else if (data.estado === "En sitio") {
+                if(btnEnCamino) btnEnCamino.classList.add("hidden");
+                if(btnLlegue) {
+                    btnLlegue.classList.remove("hidden");
+                    btnLlegue.innerText = "ESPERANDO CLIENTE";
+                    btnLlegue.disabled = true;
+                }
+            }
         }
-        if(statusLabel) statusLabel.innerText = "EN EL SITIO";
-    }
+    });
 }
