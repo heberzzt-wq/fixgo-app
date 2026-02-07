@@ -1,4 +1,9 @@
-// firebase.js
+/**
+ * ======================================================
+ * FIXGO CORE - FIREBASE CONFIGURATION v2.0
+ * Blueprint Verified: 2026-02-06
+ * ======================================================
+ */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
     getAuth, 
@@ -21,15 +26,12 @@ import {
     where, 
     onSnapshot, 
     orderBy, 
-    limit, 
     addDoc, 
-    getDocs, 
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// CONFIGURACIÓN OFICIAL FIXGO (Blueprint Verified)
 const firebaseConfig = {
-    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", // Tu Key Guardada Correcta
+    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
     authDomain: "fixgo-44e4d.firebaseapp.com",
     projectId: "fixgo-44e4d",
     storageBucket: "fixgo-44e4d.appspot.com",
@@ -38,138 +40,83 @@ const firebaseConfig = {
     measurementId: "G-MXNHXSY9TG"
 };
 
+// Inicialización de Servicios
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
 
 /**
- * REGISTRO UNIVERSAL FIXGO
- * Incluye blindaje fiscal y niveles de técnico (Blueprint Punto 4)
+ * OBSERVADOR DE SESIÓN (MODIFICADO PARA FIXGO)
+ * Corrige el error de sincronización de perfiles
  */
-async function registrarUsuario(email, password, rol, extraData = {}) {
+function observarAuth(callback) {
+    return onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            console.log("FixGo Auth: Sin sesión activa.");
+            callback(null);
+            return;
+        }
+
+        try {
+            // Buscamos el perfil extendido en la colección 'usuarios'
+            const userRef = doc(db, "usuarios", user.uid);
+            const snap = await getDoc(userRef);
+
+            if (snap.exists()) {
+                const fullUserData = { ...user, ...snap.data() };
+                console.log("FixGo Auth: Perfil cargado para", fullUserData.rol);
+                callback(fullUserData);
+            } else {
+                console.warn("FixGo Auth: UID existe pero no tiene documento en Firestore.");
+                callback(user); // Retornamos el user básico para permitir registro de perfil
+            }
+        } catch (error) {
+            console.error("FixGo Auth Error:", error);
+            callback(null);
+        }
+    });
+}
+
+/**
+ * MOTOR DE REGISTRO UNIVERSAL
+ * Crea la cuenta en Auth y el perfil en Firestore de un solo golpe
+ */
+async function registrarUsuario(email, password, rol, datosExtra = {}) {
     try {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const userRef = doc(db, "usuarios", cred.user.uid);
         
-        const baseUser = {
+        const perfilPerfilado = {
             uid: cred.user.uid,
-            email,
-            rol, // 'cliente' | 'tecnico' | 'admin'
-            activo: true,
-            creado: serverTimestamp(),
-            // Campos de Gamificación si es Técnico
+            email: email,
+            rol: rol, // 'cliente' | 'tecnico'
+            validado: false,
+            creadoEn: serverTimestamp(),
+            actualizadoEn: serverTimestamp(),
+            ...datosExtra,
             ...(rol === 'tecnico' && {
                 nivel: "Bronce",
-                serviciosCompletados: 0,
-                calificacion: 5.0,
+                wallet: 0,
                 disponible: false,
-                wallet: 0
-            }),
-            ...extraData
+                servicios: 0
+            })
         };
 
-        await setDoc(userRef, baseUser);
+        await setDoc(userRef, perfilPerfilado);
         return cred.user;
     } catch (error) {
-        console.error("Error en Registro FixGo:", error);
+        console.error("Error en Registro FixGo:", error.message);
         throw error;
     }
 }
 
-/**
- * LOGIN Y VALIDACIÓN DE SESIÓN
- */
-async function loginUsuario(email, password) {
-    return await signInWithEmailAndPassword(auth, email, password);
-}
-
-async function cerrarSesion() {
-    return await signOut(auth);
-}
-
-function observarAuth(callback) {
-    return onAuthStateChanged(auth, async (user) => {
-        if (!user) {
-            callback(null);
-            return;
-        }
-        const snap = await getDoc(doc(db, "usuarios", user.uid));
-        callback(snap.exists() ? { ...user, ...snap.data() } : null);
-    });
-}
-
-/**
- * MOTOR DE SOLICITUDES (MARKETPLACE LOGIC)
- * Implementa la comisión del 32% (Blueprint Punto 2)
- */
-async function crearSolicitud(clienteUid, servicioData) {
-    const solicitudRef = collection(db, "solicitudes");
-    
-    const payload = {
-        clienteId: clienteUid,
-        ...servicioData, // vertical, subservicio, coordenadas
-        estado: "PENDIENTE", // PENDIENTE | ASIGNADO | EN_CAMINO | PROCESO | FINALIZADO
-        comisionFixGo: 0.32, // Hardcoded 32% segun Blueprint
-        montoBase: servicioData.montoBase || 0,
-        creadoEn: serverTimestamp(),
-        tecnicoId: null
-    };
-
-    return await addDoc(solicitudRef, payload);
-}
-
-/**
- * TRACKING EN TIEMPO REAL (MODO UBER)
- */
-function escucharSolicitudesActivas(rol, uid, callback) {
-    let q;
-    if (rol === 'tecnico') {
-        // Técnicos ven solicitudes pendientes o las asignadas a ellos
-        q = query(
-            collection(db, "solicitudes"),
-            where("estado", "in", ["PENDIENTE", "ASIGNADO"]),
-            orderBy("creadoEn", "desc")
-        );
-    } else {
-        // Clientes ven solo sus solicitudes
-        q = query(
-            collection(db, "solicitudes"),
-            where("clienteId", "==", uid),
-            orderBy("creadoEn", "desc")
-        );
-    }
-
-    return onSnapshot(q, (snap) => {
-        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        callback(docs);
-    });
-}
-
-/**
- * ACTUALIZACIÓN DE UBICACIÓN GPS (Geohash Ready)
- */
-async function actualizarUbicacion(uid, lat, lng, tipo) {
-    const ref = doc(db, "ubicaciones", uid);
-    return await setDoc(ref, {
-        uid,
-        lat,
-        lng,
-        tipo, // 'tecnico' | 'cliente'
-        ultimaActualizacion: Date.now()
-    }, { merge: true });
-}
-
-// EXPORTACIÓN ÚNICA (Toolkit de Desarrollo)
+// Exportación de módulos y funciones
 export {
     auth, db,
-    registrarUsuario,
-    loginUsuario,
-    cerrarSesion,
     observarAuth,
-    crearSolicitud,
-    escucharSolicitudesActivas,
-    actualizarUbicacion,
-    // Primitivos para flexibilidad
-    doc, setDoc, updateDoc, getDoc, collection, query, where, onSnapshot, serverTimestamp
+    registrarUsuario,
+    signOut,
+    signInWithEmailAndPassword,
+    doc, setDoc, updateDoc, getDoc, collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp
 };
