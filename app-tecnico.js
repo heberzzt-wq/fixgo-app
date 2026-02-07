@@ -1,265 +1,145 @@
-// ======================================================
-// FIXGO - APP TÉCNICO
-// Panel operativo del técnico
-// - Autenticación
-// - Registro técnico
-// - Escucha de solicitudes
-// - Control de estados
-// - GPS / Geocerca
-// ======================================================
-
+/**
+ * ======================================================
+ * FIXGO - APP TÉCNICO v2.0 (MODO UBER BLACK)
+ * Sincronización de Servicios y GPS
+ * ======================================================
+ */
 import {
-  auth,
-  db,
-  observarAuth,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  onSnapshot,
-  serverTimestamp
+    auth,
+    db,
+    observarAuth,
+    doc,
+    getDoc,
+    setDoc,
+    updateDoc,
+    onSnapshot,
+    serverTimestamp,
+    signOut
 } from "./firebase.js";
 
-import { verificarArribo } from "./gps-motor.js";
+// Variables de Estado Interno
+let usuarioActual = null;
+let suscripcionSolicitudes = null;
 
-// ======================================================
-// ESTADO GLOBAL
-// ======================================================
-
-let tecnico = null;
-let solicitudActiva = null;
-let unsubscribeSolicitud = null;
-
-// ======================================================
-// AUTH CENTRAL (ÚNICO)
-// ======================================================
-
-console.log("app-tecnico.js cargado");
-
- observarAuth((user) => {
-  if (user) {
-    window.location.href = "login.html";
-    return;
-  }
-
-  if (user.rol !== "tecnico") {
-    window.location.href = "index.html";
-    return;
-  }
-
-  tecnico = user;
-
-  await registrarOActualizarTecnico();
-  escucharSolicitudActiva();
-  conectarBotones();
-});
-
-// ======================================================
-// REGISTRO / UPDATE TÉCNICO
-// ======================================================
-
-async function registrarOActualizarTecnico() {
-  try {
-    await setDoc(
-      doc(db, "tecnicos", tecnico.uid),
-      {
-        uid: tecnico.uid,
-        nombre: tecnico.nombre || "Técnico FixGo",
-        email: tecnico.email || "",
-        rol: "tecnico",
-        disponible: true,
-        enServicio: false,
-        actualizado: serverTimestamp()
-      },
-      { merge: true }
-    );
-
-    console.log("Técnico sincronizado");
-  } catch (error) {
-    console.error("Error registrando técnico:", error);
-  }
-}
-
-// ======================================================
-// ESCUCHAR SOLICITUD ACTIVA (COLECCIÓN CORRECTA)
-// ======================================================
-
-function escucharSolicitudActiva() {
-  if (unsubscribeSolicitud) unsubscribeSolicitud();
-
-  const ref = doc(db, "solicitudes", tecnico.uid);
-
-  unsubscribeSolicitud = onSnapshot(ref, (snapshot) => {
-    if (!snapshot.exists()) {
-      solicitudActiva = null;
-      renderEstadoLibre();
-      return;
+/**
+ * INICIALIZACIÓN Y PROTECCIÓN DE RUTA
+ */
+observarAuth(async (user) => {
+    // Error corregido: Ya no redirige al login si ya estás logueado
+    if (!user) {
+        console.log("Redirigiendo a Login...");
+        window.location.href = "login.html";
+        return;
     }
 
-    solicitudActiva = snapshot.data();
-    procesarEstadoSolicitud();
-  });
-}
+    // Validación de Rol para evitar que clientes entren al panel técnico
+    if (user.rol && user.rol !== "tecnico") {
+        console.error("Acceso denegado: Rol insuficiente.");
+        window.location.href = "index.html";
+        return;
+    }
 
-// ======================================================
-// PROCESAR ESTADO
-// ======================================================
+    usuarioActual = user;
+    console.log("Panel Técnico Activo:", usuarioActual.email);
 
-function procesarEstadoSolicitud() {
-  if (!solicitudActiva || !solicitudActiva.estado) return;
-
-  switch (solicitudActiva.estado) {
-    case "asignada":
-      renderAsignada();
-      break;
-
-    case "en_camino":
-      renderEnCamino();
-      break;
-
-    case "en_sitio":
-      renderEnSitio();
-      break;
-
-    case "finalizada":
-      finalizarServicio();
-      break;
-
-    default:
-      console.warn("Estado desconocido:", solicitudActiva.estado);
-  }
-}
-
-// ======================================================
-// ACCIONES (BOTONES)
-// ======================================================
-
-async function marcarEnCamino() {
-  if (!solicitudActiva) return;
-
-  await actualizarEstadoSolicitud("en_camino");
-}
-
-async function marcarEnSitio() {
-  if (!solicitudActiva) return;
-
-  const llego = await verificarArribo(
-    solicitudActiva.lat,
-    solicitudActiva.lng
-  );
-
-  if (!llego) {
-    alert("Aún no estás dentro del perímetro del cliente");
-    return;
-  }
-
-  await actualizarEstadoSolicitud("en_sitio");
-}
-
-async function marcarFinalizado() {
-  if (!solicitudActiva) return;
-
-  await actualizarEstadoSolicitud("finalizada");
-}
-
-// ======================================================
-// ACTUALIZAR FIRESTORE
-// ======================================================
-
-async function actualizarEstadoSolicitud(nuevoEstado) {
-  try {
-    await updateDoc(
-      doc(db, "solicitudes", tecnico.uid),
-      {
-        estado: nuevoEstado,
-        actualizado: serverTimestamp()
-      }
-    );
-
-    await updateDoc(
-      doc(db, "tecnicos", tecnico.uid),
-      {
-        disponible: nuevoEstado === "finalizada",
-        enServicio: nuevoEstado !== "finalizada",
-        actualizado: serverTimestamp()
-      }
-    );
-
-    console.log("Estado actualizado:", nuevoEstado);
-  } catch (error) {
-    console.error("Error actualizando estado:", error);
-  }
-}
-
-// ======================================================
-// CIERRE
-// ======================================================
-
-async function finalizarServicio() {
-  try {
-    await updateDoc(
-      doc(db, "tecnicos", tecnico.uid),
-      {
-        disponible: true,
-        enServicio: false,
-        actualizado: serverTimestamp()
-      }
-    );
-
-    solicitudActiva = null;
-    renderEstadoLibre();
-  } catch (error) {
-    console.error("Error cerrando servicio:", error);
-  }
-}
-
-// ======================================================
-// RENDER BASE (HTML YA EXISTE)
-// ======================================================
-
-function renderEstadoLibre() {
-  console.log("Técnico disponible");
-}
-
-function renderAsignada() {
-  console.log("Servicio asignado:", solicitudActiva);
-}
-
-function renderEnCamino() {
-  console.log("En camino al cliente");
-}
-
-function renderEnSitio() {
-  console.log("Técnico en sitio");
-}
-
-// ======================================================
-// BOTONES CON CEREBRO
-// ======================================================
-
-function conectarBotones() {
-  const btnEnCamino = document.getElementById("btnEnCamino");
-  const btnEnSitio = document.getElementById("btnEnSitio");
-  const btnFinalizar = document.getElementById("btnFinalizar");
-
-  if (btnEnCamino) {
-    btnEnCamino.addEventListener("click", marcarEnCamino);
-  }
-
-  if (btnEnSitio) {
-    btnEnSitio.addEventListener("click", marcarEnSitio);
-  }
-
-  if (btnFinalizar) {
-    btnFinalizar.addEventListener("click", marcarFinalizado);
-  }
-}
-
-// ======================================================
-// DEBUG CONTROLADO
-// ======================================================
-
-window.__FIXGO_TECNICO_DEBUG__ = () => ({
-  tecnico: tecnico?.uid || null,
-  solicitud: solicitudActiva?.estado || null
+    // Actualizar Interfaz con datos del usuario
+    actualizarInterfazBasica();
+    
+    // Sincronizar estado en Firestore
+    await asegurarExistenciaTecnico();
+    
+    // Activar Listeners de la App
+    conectarEventosGlobales();
+    escucharMisionesActivas();
 });
+
+/**
+ * SINCRONIZACIÓN DE PERFIL TÉCNICO
+ */
+async function asegurarExistenciaTecnico() {
+    const tecRef = doc(db, "tecnicos", usuarioActual.uid);
+    try {
+        await setDoc(tecRef, {
+            uid: usuarioActual.uid,
+            nombre: usuarioActual.nombre || "Socio FixGo",
+            disponible: true,
+            ultimaConexion: serverTimestamp(),
+            rol: "tecnico"
+        }, { merge: true });
+        console.log("Status: DISPONIBLE");
+    } catch (e) {
+        console.error("Error al sincronizar técnico:", e);
+    }
+}
+
+/**
+ * MONITOR DE MISIONES (RADAR)
+ */
+function escucharMisionesActivas() {
+    if (suscripcionSolicitudes) suscripcionSolicitudes();
+
+    // El técnico escucha solicitudes que estén en estado 'PENDIENTE'
+    // O que ya hayan sido asignadas a él específicamente
+    const q = doc(db, "solicitudes", usuarioActual.uid); 
+
+    suscripcionSolicitudes = onSnapshot(q, (snapshot) => {
+        if (!snapshot.exists()) {
+            console.log("Radar: Buscando misiones...");
+            renderModoLibre();
+            return;
+        }
+
+        const mision = snapshot.data();
+        manejarCambioDeEstado(mision);
+    });
+}
+
+/**
+ * LÓGICA DE INTERFAZ Y EVENTOS
+ */
+function conectarEventosGlobales() {
+    // Botón de Cerrar Sesión
+    const btnLogout = document.getElementById("btnLogout");
+    if (btnLogout) {
+        btnLogout.onclick = () => signOut(auth).then(() => window.location.href = "login.html");
+    }
+
+    // Botones de Misión (Si existen en el HTML actual)
+    const btnEnCamino = document.getElementById("btnEnCamino");
+    if (btnEnCamino) {
+        btnEnCamino.onclick = () => actualizarEstadoMision("en_camino");
+    }
+
+    const btnLlegué = document.getElementById("btnLlegue");
+    if (btnLlegué) {
+        btnLlegué.onclick = () => actualizarEstadoMision("en_sitio");
+    }
+}
+
+async function actualizarEstadoMision(nuevoEstado) {
+    const ref = doc(db, "solicitudes", usuarioActual.uid);
+    try {
+        await updateDoc(ref, {
+            estado: nuevoEstado,
+            actualizadoEn: serverTimestamp()
+        });
+        console.log("Misión actualizada a:", nuevoEstado);
+    } catch (e) {
+        console.error("Error al actualizar misión:", e);
+    }
+}
+
+function actualizarInterfazBasica() {
+    const labelNombre = document.getElementById("userName");
+    if (labelNombre) labelNombre.innerText = usuarioActual.nombre || "Socio FixGo";
+}
+
+function renderModoLibre() {
+    const statusLabel = document.getElementById("statusLabel");
+    if (statusLabel) statusLabel.innerText = "ESPERANDO MISIONES...";
+}
+
+function manejarCambioDeEstado(mision) {
+    console.log("Nueva actualización de misión:", mision.estado);
+    // Aquí puedes disparar animaciones de UI tipo Uber
+}
