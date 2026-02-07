@@ -1,7 +1,6 @@
 /**
  * ======================================================
- * FIXGO CORE - FIREBASE CONFIGURATION v5.0 (FINAL)
- * Incluye: Buscador Total + Todas las Herramientas (Fix)
+ * FIXGO CORE - FIREBASE CONFIGURATION v5.1 (Fixed)
  * ======================================================
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -14,19 +13,18 @@ import {
     updateProfile 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-// AQUÍ AGREGAMOS TODO LO QUE FALTABA
 import { 
     getFirestore, 
     doc, 
     setDoc, 
     updateDoc, 
     getDoc, 
-    collection,      // Restaurado
-    onSnapshot,      // Restaurado
-    query,           // Restaurado
-    where,           // Restaurado
-    addDoc,          // Restaurado
-    orderBy,         // Restaurado
+    collection, 
+    onSnapshot, 
+    query, 
+    where, 
+    addDoc, 
+    orderBy, 
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -44,7 +42,7 @@ const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 
 /**
- * OBSERVADOR DE SESIÓN INTELIGENTE (No te bota, busca tu rol)
+ * OBSERVADOR DE SESIÓN ROBUSTO
  */
 function observarAuth(callback) {
     return onAuthStateChanged(auth, async (user) => {
@@ -52,29 +50,22 @@ function observarAuth(callback) {
             callback(null);
             return;
         }
-
         try {
-            // 1. Buscamos en 'usuarios'
+            // Buscamos primero en la colección maestra 'usuarios'
             let snap = await getDoc(doc(db, "usuarios", user.uid));
             
-            // 2. Si no está, buscamos en 'tecnicos'
+            // Si no está ahí (caso raro), buscamos en específicos
             if (!snap.exists()) snap = await getDoc(doc(db, "tecnicos", user.uid));
-
-            // 3. Si no está, buscamos en 'clientes'
             if (!snap.exists()) snap = await getDoc(doc(db, "clientes", user.uid));
-
-            // 4. Si no está, buscamos en 'admins'
-            if (!snap.exists()) snap = await getDoc(doc(db, "admins", user.uid));
 
             if (snap.exists()) {
                 const data = snap.data();
                 const finalUser = { ...user, ...data };
                 callback(finalUser);
             } else {
-                console.warn("Usuario sin perfil en DB.");
+                // Usuario existe en Auth pero no en BD (Registro incompleto)
                 callback(user); 
             }
-
         } catch (e) {
             console.error("Error recuperando perfil:", e);
             callback(user);
@@ -83,37 +74,52 @@ function observarAuth(callback) {
 }
 
 /**
- * REGISTRO BLINDADO
+ * REGISTRO UNIFICADO (Soporta datos extra)
  */
-async function registrarUsuario(email, password, rol, nombre) {
+async function registrarUsuario(email, password, rol, datosExtra = {}) {
     try {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const uid = cred.user.uid;
         
-        const perfil = {
+        // Objeto base
+        const perfilBase = {
             uid: uid,
             email: email,
             rol: rol,
-            nombre: nombre || "Usuario Nuevo",
-            creadoEn: serverTimestamp()
+            creadoEn: serverTimestamp(),
+            ...datosExtra // Aquí fusionamos nombre, telefono, etc.
         };
 
-        await setDoc(doc(db, "usuarios", uid), perfil);
+        // 1. Guardar en colección maestra 'usuarios'
+        await setDoc(doc(db, "usuarios", uid), perfilBase);
 
+        // 2. Guardar en colección específica para búsquedas rápidas
         if (rol === 'tecnico') {
-            await setDoc(doc(db, "tecnicos", uid), { ...perfil, disponible: false });
+            await setDoc(doc(db, "tecnicos", uid), { 
+                ...perfilBase, 
+                disponible: false,
+                nivel: "Bronce",
+                wallet: 0,
+                estado: "offline"
+            });
         } else {
-            await setDoc(doc(db, "clientes", uid), { ...perfil, pedidos: 0 });
+            await setDoc(doc(db, "clientes", uid), { 
+                ...perfilBase, 
+                pedidos: 0 
+            });
         }
 
-        await updateProfile(cred.user, { displayName: nombre });
+        // Actualizar perfil interno de Auth
+        if (datosExtra.nombre) {
+            await updateProfile(cred.user, { displayName: datosExtra.nombre });
+        }
+        
         return cred.user;
     } catch (error) {
         throw error;
     }
 }
 
-// EXPORTAMOS TODO (Esto arregla los errores de "SyntaxError" en las otras páginas)
 export {
     auth, db,
     observarAuth,
@@ -121,6 +127,6 @@ export {
     signOut,
     signInWithEmailAndPassword,
     doc, setDoc, updateDoc, getDoc, 
-    collection, onSnapshot, query, where, addDoc, orderBy, // <--- IMPORTANTÍSIMO
+    collection, onSnapshot, query, where, addDoc, orderBy, 
     serverTimestamp
 };
