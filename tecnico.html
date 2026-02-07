@@ -2,148 +2,179 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo | Panel de Socio</title>
+    <title>FixGo | Panel Técnico</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #000000; font-family: 'Inter', sans-serif; }
-        .card-tecnico { background: #0a0a0a; border: 1px solid #1a1a1a; }
-        .status-badge { font-size: 10px; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; }
-        #panelAcciones { box-shadow: 0 -5px 20px rgba(0,0,0,0.8); transition: transform 0.3s ease; }
-    </style>
+    <style>body { background-color: #000; color: white; }</style>
 </head>
-<body class="text-white min-h-screen pb-32"> 
+<body class="pb-32">
 
-    <nav class="p-6 flex justify-between items-center border-b border-slate-900 sticky top-0 bg-black/95 z-10">
+    <nav class="p-5 flex justify-between items-center bg-zinc-900 border-b border-zinc-800">
         <div>
-            <h1 class="font-black text-xl italic tracking-tighter">FIX<span class="text-emerald-500">GO</span> PRO</h1>
-            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Socio Especialista</p>
+            <h1 class="font-black italic text-xl">FIXGO <span class="text-emerald-500">PRO</span></h1>
+            <p id="userName" class="text-xs text-gray-400">Cargando...</p>
         </div>
-        <div id="statusBadge" class="bg-yellow-600/20 text-yellow-500 status-badge font-bold">
-            <span id="statusLabel">CONECTANDO...</span>
-        </div>
+        <button id="btnLogout" class="text-red-500 text-xs font-bold">SALIR</button>
     </nav>
 
-    <header class="p-6">
-        <div class="card-tecnico p-6 rounded-[2rem] flex items-center gap-4 shadow-2xl">
-            <div class="relative">
-                <div class="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center border-2 border-emerald-500">
-                    <i class="fas fa-user-gear text-3xl"></i>
-                </div>
-                <div class="absolute -bottom-1 -right-1 bg-emerald-500 w-6 h-6 rounded-full flex items-center justify-center border-2 border-black">
-                    <i class="fas fa-check text-[10px] text-black"></i>
-                </div>
-            </div>
+    <main class="p-5 max-w-md mx-auto space-y-6">
+
+        <div class="bg-zinc-900 p-6 rounded-2xl flex justify-between items-center border border-zinc-800">
             <div>
-                <h2 id="userName" class="text-2xl font-black">Cargando...</h2>
-                <div class="flex items-center gap-2 mt-1">
-                    <span class="bg-orange-600/20 text-orange-500 text-[10px] font-black px-2 py-0.5 rounded border border-orange-500/30">NIVEL BRONCE</span>
-                    <button id="btnLogout" class="text-red-500 text-[10px] font-bold border border-red-900/50 px-2 py-0.5 rounded hover:bg-red-900/20 transition-colors">SALIR</button>
-                </div>
+                <h2 class="font-bold text-lg">Estado del Servicio</h2>
+                <p id="lblEstado" class="text-xs text-gray-500">Estás desconectado</p>
             </div>
-        </div>
-    </header>
-
-    <main class="p-6">
-        <div id="radarSection" class="mb-6">
-            <p class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Estado de Conexión</p>
-            <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-2xl flex items-center gap-3">
-                <i class="fas fa-satellite-dish text-emerald-500 animate-pulse"></i>
-                <span id="txtRadar" class="text-emerald-200 text-sm font-bold">GPS Activo y Transmitiendo</span>
-            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="toggleDisponible" class="sr-only peer">
+                <div class="w-14 h-7 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500"></div>
+            </label>
         </div>
 
-        <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Validación Obligatoria</h3>
-        
-        <div class="grid grid-cols-1 gap-4">
-            <div class="card-tecnico p-5 rounded-2xl flex items-center justify-between group hover:border-emerald-500/50 transition-all">
-                <div class="flex items-center gap-4">
-                    <div class="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-slate-400">
-                        <i class="fas fa-id-card"></i>
-                    </div>
+        <div id="seccionDocs" class="space-y-4">
+            <h3 class="text-xs font-black text-gray-500 uppercase tracking-widest">REQUISITOS OBLIGATORIOS</h3>
+            
+            <div class="bg-zinc-900 p-4 rounded-xl flex justify-between items-center border border-zinc-800">
+                <div class="flex items-center gap-3">
+                    <i class="fas fa-id-card text-gray-400 text-xl"></i>
                     <div>
-                        <p class="font-bold text-sm leading-none">Identificación Oficial (INE)</p>
-                        <p class="text-[10px] text-slate-500 mt-1">Frente y Vuelta (Legible)</p>
+                        <p class="font-bold text-sm">INE Oficial</p>
+                        <p class="text-[10px] text-gray-500">Frente y Vuelta</p>
                     </div>
                 </div>
-                <input type="file" id="inputINE" class="hidden" accept="image/*">
-                <button id="btnINE" class="bg-white text-black text-xs font-black px-4 py-2 rounded-lg hover:bg-emerald-500 hover:text-white transition-all">
-                    SUBIR
-                </button>
+                <input type="file" id="fileINE" class="hidden">
+                <button onclick="document.getElementById('fileINE').click()" id="btnINE" class="bg-white text-black text-xs font-bold px-4 py-2 rounded-lg">SUBIR</button>
             </div>
 
-            <div class="card-tecnico p-5 rounded-2xl flex items-center justify-between group hover:border-emerald-500/50 transition-all">
-                <div class="flex items-center gap-4">
-                    <div class="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-slate-400">
-                        <i class="fas fa-file-contract"></i>
-                    </div>
+            <div class="bg-zinc-900 p-4 rounded-xl flex justify-between items-center border border-zinc-800">
+                <div class="flex items-center gap-3">
+                    <i class="fas fa-file-invoice text-gray-400 text-xl"></i>
                     <div>
-                        <p class="font-bold text-sm leading-none">C. Situación Fiscal</p>
-                        <p class="text-[10px] text-slate-500 mt-1">Obligatorio para pagos SPEI</p>
+                        <p class="font-bold text-sm">Constancia Fiscal</p>
+                        <p class="text-[10px] text-gray-500">PDF Actualizado</p>
                     </div>
                 </div>
-                <input type="file" id="inputCSF" class="hidden" accept="application/pdf,image/*">
-                <button id="btnCSF" class="bg-white text-black text-xs font-black px-4 py-2 rounded-lg hover:bg-emerald-500 hover:text-white transition-all">
-                    SUBIR
-                </button>
-            </div>
-
-            <div class="card-tecnico p-5 rounded-2xl flex items-center justify-between group hover:border-emerald-500/50 transition-all">
-                <div class="flex items-center gap-4">
-                    <div class="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-slate-400">
-                        <i class="fas fa-motorcycle"></i>
-                    </div>
-                    <div>
-                        <p class="font-bold text-sm leading-none">Fotos de Vehículo</p>
-                        <p class="text-[10px] text-slate-500 mt-1">Placas visibles</p>
-                    </div>
-                </div>
-                <input type="file" id="inputVehiculo" class="hidden" accept="image/*">
-                <button id="btnVehiculo" class="bg-white text-black text-xs font-black px-4 py-2 rounded-lg hover:bg-emerald-500 hover:text-white transition-all">
-                    SUBIR
-                </button>
+                <input type="file" id="fileCSF" class="hidden">
+                <button onclick="document.getElementById('fileCSF').click()" id="btnCSF" class="bg-white text-black text-xs font-bold px-4 py-2 rounded-lg">SUBIR</button>
             </div>
         </div>
 
-        <div class="mt-8">
-            <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Mi Cartera (Wallet)</h3>
-            <div class="bg-emerald-950/20 border border-emerald-500/20 p-6 rounded-[2rem]">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <p class="text-slate-400 text-xs font-bold uppercase">Saldo Disponible</p>
-                        <h4 class="text-4xl font-black text-white">$0.00</h4>
-                    </div>
-                    <div class="bg-emerald-500/10 text-emerald-500 p-3 rounded-2xl">
-                        <i class="fas fa-wallet text-xl"></i>
-                    </div>
-                </div>
-                <button disabled class="w-full py-4 bg-emerald-600/20 text-emerald-500 font-black rounded-xl cursor-not-allowed text-sm">
-                    SOLICITAR RETIRO (SPEI)
-                </button>
-            </div>
+        <div class="bg-emerald-900/20 p-6 rounded-2xl border border-emerald-500/20">
+            <p class="text-emerald-500 text-xs font-bold uppercase mb-1">Ganancias Hoy</p>
+            <h3 class="text-4xl font-black text-white">$0.00</h3>
         </div>
+
     </main>
 
-    <div id="panelAcciones" class="fixed bottom-0 left-0 w-full bg-zinc-900 border-t border-zinc-800 p-5 z-50 rounded-t-[2rem]">
-        <div class="max-w-4xl mx-auto flex flex-col gap-3">
-            <div class="flex justify-between items-center mb-1">
-                 <span class="text-[10px] font-black uppercase text-slate-500 tracking-widest">CONTROL DE MISIÓN</span>
-                 <span class="text-emerald-500 text-xs font-bold animate-pulse">● EN VIVO</span>
-            </div>
+    <div id="panelMision" class="fixed bottom-0 left-0 w-full bg-zinc-800 p-5 rounded-t-3xl border-t border-zinc-700 hidden">
+        <h3 class="text-center font-bold text-yellow-500 mb-3 animate-pulse">● SERVICIO ASIGNADO</h3>
+        <button id="btnAccion" class="w-full bg-yellow-500 text-black font-black py-4 rounded-xl text-lg">
+            VOY EN CAMINO
+        </button>
+    </div>
 
-            <button id="btnEnCamino" class="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all">
-                <i class="fas fa-car-side text-xl"></i> 
-                <span>VOY EN CAMINO</span>
-            </button>
-            
-            <button id="btnLlegue" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all hidden">
-                <i class="fas fa-map-marker-alt text-xl"></i> 
-                <span>YA LLEGUÉ AL SITIO</span>
-            </button>
+    <div id="modalTC" class="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-zinc-900 rounded-2xl max-w-md w-full p-6 border border-white/10">
+            <h2 class="font-black text-xl mb-4">Términos Socio FixGo</h2>
+            <div class="h-40 overflow-y-auto text-xs text-gray-400 mb-4 bg-black p-3 rounded-lg">
+                1. Relación Mercantil (No laboral).<br>
+                2. Prohibido puentear clientes.<br>
+                3. Uso obligatorio de GPS.<br>
+                4. FixGo retiene comisión acordada.<br>
+                5. Usted es responsable de garantías.
+            </div>
+            <label class="flex items-center gap-3 mb-4">
+                <input type="checkbox" id="checkTC" class="w-5 h-5 accent-emerald-500">
+                <span class="text-sm font-bold">Acepto los términos</span>
+            </label>
+            <button id="btnAceptarTC" disabled class="w-full bg-emerald-600 disabled:opacity-50 text-white font-bold py-3 rounded-xl">FIRMAR DIGITALMENTE</button>
         </div>
     </div>
-    
-    <script type="module" src="./app-tecnico.js"></script>
+
+    <script type="module">
+        import { auth, db, observingAuth, signOut, doc, updateDoc, setDoc } from './firebase.js';
+
+        let uid;
+        const toggle = document.getElementById('toggleDisponible');
+        const lblEstado = document.getElementById('lblEstado');
+
+        observingAuth(async (user) => {
+            if (!user) window.location.href = 'login.html';
+            uid = user.uid;
+            document.getElementById('userName').innerText = user.nombre || "Técnico";
+
+            // Estado del Toggle desde DB
+            toggle.checked = user.disponible || false;
+            actualizarTextoToggle(toggle.checked);
+
+            // Estado Documentos
+            if(user.documentosOK) {
+                document.getElementById('seccionDocs').innerHTML = '<div class="bg-emerald-900/30 p-4 rounded text-center text-emerald-400 font-bold border border-emerald-500/30">✅ Documentación Aprobada</div>';
+            }
+
+            // T&C
+            if (!user.terminosAceptados) {
+                document.getElementById('modalTC').classList.remove('hidden');
+            }
+        });
+
+        // LÓGICA T&C
+        document.getElementById('checkTC').onchange = (e) => document.getElementById('btnAceptarTC').disabled = !e.target.checked;
+        document.getElementById('btnAceptarTC').onclick = async () => {
+            await updateDoc(doc(db, "tecnicos", uid), { terminosAceptados: true });
+            document.getElementById('modalTC').classList.add('hidden');
+        };
+
+        // LÓGICA TOGGLE ON/OFF
+        toggle.addEventListener('change', async () => {
+            const isOnline = toggle.checked;
+            actualizarTextoToggle(isOnline);
+            
+            // Geolocalización
+            if (isOnline && navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(async (pos) => {
+                    await updateDoc(doc(db, "tecnicos", uid), {
+                        disponible: true,
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude
+                    });
+                });
+            } else {
+                await updateDoc(doc(db, "tecnicos", uid), { disponible: false });
+            }
+        });
+
+        function actualizarTextoToggle(on) {
+            lblEstado.innerText = on ? "Estás visible para clientes" : "Estás desconectado";
+            lblEstado.className = on ? "text-xs text-emerald-400 font-bold" : "text-xs text-gray-500";
+        }
+
+        // LÓGICA SUBIDA DOCUMENTOS (Simulada para Admin)
+        const manejarSubida = (inputId, btnId) => {
+            document.getElementById(inputId).addEventListener('change', async () => {
+                const btn = document.getElementById(btnId);
+                btn.innerText = "Subiendo...";
+                setTimeout(async () => {
+                    // Aquí simulamos que se subió y guardamos un flag en DB
+                    // En producción real, aquí va Firebase Storage uploadBytes
+                    btn.className = "bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg";
+                    btn.innerText = "LISTO";
+                    
+                    // Actualizamos DB para que Admin vea "documentosOK" (o al menos que subió algo)
+                    // Nota: para que el admin apruebe, idealmente subimos flags individuales
+                    await setDoc(doc(db, "tecnicos", uid), { 
+                        [`docs_${inputId}`]: true,
+                        documentosSubidos: true // Flag general
+                    }, { merge: true });
+                    
+                    alert("Documento cargado correctamente.");
+                }, 1500);
+            });
+        };
+
+        manejarSubida('fileINE', 'btnINE');
+        manejarSubida('fileCSF', 'btnCSF');
+
+        document.getElementById('btnLogout').onclick = () => signOut(auth).then(() => window.location.href = 'login.html');
+    </script>
 </body>
 </html>
