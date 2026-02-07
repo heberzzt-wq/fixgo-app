@@ -2,6 +2,7 @@
  * ======================================================
  * FIXGO CORE - FIREBASE CONFIGURATION v2.0
  * Blueprint Verified: 2026-02-06
+ * Estado: API KEY ACTUALIZADA
  * ======================================================
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -31,7 +32,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0",
+    apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0", // <--- NUEVA API KEY
     authDomain: "fixgo-44e4d.firebaseapp.com",
     projectId: "fixgo-44e4d",
     storageBucket: "fixgo-44e4d.appspot.com",
