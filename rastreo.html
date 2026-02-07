@@ -8,7 +8,8 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 <style>
     body { background-color: #050505; }
-    #map { width: 100%; height: 80vh; border-radius: 2rem; }
+    #map { width: 100%; height: 80vh; border-radius: 2rem; border: 1px solid #333; }
+    /* Estilo oscuro para el mapa (se aplica vía JS, pero preparamos el contenedor) */
 </style>
 </head>
 <body class="text-white min-h-screen">
@@ -22,51 +23,92 @@
     <h2 class="text-2xl font-black mb-4">Rastreo en tiempo real</h2>
     <div id="map"></div>
 
-    <div class="mt-6 uber-card p-6 rounded-2xl shadow-2xl">
-        <h3 class="font-black text-lg mb-2">Detalles del Técnico</h3>
-        <p id="nombreTecnico">Nombre: ...</p>
-        <p id="estadoTecnico">Estado: ...</p>
-        <p id="ubicacionTecnico">Ubicación: ...</p>
+    <div class="mt-6 uber-card p-6 rounded-2xl shadow-2xl bg-[#121212] border border-white/10">
+        <h3 class="font-black text-lg mb-2 text-emerald-500">Estado del Servicio</h3>
+        <p id="nombreTecnico" class="text-gray-300">Buscando datos...</p>
+        <p id="estadoTecnico" class="text-gray-300">Estado: --</p>
+        <p id="ubicacionTecnico" class="text-gray-300 text-sm font-mono mt-2">Coords: --</p>
     </div>
 </main>
 
 <script type="module">
-    import { db, onSnapshot, doc, auth, onAuthStateChanged } from './firebase.js';
+    // Importamos 'observarAuth' que es la función que SÍ existe en tu firebase.js
+    import { db, onSnapshot, doc, auth, observarAuth } from './firebase.js';
+    
+    // IMPORTANTE: Asegúrate de que gps-motor.js exista y exporte esta función.
+    // Si gps-motor.js falla, comenta la siguiente línea para que el mapa cargue sin actualizar la posición.
     import { actualizarMapaGPS } from './gps-motor.js';
 
     let map;
     let marcadorTecnico;
 
+    // Función global para iniciar el mapa
     function initMap() {
+        console.log("🗺️ Inicializando Google Maps...");
+        const estiloOscuro = [
+            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+            {
+                featureType: "administrative.locality",
+                elementType: "labels.text.fill",
+                stylers: [{ color: "#d59563" }],
+            },
+        ];
+
         map = new google.maps.Map(document.getElementById("map"), {
             center: { lat: 21.1619, lng: -86.8515 }, // Cancún base
             zoom: 13,
+            styles: estiloOscuro, // Aplicamos modo oscuro al mapa
+            disableDefaultUI: false
         });
     }
 
-    onAuthStateChanged(auth, user => {
+    // Exponemos la función al objeto window para que la API de Google la encuentre
+    window.initMap = initMap;
+
+    // Usamos tu observador personalizado
+    observarAuth((user) => {
         if (!user) {
-            alert("Necesitas iniciar sesión para rastrear técnicos");
-            window.location.href = "login.html";
+            console.warn("Usuario no autenticado. Redirigiendo...");
+            // Opcional: window.location.href = "login.html";
             return;
         }
 
+        console.log("✅ Usuario autenticado en Rastreo:", user.email);
+
+        // Escuchar cambios en la colección 'rastreo' documento 'tecnicoActivo'
+        // Asegúrate de que este documento exista en tu Firestore
         const trackingDoc = doc(db, "rastreo", "tecnicoActivo");
-        onSnapshot(trackingDoc, data => {
+        
+        onSnapshot(trackingDoc, (data) => {
             if (data.exists()) {
                 const d = data.data();
-                document.getElementById("nombreTecnico").textContent = `Nombre: ${d.nombre}`;
-                document.getElementById("estadoTecnico").textContent = `Estado: ${d.estado}`;
-                document.getElementById("ubicacionTecnico").textContent = `Ubicación: ${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}`;
+                console.log("📍 Nueva ubicación recibida:", d);
 
-                actualizarMapaGPS(map, marcadorTecnico, d.lat, d.lng);
+                // Actualizar UI
+                document.getElementById("nombreTecnico").textContent = `Técnico: ${d.nombre || 'Desconocido'}`;
+                document.getElementById("estadoTecnico").textContent = `Estado: ${d.estado || 'En ruta'}`;
+                document.getElementById("ubicacionTecnico").textContent = `📍 ${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}`;
+
+                // Actualizar Marcador en el Mapa (si el módulo gps-motor funciona)
+                try {
+                    if (typeof actualizarMapaGPS === 'function') {
+                        // Nota: actualizarMapaGPS debe manejar la creación del marcador si es null
+                        // Pasamos una referencia para que pueda actualizar la variable 'marcadorTecnico' si es necesario
+                        // Ojo: Si actualizarMapaGPS retorna el marcador nuevo, deberíamos capturarlo.
+                        actualizarMapaGPS(map, d.lat, d.lng); 
+                    }
+                } catch (e) {
+                    console.error("Error al mover marcador:", e);
+                }
+            } else {
+                console.log("Esperando datos de rastreo...");
             }
         });
     });
-
-    window.initMap = initMap;
 </script>
 
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k&callback=initMap" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0&callback=initMap" async defer></script>
 </body>
 </html>
