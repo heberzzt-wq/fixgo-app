@@ -8,24 +8,14 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body { background-color: #000000; font-family: 'Inter', sans-serif; }
-        .card-tecnico {
-            background: #0a0a0a;
-            border: 1px solid #1a1a1a;
-        }
-        .status-badge {
-            font-size: 10px;
-            padding: 2px 8px;
-            border-radius: 99px;
-            text-transform: uppercase;
-        }
-        /* ESTILO PARA EL PANEL DE ACCIONES FLOTANTE */
-        #panelAcciones {
-            box-shadow: 0 -5px 20px rgba(0,0,0,0.8);
-            transition: transform 0.3s ease;
-        }
+        .card-tecnico { background: #0a0a0a; border: 1px solid #1a1a1a; }
+        .status-badge { font-size: 10px; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; }
+        #panelAcciones { box-shadow: 0 -5px 20px rgba(0,0,0,0.8); transition: transform 0.3s ease; }
     </style>
 </head>
-<body class="text-white min-h-screen pb-32"> <nav class="p-6 flex justify-between items-center border-b border-slate-900 sticky top-0 bg-black/95 z-10">
+<body class="text-white min-h-screen pb-32"> 
+
+    <nav class="p-6 flex justify-between items-center border-b border-slate-900 sticky top-0 bg-black/95 z-10">
         <div>
             <h1 class="font-black text-xl italic tracking-tighter">FIX<span class="text-emerald-500">GO</span> PRO</h1>
             <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Socio Especialista</p>
@@ -56,7 +46,6 @@
     </header>
 
     <main class="p-6">
-        
         <div id="radarSection" class="mb-6">
             <p class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Estado de Conexión</p>
             <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-2xl flex items-center gap-3">
@@ -78,7 +67,8 @@
                         <p class="text-[10px] text-slate-500 mt-1">Frente y Vuelta (Legible)</p>
                     </div>
                 </div>
-                <button class="bg-white text-black text-xs font-black px-4 py-2 rounded-lg hover:bg-emerald-500 hover:text-white transition-all">
+                <input type="file" id="inputINE" class="hidden" accept="image/*">
+                <button id="btnINE" class="bg-white text-black text-xs font-black px-4 py-2 rounded-lg hover:bg-emerald-500 hover:text-white transition-all">
                     SUBIR
                 </button>
             </div>
@@ -89,11 +79,12 @@
                         <i class="fas fa-file-contract"></i>
                     </div>
                     <div>
-                        <p class="font-bold text-sm leading-none">C. Situación Fiscal (CSF)</p>
+                        <p class="font-bold text-sm leading-none">C. Situación Fiscal</p>
                         <p class="text-[10px] text-slate-500 mt-1">Obligatorio para pagos SPEI</p>
                     </div>
                 </div>
-                <button class="bg-white text-black text-xs font-black px-4 py-2 rounded-lg hover:bg-emerald-500 hover:text-white transition-all">
+                <input type="file" id="inputCSF" class="hidden" accept="application/pdf,image/*">
+                <button id="btnCSF" class="bg-white text-black text-xs font-black px-4 py-2 rounded-lg hover:bg-emerald-500 hover:text-white transition-all">
                     SUBIR
                 </button>
             </div>
@@ -108,7 +99,8 @@
                         <p class="text-[10px] text-slate-500 mt-1">Placas visibles</p>
                     </div>
                 </div>
-                <button class="bg-white text-black text-xs font-black px-4 py-2 rounded-lg hover:bg-emerald-500 hover:text-white transition-all">
+                <input type="file" id="inputVehiculo" class="hidden" accept="image/*">
+                <button id="btnVehiculo" class="bg-white text-black text-xs font-black px-4 py-2 rounded-lg hover:bg-emerald-500 hover:text-white transition-all">
                     SUBIR
                 </button>
             </div>
