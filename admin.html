@@ -1,42 +1,136 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FixGo - Admin</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-<style>
-    body { background-color: #050505; }
-    .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); }
-</style>
+    <meta charset="UTF-8">
+    <title>FixGo | Torre de Control</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>body { background-color: #000; color: white; }</style>
 </head>
-<body class="text-white min-h-screen">
+<body class="p-6">
+    <header class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-black italic">FIXGO <span class="text-red-600">ADMIN</span></h1>
+        <button id="btnLogout" class="bg-red-900/50 text-red-500 px-4 py-2 rounded-lg font-bold">Salir</button>
+    </header>
 
-<header class="max-w-6xl mx-auto flex justify-between items-center p-6">
-    <h1 class="text-3xl font-black tracking-tighter italic text-white">FIXGO - Admin</h1>
-    <button id="logoutBtn" class="bg-red-600/10 text-red-500 border border-red-500/30 hover:bg-red-600 hover:text-white font-bold py-2 px-6 rounded-2xl transition-all text-sm">Salir</button>
-</header>
-
-<main class="max-w-6xl mx-auto px-4 py-12">
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-        <div class="uber-card p-6 rounded-2xl shadow-2xl">
-            <h2 class="font-black text-xl mb-4">Técnicos Registrados</h2>
-            <div id="listaTecnicos"></div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
+            <h2 class="font-bold mb-4 text-emerald-500">SOCIOS / TÉCNICOS</h2>
+            <div id="listaTecnicos" class="space-y-3 max-h-[500px] overflow-y-auto">
+                <p class="text-gray-500 animate-pulse">Cargando...</p>
+            </div>
         </div>
 
-        <div class="uber-card p-6 rounded-2xl shadow-2xl">
-            <h2 class="font-black text-xl mb-4">Transacciones / Wallet</h2>
-            <div id="listaTransacciones"></div>
+        <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 lg:col-span-2">
+            <h2 class="font-bold mb-4 text-blue-500">MAPA EN VIVO</h2>
+            <div id="map" class="w-full h-[400px] rounded-xl bg-zinc-800"></div>
+            
+            <div class="mt-4">
+                <h3 class="font-bold text-sm mb-2">Solicitudes Recientes</h3>
+                <div id="listaSolicitudes" class="text-xs space-y-2"></div>
+            </div>
         </div>
+
     </div>
 
-    <div class="uber-card p-6 rounded-2xl shadow-2xl">
-        <h2 class="font-black text-xl mb-4">Logs y Actividad</h2>
-        <div id="logsActividad"></div>
-    </div>
-</main>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0" async defer></script>
 
-<script type="module" src="./app-admin.js"></script>
+    <script type="module">
+        import { auth, db, observingAuth, signOut, collection, onSnapshot, query, where, updateDoc, doc } from './firebase.js';
+
+        let map;
+        let markers = {};
+
+        // Iniciar Mapa
+        window.initMap = () => {
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: { lat: 21.1619, lng: -86.8515 }, // Cancún
+                zoom: 12,
+                styles: [ { elementType: "geometry", stylers: [{ color: "#242f3e" }] }, { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] }, { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] } ] // Dark Mode
+            });
+            escucharTecnicos();
+        };
+
+        if(window.google) window.initMap();
+
+        observingAuth((user) => {
+            // Validación simple de admin (en prod usar Claims)
+            if(!user) window.location.href = 'login.html';
+        });
+
+        // 1. ESCUCHAR TÉCNICOS Y MAPA
+        function escucharTecnicos() {
+            const q = query(collection(db, "tecnicos"));
+            
+            onSnapshot(q, (snapshot) => {
+                const divLista = document.getElementById('listaTecnicos');
+                divLista.innerHTML = "";
+
+                snapshot.forEach(snap => {
+                    const data = snap.data();
+                    const id = snap.id;
+
+                    // UI Lista
+                    const item = document.createElement('div');
+                    item.className = "p-3 bg-black rounded-lg border border-zinc-700 flex justify-between items-center";
+                    item.innerHTML = `
+                        <div>
+                            <p class="font-bold text-sm">${data.nombre || data.email}</p>
+                            <p class="text-[10px] ${data.disponible ? 'text-green-500' : 'text-gray-500'}">
+                                ${data.disponible ? '● ONLINE' : '○ OFFLINE'} | Doc: ${data.documentosOK ? '✅' : '❌'}
+                            </p>
+                        </div>
+                        ${!data.verificado ? 
+                            `<button onclick="verificarTecnico('${id}')" class="text-[10px] bg-blue-600 px-2 py-1 rounded text-white">APROBAR</button>` 
+                            : '<span class="text-xs text-emerald-500"><i class="fas fa-check-circle"></i></span>'}
+                    `;
+                    divLista.appendChild(item);
+
+                    // MAPA MARKERS (Solo si está disponible y tiene coords)
+                    if (data.disponible && data.lat && data.lng) {
+                        const pos = { lat: data.lat, lng: data.lng };
+                        if (markers[id]) {
+                            markers[id].setPosition(pos);
+                        } else {
+                            markers[id] = new google.maps.Marker({
+                                position: pos,
+                                map: map,
+                                title: data.nombre,
+                                icon: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
+                            });
+                        }
+                    } else {
+                        // Si se desconecta, quitar marcador
+                        if(markers[id]) {
+                            markers[id].setMap(null);
+                            delete markers[id];
+                        }
+                    }
+                });
+            });
+        }
+
+        // 2. FUNCIÓN GLOBAL PARA APROBAR
+        window.verificarTecnico = async (id) => {
+            if(confirm("¿Aprobar documentación de este técnico?")) {
+                await updateDoc(doc(db, "tecnicos", id), { verificado: true });
+            }
+        };
+
+        // 3. ESCUCHAR SOLICITUDES
+        onSnapshot(query(collection(db, "solicitudes"), where("estado", "==", "pendiente")), (snap) => {
+            const div = document.getElementById('listaSolicitudes');
+            div.innerHTML = "";
+            snap.forEach(d => {
+                const s = d.data();
+                div.innerHTML += `<div class="bg-red-900/20 p-2 rounded border border-red-500/30 text-red-200">
+                    Nueva solicitud: <b>${s.servicio}</b> en ${s.direccion} (${s.clienteNombre})
+                </div>`;
+            });
+        });
+
+        document.getElementById('btnLogout').onclick = () => signOut(auth).then(() => window.location.href = 'login.html');
+    </script>
 </body>
 </html>
