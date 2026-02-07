@@ -1,149 +1,136 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo | Bienvenido</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #000000; font-family: 'Inter', sans-serif; }
-        .hero-bg {
-            background-image: radial-gradient(circle at center, #10b98120 0%, #000000 70%);
+/**
+ * ======================================================
+ * FIXGO CORE - FIREBASE CONFIGURATION v4.0 (BUSCADOR TOTAL)
+ * Solución: Busca el perfil en TODAS las colecciones
+ * ======================================================
+ */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { 
+    getAuth, 
+    onAuthStateChanged, 
+    signOut, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    updateProfile 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+import { 
+    getFirestore, 
+    doc, 
+    setDoc, 
+    updateDoc, 
+    getDoc, 
+    serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0", // Tu API Key desbloqueada
+    authDomain: "fixgo-44e4d.firebaseapp.com",
+    projectId: "fixgo-44e4d",
+    storageBucket: "fixgo-44e4d.appspot.com",
+    messagingSenderId: "1005526685116",
+    appId: "1:1005526685116:web:62f1a823ff8761da85c7b9"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+
+/**
+ * OBSERVADOR DE SESIÓN INTELIGENTE
+ * Busca tu rol debajo de las piedras si es necesario.
+ */
+function observarAuth(callback) {
+    return onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            callback(null);
+            return;
         }
-    </style>
-</head>
-<body class="text-white min-h-screen flex flex-col">
 
-    <nav class="p-6 flex justify-between items-center border-b border-white/10 relative z-20">
-        <h1 class="font-black text-2xl italic tracking-tighter">FIX<span class="text-emerald-500">GO</span></h1>
-        
-        <div id="authActions">
-            <a href="login.html" class="text-sm font-bold text-gray-400 hover:text-white transition-colors">
-                INICIAR SESIÓN
-            </a>
-        </div>
-    </nav>
-
-    <main class="flex-1 flex flex-col items-center justify-center p-6 text-center hero-bg relative overflow-hidden">
-        
-        <div class="absolute inset-0 z-0">
-            <div class="absolute top-1/4 left-1/4 w-64 h-64 bg-emerald-500/10 rounded-full blur-[100px]"></div>
-        </div>
-
-        <div class="relative z-10 max-w-lg w-full">
-            <div class="mb-8">
-                <span class="bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-3 py-1 rounded-full border border-emerald-500/20 uppercase tracking-widest">
-                    V 2.0 Stable
-                </span>
-            </div>
-
-            <h2 class="text-5xl font-black mb-4 tracking-tight leading-none">
-                Tu Técnico <br>
-                <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-700">
-                    EN CAMINO
-                </span>
-            </h2>
+        try {
+            // ESTRATEGIA DE BÚSQUEDA EN CASCADA
+            // 1. Buscamos en la colección central 'usuarios'
+            let snap = await getDoc(doc(db, "usuarios", user.uid));
             
-            <p class="text-gray-400 mb-10 text-lg font-light">
-                La plataforma de asistencia vial más rápida y segura. Conecta con expertos en tiempo real.
-            </p>
-
-            <div id="actionArea" class="flex flex-col gap-4">
-                
-                <div id="loadingState" class="py-4">
-                    <i class="fas fa-circle-notch fa-spin text-emerald-500 text-2xl"></i>
-                </div>
-
-                <div id="guestOptions" class="hidden space-y-3">
-                    <a href="registro.html" class="block w-full bg-white text-black font-black py-4 rounded-xl hover:bg-gray-200 transition-transform active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]">
-                        CREAR CUENTA NUEVA
-                    </a>
-                    <a href="login.html" class="block w-full bg-transparent border border-white/20 text-white font-bold py-4 rounded-xl hover:bg-white/5 transition-colors">
-                        YA TENGO CUENTA
-                    </a>
-                </div>
-
-                <div id="userOptions" class="hidden space-y-3">
-                    <div class="bg-emerald-900/30 border border-emerald-500/30 p-4 rounded-xl mb-4 text-left flex items-center gap-4">
-                        <div class="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center text-black font-bold text-lg">
-                            <i class="fas fa-user"></i>
-                        </div>
-                        <div>
-                            <p class="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Sesión Activa</p>
-                            <p id="userNameDisplay" class="font-bold text-white text-lg">Usuario</p>
-                        </div>
-                    </div>
-
-                    <button id="btnDashboard" class="block w-full bg-emerald-500 text-black font-black py-4 rounded-xl hover:bg-emerald-400 transition-all shadow-[0_0_30px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2">
-                        <span>IR A MI PANEL</span>
-                        <i class="fas fa-arrow-right"></i>
-                    </button>
-                    
-                    <button id="btnLogoutIndex" class="text-xs text-red-400 font-bold hover:text-red-300 mt-4 underline decoration-red-400/30">
-                        Cerrar Sesión Actual
-                    </button>
-                </div>
-
-            </div>
-        </div>
-    </main>
-
-    <footer class="p-6 text-center text-[10px] text-gray-600 font-bold tracking-widest uppercase">
-        FixGo © 2026 Secured System
-    </footer>
-
-    <script type="module">
-        import { auth, observarAuth, signOut } from './firebase.js';
-
-        const loadingState = document.getElementById('loadingState');
-        const guestOptions = document.getElementById('guestOptions');
-        const userOptions = document.getElementById('userOptions');
-        const userNameDisplay = document.getElementById('userNameDisplay');
-        const btnDashboard = document.getElementById('btnDashboard');
-        const btnLogoutIndex = document.getElementById('btnLogoutIndex');
-        const authActions = document.getElementById('authActions');
-
-        // Escuchamos el estado SIN redirigir automáticamente
-        observarAuth((user) => {
-            loadingState.classList.add('hidden'); // Ocultar spinner
-
-            if (user) {
-                // SI HAY USUARIO: Mostramos opciones de usuario
-                console.log("Index: Usuario detectado", user.email);
-                
-                guestOptions.classList.add('hidden');
-                userOptions.classList.remove('hidden');
-                
-                userNameDisplay.textContent = user.nombre || user.email.split('@')[0];
-                authActions.innerHTML = ''; // Quitar botón de login del header
-
-                // Configurar a dónde lleva el botón "Ir a mi Panel"
-                btnDashboard.onclick = () => {
-                    if (user.rol === 'tecnico') window.location.href = 'tecnico.html';
-                    else if (user.rol === 'cliente') window.location.href = 'cliente.html';
-                    else if (user.rol === 'admin') window.location.href = 'admin.html';
-                    else {
-                        // Si no tiene rol, lo mandamos a login para que se arregle
-                        alert("Error: Tu usuario no tiene un rol asignado.");
-                        window.location.href = 'login.html';
-                    }
-                };
-
-                // Configurar Logout
-                btnLogoutIndex.onclick = async () => {
-                    await signOut(auth);
-                    window.location.reload(); // Recargar para mostrar opciones de invitado
-                };
-
-            } else {
-                // SI NO HAY USUARIO: Mostramos botones de registro/login
-                console.log("Index: Modo invitado");
-                
-                userOptions.classList.add('hidden');
-                guestOptions.classList.remove('hidden');
+            // 2. Si no está, buscamos en 'tecnicos'
+            if (!snap.exists()) {
+                console.log("Buscando en técnicos...");
+                snap = await getDoc(doc(db, "tecnicos", user.uid));
             }
-        });
-    </script>
-</body>
-</html>
+
+            // 3. Si no está, buscamos en 'clientes'
+            if (!snap.exists()) {
+                console.log("Buscando en clientes...");
+                snap = await getDoc(doc(db, "clientes", user.uid));
+            }
+
+            // 4. Si no está, buscamos en 'admins'
+            if (!snap.exists()) {
+                console.log("Buscando en admins...");
+                snap = await getDoc(doc(db, "admins", user.uid));
+            }
+
+            if (snap.exists()) {
+                // ¡LO ENCONTRAMOS! Combinamos datos
+                const data = snap.data();
+                const finalUser = { ...user, ...data };
+                console.log("✅ Usuario identificado como:", finalUser.rol);
+                callback(finalUser);
+            } else {
+                // Si de verdad no existe en ningún lado, devolvemos el usuario básico
+                // (Index.html deberá preguntar qué es)
+                console.warn("⚠️ Usuario sin perfil en DB.");
+                callback(user); 
+            }
+
+        } catch (e) {
+            console.error("Error recuperando perfil:", e);
+            callback(user);
+        }
+    });
+}
+
+/**
+ * REGISTRO BLINDADO
+ * Crea el respaldo en todas partes para evitar problemas futuros
+ */
+async function registrarUsuario(email, password, rol, nombre) {
+    try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        const uid = cred.user.uid;
+        
+        // Perfil base
+        const perfil = {
+            uid: uid,
+            email: email,
+            rol: rol,
+            nombre: nombre || "Usuario Nuevo",
+            creadoEn: serverTimestamp()
+        };
+
+        // Escribimos en colección CENTRAL y ESPECÍFICA
+        await setDoc(doc(db, "usuarios", uid), perfil); // Respaldo central
+
+        if (rol === 'tecnico') {
+            await setDoc(doc(db, "tecnicos", uid), { ...perfil, disponible: false });
+        } else {
+            await setDoc(doc(db, "clientes", uid), { ...perfil, pedidos: 0 });
+        }
+
+        await updateProfile(cred.user, { displayName: nombre });
+        return cred.user;
+    } catch (error) {
+        console.error("Error registro:", error);
+        throw error;
+    }
+}
+
+// Exportamos todo lo necesario
+export {
+    auth, db,
+    observarAuth,
+    registrarUsuario,
+    signOut,
+    signInWithEmailAndPassword,
+    doc, setDoc, updateDoc, getDoc, serverTimestamp
+};s
