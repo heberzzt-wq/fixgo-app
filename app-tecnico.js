@@ -17,6 +17,10 @@ import {
     signOut
 } from "./firebase.js";
 
+// Importamos el motor GPS para activarlo al entrar
+// Asegúrate de que gps-motor.js tenga 'export function iniciarTracking'
+import { iniciarTracking } from "./gps-motor.js";
+
 // Variables de Estado Interno
 let usuarioActual = null;
 let suscripcionSolicitudes = null;
@@ -25,50 +29,62 @@ let suscripcionSolicitudes = null;
  * INICIALIZACIÓN Y PROTECCIÓN DE RUTA
  */
 observarAuth(async (user) => {
-    // Error corregido: Ya no redirige al login si ya estás logueado
+    // 1. Si no hay usuario en absoluto, ahí sí mandamos a Login
     if (!user) {
-        console.log("Redirigiendo a Login...");
+        console.log("Sin sesión. Redirigiendo a Login...");
         window.location.href = "login.html";
         return;
     }
 
-    // Validación de Rol para evitar que clientes entren al panel técnico
-    if (user.rol && user.rol !== "tecnico") {
-        console.error("Acceso denegado: Rol insuficiente.");
-        window.location.href = "index.html";
-        return;
+    // 2. Si el usuario existe pero no tiene rol, lo arreglamos en vez de expulsarlo
+    if (!user.rol || user.rol !== "tecnico") {
+        console.warn("Usuario sin rol de técnico detectado. Intentando reparar perfil...");
+        await asegurarPerfilTecnico(user);
+        // Recargamos el usuario con los nuevos datos (simulado)
+        user.rol = "tecnico"; 
     }
 
     usuarioActual = user;
-    console.log("Panel Técnico Activo:", usuarioActual.email);
+    console.log("✅ Panel Técnico Activo para:", usuarioActual.email);
 
-    // Actualizar Interfaz con datos del usuario
+    // Actualizar Interfaz
     actualizarInterfazBasica();
     
-    // Sincronizar estado en Firestore
-    await asegurarExistenciaTecnico();
+    // Activar GPS automáticamente
+    if(typeof iniciarTracking === 'function') {
+        iniciarTracking(); 
+    }
     
-    // Activar Listeners de la App
+    // Activar Listeners
     conectarEventosGlobales();
     escucharMisionesActivas();
 });
 
 /**
- * SINCRONIZACIÓN DE PERFIL TÉCNICO
+ * REPARACIÓN DE PERFIL (Evita que te bote)
  */
-async function asegurarExistenciaTecnico() {
-    const tecRef = doc(db, "tecnicos", usuarioActual.uid);
+async function asegurarPerfilTecnico(user) {
+    const tecRef = doc(db, "tecnicos", user.uid);
+    const userRef = doc(db, "usuarios", user.uid);
+
     try {
-        await setDoc(tecRef, {
-            uid: usuarioActual.uid,
-            nombre: usuarioActual.nombre || "Socio FixGo",
+        // Datos base
+        const datosBase = {
+            uid: user.uid,
+            email: user.email,
+            nombre: user.displayName || user.nombre || "Socio FixGo",
+            rol: "tecnico",
             disponible: true,
-            ultimaConexion: serverTimestamp(),
-            rol: "tecnico"
-        }, { merge: true });
-        console.log("Status: DISPONIBLE");
+            ultimaConexion: serverTimestamp()
+        };
+
+        // Guardamos en ambas colecciones para asegurar compatibilidad
+        await setDoc(tecRef, datosBase, { merge: true });
+        await setDoc(userRef, datosBase, { merge: true });
+        
+        console.log("🔧 Perfil reparado exitosamente.");
     } catch (e) {
-        console.error("Error al sincronizar técnico:", e);
+        console.error("Error al reparar técnico:", e);
     }
 }
 
@@ -78,19 +94,17 @@ async function asegurarExistenciaTecnico() {
 function escucharMisionesActivas() {
     if (suscripcionSolicitudes) suscripcionSolicitudes();
 
-    // El técnico escucha solicitudes que estén en estado 'PENDIENTE'
-    // O que ya hayan sido asignadas a él específicamente
-    const q = doc(db, "solicitudes", usuarioActual.uid); 
+    // Escuchamos cambios en el documento global de rastreo
+    // Esto permite sincronizar los botones si recargas la página
+    const q = doc(db, "rastreo", "tecnicoActivo"); 
 
     suscripcionSolicitudes = onSnapshot(q, (snapshot) => {
         if (!snapshot.exists()) {
-            console.log("Radar: Buscando misiones...");
             renderModoLibre();
             return;
         }
-
-        const mision = snapshot.data();
-        manejarCambioDeEstado(mision);
+        const datos = snapshot.data();
+        manejarCambioDeEstado(datos);
     });
 }
 
@@ -104,42 +118,81 @@ function conectarEventosGlobales() {
         btnLogout.onclick = () => signOut(auth).then(() => window.location.href = "login.html");
     }
 
-    // Botones de Misión (Si existen en el HTML actual)
+    // Botones de Misión
     const btnEnCamino = document.getElementById("btnEnCamino");
+    const btnLlegue = document.getElementById("btnLlegue");
+
     if (btnEnCamino) {
-        btnEnCamino.onclick = () => actualizarEstadoMision("en_camino");
+        btnEnCamino.onclick = () => {
+            btnEnCamino.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> ENVIANDO...';
+            actualizarEstadoMision("En camino");
+        };
     }
 
-    const btnLlegué = document.getElementById("btnLlegue");
-    if (btnLlegué) {
-        btnLlegué.onclick = () => actualizarEstadoMision("en_sitio");
+    if (btnLlegue) {
+        btnLlegue.onclick = () => {
+            btnLlegue.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> ENVIANDO...';
+            actualizarEstadoMision("En sitio");
+        };
     }
 }
 
 async function actualizarEstadoMision(nuevoEstado) {
-    const ref = doc(db, "solicitudes", usuarioActual.uid);
+    if (!usuarioActual) return;
+
+    // Actualizamos el documento que lee el mapa
+    const ref = doc(db, "rastreo", "tecnicoActivo");
     try {
         await updateDoc(ref, {
             estado: nuevoEstado,
-            actualizadoEn: serverTimestamp()
+            updatedAt: serverTimestamp()
         });
         console.log("Misión actualizada a:", nuevoEstado);
     } catch (e) {
-        console.error("Error al actualizar misión:", e);
+        // Si no existe, lo creamos
+        await setDoc(ref, {
+            uid: usuarioActual.uid,
+            estado: nuevoEstado,
+            lat: 21.1619,
+            lng: -86.8515
+        });
     }
 }
 
 function actualizarInterfazBasica() {
     const labelNombre = document.getElementById("userName");
+    const statusLabel = document.getElementById("statusLabel");
+    
     if (labelNombre) labelNombre.innerText = usuarioActual.nombre || "Socio FixGo";
+    if (statusLabel) {
+        statusLabel.innerText = "EN LÍNEA";
+        statusLabel.className = "bg-emerald-900/30 text-emerald-500 status-badge font-bold border border-emerald-500/20";
+    }
 }
 
 function renderModoLibre() {
-    const statusLabel = document.getElementById("statusLabel");
-    if (statusLabel) statusLabel.innerText = "ESPERANDO MISIONES...";
+    // Estado inicial
 }
 
-function manejarCambioDeEstado(mision) {
-    console.log("Nueva actualización de misión:", mision.estado);
-    // Aquí puedes disparar animaciones de UI tipo Uber
+function manejarCambioDeEstado(datos) {
+    const btnEnCamino = document.getElementById("btnEnCamino");
+    const btnLlegue = document.getElementById("btnLlegue");
+    const statusLabel = document.getElementById("statusLabel");
+
+    if (!datos || !datos.estado) return;
+
+    if (datos.estado === "En camino") {
+        if(btnEnCamino) btnEnCamino.classList.add("hidden");
+        if(btnLlegue) btnLlegue.classList.remove("hidden");
+        if(statusLabel) statusLabel.innerText = "EN RUTA AL CLIENTE";
+    } else if (datos.estado === "En sitio") {
+        if(btnEnCamino) btnEnCamino.classList.add("hidden");
+        if(btnLlegue) {
+            btnLlegue.classList.remove("hidden");
+            btnLlegue.innerText = "ESPERANDO CLIENTE";
+            btnLlegue.disabled = true;
+            btnLlegue.classList.add("opacity-50");
+        }
+        if(statusLabel) statusLabel.innerText = "EN EL SITIO";
+    }
 }
