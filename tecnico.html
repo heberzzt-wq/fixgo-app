@@ -2,74 +2,34 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>FixGo | Panel Técnico</title>
+    <title>FixGo | Técnico</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>body { background-color: #000; color: white; }</style>
 </head>
 <body class="pb-32">
-
     <nav class="p-5 flex justify-between items-center bg-zinc-900 border-b border-zinc-800">
-        <div>
-            <h1 class="font-black italic text-xl">FIXGO <span class="text-emerald-500">PRO</span></h1>
-            <p id="userName" class="text-xs text-gray-400">Cargando...</p>
-        </div>
+        <div><h1 class="font-black italic text-xl">FIXGO <span class="text-emerald-500">PRO</span></h1><p id="userName" class="text-xs text-gray-400">...</p></div>
         <button id="btnLogout" class="text-red-500 text-xs font-bold">SALIR</button>
     </nav>
-
     <main class="p-5 max-w-md mx-auto space-y-6">
         <div class="bg-zinc-900 p-6 rounded-2xl flex justify-between items-center border border-zinc-800">
-            <div>
-                <h2 class="font-bold text-lg">Estado del Servicio</h2>
-                <p id="lblEstado" class="text-xs text-gray-500">Estás desconectado</p>
-            </div>
-            <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" id="toggleDisponible" class="sr-only peer">
-                <div class="w-14 h-7 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500"></div>
-            </label>
+            <div><h2 class="font-bold text-lg">Estado</h2><p id="lblEstado" class="text-xs text-gray-500">Desconectado</p></div>
+            <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleDisponible" class="sr-only peer"><div class="w-14 h-7 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all"></div></label>
         </div>
-        
-        <div id="areaEspera" class="text-center py-10 opacity-50">
-            <i class="fas fa-radar fa-spin text-4xl text-gray-600 mb-4"></i>
-            <p>Esperando solicitudes cercanas...</p>
-        </div>
-
-        <div id="seccionDocs" class="space-y-4">
-             </div>
+        <div id="areaEspera" class="text-center py-10 opacity-50"><i class="fas fa-radar fa-spin text-4xl text-gray-600 mb-4"></i><p>Esperando solicitudes...</p></div>
     </main>
 
     <div id="modalSolicitud" class="fixed inset-0 bg-red-600/90 z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-black rounded-2xl max-w-md w-full p-6 border-2 border-white shadow-2xl relative overflow-hidden">
-            <div class="absolute top-0 left-0 w-full h-2 bg-white animate-pulse"></div>
-            
+        <div class="bg-black rounded-2xl max-w-md w-full p-6 border-2 border-white shadow-2xl">
             <h2 class="font-black text-3xl mb-2 text-center uppercase italic">¡Nueva Solicitud!</h2>
-            
-            <div class="bg-zinc-900 p-4 rounded-xl mb-4 text-center">
-                <p class="text-gray-400 text-xs uppercase">Servicio Requerido</p>
-                <h3 id="solicitudTitulo" class="text-2xl font-bold text-yellow-400">--</h3>
-                <p id="solicitudDireccion" class="text-white mt-2">--</p>
-            </div>
-
-            <div class="flex gap-3">
-                <button id="btnRechazar" class="flex-1 bg-zinc-800 py-4 rounded-xl font-bold text-gray-400">IGNORAR</button>
-                <button id="btnAceptar" class="flex-1 bg-emerald-500 py-4 rounded-xl font-black text-black text-xl hover:bg-emerald-400 transition-transform hover:scale-105">ACEPTAR</button>
-            </div>
+            <div class="bg-zinc-900 p-4 rounded-xl mb-4 text-center"><h3 id="solicitudTitulo" class="text-2xl font-bold text-yellow-400">--</h3><p id="solicitudDireccion" class="text-white mt-2">--</p></div>
+            <div class="flex gap-3"><button id="btnRechazar" class="flex-1 bg-zinc-800 py-4 rounded-xl font-bold">IGNORAR</button><button id="btnAceptar" class="flex-1 bg-emerald-500 py-4 rounded-xl font-black text-black">ACEPTAR</button></div>
         </div>
-    </div>
-
-    <div id="panelMision" class="fixed bottom-0 left-0 w-full bg-zinc-900 p-6 rounded-t-3xl border-t border-emerald-500 hidden z-40">
-        <div class="flex justify-between items-end mb-4">
-            <div>
-                <p class="text-xs text-emerald-500 font-bold uppercase">Misión Activa</p>
-                <h2 id="misionCliente" class="text-xl font-bold text-white">Cliente</h2>
-            </div>
-            <a id="btnWaze" href="#" target="_blank" class="bg-blue-500 text-white px-4 py-2 rounded-lg font-bold text-xs"><i class="fab fa-waze"></i> IR</a>
-        </div>
-        <button id="btnLlegue" class="w-full bg-yellow-500 text-black font-black py-4 rounded-xl mb-2">YA LLEGUÉ</button>
-        <button id="btnFinalizar" class="w-full bg-emerald-600 text-white font-black py-4 rounded-xl hidden">FINALIZAR SERVICIO</button>
     </div>
 
     <script type="module">
+        // ✅ IMPORTACIÓN CORREGIDA
         import { auth, db, observarAuth, signOut, doc, updateDoc, onSnapshot, collection, query, where } from './firebase.js';
 
         let uid;
@@ -80,61 +40,38 @@
             uid = user.uid;
             document.getElementById('userName').innerText = user.nombre || "Técnico";
             
-            // 1. ESCUCHAR SOLICITUDES PENDIENTES (Solo si está disponible)
-            escucharSolicitudes();
+            // Listener Toggle
+            const toggle = document.getElementById('toggleDisponible');
+            toggle.addEventListener('change', async () => {
+                document.getElementById('lblEstado').innerText = toggle.checked ? "Conectado" : "Desconectado";
+                await updateDoc(doc(db, "tecnicos", uid), { disponible: toggle.checked });
+                if(toggle.checked) escucharSolicitudes();
+            });
         });
 
         function escucharSolicitudes() {
-            // Escuchar todas las solicitudes pendientes
-            // (En versión PRO, aquí se filtra por geolocalización)
             const q = query(collection(db, "solicitudes"), where("estado", "==", "pendiente"));
-            
             onSnapshot(q, (snapshot) => {
-                // Si hay cambios, revisamos
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === "added") {
                         const data = change.doc.data();
-                        mostrarAlerta(change.doc.id, data);
+                        solicitudActualId = change.doc.id;
+                        document.getElementById('solicitudTitulo').innerText = data.servicio;
+                        document.getElementById('solicitudDireccion').innerText = data.direccion;
+                        document.getElementById('modalSolicitud').classList.remove('hidden');
                     }
                 });
             });
         }
 
-        function mostrarAlerta(id, data) {
-            // Mostrar Modal
-            solicitudActualId = id;
-            document.getElementById('solicitudTitulo').innerText = data.servicio;
-            document.getElementById('solicitudDireccion').innerText = data.direccion;
-            document.getElementById('modalSolicitud').classList.remove('hidden');
-            
-            // Reproducir sonido (opcional)
-            // let audio = new Audio('alert.mp3'); audio.play();
-        }
-
-        // --- BOTONES DEL MODAL ---
-        document.getElementById('btnRechazar').onclick = () => {
-            document.getElementById('modalSolicitud').classList.add('hidden');
-            solicitudActualId = null;
-        };
-
         document.getElementById('btnAceptar').onclick = async () => {
             if(!solicitudActualId) return;
-            
-            // Asignar servicio a este técnico
-            await updateDoc(doc(db, "solicitudes", solicitudActualId), {
-                estado: "asignado",
-                tecnicoId: uid
-            });
-
+            await updateDoc(doc(db, "solicitudes", solicitudActualId), { estado: "asignado", tecnicoId: uid });
             document.getElementById('modalSolicitud').classList.add('hidden');
-            activarModoMision();
+            alert("¡Servicio Aceptado! Ve al cliente.");
         };
 
-        function activarModoMision() {
-            document.getElementById('panelMision').classList.remove('hidden');
-            document.getElementById('areaEspera').classList.add('hidden');
-        }
-
+        document.getElementById('btnRechazar').onclick = () => document.getElementById('modalSolicitud').classList.add('hidden');
         document.getElementById('btnLogout').onclick = () => signOut(auth).then(() => window.location.href = 'login.html');
     </script>
 </body>
