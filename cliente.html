@@ -3,128 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo | Cliente</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <title>FixGo - Solicitar Servicio</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <style>
-        body { background-color: #050505; color: white; }
-        .service-btn { transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1); }
-        .service-btn:hover:not(:disabled) { border-color: #10b981; background: rgba(16, 185, 129, 0.1); transform: translateY(-2px); }
-        .service-btn:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(100%); }
+        :root {
+            --primary: #ffce00; --dark: #1a1a1a; --gray: #f4f4f4; --text-gray: #666;
+        }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--gray); }
+        .header { background: var(--dark); color: white; padding: 20px; text-align: center; }
+        .container { padding: 15px; max-width: 600px; margin: auto; }
+        
+        /* Secciones de Verticales */
+        .vertical-section { margin-bottom: 25px; }
+        .vertical-title { 
+            font-weight: bold; font-size: 1.2rem; margin-bottom: 10px; 
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .vertical-title span { font-size: 0.8rem; color: var(--text-gray); }
+
+        /* Grid de Botones */
+        .services-grid { 
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; 
+        }
+        .btn-service {
+            background: white; border: 2px solid #ddd; padding: 15px; border-radius: 12px;
+            text-align: center; cursor: pointer; transition: 0.3s; position: relative;
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+        }
+        .btn-service:active { transform: scale(0.95); }
+        .btn-service.active { border-color: var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .btn-service.inactive { opacity: 0.6; filter: grayscale(1); cursor: not-allowed; }
+        .btn-service .badge {
+            position: absolute; top: 5px; right: 5px; background: #eee;
+            font-size: 0.6rem; padding: 2px 6px; border-radius: 4px;
+        }
+        .icon { font-size: 24px; }
     </style>
 </head>
-<body class="pb-20">
+<body>
 
-    <nav class="p-5 flex justify-between items-center border-b border-white/10 sticky top-0 bg-black/95 z-40">
-        <h1 class="font-black text-2xl italic">FIX<span class="text-emerald-500">GO</span></h1>
-        <button id="btnLogout" class="text-xs font-bold text-red-500 border border-red-500/30 px-3 py-1 rounded-lg">SALIR</button>
-    </nav>
+<div class="header">
+    <h2 style="margin:0;">FIXGO & FINISH</h2>
+    <small>Cancún, Q. Roo</small>
+</div>
 
-    <main class="max-w-xl mx-auto p-5">
-        <div class="mb-8">
-            <h2 class="text-2xl font-bold">Hola, <span id="userName" class="text-emerald-400">Cliente</span></h2>
-            <p class="text-gray-400 text-sm">Selecciona un servicio para comenzar.</p>
-        </div>
-
-        <div class="mb-6">
-            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">FIXGO ROAD (EMERGENCIA)</h3>
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="window.seleccionarServicio('Llantera Móvil', 'road')" class="service-btn bg-zinc-900 p-4 rounded-xl flex flex-col items-center">
-                    <i class="fas fa-car-burst text-2xl text-orange-500 mb-2"></i>
-                    <span class="font-bold text-sm">Llantera</span>
-                </button>
-                <button onclick="window.seleccionarServicio('Cerrajería Auto', 'road')" class="service-btn bg-zinc-900 p-4 rounded-xl flex flex-col items-center">
-                    <i class="fas fa-key text-2xl text-yellow-500 mb-2"></i>
-                    <span class="font-bold text-sm">Cerrajería</span>
-                </button>
+<div class="container" id="app">
+    <div class="vertical-section">
+        <div class="vertical-title">FixGo Road 🚨 <span>Prioridad Máxima</span></div>
+        <div class="services-grid">
+            <div class="btn-service active" onclick="solicitar('llantera')">
+                <span class="icon">🛞</span> Llantera Móvil
+            </div>
+            <div class="btn-service active" onclick="solicitar('cerrajeria')">
+                <span class="icon">🔑</span> Cerrajería 24/7
+            </div>
+            <div class="btn-service inactive">
+                <span class="badge">Próximamente</span>
+                <span class="icon">🏗️</span> Grúa
             </div>
         </div>
+    </div>
 
-        <div class="mb-6">
-            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">FIXGO HOME (HOGAR)</h3>
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="window.seleccionarServicio('Electricidad', 'home')" class="service-btn bg-zinc-900 p-4 rounded-xl flex flex-col items-center">
-                    <i class="fas fa-bolt text-2xl text-yellow-400 mb-2"></i>
-                    <span class="font-bold text-sm">Electricidad</span>
-                </button>
-                <button onclick="window.seleccionarServicio('Plomería', 'home')" class="service-btn bg-zinc-900 p-4 rounded-xl flex flex-col items-center">
-                    <i class="fas fa-faucet text-2xl text-blue-400 mb-2"></i>
-                    <span class="font-bold text-sm">Plomería</span>
-                </button>
+    <div class="vertical-section">
+        <div class="vertical-title">FixGo Fix 🏠 <span>On-Demand</span></div>
+        <div class="services-grid">
+            <div class="btn-service active" onclick="solicitar('electricidad')">
+                <span class="icon">⚡</span> Electricidad
+            </div>
+            <div class="btn-service active" onclick="solicitar('plomeria')">
+                <span class="icon">🚰</span> Plomería
+            </div>
+            <div class="btn-service active" onclick="solicitar('ac')">
+                <span class="icon">❄️</span> Aire Acondicionado
+            </div>
+            <div class="btn-service inactive">
+                <span class="badge">Próximamente</span>
+                <span class="icon">🎨</span> Pintura/Alberca
             </div>
         </div>
+    </div>
 
-        <div id="formSolicitud" class="fixed bottom-0 left-0 w-full bg-zinc-900 rounded-t-3xl p-6 transform translate-y-full transition-transform duration-300 z-50 border-t border-emerald-500/30 shadow-2xl">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="font-black text-lg text-emerald-400" id="lblServicioSeleccionado">--</h3>
-                <button onclick="window.cerrarForm()" class="text-gray-400"><i class="fas fa-times"></i></button>
+    <div class="vertical-section">
+        <div class="vertical-title">FixGo Tech 🛠️ <span>Certificados</span></div>
+        <div class="services-grid">
+            <div class="btn-service active" onclick="solicitar('cctv')">
+                <span class="icon">📹</span> CCTV
             </div>
-            
-            <div class="space-y-4">
-                <input type="text" id="inputDireccion" class="w-full bg-black border border-gray-700 rounded-xl p-3 mt-1 text-white" placeholder="Dirección exacta...">
-                <textarea id="inputDetalles" class="w-full bg-black border border-gray-700 rounded-xl p-3 mt-1 text-white" rows="2" placeholder="Detalles..."></textarea>
-                <button id="btnPedir" class="w-full bg-emerald-500 text-black font-black py-4 rounded-xl hover:bg-emerald-400 transition">SOLICITAR SERVICIO</button>
+            <div class="btn-service active" onclick="solicitar('alarmas')">
+                <span class="icon">🛡️</span> Alarmas
             </div>
         </div>
+    </div>
+</div>
 
-    </main>
+<script>
+    // Configuración con tu API Key Correcta
+    const firebaseConfig = {
+        apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
+        authDomain: "fixgo-app-sf2l.firebaseapp.com",
+        projectId: "fixgo-app-sf2l",
+        storageBucket: "fixgo-app-sf2l.appspot.com",
+        messagingSenderId: "367232231649",
+        appId: "1:367232231649:web:99737190e29b4661002305"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
-    <script type="module">
-        // ✅ IMPORTACIÓN CORREGIDA
-        import { auth, db, observarAuth, signOut, addDoc, collection, serverTimestamp } from './firebase.js';
+    function solicitar(servicio) {
+        alert("Buscando técnico para: " + servicio + " en Cancún...");
+        // Aquí irá la lógica de creación de ticket en la colección 'services'
+    }
+</script>
 
-        let usuarioActual = null;
-
-        observarAuth((user) => {
-            if (!user) window.location.href = 'login.html';
-            usuarioActual = user;
-            document.getElementById('userName').innerText = user.nombre || "Cliente";
-        });
-
-        // FUNCIONES GLOBALES (Window) para que el HTML las vea
-        window.seleccionarServicio = (nombre, tipo) => {
-            document.getElementById('lblServicioSeleccionado').innerText = nombre;
-            document.getElementById('formSolicitud').classList.remove('translate-y-full');
-            
-            document.getElementById('btnPedir').onclick = async () => {
-                const direccion = document.getElementById('inputDireccion').value;
-                const detalles = document.getElementById('inputDetalles').value;
-
-                if(!direccion) return alert("Ingresa tu dirección");
-
-                const btn = document.getElementById('btnPedir');
-                btn.innerHTML = "BUSCANDO TÉCNICO...";
-                btn.disabled = true;
-
-                try {
-                    await addDoc(collection(db, "solicitudes"), {
-                        clienteId: usuarioActual.uid,
-                        clienteNombre: usuarioActual.nombre || "Cliente",
-                        servicio: nombre,
-                        tipo: tipo,
-                        direccion: direccion,
-                        detalles: detalles,
-                        estado: "pendiente",
-                        fecha: serverTimestamp(),
-                        costoBase: 250
-                    });
-                    alert("¡Solicitud enviada! Esperando técnico...");
-                    window.cerrarForm();
-                } catch (e) {
-                    console.error(e);
-                    alert("Error al solicitar.");
-                } finally {
-                    btn.innerHTML = "SOLICITAR SERVICIO";
-                    btn.disabled = false;
-                }
-            };
-        };
-
-        window.cerrarForm = () => {
-            document.getElementById('formSolicitud').classList.add('translate-y-full');
-        };
-
-        document.getElementById('btnLogout').onclick = () => signOut(auth).then(() => window.location.href = 'index.html');
-    </script>
 </body>
 </html>
