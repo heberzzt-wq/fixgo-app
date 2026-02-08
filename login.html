@@ -1,31 +1,46 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FixGo - Login</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FixGo - Login</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <style>
+        body { background: #000; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .login-card { background: #111; padding: 40px; border-radius: 20px; width: 320px; border: 1px solid #333; text-align: center; }
+        input { width: 100%; padding: 15px; margin: 10px 0; border-radius: 10px; border: none; background: #222; color: white; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #ffce00; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .logo { color: #ffce00; font-size: 2rem; font-weight: 900; margin-bottom: 20px; }
+    </style>
 </head>
-<body class="text-white bg-black min-h-screen">
-
-<header class="max-w-4xl mx-auto flex justify-between items-center p-6">
-    <h1 class="text-3xl font-black tracking-tighter italic text-white">FIXGO</h1>
-    <a href="index.html" class="text-indigo-500 font-bold">Inicio</a>
-</header>
-
-<main class="max-w-4xl mx-auto px-4 py-12">
-    <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl">
-        <h2 class="text-2xl font-black mb-6">Iniciar Sesión</h2>
-        <form id="formLogin" class="space-y-4">
-            <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-4 py-3 rounded-2xl">
-            <input type="password" name="password" placeholder="Contraseña" required class="uber-input w-full px-4 py-3 rounded-2xl">
-            <button type="submit" id="btnLogin" class="w-full bg-indigo-500 py-4 rounded-2xl font-black hover:bg-indigo-600 transition-all">Entrar</button>
-        </form>
-        <button id="btnLoginGoogle" class="w-full mt-4 bg-white text-black py-4 rounded-2xl font-black hover:bg-indigo-500 hover:text-white transition-all">Login con Google</button>
+<body>
+    <div class="login-card">
+        <div class="logo">FIXGO</div>
+        <input type="email" id="email" placeholder="Correo">
+        <input type="password" id="pass" placeholder="Contraseña">
+        <button id="btn-entrar">ENTRAR</button>
     </div>
-</main>
 
-<script type="module" src="./app-registro-universal.js"></script>
+<script>
+    // CONFIGURACIÓN REAL SEGÚN CAPTURA 508
+    const firebaseConfig = {
+        apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
+        authDomain: "fixgo-44e4d.firebaseapp.com",
+        projectId: "fixgo-44e4d",
+        storageBucket: "fixgo-44e4d.appspot.com",
+        messagingSenderId: "367232231649",
+        appId: "1:367232231649:web:99737190e29b4661002305"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    document.getElementById('btn-entrar').onclick = () => {
+        const email = document.getElementById('email').value;
+        const pass = document.getElementById('pass').value;
+        firebase.auth().signInWithEmailAndPassword(email, pass)
+            .then(() => window.location.href = "cliente.html")
+            .catch(err => alert("Error: " + err.message));
+    };
+</script>
 </body>
 </html>
