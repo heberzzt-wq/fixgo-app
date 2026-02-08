@@ -3,160 +3,148 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo - Panel de Usuario</title>
+    <title>FixGo - Panel de Servicios</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
     <style>
         :root {
             --fixgo-yellow: #ffce00;
-            --bg-dark: #121212;
-            --card-dark: #1e1e1e;
-            --text-main: #ffffff;
-            --text-dim: #a0a0a0;
-            --border: #333;
+            --bg-black: #000000;
+            --card-gray: #111111;
+            --border-gray: #222222;
+            --text-dim: #888888;
         }
 
         body { 
-            font-family: 'Inter', -apple-system, sans-serif; 
-            margin: 0; background: var(--bg-dark); color: var(--text-main); 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; background: var(--bg-black); color: white; 
         }
 
+        /* Header Estilo Premium */
         .header { 
-            background: #000; padding: 25px 20px; text-align: center; 
-            border-bottom: 2px solid var(--fixgo-yellow);
+            background: var(--bg-black); padding: 30px 20px; text-align: center; 
+            border-bottom: 3px solid var(--fixgo-yellow);
         }
-        .header h1 { margin: 0; font-size: 1.5rem; letter-spacing: 2px; color: var(--fixgo-yellow); }
+        .header h1 { margin: 0; font-size: 1.8rem; font-weight: 900; letter-spacing: -1px; color: var(--fixgo-yellow); }
 
-        .container { padding: 20px; max-width: 800px; margin: auto; }
+        .container { padding: 15px; max-width: 900px; margin: auto; }
 
         .section-title { 
-            font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;
-            color: var(--fixgo-yellow); margin: 30px 0 15px 5px; font-weight: 800;
+            font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px;
+            color: var(--fixgo-yellow); margin: 35px 0 15px 5px; font-weight: bold;
+            border-left: 3px solid var(--fixgo-yellow); padding-left: 10px;
         }
 
         .services-grid { 
             display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; 
         }
 
-        /* Botón de Servicio */
+        /* Tarjeta de Servicio */
         .service-card {
-            background: var(--card-dark); border: 1px solid var(--border);
-            padding: 20px 10px; border-radius: 16px; text-align: center;
-            cursor: pointer; transition: all 0.2s ease; position: relative;
-            overflow: hidden;
+            background: var(--card-gray); border: 1px solid var(--border-gray);
+            padding: 25px 15px; border-radius: 20px; text-align: center;
+            cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
         }
-        .service-card:active { transform: scale(0.96); }
-        .service-card.active:hover { border-color: var(--fixgo-yellow); }
-
-        .service-card.inactive { 
-            opacity: 0.4; cursor: not-allowed; border-style: dashed;
+        
+        .service-card i { 
+            font-size: 32px; color: var(--fixgo-yellow); margin-bottom: 12px; display: block;
         }
 
-        .icon { font-size: 28px; display: block; margin-bottom: 10px; }
-        .label { font-size: 0.85rem; font-weight: 600; }
+        .service-card .label { font-size: 0.9rem; font-weight: 600; color: #fff; }
 
-        /* Badge de Próximamente */
+        /* Estados */
+        .service-card.active:active { transform: scale(0.92); }
+        .service-card.active:hover { 
+            border-color: var(--fixgo-yellow);
+            box-shadow: 0 0 20px rgba(255, 206, 0, 0.15);
+        }
+
+        .service-card.inactive { opacity: 0.3; filter: grayscale(1); cursor: not-allowed; }
+        
         .badge-soon {
-            position: absolute; top: 0; right: 0; background: #333;
-            color: #888; font-size: 0.6rem; padding: 4px 8px;
-            border-bottom-left-radius: 10px; font-weight: bold;
+            position: absolute; top: 10px; right: 10px; font-size: 0.55rem;
+            background: #222; color: #555; padding: 3px 7px; border-radius: 5px;
+            font-weight: 800; border: 1px solid #333;
         }
 
-        /* Footer / Soporte */
-        .footer { text-align: center; margin-top: 50px; color: var(--text-dim); font-size: 0.75rem; padding-bottom: 30px; }
+        .footer { 
+            text-align: center; margin-top: 60px; color: var(--text-dim); 
+            font-size: 0.7rem; padding-bottom: 40px; border-top: 1px solid #111; padding-top: 20px;
+        }
     </style>
 </head>
 <body>
 
 <div class="header">
-    <h1>FIXGO & FINISH</h1>
-    <div style="font-size: 0.7rem; color: #666; margin-top: 5px;">CANCÚN • PLAYA • TULUM</div>
+    <h1>FIXGO <span style="color:white">&</span> FINISH</h1>
+    <div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 5px; letter-spacing: 3px;">CANCÚN • RIVIERA MAYA</div>
 </div>
 
 <div class="container">
 
-    <div class="section-title">FixGo Road 🚨 (Emergencia)</div>
+    <div class="section-title">FixGo Road 🚨</div>
     <div class="services-grid">
         <div class="service-card active" onclick="solicitar('llantera')">
-            <span class="icon">🛞</span> <span class="label">Llantera Móvil</span>
+            <i class="fa-solid fa-compact-disc"></i> <span class="label">Llantera Móvil</span>
         </div>
         <div class="service-card active" onclick="solicitar('cerrajeria')">
-            <span class="icon">🔑</span> <span class="label">Cerrajería 24/7</span>
+            <i class="fa-solid fa-key"></i> <span class="label">Cerrajería 24/7</span>
         </div>
         <div class="service-card inactive">
-            <span class="badge-soon">PROX</span>
-            <span class="icon">🏗️</span> <span class="label">Grúa</span>
+            <span class="badge-soon">PRÓX</span>
+            <i class="fa-solid fa-truck-pickup"></i> <span class="label">Grúa Arrastre</span>
         </div>
         <div class="service-card inactive">
-            <span class="badge-soon">PROX</span>
-            <span class="icon">⚙️</span> <span class="label">Mecánico</span>
-        </div>
-        <div class="service-card inactive">
-            <span class="badge-soon">PROX</span>
-            <span class="icon">⚡</span> <span class="label">Paso Corriente</span>
+            <span class="badge-soon">PRÓX</span>
+            <i class="fa-solid fa-screwdriver-wrench"></i> <span class="label">Mecánico</span>
         </div>
     </div>
 
-    <div class="section-title">FixGo Fix 🏠 (Hogar)</div>
+    <div class="section-title">FixGo Fix 🏠</div>
     <div class="services-grid">
         <div class="service-card active" onclick="solicitar('electricidad')">
-            <span class="icon">🔌</span> <span class="label">Electricidad</span>
+            <i class="fa-solid fa-bolt-lightning"></i> <span class="label">Electricidad</span>
         </div>
         <div class="service-card active" onclick="solicitar('plomeria')">
-            <span class="icon">🚿</span> <span class="label">Plomería</span>
+            <i class="fa-solid fa-faucet-drip"></i> <span class="label">Plomería</span>
         </div>
         <div class="service-card active" onclick="solicitar('ac')">
-            <span class="icon">🌬️</span> <span class="label">Aires Acond.</span>
+            <i class="fa-solid fa-snowflake"></i> <span class="label">Aires Acond.</span>
         </div>
         <div class="service-card inactive">
-            <span class="badge-soon">PROX</span>
-            <span class="icon">🌳</span> <span class="label">Jardinería</span>
+            <span class="badge-soon">PRÓX</span>
+            <i class="fa-solid fa-paint-roller"></i> <span class="label">Pintura/Resane</span>
         </div>
         <div class="service-card inactive">
-            <span class="badge-soon">PROX</span>
-            <span class="icon">🖌️</span> <span class="label">Pintura</span>
-        </div>
-        <div class="service-card inactive">
-            <span class="badge-soon">PROX</span>
-            <span class="icon">🏊</span> <span class="label">Albercas</span>
-        </div>
-        <div class="service-card inactive">
-            <span class="badge-soon">PROX</span>
-            <span class="icon">🦟</span> <span class="label">Fumigación</span>
+            <span class="badge-soon">PRÓX</span>
+            <i class="fa-solid fa-person-swimming"></i> <span class="label">Albercas</span>
         </div>
     </div>
 
-    <div class="section-title">FixGo Maint 🏢 (Empresas)</div>
-    <div class="services-grid">
-        <div class="service-card inactive" style="grid-column: span 2;">
-            <span class="badge-soon">PROXIMAMENTE</span>
-            <span class="icon">📊</span> <span class="label">Mantenimiento por m²</span>
-        </div>
-    </div>
-
-    <div class="section-title">FixGo Tech 🛠️ (Certificados)</div>
+    <div class="section-title">FixGo Tech 🛠️</div>
     <div class="services-grid">
         <div class="service-card active" onclick="solicitar('cctv')">
-            <span class="icon">📷</span> <span class="label">CCTV</span>
+            <i class="fa-solid fa-video"></i> <span class="label">CCTV</span>
         </div>
         <div class="service-card active" onclick="solicitar('alarma')">
-            <span class="icon">🚨</span> <span class="label">Sist. Alarma</span>
-        </div>
-        <div class="service-card active" onclick="solicitar('accesos')">
-            <span class="icon">🛂</span> <span class="label">Control Accesos</span>
+            <i class="fa-solid fa-shield-halved"></i> <span class="label">Alarmas</span>
         </div>
         <div class="service-card inactive">
-            <span class="badge-soon">PROX</span>
-            <span class="icon">🛗</span> <span class="label">Elevadores</span>
+            <span class="badge-soon">PRÓX</span>
+            <i class="fa-solid fa-elevator"></i> <span class="label">Elevadores</span>
         </div>
         <div class="service-card inactive">
-            <span class="badge-soon">PROX</span>
-            <span class="icon">🔋</span> <span class="label">Plantas Eléc.</span>
+            <span class="badge-soon">PRÓX</span>
+            <i class="fa-solid fa-engine"></i> <i class="fa-solid fa-industry" style="font-size: 20px; display: inline;"></i> 
+            <span class="label" style="display: block;">Plantas Eléc.</span>
         </div>
         <div class="service-card inactive">
-            <span class="badge-soon">PROX</span>
-            <span class="icon">☀️</span> <span class="label">Paneles Solares</span>
+            <span class="badge-soon">PRÓX</span>
+            <i class="fa-solid fa-solar-panel"></i> <span class="label">Paneles Solares</span>
         </div>
     </div>
 
@@ -176,12 +164,10 @@
         appId: "1:367232231649:web:99737190e29b4661002305"
     };
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
 
     function solicitar(servicio) {
-        // En el futuro, esto redirigirá a la pantalla de confirmación/mapa
-        console.log("Servicio seleccionado:", servicio);
-        alert("Iniciando solicitud de " + servicio.toUpperCase() + "...");
+        console.log("Servicio:", servicio);
+        alert("Localizando técnico especializado en " + servicio.toUpperCase() + " en tu zona...");
     }
 </script>
 
