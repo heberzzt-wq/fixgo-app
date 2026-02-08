@@ -7,124 +7,95 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    
+
     <style>
-        :root {
-            --fixgo-yellow: #ffce00;
-            --bg-black: #000000;
-            --card-gray: #111111;
-            --border-gray: #222222;
-        }
-
-        body { 
-            font-family: 'Segoe UI', sans-serif; margin: 0; 
-            background: var(--bg-black); color: white; overflow-x: hidden;
-        }
-
-        /* --- UI PRINCIPAL --- */
-        .header { background: var(--bg-black); padding: 25px; text-align: center; border-bottom: 3px solid var(--fixgo-yellow); }
-        .header h1 { margin: 0; font-size: 1.5rem; color: var(--fixgo-yellow); letter-spacing: 2px; }
-        .container { padding: 15px; max-width: 600px; margin: auto; transition: 0.3s; }
-        .section-title { color: var(--fixgo-yellow); margin: 25px 0 10px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px; font-weight: bold; }
-        .services-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        :root { --fixgo-yellow: #ffce00; --bg-black: #000; --card-gray: #111; --border: #222; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--bg-black); color: white; overflow-x: hidden; }
         
-        .service-card {
-            background: var(--card-gray); border: 1px solid var(--border-gray);
-            padding: 20px 10px; border-radius: 15px; text-align: center; cursor: pointer;
-        }
+        /* VISTAS */
+        .view { display: none; min-height: 100vh; flex-direction: column; }
+        .view.active { display: flex; }
+
+        .header { background: var(--bg-black); padding: 25px; text-align: center; border-bottom: 3px solid var(--fixgo-yellow); }
+        .container { padding: 15px; max-width: 600px; margin: auto; }
+        .section-title { color: var(--fixgo-yellow); margin: 25px 0 10px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px; font-weight: bold; border-left: 3px solid var(--fixgo-yellow); padding-left: 10px; }
+        
+        .services-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .service-card { background: var(--card-gray); border: 1px solid var(--border); padding: 20px 10px; border-radius: 15px; text-align: center; cursor: pointer; position: relative; }
         .service-card i { font-size: 28px; color: var(--fixgo-yellow); margin-bottom: 8px; display: block; }
         .service-card.inactive { opacity: 0.3; filter: grayscale(1); pointer-events: none; }
+        .badge-soon { position: absolute; top: 5px; right: 5px; font-size: 0.5rem; background: #222; padding: 2px 5px; border-radius: 4px; color: #666; }
 
-        /* --- PANEL DE DETALLES (OCULTO AL INICIO) --- */
-        #request-panel {
-            position: fixed; top: 0; left: 100%; width: 100%; height: 100%;
-            background: var(--bg-black); z-index: 100; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex; flex-direction: column;
-        }
-        #request-panel.active { left: 0; }
-
-        .panel-header { padding: 20px; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid var(--border-gray); }
-        .back-btn { font-size: 1.5rem; color: var(--fixgo-yellow); cursor: pointer; }
-
+        /* PANEL SOLICITUD */
         #map { width: 100%; height: 250px; background: #222; }
+        textarea { width: 100%; background: #111; border: 1px solid #333; color: white; padding: 15px; border-radius: 10px; resize: none; margin-top: 10px; box-sizing: border-box; }
+        .confirm-btn { background: var(--fixgo-yellow); color: black; border: none; width: 100%; padding: 18px; font-size: 1.1rem; font-weight: bold; border-radius: 10px; cursor: pointer; margin-top: 20px; }
 
-        .form-content { padding: 20px; flex-grow: 1; overflow-y: auto; }
-        textarea {
-            width: 100%; background: #111; border: 1px solid #333; color: white;
-            padding: 15px; border-radius: 10px; box-sizing: border-box; resize: none;
-            font-family: inherit; margin-top: 10px;
-        }
-
-        .confirm-btn {
-            background: var(--fixgo-yellow); color: black; border: none;
-            width: 100%; padding: 18px; font-size: 1.1rem; font-weight: bold;
-            border-radius: 10px; cursor: pointer; margin-top: 20px;
-        }
-        .confirm-btn:active { transform: scale(0.98); }
-
-        .info-box { background: #111; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 0.85rem; border-left: 4px solid var(--fixgo-yellow); }
+        /* PANTALLA BUSCANDO */
+        .loader { width: 80px; height: 80px; border: 8px solid #222; border-top: 8px solid var(--fixgo-yellow); border-radius: 50%; animation: spin 1s linear infinite; margin: 40px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-<div id="main-view">
+<div id="view-menu" class="view active">
     <div class="header">
-        <h1>FIXGO & FINISH</h1>
-        <small style="color: #666;">CANCÚN, Q. ROO</small>
+        <h1 style="margin:0; color: var(--fixgo-yellow);">FIXGO & FINISH</h1>
+        <small style="color:#666">CANCÚN, Q. ROO</small>
     </div>
-
     <div class="container">
-        <div class="section-title">Servicios de Emergencia</div>
+        <div class="section-title">FixGo Road 🚨</div>
         <div class="services-grid">
-            <div class="service-card" onclick="abrirPanel('Llantera Móvil', 'fa-compact-disc')">
-                <i class="fa-solid fa-compact-disc"></i> <span>Llantera</span>
-            </div>
-            <div class="service-card" onclick="abrirPanel('Cerrajería 24/7', 'fa-key')">
-                <i class="fa-solid fa-key"></i> <span>Cerrajería</span>
-            </div>
+            <div class="service-card" onclick="abrirSolicitud('Llantera Móvil', 'fa-compact-disc')"><i class="fa-solid fa-compact-disc"></i><span>Llantera</span></div>
+            <div class="service-card" onclick="abrirSolicitud('Cerrajería 24/7', 'fa-key')"><i class="fa-solid fa-key"></i><span>Cerrajería</span></div>
+            <div class="service-card inactive"><span class="badge-soon">PRÓX</span><i class="fa-solid fa-truck-pickup"></i><span>Grúa</span></div>
         </div>
 
-        <div class="section-title">Hogar y Mantenimiento</div>
+        <div class="section-title">FixGo Fix 🏠</div>
         <div class="services-grid">
-            <div class="service-card" onclick="abrirPanel('Electricidad', 'fa-bolt-lightning')">
-                <i class="fa-solid fa-bolt-lightning"></i> <span>Electricidad</span>
-            </div>
-            <div class="service-card" onclick="abrirPanel('Plomería', 'fa-faucet-drip')">
-                <i class="fa-solid fa-faucet-drip"></i> <span>Plomería</span>
-            </div>
+            <div class="service-card" onclick="abrirSolicitud('Electricidad', 'fa-bolt-lightning')"><i class="fa-solid fa-bolt-lightning"></i><span>Electricidad</span></div>
+            <div class="service-card" onclick="abrirSolicitud('Plomería', 'fa-faucet-drip')"><i class="fa-solid fa-faucet-drip"></i><span>Plomería</span></div>
+            <div class="service-card" onclick="abrirSolicitud('Aire Acondicionado', 'fa-snowflake')"><i class="fa-solid fa-snowflake"></i><span>Aires Acond.</span></div>
+            <div class="service-card inactive"><span class="badge-soon">PRÓX</span><i class="fa-solid fa-paint-roller"></i><span>Pintura</span></div>
+        </div>
+
+        <div class="section-title">FixGo Tech 🛠️</div>
+        <div class="services-grid">
+            <div class="service-card" onclick="abrirSolicitud('CCTV', 'fa-video')"><i class="fa-solid fa-video"></i><span>CCTV</span></div>
+            <div class="service-card" onclick="abrirSolicitud('Alarmas', 'fa-shield-halved')"><i class="fa-solid fa-shield-halved"></i><span>Alarmas</span></div>
+            <div class="service-card inactive"><span class="badge-soon">PRÓX</span><i class="fa-solid fa-solar-panel"></i><span>Paneles</span></div>
         </div>
     </div>
 </div>
 
-<div id="request-panel">
-    <div class="panel-header">
-        <i class="fa-solid fa-arrow-left back-btn" onclick="cerrarPanel()"></i>
-        <h3 id="selected-service-title" style="margin:0;">Servicio</h3>
+<div id="view-request" class="view">
+    <div class="header" style="text-align: left; display: flex; align-items: center; gap: 15px;">
+        <i class="fa-solid fa-arrow-left" onclick="cambiarVista('view-menu')" style="cursor:pointer; color:var(--fixgo-yellow)"></i>
+        <h2 id="txt-servicio-titulo" style="margin:0; font-size: 1.2rem;">Detalles</h2>
     </div>
-
     <div id="map"></div>
-    <div style="text-align: center; font-size: 0.7rem; color: #ffce00; padding: 5px;">Mueve el mapa para centrar el pin en tu ubicación</div>
+    <div class="container">
+        <p style="font-size: 0.8rem; color: var(--fixgo-yellow); text-align: center;">Mueve el mapa para marcar tu ubicación exacta</p>
+        <label><b>Describe el problema:</b></label>
+        <textarea id="input-problema" rows="4" placeholder="Ej: Mi llanta se ponchó en Av. Kabah..."></textarea>
+        <button class="confirm-btn" onclick="confirmarYGuardar()">CONFIRMAR SERVICIO</button>
+    </div>
+</div>
 
-    <div class="form-content">
-        <div class="info-box">
-            <i class="fa-solid fa-location-dot"></i> <span id="address-display">Cargando ubicación...</span>
-        </div>
-
-        <label style="font-size: 0.9rem; font-weight: bold;">Describe el problema:</label>
-        <textarea id="problem-desc" rows="4" placeholder="Ej: Mi llanta se ponchó en Av. Kabah, es una camioneta blanca..."></textarea>
-
-        <button class="confirm-btn" onclick="enviarSolicitud()">CONFIRMAR SERVICIO</button>
+<div id="view-searching" class="view">
+    <div class="container" style="text-align: center; margin-top: 50px;">
+        <div class="loader"></div>
+        <h2 style="color: var(--fixgo-yellow);">Buscando Técnico...</h2>
+        <p>Estamos notificando a los especialistas más cercanos en Cancún.</p>
+        <button class="confirm-btn" style="background:#333; color:white; margin-top: 40px;" onclick="location.reload()">CANCELAR</button>
     </div>
 </div>
 
 <script>
-    // 1. Firebase Config (Tu Key)
     const firebaseConfig = {
-        apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
+        apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", // Tu API Key corregida
         authDomain: "fixgo-app-sf2l.firebaseapp.com",
         projectId: "fixgo-app-sf2l",
         storageBucket: "fixgo-app-sf2l.appspot.com",
@@ -134,66 +105,51 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    let map, marker, selectedService = "";
+    let map, marker, servicioActual = "";
 
-    // 2. Inicializar Mapa (Centrado en Cancún)
+    function cambiarVista(id) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        if(id === 'view-request') {
+            setTimeout(initMap, 300);
+        }
+    }
+
     function initMap() {
-        if (map) return;
-        map = L.map('map').setView([21.1619, -86.8515], 13);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-        
-        // Pin central que no se mueve, el mapa se mueve debajo
-        marker = L.marker([21.1619, -86.8515], {draggable: false}).addTo(map);
-
-        map.on('move', function () {
-            marker.setLatLng(map.getCenter());
-        });
-
-        map.on('moveend', function() {
-            updateAddress(map.getCenter());
-        });
-    }
-
-    async function updateAddress(latlng) {
-        document.getElementById('address-display').innerText = `Lat: ${latlng.lat.toFixed(4)}, Lon: ${latlng.lng.toFixed(4)}`;
-    }
-
-    // 3. Lógica de Interfaz
-    function abrirPanel(servicio, icono) {
-        selectedService = servicio;
-        document.getElementById('selected-service-title').innerText = servicio;
-        document.getElementById('request-panel').classList.add('active');
-        setTimeout(() => {
-            initMap();
+        if (!map) {
+            map = L.map('map').setView([21.1619, -86.8515], 13);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            marker = L.marker([21.1619, -86.8515]).addTo(map);
+            map.on('move', () => marker.setLatLng(map.getCenter()));
+        } else {
             map.invalidateSize();
-        }, 400);
+        }
     }
 
-    function cerrarPanel() {
-        document.getElementById('request-panel').classList.remove('active');
+    function abrirSolicitud(nombre, icono) {
+        servicioActual = nombre;
+        document.getElementById('txt-servicio-titulo').innerText = nombre;
+        cambiarVista('view-request');
     }
 
-    // 4. Enviar a Firebase
-    function enviarSolicitud() {
-        const desc = document.getElementById('problem-desc').value;
-        const loc = map.getCenter();
+    function confirmarYGuardar() {
+        const problema = document.getElementById('input-problema').value;
+        const coords = map.getCenter();
 
-        if(!desc) { alert("Por favor describe el problema."); return; }
+        if(!problema) return alert("Por favor describe brevemente el problema.");
 
+        // Guardamos en la colección 'services'
         db.collection("services").add({
-            service: selectedService,
-            description: desc,
-            status: "pending",
-            location: new firebase.firestore.GeoPoint(loc.lat, loc.lng),
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            clientId: "test_user_heber" // Esto vendrá del Auth después
+            servicio: servicioActual,
+            descripcion: problema,
+            ubicacion: { lat: coords.lat, lng: coords.lng },
+            estatus: "pendiente",
+            fecha: new Date(),
+            cliente: "Heber_Test"
         }).then(() => {
-            alert("✅ Solicitud enviada. Un técnico en Cancún recibirá tu alerta.");
-            cerrarPanel();
-            document.getElementById('problem-desc').value = "";
-        }).catch(err => console.error(err));
+            cambiarVista('view-searching');
+        }).catch(e => alert("Error: " + e.message));
     }
 </script>
-
 </body>
 </html>
