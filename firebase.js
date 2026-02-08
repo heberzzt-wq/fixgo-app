@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebas
 import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, updateDoc, getDoc, collection, onSnapshot, query, where, addDoc, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// ✅ NUEVA API KEY ACTUALIZADA
+// ✅ API KEY ACTUALIZADA (TERMINA EN ...H7k)
 const firebaseConfig = {
     apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", 
     authDomain: "fixgo-44e4d.firebaseapp.com",
@@ -61,11 +61,11 @@ async function registrarUsuario(email, password, rol, datosExtra) {
     return cred.user;
 }
 
-// ✅ EXPORTACIÓN CORREGIDA (Sin dos puntos ':')
+// ✅ EXPORTACIÓN STANDARD (Sin renombrados raros para evitar errores)
 export { 
     auth, 
     db, 
-    observarAuth, // Exportamos directo sin renombrar para evitar líos
+    observarAuth, 
     registrarUsuario,
     signOut, 
     signInWithEmailAndPassword, 
