@@ -1,47 +1,123 @@
-<style>
-    :root { --fixgo-yellow: #ffce00; --bg-black: #000; --card-gray: #1a1a1a; }
-    body { font-family: 'Inter', sans-serif; background: var(--bg-black); color: white; margin: 0; }
-
-    /* TARJETAS CON MÁS CUERPO */
-    .services-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 10px; }
-    .service-card {
-        background: linear-gradient(145deg, #222, #111);
-        border: 2px solid #333;
-        border-radius: 28px;
-        padding: 40px 20px; /* Más espacio interno */
-        text-align: center;
-        transition: all 0.3s ease;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-    }
-    .service-card:active { transform: scale(0.95); border-color: var(--fixgo-yellow); }
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FixGo - Panel de Servicios</title>
     
-    /* ICONOS CON IMPACTO */
-    .service-card i { 
-        font-size: 50px; /* Más grandes */
-        color: var(--fixgo-yellow); 
-        margin-bottom: 20px;
-        filter: drop-shadow(0 0 10px rgba(255, 206, 0, 0.3));
-    }
-    .service-card span { font-size: 1.1rem; font-weight: 800; letter-spacing: 0.5px; }
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
-    /* BOTÓN CONFIRMAR */
-    .confirm-btn {
-        background: var(--fixgo-yellow);
-        color: black;
-        border: none;
-        width: 100%;
-        padding: 22px;
-        font-size: 1.3rem;
-        font-weight: 900;
-        border-radius: 18px;
-        cursor: pointer;
-        box-shadow: 0 5px 15px rgba(255, 206, 0, 0.2);
-    }
-</style>
+    <style>
+        :root { --yellow: #ffce00; --black: #000; --card: #151515; --border: #333; }
+        body { font-family: 'Inter', sans-serif; background: var(--black); color: white; margin: 0; overflow-x: hidden; }
+        
+        .view { display: none; min-height: 100vh; flex-direction: column; }
+        .view.active { display: flex; }
+
+        .header { background: var(--black); padding: 35px 20px; text-align: center; border-bottom: 4px solid var(--yellow); }
+        .header h1 { margin: 0; font-size: 2rem; font-weight: 900; color: var(--yellow); letter-spacing: -1px; }
+
+        .container { padding: 20px; max-width: 800px; margin: auto; }
+        .section-title { color: var(--yellow); margin: 40px 0 20px; font-size: 1rem; text-transform: uppercase; letter-spacing: 3px; font-weight: 900; border-left: 5px solid var(--yellow); padding-left: 15px; }
+        
+        /* TARJETAS CON CUERPO Y IMPACTO */
+        .services-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 25px; }
+        .service-card { 
+            background: linear-gradient(145deg, #222, #0a0a0a); 
+            border: 2px solid var(--border); 
+            padding: 45px 20px; border-radius: 32px; text-align: center; 
+            cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+        }
+        .service-card:active { transform: scale(0.9); border-color: var(--yellow); }
+        .service-card i { 
+            font-size: 60px; color: var(--yellow); margin-bottom: 20px; display: block;
+            filter: drop-shadow(0 0 15px rgba(255, 206, 0, 0.4));
+        }
+        .service-card span { font-size: 1.1rem; font-weight: 800; display: block; text-transform: uppercase; }
+        
+        .service-card.inactive { opacity: 0.3; filter: grayscale(1); pointer-events: none; border-style: dashed; }
+        .badge-soon { position: absolute; top: 15px; right: 15px; font-size: 0.6rem; background: #333; padding: 5px 10px; border-radius: 8px; color: #888; }
+
+        /* PANEL SOLICITUD */
+        #map { width: 100%; height: 350px; background: #111; }
+        .form-area { padding: 30px; }
+        textarea { width: 100%; background: #111; border: 2px solid #444; color: white; padding: 25px; border-radius: 20px; font-size: 1.1rem; resize: none; box-sizing: border-box; }
+        
+        .confirm-btn { 
+            background: var(--yellow); color: black; border: none; 
+            width: 100%; padding: 25px; font-size: 1.4rem; font-weight: 900; 
+            border-radius: 20px; cursor: pointer; margin-top: 30px;
+            box-shadow: 0 10px 20px rgba(255, 206, 0, 0.3);
+        }
+
+        /* LOADER */
+        .loader { width: 90px; height: 90px; border: 10px solid #222; border-top: 10px solid var(--yellow); border-radius: 50%; animation: spin 1s linear infinite; margin: 60px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div id="view-menu" class="view active">
+    <div class="header">
+        <h1>FIXGO & FINISH</h1>
+        <small style="color: #555; letter-spacing: 5px;">CANCÚN • 2026</small>
+    </div>
+    
+    <div class="container">
+        <div class="section-title">FixGo Road 🚨</div>
+        <div class="services-grid">
+            <div class="service-card" onclick="abrirSolicitud('Llantera Móvil')"><i class="fa-solid fa-compact-disc"></i><span>Llantera</span></div>
+            <div class="service-card" onclick="abrirSolicitud('Cerrajería 24/7')"><i class="fa-solid fa-key"></i><span>Cerrajería</span></div>
+            <div class="service-card inactive"><i class="fa-solid fa-truck-pickup"></i><span>Grúa</span></div>
+        </div>
+
+        <div class="section-title">FixGo Fix 🏠</div>
+        <div class="services-grid">
+            <div class="service-card" onclick="abrirSolicitud('Electricidad')"><i class="fa-solid fa-bolt-lightning"></i><span>Electricidad</span></div>
+            <div class="service-card" onclick="abrirSolicitud('Plomería')"><i class="fa-solid fa-faucet-drip"></i><span>Plomería</span></div>
+            <div class="service-card" onclick="abrirSolicitud('Aire Acondicionado')"><i class="fa-solid fa-snowflake"></i><span>A/C</span></div>
+        </div>
+
+        <div class="section-title">FixGo Tech 🛠️</div>
+        <div class="services-grid">
+            <div class="service-card" onclick="abrirSolicitud('CCTV')"><i class="fa-solid fa-video"></i><span>CCTV</span></div>
+            <div class="service-card" onclick="abrirSolicitud('Alarmas')"><i class="fa-solid fa-shield-halved"></i><span>Alarmas</span></div>
+        </div>
+    </div>
+    <div style="height: 100px;"></div>
+</div>
+
+<div id="view-request" class="view">
+    <div class="header" style="display: flex; align-items: center; padding: 20px;">
+        <i class="fa-solid fa-arrow-left" onclick="cambiarVista('view-menu')" style="font-size: 1.5rem; color: var(--yellow); cursor: pointer;"></i>
+        <h2 id="txt-servicio-titulo" style="margin: auto; font-size: 1.4rem;">DETALLES</h2>
+    </div>
+    <div id="map"></div>
+    <div class="form-area">
+        <textarea id="input-problema" rows="4" placeholder="Describe tu problema aquí..."></textarea>
+        <button class="confirm-btn" id="btn-confirmar">CONFIRMAR SERVICIO</button>
+    </div>
+</div>
+
+<div id="view-searching" class="view">
+    <div class="container" style="text-align: center; margin-top: 100px;">
+        <div class="loader"></div>
+        <h2 style="color: var(--yellow); font-size: 2rem;">BUSCANDO TÉCNICO</h2>
+        <p style="color: #666;">Enviando alerta a los especialistas en Cancún...</p>
+        <button class="confirm-btn" style="background:#222; color:white;" onclick="location.reload()">CANCELAR</button>
+    </div>
+</div>
 
 <script>
     const firebaseConfig = {
-        apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", //
+        apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
         authDomain: "fixgo-app-sf2l.firebaseapp.com",
         projectId: "fixgo-app-sf2l",
         storageBucket: "fixgo-app-sf2l.appspot.com",
@@ -51,30 +127,56 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // CORRECCIÓN DEL BOTÓN
-    document.getElementById('btn-confirmar-accion').onclick = function() {
-        const problema = document.getElementById('input-problema').value;
-        if(!problema) return alert("Describe el problema");
+    let map, marker, servicioActual = "";
 
-        this.innerText = "PROCESANDO...";
+    function cambiarVista(id) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        if(id === 'view-request') setTimeout(initMap, 300);
+    }
+
+    function initMap() {
+        if (!map) {
+            map = L.map('map').setView([21.1619, -86.8515], 13);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            marker = L.marker([21.1619, -86.8515]).addTo(map);
+            map.on('move', () => marker.setLatLng(map.getCenter()));
+        } else {
+            map.invalidateSize();
+        }
+    }
+
+    function abrirSolicitud(nombre) {
+        servicioActual = nombre;
+        document.getElementById('txt-servicio-titulo').innerText = nombre.toUpperCase();
+        cambiarVista('view-request');
+    }
+
+    // BOTÓN DE CONFIRMACIÓN REPARADO Y CONECTADO
+    document.getElementById('btn-confirmar').onclick = function() {
+        const problema = document.getElementById('input-problema').value;
+        const pos = map.getCenter();
+
+        if(!problema) return alert("Escribe el problema");
+
         this.disabled = true;
+        this.innerText = "PROCESANDO SOLICITUD...";
 
         db.collection("services").add({
             servicio: servicioActual,
             descripcion: problema,
+            ubicacion: { lat: pos.lat, lng: pos.lng },
             estatus: "pendiente",
             fecha: new Date(),
-            ubicacion: marker.getLatLng()
-        })
-        .then(() => {
-            // FORZAMOS EL CAMBIO DE VISTA
-            document.getElementById('view-request').classList.remove('active');
-            document.getElementById('view-searching').classList.add('active');
-        })
-        .catch(err => {
+            cliente: "Heber"
+        }).then(() => {
+            cambiarVista('view-searching');
+        }).catch(err => {
             alert("Error: " + err.message);
-            this.innerText = "CONFIRMAR SERVICIO";
             this.disabled = false;
+            this.innerText = "CONFIRMAR SERVICIO";
         });
     };
 </script>
+</body>
+</html>
