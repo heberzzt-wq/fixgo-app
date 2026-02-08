@@ -2,8 +2,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebas
 import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, updateDoc, getDoc, collection, onSnapshot, query, where, addDoc, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+// ✅ NUEVA API KEY ACTUALIZADA
 const firebaseConfig = {
-    apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0", 
+    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", 
     authDomain: "fixgo-44e4d.firebaseapp.com",
     projectId: "fixgo-44e4d",
     storageBucket: "fixgo-44e4d.appspot.com",
@@ -19,16 +20,17 @@ const db = getFirestore(app);
 function observarAuth(callback) {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            // Buscar rol en las colecciones
             let data = null;
+            // Busca datos extra del usuario en las colecciones
             const colecciones = ["usuarios", "tecnicos", "clientes", "admins"];
-            
             for (const col of colecciones) {
-                const snap = await getDoc(doc(db, col, user.uid));
-                if (snap.exists()) {
-                    data = snap.data();
-                    break;
-                }
+                try {
+                    const snap = await getDoc(doc(db, col, user.uid));
+                    if (snap.exists()) {
+                        data = snap.data();
+                        break;
+                    }
+                } catch(e) { console.log("Buscando perfil..."); }
             }
             callback({ ...user, ...data });
         } else {
@@ -37,4 +39,47 @@ function observarAuth(callback) {
     });
 }
 
-export { auth, db, observingAuth: observarAuth, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, doc, setDoc, updateDoc, getDoc, collection, onSnapshot, query, where, addDoc, orderBy, serverTimestamp };
+// Función de Registro Maestra
+async function registrarUsuario(email, password, rol, datosExtra) {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    const uid = cred.user.uid;
+    const baseData = {
+        uid, email, rol, 
+        creadoEn: serverTimestamp(),
+        ...datosExtra
+    };
+
+    // Guardar en colección maestra y específica
+    await setDoc(doc(db, "usuarios", uid), baseData);
+    
+    if(rol === "tecnico") {
+        await setDoc(doc(db, "tecnicos", uid), { ...baseData, disponible: false, documentosOK: false });
+    } else {
+        await setDoc(doc(db, "clientes", uid), { ...baseData });
+    }
+    
+    return cred.user;
+}
+
+// ✅ EXPORTACIÓN CORREGIDA (Sin dos puntos ':')
+export { 
+    auth, 
+    db, 
+    observarAuth, // Exportamos directo sin renombrar para evitar líos
+    registrarUsuario,
+    signOut, 
+    signInWithEmailAndPassword, 
+    createUserWithEmailAndPassword, 
+    updateProfile, 
+    doc, 
+    setDoc, 
+    updateDoc, 
+    getDoc, 
+    collection, 
+    onSnapshot, 
+    query, 
+    where, 
+    addDoc, 
+    orderBy, 
+    serverTimestamp 
+};
