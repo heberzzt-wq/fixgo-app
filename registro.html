@@ -2,65 +2,73 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo - Registro</title>
+    <title>FixGo | Registro</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #050505; }
-        .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); }
-        .uber-input { background-color: #1e1e1e; border: none; color: white; }
-        .uber-input:focus { outline: 2px solid #6366f1; }
-    </style>
 </head>
-<body class="text-white min-h-screen">
+<body class="bg-black text-white min-h-screen flex items-center justify-center p-4">
 
-<header class="max-w-4xl mx-auto flex justify-between items-center p-6">
-    <h1 class="text-3xl font-black tracking-tighter italic text-white">FIXGO</h1>
-    <a href="index.html" class="text-indigo-500 font-bold">Inicio</a>
-</header>
-
-<main class="max-w-4xl mx-auto px-4 py-12">
-    <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Registro Cliente -->
-        <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl">
-            <h2 class="text-2xl font-black mb-6">Registro Cliente</h2>
-            <form id="formRegistroCliente" class="space-y-4">
-                <input type="text" name="nombre" placeholder="Nombre completo" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <input type="password" name="password" placeholder="Contraseña" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <input type="tel" name="telefono" placeholder="Teléfono" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <button type="submit" id="btnRegistroCliente" class="w-full bg-indigo-500 py-4 rounded-2xl font-black hover:bg-indigo-600 transition-all">Registrarme</button>
+    <div class="w-full max-w-4xl grid md:grid-cols-2 gap-8">
+        
+        <div class="bg-zinc-900 p-8 rounded-3xl border border-zinc-800">
+            <h2 class="text-2xl font-black mb-6">Soy Cliente</h2>
+            <form id="formCliente" class="space-y-4">
+                <input type="text" id="nombreC" placeholder="Nombre" class="w-full bg-black p-4 rounded-xl border border-zinc-700">
+                <input type="email" id="emailC" placeholder="Correo" class="w-full bg-black p-4 rounded-xl border border-zinc-700">
+                <input type="password" id="passC" placeholder="Contraseña" class="w-full bg-black p-4 rounded-xl border border-zinc-700">
+                <input type="tel" id="telC" placeholder="Teléfono" class="w-full bg-black p-4 rounded-xl border border-zinc-700">
+                <button type="submit" class="w-full bg-indigo-600 py-4 rounded-xl font-black mt-4">CREAR CUENTA</button>
             </form>
         </div>
 
-        <!-- Registro Técnico -->
-        <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl">
-            <h2 class="text-2xl font-black mb-6">Registro Técnico</h2>
-            <form id="formRegistroTecnico" class="space-y-4">
-                <input type="text" name="nombre" placeholder="Nombre completo" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <input type="password" name="password" placeholder="Contraseña" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <input type="tel" name="telefono" placeholder="Teléfono" required class="uber-input w-full px-4 py-3 rounded-2xl">
-
-                <div class="flex flex-col gap-2">
-                    <label class="text-slate-400 text-sm">INE:</label>
-                    <input type="file" id="inputINE" class="hidden">
-                    <button type="button" id="btnSubirINE" class="bg-indigo-600 py-2 px-4 rounded-2xl font-black hover:bg-indigo-700 transition-all">Subir INE</button>
-                </div>
-
-                <div class="flex flex-col gap-2">
-                    <label class="text-slate-400 text-sm">CSF:</label>
-                    <input type="file" id="inputCSF" class="hidden">
-                    <button type="button" id="btnSubirCSF" class="bg-indigo-600 py-2 px-4 rounded-2xl font-black hover:bg-indigo-700 transition-all">Subir CSF</button>
-                </div>
-
-                <button type="submit" id="btnRegistroTecnico" class="w-full bg-emerald-500 py-4 rounded-2xl font-black hover:bg-emerald-600 transition-all">Registrarme</button>
+        <div class="bg-zinc-900 p-8 rounded-3xl border border-zinc-800">
+            <h2 class="text-2xl font-black mb-6">Soy Técnico</h2>
+            <form id="formTecnico" class="space-y-4">
+                <input type="text" id="nombreT" placeholder="Nombre" class="w-full bg-black p-4 rounded-xl border border-zinc-700">
+                <input type="email" id="emailT" placeholder="Correo" class="w-full bg-black p-4 rounded-xl border border-zinc-700">
+                <input type="password" id="passT" placeholder="Contraseña" class="w-full bg-black p-4 rounded-xl border border-zinc-700">
+                <input type="tel" id="telT" placeholder="Teléfono" class="w-full bg-black p-4 rounded-xl border border-zinc-700">
+                <button type="submit" class="w-full bg-emerald-600 py-4 rounded-xl font-black mt-4">UNIRME AL EQUIPO</button>
             </form>
         </div>
-    </section>
-</main>
 
-<script type="module" src="./app-registro-universal.js"></script>
+    </div>
+
+    <script type="module">
+        import { registrarUsuario } from './firebase.js';
+
+        // CLIENTE
+        document.getElementById('formCliente').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nombre = document.getElementById('nombreC').value;
+            const email = document.getElementById('emailC').value;
+            const pass = document.getElementById('passC').value;
+            const tel = document.getElementById('telC').value;
+
+            try {
+                await registrarUsuario(email, pass, "cliente", { nombre, telefono: tel });
+                alert("¡Cuenta creada! Redirigiendo...");
+                window.location.href = "cliente.html";
+            } catch (error) {
+                alert("Error: " + error.message);
+            }
+        });
+
+        // TECNICO
+        document.getElementById('formTecnico').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nombre = document.getElementById('nombreT').value;
+            const email = document.getElementById('emailT').value;
+            const pass = document.getElementById('passT').value;
+            const tel = document.getElementById('telT').value;
+
+            try {
+                await registrarUsuario(email, pass, "tecnico", { nombre, telefono: tel });
+                alert("Registro exitoso. Completa tu perfil.");
+                window.location.href = "tecnico.html";
+            } catch (error) {
+                alert("Error: " + error.message);
+            }
+        });
+    </script>
 </body>
 </html>
