@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebas
 import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, updateDoc, getDoc, collection, onSnapshot, query, where, addDoc, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// ✅ API KEY ACTUALIZADA (TERMINA EN ...H7k)
+// TU NUEVA API KEY (Asegúrate de haber hecho el PASO 1 en la consola)
 const firebaseConfig = {
     apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", 
     authDomain: "fixgo-44e4d.firebaseapp.com",
@@ -16,52 +16,69 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Función universal de monitoreo de sesión
+// === FUNCIÓN CRÍTICA DE SESIÓN ===
+// Esta función revisa si existes en 'usuarios', 'tecnicos' o 'clientes'
 function observarAuth(callback) {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             let data = null;
-            // Busca datos extra del usuario en las colecciones
             const colecciones = ["usuarios", "tecnicos", "clientes", "admins"];
+            
+            // Buscamos tu rol en todas las colecciones posibles
             for (const col of colecciones) {
                 try {
                     const snap = await getDoc(doc(db, col, user.uid));
                     if (snap.exists()) {
                         data = snap.data();
-                        break;
+                        break; // ¡Te encontramos! Dejamos de buscar
                     }
-                } catch(e) { console.log("Buscando perfil..."); }
+                } catch(e) { console.error("Buscando...", e); }
             }
+            
+            // Devolvemos el usuario con sus datos combinados
             callback({ ...user, ...data });
         } else {
-            callback(null);
+            callback(null); // No hay usuario
         }
     });
 }
 
-// Función de Registro Maestra
+// === FUNCIÓN DE REGISTRO ===
 async function registrarUsuario(email, password, rol, datosExtra) {
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    const uid = cred.user.uid;
-    const baseData = {
-        uid, email, rol, 
-        creadoEn: serverTimestamp(),
-        ...datosExtra
-    };
+    try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        const uid = cred.user.uid;
+        
+        const perfil = {
+            uid, email, rol, 
+            creadoEn: serverTimestamp(),
+            ...datosExtra
+        };
 
-    // Guardar en colección maestra y específica
-    await setDoc(doc(db, "usuarios", uid), baseData);
-    
-    if(rol === "tecnico") {
-        await setDoc(doc(db, "tecnicos", uid), { ...baseData, disponible: false, documentosOK: false });
-    } else {
-        await setDoc(doc(db, "clientes", uid), { ...baseData });
+        // Guardar copia maestra
+        await setDoc(doc(db, "usuarios", uid), perfil);
+        
+        // Guardar copia específica según rol
+        if(rol === "tecnico") {
+            await setDoc(doc(db, "tecnicos", uid), { 
+                ...perfil, 
+                disponible: false, 
+                documentosOK: false,
+                terminosAceptados: false 
+            });
+        } else {
+            await setDoc(doc(db, "clientes", uid), { 
+                ...perfil,
+                terminosAceptados: false
+            });
+        }
+        return cred.user;
+    } catch (e) {
+        throw e; // Lanzar error para que lo vea el formulario
     }
-    
-    return cred.user;
 }
 
-// ✅ EXPORTACIÓN STANDARD (Sin renombrados raros para evitar errores)
+// EXPORTACIÓN FINAL (Sin errores de sintaxis)
 export { 
     auth, 
     db, 
