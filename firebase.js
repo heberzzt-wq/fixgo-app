@@ -1,7 +1,6 @@
 /**
  * ======================================================
- * FIXGO CORE - FIREBASE CONFIGURATION v5.0 (FINAL)
- * Incluye: Buscador Total + Todas las Herramientas (Fix)
+ * FIXGO CORE - FIREBASE CONFIGURATION v5.1 (CORREGIDO USERS)
  * ======================================================
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -14,19 +13,18 @@ import {
     updateProfile 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-// AQUÍ AGREGAMOS TODO LO QUE FALTABA
 import { 
     getFirestore, 
     doc, 
     setDoc, 
     updateDoc, 
     getDoc, 
-    collection,      // Restaurado
-    onSnapshot,      // Restaurado
-    query,           // Restaurado
-    where,           // Restaurado
-    addDoc,          // Restaurado
-    orderBy,         // Restaurado
+    collection,      
+    onSnapshot,      
+    query,           
+    where,           
+    addDoc,          
+    orderBy,         
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -44,7 +42,7 @@ const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 
 /**
- * OBSERVADOR DE SESIÓN INTELIGENTE (No te bota, busca tu rol)
+ * OBSERVADOR DE SESIÓN INTELIGENTE
  */
 function observarAuth(callback) {
     return onAuthStateChanged(auth, async (user) => {
@@ -54,10 +52,11 @@ function observarAuth(callback) {
         }
 
         try {
-            // 1. Buscamos en 'usuarios'
-            let snap = await getDoc(doc(db, "usuarios", user.uid));
+            // CORRECCIÓN AQUÍ: Cambiamos 'usuarios' por 'users' para coincidir con tu DB real
+            // 1. Buscamos en la colección MAESTRA 'users'
+            let snap = await getDoc(doc(db, "users", user.uid));
             
-            // 2. Si no está, buscamos en 'tecnicos'
+            // 2. Si no está ahí (raro), buscamos en 'tecnicos'
             if (!snap.exists()) snap = await getDoc(doc(db, "tecnicos", user.uid));
 
             // 3. Si no está, buscamos en 'clientes'
@@ -68,10 +67,11 @@ function observarAuth(callback) {
 
             if (snap.exists()) {
                 const data = snap.data();
+                // Combinamos la info de Auth con la info de la Base de Datos
                 const finalUser = { ...user, ...data };
                 callback(finalUser);
             } else {
-                console.warn("Usuario sin perfil en DB.");
+                console.warn("Usuario autenticado pero sin perfil en DB (users/tecnicos/clientes).");
                 callback(user); 
             }
 
@@ -98,8 +98,10 @@ async function registrarUsuario(email, password, rol, nombre) {
             creadoEn: serverTimestamp()
         };
 
-        await setDoc(doc(db, "usuarios", uid), perfil);
+        // CORRECCIÓN AQUÍ TAMBIÉN: Guardamos en 'users' para mantener consistencia
+        await setDoc(doc(db, "users", uid), perfil);
 
+        // Además creamos el documento específico de rol
         if (rol === 'tecnico') {
             await setDoc(doc(db, "tecnicos", uid), { ...perfil, disponible: false });
         } else {
@@ -113,7 +115,7 @@ async function registrarUsuario(email, password, rol, nombre) {
     }
 }
 
-// EXPORTAMOS TODO (Esto arregla los errores de "SyntaxError" en las otras páginas)
+// EXPORTAMOS TODO
 export {
     auth, db,
     observarAuth,
@@ -121,6 +123,6 @@ export {
     signOut,
     signInWithEmailAndPassword,
     doc, setDoc, updateDoc, getDoc, 
-    collection, onSnapshot, query, where, addDoc, orderBy, // <--- IMPORTANTÍSIMO
+    collection, onSnapshot, query, where, addDoc, orderBy, 
     serverTimestamp
 };
