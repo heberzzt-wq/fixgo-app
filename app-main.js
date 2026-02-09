@@ -1,236 +1,192 @@
 /**
- * FixGo – app-main.js
- * Rol: CLIENTE
- * Función: 
- *  - Cargar perfil del cliente
- *  - Mostrar servicios disponibles
- *  - Crear solicitudes
- *  - Escuchar cambios de estado
+ * ======================================================
+ * FIXGO 2026 - MAIN CONTROLLER (ROUTER & SECURITY)
+ * Archivo: app-main.js
+ * Versión: 2.1 (Full Logic)
+ * Autor: FixGo Dev Team
+ * * DESCRIPCIÓN:
+ * - Detecta usuario logueado usando el 'observarAuth' de firebase.js.
+ * - Protege rutas (Bloquea acceso a /admin si no eres admin).
+ * - Redirecciona desde el Login/Registro al panel correcto.
+ * - Carga dinámicamente la lógica del panel (desde app-panel.js).
+ * ======================================================
  */
 
-import {
-  auth,
-  db,
-  observarAuth,
-  cerrarSesion
+console.log("🚦 [app-main.js] Iniciando Sistema de Enrutamiento...");
+
+// 1. IMPORTACIONES
+import { 
+    observarAuth, 
+    auth, 
+    signOut 
 } from "./firebase.js";
 
-import {
-  collection,
-  addDoc,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  serverTimestamp,
-  getDoc,
-  doc
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { 
+    iniciarPanelAdmin, 
+    iniciarPanelTecnico, 
+    iniciarPanelCliente 
+} from "./app-panel.js";
 
-/* ===============================
-   VARIABLES DE UI
-================================ */
 
-const heroSection = document.getElementById("heroSection");
-const solicitudContainer = document.getElementById("solicitudContainer");
-const logoutBtn = document.getElementById("logoutBtn");
-const nombreClienteSpan = document.getElementById("nombreCliente");
+// 2. CONFIGURACIÓN DE RUTAS SEGURAS
+// Define qué archivo HTML corresponde a cada rol
+const RUTAS = {
+    // Páginas accesibles sin login
+    publicas: ["index.html", "login.html", "registro.html", "/"],
+    
+    // Páginas exclusivas por rol
+    admin: "admin.html",
+    tecnico: "tecnico.html",
+    cliente: "cliente.html"
+};
 
-const gridServicios = document.getElementById("gridServicios");
-const formulario = document.getElementById("nuevaSolicitudForm");
-const solicitudesCliente = document.getElementById("solicitudesCliente");
 
-/* ===============================
-   ESTADO GLOBAL
-================================ */
-
-let usuarioActual = null;
-let servicioSeleccionado = null;
-
-/* ===============================
-   AUTENTICACIÓN
-================================ */
-
+// ======================================================
+// 3. LÓGICA PRINCIPAL (EL GUARDIA DE SEGURIDAD)
+// ======================================================
 observarAuth(async (user) => {
-  if (!user) {
-    heroSection.classList.remove("hidden");
-    solicitudContainer.classList.add("hidden");
-    logoutBtn.classList.add("hidden");
-    return;
-  }
+    
+    // Obtener la ruta actual (ej: "/admin.html")
+    const pathActual = window.location.pathname;
+    const archivoActual = pathActual.substring(pathActual.lastIndexOf('/') + 1) || "index.html";
+    const esPublica = RUTAS.publicas.includes(archivoActual);
 
-  usuarioActual = user;
-  logoutBtn.classList.remove("hidden");
-  heroSection.classList.add("hidden");
-  solicitudContainer.classList.remove("hidden");
+    console.log(`📍 Ubicación actual: ${archivoActual} | Es pública: ${esPublica}`);
 
-  await cargarPerfilCliente();
-  escucharSolicitudesCliente();
+    // --------------------------------------------------
+    // CASO A: NO HAY USUARIO (GUEST)
+    // --------------------------------------------------
+    if (!user) {
+        console.log("👻 Estado: Visitante (Sin sesión)");
+        
+        // Si intenta entrar a una privada, lo sacamos
+        if (!esPublica) {
+            console.warn("⛔ Acceso denegado. Redirigiendo al Login.");
+            window.location.href = "login.html";
+        }
+        return; // Fin del proceso para guests
+    }
+
+    // --------------------------------------------------
+    // CASO B: USUARIO LOGUEADO -> VALIDAR PERMISOS
+    // --------------------------------------------------
+    console.log(`✅ Usuario Activo: ${user.email} | Rol: ${user.rol || 'Sin Rol'}`);
+
+    // B.1: Si está en una página pública (Login/Registro/Index), mandarlo a su panel
+    if (esPublica) {
+        console.log("🔀 Usuario en zona pública -> Redirigiendo a su panel...");
+        redirigirSegunRol(user.rol);
+        return;
+    }
+
+    // B.2: Protección Cruzada (Firewall de Roles)
+    // Evita que un Cliente entre a /admin.html modificando la URL
+    if (archivoActual === RUTAS.admin && user.rol !== "admin") {
+        alert("⛔ ACCESO DENEGADO: Área restringida para Administradores.");
+        redirigirSegunRol(user.rol);
+        return;
+    }
+
+    if (archivoActual === RUTAS.tecnico && user.rol !== "tecnico") {
+        alert("⛔ ACCESO DENEGADO: Área exclusiva para Técnicos.");
+        redirigirSegunRol(user.rol);
+        return;
+    }
+
+    if (archivoActual === RUTAS.cliente && user.rol !== "cliente") {
+        // Los admin a veces pueden ver el panel de cliente, pero por norma estricta:
+        if(user.rol !== "admin") { 
+            redirigirSegunRol(user.rol);
+            return;
+        }
+    }
+
+    // --------------------------------------------------
+    // 4. INICIALIZACIÓN DE LÓGICA (INYECCIÓN DE CEREBRO)
+    // --------------------------------------------------
+    // Aquí es donde conectamos 'app-main.js' con 'app-panel.js'
+    // Solo cargamos la lógica si estamos en el archivo correcto.
+
+    try {
+        if (user.rol === "admin" && archivoActual === RUTAS.admin) {
+            console.log("🚀 Cargando módulo Admin...");
+            await iniciarPanelAdmin(user);
+        } 
+        else if (user.rol === "tecnico" && archivoActual === RUTAS.tecnico) {
+            console.log("🚀 Cargando módulo Técnico...");
+            await iniciarPanelTecnico(user);
+        } 
+        else if (user.rol === "cliente" && archivoActual === RUTAS.cliente) {
+            console.log("🚀 Cargando módulo Cliente...");
+            await iniciarPanelCliente(user);
+        }
+        
+        // Configurar elementos comunes de la UI (Header, Logout)
+        actualizarInterfazGlobal(user);
+
+    } catch (error) {
+        console.error("❌ Error crítico inicializando el panel:", error);
+        alert("Hubo un error cargando tus datos. Por favor recarga la página.");
+    }
 });
 
-/* ===============================
-   PERFIL CLIENTE
-================================ */
 
-async function cargarPerfilCliente() {
-  try {
-    const ref = doc(db, "users", usuarioActual.uid);
-    const snap = await getDoc(ref);
+// ======================================================
+// 5. FUNCIONES AUXILIARES (HELPERS)
+// ======================================================
 
-    if (snap.exists()) {
-      const data = snap.data();
-      nombreClienteSpan.textContent =
-        data.nombre
-          ? data.nombre.split(" ")[0].toUpperCase()
-          : "CLIENTE";
+/**
+ * Redirecciona al usuario a su HTML correspondiente según su rol.
+ * Evita bucles infinitos verificando dónde está primero.
+ */
+function redirigirSegunRol(rol) {
+    const path = window.location.pathname;
+    
+    if (rol === "admin") {
+        if (!path.includes("admin.html")) window.location.href = "admin.html";
+    } else if (rol === "tecnico") {
+        if (!path.includes("tecnico.html")) window.location.href = "tecnico.html";
     } else {
-      nombreClienteSpan.textContent = "CLIENTE";
+        // Por defecto Cliente (o si el rol está mal definido, lo mandamos a cliente para que no se rompa)
+        if (!path.includes("cliente.html")) window.location.href = "cliente.html";
     }
-  } catch (error) {
-    console.error("Error cargando perfil:", error);
-    nombreClienteSpan.textContent = "CLIENTE";
-  }
 }
 
-/* ===============================
-   SELECCIÓN DE SERVICIO
-================================ */
-
-const tarjetasServicio = document.querySelectorAll(".service-card");
-const inputCategoria = document.getElementById("categoriaSeleccionada");
-const btnLabel = document.getElementById("btnLabel");
-
-tarjetasServicio.forEach((card) => {
-  card.addEventListener("click", () => {
-    tarjetasServicio.forEach(c => c.classList.remove("selected"));
-    card.classList.add("selected");
-
-    servicioSeleccionado = card.getAttribute("data-category");
-    inputCategoria.value = servicioSeleccionado;
-    btnLabel.textContent = servicioSeleccionado;
-  });
-});
-
-/* ===============================
-   CREAR SOLICITUD
-================================ */
-
-formulario.addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  if (!servicioSeleccionado) {
-    alert("Selecciona un servicio");
-    return;
-  }
-
-  const direccion = formulario.direccion.value.trim();
-  const descripcion = formulario.descripcion.value.trim();
-
-  if (!direccion || !descripcion) {
-    alert("Completa todos los campos");
-    return;
-  }
-
-  try {
-    await addDoc(collection(db, "services"), {
-      cliente_id: usuarioActual.uid,
-      categoria: servicioSeleccionado,
-      direccion,
-      descripcion,
-      estado: "pendiente",
-      tecnico_id: null,
-      eta: null,
-      created_at: serverTimestamp(),
-      zona: "auto",
-      pago_estado: "preautorizado"
-    });
-
-    formulario.reset();
-    tarjetasServicio.forEach(c => c.classList.remove("selected"));
-    btnLabel.textContent = "Servicio";
-    servicioSeleccionado = null;
-
-    alert("Solicitud enviada. Buscando técnico...");
-  } catch (error) {
-    console.error("Error creando solicitud:", error);
-    alert("Error al crear la solicitud");
-  }
-});
-
-/* ===============================
-   ESCUCHAR SOLICITUDES CLIENTE
-================================ */
-
-function escucharSolicitudesCliente() {
-  const q = query(
-    collection(db, "services"),
-    where("cliente_id", "==", usuarioActual.uid),
-    orderBy("created_at", "desc")
-  );
-
-  onSnapshot(q, (snapshot) => {
-    solicitudesCliente.innerHTML = "";
-
-    if (snapshot.empty) {
-      solicitudesCliente.innerHTML = `
-        <p class="text-slate-500 text-sm italic">
-          Aún no tienes servicios registrados.
-        </p>
-      `;
-      return;
+/**
+ * Actualiza nombre de usuario y configura el botón de salir.
+ * Funciona en todos los HTMLs siempre que tengan los IDs correctos.
+ */
+function actualizarInterfazGlobal(user) {
+    // 1. Mostrar Nombre
+    const userNameDisplay = document.getElementById("userName") || document.getElementById("userNameDisplay");
+    
+    if (userNameDisplay) {
+        // Usamos nombre, o email cortado, o "Usuario"
+        const nombreMostrar = user.nombre || user.email.split('@')[0] || "Usuario";
+        userNameDisplay.innerText = nombreMostrar.toUpperCase();
     }
 
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
+    // 2. Configurar Botón Logout
+    // Buscamos por varios IDs comunes para asegurar compatibilidad
+    const logoutBtns = document.querySelectorAll("#btnLogout, #logoutBtn, #btnLogoutIndex");
 
-      const card = document.createElement("div");
-      card.className =
-        "bg-zinc-900 border border-white/10 p-5 rounded-2xl";
+    logoutBtns.forEach(btn => {
+        // Clonamos el nodo para eliminar listeners viejos (evita doble click)
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
 
-      card.innerHTML = `
-        <div class="flex justify-between items-center mb-2">
-          <h4 class="font-black text-sm uppercase">
-            ${data.categoria}
-          </h4>
-          <span class="text-xs px-3 py-1 rounded-full ${
-            data.estado === "pendiente"
-              ? "bg-yellow-500/20 text-yellow-400"
-              : data.estado === "asignado"
-              ? "bg-blue-500/20 text-blue-400"
-              : data.estado === "finalizado"
-              ? "bg-emerald-500/20 text-emerald-400"
-              : "bg-red-500/20 text-red-400"
-          }">
-            ${data.estado}
-          </span>
-        </div>
-
-        <p class="text-xs text-slate-400 mb-1">
-          ${data.direccion}
-        </p>
-
-        <p class="text-xs text-slate-500">
-          ${data.descripcion}
-        </p>
-      `;
-
-      solicitudesCliente.appendChild(card);
+        newBtn.addEventListener("click", async (e) => {
+            e.preventDefault();
+            if (confirm("¿Cerrar sesión de FixGo?")) {
+                try {
+                    console.log("👋 Saliendo del sistema...");
+                    await signOut(auth);
+                    window.location.href = "login.html";
+                } catch (error) {
+                    console.error("Error al salir:", error);
+                    alert("No se pudo cerrar sesión. Intenta de nuevo.");
+                }
+            }
+        });
     });
-  });
 }
-
-/* ===============================
-   LOGOUT
-================================ */
-
-logoutBtn.addEventListener("click", async () => {
-  const salir = confirm("¿Deseas cerrar sesión?");
-  if (!salir) return;
-
-  try {
-    await cerrarSesion();
-    location.href = "login.html";
-  } catch (error) {
-    console.error("Error al salir:", error);
-  }
-});
