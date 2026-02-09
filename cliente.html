@@ -3,121 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo - Servicios</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-
+    <title>FixGo | Solicitar Servicio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        :root { --yellow: #ffce00; --bg: #000; --card: #141414; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: white; margin: 0; }
-        .header { padding: 40px; text-align: center; border-bottom: 5px solid var(--yellow); }
-        .container { padding: 20px; max-width: 900px; margin: auto; }
-        .section-title { color: var(--yellow); margin: 40px 0 20px; font-weight: 900; letter-spacing: 3px; border-left: 5px solid var(--yellow); padding-left: 15px; text-transform: uppercase; }
-        
-        /* TARJETAS CON CUERPO */
-        .services-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 25px; }
-        .service-card { 
-            background: linear-gradient(145deg, #222, #050505); border: 2px solid #333; 
-            padding: 50px 20px; border-radius: 35px; text-align: center; cursor: pointer; position: relative;
-        }
-        .service-card i { font-size: 70px; color: var(--yellow); margin-bottom: 25px; display: block; filter: drop-shadow(0 0 10px rgba(255,206,0,0.4)); }
-        .service-card span { font-size: 1.1rem; font-weight: 900; text-transform: uppercase; }
-        .service-card.inactive { opacity: 0.3; filter: grayscale(1); pointer-events: none; }
-        .badge-soon { position: absolute; top: 15px; right: 15px; font-size: 0.6rem; background: #333; padding: 5px 10px; border-radius: 8px; color: #888; }
-        
-        /* PANEL DE SOLICITUD */
-        .view { display: none; min-height: 100vh; flex-direction: column; }
-        .view.active { display: flex; }
-        #map { width: 100%; height: 350px; border-bottom: 3px solid var(--yellow); }
-        textarea { width: 100%; background: #111; border: 2px solid #444; color: white; padding: 25px; border-radius: 20px; font-size: 1.1rem; box-sizing: border-box; }
-        .confirm-btn { background: var(--yellow); color: black; border: none; width: 100%; padding: 25px; font-size: 1.4rem; font-weight: 900; border-radius: 20px; cursor: pointer; margin-top: 20px; }
+        body { background-color: #000000; font-family: 'Inter', sans-serif; }
+        .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); }
+        .service-card { transition: all 0.3s ease; cursor: pointer; }
+        .service-card:hover { transform: translateY(-2px); border-color: #10b981; }
+        .service-card.selected { border-color: #10b981; background-color: #1a1a1a; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); }
     </style>
 </head>
-<body>
+<body class="text-white min-h-screen pb-20">
 
-<div id="view-menu" class="view active">
-    <div class="header"><h1>FIXGO & FINISH</h1></div>
-    <div class="container">
-        <div class="section-title">FixGo Road 🚨</div>
-        <div class="services-grid">
-            <div class="service-card" onclick="abrirSolicitud('Llantera')"><i class="fa-solid fa-compact-disc"></i><span>Llantera</span></div>
-            <div class="service-card" onclick="abrirSolicitud('Cerrajería')"><i class="fa-solid fa-key"></i><span>Cerrajería</span></div>
-            <div class="service-card inactive"><span class="badge-soon">PRÓX</span><i class="fa-solid fa-truck-pickup"></i><span>Grúa</span></div>
-            <div class="service-card inactive"><span class="badge-soon">PRÓX</span><i class="fa-solid fa-screwdriver-wrench"></i><span>Mecánico</span></div>
+    <header class="p-6 flex justify-between items-center sticky top-0 bg-black/95 z-20 backdrop-blur-md border-b border-white/5">
+        <h1 class="font-black text-2xl italic tracking-tighter">FIX<span class="text-emerald-500">GO</span></h1>
+        <div class="flex items-center gap-3">
+            <span id="userName" class="text-sm font-bold hidden md:block text-gray-300">Usuario</span>
+            <button id="btnLogout" class="bg-zinc-800 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-900/50 transition-colors">
+                <i class="fas fa-sign-out-alt text-xs"></i>
+            </button>
         </div>
-        <div class="section-title">FixGo Fix 🏠</div>
-        <div class="services-grid">
-            <div class="service-card" onclick="abrirSolicitud('Electricidad')"><i class="fa-solid fa-bolt-lightning"></i><span>Electricidad</span></div>
-            <div class="service-card" onclick="abrirSolicitud('Plomería')"><i class="fa-solid fa-faucet-drip"></i><span>Plomería</span></div>
-            <div class="service-card" onclick="abrirSolicitud('Aire Acondicionado')"><i class="fa-solid fa-snowflake"></i><span>A/C</span></div>
-            <div class="service-card inactive"><span class="badge-soon">PRÓX</span><i class="fa-solid fa-paint-roller"></i><span>Pintura</span></div>
-        </div>
-        <div class="section-title">FixGo Tech 🛠️</div>
-        <div class="services-grid">
-            <div class="service-card" onclick="abrirSolicitud('CCTV')"><i class="fa-solid fa-video"></i><span>CCTV</span></div>
-            <div class="service-card" onclick="abrirSolicitud('Alarmas')"><i class="fa-solid fa-shield-halved"></i><span>Alarmas</span></div>
-            <div class="service-card inactive"><span class="badge-soon">PRÓX</span><i class="fa-solid fa-solar-panel"></i><span>Paneles</span></div>
-        </div>
-    </div>
-</div>
+    </header>
 
-<div id="view-request" class="view">
-    <div class="header" style="display:flex; align-items:center; padding:20px;">
-        <i class="fa-solid fa-chevron-left" onclick="cambiarVista('view-menu')" style="color:var(--yellow); font-size:2rem; cursor:pointer;"></i>
-        <h2 id="txt-titulo" style="margin:auto;">DETALLES</h2>
-    </div>
-    <div id="map"></div>
-    <div style="padding:30px;">
-        <textarea id="input-problema" rows="4" placeholder="Describe el problema..."></textarea>
-        <button class="confirm-btn" id="btn-final">SOLICITAR AHORA</button>
-    </div>
-</div>
+    <main class="max-w-2xl mx-auto px-4 py-8 space-y-8">
 
-<script>
-    const firebaseConfig = {
-        apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
-        authDomain: "fixgo-44e4d.firebaseapp.com",
-        projectId: "fixgo-44e4d",
-        storageBucket: "fixgo-44e4d.appspot.com",
-        messagingSenderId: "367232231649",
-        appId: "1:367232231649:web:99737190e29b4661002305"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+        <section>
+            <h2 class="text-slate-500 text-xs font-black uppercase tracking-widest mb-4">¿Qué necesitas hoy?</h2>
+            
+            <div id="gridServicios" class="grid grid-cols-3 gap-3">
+                <div class="service-card uber-card p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2" data-category="road">
+                    <div class="bg-yellow-500/20 p-3 rounded-full text-yellow-500">
+                        <i class="fas fa-car-crash text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-black text-sm">ROAD</h3>
+                        <p class="text-[10px] text-gray-500">Auxilio Vial</p>
+                    </div>
+                </div>
 
-    let map, marker, servicioActual = "";
+                <div class="service-card uber-card p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2" data-category="fix">
+                    <div class="bg-blue-500/20 p-3 rounded-full text-blue-500">
+                        <i class="fas fa-tools text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-black text-sm">FIX</h3>
+                        <p class="text-[10px] text-gray-500">Hogar</p>
+                    </div>
+                </div>
 
-    function cambiarVista(id) {
-        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
-        if(id === 'view-request') setTimeout(() => {
-            if(!map){
-                map = L.map('map').setView([21.1619, -86.8515], 14);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-                marker = L.marker([21.1619, -86.8515]).addTo(map);
-                map.on('move', () => marker.setLatLng(map.getCenter()));
-            } else { map.invalidateSize(); }
-        }, 400);
-    }
+                <div class="service-card uber-card p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2" data-category="tech">
+                    <div class="bg-purple-500/20 p-3 rounded-full text-purple-500">
+                        <i class="fas fa-wifi text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-black text-sm">TECH</h3>
+                        <p class="text-[10px] text-gray-500">Sistemas</p>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-    function abrirSolicitud(n) { servicioActual = n; document.getElementById('txt-titulo').innerText = n.toUpperCase(); cambiarVista('view-request'); }
+        <section id="solicitudContainer" class="uber-card p-6 rounded-[2rem] shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
 
-    document.getElementById('btn-final').onclick = function() {
-        const prob = document.getElementById('input-problema').value;
-        if(!prob) return alert("Escribe el problema");
-        this.disabled = true; this.innerText = "CONECTANDO...";
-        db.collection("services").add({
-            servicio: servicioActual,
-            descripcion: prob,
-            ubicacion: marker.getLatLng(),
-            estatus: "pendiente",
-            fecha: new Date(),
-            cliente: "Heber"
-        }).then(() => alert("Solicitud enviada con éxito")).catch(e => { alert(e.message); this.disabled = false; });
-    };
-</script>
+            <h2 class="text-xl font-black mb-6 flex items-center gap-2">
+                <span class="bg-emerald-500 w-2 h-8 rounded-full"></span>
+                Solicitar <span id="btnLabel" class="text-emerald-500">Servicio</span>
+            </h2>
+
+            <form id="nuevaSolicitudForm" class="space-y-4">
+                <input type="hidden" id="categoriaSeleccionada" name="categoria">
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1 ml-2">UBICACIÓN</label>
+                    <div class="relative">
+                        <i class="fas fa-map-marker-alt absolute left-4 top-4 text-gray-400"></i>
+                        <input type="text" name="direccion" placeholder="Ej: Calle 60, Centro Cancún" required 
+                        class="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-gray-600">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1 ml-2">DETALLES DEL PROBLEMA</label>
+                    <textarea name="descripcion" rows="3" placeholder="Describe brevemente qué sucede..." required
+                    class="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl py-3 px-4 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-gray-600"></textarea>
+                </div>
+
+                <button type="submit" class="w-full bg-white text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg transform active:scale-95">
+                    SOLICITAR AHORA
+                </button>
+            </form>
+        </section>
+
+        <section>
+            <h2 class="text-slate-500 text-xs font-black uppercase tracking-widest mb-4">Tu Actividad</h2>
+            <div id="solicitudesCliente" class="space-y-3">
+                <div class="text-center py-8">
+                    <i class="fas fa-history text-gray-700 text-3xl mb-2"></i>
+                    <p class="text-gray-600 text-sm">Tus servicios aparecerán aquí.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script type="module" src="./firebase.js"></script>
+    <script type="module" src="./app-main.js"></script>
 </body>
 </html>
