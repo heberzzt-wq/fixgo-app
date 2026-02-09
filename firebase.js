@@ -1,10 +1,37 @@
+/**
+ * ======================================================
+ * FIXGO CORE - FIREBASE CONFIGURATION v5.0 (FINAL)
+ * Incluye: Buscador Total + Todas las Herramientas (Fix)
+ * ======================================================
+ */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, updateDoc, getDoc, collection, onSnapshot, query, where, addDoc, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { 
+    getAuth, 
+    onAuthStateChanged, 
+    signOut, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    updateProfile 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-// TU NUEVA API KEY (Asegúrate de haber hecho el PASO 1 en la consola)
+// AQUÍ AGREGAMOS TODO LO QUE FALTABA
+import { 
+    getFirestore, 
+    doc, 
+    setDoc, 
+    updateDoc, 
+    getDoc, 
+    collection,      // Restaurado
+    onSnapshot,      // Restaurado
+    query,           // Restaurado
+    where,           // Restaurado
+    addDoc,          // Restaurado
+    orderBy,         // Restaurado
+    serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
 const firebaseConfig = {
-    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", 
+    apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0", 
     authDomain: "fixgo-44e4d.firebaseapp.com",
     projectId: "fixgo-44e4d",
     storageBucket: "fixgo-44e4d.appspot.com",
@@ -12,91 +39,88 @@ const firebaseConfig = {
     appId: "1:1005526685116:web:62f1a823ff8761da85c7b9"
 };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
 
-// === FUNCIÓN CRÍTICA DE SESIÓN ===
-// Esta función revisa si existes en 'usuarios', 'tecnicos' o 'clientes'
+/**
+ * OBSERVADOR DE SESIÓN INTELIGENTE (No te bota, busca tu rol)
+ */
 function observarAuth(callback) {
-    onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            let data = null;
-            const colecciones = ["usuarios", "tecnicos", "clientes", "admins"];
+    return onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            callback(null);
+            return;
+        }
+
+        try {
+            // 1. Buscamos en 'usuarios'
+            let snap = await getDoc(doc(db, "usuarios", user.uid));
             
-            // Buscamos tu rol en todas las colecciones posibles
-            for (const col of colecciones) {
-                try {
-                    const snap = await getDoc(doc(db, col, user.uid));
-                    if (snap.exists()) {
-                        data = snap.data();
-                        break; // ¡Te encontramos! Dejamos de buscar
-                    }
-                } catch(e) { console.error("Buscando...", e); }
+            // 2. Si no está, buscamos en 'tecnicos'
+            if (!snap.exists()) snap = await getDoc(doc(db, "tecnicos", user.uid));
+
+            // 3. Si no está, buscamos en 'clientes'
+            if (!snap.exists()) snap = await getDoc(doc(db, "clientes", user.uid));
+
+            // 4. Si no está, buscamos en 'admins'
+            if (!snap.exists()) snap = await getDoc(doc(db, "admins", user.uid));
+
+            if (snap.exists()) {
+                const data = snap.data();
+                const finalUser = { ...user, ...data };
+                callback(finalUser);
+            } else {
+                console.warn("Usuario sin perfil en DB.");
+                callback(user); 
             }
-            
-            // Devolvemos el usuario con sus datos combinados
-            callback({ ...user, ...data });
-        } else {
-            callback(null); // No hay usuario
+
+        } catch (e) {
+            console.error("Error recuperando perfil:", e);
+            callback(user);
         }
     });
 }
 
-// === FUNCIÓN DE REGISTRO ===
-async function registrarUsuario(email, password, rol, datosExtra) {
+/**
+ * REGISTRO BLINDADO
+ */
+async function registrarUsuario(email, password, rol, nombre) {
     try {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const uid = cred.user.uid;
         
         const perfil = {
-            uid, email, rol, 
-            creadoEn: serverTimestamp(),
-            ...datosExtra
+            uid: uid,
+            email: email,
+            rol: rol,
+            nombre: nombre || "Usuario Nuevo",
+            creadoEn: serverTimestamp()
         };
 
-        // Guardar copia maestra
         await setDoc(doc(db, "usuarios", uid), perfil);
-        
-        // Guardar copia específica según rol
-        if(rol === "tecnico") {
-            await setDoc(doc(db, "tecnicos", uid), { 
-                ...perfil, 
-                disponible: false, 
-                documentosOK: false,
-                terminosAceptados: false 
-            });
+
+        if (rol === 'tecnico') {
+            await setDoc(doc(db, "tecnicos", uid), { ...perfil, disponible: false });
         } else {
-            await setDoc(doc(db, "clientes", uid), { 
-                ...perfil,
-                terminosAceptados: false
-            });
+            await setDoc(doc(db, "clientes", uid), { ...perfil, pedidos: 0 });
         }
+
+        await updateProfile(cred.user, { displayName: nombre });
         return cred.user;
-    } catch (e) {
-        throw e; // Lanzar error para que lo vea el formulario
+    } catch (error) {
+        throw error;
     }
 }
 
-// EXPORTACIÓN FINAL (Sin errores de sintaxis)
-export { 
-    auth, 
-    db, 
-    observarAuth, 
+// EXPORTAMOS TODO (Esto arregla los errores de "SyntaxError" en las otras páginas)
+export {
+    auth, db,
+    observarAuth,
     registrarUsuario,
-    signOut, 
-    signInWithEmailAndPassword, 
-    createUserWithEmailAndPassword, 
-    updateProfile, 
-    doc, 
-    setDoc, 
-    updateDoc, 
-    getDoc, 
-    collection, 
-    onSnapshot, 
-    query, 
-    where, 
-    addDoc, 
-    orderBy, 
-    serverTimestamp 
+    signOut,
+    signInWithEmailAndPassword,
+    doc, setDoc, updateDoc, getDoc, 
+    collection, onSnapshot, query, where, addDoc, orderBy, // <--- IMPORTANTÍSIMO
+    serverTimestamp
 };
