@@ -1,69 +1,113 @@
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k" async defer></script>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FixGo - Panel Administrativo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #050505; }
+        .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); }
+        /* Scrollbar personalizada */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #121212; }
+        ::-webkit-scrollbar-thumb { background: #333; rounded: 4px; }
+    </style>
+</head>
+<body class="text-white min-h-screen font-sans">
 
-    <script type="module">
-        // ✅ CORREGIDO: Importamos 'observarAuth' (en español)
-        import { auth, db, observarAuth, signOut, collection, onSnapshot, query, where, updateDoc, doc } from './firebase.js';
+    <header class="max-w-7xl mx-auto flex justify-between items-center p-6 border-b border-white/10">
+        <div class="flex items-center gap-3">
+            <h1 class="text-3xl font-black tracking-tighter italic text-white">FIX<span class="text-emerald-500">GO</span></h1>
+            <span class="bg-blue-600/20 text-blue-400 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-blue-500/30">Admin Mode</span>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <p class="text-sm text-gray-400 text-right hidden md:block">
+                Bienvenido, <span id="userName" class="text-white font-bold">Administrador</span>
+            </p>
+            <button id="logoutBtn" class="bg-red-600/10 text-red-500 border border-red-500/30 hover:bg-red-600 hover:text-white font-bold py-2 px-6 rounded-2xl transition-all text-sm flex items-center gap-2">
+                <i class="fas fa-power-off"></i> Salir
+            </button>
+        </div>
+    </header>
 
-        let map;
-        let markers = {};
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="uber-card p-6 rounded-2xl shadow-lg">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-xs font-bold uppercase tracking-widest">Servicios Activos</p>
+                        <h3 class="text-3xl font-black text-white mt-1">--</h3>
+                    </div>
+                    <div class="bg-emerald-500/10 p-3 rounded-xl text-emerald-500">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                </div>
+            </div>
 
-        // Iniciar Mapa
-        window.initMap = () => {
-            try {
-                map = new google.maps.Map(document.getElementById("map"), {
-                    center: { lat: 21.1619, lng: -86.8515 }, // Cancún
-                    zoom: 12,
-                    styles: [ { elementType: "geometry", stylers: [{ color: "#242f3e" }] }, { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] }, { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] } ]
-                });
-                escucharTecnicos();
-            } catch (e) { console.error("Mapa error:", e); }
-        };
+            <div class="uber-card p-6 rounded-2xl shadow-lg">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-xs font-bold uppercase tracking-widest">Técnicos Online</p>
+                        <h3 class="text-3xl font-black text-white mt-1">--</h3>
+                    </div>
+                    <div class="bg-blue-500/10 p-3 rounded-xl text-blue-500">
+                        <i class="fas fa-users"></i>
+                    </div>
+                </div>
+            </div>
 
-        if(window.google && window.google.maps) window.initMap();
+            <div class="uber-card p-6 rounded-2xl shadow-lg">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-xs font-bold uppercase tracking-widest">Ingresos (32%)</p>
+                        <h3 class="text-3xl font-black text-white mt-1">$0.00</h3>
+                    </div>
+                    <div class="bg-yellow-500/10 p-3 rounded-xl text-yellow-500">
+                        <i class="fas fa-wallet"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-        // ✅ USAMOS LA FUNCIÓN CORRECTA
-        observarAuth((user) => {
-            // Si no hay usuario, fuera de aquí
-            if(!user) window.location.href = 'login.html';
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             
-            // (Opcional) Si hay usuario pero no es admin, también fuera
-            // if(user.rol !== 'admin') window.location.href = 'index.html';
-        });
-
-        function escucharTecnicos() {
-            // ... (Mismo código de mapa de antes) ...
-            const q = query(collection(db, "tecnicos"));
-            onSnapshot(q, (snapshot) => {
-                const divLista = document.getElementById('listaTecnicos');
-                divLista.innerHTML = "";
-                snapshot.forEach(snap => {
-                    const data = snap.data();
-                    const id = snap.id;
-                    const item = document.createElement('div');
-                    item.className = "p-3 bg-black rounded-lg border border-zinc-700 flex justify-between items-center";
-                    item.innerHTML = `
-                        <div>
-                            <p class="font-bold text-sm text-white">${data.nombre || "Sin nombre"}</p>
-                            <p class="text-[10px] ${data.disponible ? 'text-green-500' : 'text-gray-500'}">
-                                ${data.disponible ? '● ONLINE' : '○ OFFLINE'}
-                            </p>
+            <div class="space-y-8">
+                <div class="uber-card p-6 rounded-2xl shadow-2xl h-[500px] flex flex-col">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="font-black text-xl flex items-center gap-2">
+                            <i class="fas fa-user-shield text-gray-400"></i> Aprobación de Técnicos
+                        </h2>
+                        <span class="text-xs bg-zinc-800 text-zinc-400 px-2 py-1 rounded">En tiempo real</span>
+                    </div>
+                    
+                    <div id="listaTecnicos" class="flex-1 overflow-y-auto pr-2 space-y-2">
+                        <div class="flex flex-col items-center justify-center h-full text-gray-600 gap-3">
+                            <i class="fas fa-spinner fa-spin text-2xl"></i>
+                            <p class="text-sm">Cargando solicitudes...</p>
                         </div>
-                        ${!data.verificado ? 
-                            `<button onclick="verificarTecnico('${id}')" class="text-[10px] bg-blue-600 px-2 py-1 rounded text-white hover:bg-blue-500">APROBAR</button>` 
-                            : '<span class="text-xs text-emerald-500"><i class="fas fa-check-circle"></i></span>'}
-                    `;
-                    divLista.appendChild(item);
-                });
-            });
-        }
+                    </div>
+                </div>
+            </div>
 
-        window.verificarTecnico = async (id) => {
-            if(confirm("¿Aprobar técnico?")) {
-                await updateDoc(doc(db, "tecnicos", id), { verificado: true, documentosOK: true });
-            }
-        };
+            <div class="space-y-8">
+                <div class="uber-card p-6 rounded-2xl shadow-2xl h-[500px] flex flex-col">
+                    <h2 class="font-black text-xl mb-6 flex items-center gap-2">
+                        <i class="fas fa-exchange-alt text-gray-400"></i> Actividad Reciente
+                    </h2>
+                    <div id="listaTransacciones" class="flex-1 overflow-y-auto">
+                        <p class="text-gray-500 italic text-sm text-center mt-10">Sin actividad reciente.</p>
+                    </div>
+                </div>
+            </div>
 
-        document.getElementById('btnLogout').onclick = () => signOut(auth).then(() => window.location.href = 'login.html');
-    </script>
+        </div>
+    </main>
+
+    <script type="module" src="./firebase.js"></script>
+    <script type="module" src="./app-main.js"></script>
 </body>
 </html>
