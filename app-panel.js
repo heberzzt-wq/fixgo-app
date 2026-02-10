@@ -2,10 +2,7 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 3.0 (Edición Especial: Contador Online + Abel)
- * * DESCRIPCIÓN:
- * Lógica unificada para Admins, Técnicos y Clientes.
- * Incluye diagnóstico avanzado para el contador de técnicos.
+ * Versión: 3.1 (Integración: Bolsa de Trabajo)
  * ======================================================
  */
 
@@ -27,7 +24,7 @@ import {
 
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 
-console.log("🧩 app-panel.js V3.0: Sistema cargado. Buscando a Abel...");
+console.log("🧩 app-panel.js V3.1: Sistema cargado. Listo para asignaciones.");
 
 // ======================================================
 // 1. PANEL DE ADMINISTRADOR (Torre de Control)
@@ -35,19 +32,14 @@ console.log("🧩 app-panel.js V3.0: Sistema cargado. Buscando a Abel...");
 export async function iniciarPanelAdmin(user) {
     console.log("👮‍♂️ Iniciando lógica de ADMINISTRADOR...");
 
-    // Referencias al DOM (Admin)
     const contenedorTecnicos = document.getElementById("listaTecnicos");
     
-    // 1.A. ESCUCHAR LISTA DE APROBACIÓN (Técnicos Pendientes y Activos)
+    // 1.A. LISTA DE APROBACIÓN
     if (contenedorTecnicos) {
-        const qTecnicos = query(
-            collection(db, "users"), 
-            where("rol", "==", "tecnico")
-            // Quitamos orderBy por seguridad si faltan fechas
-        );
+        const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
 
         onSnapshot(qTecnicos, (snapshot) => {
-            contenedorTecnicos.innerHTML = ""; // Limpiar lista
+            contenedorTecnicos.innerHTML = ""; 
             
             if (snapshot.empty) {
                 contenedorTecnicos.innerHTML = '<p class="text-gray-500 italic p-4">No hay técnicos registrados.</p>';
@@ -56,12 +48,10 @@ export async function iniciarPanelAdmin(user) {
 
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
-                // Leemos estado (español) o status (inglés)
                 const estadoReal = data.estado || data.status || "pendiente";
                 const esPendiente = estadoReal === "pendiente";
                 const uidReal = docSnap.id; 
                 
-                // Renderizado de tarjeta
                 const card = document.createElement("div");
                 card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500/30' : 'bg-zinc-900 border-zinc-800'}`;
                 
@@ -91,15 +81,12 @@ export async function iniciarPanelAdmin(user) {
                             </div>
                         `}
                     </div>
-                    ${data.vehiculo ? `<p class="text-[10px] text-gray-500 mt-2"><i class="fas fa-car"></i> ${data.vehiculo}</p>` : ''}
                 `;
                 contenedorTecnicos.appendChild(card);
             });
 
-            // Reasignar eventos a botones
             document.querySelectorAll(".btn-aprobar").forEach(btn => {
                 btn.addEventListener("click", async (e) => {
-                    // Buscar el botón más cercano para evitar clicks en el ícono
                     const boton = e.target.closest("button");
                     const uid = boton.dataset.uid;
                     if(confirm("¿Aprobar técnico?")) await aprobarTecnico(uid);
@@ -108,57 +95,34 @@ export async function iniciarPanelAdmin(user) {
         });
     }
 
-    // 1.C. CONTADOR DE TÉCNICOS ONLINE (Cerebro Mejorado) 🧠
-    // Escuchamos la colección users solo buscando técnicos
+    // 1.B. CONTADOR ONLINE
     const qOnline = query(collection(db, "users"), where("rol", "==", "tecnico"));
-    
     onSnapshot(qOnline, (snapshot) => {
         let contOnline = 0;
-        
         snapshot.forEach(doc => {
-            const d = doc.data();
-            // Contamos si disponible es true
-            if (d.disponible === true) {
-                contOnline++;
-            }
+            if (doc.data().disponible === true) contOnline++;
         });
-
-        console.log(`📊 REPORTE DE ESTADO: Se encontraron ${contOnline} técnicos ONLINE.`);
-
-        // Buscamos el elemento en el HTML y ponemos el número
         const counterEl = document.getElementById("totalTecnicos");
         if (counterEl) {
             counterEl.innerText = contOnline;
-            counterEl.style.color = contOnline > 0 ? "#10b981" : "white"; // Verde si hay online
-        } else {
-            console.error("⚠️ ERROR VISUAL: No encuentro <h3 id='totalTecnicos'> en tu HTML.");
+            counterEl.style.color = contOnline > 0 ? "#10b981" : "white";
         }
-    });
-
-    // 1.D. ESCUCHAR SERVICIOS (Contador de Servicios Activos)
-    const qServicios = query(collection(db, "services"), where("estado", "in", ["pendiente", "asignado", "en_camino", "en_sitio"]));
-    onSnapshot(qServicios, (snap) => {
-        const counterServicios = document.getElementById("totalServicios"); // Asegúrate de tener este ID si quieres que funcione
-        // Si no tienes el ID en el HTML, esta parte fallará silenciosamente sin afectar lo demás
     });
 }
 
 // FUNCION AUXILIAR: Aprobar Técnico
 async function aprobarTecnico(uid) {
     try {
-        console.log("Intentando aprobar UID:", uid);
-        const ref = doc(db, "users", uid);
-        await updateDoc(ref, {
+        await updateDoc(doc(db, "users", uid), {
             estado: "activo",
             status: "activo", 
             verificado: true,
             aprobadoEn: serverTimestamp()
         });
-        
         alert("✅ Técnico aprobado correctamente.");
     } catch (error) {
-        console.error("Error aprobando técnico:", error);
-        alert("Error al aprobar: " + error.message);
+        console.error("Error aprobando:", error);
+        alert("Error: " + error.message);
     }
 }
 
@@ -176,17 +140,21 @@ export async function iniciarPanelTecnico(user) {
     const listaServicios = document.getElementById("listaServicios");
     const statusLabel = document.getElementById("statusLabel");
     const radarSection = document.getElementById("radarSection");
+    
+    // Referencias NUEVAS (Bolsa de Trabajo)
+    const seccionBolsa = document.getElementById("seccionBolsa");
+    const listaBolsa = document.getElementById("listaBolsa");
 
     // 2.A. INICIALIZAR ESTADO DEL USUARIO (ON/OFF)
     try {
         const tecnicoRef = doc(db, "users", user.uid);
-        // Usamos onSnapshot para que el switch se mueva solo si cambia la BD
+        
         onSnapshot(tecnicoRef, (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 const estadoReal = data.estado || data.status || "pendiente";
 
-                // Validación de Bloqueo Administrativo
+                // Validación de Bloqueo
                 if (estadoReal === "pendiente") {
                     if(statusLabel) statusLabel.innerText = "PENDIENTE DE APROBACIÓN";
                     if(toggleONOFF) {
@@ -196,30 +164,30 @@ export async function iniciarPanelTecnico(user) {
                     return; 
                 }
 
-                // Habilitar switch si está aprobado
+                // Sincronizar UI Switch
                 if(toggleONOFF) {
                     toggleONOFF.disabled = false;
-                    // Sincronizar visualmente con la base de datos
                     toggleONOFF.checked = data.disponible === true;
                     actualizarUIEstado(data.disponible);
                 }
 
-                // GPS Logic
+                // LÓGICA PRINCIPAL: GPS + BOLSA DE TRABAJO
                 if (data.disponible) {
                     iniciarTracking(user.uid);
+                    // Si está disponible, mostramos la bolsa y escuchamos ofertas
+                    if(seccionBolsa) seccionBolsa.classList.remove("hidden");
+                    escucharBolsaDeTrabajo(user); 
                 } else {
                     detenerTracking();
+                    // Si está offline, ocultamos la bolsa
+                    if(seccionBolsa) seccionBolsa.classList.add("hidden");
                 }
             }
         });
 
-        // Configurar Listener del Click (Para enviar el cambio)
         if (toggleONOFF) {
             toggleONOFF.addEventListener("change", async (e) => {
                 const estaDisponible = e.target.checked;
-                console.log("👆 Switch cambiado a:", estaDisponible);
-                
-                // Actualizamos disponibilidad en 'users'
                 await updateDoc(tecnicoRef, { 
                     disponible: estaDisponible,
                     last_seen: serverTimestamp()
@@ -231,7 +199,88 @@ export async function iniciarPanelTecnico(user) {
         console.error("Error obteniendo perfil técnico:", error);
     }
 
-    // 2.B. ESCUCHAR ASIGNACIONES DE SERVICIO
+    // 2.B. BOLSA DE TRABAJO (MERCADO DE SOLICITUDES) 🎣
+    // Esta función se activa solo cuando el técnico está ONLINE
+    function escucharBolsaDeTrabajo(tecnico) {
+        if(!listaBolsa) return;
+
+        // Buscamos todas las solicitudes pendientes
+        // (En el futuro filtraremos por categoría aquí)
+        const qBolsa = query(
+            collection(db, "services"), 
+            where("estado", "==", "pendiente"),
+            orderBy("created_at", "desc")
+        );
+
+        onSnapshot(qBolsa, (snap) => {
+            listaBolsa.innerHTML = "";
+            
+            // Si no hay ofertas, podemos ocultar la sección o mostrar mensaje
+            if(snap.empty) {
+                listaBolsa.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic">Escaneando zona... sin solicitudes.</p>`;
+                return;
+            }
+
+            snap.forEach((docSnap) => {
+                const servicio = docSnap.data();
+                const id = docSnap.id;
+
+                const card = document.createElement("div");
+                card.className = "bg-zinc-900 border border-zinc-700 p-4 rounded-xl mb-2 hover:border-emerald-500 transition-colors";
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="bg-emerald-500/10 text-emerald-500 text-[10px] font-bold px-2 py-1 rounded border border-emerald-500/20 uppercase">
+                            NUEVA OPORTUNIDAD
+                        </span>
+                        <span class="text-xs text-gray-400 font-bold">${servicio.categoria.toUpperCase()}</span>
+                    </div>
+                    <h4 class="text-white font-bold text-base mb-1">${servicio.zona || 'Ubicación Cliente'}</h4>
+                    <p class="text-gray-400 text-xs mb-3 italic">"${servicio.descripcion}"</p>
+                    
+                    <button class="btn-tomar w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase tracking-wide transition-transform active:scale-95 shadow-lg shadow-emerald-500/20" data-id="${id}">
+                        ¡TOMAR SERVICIO! ⚡
+                    </button>
+                `;
+                listaBolsa.appendChild(card);
+            });
+
+            // Asignar eventos a los botones
+            document.querySelectorAll(".btn-tomar").forEach(btn => {
+                btn.addEventListener("click", async (e) => {
+                    const servicioId = e.target.getAttribute("data-id");
+                    await tomarServicio(servicioId, tecnico);
+                });
+            });
+        });
+    }
+
+    // 2.C. ACCIÓN: TOMAR SERVICIO
+    async function tomarServicio(servicioId, tecnico) {
+        if(!confirm("¿Estás seguro de tomar este servicio?")) return;
+
+        try {
+            const servicioRef = doc(db, "services", servicioId);
+            
+            // Actualizamos el servicio: Cambia de pendiente -> asignado
+            // Y le pegamos la info del técnico que lo tomó
+            await updateDoc(servicioRef, {
+                estado: "asignado",
+                tecnico_id: tecnico.uid,
+                tecnico_nombre: tecnico.nombre || "Técnico FixGo",
+                tecnico_telefono: tecnico.telefono || "",
+                asignado_at: serverTimestamp()
+            });
+
+            alert("✅ ¡Servicio Asignado! Revisa tus misiones activas.");
+            
+        } catch (error) {
+            console.error("Error al tomar servicio:", error);
+            alert("¡Ups! Alguien más ganó el servicio o hubo un error.");
+        }
+    }
+
+
+    // 2.D. ESCUCHAR MIS MISIONES ACTIVAS (Lo que ya tenías)
     const qMisiones = query(
         collection(db, "services"),
         where("tecnico_id", "==", user.uid),
@@ -242,16 +291,19 @@ export async function iniciarPanelTecnico(user) {
         if (!listaServicios) return;
         listaServicios.innerHTML = "";
 
+        const panelAcciones = document.getElementById("panelAcciones");
+        
         if (snap.empty) {
-            listaServicios.innerHTML = `
-                <div class="text-center py-10 opacity-50">
-                    <i class="fas fa-mug-hot text-4xl mb-3"></i>
-                    <p>Esperando asignaciones...</p>
-                </div>
-            `;
-            if(document.getElementById("panelAcciones")) {
-                document.getElementById("panelAcciones").classList.add("translate-y-full");
+            // Solo mostramos "Esperando" si TAMPOCO hay ofertas en la bolsa
+            if (listaBolsa && listaBolsa.innerHTML.includes("sin solicitudes")) {
+                listaServicios.innerHTML = `
+                    <div class="text-center py-10 opacity-50">
+                        <i class="fas fa-mug-hot text-4xl mb-3"></i>
+                        <p>Esperando asignaciones...</p>
+                    </div>
+                `;
             }
+            if(panelAcciones) panelAcciones.classList.add("translate-y-full");
             return;
         }
 
@@ -259,17 +311,16 @@ export async function iniciarPanelTecnico(user) {
             const servicio = docSnap.data();
             const servicioId = docSnap.id;
             
-            const panelAcciones = document.getElementById("panelAcciones");
             if(panelAcciones) panelAcciones.classList.remove("translate-y-full");
 
             const card = document.createElement("div");
-            card.className = "bg-zinc-900 border border-emerald-500/50 p-6 rounded-2xl relative overflow-hidden";
+            card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl shadow-blue-900/10";
             card.innerHTML = `
-                <div class="absolute top-0 right-0 bg-emerald-500 text-black text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">
-                    ${servicio.estado.replace('_', ' ')}
+                <div class="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">
+                    EN PROCESO: ${servicio.estado.replace('_', ' ')}
                 </div>
                 <h3 class="text-xl font-black text-white mb-1 uppercase">${servicio.categoria}</h3>
-                <p class="text-gray-400 text-sm mb-4"><i class="fas fa-map-marker-alt text-emerald-500"></i> ${servicio.direccion}</p>
+                <p class="text-gray-400 text-sm mb-4"><i class="fas fa-map-marker-alt text-blue-500"></i> ${servicio.direccion}</p>
                 
                 <div class="bg-black/50 p-4 rounded-xl mb-4">
                     <p class="text-xs text-gray-500 uppercase font-bold">Problema Reportado:</p>
@@ -321,7 +372,7 @@ export async function iniciarPanelTecnico(user) {
         } else if (servicio.estado === "en_sitio") {
             if(btnLlegue) {
                 btnLlegue.classList.remove("hidden");
-                btnLlegue.innerText = "EN SITIO - INICIAR TRABAJO";
+                btnLlegue.innerText = "INICIAR TRABAJO";
                 btnLlegue.className = "w-full bg-blue-600 text-white font-black py-4 rounded-xl";
                 btnLlegue.onclick = () => alert("Aquí abriría el modal de Cotización/Inicio de trabajo (Próxima fase)");
             }
