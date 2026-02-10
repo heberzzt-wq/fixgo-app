@@ -2,11 +2,10 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 2.1 (Corrección: Colección Users Unificada)
+ * Versión: 2.2 (Corrección Final: Users + CreadoEn)
  * * DESCRIPCIÓN:
- * Este archivo contiene la lógica exclusiva para cada tipo de panel
- * (Admin, Técnico, Cliente). Se invoca desde app-main.js 
- * una vez que se confirma el rol del usuario.
+ * Lógica unificada para Admins, Técnicos y Clientes.
+ * Ahora apunta exclusivamente a la colección maestra 'users'.
  * ======================================================
  */
 
@@ -43,8 +42,9 @@ export async function iniciarPanelAdmin(user) {
 
     if (!contenedorTecnicos) return; // Protección si no estamos en admin.html
 
-    // 1.A. ESCUCHAR TÉCNICOS PENDIENTES DE APROBACIÓN
-    // CORRECCIÓN: Buscamos en 'users' donde rol == 'tecnico' y ordenamos por 'creadoEn'
+    // 1.A. ESCUCHAR TÉCNICOS EN LA COLECCIÓN 'USERS'
+    // CORRECCIÓN 1: Buscamos en 'users' filtrando por rol.
+    // CORRECCIÓN 2: Usamos 'creadoEn' que es como lo guarda firebase.js
     const qTecnicos = query(
         collection(db, "users"), 
         where("rol", "==", "tecnico"),
@@ -55,7 +55,7 @@ export async function iniciarPanelAdmin(user) {
         contenedorTecnicos.innerHTML = ""; // Limpiar lista
         
         if (snapshot.empty) {
-            contenedorTecnicos.innerHTML = '<p class="text-gray-500 italic p-4">No hay técnicos registrados.</p>';
+            contenedorTecnicos.innerHTML = '<p class="text-gray-500 italic p-4">No hay técnicos registrados en la base "users".</p>';
             return;
         }
 
@@ -112,13 +112,12 @@ export async function iniciarPanelAdmin(user) {
     const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"));
     
     // (Opcional) Renderizar servicios en otro contenedor si existiera en el HTML
-    // Por ahora nos enfocamos en técnicos que es la prioridad de registro.
 }
 
 // FUNCION AUXILIAR: Aprobar Técnico
 async function aprobarTecnico(uid) {
     try {
-        // CORRECCIÓN: Actualizamos en la colección unificada 'users'
+        // CORRECCIÓN: Actualizamos directamente en 'users'
         const ref = doc(db, "users", uid);
         await updateDoc(ref, {
             estado: "activo",
@@ -149,7 +148,7 @@ export async function iniciarPanelTecnico(user) {
     const radarSection = document.getElementById("radarSection");
 
     // 2.A. INICIALIZAR ESTADO DEL USUARIO (ON/OFF)
-    // CORRECCIÓN: Verificamos en 'users' en lugar de 'tecnicos'
+    // CORRECCIÓN: Leemos el estado desde 'users'
     try {
         const tecnicoRef = doc(db, "users", user.uid);
         const snapshot = await getDoc(tecnicoRef);
@@ -173,6 +172,7 @@ export async function iniciarPanelTecnico(user) {
                 // Listener del Switch
                 toggleONOFF.addEventListener("change", async (e) => {
                     const estaDisponible = e.target.checked;
+                    // Actualizamos disponibilidad en 'users'
                     await updateDoc(tecnicoRef, { disponible: estaDisponible });
                     actualizarUIEstado(estaDisponible);
                     
@@ -313,7 +313,8 @@ export async function iniciarPanelTecnico(user) {
             });
             
             // También actualizamos el estado del rastreo para el mapa del cliente
-            const rastreoRef = doc(db, "rastreo", "tecnicoActivo"); // OJO: En prod usar ID dinámico
+            // Usamos setDoc con merge por si no existe
+            const rastreoRef = doc(db, "rastreo", "tecnicoActivo"); 
             await setDoc(rastreoRef, {
                 estado: nuevoEstado === "en_camino" ? "En Ruta" : "En Sitio"
             }, { merge: true });
@@ -333,7 +334,7 @@ export async function iniciarPanelCliente(user) {
     console.log("👤 Iniciando lógica de CLIENTE...");
 
     // Referencias al DOM
-    const gridServicios = document.getElementById("gridServicios"); // Botones Road, Fix, Tech
+    const gridServicios = document.getElementById("gridServicios"); 
     const formulario = document.getElementById("nuevaSolicitudForm");
     const contenedorSolicitudes = document.getElementById("solicitudesCliente");
     const inputCategoria = document.getElementById("categoriaSeleccionada");
@@ -343,9 +344,7 @@ export async function iniciarPanelCliente(user) {
     const tarjetas = document.querySelectorAll(".service-card");
     tarjetas.forEach(card => {
         card.addEventListener("click", () => {
-            // Reset visual
             tarjetas.forEach(c => c.classList.remove("border-emerald-500", "bg-zinc-800"));
-            // Activar seleccionado
             card.classList.add("border-emerald-500", "bg-zinc-800");
             
             const categoria = card.dataset.category;
@@ -383,13 +382,12 @@ export async function iniciarPanelCliente(user) {
                     descripcion: descripcion,
                     estado: "pendiente", // El admin o algoritmo asignará
                     created_at: serverTimestamp(),
-                    zona: "Cancún Centro", // Placeholder geocerca
-                    precio_estimado: 0 // Se define después
+                    zona: "Cancún Centro", 
+                    precio_estimado: 0 
                 });
 
                 alert("✅ Solicitud enviada. Un técnico aceptará pronto.");
                 formulario.reset();
-                // Reset UI
                 tarjetas.forEach(c => c.classList.remove("border-emerald-500", "bg-zinc-800"));
                 if(labelServicio) labelServicio.innerText = "SERVICIO";
 
