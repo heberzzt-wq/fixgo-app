@@ -2,7 +2,7 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 5.0 (MULTIMEDIA: AUDIO, EVIDENCIA Y REPORTES)
+ * Versión: 6.0 (GOLD MASTER: PDF REPORTING ENABLED)
  * ======================================================
  */
 
@@ -12,12 +12,14 @@ import {
 
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 
+// IMPORTACIÓN DINÁMICA DE LIBRERÍA PDF (Sin tocar index.html)
+import { jsPDF } from "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+
 // ======================================================
 // 🔔 SISTEMA DE SONIDO CENTRALIZADO
 // ======================================================
-const audioNotificacion = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3'); // Sonido agradable
+const audioNotificacion = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3'); 
 
-// Truco para "desbloquear" el audio en navegadores modernos (Chrome/Safari bloquean autoplay)
 document.body.addEventListener('click', () => {
     audioNotificacion.play().then(() => {
         audioNotificacion.pause();
@@ -27,10 +29,10 @@ document.body.addEventListener('click', () => {
 
 function sonarAlerta() {
     audioNotificacion.currentTime = 0;
-    audioNotificacion.play().catch(e => console.log("🔊 Alerta visual: Audio bloqueado por navegador. Interactúa con la página."));
+    audioNotificacion.play().catch(e => console.log("🔊 Alerta visual."));
 }
 
-console.log("🚀 FIXGO 5.0: Multimedia y Reportes Activados.");
+console.log("🚀 FIXGO 6.0: Sistema de Reportes PDF Activo.");
 
 
 // ======================================================
@@ -157,14 +159,13 @@ export async function iniciarPanelTecnico(user) {
         el.toggleONOFF.addEventListener("change", (e) => updateDoc(doc(db, "users", user.uid), { disponible: e.target.checked }));
     }
 
-    // 2.B. BOLSA DE TRABAJO (CON SONIDO)
+    // 2.B. BOLSA DE TRABAJO
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
         onSnapshot(query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc")), (snap) => {
             contenedor.innerHTML = "";
             if(snap.empty) { contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic">Escaneando zona...</p>`; return; }
             
-            // 🔔 SONIDO SI HAY NUEVA SOLICITUD
             if(snap.docChanges().some(change => change.type === 'added')) sonarAlerta();
 
             snap.forEach((docSnap) => {
@@ -187,7 +188,7 @@ export async function iniciarPanelTecnico(user) {
         await updateDoc(doc(db, "services", id), { estado: "asignado", tecnico_id: uid, tecnico_nombre: nombre, asignado_at: serverTimestamp() });
     };
 
-    // 2.C. FLUJO DE TRABAJO Y EVIDENCIA
+    // 2.C. FLUJO ACTIVO
     onSnapshot(query(collection(db, "services"), where("tecnico_id", "==", user.uid), where("estado", "in", ["asignado", "en_camino", "en_sitio", "cotizando", "trabajando"])), (snap) => {
         const ls = el.listaServicios;
         const pa = el.panelAcciones;
@@ -201,7 +202,6 @@ export async function iniciarPanelTecnico(user) {
             const s = docSnap.data();
             const id = docSnap.id;
             
-            // Tarjeta Info
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl";
             card.innerHTML = `
@@ -215,7 +215,6 @@ export async function iniciarPanelTecnico(user) {
             `;
             ls.appendChild(card);
 
-            // Botones Lógica
             const btn1 = el.btnEnCamino;
             const btn2 = el.btnLlegue;
             btn1.classList.add("hidden"); btn2.classList.add("hidden");
@@ -238,13 +237,13 @@ export async function iniciarPanelTecnico(user) {
             }
             else if (s.estado === "cotizando") {
                 btn2.classList.remove("hidden");
-                btn2.innerText = "ESPERANDO AL CLIENTE...";
+                btn2.innerText = "ESPERANDO CLIENTE...";
                 btn2.disabled = true;
                 btn2.className = "w-full bg-zinc-700 text-gray-400 font-bold py-4 rounded-xl cursor-not-allowed";
             }
             else if (s.estado === "trabajando") {
                 btn2.classList.remove("hidden");
-                btn2.innerText = "📸 FINALIZAR Y EVIDENCIA";
+                btn2.innerText = "📸 FINALIZAR / EVIDENCIA";
                 btn2.disabled = false;
                 btn2.className = "w-full bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-xl text-lg";
                 btn2.onclick = () => mostrarModalEvidencia(id);
@@ -252,15 +251,12 @@ export async function iniciarPanelTecnico(user) {
         });
     });
 
-    // 📸 MODAL EVIDENCIA (REAL CON BASE64)
     function mostrarModalEvidencia(id) {
         if(document.getElementById("modalEvidencia")) return;
         const html = `
             <div id="modalEvidencia" class="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4">
                 <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700">
                     <h3 class="text-white font-black text-xl mb-4">REPORTE FINAL</h3>
-                    <p class="text-gray-400 text-xs mb-4">Sube fotos obligatorias para cerrar el cobro.</p>
-                    
                     <div class="space-y-4">
                         <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
                             <label class="block text-xs font-bold text-emerald-500 mb-2">FOTO ANTES</label>
@@ -283,7 +279,6 @@ export async function iniciarPanelTecnico(user) {
         document.getElementById("btnSubirEvidencia").onclick = async () => {
             const f1 = document.getElementById("fileAntes").files[0];
             const f2 = document.getElementById("fileDespues").files[0];
-
             if(!f1 || !f2) { alert("⚠️ Faltan fotos."); return; }
             
             const btn = document.getElementById("btnSubirEvidencia");
@@ -298,7 +293,7 @@ export async function iniciarPanelTecnico(user) {
                 finalizado_at: serverTimestamp()
             });
             document.getElementById("modalEvidencia").remove();
-            alert("✅ ¡Servicio Cerrado Exitosamente!");
+            alert("✅ ¡Servicio Cerrado!");
         };
     }
 
@@ -308,7 +303,7 @@ export async function iniciarPanelTecnico(user) {
             <div id="modalCot" class="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4">
                 <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700">
                     <h3 class="text-white font-black text-xl mb-2">COTIZAR SERVICIO</h3>
-                    <input id="inDiag" class="w-full bg-black p-3 text-white rounded-xl mb-2 text-sm border border-zinc-700" placeholder="Diagnóstico técnico...">
+                    <input id="inDiag" class="w-full bg-black p-3 text-white rounded-xl mb-2 text-sm border border-zinc-700" placeholder="Diagnóstico...">
                     <input id="inCosto" type="number" class="w-full bg-black p-3 text-white rounded-xl mb-4 text-xl font-bold border border-zinc-700" placeholder="$0.00">
                     <div class="flex gap-2">
                         <button onclick="document.getElementById('modalCot').remove()" class="flex-1 bg-zinc-800 text-white py-3 rounded-xl">CANCELAR</button>
@@ -385,7 +380,6 @@ export async function iniciarPanelCliente(user) {
         if(!el.lista) return;
         el.lista.innerHTML = "";
 
-        // 🔔 SONIDO SI HAY CAMBIOS (Ej. Técnico llegó)
         if(snap.docChanges().some(change => change.type === 'modified')) sonarAlerta();
 
         snap.forEach(docSnap => {
@@ -409,7 +403,10 @@ export async function iniciarPanelCliente(user) {
                     </div>
                 `;
             } else if (s.estado === "finalizado") {
-                // REPORTE AUTOMÁTICO VISIBLE
+                // REPORTE CON FOTOS Y BOTÓN PDF ACTIVO
+                // Pasamos todo el objeto 's' convertido a string para que el botón lo lea
+                const safeData = encodeURIComponent(JSON.stringify({...s, id: id}));
+                
                 contenido = `
                     <div class="bg-emerald-900/20 border border-emerald-500/50 p-4 rounded-xl mt-2">
                         <div class="flex justify-between items-center mb-2">
@@ -423,7 +420,9 @@ export async function iniciarPanelCliente(user) {
                             ${s.evidencia?.antes ? `<img src="${s.evidencia.antes}" class="w-1/2 h-20 object-cover rounded-lg border border-gray-700">` : ''}
                             ${s.evidencia?.despues ? `<img src="${s.evidencia.despues}" class="w-1/2 h-20 object-cover rounded-lg border border-gray-700">` : ''}
                         </div>
-                        <button class="w-full mt-3 bg-zinc-800 text-gray-400 text-xs py-2 rounded font-bold">DESCARGAR PDF (Demo)</button>
+                        <button onclick="window.generarPDF('${safeData}')" class="w-full mt-3 bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-2 rounded font-bold border border-white/20 transition-all flex items-center justify-center gap-2">
+                            <i class="fas fa-file-pdf text-red-500"></i> DESCARGAR REPORTE OFICIAL
+                        </button>
                     </div>
                 `;
             }
@@ -440,5 +439,69 @@ export async function iniciarPanelCliente(user) {
     window.responder = async (id, acepta) => {
         if(acepta) await updateDoc(doc(db, "services", id), { estado: "trabajando" });
         else if(confirm("¿Cancelar? Se cobrará visita.")) await updateDoc(doc(db, "services", id), { estado: "cancelado" });
+    };
+
+    // GENERADOR DE PDF (LÓGICA INTERNA)
+    window.generarPDF = (encodedData) => {
+        const data = JSON.parse(decodeURIComponent(encodedData));
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Estilos
+        doc.setFillColor(0, 0, 0); // Fondo Negro Header
+        doc.rect(0, 0, 210, 40, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(22);
+        doc.text("FIXGO MÉXICO", 20, 20);
+        doc.setFontSize(10);
+        doc.text("Reporte de Servicio Técnico", 20, 30);
+        doc.text(`ID: ${data.id}`, 150, 30);
+
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(12);
+        
+        let y = 60;
+        doc.text(`Cliente: ${data.cliente_nombre}`, 20, y);
+        doc.text(`Fecha: ${new Date(data.created_at.seconds * 1000).toLocaleDateString()}`, 120, y);
+        y+=10;
+        doc.text(`Dirección: ${data.direccion}`, 20, y);
+        y+=10;
+        doc.text(`Categoría: ${data.categoria.toUpperCase()}`, 20, y);
+        
+        y+=20;
+        doc.setDrawColor(0);
+        doc.line(20, y, 190, y);
+        y+=10;
+
+        doc.setFontSize(14);
+        doc.text("DIAGNÓSTICO Y COSTOS", 20, y);
+        y+=10;
+        doc.setFontSize(12);
+        doc.text(`Detalle: ${data.diagnostico}`, 20, y);
+        y+=10;
+        doc.setFont(undefined, 'bold');
+        doc.text(`TOTAL COBRADO: $${data.costo_final} MXN`, 20, y);
+        
+        y+=20;
+        doc.text("EVIDENCIA FOTOGRÁFICA:", 20, y);
+        y+=10;
+
+        // Intentar agregar imágenes si existen
+        try {
+            if(data.evidencia?.antes) {
+                doc.addImage(data.evidencia.antes, "JPEG", 20, y, 80, 60);
+                doc.text("ANTES", 55, y+65);
+            }
+            if(data.evidencia?.despues) {
+                doc.addImage(data.evidencia.despues, "JPEG", 110, y, 80, 60);
+                doc.text("DESPUÉS", 145, y+65);
+            }
+        } catch(e) {
+            console.error("Error al renderizar imágenes en PDF", e);
+            doc.text("(Imágenes no disponibles en este formato)", 20, y+10);
+        }
+
+        doc.save(`Reporte_FixGo_${data.id}.pdf`);
     };
 }
