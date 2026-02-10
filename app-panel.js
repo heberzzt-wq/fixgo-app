@@ -2,10 +2,10 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 2.3 (Corrección Final: ID de Documento + Robustez)
+ * Versión: 3.0 (Edición Especial: Contador Online + Abel)
  * * DESCRIPCIÓN:
  * Lógica unificada para Admins, Técnicos y Clientes.
- * Ahora apunta exclusivamente a la colección maestra 'users'.
+ * Incluye diagnóstico avanzado para el contador de técnicos.
  * ======================================================
  */
 
@@ -27,7 +27,7 @@ import {
 
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 
-console.log("🧩 app-panel.js: Módulo de Paneles cargado correctamente.");
+console.log("🧩 app-panel.js V3.0: Sistema cargado. Buscando a Abel...");
 
 // ======================================================
 // 1. PANEL DE ADMINISTRADOR (Torre de Control)
@@ -37,97 +37,120 @@ export async function iniciarPanelAdmin(user) {
 
     // Referencias al DOM (Admin)
     const contenedorTecnicos = document.getElementById("listaTecnicos");
-    const contenedorTransacciones = document.getElementById("listaTransacciones");
-    const contenedorLogs = document.getElementById("logsActividad");
+    
+    // 1.A. ESCUCHAR LISTA DE APROBACIÓN (Técnicos Pendientes y Activos)
+    if (contenedorTecnicos) {
+        const qTecnicos = query(
+            collection(db, "users"), 
+            where("rol", "==", "tecnico")
+            // Quitamos orderBy por seguridad si faltan fechas
+        );
 
-    if (!contenedorTecnicos) return; // Protección si no estamos en admin.html
-
-    // 1.A. ESCUCHAR TÉCNICOS EN LA COLECCIÓN 'USERS'
-    const qTecnicos = query(
-        collection(db, "users"), 
-        where("rol", "==", "tecnico"),
-        orderBy("creadoEn", "desc")
-    );
-
-    onSnapshot(qTecnicos, (snapshot) => {
-        contenedorTecnicos.innerHTML = ""; // Limpiar lista
-        
-        if (snapshot.empty) {
-            contenedorTecnicos.innerHTML = '<p class="text-gray-500 italic p-4">No hay técnicos registrados en la base "users".</p>';
-            return;
-        }
-
-        snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
+        onSnapshot(qTecnicos, (snapshot) => {
+            contenedorTecnicos.innerHTML = ""; // Limpiar lista
             
-            // CORRECCIÓN 1: Robustez para leer 'estado' o 'status'
-            const estadoReal = data.estado || data.status || "pendiente";
-            const esPendiente = estadoReal === "pendiente";
+            if (snapshot.empty) {
+                contenedorTecnicos.innerHTML = '<p class="text-gray-500 italic p-4">No hay técnicos registrados.</p>';
+                return;
+            }
 
-            // CORRECCIÓN 2: Obtenemos el ID real del documento (Soluciona el error undefined)
-            const uidReal = docSnap.id; 
-            
-            // Renderizado de tarjeta de técnico
-            const card = document.createElement("div");
-            card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500/30' : 'bg-zinc-900 border-zinc-800'}`;
-            
-            card.innerHTML = `
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h4 class="font-bold text-white">${data.nombre}</h4>
-                        <p class="text-xs text-gray-400">${data.email}</p>
-                        <p class="text-xs text-gray-400">Tel: ${data.telefono || 'N/A'}</p>
-                        <div class="mt-2 flex gap-2">
-                             <span class="text-[10px] px-2 py-0.5 rounded border ${
-                                estadoReal === 'activo' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-                             }">${estadoReal.toUpperCase()}</span>
-                             <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30">${data.nivel || 'Bronce'}</span>
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                // Leemos estado (español) o status (inglés)
+                const estadoReal = data.estado || data.status || "pendiente";
+                const esPendiente = estadoReal === "pendiente";
+                const uidReal = docSnap.id; 
+                
+                // Renderizado de tarjeta
+                const card = document.createElement("div");
+                card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500/30' : 'bg-zinc-900 border-zinc-800'}`;
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h4 class="font-bold text-white">${data.nombre}</h4>
+                            <p class="text-xs text-gray-400">${data.email || 'Sin email'}</p>
+                            <p class="text-xs text-gray-400">Tel: ${data.telefono || 'N/A'}</p>
+                            <div class="mt-2 flex gap-2">
+                                 <span class="text-[10px] px-2 py-0.5 rounded border ${
+                                    estadoReal === 'activo' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                                 }">${estadoReal.toUpperCase()}</span>
+                                 
+                                 ${data.disponible === true ? '<span class="text-[10px] bg-emerald-500 text-black font-bold px-2 py-0.5 rounded animate-pulse">ONLINE</span>' : ''}
+                                 
+                                 <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30">${data.nivel || 'Bronce'}</span>
+                            </div>
                         </div>
+                        ${esPendiente ? `
+                            <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded-lg transition-all" data-uid="${uidReal}">
+                                <i class="fas fa-check-circle"></i> APROBAR
+                            </button>
+                        ` : `
+                            <div class="text-zinc-600 text-xs text-right">
+                                <i class="fas fa-check-circle text-emerald-800"></i><br>VERIFICADO
+                            </div>
+                        `}
                     </div>
-                    ${esPendiente ? `
-                        <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded-lg transition-all" data-uid="${uidReal}">
-                            <i class="fas fa-check-circle"></i> APROBAR
-                        </button>
-                    ` : `
-                        <button class="bg-zinc-800 text-zinc-500 text-xs px-3 py-2 rounded-lg cursor-not-allowed">
-                            <i class="fas fa-user-check"></i> VERIFICADO
-                        </button>
-                    `}
-                </div>
-                ${data.vehiculo ? `<p class="text-[10px] text-gray-500 mt-2"><i class="fas fa-car"></i> ${data.vehiculo}</p>` : ''}
-            `;
+                    ${data.vehiculo ? `<p class="text-[10px] text-gray-500 mt-2"><i class="fas fa-car"></i> ${data.vehiculo}</p>` : ''}
+                `;
+                contenedorTecnicos.appendChild(card);
+            });
 
-            contenedorTecnicos.appendChild(card);
-        });
-
-        // Asignar eventos a botones de aprobar generados dinámicamente
-        document.querySelectorAll(".btn-aprobar").forEach(btn => {
-            btn.addEventListener("click", async (e) => {
-                // Buscamos el botón más cercano (por si se hizo click en el ícono)
-                const boton = e.target.closest("button");
-                const uid = boton.dataset.uid;
-
-                if(confirm("¿Estás seguro de APROBAR a este técnico? Podrá recibir servicios inmediatamente.")) {
-                    await aprobarTecnico(uid);
-                }
+            // Reasignar eventos a botones
+            document.querySelectorAll(".btn-aprobar").forEach(btn => {
+                btn.addEventListener("click", async (e) => {
+                    // Buscar el botón más cercano para evitar clicks en el ícono
+                    const boton = e.target.closest("button");
+                    const uid = boton.dataset.uid;
+                    if(confirm("¿Aprobar técnico?")) await aprobarTecnico(uid);
+                });
             });
         });
+    }
+
+    // 1.C. CONTADOR DE TÉCNICOS ONLINE (Cerebro Mejorado) 🧠
+    // Escuchamos la colección users solo buscando técnicos
+    const qOnline = query(collection(db, "users"), where("rol", "==", "tecnico"));
+    
+    onSnapshot(qOnline, (snapshot) => {
+        let contOnline = 0;
+        
+        snapshot.forEach(doc => {
+            const d = doc.data();
+            // Contamos si disponible es true
+            if (d.disponible === true) {
+                contOnline++;
+            }
+        });
+
+        console.log(`📊 REPORTE DE ESTADO: Se encontraron ${contOnline} técnicos ONLINE.`);
+
+        // Buscamos el elemento en el HTML y ponemos el número
+        const counterEl = document.getElementById("totalTecnicos");
+        if (counterEl) {
+            counterEl.innerText = contOnline;
+            counterEl.style.color = contOnline > 0 ? "#10b981" : "white"; // Verde si hay online
+        } else {
+            console.error("⚠️ ERROR VISUAL: No encuentro <h3 id='totalTecnicos'> en tu HTML.");
+        }
     });
 
-    // 1.B. ESCUCHAR SERVICIOS ACTIVOS (SOLICITUDES)
-    const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"));
-    
-    // (Opcional) Renderizar servicios en otro contenedor si existiera en el HTML
+    // 1.D. ESCUCHAR SERVICIOS (Contador de Servicios Activos)
+    const qServicios = query(collection(db, "services"), where("estado", "in", ["pendiente", "asignado", "en_camino", "en_sitio"]));
+    onSnapshot(qServicios, (snap) => {
+        const counterServicios = document.getElementById("totalServicios"); // Asegúrate de tener este ID si quieres que funcione
+        // Si no tienes el ID en el HTML, esta parte fallará silenciosamente sin afectar lo demás
+    });
 }
 
 // FUNCION AUXILIAR: Aprobar Técnico
 async function aprobarTecnico(uid) {
     try {
-        console.log("Intentando aprobar UID:", uid); // Debug
+        console.log("Intentando aprobar UID:", uid);
         const ref = doc(db, "users", uid);
         await updateDoc(ref, {
             estado: "activo",
-            status: "activo", // Actualizamos ambos por compatibilidad
+            status: "activo", 
             verificado: true,
             aprobadoEn: serverTimestamp()
         });
@@ -157,45 +180,53 @@ export async function iniciarPanelTecnico(user) {
     // 2.A. INICIALIZAR ESTADO DEL USUARIO (ON/OFF)
     try {
         const tecnicoRef = doc(db, "users", user.uid);
-        const snapshot = await getDoc(tecnicoRef);
-        
-        if (snapshot.exists()) {
-            const data = snapshot.data();
-            const estadoReal = data.estado || data.status || "pendiente";
-            
-            // Validación de Bloqueo Administrativo
-            if (estadoReal === "pendiente") {
-                alert("⚠️ TU CUENTA ESTÁ EN REVISIÓN.\n\nEl administrador debe aprobar tus documentos antes de poder recibir servicios.");
-                if(toggleONOFF) toggleONOFF.disabled = true;
-                if(statusLabel) statusLabel.innerText = "PENDIENTE DE APROBACIÓN";
-                return; // Detenemos ejecución crítica
-            }
+        // Usamos onSnapshot para que el switch se mueva solo si cambia la BD
+        onSnapshot(tecnicoRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const estadoReal = data.estado || data.status || "pendiente";
 
-            // Configurar Switch UI
-            if (toggleONOFF) {
-                toggleONOFF.checked = data.disponible || false;
-                actualizarUIEstado(data.disponible);
-                
-                // Listener del Switch
-                toggleONOFF.addEventListener("change", async (e) => {
-                    const estaDisponible = e.target.checked;
-                    // Actualizamos disponibilidad en 'users'
-                    await updateDoc(tecnicoRef, { disponible: estaDisponible });
-                    actualizarUIEstado(estaDisponible);
-                    
-                    if (estaDisponible) {
-                        iniciarTracking(user.uid); // GPS ON
-                    } else {
-                        detenerTracking(); // GPS OFF
+                // Validación de Bloqueo Administrativo
+                if (estadoReal === "pendiente") {
+                    if(statusLabel) statusLabel.innerText = "PENDIENTE DE APROBACIÓN";
+                    if(toggleONOFF) {
+                        toggleONOFF.disabled = true;
+                        toggleONOFF.checked = false;
                     }
-                });
-            }
+                    return; 
+                }
 
-            // Iniciar GPS si ya estaba activo
-            if (data.disponible) {
-                iniciarTracking(user.uid);
+                // Habilitar switch si está aprobado
+                if(toggleONOFF) {
+                    toggleONOFF.disabled = false;
+                    // Sincronizar visualmente con la base de datos
+                    toggleONOFF.checked = data.disponible === true;
+                    actualizarUIEstado(data.disponible);
+                }
+
+                // GPS Logic
+                if (data.disponible) {
+                    iniciarTracking(user.uid);
+                } else {
+                    detenerTracking();
+                }
             }
+        });
+
+        // Configurar Listener del Click (Para enviar el cambio)
+        if (toggleONOFF) {
+            toggleONOFF.addEventListener("change", async (e) => {
+                const estaDisponible = e.target.checked;
+                console.log("👆 Switch cambiado a:", estaDisponible);
+                
+                // Actualizamos disponibilidad en 'users'
+                await updateDoc(tecnicoRef, { 
+                    disponible: estaDisponible,
+                    last_seen: serverTimestamp()
+                });
+            });
         }
+
     } catch (error) {
         console.error("Error obteniendo perfil técnico:", error);
     }
@@ -218,23 +249,19 @@ export async function iniciarPanelTecnico(user) {
                     <p>Esperando asignaciones...</p>
                 </div>
             `;
-            // Ocultar botones de acción si no hay misión activa
             if(document.getElementById("panelAcciones")) {
                 document.getElementById("panelAcciones").classList.add("translate-y-full");
             }
             return;
         }
 
-        // Si hay misión activa
         snap.forEach((docSnap) => {
             const servicio = docSnap.data();
             const servicioId = docSnap.id;
             
-            // Mostrar Panel Flotante de Acciones
             const panelAcciones = document.getElementById("panelAcciones");
             if(panelAcciones) panelAcciones.classList.remove("translate-y-full");
 
-            // Renderizar Tarjeta de Misión
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-emerald-500/50 p-6 rounded-2xl relative overflow-hidden";
             card.innerHTML = `
@@ -259,13 +286,10 @@ export async function iniciarPanelTecnico(user) {
                 </div>
             `;
             listaServicios.appendChild(card);
-
-            // 2.C. LÓGICA DE BOTONES DE ESTADO (FLOW HAPPY PATH)
             gestionarBotonesMision(servicio, servicioId);
         });
     });
 
-    // Sub-función: Actualizar UI Visual del estado
     function actualizarUIEstado(activo) {
         if (!statusLabel || !radarSection) return;
         
@@ -280,20 +304,16 @@ export async function iniciarPanelTecnico(user) {
         }
     }
 
-    // Sub-función: Gestión de Botones de Misión
     function gestionarBotonesMision(servicio, id) {
-        // Reset botones
         if(btnEnCamino) btnEnCamino.classList.add("hidden");
         if(btnLlegue) btnLlegue.classList.add("hidden");
 
         if (servicio.estado === "asignado") {
-            // Mostrar botón "Voy en Camino"
             if(btnEnCamino) {
                 btnEnCamino.classList.remove("hidden");
                 btnEnCamino.onclick = () => actualizarEstadoServicio(id, "en_camino");
             }
         } else if (servicio.estado === "en_camino") {
-            // Mostrar botón "Ya Llegué"
             if(btnLlegue) {
                 btnLlegue.classList.remove("hidden");
                 btnLlegue.onclick = () => actualizarEstadoServicio(id, "en_sitio");
@@ -315,8 +335,6 @@ export async function iniciarPanelTecnico(user) {
                 estado: nuevoEstado,
                 updated_at: serverTimestamp()
             });
-            
-            // También actualizamos el estado del rastreo para el mapa del cliente
             const rastreoRef = doc(db, "rastreo", "tecnicoActivo"); 
             await setDoc(rastreoRef, {
                 estado: nuevoEstado === "en_camino" ? "En Ruta" : "En Sitio"
@@ -336,31 +354,25 @@ export async function iniciarPanelTecnico(user) {
 export async function iniciarPanelCliente(user) {
     console.log("👤 Iniciando lógica de CLIENTE...");
 
-    // Referencias al DOM
-    const gridServicios = document.getElementById("gridServicios"); 
     const formulario = document.getElementById("nuevaSolicitudForm");
     const contenedorSolicitudes = document.getElementById("solicitudesCliente");
     const inputCategoria = document.getElementById("categoriaSeleccionada");
     const labelServicio = document.getElementById("btnLabel");
 
-    // 3.A. SELECCIÓN DE SERVICIOS (UI)
     const tarjetas = document.querySelectorAll(".service-card");
     tarjetas.forEach(card => {
         card.addEventListener("click", () => {
             tarjetas.forEach(c => c.classList.remove("border-emerald-500", "bg-zinc-800"));
             card.classList.add("border-emerald-500", "bg-zinc-800");
-            
             const categoria = card.dataset.category;
             if(inputCategoria) inputCategoria.value = categoria;
             if(labelServicio) labelServicio.innerText = categoria.toUpperCase();
         });
     });
 
-    // 3.B. CREAR SOLICITUD
     if (formulario) {
         formulario.addEventListener("submit", async (e) => {
             e.preventDefault();
-            
             const categoria = inputCategoria ? inputCategoria.value : null;
             const direccion = formulario.querySelector('[name="direccion"]').value;
             const descripcion = formulario.querySelector('[name="descripcion"]').value;
@@ -375,7 +387,6 @@ export async function iniciarPanelCliente(user) {
             btnSubmit.innerText = "BUSCANDO TÉCNICOS...";
 
             try {
-                // Crear documento en colección 'services'
                 await addDoc(collection(db, "services"), {
                     cliente_id: user.uid,
                     cliente_nombre: user.nombre || "Cliente",
@@ -388,7 +399,6 @@ export async function iniciarPanelCliente(user) {
                     zona: "Cancún Centro", 
                     precio_estimado: 0 
                 });
-
                 alert("✅ Solicitud enviada. Un técnico aceptará pronto.");
                 formulario.reset();
                 tarjetas.forEach(c => c.classList.remove("border-emerald-500", "bg-zinc-800"));
@@ -404,7 +414,6 @@ export async function iniciarPanelCliente(user) {
         });
     }
 
-    // 3.C. MONITORIZAR SOLICITUDES ACTIVAS
     const qHistorial = query(
         collection(db, "services"),
         where("cliente_id", "==", user.uid),
@@ -424,7 +433,6 @@ export async function iniciarPanelCliente(user) {
             const data = docSnap.data();
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-white/10 p-4 rounded-xl mb-3";
-            
             let colorEstado = "text-yellow-500";
             if(data.estado === "finalizado") colorEstado = "text-emerald-500";
             if(data.estado === "asignado") colorEstado = "text-blue-500";
