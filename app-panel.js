@@ -2,88 +2,104 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 4.0 (PRODUCCIÓN REAL - FLUJO COMPLETO)
+ * Versión: 5.0 (MULTIMEDIA: AUDIO, EVIDENCIA Y REPORTES)
  * ======================================================
  */
 
 import { 
-    db, auth, doc, getDoc, updateDoc, collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, setDoc 
+    db, auth, doc, updateDoc, collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, setDoc 
 } from "./firebase.js";
 
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 
-// SONIDOS DEL SISTEMA
-const audioAlerta = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); // Sonido tipo "Ping"
+// ======================================================
+// 🔔 SISTEMA DE SONIDO CENTRALIZADO
+// ======================================================
+const audioNotificacion = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3'); // Sonido agradable
 
-console.log("🚀 FIXGO 4.0: Sistema de Operaciones en Tiempo Real INICIADO.");
+// Truco para "desbloquear" el audio en navegadores modernos (Chrome/Safari bloquean autoplay)
+document.body.addEventListener('click', () => {
+    audioNotificacion.play().then(() => {
+        audioNotificacion.pause();
+        audioNotificacion.currentTime = 0;
+    }).catch(e => {});
+}, { once: true });
+
+function sonarAlerta() {
+    audioNotificacion.currentTime = 0;
+    audioNotificacion.play().catch(e => console.log("🔊 Alerta visual: Audio bloqueado por navegador. Interactúa con la página."));
+}
+
+console.log("🚀 FIXGO 5.0: Multimedia y Reportes Activados.");
+
 
 // ======================================================
-// 1. PANEL DE ADMINISTRADOR (Torre de Control)
+// 1. PANEL DE ADMINISTRADOR
 // ======================================================
 export async function iniciarPanelAdmin(user) {
-    const contenedorTecnicos = document.getElementById("listaTecnicos");
-    const contenedorActividad = document.getElementById("listaTransacciones");
-    const contadorServicios = document.querySelector(".fa-bolt")?.closest(".uber-card")?.querySelector("h3");
-    const contadorIngresos = document.querySelector(".fa-wallet")?.closest(".uber-card")?.querySelector("h3");
+    const elementos = {
+        lista: document.getElementById("listaTecnicos"),
+        actividad: document.getElementById("listaTransacciones"),
+        countServ: document.querySelector(".fa-bolt")?.closest(".uber-card")?.querySelector("h3"),
+        countMoney: document.querySelector(".fa-wallet")?.closest(".uber-card")?.querySelector("h3")
+    };
 
-    // 1.A. TÉCNICOS Y APROBACIÓN
-    if (contenedorTecnicos) {
+    // 1.A. TÉCNICOS
+    if (elementos.lista) {
         onSnapshot(query(collection(db, "users"), where("rol", "==", "tecnico")), (snap) => {
-            contenedorTecnicos.innerHTML = ""; 
-            if (snap.empty) { contenedorTecnicos.innerHTML = '<p class="text-gray-500 p-4">Sin técnicos.</p>'; return; }
+            elementos.lista.innerHTML = ""; 
+            if (snap.empty) { elementos.lista.innerHTML = '<p class="text-gray-500 p-4">Sin técnicos.</p>'; return; }
 
             snap.forEach((docSnap) => {
                 const data = docSnap.data();
                 const esPendiente = (data.estado || "pendiente") === "pendiente";
-                const tieneINE = data.documentos?.ine ? '✅ INE' : '❌ INE';
-                const tieneCSF = data.documentos?.csf ? '✅ CSF' : '❌ CSF';
+                const ineCheck = data.documentos?.ine ? '✅' : '❌';
+                const csfCheck = data.documentos?.csf ? '✅' : '❌';
 
                 const card = document.createElement("div");
                 card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500' : 'bg-zinc-900 border-zinc-800'}`;
                 card.innerHTML = `
-                    <div class="flex justify-between">
+                    <div class="flex justify-between items-center">
                         <div>
-                            <h4 class="font-bold text-white">${data.nombre} ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded">REV</span>' : ''}</h4>
-                            <p class="text-xs text-gray-400">${data.email} | ${data.telefono || ''}</p>
-                            <div class="mt-1 text-[10px] text-emerald-400">${tieneINE} | ${tieneCSF}</div>
+                            <h4 class="font-bold text-white text-sm">${data.nombre} ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded">NUEVO</span>' : ''}</h4>
+                            <div class="text-[10px] text-gray-400 mt-1">INE: ${ineCheck} | CSF: ${csfCheck}</div>
                         </div>
-                        ${esPendiente ? `<button class="btn-aprobar bg-emerald-500 text-black font-bold text-xs px-3 py-1 rounded" data-uid="${docSnap.id}">APROBAR</button>` : `<i class="fas fa-check-circle text-emerald-800"></i>`}
+                        ${esPendiente ? `<button class="bg-emerald-500 text-black font-bold text-xs px-3 py-1 rounded hover:scale-105 transition-transform" onclick="window.aprobarTecnico('${docSnap.id}')">APROBAR</button>` : `<i class="fas fa-check-circle text-emerald-500"></i>`}
                     </div>
                 `;
-                contenedorTecnicos.appendChild(card);
+                elementos.lista.appendChild(card);
             });
-            document.querySelectorAll(".btn-aprobar").forEach(btn => btn.onclick = () => aprobarTecnico(btn.dataset.uid));
         });
     }
 
-    // 1.B. MONITOREO DE SERVICIOS
+    // 1.B. ACTIVIDAD GLOBAL
     onSnapshot(query(collection(db, "services"), orderBy("created_at", "desc")), (snap) => {
-        if(contenedorActividad) contenedorActividad.innerHTML = "";
+        if(elementos.actividad) elementos.actividad.innerHTML = "";
         let activos = 0, ingresos = 0;
 
         snap.forEach(docSnap => {
             const data = docSnap.data();
             if (!["finalizado", "cancelado"].includes(data.estado)) activos++;
-            if (data.costo_final) ingresos += (data.costo_final * 0.32); // 32% Comisión
+            if (data.costo_final) ingresos += (data.costo_final * 0.32);
 
-            if (contenedorActividad && contenedorActividad.children.length < 10) {
+            if (elementos.actividad && elementos.actividad.children.length < 10) {
                 const item = document.createElement("div");
                 item.className = "flex justify-between items-center border-b border-white/5 py-3";
                 item.innerHTML = `
-                    <div><p class="text-sm font-bold text-white uppercase">${data.categoria}</p><p class="text-[10px] text-gray-500">${data.zona || 'Cancún'}</p></div>
-                    <div class="text-right"><p class="text-xs font-bold text-emerald-500 uppercase">${data.estado}</p></div>
+                    <div><p class="text-xs font-bold text-white uppercase">${data.categoria}</p><p class="text-[10px] text-gray-500">${data.cliente_nombre || 'Cliente'}</p></div>
+                    <div class="text-right"><p class="text-[10px] font-bold text-emerald-500 uppercase">${data.estado}</p></div>
                 `;
-                contenedorActividad.appendChild(item);
+                elementos.actividad.appendChild(item);
             }
         });
-        if(contadorServicios) contadorServicios.innerText = activos;
-        if(contadorIngresos) contadorIngresos.innerText = `$${ingresos.toFixed(2)}`;
+        if(elementos.countServ) elementos.countServ.innerText = activos;
+        if(elementos.countMoney) elementos.countMoney.innerText = `$${ingresos.toFixed(2)}`;
     });
-}
 
-async function aprobarTecnico(uid) {
-    await updateDoc(doc(db, "users", uid), { estado: "activo", status: "activo", verificado: true });
-    alert("✅ Técnico Aprobado");
+    window.aprobarTecnico = async (uid) => {
+        await updateDoc(doc(db, "users", uid), { estado: "activo", status: "activo", verificado: true });
+        alert("✅ Técnico Aprobado");
+    };
 }
 
 
@@ -91,93 +107,90 @@ async function aprobarTecnico(uid) {
 // 2. PANEL DE TÉCNICO (Socio Operador)
 // ======================================================
 export async function iniciarPanelTecnico(user) {
-    const elementos = {
-        btnEnCamino: document.getElementById("btnEnCamino"),
-        btnLlegue: document.getElementById("btnLlegue"),
-        panelAcciones: document.getElementById("panelAcciones"),
-        toggleONOFF: document.getElementById("toggleONOFF"),
-        listaServicios: document.getElementById("listaServicios"),
+    const el = {
         statusLabel: document.getElementById("statusLabel"),
+        toggleONOFF: document.getElementById("toggleONOFF"),
         radarSection: document.getElementById("radarSection"),
         seccionBolsa: document.getElementById("seccionBolsa"),
-        listaBolsa: document.getElementById("listaBolsa")
+        listaBolsa: document.getElementById("listaBolsa"),
+        listaServicios: document.getElementById("listaServicios"),
+        panelAcciones: document.getElementById("panelAcciones"),
+        btnEnCamino: document.getElementById("btnEnCamino"),
+        btnLlegue: document.getElementById("btnLlegue")
     };
 
-    // 2.A. ESTADO DEL TÉCNICO
+    // 2.A. PERFIL Y ESTADO
     onSnapshot(doc(db, "users", user.uid), (docSnap) => {
         if (!docSnap.exists()) return;
         const data = docSnap.data();
         const estado = data.estado || "pendiente";
 
         if (estado === "pendiente") {
-            if(elementos.statusLabel) elementos.statusLabel.innerText = "EN REVISIÓN";
-            if(elementos.toggleONOFF) { elementos.toggleONOFF.disabled = true; elementos.toggleONOFF.checked = false; }
-            if(elementos.seccionBolsa) elementos.seccionBolsa.innerHTML = '<p class="text-yellow-500 text-center text-xs p-4">🔒 Cuenta en revisión.</p>';
+            el.statusLabel.innerText = "EN REVISIÓN";
+            if(el.toggleONOFF) { el.toggleONOFF.disabled = true; el.toggleONOFF.checked = false; }
+            if(el.seccionBolsa) el.seccionBolsa.innerHTML = '<div class="p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-xl text-center text-yellow-500 text-xs">🔒 Esperando aprobación de Admin.</div>';
             return;
         }
 
-        if (elementos.toggleONOFF) {
-            elementos.toggleONOFF.disabled = false;
-            elementos.toggleONOFF.checked = data.disponible;
+        if (el.toggleONOFF) {
+            el.toggleONOFF.disabled = false;
+            el.toggleONOFF.checked = data.disponible;
         }
-        
+
         if (data.disponible) {
             iniciarTracking(user.uid);
-            elementos.seccionBolsa?.classList.remove("hidden");
-            escucharBolsa(user, elementos.listaBolsa);
-            elementos.statusLabel.innerText = "EN LÍNEA";
-            elementos.statusLabel.className = "bg-emerald-500/20 text-emerald-500 status-badge font-bold animate-pulse";
+            el.seccionBolsa?.classList.remove("hidden");
+            escucharBolsa(user, el.listaBolsa);
+            el.statusLabel.innerText = "EN LÍNEA";
+            el.statusLabel.className = "bg-emerald-500/20 text-emerald-500 status-badge font-bold animate-pulse";
+            el.radarSection?.classList.remove("opacity-50", "grayscale");
         } else {
             detenerTracking();
-            elementos.seccionBolsa?.classList.add("hidden");
-            elementos.statusLabel.innerText = "OFFLINE";
-            elementos.statusLabel.className = "bg-red-500/20 text-red-500 status-badge font-bold";
+            el.seccionBolsa?.classList.add("hidden");
+            el.statusLabel.innerText = "OFFLINE";
+            el.statusLabel.className = "bg-red-500/20 text-red-500 status-badge font-bold";
+            el.radarSection?.classList.add("opacity-50", "grayscale");
         }
     });
 
-    if (elementos.toggleONOFF) {
-        elementos.toggleONOFF.addEventListener("change", (e) => updateDoc(doc(db, "users", user.uid), { disponible: e.target.checked }));
+    if (el.toggleONOFF) {
+        el.toggleONOFF.addEventListener("change", (e) => updateDoc(doc(db, "users", user.uid), { disponible: e.target.checked }));
     }
 
-    // 2.B. BOLSA DE TRABAJO (Solo pendientes)
+    // 2.B. BOLSA DE TRABAJO (CON SONIDO)
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
-        const q = query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc"));
-        onSnapshot(q, (snap) => {
+        onSnapshot(query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc")), (snap) => {
             contenedor.innerHTML = "";
             if(snap.empty) { contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic">Escaneando zona...</p>`; return; }
             
-            // SONIDO SI LLEGA NUEVA SOLICITUD
-            if(snap.docChanges().some(change => change.type === 'added')) {
-                audioAlerta.play().catch(e => console.log("Audio bloqueado por navegador"));
-            }
+            // 🔔 SONIDO SI HAY NUEVA SOLICITUD
+            if(snap.docChanges().some(change => change.type === 'added')) sonarAlerta();
 
             snap.forEach((docSnap) => {
                 const s = docSnap.data();
                 const card = document.createElement("div");
-                card.className = "bg-zinc-900 border border-zinc-700 p-4 rounded-xl mb-2 hover:border-emerald-500 transition-colors";
+                card.className = "bg-zinc-900 border border-zinc-700 p-4 rounded-xl mb-2 animate-pulse border-emerald-500";
                 card.innerHTML = `
-                    <div class="flex justify-between items-center mb-2"><span class="text-emerald-500 text-[10px] font-bold">NUEVA SOLICITUD ($550 RETENIDOS)</span><span class="text-white font-bold">${s.categoria.toUpperCase()}</span></div>
-                    <p class="text-gray-400 text-xs mb-3 italic">"${s.descripcion}"</p>
-                    <button class="w-full bg-emerald-500 text-black font-black py-3 rounded-lg text-xs uppercase" onclick="window.tomarServicio('${docSnap.id}', '${tecnico.uid}', '${tecnico.nombre}')">ACEPTAR SERVICIO</button>
+                    <div class="flex justify-between items-center mb-2"><span class="bg-emerald-500 text-black text-[10px] font-black px-2 rounded">NUEVA SOLICITUD</span><span class="text-white font-bold text-xs">${s.categoria.toUpperCase()}</span></div>
+                    <p class="text-gray-300 text-sm mb-3 font-medium">"${s.descripcion}"</p>
+                    <p class="text-gray-500 text-xs mb-3"><i class="fas fa-map-marker-alt"></i> ${s.zona || 'Cancún Centro'}</p>
+                    <button class="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase" onclick="window.aceptarServicio('${docSnap.id}', '${tecnico.uid}', '${tecnico.nombre}')">ACEPTAR (BLOQUEAR $550)</button>
                 `;
                 contenedor.appendChild(card);
             });
         });
     }
 
-    // EXPORTAMOS LA FUNCIÓN AL WINDOW PARA EL ONCLICK
-    window.tomarServicio = async (id, uid, nombre) => {
-        if(!confirm("¿Aceptar servicio y bloquear $550 al cliente?")) return;
-        await updateDoc(doc(db, "services", id), {
-            estado: "asignado", tecnico_id: uid, tecnico_nombre: nombre, asignado_at: serverTimestamp()
-        });
+    window.aceptarServicio = async (id, uid, nombre) => {
+        if(!confirm("¿Aceptar servicio?")) return;
+        await updateDoc(doc(db, "services", id), { estado: "asignado", tecnico_id: uid, tecnico_nombre: nombre, asignado_at: serverTimestamp() });
     };
 
-    // 2.C. FLUJO ACTIVO (MISIONES)
+    // 2.C. FLUJO DE TRABAJO Y EVIDENCIA
     onSnapshot(query(collection(db, "services"), where("tecnico_id", "==", user.uid), where("estado", "in", ["asignado", "en_camino", "en_sitio", "cotizando", "trabajando"])), (snap) => {
-        const ls = elementos.listaServicios;
-        const pa = elementos.panelAcciones;
+        const ls = el.listaServicios;
+        const pa = el.panelAcciones;
         if (!ls) return;
         ls.innerHTML = "";
         
@@ -188,7 +201,7 @@ export async function iniciarPanelTecnico(user) {
             const s = docSnap.data();
             const id = docSnap.id;
             
-            // Render Tarjeta
+            // Tarjeta Info
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl";
             card.innerHTML = `
@@ -197,74 +210,129 @@ export async function iniciarPanelTecnico(user) {
                 <p class="text-gray-400 text-sm mb-4"><i class="fas fa-map-marker-alt text-blue-500"></i> ${s.direccion}</p>
                 <div class="flex gap-2">
                     <a href="https://waze.com/ul?q=${encodeURIComponent(s.direccion)}" target="_blank" class="flex-1 bg-blue-500 text-white font-bold py-3 rounded-xl text-center text-sm">WAZE</a>
+                    <a href="tel:${s.cliente_telefono}" class="bg-zinc-800 text-white font-bold py-3 px-4 rounded-xl"><i class="fas fa-phone"></i></a>
                 </div>
             `;
             ls.appendChild(card);
 
-            // GESTIÓN DE BOTONES POR ESTADO
-            const btn1 = elementos.btnEnCamino;
-            const btn2 = elementos.btnLlegue;
+            // Botones Lógica
+            const btn1 = el.btnEnCamino;
+            const btn2 = el.btnLlegue;
             btn1.classList.add("hidden"); btn2.classList.add("hidden");
 
             if (s.estado === "asignado") {
                 btn1.classList.remove("hidden");
                 btn1.innerText = "VOY EN CAMINO";
-                btn1.onclick = () => actualizarEstado(id, "en_camino");
+                btn1.onclick = () => updateDoc(doc(db, "services", id), { estado: "en_camino" });
             } 
             else if (s.estado === "en_camino") {
                 btn2.classList.remove("hidden");
-                btn2.innerText = "YA LLEGUÉ AL SITIO";
-                btn2.onclick = () => {
-                    // AQUÍ IRÍA LA VALIDACIÓN DE GEOCERCA (100m)
-                    // Por ahora simulamos que siempre está cerca
-                    actualizarEstado(id, "en_sitio");
-                };
+                btn2.innerText = "YA LLEGUÉ";
+                btn2.onclick = () => updateDoc(doc(db, "services", id), { estado: "en_sitio" });
             }
             else if (s.estado === "en_sitio") {
                 btn2.classList.remove("hidden");
-                btn2.innerText = "INICIAR COTIZACIÓN / TRABAJO";
-                btn2.classList.remove("bg-emerald-600"); btn2.classList.add("bg-blue-600");
+                btn2.innerText = "INICIAR COTIZACIÓN";
+                btn2.className = "w-full bg-blue-600 text-white font-black py-4 rounded-xl text-lg";
                 btn2.onclick = () => mostrarModalCotizacion(id);
             }
             else if (s.estado === "cotizando") {
                 btn2.classList.remove("hidden");
-                btn2.innerText = "ESPERANDO APROBACIÓN CLIENTE...";
+                btn2.innerText = "ESPERANDO AL CLIENTE...";
                 btn2.disabled = true;
-                btn2.classList.add("opacity-50", "cursor-not-allowed");
+                btn2.className = "w-full bg-zinc-700 text-gray-400 font-bold py-4 rounded-xl cursor-not-allowed";
             }
             else if (s.estado === "trabajando") {
                 btn2.classList.remove("hidden");
-                btn2.innerText = "FINALIZAR Y SUBIR EVIDENCIA";
-                btn2.disabled = false; btn2.classList.remove("opacity-50", "bg-blue-600"); btn2.classList.add("bg-red-600");
+                btn2.innerText = "📸 FINALIZAR Y EVIDENCIA";
+                btn2.disabled = false;
+                btn2.className = "w-full bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-xl text-lg";
                 btn2.onclick = () => mostrarModalEvidencia(id);
             }
         });
     });
 
-    async function actualizarEstado(id, estado, extras = {}) {
-        await updateDoc(doc(db, "services", id), { estado: estado, ...extras });
-    }
-
-    // MODAL COTIZACIÓN
-    function mostrarModalCotizacion(id) {
-        const precio = prompt("Ingresa el COSTO TOTAL FINAL del servicio ($):");
-        if(!precio) return;
-        const notas = prompt("Ingresa el detalle de los extras (si aplica):", "Servicio estándar");
-        
-        actualizarEstado(id, "cotizando", { 
-            costo_final: parseFloat(precio), 
-            diagnostico: notas 
-        });
-        alert("⏳ Cotización enviada al cliente. Espera su aprobación.");
-    }
-
-    // MODAL EVIDENCIA (Simulado)
+    // 📸 MODAL EVIDENCIA (REAL CON BASE64)
     function mostrarModalEvidencia(id) {
-        if(!confirm("¿Ya tomaste las fotos del 'Después'?")) return;
-        // Aquí iría el upload a Storage. Simulamos éxito.
-        actualizarEstado(id, "finalizado", { finalizado_at: serverTimestamp() });
-        alert("✅ Servicio Finalizado. Reporte generado.");
+        if(document.getElementById("modalEvidencia")) return;
+        const html = `
+            <div id="modalEvidencia" class="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4">
+                <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700">
+                    <h3 class="text-white font-black text-xl mb-4">REPORTE FINAL</h3>
+                    <p class="text-gray-400 text-xs mb-4">Sube fotos obligatorias para cerrar el cobro.</p>
+                    
+                    <div class="space-y-4">
+                        <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
+                            <label class="block text-xs font-bold text-emerald-500 mb-2">FOTO ANTES</label>
+                            <input type="file" id="fileAntes" accept="image/*" class="text-xs text-white">
+                        </div>
+                        <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
+                            <label class="block text-xs font-bold text-emerald-500 mb-2">FOTO DESPUÉS</label>
+                            <input type="file" id="fileDespues" accept="image/*" class="text-xs text-white">
+                        </div>
+                    </div>
+                    <div class="flex gap-3 mt-6">
+                        <button onclick="document.getElementById('modalEvidencia').remove()" class="flex-1 bg-zinc-800 text-white py-3 rounded-xl font-bold">CANCELAR</button>
+                        <button id="btnSubirEvidencia" class="flex-1 bg-emerald-500 text-black py-3 rounded-xl font-black">FINALIZAR</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+
+        document.getElementById("btnSubirEvidencia").onclick = async () => {
+            const f1 = document.getElementById("fileAntes").files[0];
+            const f2 = document.getElementById("fileDespues").files[0];
+
+            if(!f1 || !f2) { alert("⚠️ Faltan fotos."); return; }
+            
+            const btn = document.getElementById("btnSubirEvidencia");
+            btn.innerText = "SUBIENDO..."; btn.disabled = true;
+
+            const b64_1 = await toBase64(f1);
+            const b64_2 = await toBase64(f2);
+
+            await updateDoc(doc(db, "services", id), {
+                estado: "finalizado",
+                evidencia: { antes: b64_1, despues: b64_2 },
+                finalizado_at: serverTimestamp()
+            });
+            document.getElementById("modalEvidencia").remove();
+            alert("✅ ¡Servicio Cerrado Exitosamente!");
+        };
     }
+
+    function mostrarModalCotizacion(id) {
+        if(document.getElementById("modalCot")) return;
+        const html = `
+            <div id="modalCot" class="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4">
+                <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700">
+                    <h3 class="text-white font-black text-xl mb-2">COTIZAR SERVICIO</h3>
+                    <input id="inDiag" class="w-full bg-black p-3 text-white rounded-xl mb-2 text-sm border border-zinc-700" placeholder="Diagnóstico técnico...">
+                    <input id="inCosto" type="number" class="w-full bg-black p-3 text-white rounded-xl mb-4 text-xl font-bold border border-zinc-700" placeholder="$0.00">
+                    <div class="flex gap-2">
+                        <button onclick="document.getElementById('modalCot').remove()" class="flex-1 bg-zinc-800 text-white py-3 rounded-xl">CANCELAR</button>
+                        <button id="btnEnviarCot" class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl">ENVIAR</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+        document.getElementById("btnEnviarCot").onclick = async () => {
+            const diag = document.getElementById("inDiag").value;
+            const costo = document.getElementById("inCosto").value;
+            if(!diag || !costo) return alert("Llena todo");
+            await updateDoc(doc(db, "services", id), { estado: "cotizando", diagnostico: diag, costo_final: parseFloat(costo) });
+            document.getElementById("modalCot").remove();
+        };
+    }
+
+    const toBase64 = file => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+    });
 }
 
 
@@ -272,98 +340,105 @@ export async function iniciarPanelTecnico(user) {
 // 3. PANEL DE CLIENTE (Usuario Final)
 // ======================================================
 export async function iniciarPanelCliente(user) {
-    const elementos = {
+    const el = {
         form: document.getElementById("nuevaSolicitudForm"),
         lista: document.getElementById("solicitudesCliente"),
         inputCat: document.getElementById("categoriaSeleccionada"),
+        labelServicio: document.getElementById("btnLabel"),
         tarjetas: document.querySelectorAll(".service-card")
     };
 
-    // SELECCIÓN DE CATEGORÍA
-    elementos.tarjetas.forEach(card => {
+    el.tarjetas.forEach(card => {
         card.addEventListener("click", () => {
-            elementos.tarjetas.forEach(c => c.classList.remove("border-emerald-500", "bg-zinc-800"));
+            el.tarjetas.forEach(c => c.classList.remove("border-emerald-500", "bg-zinc-800"));
             card.classList.add("border-emerald-500", "bg-zinc-800");
-            elementos.inputCat.value = card.dataset.category;
+            el.inputCat.value = card.dataset.category;
+            if(el.labelServicio) el.labelServicio.innerText = card.dataset.category.toUpperCase();
         });
     });
 
-    // SOLICITUD DE SERVICIO
-    if (elementos.form) {
-        elementos.form.addEventListener("submit", async (e) => {
+    if (el.form) {
+        el.form.addEventListener("submit", async (e) => {
             e.preventDefault();
-            const cat = elementos.inputCat.value;
-            const dir = elementos.form.querySelector('[name="direccion"]').value;
-            const desc = elementos.form.querySelector('[name="descripcion"]').value;
-
+            const cat = el.inputCat.value;
+            const dir = el.form.querySelector('[name="direccion"]').value;
+            const desc = el.form.querySelector('[name="descripcion"]').value;
             if (!cat) { alert("Selecciona un servicio."); return; }
 
-            if(confirm("Se realizará una retención temporal de $550 MXN.\n\n¿Autorizar?")) {
+            const btn = el.form.querySelector("button");
+            btn.disabled = true; btn.innerText = "PROCESANDO...";
+
+            if(confirm("Se retendrán $550 MXN. ¿Continuar?")) {
                 await addDoc(collection(db, "services"), {
-                    cliente_id: user.uid,
+                    cliente_id: user.uid, cliente_nombre: user.nombre || "Cliente", cliente_telefono: user.telefono || "",
                     categoria: cat, direccion: dir, descripcion: desc,
-                    estado: "pendiente", created_at: serverTimestamp(),
-                    retencion_inicial: 550,
-                    costo_final: 0
+                    estado: "pendiente", created_at: serverTimestamp(), retencion_inicial: 550, costo_final: 0
                 });
-                alert("✅ Solicitud enviada. Buscando técnico...");
-                elementos.form.reset();
+                alert("✅ Solicitud enviada.");
+                el.form.reset();
             }
+            btn.disabled = false; btn.innerText = "SOLICITAR AHORA";
         });
     }
 
-    // MONITOR DE SERVICIOS (CLIENTE)
     onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc")), (snap) => {
-        if(!elementos.lista) return;
-        elementos.lista.innerHTML = "";
+        if(!el.lista) return;
+        el.lista.innerHTML = "";
+
+        // 🔔 SONIDO SI HAY CAMBIOS (Ej. Técnico llegó)
+        if(snap.docChanges().some(change => change.type === 'modified')) sonarAlerta();
 
         snap.forEach(docSnap => {
             const s = docSnap.data();
             const id = docSnap.id;
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-white/10 p-4 rounded-xl mb-3";
-            
-            let contenidoEstado = `<span class="text-xs font-bold text-yellow-500">${s.estado.toUpperCase()}</span>`;
-            
-            // LÓGICA DE APROBACIÓN DE COTIZACIÓN
+
+            let contenido = `<span class="text-xs font-bold text-yellow-500">${s.estado.toUpperCase()}</span>`;
+
             if (s.estado === "cotizando") {
-                contenidoEstado = `
-                    <div class="mt-2 bg-zinc-800 p-3 rounded-lg border border-yellow-500">
-                        <p class="text-yellow-500 font-bold text-xs mb-1">COTIZACIÓN RECIBIDA</p>
-                        <p class="text-white text-lg font-black">$${s.costo_final}</p>
-                        <p class="text-gray-400 text-xs italic mb-3">"${s.diagnostico}"</p>
+                contenido = `
+                    <div class="bg-zinc-800 p-3 rounded-lg border border-yellow-500 mt-2">
+                        <p class="text-yellow-500 text-xs font-bold">NUEVA COTIZACIÓN</p>
+                        <p class="text-white text-xl font-black">$${s.costo_final}</p>
+                        <p class="text-gray-400 text-xs italic mb-2">"${s.diagnostico}"</p>
                         <div class="flex gap-2">
-                            <button onclick="window.responderCotizacion('${id}', false)" class="flex-1 bg-red-900/50 text-red-500 text-xs py-2 rounded">RECHAZAR</button>
-                            <button onclick="window.responderCotizacion('${id}', true)" class="flex-1 bg-emerald-500 text-black font-bold text-xs py-2 rounded">APROBAR ($${s.costo_final})</button>
+                            <button onclick="window.responder('${id}', false)" class="flex-1 bg-red-900 text-red-200 text-xs py-2 rounded">RECHAZAR</button>
+                            <button onclick="window.responder('${id}', true)" class="flex-1 bg-emerald-500 text-black font-bold text-xs py-2 rounded">APROBAR</button>
                         </div>
                     </div>
                 `;
-            } else if (s.estado === "trabajando") {
-                contenidoEstado = `<span class="text-xs font-bold text-blue-400 animate-pulse">TRABAJANDO...</span>`;
             } else if (s.estado === "finalizado") {
-                contenidoEstado = `<span class="text-xs font-bold text-emerald-500">✅ FINALIZADO</span>`;
+                // REPORTE AUTOMÁTICO VISIBLE
+                contenido = `
+                    <div class="bg-emerald-900/20 border border-emerald-500/50 p-4 rounded-xl mt-2">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-emerald-500 font-black text-sm">REPORTE FINAL</span>
+                            <span class="bg-emerald-500 text-black text-[10px] font-bold px-2 rounded">PAGADO</span>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-300 mb-1"><span>Diagnóstico:</span><span>${s.diagnostico}</span></div>
+                        <div class="flex justify-between text-lg text-white font-black mb-3"><span>TOTAL:</span><span>$${s.costo_final}</span></div>
+                        <p class="text-[10px] text-gray-500 mb-1 font-bold">EVIDENCIA FOTOGRÁFICA:</p>
+                        <div class="flex gap-2">
+                            ${s.evidencia?.antes ? `<img src="${s.evidencia.antes}" class="w-1/2 h-20 object-cover rounded-lg border border-gray-700">` : ''}
+                            ${s.evidencia?.despues ? `<img src="${s.evidencia.despues}" class="w-1/2 h-20 object-cover rounded-lg border border-gray-700">` : ''}
+                        </div>
+                        <button class="w-full mt-3 bg-zinc-800 text-gray-400 text-xs py-2 rounded font-bold">DESCARGAR PDF (Demo)</button>
+                    </div>
+                `;
             }
 
             card.innerHTML = `
-                <div class="flex justify-between items-center mb-2">
-                    <span class="font-black text-white uppercase">${s.categoria}</span>
-                </div>
+                <div class="flex justify-between items-center mb-1"><span class="font-black text-white uppercase">${s.categoria}</span></div>
                 <p class="text-xs text-gray-400 truncate">${s.direccion}</p>
-                <div class="mt-2">${contenidoEstado}</div>
-                ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `<a href="rastreo.html?id=${id}" class="block mt-3 text-center bg-zinc-800 text-xs py-2 rounded border border-white/10">VER TÉCNICO EN MAPA</a>` : ''}
+                <div class="mt-2">${contenido}</div>
             `;
-            elementos.lista.appendChild(card);
+            el.lista.appendChild(card);
         });
     });
 
-    window.responderCotizacion = async (id, aceptado) => {
-        if (aceptado) {
-            await updateDoc(doc(db, "services", id), { estado: "trabajando" });
-            alert("✅ Cotización aprobada. El técnico iniciará el trabajo.");
-        } else {
-            if(confirm("¿Seguro que deseas cancelar? Se cobrará la visita ($550).")) {
-                await updateDoc(doc(db, "services", id), { estado: "cancelado" });
-            }
-        }
+    window.responder = async (id, acepta) => {
+        if(acepta) await updateDoc(doc(db, "services", id), { estado: "trabajando" });
+        else if(confirm("¿Cancelar? Se cobrará visita.")) await updateDoc(doc(db, "services", id), { estado: "cancelado" });
     };
 }
