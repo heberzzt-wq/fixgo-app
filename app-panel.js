@@ -2,7 +2,7 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 2.0 (Unified)
+ * Versión: 2.1 (Corrección: Colección Users Unificada)
  * * DESCRIPCIÓN:
  * Este archivo contiene la lógica exclusiva para cada tipo de panel
  * (Admin, Técnico, Cliente). Se invoca desde app-main.js 
@@ -44,8 +44,12 @@ export async function iniciarPanelAdmin(user) {
     if (!contenedorTecnicos) return; // Protección si no estamos en admin.html
 
     // 1.A. ESCUCHAR TÉCNICOS PENDIENTES DE APROBACIÓN
-    // Buscamos en la colección extendida 'tecnicos'
-    const qTecnicos = query(collection(db, "tecnicos"), orderBy("creado", "desc"));
+    // CORRECCIÓN: Buscamos en 'users' donde rol == 'tecnico' y ordenamos por 'creadoEn'
+    const qTecnicos = query(
+        collection(db, "users"), 
+        where("rol", "==", "tecnico"),
+        orderBy("creadoEn", "desc")
+    );
 
     onSnapshot(qTecnicos, (snapshot) => {
         contenedorTecnicos.innerHTML = ""; // Limpiar lista
@@ -114,19 +118,14 @@ export async function iniciarPanelAdmin(user) {
 // FUNCION AUXILIAR: Aprobar Técnico
 async function aprobarTecnico(uid) {
     try {
-        const ref = doc(db, "tecnicos", uid);
+        // CORRECCIÓN: Actualizamos en la colección unificada 'users'
+        const ref = doc(db, "users", uid);
         await updateDoc(ref, {
             estado: "activo",
             verificado: true,
             aprobadoEn: serverTimestamp()
         });
         
-        // También actualizamos la colección base de usuarios por seguridad
-        const refUser = doc(db, "usuarios", uid);
-        await updateDoc(refUser, {
-            verificado: true
-        });
-
         alert("✅ Técnico aprobado correctamente.");
     } catch (error) {
         console.error("Error aprobando técnico:", error);
@@ -150,9 +149,9 @@ export async function iniciarPanelTecnico(user) {
     const radarSection = document.getElementById("radarSection");
 
     // 2.A. INICIALIZAR ESTADO DEL USUARIO (ON/OFF)
-    // Verificamos si el técnico está disponible en DB
+    // CORRECCIÓN: Verificamos en 'users' en lugar de 'tecnicos'
     try {
-        const tecnicoRef = doc(db, "tecnicos", user.uid);
+        const tecnicoRef = doc(db, "users", user.uid);
         const snapshot = await getDoc(tecnicoRef);
         
         if (snapshot.exists()) {
