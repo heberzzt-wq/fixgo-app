@@ -2,16 +2,12 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 2.1 (Extendido & Robusto)
+ * Versión: 2.2 (Corrección: Sincronización con Admin Panel)
  * Autor: FixGo Dev Team
  * * DESCRIPCIÓN:
- * Este módulo maneja toda la lógica de autenticación y alta de usuarios.
- * - Detecta el formulario activo (Login, Registro Cliente, Registro Técnico).
- * - Valida campos obligatorios antes de enviar a Firebase.
- * - Crea el usuario en Authentication.
- * - Crea el documento maestro en Firestore (colección 'usuarios').
- * - Crea el documento específico (colección 'tecnicos' o 'clientes').
- * - Maneja errores comunes (correo duplicado, contraseña débil).
+ * - Se asegura de escribir en la colección maestra 'users'.
+ * - Agrega campos críticos: 'creadoEn', 'email', 'disponible'.
+ * - Maneja redundancia de estado (estado/status) para compatibilidad.
  * ======================================================
  */
 
@@ -85,27 +81,31 @@ if (btnRegistroCliente) {
 
             console.log(`⏳ Creando cliente: ${email}`);
 
-            // 1. Crear usuario en Auth y Firestore Base (usando helper)
-            // Esto crea el doc en 'usuarios/{uid}'
+            // 1. Crear usuario en Auth
             const usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
 
-            // 2. Crear documento específico en 'clientes/{uid}'
-            // Esto es vital para el panel de cliente (historial, métodos de pago)
-            await setDoc(doc(db, "clientes", usuarioAuth.uid), {
+            // 2. CORRECCIÓN CRÍTICA: Guardar en colección 'users' para el Admin
+            // Usamos merge: true para no sobrescribir si registrarUsuario ya creó algo
+            await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
-                email: email,
+                email: email, // Vital para que no salga "undefined"
                 telefono: telefono,
                 rol: "cliente",
-                fechaRegistro: serverTimestamp(),
+                
+                // Campos de Fecha para el Admin (Ordenamiento)
+                creadoEn: serverTimestamp(), // EL ADMIN USA ESTO PARA ORDENAR
+                fechaRegistro: serverTimestamp(), // Legacy
+                
+                estado: "activo", // Clientes nacen activos
+                status: "activo",
+                
                 pedidosTotales: 0,
                 ultimaConexion: serverTimestamp()
             }, { merge: true });
 
-            console.log("✅ [Registro] Cliente creado exitosamente en DB.");
+            console.log("✅ [Registro] Cliente creado exitosamente en DB (users).");
             alert(`¡Bienvenido, ${nombre}! Tu cuenta ha sido creada.`);
-            
-            // La redirección la maneja el observadorAuth automáticamente
             
         } catch (error) {
             console.error("❌ Error en Registro Cliente:", error);
@@ -149,9 +149,6 @@ if (btnRegistroTecnico) {
             return;
         }
 
-        // Aquí podríamos validar si subió archivos (INE/CSF), pero por ahora lo dejamos opcional 
-        // para el registro inicial y obligatorio para la activación.
-
         try {
             // Feedback Visual
             const textoOriginal = btnRegistroTecnico.innerText;
@@ -161,37 +158,38 @@ if (btnRegistroTecnico) {
 
             console.log(`⏳ Iniciando alta de técnico: ${email}`);
 
-            // 1. Crear usuario en Auth y Firestore Base
-            // Nota: El rol es 'tecnico'.
+            // 1. Crear usuario en Auth
             const usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
-            // 2. Crear Perfil Extendido en 'tecnicos/{uid}'
-            // ESTE PASO ES CRÍTICO: Aquí definimos el estado 'pendiente'
-            await setDoc(doc(db, "tecnicos", usuarioAuth.uid), {
+            // 2. CORRECCIÓN CRÍTICA: Guardar en 'users' para que aparezca en el Admin Panel
+            // Esto asegura que tenga 'creadoEn', 'email' y 'disponible'
+            await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
-                email: email,
+                email: email, // Vital para el Admin
                 telefono: telefono,
                 rol: "tecnico",
                 
-                // Estados del Negocio
-                estado: "pendiente", // pendiente | activo | suspendido
-                disponible: false,   // Switch ON/OFF
+                // Estados del Negocio (Compatibilidad Dual)
+                estado: "pendiente", // Español (App)
+                status: "pendiente", // Inglés (Legacy)
+                
+                disponible: false,   // Para el contador de ONLINE (Nace apagado)
                 verificado: false,   // Documentos validados por Admin
                 
-                // Métricas
+                // Métricas Visuales
                 nivel: "Bronce",
                 calificacion: 5.0,
-                serviciosCompletados: 0,
-                wallet: 0.00,
+                vehiculo: "Por registrar",
                 
-                // Fechas
+                // Fechas (Vitales para ordenamiento)
+                creadoEn: serverTimestamp(), // EL ADMIN ORDENA POR ESTO
                 fechaRegistro: serverTimestamp(),
                 ultimaConexion: serverTimestamp()
             }, { merge: true });
 
-            console.log("✅ [Registro] Perfil de Técnico creado. Estado: PENDIENTE.");
-            alert("¡Solicitud Enviada!\n\nTu cuenta ha sido creada, pero requiere validación de documentos por un Administrador para recibir servicios.\n\nTe redirigiremos a tu panel para que subas tu INE y CSF.");
+            console.log("✅ [Registro] Perfil de Técnico creado en 'users'. Estado: PENDIENTE.");
+            alert("¡Solicitud Enviada!\n\nTu cuenta ha sido creada, pero requiere validación de documentos por un Administrador para recibir servicios.\n\nTe redirigiremos a tu panel.");
             
             // Forzamos la redirección por seguridad visual
             window.location.href = "tecnico.html";
@@ -241,8 +239,15 @@ if (btnLogin) {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             console.log("✅ Login correcto en Firebase Auth:", userCredential.user.uid);
             
+            // Actualizar última conexión en 'users'
+            try {
+                const userRef = doc(db, "users", userCredential.user.uid);
+                await setDoc(userRef, { ultimaConexion: serverTimestamp() }, { merge: true });
+            } catch (err) {
+                console.warn("No se pudo actualizar last_seen", err);
+            }
+
             // El observadorAuth en app-main.js se encargará de la redirección.
-            // Solo mostramos un estado visual.
             btnLogin.innerText = "¡Éxito! Entrando...";
 
         } catch (error) {
