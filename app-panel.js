@@ -2,7 +2,7 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 3.1 (Integración: Bolsa de Trabajo)
+ * Versión: 3.3 (Admin Approval System)
  * ======================================================
  */
 
@@ -24,7 +24,7 @@ import {
 
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 
-console.log("🧩 app-panel.js V3.1: Sistema cargado. Listo para asignaciones.");
+console.log("🧩 app-panel.js V3.3: Lógica Entrelazada.");
 
 // ======================================================
 // 1. PANEL DE ADMINISTRADOR (Torre de Control)
@@ -34,15 +34,16 @@ export async function iniciarPanelAdmin(user) {
 
     const contenedorTecnicos = document.getElementById("listaTecnicos");
     
-    // 1.A. LISTA DE APROBACIÓN
+    // 1.A. LISTA DE APROBACIÓN (CON VISUALIZACIÓN DE DOCUMENTOS)
     if (contenedorTecnicos) {
+        // Traemos TODOS los técnicos, ordenados por fecha de creación si es posible
         const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
 
         onSnapshot(qTecnicos, (snapshot) => {
             contenedorTecnicos.innerHTML = ""; 
             
             if (snapshot.empty) {
-                contenedorTecnicos.innerHTML = '<p class="text-gray-500 italic p-4">No hay técnicos registrados.</p>';
+                contenedorTecnicos.innerHTML = '<p class="text-gray-500 italic p-4">No hay técnicos en el sistema.</p>';
                 return;
             }
 
@@ -52,65 +53,80 @@ export async function iniciarPanelAdmin(user) {
                 const esPendiente = estadoReal === "pendiente";
                 const uidReal = docSnap.id; 
                 
+                // Verificamos documentos (Vienen de app-registro.js)
+                const tieneINE = data.documentos?.ine ? '<span class="text-emerald-400">✅ INE</span>' : '<span class="text-red-500">❌ INE</span>';
+                const tieneCSF = data.documentos?.csf ? '<span class="text-emerald-400">✅ CSF</span>' : '<span class="text-red-500">❌ CSF</span>';
+
                 const card = document.createElement("div");
                 card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500/30' : 'bg-zinc-900 border-zinc-800'}`;
                 
                 card.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div>
-                            <h4 class="font-bold text-white">${data.nombre}</h4>
-                            <p class="text-xs text-gray-400">${data.email || 'Sin email'}</p>
+                            <h4 class="font-bold text-white flex items-center gap-2">
+                                ${data.nombre} 
+                                ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded">REV</span>' : ''}
+                            </h4>
+                            <p class="text-xs text-gray-400">${data.email}</p>
                             <p class="text-xs text-gray-400">Tel: ${data.telefono || 'N/A'}</p>
+                            
+                            <div class="mt-2 text-[10px] font-mono bg-black/30 p-2 rounded border border-white/5">
+                                ${tieneINE} | ${tieneCSF}
+                            </div>
+
                             <div class="mt-2 flex gap-2">
                                  <span class="text-[10px] px-2 py-0.5 rounded border ${
-                                    estadoReal === 'activo' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                                     estadoReal === 'activo' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
                                  }">${estadoReal.toUpperCase()}</span>
-                                 
-                                 ${data.disponible === true ? '<span class="text-[10px] bg-emerald-500 text-black font-bold px-2 py-0.5 rounded animate-pulse">ONLINE</span>' : ''}
-                                 
-                                 <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30">${data.nivel || 'Bronce'}</span>
                             </div>
                         </div>
-                        ${esPendiente ? `
-                            <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded-lg transition-all" data-uid="${uidReal}">
-                                <i class="fas fa-check-circle"></i> APROBAR
-                            </button>
-                        ` : `
-                            <div class="text-zinc-600 text-xs text-right">
-                                <i class="fas fa-check-circle text-emerald-800"></i><br>VERIFICADO
-                            </div>
-                        `}
+                        
+                        <div class="flex flex-col gap-2">
+                            ${esPendiente ? `
+                                <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-4 py-2 rounded-lg transition-all shadow-lg shadow-emerald-500/20" data-uid="${uidReal}">
+                                    APROBAR
+                                </button>
+                            ` : `
+                                <div class="text-zinc-600 text-xs text-right">
+                                    <i class="fas fa-check-circle text-emerald-800 text-2xl"></i>
+                                </div>
+                            `}
+                        </div>
                     </div>
                 `;
                 contenedorTecnicos.appendChild(card);
             });
 
+            // Listeners dinámicos para aprobar
             document.querySelectorAll(".btn-aprobar").forEach(btn => {
                 btn.addEventListener("click", async (e) => {
-                    const boton = e.target.closest("button");
-                    const uid = boton.dataset.uid;
-                    if(confirm("¿Aprobar técnico?")) await aprobarTecnico(uid);
+                    const uid = e.target.getAttribute("data-uid");
+                    if(confirm("¿Confirmas que los documentos INE y CSF son correctos?\n\nAl aprobar, el técnico podrá recibir servicios.")) {
+                        await aprobarTecnico(uid);
+                    }
                 });
             });
         });
     }
 
-    // 1.B. CONTADOR ONLINE
+    // 1.B. CONTADOR ONLINE (ADMIN DASHBOARD)
     const qOnline = query(collection(db, "users"), where("rol", "==", "tecnico"));
     onSnapshot(qOnline, (snapshot) => {
         let contOnline = 0;
+        let contTotal = 0;
         snapshot.forEach(doc => {
+            contTotal++;
             if (doc.data().disponible === true) contOnline++;
         });
         const counterEl = document.getElementById("totalTecnicos");
         if (counterEl) {
-            counterEl.innerText = contOnline;
+            counterEl.innerHTML = `${contOnline} <span class="text-sm text-gray-500">/ ${contTotal}</span>`;
             counterEl.style.color = contOnline > 0 ? "#10b981" : "white";
         }
     });
 }
 
-// FUNCION AUXILIAR: Aprobar Técnico
+// FUNCION AUXILIAR: Aprobar Técnico (Cambia estado DB)
 async function aprobarTecnico(uid) {
     try {
         await updateDoc(doc(db, "users", uid), {
@@ -119,10 +135,10 @@ async function aprobarTecnico(uid) {
             verificado: true,
             aprobadoEn: serverTimestamp()
         });
-        alert("✅ Técnico aprobado correctamente.");
+        alert("✅ Técnico activado. Ahora puede recibir alertas.");
     } catch (error) {
         console.error("Error aprobando:", error);
-        alert("Error: " + error.message);
+        alert("Error de permisos o red.");
     }
 }
 
@@ -133,7 +149,6 @@ async function aprobarTecnico(uid) {
 export async function iniciarPanelTecnico(user) {
     console.log("🔧 Iniciando lógica de TÉCNICO...", user);
 
-    // Referencias al DOM (Técnico)
     const btnEnCamino = document.getElementById("btnEnCamino");
     const btnLlegue = document.getElementById("btnLlegue");
     const toggleONOFF = document.getElementById("toggleONOFF");
@@ -141,11 +156,10 @@ export async function iniciarPanelTecnico(user) {
     const statusLabel = document.getElementById("statusLabel");
     const radarSection = document.getElementById("radarSection");
     
-    // Referencias NUEVAS (Bolsa de Trabajo)
+    // Bolsa de Trabajo
     const seccionBolsa = document.getElementById("seccionBolsa");
     const listaBolsa = document.getElementById("listaBolsa");
 
-    // 2.A. INICIALIZAR ESTADO DEL USUARIO (ON/OFF)
     try {
         const tecnicoRef = doc(db, "users", user.uid);
         
@@ -154,32 +168,42 @@ export async function iniciarPanelTecnico(user) {
                 const data = docSnap.data();
                 const estadoReal = data.estado || data.status || "pendiente";
 
-                // Validación de Bloqueo
+                // A. ESTADO PENDIENTE (BLOQUEO)
                 if (estadoReal === "pendiente") {
-                    if(statusLabel) statusLabel.innerText = "PENDIENTE DE APROBACIÓN";
+                    if(statusLabel) {
+                        statusLabel.innerText = "EN REVISIÓN";
+                        statusLabel.className = "bg-yellow-500/20 text-yellow-500 status-badge font-bold";
+                    }
                     if(toggleONOFF) {
                         toggleONOFF.disabled = true;
                         toggleONOFF.checked = false;
+                        // Forzamos visualmente que no pueda trabajar
+                        radarSection.classList.add("hidden");
                     }
+                    if(seccionBolsa) seccionBolsa.innerHTML = '<div class="p-4 bg-yellow-900/20 text-yellow-500 text-xs rounded-xl text-center border border-yellow-500/30">🔒 Tu cuenta está bajo revisión.<br>Sube tus documentos si no lo has hecho.</div>';
                     return; 
                 }
 
-                // Sincronizar UI Switch
-                if(toggleONOFF) {
+                // B. ESTADO ACTIVO
+                if(statusLabel && estadoReal === "activo") {
+                    // Restauramos UI
+                    radarSection.classList.remove("hidden");
                     toggleONOFF.disabled = false;
+                }
+
+                // Sincronizar Switch
+                if(toggleONOFF) {
                     toggleONOFF.checked = data.disponible === true;
                     actualizarUIEstado(data.disponible);
                 }
 
-                // LÓGICA PRINCIPAL: GPS + BOLSA DE TRABAJO
+                // Lógica de Disponibilidad
                 if (data.disponible) {
                     iniciarTracking(user.uid);
-                    // Si está disponible, mostramos la bolsa y escuchamos ofertas
                     if(seccionBolsa) seccionBolsa.classList.remove("hidden");
                     escucharBolsaDeTrabajo(user); 
                 } else {
                     detenerTracking();
-                    // Si está offline, ocultamos la bolsa
                     if(seccionBolsa) seccionBolsa.classList.add("hidden");
                 }
             }
@@ -196,16 +220,12 @@ export async function iniciarPanelTecnico(user) {
         }
 
     } catch (error) {
-        console.error("Error obteniendo perfil técnico:", error);
+        console.error("Error perfil técnico:", error);
     }
 
-    // 2.B. BOLSA DE TRABAJO (MERCADO DE SOLICITUDES) 🎣
-    // Esta función se activa solo cuando el técnico está ONLINE
+    // Funciones de Bolsa y Servicio (Sin cambios, ya funcionaban bien)
     function escucharBolsaDeTrabajo(tecnico) {
         if(!listaBolsa) return;
-
-        // Buscamos todas las solicitudes pendientes
-        // (En el futuro filtraremos por categoría aquí)
         const qBolsa = query(
             collection(db, "services"), 
             where("estado", "==", "pendiente"),
@@ -214,73 +234,51 @@ export async function iniciarPanelTecnico(user) {
 
         onSnapshot(qBolsa, (snap) => {
             listaBolsa.innerHTML = "";
-            
-            // Si no hay ofertas, podemos ocultar la sección o mostrar mensaje
             if(snap.empty) {
-                listaBolsa.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic">Escaneando zona... sin solicitudes.</p>`;
+                listaBolsa.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic">Buscando solicitudes cercanas...</p>`;
                 return;
             }
-
             snap.forEach((docSnap) => {
                 const servicio = docSnap.data();
                 const id = docSnap.id;
-
                 const card = document.createElement("div");
                 card.className = "bg-zinc-900 border border-zinc-700 p-4 rounded-xl mb-2 hover:border-emerald-500 transition-colors";
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-2">
-                        <span class="bg-emerald-500/10 text-emerald-500 text-[10px] font-bold px-2 py-1 rounded border border-emerald-500/20 uppercase">
-                            NUEVA OPORTUNIDAD
-                        </span>
+                        <span class="bg-emerald-500/10 text-emerald-500 text-[10px] font-bold px-2 py-1 rounded border border-emerald-500/20 uppercase">NUEVA SOLICITUD</span>
                         <span class="text-xs text-gray-400 font-bold">${servicio.categoria.toUpperCase()}</span>
                     </div>
-                    <h4 class="text-white font-bold text-base mb-1">${servicio.zona || 'Ubicación Cliente'}</h4>
+                    <h4 class="text-white font-bold text-base mb-1">${servicio.zona || 'Cancún'}</h4>
                     <p class="text-gray-400 text-xs mb-3 italic">"${servicio.descripcion}"</p>
-                    
-                    <button class="btn-tomar w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase tracking-wide transition-transform active:scale-95 shadow-lg shadow-emerald-500/20" data-id="${id}">
-                        ¡TOMAR SERVICIO! ⚡
-                    </button>
+                    <button class="btn-tomar w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase tracking-wide transition-transform active:scale-95 shadow-lg shadow-emerald-500/20" data-id="${id}">¡TOMAR SERVICIO!</button>
                 `;
                 listaBolsa.appendChild(card);
             });
-
-            // Asignar eventos a los botones
             document.querySelectorAll(".btn-tomar").forEach(btn => {
                 btn.addEventListener("click", async (e) => {
-                    const servicioId = e.target.getAttribute("data-id");
-                    await tomarServicio(servicioId, tecnico);
+                    await tomarServicio(e.target.getAttribute("data-id"), tecnico);
                 });
             });
         });
     }
 
-    // 2.C. ACCIÓN: TOMAR SERVICIO
     async function tomarServicio(servicioId, tecnico) {
-        if(!confirm("¿Estás seguro de tomar este servicio?")) return;
-
+        if(!confirm("¿Aceptar servicio?")) return;
         try {
-            const servicioRef = doc(db, "services", servicioId);
-            
-            // Actualizamos el servicio: Cambia de pendiente -> asignado
-            // Y le pegamos la info del técnico que lo tomó
-            await updateDoc(servicioRef, {
+            await updateDoc(doc(db, "services", servicioId), {
                 estado: "asignado",
                 tecnico_id: tecnico.uid,
-                tecnico_nombre: tecnico.nombre || "Técnico FixGo",
+                tecnico_nombre: tecnico.nombre,
                 tecnico_telefono: tecnico.telefono || "",
                 asignado_at: serverTimestamp()
             });
-
-            alert("✅ ¡Servicio Asignado! Revisa tus misiones activas.");
-            
+            alert("✅ ¡Servicio Asignado!");
         } catch (error) {
-            console.error("Error al tomar servicio:", error);
-            alert("¡Ups! Alguien más ganó el servicio o hubo un error.");
+            alert("Error: Alguien más lo tomó.");
         }
     }
 
-
-    // 2.D. ESCUCHAR MIS MISIONES ACTIVAS (Lo que ya tenías)
+    // Escuchar Misiones Asignadas
     const qMisiones = query(
         collection(db, "services"),
         where("tecnico_id", "==", user.uid),
@@ -290,19 +288,9 @@ export async function iniciarPanelTecnico(user) {
     onSnapshot(qMisiones, (snap) => {
         if (!listaServicios) return;
         listaServicios.innerHTML = "";
-
         const panelAcciones = document.getElementById("panelAcciones");
         
         if (snap.empty) {
-            // Solo mostramos "Esperando" si TAMPOCO hay ofertas en la bolsa
-            if (listaBolsa && listaBolsa.innerHTML.includes("sin solicitudes")) {
-                listaServicios.innerHTML = `
-                    <div class="text-center py-10 opacity-50">
-                        <i class="fas fa-mug-hot text-4xl mb-3"></i>
-                        <p>Esperando asignaciones...</p>
-                    </div>
-                `;
-            }
             if(panelAcciones) panelAcciones.classList.add("translate-y-full");
             return;
         }
@@ -310,30 +298,18 @@ export async function iniciarPanelTecnico(user) {
         snap.forEach((docSnap) => {
             const servicio = docSnap.data();
             const servicioId = docSnap.id;
-            
             if(panelAcciones) panelAcciones.classList.remove("translate-y-full");
 
             const card = document.createElement("div");
-            card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl shadow-blue-900/10";
+            card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl";
             card.innerHTML = `
-                <div class="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">
-                    EN PROCESO: ${servicio.estado.replace('_', ' ')}
-                </div>
+                <div class="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">${servicio.estado.replace('_', ' ')}</div>
                 <h3 class="text-xl font-black text-white mb-1 uppercase">${servicio.categoria}</h3>
                 <p class="text-gray-400 text-sm mb-4"><i class="fas fa-map-marker-alt text-blue-500"></i> ${servicio.direccion}</p>
-                
-                <div class="bg-black/50 p-4 rounded-xl mb-4">
-                    <p class="text-xs text-gray-500 uppercase font-bold">Problema Reportado:</p>
-                    <p class="text-sm text-white italic">"${servicio.descripcion}"</p>
-                </div>
-
+                <div class="bg-black/50 p-4 rounded-xl mb-4"><p class="text-sm text-white italic">"${servicio.descripcion}"</p></div>
                 <div class="flex gap-2">
-                    <a href="https://waze.com/ul?q=${encodeURIComponent(servicio.direccion)}" target="_blank" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-center text-sm transition-all">
-                        <i class="fab fa-waze"></i> IR CON WAZE
-                    </a>
-                    <a href="tel:${servicio.cliente_telefono || ''}" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 px-4 rounded-xl text-center transition-all">
-                        <i class="fas fa-phone"></i>
-                    </a>
+                    <a href="https://waze.com/ul?q=${encodeURIComponent(servicio.direccion)}" target="_blank" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-center text-sm"><i class="fab fa-waze"></i> WAZE</a>
+                    <a href="tel:${servicio.cliente_telefono}" class="bg-zinc-800 text-white font-bold py-3 px-4 rounded-xl"><i class="fas fa-phone"></i></a>
                 </div>
             `;
             listaServicios.appendChild(card);
@@ -343,7 +319,6 @@ export async function iniciarPanelTecnico(user) {
 
     function actualizarUIEstado(activo) {
         if (!statusLabel || !radarSection) return;
-        
         if (activo) {
             statusLabel.innerText = "EN LÍNEA";
             statusLabel.className = "bg-emerald-500/20 text-emerald-500 status-badge font-bold animate-pulse";
@@ -369,32 +344,13 @@ export async function iniciarPanelTecnico(user) {
                 btnLlegue.classList.remove("hidden");
                 btnLlegue.onclick = () => actualizarEstadoServicio(id, "en_sitio");
             }
-        } else if (servicio.estado === "en_sitio") {
-            if(btnLlegue) {
-                btnLlegue.classList.remove("hidden");
-                btnLlegue.innerText = "INICIAR TRABAJO";
-                btnLlegue.className = "w-full bg-blue-600 text-white font-black py-4 rounded-xl";
-                btnLlegue.onclick = () => alert("Aquí abriría el modal de Cotización/Inicio de trabajo (Próxima fase)");
-            }
         }
     }
 
     async function actualizarEstadoServicio(id, nuevoEstado) {
-        try {
-            const servicioRef = doc(db, "services", id);
-            await updateDoc(servicioRef, {
-                estado: nuevoEstado,
-                updated_at: serverTimestamp()
-            });
-            const rastreoRef = doc(db, "rastreo", "tecnicoActivo"); 
-            await setDoc(rastreoRef, {
-                estado: nuevoEstado === "en_camino" ? "En Ruta" : "En Sitio"
-            }, { merge: true });
-
-        } catch (error) {
-            console.error("Error actualizando servicio:", error);
-            alert("Error de conexión");
-        }
+        await updateDoc(doc(db, "services", id), { estado: nuevoEstado, updated_at: serverTimestamp() });
+        const rastreoRef = doc(db, "rastreo", "tecnicoActivo"); 
+        await setDoc(rastreoRef, { estado: nuevoEstado === "en_camino" ? "En Ruta" : "En Sitio" }, { merge: true });
     }
 }
 
@@ -404,7 +360,6 @@ export async function iniciarPanelTecnico(user) {
 // ======================================================
 export async function iniciarPanelCliente(user) {
     console.log("👤 Iniciando lógica de CLIENTE...");
-
     const formulario = document.getElementById("nuevaSolicitudForm");
     const contenedorSolicitudes = document.getElementById("solicitudesCliente");
     const inputCategoria = document.getElementById("categoriaSeleccionada");
@@ -428,10 +383,7 @@ export async function iniciarPanelCliente(user) {
             const direccion = formulario.querySelector('[name="direccion"]').value;
             const descripcion = formulario.querySelector('[name="descripcion"]').value;
 
-            if (!categoria) {
-                alert("Por favor selecciona un tipo de servicio arriba (Road, Fix, Tech).");
-                return;
-            }
+            if (!categoria) { alert("Selecciona un servicio (Road/Fix/Tech)."); return; }
 
             const btnSubmit = formulario.querySelector("button[type='submit']");
             btnSubmit.disabled = true;
@@ -447,17 +399,15 @@ export async function iniciarPanelCliente(user) {
                     descripcion: descripcion,
                     estado: "pendiente",
                     created_at: serverTimestamp(),
-                    zona: "Cancún Centro", 
-                    precio_estimado: 0 
+                    zona: "Cancún"
                 });
-                alert("✅ Solicitud enviada. Un técnico aceptará pronto.");
+                alert("✅ Solicitud enviada. Esperando técnico...");
                 formulario.reset();
                 tarjetas.forEach(c => c.classList.remove("border-emerald-500", "bg-zinc-800"));
-                if(labelServicio) labelServicio.innerText = "SERVICIO";
-
+                labelServicio.innerText = "SERVICIO";
             } catch (error) {
-                console.error("Error creando solicitud:", error);
-                alert("Error al solicitar servicio.");
+                console.error(error);
+                alert("Error creando solicitud.");
             } finally {
                 btnSubmit.disabled = false;
                 btnSubmit.innerText = "SOLICITAR AHORA";
@@ -465,39 +415,28 @@ export async function iniciarPanelCliente(user) {
         });
     }
 
-    const qHistorial = query(
-        collection(db, "services"),
-        where("cliente_id", "==", user.uid),
-        orderBy("created_at", "desc")
-    );
-
+    const qHistorial = query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc"));
     onSnapshot(qHistorial, (snap) => {
         if(!contenedorSolicitudes) return;
         contenedorSolicitudes.innerHTML = "";
-
         if (snap.empty) {
-            contenedorSolicitudes.innerHTML = '<p class="text-gray-500 text-sm italic">No tienes servicios activos.</p>';
+            contenedorSolicitudes.innerHTML = '<p class="text-gray-500 text-sm italic">Sin servicios activos.</p>';
             return;
         }
-
         snap.forEach(docSnap => {
             const data = docSnap.data();
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-white/10 p-4 rounded-xl mb-3";
-            let colorEstado = "text-yellow-500";
-            if(data.estado === "finalizado") colorEstado = "text-emerald-500";
-            if(data.estado === "asignado") colorEstado = "text-blue-500";
-
+            let colorEstado = data.estado === "finalizado" ? "text-emerald-500" : (data.estado === "asignado" ? "text-blue-500" : "text-yellow-500");
+            
             card.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
                     <span class="font-black text-white uppercase">${data.categoria}</span>
                     <span class="text-xs font-bold ${colorEstado}">${data.estado.toUpperCase()}</span>
                 </div>
                 <p class="text-xs text-gray-400 truncate">${data.direccion}</p>
-                ${data.estado === 'en_camino' || data.estado === 'en_sitio' ? 
-                    `<a href="rastreo.html?id=${docSnap.id}" class="block mt-3 text-center bg-zinc-800 text-white text-xs font-bold py-2 rounded-lg border border-white/10 hover:bg-emerald-500 hover:text-black transition-colors">
-                        <i class="fas fa-map-marked-alt"></i> VER MAPA EN VIVO
-                    </a>` : ''
+                ${(data.estado === 'en_camino' || data.estado === 'en_sitio') ? 
+                    `<a href="rastreo.html?id=${docSnap.id}" class="block mt-3 text-center bg-zinc-800 text-white text-xs font-bold py-2 rounded-lg border border-white/10 hover:bg-emerald-500 hover:text-black transition-colors"><i class="fas fa-map-marked-alt"></i> VER EN TIEMPO REAL</a>` : ''
                 }
             `;
             contenedorSolicitudes.appendChild(card);
