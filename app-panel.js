@@ -2,7 +2,7 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 5.1 (STABLE RECOVERY + SAFE PDF)
+ * Versión: 5.2 (FIX: AUDIO RESTORED + ADMIN COUNTER)
  * ======================================================
  */
 
@@ -13,10 +13,11 @@ import {
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 
 // ======================================================
-// 🔔 SISTEMA DE SONIDO CENTRALIZADO
+// 🔔 SISTEMA DE SONIDO (REFORZADO)
 // ======================================================
 const audioNotificacion = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
 
+// Desbloqueo inicial del audio (Necesario en Chrome/Safari)
 document.body.addEventListener('click', () => {
     audioNotificacion.play().then(() => {
         audioNotificacion.pause();
@@ -26,11 +27,11 @@ document.body.addEventListener('click', () => {
 
 function sonarAlerta() {
     audioNotificacion.currentTime = 0;
-    audioNotificacion.play().catch(e => console.log("🔊 Alerta visual."));
+    audioNotificacion.play().catch(e => console.log("🔊 Alerta visual (Audio bloqueado)."));
 }
 
 // ======================================================
-// 📄 CARGADOR SEGURO DE PDF (No rompe el inicio)
+// 📄 CARGADOR PDF (Mantenemos la V5.1 que funciona)
 // ======================================================
 async function cargarLibreriaPDF() {
     if (window.jspdf) return window.jspdf;
@@ -43,7 +44,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log("🚀 FIXGO 5.1: Sistema Restaurado y Estable.");
+console.log("🚀 FIXGO 5.2: Audio y Contadores Corregidos.");
 
 
 // ======================================================
@@ -54,38 +55,62 @@ export async function iniciarPanelAdmin(user) {
         lista: document.getElementById("listaTecnicos"),
         actividad: document.getElementById("listaTransacciones"),
         countServ: document.querySelector(".fa-bolt")?.closest(".uber-card")?.querySelector("h3"),
-        countMoney: document.querySelector(".fa-wallet")?.closest(".uber-card")?.querySelector("h3")
+        countMoney: document.querySelector(".fa-wallet")?.closest(".uber-card")?.querySelector("h3"),
+        countOnline: document.getElementById("totalTecnicos") // RECUPERADO
     };
 
-    // 1.A. TÉCNICOS
+    // 1.A. TÉCNICOS (LISTA + CONTADOR ONLINE RESTAURADO)
     if (elementos.lista) {
         onSnapshot(query(collection(db, "users"), where("rol", "==", "tecnico")), (snap) => {
             elementos.lista.innerHTML = ""; 
-            if (snap.empty) { elementos.lista.innerHTML = '<p class="text-gray-500 p-4">Sin técnicos.</p>'; return; }
+            
+            let contOnline = 0;
+            let contTotal = 0;
+
+            if (snap.empty) { elementos.lista.innerHTML = '<p class="text-gray-500 p-4">Sin técnicos.</p>'; }
 
             snap.forEach((docSnap) => {
                 const data = docSnap.data();
+                contTotal++;
+                if(data.disponible) contOnline++; // SUMAMOS SI ESTÁ ONLINE
+
                 const esPendiente = (data.estado || "pendiente") === "pendiente";
                 const ineCheck = data.documentos?.ine ? '✅' : '❌';
                 const csfCheck = data.documentos?.csf ? '✅' : '❌';
 
                 const card = document.createElement("div");
                 card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500' : 'bg-zinc-900 border-zinc-800'}`;
+                
+                // Indicador visual de estado en la tarjeta
+                const estadoDot = data.disponible ? '<span class="text-emerald-500 font-bold text-[10px] animate-pulse">● ONLINE</span>' : '<span class="text-gray-500 text-[10px]">● OFFLINE</span>';
+
                 card.innerHTML = `
                     <div class="flex justify-between items-center">
                         <div>
-                            <h4 class="font-bold text-white text-sm">${data.nombre} ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded">NUEVO</span>' : ''}</h4>
-                            <div class="text-[10px] text-gray-400 mt-1">INE: ${ineCheck} | CSF: ${csfCheck}</div>
+                            <h4 class="font-bold text-white text-sm">
+                                ${data.nombre} ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded">NUEVO</span>' : ''}
+                            </h4>
+                            <p class="text-xs text-gray-400">${data.email}</p>
+                            <div class="flex gap-2 mt-1 items-center">
+                                <span class="text-[10px] text-gray-500">INE: ${ineCheck}</span>
+                                ${estadoDot}
+                            </div>
                         </div>
                         ${esPendiente ? `<button class="bg-emerald-500 text-black font-bold text-xs px-3 py-1 rounded hover:scale-105 transition-transform" onclick="window.aprobarTecnico('${docSnap.id}')">APROBAR</button>` : `<i class="fas fa-check-circle text-emerald-500"></i>`}
                     </div>
                 `;
                 elementos.lista.appendChild(card);
             });
+
+            // ACTUALIZAR CONTADOR DE TÉCNICOS (LO QUE FALTABA)
+            if(elementos.countOnline) {
+                elementos.countOnline.innerHTML = `${contOnline} <span class="text-sm text-gray-500">/ ${contTotal}</span>`;
+                elementos.countOnline.style.color = contOnline > 0 ? "#10b981" : "white";
+            }
         });
     }
 
-    // 1.B. ACTIVIDAD GLOBAL
+    // 1.B. ACTIVIDAD GLOBAL (Sin cambios, funciona bien)
     onSnapshot(query(collection(db, "services"), orderBy("created_at", "desc")), (snap) => {
         if(elementos.actividad) elementos.actividad.innerHTML = "";
         let activos = 0, ingresos = 0;
@@ -170,14 +195,18 @@ export async function iniciarPanelTecnico(user) {
         el.toggleONOFF.addEventListener("change", (e) => updateDoc(doc(db, "users", user.uid), { disponible: e.target.checked }));
     }
 
-    // 2.B. BOLSA DE TRABAJO (CON SONIDO)
+    // 2.B. BOLSA DE TRABAJO (CON SONIDO RESTAURADO)
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
         onSnapshot(query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc")), (snap) => {
             contenedor.innerHTML = "";
             if(snap.empty) { contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic">Escaneando zona...</p>`; return; }
             
-            if(snap.docChanges().some(change => change.type === 'added')) sonarAlerta();
+            // 🔔 SONIDO ACTIVADO: Si llega algo nuevo a la bolsa
+            if(snap.docChanges().some(change => change.type === 'added')) {
+                console.log("🔔 Nueva solicitud detectada: SONANDO ALERTA");
+                sonarAlerta();
+            }
 
             snap.forEach((docSnap) => {
                 const s = docSnap.data();
@@ -213,6 +242,7 @@ export async function iniciarPanelTecnico(user) {
             const s = docSnap.data();
             const id = docSnap.id;
             
+            // Tarjeta Info
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl";
             card.innerHTML = `
@@ -392,7 +422,11 @@ export async function iniciarPanelCliente(user) {
         if(!el.lista) return;
         el.lista.innerHTML = "";
 
-        if(snap.docChanges().some(change => change.type === 'modified')) sonarAlerta();
+        // 🔔 SONIDO ACTIVADO: Si el técnico avanza, cambia estado
+        if(snap.docChanges().some(change => change.type === 'modified')) {
+            console.log("🔔 Cambio de estado servicio: SONANDO ALERTA");
+            sonarAlerta();
+        }
 
         snap.forEach(docSnap => {
             const s = docSnap.data();
@@ -452,12 +486,12 @@ export async function iniciarPanelCliente(user) {
         else if(confirm("¿Cancelar? Se cobrará visita.")) await updateDoc(doc(db, "services", id), { estado: "cancelado" });
     };
 
-    // GENERADOR DE PDF (LÓGICA SEGURA DENTRO DE LA FUNCIÓN)
+    // GENERADOR DE PDF
     window.generarPDF = async (encodedData) => {
         const data = JSON.parse(decodeURIComponent(encodedData));
         
         try {
-            // CARGA LA LIBRERÍA SOLO AL DAR CLICK
+            // CARGA DINÁMICA SEGURA
             const { jsPDF } = await cargarLibreriaPDF();
             const doc = new jsPDF();
 
