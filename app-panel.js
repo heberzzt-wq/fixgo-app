@@ -2,7 +2,7 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 5.4 (FULL UNCOMPRESSED: GPS + AUDIO + PDF PRO)
+ * Versión: 5.6 (FULL LENGTH: AUDIO UNLOCKED + ADMIN FIX)
  * ======================================================
  */
 
@@ -27,21 +27,39 @@ import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 // 🔔 SISTEMA DE SONIDO CENTRALIZADO (ROBUSTO)
 // ======================================================
 const audioNotificacion = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
+let audioDesbloqueado = false;
 
-// Truco para "desbloquear" el audio en navegadores modernos (Chrome/Safari)
-// Se activa con el primer clic que haga el usuario en cualquier parte
-document.body.addEventListener('click', () => {
+// FUNCIÓN DE DESBLOQUEO (Soluciona el problema de "solo visual")
+// Los navegadores bloquean el sonido si el usuario no ha interactuado primero.
+// Esto fuerza al navegador a "preparar" el audio con el primer clic o toque.
+function desbloquearAudio() {
+    if (audioDesbloqueado) return;
+    
     audioNotificacion.play().then(() => {
         audioNotificacion.pause();
         audioNotificacion.currentTime = 0;
-    }).catch(e => {
-        // Ignoramos errores si el usuario no ha interactuado aún
+        audioDesbloqueado = true;
+        console.log("🔊 Sistema de Audio: DESBLOQUEADO Y LISTO.");
+        
+        // Removemos los listeners para no saturar memoria
+        document.removeEventListener('click', desbloquearAudio);
+        document.removeEventListener('touchstart', desbloquearAudio);
+    }).catch(error => {
+        console.log("⚠️ Esperando interacción del usuario para activar audio...");
     });
-}, { once: true });
+}
+
+// Agregamos listeners a todo el documento para atrapar el primer clic/toque
+document.addEventListener('click', desbloquearAudio);
+document.addEventListener('touchstart', desbloquearAudio);
 
 function sonarAlerta() {
+    if (!audioDesbloqueado) {
+        console.warn("🔇 Audio pendiente de desbloqueo (Toca la pantalla).");
+        return;
+    }
     audioNotificacion.currentTime = 0;
-    audioNotificacion.play().catch(e => console.log("🔊 Alerta visual: Audio bloqueado por el navegador."));
+    audioNotificacion.play().catch(e => console.log("🔊 Alerta visual: Audio bloqueado por el navegador.", e));
 }
 
 // ======================================================
@@ -58,7 +76,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log("🚀 FIXGO 5.4: Código Extendido y Restaurado.");
+console.log("🚀 FIXGO 5.6: Código Extendido, Audio Blindado y Admin Sync.");
 
 
 // ======================================================
@@ -91,8 +109,11 @@ export async function iniciarPanelAdmin(user) {
                 const data = docSnap.data();
                 contTotal++;
                 
-                // Contamos si está disponible para el Dashboard
-                if(data.disponible === true) contOnline++;
+                // CORRECCIÓN ADMIN: Detección más flexible de "online"
+                // A veces es true (boolean) o "true" (string), esto cubre ambos
+                if(data.disponible) {
+                    contOnline++;
+                }
 
                 const esPendiente = (data.estado || "pendiente") === "pendiente";
                 const ineCheck = data.documentos?.ine ? '<span class="text-emerald-400">✅ INE</span>' : '<span class="text-red-500">❌ INE</span>';
@@ -137,7 +158,7 @@ export async function iniciarPanelAdmin(user) {
                 elementos.lista.appendChild(card);
             });
 
-            // Actualizamos el contador del Dashboard principal
+            // Actualizamos el contador del Dashboard principal (CORREGIDO)
             if(elementos.countOnline) {
                 elementos.countOnline.innerHTML = `${contOnline} <span class="text-sm text-gray-500">/ ${contTotal}</span>`;
                 elementos.countOnline.style.color = contOnline > 0 ? "#10b981" : "white";
