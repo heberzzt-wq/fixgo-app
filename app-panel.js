@@ -2,7 +2,7 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 2.2 (Corrección Final: Users + CreadoEn)
+ * Versión: 2.3 (Corrección Final: ID de Documento + Robustez)
  * * DESCRIPCIÓN:
  * Lógica unificada para Admins, Técnicos y Clientes.
  * Ahora apunta exclusivamente a la colección maestra 'users'.
@@ -43,8 +43,6 @@ export async function iniciarPanelAdmin(user) {
     if (!contenedorTecnicos) return; // Protección si no estamos en admin.html
 
     // 1.A. ESCUCHAR TÉCNICOS EN LA COLECCIÓN 'USERS'
-    // CORRECCIÓN 1: Buscamos en 'users' filtrando por rol.
-    // CORRECCIÓN 2: Usamos 'creadoEn' que es como lo guarda firebase.js
     const qTecnicos = query(
         collection(db, "users"), 
         where("rol", "==", "tecnico"),
@@ -61,7 +59,13 @@ export async function iniciarPanelAdmin(user) {
 
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
-            const esPendiente = data.estado === "pendiente";
+            
+            // CORRECCIÓN 1: Robustez para leer 'estado' o 'status'
+            const estadoReal = data.estado || data.status || "pendiente";
+            const esPendiente = estadoReal === "pendiente";
+
+            // CORRECCIÓN 2: Obtenemos el ID real del documento (Soluciona el error undefined)
+            const uidReal = docSnap.id; 
             
             // Renderizado de tarjeta de técnico
             const card = document.createElement("div");
@@ -75,13 +79,13 @@ export async function iniciarPanelAdmin(user) {
                         <p class="text-xs text-gray-400">Tel: ${data.telefono || 'N/A'}</p>
                         <div class="mt-2 flex gap-2">
                              <span class="text-[10px] px-2 py-0.5 rounded border ${
-                                data.estado === 'activo' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-                             }">${data.estado ? data.estado.toUpperCase() : 'PENDIENTE'}</span>
+                                estadoReal === 'activo' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                             }">${estadoReal.toUpperCase()}</span>
                              <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30">${data.nivel || 'Bronce'}</span>
                         </div>
                     </div>
                     ${esPendiente ? `
-                        <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded-lg transition-all" data-uid="${data.uid}">
+                        <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded-lg transition-all" data-uid="${uidReal}">
                             <i class="fas fa-check-circle"></i> APROBAR
                         </button>
                     ` : `
@@ -99,7 +103,10 @@ export async function iniciarPanelAdmin(user) {
         // Asignar eventos a botones de aprobar generados dinámicamente
         document.querySelectorAll(".btn-aprobar").forEach(btn => {
             btn.addEventListener("click", async (e) => {
-                const uid = e.target.closest("button").dataset.uid;
+                // Buscamos el botón más cercano (por si se hizo click en el ícono)
+                const boton = e.target.closest("button");
+                const uid = boton.dataset.uid;
+
                 if(confirm("¿Estás seguro de APROBAR a este técnico? Podrá recibir servicios inmediatamente.")) {
                     await aprobarTecnico(uid);
                 }
@@ -108,7 +115,6 @@ export async function iniciarPanelAdmin(user) {
     });
 
     // 1.B. ESCUCHAR SERVICIOS ACTIVOS (SOLICITUDES)
-    // Escuchamos la colección 'services'
     const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"));
     
     // (Opcional) Renderizar servicios en otro contenedor si existiera en el HTML
@@ -117,10 +123,11 @@ export async function iniciarPanelAdmin(user) {
 // FUNCION AUXILIAR: Aprobar Técnico
 async function aprobarTecnico(uid) {
     try {
-        // CORRECCIÓN: Actualizamos directamente en 'users'
+        console.log("Intentando aprobar UID:", uid); // Debug
         const ref = doc(db, "users", uid);
         await updateDoc(ref, {
             estado: "activo",
+            status: "activo", // Actualizamos ambos por compatibilidad
             verificado: true,
             aprobadoEn: serverTimestamp()
         });
@@ -148,16 +155,16 @@ export async function iniciarPanelTecnico(user) {
     const radarSection = document.getElementById("radarSection");
 
     // 2.A. INICIALIZAR ESTADO DEL USUARIO (ON/OFF)
-    // CORRECCIÓN: Leemos el estado desde 'users'
     try {
         const tecnicoRef = doc(db, "users", user.uid);
         const snapshot = await getDoc(tecnicoRef);
         
         if (snapshot.exists()) {
             const data = snapshot.data();
+            const estadoReal = data.estado || data.status || "pendiente";
             
             // Validación de Bloqueo Administrativo
-            if (data.estado === "pendiente") {
+            if (estadoReal === "pendiente") {
                 alert("⚠️ TU CUENTA ESTÁ EN REVISIÓN.\n\nEl administrador debe aprobar tus documentos antes de poder recibir servicios.");
                 if(toggleONOFF) toggleONOFF.disabled = true;
                 if(statusLabel) statusLabel.innerText = "PENDIENTE DE APROBACIÓN";
@@ -194,7 +201,6 @@ export async function iniciarPanelTecnico(user) {
     }
 
     // 2.B. ESCUCHAR ASIGNACIONES DE SERVICIO
-    // Buscamos servicios donde tecnico_id == user.uid Y estado != finalizado
     const qMisiones = query(
         collection(db, "services"),
         where("tecnico_id", "==", user.uid),
@@ -214,7 +220,7 @@ export async function iniciarPanelTecnico(user) {
             `;
             // Ocultar botones de acción si no hay misión activa
             if(document.getElementById("panelAcciones")) {
-                document.getElementById("panelAcciones").classList.add("translate-y-full"); // Ocultar panel flotante
+                document.getElementById("panelAcciones").classList.add("translate-y-full");
             }
             return;
         }
@@ -293,8 +299,6 @@ export async function iniciarPanelTecnico(user) {
                 btnLlegue.onclick = () => actualizarEstadoServicio(id, "en_sitio");
             }
         } else if (servicio.estado === "en_sitio") {
-            // Aquí iría lógica para iniciar trabajo / cotizar
-            // Por ahora mostramos texto informativo
             if(btnLlegue) {
                 btnLlegue.classList.remove("hidden");
                 btnLlegue.innerText = "EN SITIO - INICIAR TRABAJO";
@@ -313,7 +317,6 @@ export async function iniciarPanelTecnico(user) {
             });
             
             // También actualizamos el estado del rastreo para el mapa del cliente
-            // Usamos setDoc con merge por si no existe
             const rastreoRef = doc(db, "rastreo", "tecnicoActivo"); 
             await setDoc(rastreoRef, {
                 estado: nuevoEstado === "en_camino" ? "En Ruta" : "En Sitio"
@@ -380,7 +383,7 @@ export async function iniciarPanelCliente(user) {
                     categoria: categoria,
                     direccion: direccion,
                     descripcion: descripcion,
-                    estado: "pendiente", // El admin o algoritmo asignará
+                    estado: "pendiente",
                     created_at: serverTimestamp(),
                     zona: "Cancún Centro", 
                     precio_estimado: 0 
