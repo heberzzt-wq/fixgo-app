@@ -12,7 +12,7 @@
         /* Scrollbar personalizada */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #121212; }
-        ::-webkit-scrollbar-thumb { background: #333; rounded: 4px; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
     </style>
 </head>
 <body class="text-white min-h-screen font-sans">
@@ -52,7 +52,7 @@
                 <div class="flex justify-between items-start">
                     <div>
                         <p class="text-gray-500 text-xs font-bold uppercase tracking-widest">Técnicos Online</p>
-                        <h3 class="text-3xl font-black text-white mt-1">--</h3>
+                        <h3 id="totalTecnicos" class="text-3xl font-black text-white mt-1">--</h3>
                     </div>
                     <div class="bg-blue-500/10 p-3 rounded-xl text-blue-500">
                         <i class="fas fa-users"></i>
