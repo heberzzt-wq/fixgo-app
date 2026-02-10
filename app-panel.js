@@ -2,7 +2,7 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 6.0 (GOLD MASTER: PDF REPORTING ENABLED)
+ * Versión: 5.1 (STABLE RECOVERY + SAFE PDF)
  * ======================================================
  */
 
@@ -12,13 +12,10 @@ import {
 
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 
-// IMPORTACIÓN DINÁMICA DE LIBRERÍA PDF (Sin tocar index.html)
-import { jsPDF } from "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-
 // ======================================================
 // 🔔 SISTEMA DE SONIDO CENTRALIZADO
 // ======================================================
-const audioNotificacion = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3'); 
+const audioNotificacion = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
 
 document.body.addEventListener('click', () => {
     audioNotificacion.play().then(() => {
@@ -32,7 +29,21 @@ function sonarAlerta() {
     audioNotificacion.play().catch(e => console.log("🔊 Alerta visual."));
 }
 
-console.log("🚀 FIXGO 6.0: Sistema de Reportes PDF Activo.");
+// ======================================================
+// 📄 CARGADOR SEGURO DE PDF (No rompe el inicio)
+// ======================================================
+async function cargarLibreriaPDF() {
+    if (window.jspdf) return window.jspdf;
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        script.onload = () => resolve(window.jspdf);
+        script.onerror = () => reject("Error cargando PDF lib");
+        document.head.appendChild(script);
+    });
+}
+
+console.log("🚀 FIXGO 5.1: Sistema Restaurado y Estable.");
 
 
 // ======================================================
@@ -159,7 +170,7 @@ export async function iniciarPanelTecnico(user) {
         el.toggleONOFF.addEventListener("change", (e) => updateDoc(doc(db, "users", user.uid), { disponible: e.target.checked }));
     }
 
-    // 2.B. BOLSA DE TRABAJO
+    // 2.B. BOLSA DE TRABAJO (CON SONIDO)
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
         onSnapshot(query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc")), (snap) => {
@@ -237,13 +248,13 @@ export async function iniciarPanelTecnico(user) {
             }
             else if (s.estado === "cotizando") {
                 btn2.classList.remove("hidden");
-                btn2.innerText = "ESPERANDO CLIENTE...";
+                btn2.innerText = "ESPERANDO AL CLIENTE...";
                 btn2.disabled = true;
                 btn2.className = "w-full bg-zinc-700 text-gray-400 font-bold py-4 rounded-xl cursor-not-allowed";
             }
             else if (s.estado === "trabajando") {
                 btn2.classList.remove("hidden");
-                btn2.innerText = "📸 FINALIZAR / EVIDENCIA";
+                btn2.innerText = "📸 FINALIZAR Y EVIDENCIA";
                 btn2.disabled = false;
                 btn2.className = "w-full bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-xl text-lg";
                 btn2.onclick = () => mostrarModalEvidencia(id);
@@ -251,6 +262,7 @@ export async function iniciarPanelTecnico(user) {
         });
     });
 
+    // 📸 MODAL EVIDENCIA (REAL CON BASE64)
     function mostrarModalEvidencia(id) {
         if(document.getElementById("modalEvidencia")) return;
         const html = `
@@ -293,7 +305,7 @@ export async function iniciarPanelTecnico(user) {
                 finalizado_at: serverTimestamp()
             });
             document.getElementById("modalEvidencia").remove();
-            alert("✅ ¡Servicio Cerrado!");
+            alert("✅ ¡Servicio Cerrado Exitosamente!");
         };
     }
 
@@ -404,7 +416,6 @@ export async function iniciarPanelCliente(user) {
                 `;
             } else if (s.estado === "finalizado") {
                 // REPORTE CON FOTOS Y BOTÓN PDF ACTIVO
-                // Pasamos todo el objeto 's' convertido a string para que el botón lo lea
                 const safeData = encodeURIComponent(JSON.stringify({...s, id: id}));
                 
                 contenido = `
@@ -441,54 +452,55 @@ export async function iniciarPanelCliente(user) {
         else if(confirm("¿Cancelar? Se cobrará visita.")) await updateDoc(doc(db, "services", id), { estado: "cancelado" });
     };
 
-    // GENERADOR DE PDF (LÓGICA INTERNA)
-    window.generarPDF = (encodedData) => {
+    // GENERADOR DE PDF (LÓGICA SEGURA DENTRO DE LA FUNCIÓN)
+    window.generarPDF = async (encodedData) => {
         const data = JSON.parse(decodeURIComponent(encodedData));
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-
-        // Estilos
-        doc.setFillColor(0, 0, 0); // Fondo Negro Header
-        doc.rect(0, 0, 210, 40, 'F');
         
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(22);
-        doc.text("FIXGO MÉXICO", 20, 20);
-        doc.setFontSize(10);
-        doc.text("Reporte de Servicio Técnico", 20, 30);
-        doc.text(`ID: ${data.id}`, 150, 30);
-
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(12);
-        
-        let y = 60;
-        doc.text(`Cliente: ${data.cliente_nombre}`, 20, y);
-        doc.text(`Fecha: ${new Date(data.created_at.seconds * 1000).toLocaleDateString()}`, 120, y);
-        y+=10;
-        doc.text(`Dirección: ${data.direccion}`, 20, y);
-        y+=10;
-        doc.text(`Categoría: ${data.categoria.toUpperCase()}`, 20, y);
-        
-        y+=20;
-        doc.setDrawColor(0);
-        doc.line(20, y, 190, y);
-        y+=10;
-
-        doc.setFontSize(14);
-        doc.text("DIAGNÓSTICO Y COSTOS", 20, y);
-        y+=10;
-        doc.setFontSize(12);
-        doc.text(`Detalle: ${data.diagnostico}`, 20, y);
-        y+=10;
-        doc.setFont(undefined, 'bold');
-        doc.text(`TOTAL COBRADO: $${data.costo_final} MXN`, 20, y);
-        
-        y+=20;
-        doc.text("EVIDENCIA FOTOGRÁFICA:", 20, y);
-        y+=10;
-
-        // Intentar agregar imágenes si existen
         try {
+            // CARGA LA LIBRERÍA SOLO AL DAR CLICK
+            const { jsPDF } = await cargarLibreriaPDF();
+            const doc = new jsPDF();
+
+            // Estilos
+            doc.setFillColor(0, 0, 0); // Fondo Negro Header
+            doc.rect(0, 0, 210, 40, 'F');
+            
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(22);
+            doc.text("FIXGO MÉXICO", 20, 20);
+            doc.setFontSize(10);
+            doc.text("Reporte de Servicio Técnico", 20, 30);
+            doc.text(`ID: ${data.id}`, 150, 30);
+
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(12);
+            
+            let y = 60;
+            doc.text(`Cliente: ${data.cliente_nombre}`, 20, y);
+            doc.text(`Fecha: ${new Date(data.created_at.seconds * 1000).toLocaleDateString()}`, 120, y);
+            y+=10;
+            doc.text(`Dirección: ${data.direccion}`, 20, y);
+            y+=10;
+            doc.text(`Categoría: ${data.categoria.toUpperCase()}`, 20, y);
+            
+            y+=20;
+            doc.setDrawColor(0);
+            doc.line(20, y, 190, y);
+            y+=10;
+
+            doc.setFontSize(14);
+            doc.text("DIAGNÓSTICO Y COSTOS", 20, y);
+            y+=10;
+            doc.setFontSize(12);
+            doc.text(`Detalle: ${data.diagnostico}`, 20, y);
+            y+=10;
+            doc.setFont(undefined, 'bold');
+            doc.text(`TOTAL COBRADO: $${data.costo_final} MXN`, 20, y);
+            
+            y+=20;
+            doc.text("EVIDENCIA FOTOGRÁFICA:", 20, y);
+            y+=10;
+
             if(data.evidencia?.antes) {
                 doc.addImage(data.evidencia.antes, "JPEG", 20, y, 80, 60);
                 doc.text("ANTES", 55, y+65);
@@ -497,11 +509,11 @@ export async function iniciarPanelCliente(user) {
                 doc.addImage(data.evidencia.despues, "JPEG", 110, y, 80, 60);
                 doc.text("DESPUÉS", 145, y+65);
             }
-        } catch(e) {
-            console.error("Error al renderizar imágenes en PDF", e);
-            doc.text("(Imágenes no disponibles en este formato)", 20, y+10);
-        }
 
-        doc.save(`Reporte_FixGo_${data.id}.pdf`);
+            doc.save(`Reporte_FixGo_${data.id}.pdf`);
+        } catch (error) {
+            console.error(error);
+            alert("Error generando PDF. Intenta de nuevo.");
+        }
     };
 }
