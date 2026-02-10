@@ -2,7 +2,7 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 3.3 (Admin Approval System)
+ * Versión: 3.4 (Production Fix: Admin Vision & Tech Buttons)
  * ======================================================
  */
 
@@ -24,7 +24,7 @@ import {
 
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 
-console.log("🧩 app-panel.js V3.3: Lógica Entrelazada.");
+console.log("🧩 app-panel.js V3.4: Admin Visión Total + Botones Técnico Fix.");
 
 // ======================================================
 // 1. PANEL DE ADMINISTRADOR (Torre de Control)
@@ -33,10 +33,14 @@ export async function iniciarPanelAdmin(user) {
     console.log("👮‍♂️ Iniciando lógica de ADMINISTRADOR...");
 
     const contenedorTecnicos = document.getElementById("listaTecnicos");
+    const contenedorActividad = document.getElementById("listaTransacciones");
+    const contadorServicios = document.querySelector(".fa-bolt").closest(".uber-card").querySelector("h3"); // Busca el h3 cerca del icono de rayo
+    const contadorIngresos = document.querySelector(".fa-wallet").closest(".uber-card").querySelector("h3");
     
-    // 1.A. LISTA DE APROBACIÓN (CON VISUALIZACIÓN DE DOCUMENTOS)
+    // ------------------------------------------------------
+    // 1.A. LISTA DE APROBACIÓN DE TÉCNICOS (Ya funcionaba)
+    // ------------------------------------------------------
     if (contenedorTecnicos) {
-        // Traemos TODOS los técnicos, ordenados por fecha de creación si es posible
         const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
 
         onSnapshot(qTecnicos, (snapshot) => {
@@ -53,7 +57,6 @@ export async function iniciarPanelAdmin(user) {
                 const esPendiente = estadoReal === "pendiente";
                 const uidReal = docSnap.id; 
                 
-                // Verificamos documentos (Vienen de app-registro.js)
                 const tieneINE = data.documentos?.ine ? '<span class="text-emerald-400">✅ INE</span>' : '<span class="text-red-500">❌ INE</span>';
                 const tieneCSF = data.documentos?.csf ? '<span class="text-emerald-400">✅ CSF</span>' : '<span class="text-red-500">❌ CSF</span>';
 
@@ -97,11 +100,10 @@ export async function iniciarPanelAdmin(user) {
                 contenedorTecnicos.appendChild(card);
             });
 
-            // Listeners dinámicos para aprobar
             document.querySelectorAll(".btn-aprobar").forEach(btn => {
                 btn.addEventListener("click", async (e) => {
                     const uid = e.target.getAttribute("data-uid");
-                    if(confirm("¿Confirmas que los documentos INE y CSF son correctos?\n\nAl aprobar, el técnico podrá recibir servicios.")) {
+                    if(confirm("¿Aprobar técnico y permitirle trabajar?")) {
                         await aprobarTecnico(uid);
                     }
                 });
@@ -109,7 +111,9 @@ export async function iniciarPanelAdmin(user) {
         });
     }
 
-    // 1.B. CONTADOR ONLINE (ADMIN DASHBOARD)
+    // ------------------------------------------------------
+    // 1.B. CONTADOR DE TÉCNICOS ONLINE
+    // ------------------------------------------------------
     const qOnline = query(collection(db, "users"), where("rol", "==", "tecnico"));
     onSnapshot(qOnline, (snapshot) => {
         let contOnline = 0;
@@ -124,9 +128,81 @@ export async function iniciarPanelAdmin(user) {
             counterEl.style.color = contOnline > 0 ? "#10b981" : "white";
         }
     });
+
+    // ------------------------------------------------------
+    // 1.C. ACTIVIDAD RECIENTE Y SERVICIOS (NUEVO CABLEADO)
+    // ------------------------------------------------------
+    // Aquí conectamos el panel a la colección 'services'
+    const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"));
+    
+    onSnapshot(qServicios, (snapshot) => {
+        // 1. Actualizar Actividad Reciente
+        if(contenedorActividad) contenedorActividad.innerHTML = "";
+        
+        if (snapshot.empty) {
+            if(contenedorActividad) contenedorActividad.innerHTML = '<p class="text-gray-500 italic text-sm text-center mt-10">Sin actividad reciente.</p>';
+            if(contadorServicios) contadorServicios.innerText = "0";
+            return;
+        }
+
+        let activos = 0;
+        let totalIngresos = 0;
+
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            
+            // Calculo de Activos
+            if (["pendiente", "asignado", "en_camino", "en_sitio", "trabajando"].includes(data.estado)) {
+                activos++;
+            }
+
+            // Calculo de Ingresos (Simulado con precio base si no existe)
+            const precio = data.precio_final || 0; 
+            totalIngresos += (precio * 0.32); // 32% Comisión FixGo
+
+            // Renderizar Lista (Solo los últimos 10 para no saturar)
+            // (En un escenario real limitaríamos la query, aquí lo hacemos visual)
+            if (contenedorActividad && contenedorActividad.children.length < 10) {
+                const item = document.createElement("div");
+                item.className = "flex justify-between items-center border-b border-white/5 py-3 last:border-0";
+                
+                let colorEstado = "text-gray-400";
+                if(data.estado === "pendiente") colorEstado = "text-yellow-500";
+                if(data.estado === "finalizado") colorEstado = "text-emerald-500";
+                if(data.estado === "asignado") colorEstado = "text-blue-500";
+
+                item.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="bg-zinc-800 p-2 rounded-lg">
+                            <i class="fas fa-tools text-gray-400"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-white uppercase">${data.categoria}</p>
+                            <p class="text-[10px] text-gray-500">${data.zona || 'Cancún'} • ${data.cliente_nombre || 'Cliente'}</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs font-bold ${colorEstado} uppercase">${data.estado.replace('_', ' ')}</p>
+                        <p class="text-[10px] text-gray-600">Hace un momento</p>
+                    </div>
+                `;
+                contenedorActividad.appendChild(item);
+            }
+        });
+
+        // 2. Actualizar Contadores Dashboard
+        if(contadorServicios) {
+            contadorServicios.innerText = activos;
+            contadorServicios.style.color = activos > 0 ? "#34d399" : "white"; // Verde si hay activos
+        }
+        
+        if(contadorIngresos) {
+            contadorIngresos.innerText = `$${totalIngresos.toFixed(2)}`;
+        }
+    });
 }
 
-// FUNCION AUXILIAR: Aprobar Técnico (Cambia estado DB)
+// FUNCION AUXILIAR: Aprobar Técnico
 async function aprobarTecnico(uid) {
     try {
         await updateDoc(doc(db, "users", uid), {
@@ -149,8 +225,10 @@ async function aprobarTecnico(uid) {
 export async function iniciarPanelTecnico(user) {
     console.log("🔧 Iniciando lógica de TÉCNICO...", user);
 
+    // Referencias DOM
     const btnEnCamino = document.getElementById("btnEnCamino");
     const btnLlegue = document.getElementById("btnLlegue");
+    const panelAcciones = document.getElementById("panelAcciones"); // El contenedor negro de abajo
     const toggleONOFF = document.getElementById("toggleONOFF");
     const listaServicios = document.getElementById("listaServicios");
     const statusLabel = document.getElementById("statusLabel");
@@ -177,7 +255,6 @@ export async function iniciarPanelTecnico(user) {
                     if(toggleONOFF) {
                         toggleONOFF.disabled = true;
                         toggleONOFF.checked = false;
-                        // Forzamos visualmente que no pueda trabajar
                         radarSection.classList.add("hidden");
                     }
                     if(seccionBolsa) seccionBolsa.innerHTML = '<div class="p-4 bg-yellow-900/20 text-yellow-500 text-xs rounded-xl text-center border border-yellow-500/30">🔒 Tu cuenta está bajo revisión.<br>Sube tus documentos si no lo has hecho.</div>';
@@ -186,7 +263,6 @@ export async function iniciarPanelTecnico(user) {
 
                 // B. ESTADO ACTIVO
                 if(statusLabel && estadoReal === "activo") {
-                    // Restauramos UI
                     radarSection.classList.remove("hidden");
                     toggleONOFF.disabled = false;
                 }
@@ -223,7 +299,7 @@ export async function iniciarPanelTecnico(user) {
         console.error("Error perfil técnico:", error);
     }
 
-    // Funciones de Bolsa y Servicio (Sin cambios, ya funcionaban bien)
+    // 2.B. BOLSA DE TRABAJO
     function escucharBolsaDeTrabajo(tecnico) {
         if(!listaBolsa) return;
         const qBolsa = query(
@@ -278,7 +354,7 @@ export async function iniciarPanelTecnico(user) {
         }
     }
 
-    // Escuchar Misiones Asignadas
+    // 2.C. ESCUCHAR MIS MISIONES Y ACTIVAR BOTONES (FIXED)
     const qMisiones = query(
         collection(db, "services"),
         where("tecnico_id", "==", user.uid),
@@ -288,18 +364,19 @@ export async function iniciarPanelTecnico(user) {
     onSnapshot(qMisiones, (snap) => {
         if (!listaServicios) return;
         listaServicios.innerHTML = "";
-        const panelAcciones = document.getElementById("panelAcciones");
         
+        // Si no hay misiones, bajamos el panel de botones
         if (snap.empty) {
             if(panelAcciones) panelAcciones.classList.add("translate-y-full");
             return;
         }
 
+        // Si hay misiones, iteramos (normalmente solo hay 1 activa)
         snap.forEach((docSnap) => {
             const servicio = docSnap.data();
             const servicioId = docSnap.id;
-            if(panelAcciones) panelAcciones.classList.remove("translate-y-full");
-
+            
+            // 1. DIBUJAR LA TARJETA DEL SERVICIO
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl";
             card.innerHTML = `
@@ -313,7 +390,43 @@ export async function iniciarPanelTecnico(user) {
                 </div>
             `;
             listaServicios.appendChild(card);
-            gestionarBotonesMision(servicio, servicioId);
+
+            // 2. GESTIONAR LOS BOTONES INFERIORES (LÓGICA CORREGIDA)
+            // Forzamos que el panel suba
+            if(panelAcciones) panelAcciones.classList.remove("translate-y-full");
+
+            // Reseteamos botones (ocultamos todos primero)
+            if(btnEnCamino) btnEnCamino.classList.add("hidden");
+            if(btnLlegue) btnLlegue.classList.add("hidden");
+
+            // Mostramos el correcto según el estado
+            if (servicio.estado === "asignado") {
+                if(btnEnCamino) {
+                    btnEnCamino.classList.remove("hidden");
+                    // Limpiamos onclicks anteriores para evitar duplicados
+                    const nuevoBtn = btnEnCamino.cloneNode(true);
+                    btnEnCamino.parentNode.replaceChild(nuevoBtn, btnEnCamino);
+                    nuevoBtn.onclick = () => actualizarEstadoServicio(servicioId, "en_camino");
+                }
+            } else if (servicio.estado === "en_camino") {
+                if(btnLlegue) {
+                    btnLlegue.classList.remove("hidden");
+                    const nuevoBtn = btnLlegue.cloneNode(true);
+                    btnLlegue.parentNode.replaceChild(nuevoBtn, btnLlegue);
+                    nuevoBtn.onclick = () => actualizarEstadoServicio(servicioId, "en_sitio");
+                }
+            } else if (servicio.estado === "en_sitio") {
+                // Aquí iría el botón de "Iniciar Trabajo" (Próxima fase)
+                if(btnLlegue) {
+                    btnLlegue.classList.remove("hidden");
+                    btnLlegue.innerText = "INICIAR TRABAJO";
+                    btnLlegue.classList.remove("bg-emerald-600");
+                    btnLlegue.classList.add("bg-blue-600");
+                    const nuevoBtn = btnLlegue.cloneNode(true);
+                    btnLlegue.parentNode.replaceChild(nuevoBtn, btnLlegue);
+                    nuevoBtn.onclick = () => alert("Fase de cotización: Próximamente");
+                }
+            }
         });
     });
 
@@ -330,27 +443,19 @@ export async function iniciarPanelTecnico(user) {
         }
     }
 
-    function gestionarBotonesMision(servicio, id) {
-        if(btnEnCamino) btnEnCamino.classList.add("hidden");
-        if(btnLlegue) btnLlegue.classList.add("hidden");
-
-        if (servicio.estado === "asignado") {
-            if(btnEnCamino) {
-                btnEnCamino.classList.remove("hidden");
-                btnEnCamino.onclick = () => actualizarEstadoServicio(id, "en_camino");
-            }
-        } else if (servicio.estado === "en_camino") {
-            if(btnLlegue) {
-                btnLlegue.classList.remove("hidden");
-                btnLlegue.onclick = () => actualizarEstadoServicio(id, "en_sitio");
-            }
-        }
-    }
-
     async function actualizarEstadoServicio(id, nuevoEstado) {
-        await updateDoc(doc(db, "services", id), { estado: nuevoEstado, updated_at: serverTimestamp() });
-        const rastreoRef = doc(db, "rastreo", "tecnicoActivo"); 
-        await setDoc(rastreoRef, { estado: nuevoEstado === "en_camino" ? "En Ruta" : "En Sitio" }, { merge: true });
+        try {
+            // Actualizar Servicio
+            await updateDoc(doc(db, "services", id), { estado: nuevoEstado, updated_at: serverTimestamp() });
+            
+            // Actualizar Rastreo
+            const rastreoRef = doc(db, "rastreo", "tecnicoActivo"); 
+            await setDoc(rastreoRef, { estado: nuevoEstado === "en_camino" ? "En Ruta" : "En Sitio" }, { merge: true });
+
+        } catch (error) {
+            console.error(error);
+            alert("Error al actualizar estado. Revisa tu conexión.");
+        }
     }
 }
 
