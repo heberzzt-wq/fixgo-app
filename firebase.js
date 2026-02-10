@@ -1,6 +1,6 @@
 /**
  * ======================================================
- * FIXGO CORE - FIREBASE CONFIGURATION v5.1 (CORREGIDO USERS)
+ * FIXGO CORE - FIREBASE CONFIGURATION v5.1 (UNIFICADO)
  * ======================================================
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -28,6 +28,7 @@ import {
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+// Configuración de credenciales
 const firebaseConfig = {
     apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0", 
     authDomain: "fixgo-44e4d.firebaseapp.com",
@@ -37,12 +38,14 @@ const firebaseConfig = {
     appId: "1:1005526685116:web:62f1a823ff8761da85c7b9"
 };
 
+// Inicialización de servicios
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 
 /**
  * OBSERVADOR DE SESIÓN INTELIGENTE
+ * Verifica el estado del usuario y busca su rol en la base de datos.
  */
 function observarAuth(callback) {
     return onAuthStateChanged(auth, async (user) => {
@@ -52,22 +55,28 @@ function observarAuth(callback) {
         }
 
         try {
-            // CORRECCIÓN AQUÍ: Cambiamos 'usuarios' por 'users' para coincidir con tu DB real
-            // 1. Buscamos en la colección MAESTRA 'users'
+            // 1. Buscamos primero en la colección MAESTRA 'users' (Inglés)
+            // Esta es la colección unificada donde deben estar Admins, Clientes y Técnicos.
             let snap = await getDoc(doc(db, "users", user.uid));
             
-            // 2. Si no está ahí (raro), buscamos en 'tecnicos'
-            if (!snap.exists()) snap = await getDoc(doc(db, "tecnicos", user.uid));
+            // 2. Fallback: Si no está en 'users', buscamos en 'tecnicos'
+            if (!snap.exists()) {
+                snap = await getDoc(doc(db, "tecnicos", user.uid));
+            }
 
-            // 3. Si no está, buscamos en 'clientes'
-            if (!snap.exists()) snap = await getDoc(doc(db, "clientes", user.uid));
+            // 3. Fallback: Si no está, buscamos en 'clientes'
+            if (!snap.exists()) {
+                snap = await getDoc(doc(db, "clientes", user.uid));
+            }
 
-            // 4. Si no está, buscamos en 'admins'
-            if (!snap.exists()) snap = await getDoc(doc(db, "admins", user.uid));
+            // 4. Fallback: Si no está, buscamos en 'admins' (legacy)
+            if (!snap.exists()) {
+                snap = await getDoc(doc(db, "admins", user.uid));
+            }
 
             if (snap.exists()) {
                 const data = snap.data();
-                // Combinamos la info de Auth con la info de la Base de Datos
+                // Combinamos la info de Auth con la info encontrada en la Base de Datos
                 const finalUser = { ...user, ...data };
                 callback(finalUser);
             } else {
@@ -84,12 +93,15 @@ function observarAuth(callback) {
 
 /**
  * REGISTRO BLINDADO
+ * Crea el usuario en Auth y guarda sus datos en la colección 'users'.
  */
 async function registrarUsuario(email, password, rol, nombre) {
     try {
+        // 1. Crear usuario en Firebase Authentication
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const uid = cred.user.uid;
         
+        // 2. Preparar el objeto de perfil
         const perfil = {
             uid: uid,
             email: email,
@@ -98,31 +110,42 @@ async function registrarUsuario(email, password, rol, nombre) {
             creadoEn: serverTimestamp()
         };
 
-        // CORRECCIÓN AQUÍ TAMBIÉN: Guardamos en 'users' para mantener consistencia
+        // 3. Guardar en la colección MAESTRA 'users' (Inglés)
         await setDoc(doc(db, "users", uid), perfil);
 
-        // Además creamos el documento específico de rol
+        // 4. Guardar copia en colección específica (Respaldo por seguridad)
         if (rol === 'tecnico') {
             await setDoc(doc(db, "tecnicos", uid), { ...perfil, disponible: false });
         } else {
             await setDoc(doc(db, "clientes", uid), { ...perfil, pedidos: 0 });
         }
 
+        // 5. Actualizar nombre visual en Auth
         await updateProfile(cred.user, { displayName: nombre });
+        
         return cred.user;
     } catch (error) {
         throw error;
     }
 }
 
-// EXPORTAMOS TODO
+// EXPORTACIÓN DE FUNCIONES Y VARIABLES
 export {
-    auth, db,
+    auth, 
+    db,
     observarAuth,
     registrarUsuario,
     signOut,
     signInWithEmailAndPassword,
-    doc, setDoc, updateDoc, getDoc, 
-    collection, onSnapshot, query, where, addDoc, orderBy, 
+    doc, 
+    setDoc, 
+    updateDoc, 
+    getDoc, 
+    collection, 
+    onSnapshot, 
+    query, 
+    where, 
+    addDoc, 
+    orderBy, 
     serverTimestamp
 };
