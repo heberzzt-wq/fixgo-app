@@ -2,42 +2,39 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 3.3 (ATOMIC REGISTRATION + FIX NULO)
+ * Versión: 5.7 (ATOMIC REGISTRATION + SKILLS SUPPORT)
  * ======================================================
  */
-
-console.log("🚀 [app-registro.js] Inicializando sistema de autenticación V3.3...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema de autenticación V5.7...");
 
 import { 
     auth, 
     db, 
     registrarUsuario, 
     signInWithEmailAndPassword, 
-    signOut,
-    doc,
+    signOut, 
+    doc, 
     getDoc, 
-    setDoc,
+    setDoc, 
     serverTimestamp,
-    observarAuth
+    observarAuth 
 } from "./firebase.js";
 
-// Importamos deleteUser para la reversión atómica en caso de fallo
 import { 
     GoogleAuthProvider, 
-    signInWithPopup,
+    signInWithPopup, 
     deleteUser 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const $ = (id) => document.getElementById(id);
 
 // ======================================================
-// A. LÓGICA DE REGISTRO DE CLIENTES (REESCRITURA ATÓMICA)
+// A. LÓGICA DE REGISTRO DE CLIENTES
 // ======================================================
 const btnRegistroCliente = $("btnRegistroCliente");
-
 if (btnRegistroCliente) {
     btnRegistroCliente.addEventListener("click", async (e) => {
-        e.preventDefault(); 
+        e.preventDefault();
         
         const form = document.getElementById("formRegistroCliente");
         if (!form) return;
@@ -69,22 +66,20 @@ if (btnRegistroCliente) {
                 telefono: telefono,
                 rol: "cliente",
                 creadoEn: serverTimestamp(),
-                estado: "activo", 
+                estado: "activo",
                 status: "activo"
             }, { merge: true });
 
             alert(`¡Bienvenido, ${nombre}!`);
             window.location.href = "cliente.html";
-            
+
         } catch (error) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
-
-            // 🔥 FIX HEBER: Si el usuario se creó en Auth pero falló Firestore, lo borramos
+            // Reversión: Si el usuario se creó en Auth pero falló Firestore, lo borramos
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
                 console.warn("⚠️ Revirtiendo registro: Borrando usuario de Auth por fallo en DB.");
                 await deleteUser(auth.currentUser).catch(e => console.error("Error borrando huérfano:", e));
             }
-
             manejarErroresAuth(error);
             btnRegistroCliente.innerText = "Registrarme";
             btnRegistroCliente.disabled = false;
@@ -93,7 +88,7 @@ if (btnRegistroCliente) {
 }
 
 // ======================================================
-// B. LÓGICA DE TÉCNICOS (CON REVERSIÓN DE SEGURIDAD)
+// B. LÓGICA DE TÉCNICOS (CON SKILLS Y REVERSIÓN)
 // ======================================================
 const btnRegistroTecnico = $("btnRegistroTecnico");
 let ineCargado = false;
@@ -108,7 +103,6 @@ if ($("btnSubirINE")) {
         btn.classList.replace("bg-indigo-600", "bg-emerald-600");
     });
 }
-
 if ($("btnSubirCSF")) {
     $("btnSubirCSF").addEventListener("click", () => $("inputCSF").click());
     $("inputCSF").addEventListener("change", () => {
@@ -122,7 +116,7 @@ if ($("btnSubirCSF")) {
 if (btnRegistroTecnico) {
     btnRegistroTecnico.addEventListener("click", async (e) => {
         e.preventDefault();
-
+        
         const form = document.getElementById("formRegistroTecnico");
         const nombre = form.querySelector('[name="nombre"]')?.value.trim();
         const email = form.querySelector('[name="email"]')?.value.trim();
@@ -132,7 +126,18 @@ if (btnRegistroTecnico) {
         if (!nombre || !email || !password || !telefono) {
             alert("⚠️ Faltan campos obligatorios."); return;
         }
-        
+
+        // 1. CAPTURA DE SKILLS (Habilidades)
+        const skills = [];
+        if(form.querySelector('[name="skill_road"]')?.checked) skills.push("road");
+        if(form.querySelector('[name="skill_fix"]')?.checked) skills.push("fix");
+        if(form.querySelector('[name="skill_tech"]')?.checked) skills.push("tech");
+
+        if(skills.length === 0) {
+            alert("⚠️ Debes seleccionar al menos una especialidad (Skill).");
+            return;
+        }
+
         if (!ineCargado || !csfCargado) {
             alert("⚠️ ALERTA: Sube INE y CSF para continuar."); return;
         }
@@ -146,13 +151,14 @@ if (btnRegistroTecnico) {
             // 1. Registro en Auth
             usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
-            // 2. Registro en DB (Con estado pendiente para Admin)
+            // 2. Registro en DB
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
                 email: email,
                 telefono: telefono,
                 rol: "tecnico",
+                skills: skills, // <--- GUARDAMOS LAS SKILLS SELECCIONADAS
                 estado: "pendiente",
                 status: "pendiente",
                 disponible: false,
@@ -171,13 +177,10 @@ if (btnRegistroTecnico) {
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Técnico:", error);
-
-            // 🔥 FIX HEBER: Borrado de cuenta huérfana si falla Firestore
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
                 console.warn("⚠️ Fallo en DB: Limpiando Auth para permitir reintento.");
                 await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza:", e));
             }
-
             manejarErroresAuth(error);
             btnRegistroTecnico.innerText = "Registrarme";
             btnRegistroTecnico.disabled = false;
@@ -186,7 +189,7 @@ if (btnRegistroTecnico) {
 }
 
 // ======================================================
-// C. LOGIN Y D. GOOGLE (MANTENIDOS SEGÚN V3.2)
+// C. LOGIN Y D. GOOGLE
 // ======================================================
 const btnLogin = $("btnLogin");
 if (btnLogin) {
@@ -199,7 +202,6 @@ if (btnLogin) {
         if (!email || !password) {
             alert("⚠️ Ingresa datos completos."); return;
         }
-
         try {
             btnLogin.innerText = "Validando...";
             await signInWithEmailAndPassword(auth, email, password);
@@ -218,9 +220,9 @@ if (btnGoogle) {
             const provider = new GoogleAuthProvider();
             const result = await signInWithPopup(auth, provider);
             const user = result.user;
-            
-            const docSnap = await getDoc(doc(db, "users", user.uid));
 
+            const docSnap = await getDoc(doc(db, "users", user.uid));
+            
             if (!docSnap.exists()) {
                 const esTecnico = confirm("¿Eres TÉCNICO? [ACEPTAR] = SÍ / [CANCELAR] = CLIENTE");
                 await setDoc(doc(db, "users", user.uid), {
@@ -228,6 +230,7 @@ if (btnGoogle) {
                     nombre: user.displayName,
                     email: user.email,
                     rol: esTecnico ? "tecnico" : "cliente",
+                    skills: esTecnico ? ["fix"] : [], // Skill por defecto si entra por Google
                     estado: esTecnico ? "pendiente" : "activo",
                     status: esTecnico ? "pendiente" : "activo",
                     creadoEn: serverTimestamp()
@@ -240,13 +243,12 @@ if (btnGoogle) {
 }
 
 // ======================================================
-// E. OBSERVADOR Y MANEJO DE ERRORES (REFORZADO)
+// E. OBSERVADOR Y MANEJO DE ERRORES
 // ======================================================
 observarAuth((user) => {
     if (user) {
         const path = window.location.pathname;
         if (path.includes("login.html") || path.includes("registro")) {
-            // Obtenemos el rol desde el objeto user (inyectado por registrarUsuario)
             setTimeout(() => {
                 if (user.rol === "tecnico") window.location.href = "tecnico.html";
                 else if (user.rol === "admin") window.location.href = "admin.html";
