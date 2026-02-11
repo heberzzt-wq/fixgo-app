@@ -2,11 +2,11 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 3.2 (Production Ready - Document Check)
+ * Versión: 3.3 (ATOMIC REGISTRATION + FIX NULO)
  * ======================================================
  */
 
-console.log("🚀 [app-registro.js] Inicializando sistema de autenticación...");
+console.log("🚀 [app-registro.js] Inicializando sistema de autenticación V3.3...");
 
 import { 
     auth, 
@@ -21,15 +21,17 @@ import {
     observarAuth
 } from "./firebase.js";
 
+// Importamos deleteUser para la reversión atómica en caso de fallo
 import { 
     GoogleAuthProvider, 
-    signInWithPopup 
+    signInWithPopup,
+    deleteUser 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const $ = (id) => document.getElementById(id);
 
 // ======================================================
-// A. LÓGICA DE REGISTRO DE CLIENTES
+// A. LÓGICA DE REGISTRO DE CLIENTES (REESCRITURA ATÓMICA)
 // ======================================================
 const btnRegistroCliente = $("btnRegistroCliente");
 
@@ -50,17 +52,16 @@ if (btnRegistroCliente) {
             return;
         }
 
-        if (password.length < 6) {
-            alert("⚠️ La contraseña debe tener al menos 6 caracteres.");
-            return;
-        }
+        let usuarioAuth = null;
 
         try {
             btnRegistroCliente.innerText = "Creando cuenta...";
             btnRegistroCliente.disabled = true;
 
-            const usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
+            // 1. Intentamos crear en Auth
+            usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
 
+            // 2. Intentamos guardar en Firestore
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
@@ -76,7 +77,14 @@ if (btnRegistroCliente) {
             window.location.href = "cliente.html";
             
         } catch (error) {
-            console.error("❌ Error Cliente:", error);
+            console.error("❌ Error Crítico en Registro Cliente:", error);
+
+            // 🔥 FIX HEBER: Si el usuario se creó en Auth pero falló Firestore, lo borramos
+            if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
+                console.warn("⚠️ Revirtiendo registro: Borrando usuario de Auth por fallo en DB.");
+                await deleteUser(auth.currentUser).catch(e => console.error("Error borrando huérfano:", e));
+            }
+
             manejarErroresAuth(error);
             btnRegistroCliente.innerText = "Registrarme";
             btnRegistroCliente.disabled = false;
@@ -85,38 +93,29 @@ if (btnRegistroCliente) {
 }
 
 // ======================================================
-// B. LÓGICA DE REGISTRO DE TÉCNICOS (CORREGIDA Y BLINDADA)
+// B. LÓGICA DE TÉCNICOS (CON REVERSIÓN DE SEGURIDAD)
 // ======================================================
 const btnRegistroTecnico = $("btnRegistroTecnico");
-
-// Variables para controlar si subieron documentos (Simulación para Producción V1)
 let ineCargado = false;
 let csfCargado = false;
 
-// Lógica visual de los botones de subida
 if ($("btnSubirINE")) {
-    $("btnSubirINE").addEventListener("click", () => {
-        $("inputINE").click(); // Dispara el input oculto
-    });
+    $("btnSubirINE").addEventListener("click", () => $("inputINE").click());
     $("inputINE").addEventListener("change", () => {
         ineCargado = true;
         const btn = $("btnSubirINE");
         btn.innerText = "✅ INE Cargada";
-        btn.classList.remove("bg-indigo-600");
-        btn.classList.add("bg-emerald-600");
+        btn.classList.replace("bg-indigo-600", "bg-emerald-600");
     });
 }
 
 if ($("btnSubirCSF")) {
-    $("btnSubirCSF").addEventListener("click", () => {
-        $("inputCSF").click(); // Dispara el input oculto
-    });
+    $("btnSubirCSF").addEventListener("click", () => $("inputCSF").click());
     $("inputCSF").addEventListener("change", () => {
         csfCargado = true;
         const btn = $("btnSubirCSF");
         btn.innerText = "✅ CSF Cargada";
-        btn.classList.remove("bg-indigo-600");
-        btn.classList.add("bg-emerald-600");
+        btn.classList.replace("bg-indigo-600", "bg-emerald-600");
     });
 }
 
@@ -130,52 +129,55 @@ if (btnRegistroTecnico) {
         const password = form.querySelector('[name="password"]')?.value.trim();
         const telefono = form.querySelector('[name="telefono"]')?.value.trim();
 
-        // 1. Validaciones estrictas
         if (!nombre || !email || !password || !telefono) {
-            alert("⚠️ Faltan campos obligatorios.");
-            return;
+            alert("⚠️ Faltan campos obligatorios."); return;
         }
         
-        // 2. Validación de Documentos (OBLIGATORIO PARA PASAR A ADMIN)
         if (!ineCargado || !csfCargado) {
-            alert("⚠️ ALERTA DE REQUISITOS:\n\nDebes subir tu INE y tu CSF para poder registrarte.\nEl administrador necesita estos documentos para aprobarte.");
-            return;
+            alert("⚠️ ALERTA: Sube INE y CSF para continuar."); return;
         }
+
+        let usuarioAuth = null;
 
         try {
             btnRegistroTecnico.innerText = "Enviando Solicitud...";
             btnRegistroTecnico.disabled = true;
 
-            const usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
+            // 1. Registro en Auth
+            usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
-            // Guardamos con los flags de documentos
+            // 2. Registro en DB (Con estado pendiente para Admin)
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
                 email: email,
                 telefono: telefono,
                 rol: "tecnico",
-                
-                estado: "pendiente", // CRÍTICO: Admin debe aprobar
+                estado: "pendiente",
                 status: "pendiente",
                 disponible: false,
                 verificado: false,
-                
                 documentos: {
                     ine: true,
                     csf: true,
                     fecha_subida: serverTimestamp()
                 },
-
                 nivel: "Bronce",
                 creadoEn: serverTimestamp()
             }, { merge: true });
 
-            alert("✅ ¡Solicitud Enviada con Éxito!\n\nTu documentación ha sido recibida. El Administrador revisará tu perfil en breve.");
-            window.location.href = "tecnico.html"; // Irá a la sala de espera
+            alert("✅ ¡Solicitud recibida! El Administrador revisará tu perfil.");
+            window.location.href = "tecnico.html";
 
         } catch (error) {
-            console.error("❌ Error Técnico:", error);
+            console.error("❌ Error Crítico en Registro Técnico:", error);
+
+            // 🔥 FIX HEBER: Borrado de cuenta huérfana si falla Firestore
+            if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
+                console.warn("⚠️ Fallo en DB: Limpiando Auth para permitir reintento.");
+                await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza:", e));
+            }
+
             manejarErroresAuth(error);
             btnRegistroTecnico.innerText = "Registrarme";
             btnRegistroTecnico.disabled = false;
@@ -184,7 +186,7 @@ if (btnRegistroTecnico) {
 }
 
 // ======================================================
-// C. LÓGICA DE LOGIN (STANDARD)
+// C. LOGIN Y D. GOOGLE (MANTENIDOS SEGÚN V3.2)
 // ======================================================
 const btnLogin = $("btnLogin");
 if (btnLogin) {
@@ -201,7 +203,6 @@ if (btnLogin) {
         try {
             btnLogin.innerText = "Validando...";
             await signInWithEmailAndPassword(auth, email, password);
-            // El observer redirige
         } catch (error) {
             manejarErroresAuth(error);
             btnLogin.innerText = "Entrar";
@@ -209,9 +210,6 @@ if (btnLogin) {
     });
 }
 
-// ======================================================
-// D. LOGIN CON GOOGLE
-// ======================================================
 const btnGoogle = $("btnLoginGoogle");
 if (btnGoogle) {
     btnGoogle.addEventListener("click", async (e) => {
@@ -221,49 +219,52 @@ if (btnGoogle) {
             const result = await signInWithPopup(auth, provider);
             const user = result.user;
             
-            const docRef = doc(db, "users", user.uid);
-            const docSnap = await getDoc(docRef);
+            const docSnap = await getDoc(doc(db, "users", user.uid));
 
             if (!docSnap.exists()) {
-                const esTecnico = confirm("¿Te registras como TÉCNICO en FixGo?\n\n[ACEPTAR] = SÍ, SOY TÉCNICO\n[CANCELAR] = NO, SOY CLIENTE");
-                const rolElegido = esTecnico ? "tecnico" : "cliente";
-                const estadoInicial = esTecnico ? "pendiente" : "activo";
-
-                await setDoc(docRef, {
+                const esTecnico = confirm("¿Eres TÉCNICO? [ACEPTAR] = SÍ / [CANCELAR] = CLIENTE");
+                await setDoc(doc(db, "users", user.uid), {
                     uid: user.uid,
                     nombre: user.displayName,
                     email: user.email,
-                    rol: rolElegido,
-                    estado: estadoInicial,
-                    status: estadoInicial,
+                    rol: esTecnico ? "tecnico" : "cliente",
+                    estado: esTecnico ? "pendiente" : "activo",
+                    status: esTecnico ? "pendiente" : "activo",
                     creadoEn: serverTimestamp()
                 });
             }
         } catch (error) {
-            console.error(error);
             alert("Error con Google.");
         }
     });
 }
 
 // ======================================================
-// E. OBSERVADOR (ROUTER)
+// E. OBSERVADOR Y MANEJO DE ERRORES (REFORZADO)
 // ======================================================
 observarAuth((user) => {
     if (user) {
         const path = window.location.pathname;
         if (path.includes("login.html") || path.includes("registro")) {
+            // Obtenemos el rol desde el objeto user (inyectado por registrarUsuario)
             setTimeout(() => {
                 if (user.rol === "tecnico") window.location.href = "tecnico.html";
                 else if (user.rol === "admin") window.location.href = "admin.html";
                 else window.location.href = "cliente.html";
-            }, 500);
+            }, 600);
         }
     }
 });
 
 function manejarErroresAuth(error) {
-    if (error.code === 'auth/wrong-password') alert("❌ Contraseña incorrecta.");
-    else if (error.code === 'auth/user-not-found') alert("❌ Usuario no encontrado.");
-    else alert("Error: " + error.message);
+    console.log("Código de error:", error.code);
+    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        alert("❌ Credenciales incorrectas o cuenta mal configurada.");
+    } else if (error.code === 'auth/email-already-in-use') {
+        alert("⚠️ El correo ya está registrado. Intenta iniciar sesión.");
+    } else if (error.code === 'auth/weak-password') {
+        alert("⚠️ La contraseña es muy débil.");
+    } else {
+        alert("🚨 Error: " + error.message);
+    }
 }
