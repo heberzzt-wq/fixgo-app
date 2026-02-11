@@ -2,8 +2,8 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 5.7 (ALAMO EDITION - FULL UNCOMPRESSED)
- * Base: V5.6 Original + Cotizador Desglosado + Verticales
+ * Versión: 5.7.1 (ALAMO PATCH - VERTICALES FIX + COTIZADOR ROBUST)
+ * Base: V5.7 Original
  * ======================================================
  */
 import {
@@ -79,7 +79,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.7: Sistema Full Cargado (Cotizador Alamo Activo + Grid Estructurado).");
+console.log(" 🚀  FIXGO 5.7.1: Sistema Full Cargado (Cotizador Alamo Activo + Grid Verticales Blindado).");
 
 // ======================================================
 // 1. PANEL DE ADMINISTRADOR (Torre de Control)
@@ -639,6 +639,7 @@ export async function iniciarPanelTecnico(user) {
         </div>`;
         
         document.body.insertAdjacentHTML('beforeend', html);
+        console.log(" 🛠️ Modal de Cotización Abierto");
 
         const renderItems = () => {
             const container = document.getElementById("listaPartidas");
@@ -678,43 +679,55 @@ export async function iniciarPanelTecnico(user) {
             });
         };
 
-        document.getElementById("btnAddItem").onclick = () => {
-            const cant = parseFloat(document.getElementById("inCant").value);
-            const unidad = document.getElementById("inUnidad").value.trim();
-            const desc = document.getElementById("inDesc").value.trim();
-            const precio = parseFloat(document.getElementById("inPrecio").value);
+        // Asignación de eventos robusta (V5.7.1)
+        setTimeout(() => {
+            const btnAdd = document.getElementById("btnAddItem");
+            const btnSend = document.getElementById("btnEnviarCot");
 
-            if(!cant || !desc || !precio) return alert("Llena todos los campos del concepto.");
+            if(btnAdd) {
+                btnAdd.onclick = () => {
+                    console.log("Click en Agregar Item");
+                    const cant = parseFloat(document.getElementById("inCant").value);
+                    const unidad = document.getElementById("inUnidad").value.trim();
+                    const desc = document.getElementById("inDesc").value.trim();
+                    const precio = parseFloat(document.getElementById("inPrecio").value);
 
-            items.push({ cantidad: cant, unidad: unidad || 'pz', descripcion: desc, precio: precio });
-            
-            // Limpiar inputs
-            document.getElementById("inCant").value = "";
-            document.getElementById("inDesc").value = "";
-            document.getElementById("inPrecio").value = "";
-            renderItems();
-        };
+                    if(!cant || !desc || !precio) return alert("Llena todos los campos del concepto.");
 
-        document.getElementById("btnEnviarCot").onclick = async () => {
-            if(items.length === 0) return alert("Agrega al menos un concepto para cotizar.");
-            
-            const totalFinal = items.reduce((sum, item) => sum + (item.cantidad * item.precio), 0);
+                    items.push({ cantidad: cant, unidad: unidad || 'pz', descripcion: desc, precio: precio });
+                    
+                    // Limpiar inputs
+                    document.getElementById("inCant").value = "";
+                    document.getElementById("inDesc").value = "";
+                    document.getElementById("inPrecio").value = "";
+                    renderItems();
+                };
+            }
 
-            if(!confirm(`¿Enviar cotización por $${totalFinal.toFixed(2)}?`)) return;
+            if(btnSend) {
+                btnSend.onclick = async () => {
+                    if(items.length === 0) return alert("Agrega al menos un concepto para cotizar.");
+                    
+                    const totalFinal = items.reduce((sum, item) => sum + (item.cantidad * item.precio), 0);
 
-            // GUARDAR DETALLES EN FIRESTORE
-            // Esta estructura es la que el panel del cliente leerá para armar la tabla
-            await updateDoc(doc(db, "services", id), {
-                estado: "cotizando",
-                detalles_cotizacion: items, // Array estructurado
-                costo_final: totalFinal,
-                cotizado_at: serverTimestamp(),
-                diagnostico: "Cotización Detallada" // Fallback
-            });
+                    if(!confirm(`¿Enviar cotización por $${totalFinal.toFixed(2)}?`)) return;
 
-            document.getElementById("modalCot").remove();
-            alert("✅ Presupuesto enviado correctamente.");
-        };
+                    // GUARDAR DETALLES EN FIRESTORE
+                    // Esta estructura es la que el panel del cliente leerá para armar la tabla
+                    await updateDoc(doc(db, "services", id), {
+                        estado: "cotizando",
+                        detalles_cotizacion: items, // Array estructurado
+                        costo_final: totalFinal,
+                        cotizado_at: serverTimestamp(),
+                        diagnostico: "Cotización Detallada" // Fallback
+                    });
+
+                    const modal = document.getElementById("modalCot");
+                    if(modal) modal.remove();
+                    alert("✅ Presupuesto enviado correctamente.");
+                };
+            }
+        }, 100); // Pequeño delay para asegurar renderizado
     }
 
     //  📸  MODAL EVIDENCIA (REAL CON BASE64 Y CÁLCULO FINANCIERO V5.7)
@@ -824,11 +837,18 @@ export async function iniciarPanelCliente(user) {
     // 1. CARGA DINÁMICA DE SERVICIOS (CATÁLOGO V5.7 - ESTRUCTURA V34)
     async function cargarServiciosCliente(contenedorID) {
         const container = document.getElementById(contenedorID);
-        if(!container) return;
+        if(!container) {
+            console.error(`ERROR CRÍTICO: No se encontró el contenedor #${contenedorID} para las verticales.`);
+            return;
+        }
+
+        console.log("Cargando servicios en container:", contenedorID);
 
         // Escuchamos cambios en tiempo real en la configuración
         onSnapshot(doc(db, "configuracion", "catalogo_global"), (docSnap) => {
-            const config = docSnap.exists() ? docSnap.data() : { road: true, fix: true, tech: true };
+            // FIX V5.7.1: Defaults robustos. Si Firebase falla o está vacío, mostramos todo.
+            let dataFire = docSnap.exists() ? docSnap.data() : {};
+            const config = { road: true, fix: true, tech: true, ...dataFire };
             
             container.innerHTML = ""; // Limpiar
             
@@ -840,7 +860,9 @@ export async function iniciarPanelCliente(user) {
             ];
 
             servicios.forEach(s => {
-                const activo = config[s.id];
+                // Si la config no tiene la llave, asumimos true por seguridad
+                const activo = config[s.id] !== false; 
+                
                 const opacity = activo ? 'opacity-100 cursor-pointer hover:scale-105' : 'opacity-40 cursor-not-allowed grayscale';
                 const clickAction = activo ? `data-category="${s.id}" class="service-card uber-card p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2 ${opacity}"` : `class="uber-card p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2 ${opacity}"`;
                 
