@@ -2,7 +2,7 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 5.6 (FULL LENGTH: AUDIO UNLOCKED + ADMIN FIX)
+ * Versión: 5.7 (GEOCERCA ACTIVADA - NO COMPACTADO)
  * ======================================================
  */
 
@@ -30,8 +30,6 @@ const audioNotificacion = new Audio('https://assets.mixkit.co/sfx/preview/mixkit
 let audioDesbloqueado = false;
 
 // FUNCIÓN DE DESBLOQUEO (Soluciona el problema de "solo visual")
-// Los navegadores bloquean el sonido si el usuario no ha interactuado primero.
-// Esto fuerza al navegador a "preparar" el audio con el primer clic o toque.
 function desbloquearAudio() {
     if (audioDesbloqueado) return;
     
@@ -41,7 +39,6 @@ function desbloquearAudio() {
         audioDesbloqueado = true;
         console.log("🔊 Sistema de Audio: DESBLOQUEADO Y LISTO.");
         
-        // Removemos los listeners para no saturar memoria
         document.removeEventListener('click', desbloquearAudio);
         document.removeEventListener('touchstart', desbloquearAudio);
     }).catch(error => {
@@ -49,7 +46,6 @@ function desbloquearAudio() {
     });
 }
 
-// Agregamos listeners a todo el documento para atrapar el primer clic/toque
 document.addEventListener('click', desbloquearAudio);
 document.addEventListener('touchstart', desbloquearAudio);
 
@@ -76,8 +72,22 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log("🚀 FIXGO 5.6: Código Extendido, Audio Blindado y Admin Sync.");
+// --- UTILIDAD: FÓRMULA DE HAVERSINE PARA GEOCERCA ---
+function calcularDistanciaGPS(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // Radio de la Tierra en metros
+    const phi1 = lat1 * Math.PI / 180;
+    const phi2 = lat2 * Math.PI / 180;
+    const dPhi = (lat2 - lat1) * Math.PI / 180;
+    const dLambda = (lon2 - lon1) * Math.PI / 180;
 
+    const a = Math.sin(dPhi/2) * Math.sin(dPhi/2) +
+              Math.cos(phi1) * Math.cos(phi2) *
+              Math.sin(dLambda/2) * Math.sin(dLambda/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; // Retorna metros
+}
+
+console.log("🚀 FIXGO 5.7: Geocerca Activada, Respetando Arquitectura de Heber.");
 
 // ======================================================
 // 1. PANEL DE ADMINISTRADOR (Torre de Control)
@@ -91,7 +101,6 @@ export async function iniciarPanelAdmin(user) {
         countOnline: document.getElementById("totalTecnicos")
     };
 
-    // 1.A. TÉCNICOS Y APROBACIÓN (LÓGICA DETALLADA)
     if (elementos.lista) {
         const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
         
@@ -109,8 +118,6 @@ export async function iniciarPanelAdmin(user) {
                 const data = docSnap.data();
                 contTotal++;
                 
-                // CORRECCIÓN ADMIN: Detección más flexible de "online"
-                // A veces es true (boolean) o "true" (string), esto cubre ambos
                 if(data.disponible) {
                     contOnline++;
                 }
@@ -119,7 +126,6 @@ export async function iniciarPanelAdmin(user) {
                 const ineCheck = data.documentos?.ine ? '<span class="text-emerald-400">✅ INE</span>' : '<span class="text-red-500">❌ INE</span>';
                 const csfCheck = data.documentos?.csf ? '<span class="text-emerald-400">✅ CSF</span>' : '<span class="text-red-500">❌ CSF</span>';
                 
-                // Indicador visual
                 const estadoDot = data.disponible 
                     ? '<span class="text-emerald-500 font-bold text-[10px] animate-pulse">● ONLINE</span>' 
                     : '<span class="text-gray-500 text-[10px]">● OFFLINE</span>';
@@ -143,7 +149,6 @@ export async function iniciarPanelAdmin(user) {
                                 ${estadoDot}
                             </div>
                         </div>
-                        
                         <div class="flex flex-col gap-2">
                             ${esPendiente ? `
                                 <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${docSnap.id}')">
@@ -158,7 +163,6 @@ export async function iniciarPanelAdmin(user) {
                 elementos.lista.appendChild(card);
             });
 
-            // Actualizamos el contador del Dashboard principal (CORREGIDO)
             if(elementos.countOnline) {
                 elementos.countOnline.innerHTML = `${contOnline} <span class="text-sm text-gray-500">/ ${contTotal}</span>`;
                 elementos.countOnline.style.color = contOnline > 0 ? "#10b981" : "white";
@@ -166,7 +170,6 @@ export async function iniciarPanelAdmin(user) {
         });
     }
 
-    // 1.B. MONITOREO DE SERVICIOS Y FINANZAS
     const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"));
     
     onSnapshot(qServicios, (snap) => {
@@ -182,17 +185,14 @@ export async function iniciarPanelAdmin(user) {
         snap.forEach(docSnap => {
             const data = docSnap.data();
             
-            // Calculo de Activos (Excluyendo finalizados y cancelados)
             if (!["finalizado", "cancelado"].includes(data.estado)) {
                 activos++;
             }
             
-            // Calculo de Ingresos (Comisión del 32%)
             if (data.costo_final) {
                 ingresos += (parseFloat(data.costo_final) * 0.32);
             }
 
-            // Renderizar solo los últimos 10 para no saturar el DOM
             if (elementos.actividad && elementos.actividad.children.length < 10) {
                 const item = document.createElement("div");
                 item.className = "flex justify-between items-center border-b border-white/5 py-3 last:border-0";
@@ -219,7 +219,6 @@ export async function iniciarPanelAdmin(user) {
             }
         });
 
-        // Actualizar Widgets Superiores
         if(elementos.countServ) {
             elementos.countServ.innerText = activos;
             elementos.countServ.style.color = activos > 0 ? "#34d399" : "white";
@@ -229,7 +228,6 @@ export async function iniciarPanelAdmin(user) {
         }
     });
 
-    // Función global para el botón onclick del HTML inyectado
     window.aprobarTecnico = async (uid) => {
         if(!confirm("¿Estás seguro de aprobar a este técnico? Tendrá acceso inmediato a solicitudes.")) return;
         try {
@@ -264,14 +262,12 @@ export async function iniciarPanelTecnico(user) {
         btnLlegue: document.getElementById("btnLlegue")
     };
 
-    // 2.A. ESTADO DEL TÉCNICO Y PERFIL
     const tecnicoRef = doc(db, "users", user.uid);
     onSnapshot(tecnicoRef, (docSnap) => {
         if (!docSnap.exists()) return;
         const data = docSnap.data();
         const estado = data.estado || "pendiente";
 
-        // Caso: Pendiente de Aprobación
         if (estado === "pendiente") {
             if(elementos.statusLabel) {
                 elementos.statusLabel.innerText = "EN REVISIÓN";
@@ -294,14 +290,12 @@ export async function iniciarPanelTecnico(user) {
             return;
         }
 
-        // Caso: Activo
         if (elementos.toggleONOFF) {
             elementos.toggleONOFF.disabled = false;
             elementos.toggleONOFF.checked = data.disponible === true;
         }
         
         if (data.disponible) {
-            // ENCENDIDO
             iniciarTracking(user.uid);
             elementos.seccionBolsa?.classList.remove("hidden");
             escucharBolsa(user, elementos.listaBolsa);
@@ -312,7 +306,6 @@ export async function iniciarPanelTecnico(user) {
             }
             elementos.radarSection?.classList.remove("opacity-50", "grayscale");
         } else {
-            // APAGADO
             detenerTracking();
             elementos.seccionBolsa?.classList.add("hidden");
             
@@ -324,7 +317,6 @@ export async function iniciarPanelTecnico(user) {
         }
     });
 
-    // Listener para el Switch ON/OFF
     if (elementos.toggleONOFF) {
         elementos.toggleONOFF.addEventListener("change", async (e) => {
             await updateDoc(tecnicoRef, { 
@@ -334,7 +326,6 @@ export async function iniciarPanelTecnico(user) {
         });
     }
 
-    // 2.B. BOLSA DE TRABAJO (CON SONIDO)
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
         const q = query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc"));
@@ -346,7 +337,6 @@ export async function iniciarPanelTecnico(user) {
                 return; 
             }
             
-            // 🔔 SONIDO: Si llega una nueva solicitud (added)
             if(snap.docChanges().some(change => change.type === 'added')) {
                 console.log("🔔 Nueva solicitud detectada: SONANDO ALERTA");
                 sonarAlerta();
@@ -378,7 +368,6 @@ export async function iniciarPanelTecnico(user) {
         });
     }
 
-    // Función global para aceptar servicio
     window.tomarServicio = async (id, uid, nombre) => {
         if(!confirm("¿Aceptar este servicio? \n\nSe notificará al cliente y se bloqueará la garantía.")) return;
         try {
@@ -389,15 +378,12 @@ export async function iniciarPanelTecnico(user) {
                 tecnico_telefono: user.telefono || "",
                 asignado_at: serverTimestamp()
             });
-            // El propio onSnapshot del flujo activo actualizará la UI
         } catch (error) {
             console.error(error);
             alert("Error: El servicio ya fue tomado por otro técnico.");
         }
     };
 
-    // 2.C. FLUJO ACTIVO (MISIONES Y BOTONES)
-    // Escuchamos servicios donde soy el técnico y el estado es activo
     const qMisiones = query(
         collection(db, "services"), 
         where("tecnico_id", "==", user.uid), 
@@ -411,26 +397,21 @@ export async function iniciarPanelTecnico(user) {
         if (!ls) return;
         ls.innerHTML = "";
         
-        // Si no hay misiones, escondemos el panel inferior
         if (snap.empty) { 
             if(pa) pa.classList.add("translate-y-full"); 
             return; 
         }
         
-        // Si hay misiones, mostramos el panel
         if(pa) pa.classList.remove("translate-y-full");
 
         snap.forEach((docSnap) => {
             const s = docSnap.data();
             const id = docSnap.id;
             
-            // Construcción inteligente del link de Waze
-            // Si el cliente dio coordenadas, usamos esas. Si no, la dirección.
             const destinoWaze = s.coords 
                 ? `${s.coords.lat},${s.coords.lng}` 
                 : encodeURIComponent(s.direccion);
 
-            // Render Tarjeta
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl";
             card.innerHTML = `
@@ -456,15 +437,12 @@ export async function iniciarPanelTecnico(user) {
             `;
             ls.appendChild(card);
 
-            // GESTIÓN DE BOTONES INFERIORES POR ESTADO
             const btn1 = elementos.btnEnCamino;
             const btn2 = elementos.btnLlegue;
             
-            // Reset visual
             btn1.classList.add("hidden"); 
             btn2.classList.add("hidden");
 
-            // Lógica de Estados
             if (s.estado === "asignado") {
                 btn1.classList.remove("hidden");
                 btn1.innerText = "VOY EN CAMINO";
@@ -475,10 +453,42 @@ export async function iniciarPanelTecnico(user) {
                 btn2.classList.remove("hidden");
                 btn2.innerText = "YA LLEGUÉ AL SITIO";
                 btn2.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
+                
+                // --- PUNTO 1: GEOCERCA IMPLEMENTADA ---
                 btn2.onclick = () => {
-                    // AQUÍ IRÍA LA VALIDACIÓN DE GEOCERCA (100m)
-                    // (Omitida por ahora para facilitar pruebas, pero lista para conectar con gps-motor)
-                    actualizarEstado(id, "en_sitio");
+                    if (navigator.geolocation) {
+                        btn2.innerText = "VERIFICANDO...";
+                        btn2.disabled = true;
+
+                        navigator.geolocation.getCurrentPosition(async (pos) => {
+                            if (!s.coords) {
+                                // Si el cliente no dio GPS, pasamos por defecto pero avisamos
+                                console.warn("Cliente sin coordenadas. Pasando validación.");
+                                await actualizarEstado(id, "en_sitio");
+                                return;
+                            }
+
+                            const distancia = calcularDistanciaGPS(
+                                pos.coords.latitude, pos.coords.longitude,
+                                s.coords.lat, s.coords.lng
+                            );
+
+                            console.log("Distancia calculada: ", distancia, "metros");
+
+                            if (distancia <= 100) {
+                                await actualizarEstado(id, "en_sitio");
+                                sonarAlerta();
+                            } else {
+                                alert(`🚨 ERROR DE UBICACIÓN\n\nEstás a ${Math.round(distancia)}m del cliente.\nDebes estar a menos de 100m para marcar llegada.`);
+                                btn2.innerText = "YA LLEGUÉ AL SITIO";
+                                btn2.disabled = false;
+                            }
+                        }, (err) => {
+                            alert("Error al obtener tu GPS. Intenta de nuevo.");
+                            btn2.innerText = "YA LLEGUÉ AL SITIO";
+                            btn2.disabled = false;
+                        }, { enableHighAccuracy: true });
+                    }
                 };
             }
             else if (s.estado === "en_sitio") {
@@ -503,13 +513,10 @@ export async function iniciarPanelTecnico(user) {
         });
     });
 
-    // Función auxiliar para actualizar estado en Servicios y en Rastreo
     async function actualizarEstado(id, estado, extras = {}) {
         try {
-            // 1. Actualizar el documento del servicio
             await updateDoc(doc(db, "services", id), { estado: estado, ...extras });
             
-            // 2. Actualizar el estado público para el mapa (Rastreo)
             let textoMapa = "En Ruta";
             if(estado === "en_sitio") textoMapa = "En Sitio";
             if(estado === "trabajando") textoMapa = "Trabajando";
@@ -524,7 +531,6 @@ export async function iniciarPanelTecnico(user) {
         }
     }
 
-    // 📸 MODAL EVIDENCIA (REAL CON BASE64)
     function mostrarModalEvidencia(id) {
         if(document.getElementById("modalEvidencia")) return;
         
@@ -565,7 +571,6 @@ export async function iniciarPanelTecnico(user) {
             btn.disabled = true;
 
             try {
-                // Conversión a Base64 para evitar problemas de Storage
                 const b64_1 = await toBase64(f1);
                 const b64_2 = await toBase64(f2);
 
@@ -585,7 +590,6 @@ export async function iniciarPanelTecnico(user) {
         };
     }
 
-    // 💰 MODAL COTIZACIÓN
     function mostrarModalCotizacion(id) {
         if(document.getElementById("modalCot")) return;
         
@@ -632,7 +636,6 @@ export async function iniciarPanelTecnico(user) {
         };
     }
 
-    // Helper: Convertir archivo a texto Base64
     const toBase64 = file => new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -654,7 +657,6 @@ export async function iniciarPanelCliente(user) {
         tarjetas: document.querySelectorAll(".service-card")
     };
 
-    // Selección Visual de Categoría
     el.tarjetas.forEach(card => {
         card.addEventListener("click", () => {
             el.tarjetas.forEach(c => c.classList.remove("border-emerald-500", "bg-zinc-800"));
@@ -664,7 +666,6 @@ export async function iniciarPanelCliente(user) {
         });
     });
 
-    // Envío de Solicitud con GPS Oculto
     if (el.form) {
         el.form.addEventListener("submit", async (e) => {
             e.preventDefault();
@@ -679,25 +680,21 @@ export async function iniciarPanelCliente(user) {
             btn.disabled = true; 
             btn.innerText = "OBTENIENDO UBICACIÓN...";
 
-            // 🔥 NUEVO: INTENTO DE OBTENER GPS EXACTO DEL CLIENTE
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     async (pos) => {
-                        // Éxito GPS
                         await enviarSolicitudFinal(cat, dir, desc, { 
                             lat: pos.coords.latitude, 
                             lng: pos.coords.longitude 
                         });
                     }, 
                     async (err) => {
-                        // Fallo GPS (Permiso denegado), enviamos sin coords
                         console.warn("GPS Cliente no disponible:", err);
                         await enviarSolicitudFinal(cat, dir, desc, null);
                     },
                     { timeout: 5000, enableHighAccuracy: true }
                 );
             } else {
-                // Navegador viejo
                 await enviarSolicitudFinal(cat, dir, desc, null);
             }
 
@@ -715,11 +712,10 @@ export async function iniciarPanelCliente(user) {
                             created_at: serverTimestamp(), 
                             retencion_inicial: 550, 
                             costo_final: 0,
-                            coords: coords // Guardamos las coordenadas para el Waze del técnico
+                            coords: coords
                         });
                         alert("✅ ¡Solicitud Enviada! Buscando técnico cercano...");
                         el.form.reset();
-                        // Reset visual
                         el.tarjetas.forEach(c => c.classList.remove("border-emerald-500", "bg-zinc-800"));
                         if(el.labelServicio) el.labelServicio.innerText = "SERVICIO";
                     } catch (error) {
@@ -733,12 +729,10 @@ export async function iniciarPanelCliente(user) {
         });
     }
 
-    // Monitor de Servicios en Tiempo Real
     onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc")), (snap) => {
         if(!el.lista) return;
         el.lista.innerHTML = "";
 
-        // 🔔 SONIDO: Si hay cambios en mi servicio (ej: técnico llega)
         if(snap.docChanges().some(change => change.type === 'modified')) {
             console.log("🔔 Actualización de servicio: SONANDO ALERTA");
             sonarAlerta();
@@ -753,7 +747,6 @@ export async function iniciarPanelCliente(user) {
             let contenido = `<span class="text-xs font-bold text-yellow-500 animate-pulse">🔎 BUSCANDO TÉCNICO...</span>`;
             if (s.estado !== "pendiente") contenido = `<span class="text-xs font-bold text-blue-400">${s.estado.toUpperCase().replace('_', ' ')}</span>`;
 
-            // LÓGICA DE INTERACCIÓN CLIENTE
             if (s.estado === "cotizando") {
                 contenido = `
                     <div class="bg-zinc-800 p-4 rounded-lg border border-yellow-500 mt-2">
@@ -777,7 +770,6 @@ export async function iniciarPanelCliente(user) {
                     </div>
                 `;
             } else if (s.estado === "finalizado") {
-                // REPORTE CON FOTOS Y BOTÓN PDF
                 const safeData = encodeURIComponent(JSON.stringify({...s, id: id}));
                 
                 contenido = `
@@ -786,7 +778,6 @@ export async function iniciarPanelCliente(user) {
                             <span class="text-emerald-500 font-black text-xs uppercase tracking-widest">TICKET FINAL</span>
                             <span class="bg-emerald-500 text-black text-[9px] font-bold px-2 py-0.5 rounded">PAGADO</span>
                         </div>
-                        
                         <div class="space-y-2 mb-4">
                             <div class="flex justify-between text-xs text-gray-300">
                                 <span>Servicio Base:</span>
@@ -802,13 +793,11 @@ export async function iniciarPanelCliente(user) {
                                 <span>$${s.costo_final}</span>
                             </div>
                         </div>
-
                         <p class="text-[9px] text-gray-500 mb-2 font-bold uppercase">EVIDENCIA REGISTRADA:</p>
                         <div class="flex gap-2 mb-4">
                             ${s.evidencia?.antes ? `<div class="relative w-1/2 h-20"><img src="${s.evidencia.antes}" class="w-full h-full object-cover rounded-lg border border-zinc-700"><span class="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] px-1 rounded">ANTES</span></div>` : ''}
                             ${s.evidencia?.despues ? `<div class="relative w-1/2 h-20"><img src="${s.evidencia.despues}" class="w-full h-full object-cover rounded-lg border border-zinc-700"><span class="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] px-1 rounded">DESPUÉS</span></div>` : ''}
                         </div>
-                        
                         <button onclick="window.generarPDF('${safeData}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2">
                             <i class="fas fa-file-download text-red-500"></i> DESCARGAR REPORTE PDF
                         </button>
@@ -822,9 +811,7 @@ export async function iniciarPanelCliente(user) {
                     <span class="text-[10px] text-gray-500">${new Date(s.created_at?.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                 </div>
                 <p class="text-xs text-gray-400 truncate mb-2"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${s.direccion}</p>
-                
                 <div class="mt-2">${contenido}</div>
-                
                 ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `
                     <a href="rastreo.html?id=${id}" class="block mt-3 text-center bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs py-2.5 rounded-lg border border-blue-500/30 transition-colors font-bold flex items-center justify-center gap-2">
                         <i class="fas fa-map-marked-alt"></i> SEGUIR TÉCNICO EN VIVO
@@ -835,7 +822,6 @@ export async function iniciarPanelCliente(user) {
         });
     });
 
-    // Respuestas globales del cliente
     window.responderCotizacion = async (id, aceptado) => {
         if (aceptado) {
             await updateDoc(doc(db, "services", id), { estado: "trabajando" });
@@ -844,14 +830,13 @@ export async function iniciarPanelCliente(user) {
             if(confirm("⚠️ ¿Estás seguro de cancelar?\n\nAl haber llegado el técnico, se cobrará la visita mínima ($550).")) {
                 await updateDoc(doc(db, "services", id), { 
                     estado: "cancelado",
-                    costo_final: 550, // Cobro mínimo por cancelación en sitio
+                    costo_final: 550,
                     cancelado_razon: "Cliente rechazó cotización"
                 });
             }
         }
     };
 
-    // GENERADOR PDF (CLIENTE)
     window.generarPDF = async (encodedData) => {
         const data = JSON.parse(decodeURIComponent(encodedData));
         const btn = document.activeElement;
@@ -861,101 +846,68 @@ export async function iniciarPanelCliente(user) {
         try {
             const { jsPDF } = await cargarLibreriaPDF();
             const doc = new jsPDF();
-
-            // --- DISEÑO DEL PDF ---
-            // Header Negro
             doc.setFillColor(18, 18, 18);
             doc.rect(0, 0, 215, 40, 'F');
-            
-            // Logo y Título
             doc.setTextColor(255, 255, 255);
             doc.setFont("helvetica", "bold");
             doc.setFontSize(24);
             doc.text("FIXGO", 20, 22);
-            doc.setFont("helvetica", "normal");
-            doc.setTextColor(16, 185, 129); // Verde Emerald
+            doc.setTextColor(16, 185, 129);
             doc.text("MÉXICO", 60, 22);
-            
             doc.setTextColor(200, 200, 200);
             doc.setFontSize(10);
             doc.text("Comprobante de Servicio Digital", 20, 32);
             doc.text(`FOLIO: #${data.id.substring(0,8).toUpperCase()}`, 150, 22);
             doc.text(`FECHA: ${new Date().toLocaleDateString()}`, 150, 32);
 
-            // Información del Cliente
             let y = 60;
             doc.setTextColor(0, 0, 0);
             doc.setFontSize(12);
             doc.setFont("helvetica", "bold");
             doc.text("DETALLES DEL SERVICIO", 20, y);
-            
             y += 10;
             doc.setFont("helvetica", "normal");
-            doc.setFontSize(10);
             doc.text(`Cliente: ${data.cliente_nombre}`, 20, y);
             doc.text(`Categoría: ${data.categoria.toUpperCase()}`, 120, y);
             y += 8;
             doc.text(`Ubicación: ${data.direccion}`, 20, y);
-            
-            // Línea divisora
             y += 15;
             doc.setDrawColor(200, 200, 200);
             doc.line(20, y, 190, y);
-            
-            // Diagnóstico y Costos
             y += 15;
             doc.setFont("helvetica", "bold");
-            doc.setFontSize(12);
             doc.text("DIAGNÓSTICO TÉCNICO Y COSTOS", 20, y);
-            
             y += 10;
             doc.setFont("helvetica", "normal");
-            doc.setFontSize(10);
             const splitDiag = doc.splitTextToSize(data.diagnostico || "Servicio estándar sin observaciones.", 170);
             doc.text(splitDiag, 20, y);
             y += (splitDiag.length * 7) + 10;
 
-            // Caja de Totales
             doc.setFillColor(245, 245, 245);
             doc.rect(120, y, 70, 30, 'F');
             doc.text("IMPORTE TOTAL:", 125, y + 10);
             doc.setFont("helvetica", "bold");
             doc.setFontSize(16);
-            doc.setTextColor(16, 185, 129); // Verde
+            doc.setTextColor(16, 185, 129);
             doc.text(`$${data.costo_final} MXN`, 125, y + 22);
             
-            // Evidencia Fotográfica
             y += 50;
             doc.setTextColor(0, 0, 0);
-            doc.setFontSize(12);
             doc.text("EVIDENCIA FOTOGRÁFICA", 20, y);
             y += 10;
 
             if(data.evidencia?.antes) {
-                try {
-                    doc.addImage(data.evidencia.antes, "JPEG", 20, y, 80, 60);
-                    doc.setFontSize(8);
-                    doc.text("ESTADO INICIAL", 20, y + 65);
-                } catch(e) {}
+                try { doc.addImage(data.evidencia.antes, "JPEG", 20, y, 80, 60); } catch(e) {}
             }
             if(data.evidencia?.despues) {
-                try {
-                    doc.addImage(data.evidencia.despues, "JPEG", 110, y, 80, 60);
-                    doc.setFontSize(8);
-                    doc.text("TRABAJO FINALIZADO", 110, y + 65);
-                } catch(e) {}
+                try { doc.addImage(data.evidencia.despues, "JPEG", 110, y, 80, 60); } catch(e) {}
             }
-
-            // Footer
-            doc.setFontSize(8);
-            doc.setTextColor(150, 150, 150);
-            doc.text("Este documento es un comprobante digital emitido por la plataforma FixGo.", 60, 280);
 
             doc.save(`FixGo_Reporte_${data.id}.pdf`);
             btn.innerText = "DESCARGAR REPORTE OFICIAL";
         } catch (error) {
             console.error(error);
-            alert("Hubo un error generando el PDF. Intenta de nuevo.");
+            alert("Hubo un error generando el PDF.");
             btn.innerText = "ERROR - REINTENTAR";
         }
     };
