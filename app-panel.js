@@ -2,8 +2,8 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 5.7.3 (ALAMO FINAL PDF - DEBUGGER EDITION)
- * Base: V5.7.2
+ * Versión: 5.7.4 (ALAMO STABLE - WALLET FIX + PDF FETCH)
+ * Base: V5.7.3
  * ======================================================
  */
 import {
@@ -19,7 +19,7 @@ import {
     addDoc,
     serverTimestamp,
     setDoc,
-    getDoc // Importación necesaria para leer configuraciones
+    getDoc // Importación necesaria para leer configuraciones y PDF Fetch
 } from "./firebase.js";
 
 // Importamos getDocs manualmente para validaciones de seguridad extras
@@ -79,7 +79,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.7.3: Sistema Full Cargado (PDF Engine Reforzado).");
+console.log(" 🚀  FIXGO 5.7.4: Sistema Full Cargado (Wallet Activa + PDF Fetch Realtime).");
 
 // ======================================================
 // 1. PANEL DE ADMINISTRADOR (Torre de Control)
@@ -312,7 +312,8 @@ export async function iniciarPanelTecnico(user) {
         listaServicios: document.getElementById("listaServicios"),
         panelAcciones: document.getElementById("panelAcciones"),
         btnEnCamino: document.getElementById("btnEnCamino"),
-        btnLlegue: document.getElementById("btnLlegue")
+        btnLlegue: document.getElementById("btnLlegue"),
+        walletLabel: document.getElementById("walletSaldo") // ELEMENTO NUEVO V5.7.4
     };
 
     // 2.A. ESTADO DEL TÉCNICO Y PERFIL
@@ -372,6 +373,26 @@ export async function iniciarPanelTecnico(user) {
                 elementos.statusLabel.className = "bg-red-500/20 text-red-500 status-badge font-bold";
             }
             elementos.radarSection?.classList.add("opacity-50", "grayscale");
+        }
+    });
+
+    // 2.D. WALLET & GANANCIAS (NUEVO BLOQUE V5.7.4)
+    // Calcula cuánto dinero ha ganado el técnico específico
+    const qWallet = query(collection(db, "transacciones"), where("tecnico_id", "==", user.uid));
+    onSnapshot(qWallet, (snap) => {
+        let misGanancias = 0;
+        snap.forEach(docSnap => {
+            const tx = docSnap.data();
+            misGanancias += (tx.pago_tecnico || 0);
+        });
+        
+        // Actualizamos la UI si existe el elemento
+        if(elementos.walletLabel) {
+            elementos.walletLabel.innerText = `$${misGanancias.toFixed(2)}`;
+        } else {
+            // Si no existe el elemento en el HTML, lo inyectamos temporalmente para depuración
+            // Opcional: Esto ayuda a ver si funciona aunque falte el HTML
+            console.log("💰 Wallet Técnico:", misGanancias);
         }
     });
 
@@ -1049,9 +1070,8 @@ export async function iniciarPanelCliente(user) {
                 </div>
                 `;
             } else if (s.estado === "finalizado") {
-                // REPORTE CON FOTOS Y BOTÓN PDF
-                const safeData = encodeURIComponent(JSON.stringify({...s, id: id}));
-
+                // REPORTE CON FOTOS Y BOTÓN PDF (V5.7.4 FETCH ON DEMAND)
+                // Ya no pasamos el objeto entero, solo el ID
                 contenido = `
                 <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-xl mt-2">
                     <div class="flex justify-between items-center mb-3">
@@ -1071,7 +1091,7 @@ export async function iniciarPanelCliente(user) {
                         ${s.evidencia?.despues ? `<div class="relative w-1/2 h-20"><img src="${s.evidencia.despues}" class="w-full h-full object-cover rounded-lg border border-zinc-700"><span class="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] px-1 rounded">DESPUÉS</span></div>` : ''}
                     </div>
 
-                    <button onclick="window.generarPDF('${safeData}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2">
+                    <button onclick="window.generarPDF('${id}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2">
                         <i class="fas fa-file-download text-red-500"></i> DESCARGAR REPORTE FISCAL
                     </button>
                 </div>
@@ -1113,175 +1133,193 @@ export async function iniciarPanelCliente(user) {
     };
 
     // GENERADOR PDF (CLIENTE - SIMULACIÓN FISCAL V5.7)
-    window.generarPDF = async (encodedData) => {
-        const data = JSON.parse(decodeURIComponent(encodedData));
+    // FIX V5.7.4: RECIBE SOLO ID Y HACE FETCH (NO DATA ESTATICA)
+    window.generarPDF = async (serviceId) => {
         const btn = document.activeElement;
         const textoOrig = btn.innerText;
-        btn.innerText = "GENERANDO...";
+        btn.innerText = "OBTENIENDO DATOS...";
+        btn.disabled = true;
 
         try {
+            // 1. FETCH DE DATOS FRESCOS
+            const docRef = doc(db, "services", serviceId);
+            const docSnap = await getDoc(docRef);
+            
+            if (!docSnap.exists()) {
+                throw new Error("No se encontró el servicio en la base de datos.");
+            }
+            
+            // Construimos el objeto data con el ID incluido
+            const data = { ...docSnap.data(), id: serviceId };
+
+            // 2. CARGA DE LIBRERÍA
             const { jsPDF } = await cargarLibreriaPDF();
-            const doc = new jsPDF();
+            const docPdf = new jsPDF();
+            
             // --- DISEÑO DEL PDF ---
             // Header Negro
-            doc.setFillColor(18, 18, 18);
-            doc.rect(0, 0, 215, 40, 'F');
+            docPdf.setFillColor(18, 18, 18);
+            docPdf.rect(0, 0, 215, 40, 'F');
 
             // Logo y Título
-            doc.setTextColor(255, 255, 255);
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(24);
-            doc.text("FIXGO", 20, 22);
-            doc.setFont("helvetica", "normal");
-            doc.setTextColor(16, 185, 129); // Verde Emerald
-            doc.text("MÉXICO", 60, 22);
+            docPdf.setTextColor(255, 255, 255);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(24);
+            docPdf.text("FIXGO", 20, 22);
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setTextColor(16, 185, 129); // Verde Emerald
+            docPdf.text("MÉXICO", 60, 22);
 
-            doc.setTextColor(200, 200, 200);
-            doc.setFontSize(10);
-            doc.text("Comprobante de Servicio Digital", 20, 32);
+            docPdf.setTextColor(200, 200, 200);
+            docPdf.setFontSize(10);
+            docPdf.text("Comprobante de Servicio Digital", 20, 32);
             
             // DATOS FISCALES SIMULADOS (V5.7)
-            doc.setFontSize(8);
-            doc.setTextColor(150, 150, 150);
-            doc.text(`RFC EMISOR: FXG260211-H8A`, 20, 45);
-            doc.text(`RÉGIMEN FISCAL: 626 - Simplificado de Confianza`, 20, 50);
-            doc.text(`LUGAR EXPEDICIÓN: 77500, Cancún, Q.Roo`, 20, 55);
+            docPdf.setFontSize(8);
+            docPdf.setTextColor(150, 150, 150);
+            docPdf.text(`RFC EMISOR: FXG260211-H8A`, 20, 45);
+            docPdf.text(`RÉGIMEN FISCAL: 626 - Simplificado de Confianza`, 20, 50);
+            docPdf.text(`LUGAR EXPEDICIÓN: 77500, Cancún, Q.Roo`, 20, 55);
             
-            if(data.folio_fiscal) doc.text(`FOLIO FISCAL: ${data.folio_fiscal}`, 150, 45);
-            doc.text(`FECHA: ${new Date().toLocaleDateString()}`, 150, 50);
+            if(data.folio_fiscal) docPdf.text(`FOLIO FISCAL: ${data.folio_fiscal}`, 150, 45);
+            docPdf.text(`FECHA: ${new Date().toLocaleDateString()}`, 150, 50);
 
             // Información del Cliente
             let y = 70;
-            doc.setTextColor(0, 0, 0);
-            doc.setFontSize(12);
-            doc.setFont("helvetica", "bold");
-            doc.text("DETALLES DEL SERVICIO", 20, y);
+            docPdf.setTextColor(0, 0, 0);
+            docPdf.setFontSize(12);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.text("DETALLES DEL SERVICIO", 20, y);
 
             y += 10;
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(10);
-            doc.text(`Cliente: ${data.cliente_nombre}`, 20, y);
-            doc.text(`Categoría: ${data.categoria.toUpperCase()}`, 120, y);
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setFontSize(10);
+            docPdf.text(`Cliente: ${data.cliente_nombre}`, 20, y);
+            docPdf.text(`Categoría: ${data.categoria.toUpperCase()}`, 120, y);
             y += 8;
-            doc.text(`Ubicación: ${data.direccion}`, 20, y);
+            docPdf.text(`Ubicación: ${data.direccion}`, 20, y);
 
             // Línea divisora
             y += 15;
-            doc.setDrawColor(200, 200, 200);
-            doc.line(20, y, 190, y);
+            docPdf.setDrawColor(200, 200, 200);
+            docPdf.line(20, y, 190, y);
 
             // Diagnóstico y Costos
             y += 15;
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(12);
-            doc.text("DIAGNÓSTICO TÉCNICO Y COSTOS", 20, y);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(12);
+            docPdf.text("DIAGNÓSTICO TÉCNICO Y COSTOS", 20, y);
 
             y += 10;
             
             // --- FIX V5.7.3: RENDERIZADO DE TABLA (CON DEBUG DE FALLBACK) ---
             if (data.detalles_cotizacion && data.detalles_cotizacion.length > 0) {
                 // Render Detailed Table (Alamo Style)
-                doc.setFontSize(9);
-                doc.setTextColor(100, 100, 100);
-                doc.setFont("helvetica", "bold");
+                docPdf.setFontSize(9);
+                docPdf.setTextColor(100, 100, 100);
+                docPdf.setFont("helvetica", "bold");
                 
                 // Headers
-                doc.text("CANT", 20, y);
-                doc.text("DESCRIPCIÓN", 45, y); 
-                doc.text("P.UNIT", 140, y);
-                doc.text("IMPORTE", 170, y);
+                docPdf.text("CANT", 20, y);
+                docPdf.text("DESCRIPCIÓN", 45, y); 
+                docPdf.text("P.UNIT", 140, y);
+                docPdf.text("IMPORTE", 170, y);
                 
                 y += 5;
-                doc.setDrawColor(50, 50, 50);
-                doc.setLineWidth(0.5);
-                doc.line(20, y, 190, y);
+                docPdf.setDrawColor(50, 50, 50);
+                docPdf.setLineWidth(0.5);
+                docPdf.line(20, y, 190, y);
                 y += 7;
 
-                doc.setFont("helvetica", "normal");
-                doc.setTextColor(0, 0, 0);
+                docPdf.setFont("helvetica", "normal");
+                docPdf.setTextColor(0, 0, 0);
                 
                 data.detalles_cotizacion.forEach(item => {
-                    doc.text(`${item.cantidad} ${item.unidad}`, 20, y);
+                    docPdf.text(`${item.cantidad} ${item.unidad}`, 20, y);
                     
                     // Truncar descripción larga
                     const desc = item.descripcion.substring(0, 50) + (item.descripcion.length > 50 ? '...' : '');
-                    doc.text(desc, 45, y);
+                    docPdf.text(desc, 45, y);
                     
-                    doc.text(`$${item.precio}`, 140, y);
-                    doc.text(`$${(item.cantidad * item.precio).toFixed(2)}`, 170, y);
+                    docPdf.text(`$${item.precio}`, 140, y);
+                    docPdf.text(`$${(item.cantidad * item.precio).toFixed(2)}`, 170, y);
                     y += 7;
                 });
                 y += 5; // Extra padding
             } else {
                 // Fallback Legacy con AVISO (Para depuración)
-                doc.setFont("helvetica", "normal");
-                doc.setFontSize(10);
-                doc.setTextColor(50, 50, 50); // Gris oscuro
+                docPdf.setFont("helvetica", "normal");
+                docPdf.setFontSize(10);
+                docPdf.setTextColor(50, 50, 50); // Gris oscuro
                 
                 // Si llegamos aquí, ES PORQUE FIREBASE NO TIENE EL ARRAY
                 const diagText = data.diagnostico || "(Sin desglose registrado en base de datos)";
-                const splitDiag = doc.splitTextToSize(diagText, 170);
+                const splitDiag = docPdf.splitTextToSize(diagText, 170);
                 
-                doc.text(splitDiag, 20, y);
+                docPdf.text(splitDiag, 20, y);
                 y += (splitDiag.length * 7) + 5;
                 
                 // Marca de agua de depuración
-                doc.setFontSize(8);
-                doc.setTextColor(255, 0, 0);
-                doc.text("[INFO: Estructura de datos antigua detectada. Crea un servicio nuevo para ver la tabla.]", 20, y);
+                docPdf.setFontSize(8);
+                docPdf.setTextColor(255, 0, 0);
+                docPdf.text("[INFO: Estructura de datos antigua detectada. Crea un servicio nuevo para ver la tabla.]", 20, y);
                 y += 10;
             }
 
             // Caja de Totales
-            doc.setFillColor(245, 245, 245);
-            doc.rect(120, y, 70, 40, 'F'); 
+            docPdf.setFillColor(245, 245, 245);
+            docPdf.rect(120, y, 70, 40, 'F'); 
             
-            doc.setTextColor(0, 0, 0);
-            doc.setFontSize(10);
-            doc.text("IMPORTE TOTAL:", 125, y + 10);
+            docPdf.setTextColor(0, 0, 0);
+            docPdf.setFontSize(10);
+            docPdf.text("IMPORTE TOTAL:", 125, y + 10);
             
             // Desglose fiscal si existe
             if (data.desglose) {
-                doc.setFontSize(8);
-                doc.text(`Subtotal: $${data.desglose.subtotal}`, 125, y + 18);
-                doc.text(`IVA (16%): $${data.desglose.iva}`, 125, y + 23);
+                docPdf.setFontSize(8);
+                docPdf.text(`Subtotal: $${data.desglose.subtotal}`, 125, y + 18);
+                docPdf.text(`IVA (16%): $${data.desglose.iva}`, 125, y + 23);
             }
 
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(16);
-            doc.setTextColor(16, 185, 129); // Verde
-            doc.text(`$${data.costo_final} MXN`, 125, y + 35);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(16);
+            docPdf.setTextColor(16, 185, 129); // Verde
+            docPdf.text(`$${data.costo_final} MXN`, 125, y + 35);
 
             // Evidencia Fotográfica
             y += 60;
-            doc.setTextColor(0, 0, 0);
-            doc.setFontSize(12);
-            doc.text("EVIDENCIA FOTOGRÁFICA", 20, y);
+            docPdf.setTextColor(0, 0, 0);
+            docPdf.setFontSize(12);
+            docPdf.text("EVIDENCIA FOTOGRÁFICA", 20, y);
             y += 10;
             if(data.evidencia?.antes) {
                 try {
-                    doc.addImage(data.evidencia.antes, "JPEG", 20, y, 80, 60);
-                    doc.setFontSize(8);
-                    doc.text("ESTADO INICIAL", 20, y + 65);
+                    docPdf.addImage(data.evidencia.antes, "JPEG", 20, y, 80, 60);
+                    docPdf.setFontSize(8);
+                    docPdf.text("ESTADO INICIAL", 20, y + 65);
                 } catch(e) {}
             }
             if(data.evidencia?.despues) {
                 try {
-                    doc.addImage(data.evidencia.despues, "JPEG", 110, y, 80, 60);
-                    doc.setFontSize(8);
-                    doc.text("TRABAJO FINALIZADO", 110, y + 65);
+                    docPdf.addImage(data.evidencia.despues, "JPEG", 110, y, 80, 60);
+                    docPdf.setFontSize(8);
+                    docPdf.text("TRABAJO FINALIZADO", 110, y + 65);
                 } catch(e) {}
             }
             // Footer
-            doc.setFontSize(8);
-            doc.setTextColor(150, 150, 150);
-            doc.text("Este documento es un comprobante digital emitido por la plataforma FixGo.", 60, 280);
-            doc.save(`FixGo_Reporte_${data.id}.pdf`);
+            docPdf.setFontSize(8);
+            docPdf.setTextColor(150, 150, 150);
+            docPdf.text("Este documento es un comprobante digital emitido por la plataforma FixGo.", 60, 280);
+            docPdf.save(`FixGo_Reporte_${data.id}.pdf`);
+            
             btn.innerText = "DESCARGAR REPORTE OFICIAL";
+            btn.disabled = false;
+
         } catch (error) {
             console.error(error);
             alert("Hubo un error generando el PDF. Intenta de nuevo.");
             btn.innerText = "ERROR - REINTENTAR";
+            btn.disabled = false;
         }
     };
 }
