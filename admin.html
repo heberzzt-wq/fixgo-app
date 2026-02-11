@@ -9,21 +9,24 @@
     <style>
         body { background-color: #050505; }
         .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); }
-        /* Scrollbar personalizada */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #121212; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
     </style>
 </head>
 <body class="text-white min-h-screen font-sans">
-
+    
     <header class="max-w-7xl mx-auto flex justify-between items-center p-6 border-b border-white/10">
         <div class="flex items-center gap-3">
             <h1 class="text-3xl font-black tracking-tighter italic text-white">FIX<span class="text-emerald-500">GO</span></h1>
             <span class="bg-blue-600/20 text-blue-400 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-blue-500/30">Admin Mode</span>
         </div>
-        
+
         <div class="flex items-center gap-4">
+            <button onclick="window.abrirGestorCatalogo()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-blue-900/20">
+                <i class="fas fa-sliders-h"></i> GESTIONAR CATÁLOGO
+            </button>
+
             <p class="text-sm text-gray-400 text-right hidden md:block">
                 Bienvenido, <span id="userName" class="text-white font-bold">Administrador</span>
             </p>
@@ -34,7 +37,7 @@
     </header>
 
     <main class="max-w-7xl mx-auto px-4 py-8">
-        
+
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div class="uber-card p-6 rounded-2xl shadow-lg">
                 <div class="flex justify-between items-start">
@@ -47,7 +50,6 @@
                     </div>
                 </div>
             </div>
-
             <div class="uber-card p-6 rounded-2xl shadow-lg">
                 <div class="flex justify-between items-start">
                     <div>
@@ -59,7 +61,6 @@
                     </div>
                 </div>
             </div>
-
             <div class="uber-card p-6 rounded-2xl shadow-lg">
                 <div class="flex justify-between items-start">
                     <div>
@@ -74,7 +75,6 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            
             <div class="space-y-8">
                 <div class="uber-card p-6 rounded-2xl shadow-2xl h-[500px] flex flex-col">
                     <div class="flex justify-between items-center mb-6">
@@ -83,7 +83,6 @@
                         </h2>
                         <span class="text-xs bg-zinc-800 text-zinc-400 px-2 py-1 rounded">En tiempo real</span>
                     </div>
-                    
                     <div id="listaTecnicos" class="flex-1 overflow-y-auto pr-2 space-y-2">
                         <div class="flex flex-col items-center justify-center h-full text-gray-600 gap-3">
                             <i class="fas fa-spinner fa-spin text-2xl"></i>
@@ -92,7 +91,6 @@
                     </div>
                 </div>
             </div>
-
             <div class="space-y-8">
                 <div class="uber-card p-6 rounded-2xl shadow-2xl h-[500px] flex flex-col">
                     <h2 class="font-black text-xl mb-6 flex items-center gap-2">
@@ -103,9 +101,29 @@
                     </div>
                 </div>
             </div>
-
         </div>
     </main>
+
+    <div id="modalCatalogo" class="fixed inset-0 bg-black/90 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-8 border border-yellow-500/30 shadow-2xl relative">
+            <button onclick="document.getElementById('modalCatalogo').classList.add('hidden')" class="absolute top-4 right-4 bg-red-600 text-white px-3 py-1 rounded font-bold text-xs">CERRAR</button>
+            
+            <h2 class="text-2xl font-black text-white mb-2 flex items-center gap-3">
+                <i class="fas fa-sliders-h text-yellow-500"></i> CATÁLOGO GLOBAL
+            </h2>
+            <p class="text-gray-400 text-sm mb-6">Enciende o apaga servicios. Esto afecta la App del Cliente en tiempo real.</p>
+
+            <div id="gridConfiguracion" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <p class="text-center col-span-2 text-emerald-500 animate-pulse">Cargando configuración...</p>
+            </div>
+            
+            <div class="mt-6 pt-6 border-t border-white/10 text-center">
+                <button onclick="window.guardarConfiguracionGlobal()" class="bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 px-8 rounded-xl transition-all">
+                    GUARDAR CAMBIOS
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js"></script>
