@@ -2,8 +2,8 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 5.7.1 (ALAMO PATCH - VERTICALES FIX + COTIZADOR ROBUST)
- * Base: V5.7 Original
+ * Versión: 5.7.2 (ALAMO PATCH 2 - PDF DETALLADO FIX)
+ * Base: V5.7.1
  * ======================================================
  */
 import {
@@ -79,7 +79,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.7.1: Sistema Full Cargado (Cotizador Alamo Activo + Grid Verticales Blindado).");
+console.log(" 🚀  FIXGO 5.7.2: Sistema Full Cargado (PDF Fix Detallado + Cotizador Alamo + Grid Verticales).");
 
 // ======================================================
 // 1. PANEL DE ADMINISTRADOR (Torre de Control)
@@ -1171,12 +1171,42 @@ export async function iniciarPanelCliente(user) {
             doc.text("DIAGNÓSTICO TÉCNICO Y COSTOS", 20, y);
 
             y += 10;
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(10);
-            const splitDiag = doc.splitTextToSize(data.diagnostico || "Servicio estándar sin observaciones.", 170);
-            doc.text(splitDiag, 20, y);
-            y += (splitDiag.length * 7) + 10;
             
+            // --- FIX V5.7.2: RENDERIZADO DE TABLA DETALLADA ---
+            if (data.detalles_cotizacion && data.detalles_cotizacion.length > 0) {
+                // Render Detailed Table (Alamo Style)
+                doc.setFontSize(9);
+                doc.setTextColor(100, 100, 100);
+                // Headers
+                doc.text("CANT", 20, y);
+                doc.text("DESCRIPCIÓN", 45, y); 
+                doc.text("P.UNIT", 140, y);
+                doc.text("IMPORTE", 170, y);
+                y += 5;
+                doc.setDrawColor(200, 200, 200);
+                doc.line(20, y, 190, y);
+                y += 7;
+
+                doc.setTextColor(0, 0, 0);
+                data.detalles_cotizacion.forEach(item => {
+                    doc.text(`${item.cantidad} ${item.unidad}`, 20, y);
+                    // Description handling (truncate if too long or split)
+                    const desc = item.descripcion.substring(0, 55); // Simple truncate for safety
+                    doc.text(desc, 45, y);
+                    doc.text(`$${item.precio}`, 140, y);
+                    doc.text(`$${(item.cantidad * item.precio).toFixed(2)}`, 170, y);
+                    y += 7;
+                });
+                y += 5; // Extra padding after list
+            } else {
+                // Fallback Legacy (Si no hay array, usa el texto simple)
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(10);
+                const splitDiag = doc.splitTextToSize(data.diagnostico || "Servicio estándar sin observaciones.", 170);
+                doc.text(splitDiag, 20, y);
+                y += (splitDiag.length * 7) + 10;
+            }
+
             // Caja de Totales
             doc.setFillColor(245, 245, 245);
             doc.rect(120, y, 70, 40, 'F'); // Aumenté altura para desglose
