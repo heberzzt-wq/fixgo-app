@@ -12,6 +12,14 @@
         .service-card { transition: all 0.3s ease; cursor: pointer; }
         .service-card:hover { transform: translateY(-2px); border-color: #10b981; }
         .service-card.selected { border-color: #10b981; background-color: #1a1a1a; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); }
+        
+        /* ESTILOS TABLA COTIZACIÓN (ESTILO ALAMO/EXCEL) */
+        .quote-table { width: 100%; border-collapse: collapse; font-size: 10px; color: #ccc; }
+        .quote-table th { background: #1f1f1f; color: #10b981; text-align: left; padding: 8px 4px; border-bottom: 1px solid #333; font-weight: 900; text-transform: uppercase; }
+        .quote-table td { border-bottom: 1px solid #222; padding: 6px 4px; vertical-align: top; }
+        .quote-num { font-family: 'Courier New', monospace; text-align: right; }
+        .quote-total-row { background: #1a1a1a; border-top: 2px solid #333; }
+        .legal-note { font-size: 8px; color: #666; font-style: italic; margin-top: 4px; line-height: 1.2; }
     </style>
 </head>
 <body class="text-white min-h-screen pb-20">
@@ -24,44 +32,50 @@
             </button>
         </div>
     </header>
+
     <main class="max-w-2xl mx-auto px-4 py-8 space-y-8">
+        
         <section>
             <h2 class="text-slate-500 text-xs font-black uppercase tracking-widest mb-4">¿Qué necesitas hoy?</h2>
-
             <div id="gridServicios" class="grid grid-cols-3 gap-3">
                <div class="col-span-3 text-center py-4">
                    <i class="fas fa-circle-notch fa-spin text-emerald-500"></i>
-                   <span class="text-xs text-gray-500 ml-2">Cargando servicios disponibles...</span>
+                   <span class="text-xs text-gray-500 ml-2">Cargando servicios...</span>
                </div>
             </div>
         </section>
-        
+
         <section id="solicitudContainer" class="uber-card p-6 rounded-[2rem] shadow-2xl relative overflow-hidden">
             <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
             <h2 class="text-xl font-black mb-6 flex items-center gap-2">
                 <span class="bg-emerald-500 w-2 h-8 rounded-full"></span>
                 Solicitar <span id="btnLabel" class="text-emerald-500">Servicio</span>
             </h2>
+
             <form id="nuevaSolicitudForm" class="space-y-4">
                 <input type="hidden" id="categoriaSeleccionada" name="categoria">
+                
                 <div>
                     <label class="block text-xs font-bold text-gray-500 mb-1 ml-2">UBICACIÓN</label>
                     <div class="relative">
                         <i class="fas fa-map-marker-alt absolute left-4 top-4 text-gray-400"></i>
-                        <input type="text" name="direccion" placeholder="Ej: Calle 60, Centro Cancún" required
+                        <input type="text" name="direccion" placeholder="Ej: Calle 60, Centro Cancún" required 
                             class="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-gray-600">
                     </div>
                 </div>
+
                 <div>
                     <label class="block text-xs font-bold text-gray-500 mb-1 ml-2">DETALLES DEL PROBLEMA</label>
-                    <textarea name="descripcion" rows="3" placeholder="Describe brevemente qué sucede..." required
+                    <textarea name="descripcion" rows="3" placeholder="Describe brevemente qué sucede..." required 
                         class="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl py-3 px-4 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-gray-600"></textarea>
                 </div>
+
                 <button type="submit" class="w-full bg-white text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg transform active:scale-95">
                     SOLICITAR AHORA
                 </button>
             </form>
         </section>
+
         <section>
             <h2 class="text-slate-500 text-xs font-black uppercase tracking-widest mb-4">Tu Actividad</h2>
             <div id="solicitudesCliente" class="space-y-3">
@@ -72,6 +86,7 @@
             </div>
         </section>
     </main>
+
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js"></script>
 </body>
