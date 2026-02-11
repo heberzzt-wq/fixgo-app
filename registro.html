@@ -14,53 +14,69 @@
     </style>
 </head>
 <body class="text-white min-h-screen">
+    <header class="max-w-4xl mx-auto flex justify-between items-center p-6">
+        <h1 class="text-3xl font-black tracking-tighter italic text-white">FIXGO</h1>
+        <a href="index.html" class="text-indigo-500 font-bold">Inicio</a>
+    </header>
 
-<header class="max-w-4xl mx-auto flex justify-between items-center p-6">
-    <h1 class="text-3xl font-black tracking-tighter italic text-white">FIXGO</h1>
-    <a href="index.html" class="text-indigo-500 font-bold">Inicio</a>
-</header>
+    <main class="max-w-4xl mx-auto px-4 py-12">
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl">
+                <h2 class="text-2xl font-black mb-6">Registro Cliente</h2>
+                <form id="formRegistroCliente" class="space-y-4">
+                    <input type="text" name="nombre" placeholder="Nombre completo" required class="uber-input w-full px-4 py-3 rounded-2xl">
+                    <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-4 py-3 rounded-2xl">
+                    <input type="password" name="password" placeholder="Contraseña" required class="uber-input w-full px-4 py-3 rounded-2xl">
+                    <input type="tel" name="telefono" placeholder="Teléfono" required class="uber-input w-full px-4 py-3 rounded-2xl">
+                    <button type="submit" id="btnRegistroCliente" class="w-full bg-indigo-500 py-4 rounded-2xl font-black hover:bg-indigo-600 transition-all">Registrarme</button>
+                </form>
+            </div>
 
-<main class="max-w-4xl mx-auto px-4 py-12">
-    <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Registro Cliente -->
-        <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl">
-            <h2 class="text-2xl font-black mb-6">Registro Cliente</h2>
-            <form id="formRegistroCliente" class="space-y-4">
-                <input type="text" name="nombre" placeholder="Nombre completo" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <input type="password" name="password" placeholder="Contraseña" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <input type="tel" name="telefono" placeholder="Teléfono" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <button type="submit" id="btnRegistroCliente" class="w-full bg-indigo-500 py-4 rounded-2xl font-black hover:bg-indigo-600 transition-all">Registrarme</button>
-            </form>
-        </div>
+            <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl">
+                <h2 class="text-2xl font-black mb-6">Registro Técnico</h2>
+                <form id="formRegistroTecnico" class="space-y-4">
+                    <input type="text" name="nombre" placeholder="Nombre completo" required class="uber-input w-full px-4 py-3 rounded-2xl">
+                    <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-4 py-3 rounded-2xl">
+                    <input type="password" name="password" placeholder="Contraseña" required class="uber-input w-full px-4 py-3 rounded-2xl">
+                    <input type="tel" name="telefono" placeholder="Teléfono" required class="uber-input w-full px-4 py-3 rounded-2xl">
 
-        <!-- Registro Técnico -->
-        <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl">
-            <h2 class="text-2xl font-black mb-6">Registro Técnico</h2>
-            <form id="formRegistroTecnico" class="space-y-4">
-                <input type="text" name="nombre" placeholder="Nombre completo" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <input type="password" name="password" placeholder="Contraseña" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                <input type="tel" name="telefono" placeholder="Teléfono" required class="uber-input w-full px-4 py-3 rounded-2xl">
+                    <div class="bg-zinc-900 p-4 rounded-xl border border-zinc-800">
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase">Tus Especialidades (Skills)</label>
+                        <div class="flex flex-col gap-2">
+                            <label class="flex items-center gap-3 cursor-pointer hover:bg-zinc-800 p-2 rounded transition-colors">
+                                <input type="checkbox" name="skill_road" class="w-4 h-4 accent-emerald-500 rounded">
+                                <span class="text-sm font-bold text-white"><i class="fas fa-car-crash text-yellow-500 w-6"></i> ROAD (Vial)</span>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer hover:bg-zinc-800 p-2 rounded transition-colors">
+                                <input type="checkbox" name="skill_fix" class="w-4 h-4 accent-emerald-500 rounded">
+                                <span class="text-sm font-bold text-white"><i class="fas fa-tools text-blue-500 w-6"></i> FIX (Hogar)</span>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer hover:bg-zinc-800 p-2 rounded transition-colors">
+                                <input type="checkbox" name="skill_tech" class="w-4 h-4 accent-emerald-500 rounded">
+                                <span class="text-sm font-bold text-white"><i class="fas fa-wifi text-purple-500 w-6"></i> TECH (Sistemas)</span>
+                            </label>
+                        </div>
+                    </div>
 
-                <div class="flex flex-col gap-2">
-                    <label class="text-slate-400 text-sm">INE:</label>
-                    <input type="file" id="inputINE" class="hidden">
-                    <button type="button" id="btnSubirINE" class="bg-indigo-600 py-2 px-4 rounded-2xl font-black hover:bg-indigo-700 transition-all">Subir INE</button>
-                </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="text-slate-400 text-sm">INE:</label>
+                        <input type="file" id="inputINE" class="hidden">
+                        <button type="button" id="btnSubirINE" class="bg-indigo-600 py-2 px-4 rounded-2xl font-black hover:bg-indigo-700 transition-all">Subir INE</button>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="text-slate-400 text-sm">CSF:</label>
+                        <input type="file" id="inputCSF" class="hidden">
+                        <button type="button" id="btnSubirCSF" class="bg-indigo-600 py-2 px-4 rounded-2xl font-black hover:bg-indigo-700 transition-all">Subir CSF</button>
+                    </div>
+                    
+                    <button type="submit" id="btnRegistroTecnico" class="w-full bg-emerald-500 py-4 rounded-2xl font-black hover:bg-emerald-600 transition-all">Registrarme</button>
+                </form>
+            </div>
 
-                <div class="flex flex-col gap-2">
-                    <label class="text-slate-400 text-sm">CSF:</label>
-                    <input type="file" id="inputCSF" class="hidden">
-                    <button type="button" id="btnSubirCSF" class="bg-indigo-600 py-2 px-4 rounded-2xl font-black hover:bg-indigo-700 transition-all">Subir CSF</button>
-                </div>
+        </section>
+    </main>
 
-                <button type="submit" id="btnRegistroTecnico" class="w-full bg-emerald-500 py-4 rounded-2xl font-black hover:bg-emerald-600 transition-all">Registrarme</button>
-            </form>
-        </div>
-    </section>
-</main>
-
-<script type="module" src="./app-registro.js"></script>
+    <script type="module" src="./app-registro.js"></script>
 </body>
 </html>
