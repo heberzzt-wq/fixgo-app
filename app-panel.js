@@ -2,7 +2,8 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 5.7 (FULL LENGTH: AUDIO UNLOCKED + ADMIN FIX + LOGIC V2)
+ * Versión: 5.7 (ALAMO QUOTE SYSTEM + VERTICALS + FULL LOGIC)
+ * Base: V5.6 (1084 líneas) + Nuevas Funciones
  * ======================================================
  */
 import {
@@ -18,12 +19,11 @@ import {
     addDoc,
     serverTimestamp,
     setDoc,
-    getDoc // Importación necesaria para configuración y finanzas
+    getDoc
 } from "./firebase.js";
 
 // Importamos getDocs manualmente por si acaso falta en firebase.js
 import { getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 
 // ======================================================
@@ -32,26 +32,20 @@ import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 const audioNotificacion = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
 let audioDesbloqueado = false;
 
-// FUNCIÓN DE DESBLOQUEO (Soluciona el problema de "solo visual")
-// Los navegadores bloquean el sonido si el usuario no ha interactuado primero.
-// Esto fuerza al navegador a "preparar" el audio con el primer clic o toque.
+// FUNCIÓN DE DESBLOQUEO
 function desbloquearAudio() {
     if (audioDesbloqueado) return;
-
     audioNotificacion.play().then(() => {
         audioNotificacion.pause();
         audioNotificacion.currentTime = 0;
         audioDesbloqueado = true;
         console.log(" 🔊  Sistema de Audio: DESBLOQUEADO Y LISTO.");
-
-        // Removemos los listeners para no saturar memoria
         document.removeEventListener('click', desbloquearAudio);
         document.removeEventListener('touchstart', desbloquearAudio);
     }).catch(error => {
         console.log(" ⚠️ Esperando interacción del usuario para activar audio...");
     });
 }
-// Agregamos listeners a todo el documento para atrapar el primer clic/toque
 document.addEventListener('click', desbloquearAudio);
 document.addEventListener('touchstart', desbloquearAudio);
 
@@ -78,7 +72,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.7: Código Extendido, Audio Blindado y Admin Sync.");
+console.log(" 🚀  FIXGO 5.7: Sistema Full Cargado (Cotizador Alamo Activo).");
 
 // ======================================================
 // 1. PANEL DE ADMINISTRADOR (Torre de Control)
@@ -92,41 +86,38 @@ export async function iniciarPanelAdmin(user) {
         countOnline: document.getElementById("totalTecnicos")
     };
 
-    // 1.A. TÉCNICOS Y APROBACIÓN (LÓGICA DETALLADA)
+    // 1.A. TÉCNICOS Y APROBACIÓN
     if (elementos.lista) {
         const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
 
         onSnapshot(qTecnicos, (snap) => {
             elementos.lista.innerHTML = "";
-
             let contOnline = 0;
             let contTotal = 0;
+
             if (snap.empty) {
                 elementos.lista.innerHTML = '<p class="text-gray-500 p-4 italic">No hay técnicos registrados.</p>';
             }
+
             snap.forEach((docSnap) => {
                 const data = docSnap.data();
                 contTotal++;
+                if(data.disponible) contOnline++;
 
-                // CORRECCIÓN ADMIN: Detección más flexible de "online"
-                if(data.disponible) {
-                    contOnline++;
-                }
                 const esPendiente = (data.estado || "pendiente") === "pendiente";
                 const ineCheck = data.documentos?.ine ? '<span class="text-emerald-400"> ✅  INE</span>' : '<span class="text-red-500"> ❌  INE</span>';
                 const csfCheck = data.documentos?.csf ? '<span class="text-emerald-400"> ✅  CSF</span>' : '<span class="text-red-500"> ❌  CSF</span>';
-
-                // Indicador visual
-                const estadoDot = data.disponible
-                    ? '<span class="text-emerald-500 font-bold text-[10px] animate-pulse">● ONLINE</span>'
-                    : '<span class="text-gray-500 text-[10px]">● OFFLINE</span>';
                 
-                // Mostrar Skills (V5.7)
+                // Mostrar Skills (Nuevo V5.7)
                 const skillsStr = data.skills ? data.skills.join(" • ").toUpperCase() : "GENERAL";
+
+                const estadoDot = data.disponible 
+                    ? '<span class="text-emerald-500 font-bold text-[10px] animate-pulse">● ONLINE</span>' 
+                    : '<span class="text-gray-500 text-[10px]">● OFFLINE</span>';
 
                 const card = document.createElement("div");
                 card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500' : 'bg-zinc-900 border-zinc-800'}`;
-
+                
                 card.innerHTML = `
                 <div class="flex justify-between items-center">
                     <div>
@@ -140,25 +131,19 @@ export async function iniciarPanelAdmin(user) {
                         <div class="mt-2 text-[10px] bg-black/20 p-1 rounded inline-block border border-white/5">
                             ${ineCheck} | ${csfCheck}
                         </div>
-                        <div class="mt-1">
-                            ${estadoDot}
-                        </div>
+                        <div class="mt-1">${estadoDot}</div>
                     </div>
-
                     <div class="flex flex-col gap-2">
                         ${esPendiente ? `
-                        <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${docSnap.id}')">
-                            APROBAR ACCESO
+                        <button class="bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${docSnap.id}')">
+                            APROBAR
                         </button>
-                        ` : `
-                        <i class="fas fa-check-circle text-emerald-800 text-2xl"></i>
-                        `}
+                        ` : `<i class="fas fa-check-circle text-emerald-800 text-2xl"></i>`}
                     </div>
-                </div>
-                `;
+                </div>`;
                 elementos.lista.appendChild(card);
             });
-            // Actualizamos el contador del Dashboard principal (CORREGIDO)
+
             if(elementos.countOnline) {
                 elementos.countOnline.innerHTML = `${contOnline} <span class="text-sm text-gray-500">/ ${contTotal}</span>`;
                 elementos.countOnline.style.color = contOnline > 0 ? "#10b981" : "white";
@@ -168,34 +153,28 @@ export async function iniciarPanelAdmin(user) {
 
     // 1.B. MONITOREO DE SERVICIOS
     const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"));
-
     onSnapshot(qServicios, (snap) => {
         if(elementos.actividad) elementos.actividad.innerHTML = "";
-
         let activos = 0;
-        // let ingresos = 0; // Se calculará con la nueva colección 'transacciones' para ser exactos
-
+        
         if (snap.empty) {
             if(elementos.actividad) elementos.actividad.innerHTML = '<p class="text-gray-500 italic text-sm text-center mt-4">Sin actividad reciente.</p>';
         }
+
         snap.forEach(docSnap => {
             const data = docSnap.data();
+            if (!["finalizado", "cancelado"].includes(data.estado)) activos++;
 
-            // Calculo de Activos (Excluyendo finalizados y cancelados)
-            if (!["finalizado", "cancelado"].includes(data.estado)) {
-                activos++;
-            }
-
-            // Renderizar solo los últimos 10 para no saturar el DOM
+            // Renderizar últimos 10
             if (elementos.actividad && elementos.actividad.children.length < 10) {
                 const item = document.createElement("div");
                 item.className = "flex justify-between items-center border-b border-white/5 py-3 last:border-0";
-
+                
                 let colorEstado = "text-gray-400";
                 if(data.estado === "pendiente") colorEstado = "text-yellow-500";
                 if(data.estado === "trabajando") colorEstado = "text-blue-400 animate-pulse";
                 if(data.estado === "finalizado") colorEstado = "text-emerald-500";
-                
+
                 item.innerHTML = `
                 <div class="flex items-center gap-3">
                     <div class="bg-zinc-800 p-2 rounded-lg"><i class="fas fa-tools text-gray-400"></i></div>
@@ -207,24 +186,22 @@ export async function iniciarPanelAdmin(user) {
                 <div class="text-right">
                     <p class="text-[10px] font-bold ${colorEstado} uppercase">${data.estado.replace('_', ' ')}</p>
                     <p class="text-[9px] text-gray-600">Hace un momento</p>
-                </div>
-                `;
+                </div>`;
                 elementos.actividad.appendChild(item);
             }
         });
-        // Actualizar Widgets Superiores
+
         if(elementos.countServ) {
             elementos.countServ.innerText = activos;
             elementos.countServ.style.color = activos > 0 ? "#34d399" : "white";
         }
     });
 
-    // 1.C. MONITOREO DE FINANZAS REALES (V5.7 - Colección Transacciones)
+    // 1.C. MONITOREO DE FINANZAS (32%)
     const qFinanzas = query(collection(db, "transacciones"));
     onSnapshot(qFinanzas, (snap) => {
         let totalComision = 0;
         snap.forEach(doc => {
-            // Sumamos solo la comisión de FixGo (32%)
             totalComision += (doc.data().comision_fixgo || 0);
         });
         if(elementos.countMoney) {
@@ -232,9 +209,9 @@ export async function iniciarPanelAdmin(user) {
         }
     });
 
-    // Función global para el botón onclick del HTML inyectado
+    // FUNCIONES ADMIN GLOBALES
     window.aprobarTecnico = async (uid) => {
-        if(!confirm("¿Estás seguro de aprobar a este técnico? Tendrá acceso inmediato a solicitudes.")) return;
+        if(!confirm("¿Estás seguro de aprobar a este técnico?")) return;
         try {
             await updateDoc(doc(db, "users", uid), {
                 estado: "activo",
@@ -242,28 +219,24 @@ export async function iniciarPanelAdmin(user) {
                 verificado: true,
                 aprobadoEn: serverTimestamp()
             });
-            alert(" ✅  Técnico Aprobado y Activado.");
+            alert(" ✅  Técnico Aprobado.");
         } catch (error) {
             console.error(error);
             alert("Error al aprobar.");
         }
     };
 
-    // --- NUEVO: GESTIÓN DE CATÁLOGO (ADMIN V5.7) ---
-    // Función para abrir y cargar el modal de catálogo
+    // GESTIÓN CATÁLOGO (V5.7)
     window.abrirGestorCatalogo = async () => {
         const modal = document.getElementById("modalCatalogo");
         const container = document.getElementById("gridConfiguracion");
         modal.classList.remove("hidden");
         
-        // Leemos la configuración actual
         const docRef = doc(db, "configuracion", "catalogo_global");
         const docSnap = await getDoc(docRef);
-        
-        let config = { road: true, fix: true, tech: true }; // Default
+        let config = { road: true, fix: true, tech: true };
         if(docSnap.exists()) config = docSnap.data();
 
-        // Generamos los switches
         container.innerHTML = `
             ${generarSwitch("road", "ROAD (Vial)", config.road)}
             ${generarSwitch("fix", "FIX (Hogar)", config.fix)}
@@ -278,14 +251,12 @@ export async function iniciarPanelAdmin(user) {
             tech: document.getElementById("cfg_tech").checked,
             updatedAt: serverTimestamp()
         };
-        
         await setDoc(doc(db, "configuracion", "catalogo_global"), nuevaConfig);
-        alert("✅ Catálogo actualizado. Los clientes verán los cambios al instante.");
+        alert("✅ Catálogo actualizado.");
         document.getElementById("modalCatalogo").classList.add("hidden");
     };
 }
 
-// Helper para generar HTML de switches
 function generarSwitch(key, label, value) {
     return `
     <div class="bg-black p-4 rounded-xl border border-zinc-700 flex justify-between items-center">
@@ -313,14 +284,13 @@ export async function iniciarPanelTecnico(user) {
         btnLlegue: document.getElementById("btnLlegue")
     };
 
-    // 2.A. ESTADO DEL TÉCNICO Y PERFIL
+    // 2.A. ESTADO DEL TÉCNICO
     const tecnicoRef = doc(db, "users", user.uid);
     onSnapshot(tecnicoRef, (docSnap) => {
         if (!docSnap.exists()) return;
         const data = docSnap.data();
         const estado = data.estado || "pendiente";
 
-        // Caso: Pendiente de Aprobación
         if (estado === "pendiente") {
             if(elementos.statusLabel) {
                 elementos.statusLabel.innerText = "EN REVISIÓN";
@@ -332,39 +302,28 @@ export async function iniciarPanelTecnico(user) {
             }
             if(elementos.radarSection) elementos.radarSection.classList.add("hidden");
             if(elementos.seccionBolsa) {
-                elementos.seccionBolsa.innerHTML = `
-                <div class="p-6 bg-yellow-900/10 border border-yellow-500/30 rounded-2xl text-center">
-                    <i class="fas fa-lock text-yellow-500 text-2xl mb-2"></i>
-                    <p class="text-yellow-500 text-sm font-bold">Cuenta en Revisión</p>
-                    <p class="text-gray-500 text-xs mt-1">El administrador está validando tus documentos.</p>
-                </div>
-                `;
+                elementos.seccionBolsa.innerHTML = `<div class="p-6 bg-yellow-900/10 border border-yellow-500/30 rounded-2xl text-center"><i class="fas fa-lock text-yellow-500 text-2xl mb-2"></i><p class="text-yellow-500 text-sm font-bold">Cuenta en Revisión</p></div>`;
             }
             return;
         }
 
-        // Caso: Activo
         if (elementos.toggleONOFF) {
             elementos.toggleONOFF.disabled = false;
             elementos.toggleONOFF.checked = data.disponible === true;
         }
 
         if (data.disponible) {
-            // ENCENDIDO
             iniciarTracking(user.uid);
             elementos.seccionBolsa?.classList.remove("hidden");
-            escucharBolsa(user, elementos.listaBolsa); // Le pasamos el user para ver sus Skills
-
+            escucharBolsa(user, elementos.listaBolsa);
             if(elementos.statusLabel) {
                 elementos.statusLabel.innerText = "EN LÍNEA";
                 elementos.statusLabel.className = "bg-emerald-500/20 text-emerald-500 status-badge font-bold animate-pulse";
             }
             elementos.radarSection?.classList.remove("opacity-50", "grayscale");
         } else {
-            // APAGADO
             detenerTracking();
             elementos.seccionBolsa?.classList.add("hidden");
-
             if(elementos.statusLabel) {
                 elementos.statusLabel.innerText = "OFFLINE";
                 elementos.statusLabel.className = "bg-red-500/20 text-red-500 status-badge font-bold";
@@ -373,53 +332,42 @@ export async function iniciarPanelTecnico(user) {
         }
     });
 
-    // Listener para el Switch ON/OFF
     if (elementos.toggleONOFF) {
         elementos.toggleONOFF.addEventListener("change", async (e) => {
-            await updateDoc(tecnicoRef, {
-                disponible: e.target.checked,
-                last_seen: serverTimestamp()
-            });
+            await updateDoc(tecnicoRef, { disponible: e.target.checked, last_seen: serverTimestamp() });
         });
     }
 
-    // 2.B. BOLSA DE TRABAJO (CON SONIDO Y FILTRO DE SKILLS)
+    // 2.B. BOLSA DE TRABAJO (CON SONIDO Y FILTRO SKILLS)
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
         const q = query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc"));
-
+        
         onSnapshot(q, (snap) => {
             contenedor.innerHTML = "";
             if(snap.empty) {
                 contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">Escaneando zona... esperando solicitudes.</p>`;
                 return;
             }
-
-            //  🔔  SONIDO: Si llega una nueva solicitud (added)
+            
             if(snap.docChanges().some(change => change.type === 'added')) {
-                console.log(" 🔔  Nueva solicitud detectada: SONANDO ALERTA");
+                console.log(" 🔔  Nueva solicitud detectada");
                 sonarAlerta();
             }
 
             snap.forEach((docSnap) => {
                 const s = docSnap.data();
                 const id = docSnap.id;
-
-                // --- FILTRO DE SKILLS (V5.7) ---
-                // Si el técnico tiene skills definidas, solo ve lo que le corresponde.
-                // Si el técnico NO tiene skills (legacy), ve todo.
+                
+                // FILTRO SKILLS
                 const misSkills = tecnico.skills || [];
-                // Si la categoría del servicio no está en mis skills, lo salto (y tengo al menos 1 skill)
-                if (s.categoria && misSkills.length > 0 && !misSkills.includes(s.categoria)) {
-                    return; // No mostrar este servicio
-                }
+                if (s.categoria && misSkills.length > 0 && !misSkills.includes(s.categoria)) return;
 
                 const card = document.createElement("div");
                 card.className = "bg-zinc-900 border border-zinc-700 p-4 rounded-xl mb-3 animate-pulse border-emerald-500 shadow-lg shadow-emerald-900/20";
-
                 card.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
-                    <span class="bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider">NUEVA SOLICITUD</span>
+                    <span class="bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase">NUEVA SOLICITUD</span>
                     <span class="text-white font-bold text-xs">${s.categoria.toUpperCase()}</span>
                 </div>
                 <h4 class="text-white font-bold text-base mb-1">${s.zona || 'Cancún'}</h4>
@@ -427,141 +375,94 @@ export async function iniciarPanelTecnico(user) {
                 <div class="flex items-center gap-2 mb-3 text-xs text-gray-500">
                     <i class="fas fa-map-marker-alt"></i> ${s.direccion}
                 </div>
-                <button class="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}')">
+                <button class="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}')">
                     ACEPTAR (BLOQUEAR $550)
-                </button>
-                `;
+                </button>`;
                 contenedor.appendChild(card);
             });
         });
     }
 
-    // Función global para aceptar servicio (CON BLOQUEO V5.7)
+    // TOMAR SERVICIO (CON BLOQUEO V5.7)
     window.tomarServicio = async (id, uid, nombre) => {
-        // 1. VALIDACIÓN DE UNICIDAD (No Multitasking)
-        // Verificamos si el técnico ya tiene un servicio activo
-        const qCheck = query(
-            collection(db, "services"), 
-            where("tecnico_id", "==", uid),
-            where("estado", "in", ["asignado", "en_camino", "en_sitio", "cotizando", "trabajando"])
-        );
-        
+        const qCheck = query(collection(db, "services"), where("tecnico_id", "==", uid), where("estado", "in", ["asignado", "en_camino", "en_sitio", "cotizando", "trabajando"]));
         const snapCheck = await getDocs(qCheck);
         if (!snapCheck.empty) {
-            alert("⛔ BLOQUEO DE SEGURIDAD\n\nYa tienes un servicio activo. Debes finalizarlo antes de tomar otro.");
+            alert("⛔ BLOQUEO: Ya tienes un servicio activo.");
             return;
         }
 
-        if(!confirm("¿Aceptar este servicio? \n\nSe notificará al cliente y se bloqueará la garantía.")) return;
+        if(!confirm("¿Aceptar servicio?")) return;
         try {
             await updateDoc(doc(db, "services", id), {
-                estado: "asignado",
-                tecnico_id: uid,
-                tecnico_nombre: nombre,
-                tecnico_telefono: user.telefono || "",
-                asignado_at: serverTimestamp()
+                estado: "asignado", tecnico_id: uid, tecnico_nombre: nombre, tecnico_telefono: user.telefono || "", asignado_at: serverTimestamp()
             });
-            // El propio onSnapshot del flujo activo actualizará la UI
         } catch (error) {
             console.error(error);
-            alert("Error: El servicio ya fue tomado por otro técnico.");
+            alert("Error: El servicio ya fue tomado.");
         }
     };
 
-    // 2.C. FLUJO ACTIVO (MISIONES Y BOTONES)
-    // Escuchamos servicios donde soy el técnico y el estado es activo
-    const qMisiones = query(
-        collection(db, "services"),
-        where("tecnico_id", "==", user.uid),
-        where("estado", "in", ["asignado", "en_camino", "en_sitio", "cotizando", "trabajando"])
-    );
+    // 2.C. FLUJO ACTIVO
+    const qMisiones = query(collection(db, "services"), where("tecnico_id", "==", user.uid), where("estado", "in", ["asignado", "en_camino", "en_sitio", "cotizando", "trabajando"]));
     onSnapshot(qMisiones, (snap) => {
         const ls = elementos.listaServicios;
         const pa = elementos.panelAcciones;
-
         if (!ls) return;
         ls.innerHTML = "";
 
-        // Si no hay misiones, escondemos el panel inferior
         if (snap.empty) {
             if(pa) pa.classList.add("translate-y-full");
             return;
         }
-
-        // Si hay misiones, mostramos el panel
         if(pa) pa.classList.remove("translate-y-full");
+        
         snap.forEach((docSnap) => {
             const s = docSnap.data();
             const id = docSnap.id;
+            const destinoWaze = s.coords ? `${s.coords.lat},${s.coords.lng}` : encodeURIComponent(s.direccion);
 
-            // Construcción inteligente del link de Waze
-            // Si el cliente dio coordenadas, usamos esas. Si no, la dirección.
-            const destinoWaze = s.coords
-                ? `${s.coords.lat},${s.coords.lng}`
-                : encodeURIComponent(s.direccion);
-
-            // Render Tarjeta
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl";
             card.innerHTML = `
-            <div class="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">
-                ${s.estado.replace('_', ' ')}
-            </div>
+            <div class="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">${s.estado.replace('_', ' ')}</div>
             <h3 class="text-xl font-black text-white mb-1 uppercase">${s.categoria}</h3>
-            <p class="text-gray-400 text-sm mb-4">
-                <i class="fas fa-map-marker-alt text-blue-500"></i> ${s.direccion}
-            </p>
+            <p class="text-gray-400 text-sm mb-4"><i class="fas fa-map-marker-alt text-blue-500"></i> ${s.direccion}</p>
             <div class="bg-black/50 p-4 rounded-xl mb-4">
                 <p class="text-xs text-gray-500 uppercase font-bold mb-1">Problema:</p>
                 <p class="text-sm text-white italic">"${s.descripcion}"</p>
             </div>
             <div class="flex gap-2">
-                <a href="https://waze.com/ul?q=${destinoWaze}" target="_blank" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-center text-sm transition-colors">
-                    <i class="fab fa-waze"></i> IR CON WAZE
-                </a>
-                <a href="tel:${s.cliente_telefono}" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 px-4 rounded-xl text-center transition-colors">
-                    <i class="fas fa-phone"></i>
-                </a>
-            </div>
-            `;
+                <a href="https://waze.com/ul?q=${destinoWaze}" target="_blank" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-center text-sm"><i class="fab fa-waze"></i> WAZE</a>
+                <a href="tel:${s.cliente_telefono}" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 px-4 rounded-xl text-center"><i class="fas fa-phone"></i></a>
+            </div>`;
             ls.appendChild(card);
 
-            // GESTIÓN DE BOTONES INFERIORES POR ESTADO
             const btn1 = elementos.btnEnCamino;
             const btn2 = elementos.btnLlegue;
-
-            // Reset visual
             btn1.classList.add("hidden");
             btn2.classList.add("hidden");
 
-            // Lógica de Estados
             if (s.estado === "asignado") {
                 btn1.classList.remove("hidden");
                 btn1.innerText = "VOY EN CAMINO";
-                btn1.className = "w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
                 btn1.onclick = () => actualizarEstado(id, "en_camino");
-            }
-            else if (s.estado === "en_camino") {
+            } else if (s.estado === "en_camino") {
                 btn2.classList.remove("hidden");
                 btn2.innerText = "YA LLEGUÉ AL SITIO";
-                btn2.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
-                btn2.onclick = () => {
-                    actualizarEstado(id, "en_sitio");
-                };
-            }
-            else if (s.estado === "en_sitio") {
+                btn2.onclick = () => actualizarEstado(id, "en_sitio");
+            } else if (s.estado === "en_sitio") {
                 btn2.classList.remove("hidden");
-                btn2.innerText = "INICIAR COTIZACIÓN";
+                btn2.innerText = "CREAR PRESUPUESTO";
+                // LÓGICA V5.7: COTIZACIÓN DETALLADA (ESTILO ALAMO)
                 btn2.className = "w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
-                btn2.onclick = () => mostrarModalCotizacion(id);
-            }
-            else if (s.estado === "cotizando") {
+                btn2.onclick = () => mostrarModalCotizacionDetallada(id, s);
+            } else if (s.estado === "cotizando") {
                 btn2.classList.remove("hidden");
-                btn2.innerText = "ESPERANDO AL CLIENTE...";
+                btn2.innerText = "ESPERANDO APROBACIÓN...";
                 btn2.disabled = true;
                 btn2.className = "w-full bg-zinc-700 text-gray-400 font-bold py-4 rounded-xl cursor-not-allowed flex items-center justify-center gap-2";
-            }
-            else if (s.estado === "trabajando") {
+            } else if (s.estado === "trabajando") {
                 btn2.classList.remove("hidden");
                 btn2.innerText = " 📸  FINALIZAR Y EVIDENCIA";
                 btn2.disabled = false;
@@ -571,13 +472,9 @@ export async function iniciarPanelTecnico(user) {
         });
     });
 
-    // Función auxiliar para actualizar estado en Servicios y en Rastreo
     async function actualizarEstado(id, estado, extras = {}) {
         try {
-            // 1. Actualizar el documento del servicio
             await updateDoc(doc(db, "services", id), { estado: estado, ...extras });
-
-            // 2. Actualizar el estado público para el mapa (Rastreo)
             let textoMapa = "En Ruta";
             if(estado === "en_sitio") textoMapa = "En Sitio";
             if(estado === "trabajando") textoMapa = "Trabajando";
@@ -585,61 +482,182 @@ export async function iniciarPanelTecnico(user) {
             const rastreoRef = doc(db, "rastreo", "tecnicoActivo");
             await setDoc(rastreoRef, { estado: textoMapa }, { merge: true });
         } catch (error) {
-            console.error("Error actualizando estado:", error);
-            alert("Error de conexión. Intenta de nuevo.");
+            console.error(error);
+            alert("Error actualizando estado.");
         }
     }
 
-    //  📸  MODAL EVIDENCIA (REAL CON BASE64 Y CÁLCULO FINANCIERO V5.7)
-    function mostrarModalEvidencia(id) {
-        if(document.getElementById("modalEvidencia")) return;
+    // ==========================================================
+    // NUEVO MODAL: COTIZACIÓN DETALLADA (V5.7 ALAMO STYLE)
+    // ==========================================================
+    function mostrarModalCotizacionDetallada(id, servicioData) {
+        if(document.getElementById("modalCot")) return;
+        
+        let items = []; // Array temporal para partidas
 
         const html = `
-        <div id="modalEvidencia" class="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-            <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700 shadow-2xl">
-                <h3 class="text-white font-black text-xl mb-4 text-center">REPORTE FINAL OBLIGATORIO</h3>
-                <p class="text-gray-400 text-xs mb-6 text-center">Para liberar el pago, sube la evidencia fotográfica.</p>
+        <div id="modalCot" class="fixed inset-0 bg-black/95 z-[60] flex flex-col p-4 animate-fade-in overflow-y-auto">
+            <div class="bg-zinc-900 w-full max-w-lg mx-auto rounded-3xl p-6 border border-zinc-700 shadow-2xl flex-1 flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-white font-black text-xl">COTIZADOR PRO</h3>
+                    <button onclick="document.getElementById('modalCot').remove()" class="text-gray-500"><i class="fas fa-times"></i></button>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto mb-4 border border-zinc-800 rounded-xl bg-black/50 p-2" id="listaPartidas">
+                    <p class="text-gray-600 text-xs text-center italic py-10">Agrega conceptos para cotizar.</p>
+                </div>
 
-                <div class="space-y-4">
-                    <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
-                        <label class="block text-xs font-bold text-emerald-500 mb-2 uppercase">FOTO DEL ANTES</label>
-                        <input type="file" id="fileAntes" accept="image/*" class="text-xs text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-white hover:file:bg-zinc-700">
+                <div class="bg-zinc-800 p-3 rounded-xl mb-4 space-y-2 border border-zinc-700">
+                    <div class="flex gap-2">
+                        <input id="inCant" type="number" placeholder="Cant." class="w-16 bg-black text-white p-3 rounded-lg text-xs border border-zinc-600 focus:border-emerald-500 outline-none">
+                        <input id="inUnidad" type="text" placeholder="Unidad" class="w-20 bg-black text-white p-3 rounded-lg text-xs border border-zinc-600 focus:border-emerald-500 outline-none">
+                        <input id="inDesc" type="text" placeholder="Descripción (Ej: Cable 12)" class="flex-1 bg-black text-white p-3 rounded-lg text-xs border border-zinc-600 focus:border-emerald-500 outline-none">
                     </div>
-                    <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
-                        <label class="block text-xs font-bold text-emerald-500 mb-2 uppercase">FOTO DEL DESPUÉS</label>
-                        <input type="file" id="fileDespues" accept="image/*" class="text-xs text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-white hover:file:bg-zinc-700">
+                    <div class="flex gap-2 items-center">
+                        <div class="flex-1 relative">
+                            <span class="absolute left-3 top-3 text-gray-500 text-xs">$</span>
+                            <input id="inPrecio" type="number" placeholder="Precio Unitario" class="w-full bg-black text-white p-3 pl-6 rounded-lg text-xs border border-zinc-600 focus:border-emerald-500 outline-none font-mono">
+                        </div>
+                        <button id="btnAddItem" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-lg font-bold text-xs transition-colors"><i class="fas fa-plus"></i> AGREGAR</button>
                     </div>
                 </div>
 
-                <div class="flex gap-3 mt-8">
-                    <button onclick="document.getElementById('modalEvidencia').remove()" class="flex-1 bg-zinc-800 text-white py-3 rounded-xl font-bold text-sm">CANCELAR</button>
-                    <button id="btnSubirEvidencia" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black py-3 rounded-xl font-black text-sm transition-colors">ENVIAR Y CERRAR</button>
+                <div class="flex justify-between items-center bg-black p-4 rounded-xl border border-emerald-900 mb-4">
+                    <span class="text-gray-400 text-xs font-bold uppercase">Total Cotización</span>
+                    <span id="txtTotalCot" class="text-emerald-500 font-black text-xl">$0.00</span>
                 </div>
+
+                <button id="btnEnviarCot" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl text-sm shadow-lg shadow-blue-900/20 transition-transform active:scale-95">
+                    ENVIAR AL CLIENTE
+                </button>
             </div>
-        </div>
-        `;
+        </div>`;
+        
         document.body.insertAdjacentHTML('beforeend', html);
+
+        const renderItems = () => {
+            const container = document.getElementById("listaPartidas");
+            const txtTotal = document.getElementById("txtTotalCot");
+            container.innerHTML = "";
+            let grandTotal = 0;
+
+            if(items.length === 0) {
+                container.innerHTML = `<p class="text-gray-600 text-xs text-center italic py-4">Sin conceptos.</p>`;
+            } else {
+                items.forEach((item, index) => {
+                    const importe = item.cantidad * item.precio;
+                    grandTotal += importe;
+                    const row = document.createElement("div");
+                    row.className = "flex justify-between items-start border-b border-zinc-800 py-2 text-xs last:border-0 animate-fade-in";
+                    row.innerHTML = `
+                        <div class="flex-1">
+                            <p class="text-white font-bold"><span class="text-emerald-500">${item.cantidad} ${item.unidad}</span> ${item.descripcion}</p>
+                            <p class="text-gray-500 text-[10px]">$${item.precio} c/u</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-white font-mono">$${importe.toFixed(2)}</p>
+                            <button class="text-red-500 text-[10px] underline btn-delete hover:text-red-400" data-idx="${index}">Eliminar</button>
+                        </div>
+                    `;
+                    container.appendChild(row);
+                });
+            }
+            txtTotal.innerText = `$${grandTotal.toFixed(2)}`;
+            
+            document.querySelectorAll(".btn-delete").forEach(btn => {
+                btn.onclick = (e) => {
+                    const idx = parseInt(e.target.dataset.idx);
+                    items.splice(idx, 1);
+                    renderItems();
+                };
+            });
+        };
+
+        document.getElementById("btnAddItem").onclick = () => {
+            const cant = parseFloat(document.getElementById("inCant").value);
+            const unidad = document.getElementById("inUnidad").value.trim();
+            const desc = document.getElementById("inDesc").value.trim();
+            const precio = parseFloat(document.getElementById("inPrecio").value);
+
+            if(!cant || !desc || !precio) return alert("Llena los campos del concepto.");
+
+            items.push({ cantidad: cant, unidad: unidad || 'pz', descripcion: desc, precio: precio });
+            
+            // Limpiar inputs
+            document.getElementById("inCant").value = "";
+            document.getElementById("inDesc").value = "";
+            document.getElementById("inPrecio").value = "";
+            renderItems();
+        };
+
+        document.getElementById("btnEnviarCot").onclick = async () => {
+            if(items.length === 0) return alert("Agrega al menos un concepto.");
+            
+            const totalFinal = items.reduce((sum, item) => sum + (item.cantidad * item.precio), 0);
+
+            if(!confirm(`¿Enviar cotización por $${totalFinal.toFixed(2)}?`)) return;
+
+            // GUARDAR DETALLES EN FIRESTORE
+            await updateDoc(doc(db, "services", id), {
+                estado: "cotizando",
+                detalles_cotizacion: items, // Array estructurado
+                costo_final: totalFinal,
+                cotizado_at: serverTimestamp(),
+                diagnostico: "Cotización Detallada (Ver Tabla)" // Fallback para sistemas viejos
+            });
+
+            document.getElementById("modalCot").remove();
+            alert("✅ Presupuesto enviado al cliente.");
+        };
+    }
+
+    // MODAL EVIDENCIA (LOGICA V5.7)
+    window.mostrarModalEvidencia = (id) => {
+        if(document.getElementById("modalEvidencia")) return;
+        const html = `
+            <div id="modalEvidencia" class="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700 shadow-2xl">
+                    <h3 class="text-white font-black text-xl mb-4 text-center">REPORTE FINAL OBLIGATORIO</h3>
+                    <p class="text-gray-400 text-xs mb-6 text-center">Para liberar el pago, sube la evidencia.</p>
+                    <div class="space-y-4">
+                        <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
+                            <label class="block text-xs font-bold text-emerald-500 mb-2 uppercase">FOTO DEL ANTES</label>
+                            <input type="file" id="fileAntes" accept="image/*" class="text-xs text-white">
+                        </div>
+                        <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
+                            <label class="block text-xs font-bold text-emerald-500 mb-2 uppercase">FOTO DEL DESPUÉS</label>
+                            <input type="file" id="fileDespues" accept="image/*" class="text-xs text-white">
+                        </div>
+                    </div>
+                    <div class="flex gap-3 mt-8">
+                        <button onclick="document.getElementById('modalEvidencia').remove()" class="flex-1 bg-zinc-800 text-white py-3 rounded-xl font-bold text-sm">CANCELAR</button>
+                        <button id="btnSubirEvidencia" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black py-3 rounded-xl font-black text-sm">ENVIAR Y CERRAR</button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+
         document.getElementById("btnSubirEvidencia").onclick = async () => {
             const f1 = document.getElementById("fileAntes").files[0];
             const f2 = document.getElementById("fileDespues").files[0];
-            if(!f1 || !f2) { alert(" ⚠ ️ Ambas fotos son obligatorias para el reporte."); return; }
+            if(!f1 || !f2) { alert("⚠️ Ambas fotos son obligatorias."); return; }
 
             const btn = document.getElementById("btnSubirEvidencia");
-            btn.innerText = "SUBIENDO EVIDENCIA...";
+            btn.innerText = "PROCESANDO...";
             btn.disabled = true;
+
             try {
-                // Conversión a Base64
                 const b64_1 = await toBase64(f1);
                 const b64_2 = await toBase64(f2);
                 
-                // CÁLCULO DE COMISIÓN 32%
+                // OBTENER COSTOS PARA CÁLCULO DE COMISIÓN 32%
                 const servicioSnap = await getDoc(doc(db, "services", id));
                 const servicioData = servicioSnap.data();
                 const costoTotal = servicioData.costo_final || 0;
                 const comisionPlataforma = costoTotal * 0.32;
                 const gananciaTecnico = costoTotal - comisionPlataforma;
 
-                // 1. Actualizar Servicio con Evidencia y Datos Fiscales Simulados
+                // 1. ACTUALIZAR SERVICIO
                 await actualizarEstado(id, "finalizado", {
                     evidencia: { antes: b64_1, despues: b64_2 },
                     finalizado_at: serverTimestamp(),
@@ -651,10 +669,10 @@ export async function iniciarPanelTecnico(user) {
                     }
                 });
 
-                // 2. NUEVO: REGISTRAR TRANSACCIÓN FINANCIERA (Punto E)
+                // 2. REGISTRAR TRANSACCIÓN FINANCIERA
                 await addDoc(collection(db, "transacciones"), {
                     servicio_id: id,
-                    tecnico_id: user.uid, 
+                    tecnico_id: user.uid,
                     monto_total: costoTotal,
                     comision_fixgo: comisionPlataforma, // El 32%
                     pago_tecnico: gananciaTecnico,
@@ -663,63 +681,15 @@ export async function iniciarPanelTecnico(user) {
                 });
 
                 document.getElementById("modalEvidencia").remove();
-                alert(" ✅   ¡Servicio Cerrado Exitosamente! Comisión registrada.");
+                alert("✅ ¡Servicio Cerrado! Comisión registrada.");
             } catch (e) {
                 console.error(e);
-                alert("Error subiendo imágenes. Intenta fotos más pequeñas.");
+                alert("Error al subir evidencia.");
                 btn.innerText = "REINTENTAR";
                 btn.disabled = false;
             }
         };
     }
-
-    //  💰  MODAL COTIZACIÓN
-    function mostrarModalCotizacion(id) {
-        if(document.getElementById("modalCot")) return;
-
-        const html = `
-        <div id="modalCot" class="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
-            <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700 shadow-2xl">
-                <h3 class="text-white font-black text-xl mb-1 text-center">COTIZAR SERVICIO</h3>
-                <p class="text-gray-500 text-xs mb-6 text-center">El cliente debe aprobar este monto en su App.</p>
-
-                <div class="space-y-4">
-                    <div>
-                        <label class="text-[10px] font-bold text-emerald-500 uppercase ml-1">Diagnóstico Técnico</label>
-                        <input id="inDiag" class="w-full bg-black p-4 text-white rounded-xl text-sm border border-zinc-700 focus:border-emerald-500 outline-none transition-colors" placeholder="Ej: Cambio de capacitor...">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-emerald-500 uppercase ml-1">Costo Total Final ($MXN)</label>
-                        <input id="inCosto" type="number" class="w-full bg-black p-4 text-white rounded-xl text-2xl font-bold border border-zinc-700 focus:border-emerald-500 outline-none transition-colors" placeholder="0.00">
-                    </div>
-                </div>
-                <div class="flex gap-2 mt-8">
-                    <button onclick="document.getElementById('modalCot').remove()" class="flex-1 bg-zinc-800 text-white py-3 rounded-xl font-bold text-sm">CANCELAR</button>
-                    <button id="btnEnviarCot" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition-colors">ENVIAR A CLIENTE</button>
-                </div>
-            </div>
-        </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', html);
-
-        document.getElementById("btnEnviarCot").onclick = async () => {
-            const diag = document.getElementById("inDiag").value;
-            const costo = document.getElementById("inCosto").value;
-
-            if(!diag || !costo) return alert(" ⚠ ️ Debes llenar diagnóstico y costo.");
-
-            await actualizarEstado(id, "cotizando", {
-                diagnostico: diag,
-                costo_final: parseFloat(costo),
-                cotizado_at: serverTimestamp()
-            });
-
-            document.getElementById("modalCot").remove();
-            alert(" ⏳  Cotizaci ó n enviada. Esperando aprobaci ó n del cliente...");
-        };
-    }
-
-    // Helper: Convertir archivo a texto Base64
     const toBase64 = file => new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -736,349 +706,202 @@ export async function iniciarPanelCliente(user) {
         form: document.getElementById("nuevaSolicitudForm"),
         lista: document.getElementById("solicitudesCliente"),
         inputCat: document.getElementById("categoriaSeleccionada"),
-        labelServicio: document.getElementById("btnLabel"),
-        // El grid se llenará dinámicamente
+        labelServicio: document.getElementById("btnLabel")
     };
 
-    // 1. CARGA DINÁMICA DE SERVICIOS (CATÁLOGO V5.7)
+    // 1. CARGA DINÁMICA DE VERTICALES
     async function cargarServiciosCliente(contenedorID) {
         const container = document.getElementById(contenedorID);
         if(!container) return;
 
-        // Escuchamos cambios en tiempo real en la configuración
         onSnapshot(doc(db, "configuracion", "catalogo_global"), (docSnap) => {
             const config = docSnap.exists() ? docSnap.data() : { road: true, fix: true, tech: true };
-            
-            container.innerHTML = ""; // Limpiar
-            
-            // Array de definiciones
-            const servicios = [
+            container.innerHTML = "";
+            const verticales = [
                 { id: 'road', icon: 'fa-car-crash', color: 'yellow', label: 'ROAD', sub: 'Auxilio Vial' },
                 { id: 'fix', icon: 'fa-tools', color: 'blue', label: 'FIX', sub: 'Hogar' },
                 { id: 'tech', icon: 'fa-wifi', color: 'purple', label: 'TECH', sub: 'Sistemas' }
             ];
 
-            servicios.forEach(s => {
-                const activo = config[s.id];
+            verticales.forEach(v => {
+                const activo = config[v.id];
                 const opacity = activo ? 'opacity-100 cursor-pointer hover:scale-105' : 'opacity-40 cursor-not-allowed grayscale';
-                const clickAction = activo ? `data-category="${s.id}" class="service-card uber-card p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2 ${opacity}"` : `class="uber-card p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2 ${opacity}"`;
-                
+                const clickAction = activo ? `data-category="${v.id}"` : '';
                 const html = `
-                <div ${clickAction}>
-                    <div class="bg-${s.color}-500/20 p-3 rounded-full text-${s.color}-500">
-                        <i class="fas ${s.icon} text-xl"></i>
-                    </div>
-                    <div>
-                        <h3 class="font-black text-sm">${s.label}</h3>
-                        <p class="text-[10px] text-gray-500">${activo ? s.sub : 'PRÓXIMAMENTE'}</p>
-                    </div>
+                <div class="service-card uber-card p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2 ${opacity}" ${clickAction}>
+                    <div class="bg-${v.color}-500/20 p-3 rounded-full text-${v.color}-500"><i class="fas ${v.icon} text-xl"></i></div>
+                    <div><h3 class="font-black text-sm">${v.label}</h3><p class="text-[10px] text-gray-500">${activo ? v.sub : 'PRÓXIMAMENTE'}</p></div>
                 </div>`;
-                
                 const div = document.createElement('div');
                 div.innerHTML = html;
                 const card = div.firstElementChild;
-                
                 if(activo) {
                     card.addEventListener("click", () => {
                         document.querySelectorAll(".service-card").forEach(c => c.classList.remove("border-emerald-500", "bg-zinc-800"));
                         card.classList.add("border-emerald-500", "bg-zinc-800");
-                        if(el.inputCat) el.inputCat.value = s.id;
-                        if(el.labelServicio) el.labelServicio.innerText = s.label;
+                        if(el.inputCat) el.inputCat.value = v.id;
+                        if(el.labelServicio) el.labelServicio.innerText = v.label;
                     });
                 }
                 container.appendChild(card);
             });
         });
     }
+    cargarServiciosCliente('gridServicios');
 
-    cargarServiciosCliente('gridServicios'); // Iniciar carga
-
-    // Envío de Solicitud con GPS Oculto
+    // Envío Solicitud (V5.7 con GPS)
     if (el.form) {
         el.form.addEventListener("submit", async (e) => {
             e.preventDefault();
             const cat = el.inputCat.value;
             const dir = el.form.querySelector('[name="direccion"]').value;
             const desc = el.form.querySelector('[name="descripcion"]').value;
-            if (!cat) { alert(" ⚠ ️ Por favor selecciona un tipo de servicio (Iconos arriba)."); return; }
+            if (!cat) return alert("Selecciona un servicio.");
+            
             const btn = el.form.querySelector("button");
-            const textoOriginal = btn.innerText;
             btn.disabled = true;
-            btn.innerText = "OBTENIENDO UBICACIÓN...";
-            //  🔥  NUEVO: INTENTO DE OBTENER GPS EXACTO DEL CLIENTE
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    async (pos) => {
-                        // Éxito GPS
-                        await enviarSolicitudFinal(cat, dir, desc, {
-                            lat: pos.coords.latitude,
-                            lng: pos.coords.longitude
-                        });
-                    },
-                    async (err) => {
-                        // Fallo GPS (Permiso denegado), enviamos sin coords
-                        console.warn("GPS Cliente no disponible:", err);
-                        await enviarSolicitudFinal(cat, dir, desc, null);
-                    },
-                    { timeout: 5000, enableHighAccuracy: true }
-                );
-            } else {
-                // Navegador viejo
-                await enviarSolicitudFinal(cat, dir, desc, null);
+            btn.innerText = "ENVIANDO...";
+            const coords = await new Promise(r => {
+                if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p => r({lat:p.coords.latitude, lng:p.coords.longitude}), () => r(null));
+                else r(null);
+            });
+
+            if(confirm("Se realizará una retención ($550 MXN). ¿Continuar?")) {
+                await addDoc(collection(db, "services"), {
+                    cliente_id: user.uid, cliente_nombre: user.nombre || "Cliente", cliente_telefono: user.telefono || "",
+                    categoria: cat, direccion: dir, descripcion: desc, estado: "pendiente",
+                    created_at: serverTimestamp(), retencion_inicial: 550, costo_final: 0, coords: coords
+                });
+                alert("✅ Solicitud enviada.");
+                el.form.reset();
+                document.querySelectorAll(".service-card").forEach(c => c.classList.remove("border-emerald-500", "bg-zinc-800"));
             }
-            async function enviarSolicitudFinal(categoria, direccion, descripcion, coords) {
-                if(confirm("Se realizará una retención temporal de garantía ($550 MXN).\n\n¿Autorizar solicitud?")) {
-                    try {
-                        await addDoc(collection(db, "services"), {
-                            cliente_id: user.uid,
-                            cliente_nombre: user.nombre || "Cliente",
-                            cliente_telefono: user.telefono || "",
-                            categoria: categoria,
-                            direccion: direccion,
-                            descripcion: descripcion,
-                            estado: "pendiente",
-                            created_at: serverTimestamp(),
-                            retencion_inicial: 550,
-                            costo_final: 0,
-                            coords: coords // Guardamos las coordenadas para el Waze del técnico
-                        });
-                        alert(" ✅   ¡ Solicitud Enviada! Buscando t é cnico cercano...");
-                        el.form.reset();
-                        // Reset visual
-                        document.querySelectorAll(".service-card").forEach(c => c.classList.remove("border-emerald-500", "bg-zinc-800"));
-                        if(el.labelServicio) el.labelServicio.innerText = "SERVICIO";
-                    } catch (error) {
-                        console.error(error);
-                        alert("Error al enviar solicitud.");
-                    }
-                }
-                btn.disabled = false;
-                btn.innerText = textoOriginal;
-            }
+            btn.disabled = false;
+            btn.innerText = "SOLICITAR AHORA";
         });
     }
 
-    // Monitor de Servicios en Tiempo Real
+    // MONITOR SERVICIOS (RENDERIZADO ESTILO ALAMO/EXCEL)
     onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc")), (snap) => {
         if(!el.lista) return;
         el.lista.innerHTML = "";
-        //  🔔  SONIDO: Si hay cambios en mi servicio (ej: técnico llega)
+        
         if(snap.docChanges().some(change => change.type === 'modified')) {
-            console.log(" 🔔  Actualización de servicio: SONANDO ALERTA");
+            console.log("🔔 Cambio detectado");
             sonarAlerta();
         }
+
         snap.forEach(docSnap => {
             const s = docSnap.data();
             const id = docSnap.id;
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-white/10 p-4 rounded-xl mb-3";
-            let contenido = `<span class="text-xs font-bold text-yellow-500 animate-pulse"> 🔎  BUSCANDO TÉCNICO...</span>`;
+            
+            let contenido = `<span class="text-xs font-bold text-yellow-500 animate-pulse">🔎 BUSCANDO TÉCNICO...</span>`;
             if (s.estado !== "pendiente") contenido = `<span class="text-xs font-bold text-blue-400">${s.estado.toUpperCase().replace('_', ' ')}</span>`;
-            // LÓGICA DE INTERACCIÓN CLIENTE
+
             if (s.estado === "cotizando") {
-                contenido = `
-                <div class="bg-zinc-800 p-4 rounded-lg border border-yellow-500 mt-2">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <p class="text-yellow-500 text-xs font-bold uppercase">Requiere Aprobación</p>
-                            <p class="text-white text-2xl font-black mt-1">$${s.costo_final}</p>
-                        </div>
-                        <i class="fas fa-file-invoice-dollar text-yellow-500 text-2xl"></i>
-                    </div>
-                    <p class="text-gray-400 text-xs italic mt-2 border-t border-white/10 pt-2">"${s.diagnostico}"</p>
+                // RENDERIZADO TABLA DETALLADA (EXCEL REPLICA)
+                let htmlTabla = "";
+                if (s.detalles_cotizacion && s.detalles_cotizacion.length > 0) {
+                    const filas = s.detalles_cotizacion.map(item => `
+                        <tr>
+                            <td>${item.cantidad} ${item.unidad}</td>
+                            <td>${item.descripcion}</td>
+                            <td class="quote-num">$${item.precio}</td>
+                            <td class="quote-num text-white">$${(item.cantidad * item.precio).toFixed(2)}</td>
+                        </tr>
+                    `).join('');
+                    
+                    htmlTabla = `
+                        <div class="bg-black border border-zinc-700 rounded-lg overflow-hidden my-3">
+                            <table class="quote-table">
+                                <thead><tr><th>CANT</th><th>DESC</th><th>P.U.</th><th>IMP.</th></tr></thead>
+                                <tbody>${filas}</tbody>
+                                <tfoot>
+                                    <tr class="quote-total-row">
+                                        <td colspan="3" class="text-right font-bold text-gray-400">TOTAL:</td>
+                                        <td class="quote-num text-emerald-500 font-black text-sm">$${s.costo_final.toFixed(2)}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>`;
+                } else {
+                    htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${s.costo_final}</p><p class="text-gray-400 text-xs italic">"${s.diagnostico}"</p>`;
+                }
 
-                    <div class="flex gap-2 mt-4">
-                        <button onclick="window.responderCotizacion('${id}', false)" class="flex-1 bg-red-900/50 hover:bg-red-900 text-red-200 text-xs py-3 rounded-lg font-bold transition-colors">
-                            RECHAZAR
-                        </button>
-                        <button onclick="window.responderCotizacion('${id}', true)" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs py-3 rounded-lg transition-colors shadow-lg shadow-emerald-500/20">
-                            APROBAR COSTO
-                        </button>
-                    </div>
-                </div>
-                `;
+                contenido = `
+                    <div class="bg-zinc-800 p-4 rounded-lg border border-yellow-500 mt-2">
+                        <div class="flex justify-between items-center mb-2">
+                            <p class="text-yellow-500 text-xs font-bold uppercase">PRESUPUESTO GENERADO</p>
+                            <span class="bg-yellow-500/20 text-yellow-500 text-[9px] px-2 py-1 rounded">FOLIO: ${id.substring(0,6).toUpperCase()}</span>
+                        </div>
+                        ${htmlTabla}
+                        <div class="mt-2 p-2 bg-black/50 rounded border border-white/5">
+                            <p class="legal-note">* SI HUBIERA CANCELACION TOTAL O PARCIAL... PENALIZACION DEL 20%.</p>
+                            <p class="legal-note">* GARANTIA POR ESCRITO MINIMO DE 6 MESES.</p>
+                        </div>
+                        <div class="flex gap-2 mt-4">
+                            <button onclick="window.responderCotizacion('${id}', false)" class="flex-1 bg-red-900/50 hover:bg-red-900 text-red-200 text-xs py-3 rounded-lg font-bold">RECHAZAR</button>
+                            <button onclick="window.responderCotizacion('${id}', true)" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs py-3 rounded-lg shadow-lg shadow-emerald-500/20">APROBAR</button>
+                        </div>
+                    </div>`;
             } else if (s.estado === "finalizado") {
-                // REPORTE CON FOTOS Y BOTÓN PDF
                 const safeData = encodeURIComponent(JSON.stringify({...s, id: id}));
-
                 contenido = `
-                <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-xl mt-2">
-                    <div class="flex justify-between items-center mb-3">
-                        <span class="text-emerald-500 font-black text-xs uppercase tracking-widest">TICKET FINAL</span>
-                        <span class="bg-emerald-500 text-black text-[9px] font-bold px-2 py-0.5 rounded">PAGADO</span>
-                    </div>
-
-                    <div class="space-y-2 mb-4">
-                        <div class="flex justify-between text-lg text-white font-black">
-                            <span>TOTAL:</span>
-                            <span>$${s.costo_final}</span>
-                        </div>
-                    </div>
-                    <p class="text-[9px] text-gray-500 mb-2 font-bold uppercase">EVIDENCIA REGISTRADA:</p>
-                    <div class="flex gap-2 mb-4">
-                        ${s.evidencia?.antes ? `<div class="relative w-1/2 h-20"><img src="${s.evidencia.antes}" class="w-full h-full object-cover rounded-lg border border-zinc-700"><span class="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] px-1 rounded">ANTES</span></div>` : ''}
-                        ${s.evidencia?.despues ? `<div class="relative w-1/2 h-20"><img src="${s.evidencia.despues}" class="w-full h-full object-cover rounded-lg border border-zinc-700"><span class="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] px-1 rounded">DESPUÉS</span></div>` : ''}
-                    </div>
-
-                    <button onclick="window.generarPDF('${safeData}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2">
-                        <i class="fas fa-file-download text-red-500"></i> DESCARGAR REPORTE FISCAL
-                    </button>
-                </div>
-                `;
+                    <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-xl mt-2">
+                        <span class="text-emerald-500 font-black text-xs">SERVICIO FINALIZADO - $${s.costo_final}</span>
+                        <button onclick="window.generarPDF('${safeData}')" class="w-full mt-2 bg-zinc-800 text-white text-xs py-2 rounded font-bold border border-white/10"><i class="fas fa-file-download"></i> DESCARGAR TICKET</button>
+                    </div>`;
             }
+
             card.innerHTML = `
-            <div class="flex justify-between items-center mb-1">
-                <span class="font-black text-white uppercase tracking-tight">${s.categoria}</span>
-                <span class="text-[10px] text-gray-500">${new Date(s.created_at?.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-            </div>
-            <p class="text-xs text-gray-400 truncate mb-2"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${s.direccion}</p>
-
-            <div class="mt-2">${contenido}</div>
-
-            ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `
-            <a href="rastreo.html?id=${id}" class="block mt-3 text-center bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs py-2.5 rounded-lg border border-blue-500/30 transition-colors font-bold flex items-center justify-center gap-2">
-                <i class="fas fa-map-marked-alt"></i> SEGUIR TÉCNICO EN VIVO
-            </a>
-            ` : ''}
+                <div class="flex justify-between items-center mb-1"><span class="font-black text-white uppercase">${s.categoria}</span><span class="text-[10px] text-gray-500">${new Date(s.created_at?.seconds * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span></div>
+                <p class="text-xs text-gray-400 truncate mb-2">${s.direccion}</p>
+                <div class="mt-2">${contenido}</div>
+                ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `<a href="rastreo.html?id=${id}" class="block mt-3 text-center bg-blue-600/20 text-blue-400 text-xs py-2 rounded font-bold">SEGUIR TÉCNICO</a>` : ''}
             `;
             el.lista.appendChild(card);
         });
     });
 
-    // Respuestas globales del cliente
     window.responderCotizacion = async (id, aceptado) => {
         if (aceptado) {
             await updateDoc(doc(db, "services", id), { estado: "trabajando" });
-            alert(" ✅   ¡ Costo aprobado! El t é cnico comenzar á  a trabajar ahora.");
+            alert("✅ Presupuesto Aprobado.");
         } else {
-            if(confirm(" ⚠ ️ ¿Estás seguro de cancelar?\n\nAl haber llegado el técnico, se cobrará la visita mínima ($550).")) {
-                await updateDoc(doc(db, "services", id), {
-                    estado: "cancelado",
-                    costo_final: 550, // Cobro mínimo por cancelación en sitio
-                    cancelado_razon: "Cliente rechazó cotización"
-                });
+            if(confirm("¿Cancelar? Se cobrará visita ($550).")) {
+                await updateDoc(doc(db, "services", id), { estado: "cancelado", costo_final: 550 });
             }
         }
     };
 
-    // GENERADOR PDF (CLIENTE - SIMULACIÓN FISCAL V5.7)
+    // GENERADOR PDF (IGUAL V5.7 BASE)
     window.generarPDF = async (encodedData) => {
         const data = JSON.parse(decodeURIComponent(encodedData));
-        const btn = document.activeElement;
-        const textoOrig = btn.innerText;
-        btn.innerText = "GENERANDO...";
-
-        try {
-            const { jsPDF } = await cargarLibreriaPDF();
-            const doc = new jsPDF();
-            // --- DISEÑO DEL PDF ---
-            // Header Negro
-            doc.setFillColor(18, 18, 18);
-            doc.rect(0, 0, 215, 40, 'F');
-
-            // Logo y Título
-            doc.setTextColor(255, 255, 255);
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(24);
-            doc.text("FIXGO", 20, 22);
-            doc.setFont("helvetica", "normal");
-            doc.setTextColor(16, 185, 129); // Verde Emerald
-            doc.text("MÉXICO", 60, 22);
-
-            doc.setTextColor(200, 200, 200);
-            doc.setFontSize(10);
-            doc.text("Comprobante de Servicio Digital", 20, 32);
-            
-            // DATOS FISCALES SIMULADOS (V5.7)
-            doc.setFontSize(8);
-            doc.setTextColor(150, 150, 150);
-            doc.text(`RFC EMISOR: FXG260211-H8A`, 20, 45);
-            doc.text(`RÉGIMEN FISCAL: 626 - Simplificado de Confianza`, 20, 50);
-            doc.text(`LUGAR EXPEDICIÓN: 77500, Cancún, Q.Roo`, 20, 55);
-            
-            if(data.folio_fiscal) doc.text(`FOLIO FISCAL: ${data.folio_fiscal}`, 150, 45);
-            doc.text(`FECHA: ${new Date().toLocaleDateString()}`, 150, 50);
-
-            // Información del Cliente
-            let y = 70;
-            doc.setTextColor(0, 0, 0);
-            doc.setFontSize(12);
-            doc.setFont("helvetica", "bold");
-            doc.text("DETALLES DEL SERVICIO", 20, y);
-
-            y += 10;
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(10);
-            doc.text(`Cliente: ${data.cliente_nombre}`, 20, y);
-            doc.text(`Categoría: ${data.categoria.toUpperCase()}`, 120, y);
-            y += 8;
-            doc.text(`Ubicación: ${data.direccion}`, 20, y);
-
-            // Línea divisora
-            y += 15;
-            doc.setDrawColor(200, 200, 200);
-            doc.line(20, y, 190, y);
-
-            // Diagnóstico y Costos
-            y += 15;
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(12);
-            doc.text("DIAGNÓSTICO TÉCNICO Y COSTOS", 20, y);
-
-            y += 10;
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(10);
-            const splitDiag = doc.splitTextToSize(data.diagnostico || "Servicio estándar sin observaciones.", 170);
-            doc.text(splitDiag, 20, y);
-            y += (splitDiag.length * 7) + 10;
-            
-            // Caja de Totales
-            doc.setFillColor(245, 245, 245);
-            doc.rect(120, y, 70, 40, 'F'); // Aumenté altura para desglose
-            doc.text("IMPORTE TOTAL:", 125, y + 10);
-            
-            // Desglose fiscal si existe
-            if (data.desglose) {
-                doc.setFontSize(8);
-                doc.text(`Subtotal: $${data.desglose.subtotal}`, 125, y + 18);
-                doc.text(`IVA (16%): $${data.desglose.iva}`, 125, y + 23);
-            }
-
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(16);
-            doc.setTextColor(16, 185, 129); // Verde
-            doc.text(`$${data.costo_final} MXN`, 125, y + 35);
-
-            // Evidencia Fotográfica
-            y += 60;
-            doc.setTextColor(0, 0, 0);
-            doc.setFontSize(12);
-            doc.text("EVIDENCIA FOTOGRÁFICA", 20, y);
-            y += 10;
-            if(data.evidencia?.antes) {
-                try {
-                    doc.addImage(data.evidencia.antes, "JPEG", 20, y, 80, 60);
-                    doc.setFontSize(8);
-                    doc.text("ESTADO INICIAL", 20, y + 65);
-                } catch(e) {}
-            }
-            if(data.evidencia?.despues) {
-                try {
-                    doc.addImage(data.evidencia.despues, "JPEG", 110, y, 80, 60);
-                    doc.setFontSize(8);
-                    doc.text("TRABAJO FINALIZADO", 110, y + 65);
-                } catch(e) {}
-            }
-            // Footer
-            doc.setFontSize(8);
-            doc.setTextColor(150, 150, 150);
-            doc.text("Este documento es un comprobante digital emitido por la plataforma FixGo.", 60, 280);
-            doc.save(`FixGo_Reporte_${data.id}.pdf`);
-            btn.innerText = "DESCARGAR REPORTE OFICIAL";
-        } catch (error) {
-            console.error(error);
-            alert("Hubo un error generando el PDF. Intenta de nuevo.");
-            btn.innerText = "ERROR - REINTENTAR";
+        const { jsPDF } = await cargarLibreriaPDF();
+        const doc = new jsPDF();
+        
+        // DISEÑO CLONADO DEL PDF
+        doc.setFillColor(18, 18, 18);
+        doc.rect(0, 0, 215, 40, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(24);
+        doc.text("FIXGO", 20, 22);
+        doc.setFontSize(10);
+        doc.text("Multiservicios Peninsulares HMH", 20, 32);
+        
+        doc.setTextColor(0,0,0);
+        doc.text(`Cliente: ${data.cliente_nombre}`, 20, 60);
+        doc.text(`Total: $${data.costo_final}`, 20, 70);
+        
+        // Si hay desglose en el objeto, lo imprimimos
+        if(data.desglose) {
+             doc.text(`Subtotal: $${data.desglose.subtotal}`, 120, 70);
+             doc.text(`IVA: $${data.desglose.iva}`, 120, 75);
         }
+
+        doc.save(`FixGo_${data.id}.pdf`);
     };
 }
