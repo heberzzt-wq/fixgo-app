@@ -15,7 +15,6 @@
     </style>
 </head>
 <body class="text-white min-h-screen pb-20">
-
     <header class="p-6 flex justify-between items-center sticky top-0 bg-black/95 z-20 backdrop-blur-md border-b border-white/5">
         <h1 class="font-black text-2xl italic tracking-tighter">FIX<span class="text-emerald-500">GO</span></h1>
         <div class="flex items-center gap-3">
@@ -25,77 +24,44 @@
             </button>
         </div>
     </header>
-
     <main class="max-w-2xl mx-auto px-4 py-8 space-y-8">
-
         <section>
             <h2 class="text-slate-500 text-xs font-black uppercase tracking-widest mb-4">¿Qué necesitas hoy?</h2>
-            
+
             <div id="gridServicios" class="grid grid-cols-3 gap-3">
-                <div class="service-card uber-card p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2" data-category="road">
-                    <div class="bg-yellow-500/20 p-3 rounded-full text-yellow-500">
-                        <i class="fas fa-car-crash text-xl"></i>
-                    </div>
-                    <div>
-                        <h3 class="font-black text-sm">ROAD</h3>
-                        <p class="text-[10px] text-gray-500">Auxilio Vial</p>
-                    </div>
-                </div>
-
-                <div class="service-card uber-card p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2" data-category="fix">
-                    <div class="bg-blue-500/20 p-3 rounded-full text-blue-500">
-                        <i class="fas fa-tools text-xl"></i>
-                    </div>
-                    <div>
-                        <h3 class="font-black text-sm">FIX</h3>
-                        <p class="text-[10px] text-gray-500">Hogar</p>
-                    </div>
-                </div>
-
-                <div class="service-card uber-card p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2" data-category="tech">
-                    <div class="bg-purple-500/20 p-3 rounded-full text-purple-500">
-                        <i class="fas fa-wifi text-xl"></i>
-                    </div>
-                    <div>
-                        <h3 class="font-black text-sm">TECH</h3>
-                        <p class="text-[10px] text-gray-500">Sistemas</p>
-                    </div>
-                </div>
+               <div class="col-span-3 text-center py-4">
+                   <i class="fas fa-circle-notch fa-spin text-emerald-500"></i>
+                   <span class="text-xs text-gray-500 ml-2">Cargando servicios disponibles...</span>
+               </div>
             </div>
         </section>
-
+        
         <section id="solicitudContainer" class="uber-card p-6 rounded-[2rem] shadow-2xl relative overflow-hidden">
             <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
-
             <h2 class="text-xl font-black mb-6 flex items-center gap-2">
                 <span class="bg-emerald-500 w-2 h-8 rounded-full"></span>
                 Solicitar <span id="btnLabel" class="text-emerald-500">Servicio</span>
             </h2>
-
             <form id="nuevaSolicitudForm" class="space-y-4">
                 <input type="hidden" id="categoriaSeleccionada" name="categoria">
-
                 <div>
                     <label class="block text-xs font-bold text-gray-500 mb-1 ml-2">UBICACIÓN</label>
                     <div class="relative">
                         <i class="fas fa-map-marker-alt absolute left-4 top-4 text-gray-400"></i>
-                        <input type="text" name="direccion" placeholder="Ej: Calle 60, Centro Cancún" required 
-                        class="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-gray-600">
+                        <input type="text" name="direccion" placeholder="Ej: Calle 60, Centro Cancún" required
+                            class="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-gray-600">
                     </div>
                 </div>
-
                 <div>
                     <label class="block text-xs font-bold text-gray-500 mb-1 ml-2">DETALLES DEL PROBLEMA</label>
                     <textarea name="descripcion" rows="3" placeholder="Describe brevemente qué sucede..." required
-                    class="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl py-3 px-4 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-gray-600"></textarea>
+                        class="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl py-3 px-4 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-gray-600"></textarea>
                 </div>
-
                 <button type="submit" class="w-full bg-white text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg transform active:scale-95">
                     SOLICITAR AHORA
                 </button>
             </form>
         </section>
-
         <section>
             <h2 class="text-slate-500 text-xs font-black uppercase tracking-widest mb-4">Tu Actividad</h2>
             <div id="solicitudesCliente" class="space-y-3">
@@ -105,9 +71,7 @@
                 </div>
             </div>
         </section>
-
     </main>
-
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js"></script>
 </body>
