@@ -2,8 +2,8 @@
  * ======================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
  * Archivo: app-panel.js
- * Versión: 5.7.2 (ALAMO PATCH 2 - PDF DETALLADO FIX)
- * Base: V5.7.1
+ * Versión: 5.7.3 (ALAMO FINAL PDF - DEBUGGER EDITION)
+ * Base: V5.7.2
  * ======================================================
  */
 import {
@@ -79,7 +79,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.7.2: Sistema Full Cargado (PDF Fix Detallado + Cotizador Alamo + Grid Verticales).");
+console.log(" 🚀  FIXGO 5.7.3: Sistema Full Cargado (PDF Engine Reforzado).");
 
 // ======================================================
 // 1. PANEL DE ADMINISTRADOR (Torre de Control)
@@ -714,17 +714,23 @@ export async function iniciarPanelTecnico(user) {
 
                     // GUARDAR DETALLES EN FIRESTORE
                     // Esta estructura es la que el panel del cliente leerá para armar la tabla
-                    await updateDoc(doc(db, "services", id), {
-                        estado: "cotizando",
-                        detalles_cotizacion: items, // Array estructurado
-                        costo_final: totalFinal,
-                        cotizado_at: serverTimestamp(),
-                        diagnostico: "Cotización Detallada" // Fallback
-                    });
+                    try {
+                        await updateDoc(doc(db, "services", id), {
+                            estado: "cotizando",
+                            detalles_cotizacion: items, // Array estructurado
+                            costo_final: totalFinal,
+                            cotizado_at: serverTimestamp(),
+                            diagnostico: "Cotización Detallada" // Fallback
+                        });
+                        // CONFIRMACIÓN VISUAL (V5.7.3)
+                        alert(`✅ Cotización con ${items.length} partidas enviada correctamente.`);
+                    } catch (e) {
+                        console.error(e);
+                        alert("Error al guardar la cotización.");
+                    }
 
                     const modal = document.getElementById("modalCot");
                     if(modal) modal.remove();
-                    alert("✅ Presupuesto enviado correctamente.");
                 };
             }
         }, 100); // Pequeño delay para asegurar renderizado
@@ -1172,44 +1178,66 @@ export async function iniciarPanelCliente(user) {
 
             y += 10;
             
-            // --- FIX V5.7.2: RENDERIZADO DE TABLA DETALLADA ---
+            // --- FIX V5.7.3: RENDERIZADO DE TABLA (CON DEBUG DE FALLBACK) ---
             if (data.detalles_cotizacion && data.detalles_cotizacion.length > 0) {
                 // Render Detailed Table (Alamo Style)
                 doc.setFontSize(9);
                 doc.setTextColor(100, 100, 100);
+                doc.setFont("helvetica", "bold");
+                
                 // Headers
                 doc.text("CANT", 20, y);
                 doc.text("DESCRIPCIÓN", 45, y); 
                 doc.text("P.UNIT", 140, y);
                 doc.text("IMPORTE", 170, y);
+                
                 y += 5;
-                doc.setDrawColor(200, 200, 200);
+                doc.setDrawColor(50, 50, 50);
+                doc.setLineWidth(0.5);
                 doc.line(20, y, 190, y);
                 y += 7;
 
+                doc.setFont("helvetica", "normal");
                 doc.setTextColor(0, 0, 0);
+                
                 data.detalles_cotizacion.forEach(item => {
                     doc.text(`${item.cantidad} ${item.unidad}`, 20, y);
-                    // Description handling (truncate if too long or split)
-                    const desc = item.descripcion.substring(0, 55); // Simple truncate for safety
+                    
+                    // Truncar descripción larga
+                    const desc = item.descripcion.substring(0, 50) + (item.descripcion.length > 50 ? '...' : '');
                     doc.text(desc, 45, y);
+                    
                     doc.text(`$${item.precio}`, 140, y);
                     doc.text(`$${(item.cantidad * item.precio).toFixed(2)}`, 170, y);
                     y += 7;
                 });
-                y += 5; // Extra padding after list
+                y += 5; // Extra padding
             } else {
-                // Fallback Legacy (Si no hay array, usa el texto simple)
+                // Fallback Legacy con AVISO (Para depuración)
                 doc.setFont("helvetica", "normal");
                 doc.setFontSize(10);
-                const splitDiag = doc.splitTextToSize(data.diagnostico || "Servicio estándar sin observaciones.", 170);
+                doc.setTextColor(50, 50, 50); // Gris oscuro
+                
+                // Si llegamos aquí, ES PORQUE FIREBASE NO TIENE EL ARRAY
+                const diagText = data.diagnostico || "(Sin desglose registrado en base de datos)";
+                const splitDiag = doc.splitTextToSize(diagText, 170);
+                
                 doc.text(splitDiag, 20, y);
-                y += (splitDiag.length * 7) + 10;
+                y += (splitDiag.length * 7) + 5;
+                
+                // Marca de agua de depuración
+                doc.setFontSize(8);
+                doc.setTextColor(255, 0, 0);
+                doc.text("[INFO: Estructura de datos antigua detectada. Crea un servicio nuevo para ver la tabla.]", 20, y);
+                y += 10;
             }
 
             // Caja de Totales
             doc.setFillColor(245, 245, 245);
-            doc.rect(120, y, 70, 40, 'F'); // Aumenté altura para desglose
+            doc.rect(120, y, 70, 40, 'F'); 
+            
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(10);
             doc.text("IMPORTE TOTAL:", 125, y + 10);
             
             // Desglose fiscal si existe
