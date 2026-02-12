@@ -1,13 +1,25 @@
 /**
- * ======================================================
- * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE)
+ * ======================================================================================
+ * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
+ * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.8.0 (VERTICALS EXPANSION - ROAD/FIX/MAINT/TECH)
- * Base: V5.7.4 (Alamo Stable)
+ * Versión: 5.9.0 (GRANULAR CONTROL - ADMIN POWER & REALTIME CLIENT VERTICALS)
+ * Base: V5.7.4 (ALAMO STABLE - WALLET FIX + PDF FETCH)
  * Autor: Heber (CEO & Lead Architect)
- * Descripción: Control total de lógica de negocio, verticales
- * de servicio, gestión de estados y renderizado de UI.
- * ======================================================
+ * Fecha: Febrero 2026
+ * * DESCRIPCIÓN TÉCNICA:
+ * Este archivo gestiona la lógica de negocio central de los 3 paneles (Admin, Técnico, Cliente).
+ * Controla:
+ * 1. Flujos de estado (Pendiente -> Asignado -> En Camino -> En Sitio -> Cotizando -> Trabajando -> Finalizado).
+ * 2. Sistema de Verticales (ROAD, FIX, MAINT, TECH) con activación granular desde Firebase.
+ * 3. Gestión Financiera (Cálculo de comisiones 32%, Wallet de Técnico).
+ * 4. Evidencia y Seguridad (Bloqueo de garantías, fotos antes/después, coordenadas GPS).
+ * 5. Generación de Documentos (PDF Fiscal Simulado).
+ * * REGLAS DE ARQUITECTURA:
+ * - NO COMPACTAR.
+ * - NO FRAGMENTAR.
+ * - MANTENER LOGICA DE 900+ LÍNEAS.
+ * ======================================================================================
  */
 
 import {
@@ -26,74 +38,92 @@ import {
     getDoc // Importación necesaria para leer configuraciones y PDF Fetch
 } from "./firebase.js";
 
-// Importamos getDocs manualmente para validaciones de seguridad extras y consultas únicas
+// Importamos getDocs manualmente para validaciones de seguridad extras y consultas de unicidad
 import { getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Importamos el motor GPS para el rastreo en tiempo real
+// Importamos el motor GPS para el rastreo en tiempo real (CORE)
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 
-// ======================================================
-//  🔔  SISTEMA DE SONIDO CENTRALIZADO (ROBUSTO V5.6)
-// ======================================================
+// ======================================================================================
+//  🔔  SISTEMA DE SONIDO CENTRALIZADO (ROBUSTO V5.6 - DO NOT TOUCH)
+// ======================================================================================
 // Este sistema gestiona las alertas auditivas para técnicos y clientes.
-// Se mantiene la lógica de desbloqueo para navegadores modernos (Chrome/Safari).
+// Se mantiene la lógica de desbloqueo para navegadores modernos (Chrome/Safari) que bloquean autoplay.
+
 const audioNotificacion = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
 let audioDesbloqueado = false;
 
-// FUNCIÓN DE DESBLOQUEO (Mantenida de V5.6)
-// Los navegadores bloquean el sonido si el usuario no ha interactuado primero.
+/**
+ * FUNCIÓN DE DESBLOQUEO DE AUDIO (Mantenida de V5.6)
+ * Los navegadores bloquean el sonido si el usuario no ha interactuado primero con el DOM.
+ * Esta función se ejecuta al primer click/touch del usuario.
+ */
 function desbloquearAudio() {
     if (audioDesbloqueado) return;
 
+    // Intentamos reproducir y pausar inmediatamente para "engañar" al navegador y desbloquear el contexto de audio
     audioNotificacion.play().then(() => {
         audioNotificacion.pause();
         audioNotificacion.currentTime = 0;
         audioDesbloqueado = true;
-        console.log(" 🔊  Sistema de Audio: DESBLOQUEADO Y LISTO.");
+        console.log(" 🔊  Sistema de Audio: DESBLOQUEADO Y LISTO PARA ALERTAS.");
 
-        // Removemos los listeners para no saturar memoria ni eventos
+        // Removemos los listeners para no saturar memoria ni eventos innecesarios
         document.removeEventListener('click', desbloquearAudio);
         document.removeEventListener('touchstart', desbloquearAudio);
     }).catch(error => {
-        console.log(" ⚠️ Esperando interacción del usuario para activar audio...");
+        console.log(" ⚠️ Esperando interacción del usuario para activar audio (Política de Navegador)...");
     });
 }
-// Agregamos listeners a todo el documento para atrapar el primer clic/toque
+
+// Agregamos listeners a todo el documento para atrapar el primer clic/toque en cualquier parte
 document.addEventListener('click', desbloquearAudio);
 document.addEventListener('touchstart', desbloquearAudio);
 
-// Función pública para disparar la alerta
+/**
+ * FUNCIÓN PÚBLICA PARA DISPARAR LA ALERTA
+ * Invocada desde los listeners de Firebase (onSnapshot) cuando hay cambios relevantes.
+ */
 function sonarAlerta() {
     if (!audioDesbloqueado) {
-        console.warn(" 🔇  Audio pendiente de desbloqueo (Toca la pantalla).");
+        console.warn(" 🔇  Intento de alerta fallido: Audio pendiente de desbloqueo (Toca la pantalla).");
         return;
     }
+    // Reiniciamos el tiempo para permitir disparos consecutivos rápidos
     audioNotificacion.currentTime = 0;
     audioNotificacion.play().catch(e => console.log(" 🔊  Alerta visual: Audio bloqueado por el navegador.", e));
 }
 
-// ======================================================
-//  📄  CARGADOR DINÁMICO DE PDF (SIN ROMPER INICIO)
-// ======================================================
+// ======================================================================================
+//  📄  CARGADOR DINÁMICO DE PDF (OPTIMIZACIÓN V5.7)
+// ======================================================================================
 // Carga la librería jsPDF bajo demanda solo cuando se necesita generar un recibo.
+// Evita cargar 300KB de librería en el inicio de la app si no se va a usar.
 async function cargarLibreriaPDF() {
-    if (window.jspdf) return window.jspdf;
+    if (window.jspdf) return window.jspdf; // Si ya está cargada, la reutilizamos
+    
     return new Promise((resolve, reject) => {
+        console.log(" 📄  Cargando librería PDF bajo demanda...");
         const script = document.createElement('script');
         script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-        script.onload = () => resolve(window.jspdf);
-        script.onerror = () => reject("Error cargando la librería PDF");
+        script.onload = () => {
+            console.log(" 📄  Librería PDF cargada correctamente.");
+            resolve(window.jspdf);
+        };
+        script.onerror = () => reject("Error crítico cargando la librería PDF desde CDN.");
         document.head.appendChild(script);
     });
 }
 
-console.log(" 🚀  FIXGO 5.8.0: Sistema Full Cargado (Verticales Expandidas + Wallet + PDF Fetch).");
+console.log(" 🚀  FIXGO 5.9.0: Sistema Full Cargado (Verticales Granulares + Wallet + PDF Fetch Realtime).");
 
-// ======================================================
-// 1. PANEL DE ADMINISTRADOR (Torre de Control)
-// ======================================================
-// Gestiona la vista del admin.html, aprobación de técnicos y monitoreo global.
+// ======================================================================================
+// 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
+// ======================================================================================
+// Gestiona la vista del admin.html, aprobación de técnicos, monitoreo global y configuración de catálogo.
 export async function iniciarPanelAdmin(user) {
+    console.log(" 🛡️  Iniciando Panel de Administrador...");
+    
     const elementos = {
         lista: document.getElementById("listaTecnicos"),
         actividad: document.getElementById("listaTransacciones"),
@@ -102,18 +132,22 @@ export async function iniciarPanelAdmin(user) {
         countOnline: document.getElementById("totalTecnicos")
     };
 
-    // 1.A. TÉCNICOS Y APROBACIÓN (LÓGICA DETALLADA V5.6)
+    // ----------------------------------------------------------------------------------
+    // 1.A. GESTIÓN DE TÉCNICOS Y APROBACIÓN (LÓGICA DETALLADA V5.6)
+    // ----------------------------------------------------------------------------------
     if (elementos.lista) {
         const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
 
         onSnapshot(qTecnicos, (snap) => {
-            elementos.lista.innerHTML = "";
+            elementos.lista.innerHTML = ""; // Limpiamos la lista para repintar
 
             let contOnline = 0;
             let contTotal = 0;
+            
             if (snap.empty) {
-                elementos.lista.innerHTML = '<p class="text-gray-500 p-4 italic">No hay técnicos registrados.</p>';
+                elementos.lista.innerHTML = '<p class="text-gray-500 p-4 italic">No hay técnicos registrados en la base de datos.</p>';
             }
+            
             snap.forEach((docSnap) => {
                 const data = docSnap.data();
                 contTotal++;
@@ -122,19 +156,24 @@ export async function iniciarPanelAdmin(user) {
                 if(data.disponible) {
                     contOnline++;
                 }
+                
                 const esPendiente = (data.estado || "pendiente") === "pendiente";
+                
+                // Validación visual de documentos (Mockup visual por ahora)
                 const ineCheck = data.documentos?.ine ? '<span class="text-emerald-400"> ✅  INE</span>' : '<span class="text-red-500"> ❌  INE</span>';
                 const csfCheck = data.documentos?.csf ? '<span class="text-emerald-400"> ✅  CSF</span>' : '<span class="text-red-500"> ❌  CSF</span>';
 
-                // Mostrar Skills (NUEVO V5.7)
+                // Mostrar Skills (NUEVO V5.7 - Array de habilidades)
                 const skillsStr = data.skills ? data.skills.join(" • ").toUpperCase() : "GENERAL";
 
-                // Indicador visual
+                // Indicador visual de estado (Punto verde/gris)
                 const estadoDot = data.disponible
                     ? '<span class="text-emerald-500 font-bold text-[10px] animate-pulse">● ONLINE</span>'
                     : '<span class="text-gray-500 text-[10px]">● OFFLINE</span>';
 
+                // Renderizado de la tarjeta del técnico
                 const card = document.createElement("div");
+                // Si es pendiente, le damos un borde amarillo para resaltar
                 card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500' : 'bg-zinc-900 border-zinc-800'}`;
 
                 card.innerHTML = `
@@ -142,14 +181,16 @@ export async function iniciarPanelAdmin(user) {
                     <div>
                         <h4 class="font-bold text-white text-sm">
                             ${data.nombre}
-                            ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded ml-2">NUEVO</span>' : ''}
+                            ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded ml-2 font-black">NUEVO</span>' : ''}
                         </h4>
                         <p class="text-xs text-gray-400">${data.email}</p>
                         <p class="text-[9px] text-blue-400 font-bold mt-1 tracking-wide">SKILLS: ${skillsStr}</p>
                         <p class="text-xs text-gray-400">${data.telefono || ''}</p>
+                        
                         <div class="mt-2 text-[10px] bg-black/20 p-1 rounded inline-block border border-white/5">
                             ${ineCheck} | ${csfCheck}
                         </div>
+                        
                         <div class="mt-1">
                             ${estadoDot}
                         </div>
@@ -161,14 +202,18 @@ export async function iniciarPanelAdmin(user) {
                             APROBAR ACCESO
                         </button>
                         ` : `
-                        <i class="fas fa-check-circle text-emerald-800 text-2xl"></i>
+                        <div class="text-center">
+                            <i class="fas fa-check-circle text-emerald-800 text-2xl"></i>
+                            <p class="text-[8px] text-emerald-800 font-bold mt-1">VERIFICADO</p>
+                        </div>
                         `}
                     </div>
                 </div>
                 `;
                 elementos.lista.appendChild(card);
             });
-            // Actualizamos el contador del Dashboard principal
+            
+            // Actualizamos el contador del Dashboard principal (Header Widget)
             if(elementos.countOnline) {
                 elementos.countOnline.innerHTML = `${contOnline} <span class="text-sm text-gray-500">/ ${contTotal}</span>`;
                 elementos.countOnline.style.color = contOnline > 0 ? "#10b981" : "white";
@@ -176,7 +221,9 @@ export async function iniciarPanelAdmin(user) {
         });
     }
 
-    // 1.B. MONITOREO DE SERVICIOS
+    // ----------------------------------------------------------------------------------
+    // 1.B. MONITOREO DE SERVICIOS EN TIEMPO REAL (FEED DE ACTIVIDAD)
+    // ----------------------------------------------------------------------------------
     const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"));
 
     onSnapshot(qServicios, (snap) => {
@@ -185,31 +232,40 @@ export async function iniciarPanelAdmin(user) {
         let activos = 0;
         
         if (snap.empty) {
-            if(elementos.actividad) elementos.actividad.innerHTML = '<p class="text-gray-500 italic text-sm text-center mt-4">Sin actividad reciente.</p>';
+            if(elementos.actividad) elementos.actividad.innerHTML = '<p class="text-gray-500 italic text-sm text-center mt-4">Sin actividad reciente en la plataforma.</p>';
         }
+        
         snap.forEach(docSnap => {
             const data = docSnap.data();
 
-            // Calculo de Activos (Excluyendo finalizados y cancelados)
+            // Calculo de Activos (Excluyendo finalizados y cancelados) para el widget de "Rayo"
             if (!["finalizado", "cancelado"].includes(data.estado)) {
                 activos++;
             }
 
-            // Renderizar solo los últimos 10 para no saturar el DOM
+            // Renderizar solo los últimos 10 para no saturar el DOM del admin
             if (elementos.actividad && elementos.actividad.children.length < 10) {
                 const item = document.createElement("div");
                 item.className = "flex justify-between items-center border-b border-white/5 py-3 last:border-0";
 
                 let colorEstado = "text-gray-400";
                 if(data.estado === "pendiente") colorEstado = "text-yellow-500";
-                if(data.estado === "trabajando") colorEstado = "text-blue-400 animate-pulse";
+                if(data.estado === "asignado") colorEstado = "text-blue-300";
+                if(data.estado === "en_camino") colorEstado = "text-blue-400";
+                if(data.estado === "en_sitio") colorEstado = "text-purple-400";
+                if(data.estado === "cotizando") colorEstado = "text-orange-400";
+                if(data.estado === "trabajando") colorEstado = "text-blue-500 animate-pulse font-bold";
                 if(data.estado === "finalizado") colorEstado = "text-emerald-500";
+                if(data.estado === "cancelado") colorEstado = "text-red-500 line-through";
                 
+                // Formateo de la vertical y subservicio
+                const labelServicio = `${data.categoria} ${data.sub_servicio ? '• ' + data.sub_servicio : ''}`;
+
                 item.innerHTML = `
                 <div class="flex items-center gap-3">
                     <div class="bg-zinc-800 p-2 rounded-lg"><i class="fas fa-tools text-gray-400"></i></div>
                     <div>
-                        <p class="text-xs font-bold text-white uppercase">${data.categoria}</p>
+                        <p class="text-xs font-bold text-white uppercase">${labelServicio}</p>
                         <p class="text-[10px] text-gray-500">${data.cliente_nombre || 'Cliente'} • ${data.zona || 'Cancún'}</p>
                     </div>
                 </div>
@@ -221,6 +277,7 @@ export async function iniciarPanelAdmin(user) {
                 elementos.actividad.appendChild(item);
             }
         });
+        
         // Actualizar Widgets Superiores
         if(elementos.countServ) {
             elementos.countServ.innerText = activos;
@@ -228,12 +285,15 @@ export async function iniciarPanelAdmin(user) {
         }
     });
 
+    // ----------------------------------------------------------------------------------
     // 1.C. MONITOREO DE FINANZAS REALES (V5.7 - Colección Transacciones)
+    // ----------------------------------------------------------------------------------
     const qFinanzas = query(collection(db, "transacciones"));
     onSnapshot(qFinanzas, (snap) => {
         let totalComision = 0;
         snap.forEach(doc => {
             // Sumamos solo la comisión de FixGo (32%)
+            // Esto es dinero real para la plataforma
             totalComision += (doc.data().comision_fixgo || 0);
         });
         if(elementos.countMoney) {
@@ -241,9 +301,9 @@ export async function iniciarPanelAdmin(user) {
         }
     });
 
-    // Función global para el botón onclick del HTML inyectado
+    // Función global para el botón onclick del HTML inyectado (Aprobar Técnico)
     window.aprobarTecnico = async (uid) => {
-        if(!confirm("¿Estás seguro de aprobar a este técnico? Tendrá acceso inmediato a solicitudes.")) return;
+        if(!confirm("¿Estás seguro de aprobar a este técnico? Tendrá acceso inmediato a ver solicitudes y aceptar trabajos.")) return;
         try {
             await updateDoc(doc(db, "users", uid), {
                 estado: "activo",
@@ -251,67 +311,129 @@ export async function iniciarPanelAdmin(user) {
                 verificado: true,
                 aprobadoEn: serverTimestamp()
             });
-            alert(" ✅  Técnico Aprobado y Activado.");
+            alert(" ✅  Técnico Aprobado y Activado exitosamente.");
         } catch (error) {
             console.error(error);
-            alert("Error al aprobar.");
+            alert("Error al aprobar técnico en base de datos.");
         }
     };
 
-    // --- NUEVO: GESTIÓN DE CATÁLOGO (ADMIN V5.7) ---
-    // Función para abrir y cargar el modal de catálogo
+    // ----------------------------------------------------------------------------------
+    // 1.D. NUEVO: GESTOR DE CATÁLOGO GRANULAR (V5.9) - CONTROL TOTAL
+    // ----------------------------------------------------------------------------------
+    // Esta función ahora construye la UI completa de las 4 Verticales para el Admin
+    // permitiendo apagar/encender servicios específicos (ej: Solo Grúas).
     window.abrirGestorCatalogo = async () => {
         const modal = document.getElementById("modalCatalogo");
         const container = document.getElementById("gridConfiguracion");
         if (modal) modal.classList.remove("hidden");
         
-        // Leemos la configuración actual
+        // Obtenemos la configuración actual de la nube
         const docRef = doc(db, "configuracion", "catalogo_global");
         const docSnap = await getDoc(docRef);
-        
-        let config = { road: true, fix: true, tech: true }; // Default
+        let config = {}; 
         if(docSnap.exists()) config = docSnap.data();
 
-        // Generamos los switches
+        // Estructura Maestra (Debe coincidir con la del Cliente para que los IDs funcionen)
+        const MASTER_STRUCTURE = {
+            "ROAD (Auxilio Vial)": [
+                { id: "road_llanta", label: "Llantera Móvil" },
+                { id: "road_cerrajero", label: "Cerrajería 24/7" },
+                { id: "road_grua", label: "Grúas" },
+                { id: "road_mecanico", label: "Mecánico Gral." },
+                { id: "road_corriente", label: "Paso Corriente" }
+            ],
+            "FIX (Hogar)": [
+                { id: "fix_electricidad", label: "Electricidad" },
+                { id: "fix_plomeria", label: "Plomería" },
+                { id: "fix_ac", label: "Aires Acondicionad." },
+                { id: "fix_jardin", label: "Jardinería" },
+                { id: "fix_pintura", label: "Pintura" },
+                { id: "fix_alberca", label: "Albercas" },
+                { id: "fix_fumigacion", label: "Fumigación" }
+            ],
+            "MAINT (B2B)": [
+                { id: "maint_general", label: "Mantenimiento Gral." }
+            ],
+            "TECH (Sistemas)": [
+                { id: "tech_cctv", label: "CCTV" },
+                { id: "tech_alarma", label: "Sistemas Alarma" },
+                { id: "tech_acceso", label: "Control Accesos" },
+                { id: "tech_elevador", label: "Elevadores" },
+                { id: "tech_planta", label: "Plantas Eléc." },
+                { id: "tech_solar", label: "Paneles Solares" }
+            ]
+        };
+
         if (container) {
-            container.innerHTML = `
-                ${generarSwitch("road", "ROAD (Vial)", config.road)}
-                ${generarSwitch("fix", "FIX (Hogar)", config.fix)}
-                ${generarSwitch("tech", "TECH (Sistemas)", config.tech)}
-            `;
+            container.innerHTML = "";
+            let html = "";
+            
+            // Iteramos sobre las categorías maestras para pintar la UI del Admin
+            for (const [categoria, servicios] of Object.entries(MASTER_STRUCTURE)) {
+                html += `
+                <div class="mb-4 bg-zinc-900/50 p-3 rounded-xl border border-zinc-800">
+                    <h4 class="text-emerald-500 font-bold text-xs uppercase mb-3 border-b border-zinc-700 pb-1">${categoria}</h4>
+                    <div class="space-y-2">`;
+                
+                servicios.forEach(srv => {
+                    // Si no existe en la BD, asumimos false por seguridad (Próximamente por defecto)
+                    const isChecked = config[srv.id] === true;
+                    
+                    html += generarSwitchGranular(srv.id, srv.label, isChecked);
+                });
+                
+                html += `</div></div>`;
+            }
+            container.innerHTML = html;
         }
     };
 
+    // Función modificada para guardar TODOS los switches granulares en Firestore
     window.guardarConfiguracionGlobal = async () => {
-        const nuevaConfig = {
-            road: document.getElementById("cfg_road").checked,
-            fix: document.getElementById("cfg_fix").checked,
-            tech: document.getElementById("cfg_tech").checked,
-            updatedAt: serverTimestamp()
+        // Recolectamos todos los inputs que empiecen con "cfg_"
+        const inputs = document.querySelectorAll('input[id^="cfg_"]');
+        let nuevaConfig = {
+            updatedAt: serverTimestamp() // Audit log
         };
+
+        inputs.forEach(input => {
+            // Extraemos el ID real (quitando el prefijo cfg_)
+            const realId = input.id.replace("cfg_", "");
+            nuevaConfig[realId] = input.checked;
+        });
         
-        await setDoc(doc(db, "configuracion", "catalogo_global"), nuevaConfig);
-        alert("✅ Catálogo actualizado. Los clientes verán los cambios al instante.");
-        document.getElementById("modalCatalogo").classList.add("hidden");
+        try {
+            await setDoc(doc(db, "configuracion", "catalogo_global"), nuevaConfig);
+            alert("✅ Catálogo actualizado. Disponibilidad sincronizada con clientes en tiempo real.");
+            document.getElementById("modalCatalogo").classList.add("hidden");
+        } catch (e) {
+            console.error(e);
+            alert("Error al guardar configuración global.");
+        }
     };
 }
 
-// Helper para generar HTML de switches
-function generarSwitch(key, label, value) {
+// Helper para generar el HTML de switches individuales (V5.9)
+function generarSwitchGranular(id, label, checked) {
     return `
-    <div class="bg-black p-4 rounded-xl border border-zinc-700 flex justify-between items-center">
-        <span class="font-bold text-white">${label}</span>
+    <div class="flex justify-between items-center bg-black p-2 rounded-lg border border-zinc-800">
+        <span class="text-gray-300 text-xs">${label}</span>
         <label class="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" id="cfg_${key}" class="sr-only peer" ${value ? 'checked' : ''}>
-            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+            <input type="checkbox" id="cfg_${id}" class="sr-only peer" ${checked ? 'checked' : ''}>
+            <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
         </label>
     </div>`;
 }
 
-// ======================================================
-// 2. PANEL DE TÉCNICO (Socio Operador)
-// ======================================================
+
+// ======================================================================================
+// 2. PANEL DE TÉCNICO (SOCIO OPERADOR)
+// ======================================================================================
+// Gestiona la vista del tecnico.html, toggle On/Off, Radar, Bolsa de Trabajo y Flujo de Servicio.
 export async function iniciarPanelTecnico(user) {
+    console.log(" 🔧  Iniciando Panel de Técnico...");
+    
     const elementos = {
         statusLabel: document.getElementById("statusLabel"),
         toggleONOFF: document.getElementById("toggleONOFF"),
@@ -325,14 +447,16 @@ export async function iniciarPanelTecnico(user) {
         walletLabel: document.getElementById("walletSaldo") // ELEMENTO NUEVO V5.7.4
     };
 
-    // 2.A. ESTADO DEL TÉCNICO Y PERFIL
+    // ----------------------------------------------------------------------------------
+    // 2.A. ESTADO DEL TÉCNICO Y PERFIL (VERIFICACIÓN)
+    // ----------------------------------------------------------------------------------
     const tecnicoRef = doc(db, "users", user.uid);
     onSnapshot(tecnicoRef, (docSnap) => {
         if (!docSnap.exists()) return;
         const data = docSnap.data();
         const estado = data.estado || "pendiente";
 
-        // Caso: Pendiente de Aprobación
+        // Caso: Pendiente de Aprobación (Cuenta bloqueada)
         if (estado === "pendiente") {
             if(elementos.statusLabel) {
                 elementos.statusLabel.innerText = "EN REVISIÓN";
@@ -355,14 +479,14 @@ export async function iniciarPanelTecnico(user) {
             return;
         }
 
-        // Caso: Activo
+        // Caso: Activo (Puede operar)
         if (elementos.toggleONOFF) {
             elementos.toggleONOFF.disabled = false;
             elementos.toggleONOFF.checked = data.disponible === true;
         }
 
         if (data.disponible) {
-            // ENCENDIDO
+            // ENCENDIDO: Inicia GPS y Escucha Bolsa
             iniciarTracking(user.uid);
             elementos.seccionBolsa?.classList.remove("hidden");
             escucharBolsa(user, elementos.listaBolsa); // Le pasamos el user para ver sus Skills
@@ -373,7 +497,7 @@ export async function iniciarPanelTecnico(user) {
             }
             elementos.radarSection?.classList.remove("opacity-50", "grayscale");
         } else {
-            // APAGADO
+            // APAGADO: Detiene GPS y Oculta Bolsa
             detenerTracking();
             elementos.seccionBolsa?.classList.add("hidden");
 
@@ -385,27 +509,27 @@ export async function iniciarPanelTecnico(user) {
         }
     });
 
+    // ----------------------------------------------------------------------------------
     // 2.D. WALLET & GANANCIAS (NUEVO BLOQUE V5.7.4)
-    // Calcula cuánto dinero ha ganado el técnico específico
+    // ----------------------------------------------------------------------------------
+    // Calcula cuánto dinero ha ganado el técnico específico sumando transacciones
     const qWallet = query(collection(db, "transacciones"), where("tecnico_id", "==", user.uid));
     onSnapshot(qWallet, (snap) => {
         let misGanancias = 0;
         snap.forEach(docSnap => {
             const tx = docSnap.data();
-            misGanancias += (tx.pago_tecnico || 0);
+            misGanancias += (tx.pago_tecnico || 0); // Sumamos lo que le corresponde al técnico (68%)
         });
         
         // Actualizamos la UI si existe el elemento
         if(elementos.walletLabel) {
             elementos.walletLabel.innerText = `$${misGanancias.toFixed(2)}`;
         } else {
-            // Si no existe el elemento en el HTML, lo inyectamos temporalmente para depuración
-            // Opcional: Esto ayuda a ver si funciona aunque falte el HTML
-            console.log("💰 Wallet Técnico:", misGanancias);
+            console.log("💰 Wallet Técnico (Debug):", misGanancias);
         }
     });
 
-    // Listener para el Switch ON/OFF
+    // Listener para el Switch ON/OFF principal
     if (elementos.toggleONOFF) {
         elementos.toggleONOFF.addEventListener("change", async (e) => {
             await updateDoc(tecnicoRef, {
@@ -415,7 +539,9 @@ export async function iniciarPanelTecnico(user) {
         });
     }
 
+    // ----------------------------------------------------------------------------------
     // 2.B. BOLSA DE TRABAJO (CON SONIDO Y FILTRO DE SKILLS)
+    // ----------------------------------------------------------------------------------
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
         const q = query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc"));
@@ -427,9 +553,9 @@ export async function iniciarPanelTecnico(user) {
                 return;
             }
 
-            //  🔔  SONIDO: Si llega una nueva solicitud (added)
+            //  🔔  SONIDO: Si llega una nueva solicitud (evento 'added')
             if(snap.docChanges().some(change => change.type === 'added')) {
-                console.log(" 🔔  Nueva solicitud detectada: SONANDO ALERTA");
+                console.log(" 🔔  Nueva solicitud detectada en Bolsa: SONANDO ALERTA");
                 sonarAlerta();
             }
 
@@ -438,8 +564,10 @@ export async function iniciarPanelTecnico(user) {
                 const id = docSnap.id;
 
                 // --- FILTRO DE SKILLS (V5.7) ---
+                // Si el técnico no tiene la skill requerida para la categoría, no se le muestra
                 const misSkills = tecnico.skills || [];
                 // Si la categoría del servicio no está en mis skills, lo salto (y tengo al menos 1 skill)
+                // Nota: Si el servicio no tiene categoría, lo mostramos por defecto (Legacy)
                 if (s.categoria && misSkills.length > 0 && !misSkills.includes(s.categoria)) {
                     return; // No mostrar este servicio
                 }
@@ -466,10 +594,10 @@ export async function iniciarPanelTecnico(user) {
         });
     }
 
-    // Función global para aceptar servicio (CON BLOQUEO V5.7)
+    // Función global para aceptar servicio (CON BLOQUEO DE MULTITASKING V5.7)
     window.tomarServicio = async (id, uid, nombre) => {
         // 1. VALIDACIÓN DE UNICIDAD (No Multitasking)
-        // Verificamos si el técnico ya tiene un servicio activo
+        // Verificamos si el técnico ya tiene un servicio activo en cualquier estado de progreso
         const qCheck = query(
             collection(db, "services"), 
             where("tecnico_id", "==", uid),
@@ -484,6 +612,7 @@ export async function iniciarPanelTecnico(user) {
 
         if(!confirm("¿Aceptar este servicio? \n\nSe notificará al cliente y se bloqueará la garantía.")) return;
         try {
+            // Asignación Atómica
             await updateDoc(doc(db, "services", id), {
                 estado: "asignado",
                 tecnico_id: uid,
@@ -491,14 +620,16 @@ export async function iniciarPanelTecnico(user) {
                 tecnico_telefono: user.telefono || "",
                 asignado_at: serverTimestamp()
             });
-            // El propio onSnapshot del flujo activo actualizará la UI
+            // El propio onSnapshot del flujo activo actualizará la UI automáticamente
         } catch (error) {
             console.error(error);
-            alert("Error: El servicio ya fue tomado por otro técnico.");
+            alert("Error: El servicio ya fue tomado por otro técnico hace un momento.");
         }
     };
 
-    // 2.C. FLUJO ACTIVO (MISIONES Y BOTONES)
+    // ----------------------------------------------------------------------------------
+    // 2.C. FLUJO ACTIVO (MISIONES Y BOTONES DE ESTADO)
+    // ----------------------------------------------------------------------------------
     // Escuchamos servicios donde soy el técnico y el estado es activo
     const qMisiones = query(
         collection(db, "services"),
@@ -512,7 +643,7 @@ export async function iniciarPanelTecnico(user) {
         if (!ls) return;
         ls.innerHTML = "";
 
-        // Si no hay misiones, escondemos el panel inferior
+        // Si no hay misiones, escondemos el panel inferior deslizante
         if (snap.empty) {
             if(pa) pa.classList.add("translate-y-full");
             return;
@@ -520,17 +651,18 @@ export async function iniciarPanelTecnico(user) {
 
         // Si hay misiones, mostramos el panel
         if(pa) pa.classList.remove("translate-y-full");
+        
         snap.forEach((docSnap) => {
             const s = docSnap.data();
             const id = docSnap.id;
 
             // Construcción inteligente del link de Waze
-            // Si el cliente dio coordenadas, usamos esas. Si no, la dirección.
+            // Si el cliente dio coordenadas GPS (V5.8+), usamos esas. Si no, la dirección texto.
             const destinoWaze = s.coords
                 ? `${s.coords.lat},${s.coords.lng}`
                 : encodeURIComponent(s.direccion);
 
-            // Render Tarjeta
+            // Render Tarjeta de Misión Activa
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl";
             card.innerHTML = `
@@ -556,7 +688,7 @@ export async function iniciarPanelTecnico(user) {
             `;
             ls.appendChild(card);
 
-            // GESTIÓN DE BOTONES INFERIORES POR ESTADO
+            // GESTIÓN DE BOTONES INFERIORES POR ESTADO (MAQUINA DE ESTADOS)
             const btn1 = elementos.btnEnCamino;
             const btn2 = elementos.btnLlegue;
 
@@ -581,7 +713,7 @@ export async function iniciarPanelTecnico(user) {
             }
             else if (s.estado === "en_sitio") {
                 btn2.classList.remove("hidden");
-                // CAMBIO V5.7: LLAMA AL NUEVO COTIZADOR ALAMO
+                // CAMBIO V5.7: LLAMA AL NUEVO COTIZADOR ALAMO (Detallado)
                 btn2.innerText = "CREAR COTIZACIÓN";
                 btn2.className = "w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
                 btn2.onclick = () => mostrarModalCotizacionDetallada(id, s);
@@ -602,7 +734,7 @@ export async function iniciarPanelTecnico(user) {
         });
     });
 
-    // Función auxiliar para actualizar estado en Servicios y en Rastreo
+    // Función auxiliar para actualizar estado en Servicios y en Rastreo Global
     async function actualizarEstado(id, estado, extras = {}) {
         try {
             // 1. Actualizar el documento del servicio
@@ -624,11 +756,12 @@ export async function iniciarPanelTecnico(user) {
     // ==========================================================
     // NUEVO MODAL: COTIZACIÓN DETALLADA (V5.7 ALAMO STYLE)
     // ==========================================================
-    // Esta función reemplaza a la antigua "mostrarModalCotizacion"
+    // Esta función reemplaza a la antigua "mostrarModalCotizacion" simple.
+    // Permite agregar múltiples partidas (Items) con cantidad, precio y descripción.
     function mostrarModalCotizacionDetallada(id, servicioData) {
         if(document.getElementById("modalCot")) return;
         
-        let items = []; // Array temporal para guardar partidas
+        let items = []; // Array temporal para guardar partidas en memoria
 
         const html = `
         <div id="modalCot" class="fixed inset-0 bg-black/95 z-[60] flex flex-col p-4 animate-fade-in overflow-y-auto">
@@ -767,6 +900,7 @@ export async function iniciarPanelTecnico(user) {
     }
 
     //  📸  MODAL EVIDENCIA (REAL CON BASE64 Y CÁLCULO FINANCIERO V5.7)
+    // Calcula la comisión del 32% automáticamente al cerrar el servicio
     function mostrarModalEvidencia(id) {
         if(document.getElementById("modalEvidencia")) return;
 
@@ -795,6 +929,7 @@ export async function iniciarPanelTecnico(user) {
         </div>
         `;
         document.body.insertAdjacentHTML('beforeend', html);
+        
         document.getElementById("btnSubirEvidencia").onclick = async () => {
             const f1 = document.getElementById("fileAntes").files[0];
             const f2 = document.getElementById("fileDespues").files[0];
@@ -803,6 +938,7 @@ export async function iniciarPanelTecnico(user) {
             const btn = document.getElementById("btnSubirEvidencia");
             btn.innerText = "SUBIENDO EVIDENCIA...";
             btn.disabled = true;
+            
             try {
                 // Conversión a Base64
                 const b64_1 = await toBase64(f1);
@@ -827,7 +963,7 @@ export async function iniciarPanelTecnico(user) {
                     }
                 });
 
-                // 2. NUEVO: REGISTRAR TRANSACCIÓN FINANCIERA
+                // 2. NUEVO: REGISTRAR TRANSACCIÓN FINANCIERA EN COLECCIÓN APARTE
                 await addDoc(collection(db, "transacciones"), {
                     servicio_id: id,
                     tecnico_id: user.uid, 
@@ -858,10 +994,12 @@ export async function iniciarPanelTecnico(user) {
     });
 }
 
-// ======================================================
-// 3. PANEL DE CLIENTE (Usuario Final)
-// ======================================================
+// ======================================================================================
+// 3. PANEL DE CLIENTE (USUARIO FINAL)
+// ======================================================================================
 export async function iniciarPanelCliente(user) {
+    console.log(" 📱  Iniciando Panel de Cliente...");
+
     const el = {
         form: document.getElementById("nuevaSolicitudForm"),
         lista: document.getElementById("solicitudesCliente"),
@@ -870,11 +1008,9 @@ export async function iniciarPanelCliente(user) {
         // El grid se llenará dinámicamente con las nuevas Verticales
     };
 
-    // ----------------------------------------------------
-    // 3.1 CARGA DINÁMICA DE VERTICALES (EXPANSIÓN V5.8)
-    // ----------------------------------------------------
-    // Esta función maneja la lógica compleja de Road, Fix, Maint y Tech
-    // Desplegando botones individuales para cada servicio y gestionando su estado.
+    // ----------------------------------------------------------------------------------
+    // 3.1 CARGA DINÁMICA DE VERTICALES (CONECTADA A FIRESTORE - V5.9 REALTIME)
+    // ----------------------------------------------------------------------------------
     async function cargarServiciosCliente(contenedorID) {
         const container = document.getElementById(contenedorID);
         if(!container) {
@@ -884,138 +1020,145 @@ export async function iniciarPanelCliente(user) {
 
         console.log("Cargando servicios en container:", contenedorID);
 
-        // DEFINICIÓN MAESTRA DE VERTICALES Y SERVICIOS (LÓGICA BLINDADA)
-        // Aquí centralizamos qué servicio pertenece a qué vertical y su estado por defecto
-        const DEFINICION_VERTICALES = {
-            road: {
-                titulo: "FIXGO ROAD (Vial)",
-                icono: "fa-car-crash",
-                color: "yellow", // Clases de Tailwind: text-yellow-500, bg-yellow-500/20
-                modo: "EMERGENCIA (Prioridad Alta)",
-                servicios: [
-                    { id: "road_llanta", label: "Llantera Móvil", active: true },
-                    { id: "road_cerrajero", label: "Cerrajería 24/7", active: true },
-                    { id: "road_grua", label: "Grúas", active: false }, // Próximamente
-                    { id: "road_mecanico", label: "Mecánico Gral.", active: false }, // Próximamente
-                    { id: "road_corriente", label: "Paso Corriente", active: false } // Próximamente
-                ]
-            },
-            fix: {
-                titulo: "FIXGO FIX (Hogar)",
-                icono: "fa-tools",
-                color: "blue", // text-blue-500
-                modo: "ON-DEMAND (Cercanía)",
-                servicios: [
-                    { id: "fix_electricidad", label: "Electricidad", active: true },
-                    { id: "fix_plomeria", label: "Plomería", active: true },
-                    { id: "fix_ac", label: "Aires Acond. (A/C)", active: true },
-                    { id: "fix_jardin", label: "Jardinería", active: false }, // Próximamente
-                    { id: "fix_pintura", label: "Pintura", active: false }, // Próximamente
-                    { id: "fix_alberca", label: "Albercas", active: false }, // Próximamente
-                    { id: "fix_fumigacion", label: "Fumigación", active: false } // Próximamente
-                ]
-            },
-            maint: {
-                titulo: "FIXGO MAINT (B2B)",
-                icono: "fa-building",
-                color: "orange",
-                modo: "CONTRATO (Mantenimiento)",
-                servicios: [
-                    // Toda la vertical está inactiva por ahora, pero preparada
-                    { id: "maint_general", label: "Mantenimiento Gral.", active: false }
-                ]
-            },
-            tech: {
-                titulo: "FIXGO TECH (Sistemas)",
-                icono: "fa-wifi",
-                color: "purple",
-                modo: "ESPECIALIDAD (Certificado)",
-                servicios: [
-                    { id: "tech_cctv", label: "CCTV", active: true },
-                    { id: "tech_alarma", label: "Sistemas Alarma", active: true },
-                    { id: "tech_acceso", label: "Control Accesos", active: true },
-                    { id: "tech_elevador", label: "Elevadores", active: false }, // Próximamente
-                    { id: "tech_planta", label: "Plantas Eléc.", active: false }, // Próximamente
-                    { id: "tech_solar", label: "Paneles Solares", active: false } // Próximamente
-                ]
-            }
-        };
-
-        // Renderizado del HTML
-        // Iteramos sobre las 4 verticales principales
-        let htmlFinal = "";
-
-        Object.keys(DEFINICION_VERTICALES).forEach(key => {
-            const vertical = DEFINICION_VERTICALES[key];
+        // ESCUCHA EN TIEMPO REAL (V5.9)
+        // Ya no usamos una lista estática, escuchamos el documento de configuración 'catalogo_global'
+        onSnapshot(doc(db, "configuracion", "catalogo_global"), (docSnap) => {
+            const dbConfig = docSnap.exists() ? docSnap.data() : {};
             
-            // Header de la Vertical
-            htmlFinal += `
-            <div class="mb-6 animate-fade-in">
-                <div class="flex items-center gap-2 mb-3 border-b border-zinc-800 pb-2">
-                    <div class="bg-${vertical.color}-500/20 p-2 rounded-lg text-${vertical.color}-500">
-                        <i class="fas ${vertical.icono}"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-white font-black text-sm uppercase">${vertical.titulo}</h3>
-                        <p class="text-[9px] text-gray-500 tracking-wider">${vertical.modo}</p>
-                    </div>
-                </div>
-                
-                <div class="grid grid-cols-2 gap-3">
-            `;
+            // DEFINICIÓN MAESTRA DE VERTICALES Y SERVICIOS (LÓGICA BLINDADA)
+            const DEFINICION_VERTICALES = {
+                road: {
+                    titulo: "FIXGO ROAD (Vial)",
+                    icono: "fa-car-crash",
+                    color: "yellow", // Clases de Tailwind: text-yellow-500, bg-yellow-500/20
+                    modo: "EMERGENCIA (Prioridad Alta)",
+                    servicios: [
+                        { id: "road_llanta", label: "Llantera Móvil" },
+                        { id: "road_cerrajero", label: "Cerrajería 24/7" },
+                        { id: "road_grua", label: "Grúas" },
+                        { id: "road_mecanico", label: "Mecánico Gral." },
+                        { id: "road_corriente", label: "Paso Corriente" }
+                    ]
+                },
+                fix: {
+                    titulo: "FIXGO FIX (Hogar)",
+                    icono: "fa-tools",
+                    color: "blue", // text-blue-500
+                    modo: "ON-DEMAND (Cercanía)",
+                    servicios: [
+                        { id: "fix_electricidad", label: "Electricidad" },
+                        { id: "fix_plomeria", label: "Plomería" },
+                        { id: "fix_ac", label: "Aires Acond. (A/C)" },
+                        { id: "fix_jardin", label: "Jardinería" },
+                        { id: "fix_pintura", label: "Pintura" },
+                        { id: "fix_alberca", label: "Albercas" },
+                        { id: "fix_fumigacion", label: "Fumigación" }
+                    ]
+                },
+                maint: {
+                    titulo: "FIXGO MAINT (B2B)",
+                    icono: "fa-building",
+                    color: "orange",
+                    modo: "CONTRATO (Mantenimiento)",
+                    servicios: [
+                        { id: "maint_general", label: "Mantenimiento Gral." }
+                    ]
+                },
+                tech: {
+                    titulo: "FIXGO TECH (Sistemas)",
+                    icono: "fa-wifi",
+                    color: "purple",
+                    modo: "ESPECIALIDAD (Certificado)",
+                    servicios: [
+                        { id: "tech_cctv", label: "CCTV" },
+                        { id: "tech_alarma", label: "Sistemas Alarma" },
+                        { id: "tech_acceso", label: "Control Accesos" },
+                        { id: "tech_elevador", label: "Elevadores" },
+                        { id: "tech_planta", label: "Plantas Eléc." },
+                        { id: "tech_solar", label: "Paneles Solares" }
+                    ]
+                }
+            };
 
-            // Grid de Servicios dentro de la Vertical
-            vertical.servicios.forEach(srv => {
-                const opacity = srv.active ? "opacity-100 hover:scale-105 active:scale-95 cursor-pointer" : "opacity-40 grayscale cursor-not-allowed";
-                const border = srv.active ? "border-zinc-700 hover:border-emerald-500" : "border-zinc-800 border-dashed";
-                const clickAction = srv.active ? `onclick="window.seleccionarServicio('${srv.id}', '${srv.label}')"` : "";
+            let htmlFinal = "";
+
+            Object.keys(DEFINICION_VERTICALES).forEach(key => {
+                const vertical = DEFINICION_VERTICALES[key];
                 
+                // Header de la Vertical
                 htmlFinal += `
-                <div class="bg-zinc-900 border ${border} p-3 rounded-xl flex flex-col items-center text-center transition-all duration-200 service-card-btn ${opacity}" ${clickAction} id="card_${srv.id}">
-                    <div class="mb-2">
-                        ${srv.active ? '<div class="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_5px_#10b981]"></div>' : '<i class="fas fa-lock text-gray-600 text-xs"></i>'}
+                <div class="mb-6 animate-fade-in">
+                    <div class="flex items-center gap-2 mb-3 border-b border-zinc-800 pb-2">
+                        <div class="bg-${vertical.color}-500/20 p-2 rounded-lg text-${vertical.color}-500">
+                            <i class="fas ${vertical.icono}"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-white font-black text-sm uppercase">${vertical.titulo}</h3>
+                            <p class="text-[9px] text-gray-500 tracking-wider">${vertical.modo}</p>
+                        </div>
                     </div>
-                    <span class="text-white font-bold text-xs leading-tight">${srv.label}</span>
-                    <span class="text-[8px] text-gray-500 mt-1 uppercase tracking-widest font-bold">${srv.active ? 'DISPONIBLE' : 'PRÓXIMAMENTE'}</span>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                `;
+
+                // Grid de Servicios dentro de la Vertical
+                vertical.servicios.forEach(srv => {
+                    // AQUÍ ESTÁ LA MAGIA DE V5.9:
+                    // Verificamos si el servicio está activo en la BD. Si no existe, es false.
+                    const isActive = dbConfig[srv.id] === true;
+                    
+                    const opacity = isActive ? "opacity-100 hover:scale-105 active:scale-95 cursor-pointer" : "opacity-40 grayscale cursor-not-allowed";
+                    const border = isActive ? "border-zinc-700 hover:border-emerald-500" : "border-zinc-800 border-dashed";
+                    const clickAction = isActive ? `onclick="window.seleccionarServicio('${srv.id}', '${srv.label}')"` : "";
+                    
+                    htmlFinal += `
+                    <div class="bg-zinc-900 border ${border} p-3 rounded-xl flex flex-col items-center text-center transition-all duration-200 service-card-btn ${opacity}" ${clickAction} id="card_${srv.id}">
+                        <div class="mb-2">
+                            ${isActive ? '<div class="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_5px_#10b981]"></div>' : '<i class="fas fa-lock text-gray-600 text-xs"></i>'}
+                        </div>
+                        <span class="text-white font-bold text-xs leading-tight">${srv.label}</span>
+                        <span class="text-[8px] text-gray-500 mt-1 uppercase tracking-widest font-bold">${isActive ? 'DISPONIBLE' : 'PRÓXIMAMENTE'}</span>
+                    </div>
+                    `;
+                });
+
+                htmlFinal += `
+                    </div>
                 </div>
                 `;
             });
 
-            htmlFinal += `
-                </div>
-            </div>
-            `;
+            container.innerHTML = htmlFinal;
+
+            // Función Global para la selección (vinculada al window para acceso desde HTML string)
+            window.seleccionarServicio = (id, label) => {
+                // Reset visual de todas las cards
+                document.querySelectorAll('.service-card-btn').forEach(btn => {
+                    btn.classList.remove('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
+                    btn.classList.add('bg-zinc-900', 'border-zinc-700');
+                });
+
+                // Activar visualmente la card seleccionada
+                const activeCard = document.getElementById(`card_${id}`);
+                if(activeCard) {
+                    activeCard.classList.remove('bg-zinc-900', 'border-zinc-700');
+                    activeCard.classList.add('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
+                }
+
+                // Llenar inputs ocultos y mostrar en UI
+                if(el.inputCat) el.inputCat.value = id; // Guardamos ID específico (ej: road_llanta)
+                if(el.labelServicio) el.labelServicio.innerText = label.toUpperCase(); // UI Feedback
+
+                // Scroll suave hacia el formulario para mejor UX
+                el.form?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            };
         });
-
-        container.innerHTML = htmlFinal;
-
-        // Función Global para la selección (vinculada al window para acceso desde HTML string)
-        window.seleccionarServicio = (id, label) => {
-            // Reset visual de todas las cards
-            document.querySelectorAll('.service-card-btn').forEach(btn => {
-                btn.classList.remove('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
-                btn.classList.add('bg-zinc-900', 'border-zinc-700');
-            });
-
-            // Activar visualmente la card seleccionada
-            const activeCard = document.getElementById(`card_${id}`);
-            if(activeCard) {
-                activeCard.classList.remove('bg-zinc-900', 'border-zinc-700');
-                activeCard.classList.add('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
-            }
-
-            // Llenar inputs ocultos y mostrar en UI
-            if(el.inputCat) el.inputCat.value = id; // Guardamos ID específico (ej: road_llanta)
-            if(el.labelServicio) el.labelServicio.innerText = label.toUpperCase(); // UI Feedback
-
-            // Scroll suave hacia el formulario para mejor UX
-            el.form?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        };
     }
 
-    cargarServiciosCliente('gridServicios'); // Iniciar carga con la nueva lógica V5.8
+    // Iniciar carga con la nueva lógica V5.9 (Realtime)
+    cargarServiciosCliente('gridServicios');
 
-    // Envío de Solicitud con GPS Oculto
+    // Envío de Solicitud con GPS Oculto (V5.8 Logic)
     if (el.form) {
         el.form.addEventListener("submit", async (e) => {
             e.preventDefault();
@@ -1099,11 +1242,13 @@ export async function iniciarPanelCliente(user) {
     onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc")), (snap) => {
         if(!el.lista) return;
         el.lista.innerHTML = "";
+        
         //  🔔  SONIDO: Si hay cambios en mi servicio (ej: técnico llega)
         if(snap.docChanges().some(change => change.type === 'modified')) {
             console.log(" 🔔  Actualización de servicio: SONANDO ALERTA");
             sonarAlerta();
         }
+        
         snap.forEach(docSnap => {
             const s = docSnap.data();
             const id = docSnap.id;
@@ -1223,7 +1368,7 @@ export async function iniciarPanelCliente(user) {
         });
     });
 
-    // Respuestas globales del cliente
+    // Respuestas globales del cliente a la cotización
     window.responderCotizacion = async (id, aceptado) => {
         if (aceptado) {
             await updateDoc(doc(db, "services", id), { estado: "trabajando" });
@@ -1263,7 +1408,7 @@ export async function iniciarPanelCliente(user) {
             const { jsPDF } = await cargarLibreriaPDF();
             const docPdf = new jsPDF();
             
-            // --- DISEÑO DEL PDF ---
+            // --- DISEÑO DEL PDF (ALTA FIDELIDAD) ---
             // Header Negro
             docPdf.setFillColor(18, 18, 18);
             docPdf.rect(0, 0, 215, 40, 'F');
@@ -1302,7 +1447,9 @@ export async function iniciarPanelCliente(user) {
             docPdf.setFont("helvetica", "normal");
             docPdf.setFontSize(10);
             docPdf.text(`Cliente: ${data.cliente_nombre}`, 20, y);
-            docPdf.text(`Categoría: ${data.categoria.toUpperCase()}`, 120, y);
+            // Mostrar Categoría + Subservicio
+            const servicioLabel = `${data.categoria} ${data.sub_servicio ? '- ' + data.sub_servicio : ''}`;
+            docPdf.text(`Categoría: ${servicioLabel}`, 120, y);
             y += 8;
             docPdf.text(`Ubicación: ${data.direccion}`, 20, y);
 
@@ -1354,23 +1501,16 @@ export async function iniciarPanelCliente(user) {
                 });
                 y += 5; // Extra padding
             } else {
-                // Fallback Legacy con AVISO (Para depuración)
+                // Fallback Legacy
                 docPdf.setFont("helvetica", "normal");
                 docPdf.setFontSize(10);
                 docPdf.setTextColor(50, 50, 50); // Gris oscuro
                 
-                // Si llegamos aquí, ES PORQUE FIREBASE NO TIENE EL ARRAY
                 const diagText = data.diagnostico || "(Sin desglose registrado en base de datos)";
                 const splitDiag = docPdf.splitTextToSize(diagText, 170);
                 
                 docPdf.text(splitDiag, 20, y);
                 y += (splitDiag.length * 7) + 5;
-                
-                // Marca de agua de depuración
-                docPdf.setFontSize(8);
-                docPdf.setTextColor(255, 0, 0);
-                docPdf.text("[INFO: Estructura de datos antigua detectada. Crea un servicio nuevo para ver la tabla.]", 20, y);
-                y += 10;
             }
 
             // Caja de Totales
