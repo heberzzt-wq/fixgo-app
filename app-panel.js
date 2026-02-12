@@ -3,8 +3,8 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.9.0 (GRANULAR CONTROL - ADMIN POWER & REALTIME CLIENT VERTICALS)
- * Base: V5.7.4 (ALAMO STABLE - WALLET FIX + PDF FETCH)
+ * Versión: 5.10.0 (REJECTION LOGIC - HIDE FOR ME & GRANULAR ADMIN)
+ * Base: V5.9.0
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * * DESCRIPCIÓN TÉCNICA:
@@ -15,10 +15,11 @@
  * 3. Gestión Financiera (Cálculo de comisiones 32%, Wallet de Técnico).
  * 4. Evidencia y Seguridad (Bloqueo de garantías, fotos antes/después, coordenadas GPS).
  * 5. Generación de Documentos (PDF Fiscal Simulado).
+ * 6. Gestión de Bolsa: Lógica de aceptación y RECHAZO (Ocultar para mí) de servicios.
  * * REGLAS DE ARQUITECTURA:
  * - NO COMPACTAR.
  * - NO FRAGMENTAR.
- * - MANTENER LOGICA DE 900+ LÍNEAS.
+ * - MANTENER LOGICA DE 1500+ LÍNEAS.
  * ======================================================================================
  */
 
@@ -38,8 +39,8 @@ import {
     getDoc // Importación necesaria para leer configuraciones y PDF Fetch
 } from "./firebase.js";
 
-// Importamos getDocs manualmente para validaciones de seguridad extras y consultas de unicidad
-import { getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// Importamos getDocs y arrayUnion manualmente para validaciones de seguridad y operaciones atómicas
+import { getDocs, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Importamos el motor GPS para el rastreo en tiempo real (CORE)
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
@@ -115,7 +116,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.9.0: Sistema Full Cargado (Verticales Granulares + Wallet + PDF Fetch Realtime).");
+console.log(" 🚀  FIXGO 5.10.0: Sistema Full Cargado (Rechazo Técnico + Granularidad + Wallet).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -338,7 +339,7 @@ export async function iniciarPanelAdmin(user) {
         const MASTER_STRUCTURE = {
             "ROAD (Auxilio Vial)": [
                 { id: "road_llanta", label: "Llantera Móvil" },
-                { id: "road_cerrajero", label: "Cerrajería 24/7" },
+                { id: "road_cerrajero", label: "Cerrajería" },
                 { id: "road_grua", label: "Grúas" },
                 { id: "road_mecanico", label: "Mecánico Gral." },
                 { id: "road_corriente", label: "Paso Corriente" }
@@ -357,8 +358,8 @@ export async function iniciarPanelAdmin(user) {
             ],
             "TECH (Sistemas)": [
                 { id: "tech_cctv", label: "CCTV" },
-                { id: "tech_alarma", label: "Sistemas Alarma" },
-                { id: "tech_acceso", label: "Control Accesos" },
+                { id: "tech_alarma", label: "Alarmas" },
+                { id: "tech_acceso", label: "Accesos" },
                 { id: "tech_elevador", label: "Elevadores" },
                 { id: "tech_planta", label: "Plantas Eléc." },
                 { id: "tech_solar", label: "Paneles Solares" }
@@ -540,7 +541,7 @@ export async function iniciarPanelTecnico(user) {
     }
 
     // ----------------------------------------------------------------------------------
-    // 2.B. BOLSA DE TRABAJO (CON SONIDO Y FILTRO DE SKILLS)
+    // 2.B. BOLSA DE TRABAJO (CON SONIDO Y FILTRO DE SKILLS + RECHAZO V5.10)
     // ----------------------------------------------------------------------------------
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
@@ -548,6 +549,8 @@ export async function iniciarPanelTecnico(user) {
 
         onSnapshot(q, (snap) => {
             contenedor.innerHTML = "";
+            let counter = 0;
+
             if(snap.empty) {
                 contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">Escaneando zona... esperando solicitudes.</p>`;
                 return;
@@ -563,14 +566,21 @@ export async function iniciarPanelTecnico(user) {
                 const s = docSnap.data();
                 const id = docSnap.id;
 
+                // --- NUEVO V5.10: FILTRO DE RECHAZADOS (OCULTAR PARA MÍ) ---
+                // Si mi UID está en el array 'rejected_by', no pinto este servicio.
+                if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) {
+                    return; // Saltamos este servicio
+                }
+
                 // --- FILTRO DE SKILLS (V5.7) ---
                 // Si el técnico no tiene la skill requerida para la categoría, no se le muestra
                 const misSkills = tecnico.skills || [];
                 // Si la categoría del servicio no está en mis skills, lo salto (y tengo al menos 1 skill)
-                // Nota: Si el servicio no tiene categoría, lo mostramos por defecto (Legacy)
                 if (s.categoria && misSkills.length > 0 && !misSkills.includes(s.categoria)) {
                     return; // No mostrar este servicio
                 }
+
+                counter++; // Contamos los servicios que realmente se mostraron
 
                 const card = document.createElement("div");
                 card.className = "bg-zinc-900 border border-zinc-700 p-4 rounded-xl mb-3 animate-pulse border-emerald-500 shadow-lg shadow-emerald-900/20";
@@ -585,14 +595,41 @@ export async function iniciarPanelTecnico(user) {
                 <div class="flex items-center gap-2 mb-3 text-xs text-gray-500">
                     <i class="fas fa-map-marker-alt"></i> ${s.direccion}
                 </div>
-                <button class="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}')">
-                    ACEPTAR (BLOQUEAR $550)
-                </button>
+                
+                <div class="flex gap-2">
+                    <button class="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 font-bold py-3 rounded-lg text-xs transition-colors" onclick="window.rechazarServicio('${id}', '${tecnico.uid}')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <button class="flex-[4] bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}')">
+                        ACEPTAR (BLOQUEAR $550)
+                    </button>
+                </div>
                 `;
                 contenedor.appendChild(card);
             });
+
+            // Si después de filtrar no quedó nada, mostramos mensaje
+            if (counter === 0) {
+                contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">No hay solicitudes disponibles para tu perfil.</p>`;
+            }
         });
     }
+
+    // --- NUEVO V5.10: FUNCIÓN GLOBAL PARA RECHAZAR (OCULTAR) SERVICIO ---
+    window.rechazarServicio = async (id, uid) => {
+        if(!confirm("¿Estás seguro de ocultar esta solicitud?\n\nNo podrás verla nuevamente, pero seguirá disponible para otros técnicos.")) return;
+        
+        try {
+            // Usamos arrayUnion para agregar el ID sin sobrescribir el array existente
+            await updateDoc(doc(db, "services", id), {
+                rejected_by: arrayUnion(uid)
+            });
+            // El onSnapshot detectará el cambio y filtrará la tarjeta automáticamente
+        } catch (error) {
+            console.error(error);
+            alert("Error al intentar rechazar el servicio. Intenta de nuevo.");
+        }
+    };
 
     // Función global para aceptar servicio (CON BLOQUEO DE MULTITASKING V5.7)
     window.tomarServicio = async (id, uid, nombre) => {
