@@ -2,10 +2,11 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 5.7 (ATOMIC REGISTRATION + SKILLS SUPPORT)
+ * Versión: 5.8 (STRIPE INTEGRATION + BANK DATA SECURE)
+ * Base: V5.7
  * ======================================================
  */
-console.log(" 🚀 [app-registro.js] Inicializando sistema de autenticación V5.7...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema V5.8 (Pagos y Seguridad Bancaria)...");
 
 import { 
     auth, 
@@ -26,10 +27,61 @@ import {
     deleteUser 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
+// ======================================================
+// 0. CONFIGURACIÓN DE STRIPE (TOKENIZACIÓN)
+// ======================================================
+// Clave Pública proporcionada por Heber (Modo Test)
+const STRIPE_PUBLIC_KEY = 'pk_test_51SuznMFB3c4okYlKz7FZYdaftLAmuBWkO1cGlHDrzxbON37J8STqFtDsG6apf7zup4YJTmFbyVtmzdqIV0icjxeX00YVsW2OHU';
+let stripe = null;
+let elements = null;
+let cardElement = null;
+
+// Inicializamos Stripe solo si estamos en una página que lo requiera
+async function iniciarStripe() {
+    if (window.Stripe) {
+        stripe = window.Stripe(STRIPE_PUBLIC_KEY);
+        elements = stripe.elements();
+        
+        // Estilos base para el input de tarjeta (Dark Mode Friendly)
+        const style = {
+            base: {
+                color: "#ffffff",
+                fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+                fontSmoothing: "antialiased",
+                fontSize: "16px",
+                "::placeholder": {
+                    color: "#aab7c4"
+                }
+            },
+            invalid: {
+                color: "#fa755a",
+                iconColor: "#fa755a"
+            }
+        };
+
+        // Montamos el elemento de tarjeta si existe el contenedor en el HTML
+        if (document.getElementById("card-element")) {
+            cardElement = elements.create("card", { style: style, hidePostalCode: true });
+            cardElement.mount("#card-element");
+            console.log(" 💳 Widget de Stripe montado correctamente.");
+        }
+    } else {
+        console.warn(" ⚠️ Librería Stripe.js no detectada en el HTML. Asegúrate de incluir el script en el head.");
+    }
+}
+
+// Intentamos iniciar Stripe al cargar el script
+// Nota: Requiere <script src="https://js.stripe.com/v3/"></script> en tu HTML
+if(document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', iniciarStripe);
+} else {
+    iniciarStripe();
+}
+
 const $ = (id) => document.getElementById(id);
 
 // ======================================================
-// A. LÓGICA DE REGISTRO DE CLIENTES
+// A. LÓGICA DE REGISTRO DE CLIENTES (CON METODO DE PAGO)
 // ======================================================
 const btnRegistroCliente = $("btnRegistroCliente");
 if (btnRegistroCliente) {
@@ -45,20 +97,36 @@ if (btnRegistroCliente) {
         const telefono = form.querySelector('[name="telefono"]')?.value.trim();
 
         if (!nombre || !email || !password || !telefono) {
-            alert("⚠️ Por favor, completa todos los campos.");
+            alert("⚠️ Por favor, completa todos los campos personales.");
+            return;
+        }
+
+        // VALIDACIÓN DE STRIPE (OBLIGATORIO PARA GARANTÍA)
+        if (!stripe || !cardElement) {
+            alert("⚠️ Error: El sistema de pagos no está cargado. Recarga la página.");
             return;
         }
 
         let usuarioAuth = null;
 
         try {
-            btnRegistroCliente.innerText = "Creando cuenta...";
+            btnRegistroCliente.innerText = "Validando Tarjeta...";
             btnRegistroCliente.disabled = true;
 
-            // 1. Intentamos crear en Auth
+            // 1. TOKENIZACIÓN DE TARJETA CON STRIPE
+            const { token, error } = await stripe.createToken(cardElement);
+
+            if (error) {
+                throw new Error(error.message); // Error de tarjeta inválida, fecha exp, etc.
+            }
+
+            btnRegistroCliente.innerText = "Creando cuenta...";
+
+            // 2. Intentamos crear en Auth
             usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
 
-            // 2. Intentamos guardar en Firestore
+            // 3. Intentamos guardar en Firestore CON TOKEN DE PAGO
+            // NOTA: Nunca guardamos el número de tarjeta, solo el token 'tok_...'
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
@@ -67,19 +135,28 @@ if (btnRegistroCliente) {
                 rol: "cliente",
                 creadoEn: serverTimestamp(),
                 estado: "activo",
-                status: "activo"
+                status: "activo",
+                metodo_pago_default: {
+                    stripe_token: token.id, // Guardamos el token seguro
+                    marca: token.card.brand,
+                    last4: token.card.last4,
+                    exp_month: token.card.exp_month,
+                    exp_year: token.card.exp_year
+                }
             }, { merge: true });
 
-            alert(`¡Bienvenido, ${nombre}!`);
+            alert(`¡Bienvenido, ${nombre}! Tu método de pago ha sido vinculado exitosamente.`);
             window.location.href = "cliente.html";
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
-            // Reversión: Si el usuario se creó en Auth pero falló Firestore, lo borramos
+            
+            // Reversión
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
-                console.warn("⚠️ Revirtiendo registro: Borrando usuario de Auth por fallo en DB.");
+                console.warn("⚠️ Revirtiendo registro: Borrando usuario de Auth por fallo.");
                 await deleteUser(auth.currentUser).catch(e => console.error("Error borrando huérfano:", e));
             }
+            
             manejarErroresAuth(error);
             btnRegistroCliente.innerText = "Registrarme";
             btnRegistroCliente.disabled = false;
@@ -88,7 +165,7 @@ if (btnRegistroCliente) {
 }
 
 // ======================================================
-// B. LÓGICA DE TÉCNICOS (CON SKILLS Y REVERSIÓN)
+// B. LÓGICA DE TÉCNICOS (CON DATOS BANCARIOS PARA COBRAR)
 // ======================================================
 const btnRegistroTecnico = $("btnRegistroTecnico");
 let ineCargado = false;
@@ -122,9 +199,21 @@ if (btnRegistroTecnico) {
         const email = form.querySelector('[name="email"]')?.value.trim();
         const password = form.querySelector('[name="password"]')?.value.trim();
         const telefono = form.querySelector('[name="telefono"]')?.value.trim();
+        
+        // NUEVOS CAMPOS BANCARIOS (OBLIGATORIOS PARA RECIBIR PAGOS)
+        // Asegúrate de agregar estos inputs en tu HTML de registro técnico
+        const clabe = form.querySelector('[name="clabe"]')?.value.trim();
+        const banco = form.querySelector('[name="banco"]')?.value.trim();
 
         if (!nombre || !email || !password || !telefono) {
-            alert("⚠️ Faltan campos obligatorios."); return;
+            alert("⚠️ Faltan campos obligatorios básicos."); return;
+        }
+
+        if (!clabe || clabe.length !== 18) {
+            alert("⚠️ La CLABE Interbancaria es obligatoria y debe tener 18 dígitos para poder depositarte."); return;
+        }
+        if (!banco) {
+            alert("⚠️ Ingresa el nombre de tu Banco."); return;
         }
 
         // 1. CAPTURA DE SKILLS (Habilidades)
@@ -151,14 +240,14 @@ if (btnRegistroTecnico) {
             // 1. Registro en Auth
             usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
-            // 2. Registro en DB
+            // 2. Registro en DB CON DATOS BANCARIOS SEGUROS
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
                 email: email,
                 telefono: telefono,
                 rol: "tecnico",
-                skills: skills, // <--- GUARDAMOS LAS SKILLS SELECCIONADAS
+                skills: skills,
                 estado: "pendiente",
                 status: "pendiente",
                 disponible: false,
@@ -168,11 +257,16 @@ if (btnRegistroTecnico) {
                     csf: true,
                     fecha_subida: serverTimestamp()
                 },
+                datos_bancarios: {
+                    banco: banco,
+                    clabe: clabe, // Se guarda para dispersión de pagos (Admin Only)
+                    titular: nombre
+                },
                 nivel: "Bronce",
                 creadoEn: serverTimestamp()
             }, { merge: true });
 
-            alert("✅ ¡Solicitud recibida! El Administrador revisará tu perfil.");
+            alert("✅ ¡Solicitud recibida! Tus datos bancarios y documentos serán validados.");
             window.location.href = "tecnico.html";
 
         } catch (error) {
@@ -225,16 +319,26 @@ if (btnGoogle) {
             
             if (!docSnap.exists()) {
                 const esTecnico = confirm("¿Eres TÉCNICO? [ACEPTAR] = SÍ / [CANCELAR] = CLIENTE");
+                
+                // NOTA: Si entra por Google, no tenemos tarjeta ni cuenta bancaria aún.
+                // Deberás pedirla en el Perfil más adelante.
+                
                 await setDoc(doc(db, "users", user.uid), {
                     uid: user.uid,
                     nombre: user.displayName,
                     email: user.email,
                     rol: esTecnico ? "tecnico" : "cliente",
-                    skills: esTecnico ? ["fix"] : [], // Skill por defecto si entra por Google
+                    skills: esTecnico ? ["fix"] : [],
                     estado: esTecnico ? "pendiente" : "activo",
                     status: esTecnico ? "pendiente" : "activo",
                     creadoEn: serverTimestamp()
                 });
+                
+                if(esTecnico) {
+                    alert("⚠️ Aviso: Deberás completar tu perfil bancario para recibir pagos.");
+                } else {
+                    alert("⚠️ Aviso: Deberás agregar una tarjeta para solicitar servicios.");
+                }
             }
         } catch (error) {
             alert("Error con Google.");
@@ -267,6 +371,6 @@ function manejarErroresAuth(error) {
     } else if (error.code === 'auth/weak-password') {
         alert("⚠️ La contraseña es muy débil.");
     } else {
-        alert("🚨 Error: " + error.message);
+        alert("🚨 Error: " + error.message); // Esto mostrará errores de Stripe también
     }
 }
