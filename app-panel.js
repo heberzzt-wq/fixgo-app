@@ -3,8 +3,8 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.10.0 (REJECTION LOGIC - HIDE FOR ME & GRANULAR ADMIN)
- * Base: V5.9.0
+ * Versión: 5.11.0 (FINANCE LOGIC - 24H RELEASE & TAX SPLIT)
+ * Base: V5.10.0
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * * DESCRIPCIÓN TÉCNICA:
@@ -12,14 +12,14 @@
  * Controla:
  * 1. Flujos de estado (Pendiente -> Asignado -> En Camino -> En Sitio -> Cotizando -> Trabajando -> Finalizado).
  * 2. Sistema de Verticales (ROAD, FIX, MAINT, TECH) con activación granular desde Firebase.
- * 3. Gestión Financiera (Cálculo de comisiones 32%, Wallet de Técnico).
- * 4. Evidencia y Seguridad (Bloqueo de garantías, fotos antes/después, coordenadas GPS).
- * 5. Generación de Documentos (PDF Fiscal Simulado).
- * 6. Gestión de Bolsa: Lógica de aceptación y RECHAZO (Ocultar para mí) de servicios.
+ * 3. Gestión Financiera AVANZADA (Desglose Fiscal: FixGo 32%, IVA 8%, ISR 10%).
+ * 4. Wallet Inteligente (Liberación de fondos 24 horas).
+ * 5. Evidencia y Seguridad (Bloqueo de garantías, fotos antes/después, coordenadas GPS).
+ * 6. Generación de Documentos (PDF Fiscal Simulado).
  * * REGLAS DE ARQUITECTURA:
  * - NO COMPACTAR.
  * - NO FRAGMENTAR.
- * - MANTENER LOGICA DE 1500+ LÍNEAS.
+ * - MANTENER LOGICA DE 1600+ LÍNEAS.
  * ======================================================================================
  */
 
@@ -116,7 +116,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.10.0: Sistema Full Cargado (Rechazo Técnico + Granularidad + Wallet).");
+console.log(" 🚀  FIXGO 5.11.0: Sistema Full Cargado (Finance Core: 24h Release + Tax Splits).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -287,18 +287,54 @@ export async function iniciarPanelAdmin(user) {
     });
 
     // ----------------------------------------------------------------------------------
-    // 1.C. MONITOREO DE FINANZAS REALES (V5.7 - Colección Transacciones)
+    // 1.C. MONITOREO DE FINANZAS REALES (V5.11 - DETALLE FISCAL COMPLETO)
     // ----------------------------------------------------------------------------------
+    // Ahora calculamos FixGo, IVA, ISR y Neto Técnico
     const qFinanzas = query(collection(db, "transacciones"));
     onSnapshot(qFinanzas, (snap) => {
-        let totalComision = 0;
-        snap.forEach(doc => {
-            // Sumamos solo la comisión de FixGo (32%)
-            // Esto es dinero real para la plataforma
-            totalComision += (doc.data().comision_fixgo || 0);
+        let globalFixGo = 0;
+        let globalIVA = 0;
+        let globalISR = 0;
+        let globalTecnico = 0;
+        let totalFlujo = 0;
+
+        snap.forEach(docSnap => {
+            const tx = docSnap.data();
+            // Validamos que existan los campos (para compatibilidad con versiones viejas)
+            const fixgo = tx.comision_fixgo || 0;
+            const iva = tx.retencion_iva || 0;
+            const isr = tx.retencion_isr || 0;
+            const tecnico = tx.pago_tecnico || 0;
+            const total = tx.monto_total || 0;
+
+            globalFixGo += fixgo;
+            globalIVA += iva;
+            globalISR += isr;
+            globalTecnico += tecnico;
+            totalFlujo += total;
         });
+
         if(elementos.countMoney) {
-            elementos.countMoney.innerText = `$${totalComision.toFixed(2)}`;
+            // Muestra solo la comisión FIXGO en grande (Tu ganancia)
+            elementos.countMoney.innerText = `$${globalFixGo.toFixed(2)}`;
+            
+            // INYECTAR DESGLOSE DETALLADO (V5.11)
+            // Buscamos si ya existe el contenedor de desglose, si no lo creamos
+            const cardParent = elementos.countMoney.closest('.uber-card');
+            let desgloseContainer = cardParent.querySelector('.finance-breakdown');
+            
+            if(!desgloseContainer) {
+                desgloseContainer = document.createElement('div');
+                desgloseContainer.className = "finance-breakdown mt-3 pt-3 border-t border-white/10 text-[9px] text-gray-400 space-y-1";
+                cardParent.appendChild(desgloseContainer);
+            }
+
+            desgloseContainer.innerHTML = `
+                <div class="flex justify-between"><span class="text-blue-400">IVA (8%):</span> <span>$${globalIVA.toFixed(2)}</span></div>
+                <div class="flex justify-between"><span class="text-orange-400">ISR (10%):</span> <span>$${globalISR.toFixed(2)}</span></div>
+                <div class="flex justify-between"><span class="text-emerald-400">TECNICOS:</span> <span>$${globalTecnico.toFixed(2)}</span></div>
+                <div class="flex justify-between font-bold mt-1 text-white border-t border-white/5 pt-1"><span>TOTAL FLUJO:</span> <span>$${totalFlujo.toFixed(2)}</span></div>
+            `;
         }
     });
 
@@ -511,22 +547,51 @@ export async function iniciarPanelTecnico(user) {
     });
 
     // ----------------------------------------------------------------------------------
-    // 2.D. WALLET & GANANCIAS (NUEVO BLOQUE V5.7.4)
+    // 2.D. WALLET & GANANCIAS (V5.11 - LOGICA 24 HORAS DE LIBERACIÓN)
     // ----------------------------------------------------------------------------------
-    // Calcula cuánto dinero ha ganado el técnico específico sumando transacciones
     const qWallet = query(collection(db, "transacciones"), where("tecnico_id", "==", user.uid));
+    
     onSnapshot(qWallet, (snap) => {
-        let misGanancias = 0;
+        let saldoDisponible = 0;
+        let saldoRetenido = 0;
+        const ahora = new Date();
+
         snap.forEach(docSnap => {
             const tx = docSnap.data();
-            misGanancias += (tx.pago_tecnico || 0); // Sumamos lo que le corresponde al técnico (68%)
+            const monto = (tx.pago_tecnico || 0);
+            
+            // Verificamos fecha de la transacción
+            // Si tiene fecha, calculamos antiguedad. Si no, asumimos retenido por seguridad.
+            if (tx.fecha && tx.fecha.toDate) {
+                const fechaTx = tx.fecha.toDate();
+                const diffHoras = Math.abs(ahora - fechaTx) / 36e5; // Diferencia en horas
+
+                if (diffHoras >= 24) {
+                    saldoDisponible += monto; // Ya pasaron 24h, es libre
+                } else {
+                    saldoRetenido += monto; // Menos de 24h, retenido
+                }
+            } else {
+                saldoRetenido += monto; // Fallback
+            }
         });
         
-        // Actualizamos la UI si existe el elemento
+        // Actualizamos la UI
         if(elementos.walletLabel) {
-            elementos.walletLabel.innerText = `$${misGanancias.toFixed(2)}`;
+            // Formato: $Disponible (En Proceso: $Retenido)
+            elementos.walletLabel.innerHTML = `
+                $${saldoDisponible.toFixed(2)}
+                <span class="text-[9px] text-gray-400 block font-normal">PROCESANDO: $${saldoRetenido.toFixed(2)}</span>
+            `;
+            
+            // Añadimos indicador de "Candado" si hay saldo retenido
+            if(saldoRetenido > 0) {
+                 elementos.walletLabel.classList.add("animate-pulse"); // Visual cue
+            } else {
+                 elementos.walletLabel.classList.remove("animate-pulse");
+            }
         } else {
-            console.log("💰 Wallet Técnico (Debug):", misGanancias);
+            console.log("💰 Wallet Técnico (Debug): Disp:", saldoDisponible, "Ret:", saldoRetenido);
         }
     });
 
@@ -936,8 +1001,8 @@ export async function iniciarPanelTecnico(user) {
         }, 100); // Pequeño delay para asegurar renderizado
     }
 
-    //  📸  MODAL EVIDENCIA (REAL CON BASE64 Y CÁLCULO FINANCIERO V5.7)
-    // Calcula la comisión del 32% automáticamente al cerrar el servicio
+    //  📸  MODAL EVIDENCIA (REAL CON BASE64 Y CÁLCULO FINANCIERO V5.11)
+    // Calcula la comisión del 32%, IVA 8%, ISR 10% y Neto Técnico
     function mostrarModalEvidencia(id) {
         if(document.getElementById("modalEvidencia")) return;
 
@@ -981,12 +1046,18 @@ export async function iniciarPanelTecnico(user) {
                 const b64_1 = await toBase64(f1);
                 const b64_2 = await toBase64(f2);
                 
-                // CÁLCULO DE COMISIÓN 32% (LOGICA V5.7)
+                // CÁLCULO FINANCIERO AVANZADO (V5.11)
                 const servicioSnap = await getDoc(doc(db, "services", id));
                 const servicioData = servicioSnap.data();
                 const costoTotal = servicioData.costo_final || 0;
-                const comisionPlataforma = costoTotal * 0.32;
-                const gananciaTecnico = costoTotal - comisionPlataforma;
+
+                // Definición de Porcentajes del Total
+                const comisionFixGo = costoTotal * 0.32; // 32%
+                const retencionIVA = costoTotal * 0.08;  // 8%
+                const retencionISR = costoTotal * 0.10;  // 10%
+                
+                // Lo que sobra es para el técnico (Aprox 50%)
+                const pagoNetoTecnico = costoTotal - (comisionFixGo + retencionIVA + retencionISR);
 
                 // 1. Actualizar Servicio con Evidencia y Datos Fiscales Simulados
                 await actualizarEstado(id, "finalizado", {
@@ -1000,19 +1071,21 @@ export async function iniciarPanelTecnico(user) {
                     }
                 });
 
-                // 2. NUEVO: REGISTRAR TRANSACCIÓN FINANCIERA EN COLECCIÓN APARTE
+                // 2. NUEVO: REGISTRAR TRANSACCIÓN CON DESGLOSE COMPLETO
                 await addDoc(collection(db, "transacciones"), {
                     servicio_id: id,
                     tecnico_id: user.uid, 
                     monto_total: costoTotal,
-                    comision_fixgo: comisionPlataforma, // El 32%
-                    pago_tecnico: gananciaTecnico,
+                    comision_fixgo: comisionFixGo, // 32%
+                    retencion_iva: retencionIVA,   // 8%
+                    retencion_isr: retencionISR,   // 10%
+                    pago_tecnico: pagoNetoTecnico, // Restante
                     fecha: serverTimestamp(),
                     tipo: "ingreso_servicio"
                 });
 
                 document.getElementById("modalEvidencia").remove();
-                alert(" ✅  ¡Servicio Cerrado Exitosamente! Comisión registrada.");
+                alert(" ✅  ¡Servicio Cerrado Exitosamente! Comisión y Retenciones aplicadas.");
             } catch (e) {
                 console.error(e);
                 alert("Error subiendo imágenes. Intenta fotos más pequeñas.");
