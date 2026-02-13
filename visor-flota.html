@@ -8,7 +8,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     
     <style>
-        /* ESTILOS GENERALES (Mantenidos íntegros de tu versión) */
+        /* ======================================================
+           ESTILOS GENERALES (BASE UBER-BLACK MANTENIDA)
+           ====================================================== */
         body, html { 
             margin: 0; 
             padding: 0; 
@@ -19,7 +21,7 @@
             background-color: #242f3e; 
         }
         
-        /* EL MAPA */
+        /* EL MAPA - CAPA BASE */
         #map { 
             height: 100vh; 
             width: 100vw; 
@@ -29,7 +31,7 @@
             z-index: 1;
         }
 
-        /* PANEL FLOTANTE LATERAL (RADAR) */
+        /* PANEL FLOTANTE LATERAL (CENTRO DE CONTROL) */
         #panel-flotante {
             position: absolute;
             top: 20px;
@@ -43,13 +45,13 @@
             max-height: 85vh;
             overflow-y: auto;
             backdrop-filter: blur(5px);
-            display: none; /* Se oculta hasta que inicies sesión */
+            display: none; /* Controlado por Auth */
         }
 
         h2 { margin: 0 0 5px 0; color: #111; font-size: 20px; font-weight: 800; }
         .stat { font-size: 13px; color: #666; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
         
-        /* LISTA TÉCNICOS */
+        /* LISTA TÉCNICOS EN VIVO */
         .tech-item {
             display: flex; align-items: center; padding: 12px;
             background: #fff; border: 1px solid #eee; border-radius: 8px;
@@ -65,9 +67,8 @@
         .online { background: #10b981; box-shadow: 0 0 8px #10b981; }
 
         .tech-info strong { display: block; font-size: 15px; color: #333; }
-        .tech-info span { font-size: 12px; color: #888; }
+        .tech-info span { font-size: 11px; color: #888; }
         
-        /* Badge para el tipo de vehículo */
         .badge-vehiculo {
             font-size: 9px;
             text-transform: uppercase;
@@ -77,6 +78,7 @@
             border-radius: 4px;
             margin-top: 3px;
             display: inline-block;
+            font-weight: 800;
         }
 
         .btn-refresh {
@@ -84,49 +86,50 @@
             padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; margin-top: 15px;
         }
 
-        /* === PANTALLA DE LOGIN FLOTANTE === */
+        /* LOGIN OVERLAY SECURITY */
         #login-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85);
+            background: rgba(0,0,0,0.9);
             z-index: 9999;
             display: flex;
             justify-content: center;
             align-items: center;
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(10px);
         }
         
         .login-box {
             background: white;
             padding: 40px;
-            border-radius: 16px;
+            border-radius: 20px;
             width: 100%;
-            max-width: 350px;
+            max-width: 380px;
             text-align: center;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
         }
         
-        .login-box h3 { margin-top: 0; color: #111; font-size: 24px; }
-        .login-box p { color: #666; font-size: 14px; margin-bottom: 20px; }
+        .login-box h3 { margin-top: 0; color: #111; font-size: 26px; font-weight: 800; }
+        .login-box p { color: #555; font-size: 14px; margin-bottom: 25px; line-height: 1.5; }
         
-        .input-group { margin-bottom: 15px; text-align: left; }
-        .input-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #444; }
+        .input-group { margin-bottom: 18px; text-align: left; }
+        .input-group label { display: block; font-size: 11px; font-weight: 900; margin-bottom: 6px; color: #222; text-transform: uppercase; }
         .input-group input {
-            width: 100%; padding: 12px;
-            border: 1px solid #ddd; border-radius: 8px;
-            font-size: 16px; box-sizing: border-box;
+            width: 100%; padding: 14px;
+            border: 2px solid #eee; border-radius: 12px;
+            font-size: 16px; box-sizing: border-box; transition: border 0.3s;
         }
+        .input-group input:focus { border-color: #6366f1; outline: none; }
         
         .btn-login {
-            width: 100%; padding: 14px;
-            background: #10b981; color: white;
-            border: none; border-radius: 8px;
+            width: 100%; padding: 16px;
+            background: #111; color: white;
+            border: none; border-radius: 12px;
             font-size: 16px; font-weight: bold;
-            cursor: pointer; transition: background 0.3s;
+            cursor: pointer; transition: transform 0.2s;
         }
-        .btn-login:hover { background: #059669; }
+        .btn-login:active { transform: scale(0.98); }
         
-        #error-msg { color: red; font-size: 13px; margin-top: 10px; display: none; }
+        #error-msg { color: #ef4444; font-size: 13px; margin-top: 15px; font-weight: 600; display: none; }
 
     </style>
 </head>
@@ -134,30 +137,31 @@
 
     <div id="login-overlay">
         <div class="login-box">
-            <h3>🔒 Acceso Restringido</h3>
-            <p>Ingresa tus credenciales de Administrador para desbloquear el Mapa Satelital.</p>
+            <h3>FIXGO<span style="color:#6366f1">.</span> COMMAND</h3>
+            <p>Monitoreo táctico de unidades en tiempo real. Ingresa credenciales de administrador.</p>
             <div class="input-group">
-                <label>Correo Electrónico</label>
+                <label>Administrador</label>
                 <input type="email" id="email" placeholder="admin@fixgo.com">
             </div>
             <div class="input-group">
-                <label>Contraseña</label>
+                <label>Código de Acceso</label>
                 <input type="password" id="password" placeholder="••••••••">
             </div>
-            <button class="btn-login" id="btnAcceder">DESBLOQUEAR MAPA</button>
-            <div id="error-msg">Credenciales incorrectas</div>
+            <button class="btn-login" id="btnAcceder">DESBLOQUEAR RADAR</button>
+            <div id="error-msg">Acceso denegado. Revisa tus datos.</div>
         </div>
     </div>
 
     <div id="panel-flotante">
-        <h2>📡 Radar FixGo</h2>
-        <div class="stat">Monitoreo Satelital (V5.15 Live)</div>
+        <h2>📡 Radar de Unidades</h2>
+        <div class="stat">Sincronizando con Satélites GPS...</div>
         <div id="lista-tecnicos">
-            <div style="text-align:center; padding: 30px; color:#999;">
-                <p>Conectando satélites...</p>
+            <div style="text-align:center; padding: 40px; color:#bbb;">
+                <i class="fas fa-satellite-dish fa-spin" style="font-size: 24px; margin-bottom: 10px;"></i>
+                <p>Escaneando red...</p>
             </div>
         </div>
-        <button class="btn-refresh" onclick="centrarMapa()">🔄 Recentrar Mapa</button>
+        <button class="btn-refresh" onclick="centrarMapa()">🎯 Recentrar Operaciones</button>
     </div>
 
     <div id="map"></div>
@@ -167,7 +171,7 @@
         import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-        // CONFIGURACIÓN FIREBASE (Mantenida)
+        // CONFIGURACIÓN FIREBASE FIXGO
         const firebaseConfig = {
             apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0", 
             authDomain: "fixgo-44e4d.firebaseapp.com",
@@ -181,11 +185,11 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // VARIABLES GLOBALES
+        // GLOBALES DE OPERACIÓN
         let map;
         let markers = {};
 
-        // === DICCIONARIO DE ICONOS (TELEMETRÍA) ===
+        // === DICCIONARIO DE ICONOS (TELEMETRÍA AVANZADA) ===
         const SVGS = {
             moto: "M20,16.5A2.5,2.5 0 0,1 17.5,19A2.5,2.5 0 0,1 15,16.5A2.5,2.5 0 0,1 17.5,14A2.5,2.5 0 0,1 20,16.5M5,16.5A2.5,2.5 0 0,1 2.5,19A2.5,2.5 0 0,1 0,16.5A2.5,2.5 0 0,1 2.5,14A2.5,2.5 0 0,1 5,16.5M20.3,12L19,8H15V6H13V8H9V10H11V12H9V14H15V12H20.3Z",
             auto: "M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z",
@@ -194,116 +198,101 @@
 
         const overlay = document.getElementById('login-overlay');
         const panel = document.getElementById('panel-flotante');
-        const btnLogin = document.getElementById('btnAcceder');
+        const btnAcceder = document.getElementById('btnAcceder');
         const errorMsg = document.getElementById('error-msg');
 
-        // Escuchar cambios de sesión
+        // GESTIÓN DE SESIÓN
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                console.log("✅ Acceso Autorizado:", user.email);
-                overlay.style.display = 'none'; 
-                panel.style.display = 'block'; 
+                overlay.style.display = 'none';
+                panel.style.display = 'block';
                 if (!window.google) cargarScriptMaps();
                 else escucharFlota();
             } else {
-                console.warn("🔒 Bloqueado. Esperando credenciales...");
-                overlay.style.display = 'flex'; 
-                panel.style.display = 'none'; 
+                overlay.style.display = 'flex';
+                panel.style.display = 'none';
             }
         });
 
-        // Evento del botón de Login
-        btnLogin.addEventListener('click', async () => {
+        btnAcceder.addEventListener('click', async () => {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            if (!email || !password) {
-                alert("Por favor ingresa correo y contraseña");
-                return;
-            }
-            btnLogin.innerText = "VERIFICANDO...";
-            btnLogin.disabled = true;
+            btnAcceder.innerText = "ACCEDIENDO...";
+            btnAcceder.disabled = true;
             try {
                 await signInWithEmailAndPassword(auth, email, password);
             } catch (error) {
-                console.error("Error Login:", error);
                 errorMsg.style.display = 'block';
-                errorMsg.innerText = "Error: " + error.message;
-                btnLogin.innerText = "DESBLOQUEAR MAPA";
-                btnLogin.disabled = false;
+                btnAcceder.innerText = "DESBLOQUEAR RADAR";
+                btnAcceder.disabled = false;
             }
         });
 
-        // === 2. INICIALIZADOR DEL MAPA ===
+        // INICIALIZACIÓN DE MAPA (ESTILO NOCTURNO)
         window.initMap = function() {
-            console.log("🗺️ Google Maps Listo. Renderizando...");
             const cancun = { lat: 21.1619, lng: -86.8515 };
             map = new google.maps.Map(document.getElementById("map"), {
                 center: cancun,
                 zoom: 13,
                 disableDefaultUI: false,
-                backgroundColor: "#242f3e",
                 styles: [
                     { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
                     { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-                    { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
                     { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
-                    { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
                     { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] }
                 ]
             });
             escucharFlota();
         };
 
-        // === 3. CARGA DE GOOGLE MAPS ===
         function cargarScriptMaps() {
             if (document.querySelector('script[src*="maps.googleapis.com"]')) return;
             const script = document.createElement('script');
             script.src = "https://maps.googleapis.com/maps/api/js?key=AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k&callback=initMap";
-            script.async = true;
-            script.defer = true;
+            script.async = true; script.defer = true;
             document.head.appendChild(script);
         }
 
-        // === 4. LÓGICA DE RASTREO (INTEGRACIÓN MOTO/AUTO) ===
+        // === ESCUCHA ACTIVA DE FIRESTORE (MODO DIOS) ===
         function escucharFlota() {
             const listaDiv = document.getElementById("lista-tecnicos");
-            console.log("📡 Radar activo...");
-
             const q = query(collection(db, "users"), where("rol", "==", "tecnico"));
 
             onSnapshot(q, (snapshot) => {
                 listaDiv.innerHTML = "";
-                if (snapshot.empty) {
-                    listaDiv.innerHTML = "<div style='padding:20px; text-align:center'>No hay técnicos activos.</div>";
-                    return;
-                }
-
                 let conteo = 0;
                 snapshot.forEach((doc) => {
                     const data = doc.data();
-                    const uid = doc.id;
                     if (data.location && data.location.lat) {
-                        actualizarMarcador(uid, data);
-                        agregarItemLista(uid, data);
+                        actualizarMarcador(doc.id, data);
+                        agregarItemLista(doc.id, data);
                         conteo++;
                     }
                 });
-                document.querySelector(".stat").innerText = `Monitoreando: ${conteo} Unidades`;
+                document.querySelector(".stat").innerText = `Operando: ${conteo} Unidades FixGo`;
             });
         }
 
+        // === ACTUALIZACIÓN DE MARCADORES CON MODELO, AÑO Y COLOR ===
         function actualizarMarcador(id, data) {
             const pos = { lat: data.location.lat, lng: data.location.lng };
             const nombre = data.nombre || "Técnico";
             
-            // --- LÓGICA DE VEHÍCULO V5.15 ---
+            // Extracción de metadatos de vehículo
             const vehiculo = data.tipoVehiculo || "auto"; 
+            const modelo = data.modeloVehiculo || "No especificado";
+            const anio = data.anioVehiculo || "N/A";
+            const colorVehiculo = data.colorVehiculo || "N/A";
+            
+            // Telemetría de movimiento
             const rumbo = (data.telemetria && data.telemetria.rumbo) || 0;
-            const color = vehiculo === 'moto' ? "#10b981" : (vehiculo === 'camioneta' ? "#f59e0b" : "#6366f1");
+            const velocidad = data.telemetria ? (data.telemetria.velocidad * 3.6).toFixed(1) : 0; // Convertimos a km/h
+
+            // Colores por tipo para visibilidad rápida
+            const colorIcono = vehiculo === 'moto' ? "#10b981" : (vehiculo === 'camioneta' ? "#f59e0b" : "#6366f1");
 
             if (markers[id]) {
                 markers[id].setPosition(pos);
-                // Actualizar rotación dinámicamente
                 const icon = markers[id].getIcon();
                 icon.rotation = rumbo;
                 markers[id].setIcon(icon);
@@ -315,7 +304,7 @@
                     icon: {
                         path: SVGS[vehiculo] || SVGS.auto,
                         scale: 1.5,
-                        fillColor: color,
+                        fillColor: colorIcono,
                         fillOpacity: 1,
                         anchor: new google.maps.Point(12, 12),
                         strokeWeight: 2,
@@ -324,15 +313,32 @@
                     }
                 });
                 
-                const info = new google.maps.InfoWindow({ content: `<div style='color:black'><b>${nombre}</b><br><small>Vehículo: ${vehiculo}</small></div>` });
+                // --- INFOWINDOW PERSONALIZADO (VERIFICACIÓN DE DETALLES) ---
+                const info = new google.maps.InfoWindow({ 
+                    content: `
+                        <div style='color:#111; font-family: sans-serif; padding: 10px; min-width: 180px;'>
+                            <b style='font-size: 15px; border-bottom: 2px solid ${colorIcono}; display: block; padding-bottom: 5px;'>${nombre.toUpperCase()}</b>
+                            <div style='margin-top: 10px; font-size: 12px; line-height: 1.6;'>
+                                🛵 <b>Tipo:</b> ${vehiculo.toUpperCase()}<br>
+                                🏎️ <b>Modelo:</b> ${modelo}<br>
+                                🎨 <b>Color:</b> ${colorVehiculo}<br>
+                                📅 <b>Año:</b> ${anio}<br>
+                                <hr style='border: 0; border-top: 1px solid #eee; margin: 8px 0;'>
+                                ⚡ <b>Velocidad:</b> ${velocidad} km/h
+                            </div>
+                        </div>` 
+                });
+
                 marker.addListener("click", () => info.open(map, marker));
                 markers[id] = marker;
             }
         }
 
+        // LISTADO LATERAL
         function agregarItemLista(id, data) {
             const nombre = data.nombre || "Técnico";
             const vehiculo = data.tipoVehiculo || "auto";
+            const modelo = data.modeloVehiculo || "";
             const listaDiv = document.getElementById("lista-tecnicos");
             
             const html = `
@@ -340,6 +346,7 @@
                     <div class="status-dot online"></div>
                     <div class="tech-info">
                         <strong>${nombre}</strong>
+                        <span>${modelo}</span><br>
                         <span class="badge-vehiculo">${vehiculo}</span>
                     </div>
                 </div>
@@ -347,11 +354,11 @@
             listaDiv.innerHTML += html;
         }
 
-        // GLOBALES
+        // FUNCIONES GLOBALES DE NAVEGACIÓN
         window.hacerZoom = (id) => {
             if (markers[id]) {
                 map.panTo(markers[id].getPosition());
-                map.setZoom(17);
+                map.setZoom(18);
                 markers[id].setAnimation(google.maps.Animation.BOUNCE);
                 setTimeout(() => markers[id].setAnimation(null), 2000);
             }
