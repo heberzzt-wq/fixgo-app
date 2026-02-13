@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.11.0 (FINANCE LOGIC - 24H RELEASE & TAX SPLIT)
+ * Versión: 5.11.0 (FINANCE LOGIC + ACCORDION UI CLIENT)
  * Base: V5.10.0
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
@@ -11,7 +11,7 @@
  * Este archivo gestiona la lógica de negocio central de los 3 paneles (Admin, Técnico, Cliente).
  * Controla:
  * 1. Flujos de estado (Pendiente -> Asignado -> En Camino -> En Sitio -> Cotizando -> Trabajando -> Finalizado).
- * 2. Sistema de Verticales (ROAD, FIX, MAINT, TECH) con activación granular desde Firebase.
+ * 2. Sistema de Verticales (ROAD, FIX, MAINT, TECH) con activación granular y UI Acordeón.
  * 3. Gestión Financiera AVANZADA (Desglose Fiscal: FixGo 32%, IVA 8%, ISR 10%).
  * 4. Wallet Inteligente (Liberación de fondos 24 horas).
  * 5. Evidencia y Seguridad (Bloqueo de garantías, fotos antes/después, coordenadas GPS).
@@ -513,7 +513,7 @@ export async function iniciarPanelTecnico(user) {
             elementos.radarSection?.classList.remove("opacity-50", "grayscale");
         } else {
             // APAGADO: Detiene GPS y Oculta Bolsa
-            detenerTracking();
+            detieneTracking();
             elementos.seccionBolsa?.classList.add("hidden");
 
             if(elementos.statusLabel) {
@@ -1083,7 +1083,7 @@ export async function iniciarPanelTecnico(user) {
 }
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL)
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.11.0 (ACCORDION UI & REALTIME)
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
     console.log(" 📱  Iniciando Panel de Cliente...");
@@ -1092,114 +1092,64 @@ export async function iniciarPanelCliente(user) {
         form: document.getElementById("nuevaSolicitudForm"),
         lista: document.getElementById("solicitudesCliente"),
         inputCat: document.getElementById("categoriaSeleccionada"),
-        labelServicio: document.getElementById("btnLabel"),
-        // El grid se llenará dinámicamente con las nuevas Verticales
+        labelServicio: document.getElementById("btnLabel")
     };
 
     // ----------------------------------------------------------------------------------
-    // 3.1 CARGA DINÁMICA DE VERTICALES (CONECTADA A FIRESTORE - V5.9 REALTIME)
+    // 3.1 CARGA DINÁMICA DE VERTICALES EN ACORDEÓN (CONECTADA A FIRESTORE - V5.9 REALTIME)
     // ----------------------------------------------------------------------------------
-    async function cargarServiciosCliente(contenedorID) {
-        const container = document.getElementById(contenedorID);
-        if(!container) {
-            console.error(`ERROR CRÍTICO: No se encontró el contenedor #${contenedorID} para las verticales.`);
-            return;
-        }
+    async function cargarServiciosCliente() {
+        console.log("Cargando servicios en contenedores dinámicos...");
 
-        console.log("Cargando servicios en container:", contenedorID);
-
-        // ESCUCHA EN TIEMPO REAL (V5.9)
-        // Ya no usamos una lista estática, escuchamos el documento de configuración 'catalogo_global'
+        // ESCUCHA EN TIEMPO REAL
         onSnapshot(doc(db, "configuracion", "catalogo_global"), (docSnap) => {
             const dbConfig = docSnap.exists() ? docSnap.data() : {};
             
-            // DEFINICIÓN MAESTRA DE VERTICALES Y SERVICIOS (LÓGICA BLINDADA)
+            // DEFINICIÓN MAESTRA (Alineada con los IDs de cliente.html)
             const DEFINICION_VERTICALES = {
-                road: {
-                    titulo: "FIXGO ROAD (Vial)",
-                    icono: "fa-car-crash",
-                    color: "yellow", // Clases de Tailwind: text-yellow-500, bg-yellow-500/20
-                    modo: "EMERGENCIA (Prioridad Alta)",
-                    servicios: [
-                        { id: "road_llanta", label: "Llantera Móvil" },
-                        { id: "road_cerrajero", label: "Cerrajería 24/7" },
-                        { id: "road_grua", label: "Grúas" },
-                        { id: "road_mecanico", label: "Mecánico Gral." },
-                        { id: "road_corriente", label: "Paso Corriente" }
-                    ]
-                },
-                fix: {
-                    titulo: "FIXGO FIX (Hogar)",
-                    icono: "fa-tools",
-                    color: "blue", // text-blue-500
-                    modo: "ON-DEMAND (Cercanía)",
-                    servicios: [
-                        { id: "fix_electricidad", label: "Electricidad" },
-                        { id: "fix_plomeria", label: "Plomería" },
-                        { id: "fix_ac", label: "Aires Acond. (A/C)" },
-                        { id: "fix_jardin", label: "Jardinería" },
-                        { id: "fix_pintura", label: "Pintura" },
-                        { id: "fix_alberca", label: "Albercas" },
-                        { id: "fix_fumigacion", label: "Fumigación" }
-                    ]
-                },
-                maint: {
-                    titulo: "FIXGO MAINT (B2B)",
-                    icono: "fa-building",
-                    color: "orange",
-                    modo: "CONTRATO (Mantenimiento)",
-                    servicios: [
-                        { id: "maint_general", label: "Mantenimiento Gral." }
-                    ]
-                },
-                tech: {
-                    titulo: "FIXGO TECH (Sistemas)",
-                    icono: "fa-wifi",
-                    color: "purple",
-                    modo: "ESPECIALIDAD (Certificado)",
-                    servicios: [
-                        { id: "tech_cctv", label: "CCTV" },
-                        { id: "tech_alarma", label: "Sistemas Alarma" },
-                        { id: "tech_acceso", label: "Control Accesos" },
-                        { id: "tech_elevador", label: "Elevadores" },
-                        { id: "tech_planta", label: "Plantas Eléc." },
-                        { id: "tech_solar", label: "Paneles Solares" }
-                    ]
-                }
+                road: [
+                    { id: "road_llanta", label: "Llantera Móvil" },
+                    { id: "road_cerrajero", label: "Cerrajería 24/7" },
+                    { id: "road_grua", label: "Grúas" },
+                    { id: "road_mecanico", label: "Mecánico Gral." },
+                    { id: "road_corriente", label: "Paso Corriente" }
+                ],
+                fix: [
+                    { id: "fix_electricidad", label: "Electricidad" },
+                    { id: "fix_plomeria", label: "Plomería" },
+                    { id: "fix_ac", label: "Aires Acond. (A/C)" },
+                    { id: "fix_jardin", label: "Jardinería" },
+                    { id: "fix_pintura", label: "Pintura" },
+                    { id: "fix_alberca", label: "Albercas" },
+                    { id: "fix_fumigacion", label: "Fumigación" }
+                ],
+                maint: [
+                    { id: "maint_general", label: "Mantenimiento Gral." }
+                ],
+                tech: [
+                    { id: "tech_cctv", label: "CCTV" },
+                    { id: "tech_alarma", label: "Sistemas Alarma" },
+                    { id: "tech_acceso", label: "Control Accesos" },
+                    { id: "tech_elevador", label: "Elevadores" },
+                    { id: "tech_planta", label: "Plantas Eléc." },
+                    { id: "tech_solar", label: "Paneles Solares" }
+                ]
             };
 
-            let htmlFinal = "";
+            // Inyectamos los sub-servicios en cada tarjeta maestra expansible
+            Object.keys(DEFINICION_VERTICALES).forEach(verticalKey => {
+                const container = document.getElementById(`contenido-${verticalKey}`);
+                if (!container) return; // Si no existe en el HTML, lo salta seguro
 
-            Object.keys(DEFINICION_VERTICALES).forEach(key => {
-                const vertical = DEFINICION_VERTICALES[key];
-                
-                // Header de la Vertical
-                htmlFinal += `
-                <div class="mb-6 animate-fade-in">
-                    <div class="flex items-center gap-2 mb-3 border-b border-zinc-800 pb-2">
-                        <div class="bg-${vertical.color}-500/20 p-2 rounded-lg text-${vertical.color}-500">
-                            <i class="fas ${vertical.icono}"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-white font-black text-sm uppercase">${vertical.titulo}</h3>
-                            <p class="text-[9px] text-gray-500 tracking-wider">${vertical.modo}</p>
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-2 gap-3">
-                `;
-
-                // Grid de Servicios dentro de la Vertical
-                vertical.servicios.forEach(srv => {
-                    // AQUÍ ESTÁ LA MAGIA DE V5.9:
-                    // Verificamos si el servicio está activo en la BD. Si no existe, es false.
+                let htmlContent = "";
+                DEFINICION_VERTICALES[verticalKey].forEach(srv => {
                     const isActive = dbConfig[srv.id] === true;
                     
                     const opacity = isActive ? "opacity-100 hover:scale-105 active:scale-95 cursor-pointer" : "opacity-40 grayscale cursor-not-allowed";
                     const border = isActive ? "border-zinc-700 hover:border-emerald-500" : "border-zinc-800 border-dashed";
                     const clickAction = isActive ? `onclick="window.seleccionarServicio('${srv.id}', '${srv.label}')"` : "";
                     
-                    htmlFinal += `
+                    htmlContent += `
                     <div class="bg-zinc-900 border ${border} p-3 rounded-xl flex flex-col items-center text-center transition-all duration-200 service-card-btn ${opacity}" ${clickAction} id="card_${srv.id}">
                         <div class="mb-2">
                             ${isActive ? '<div class="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_5px_#10b981]"></div>' : '<i class="fas fa-lock text-gray-600 text-xs"></i>'}
@@ -1209,18 +1159,12 @@ export async function iniciarPanelCliente(user) {
                     </div>
                     `;
                 });
-
-                htmlFinal += `
-                    </div>
-                </div>
-                `;
+                container.innerHTML = htmlContent;
             });
 
-            container.innerHTML = htmlFinal;
-
-            // Función Global para la selección (vinculada al window para acceso desde HTML string)
+            // Función Global para la selección de servicio
             window.seleccionarServicio = (id, label) => {
-                // Reset visual de todas las cards
+                // Reset visual
                 document.querySelectorAll('.service-card-btn').forEach(btn => {
                     btn.classList.remove('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
                     btn.classList.add('bg-zinc-900', 'border-zinc-700');
@@ -1233,24 +1177,28 @@ export async function iniciarPanelCliente(user) {
                     activeCard.classList.add('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
                 }
 
-                // Llenar inputs ocultos y mostrar en UI
-                if(el.inputCat) el.inputCat.value = id; // Guardamos ID específico (ej: road_llanta)
-                if(el.labelServicio) el.labelServicio.innerText = label.toUpperCase(); // UI Feedback
+                if(el.inputCat) el.inputCat.value = id;
+                if(el.labelServicio) el.labelServicio.innerText = label.toUpperCase();
 
-                // Scroll suave hacia el formulario para mejor UX
+                // Mostrar el formulario (estaba oculto en el HTML base)
+                const formContainer = document.getElementById("solicitudContainer");
+                if(formContainer) formContainer.classList.remove("hidden");
+
                 el.form?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             };
         });
     }
 
-    // Iniciar carga con la nueva lógica V5.9 (Realtime)
-    cargarServiciosCliente('gridServicios');
+    // Iniciar carga
+    cargarServiciosCliente();
 
-    // Envío de Solicitud con GPS Oculto (V5.8 Logic)
+    // ----------------------------------------------------------------------------------
+    // 3.2 ENVÍO DE SOLICITUD (CON GPS OCULTO V5.8)
+    // ----------------------------------------------------------------------------------
     if (el.form) {
         el.form.addEventListener("submit", async (e) => {
             e.preventDefault();
-            const cat = el.inputCat.value; // Ahora trae el ID específico (ej: fix_plomeria)
+            const cat = el.inputCat.value; 
             const dir = el.form.querySelector('[name="direccion"]').value;
             const desc = el.form.querySelector('[name="descripcion"]').value;
             
@@ -1261,31 +1209,26 @@ export async function iniciarPanelCliente(user) {
             btn.disabled = true;
             btn.innerText = "OBTENIENDO UBICACIÓN...";
             
-            //  🔥  NUEVO: INTENTO DE OBTENER GPS EXACTO DEL CLIENTE
+            // INTENTO DE OBTENER GPS EXACTO DEL CLIENTE
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     async (pos) => {
-                        // Éxito GPS
                         await enviarSolicitudFinal(cat, dir, desc, {
                             lat: pos.coords.latitude,
                             lng: pos.coords.longitude
                         });
                     },
                     async (err) => {
-                        // Fallo GPS (Permiso denegado), enviamos sin coords
                         console.warn("GPS Cliente no disponible:", err);
                         await enviarSolicitudFinal(cat, dir, desc, null);
                     },
                     { timeout: 5000, enableHighAccuracy: true }
                 );
             } else {
-                // Navegador viejo
                 await enviarSolicitudFinal(cat, dir, desc, null);
             }
             
             async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords) {
-                // Parseamos la categoría para separar Vertical del Servicio
-                // Ej: "road_llanta" -> Vertical: ROAD, Tipo: LLANTA
                 const partes = categoriaFull.split('_');
                 const vertical = partes[0].toUpperCase(); 
                 const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
@@ -1296,20 +1239,24 @@ export async function iniciarPanelCliente(user) {
                             cliente_id: user.uid,
                             cliente_nombre: user.nombre || "Cliente",
                             cliente_telefono: user.telefono || "",
-                            categoria: vertical, // Guardamos la vertical principal para filtrado técnico
-                            sub_servicio: servicio, // Guardamos el detalle específico
-                            categoria_id: categoriaFull, // ID completo para referencias
+                            categoria: vertical,
+                            sub_servicio: servicio,
+                            categoria_id: categoriaFull,
                             direccion: direccion,
                             descripcion: descripcion,
                             estado: "pendiente",
                             created_at: serverTimestamp(),
                             retencion_inicial: 550,
                             costo_final: 0,
-                            coords: coords // Guardamos las coordenadas para el Waze del técnico
+                            coords: coords 
                         });
                         alert(" ✅  ¡ Solicitud Enviada! Buscando técnico cercano...");
                         el.form.reset();
-                        // Reset visual
+                        
+                        // Ocultar formulario de nuevo
+                        const formContainer = document.getElementById("solicitudContainer");
+                        if(formContainer) formContainer.classList.add("hidden");
+
                         if(el.labelServicio) el.labelServicio.innerText = "SERVICIO";
                         document.querySelectorAll('.service-card-btn').forEach(btn => {
                             btn.classList.remove('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
@@ -1326,28 +1273,35 @@ export async function iniciarPanelCliente(user) {
         });
     }
 
-    // Monitor de Servicios en Tiempo Real
+    // ----------------------------------------------------------------------------------
+    // 3.3 MONITOR DE HISTORIAL (TARJETAS EXPANSIBLES)
+    // ----------------------------------------------------------------------------------
     onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc")), (snap) => {
         if(!el.lista) return;
         el.lista.innerHTML = "";
         
-        //  🔔  SONIDO: Si hay cambios en mi servicio (ej: técnico llega)
         if(snap.docChanges().some(change => change.type === 'modified')) {
             console.log(" 🔔  Actualización de servicio: SONANDO ALERTA");
             sonarAlerta();
         }
         
+        if(snap.empty) {
+            el.lista.innerHTML = `
+            <div class="text-center py-8">
+                <i class="fas fa-history text-gray-700 text-3xl mb-2"></i>
+                <p class="text-gray-600 text-sm">Tus servicios aparecerán aquí.</p>
+            </div>`;
+            return;
+        }
+
         snap.forEach(docSnap => {
             const s = docSnap.data();
             const id = docSnap.id;
-            const card = document.createElement("div");
-            card.className = "bg-zinc-900 border border-white/10 p-4 rounded-xl mb-3";
-            let contenido = `<span class="text-xs font-bold text-yellow-500 animate-pulse"> 🔎  BUSCANDO TÉCNICO...</span>`;
-            if (s.estado !== "pendiente") contenido = `<span class="text-xs font-bold text-blue-400">${s.estado.toUpperCase().replace('_', ' ')}</span>`;
             
-            // LÓGICA DE INTERACCIÓN CLIENTE (V5.7: TABLA ALAMO)
+            // --- GENERACIÓN DEL CONTENIDO INTERNO ---
+            let contenido = `<div class="p-4 bg-yellow-900/10 rounded-xl border border-yellow-500/30 mb-2"><span class="text-xs font-bold text-yellow-500 animate-pulse"> 🔎  BUSCANDO TÉCNICO...</span></div>`;
+            
             if (s.estado === "cotizando") {
-                // AQUÍ RENDERIZAMOS LA TABLA EXCEL SI EXISTEN DETALLES
                 let htmlTabla = "";
                 if (s.detalles_cotizacion && s.detalles_cotizacion.length > 0) {
                     const filas = s.detalles_cotizacion.map(item => `
@@ -1381,7 +1335,6 @@ export async function iniciarPanelCliente(user) {
                         </div>
                     `;
                 } else {
-                    // Fallback para cotización simple antigua
                     htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${s.costo_final}</p><p class="text-gray-400 text-xs italic">"${s.diagnostico}"</p>`;
                 }
 
@@ -1391,14 +1344,11 @@ export async function iniciarPanelCliente(user) {
                         <p class="text-yellow-500 text-xs font-bold uppercase">PRESUPUESTO GENERADO</p>
                         <span class="bg-yellow-500/20 text-yellow-500 text-[9px] px-2 py-1 rounded">FOLIO: ${id.substring(0,6).toUpperCase()}</span>
                     </div>
-                    
                     ${htmlTabla}
-                    
                     <div class="mt-2 p-2 bg-black/50 rounded border border-white/5">
                         <p class="legal-note" style="font-size: 8px; color: #666;">* SI HUBIERA CANCELACION TOTAL O PARCIAL... PENALIZACION DEL 20%.</p>
                         <p class="legal-note" style="font-size: 8px; color: #666;">* GARANTIA POR ESCRITO MINIMO DE 6 MESES.</p>
                     </div>
-
                     <div class="flex gap-2 mt-4">
                         <button onclick="window.responderCotizacion('${id}', false)" class="flex-1 bg-red-900/50 hover:bg-red-900 text-red-200 text-xs py-3 rounded-lg font-bold transition-colors">
                             RECHAZAR
@@ -1410,15 +1360,12 @@ export async function iniciarPanelCliente(user) {
                 </div>
                 `;
             } else if (s.estado === "finalizado") {
-                // REPORTE CON FOTOS Y BOTÓN PDF (V5.7.4 FETCH ON DEMAND)
-                // Ya no pasamos el objeto entero, solo el ID
                 contenido = `
                 <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-xl mt-2">
                     <div class="flex justify-between items-center mb-3">
                         <span class="text-emerald-500 font-black text-xs uppercase tracking-widest">TICKET FINAL</span>
                         <span class="bg-emerald-500 text-black text-[9px] font-bold px-2 py-0.5 rounded">PAGADO</span>
                     </div>
-
                     <div class="space-y-2 mb-4">
                         <div class="flex justify-between text-lg text-white font-black">
                             <span>TOTAL:</span>
@@ -1430,33 +1377,69 @@ export async function iniciarPanelCliente(user) {
                         ${s.evidencia?.antes ? `<div class="relative w-1/2 h-20"><img src="${s.evidencia.antes}" class="w-full h-full object-cover rounded-lg border border-zinc-700"><span class="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] px-1 rounded">ANTES</span></div>` : ''}
                         ${s.evidencia?.despues ? `<div class="relative w-1/2 h-20"><img src="${s.evidencia.despues}" class="w-full h-full object-cover rounded-lg border border-zinc-700"><span class="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] px-1 rounded">DESPUÉS</span></div>` : ''}
                     </div>
-
                     <button onclick="window.generarPDF('${id}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2">
                         <i class="fas fa-file-download text-red-500"></i> DESCARGAR REPORTE FISCAL
                     </button>
                 </div>
                 `;
             }
+
+            // Lógica de Indicadores Visuales para el Acordeón
+            let headerStatus = `<span class="text-[10px] font-bold text-yellow-500 animate-pulse">BUSCANDO...</span>`;
+            let dotColor = "bg-yellow-500";
+            if (s.estado !== "pendiente") {
+                headerStatus = `<span class="text-[10px] font-bold text-blue-400 uppercase">${s.estado.replace('_', ' ')}</span>`;
+                dotColor = "bg-blue-500";
+                if(s.estado === "finalizado") { headerStatus = `<span class="text-[10px] font-bold text-emerald-500">FINALIZADO</span>`; dotColor = "bg-emerald-500"; }
+                if(s.estado === "cancelado") { headerStatus = `<span class="text-[10px] font-bold text-red-500">CANCELADO</span>`; dotColor = "bg-red-500"; }
+            }
+
+            let fechaFormat = "";
+            if(s.created_at) {
+                const dateObj = new Date(s.created_at.seconds * 1000);
+                fechaFormat = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            }
+
+            // --- MAQUETADO DE LA TARJETA EXPANSIBLE DEL HISTORIAL ---
+            const card = document.createElement("div");
+            card.className = "uber-card rounded-2xl overflow-hidden shadow-lg mb-3";
+
             card.innerHTML = `
-            <div class="flex justify-between items-center mb-1">
-                <span class="font-black text-white uppercase tracking-tight">${s.categoria} ${s.sub_servicio ? '- ' + s.sub_servicio : ''}</span>
-                <span class="text-[10px] text-gray-500">${new Date(s.created_at?.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+            <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="toggleAccordion('hist-${id}', 'icon-${id}')">
+                <div class="flex items-center gap-4">
+                    <div class="w-3 h-3 ${dotColor} rounded-full shadow-[0_0_8px_currentColor]"></div>
+                    <div>
+                        <h4 class="font-black text-white text-sm uppercase tracking-tight">${s.categoria} <span class="text-gray-500 font-normal ml-1">| ${s.sub_servicio || ''}</span></h4>
+                        <div class="flex items-center gap-2 mt-1">
+                            ${headerStatus}
+                            <span class="text-[9px] text-gray-500">• ${fechaFormat}</span>
+                        </div>
+                    </div>
+                </div>
+                <i id="icon-${id}" class="fas fa-chevron-down text-gray-400 chevron-icon"></i>
             </div>
-            <p class="text-xs text-gray-400 truncate mb-2"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${s.direccion}</p>
 
-            <div class="mt-2">${contenido}</div>
+            <div id="hist-${id}" class="expandable-content bg-zinc-900/40">
+                <div class="p-4 border-t border-zinc-800/50">
+                    <p class="text-xs text-gray-400 truncate mb-3"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${s.direccion}</p>
+                    
+                    ${contenido}
 
-            ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `
-            <a href="rastreo.html?id=${id}" class="block mt-3 text-center bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs py-2.5 rounded-lg border border-blue-500/30 transition-colors font-bold flex items-center justify-center gap-2">
-                <i class="fas fa-map-marked-alt"></i> SEGUIR TÉCNICO EN VIVO
-            </a>
-            ` : ''}
+                    ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `
+                    <a href="rastreo.html?id=${id}" class="block mt-4 text-center bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs py-3 rounded-xl border border-blue-500/30 transition-colors font-bold flex items-center justify-center gap-2">
+                        <i class="fas fa-map-marked-alt"></i> SEGUIR TÉCNICO EN VIVO
+                    </a>
+                    ` : ''}
+                </div>
+            </div>
             `;
             el.lista.appendChild(card);
         });
     });
 
-    // Respuestas globales del cliente a la cotización
+    // ----------------------------------------------------------------------------------
+    // 3.4 ACCIONES GLOBALES DEL CLIENTE (SIN CAMBIOS ESTRUCTURALES)
+    // ----------------------------------------------------------------------------------
     window.responderCotizacion = async (id, aceptado) => {
         if (aceptado) {
             await updateDoc(doc(db, "services", id), { estado: "trabajando" });
@@ -1465,15 +1448,13 @@ export async function iniciarPanelCliente(user) {
             if(confirm(" ⚠ ️ ¿Estás seguro de cancelar?\n\nAl haber llegado el técnico, se cobrará la visita mínima ($550).")) {
                 await updateDoc(doc(db, "services", id), {
                     estado: "cancelado",
-                    costo_final: 550, // Cobro mínimo por cancelación en sitio
+                    costo_final: 550, 
                     cancelado_razon: "Cliente rechazó cotización"
                 });
             }
         }
     };
 
-    // GENERADOR PDF (CLIENTE - SIMULACIÓN FISCAL V5.7)
-    // FIX V5.7.4: RECIBE SOLO ID Y HACE FETCH (NO DATA ESTATICA)
     window.generarPDF = async (serviceId) => {
         const btn = document.activeElement;
         const textoOrig = btn.innerText;
@@ -1481,7 +1462,6 @@ export async function iniciarPanelCliente(user) {
         btn.disabled = true;
 
         try {
-            // 1. FETCH DE DATOS FRESCOS
             const docRef = doc(db, "services", serviceId);
             const docSnap = await getDoc(docRef);
             
@@ -1489,32 +1469,25 @@ export async function iniciarPanelCliente(user) {
                 throw new Error("No se encontró el servicio en la base de datos.");
             }
             
-            // Construimos el objeto data con el ID incluido
             const data = { ...docSnap.data(), id: serviceId };
-
-            // 2. CARGA DE LIBRERÍA
             const { jsPDF } = await cargarLibreriaPDF();
             const docPdf = new jsPDF();
             
-            // --- DISEÑO DEL PDF (ALTA FIDELIDAD) ---
-            // Header Negro
             docPdf.setFillColor(18, 18, 18);
             docPdf.rect(0, 0, 215, 40, 'F');
 
-            // Logo y Título
             docPdf.setTextColor(255, 255, 255);
             docPdf.setFont("helvetica", "bold");
             docPdf.setFontSize(24);
             docPdf.text("FIXGO", 20, 22);
             docPdf.setFont("helvetica", "normal");
-            docPdf.setTextColor(16, 185, 129); // Verde Emerald
+            docPdf.setTextColor(16, 185, 129); 
             docPdf.text("MÉXICO", 60, 22);
 
             docPdf.setTextColor(200, 200, 200);
             docPdf.setFontSize(10);
             docPdf.text("Comprobante de Servicio Digital", 20, 32);
             
-            // DATOS FISCALES SIMULADOS (V5.7)
             docPdf.setFontSize(8);
             docPdf.setTextColor(150, 150, 150);
             docPdf.text(`RFC EMISOR: FXG260211-H8A`, 20, 45);
@@ -1524,7 +1497,6 @@ export async function iniciarPanelCliente(user) {
             if(data.folio_fiscal) docPdf.text(`FOLIO FISCAL: ${data.folio_fiscal}`, 150, 45);
             docPdf.text(`FECHA: ${new Date().toLocaleDateString()}`, 150, 50);
 
-            // Información del Cliente
             let y = 70;
             docPdf.setTextColor(0, 0, 0);
             docPdf.setFontSize(12);
@@ -1535,18 +1507,15 @@ export async function iniciarPanelCliente(user) {
             docPdf.setFont("helvetica", "normal");
             docPdf.setFontSize(10);
             docPdf.text(`Cliente: ${data.cliente_nombre}`, 20, y);
-            // Mostrar Categoría + Subservicio
             const servicioLabel = `${data.categoria} ${data.sub_servicio ? '- ' + data.sub_servicio : ''}`;
             docPdf.text(`Categoría: ${servicioLabel}`, 120, y);
             y += 8;
             docPdf.text(`Ubicación: ${data.direccion}`, 20, y);
 
-            // Línea divisora
             y += 15;
             docPdf.setDrawColor(200, 200, 200);
             docPdf.line(20, y, 190, y);
 
-            // Diagnóstico y Costos
             y += 15;
             docPdf.setFont("helvetica", "bold");
             docPdf.setFontSize(12);
@@ -1554,14 +1523,11 @@ export async function iniciarPanelCliente(user) {
 
             y += 10;
             
-            // --- FIX V5.7.3: RENDERIZADO DE TABLA (CON DEBUG DE FALLBACK) ---
             if (data.detalles_cotizacion && data.detalles_cotizacion.length > 0) {
-                // Render Detailed Table (Alamo Style)
                 docPdf.setFontSize(9);
                 docPdf.setTextColor(100, 100, 100);
                 docPdf.setFont("helvetica", "bold");
                 
-                // Headers
                 docPdf.text("CANT", 20, y);
                 docPdf.text("DESCRIPCIÓN", 45, y); 
                 docPdf.text("P.UNIT", 140, y);
@@ -1578,21 +1544,17 @@ export async function iniciarPanelCliente(user) {
                 
                 data.detalles_cotizacion.forEach(item => {
                     docPdf.text(`${item.cantidad} ${item.unidad}`, 20, y);
-                    
-                    // Truncar descripción larga
                     const desc = item.descripcion.substring(0, 50) + (item.descripcion.length > 50 ? '...' : '');
                     docPdf.text(desc, 45, y);
-                    
                     docPdf.text(`$${item.precio}`, 140, y);
                     docPdf.text(`$${(item.cantidad * item.precio).toFixed(2)}`, 170, y);
                     y += 7;
                 });
-                y += 5; // Extra padding
+                y += 5; 
             } else {
-                // Fallback Legacy
                 docPdf.setFont("helvetica", "normal");
                 docPdf.setFontSize(10);
-                docPdf.setTextColor(50, 50, 50); // Gris oscuro
+                docPdf.setTextColor(50, 50, 50); 
                 
                 const diagText = data.diagnostico || "(Sin desglose registrado en base de datos)";
                 const splitDiag = docPdf.splitTextToSize(diagText, 170);
@@ -1601,7 +1563,6 @@ export async function iniciarPanelCliente(user) {
                 y += (splitDiag.length * 7) + 5;
             }
 
-            // Caja de Totales
             docPdf.setFillColor(245, 245, 245);
             docPdf.rect(120, y, 70, 40, 'F'); 
             
@@ -1609,7 +1570,6 @@ export async function iniciarPanelCliente(user) {
             docPdf.setFontSize(10);
             docPdf.text("IMPORTE TOTAL:", 125, y + 10);
             
-            // Desglose fiscal si existe
             if (data.desglose) {
                 docPdf.setFontSize(8);
                 docPdf.text(`Subtotal: $${data.desglose.subtotal}`, 125, y + 18);
@@ -1618,10 +1578,9 @@ export async function iniciarPanelCliente(user) {
 
             docPdf.setFont("helvetica", "bold");
             docPdf.setFontSize(16);
-            docPdf.setTextColor(16, 185, 129); // Verde
+            docPdf.setTextColor(16, 185, 129); 
             docPdf.text(`$${data.costo_final} MXN`, 125, y + 35);
 
-            // Evidencia Fotográfica
             y += 60;
             docPdf.setTextColor(0, 0, 0);
             docPdf.setFontSize(12);
@@ -1641,7 +1600,6 @@ export async function iniciarPanelCliente(user) {
                     docPdf.text("TRABAJO FINALIZADO", 110, y + 65);
                 } catch(e) {}
             }
-            // Footer
             docPdf.setFontSize(8);
             docPdf.setTextColor(150, 150, 150);
             docPdf.text("Este documento es un comprobante digital emitido por la plataforma FixGo.", 60, 280);
