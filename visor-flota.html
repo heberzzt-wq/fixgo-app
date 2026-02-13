@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FixGo | Centro de Comando (God View)</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Inter', sans-serif; }
+        
+        /* EL MAPA OCUPA TODA LA PANTALLA */
+        #map { height: 100%; width: 100%; background: #242f3e; }
+
+        /* UN PANEL FLOTANTE PARA VER LA LISTA */
+        #panel-flotante {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 300px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 999;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        h2 { margin: 0 0 10px 0; color: #111; font-size: 18px; }
+        .stat { font-size: 12px; color: #666; margin-bottom: 15px; }
+        
+        /* ESTILO DE LA LISTA DE TÉCNICOS */
+        .tech-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tech-item:hover { background: #f0f9ff; border-color: #0ea5e9; }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ccc; /* Gris = Offline */
+            margin-right: 10px;
+        }
+        .online { background: #10b981; box-shadow: 0 0 5px #10b981; } /* Verde = Online */
+        
+        .tech-info strong { display: block; font-size: 14px; color: #333; }
+        .tech-info span { font-size: 11px; color: #888; }
+
+        /* BOTÓN DE REFRESCAR */
+        .btn-refresh {
+            background: #111;
+            color: #fff;
+            border: none;
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="panel-flotante">
+        <h2>📡 Radar FixGo</h2>
+        <div class="stat">Monitoreo en Tiempo Real (V5.12)</div>
+        <div id="lista-tecnicos">
+            <div style="text-align:center; padding: 20px; color:#999;">Cargando flota...</div>
+        </div>
+        <button class="btn-refresh" onclick="centrarMapa()">🔄 Recentrar Mapa</button>
+    </div>
+
+    <div id="map"></div>
+
+    <script type="module">
+        // 1. IMPORTAMOS FIREBASE (Asegúrate que la ruta sea correcta)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // 2. TU CONFIGURACIÓN (Debe ser la misma que en firebase.js)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", // Tu API Key Real
+            authDomain: "fixgo-app.firebaseapp.com",
+            projectId: "fixgo-app",
+            storageBucket: "fixgo-app.appspot.com",
+            messagingSenderId: "TU_SENDER_ID",
+            appId: "TU_APP_ID"
+        };
+
+        // INICIALIZAMOS
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // VARIABLES GLOBALES
+        let map;
+        let markers = {}; // Aquí guardamos los marcadores para no duplicarlos (ID -> Marker)
+
+        // 3. INICIAMOS EL MAPA (ESTILO DARK MODE PROFESIONAL)
+        window.initMap = function() {
+            const cancun = { lat: 21.1619, lng: -86.8515 };
+            
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: cancun,
+                zoom: 12,
+                disableDefaultUI: false, // Dejamos controles para ti
+                styles: [
+                    { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+                    { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+                    { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+                    { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
+                    { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
+                    { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] }
+                ]
+            });
+
+            // ARRANCAMOS EL ESCUCHA DE FIREBASE
+            escucharFlota();
+        };
+
+        // 4. EL CEREBRO: ESCUCHAR CAMBIOS EN LA DB
+        function escucharFlota() {
+            const listaDiv = document.getElementById("lista-tecnicos");
+            
+            // Consultamos la colección 'users' donde el rol sea 'tecnico'
+            // OJO: Si usas una colección separada para activos, cambia esto.
+            // Asumo que guardamos la lat/lng dentro del documento del usuario en 'users'
+            const q = query(collection(db, "users"), where("rol", "==", "tecnico"));
+
+            // onSnapshot es MÁGICO: Se dispara solo cuando algo cambia en la DB
+            onSnapshot(q, (snapshot) => {
+                
+                // Limpiamos la lista visual (simple approach)
+                listaDiv.innerHTML = "";
+
+                if (snapshot.empty) {
+                    listaDiv.innerHTML = "<div style='padding:10px'>No hay técnicos registrados.</div>";
+                }
+
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const uid = doc.id;
+
+                    // Validamos que tenga ubicación
+                    if (data.location && data.location.lat && data.location.lng) {
+                        actualizarMarcador(uid, data);
+                        agregarItemLista(uid, data);
+                    }
+                });
+            });
+        }
+
+        // 5. ACTUALIZAR O CREAR MARCADOR EN EL MAPA
+        function actualizarMarcador(id, data) {
+            const pos = { lat: data.location.lat, lng: data.location.lng };
+            const nombre = data.nombre || "Técnico Desconocido";
+            const ultimaAct = data.locationUpdatedAt ? new Date(data.locationUpdatedAt.seconds * 1000).toLocaleTimeString() : "N/A";
+
+            if (markers[id]) {
+                // SI YA EXISTE, SOLO LO MOVEMOS (Animación suave)
+                markers[id].setPosition(pos);
+                // Actualizamos info window si estuviera abierta (opcional)
+            } else {
+                // SI NO EXISTE, LO CREAMOS
+                const marker = new google.maps.Marker({
+                    position: pos,
+                    map: map,
+                    title: nombre,
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 10,
+                        fillColor: "#10b981", // Verde FixGo
+                        fillOpacity: 1,
+                        strokeWeight: 2,
+                        strokeColor: "#ffffff"
+                    }
+                });
+
+                // InfoWindow al hacer clic
+                const infoWindow = new google.maps.InfoWindow({
+                    content: `
+                        <div style="color:#000; padding:5px;">
+                            <strong>${nombre}</strong><br>
+                            <small>Última vez: ${ultimaAct}</small><br>
+                            <small>ID: ${id.slice(0,5)}...</small>
+                        </div>
+                    `
+                });
+
+                marker.addListener("click", () => {
+                    infoWindow.open(map, marker);
+                });
+
+                markers[id] = marker; // Guardamos en memoria
+            }
+        }
+
+        // 6. AGREGAR A LA LISTA DEL PANEL IZQUIERDO
+        function agregarItemLista(id, data) {
+            const listaDiv = document.getElementById("lista-tecnicos");
+            const nombre = data.nombre || "Técnico";
+            const isOnline = data.isOnline === true; // Asumiendo que usas esta bandera
+
+            const itemHTML = `
+                <div class="tech-item" onclick="hacerZoom('${id}')">
+                    <div class="status-dot ${isOnline ? 'online' : ''}"></div>
+                    <div class="tech-info">
+                        <strong>${nombre}</strong>
+                        <span>${isOnline ? '🟢 En línea' : '⚪ Desconectado'}</span>
+                    </div>
+                </div>
+            `;
+            listaDiv.innerHTML += itemHTML;
+        }
+
+        // 7. FUNCIONES DE UTILIDAD (GLOBALES)
+        window.hacerZoom = function(id) {
+            if (markers[id]) {
+                map.panTo(markers[id].getPosition());
+                map.setZoom(16);
+            }
+        };
+
+        window.centrarMapa = function() {
+            map.setZoom(12);
+            map.setCenter({ lat: 21.1619, lng: -86.8515 }); // Cancún
+        };
+
+    </script>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=TU_API_KEY_GOOGLE_MAPS&callback=initMap" async defer></script>
+
+</body>
+</html>
