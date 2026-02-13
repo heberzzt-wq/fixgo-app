@@ -1,111 +1,104 @@
 /* ================================
-   🔔 FIXGO ALERT ENGINE v1.0
+   🔔 FIXGO ALERT ENGINE v2.0 (NO-FILES VERSION)
    Archivo: alert-engine.js
-   Función: Sistema de Audio Profesional + Vibración
+   Función: Generador de Sonidos Sintetizados + Vibración
+   Ventaja: No requiere archivos .mp3 externos
    ================================ */
 
 let audioContext = null;
-let bufferAlerta = null;
 let sistemaActivo = false;
 
-// 1. Inicializar audio (Cargar el archivo en memoria RAM)
-async function initAlertSystem() {
-    try {
-        // Si ya existe, no lo recargamos
-        if (audioContext) return;
+// 1. Inicializar el Sintetizador
+export async function initAlertSystem() {
+    if (audioContext) return;
 
-        // Creamos el contexto compatible con todos los navegadores
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        audioContext = new AudioContext();
+    // Creamos el contexto de audio
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    audioContext = new AudioContext();
 
-        console.log("🔊 Cargando sonido de alerta...");
-        const response = await fetch('./sounds/alerta.mp3');
-        
-        if (!response.ok) {
-            throw new Error(`No se encontró el archivo de audio: ${response.statusText}`);
-        }
-
-        const arrayBuffer = await response.arrayBuffer();
-        
-        // Decodificamos el audio para tenerlo listo para disparar
-        bufferAlerta = await audioContext.decodeAudioData(arrayBuffer);
-        console.log("✅ Sonido cargado y listo en memoria.");
-        
-    } catch (error) {
-        console.error("❌ Error en Alert Engine:", error);
-    }
+    console.log("🎹 Sintetizador FixGo: Listo en espera.");
 }
 
 // 2. Activar Sistema (Debe llamarse tras un clic del usuario)
 export async function activarAlertas() {
     if (!audioContext) await initAlertSystem();
 
-    // Esto desbloquea el audio en Chrome/Safari
+    // Desbloqueamos el audio en Chrome/Safari
     if (audioContext && audioContext.state === 'suspended') {
         await audioContext.resume();
     }
     
     sistemaActivo = true;
-    console.log("🔊 MOTOR DE AUDIO: ACTIVADO Y ESPERANDO ÓRDENES");
+    console.log("🔊 MOTOR DE AUDIO: ACTIVADO");
     
-    // Reproducimos un sonido "mudo" o muy corto para probar
-    reproducirSonido(0.01); 
+    // Hacemos un "micro-beep" inaudible para calentar motores
+    generarTono(0, 0.01, 'sine'); 
 }
 
-// 3. Función Interna de Reproducción
-function reproducirSonido(volumen = 1) {
-    if (!sistemaActivo || !bufferAlerta || !audioContext) return;
+// 3. LA MAGIA: Generador de Tonos (Sin archivos MP3)
+function generarTono(frecuencia, duracion, tipo = 'square') {
+    if (!audioContext) return;
 
-    // Crear la fuente de sonido
-    const source = audioContext.createBufferSource();
-    source.buffer = bufferAlerta;
-
-    // Control de volumen (GainNode)
+    // Oscilador (El que vibra)
+    const osc = audioContext.createOscillator();
+    // Ganancia (El volumen)
     const gainNode = audioContext.createGain();
-    gainNode.gain.value = volumen;
 
-    // Conectar: Fuente -> Volumen -> Altavoces
-    source.connect(gainNode);
+    osc.type = tipo; // 'sine' (suave), 'square' (retro), 'sawtooth' (agresivo)
+    osc.frequency.setValueAtTime(frecuencia, audioContext.currentTime);
+
+    // Envolvente de volumen (Para que no suene "seco")
+    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duracion);
+
+    // Conectar cables: Oscilador -> Volumen -> Altavoces
+    osc.connect(gainNode);
     gainNode.connect(audioContext.destination);
 
-    // ¡Fuego!
-    source.start(0);
+    // ¡DISPARAR!
+    osc.start();
+    osc.stop(audioContext.currentTime + duracion);
 }
 
 // ================================
 // 🎯 ALERTAS POR ROL (EXPORTS)
 // ================================
 
-// ALERTA TÉCNICO (Vibración fuerte + Loop)
+// ALERTA TÉCNICO (Doble Beep Agudo - Estilo Walkie Talkie)
 export function alertaTecnico() {
-    console.log("🚨 EJECUTANDO ALERTA DE TÉCNICO");
-    reproducirSonido(1.0); // Volumen máximo
+    if (!sistemaActivo) return;
+    
+    console.log("🚨 ALERTA TÉCNICO DISPARADA");
 
-    // Vibración fuerte: (Vibra 500ms, Pausa 200ms, Vibra 500ms)
+    // Sonido: "Ti-Ti-Ti" (Tres beeps rápidos agudos)
+    const now = audioContext.currentTime;
+    
+    // Beep 1
+    generarTono(880, 0.1, 'square'); 
+    // Beep 2 (con retraso de 150ms)
+    setTimeout(() => generarTono(880, 0.1, 'square'), 150);
+    // Beep 3 (con retraso de 300ms)
+    setTimeout(() => generarTono(1200, 0.3, 'square'), 300);
+
+    // Vibración Física
     if ("vibrate" in navigator) {
-        navigator.vibrate([500, 200, 500]);
+        navigator.vibrate([200, 100, 200, 100, 500]);
     }
-
-    // Repetición cada 4s hasta que alguien lo detenga
-    // Retornamos el ID del intervalo para poder cancelarlo con clearInterval
-    const intervalo = setInterval(() => {
-        reproducirSonido(1.0);
-        if ("vibrate" in navigator) navigator.vibrate([500, 200, 500]);
-    }, 4000);
-
-    return intervalo; 
 }
 
-// ALERTA ADMIN (Solo un aviso sonoro)
+// ALERTA ADMIN (Campana Suave - Estilo Recepción)
 export function alertaAdmin() {
-    console.log("🔔 Alerta Admin");
-    reproducirSonido(0.8);
+    if (!sistemaActivo) return;
+    
+    // Sonido: "Ding-Dong"
+    generarTono(600, 0.5, 'sine');
+    setTimeout(() => generarTono(450, 0.8, 'sine'), 400);
 }
 
-// ALERTA CLIENTE (Suave)
+// ALERTA CLIENTE (Confirmación Sencilla)
 export function alertaCliente() {
-    reproducirSonido(0.5);
-    if ("vibrate" in navigator) {
-        navigator.vibrate(200);
-    }
+    if (!sistemaActivo) return;
+    
+    // Sonido: "Blip" positivo
+    generarTono(1000, 0.1, 'sine');
 }
