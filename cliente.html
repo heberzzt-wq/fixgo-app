@@ -20,6 +20,12 @@
         .quote-num { font-family: 'Courier New', monospace; text-align: right; }
         .quote-total-row { background: #1a1a1a; border-top: 2px solid #333; }
         .legal-note { font-size: 8px; color: #666; font-style: italic; margin-top: 4px; line-height: 1.2; }
+
+        /* NUEVO: ESTILOS PARA TARJETAS EXPANSIBLES (ACORDEÓN) */
+        .expandable-content { max-height: 0; overflow: hidden; transition: max-height 0.4s ease-in-out; }
+        .expandable-content.expanded { max-height: 2000px; /* Altura máxima holgada para el despliegue */ }
+        .chevron-icon { transition: transform 0.3s ease; }
+        .chevron-icon.rotated { transform: rotate(180deg); }
     </style>
 </head>
 <body class="text-white min-h-screen pb-20">
@@ -37,15 +43,89 @@
         
         <section>
             <h2 class="text-slate-500 text-xs font-black uppercase tracking-widest mb-4">¿Qué necesitas hoy?</h2>
-            <div id="gridServicios" class="grid grid-cols-3 gap-3">
-               <div class="col-span-3 text-center py-4">
-                   <i class="fas fa-circle-notch fa-spin text-emerald-500"></i>
-                   <span class="text-xs text-gray-500 ml-2">Cargando servicios...</span>
-               </div>
+            
+            <div id="gridCategoriasMaestras" class="space-y-4">
+                
+                <div class="uber-card rounded-2xl overflow-hidden shadow-lg">
+                    <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="toggleAccordion('sub-road', 'icon-road')">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-zinc-900 border border-zinc-800 p-3 rounded-xl text-emerald-500 shadow-inner">
+                                <i class="fas fa-car-crash text-xl w-6 text-center"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-black text-lg tracking-tight">FixGo Road</h3>
+                                <p class="text-xs text-gray-500">Asistencia vial y automotriz</p>
+                            </div>
+                        </div>
+                        <i id="icon-road" class="fas fa-chevron-down text-gray-400 chevron-icon"></i>
+                    </div>
+                    <div id="sub-road" class="expandable-content bg-zinc-900/30">
+                        <div id="contenido-road" class="p-4 border-t border-zinc-800/50 grid grid-cols-2 gap-3">
+                            </div>
+                    </div>
+                </div>
+
+                <div class="uber-card rounded-2xl overflow-hidden shadow-lg">
+                    <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="toggleAccordion('sub-fix', 'icon-fix')">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-zinc-900 border border-zinc-800 p-3 rounded-xl text-emerald-500 shadow-inner">
+                                <i class="fas fa-tools text-xl w-6 text-center"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-black text-lg tracking-tight">FixGo Fix</h3>
+                                <p class="text-xs text-gray-500">Reparaciones del hogar</p>
+                            </div>
+                        </div>
+                        <i id="icon-fix" class="fas fa-chevron-down text-gray-400 chevron-icon"></i>
+                    </div>
+                    <div id="sub-fix" class="expandable-content bg-zinc-900/30">
+                        <div id="contenido-fix" class="p-4 border-t border-zinc-800/50 grid grid-cols-2 gap-3">
+                            </div>
+                    </div>
+                </div>
+
+                <div class="uber-card rounded-2xl overflow-hidden shadow-lg">
+                    <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="toggleAccordion('sub-tech', 'icon-tech')">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-zinc-900 border border-zinc-800 p-3 rounded-xl text-emerald-500 shadow-inner">
+                                <i class="fas fa-microchip text-xl w-6 text-center"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-black text-lg tracking-tight">FixGo Tech</h3>
+                                <p class="text-xs text-gray-500">Tecnología y seguridad</p>
+                            </div>
+                        </div>
+                        <i id="icon-tech" class="fas fa-chevron-down text-gray-400 chevron-icon"></i>
+                    </div>
+                    <div id="sub-tech" class="expandable-content bg-zinc-900/30">
+                        <div id="contenido-tech" class="p-4 border-t border-zinc-800/50 grid grid-cols-2 gap-3">
+                            </div>
+                    </div>
+                </div>
+
+                <div class="uber-card rounded-2xl overflow-hidden shadow-lg">
+                    <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="toggleAccordion('sub-maint', 'icon-maint')">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-zinc-900 border border-zinc-800 p-3 rounded-xl text-emerald-500 shadow-inner">
+                                <i class="fas fa-building text-xl w-6 text-center"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-black text-lg tracking-tight">FixGo Maint</h3>
+                                <p class="text-xs text-gray-500">Mantenimiento B2B (Empresas)</p>
+                            </div>
+                        </div>
+                        <i id="icon-maint" class="fas fa-chevron-down text-gray-400 chevron-icon"></i>
+                    </div>
+                    <div id="sub-maint" class="expandable-content bg-zinc-900/30">
+                        <div id="contenido-maint" class="p-4 border-t border-zinc-800/50 grid grid-cols-1 gap-3">
+                            </div>
+                    </div>
+                </div>
+
             </div>
         </section>
 
-        <section id="solicitudContainer" class="uber-card p-6 rounded-[2rem] shadow-2xl relative overflow-hidden">
+        <section id="solicitudContainer" class="uber-card p-6 rounded-[2rem] shadow-2xl relative overflow-hidden hidden">
             <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
             <h2 class="text-xl font-black mb-6 flex items-center gap-2">
                 <span class="bg-emerald-500 w-2 h-8 rounded-full"></span>
@@ -78,7 +158,7 @@
 
         <section>
             <h2 class="text-slate-500 text-xs font-black uppercase tracking-widest mb-4">Tu Actividad</h2>
-            <div id="solicitudesCliente" class="space-y-3">
+            <div id="solicitudesCliente" class="space-y-4">
                 <div class="text-center py-8">
                     <i class="fas fa-history text-gray-700 text-3xl mb-2"></i>
                     <p class="text-gray-600 text-sm">Tus servicios aparecerán aquí.</p>
@@ -86,6 +166,25 @@
             </div>
         </section>
     </main>
+
+    <script>
+        function toggleAccordion(contentId, iconId) {
+            const content = document.getElementById(contentId);
+            const icon = document.getElementById(iconId);
+            
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                icon.classList.remove('rotated');
+            } else {
+                // Opcional: Cerrar los demás antes de abrir este (comentar si quieres múltiples abiertos)
+                document.querySelectorAll('.expandable-content').forEach(el => el.classList.remove('expanded'));
+                document.querySelectorAll('.chevron-icon').forEach(el => el.classList.remove('rotated'));
+                
+                content.classList.add('expanded');
+                icon.classList.add('rotated');
+            }
+        }
+    </script>
 
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js"></script>
