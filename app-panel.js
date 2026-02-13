@@ -3,8 +3,8 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.11.0 (FINANCE LOGIC + ACCORDION UI CLIENT)
- * Base: V5.10.0
+ * Versión: 5.11.1 (FINANCE LOGIC + SPEI WITHDRAWAL + ACCORDION UI CLIENT)
+ * Base: V5.11.0
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * * DESCRIPCIÓN TÉCNICA:
@@ -13,7 +13,7 @@
  * 1. Flujos de estado (Pendiente -> Asignado -> En Camino -> En Sitio -> Cotizando -> Trabajando -> Finalizado).
  * 2. Sistema de Verticales (ROAD, FIX, MAINT, TECH) con activación granular y UI Acordeón.
  * 3. Gestión Financiera AVANZADA (Desglose Fiscal: FixGo 32%, IVA 8%, ISR 10%).
- * 4. Wallet Inteligente (Liberación de fondos 24 horas).
+ * 4. Wallet Inteligente (Liberación de fondos 24 horas + Retiros SPEI).
  * 5. Evidencia y Seguridad (Bloqueo de garantías, fotos antes/después, coordenadas GPS).
  * 6. Generación de Documentos (PDF Fiscal Simulado).
  * * REGLAS DE ARQUITECTURA:
@@ -94,7 +94,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.11.0: Sistema Full Cargado (Finance Core: 24h Release + Tax Splits).");
+console.log(" 🚀  FIXGO 5.11.1: Sistema Full Cargado (Finance Core: 24h Release + Tax Splits + SPEI).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -459,7 +459,8 @@ export async function iniciarPanelTecnico(user) {
         panelAcciones: document.getElementById("panelAcciones"),
         btnEnCamino: document.getElementById("btnEnCamino"),
         btnLlegue: document.getElementById("btnLlegue"),
-        walletLabel: document.getElementById("walletSaldo") // ELEMENTO NUEVO V5.7.4
+        walletLabel: document.getElementById("walletSaldo"), // ELEMENTO NUEVO V5.7.4
+        btnRetiro: document.getElementById("btnRetiro") // NUEVO: Captura del botón de retiro
     };
 
     // ----------------------------------------------------------------------------------
@@ -570,6 +571,46 @@ export async function iniciarPanelTecnico(user) {
             }
         } else {
             console.log("💰 Wallet Técnico (Debug): Disp:", saldoDisponible, "Ret:", saldoRetenido);
+        }
+
+        // --- NUEVO V5.11.1: LÓGICA DEL BOTÓN DE RETIRO SPEI ---
+        if(elementos.btnRetiro) {
+            if(saldoDisponible > 0) {
+                // Habilitar botón
+                elementos.btnRetiro.disabled = false;
+                elementos.btnRetiro.className = "w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-sm shadow-lg shadow-emerald-500/20 transition-all transform active:scale-95";
+                
+                // Asignar evento de retiro
+                elementos.btnRetiro.onclick = async () => {
+                    if(!confirm(`¿Deseas solicitar el retiro de $${saldoDisponible.toFixed(2)} a tu cuenta vía SPEI?`)) return;
+                    
+                    elementos.btnRetiro.innerText = "PROCESANDO...";
+                    elementos.btnRetiro.disabled = true;
+                    
+                    try {
+                        await addDoc(collection(db, "retiros"), {
+                            tecnico_id: user.uid,
+                            tecnico_nombre: user.nombre || "Técnico",
+                            monto: saldoDisponible,
+                            estado: "pendiente",
+                            fecha_solicitud: serverTimestamp()
+                        });
+                        alert("✅ Solicitud de retiro enviada con éxito. El administrador la procesará en breve.");
+                        elementos.btnRetiro.innerText = "RETIRO EN PROCESO";
+                    } catch (error) {
+                        console.error("Error al solicitar retiro:", error);
+                        alert("❌ Hubo un error al procesar tu solicitud. Intenta de nuevo.");
+                        elementos.btnRetiro.innerText = "SOLICITAR RETIRO (SPEI)";
+                        elementos.btnRetiro.disabled = false;
+                    }
+                };
+            } else {
+                // Deshabilitar botón
+                elementos.btnRetiro.disabled = true;
+                elementos.btnRetiro.className = "w-full py-4 bg-emerald-600/20 text-emerald-500 font-black rounded-xl cursor-not-allowed text-sm";
+                elementos.btnRetiro.onclick = null;
+                elementos.btnRetiro.innerText = "SOLICITAR RETIRO (SPEI)";
+            }
         }
     });
 
