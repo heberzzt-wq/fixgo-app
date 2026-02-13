@@ -3,8 +3,8 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.11.4 (SPEI PERSISTENCE & MATH FIX)
- * Base: V5.11.3
+ * Versión: 5.11.5 (SPEI PERSISTENCE + ADMIN ANTI-SPAM CLICK SHIELD)
+ * Base: V5.11.4
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * * DESCRIPCIÓN TÉCNICA:
@@ -94,7 +94,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.11.4: Sistema Full Cargado (SPEI Persistence & Math Fix Logic).");
+console.log(" 🚀  FIXGO 5.11.5: Sistema Full Cargado (Admin Anti-Spam Click Shield Active).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -430,7 +430,7 @@ export async function iniciarPanelAdmin(user) {
     };
 
     // ----------------------------------------------------------------------------------
-    // 1.E. NUEVO: CONTROL DE RETIROS SPEI (V5.11.2) - LÓGICA DE SALDO NEGATIVO
+    // 1.E. NUEVO: CONTROL DE RETIROS SPEI (V5.11.5) - LÓGICA DE SALDO NEGATIVO Y ANTI-SPAM
     // ----------------------------------------------------------------------------------
     if (elementos.listaRetiros) {
         const qRetiros = query(collection(db, "retiros"), where("estado", "==", "pendiente"), orderBy("fecha_solicitud", "asc"));
@@ -452,6 +452,7 @@ export async function iniciarPanelAdmin(user) {
                     fechaFormat = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                 }
 
+                // NUEVO V5.11.5: Agregado un ID único al botón para bloquearlo con el primer clic
                 const card = document.createElement("div");
                 card.className = "p-4 bg-emerald-900/10 border border-emerald-500/30 rounded-xl mb-3 shadow-lg";
                 card.innerHTML = `
@@ -463,7 +464,7 @@ export async function iniciarPanelAdmin(user) {
                         <span class="bg-yellow-500 text-black text-[9px] font-black px-2 py-1 rounded animate-pulse">PENDIENTE</span>
                     </div>
                     <p class="text-2xl font-black text-emerald-400 mb-3">$${ret.monto.toFixed(2)}</p>
-                    <button class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-xs shadow-lg transition-transform hover:scale-105" onclick="window.aprobarRetiro('${id}', '${ret.tecnico_id}', ${ret.monto})">
+                    <button id="btn_aprobar_${id}" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-xs shadow-lg transition-all transform hover:scale-105" onclick="window.aprobarRetiro('${id}', '${ret.tecnico_id}', ${ret.monto})">
                         <i class="fas fa-check-double"></i> MARCAR COMO PAGADO (SPEI)
                     </button>
                 `;
@@ -475,6 +476,15 @@ export async function iniciarPanelAdmin(user) {
         window.aprobarRetiro = async (retiroId, tecnicoId, monto) => {
             if(!confirm("¿Confirmas que ya realizaste la transferencia SPEI por $"+monto.toFixed(2)+"?\n\nEsto descontará el saldo de la wallet del técnico en automático.")) return;
             
+            // ESCUDO ANTI-DEDO NERVIOSO (Bloquea el botón al instante)
+            const btn = document.getElementById(`btn_aprobar_${retiroId}`);
+            if(btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO...`;
+                btn.classList.remove("hover:bg-emerald-500", "hover:scale-105");
+                btn.classList.add("opacity-50", "cursor-not-allowed");
+            }
+
             try {
                 // 1. Marcar retiro como aprobado
                 await updateDoc(doc(db, "retiros", retiroId), {
@@ -499,6 +509,13 @@ export async function iniciarPanelAdmin(user) {
             } catch (error) {
                 console.error("Error al procesar retiro:", error);
                 alert("❌ Error de conexión al procesar el retiro en Firebase.");
+                // Si falla, liberamos el botón
+                if(btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fas fa-check-double"></i> MARCAR COMO PAGADO (SPEI)`;
+                    btn.classList.add("hover:bg-emerald-500", "hover:scale-105");
+                    btn.classList.remove("opacity-50", "cursor-not-allowed");
+                }
             }
         };
     }
