@@ -3,8 +3,8 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.11.3 (SPEI PERSISTENCE LOGIC)
- * Base: V5.11.2
+ * Versión: 5.11.4 (SPEI PERSISTENCE & MATH FIX)
+ * Base: V5.11.3
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * * DESCRIPCIÓN TÉCNICA:
@@ -94,7 +94,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.11.3: Sistema Full Cargado (SPEI Persistence Logic).");
+console.log(" 🚀  FIXGO 5.11.4: Sistema Full Cargado (SPEI Persistence & Math Fix Logic).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -601,7 +601,7 @@ export async function iniciarPanelTecnico(user) {
     });
 
     // ----------------------------------------------------------------------------------
-    // 2.D. WALLET & GANANCIAS (V5.11.3 - LOGICA 24 HORAS + PERSISTENCIA DE RETIROS)
+    // 2.D. WALLET & GANANCIAS (V5.11.4 - LOGICA 24 HORAS + MATEMATICA DE RETIROS)
     // ----------------------------------------------------------------------------------
     const qWallet = query(collection(db, "transacciones"), where("tecnico_id", "==", user.uid));
     const qRetirosPendientes = query(collection(db, "retiros"), where("tecnico_id", "==", user.uid), where("estado", "==", "pendiente"));
@@ -611,7 +611,7 @@ export async function iniciarPanelTecnico(user) {
     let saldoRetenido = 0;
     let retirosEnProceso = 0;
 
-    // Escuchador 1: Transacciones (El dinero ganado)
+    // Escuchador 1: Transacciones (El dinero ganado y los retiros ya aprobados)
     onSnapshot(qWallet, (snap) => {
         saldoBrutoDisponible = 0;
         saldoRetenido = 0;
@@ -621,17 +621,24 @@ export async function iniciarPanelTecnico(user) {
             const tx = docSnap.data();
             const monto = (tx.pago_tecnico || 0);
             
-            if (tx.fecha && tx.fecha.toDate) {
-                const fechaTx = tx.fecha.toDate();
-                const diffHoras = Math.abs(ahora - fechaTx) / 36e5;
+            // Si la transacción es un retiro (monto negativo), se descuenta INMEDIATAMENTE
+            // del saldo disponible, sin importar si pasaron 24 horas.
+            if (tx.tipo === "retiro_fondos") {
+                saldoBrutoDisponible += monto; // Como monto es negativo (-500), esto resta.
+            } else {
+                // Lógica normal de 24 horas para ingresos por servicios
+                if (tx.fecha && tx.fecha.toDate) {
+                    const fechaTx = tx.fecha.toDate();
+                    const diffHoras = Math.abs(ahora - fechaTx) / 36e5;
 
-                if (diffHoras >= 24) {
-                    saldoBrutoDisponible += monto;
+                    if (diffHoras >= 24) {
+                        saldoBrutoDisponible += monto;
+                    } else {
+                        saldoRetenido += monto;
+                    }
                 } else {
                     saldoRetenido += monto;
                 }
-            } else {
-                saldoRetenido += monto;
             }
         });
         
