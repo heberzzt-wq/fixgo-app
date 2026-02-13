@@ -1,9 +1,9 @@
 /*******************************************************
  * FIXGO GPS MOTOR 2026
  * Archivo: gps-motor.js
- * Versión: 5.13 (HYBRID ENGINE: Firebase Priority)
+ * Versión: 5.14 (TELEMETRY ENGINE: Vehicle Detection)
  * Rol: Técnico & Visor
- * Función: Geolocalización + Tracking en tiempo real
+ * Función: Geolocalización + Tracking + Telemetría de Vehículo
  * Integración: Firebase Firestore + Google Maps
  *******************************************************/
 
@@ -11,6 +11,7 @@ import {
     db, 
     auth, 
     doc, 
+    getDoc,
     updateDoc, 
     serverTimestamp,
     setDoc 
@@ -24,6 +25,7 @@ let marcadorTecnico = null;
 let watchId = null;
 let ultimoUpdate = 0;
 let marcadorCacheExterno = null;
+let tipoVehiculoLocal = "auto"; // Default de seguridad
 
 /* ==========================================================
    FUNCIÓN PARA VISOR (RASTREO.HTML)
@@ -35,7 +37,6 @@ export function actualizarMapaGPS(mapReference, lat, lng) {
     const posicion = { lat, lng };
 
     if (!marcadorCacheExterno) {
-        // Validación preventiva antes de usar el constructor de Google
         if (typeof google === "undefined") return;
 
         marcadorCacheExterno = new google.maps.Marker({
@@ -46,7 +47,7 @@ export function actualizarMapaGPS(mapReference, lat, lng) {
             icon: {
                 path: google.maps.SymbolPath.CIRCLE,
                 scale: 10,
-                fillColor: "#10b981", // Emerald
+                fillColor: "#10b981", 
                 fillOpacity: 1,
                 strokeWeight: 2,
                 strokeColor: "#ffffff"
@@ -64,14 +65,13 @@ export function actualizarMapaGPS(mapReference, lat, lng) {
 ========================= */
 export function iniciarTracking() {
   if (watchId !== null) return;
-  console.log("📡 GPS Motor: Iniciando transmisión continua...");
+  console.log("📡 GPS Motor: Iniciando transmisión continua con Telemetría...");
 
   if (!navigator.geolocation) {
       alert("Tu dispositivo no soporta GPS.");
       return;
   }
 
-  // Opciones estrictas para el rastreo continuo
   const opcionesTracking = {
       enableHighAccuracy: true,
       maximumAge: 0,
@@ -83,14 +83,17 @@ export function iniciarTracking() {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
       const precision = pos.coords.accuracy;
+      
+      // Capturamos Telemetría adicional del sensor
+      const velocidad = pos.coords.speed || 0; // m/s
+      const rumbo = pos.coords.heading || 0;    // grados 0-360
 
-      console.log(`📍 Tracking Activo: ${lat}, ${lng} (~${precision}m)`);
+      console.log(`📍 Tracking [${tipoVehiculoLocal.toUpperCase()}]: ${lat}, ${lng} | Vel: ${velocidad}m/s`);
 
-      // 1. Actualizar visualmente el mapa propio (Solo si Google cargó)
       actualizarMapaPropio(lat, lng);
-
-      // 2. Subir a Firebase (Prioridad Absoluta)
-      await actualizarFirebase(lat, lng);
+      
+      // Pasamos la telemetría a Firebase
+      await actualizarFirebase(lat, lng, velocidad, rumbo);
     },
     (error) => {
       console.error("❌ Error en Tracking GPS:", error.message);
@@ -111,7 +114,6 @@ export function detenerTracking() {
    HELPERS INTERNOS
 ========================= */
 function actualizarMapaPropio(lat, lng) {
-  // Solo si el mapa del técnico está inicializado visualmente
   if (mapa && marcadorTecnico) {
       const nuevaPosicion = { lat, lng };
       marcadorTecnico.setPosition(nuevaPosicion);
@@ -119,9 +121,8 @@ function actualizarMapaPropio(lat, lng) {
   }
 }
 
-async function actualizarFirebase(lat, lng) {
+async function actualizarFirebase(lat, lng, velocidad, rumbo) {
   const ahora = Date.now();
-  // Rate limit: Solo subimos a la nube cada 5 segundos para ahorrar costos
   if (ahora - ultimoUpdate < 5000) return; 
   ultimoUpdate = ahora;
 
@@ -133,34 +134,55 @@ async function actualizarFirebase(lat, lng) {
     const refUsuario = doc(db, "users", user.uid);
     await setDoc(refUsuario, {
         location: { lat, lng },
+        telemetria: {
+            velocidad: velocidad,
+            rumbo: rumbo,
+            vehiculo: tipoVehiculoLocal
+        },
         locationUpdatedAt: serverTimestamp(),
         isOnline: true
     }, { merge: true });
 
-    // B) Actualizamos 'rastreo/tecnicoActivo' (Para visor de flota)
+    // B) Actualizamos 'rastreo/tecnicoActivo' (Data para el Radar)
     const refRastreo = doc(db, "rastreo", "tecnicoActivo");
     await setDoc(refRastreo, {
         uid: user.uid,
         nombre: user.displayName || "Técnico",
         lat: lat,
         lng: lng,
+        velocidad: velocidad,
+        rumbo: rumbo,
+        vehiculo: tipoVehiculoLocal,
         estado: "En ruta",
         updatedAt: serverTimestamp()
     }, { merge: true });
 
-    console.log(`✅ GPS Update Firebase: ${lat}, ${lng}`);
+    console.log(`✅ Telemetría Enviada: ${tipoVehiculoLocal} a ${velocidad}m/s`);
 
   } catch (err) {
-    console.error("Error subiendo GPS a Firebase:", err);
+    console.error("Error subiendo telemetría a Firebase:", err);
   }
 }
 
 /* ==========================================================
-   AUTO-INICIO VISUAL (MAPA TÉCNICO) - LÓGICA V5.13
-   ESTRATEGIA HÍBRIDA: Firebase inicia aunque Google falte
+   AUTO-INICIO VISUAL (MAPA TÉCNICO) - LÓGICA V5.14
 ========================================================== */
-window.initMapaTecnico = function () {
-    console.log("🗺️ GPS Motor: Solicitando ubicación de ALTA PRECISIÓN...");
+window.initMapaTecnico = async function () {
+    console.log("🗺️ GPS Motor: Cargando perfil y solicitando ubicación...");
+
+    // 1. OBTENER TIPO DE VEHÍCULO DEL PERFIL ANTES DE INICIAR
+    const user = auth.currentUser;
+    if (user) {
+        try {
+            const docSnap = await getDoc(doc(db, "users", user.uid));
+            if (docSnap.exists() && docSnap.data().tipoVehiculo) {
+                tipoVehiculoLocal = docSnap.data().tipoVehiculo;
+                console.log("🚗 Vehículo detectado en perfil:", tipoVehiculoLocal);
+            }
+        } catch (e) {
+            console.warn("No se pudo leer tipo de vehículo, usando default.");
+        }
+    }
 
     if (!navigator.geolocation) {
         alert("❌ Error Crítico: Tu navegador no soporta geolocalización.");
@@ -175,24 +197,16 @@ window.initMapaTecnico = function () {
 
     navigator.geolocation.getCurrentPosition(
         (pos) => {
-            console.log("✅ Ubicación exacta detectada.");
+            console.log("✅ Ubicación inicial detectada.");
             const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             
-            // 1. Intentamos inicializar el mapa visual (Si Google está listo)
             if (typeof google !== "undefined") {
-                console.log("🟢 Google Maps disponible. Renderizando UI...");
                 inicializarMapaGoogle(coords);
-            } else {
-                console.warn("⏳ Google Maps no disponible en esta vista. Continuando solo con Tracking.");
             }
-
-            // 2. Arrancamos el rastreo de Firebase (Independiente de Google)
             iniciarTracking(); 
         },
         (err) => {
-            console.warn("⚠️ No se pudo obtener ubicación exacta. Modo seguridad.", err);
-            
-            // Si Google está, pintamos mapa en default, si no, al menos intentamos tracking
+            console.warn("⚠️ Modo seguridad activado.", err);
             const coordsDefault = { lat: 21.1619, lng: -86.8515 }; 
             if (typeof google !== "undefined") {
                 inicializarMapaGoogle(coordsDefault);
@@ -203,11 +217,8 @@ window.initMapaTecnico = function () {
     );
 };
 
-// Función auxiliar para pintar el mapa
 function inicializarMapaGoogle(coords) {
     const mapElement = document.getElementById("mapa") || document.getElementById("map");
-    
-    // Verificación final de seguridad antes de invocar el objeto google
     if (typeof google === "undefined") return;
 
     if (mapElement) {
@@ -252,8 +263,6 @@ function inicializarMapaGoogle(coords) {
     }
 }
 
-// Listener de arranque inmediato
 window.addEventListener("load", () => {
-    // Ya no esperamos a Google Maps para arrancar el motor de GPS
     window.initMapaTecnico();
 });
