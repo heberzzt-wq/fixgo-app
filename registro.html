@@ -3,74 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo - Registro</title>
+    <title>FixGo | Registro Maestro V5.9</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://js.stripe.com/v3/"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
     <style>
-        body { background-color: #050505; }
-        .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); }
-        .uber-input { background-color: #1e1e1e; border: none; color: white; }
-        .uber-input:focus { outline: 2px solid #6366f1; }
+        body { background-color: #050505; font-family: 'Inter', sans-serif; }
+        .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); transition: transform 0.3s ease; }
+        .uber-card:hover { transform: translateY(-5px); }
+        .uber-input { background-color: #1e1e1e; border: 1px solid #2d2d2d; color: white; transition: all 0.3s; }
+        .uber-input:focus { border-color: #6366f1; outline: none; background-color: #252525; }
+        
+        /* Estilos específicos para Stripe */
+        #card-element {
+            padding: 12px;
+            background: #1e1e1e;
+            border-radius: 1rem;
+            border: 1px solid #2d2d2d;
+        }
     </style>
 </head>
 <body class="text-white min-h-screen">
-    <header class="max-w-4xl mx-auto flex justify-between items-center p-6">
-        <h1 class="text-3xl font-black tracking-tighter italic text-white">FIXGO</h1>
-        <a href="index.html" class="text-indigo-500 font-bold">Inicio</a>
+
+    <header class="max-w-6xl mx-auto flex justify-between items-center p-8">
+        <h1 class="text-4xl font-black tracking-tighter italic text-white">FIXGO<span class="text-indigo-500">.</span></h1>
+        <nav class="flex gap-6">
+            <a href="index.html" class="text-gray-400 hover:text-white font-medium transition-colors">Inicio</a>
+            <a href="login.html" class="bg-white text-black px-6 py-2 rounded-full font-bold hover:bg-gray-200 transition-all">Entrar</a>
+        </nav>
     </header>
 
-    <main class="max-w-4xl mx-auto px-4 py-12">
-        <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <main class="max-w-6xl mx-auto px-4 py-6">
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
             
-            <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl">
-                <h2 class="text-2xl font-black mb-6">Registro Cliente</h2>
+            <div class="uber-card p-10 rounded-[3rem] shadow-2xl">
+                <div class="flex items-center gap-4 mb-8">
+                    <div class="w-12 h-12 bg-indigo-500/20 rounded-2xl flex items-center justify-center">
+                        <i class="fas fa-user text-indigo-500 text-xl"></i>
+                    </div>
+                    <h2 class="text-3xl font-black">Cliente</h2>
+                </div>
+
                 <form id="formRegistroCliente" class="space-y-4">
-                    <input type="text" name="nombre" placeholder="Nombre completo" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                    <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                    <input type="password" name="password" placeholder="Contraseña" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                    <input type="tel" name="telefono" placeholder="Teléfono" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                    <button type="submit" id="btnRegistroCliente" class="w-full bg-indigo-500 py-4 rounded-2xl font-black hover:bg-indigo-600 transition-all">Registrarme</button>
+                    <input type="text" name="nombre" placeholder="Nombre completo" required class="uber-input w-full px-5 py-4 rounded-2xl">
+                    <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-5 py-4 rounded-2xl">
+                    <input type="password" name="password" placeholder="Contraseña segura" required class="uber-input w-full px-5 py-4 rounded-2xl">
+                    <input type="tel" name="telefono" placeholder="Teléfono de contacto" required class="uber-input w-full px-5 py-4 rounded-2xl">
+                    
+                    <div class="py-4">
+                        <label class="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-widest">Método de Garantía (Stripe)</label>
+                        <div id="card-element"></div>
+                        <p class="text-[10px] text-gray-500 mt-2">No realizamos cargos sin tu autorización. Es solo para verificar tu cuenta.</p>
+                    </div>
+
+                    <button type="submit" id="btnRegistroCliente" class="w-full bg-indigo-500 py-5 rounded-2xl font-black text-lg shadow-lg shadow-indigo-500/20 hover:bg-indigo-600 transition-all">
+                        Crear Cuenta Cliente
+                    </button>
                 </form>
             </div>
 
-            <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl">
-                <h2 class="text-2xl font-black mb-6">Registro Técnico</h2>
-                <form id="formRegistroTecnico" class="space-y-4">
-                    <input type="text" name="nombre" placeholder="Nombre completo" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                    <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                    <input type="password" name="password" placeholder="Contraseña" required class="uber-input w-full px-4 py-3 rounded-2xl">
-                    <input type="tel" name="telefono" placeholder="Teléfono" required class="uber-input w-full px-4 py-3 rounded-2xl">
+            <div class="uber-card p-10 rounded-[3rem] shadow-2xl border-emerald-500/20">
+                <div class="flex items-center gap-4 mb-8">
+                    <div class="w-12 h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center">
+                        <i class="fas fa-briefcase text-emerald-500 text-xl"></i>
+                    </div>
+                    <h2 class="text-3xl font-black">Socio Pro</h2>
+                </div>
 
-                    <div class="bg-zinc-900 p-4 rounded-xl border border-zinc-800">
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase">Tus Especialidades (Skills)</label>
-                        <div class="flex flex-col gap-2">
-                            <label class="flex items-center gap-3 cursor-pointer hover:bg-zinc-800 p-2 rounded transition-colors">
-                                <input type="checkbox" name="skill_road" class="w-4 h-4 accent-emerald-500 rounded">
-                                <span class="text-sm font-bold text-white"><i class="fas fa-car-crash text-yellow-500 w-6"></i> ROAD (Vial)</span>
+                <form id="formRegistroTecnico" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" name="nombre" placeholder="Nombre" required class="uber-input w-full px-5 py-4 rounded-2xl">
+                        <input type="tel" name="telefono" placeholder="Teléfono" required class="uber-input w-full px-5 py-4 rounded-2xl">
+                    </div>
+                    <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-5 py-4 rounded-2xl">
+                    <input type="password" name="password" placeholder="Contraseña" required class="uber-input w-full px-5 py-4 rounded-2xl">
+
+                    <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
+                        <label class="block text-xs font-bold text-gray-400 mb-3 uppercase">Medio de Transporte</label>
+                        <select name="tipoVehiculo" class="uber-input w-full px-4 py-3 rounded-xl appearance-none cursor-pointer">
+                            <option value="moto">🏍️ Motocicleta (FixGo Express)</option>
+                            <option value="auto">🚗 Automóvil (FixGo Estándar)</option>
+                            <option value="camioneta">🚚 Camioneta (FixGo Heavy)</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" name="banco" placeholder="Nombre del Banco" required class="uber-input w-full px-5 py-4 rounded-2xl">
+                        <input type="text" name="clabe" placeholder="CLABE (18 dígitos)" maxlength="18" required class="uber-input w-full px-5 py-4 rounded-2xl">
+                    </div>
+
+                    <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
+                        <label class="block text-xs font-bold text-gray-400 mb-3 uppercase">Especialidades</label>
+                        <div class="grid grid-cols-1 gap-2">
+                            <label class="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-3 rounded-xl transition-all">
+                                <input type="checkbox" name="skill_road" class="w-5 h-5 accent-emerald-500 rounded-lg">
+                                <span class="text-sm font-bold"><i class="fas fa-car-crash text-yellow-500 w-6 text-center"></i> ROAD (Vial)</span>
                             </label>
-                            <label class="flex items-center gap-3 cursor-pointer hover:bg-zinc-800 p-2 rounded transition-colors">
-                                <input type="checkbox" name="skill_fix" class="w-4 h-4 accent-emerald-500 rounded">
-                                <span class="text-sm font-bold text-white"><i class="fas fa-tools text-blue-500 w-6"></i> FIX (Hogar)</span>
-                            </label>
-                            <label class="flex items-center gap-3 cursor-pointer hover:bg-zinc-800 p-2 rounded transition-colors">
-                                <input type="checkbox" name="skill_tech" class="w-4 h-4 accent-emerald-500 rounded">
-                                <span class="text-sm font-bold text-white"><i class="fas fa-wifi text-purple-500 w-6"></i> TECH (Sistemas)</span>
+                            <label class="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-3 rounded-xl transition-all">
+                                <input type="checkbox" name="skill_fix" class="w-5 h-5 accent-emerald-500 rounded-lg">
+                                <span class="text-sm font-bold"><i class="fas fa-tools text-blue-500 w-6 text-center"></i> FIX (Hogar)</span>
                             </label>
                         </div>
                     </div>
 
-                    <div class="flex flex-col gap-2">
-                        <label class="text-slate-400 text-sm">INE:</label>
-                        <input type="file" id="inputINE" class="hidden">
-                        <button type="button" id="btnSubirINE" class="bg-indigo-600 py-2 px-4 rounded-2xl font-black hover:bg-indigo-700 transition-all">Subir INE</button>
-                    </div>
-                    <div class="flex flex-col gap-2">
-                        <label class="text-slate-400 text-sm">CSF:</label>
-                        <input type="file" id="inputCSF" class="hidden">
-                        <button type="button" id="btnSubirCSF" class="bg-indigo-600 py-2 px-4 rounded-2xl font-black hover:bg-indigo-700 transition-all">Subir CSF</button>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-2">
+                            <input type="file" id="inputINE" class="hidden">
+                            <button type="button" id="btnSubirINE" class="bg-zinc-800 py-3 rounded-2xl text-xs font-black hover:bg-zinc-700 transition-all uppercase">INE Frontal</button>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <input type="file" id="inputCSF" class="hidden">
+                            <button type="button" id="btnSubirCSF" class="bg-zinc-800 py-3 rounded-2xl text-xs font-black hover:bg-zinc-700 transition-all uppercase">Constancia SF</button>
+                        </div>
                     </div>
                     
-                    <button type="submit" id="btnRegistroTecnico" class="w-full bg-emerald-500 py-4 rounded-2xl font-black hover:bg-emerald-600 transition-all">Registrarme</button>
+                    <button type="submit" id="btnRegistroTecnico" class="w-full bg-emerald-500 py-5 rounded-2xl font-black text-lg shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all">
+                        Enviar Solicitud Socio
+                    </button>
                 </form>
             </div>
 
