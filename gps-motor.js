@@ -1,7 +1,7 @@
 /*******************************************************
  * FIXGO GPS MOTOR 2026
  * Archivo: gps-motor.js
- * Versión: 5.12 (HIGH ACCURACY FORCED) - FIX: Sincronía Google
+ * Versión: 5.13 (HYBRID ENGINE: Firebase Priority)
  * Rol: Técnico & Visor
  * Función: Geolocalización + Tracking en tiempo real
  * Integración: Firebase Firestore + Google Maps
@@ -71,11 +71,11 @@ export function iniciarTracking() {
       return;
   }
 
-  // Opciones estrictas también para el rastreo continuo
+  // Opciones estrictas para el rastreo continuo
   const opcionesTracking = {
       enableHighAccuracy: true,
       maximumAge: 0,
-      timeout: 15000 // Ajuste de Timeout para evitar "Timeout Expired" prematuro
+      timeout: 15000 
   };
 
   watchId = navigator.geolocation.watchPosition(
@@ -86,10 +86,10 @@ export function iniciarTracking() {
 
       console.log(`📍 Tracking Activo: ${lat}, ${lng} (~${precision}m)`);
 
-      // 1. Actualizar visualmente el mapa propio (si existe)
+      // 1. Actualizar visualmente el mapa propio (Solo si Google cargó)
       actualizarMapaPropio(lat, lng);
 
-      // 2. Subir a Firebase
+      // 2. Subir a Firebase (Prioridad Absoluta)
       await actualizarFirebase(lat, lng);
     },
     (error) => {
@@ -137,7 +137,7 @@ async function actualizarFirebase(lat, lng) {
         isOnline: true
     }, { merge: true });
 
-    // B) Actualizamos 'rastreo/tecnicoActivo' (Para demos o administración)
+    // B) Actualizamos 'rastreo/tecnicoActivo' (Para visor de flota)
     const refRastreo = doc(db, "rastreo", "tecnicoActivo");
     await setDoc(refRastreo, {
         uid: user.uid,
@@ -156,17 +156,10 @@ async function actualizarFirebase(lat, lng) {
 }
 
 /* ==========================================================
-   AUTO-INICIO VISUAL (MAPA TÉCNICO) - LÓGICA V5.12
-   VALIDACIÓN PREVENTIVA DE GOOGLE MAPS API
+   AUTO-INICIO VISUAL (MAPA TÉCNICO) - LÓGICA V5.13
+   ESTRATEGIA HÍBRIDA: Firebase inicia aunque Google falte
 ========================================================== */
 window.initMapaTecnico = function () {
-    // 1. VALIDACIÓN PREVENTIVA: Si Google no ha cargado, esperamos y reintentamos
-    if (typeof google === "undefined") {
-        console.warn("⏳ Esperando que Google Maps API esté disponible...");
-        setTimeout(window.initMapaTecnico, 1000); // Reintento silencioso cada 1s
-        return;
-    }
-
     console.log("🗺️ GPS Motor: Solicitando ubicación de ALTA PRECISIÓN...");
 
     if (!navigator.geolocation) {
@@ -174,43 +167,48 @@ window.initMapaTecnico = function () {
         return;
     }
 
-    // CONFIGURACIÓN ESTRICTA DE GPS
     const opcionesGPS = {
         enableHighAccuracy: true, 
-        timeout: 15000,           // Ajustado a 15s para dar margen a la API
+        timeout: 15000,           
         maximumAge: 0             
     };
 
     navigator.geolocation.getCurrentPosition(
-        // 1. ÉXITO (Ubicación Real Encontrada)
         (pos) => {
-            console.log("✅ Ubicación exacta detectada. Inicializando Mapa...");
+            console.log("✅ Ubicación exacta detectada.");
             const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             
-            inicializarMapaGoogle(coords); 
+            // 1. Intentamos inicializar el mapa visual (Si Google está listo)
+            if (typeof google !== "undefined") {
+                console.log("🟢 Google Maps disponible. Renderizando UI...");
+                inicializarMapaGoogle(coords);
+            } else {
+                console.warn("⏳ Google Maps no disponible en esta vista. Continuando solo con Tracking.");
+            }
+
+            // 2. Arrancamos el rastreo de Firebase (Independiente de Google)
             iniciarTracking(); 
         },
-        // 2. ERROR (Fallo de GPS o Permiso denegado)
         (err) => {
-            console.warn("⚠️ No se pudo obtener ubicación exacta. Usando Default.", err);
+            console.warn("⚠️ No se pudo obtener ubicación exacta. Modo seguridad.", err);
             
-            // Coordenadas de seguridad (Cancún Centro) para no romper la UI
+            // Si Google está, pintamos mapa en default, si no, al menos intentamos tracking
             const coordsDefault = { lat: 21.1619, lng: -86.8515 }; 
-            inicializarMapaGoogle(coordsDefault);
+            if (typeof google !== "undefined") {
+                inicializarMapaGoogle(coordsDefault);
+            }
+            iniciarTracking();
         },
         opcionesGPS 
     );
 };
 
-// Función auxiliar para pintar el mapa (Separada para limpieza y orden)
+// Función auxiliar para pintar el mapa
 function inicializarMapaGoogle(coords) {
     const mapElement = document.getElementById("mapa") || document.getElementById("map");
     
-    // Verificación final de seguridad
-    if (typeof google === "undefined") {
-        console.error("❌ Error fatal: Google Maps no cargó al intentar pintar.");
-        return;
-    }
+    // Verificación final de seguridad antes de invocar el objeto google
+    if (typeof google === "undefined") return;
 
     if (mapElement) {
         mapa = new google.maps.Map(mapElement, {
@@ -237,7 +235,6 @@ function inicializarMapaGoogle(coords) {
             ]
         });
 
-        // Marcador del Técnico (Punto Azul Brillante)
         marcadorTecnico = new google.maps.Marker({
             position: coords,
             map: mapa,
@@ -255,9 +252,8 @@ function inicializarMapaGoogle(coords) {
     }
 }
 
-// Listener de arranque optimizado (Sin retrasos fijos innecesarios)
+// Listener de arranque inmediato
 window.addEventListener("load", () => {
-    // Llamada directa: la función window.initMapaTecnico ahora es inteligente
-    // y sabe esperar por sí misma si la API de Google Maps no está lista.
+    // Ya no esperamos a Google Maps para arrancar el motor de GPS
     window.initMapaTecnico();
 });
