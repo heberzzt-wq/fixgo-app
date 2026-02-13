@@ -3,8 +3,8 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.11.1 (FINANCE LOGIC + SPEI WITHDRAWAL + ACCORDION UI CLIENT)
- * Base: V5.11.0
+ * Versión: 5.11.2 (ADMIN SPEI CONTROLLER INCLUDED)
+ * Base: V5.11.1
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * * DESCRIPCIÓN TÉCNICA:
@@ -94,7 +94,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.11.1: Sistema Full Cargado (Finance Core: 24h Release + Tax Splits + SPEI).");
+console.log(" 🚀  FIXGO 5.11.2: Sistema Full Cargado (Admin SPEI Control Live).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -106,6 +106,7 @@ export async function iniciarPanelAdmin(user) {
     const elementos = {
         lista: document.getElementById("listaTecnicos"),
         actividad: document.getElementById("listaTransacciones"),
+        listaRetiros: document.getElementById("listaRetiros"), // NUEVO V5.11.2
         countServ: document.querySelector(".fa-bolt")?.closest(".uber-card")?.querySelector("h3"),
         countMoney: document.querySelector(".fa-wallet")?.closest(".uber-card")?.querySelector("h3"),
         countOnline: document.getElementById("totalTecnicos")
@@ -427,6 +428,80 @@ export async function iniciarPanelAdmin(user) {
             alert("Error al guardar configuración global.");
         }
     };
+
+    // ----------------------------------------------------------------------------------
+    // 1.E. NUEVO: CONTROL DE RETIROS SPEI (V5.11.2) - LÓGICA DE SALDO NEGATIVO
+    // ----------------------------------------------------------------------------------
+    if (elementos.listaRetiros) {
+        const qRetiros = query(collection(db, "retiros"), where("estado", "==", "pendiente"), orderBy("fecha_solicitud", "asc"));
+        
+        onSnapshot(qRetiros, (snap) => {
+            elementos.listaRetiros.innerHTML = "";
+            if(snap.empty) {
+                elementos.listaRetiros.innerHTML = '<p class="text-gray-500 italic text-sm text-center mt-10">No hay retiros pendientes.</p>';
+                return;
+            }
+
+            snap.forEach(docSnap => {
+                const ret = docSnap.data();
+                const id = docSnap.id;
+                
+                let fechaFormat = "";
+                if(ret.fecha_solicitud) {
+                    const dateObj = new Date(ret.fecha_solicitud.seconds * 1000);
+                    fechaFormat = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                }
+
+                const card = document.createElement("div");
+                card.className = "p-4 bg-emerald-900/10 border border-emerald-500/30 rounded-xl mb-3 shadow-lg";
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <p class="text-white font-bold text-sm uppercase">${ret.tecnico_nombre}</p>
+                            <p class="text-[10px] text-gray-400">${fechaFormat}</p>
+                        </div>
+                        <span class="bg-yellow-500 text-black text-[9px] font-black px-2 py-1 rounded animate-pulse">PENDIENTE</span>
+                    </div>
+                    <p class="text-2xl font-black text-emerald-400 mb-3">$${ret.monto.toFixed(2)}</p>
+                    <button class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-xs shadow-lg transition-transform hover:scale-105" onclick="window.aprobarRetiro('${id}', '${ret.tecnico_id}', ${ret.monto})">
+                        <i class="fas fa-check-double"></i> MARCAR COMO PAGADO (SPEI)
+                    </button>
+                `;
+                elementos.listaRetiros.appendChild(card);
+            });
+        });
+
+        // Función Global para Aprobar Retiro y crear la transacción negativa
+        window.aprobarRetiro = async (retiroId, tecnicoId, monto) => {
+            if(!confirm("¿Confirmas que ya realizaste la transferencia SPEI por $"+monto.toFixed(2)+"?\n\nEsto descontará el saldo de la wallet del técnico en automático.")) return;
+            
+            try {
+                // 1. Marcar retiro como aprobado
+                await updateDoc(doc(db, "retiros", retiroId), {
+                    estado: "aprobado",
+                    fecha_aprobacion: serverTimestamp()
+                });
+
+                // 2. Crear transacción negativa para descontar de la Wallet (Lógica 24h intacta)
+                await addDoc(collection(db, "transacciones"), {
+                    servicio_id: "RETIRO_SPEI_" + retiroId.substring(0,5),
+                    tecnico_id: tecnicoId,
+                    monto_total: 0,
+                    comision_fixgo: 0,
+                    retencion_iva: 0,
+                    retencion_isr: 0,
+                    pago_tecnico: -Math.abs(monto), // El movimiento maestro: monto negativo
+                    fecha: serverTimestamp(),
+                    tipo: "retiro_fondos"
+                });
+
+                alert("✅ Retiro procesado exitosamente. Wallet del técnico actualizada.");
+            } catch (error) {
+                console.error("Error al procesar retiro:", error);
+                alert("❌ Error de conexión al procesar el retiro en Firebase.");
+            }
+        };
+    }
 }
 
 // Helper para generar el HTML de switches individuales (V5.9)
