@@ -3,8 +3,8 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.11.2 (ADMIN SPEI CONTROLLER INCLUDED)
- * Base: V5.11.1
+ * Versión: 5.11.3 (SPEI PERSISTENCE LOGIC)
+ * Base: V5.11.2
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * * DESCRIPCIÓN TÉCNICA:
@@ -13,7 +13,7 @@
  * 1. Flujos de estado (Pendiente -> Asignado -> En Camino -> En Sitio -> Cotizando -> Trabajando -> Finalizado).
  * 2. Sistema de Verticales (ROAD, FIX, MAINT, TECH) con activación granular y UI Acordeón.
  * 3. Gestión Financiera AVANZADA (Desglose Fiscal: FixGo 32%, IVA 8%, ISR 10%).
- * 4. Wallet Inteligente (Liberación de fondos 24 horas + Retiros SPEI).
+ * 4. Wallet Inteligente (Liberación de fondos 24 horas + Retiros SPEI Persistentes).
  * 5. Evidencia y Seguridad (Bloqueo de garantías, fotos antes/después, coordenadas GPS).
  * 6. Generación de Documentos (PDF Fiscal Simulado).
  * * REGLAS DE ARQUITECTURA:
@@ -94,7 +94,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.11.2: Sistema Full Cargado (Admin SPEI Control Live).");
+console.log(" 🚀  FIXGO 5.11.3: Sistema Full Cargado (SPEI Persistence Logic).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -601,77 +601,100 @@ export async function iniciarPanelTecnico(user) {
     });
 
     // ----------------------------------------------------------------------------------
-    // 2.D. WALLET & GANANCIAS (V5.11 - LOGICA 24 HORAS DE LIBERACIÓN)
+    // 2.D. WALLET & GANANCIAS (V5.11.3 - LOGICA 24 HORAS + PERSISTENCIA DE RETIROS)
     // ----------------------------------------------------------------------------------
     const qWallet = query(collection(db, "transacciones"), where("tecnico_id", "==", user.uid));
+    const qRetirosPendientes = query(collection(db, "retiros"), where("tecnico_id", "==", user.uid), where("estado", "==", "pendiente"));
     
+    // Usamos variables globales para el estado financiero del técnico
+    let saldoBrutoDisponible = 0;
+    let saldoRetenido = 0;
+    let retirosEnProceso = 0;
+
+    // Escuchador 1: Transacciones (El dinero ganado)
     onSnapshot(qWallet, (snap) => {
-        let saldoDisponible = 0;
-        let saldoRetenido = 0;
+        saldoBrutoDisponible = 0;
+        saldoRetenido = 0;
         const ahora = new Date();
 
         snap.forEach(docSnap => {
             const tx = docSnap.data();
             const monto = (tx.pago_tecnico || 0);
             
-            // Verificamos fecha de la transacción
-            // Si tiene fecha, calculamos antiguedad. Si no, asumimos retenido por seguridad.
             if (tx.fecha && tx.fecha.toDate) {
                 const fechaTx = tx.fecha.toDate();
-                const diffHoras = Math.abs(ahora - fechaTx) / 36e5; // Diferencia en horas
+                const diffHoras = Math.abs(ahora - fechaTx) / 36e5;
 
                 if (diffHoras >= 24) {
-                    saldoDisponible += monto; // Ya pasaron 24h, es libre
+                    saldoBrutoDisponible += monto;
                 } else {
-                    saldoRetenido += monto; // Menos de 24h, retenido
+                    saldoRetenido += monto;
                 }
             } else {
-                saldoRetenido += monto; // Fallback
+                saldoRetenido += monto;
             }
         });
         
-        // Actualizamos la UI
+        actualizarUIWallet();
+    });
+
+    // Escuchador 2: Retiros Pendientes (El dinero que está "en el limbo")
+    onSnapshot(qRetirosPendientes, (snap) => {
+        retirosEnProceso = 0;
+        snap.forEach(docSnap => {
+            retirosEnProceso += docSnap.data().monto;
+        });
+        actualizarUIWallet();
+    });
+
+    // Función unificada para pintar la UI asegurando que ambos listeners estén sincronizados
+    function actualizarUIWallet() {
+        // El saldo real disponible es el bruto MENOS lo que ya pidió retirar y está pendiente
+        const saldoRealDisponible = saldoBrutoDisponible - retirosEnProceso;
+
         if(elementos.walletLabel) {
-            // Formato: $Disponible (En Proceso: $Retenido)
             elementos.walletLabel.innerHTML = `
-                $${saldoDisponible.toFixed(2)}
+                $${saldoRealDisponible.toFixed(2)}
                 <span class="text-[9px] text-gray-400 block font-normal">PROCESANDO: $${saldoRetenido.toFixed(2)}</span>
             `;
             
-            // Añadimos indicador de "Candado" si hay saldo retenido
-            if(saldoRetenido > 0) {
-                 elementos.walletLabel.classList.add("animate-pulse"); // Visual cue
+            if(saldoRetenido > 0 || retirosEnProceso > 0) {
+                 elementos.walletLabel.classList.add("animate-pulse"); 
             } else {
                  elementos.walletLabel.classList.remove("animate-pulse");
             }
-        } else {
-            console.log("💰 Wallet Técnico (Debug): Disp:", saldoDisponible, "Ret:", saldoRetenido);
         }
 
-        // --- NUEVO V5.11.1: LÓGICA DEL BOTÓN DE RETIRO SPEI ---
+        // Lógica del Botón de Retiro (PERSISTENTE)
         if(elementos.btnRetiro) {
-            if(saldoDisponible > 0) {
-                // Habilitar botón
+            if(retirosEnProceso > 0) {
+                // Si ya hay un retiro en proceso, bloqueamos el botón sin importar el saldo restante
+                elementos.btnRetiro.disabled = true;
+                elementos.btnRetiro.className = "w-full py-4 bg-emerald-900/40 text-emerald-500 font-black rounded-xl cursor-not-allowed text-sm animate-pulse border border-emerald-500/30";
+                elementos.btnRetiro.onclick = null;
+                elementos.btnRetiro.innerText = "RETIRO EN PROCESO ($" + retirosEnProceso.toFixed(2) + ")";
+            } 
+            else if(saldoRealDisponible > 0) {
+                // Si no hay retiros pendientes y hay saldo, habilitamos
                 elementos.btnRetiro.disabled = false;
                 elementos.btnRetiro.className = "w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-sm shadow-lg shadow-emerald-500/20 transition-all transform active:scale-95";
+                elementos.btnRetiro.innerText = "SOLICITAR RETIRO (SPEI)";
                 
-                // Asignar evento de retiro
                 elementos.btnRetiro.onclick = async () => {
-                    if(!confirm(`¿Deseas solicitar el retiro de $${saldoDisponible.toFixed(2)} a tu cuenta vía SPEI?`)) return;
+                    if(!confirm(`¿Deseas solicitar el retiro de $${saldoRealDisponible.toFixed(2)} a tu cuenta vía SPEI?`)) return;
                     
-                    elementos.btnRetiro.innerText = "PROCESANDO...";
+                    elementos.btnRetiro.innerText = "SOLICITANDO...";
                     elementos.btnRetiro.disabled = true;
                     
                     try {
                         await addDoc(collection(db, "retiros"), {
                             tecnico_id: user.uid,
                             tecnico_nombre: user.nombre || "Técnico",
-                            monto: saldoDisponible,
+                            monto: saldoRealDisponible,
                             estado: "pendiente",
                             fecha_solicitud: serverTimestamp()
                         });
                         alert("✅ Solicitud de retiro enviada con éxito. El administrador la procesará en breve.");
-                        elementos.btnRetiro.innerText = "RETIRO EN PROCESO";
                     } catch (error) {
                         console.error("Error al solicitar retiro:", error);
                         alert("❌ Hubo un error al procesar tu solicitud. Intenta de nuevo.");
@@ -680,14 +703,14 @@ export async function iniciarPanelTecnico(user) {
                     }
                 };
             } else {
-                // Deshabilitar botón
+                // Si no hay saldo, deshabilitamos normal
                 elementos.btnRetiro.disabled = true;
                 elementos.btnRetiro.className = "w-full py-4 bg-emerald-600/20 text-emerald-500 font-black rounded-xl cursor-not-allowed text-sm";
                 elementos.btnRetiro.onclick = null;
                 elementos.btnRetiro.innerText = "SOLICITAR RETIRO (SPEI)";
             }
         }
-    });
+    }
 
     // Listener para el Switch ON/OFF principal
     if (elementos.toggleONOFF) {
