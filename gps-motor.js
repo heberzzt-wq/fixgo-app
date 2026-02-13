@@ -1,7 +1,7 @@
 /*******************************************************
  * FIXGO GPS MOTOR 2026
  * Archivo: gps-motor.js
- * Versión: 5.12 (HIGH ACCURACY FORCED)
+ * Versión: 5.12 (HIGH ACCURACY FORCED) - FIX: Sincronía Google
  * Rol: Técnico & Visor
  * Función: Geolocalización + Tracking en tiempo real
  * Integración: Firebase Firestore + Google Maps
@@ -35,6 +35,9 @@ export function actualizarMapaGPS(mapReference, lat, lng) {
     const posicion = { lat, lng };
 
     if (!marcadorCacheExterno) {
+        // Validación preventiva antes de usar el constructor de Google
+        if (typeof google === "undefined") return;
+
         marcadorCacheExterno = new google.maps.Marker({
             position: posicion,
             map: mapReference,
@@ -72,7 +75,7 @@ export function iniciarTracking() {
   const opcionesTracking = {
       enableHighAccuracy: true,
       maximumAge: 0,
-      timeout: 10000
+      timeout: 15000 // Ajuste de Timeout para evitar "Timeout Expired" prematuro
   };
 
   watchId = navigator.geolocation.watchPosition(
@@ -152,11 +155,18 @@ async function actualizarFirebase(lat, lng) {
   }
 }
 
-/* =========================
+/* ==========================================================
    AUTO-INICIO VISUAL (MAPA TÉCNICO) - LÓGICA V5.12
-   Fuerza ubicación real antes de pintar el mapa
-========================= */
+   VALIDACIÓN PREVENTIVA DE GOOGLE MAPS API
+========================================================== */
 window.initMapaTecnico = function () {
+    // 1. VALIDACIÓN PREVENTIVA: Si Google no ha cargado, esperamos y reintentamos
+    if (typeof google === "undefined") {
+        console.warn("⏳ Esperando que Google Maps API esté disponible...");
+        setTimeout(window.initMapaTecnico, 1000); // Reintento silencioso cada 1s
+        return;
+    }
+
     console.log("🗺️ GPS Motor: Solicitando ubicación de ALTA PRECISIÓN...");
 
     if (!navigator.geolocation) {
@@ -165,11 +175,10 @@ window.initMapaTecnico = function () {
     }
 
     // CONFIGURACIÓN ESTRICTA DE GPS
-    // Esto obliga al celular a usar satélites y no caché
     const opcionesGPS = {
-        enableHighAccuracy: true, // <--- OBLIGATORIO: Usa GPS Satelital
-        timeout: 10000,           // Espera máx 10 seg antes de dar error
-        maximumAge: 0             // No acepta ubicaciones viejas guardadas
+        enableHighAccuracy: true, 
+        timeout: 15000,           // Ajustado a 15s para dar margen a la API
+        maximumAge: 0             
     };
 
     navigator.geolocation.getCurrentPosition(
@@ -178,22 +187,18 @@ window.initMapaTecnico = function () {
             console.log("✅ Ubicación exacta detectada. Inicializando Mapa...");
             const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             
-            // Llamamos a la función que pinta el mapa REAL
             inicializarMapaGoogle(coords); 
-            
-            // Arrancamos el rastreo continuo para que se mueva si el técnico camina
             iniciarTracking(); 
         },
         // 2. ERROR (Fallo de GPS o Permiso denegado)
         (err) => {
             console.warn("⚠️ No se pudo obtener ubicación exacta. Usando Default.", err);
-            alert("⚠️ Aviso: No pudimos detectar tu ubicación exacta. Verifica tu GPS. El mapa iniciará en modo general.");
             
             // Coordenadas de seguridad (Cancún Centro) para no romper la UI
             const coordsDefault = { lat: 21.1619, lng: -86.8515 }; 
             inicializarMapaGoogle(coordsDefault);
         },
-        opcionesGPS // <--- Pasamos las reglas estrictas aquí
+        opcionesGPS 
     );
 };
 
@@ -201,86 +206,34 @@ window.initMapaTecnico = function () {
 function inicializarMapaGoogle(coords) {
     const mapElement = document.getElementById("mapa") || document.getElementById("map");
     
-    // Verificamos que Google Maps esté cargado
+    // Verificación final de seguridad
     if (typeof google === "undefined") {
-        console.error("❌ Google Maps API no ha cargado aún.");
+        console.error("❌ Error fatal: Google Maps no cargó al intentar pintar.");
         return;
     }
 
     if (mapElement) {
         mapa = new google.maps.Map(mapElement, {
             center: coords,
-            zoom: 18, // Zoom muy cercano (Nivel calle) para ver detalle
-            disableDefaultUI: true, // Limpio sin botones extra
-            styles: [ // Estilo Dark Mode Profesional
+            zoom: 18, 
+            disableDefaultUI: true, 
+            styles: [ 
                 { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
                 { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
                 { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-                {
-                    featureType: "administrative.locality",
-                    elementType: "labels.text.fill",
-                    stylers: [{ color: "#d59563" }],
-                },
-                {
-                    featureType: "poi",
-                    elementType: "labels.text.fill",
-                    stylers: [{ color: "#d59563" }],
-                },
-                {
-                    featureType: "poi.park",
-                    elementType: "geometry",
-                    stylers: [{ color: "#263c3f" }],
-                },
-                {
-                    featureType: "poi.park",
-                    elementType: "labels.text.fill",
-                    stylers: [{ color: "#6b9a76" }],
-                },
-                {
-                    featureType: "road",
-                    elementType: "geometry",
-                    stylers: [{ color: "#38414e" }],
-                },
-                {
-                    featureType: "road",
-                    elementType: "geometry.stroke",
-                    stylers: [{ color: "#212a37" }],
-                },
-                {
-                    featureType: "road",
-                    elementType: "labels.text.fill",
-                    stylers: [{ color: "#9ca5b3" }],
-                },
-                {
-                    featureType: "road.highway",
-                    elementType: "geometry",
-                    stylers: [{ color: "#746855" }],
-                },
-                {
-                    featureType: "road.highway",
-                    elementType: "geometry.stroke",
-                    stylers: [{ color: "#1f2835" }],
-                },
-                {
-                    featureType: "road.highway",
-                    elementType: "labels.text.fill",
-                    stylers: [{ color: "#f3d19c" }],
-                },
-                {
-                    featureType: "water",
-                    elementType: "geometry",
-                    stylers: [{ color: "#17263c" }],
-                },
-                {
-                    featureType: "water",
-                    elementType: "labels.text.fill",
-                    stylers: [{ color: "#515c6d" }],
-                },
-                {
-                    featureType: "water",
-                    elementType: "labels.text.stroke",
-                    stylers: [{ color: "#17263c" }],
-                },
+                { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+                { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+                { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#263c3f" }] },
+                { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#6b9a76" }] },
+                { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
+                { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
+                { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b3" }] },
+                { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#746855" }] },
+                { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#1f2835" }] },
+                { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#f3d19c" }] },
+                { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] },
+                { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#515c6d" }] },
+                { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#17263c" }] },
             ]
         });
 
@@ -293,27 +246,18 @@ function inicializarMapaGoogle(coords) {
             icon: {
                 path: google.maps.SymbolPath.CIRCLE,
                 scale: 12,
-                fillColor: "#4f46e5", // Indigo Intenso
+                fillColor: "#4f46e5", 
                 fillOpacity: 1,
                 strokeWeight: 3,
-                strokeColor: "#ffffff" // Borde Blanco
+                strokeColor: "#ffffff" 
             }
         });
     }
 }
 
-// Listener seguro para carga de API Google Maps y arranque
+// Listener de arranque optimizado (Sin retrasos fijos innecesarios)
 window.addEventListener("load", () => {
-    // Esperamos 1.5 seg de buffer para asegurar que el script de Google baje
-    setTimeout(() => {
-        if (typeof google !== "undefined" && typeof window.initMapaTecnico === 'function') {
-            window.initMapaTecnico();
-        } else {
-            console.warn("⚠️ Esperando API Google Maps...");
-            // Reintento de emergencia por si el internet es lento
-            setTimeout(() => {
-                if (typeof window.initMapaTecnico === 'function') window.initMapaTecnico();
-            }, 3000);
-        }
-    }, 1500);
+    // Llamada directa: la función window.initMapaTecnico ahora es inteligente
+    // y sabe esperar por sí misma si la API de Google Maps no está lista.
+    window.initMapaTecnico();
 });
