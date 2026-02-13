@@ -46,55 +46,33 @@ import { getDocs, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/f
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 
 // ======================================================================================
-//  🔔  SISTEMA DE SONIDO CENTRALIZADO (ROBUSTO V5.6 - DO NOT TOUCH)
 // ======================================================================================
-// Este sistema gestiona las alertas auditivas para técnicos y clientes.
-// Se mantiene la lógica de desbloqueo para navegadores modernos (Chrome/Safari) que bloquean autoplay.
+// 🔔 SISTEMA DE SONIDO CENTRALIZADO (V5.12 - MACGYVER ENGINE)
+// ======================================================================================
+// Reemplaza al sistema V5.6. Ya no usa archivos externos (Mixkit).
+// Importamos el motor sintetizador que creamos en alert-engine.js
 
-const audioNotificacion = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
-let audioDesbloqueado = false;
+import { activarAlertas, alertaTecnico } from "./alert-engine.js";
 
 /**
- * FUNCIÓN DE DESBLOQUEO DE AUDIO (Mantenida de V5.6)
- * Los navegadores bloquean el sonido si el usuario no ha interactuado primero con el DOM.
- * Esta función se ejecuta al primer click/touch del usuario.
+ * ACTIVADOR MAESTRO (UNLOCKER)
+ * El navegador bloquea el audio hasta que el usuario toca la pantalla.
+ * Esto prepara el sintetizador con el primer clic que hagas en el panel.
  */
-function desbloquearAudio() {
-    if (audioDesbloqueado) return;
-
-    // Intentamos reproducir y pausar inmediatamente para "engañar" al navegador y desbloquear el contexto de audio
-    audioNotificacion.play().then(() => {
-        audioNotificacion.pause();
-        audioNotificacion.currentTime = 0;
-        audioDesbloqueado = true;
-        console.log(" 🔊  Sistema de Audio: DESBLOQUEADO Y LISTO PARA ALERTAS.");
-
-        // Removemos los listeners para no saturar memoria ni eventos innecesarios
-        document.removeEventListener('click', desbloquearAudio);
-        document.removeEventListener('touchstart', desbloquearAudio);
-    }).catch(error => {
-        console.log(" ⚠️ Esperando interacción del usuario para activar audio (Política de Navegador)...");
+document.addEventListener('click', () => {
+    activarAlertas().then(() => {
+        console.log("🔊 FIXGO AUDIO ENGINE: Desbloqueado y listo (Modo Sintetizador).");
     });
-}
-
-// Agregamos listeners a todo el documento para atrapar el primer clic/toque en cualquier parte
-document.addEventListener('click', desbloquearAudio);
-document.addEventListener('touchstart', desbloquearAudio);
+}, { once: true }); // "once: true" asegura que solo se ejecute una vez y limpie memoria.
 
 /**
- * FUNCIÓN PÚBLICA PARA DISPARAR LA ALERTA
- * Invocada desde los listeners de Firebase (onSnapshot) cuando hay cambios relevantes.
+ * WRAPPER DE COMPATIBILIDAD
+ * Si tienes alguna parte vieja de tu código que llame a "sonarAlerta()",
+ * esto la redirige al nuevo motor para que no se rompa nada.
  */
 function sonarAlerta() {
-    if (!audioDesbloqueado) {
-        console.warn(" 🔇  Intento de alerta fallido: Audio pendiente de desbloqueo (Toca la pantalla).");
-        return;
-    }
-    // Reiniciamos el tiempo para permitir disparos consecutivos rápidos
-    audioNotificacion.currentTime = 0;
-    audioNotificacion.play().catch(e => console.log(" 🔊  Alerta visual: Audio bloqueado por el navegador.", e));
+    alertaTecnico();
 }
-
 // ======================================================================================
 //  📄  CARGADOR DINÁMICO DE PDF (OPTIMIZACIÓN V5.7)
 // ======================================================================================
@@ -1680,3 +1658,35 @@ export async function iniciarPanelCliente(user) {
         }
     };
 }
+/**
+ * ======================================================
+ * 🔔 FIXGO AUDIO WATCHDOG (Vigilante de Alertas V5.12)
+ * Se coloca al final del archivo para no estorbar.
+ * ======================================================
+ */
+function iniciarVigilanciaAudio() {
+    console.log("👂 Audio Watchdog: Iniciando escucha de servicios pendientes...");
+
+    // Aseguramos que 'db', 'collection', 'query', 'where' existen (vienen de tus imports arriba)
+    const qAudio = query(
+        collection(db, "servicios"), 
+        where("status", "==", "pendiente")
+    );
+
+    onSnapshot(qAudio, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            // Si se AGREGÓ un documento nuevo a la lista de pendientes...
+            if (change.type === "added") {
+                const datos = change.doc.data();
+                
+                console.log("🔔 ¡PING! Nuevo servicio detectado:", datos.titulo || "Servicio");
+                
+                // ¡FUEGO! Disparamos el sonido "Ti-Ti-Ti"
+                alertaTecnico(); 
+            }
+        });
+    });
+}
+
+// Ejecutamos el vigilante
+iniciarVigilanciaAudio();
