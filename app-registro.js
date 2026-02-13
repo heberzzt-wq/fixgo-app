@@ -3,10 +3,10 @@
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
  * Versión: 5.9 (VEHICLE TELEMETRY READY)
- * Base: V5.8 (Stripe + Bank Data)
+ * Base: V5.8 (STRIPE INTEGRATION + BANK DATA SECURE)
  * ======================================================
  */
-console.log(" 🚀 [app-registro.js] Inicializando sistema V5.9 (Preparado para Telemetría)...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema V5.9 (Pagos + Telemetría de Vehículos)...");
 
 import { 
     auth, 
@@ -100,6 +100,7 @@ if (btnRegistroCliente) {
             return;
         }
 
+        // VALIDACIÓN DE STRIPE (OBLIGATORIO PARA GARANTÍA)
         if (!stripe || !cardElement) {
             alert("⚠️ Error: El sistema de pagos no está cargado. Recarga la página.");
             return;
@@ -111,16 +112,19 @@ if (btnRegistroCliente) {
             btnRegistroCliente.innerText = "Validando Tarjeta...";
             btnRegistroCliente.disabled = true;
 
+            // 1. TOKENIZACIÓN DE TARJETA CON STRIPE
             const { token, error } = await stripe.createToken(cardElement);
 
             if (error) {
-                throw new Error(error.message);
+                throw new Error(error.message); // Error de tarjeta inválida, fecha exp, etc.
             }
 
             btnRegistroCliente.innerText = "Creando cuenta...";
 
+            // 2. Intentamos crear en Auth
             usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
 
+            // 3. Intentamos guardar en Firestore CON TOKEN DE PAGO
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
@@ -131,7 +135,7 @@ if (btnRegistroCliente) {
                 estado: "activo",
                 status: "activo",
                 metodo_pago_default: {
-                    stripe_token: token.id,
+                    stripe_token: token.id, 
                     marca: token.card.brand,
                     last4: token.card.last4,
                     exp_month: token.card.exp_month,
@@ -144,9 +148,13 @@ if (btnRegistroCliente) {
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
+            
+            // Reversión
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
+                console.warn("⚠️ Revirtiendo registro: Borrando usuario de Auth por fallo.");
                 await deleteUser(auth.currentUser).catch(e => console.error("Error borrando huérfano:", e));
             }
+            
             manejarErroresAuth(error);
             btnRegistroCliente.innerText = "Registrarme";
             btnRegistroCliente.disabled = false;
@@ -189,23 +197,24 @@ if (btnRegistroTecnico) {
         const email = form.querySelector('[name="email"]')?.value.trim();
         const password = form.querySelector('[name="password"]')?.value.trim();
         const telefono = form.querySelector('[name="telefono"]')?.value.trim();
+        
+        // --- NUEVOS CAMPOS: VEHÍCULO Y DATOS BANCARIOS ---
         const clabe = form.querySelector('[name="clabe"]')?.value.trim();
         const banco = form.querySelector('[name="banco"]')?.value.trim();
-        
-        // --- CAPTURA DE TIPO DE VEHÍCULO (PARA GPS-MOTOR V5.14) ---
-        const tipoVehiculo = form.querySelector('[name="tipoVehiculo"]')?.value || "auto";
+        const tipoVehiculo = form.querySelector('[name="tipoVehiculo"]')?.value || "auto"; // Default
 
         if (!nombre || !email || !password || !telefono) {
             alert("⚠️ Faltan campos obligatorios básicos."); return;
         }
 
         if (!clabe || clabe.length !== 18) {
-            alert("⚠️ La CLABE Interbancaria es obligatoria (18 dígitos)."); return;
+            alert("⚠️ La CLABE Interbancaria es obligatoria y debe tener 18 dígitos."); return;
         }
         if (!banco) {
             alert("⚠️ Ingresa el nombre de tu Banco."); return;
         }
 
+        // 1. CAPTURA DE SKILLS (Habilidades)
         const skills = [];
         if(form.querySelector('[name="skill_road"]')?.checked) skills.push("road");
         if(form.querySelector('[name="skill_fix"]')?.checked) skills.push("fix");
@@ -226,8 +235,10 @@ if (btnRegistroTecnico) {
             btnRegistroTecnico.innerText = "Enviando Solicitud...";
             btnRegistroTecnico.disabled = true;
 
+            // 1. Registro en Auth
             usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
+            // 2. Registro en DB CON DATOS BANCARIOS Y VEHÍCULO
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
@@ -235,7 +246,7 @@ if (btnRegistroTecnico) {
                 telefono: telefono,
                 rol: "tecnico",
                 skills: skills,
-                tipoVehiculo: tipoVehiculo, // Campo maestro para el motor de GPS
+                tipoVehiculo: tipoVehiculo, // Maestro para el GPS Motor
                 estado: "pendiente",
                 status: "pendiente",
                 disponible: false,
@@ -254,12 +265,13 @@ if (btnRegistroTecnico) {
                 creadoEn: serverTimestamp()
             }, { merge: true });
 
-            alert("✅ ¡Solicitud recibida! Se validarán tus datos y vehículo.");
+            alert("✅ ¡Solicitud recibida! Tu vehículo y datos bancarios serán validados.");
             window.location.href = "tecnico.html";
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Técnico:", error);
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
+                console.warn("⚠️ Fallo en DB: Limpiando Auth para permitir reintento.");
                 await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza:", e));
             }
             manejarErroresAuth(error);
@@ -312,7 +324,7 @@ if (btnGoogle) {
                     nombre: user.displayName,
                     email: user.email,
                     rol: esTecnico ? "tecnico" : "cliente",
-                    tipoVehiculo: "auto", // Default para Google Login
+                    tipoVehiculo: "auto", // Default
                     skills: esTecnico ? ["fix"] : [],
                     estado: esTecnico ? "pendiente" : "activo",
                     status: esTecnico ? "pendiente" : "activo",
@@ -320,7 +332,9 @@ if (btnGoogle) {
                 });
                 
                 if(esTecnico) {
-                    alert("⚠️ Aviso: Completa tu perfil y vehículo para recibir pagos.");
+                    alert("⚠️ Aviso: Deberás completar tu perfil bancario y vehículo.");
+                } else {
+                    alert("⚠️ Aviso: Deberás agregar una tarjeta para solicitar servicios.");
                 }
             }
         } catch (error) {
@@ -346,10 +360,13 @@ observarAuth((user) => {
 });
 
 function manejarErroresAuth(error) {
+    console.log("Código de error:", error.code);
     if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        alert("❌ Credenciales incorrectas.");
+        alert("❌ Credenciales incorrectas o cuenta mal configurada.");
     } else if (error.code === 'auth/email-already-in-use') {
-        alert("⚠️ El correo ya está registrado.");
+        alert("⚠️ El correo ya está registrado. Intenta iniciar sesión.");
+    } else if (error.code === 'auth/weak-password') {
+        alert("⚠️ La contraseña es muy débil.");
     } else {
         alert("🚨 Error: " + error.message);
     }
