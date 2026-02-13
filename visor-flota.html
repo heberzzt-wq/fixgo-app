@@ -6,25 +6,30 @@
     <title>FixGo | Centro de Comando (God View)</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    
     <style>
+        /* ESTILOS GENERALES */
         body, html { 
             margin: 0; 
             padding: 0; 
             height: 100%; 
             width: 100%;
             font-family: 'Inter', sans-serif; 
-            overflow: hidden; /* Evita scroll bars */
-            background-color: #242f3e; /* Fondo oscuro preventivo */
+            overflow: hidden; 
+            background-color: #242f3e; 
         }
         
-        /* EL MAPA DEBE TENER TAMAÑO EXPLÍCITO */
+        /* EL MAPA */
         #map { 
             height: 100vh; 
             width: 100vw; 
             background: #242f3e; 
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 1;
         }
 
-        /* PANEL FLOTANTE LATERAL */
+        /* PANEL FLOTANTE LATERAL (RADAR) */
         #panel-flotante {
             position: absolute;
             top: 20px;
@@ -34,94 +39,113 @@
             padding: 20px;
             border-radius: 12px;
             box-shadow: 0 4px 25px rgba(0,0,0,0.4);
-            z-index: 999;
+            z-index: 10;
             max-height: 85vh;
             overflow-y: auto;
             backdrop-filter: blur(5px);
+            display: none; /* Se oculta hasta que inicies sesión */
         }
 
-        h2 { 
-            margin: 0 0 5px 0; 
-            color: #111; 
-            font-size: 20px; 
-            font-weight: 800; 
-        }
-        
-        .stat { 
-            font-size: 13px; 
-            color: #666; 
-            margin-bottom: 20px; 
-            border-bottom: 1px solid #eee; 
-            padding-bottom: 10px; 
-        }
+        h2 { margin: 0 0 5px 0; color: #111; font-size: 20px; font-weight: 800; }
+        .stat { font-size: 13px; color: #666; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
         
         /* LISTA TÉCNICOS */
         .tech-item {
-            display: flex; 
-            align-items: center; 
-            padding: 12px;
-            background: #fff; 
-            border: 1px solid #eee; 
-            border-radius: 8px;
-            margin-bottom: 10px; 
-            cursor: pointer; 
-            transition: all 0.2s;
+            display: flex; align-items: center; padding: 12px;
+            background: #fff; border: 1px solid #eee; border-radius: 8px;
+            margin-bottom: 10px; cursor: pointer; transition: all 0.2s;
         }
-        
-        .tech-item:hover { 
-            background: #f0f9ff; 
-            border-color: #0ea5e9; 
-            transform: translateX(5px); 
-        }
+        .tech-item:hover { background: #f0f9ff; border-color: #0ea5e9; transform: translateX(5px); }
         
         .status-dot {
-            width: 12px; 
-            height: 12px; 
-            border-radius: 50%;
-            background: #ccc; 
-            margin-right: 12px; 
-            border: 2px solid #fff;
+            width: 12px; height: 12px; border-radius: 50%;
+            background: #ccc; margin-right: 12px; border: 2px solid #fff;
             box-shadow: 0 0 2px rgba(0,0,0,0.2);
         }
-        
-        .online { 
-            background: #10b981; 
-            box-shadow: 0 0 8px #10b981; 
-        }
+        .online { background: #10b981; box-shadow: 0 0 8px #10b981; }
 
-        .tech-info { flex: 1; }
         .tech-info strong { display: block; font-size: 15px; color: #333; }
         .tech-info span { font-size: 12px; color: #888; }
 
         .btn-refresh {
-            background: #111; 
-            color: #fff; 
-            border: none; 
-            width: 100%;
-            padding: 12px; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            font-weight: 700; 
-            margin-top: 15px;
-            transition: background 0.2s;
+            background: #111; color: #fff; border: none; width: 100%;
+            padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; margin-top: 15px;
+        }
+
+        /* === PANTALLA DE LOGIN FLOTANTE (NUEVO) === */
+        #login-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
         }
         
-        .btn-refresh:hover { background: #333; }
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 350px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        
+        .login-box h3 { margin-top: 0; color: #111; font-size: 24px; }
+        .login-box p { color: #666; font-size: 14px; margin-bottom: 20px; }
+        
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #444; }
+        .input-group input {
+            width: 100%; padding: 12px;
+            border: 1px solid #ddd; border-radius: 8px;
+            font-size: 16px; box-sizing: border-box;
+        }
+        
+        .btn-login {
+            width: 100%; padding: 14px;
+            background: #10b981; color: white;
+            border: none; border-radius: 8px;
+            font-size: 16px; font-weight: bold;
+            cursor: pointer; transition: background 0.3s;
+        }
+        .btn-login:hover { background: #059669; }
+        
+        #error-msg { color: red; font-size: 13px; margin-top: 10px; display: none; }
 
-        /* Estilo scrollbar */
-        #panel-flotante::-webkit-scrollbar { width: 6px; }
-        #panel-flotante::-webkit-scrollbar-track { background: #f1f1f1; }
-        #panel-flotante::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
     </style>
 </head>
 <body>
 
+    <div id="login-overlay">
+        <div class="login-box">
+            <h3>🔒 Acceso Restringido</h3>
+            <p>Ingresa tus credenciales de Administrador para desbloquear el Mapa Satelital.</p>
+            
+            <div class="input-group">
+                <label>Correo Electrónico</label>
+                <input type="email" id="email" placeholder="admin@fixgo.com">
+            </div>
+            
+            <div class="input-group">
+                <label>Contraseña</label>
+                <input type="password" id="password" placeholder="••••••••">
+            </div>
+            
+            <button class="btn-login" id="btnAcceder">DESBLOQUEAR MAPA</button>
+            <div id="error-msg">Credenciales incorrectas</div>
+        </div>
+    </div>
+
     <div id="panel-flotante">
         <h2>📡 Radar FixGo</h2>
-        <div class="stat">Monitoreo Satelital (V5.12 Secure)</div>
+        <div class="stat">Monitoreo Satelital (V5.12 Live)</div>
         <div id="lista-tecnicos">
             <div style="text-align:center; padding: 30px; color:#999;">
-                <p>Verificando credenciales...</p>
+                <p>Conectando satélites...</p>
             </div>
         </div>
         <button class="btn-refresh" onclick="centrarMapa()">🔄 Recentrar Mapa</button>
@@ -132,9 +156,10 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        // IMPORTAMOS TODO LO DE AUTH
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-        // 1. CONFIGURACIÓN FIREBASE (Producción V5.11)
+        // CONFIGURACIÓN FIREBASE
         const firebaseConfig = {
             apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
             authDomain: "fixgo-app.firebaseapp.com",
@@ -146,16 +171,69 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const auth = getAuth(app); // Necesario para validar permisos
+        const auth = getAuth(app);
 
         // VARIABLES GLOBALES
         let map;
         let markers = {};
 
-        // 2. FUNCIÓN GLOBAL DE INICIO DE MAPA
-        // Se define antes de llamar al script de Google Maps
+        // === 1. LÓGICA DE LOGIN INTERNO ===
+        const overlay = document.getElementById('login-overlay');
+        const panel = document.getElementById('panel-flotante');
+        const btnLogin = document.getElementById('btnAcceder');
+        const errorMsg = document.getElementById('error-msg');
+
+        // Escuchar cambios de sesión
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // SI YA ESTÁ LOGUEADO:
+                console.log("✅ Acceso Autorizado:", user.email);
+                overlay.style.display = 'none'; // Quitamos login
+                panel.style.display = 'block';  // Mostramos panel
+                
+                // Si el mapa aún no carga, inyectamos el script
+                if (!window.google) cargarScriptMaps();
+                else escucharFlota(); // Si ya estaba, solo escuchamos
+                
+            } else {
+                // SI NO ESTÁ LOGUEADO:
+                console.warn("🔒 Bloqueado. Esperando credenciales...");
+                overlay.style.display = 'flex'; // Mostramos login
+                panel.style.display = 'none';   // Ocultamos panel
+            }
+        });
+
+        // Evento del botón de Login
+        btnLogin.addEventListener('click', async () => {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                alert("Por favor ingresa correo y contraseña");
+                return;
+            }
+
+            btnLogin.innerText = "VERIFICANDO...";
+            btnLogin.disabled = true;
+
+            try {
+                // ESTO ES LO QUE ROMPE EL BUCLE:
+                // Nos logueamos AQUÍ MISMO sin cambiar de página
+                await signInWithEmailAndPassword(auth, email, password);
+                // El onAuthStateChanged de arriba se disparará automáticamente
+                
+            } catch (error) {
+                console.error("Error Login:", error);
+                errorMsg.style.display = 'block';
+                errorMsg.innerText = "Error: " + error.message;
+                btnLogin.innerText = "DESBLOQUEAR MAPA";
+                btnLogin.disabled = false;
+            }
+        });
+
+        // === 2. INICIALIZADOR DEL MAPA ===
         window.initMap = function() {
-            console.log("🗺️ Google Maps API cargada. Renderizando...");
+            console.log("🗺️ Google Maps Listo. Renderizando...");
             
             const cancun = { lat: 21.1619, lng: -86.8515 };
             
@@ -164,7 +242,7 @@
                 zoom: 13,
                 disableDefaultUI: false,
                 backgroundColor: "#242f3e",
-                styles: [ // Dark Mode Style
+                styles: [
                     { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
                     { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
                     { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
@@ -174,30 +252,15 @@
                 ]
             });
 
-            // Una vez que el mapa existe, verificamos la sesión del admin
-            verificarSesion();
+            // Arrancamos el radar
+            escucharFlota();
         };
 
-        // 3. SISTEMA DE SEGURIDAD (Evita error 'permission-denied')
-        function verificarSesion() {
-            const listaDiv = document.getElementById("lista-tecnicos");
-            
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    console.log("✅ Admin Autenticado:", user.email);
-                    listaDiv.innerHTML = "<div style='text-align:center; padding:20px; color:#666;'>Buscando satélites...</div>";
-                    escucharFlota(); // Permiso concedido
-                } else {
-                    console.warn("🔒 Acceso denegado: No hay sesión activa.");
-                    alert("⚠️ ACCESO DENEGADO\n\nDebes iniciar sesión como Administrador en la pantalla principal para ver este mapa.");
-                    window.location.href = "index.html"; // Redirección de seguridad
-                }
-            });
-        }
-
-        // 4. INYECCIÓN DINÁMICA DEL SCRIPT DE MAPAS
-        // Esto asegura que initMap exista antes de que Google intente llamarlo
+        // === 3. CARGA DE GOOGLE MAPS ===
         function cargarScriptMaps() {
+            // Verificamos si ya existe para no duplicar
+            if (document.querySelector('script[src*="maps.googleapis.com"]')) return;
+
             const script = document.createElement('script');
             script.src = "https://maps.googleapis.com/maps/api/js?key=AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k&callback=initMap";
             script.async = true;
@@ -205,12 +268,11 @@
             document.head.appendChild(script);
         }
 
-        // 5. LÓGICA DE RASTREO (FLOTA)
+        // === 4. LÓGICA DE RASTREO ===
         function escucharFlota() {
             const listaDiv = document.getElementById("lista-tecnicos");
-            console.log("📡 Iniciando radar de flota...");
+            console.log("📡 Radar activo...");
 
-            // Query: Dame todos los usuarios que sean 'tecnico'
             const q = query(collection(db, "users"), where("rol", "==", "tecnico"));
 
             onSnapshot(q, (snapshot) => {
@@ -227,7 +289,6 @@
                     const data = doc.data();
                     const uid = doc.id;
                     
-                    // Solo mostramos si tienen ubicación válida
                     if (data.location && data.location.lat) {
                         actualizarMarcador(uid, data);
                         agregarItemLista(uid, data);
@@ -235,22 +296,23 @@
                     }
                 });
                 
-                document.querySelector(".stat").innerText = `Monitoreando: ${conteo} Unidades Activas`;
+                document.querySelector(".stat").innerText = `Monitoreando: ${conteo} Unidades`;
             }, (error) => {
-                console.error("❌ Error de lectura:", error);
-                listaDiv.innerHTML = "<div style='color:red; padding:10px'>Error de conexión con la flota.</div>";
+                // Si falla por permisos, forzamos logout para que salga el login box de nuevo
+                console.error("Error Data:", error);
+                if (error.code === 'permission-denied') {
+                    // Opcional: auth.signOut();
+                }
             });
         }
 
-        // 6. ACTUALIZAR MARCADORES EN EL MAPA
         function actualizarMarcador(id, data) {
             const pos = { lat: data.location.lat, lng: data.location.lng };
             const nombre = data.nombre || "Técnico";
 
             if (markers[id]) {
-                markers[id].setPosition(pos); // Mover existente
+                markers[id].setPosition(pos); 
             } else {
-                // Crear nuevo marcador
                 const marker = new google.maps.Marker({
                     position: pos,
                     map: map,
@@ -258,42 +320,33 @@
                     icon: {
                         path: google.maps.SymbolPath.CIRCLE,
                         scale: 10,
-                        fillColor: "#10b981", // Verde FixGo
+                        fillColor: "#10b981",
                         fillOpacity: 1,
                         strokeWeight: 2,
-                        strokeColor: "#ffffff"
+                        strokeColor: "#fff"
                     }
                 });
                 
-                // InfoWindow al hacer click
-                const info = new google.maps.InfoWindow({ 
-                    content: `<div style='color:#000; font-weight:bold;'>${nombre}</div>` 
-                });
+                const info = new google.maps.InfoWindow({ content: `<div style='color:black'><b>${nombre}</b></div>` });
                 marker.addListener("click", () => info.open(map, marker));
                 
                 markers[id] = marker;
             }
         }
 
-        // 7. AGREGAR A LA LISTA LATERAL
         function agregarItemLista(id, data) {
             const nombre = data.nombre || "Técnico";
             const listaDiv = document.getElementById("lista-tecnicos");
-            
-            // Si está recibiendo datos, está online
             const html = `
                 <div class="tech-item" onclick="window.hacerZoom('${id}')">
                     <div class="status-dot online"></div>
-                    <div class="tech-info">
-                        <strong>${nombre}</strong>
-                        <span>En servicio</span>
-                    </div>
+                    <div class="tech-info"><strong>${nombre}</strong><span>En servicio</span></div>
                 </div>
             `;
             listaDiv.innerHTML += html;
         }
 
-        // 8. FUNCIONES GLOBALES (EXPORTS)
+        // GLOBALES
         window.hacerZoom = (id) => {
             if (markers[id]) {
                 map.panTo(markers[id].getPosition());
@@ -307,9 +360,6 @@
             map.setZoom(13);
             map.setCenter({ lat: 21.1619, lng: -86.8515 });
         };
-
-        // EJECUTAR CARGA
-        cargarScriptMaps();
 
     </script>
 </body>
