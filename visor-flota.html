@@ -7,54 +7,89 @@
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Inter', sans-serif; }
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            height: 100%; 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; /* Evita scroll */
+        }
         
         /* EL MAPA OCUPA TODA LA PANTALLA */
-        #map { height: 100%; width: 100%; background: #242f3e; }
+        #map { 
+            height: 100%; 
+            width: 100%; 
+            background: #242f3e; 
+        }
 
         /* UN PANEL FLOTANTE PARA VER LA LISTA */
         #panel-flotante {
             position: absolute;
             top: 20px;
             left: 20px;
-            width: 300px;
-            background: rgba(255, 255, 255, 0.95);
+            width: 320px;
+            background: rgba(255, 255, 255, 0.98);
             padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 25px rgba(0,0,0,0.4);
             z-index: 999;
-            max-height: 80vh;
+            max-height: 85vh;
             overflow-y: auto;
+            backdrop-filter: blur(5px);
         }
 
-        h2 { margin: 0 0 10px 0; color: #111; font-size: 18px; }
-        .stat { font-size: 12px; color: #666; margin-bottom: 15px; }
+        h2 { 
+            margin: 0 0 5px 0; 
+            color: #111; 
+            font-size: 20px; 
+            font-weight: 800;
+        }
+        
+        .stat { 
+            font-size: 13px; 
+            color: #666; 
+            margin-bottom: 20px; 
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
         
         /* ESTILO DE LA LISTA DE TÉCNICOS */
         .tech-item {
             display: flex;
             align-items: center;
-            padding: 10px;
+            padding: 12px;
             background: #fff;
             border: 1px solid #eee;
             border-radius: 8px;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             cursor: pointer;
             transition: all 0.2s;
         }
-        .tech-item:hover { background: #f0f9ff; border-color: #0ea5e9; }
+        
+        .tech-item:hover { 
+            background: #f0f9ff; 
+            border-color: #0ea5e9; 
+            transform: translateX(5px);
+        }
         
         .status-dot {
-            width: 10px;
-            height: 10px;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
-            background: #ccc; /* Gris = Offline */
-            margin-right: 10px;
+            background: #ccc; /* Gris = Offline por defecto */
+            margin-right: 12px;
+            border: 2px solid #fff;
+            box-shadow: 0 0 2px rgba(0,0,0,0.2);
         }
-        .online { background: #10b981; box-shadow: 0 0 5px #10b981; } /* Verde = Online */
         
-        .tech-info strong { display: block; font-size: 14px; color: #333; }
-        .tech-info span { font-size: 11px; color: #888; }
+        .online { 
+            background: #10b981; 
+            box-shadow: 0 0 8px #10b981; 
+        } /* Verde = Online */
+        
+        .tech-info { flex: 1; }
+        .tech-info strong { display: block; font-size: 15px; color: #333; }
+        .tech-info span { font-size: 12px; color: #888; }
 
         /* BOTÓN DE REFRESCAR */
         .btn-refresh {
@@ -62,40 +97,52 @@
             color: #fff;
             border: none;
             width: 100%;
-            padding: 10px;
-            border-radius: 6px;
+            padding: 12px;
+            border-radius: 8px;
             cursor: pointer;
-            font-weight: 600;
-            margin-top: 10px;
+            font-weight: 700;
+            margin-top: 15px;
+            transition: background 0.2s;
         }
+        
+        .btn-refresh:hover { background: #333; }
+
+        /* Estilo para el Scrollbar del panel */
+        #panel-flotante::-webkit-scrollbar { width: 6px; }
+        #panel-flotante::-webkit-scrollbar-track { background: #f1f1f1; }
+        #panel-flotante::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
     </style>
 </head>
 <body>
 
     <div id="panel-flotante">
         <h2>📡 Radar FixGo</h2>
-        <div class="stat">Monitoreo en Tiempo Real (V5.12)</div>
+        <div class="stat">Monitoreo Satelital en Tiempo Real (V5.12)</div>
+        
         <div id="lista-tecnicos">
-            <div style="text-align:center; padding: 20px; color:#999;">Cargando flota...</div>
+            <div style="text-align:center; padding: 30px; color:#999;">
+                <p>Buscando señales...</p>
+            </div>
         </div>
-        <button class="btn-refresh" onclick="centrarMapa()">🔄 Recentrar Mapa</button>
+
+        <button class="btn-refresh" onclick="centrarMapa()">🔄 Recentrar en Cancún</button>
     </div>
 
     <div id="map"></div>
 
     <script type="module">
-        // 1. IMPORTAMOS FIREBASE (Asegúrate que la ruta sea correcta)
+        // 1. IMPORTAMOS FIREBASE
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // 2. TU CONFIGURACIÓN (Debe ser la misma que en firebase.js)
+        // 2. TU CONFIGURACIÓN REAL (V5.11)
         const firebaseConfig = {
-            apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", // Tu API Key Real
+            apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k",
             authDomain: "fixgo-app.firebaseapp.com",
             projectId: "fixgo-app",
             storageBucket: "fixgo-app.appspot.com",
-            messagingSenderId: "TU_SENDER_ID",
-            appId: "TU_APP_ID"
+            messagingSenderId: "TU_SENDER_ID", // Si no lo tienes, no afecta lectura
+            appId: "TU_APP_ID" // Si no lo tienes, no afecta lectura
         };
 
         // INICIALIZAMOS
@@ -107,24 +154,87 @@
         let markers = {}; // Aquí guardamos los marcadores para no duplicarlos (ID -> Marker)
 
         // 3. INICIAMOS EL MAPA (ESTILO DARK MODE PROFESIONAL)
+        // Esta función se llama automáticamente cuando carga el script de Google Maps abajo
         window.initMap = function() {
             const cancun = { lat: 21.1619, lng: -86.8515 };
             
             map = new google.maps.Map(document.getElementById("map"), {
                 center: cancun,
-                zoom: 12,
-                disableDefaultUI: false, // Dejamos controles para ti
+                zoom: 13,
+                disableDefaultUI: false, // Dejamos controles para ti (zoom, street view)
                 styles: [
                     { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
                     { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
                     { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-                    { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
-                    { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
-                    { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] }
+                    {
+                        featureType: "administrative.locality",
+                        elementType: "labels.text.fill",
+                        stylers: [{ color: "#d59563" }],
+                    },
+                    {
+                        featureType: "poi",
+                        elementType: "labels.text.fill",
+                        stylers: [{ color: "#d59563" }],
+                    },
+                    {
+                        featureType: "poi.park",
+                        elementType: "geometry",
+                        stylers: [{ color: "#263c3f" }],
+                    },
+                    {
+                        featureType: "poi.park",
+                        elementType: "labels.text.fill",
+                        stylers: [{ color: "#6b9a76" }],
+                    },
+                    {
+                        featureType: "road",
+                        elementType: "geometry",
+                        stylers: [{ color: "#38414e" }],
+                    },
+                    {
+                        featureType: "road",
+                        elementType: "geometry.stroke",
+                        stylers: [{ color: "#212a37" }],
+                    },
+                    {
+                        featureType: "road",
+                        elementType: "labels.text.fill",
+                        stylers: [{ color: "#9ca5b3" }],
+                    },
+                    {
+                        featureType: "road.highway",
+                        elementType: "geometry",
+                        stylers: [{ color: "#746855" }],
+                    },
+                    {
+                        featureType: "road.highway",
+                        elementType: "geometry.stroke",
+                        stylers: [{ color: "#1f2835" }],
+                    },
+                    {
+                        featureType: "road.highway",
+                        elementType: "labels.text.fill",
+                        stylers: [{ color: "#f3d19c" }],
+                    },
+                    {
+                        featureType: "water",
+                        elementType: "geometry",
+                        stylers: [{ color: "#17263c" }],
+                    },
+                    {
+                        featureType: "water",
+                        elementType: "labels.text.fill",
+                        stylers: [{ color: "#515c6d" }],
+                    },
+                    {
+                        featureType: "water",
+                        elementType: "labels.text.stroke",
+                        stylers: [{ color: "#17263c" }],
+                    }
                 ]
             });
 
-            // ARRANCAMOS EL ESCUCHA DE FIREBASE
+            // ARRANCAMOS EL ESCUCHA DE FIREBASE INMEDIATAMENTE
             escucharFlota();
         };
 
@@ -132,67 +242,94 @@
         function escucharFlota() {
             const listaDiv = document.getElementById("lista-tecnicos");
             
+            console.log("📡 Iniciando escucha de flota en Firebase...");
+
             // Consultamos la colección 'users' donde el rol sea 'tecnico'
-            // OJO: Si usas una colección separada para activos, cambia esto.
-            // Asumo que guardamos la lat/lng dentro del documento del usuario en 'users'
+            // Esto traerá a todos los técnicos registrados
             const q = query(collection(db, "users"), where("rol", "==", "tecnico"));
 
             // onSnapshot es MÁGICO: Se dispara solo cuando algo cambia en la DB
+            // Si un técnico se mueve 1 metro, esto se dispara y mueve el marcador
             onSnapshot(q, (snapshot) => {
                 
-                // Limpiamos la lista visual (simple approach)
+                // Limpiamos la lista visual para redibujarla actualizada
                 listaDiv.innerHTML = "";
 
                 if (snapshot.empty) {
-                    listaDiv.innerHTML = "<div style='padding:10px'>No hay técnicos registrados.</div>";
+                    listaDiv.innerHTML = "<div style='padding:20px; text-align:center'>No hay técnicos registrados con rol='tecnico'.</div>";
+                    return;
                 }
+
+                let activosCount = 0;
 
                 snapshot.forEach((doc) => {
                     const data = doc.data();
                     const uid = doc.id;
+                    const nombre = data.nombre || data.email || "Técnico";
 
-                    // Validamos que tenga ubicación
+                    // Validamos que tenga ubicación válida
+                    // (A veces un registro nuevo no tiene location aun)
                     if (data.location && data.location.lat && data.location.lng) {
+                        
+                        // Actualizar Marcador en Mapa
                         actualizarMarcador(uid, data);
+                        
+                        // Agregar a la lista lateral
                         agregarItemLista(uid, data);
+                        
+                        activosCount++;
+                    } else {
+                        // Técnico sin ubicación (Quizás nunca ha abierto la app)
+                        console.log(`Técnico ${nombre} sin ubicación registrada.`);
                     }
                 });
+                
+                // Actualizar subtítulo
+                document.querySelector(".stat").innerText = `Monitoreando: ${activosCount} Unidades Activas`;
             });
         }
 
         // 5. ACTUALIZAR O CREAR MARCADOR EN EL MAPA
         function actualizarMarcador(id, data) {
             const pos = { lat: data.location.lat, lng: data.location.lng };
-            const nombre = data.nombre || "Técnico Desconocido";
-            const ultimaAct = data.locationUpdatedAt ? new Date(data.locationUpdatedAt.seconds * 1000).toLocaleTimeString() : "N/A";
+            const nombre = data.nombre || "Técnico";
+            // Formateamos la hora de última actualización
+            let ultimaAct = "Desconocido";
+            if (data.locationUpdatedAt) {
+                const date = new Date(data.locationUpdatedAt.seconds * 1000);
+                ultimaAct = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
 
             if (markers[id]) {
-                // SI YA EXISTE, SOLO LO MOVEMOS (Animación suave)
+                // CASO A: SI YA EXISTE, SOLO LO MOVEMOS (Animación suave)
                 markers[id].setPosition(pos);
-                // Actualizamos info window si estuviera abierta (opcional)
+                
+                // Si quieres actualizar el icono según estado, hazlo aquí
+                // Por ahora mantenemos el mismo
             } else {
-                // SI NO EXISTE, LO CREAMOS
+                // CASO B: SI NO EXISTE, LO CREAMOS DE CERO
                 const marker = new google.maps.Marker({
                     position: pos,
                     map: map,
                     title: nombre,
+                    animation: google.maps.Animation.DROP, // Cae del cielo al aparecer
                     icon: {
                         path: google.maps.SymbolPath.CIRCLE,
                         scale: 10,
-                        fillColor: "#10b981", // Verde FixGo
+                        fillColor: "#10b981", // Verde Emerald FixGo
                         fillOpacity: 1,
                         strokeWeight: 2,
                         strokeColor: "#ffffff"
                     }
                 });
 
-                // InfoWindow al hacer clic
+                // InfoWindow al hacer clic en el punto
                 const infoWindow = new google.maps.InfoWindow({
                     content: `
-                        <div style="color:#000; padding:5px;">
-                            <strong>${nombre}</strong><br>
-                            <small>Última vez: ${ultimaAct}</small><br>
-                            <small>ID: ${id.slice(0,5)}...</small>
+                        <div style="color:#000; padding:5px; font-family:'Inter',sans-serif;">
+                            <strong style="font-size:14px;">${nombre}</strong><br>
+                            <span style="color:#555; font-size:12px;">Última señal: ${ultimaAct}</span><br>
+                            <span style="color:#888; font-size:10px;">ID: ${id.slice(0,5)}...</span>
                         </div>
                     `
                 });
@@ -201,44 +338,66 @@
                     infoWindow.open(map, marker);
                 });
 
-                markers[id] = marker; // Guardamos en memoria
+                markers[id] = marker; // Guardamos en memoria para controlarlo luego
             }
         }
 
         // 6. AGREGAR A LA LISTA DEL PANEL IZQUIERDO
         function agregarItemLista(id, data) {
             const listaDiv = document.getElementById("lista-tecnicos");
-            const nombre = data.nombre || "Técnico";
-            const isOnline = data.isOnline === true; // Asumiendo que usas esta bandera
+            const nombre = data.nombre || data.email || "Técnico";
+            const isOnline = data.isOnline === true; 
+            
+            // Calculamos hace cuánto fue la última señal para saber si está "VIVO"
+            let estadoTexto = "Desconectado";
+            let claseOnline = "";
+            
+            if (data.locationUpdatedAt) {
+                const now = Date.now() / 1000; // Segundos actuales
+                const diff = now - data.locationUpdatedAt.seconds;
+                
+                if (diff < 300) { // Menos de 5 minutos
+                    estadoTexto = "🟢 En Línea";
+                    claseOnline = "online";
+                } else if (diff < 3600) {
+                    estadoTexto = "🟡 Ausente (" + Math.floor(diff/60) + "m)";
+                } else {
+                    estadoTexto = "⚪ Inactivo";
+                }
+            }
 
             const itemHTML = `
                 <div class="tech-item" onclick="hacerZoom('${id}')">
-                    <div class="status-dot ${isOnline ? 'online' : ''}"></div>
+                    <div class="status-dot ${claseOnline}"></div>
                     <div class="tech-info">
                         <strong>${nombre}</strong>
-                        <span>${isOnline ? '🟢 En línea' : '⚪ Desconectado'}</span>
+                        <span>${estadoTexto}</span>
                     </div>
                 </div>
             `;
             listaDiv.innerHTML += itemHTML;
         }
 
-        // 7. FUNCIONES DE UTILIDAD (GLOBALES)
+        // 7. FUNCIONES DE UTILIDAD (GLOBALES PARA QUE EL HTML LAS VEA)
         window.hacerZoom = function(id) {
             if (markers[id]) {
                 map.panTo(markers[id].getPosition());
-                map.setZoom(16);
+                map.setZoom(17); // Zoom profundo al técnico
+                
+                // Efecto de rebote para identificarlo
+                markers[id].setAnimation(google.maps.Animation.BOUNCE);
+                setTimeout(() => { markers[id].setAnimation(null); }, 2000); // Parar rebote a los 2 seg
             }
         };
 
         window.centrarMapa = function() {
-            map.setZoom(12);
-            map.setCenter({ lat: 21.1619, lng: -86.8515 }); // Cancún
+            map.setZoom(13);
+            map.setCenter({ lat: 21.1619, lng: -86.8515 }); // Cancún Centro
         };
 
     </script>
 
-    <script src="https://maps.googleapis.com/maps/api/js?key=TU_API_KEY_GOOGLE_MAPS&callback=initMap" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k&callback=initMap" async defer></script>
 
 </body>
 </html>
