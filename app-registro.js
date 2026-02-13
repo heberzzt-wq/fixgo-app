@@ -2,11 +2,11 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 5.8 (STRIPE INTEGRATION + BANK DATA SECURE)
- * Base: V5.7
+ * Versión: 5.9 (VEHICLE TELEMETRY READY)
+ * Base: V5.8 (Stripe + Bank Data)
  * ======================================================
  */
-console.log(" 🚀 [app-registro.js] Inicializando sistema V5.8 (Pagos y Seguridad Bancaria)...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema V5.9 (Preparado para Telemetría)...");
 
 import { 
     auth, 
@@ -71,7 +71,6 @@ async function iniciarStripe() {
 }
 
 // Intentamos iniciar Stripe al cargar el script
-// Nota: Requiere <script src="https://js.stripe.com/v3/"></script> en tu HTML
 if(document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', iniciarStripe);
 } else {
@@ -101,7 +100,6 @@ if (btnRegistroCliente) {
             return;
         }
 
-        // VALIDACIÓN DE STRIPE (OBLIGATORIO PARA GARANTÍA)
         if (!stripe || !cardElement) {
             alert("⚠️ Error: El sistema de pagos no está cargado. Recarga la página.");
             return;
@@ -113,20 +111,16 @@ if (btnRegistroCliente) {
             btnRegistroCliente.innerText = "Validando Tarjeta...";
             btnRegistroCliente.disabled = true;
 
-            // 1. TOKENIZACIÓN DE TARJETA CON STRIPE
             const { token, error } = await stripe.createToken(cardElement);
 
             if (error) {
-                throw new Error(error.message); // Error de tarjeta inválida, fecha exp, etc.
+                throw new Error(error.message);
             }
 
             btnRegistroCliente.innerText = "Creando cuenta...";
 
-            // 2. Intentamos crear en Auth
             usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
 
-            // 3. Intentamos guardar en Firestore CON TOKEN DE PAGO
-            // NOTA: Nunca guardamos el número de tarjeta, solo el token 'tok_...'
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
@@ -137,7 +131,7 @@ if (btnRegistroCliente) {
                 estado: "activo",
                 status: "activo",
                 metodo_pago_default: {
-                    stripe_token: token.id, // Guardamos el token seguro
+                    stripe_token: token.id,
                     marca: token.card.brand,
                     last4: token.card.last4,
                     exp_month: token.card.exp_month,
@@ -150,13 +144,9 @@ if (btnRegistroCliente) {
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
-            
-            // Reversión
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
-                console.warn("⚠️ Revirtiendo registro: Borrando usuario de Auth por fallo.");
                 await deleteUser(auth.currentUser).catch(e => console.error("Error borrando huérfano:", e));
             }
-            
             manejarErroresAuth(error);
             btnRegistroCliente.innerText = "Registrarme";
             btnRegistroCliente.disabled = false;
@@ -165,7 +155,7 @@ if (btnRegistroCliente) {
 }
 
 // ======================================================
-// B. LÓGICA DE TÉCNICOS (CON DATOS BANCARIOS PARA COBRAR)
+// B. LÓGICA DE TÉCNICOS (CON DATOS BANCARIOS + VEHÍCULO)
 // ======================================================
 const btnRegistroTecnico = $("btnRegistroTecnico");
 let ineCargado = false;
@@ -199,24 +189,23 @@ if (btnRegistroTecnico) {
         const email = form.querySelector('[name="email"]')?.value.trim();
         const password = form.querySelector('[name="password"]')?.value.trim();
         const telefono = form.querySelector('[name="telefono"]')?.value.trim();
-        
-        // NUEVOS CAMPOS BANCARIOS (OBLIGATORIOS PARA RECIBIR PAGOS)
-        // Asegúrate de agregar estos inputs en tu HTML de registro técnico
         const clabe = form.querySelector('[name="clabe"]')?.value.trim();
         const banco = form.querySelector('[name="banco"]')?.value.trim();
+        
+        // --- CAPTURA DE TIPO DE VEHÍCULO (PARA GPS-MOTOR V5.14) ---
+        const tipoVehiculo = form.querySelector('[name="tipoVehiculo"]')?.value || "auto";
 
         if (!nombre || !email || !password || !telefono) {
             alert("⚠️ Faltan campos obligatorios básicos."); return;
         }
 
         if (!clabe || clabe.length !== 18) {
-            alert("⚠️ La CLABE Interbancaria es obligatoria y debe tener 18 dígitos para poder depositarte."); return;
+            alert("⚠️ La CLABE Interbancaria es obligatoria (18 dígitos)."); return;
         }
         if (!banco) {
             alert("⚠️ Ingresa el nombre de tu Banco."); return;
         }
 
-        // 1. CAPTURA DE SKILLS (Habilidades)
         const skills = [];
         if(form.querySelector('[name="skill_road"]')?.checked) skills.push("road");
         if(form.querySelector('[name="skill_fix"]')?.checked) skills.push("fix");
@@ -237,10 +226,8 @@ if (btnRegistroTecnico) {
             btnRegistroTecnico.innerText = "Enviando Solicitud...";
             btnRegistroTecnico.disabled = true;
 
-            // 1. Registro en Auth
             usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
-            // 2. Registro en DB CON DATOS BANCARIOS SEGUROS
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
@@ -248,6 +235,7 @@ if (btnRegistroTecnico) {
                 telefono: telefono,
                 rol: "tecnico",
                 skills: skills,
+                tipoVehiculo: tipoVehiculo, // Campo maestro para el motor de GPS
                 estado: "pendiente",
                 status: "pendiente",
                 disponible: false,
@@ -259,20 +247,19 @@ if (btnRegistroTecnico) {
                 },
                 datos_bancarios: {
                     banco: banco,
-                    clabe: clabe, // Se guarda para dispersión de pagos (Admin Only)
+                    clabe: clabe,
                     titular: nombre
                 },
                 nivel: "Bronce",
                 creadoEn: serverTimestamp()
             }, { merge: true });
 
-            alert("✅ ¡Solicitud recibida! Tus datos bancarios y documentos serán validados.");
+            alert("✅ ¡Solicitud recibida! Se validarán tus datos y vehículo.");
             window.location.href = "tecnico.html";
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Técnico:", error);
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
-                console.warn("⚠️ Fallo en DB: Limpiando Auth para permitir reintento.");
                 await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza:", e));
             }
             manejarErroresAuth(error);
@@ -320,14 +307,12 @@ if (btnGoogle) {
             if (!docSnap.exists()) {
                 const esTecnico = confirm("¿Eres TÉCNICO? [ACEPTAR] = SÍ / [CANCELAR] = CLIENTE");
                 
-                // NOTA: Si entra por Google, no tenemos tarjeta ni cuenta bancaria aún.
-                // Deberás pedirla en el Perfil más adelante.
-                
                 await setDoc(doc(db, "users", user.uid), {
                     uid: user.uid,
                     nombre: user.displayName,
                     email: user.email,
                     rol: esTecnico ? "tecnico" : "cliente",
+                    tipoVehiculo: "auto", // Default para Google Login
                     skills: esTecnico ? ["fix"] : [],
                     estado: esTecnico ? "pendiente" : "activo",
                     status: esTecnico ? "pendiente" : "activo",
@@ -335,9 +320,7 @@ if (btnGoogle) {
                 });
                 
                 if(esTecnico) {
-                    alert("⚠️ Aviso: Deberás completar tu perfil bancario para recibir pagos.");
-                } else {
-                    alert("⚠️ Aviso: Deberás agregar una tarjeta para solicitar servicios.");
+                    alert("⚠️ Aviso: Completa tu perfil y vehículo para recibir pagos.");
                 }
             }
         } catch (error) {
@@ -363,14 +346,11 @@ observarAuth((user) => {
 });
 
 function manejarErroresAuth(error) {
-    console.log("Código de error:", error.code);
     if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        alert("❌ Credenciales incorrectas o cuenta mal configurada.");
+        alert("❌ Credenciales incorrectas.");
     } else if (error.code === 'auth/email-already-in-use') {
-        alert("⚠️ El correo ya está registrado. Intenta iniciar sesión.");
-    } else if (error.code === 'auth/weak-password') {
-        alert("⚠️ La contraseña es muy débil.");
+        alert("⚠️ El correo ya está registrado.");
     } else {
-        alert("🚨 Error: " + error.message); // Esto mostrará errores de Stripe también
+        alert("🚨 Error: " + error.message);
     }
 }
