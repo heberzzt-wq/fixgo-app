@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     
     <style>
-        /* ESTILOS GENERALES */
+        /* ESTILOS GENERALES (Mantenidos íntegros de tu versión) */
         body, html { 
             margin: 0; 
             padding: 0; 
@@ -66,13 +66,25 @@
 
         .tech-info strong { display: block; font-size: 15px; color: #333; }
         .tech-info span { font-size: 12px; color: #888; }
+        
+        /* Badge para el tipo de vehículo */
+        .badge-vehiculo {
+            font-size: 9px;
+            text-transform: uppercase;
+            background: #0ea5e9;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-top: 3px;
+            display: inline-block;
+        }
 
         .btn-refresh {
             background: #111; color: #fff; border: none; width: 100%;
             padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; margin-top: 15px;
         }
 
-        /* === PANTALLA DE LOGIN FLOTANTE (NUEVO) === */
+        /* === PANTALLA DE LOGIN FLOTANTE === */
         #login-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -124,17 +136,14 @@
         <div class="login-box">
             <h3>🔒 Acceso Restringido</h3>
             <p>Ingresa tus credenciales de Administrador para desbloquear el Mapa Satelital.</p>
-            
             <div class="input-group">
                 <label>Correo Electrónico</label>
                 <input type="email" id="email" placeholder="admin@fixgo.com">
             </div>
-            
             <div class="input-group">
                 <label>Contraseña</label>
                 <input type="password" id="password" placeholder="••••••••">
             </div>
-            
             <button class="btn-login" id="btnAcceder">DESBLOQUEAR MAPA</button>
             <div id="error-msg">Credenciales incorrectas</div>
         </div>
@@ -142,7 +151,7 @@
 
     <div id="panel-flotante">
         <h2>📡 Radar FixGo</h2>
-        <div class="stat">Monitoreo Satelital (V5.12 Live)</div>
+        <div class="stat">Monitoreo Satelital (V5.15 Live)</div>
         <div id="lista-tecnicos">
             <div style="text-align:center; padding: 30px; color:#999;">
                 <p>Conectando satélites...</p>
@@ -156,17 +165,16 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        // IMPORTAMOS TODO LO DE AUTH
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-        // CONFIGURACIÓN FIREBASE
+        // CONFIGURACIÓN FIREBASE (Mantenida)
         const firebaseConfig = {
             apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0", 
-    authDomain: "fixgo-44e4d.firebaseapp.com",
-    projectId: "fixgo-44e4d",
-    storageBucket: "fixgo-44e4d.appspot.com",
-    messagingSenderId: "1005526685116",
-    appId: "1:1005526685116:web:62f1a823ff8761da85c7b9"
+            authDomain: "fixgo-44e4d.firebaseapp.com",
+            projectId: "fixgo-44e4d",
+            storageBucket: "fixgo-44e4d.appspot.com",
+            messagingSenderId: "1005526685116",
+            appId: "1:1005526685116:web:62f1a823ff8761da85c7b9"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -177,7 +185,13 @@
         let map;
         let markers = {};
 
-        // === 1. LÓGICA DE LOGIN INTERNO ===
+        // === DICCIONARIO DE ICONOS (TELEMETRÍA) ===
+        const SVGS = {
+            moto: "M20,16.5A2.5,2.5 0 0,1 17.5,19A2.5,2.5 0 0,1 15,16.5A2.5,2.5 0 0,1 17.5,14A2.5,2.5 0 0,1 20,16.5M5,16.5A2.5,2.5 0 0,1 2.5,19A2.5,2.5 0 0,1 0,16.5A2.5,2.5 0 0,1 2.5,14A2.5,2.5 0 0,1 5,16.5M20.3,12L19,8H15V6H13V8H9V10H11V12H9V14H15V12H20.3Z",
+            auto: "M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z",
+            camioneta: "M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm12 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"
+        };
+
         const overlay = document.getElementById('login-overlay');
         const panel = document.getElementById('panel-flotante');
         const btnLogin = document.getElementById('btnAcceder');
@@ -186,20 +200,15 @@
         // Escuchar cambios de sesión
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                // SI YA ESTÁ LOGUEADO:
                 console.log("✅ Acceso Autorizado:", user.email);
-                overlay.style.display = 'none'; // Quitamos login
-                panel.style.display = 'block';  // Mostramos panel
-                
-                // Si el mapa aún no carga, inyectamos el script
+                overlay.style.display = 'none'; 
+                panel.style.display = 'block'; 
                 if (!window.google) cargarScriptMaps();
-                else escucharFlota(); // Si ya estaba, solo escuchamos
-                
+                else escucharFlota();
             } else {
-                // SI NO ESTÁ LOGUEADO:
                 console.warn("🔒 Bloqueado. Esperando credenciales...");
-                overlay.style.display = 'flex'; // Mostramos login
-                panel.style.display = 'none';   // Ocultamos panel
+                overlay.style.display = 'flex'; 
+                panel.style.display = 'none'; 
             }
         });
 
@@ -207,21 +216,14 @@
         btnLogin.addEventListener('click', async () => {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            
             if (!email || !password) {
                 alert("Por favor ingresa correo y contraseña");
                 return;
             }
-
             btnLogin.innerText = "VERIFICANDO...";
             btnLogin.disabled = true;
-
             try {
-                // ESTO ES LO QUE ROMPE EL BUCLE:
-                // Nos logueamos AQUÍ MISMO sin cambiar de página
                 await signInWithEmailAndPassword(auth, email, password);
-                // El onAuthStateChanged de arriba se disparará automáticamente
-                
             } catch (error) {
                 console.error("Error Login:", error);
                 errorMsg.style.display = 'block';
@@ -234,9 +236,7 @@
         // === 2. INICIALIZADOR DEL MAPA ===
         window.initMap = function() {
             console.log("🗺️ Google Maps Listo. Renderizando...");
-            
             const cancun = { lat: 21.1619, lng: -86.8515 };
-            
             map = new google.maps.Map(document.getElementById("map"), {
                 center: cancun,
                 zoom: 13,
@@ -251,16 +251,12 @@
                     { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] }
                 ]
             });
-
-            // Arrancamos el radar
             escucharFlota();
         };
 
         // === 3. CARGA DE GOOGLE MAPS ===
         function cargarScriptMaps() {
-            // Verificamos si ya existe para no duplicar
             if (document.querySelector('script[src*="maps.googleapis.com"]')) return;
-
             const script = document.createElement('script');
             script.src = "https://maps.googleapis.com/maps/api/js?key=AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k&callback=initMap";
             script.async = true;
@@ -268,7 +264,7 @@
             document.head.appendChild(script);
         }
 
-        // === 4. LÓGICA DE RASTREO ===
+        // === 4. LÓGICA DE RASTREO (INTEGRACIÓN MOTO/AUTO) ===
         function escucharFlota() {
             const listaDiv = document.getElementById("lista-tecnicos");
             console.log("📡 Radar activo...");
@@ -277,70 +273,75 @@
 
             onSnapshot(q, (snapshot) => {
                 listaDiv.innerHTML = "";
-                
                 if (snapshot.empty) {
                     listaDiv.innerHTML = "<div style='padding:20px; text-align:center'>No hay técnicos activos.</div>";
                     return;
                 }
 
                 let conteo = 0;
-
                 snapshot.forEach((doc) => {
                     const data = doc.data();
                     const uid = doc.id;
-                    
                     if (data.location && data.location.lat) {
                         actualizarMarcador(uid, data);
                         agregarItemLista(uid, data);
                         conteo++;
                     }
                 });
-                
                 document.querySelector(".stat").innerText = `Monitoreando: ${conteo} Unidades`;
-            }, (error) => {
-                // Si falla por permisos, forzamos logout para que salga el login box de nuevo
-                console.error("Error Data:", error);
-                if (error.code === 'permission-denied') {
-                    // Opcional: auth.signOut();
-                }
             });
         }
 
         function actualizarMarcador(id, data) {
             const pos = { lat: data.location.lat, lng: data.location.lng };
             const nombre = data.nombre || "Técnico";
+            
+            // --- LÓGICA DE VEHÍCULO V5.15 ---
+            const vehiculo = data.tipoVehiculo || "auto"; 
+            const rumbo = (data.telemetria && data.telemetria.rumbo) || 0;
+            const color = vehiculo === 'moto' ? "#10b981" : (vehiculo === 'camioneta' ? "#f59e0b" : "#6366f1");
 
             if (markers[id]) {
-                markers[id].setPosition(pos); 
+                markers[id].setPosition(pos);
+                // Actualizar rotación dinámicamente
+                const icon = markers[id].getIcon();
+                icon.rotation = rumbo;
+                markers[id].setIcon(icon);
             } else {
                 const marker = new google.maps.Marker({
                     position: pos,
                     map: map,
                     title: nombre,
                     icon: {
-                        path: google.maps.SymbolPath.CIRCLE,
-                        scale: 10,
-                        fillColor: "#10b981",
+                        path: SVGS[vehiculo] || SVGS.auto,
+                        scale: 1.5,
+                        fillColor: color,
                         fillOpacity: 1,
+                        anchor: new google.maps.Point(12, 12),
                         strokeWeight: 2,
-                        strokeColor: "#fff"
+                        strokeColor: "#ffffff",
+                        rotation: rumbo
                     }
                 });
                 
-                const info = new google.maps.InfoWindow({ content: `<div style='color:black'><b>${nombre}</b></div>` });
+                const info = new google.maps.InfoWindow({ content: `<div style='color:black'><b>${nombre}</b><br><small>Vehículo: ${vehiculo}</small></div>` });
                 marker.addListener("click", () => info.open(map, marker));
-                
                 markers[id] = marker;
             }
         }
 
         function agregarItemLista(id, data) {
             const nombre = data.nombre || "Técnico";
+            const vehiculo = data.tipoVehiculo || "auto";
             const listaDiv = document.getElementById("lista-tecnicos");
+            
             const html = `
                 <div class="tech-item" onclick="window.hacerZoom('${id}')">
                     <div class="status-dot online"></div>
-                    <div class="tech-info"><strong>${nombre}</strong><span>En servicio</span></div>
+                    <div class="tech-info">
+                        <strong>${nombre}</strong>
+                        <span class="badge-vehiculo">${vehiculo}</span>
+                    </div>
                 </div>
             `;
             listaDiv.innerHTML += html;
