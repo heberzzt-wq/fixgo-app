@@ -3,8 +3,8 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.11.6 (SPEI PERSISTENCE + ADMIN ANTI-SPAM + ADMIN HISTORY UI)
- * Base: V5.11.5
+ * Versión: 5.11.7 (TECH SPEI HISTORY & RECEIPT PDF)
+ * Base: V5.11.6
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * * DESCRIPCIÓN TÉCNICA:
@@ -15,7 +15,7 @@
  * 3. Gestión Financiera AVANZADA (Desglose Fiscal: FixGo 32%, IVA 8%, ISR 10%).
  * 4. Wallet Inteligente (Liberación de fondos 24 horas + Retiros SPEI Persistentes).
  * 5. Evidencia y Seguridad (Bloqueo de garantías, fotos antes/después, coordenadas GPS).
- * 6. Generación de Documentos (PDF Fiscal Simulado).
+ * 6. Generación de Documentos (PDF Fiscal Simulado + Comprobantes SPEI).
  * * REGLAS DE ARQUITECTURA:
  * - NO COMPACTAR.
  * - NO FRAGMENTAR.
@@ -94,7 +94,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.11.6: Sistema Full Cargado (Admin SPEI History Active).");
+console.log(" 🚀  FIXGO 5.11.7: Sistema Full Cargado (Tech SPEI History & Receipts).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -622,8 +622,11 @@ export async function iniciarPanelTecnico(user) {
         panelAcciones: document.getElementById("panelAcciones"),
         btnEnCamino: document.getElementById("btnEnCamino"),
         btnLlegue: document.getElementById("btnLlegue"),
-        walletLabel: document.getElementById("walletSaldo"), // ELEMENTO NUEVO V5.7.4
-        btnRetiro: document.getElementById("btnRetiro") // NUEVO: Captura del botón de retiro
+        walletLabel: document.getElementById("walletSaldo"),
+        btnRetiro: document.getElementById("btnRetiro"),
+        // NUEVOS ELEMENTOS V5.11.7: Historial de Retiros del Técnico
+        contenedorHistorialRetiros: document.getElementById("contenedorHistorialRetiros"),
+        listaMisRetiros: document.getElementById("listaMisRetiros")
     };
 
     // ----------------------------------------------------------------------------------
@@ -805,6 +808,63 @@ export async function iniciarPanelTecnico(user) {
                 elementos.btnRetiro.innerText = "SOLICITAR RETIRO (SPEI)";
             }
         }
+    }
+
+    // ----------------------------------------------------------------------------------
+    // 2.E. NUEVO: HISTORIAL DE RETIROS DEL TÉCNICO (V5.11.7)
+    // ----------------------------------------------------------------------------------
+    if (elementos.listaMisRetiros && elementos.contenedorHistorialRetiros) {
+        // ATENCIÓN: Esta consulta requiere un 4to Índice Compuesto en Firebase:
+        // tecnico_id (ASC) + estado (ASC) + fecha_aprobacion (DESC)
+        const qMisRetiros = query(
+            collection(db, "retiros"),
+            where("tecnico_id", "==", user.uid),
+            where("estado", "==", "aprobado"),
+            orderBy("fecha_aprobacion", "desc")
+        );
+
+        onSnapshot(qMisRetiros, (snap) => {
+            elementos.listaMisRetiros.innerHTML = "";
+            if(snap.empty) {
+                elementos.contenedorHistorialRetiros.classList.add("hidden");
+                return;
+            }
+
+            elementos.contenedorHistorialRetiros.classList.remove("hidden");
+
+            snap.forEach(docSnap => {
+                const ret = docSnap.data();
+                const id = docSnap.id;
+                
+                let fechaFormat = "";
+                if(ret.fecha_aprobacion) {
+                    const dateObj = new Date(ret.fecha_aprobacion.seconds * 1000);
+                    fechaFormat = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                }
+
+                const item = document.createElement("div");
+                item.className = "flex justify-between items-center bg-zinc-900 border border-zinc-800 p-3 rounded-xl shadow-lg";
+                item.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-emerald-900/30 flex items-center justify-center text-emerald-500 border border-emerald-500/20">
+                            <i class="fas fa-check text-xs"></i>
+                        </div>
+                        <div>
+                            <p class="text-white font-bold text-sm">$${ret.monto.toFixed(2)}</p>
+                            <p class="text-[9px] text-gray-500">${fechaFormat} • LIQUIDADO</p>
+                        </div>
+                    </div>
+                    <button onclick="window.generarPDFRetiro('${id}')" class="text-emerald-500 hover:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-2 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1 border border-emerald-500/30 shadow">
+                        <i class="fas fa-download"></i> PDF
+                    </button>
+                `;
+                elementos.listaMisRetiros.appendChild(item);
+            });
+        }, (error) => {
+            console.warn("Falta índice compuesto para historial de retiros del técnico.", error);
+            elementos.listaMisRetiros.innerHTML = '<p class="text-red-500 text-[10px] text-center p-2 border border-red-500/30 rounded-xl bg-red-900/10">Construyendo índice en Firebase... (Recarga en 3 min)</p>';
+            elementos.contenedorHistorialRetiros.classList.remove("hidden");
+        });
     }
 
     // Listener para el Switch ON/OFF principal
@@ -1314,6 +1374,101 @@ export async function iniciarPanelTecnico(user) {
         reader.onload = () => resolve(reader.result);
         reader.onerror = error => reject(error);
     });
+
+    // ----------------------------------------------------------------------------------
+    // 2.F NUEVO: COMPROBANTE PDF DE RETIRO SPEI (V5.11.7)
+    // ----------------------------------------------------------------------------------
+    window.generarPDFRetiro = async (retiroId) => {
+        try {
+            const docRef = doc(db, "retiros", retiroId);
+            const docSnap = await getDoc(docRef);
+            
+            if (!docSnap.exists()) {
+                throw new Error("No se encontró la información del retiro.");
+            }
+            
+            const data = { ...docSnap.data(), id: retiroId };
+            
+            // Reutilizamos la función de carga dinámica para no sobrecargar el inicio
+            const { jsPDF } = await cargarLibreriaPDF();
+            const docPdf = new jsPDF();
+            
+            // Header Oscuro
+            docPdf.setFillColor(18, 18, 18);
+            docPdf.rect(0, 0, 215, 40, 'F');
+
+            docPdf.setTextColor(255, 255, 255);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(24);
+            docPdf.text("FIXGO", 20, 22);
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setTextColor(16, 185, 129); // Emerald 500
+            docPdf.text("MÉXICO", 60, 22);
+
+            docPdf.setTextColor(200, 200, 200);
+            docPdf.setFontSize(10);
+            docPdf.text("Comprobante de Liquidación (SPEI)", 20, 32);
+            
+            // Datos del folio y fechas
+            docPdf.setFontSize(8);
+            docPdf.setTextColor(150, 150, 150);
+            docPdf.text(`RFC EMISOR: FXG260211-H8A`, 20, 45);
+            
+            let fechaFormat = new Date().toLocaleDateString();
+            if(data.fecha_aprobacion) {
+                fechaFormat = new Date(data.fecha_aprobacion.seconds * 1000).toLocaleDateString();
+            }
+            
+            docPdf.text(`FOLIO RETIRO: SPEI-${data.id.substring(0,6).toUpperCase()}`, 130, 45);
+            docPdf.text(`FECHA APROBACIÓN: ${fechaFormat}`, 130, 50);
+
+            // Contenido Principal
+            let y = 70;
+            docPdf.setTextColor(0, 0, 0);
+            docPdf.setFontSize(14);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.text("DETALLES DE LA TRANSFERENCIA", 20, y);
+
+            y += 10;
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setFontSize(11);
+            docPdf.text(`Beneficiario (Socio Técnico): ${data.tecnico_nombre}`, 20, y);
+            y += 8;
+            docPdf.text(`Estado: LIQUIDADO / APROBADO`, 20, y);
+            
+            y += 20;
+            
+            // Caja de monto total
+            docPdf.setFillColor(245, 245, 245);
+            docPdf.rect(20, y, 170, 30, 'F');
+            
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(12);
+            docPdf.setTextColor(50, 50, 50);
+            docPdf.text("MONTO TRANSFERIDO:", 30, y + 18);
+            
+            docPdf.setFontSize(20);
+            docPdf.setTextColor(16, 185, 129); // Emerald
+            docPdf.text(`$${data.monto.toFixed(2)} MXN`, 110, y + 20);
+
+            // Nota legal
+            y += 60;
+            docPdf.setFontSize(9);
+            docPdf.setTextColor(150, 150, 150);
+            docPdf.setFont("helvetica", "normal");
+            
+            const notaLegal = "Este documento es un comprobante de liquidación digital emitido por la plataforma FixGo. Los fondos han sido transferidos a la cuenta bancaria registrada por el socio especialista. El tiempo de reflejo en cuenta puede variar dependiendo de la institución bancaria receptora.";
+            const splitNota = docPdf.splitTextToSize(notaLegal, 170);
+            docPdf.text(splitNota, 20, y);
+            
+            // Descargar
+            docPdf.save(`FixGo_Liquidacion_${data.id.substring(0,6)}.pdf`);
+
+        } catch (error) {
+            console.error("Error al generar PDF de retiro:", error);
+            alert("Hubo un error al generar el comprobante. Intenta de nuevo.");
+        }
+    };
 }
 
 // ======================================================================================
