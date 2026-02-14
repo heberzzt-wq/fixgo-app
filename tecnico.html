@@ -97,7 +97,8 @@
 
         <div class="mt-8 mb-8">
             <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Mi Cartera</h3>
-            <div class="bg-emerald-950/20 border border-emerald-500/20 p-6 rounded-[2rem]">
+            
+            <div class="bg-emerald-950/20 border border-emerald-500/20 p-6 rounded-[2rem] mb-4 shadow-xl">
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <p class="text-slate-400 text-xs font-bold uppercase">Saldo Disponible</p>
@@ -107,10 +108,17 @@
                         <i class="fas fa-wallet text-xl"></i>
                     </div>
                 </div>
-               <button id="btnRetiro" disabled class="w-full py-4 bg-emerald-600/20 text-emerald-500 font-black rounded-xl cursor-not-allowed text-sm">
-    SOLICITAR RETIRO (SPEI)
-</button>
+                <button id="btnRetiro" disabled class="w-full py-4 bg-emerald-600/20 text-emerald-500 font-black rounded-xl cursor-not-allowed text-sm">
+                    SOLICITAR RETIRO (SPEI)
+                </button>
             </div>
+
+            <div id="contenedorHistorialRetiros" class="hidden">
+                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mt-6 mb-3 pl-2">Últimos movimientos</p>
+                <div id="listaMisRetiros" class="space-y-2">
+                    </div>
+            </div>
+
         </div>
     </main>
 
