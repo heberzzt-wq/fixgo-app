@@ -3,8 +3,8 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.11.5 (SPEI PERSISTENCE + ADMIN ANTI-SPAM CLICK SHIELD)
- * Base: V5.11.4
+ * Versión: 5.11.6 (SPEI PERSISTENCE + ADMIN ANTI-SPAM + ADMIN HISTORY UI)
+ * Base: V5.11.5
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * * DESCRIPCIÓN TÉCNICA:
@@ -94,7 +94,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.11.5: Sistema Full Cargado (Admin Anti-Spam Click Shield Active).");
+console.log(" 🚀  FIXGO 5.11.6: Sistema Full Cargado (Admin SPEI History Active).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -106,7 +106,13 @@ export async function iniciarPanelAdmin(user) {
     const elementos = {
         lista: document.getElementById("listaTecnicos"),
         actividad: document.getElementById("listaTransacciones"),
-        listaRetiros: document.getElementById("listaRetiros"), // NUEVO V5.11.2
+        listaRetiros: document.getElementById("listaRetiros"),
+        // NUEVOS ELEMENTOS PARA EL HISTORIAL DE RETIROS V5.11.6
+        btnToggleHistorialRetiros: document.getElementById("btnToggleHistorialRetiros"),
+        vistaRetirosPendientes: document.getElementById("vistaRetirosPendientes"),
+        vistaHistorialRetiros: document.getElementById("vistaHistorialRetiros"),
+        listaHistorialRetiros: document.getElementById("listaHistorialRetiros"),
+
         countServ: document.querySelector(".fa-bolt")?.closest(".uber-card")?.querySelector("h3"),
         countMoney: document.querySelector(".fa-wallet")?.closest(".uber-card")?.querySelector("h3"),
         countOnline: document.getElementById("totalTecnicos")
@@ -430,8 +436,29 @@ export async function iniciarPanelAdmin(user) {
     };
 
     // ----------------------------------------------------------------------------------
-    // 1.E. NUEVO: CONTROL DE RETIROS SPEI (V5.11.5) - LÓGICA DE SALDO NEGATIVO Y ANTI-SPAM
+    // 1.E. NUEVO: CONTROL DE RETIROS SPEI (V5.11.6) - LÓGICA DE SALDO NEGATIVO Y ANTI-SPAM
     // ----------------------------------------------------------------------------------
+    
+    // Toggle para cambiar entre Retiros Pendientes e Historial
+    if(elementos.btnToggleHistorialRetiros) {
+        let mostrandoHistorial = false;
+        elementos.btnToggleHistorialRetiros.onclick = () => {
+            mostrandoHistorial = !mostrandoHistorial;
+            if(mostrandoHistorial) {
+                elementos.vistaRetirosPendientes.classList.add("hidden");
+                elementos.vistaHistorialRetiros.classList.remove("hidden");
+                elementos.btnToggleHistorialRetiros.innerHTML = '<i class="fas fa-arrow-left"></i> Volver a Pendientes';
+                elementos.btnToggleHistorialRetiros.classList.replace("text-zinc-300", "text-emerald-400");
+            } else {
+                elementos.vistaRetirosPendientes.classList.remove("hidden");
+                elementos.vistaHistorialRetiros.classList.add("hidden");
+                elementos.btnToggleHistorialRetiros.innerHTML = '<i class="fas fa-history"></i> Historial';
+                elementos.btnToggleHistorialRetiros.classList.replace("text-emerald-400", "text-zinc-300");
+            }
+        };
+    }
+
+    // Llenado de Retiros Pendientes
     if (elementos.listaRetiros) {
         const qRetiros = query(collection(db, "retiros"), where("estado", "==", "pendiente"), orderBy("fecha_solicitud", "asc"));
         
@@ -452,7 +479,6 @@ export async function iniciarPanelAdmin(user) {
                     fechaFormat = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                 }
 
-                // NUEVO V5.11.5: Agregado un ID único al botón para bloquearlo con el primer clic
                 const card = document.createElement("div");
                 card.className = "p-4 bg-emerald-900/10 border border-emerald-500/30 rounded-xl mb-3 shadow-lg";
                 card.innerHTML = `
@@ -518,6 +544,51 @@ export async function iniciarPanelAdmin(user) {
                 }
             }
         };
+    }
+
+    // 1.F NUEVO: Llenado del Historial de Retiros Aprobados (V5.11.6)
+    if (elementos.listaHistorialRetiros) {
+        // Requiere índice compuesto en Firebase: estado ASC, fecha_aprobacion DESC
+        const qHistorialRetiros = query(
+            collection(db, "retiros"), 
+            where("estado", "==", "aprobado"), 
+            orderBy("fecha_aprobacion", "desc")
+        );
+        
+        onSnapshot(qHistorialRetiros, (snap) => {
+            elementos.listaHistorialRetiros.innerHTML = "";
+            if(snap.empty) {
+                elementos.listaHistorialRetiros.innerHTML = '<p class="text-gray-500 italic text-xs text-center mt-4">Aún no hay retiros procesados.</p>';
+                return;
+            }
+
+            snap.forEach(docSnap => {
+                const ret = docSnap.data();
+                
+                let fechaFormat = "";
+                if(ret.fecha_aprobacion) {
+                    const dateObj = new Date(ret.fecha_aprobacion.seconds * 1000);
+                    fechaFormat = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                }
+
+                const card = document.createElement("div");
+                card.className = "p-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl mb-2 flex justify-between items-center";
+                card.innerHTML = `
+                    <div>
+                        <p class="text-white font-bold text-xs uppercase">${ret.tecnico_nombre}</p>
+                        <p class="text-[9px] text-gray-500"><i class="fas fa-check-double text-emerald-500"></i> ${fechaFormat}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm font-black text-emerald-400">$${ret.monto.toFixed(2)}</p>
+                        <p class="text-[8px] text-zinc-500 uppercase tracking-widest">Liquidado</p>
+                    </div>
+                `;
+                elementos.listaHistorialRetiros.appendChild(card);
+            });
+        }, (error) => {
+            console.error("Error historial retiros (¿Falta índice?):", error);
+            elementos.listaHistorialRetiros.innerHTML = '<p class="text-red-500 italic text-xs text-center mt-4">Construyendo índice en Firebase... (Recarga en 3 min)</p>';
+        });
     }
 }
 
