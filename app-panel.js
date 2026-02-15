@@ -1273,107 +1273,36 @@ export async function iniciarPanelTecnico(user) {
         }, 100); // Pequeño delay para asegurar renderizado
     }
 
-    //  📸  MODAL EVIDENCIA (REAL CON BASE64 Y CÁLCULO FINANCIERO V5.11)
-    // Calcula la comisión del 32%, IVA 8%, ISR 10% y Neto Técnico
-    function mostrarModalEvidencia(id) {
-        if(document.getElementById("modalEvidencia")) return;
+// REEMPLAZO DENTRO DE mostrarModalEvidencia en app-panel.js
+document.getElementById("btnSubirEvidencia").onclick = async () => {
+    const f1 = document.getElementById("fileAntes").files[0];
+    const f2 = document.getElementById("fileDespues").files[0];
+    if(!f1 || !f2) { alert(" ⚠ ️ Ambas fotos son obligatorias."); return; }
 
-        const html = `
-        <div id="modalEvidencia" class="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-            <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700 shadow-2xl">
-                <h3 class="text-white font-black text-xl mb-4 text-center">REPORTE FINAL OBLIGATORIO</h3>
-                <p class="text-gray-400 text-xs mb-6 text-center">Para liberar el pago, sube la evidencia fotográfica.</p>
-
-                <div class="space-y-4">
-                    <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
-                        <label class="block text-xs font-bold text-emerald-500 mb-2 uppercase">FOTO DEL ANTES</label>
-                        <input type="file" id="fileAntes" accept="image/*" class="text-xs text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-white hover:file:bg-zinc-700">
-                    </div>
-                    <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
-                        <label class="block text-xs font-bold text-emerald-500 mb-2 uppercase">FOTO DEL DESPUÉS</label>
-                        <input type="file" id="fileDespues" accept="image/*" class="text-xs text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-white hover:file:bg-zinc-700">
-                    </div>
-                </div>
-
-                <div class="flex gap-3 mt-8">
-                    <button onclick="document.getElementById('modalEvidencia').remove()" class="flex-1 bg-zinc-800 text-white py-3 rounded-xl font-bold text-sm">CANCELAR</button>
-                    <button id="btnSubirEvidencia" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black py-3 rounded-xl font-black text-sm transition-colors">ENVIAR Y CERRAR</button>
-                </div>
-            </div>
-        </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', html);
+    const btn = document.getElementById("btnSubirEvidencia");
+    btn.innerText = "PROCESANDO PAGO SEGURO...";
+    btn.disabled = true;
+    
+    try {
+        const b64_1 = await toBase64(f1);
+        const b64_2 = await toBase64(f2);
         
-        document.getElementById("btnSubirEvidencia").onclick = async () => {
-            const f1 = document.getElementById("fileAntes").files[0];
-            const f2 = document.getElementById("fileDespues").files[0];
-            if(!f1 || !f2) { alert(" ⚠ ️ Ambas fotos son obligatorias para el reporte."); return; }
+        // IMPORTANTE: Aquí llamamos al archivo nuevo que crearemos
+        const { finalizarServicioBlindado } = await import('./fixgo-bridge.js');
+        
+        const respuesta = await finalizarServicioBlindado(id, user.uid, b64_1, b64_2);
 
-            const btn = document.getElementById("btnSubirEvidencia");
-            btn.innerText = "SUBIENDO EVIDENCIA...";
-            btn.disabled = true;
-            
-            try {
-                // Conversión a Base64
-                const b64_1 = await toBase64(f1);
-                const b64_2 = await toBase64(f2);
-                
-                // CÁLCULO FINANCIERO AVANZADO (V5.11)
-                const servicioSnap = await getDoc(doc(db, "services", id));
-                const servicioData = servicioSnap.data();
-                const costoTotal = servicioData.costo_final || 0;
-
-                // Definición de Porcentajes del Total
-                const comisionFixGo = costoTotal * 0.32; // 32%
-                const retencionIVA = costoTotal * 0.08;  // 8%
-                const retencionISR = costoTotal * 0.10;  // 10%
-                
-                // Lo que sobra es para el técnico (Aprox 50%)
-                const pagoNetoTecnico = costoTotal - (comisionFixGo + retencionIVA + retencionISR);
-
-                // 1. Actualizar Servicio con Evidencia y Datos Fiscales Simulados
-                await actualizarEstado(id, "finalizado", {
-                    evidencia: { antes: b64_1, despues: b64_2 },
-                    finalizado_at: serverTimestamp(),
-                    folio_fiscal: "FX-" + Math.random().toString(36).substr(2, 9).toUpperCase(),
-                    desglose: {
-                        subtotal: (costoTotal / 1.16).toFixed(2),
-                        iva: (costoTotal - (costoTotal / 1.16)).toFixed(2),
-                        total: costoTotal
-                    }
-                });
-
-                // 2. NUEVO: REGISTRAR TRANSACCIÓN CON DESGLOSE COMPLETO
-                await addDoc(collection(db, "transacciones"), {
-                    servicio_id: id,
-                    tecnico_id: user.uid, 
-                    monto_total: costoTotal,
-                    comision_fixgo: comisionFixGo, // 32%
-                    retencion_iva: retencionIVA,   // 8%
-                    retencion_isr: retencionISR,   // 10%
-                    pago_tecnico: pagoNetoTecnico, // Restante
-                    fecha: serverTimestamp(),
-                    tipo: "ingreso_servicio"
-                });
-
-                document.getElementById("modalEvidencia").remove();
-                alert(" ✅  ¡Servicio Cerrado Exitosamente! Comisión y Retenciones aplicadas.");
-            } catch (e) {
-                console.error(e);
-                alert("Error subiendo imágenes. Intenta fotos más pequeñas.");
-                btn.innerText = "REINTENTAR";
-                btn.disabled = false;
-            }
-        };
+        if(respuesta.success) {
+            document.getElementById("modalEvidencia").remove();
+            alert(" ✅ ¡Servicio Cerrado! El servidor procesó el pago y las retenciones correctamente.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Error de seguridad en el cierre. Reintenta.");
+        btn.innerText = "REINTENTAR";
+        btn.disabled = false;
     }
-
-    // Helper: Convertir archivo a texto Base64
-    const toBase64 = file => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-    });
+};
 
     // ----------------------------------------------------------------------------------
     // 2.F NUEVO: COMPROBANTE PDF DE RETIRO SPEI (V5.11.7)
