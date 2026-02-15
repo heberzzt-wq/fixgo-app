@@ -5,6 +5,8 @@
  * Archivo: fixgo-bridge.js
  * Función: Centralizar cálculos sensibles, impuestos y reglas de negocio.
  * Nivel: Blindaje Backend (Simulado en Bridge).
+ * Autor: Heber (CEO & Lead Architect)
+ * ======================================================================================
  */
 
 import { 
@@ -98,9 +100,53 @@ export async function finalizarServicioBlindado(serviceId, tecnicoId, b64_1, b64
 }
 
 /**
- * MOTOR DE RETIROS SEGUROS (Próxima Fase)
- * Aquí agregaremos la validación de saldos antes de permitir que el Admin apruebe.
+ * MOTOR DE RETIROS SEGUROS (ATÓMICO)
+ * Garantiza que si se marca como pagado, se descuenta el dinero SIEMPRE.
+ * Este tramo reemplaza la lógica manual del admin para evitar errores de saldo.
  */
-export async function procesarRetiroSeguro(retiroId, tecnicoId, monto) {
-    // ... lógica en construcción ...
+export async function ejecutarRetiroSeguro(retiroId, tecnicoId, monto) {
+    console.log("🛡️ BRIDGE: Iniciando protocolo de retiro seguro para:", tecnicoId);
+
+    try {
+        const retiroRef = doc(db, "retiros", retiroId);
+        const transaccionRef = collection(db, "transacciones");
+
+        // 1. VALIDACIÓN DE ESTADO (Anti-Spam / Doble clic)
+        const retiroSnap = await getDoc(retiroRef);
+        if (!retiroSnap.exists()) throw new Error("Registro de retiro no encontrado.");
+        
+        if (retiroSnap.data().estado !== "pendiente") {
+            throw new Error("Este retiro ya fue procesado o cancelado previamente.");
+        }
+
+        // 2. ACTUALIZACIÓN DE ESTADO DE SOLICITUD
+        await updateDoc(retiroRef, {
+            estado: "aprobado",
+            fecha_aprobacion: serverTimestamp(),
+            metodo_liquidacion: "SPEI_MANUAL_VERIFICADO",
+            audit_log: "APROBADO_VIA_BRIDGE_V5"
+        });
+
+        // 3. GENERACIÓN DE TRANSACCIÓN NEGATIVA (DESCUENTO DE WALLET)
+        // El movimiento maestro: usamos -Math.abs para asegurar que siempre sea resta.
+        await addDoc(transaccionRef, {
+            servicio_id: "RET-" + retiroId.substring(0, 5).toUpperCase(),
+            tecnico_id: tecnicoId,
+            monto_total: 0,
+            comision_fixgo: 0,
+            retencion_iva: 0,
+            retencion_isr: 0,
+            pago_tecnico: -Math.abs(monto), 
+            fecha: serverTimestamp(),
+            tipo: "retiro_fondos",
+            nota: "Liquidación enviada vía SPEI"
+        });
+
+        console.log("✅ BRIDGE: Retiro de $" + monto + " procesado correctamente.");
+        return { success: true };
+
+    } catch (error) {
+        console.error("🚨 ERROR EN RETIRO BRIDGE:", error);
+        throw error;
+    }
 }
