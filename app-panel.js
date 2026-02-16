@@ -927,7 +927,7 @@ export async function iniciarPanelTecnico(user) {
     };
 
     // ----------------------------------------------------------------------------------
-    // 2.C. FLUJO ACTIVO (MISIONES Y MODAL EVIDENCIA BLINDADO V5.12)
+ // 2.C. FLUJO ACTIVO (MISIONES Y MODAL EVIDENCIA BLINDADO V5.12)
     // ----------------------------------------------------------------------------------
     const qMisiones = query(
         collection(db, "services"),
@@ -995,25 +995,13 @@ export async function iniciarPanelTecnico(user) {
         await setDoc(rastreoRef, { estado: estado }, { merge: true });
     }
 
-    // MODAL DE COTIZACIÓN DETALLADA (V5.7 ALAMO)
+    // MODAL DE COTIZACIÓN DETALLADA (V5.12 - MODULAR)
     function mostrarModalCotizacionDetallada(id, servicioData) {
         if(document.getElementById("modalCot")) return;
         let items = []; 
 
-        const html = `
-        <div id="modalCot" class="fixed inset-0 bg-black/95 z-[60] flex flex-col p-4">
-            <div class="bg-zinc-900 w-full max-w-lg mx-auto rounded-3xl p-6 border border-zinc-700">
-                <h3 class="text-white font-black text-xl mb-4">COTIZADOR PRO (ALAMO)</h3>
-                <div class="flex-1 overflow-y-auto mb-4 bg-black/50 p-2" id="listaPartidas"></div>
-                <div class="bg-zinc-800 p-3 rounded-xl mb-4 space-y-2">
-                    <input id="inCant" type="number" placeholder="Cant." class="w-full bg-black text-white p-2 rounded">
-                    <input id="inDesc" type="text" placeholder="Descripción" class="w-full bg-black text-white p-2 rounded">
-                    <input id="inPrecio" type="number" placeholder="Precio Unitario" class="w-full bg-black text-white p-2 rounded">
-                    <button id="btnAddItem" class="w-full bg-emerald-600 text-white py-2 rounded font-bold">AGREGAR ITEM</button>
-                </div>
-                <button id="btnEnviarCot" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl">ENVIAR AL CLIENTE</button>
-            </div>
-        </div>`;
+        // Inyección dinámica desde el diccionario de plantillas
+        const html = MODAL_TEMPLATES.COTIZACION(id);
         document.body.insertAdjacentHTML('beforeend', html);
 
         const renderItems = () => {
@@ -1044,34 +1032,12 @@ export async function iniciarPanelTecnico(user) {
         }, 100);
     }
 
-    // 📸 MODAL EVIDENCIA (REAL CON BASE64 Y LLAMADA BRIDGE BLINDADA V5.12)
+    // 📸 MODAL EVIDENCIA (REAL CON BASE64 Y LLAMADA BRIDGE BLINDADA V5.12 - MODULAR)
     function mostrarModalEvidencia(id) {
         if(document.getElementById("modalEvidencia")) return;
 
-        const html = `
-        <div id="modalEvidencia" class="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-            <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700 shadow-2xl">
-                <h3 class="text-white font-black text-xl mb-4 text-center">REPORTE FINAL OBLIGATORIO</h3>
-                <p class="text-gray-400 text-xs mb-6 text-center">Para liberar el pago, sube la evidencia fotográfica.</p>
-
-                <div class="space-y-4">
-                    <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
-                        <label class="block text-xs font-bold text-emerald-500 mb-2 uppercase">FOTO DEL ANTES</label>
-                        <input type="file" id="fileAntes" accept="image/*" class="text-xs text-white">
-                    </div>
-                    <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
-                        <label class="block text-xs font-bold text-emerald-500 mb-2 uppercase">FOTO DEL DESPUÉS</label>
-                        <input type="file" id="fileDespues" accept="image/*" class="text-xs text-white">
-                    </div>
-                </div>
-
-                <div class="flex gap-3 mt-8">
-                    <button onclick="document.getElementById('modalEvidencia').remove()" class="flex-1 bg-zinc-800 text-white py-3 rounded-xl font-bold text-sm">CANCELAR</button>
-                    <button id="btnSubirEvidencia" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black py-3 rounded-xl font-black text-sm transition-colors">ENVIAR AL BRIDGE</button>
-                </div>
-            </div>
-        </div>
-        `;
+        // Inyección dinámica desde el diccionario de plantillas
+        const html = MODAL_TEMPLATES.EVIDENCIA;
         document.body.insertAdjacentHTML('beforeend', html);
         
         document.getElementById("btnSubirEvidencia").onclick = async () => {
@@ -1089,7 +1055,6 @@ export async function iniciarPanelTecnico(user) {
                 const b64_2 = await toBase64(f2);
                 
                 // MODIFICACIÓN MAESTRA: LLAMADA AL BRIDGE (CEREBRO UNICORNIO)
-                // Se eliminan los cálculos manuales de 0.32, 0.08, 0.10 de este archivo.
                 const { finalizarServicioBlindado } = await import('./fixgo-bridge.js');
                 const respuesta = await finalizarServicioBlindado(id, user.uid, b64_1, b64_2);
 
@@ -1113,7 +1078,6 @@ export async function iniciarPanelTecnico(user) {
         reader.onload = () => resolve(reader.result);
         reader.onerror = error => reject(error);
     });
-
     // 📄 PDF DE RETIRO (V5.11.7)
     window.generarPDFRetiro = async (retiroId) => {
         const { jsPDF } = await cargarLibreriaPDF();
