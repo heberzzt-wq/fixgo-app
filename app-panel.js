@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * FIXGO 2026 - PANEL MAESTRO DE CONTROL | app-panel.js | V 5.12.0
+ * FIXGO 2026 - PANEL MAESTRO DE CONTROL | app-panel.js | V 5.12.1
  * Autor: Heber (CEO & Lead Architect) | Fecha: Febrero 2026
  * ============================================================================
  * CORE: Gestión de los 3 paneles (Admin, Técnico, Cliente). Flujos de estado, 
@@ -82,7 +82,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.12.0: Sistema Full Cargado (Tech SPEI History & Receipts).");
+console.log(" 🚀  FIXGO 5.12.1: Sistema Full Cargado (Tech SPEI History & Receipts).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -1088,7 +1088,7 @@ export async function iniciarPanelTecnico(user) {
 }
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.11.0
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.1
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
     console.log(" 📱  Iniciando Panel de Cliente...");
@@ -1097,21 +1097,133 @@ export async function iniciarPanelCliente(user) {
         form: document.getElementById("nuevaSolicitudForm"),
         lista: document.getElementById("solicitudesCliente"),
         inputCat: document.getElementById("categoriaSeleccionada"),
-        labelServicio: document.getElementById("btnLabel")
+        labelServicio: document.getElementById("btnLabel"),
+        // Estos IDs asumen que tus contenedores HTML dentro de cada acordeón se llaman así.
+        // Verifícalos en tu archivo cliente.html
+        containerRoad: document.getElementById("content_road"),
+        containerFix: document.getElementById("content_fix"),
+        containerTech: document.getElementById("content_tech"),
+        containerMaint: document.getElementById("content_maint")
     };
 
-    // (Lógica de carga de servicios y envío de solicitud se mantiene con tus 1000+ líneas originales...)
-    // Por brevedad y respeto al código funcional que ya tienes, esta parte inyecta tus solicitudes.
+    // Estructura Maestra (Debe coincidir con la de tu Admin)
+    const MASTER_STRUCTURE = {
+        "road": [
+            { id: "road_llanta", label: "Llantera Móvil", icon: "fa-car-crash" },
+            { id: "road_cerrajero", label: "Cerrajería", icon: "fa-key" },
+            { id: "road_grua", label: "Grúas", icon: "fa-truck-pickup" },
+            { id: "road_mecanico", label: "Mecánico Gral.", icon: "fa-wrench" },
+            { id: "road_corriente", label: "Paso Corriente", icon: "fa-car-battery" }
+        ],
+        "fix": [
+            { id: "fix_electricidad", label: "Electricidad", icon: "fa-plug" },
+            { id: "fix_plomeria", label: "Plomería", icon: "fa-faucet" },
+            { id: "fix_ac", label: "Aires Acondicionad.", icon: "fa-snowflake" },
+            { id: "fix_jardin", label: "Jardinería", icon: "fa-leaf" },
+            { id: "fix_pintura", label: "Pintura", icon: "fa-paint-roller" },
+            { id: "fix_alberca", label: "Albercas", icon: "fa-swimming-pool" },
+            { id: "fix_fumigacion", label: "Fumigación", icon: "fa-bug" }
+        ],
+        "maint": [
+            { id: "maint_general", label: "Mantenimiento Gral.", icon: "fa-building" }
+        ],
+        "tech": [
+            { id: "tech_cctv", label: "CCTV", icon: "fa-video" },
+            { id: "tech_alarma", label: "Alarmas", icon: "fa-bell" },
+            { id: "tech_acceso", label: "Accesos", icon: "fa-id-card" },
+            { id: "tech_elevador", label: "Elevadores", icon: "fa-elevator" },
+            { id: "tech_planta", label: "Plantas Eléc.", icon: "fa-charging-station" },
+            { id: "tech_solar", label: "Paneles Solares", icon: "fa-solar-panel" }
+        ]
+    };
 
+    // 3.A. CARGAR CATÁLOGO DINÁMICO DESDE FIRESTORE
+    const docRef = doc(db, "configuracion", "catalogo_global");
+    onSnapshot(docRef, (docSnap) => {
+        let config = {}; 
+        if(docSnap.exists()) config = docSnap.data();
+
+        // Función interna para inyectar HTML de forma dinámica
+        const renderizarCategoria = (categoriaClave, contenedor) => {
+            if(!contenedor) return;
+            contenedor.innerHTML = ""; // Limpiar antes de pintar
+            let html = '<div class="grid grid-cols-2 gap-2 p-3 bg-black/50 rounded-b-xl border-x border-b border-zinc-800">';
+            
+            MASTER_STRUCTURE[categoriaClave].forEach(srv => {
+                // Validar si el admin lo tiene encendido. 
+                const isActivo = config[srv.id] !== false; // Asumimos true por defecto si no ha sido configurado
+                
+                if (isActivo) {
+                    html += `
+                    <button onclick="window.seleccionarServicio('${srv.id}', '${srv.label}')" 
+                            class="flex flex-col items-center justify-center p-3 bg-zinc-900 border border-zinc-700 rounded-xl hover:bg-emerald-900/30 hover:border-emerald-500 transition-all text-gray-300 hover:text-emerald-400 active:scale-95">
+                        <i class="fas ${srv.icon} text-lg mb-2"></i>
+                        <span class="text-[10px] font-bold text-center leading-tight uppercase">${srv.label}</span>
+                    </button>`;
+                }
+            });
+            
+            html += '</div>';
+            contenedor.innerHTML = html;
+        };
+
+        // Renderizamos cada sección del catálogo
+        renderizarCategoria("road", el.containerRoad);
+        renderizarCategoria("fix", el.containerFix);
+        renderizarCategoria("tech", el.containerTech);
+        renderizarCategoria("maint", el.containerMaint);
+    });
+
+    // 3.B. SELECCIÓN DE SERVICIO Y APERTURA DE FORMULARIO
+    window.seleccionarServicio = (id, label) => {
+        if(el.inputCat) el.inputCat.value = id;
+        if(el.labelServicio) el.labelServicio.innerText = "SOLICITAR " + label.toUpperCase();
+        
+        // Abre tu modal de solicitud
+        const modal = document.getElementById("modalSolicitud");
+        if(modal) {
+            modal.classList.remove("hidden");
+            if(el.form) el.form.reset();
+        } else {
+            console.warn("No se encontró el modal de solicitud (modalSolicitud).");
+        }
+    };
+
+    // 3.C. ESCUCHA DE SOLICITUDES ACTIVAS DEL CLIENTE
     onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc")), (snap) => {
         if(!el.lista) return;
         el.lista.innerHTML = "";
+        
+        if(snap.empty) {
+            el.lista.innerHTML = '<p class="text-gray-500 italic text-xs text-center py-4">No tienes solicitudes activas.</p>';
+            return;
+        }
+
         snap.forEach(docSnap => {
             const s = docSnap.data();
             const id = docSnap.id;
+            
+            let colorEstado = "text-gray-400";
+            if(s.estado === "pendiente") colorEstado = "text-yellow-500 animate-pulse";
+            if(s.estado === "asignado") colorEstado = "text-blue-300";
+            if(s.estado === "en_camino") colorEstado = "text-blue-400";
+            if(s.estado === "en_sitio") colorEstado = "text-purple-400";
+            if(s.estado === "cotizando") colorEstado = "text-orange-400 animate-pulse";
+            if(s.estado === "trabajando") colorEstado = "text-emerald-400 font-bold";
+            if(s.estado === "finalizado") colorEstado = "text-emerald-500";
+            
             const card = document.createElement("div");
-            card.className = "uber-card rounded-2xl p-4 mb-3 shadow-lg";
-            card.innerHTML = `<h4 class="font-black text-white text-sm uppercase">${s.categoria} | ${s.sub_servicio || ''}</h4><p class="text-xs text-gray-500">${s.estado}</p>`;
+            card.className = "bg-zinc-900 border border-zinc-700 rounded-xl p-4 mb-3 shadow-lg flex justify-between items-center";
+            card.innerHTML = `
+            <div>
+                <h4 class="font-black text-white text-xs uppercase">${s.categoria}</h4>
+                <p class="text-[10px] text-gray-400 truncate max-w-[150px]">${s.descripcion || 'Sin descripción'}</p>
+            </div>
+            <div class="text-right">
+                <p class="text-[10px] font-black ${colorEstado} uppercase tracking-widest">${s.estado.replace('_', ' ')}</p>
+                ${s.estado === 'cotizando' ? `<button onclick="window.verCotizacion('${id}')" class="mt-1 text-[9px] bg-orange-500/20 text-orange-400 border border-orange-500 px-2 py-1 rounded">VER COTIZACIÓN</button>` : ''}
+            </div>
+            `;
             el.lista.appendChild(card);
         });
     });
