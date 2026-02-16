@@ -1,11 +1,12 @@
 /**
- * ============================================================================
- * FIXGO 2026 - PANEL MAESTRO DE CONTROL | app-panel.js | V 5.12.2
- * Autor: Heber (CEO & Lead Architect) | Fecha: Febrero 2026
- * ============================================================================
- * CORE: Gestión de los 3 paneles (Admin, Técnico, Cliente). Flujos de estado, 
- * Verticales, Finanzas blindadas (Bridge), Wallet SPEI, Evidencia GPS y PDFs.
- * REGLAS MAESTRAS: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA COMPLETA.
+ * ======================================================================================
+ * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
+ * ======================================================================================
+ * Archivo: app-panel.js
+ * Versión: 5.12.3 (UNIFICACIÓN TOTAL: Gatekeeper + Acordeones + Lógica Completa Cliente)
+ * Autor: Heber (CEO & Lead Architect)
+ * Fecha: Febrero 2026
+ * * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
  * ======================================================================================
  */
 
@@ -22,22 +23,11 @@ import {
     addDoc,
     serverTimestamp,
     setDoc,
-    getDoc // Importación necesaria para leer configuraciones y PDF Fetch
+    getDoc 
 } from "./firebase.js";
 
-// Importamos getDocs y arrayUnion manualmente para validaciones de seguridad y operaciones atómicas
 import { getDocs, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-// Importamos el motor GPS para el rastreo en tiempo real (CORE)
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
-
-// Importamos el diccionario de plantillas para adelgazar el panel principal
-import { MODAL_TEMPLATES } from "./fixgo-modals.js";
-// ======================================================================================
-// ======================================================================================
-// 🔔 SISTEMA DE SONIDO CENTRALIZADO (V5.12 - MACGYVER ENGINE)
-// ======================================================================================
-
 import { activarAlertas, alertaTecnico } from "./alert-engine.js";
 
 /**
@@ -57,7 +47,7 @@ function sonarAlerta() {
 //  📄  CARGADOR DINÁMICO DE PDF (OPTIMIZACIÓN V5.7)
 // ======================================================================================
 async function cargarLibreriaPDF() {
-    if (window.jspdf) return window.jspdf;
+    if (window.jspdf) return window.jspdf; 
     
     return new Promise((resolve, reject) => {
         console.log(" 📄  Cargando librería PDF bajo demanda...");
@@ -72,7 +62,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.12.2: Sistema Full Cargado (Fix Flujo Cliente Extremo a Extremo).");
+console.log(" 🚀  FIXGO 5.12.3: Sistema Full Cargado (Lógica Cliente 100% Restaurada).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -426,26 +416,42 @@ export async function iniciarPanelAdmin(user) {
         });
 
         window.aprobarRetiro = async (retiroId, tecnicoId, monto) => {
-            if(!confirm("¿Confirmas que ya realizaste la transferencia SPEI por $"+monto.toFixed(2)+"?\n\nEsto descontará el saldo de la wallet mediante protocolo seguro Bridge.")) return;
+            if(!confirm("¿Confirmas que ya realizaste la transferencia SPEI por $"+monto.toFixed(2)+"?\n\nEsto descontará el saldo de la wallet del técnico en automático.")) return;
             
             const btn = document.getElementById(`btn_aprobar_${retiroId}`);
             if(btn) {
                 btn.disabled = true;
-                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO ATÓMICO...`;
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO...`;
+                btn.classList.remove("hover:bg-emerald-500", "hover:scale-105");
                 btn.classList.add("opacity-50", "cursor-not-allowed");
             }
 
             try {
-                const { ejecutarRetiroSeguro } = await import('./fixgo-bridge.js');
-                await ejecutarRetiroSeguro(retiroId, tecnicoId, monto);
+                await updateDoc(doc(db, "retiros", retiroId), {
+                    estado: "aprobado",
+                    fecha_aprobacion: serverTimestamp()
+                });
 
-                alert("✅ Retiro procesado exitosamente. Wallet del técnico actualizada mediante transacción segura.");
+                await addDoc(collection(db, "transacciones"), {
+                    servicio_id: "RETIRO_SPEI_" + retiroId.substring(0,5),
+                    tecnico_id: tecnicoId,
+                    monto_total: 0,
+                    comision_fixgo: 0,
+                    retencion_iva: 0,
+                    retencion_isr: 0,
+                    pago_tecnico: -Math.abs(monto), 
+                    fecha: serverTimestamp(),
+                    tipo: "retiro_fondos"
+                });
+
+                alert("✅ Retiro procesado exitosamente. Wallet del técnico actualizada.");
             } catch (error) {
                 console.error("Error al procesar retiro:", error);
-                alert("❌ Error de seguridad al procesar el retiro en el Bridge.");
+                alert("❌ Error de conexión al procesar el retiro en Firebase.");
                 if(btn) {
                     btn.disabled = false;
                     btn.innerHTML = `<i class="fas fa-check-double"></i> MARCAR COMO PAGADO (SPEI)`;
+                    btn.classList.add("hover:bg-emerald-500", "hover:scale-105");
                     btn.classList.remove("opacity-50", "cursor-not-allowed");
                 }
             }
@@ -672,10 +678,10 @@ export async function iniciarPanelTecnico(user) {
                             estado: "pendiente",
                             fecha_solicitud: serverTimestamp()
                         });
-                        alert("✅ Solicitud de retiro enviada con éxito.");
+                        alert("✅ Solicitud de retiro enviada con éxito. El administrador la procesará en breve.");
                     } catch (error) {
                         console.error("Error al solicitar retiro:", error);
-                        alert("❌ Hubo un error al procesar tu solicitud.");
+                        alert("❌ Hubo un error al procesar tu solicitud. Intenta de nuevo.");
                         elementos.btnRetiro.innerText = "SOLICITAR RETIRO (SPEI)";
                         elementos.btnRetiro.disabled = false;
                     }
@@ -703,6 +709,7 @@ export async function iniciarPanelTecnico(user) {
                 elementos.contenedorHistorialRetiros.classList.add("hidden");
                 return;
             }
+
             elementos.contenedorHistorialRetiros.classList.remove("hidden");
 
             snap.forEach(docSnap => {
@@ -734,8 +741,8 @@ export async function iniciarPanelTecnico(user) {
                 elementos.listaMisRetiros.appendChild(item);
             });
         }, (error) => {
-            console.warn("Error historial retiros técnico.", error);
-            elementos.listaMisRetiros.innerHTML = '<p class="text-red-500 text-[10px] text-center p-2">Sincronizando índices...</p>';
+            console.warn("Falta índice compuesto para historial de retiros del técnico.", error);
+            elementos.listaMisRetiros.innerHTML = '<p class="text-red-500 text-[10px] text-center p-2 border border-red-500/30 rounded-xl bg-red-900/10">Construyendo índice en Firebase... (Recarga en 3 min)</p>';
             elementos.contenedorHistorialRetiros.classList.remove("hidden");
         });
     }
@@ -763,6 +770,7 @@ export async function iniciarPanelTecnico(user) {
             }
 
             if(snap.docChanges().some(change => change.type === 'added')) {
+                console.log(" 🔔  Nueva solicitud detectada en Bolsa: SONANDO ALERTA");
                 sonarAlerta();
             }
 
@@ -770,10 +778,14 @@ export async function iniciarPanelTecnico(user) {
                 const s = docSnap.data();
                 const id = docSnap.id;
 
-                if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) return;
+                if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) {
+                    return; 
+                }
 
                 const misSkills = tecnico.skills || [];
-                if (s.categoria && misSkills.length > 0 && !misSkills.includes(s.categoria)) return;
+                if (s.categoria && misSkills.length > 0 && !misSkills.includes(s.categoria)) {
+                    return; 
+                }
 
                 counter++; 
 
@@ -783,13 +795,21 @@ export async function iniciarPanelTecnico(user) {
                 card.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
                     <span class="bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider">NUEVA SOLICITUD</span>
-                    <span class="text-white font-bold text-xs">${s.categoria || 'GENERAL'}</span>
+                    <span class="text-white font-bold text-xs">${s.categoria ? s.categoria.toUpperCase() : 'GENERAL'}</span>
                 </div>
                 <h4 class="text-white font-bold text-base mb-1">${s.zona || 'Cancún'}</h4>
                 <p class="text-gray-300 text-sm mb-3 font-medium italic">"${s.descripcion}"</p>
+                <div class="flex items-center gap-2 mb-3 text-xs text-gray-500">
+                    <i class="fas fa-map-marker-alt"></i> ${s.direccion}
+                </div>
+                
                 <div class="flex gap-2">
-                    <button class="flex-1 bg-red-900/30 text-red-400 font-bold py-3 rounded-lg text-xs" onclick="window.rechazarServicio('${id}', '${tecnico.uid}')"><i class="fas fa-times"></i></button>
-                    <button class="flex-[4] bg-emerald-500 text-black font-black py-3 rounded-lg text-xs uppercase" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}')">ACEPTAR (BLOQUEAR $550)</button>
+                    <button class="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 font-bold py-3 rounded-lg text-xs transition-colors" onclick="window.rechazarServicio('${id}', '${tecnico.uid}')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <button class="flex-[4] bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}')">
+                        ACEPTAR (BLOQUEAR $550)
+                    </button>
                 </div>
                 `;
                 contenedor.appendChild(card);
@@ -802,10 +822,16 @@ export async function iniciarPanelTecnico(user) {
     }
 
     window.rechazarServicio = async (id, uid) => {
-        if(!confirm("¿Ocultar esta solicitud?")) return;
+        if(!confirm("¿Estás seguro de ocultar esta solicitud?\n\nNo podrás verla nuevamente, pero seguirá disponible para otros técnicos.")) return;
+        
         try {
-            await updateDoc(doc(db, "services", id), { rejected_by: arrayUnion(uid) });
-        } catch (error) { console.error(error); }
+            await updateDoc(doc(db, "services", id), {
+                rejected_by: arrayUnion(uid)
+            });
+        } catch (error) {
+            console.error(error);
+            alert("Error al intentar rechazar el servicio. Intenta de nuevo.");
+        }
     };
 
     window.tomarServicio = async (id, uid, nombre) => {
@@ -817,11 +843,11 @@ export async function iniciarPanelTecnico(user) {
         
         const snapCheck = await getDocs(qCheck);
         if (!snapCheck.empty) {
-            alert("⛔ BLOQUEO DE SEGURIDAD\n\nYa tienes un servicio activo.");
+            alert("⛔ BLOQUEO DE SEGURIDAD\n\nYa tienes un servicio activo. Debes finalizarlo antes de tomar otro.");
             return;
         }
 
-        if(!confirm("¿Aceptar este servicio?")) return;
+        if(!confirm("¿Aceptar este servicio? \n\nSe notificará al cliente y se bloqueará la garantía.")) return;
         try {
             await updateDoc(doc(db, "services", id), {
                 estado: "asignado",
@@ -830,7 +856,10 @@ export async function iniciarPanelTecnico(user) {
                 tecnico_telefono: user.telefono || "",
                 asignado_at: serverTimestamp()
             });
-        } catch (error) { console.error(error); }
+        } catch (error) {
+            console.error(error);
+            alert("Error: El servicio ya fue tomado por otro técnico hace un momento.");
+        }
     };
 
     const qMisiones = query(
@@ -841,6 +870,7 @@ export async function iniciarPanelTecnico(user) {
     onSnapshot(qMisiones, (snap) => {
         const ls = elementos.listaServicios;
         const pa = elementos.panelAcciones;
+
         if (!ls) return;
         ls.innerHTML = "";
 
@@ -854,115 +884,310 @@ export async function iniciarPanelTecnico(user) {
         snap.forEach((docSnap) => {
             const s = docSnap.data();
             const id = docSnap.id;
+
+            const destinoWaze = s.coords
+                ? `${s.coords.lat},${s.coords.lng}`
+                : encodeURIComponent(s.direccion);
+
             const card = document.createElement("div");
-            card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl mb-4";
+            card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl";
             card.innerHTML = `
+            <div class="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">
+                ${s.estado.replace('_', ' ')}
+            </div>
             <h3 class="text-xl font-black text-white mb-1 uppercase">${s.categoria}</h3>
-            <p class="text-gray-400 text-sm mb-4"><i class="fas fa-map-marker-alt text-blue-500"></i> ${s.direccion}</p>
+            <p class="text-gray-400 text-sm mb-4">
+                <i class="fas fa-map-marker-alt text-blue-500"></i> ${s.direccion}
+            </p>
+            <div class="bg-black/50 p-4 rounded-xl mb-4">
+                <p class="text-xs text-gray-500 uppercase font-bold mb-1">Problema:</p>
+                <p class="text-sm text-white italic">"${s.descripcion}"</p>
+            </div>
             <div class="flex gap-2">
-                <a href="tel:${s.cliente_telefono}" class="flex-1 bg-zinc-800 text-white font-bold py-3 rounded-xl text-center"><i class="fas fa-phone"></i> LLAMAR CLIENTE</a>
+                <a href="https://waze.com/ul?q=${destinoWaze}" target="_blank" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-center text-sm transition-colors">
+                    <i class="fab fa-waze"></i> IR CON WAZE
+                </a>
+                <a href="tel:${s.cliente_telefono}" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 px-4 rounded-xl text-center transition-colors">
+                    <i class="fas fa-phone"></i>
+                </a>
             </div>
             `;
             ls.appendChild(card);
 
             const btn1 = elementos.btnEnCamino;
             const btn2 = elementos.btnLlegue;
+
             btn1.classList.add("hidden");
             btn2.classList.add("hidden");
 
             if (s.estado === "asignado") {
                 btn1.classList.remove("hidden");
                 btn1.innerText = "VOY EN CAMINO";
+                btn1.className = "w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
                 btn1.onclick = () => actualizarEstado(id, "en_camino");
             }
             else if (s.estado === "en_camino") {
                 btn2.classList.remove("hidden");
                 btn2.innerText = "YA LLEGUÉ AL SITIO";
-                btn2.onclick = () => actualizarEstado(id, "en_sitio");
+                btn2.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
+                btn2.onclick = () => {
+                    actualizarEstado(id, "en_sitio");
+                };
             }
             else if (s.estado === "en_sitio") {
                 btn2.classList.remove("hidden");
                 btn2.innerText = "CREAR COTIZACIÓN";
+                btn2.className = "w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
                 btn2.onclick = () => mostrarModalCotizacionDetallada(id, s);
+            }
+            else if (s.estado === "cotizando") {
+                btn2.classList.remove("hidden");
+                btn2.innerText = "ESPERANDO AL CLIENTE...";
+                btn2.disabled = true;
+                btn2.className = "w-full bg-zinc-700 text-gray-400 font-bold py-4 rounded-xl cursor-not-allowed flex items-center justify-center gap-2";
             }
             else if (s.estado === "trabajando") {
                 btn2.classList.remove("hidden");
                 btn2.innerText = " 📸  FINALIZAR Y EVIDENCIA";
+                btn2.disabled = false;
+                btn2.className = "w-full bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
                 btn2.onclick = () => mostrarModalEvidencia(id);
             }
         });
     });
 
     async function actualizarEstado(id, estado, extras = {}) {
-        await updateDoc(doc(db, "services", id), { estado: estado, ...extras });
-        const rastreoRef = doc(db, "rastreo", "tecnicoActivo");
-        await setDoc(rastreoRef, { estado: estado }, { merge: true });
+        try {
+            await updateDoc(doc(db, "services", id), { estado: estado, ...extras });
+
+            let textoMapa = "En Ruta";
+            if(estado === "en_sitio") textoMapa = "En Sitio";
+            if(estado === "trabajando") textoMapa = "Trabajando";
+            if(estado === "finalizado") textoMapa = "Disponible";
+            const rastreoRef = doc(db, "rastreo", "tecnicoActivo");
+            await setDoc(rastreoRef, { estado: textoMapa }, { merge: true });
+        } catch (error) {
+            console.error("Error actualizando estado:", error);
+            alert("Error de conexión. Intenta de nuevo.");
+        }
     }
 
     function mostrarModalCotizacionDetallada(id, servicioData) {
         if(document.getElementById("modalCot")) return;
+        
         let items = []; 
 
-        const html = MODAL_TEMPLATES.COTIZACION(id);
+        const html = `
+        <div id="modalCot" class="fixed inset-0 bg-black/95 z-[60] flex flex-col p-4 animate-fade-in overflow-y-auto">
+            <div class="bg-zinc-900 w-full max-w-lg mx-auto rounded-3xl p-6 border border-zinc-700 shadow-2xl flex-1 flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-white font-black text-xl">COTIZADOR PRO (ALAMO)</h3>
+                    <button onclick="document.getElementById('modalCot').remove()" class="text-gray-500"><i class="fas fa-times"></i></button>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto mb-4 border border-zinc-800 rounded-xl bg-black/50 p-2" id="listaPartidas">
+                    <p class="text-gray-600 text-xs text-center italic py-10">Agrega conceptos para cotizar.</p>
+                </div>
+
+                <div class="bg-zinc-800 p-3 rounded-xl mb-4 space-y-2 border border-zinc-700">
+                    <div class="flex gap-2">
+                        <input id="inCant" type="number" placeholder="Cant." class="w-16 bg-black text-white p-3 rounded-lg text-xs border border-zinc-600 focus:border-emerald-500 outline-none">
+                        <input id="inUnidad" type="text" placeholder="Unidad" class="w-20 bg-black text-white p-3 rounded-lg text-xs border border-zinc-600 focus:border-emerald-500 outline-none">
+                        <input id="inDesc" type="text" placeholder="Descripción (Ej: Cable 12)" class="flex-1 bg-black text-white p-3 rounded-lg text-xs border border-zinc-600 focus:border-emerald-500 outline-none">
+                    </div>
+                    <div class="flex gap-2 items-center">
+                        <div class="flex-1 relative">
+                            <span class="absolute left-3 top-3 text-gray-500 text-xs">$</span>
+                            <input id="inPrecio" type="number" placeholder="Precio Unitario" class="w-full bg-black text-white p-3 pl-6 rounded-lg text-xs border border-zinc-600 focus:border-emerald-500 outline-none font-mono">
+                        </div>
+                        <button id="btnAddItem" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-lg font-bold text-xs transition-colors"><i class="fas fa-plus"></i> AGREGAR</button>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center bg-black p-4 rounded-xl border border-emerald-900 mb-4">
+                    <span class="text-gray-400 text-xs font-bold uppercase">Total Cotización</span>
+                    <span id="txtTotalCot" class="text-emerald-500 font-black text-xl">$0.00</span>
+                </div>
+
+                <button id="btnEnviarCot" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl text-sm shadow-lg shadow-blue-900/20 transition-transform active:scale-95">
+                    ENVIAR AL CLIENTE
+                </button>
+            </div>
+        </div>`;
+        
         document.body.insertAdjacentHTML('beforeend', html);
+        console.log(" 🛠️ Modal de Cotización Abierto");
 
         const renderItems = () => {
             const container = document.getElementById("listaPartidas");
-            container.innerHTML = items.map((it, idx) => `<div class="text-white text-xs border-b border-zinc-800 py-1">${it.cantidad} - ${it.descripcion} - $${it.precio}</div>`).join('');
+            const txtTotal = document.getElementById("txtTotalCot");
+            container.innerHTML = "";
+            let grandTotal = 0;
+
+            if(items.length === 0) {
+                container.innerHTML = `<p class="text-gray-600 text-xs text-center italic py-4">Sin conceptos.</p>`;
+            } else {
+                items.forEach((item, index) => {
+                    const importe = item.cantidad * item.precio;
+                    grandTotal += importe;
+                    const row = document.createElement("div");
+                    row.className = "flex justify-between items-start border-b border-zinc-800 py-2 text-xs last:border-0 animate-fade-in";
+                    row.innerHTML = `
+                        <div class="flex-1">
+                            <p class="text-white font-bold"><span class="text-emerald-500">${item.cantidad} ${item.unidad}</span> ${item.descripcion}</p>
+                            <p class="text-gray-500 text-[10px]">$${item.precio} c/u</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-white font-mono">$${importe.toFixed(2)}</p>
+                            <button class="text-red-500 text-[10px] underline btn-delete hover:text-red-400" data-idx="${index}">Eliminar</button>
+                        </div>
+                    `;
+                    container.appendChild(row);
+                });
+            }
+            txtTotal.innerText = `$${grandTotal.toFixed(2)}`;
+            
+            document.querySelectorAll(".btn-delete").forEach(btn => {
+                btn.onclick = (e) => {
+                    const idx = parseInt(e.target.dataset.idx);
+                    items.splice(idx, 1);
+                    renderItems();
+                };
+            });
         };
 
         setTimeout(() => {
-            document.getElementById("btnAddItem").onclick = () => {
-                const cant = parseFloat(document.getElementById("inCant").value);
-                const desc = document.getElementById("inDesc").value;
-                const precio = parseFloat(document.getElementById("inPrecio").value);
-                if(!cant || !desc || !precio) return alert("Llena campos.");
-                items.push({ cantidad: cant, descripcion: desc, precio: precio, unidad: 'pz' });
-                renderItems();
-            };
-            document.getElementById("btnEnviarCot").onclick = async () => {
-                if(items.length === 0) return alert("Agrega partidas.");
-                const total = items.reduce((sum, it) => sum + (it.cantidad * it.precio), 0);
-                await updateDoc(doc(db, "services", id), {
-                    estado: "cotizando",
-                    detalles_cotizacion: items,
-                    costo_final: total,
-                    cotizado_at: serverTimestamp()
-                });
-                document.getElementById("modalCot").remove();
-            };
-        }, 100);
+            const btnAdd = document.getElementById("btnAddItem");
+            const btnSend = document.getElementById("btnEnviarCot");
+
+            if(btnAdd) {
+                btnAdd.onclick = () => {
+                    console.log("Click en Agregar Item");
+                    const cant = parseFloat(document.getElementById("inCant").value);
+                    const unidad = document.getElementById("inUnidad").value.trim();
+                    const desc = document.getElementById("inDesc").value.trim();
+                    const precio = parseFloat(document.getElementById("inPrecio").value);
+
+                    if(!cant || !desc || !precio) return alert("Llena todos los campos del concepto.");
+
+                    items.push({ cantidad: cant, unidad: unidad || 'pz', descripcion: desc, precio: precio });
+                    
+                    document.getElementById("inCant").value = "";
+                    document.getElementById("inDesc").value = "";
+                    document.getElementById("inPrecio").value = "";
+                    renderItems();
+                };
+            }
+
+            if(btnSend) {
+                btnSend.onclick = async () => {
+                    if(items.length === 0) return alert("Agrega al menos un concepto para cotizar.");
+                    
+                    const totalFinal = items.reduce((sum, item) => sum + (item.cantidad * item.precio), 0);
+
+                    if(!confirm(`¿Enviar cotización por $${totalFinal.toFixed(2)}?`)) return;
+
+                    try {
+                        await updateDoc(doc(db, "services", id), {
+                            estado: "cotizando",
+                            detalles_cotizacion: items, 
+                            costo_final: totalFinal,
+                            cotizado_at: serverTimestamp(),
+                            diagnostico: "Cotización Detallada" 
+                        });
+                        alert(`✅ Cotización con ${items.length} partidas enviada correctamente.`);
+                    } catch (e) {
+                        console.error(e);
+                        alert("Error al guardar la cotización.");
+                    }
+
+                    const modal = document.getElementById("modalCot");
+                    if(modal) modal.remove();
+                };
+            }
+        }, 100); 
     }
 
     function mostrarModalEvidencia(id) {
         if(document.getElementById("modalEvidencia")) return;
 
-        const html = MODAL_TEMPLATES.EVIDENCIA;
+        const html = `
+        <div id="modalEvidencia" class="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+            <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700 shadow-2xl">
+                <h3 class="text-white font-black text-xl mb-4 text-center">REPORTE FINAL OBLIGATORIO</h3>
+                <p class="text-gray-400 text-xs mb-6 text-center">Para liberar el pago, sube la evidencia fotográfica.</p>
+
+                <div class="space-y-4">
+                    <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
+                        <label class="block text-xs font-bold text-emerald-500 mb-2 uppercase">FOTO DEL ANTES</label>
+                        <input type="file" id="fileAntes" accept="image/*" class="text-xs text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-white hover:file:bg-zinc-700">
+                    </div>
+                    <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
+                        <label class="block text-xs font-bold text-emerald-500 mb-2 uppercase">FOTO DEL DESPUÉS</label>
+                        <input type="file" id="fileDespues" accept="image/*" class="text-xs text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-white hover:file:bg-zinc-700">
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mt-8">
+                    <button onclick="document.getElementById('modalEvidencia').remove()" class="flex-1 bg-zinc-800 text-white py-3 rounded-xl font-bold text-sm">CANCELAR</button>
+                    <button id="btnSubirEvidencia" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black py-3 rounded-xl font-black text-sm transition-colors">ENVIAR Y CERRAR</button>
+                </div>
+            </div>
+        </div>
+        `;
         document.body.insertAdjacentHTML('beforeend', html);
         
         document.getElementById("btnSubirEvidencia").onclick = async () => {
             const f1 = document.getElementById("fileAntes").files[0];
             const f2 = document.getElementById("fileDespues").files[0];
-            if(!f1 || !f2) { alert(" ⚠ ️ Ambas fotos son obligatorias."); return; }
+            if(!f1 || !f2) { alert(" ⚠ ️ Ambas fotos son obligatorias para el reporte."); return; }
 
             const btn = document.getElementById("btnSubirEvidencia");
-            btn.innerText = "BRIDGE PROCESANDO PAGO...";
+            btn.innerText = "SUBIENDO EVIDENCIA...";
             btn.disabled = true;
             
             try {
                 const b64_1 = await toBase64(f1);
                 const b64_2 = await toBase64(f2);
                 
-                const { finalizarServicioBlindado } = await import('./fixgo-bridge.js');
-                const respuesta = await finalizarServicioBlindado(id, user.uid, b64_1, b64_2);
+                const servicioSnap = await getDoc(doc(db, "services", id));
+                const servicioData = servicioSnap.data();
+                const costoTotal = servicioData.costo_final || 0;
 
-                if(respuesta.success) {
-                    document.getElementById("modalEvidencia").remove();
-                    alert(" ✅ ¡Servicio Cerrado! El servidor procesó el pago de forma blindada.");
-                }
+                const comisionFixGo = costoTotal * 0.32; 
+                const retencionIVA = costoTotal * 0.08;  
+                const retencionISR = costoTotal * 0.10;  
+                
+                const pagoNetoTecnico = costoTotal - (comisionFixGo + retencionIVA + retencionISR);
+
+                await actualizarEstado(id, "finalizado", {
+                    evidencia: { antes: b64_1, despues: b64_2 },
+                    finalizado_at: serverTimestamp(),
+                    folio_fiscal: "FX-" + Math.random().toString(36).substr(2, 9).toUpperCase(),
+                    desglose: {
+                        subtotal: (costoTotal / 1.16).toFixed(2),
+                        iva: (costoTotal - (costoTotal / 1.16)).toFixed(2),
+                        total: costoTotal
+                    }
+                });
+
+                await addDoc(collection(db, "transacciones"), {
+                    servicio_id: id,
+                    tecnico_id: user.uid, 
+                    monto_total: costoTotal,
+                    comision_fixgo: comisionFixGo, 
+                    retencion_iva: retencionIVA,   
+                    retencion_isr: retencionISR,   
+                    pago_tecnico: pagoNetoTecnico, 
+                    fecha: serverTimestamp(),
+                    tipo: "ingreso_servicio"
+                });
+
+                document.getElementById("modalEvidencia").remove();
+                alert(" ✅  ¡Servicio Cerrado Exitosamente! Comisión y Retenciones aplicadas.");
             } catch (e) {
                 console.error(e);
-                alert("Error de seguridad en el cierre.");
+                alert("Error subiendo imágenes. Intenta fotos más pequeñas.");
                 btn.innerText = "REINTENTAR";
                 btn.disabled = false;
             }
@@ -977,15 +1202,93 @@ export async function iniciarPanelTecnico(user) {
     });
 
     window.generarPDFRetiro = async (retiroId) => {
-        const { jsPDF } = await cargarLibreriaPDF();
-        const docPdf = new jsPDF();
-        docPdf.text("FIXGO - COMPROBANTE DE RETIRO", 10, 10);
-        docPdf.save(`Retiro_${retiroId}.pdf`);
+        try {
+            const docRef = doc(db, "retiros", retiroId);
+            const docSnap = await getDoc(docRef);
+            
+            if (!docSnap.exists()) {
+                throw new Error("No se encontró la información del retiro.");
+            }
+            
+            const data = { ...docSnap.data(), id: retiroId };
+            
+            const { jsPDF } = await cargarLibreriaPDF();
+            const docPdf = new jsPDF();
+            
+            docPdf.setFillColor(18, 18, 18);
+            docPdf.rect(0, 0, 215, 40, 'F');
+
+            docPdf.setTextColor(255, 255, 255);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(24);
+            docPdf.text("FIXGO", 20, 22);
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setTextColor(16, 185, 129); 
+            docPdf.text("MÉXICO", 60, 22);
+
+            docPdf.setTextColor(200, 200, 200);
+            docPdf.setFontSize(10);
+            docPdf.text("Comprobante de Liquidación (SPEI)", 20, 32);
+            
+            docPdf.setFontSize(8);
+            docPdf.setTextColor(150, 150, 150);
+            docPdf.text(`RFC EMISOR: FXG260211-H8A`, 20, 45);
+            
+            let fechaFormat = new Date().toLocaleDateString();
+            if(data.fecha_aprobacion) {
+                fechaFormat = new Date(data.fecha_aprobacion.seconds * 1000).toLocaleDateString();
+            }
+            
+            docPdf.text(`FOLIO RETIRO: SPEI-${data.id.substring(0,6).toUpperCase()}`, 130, 45);
+            docPdf.text(`FECHA APROBACIÓN: ${fechaFormat}`, 130, 50);
+
+            let y = 70;
+            docPdf.setTextColor(0, 0, 0);
+            docPdf.setFontSize(14);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.text("DETALLES DE LA TRANSFERENCIA", 20, y);
+
+            y += 10;
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setFontSize(11);
+            docPdf.text(`Beneficiario (Socio Técnico): ${data.tecnico_nombre}`, 20, y);
+            y += 8;
+            docPdf.text(`Estado: LIQUIDADO / APROBADO`, 20, y);
+            
+            y += 20;
+            
+            docPdf.setFillColor(245, 245, 245);
+            docPdf.rect(20, y, 170, 30, 'F');
+            
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(12);
+            docPdf.setTextColor(50, 50, 50);
+            docPdf.text("MONTO TRANSFERIDO:", 30, y + 18);
+            
+            docPdf.setFontSize(20);
+            docPdf.setTextColor(16, 185, 129); 
+            docPdf.text(`$${data.monto.toFixed(2)} MXN`, 110, y + 20);
+
+            y += 60;
+            docPdf.setFontSize(9);
+            docPdf.setTextColor(150, 150, 150);
+            docPdf.setFont("helvetica", "normal");
+            
+            const notaLegal = "Este documento es un comprobante de liquidación digital emitido por la plataforma FixGo. Los fondos han sido transferidos a la cuenta bancaria registrada por el socio especialista. El tiempo de reflejo en cuenta puede variar dependiendo de la institución bancaria receptora.";
+            const splitNota = docPdf.splitTextToSize(notaLegal, 170);
+            docPdf.text(splitNota, 20, y);
+            
+            docPdf.save(`FixGo_Liquidacion_${data.id.substring(0,6)}.pdf`);
+
+        } catch (error) {
+            console.error("Error al generar PDF de retiro:", error);
+            alert("Hubo un error al generar el comprobante. Intenta de nuevo.");
+        }
     };
 }
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.2 (FLUJO RESTAURADO)
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.3 (FLUJO TOTALMENTE RESTAURADO)
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
     console.log(" 📱  Iniciando Panel de Cliente...");
@@ -1001,142 +1304,208 @@ export async function iniciarPanelCliente(user) {
         containerMaint: document.getElementById("content_maint")
     };
 
-    const MASTER_STRUCTURE = {
-        "road": [
-            { id: "road_llanta", label: "Llantera Móvil", icon: "fa-car-crash" },
-            { id: "road_cerrajero", label: "Cerrajería", icon: "fa-key" },
-            { id: "road_grua", label: "Grúas", icon: "fa-truck-pickup" },
-            { id: "road_mecanico", label: "Mecánico Gral.", icon: "fa-wrench" },
-            { id: "road_corriente", label: "Paso Corriente", icon: "fa-car-battery" }
-        ],
-        "fix": [
-            { id: "fix_electricidad", label: "Electricidad", icon: "fa-plug" },
-            { id: "fix_plomeria", label: "Plomería", icon: "fa-faucet" },
-            { id: "fix_ac", label: "Aires Acondicionad.", icon: "fa-snowflake" },
-            { id: "fix_jardin", label: "Jardinería", icon: "fa-leaf" },
-            { id: "fix_pintura", label: "Pintura", icon: "fa-paint-roller" },
-            { id: "fix_alberca", label: "Albercas", icon: "fa-swimming-pool" },
-            { id: "fix_fumigacion", label: "Fumigación", icon: "fa-bug" }
-        ],
-        "maint": [
-            { id: "maint_general", label: "Mantenimiento Gral.", icon: "fa-building" }
-        ],
-        "tech": [
-            { id: "tech_cctv", label: "CCTV", icon: "fa-video" },
-            { id: "tech_alarma", label: "Alarmas", icon: "fa-bell" },
-            { id: "tech_acceso", label: "Accesos", icon: "fa-id-card" },
-            { id: "tech_elevador", label: "Elevadores", icon: "fa-elevator" },
-            { id: "tech_planta", label: "Plantas Eléc.", icon: "fa-charging-station" },
-            { id: "tech_solar", label: "Paneles Solares", icon: "fa-solar-panel" }
-        ]
-    };
+    // ----------------------------------------------------------------------------------
+    // 3.1 CARGA DINÁMICA DE VERTICALES EN ACORDEÓN (CONECTADA A FIRESTORE)
+    // ----------------------------------------------------------------------------------
+    async function cargarServiciosCliente() {
+        console.log("Cargando servicios en contenedores dinámicos...");
 
-    // 3.A. CARGAR CATÁLOGO DINÁMICO Y "PRÓXIMAMENTE"
-    const docRef = doc(db, "configuracion", "catalogo_global");
-    onSnapshot(docRef, (docSnap) => {
-        let config = {}; 
-        if(docSnap.exists()) config = docSnap.data();
-
-        const renderizarCategoria = (categoriaClave, contenedor) => {
-            if(!contenedor) return;
-            contenedor.innerHTML = ""; 
-            let html = '<div class="grid grid-cols-2 gap-2 p-3 bg-black/50 rounded-b-xl border-x border-b border-zinc-800">';
+        onSnapshot(doc(db, "configuracion", "catalogo_global"), (docSnap) => {
+            const dbConfig = docSnap.exists() ? docSnap.data() : {};
             
-            MASTER_STRUCTURE[categoriaClave].forEach(srv => {
-                const isActivo = config[srv.id] !== false; 
+            const DEFINICION_VERTICALES = {
+                road: [
+                    { id: "road_llanta", label: "Llantera Móvil", icon: "fa-car-crash" },
+                    { id: "road_cerrajero", label: "Cerrajería", icon: "fa-key" },
+                    { id: "road_grua", label: "Grúas", icon: "fa-truck-pickup" },
+                    { id: "road_mecanico", label: "Mecánico Gral.", icon: "fa-wrench" },
+                    { id: "road_corriente", label: "Paso Corriente", icon: "fa-car-battery" }
+                ],
+                fix: [
+                    { id: "fix_electricidad", label: "Electricidad", icon: "fa-plug" },
+                    { id: "fix_plomeria", label: "Plomería", icon: "fa-faucet" },
+                    { id: "fix_ac", label: "Aires Acondicionad.", icon: "fa-snowflake" },
+                    { id: "fix_jardin", label: "Jardinería", icon: "fa-leaf" },
+                    { id: "fix_pintura", label: "Pintura", icon: "fa-paint-roller" },
+                    { id: "fix_alberca", label: "Albercas", icon: "fa-swimming-pool" },
+                    { id: "fix_fumigacion", label: "Fumigación", icon: "fa-bug" }
+                ],
+                maint: [
+                    { id: "maint_general", label: "Mantenimiento Gral.", icon: "fa-building" }
+                ],
+                tech: [
+                    { id: "tech_cctv", label: "CCTV", icon: "fa-video" },
+                    { id: "tech_alarma", label: "Alarmas", icon: "fa-bell" },
+                    { id: "tech_acceso", label: "Accesos", icon: "fa-id-card" },
+                    { id: "tech_elevador", label: "Elevadores", icon: "fa-elevator" },
+                    { id: "tech_planta", label: "Plantas Eléc.", icon: "fa-charging-station" },
+                    { id: "tech_solar", label: "Paneles Solares", icon: "fa-solar-panel" }
+                ]
+            };
+
+            const renderizarCategoria = (categoriaClave, contenedor) => {
+                if(!contenedor) return;
+                contenedor.innerHTML = ""; 
+                let html = '<div class="grid grid-cols-2 gap-2 p-3 bg-black/50 rounded-b-xl border-x border-b border-zinc-800">';
                 
-                if (isActivo) {
-                    html += `
-                    <button onclick="window.seleccionarServicio('${srv.id}', '${srv.label}')" 
-                            class="flex flex-col items-center justify-center p-3 bg-zinc-900 border border-zinc-700 rounded-xl hover:bg-emerald-900/30 hover:border-emerald-500 transition-all text-gray-300 hover:text-emerald-400 active:scale-95 shadow-lg">
-                        <i class="fas ${srv.icon} text-lg mb-2"></i>
-                        <span class="text-[10px] font-bold text-center leading-tight uppercase">${srv.label}</span>
-                    </button>`;
-                } else {
-                    // AQUÍ ESTÁ EL CÓDIGO RESTAURADO PARA LOS "PRÓXIMAMENTE"
-                    html += `
-                    <div class="flex flex-col items-center justify-center p-3 bg-zinc-900/40 border border-zinc-800/40 rounded-xl opacity-60 cursor-not-allowed grayscale">
-                        <i class="fas ${srv.icon} text-lg mb-2 text-zinc-600"></i>
-                        <span class="text-[10px] font-bold text-center leading-tight uppercase text-zinc-500">${srv.label}</span>
-                        <span class="text-[8px] bg-zinc-800 text-zinc-400 px-2 mt-1 rounded tracking-widest font-black">PRÓXIMA</span>
-                    </div>`;
+                DEFINICION_VERTICALES[categoriaClave].forEach(srv => {
+                    const isActive = dbConfig[srv.id] !== false; 
+                    
+                    if (isActive) {
+                        html += `
+                        <div onclick="window.seleccionarServicio('${srv.id}', '${srv.label}')" 
+                             class="bg-zinc-900 border border-zinc-700 p-3 rounded-xl flex flex-col items-center text-center transition-all duration-200 service-card-btn opacity-100 hover:scale-105 hover:border-emerald-500 active:scale-95 cursor-pointer" id="card_${srv.id}">
+                            <div class="mb-2">
+                                <div class="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_5px_#10b981]"></div>
+                            </div>
+                            <i class="fas ${srv.icon} text-lg mb-2 text-gray-300"></i>
+                            <span class="text-white font-bold text-[10px] leading-tight uppercase">${srv.label}</span>
+                            <span class="text-[8px] text-gray-500 mt-1 uppercase tracking-widest font-bold">DISPONIBLE</span>
+                        </div>`;
+                    } else {
+                        html += `
+                        <div class="bg-zinc-900/40 border border-zinc-800/40 p-3 rounded-xl flex flex-col items-center text-center opacity-40 grayscale cursor-not-allowed">
+                            <div class="mb-2"><i class="fas fa-lock text-gray-600 text-xs"></i></div>
+                            <i class="fas ${srv.icon} text-lg mb-2 text-zinc-600"></i>
+                            <span class="text-white font-bold text-[10px] leading-tight uppercase">${srv.label}</span>
+                            <span class="text-[8px] text-gray-500 mt-1 uppercase tracking-widest font-bold">PRÓXIMAMENTE</span>
+                        </div>`;
+                    }
+                });
+                
+                html += '</div>';
+                contenedor.innerHTML = html;
+            };
+
+            renderizarCategoria("road", el.containerRoad);
+            renderizarCategoria("fix", el.containerFix);
+            renderizarCategoria("tech", el.containerTech);
+            renderizarCategoria("maint", el.containerMaint);
+
+            // Función Global para la selección de servicio
+            window.seleccionarServicio = (id, label) => {
+                document.querySelectorAll('.service-card-btn').forEach(btn => {
+                    btn.classList.remove('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
+                    btn.classList.add('bg-zinc-900', 'border-zinc-700');
+                });
+
+                const activeCard = document.getElementById(`card_${id}`);
+                if(activeCard) {
+                    activeCard.classList.remove('bg-zinc-900', 'border-zinc-700');
+                    activeCard.classList.add('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
                 }
-            });
-            
-            html += '</div>';
-            contenedor.innerHTML = html;
-        };
 
-        renderizarCategoria("road", el.containerRoad);
-        renderizarCategoria("fix", el.containerFix);
-        renderizarCategoria("tech", el.containerTech);
-        renderizarCategoria("maint", el.containerMaint);
-    });
+                if(el.inputCat) el.inputCat.value = id;
+                if(el.labelServicio) el.labelServicio.innerText = label.toUpperCase();
 
-    // 3.B. SELECCIÓN DE SERVICIO Y APERTURA DE FORMULARIO
-    window.seleccionarServicio = (id, label) => {
-        if(el.inputCat) el.inputCat.value = id;
-        if(el.labelServicio) el.labelServicio.innerText = label.toUpperCase();
-        
-        const modal = document.getElementById("modalSolicitud");
-        if(modal) {
-            modal.classList.remove("hidden");
-            if(el.form) el.form.reset();
-        }
-    };
+                const formContainer = document.getElementById("modalSolicitud");
+                if(formContainer) formContainer.classList.remove("hidden");
 
-    // 3.C. LÓGICA DE ENVÍO DEL FORMULARIO A FIREBASE (RESTABLECIDA)
+                el.form?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            };
+        });
+    }
+
+    cargarServiciosCliente();
+
+    // ----------------------------------------------------------------------------------
+    // 3.2 ENVÍO DE SOLICITUD (CON GPS OCULTO V5.8)
+    // ----------------------------------------------------------------------------------
     if (el.form) {
         el.form.addEventListener("submit", async (e) => {
             e.preventDefault();
+            const cat = el.inputCat.value; 
+            const dir = el.form.querySelector('[name="direccion"]').value;
+            const desc = el.form.querySelector('[name="descripcion"]').value;
             
-            const btnSubmit = el.form.querySelector('button[type="submit"]');
-            const textoOriginal = btnSubmit.innerText;
-            btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
-            btnSubmit.disabled = true;
+            if (!cat) { alert(" ⚠  Por favor selecciona un servicio habilitado de la lista."); return; }
+            
+            const btn = el.form.querySelector("button");
+            const textoOriginal = btn.innerText;
+            btn.disabled = true;
+            btn.innerText = "OBTENIENDO UBICACIÓN...";
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    async (pos) => {
+                        await enviarSolicitudFinal(cat, dir, desc, {
+                            lat: pos.coords.latitude,
+                            lng: pos.coords.longitude
+                        });
+                    },
+                    async (err) => {
+                        console.warn("GPS Cliente no disponible:", err);
+                        await enviarSolicitudFinal(cat, dir, desc, null);
+                    },
+                    { timeout: 5000, enableHighAccuracy: true }
+                );
+            } else {
+                await enviarSolicitudFinal(cat, dir, desc, null);
+            }
+            
+            async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords) {
+                const partes = categoriaFull.split('_');
+                const vertical = partes[0].toUpperCase(); 
+                const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
 
-            try {
-                const formData = new FormData(el.form);
-                
-                // Objeto estructurado para inyectar a Firestore
-                const nuevoServicio = {
-                    cliente_id: user.uid,
-                    cliente_nombre: user.nombre || "Cliente",
-                    cliente_telefono: user.telefono || "",
-                    categoria: formData.get("categoria"),
-                    direccion: formData.get("direccion"),
-                    descripcion: formData.get("descripcion"),
-                    estado: "pendiente",
-                    zona: "Cancún",
-                    created_at: serverTimestamp()
-                };
+                if(confirm("Se realizará una retención temporal de garantía ($550 MXN).\n\n¿Autorizar solicitud?")) {
+                    try {
+                        await addDoc(collection(db, "services"), {
+                            cliente_id: user.uid,
+                            cliente_nombre: user.nombre || "Cliente",
+                            cliente_telefono: user.telefono || "",
+                            categoria: vertical,
+                            sub_servicio: servicio,
+                            categoria_id: categoriaFull,
+                            direccion: direccion,
+                            descripcion: descripcion,
+                            estado: "pendiente",
+                            zona: "Cancún",
+                            created_at: serverTimestamp(),
+                            retencion_inicial: 550,
+                            costo_final: 0,
+                            coords: coords 
+                        });
+                        alert(" ✅  ¡Solicitud Enviada! Buscando técnico cercano...");
+                        el.form.reset();
+                        
+                        const formContainer = document.getElementById("modalSolicitud");
+                        if(formContainer) formContainer.classList.add("hidden");
 
-                // Enviamos a la colección "services"
-                await addDoc(collection(db, "services"), nuevoServicio);
-
-                alert("✅ ¡Solicitud enviada con éxito! Buscando técnicos cercanos...");
-                
-                // Limpiamos y cerramos modal
-                el.form.reset();
-                document.getElementById("modalSolicitud").classList.add("hidden");
-
-            } catch (error) {
-                console.error("Error al guardar solicitud:", error);
-                alert("❌ Hubo un error al enviar tu solicitud. Intenta de nuevo.");
-            } finally {
-                btnSubmit.innerText = textoOriginal;
-                btnSubmit.disabled = false;
+                        if(el.labelServicio) el.labelServicio.innerText = "SERVICIO";
+                        document.querySelectorAll('.service-card-btn').forEach(btn => {
+                            btn.classList.remove('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
+                            btn.classList.add('bg-zinc-900', 'border-zinc-700');
+                        });
+                    } catch (error) {
+                        console.error(error);
+                        alert("Error al enviar solicitud.");
+                    }
+                }
+                btn.disabled = false;
+                btn.innerText = textoOriginal;
             }
         });
     }
 
-    // 3.D. ESCUCHA DE SOLICITUDES ACTIVAS DEL CLIENTE
+    // ----------------------------------------------------------------------------------
+    // 3.3 MONITOR DE HISTORIAL (TARJETAS EXPANSIBLES)
+    // ----------------------------------------------------------------------------------
     onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc")), (snap) => {
         if(!el.lista) return;
         el.lista.innerHTML = "";
         
+        if(snap.docChanges().some(change => change.type === 'modified')) {
+            console.log(" 🔔  Actualización de servicio: SONANDO ALERTA");
+            sonarAlerta();
+        }
+        
         if(snap.empty) {
-            el.lista.innerHTML = '<p class="text-gray-500 italic text-xs text-center py-4">No tienes solicitudes activas.</p>';
+            el.lista.innerHTML = `
+            <div class="text-center py-8">
+                <i class="fas fa-history text-gray-700 text-3xl mb-2"></i>
+                <p class="text-gray-600 text-sm">Tus servicios aparecerán aquí.</p>
+            </div>`;
             return;
         }
 
@@ -1144,48 +1513,338 @@ export async function iniciarPanelCliente(user) {
             const s = docSnap.data();
             const id = docSnap.id;
             
-            let colorEstado = "text-gray-400";
-            if(s.estado === "pendiente") colorEstado = "text-yellow-500 animate-pulse";
-            if(s.estado === "asignado") colorEstado = "text-blue-300";
-            if(s.estado === "en_camino") colorEstado = "text-blue-400";
-            if(s.estado === "en_sitio") colorEstado = "text-purple-400";
-            if(s.estado === "cotizando") colorEstado = "text-orange-400 animate-pulse";
-            if(s.estado === "trabajando") colorEstado = "text-emerald-400 font-bold";
-            if(s.estado === "finalizado") colorEstado = "text-emerald-500";
+            let contenido = `<div class="p-4 bg-yellow-900/10 rounded-xl border border-yellow-500/30 mb-2"><span class="text-xs font-bold text-yellow-500 animate-pulse"> 🔎  BUSCANDO TÉCNICO...</span></div>`;
             
+            if (s.estado === "cotizando") {
+                let htmlTabla = "";
+                if (s.detalles_cotizacion && s.detalles_cotizacion.length > 0) {
+                    const filas = s.detalles_cotizacion.map(item => `
+                        <tr>
+                            <td>${item.cantidad} ${item.unidad}</td>
+                            <td>${item.descripcion}</td>
+                            <td class="quote-num">$${item.precio}</td>
+                            <td class="quote-num text-white">$${(item.cantidad * item.precio).toFixed(2)}</td>
+                        </tr>
+                    `).join('');
+                    
+                    htmlTabla = `
+                        <div class="bg-black border border-zinc-700 rounded-lg overflow-hidden my-3">
+                            <table class="quote-table" style="width: 100%; border-collapse: collapse; font-size: 10px; color: #ccc;">
+                                <thead>
+                                    <tr>
+                                        <th style="background: #1f1f1f; color: #10b981; padding: 4px;">CANT</th>
+                                        <th style="background: #1f1f1f; color: #10b981; padding: 4px;">DESC</th>
+                                        <th style="background: #1f1f1f; color: #10b981; padding: 4px;">P.U.</th>
+                                        <th style="background: #1f1f1f; color: #10b981; padding: 4px;">IMP.</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${filas}</tbody>
+                                <tfoot>
+                                    <tr class="quote-total-row" style="background: #1a1a1a; border-top: 2px solid #333;">
+                                        <td colspan="3" class="text-right font-bold text-gray-400" style="padding: 4px;">TOTAL:</td>
+                                        <td class="quote-num text-emerald-500 font-black text-sm" style="padding: 4px;">$${s.costo_final.toFixed(2)}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    `;
+                } else {
+                    htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${s.costo_final}</p><p class="text-gray-400 text-xs italic">"${s.diagnostico}"</p>`;
+                }
+
+                contenido = `
+                <div class="bg-zinc-800 p-4 rounded-lg border border-yellow-500 mt-2">
+                    <div class="flex justify-between items-center mb-2">
+                        <p class="text-yellow-500 text-xs font-bold uppercase">PRESUPUESTO GENERADO</p>
+                        <span class="bg-yellow-500/20 text-yellow-500 text-[9px] px-2 py-1 rounded">FOLIO: ${id.substring(0,6).toUpperCase()}</span>
+                    </div>
+                    ${htmlTabla}
+                    <div class="mt-2 p-2 bg-black/50 rounded border border-white/5">
+                        <p class="legal-note" style="font-size: 8px; color: #666;">* SI HUBIERA CANCELACION TOTAL O PARCIAL... PENALIZACION DEL 20%.</p>
+                        <p class="legal-note" style="font-size: 8px; color: #666;">* GARANTIA POR ESCRITO MINIMO DE 6 MESES.</p>
+                    </div>
+                    <div class="flex gap-2 mt-4">
+                        <button onclick="window.responderCotizacion('${id}', false)" class="flex-1 bg-red-900/50 hover:bg-red-900 text-red-200 text-xs py-3 rounded-lg font-bold transition-colors">
+                            RECHAZAR
+                        </button>
+                        <button onclick="window.responderCotizacion('${id}', true)" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs py-3 rounded-lg transition-colors shadow-lg shadow-emerald-500/20">
+                            APROBAR COSTO
+                        </button>
+                    </div>
+                </div>
+                `;
+            } else if (s.estado === "finalizado") {
+                contenido = `
+                <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-xl mt-2">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-emerald-500 font-black text-xs uppercase tracking-widest">TICKET FINAL</span>
+                        <span class="bg-emerald-500 text-black text-[9px] font-bold px-2 py-0.5 rounded">PAGADO</span>
+                    </div>
+                    <div class="space-y-2 mb-4">
+                        <div class="flex justify-between text-lg text-white font-black">
+                            <span>TOTAL:</span>
+                            <span>$${s.costo_final}</span>
+                        </div>
+                    </div>
+                    <p class="text-[9px] text-gray-500 mb-2 font-bold uppercase">EVIDENCIA REGISTRADA:</p>
+                    <div class="flex gap-2 mb-4">
+                        ${s.evidencia?.antes ? `<div class="relative w-1/2 h-20"><img src="${s.evidencia.antes}" class="w-full h-full object-cover rounded-lg border border-zinc-700"><span class="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] px-1 rounded">ANTES</span></div>` : ''}
+                        ${s.evidencia?.despues ? `<div class="relative w-1/2 h-20"><img src="${s.evidencia.despues}" class="w-full h-full object-cover rounded-lg border border-zinc-700"><span class="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] px-1 rounded">DESPUÉS</span></div>` : ''}
+                    </div>
+                    <button onclick="window.generarPDF('${id}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2">
+                        <i class="fas fa-file-download text-red-500"></i> DESCARGAR REPORTE FISCAL
+                    </button>
+                </div>
+                `;
+            }
+
+            let headerStatus = `<span class="text-[10px] font-bold text-yellow-500 animate-pulse">BUSCANDO...</span>`;
+            let dotColor = "bg-yellow-500";
+            if (s.estado !== "pendiente") {
+                headerStatus = `<span class="text-[10px] font-bold text-blue-400 uppercase">${s.estado.replace('_', ' ')}</span>`;
+                dotColor = "bg-blue-500";
+                if(s.estado === "finalizado") { headerStatus = `<span class="text-[10px] font-bold text-emerald-500">FINALIZADO</span>`; dotColor = "bg-emerald-500"; }
+                if(s.estado === "cancelado") { headerStatus = `<span class="text-[10px] font-bold text-red-500">CANCELADO</span>`; dotColor = "bg-red-500"; }
+            }
+
+            let fechaFormat = "";
+            if(s.created_at) {
+                const dateObj = new Date(s.created_at.seconds * 1000);
+                fechaFormat = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            }
+
             const card = document.createElement("div");
-            card.className = "bg-zinc-900 border border-zinc-700 rounded-xl p-4 mb-3 shadow-lg flex justify-between items-center";
+            card.className = "uber-card rounded-2xl overflow-hidden shadow-lg mb-3";
+
             card.innerHTML = `
-            <div>
-                <h4 class="font-black text-white text-xs uppercase">${s.categoria}</h4>
-                <p class="text-[10px] text-gray-400 truncate max-w-[150px]">${s.descripcion || 'Sin descripción'}</p>
+            <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="toggleAccordion('hist-${id}', 'icon-${id}')">
+                <div class="flex items-center gap-4">
+                    <div class="w-3 h-3 ${dotColor} rounded-full shadow-[0_0_8px_currentColor]"></div>
+                    <div>
+                        <h4 class="font-black text-white text-sm uppercase tracking-tight">${s.categoria} <span class="text-gray-500 font-normal ml-1">| ${s.sub_servicio || ''}</span></h4>
+                        <div class="flex items-center gap-2 mt-1">
+                            ${headerStatus}
+                            <span class="text-[9px] text-gray-500">• ${fechaFormat}</span>
+                        </div>
+                    </div>
+                </div>
+                <i id="icon-${id}" class="fas fa-chevron-down text-gray-400 chevron-icon"></i>
             </div>
-            <div class="text-right">
-                <p class="text-[10px] font-black ${colorEstado} uppercase tracking-widest">${s.estado.replace('_', ' ')}</p>
-                ${s.estado === 'cotizando' ? `<button onclick="window.verCotizacion('${id}')" class="mt-1 text-[9px] bg-orange-500/20 text-orange-400 border border-orange-500 px-2 py-1 rounded">VER COTIZACIÓN</button>` : ''}
+
+            <div id="hist-${id}" class="expandable-content bg-zinc-900/40">
+                <div class="p-4 border-t border-zinc-800/50">
+                    <p class="text-xs text-gray-400 truncate mb-3"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${s.direccion}</p>
+                    
+                    ${contenido}
+
+                    ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `
+                    <a href="rastreo.html?id=${id}" class="block mt-4 text-center bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs py-3 rounded-xl border border-blue-500/30 transition-colors font-bold flex items-center justify-center gap-2">
+                        <i class="fas fa-map-marked-alt"></i> SEGUIR TÉCNICO EN VIVO
+                    </a>
+                    ` : ''}
+                </div>
             </div>
             `;
             el.lista.appendChild(card);
         });
     });
 
+    // ----------------------------------------------------------------------------------
+    // 3.4 ACCIONES GLOBALES DEL CLIENTE
+    // ----------------------------------------------------------------------------------
+    window.responderCotizacion = async (id, aceptado) => {
+        if (aceptado) {
+            await updateDoc(doc(db, "services", id), { estado: "trabajando" });
+            alert(" ✅  ¡Costo aprobado! El técnico comenzará a trabajar ahora.");
+        } else {
+            if(confirm(" ⚠  ¿Estás seguro de cancelar?\n\nAl haber llegado el técnico, se cobrará la visita mínima ($550).")) {
+                await updateDoc(doc(db, "services", id), {
+                    estado: "cancelado",
+                    costo_final: 550, 
+                    cancelado_razon: "Cliente rechazó cotización"
+                });
+            }
+        }
+    };
+
     window.generarPDF = async (serviceId) => {
-        const { jsPDF } = await cargarLibreriaPDF();
-        const docPdf = new jsPDF();
-        docPdf.text("FIXGO - REPORTE DE SERVICIO", 10, 10);
-        docPdf.save(`Reporte_${serviceId}.pdf`);
+        const btn = document.activeElement;
+        const textoOrig = btn.innerText;
+        btn.innerText = "OBTENIENDO DATOS...";
+        btn.disabled = true;
+
+        try {
+            const docRef = doc(db, "services", serviceId);
+            const docSnap = await getDoc(docRef);
+            
+            if (!docSnap.exists()) {
+                throw new Error("No se encontró el servicio en la base de datos.");
+            }
+            
+            const data = { ...docSnap.data(), id: serviceId };
+            const { jsPDF } = await cargarLibreriaPDF();
+            const docPdf = new jsPDF();
+            
+            docPdf.setFillColor(18, 18, 18);
+            docPdf.rect(0, 0, 215, 40, 'F');
+
+            docPdf.setTextColor(255, 255, 255);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(24);
+            docPdf.text("FIXGO", 20, 22);
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setTextColor(16, 185, 129); 
+            docPdf.text("MÉXICO", 60, 22);
+
+            docPdf.setTextColor(200, 200, 200);
+            docPdf.setFontSize(10);
+            docPdf.text("Comprobante de Servicio Digital", 20, 32);
+            
+            docPdf.setFontSize(8);
+            docPdf.setTextColor(150, 150, 150);
+            docPdf.text(`RFC EMISOR: FXG260211-H8A`, 20, 45);
+            docPdf.text(`RÉGIMEN FISCAL: 626 - Simplificado de Confianza`, 20, 50);
+            docPdf.text(`LUGAR EXPEDICIÓN: 77500, Cancún, Q.Roo`, 20, 55);
+            
+            if(data.folio_fiscal) docPdf.text(`FOLIO FISCAL: ${data.folio_fiscal}`, 150, 45);
+            docPdf.text(`FECHA: ${new Date().toLocaleDateString()}`, 150, 50);
+
+            let y = 70;
+            docPdf.setTextColor(0, 0, 0);
+            docPdf.setFontSize(12);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.text("DETALLES DEL SERVICIO", 20, y);
+
+            y += 10;
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setFontSize(10);
+            docPdf.text(`Cliente: ${data.cliente_nombre}`, 20, y);
+            const servicioLabel = `${data.categoria} ${data.sub_servicio ? '- ' + data.sub_servicio : ''}`;
+            docPdf.text(`Categoría: ${servicioLabel}`, 120, y);
+            y += 8;
+            docPdf.text(`Ubicación: ${data.direccion}`, 20, y);
+
+            y += 15;
+            docPdf.setDrawColor(200, 200, 200);
+            docPdf.line(20, y, 190, y);
+
+            y += 15;
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(12);
+            docPdf.text("DIAGNÓSTICO TÉCNICO Y COSTOS", 20, y);
+
+            y += 10;
+            
+            if (data.detalles_cotizacion && data.detalles_cotizacion.length > 0) {
+                docPdf.setFontSize(9);
+                docPdf.setTextColor(100, 100, 100);
+                docPdf.setFont("helvetica", "bold");
+                
+                docPdf.text("CANT", 20, y);
+                docPdf.text("DESCRIPCIÓN", 45, y); 
+                docPdf.text("P.UNIT", 140, y);
+                docPdf.text("IMPORTE", 170, y);
+                
+                y += 5;
+                docPdf.setDrawColor(50, 50, 50);
+                docPdf.setLineWidth(0.5);
+                docPdf.line(20, y, 190, y);
+                y += 7;
+
+                docPdf.setFont("helvetica", "normal");
+                docPdf.setTextColor(0, 0, 0);
+                
+                data.detalles_cotizacion.forEach(item => {
+                    docPdf.text(`${item.cantidad} ${item.unidad}`, 20, y);
+                    const desc = item.descripcion.substring(0, 50) + (item.descripcion.length > 50 ? '...' : '');
+                    docPdf.text(desc, 45, y);
+                    docPdf.text(`$${item.precio}`, 140, y);
+                    docPdf.text(`$${(item.cantidad * item.precio).toFixed(2)}`, 170, y);
+                    y += 7;
+                });
+                y += 5; 
+            } else {
+                docPdf.setFont("helvetica", "normal");
+                docPdf.setFontSize(10);
+                docPdf.setTextColor(50, 50, 50); 
+                
+                const diagText = data.diagnostico || "(Sin desglose registrado en base de datos)";
+                const splitDiag = docPdf.splitTextToSize(diagText, 170);
+                
+                docPdf.text(splitDiag, 20, y);
+                y += (splitDiag.length * 7) + 5;
+            }
+
+            docPdf.setFillColor(245, 245, 245);
+            docPdf.rect(120, y, 70, 40, 'F'); 
+            
+            docPdf.setTextColor(0, 0, 0);
+            docPdf.setFontSize(10);
+            docPdf.text("IMPORTE TOTAL:", 125, y + 10);
+            
+            if (data.desglose) {
+                docPdf.setFontSize(8);
+                docPdf.text(`Subtotal: $${data.desglose.subtotal}`, 125, y + 18);
+                docPdf.text(`IVA (16%): $${data.desglose.iva}`, 125, y + 23);
+            }
+
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(16);
+            docPdf.setTextColor(16, 185, 129); 
+            docPdf.text(`$${data.costo_final} MXN`, 125, y + 35);
+
+            y += 60;
+            docPdf.setTextColor(0, 0, 0);
+            docPdf.setFontSize(12);
+            docPdf.text("EVIDENCIA FOTOGRÁFICA", 20, y);
+            y += 10;
+            if(data.evidencia?.antes) {
+                try {
+                    docPdf.addImage(data.evidencia.antes, "JPEG", 20, y, 80, 60);
+                    docPdf.setFontSize(8);
+                    docPdf.text("ESTADO INICIAL", 20, y + 65);
+                } catch(e) {}
+            }
+            if(data.evidencia?.despues) {
+                try {
+                    docPdf.addImage(data.evidencia.despues, "JPEG", 110, y, 80, 60);
+                    docPdf.setFontSize(8);
+                    docPdf.text("TRABAJO FINALIZADO", 110, y + 65);
+                } catch(e) {}
+            }
+            docPdf.setFontSize(8);
+            docPdf.setTextColor(150, 150, 150);
+            docPdf.text("Este documento es un comprobante digital emitido por la plataforma FixGo.", 60, 280);
+            docPdf.save(`FixGo_Reporte_${data.id}.pdf`);
+            
+            btn.innerText = "DESCARGAR REPORTE OFICIAL";
+            btn.disabled = false;
+
+        } catch (error) {
+            console.error(error);
+            alert("Hubo un error generando el PDF. Intenta de nuevo.");
+            btn.innerText = "ERROR - REINTENTAR";
+            btn.disabled = false;
+        }
     };
 }
 
 /**
- * 🔔 FIXGO AUDIO WATCHDOG
+ * 🔔 FIXGO AUDIO WATCHDOG (Vigilante de Alertas V5.12)
  */
 function iniciarVigilanciaAudio() {
-    console.log("👂 Audio Watchdog: Iniciando escucha...");
-    const qAudio = query(collection(db, "services"), where("estado", "==", "pendiente"));
+    console.log("👂 Audio Watchdog: Iniciando escucha de servicios pendientes...");
+
+    const qAudio = query(
+        collection(db, "services"), 
+        where("estado", "==", "pendiente")
+    );
+
     onSnapshot(qAudio, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
             if (change.type === "added") {
+                const datos = change.doc.data();
+                console.log("🔔 ¡PING! Nuevo servicio detectado:", datos.categoria || "Servicio");
                 alertaTecnico(); 
             }
         });
