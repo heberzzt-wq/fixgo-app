@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.12.4 (MAPA IFRAME & NOTIFICACIÓN DE COBRO AL CLIENTE)
+ * Versión: 5.12.5 (MAPA IFRAME + ALERTA COBRO + TIMEOUT GPS + HISTORIAL TICKETS)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -62,7 +62,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.12.4: Sistema Full Cargado (Mapa Iframe + Alerta de Cobro Cliente).");
+console.log(" 🚀  FIXGO 5.12.5: Sistema Full Cargado (Mapa Iframe + Alerta de Cobro Cliente + Historial Tickets).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -533,7 +533,8 @@ export async function iniciarPanelTecnico(user) {
         walletLabel: document.getElementById("walletSaldo"),
         btnRetiro: document.getElementById("btnRetiro"),
         contenedorHistorialRetiros: document.getElementById("contenedorHistorialRetiros"),
-        listaMisRetiros: document.getElementById("listaMisRetiros")
+        listaMisRetiros: document.getElementById("listaMisRetiros"),
+        listaMisTickets: document.getElementById("listaMisTickets") // AGREGADO PARA HISTORIAL DE SERVICIOS
     };
 
     const tecnicoRef = doc(db, "users", user.uid);
@@ -744,6 +745,68 @@ export async function iniciarPanelTecnico(user) {
             console.warn("Falta índice compuesto para historial de retiros del técnico.", error);
             elementos.listaMisRetiros.innerHTML = '<p class="text-red-500 text-[10px] text-center p-2 border border-red-500/30 rounded-xl bg-red-900/10">Construyendo índice en Firebase... (Recarga en 3 min)</p>';
             elementos.contenedorHistorialRetiros.classList.remove("hidden");
+        });
+    }
+
+    // --- NUEVO: LISTADO DEL HISTORIAL DE TICKETS (SERVICIOS FINALIZADOS) ---
+    if (elementos.listaMisTickets) {
+        const qMisTickets = query(
+            collection(db, "services"),
+            where("tecnico_id", "==", user.uid),
+            where("estado", "==", "finalizado"),
+            orderBy("finalizado_at", "desc")
+        );
+
+        onSnapshot(qMisTickets, (snap) => {
+            elementos.listaMisTickets.innerHTML = "";
+            if(snap.empty) {
+                elementos.listaMisTickets.innerHTML = '<p class="text-gray-600 text-[10px] text-center italic py-4">Aún no tienes servicios finalizados.</p>';
+                return;
+            }
+
+            snap.forEach(docSnap => {
+                const s = docSnap.data();
+                const id = docSnap.id;
+                
+                let fechaFormat = "";
+                const ahora = new Date();
+                let esRetenido = true;
+
+                if(s.finalizado_at) {
+                    const dateObj = new Date(s.finalizado_at.seconds * 1000);
+                    fechaFormat = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    const diffHoras = Math.abs(ahora - dateObj) / 36e5;
+                    if (diffHoras >= 24) esRetenido = false;
+                }
+
+                const badgeStatus = esRetenido 
+                    ? '<span class="bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 text-[8px] px-2 py-0.5 rounded font-black tracking-widest uppercase">EN PROCESO</span>'
+                    : '<span class="bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 text-[8px] px-2 py-0.5 rounded font-black tracking-widest uppercase">DISPONIBLE</span>';
+
+                const item = document.createElement("div");
+                item.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-xl shadow-lg";
+                item.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-white font-bold text-xs uppercase">${s.categoria} | ${s.sub_servicio || 'GRAL'}</span>
+                        ${badgeStatus}
+                    </div>
+                    <div class="flex justify-between items-end">
+                        <div>
+                            <p class="text-[9px] text-gray-500 mb-1"><i class="fas fa-calendar-alt"></i> ${fechaFormat}</p>
+                            <p class="text-[9px] text-gray-500"><i class="fas fa-hashtag"></i> Folio: ${s.folio_fiscal || id.substring(0,6).toUpperCase()}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] text-gray-500 mb-0.5 uppercase font-bold">Cobro Total:</p>
+                            <p class="text-emerald-400 font-black text-sm">$${s.costo_final ? s.costo_final.toFixed(2) : '0.00'}</p>
+                        </div>
+                    </div>
+                `;
+                elementos.listaMisTickets.appendChild(item);
+            });
+        }, (error) => {
+            console.warn("Falta índice compuesto para historial de tickets del técnico.", error);
+            elementos.listaMisTickets.innerHTML = '<p class="text-red-500 text-[10px] text-center p-2 border border-red-500/30 rounded-xl bg-red-900/10">Construyendo índice de tickets en Firebase... (Recarga en 3 min)</p>';
         });
     }
 
@@ -1288,7 +1351,7 @@ export async function iniciarPanelTecnico(user) {
 }
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.4 (MAPA IFRAME & NOTIFICACIÓN COBRO)
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.5
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
     console.log(" 📱  Iniciando Panel de Cliente...");
@@ -1425,6 +1488,7 @@ export async function iniciarPanelCliente(user) {
             btn.innerText = "OBTENIENDO UBICACIÓN...";
             
             if (navigator.geolocation) {
+                // SE AUMENTÓ EL TIMEOUT A 15 SEGUNDOS PARA EVITAR ERRORES EN MOVILES
                 navigator.geolocation.getCurrentPosition(
                     async (pos) => {
                         await enviarSolicitudFinal(cat, dir, desc, {
@@ -1436,7 +1500,7 @@ export async function iniciarPanelCliente(user) {
                         console.warn("GPS Cliente no disponible:", err);
                         await enviarSolicitudFinal(cat, dir, desc, null);
                     },
-                    { timeout: 5000, enableHighAccuracy: true }
+                    { timeout: 15000, maximumAge: 10000, enableHighAccuracy: true }
                 );
             } else {
                 await enviarSolicitudFinal(cat, dir, desc, null);
@@ -1866,7 +1930,7 @@ export async function iniciarPanelCliente(user) {
 }
 
 /**
- * 🔔 FIXGO AUDIO WATCHDOG (Vigilante de Alertas V5.12)
+ * 🔔 FIXGO AUDIO WATCHDOG (Vigilante de Alertas V5.12.5)
  */
 function iniciarVigilanciaAudio() {
     console.log("👂 Audio Watchdog: Iniciando escucha de servicios pendientes...");
