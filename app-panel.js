@@ -45,6 +45,8 @@ import { getDocs, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/f
 // Importamos el motor GPS para el rastreo en tiempo real (CORE)
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 
+// Importamos el diccionario de plantillas para adelgazar el panel principal
+import { MODAL_TEMPLATES } from "./fixgo-modals.js";
 // ======================================================================================
 // ======================================================================================
 // 🔔 SISTEMA DE SONIDO CENTRALIZADO (V5.12 - MACGYVER ENGINE)
