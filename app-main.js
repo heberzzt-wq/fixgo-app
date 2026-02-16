@@ -1,16 +1,20 @@
 /**
  * ======================================================
- * FIXGO 2026 - MAIN CONTROLLER (ROUTER & SECURITY)
+ * FIXGO 2026 - MAIN CONTROLLER (ROUTER & GATEKEEPER)
  * Archivo: app-main.js
- * Versión: 4.1 (Role Blindaje & Interlock)
- * Base: V4.0
+ * Versión: 5.12.0 (Unicorn Gatekeeper & Anti-Flicker)
+ * Autor: Heber (CEO & Lead Architect)
  * ======================================================
  */
 
-console.log("🚦 [app-main.js] Iniciando Sistema de Enrutamiento v4.1...");
+console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.12.0...");
 
 import { observarAuth, auth, signOut } from "./firebase.js";
 import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./app-panel.js";
+
+// 🛡️ GATEKEEPER FASE 1: BLINDAJE VISUAL (ANTI-FLICKER)
+// Ocultamos la página entera hasta que Firebase confirme el token.
+document.body.style.display = 'none';
 
 const RUTAS = {
     publicas: ["index.html", "login.html", "registro.html", "/"],
@@ -26,7 +30,13 @@ observarAuth(async (user) => {
 
     // 1. GUEST (Visitante sin sesión)
     if (!user) {
-        if (!esPublica) window.location.href = "login.html";
+        if (!esPublica) {
+            console.warn("⛔ Gatekeeper: Intruso detectado. Expulsando...");
+            window.location.replace("login.html"); // 'replace' evita que usen el botón "Atrás"
+            return;
+        }
+        // Si es pública y no hay sesión, le permitimos ver la página
+        document.body.style.display = 'block'; 
         return;
     }
 
@@ -35,34 +45,32 @@ observarAuth(async (user) => {
 
     /**
      * ======================================================
-     * 🛡️ INTERLOCK DE SEGURIDAD (BLINDAJE DE ACCESO)
+     * 🛡️ GATEKEEPER FASE 2: INTERLOCK DE ROLES
      * Verifica que el usuario tenga permiso de estar en esta URL.
      * ======================================================
      */
     
-    // Si un técnico está en la pantalla de cliente, lo expulsamos a su panel operativo
     if (user.rol === "tecnico" && archivoActual === RUTAS.cliente) {
-        console.warn("⛔ Acceso Denegado: Redirigiendo técnico a su radar.");
-        window.location.href = RUTAS.tecnico;
+        window.location.replace(RUTAS.tecnico);
         return;
     }
 
-    // Si un cliente intenta entrar al panel técnico o administrativo, lo regresamos a su zona
     if (user.rol === "cliente" && (archivoActual === RUTAS.tecnico || archivoActual === RUTAS.admin)) {
-        console.warn("⛔ Acceso Denegado: Redirigiendo cliente a su zona de solicitudes.");
-        window.location.href = RUTAS.cliente;
+        window.location.replace(RUTAS.cliente);
         return;
     }
 
-    // Redirección desde zonas públicas (Login / Registro / Index) hacia el panel correspondiente
     if (esPublica) {
-        if (user.rol === "admin") window.location.href = RUTAS.admin;
-        else if (user.rol === "tecnico") window.location.href = RUTAS.tecnico;
-        else window.location.href = RUTAS.cliente;
+        if (user.rol === "admin") window.location.replace(RUTAS.admin);
+        else if (user.rol === "tecnico") window.location.replace(RUTAS.tecnico);
+        else window.location.replace(RUTAS.cliente);
         return;
     }
 
-    // 3. CARGA DE LÓGICA SEGÚN PÁGINA (Validación de carga real)
+    // 🔓 GATEKEEPER APROBADO: El usuario es legítimo y está en su panel correcto.
+    document.body.style.display = 'block';
+
+    // 3. CARGA DE LÓGICA SEGÚN PÁGINA
     try {
         if (user.rol === "admin" && archivoActual === RUTAS.admin) await iniciarPanelAdmin(user);
         else if (user.rol === "tecnico" && archivoActual === RUTAS.tecnico) await iniciarPanelTecnico(user);
@@ -76,7 +84,6 @@ observarAuth(async (user) => {
 
 /**
  * ACTUALIZADOR DE INTERFAZ GLOBAL
- * Gestiona el nombre de usuario y los botones de cierre de sesión en todos los paneles.
  */
 function actualizarInterfazGlobal(user) {
     const userNameDisplay = document.getElementById("userName") || document.getElementById("userNameDisplay");
@@ -89,7 +96,7 @@ function actualizarInterfazGlobal(user) {
             e.preventDefault();
             if (confirm("¿Cerrar sesión de FixGo?")) {
                 await signOut(auth);
-                window.location.href = "login.html";
+                window.location.replace("login.html");
             }
         });
     });
