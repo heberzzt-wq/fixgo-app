@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.12.3 (UNIFICACIÓN TOTAL: Gatekeeper + Acordeones + Lógica Completa Cliente)
+ * Versión: 5.12.4 (MAPA IFRAME & NOTIFICACIÓN DE COBRO AL CLIENTE)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -62,7 +62,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.12.3: Sistema Full Cargado (Lógica Cliente 100% Restaurada).");
+console.log(" 🚀  FIXGO 5.12.4: Sistema Full Cargado (Mapa Iframe + Alerta de Cobro Cliente).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -1140,7 +1140,7 @@ export async function iniciarPanelTecnico(user) {
         document.getElementById("btnSubirEvidencia").onclick = async () => {
             const f1 = document.getElementById("fileAntes").files[0];
             const f2 = document.getElementById("fileDespues").files[0];
-            if(!f1 || !f2) { alert(" ⚠ ️ Ambas fotos son obligatorias para el reporte."); return; }
+            if(!f1 || !f2) { alert(" ⚠  Ambas fotos son obligatorias para el reporte."); return; }
 
             const btn = document.getElementById("btnSubirEvidencia");
             btn.innerText = "SUBIENDO EVIDENCIA...";
@@ -1288,7 +1288,7 @@ export async function iniciarPanelTecnico(user) {
 }
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.3 (FLUJO TOTALMENTE RESTAURADO)
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.4 (MAPA IFRAME & NOTIFICACIÓN COBRO)
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
     console.log(" 📱  Iniciando Panel de Cliente...");
@@ -1305,7 +1305,7 @@ export async function iniciarPanelCliente(user) {
     };
 
     // ----------------------------------------------------------------------------------
-    // 3.1 CARGA DINÁMICA DE VERTICALES EN ACORDEÓN (CONECTADA A FIRESTORE)
+    // 3.1 CARGA DINÁMICA DE VERTICALES EN ACORDEÓN
     // ----------------------------------------------------------------------------------
     async function cargarServiciosCliente() {
         console.log("Cargando servicios en contenedores dinámicos...");
@@ -1382,7 +1382,6 @@ export async function iniciarPanelCliente(user) {
             renderizarCategoria("tech", el.containerTech);
             renderizarCategoria("maint", el.containerMaint);
 
-            // Función Global para la selección de servicio
             window.seleccionarServicio = (id, label) => {
                 document.querySelectorAll('.service-card-btn').forEach(btn => {
                     btn.classList.remove('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
@@ -1409,7 +1408,7 @@ export async function iniciarPanelCliente(user) {
     cargarServiciosCliente();
 
     // ----------------------------------------------------------------------------------
-    // 3.2 ENVÍO DE SOLICITUD (CON GPS OCULTO V5.8)
+    // 3.2 ENVÍO DE SOLICITUD
     // ----------------------------------------------------------------------------------
     if (el.form) {
         el.form.addEventListener("submit", async (e) => {
@@ -1489,17 +1488,27 @@ export async function iniciarPanelCliente(user) {
     }
 
     // ----------------------------------------------------------------------------------
-    // 3.3 MONITOR DE HISTORIAL (TARJETAS EXPANSIBLES)
+    // 3.3 MONITOR DE HISTORIAL & WATCHDOG DE NOTIFICACIONES AL CLIENTE (V5.12.4)
     // ----------------------------------------------------------------------------------
     onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc")), (snap) => {
         if(!el.lista) return;
+        
+        // --- 🐶 WATCHDOG CLIENTE: DETECCIÓN DE CAMBIOS DE ESTADO ---
+        snap.docChanges().forEach(change => {
+            if (change.type === 'modified') {
+                const newData = change.doc.data();
+                console.log(" 🔔  Actualización de servicio:", newData.estado);
+                sonarAlerta();
+
+                // LA NOTIFICACIÓN TRIUNFAL DE COBRO
+                if (newData.estado === 'finalizado') {
+                    alert("✅ ¡Servicio terminado y pagado con éxito!\n\nEl cobro se ha procesado. Revisa tu ticket final y evidencia en pantalla.");
+                }
+            }
+        });
+        
         el.lista.innerHTML = "";
-        
-        if(snap.docChanges().some(change => change.type === 'modified')) {
-            console.log(" 🔔  Actualización de servicio: SONANDO ALERTA");
-            sonarAlerta();
-        }
-        
+
         if(snap.empty) {
             el.lista.innerHTML = `
             <div class="text-center py-8">
@@ -1616,6 +1625,7 @@ export async function iniciarPanelCliente(user) {
             const card = document.createElement("div");
             card.className = "uber-card rounded-2xl overflow-hidden shadow-lg mb-3";
 
+            // --- CAMBIO UX: EL BOTÓN DE MAPA AHORA USA ONCLICK Y LLAMA AL MODAL ---
             card.innerHTML = `
             <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="toggleAccordion('hist-${id}', 'icon-${id}')">
                 <div class="flex items-center gap-4">
@@ -1638,9 +1648,9 @@ export async function iniciarPanelCliente(user) {
                     ${contenido}
 
                     ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `
-                    <a href="rastreo.html?id=${id}" class="block mt-4 text-center bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs py-3 rounded-xl border border-blue-500/30 transition-colors font-bold flex items-center justify-center gap-2">
+                    <button onclick="window.abrirMapaEnVivo('${id}')" class="w-full mt-4 text-center bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs py-3 rounded-xl border border-blue-500/30 transition-colors font-bold flex items-center justify-center gap-2">
                         <i class="fas fa-map-marked-alt"></i> SEGUIR TÉCNICO EN VIVO
-                    </a>
+                    </button>
                     ` : ''}
                 </div>
             </div>
@@ -1652,6 +1662,32 @@ export async function iniciarPanelCliente(user) {
     // ----------------------------------------------------------------------------------
     // 3.4 ACCIONES GLOBALES DEL CLIENTE
     // ----------------------------------------------------------------------------------
+    
+    // --- NUEVO: FUNCIÓN PARA ABRIR EL MAPA DENTRO DEL PANEL (IFRAME MODAL) ---
+    window.abrirMapaEnVivo = (id) => {
+        const existingModal = document.getElementById('modalMapaVivo');
+        if (existingModal) existingModal.remove();
+
+        const html = `
+        <div id="modalMapaVivo" class="fixed inset-0 bg-black/95 z-[70] flex flex-col p-4 animate-fade-in">
+            <div class="flex justify-between items-center mb-4 mt-2">
+                <h3 class="text-white font-black text-lg"><i class="fas fa-satellite-dish text-blue-500 animate-pulse"></i> RASTREO EN VIVO</h3>
+                <button onclick="document.getElementById('modalMapaVivo').remove()" class="bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg font-bold text-xs transition-colors">
+                    <i class="fas fa-times"></i> CERRAR MAPA
+                </button>
+            </div>
+            <div class="flex-1 rounded-2xl overflow-hidden border border-zinc-700 relative bg-zinc-900 flex items-center justify-center">
+                <div class="absolute text-zinc-600 flex flex-col items-center z-0">
+                    <i class="fas fa-spinner fa-spin text-3xl mb-2"></i>
+                    <p class="text-xs font-bold uppercase tracking-widest">Conectando con GPS...</p>
+                </div>
+                <iframe src="rastreo.html?id=${id}" class="w-full h-full border-0 absolute inset-0 z-10"></iframe>
+            </div>
+        </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+    };
+
     window.responderCotizacion = async (id, aceptado) => {
         if (aceptado) {
             await updateDoc(doc(db, "services", id), { estado: "trabajando" });
