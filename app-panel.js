@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * FIXGO 2026 - PANEL MAESTRO DE CONTROL | app-panel.js | V 5.12.1
+ * FIXGO 2026 - PANEL MAESTRO DE CONTROL | app-panel.js | V 5.12.2
  * Autor: Heber (CEO & Lead Architect) | Fecha: Febrero 2026
  * ============================================================================
  * CORE: Gestión de los 3 paneles (Admin, Técnico, Cliente). Flujos de estado, 
@@ -37,37 +37,27 @@ import { MODAL_TEMPLATES } from "./fixgo-modals.js";
 // ======================================================================================
 // 🔔 SISTEMA DE SONIDO CENTRALIZADO (V5.12 - MACGYVER ENGINE)
 // ======================================================================================
-// Reemplaza al sistema V5.6. Ya no usa archivos externos (Mixkit).
-// Importamos el motor sintetizador que creamos en alert-engine.js
 
 import { activarAlertas, alertaTecnico } from "./alert-engine.js";
 
 /**
  * ACTIVADOR MAESTRO (UNLOCKER)
- * El navegador bloquea el audio hasta que el usuario toca la pantalla.
- * Esto prepara el sintetizador con el primer clic que hagas en el panel.
  */
 document.addEventListener('click', () => {
     activarAlertas().then(() => {
         console.log("🔊 FIXGO AUDIO ENGINE: Desbloqueado y listo (Modo Sintetizador).");
     });
-}, { once: true }); // "once: true" asegura que solo se ejecute una vez y limpie memoria.
+}, { once: true }); 
 
-/**
- * WRAPPER DE COMPATIBILIDAD
- * Si tienes alguna parte vieja de tu código que llame a "sonarAlerta()",
- * esto la redirige al nuevo motor para que no se rompa nada.
- */
 function sonarAlerta() {
     alertaTecnico();
 }
+
 // ======================================================================================
 //  📄  CARGADOR DINÁMICO DE PDF (OPTIMIZACIÓN V5.7)
 // ======================================================================================
-// Carga la librería jsPDF bajo demanda solo cuando se necesita generar un recibo.
-// Evita cargar 300KB de librería en el inicio de la app si no se va a usar.
 async function cargarLibreriaPDF() {
-    if (window.jspdf) return window.jspdf; // Si ya está cargada, la reutilizamos
+    if (window.jspdf) return window.jspdf;
     
     return new Promise((resolve, reject) => {
         console.log(" 📄  Cargando librería PDF bajo demanda...");
@@ -82,12 +72,11 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.12.1: Sistema Full Cargado (Tech SPEI History & Receipts).");
+console.log(" 🚀  FIXGO 5.12.2: Sistema Full Cargado (Fix Flujo Cliente Extremo a Extremo).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
 // ======================================================================================
-// Gestiona la vista del admin.html, aprobación de técnicos, monitoreo global y configuración de catálogo.
 export async function iniciarPanelAdmin(user) {
     console.log(" 🛡️  Iniciando Panel de Administrador...");
     
@@ -95,25 +84,20 @@ export async function iniciarPanelAdmin(user) {
         lista: document.getElementById("listaTecnicos"),
         actividad: document.getElementById("listaTransacciones"),
         listaRetiros: document.getElementById("listaRetiros"),
-        // NUEVOS ELEMENTOS PARA EL HISTORIAL DE RETIROS V5.11.6
         btnToggleHistorialRetiros: document.getElementById("btnToggleHistorialRetiros"),
         vistaRetirosPendientes: document.getElementById("vistaRetirosPendientes"),
         vistaHistorialRetiros: document.getElementById("vistaHistorialRetiros"),
         listaHistorialRetiros: document.getElementById("listaHistorialRetiros"),
-
         countServ: document.querySelector(".fa-bolt")?.closest(".uber-card")?.querySelector("h3"),
         countMoney: document.querySelector(".fa-wallet")?.closest(".uber-card")?.querySelector("h3"),
         countOnline: document.getElementById("totalTecnicos")
     };
 
-    // ----------------------------------------------------------------------------------
-    // 1.A. GESTIÓN DE TÉCNICOS Y APROBACIÓN (LÓGICA DETALLADA V5.6)
-    // ----------------------------------------------------------------------------------
     if (elementos.lista) {
         const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
 
         onSnapshot(qTecnicos, (snap) => {
-            elementos.lista.innerHTML = ""; // Limpiamos la lista para repintar
+            elementos.lista.innerHTML = ""; 
 
             let contOnline = 0;
             let contTotal = 0;
@@ -126,28 +110,19 @@ export async function iniciarPanelAdmin(user) {
                 const data = docSnap.data();
                 contTotal++;
 
-                // Detección de "online" basado en el booleano 'disponible'
                 if(data.disponible) {
                     contOnline++;
                 }
                 
                 const esPendiente = (data.estado || "pendiente") === "pendiente";
-                
-                // Validación visual de documentos (Mockup visual por ahora)
                 const ineCheck = data.documentos?.ine ? '<span class="text-emerald-400"> ✅  INE</span>' : '<span class="text-red-500"> ❌  INE</span>';
                 const csfCheck = data.documentos?.csf ? '<span class="text-emerald-400"> ✅  CSF</span>' : '<span class="text-red-500"> ❌  CSF</span>';
-
-                // Mostrar Skills (NUEVO V5.7 - Array de habilidades)
                 const skillsStr = data.skills ? data.skills.join(" • ").toUpperCase() : "GENERAL";
-
-                // Indicador visual de estado (Punto verde/gris)
                 const estadoDot = data.disponible
                     ? '<span class="text-emerald-500 font-bold text-[10px] animate-pulse">● ONLINE</span>'
                     : '<span class="text-gray-500 text-[10px]">● OFFLINE</span>';
 
-                // Renderizado de la tarjeta del técnico
                 const card = document.createElement("div");
-                // Si es pendiente, le damos un borde amarillo para resaltar
                 card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500' : 'bg-zinc-900 border-zinc-800'}`;
 
                 card.innerHTML = `
@@ -187,7 +162,6 @@ export async function iniciarPanelAdmin(user) {
                 elementos.lista.appendChild(card);
             });
             
-            // Actualizamos el contador del Dashboard principal (Header Widget)
             if(elementos.countOnline) {
                 elementos.countOnline.innerHTML = `${contOnline} <span class="text-sm text-gray-500">/ ${contTotal}</span>`;
                 elementos.countOnline.style.color = contOnline > 0 ? "#10b981" : "white";
@@ -195,9 +169,6 @@ export async function iniciarPanelAdmin(user) {
         });
     }
 
-    // ----------------------------------------------------------------------------------
-    // 1.B. MONITOREO DE SERVICIOS EN TIEMPO REAL (FEED DE ACTIVIDAD)
-    // ----------------------------------------------------------------------------------
     const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"));
 
     onSnapshot(qServicios, (snap) => {
@@ -212,12 +183,10 @@ export async function iniciarPanelAdmin(user) {
         snap.forEach(docSnap => {
             const data = docSnap.data();
 
-            // Calculo de Activos (Excluyendo finalizados y cancelados) para el widget de "Rayo"
             if (!["finalizado", "cancelado"].includes(data.estado)) {
                 activos++;
             }
 
-            // Renderizar solo los últimos 10 para no saturar el DOM del admin
             if (elementos.actividad && elementos.actividad.children.length < 10) {
                 const item = document.createElement("div");
                 item.className = "flex justify-between items-center border-b border-white/5 py-3 last:border-0";
@@ -232,7 +201,6 @@ export async function iniciarPanelAdmin(user) {
                 if(data.estado === "finalizado") colorEstado = "text-emerald-500";
                 if(data.estado === "cancelado") colorEstado = "text-red-500 line-through";
                 
-                // Formateo de la vertical y subservicio
                 const labelServicio = `${data.categoria} ${data.sub_servicio ? '• ' + data.sub_servicio : ''}`;
 
                 item.innerHTML = `
@@ -252,17 +220,12 @@ export async function iniciarPanelAdmin(user) {
             }
         });
         
-        // Actualizar Widgets Superiores
         if(elementos.countServ) {
             elementos.countServ.innerText = activos;
             elementos.countServ.style.color = activos > 0 ? "#34d399" : "white";
         }
     });
 
-    // ----------------------------------------------------------------------------------
-    // 1.C. MONITOREO DE FINANZAS REALES (V5.11 - DETALLE FISCAL COMPLETO)
-    // ----------------------------------------------------------------------------------
-    // Ahora calculamos FixGo, IVA, ISR y Neto Técnico
     const qFinanzas = query(collection(db, "transacciones"));
     onSnapshot(qFinanzas, (snap) => {
         let globalFixGo = 0;
@@ -273,7 +236,6 @@ export async function iniciarPanelAdmin(user) {
 
         snap.forEach(docSnap => {
             const tx = docSnap.data();
-            // Validamos que existan los campos (para compatibilidad con versiones viejas)
             const fixgo = tx.comision_fixgo || 0;
             const iva = tx.retencion_iva || 0;
             const isr = tx.retencion_isr || 0;
@@ -288,11 +250,8 @@ export async function iniciarPanelAdmin(user) {
         });
 
         if(elementos.countMoney) {
-            // Muestra solo la comisión FIXGO en grande (Tu ganancia)
             elementos.countMoney.innerText = `$${globalFixGo.toFixed(2)}`;
             
-            // INYECTAR DESGLOSE DETALLADO (V5.11)
-            // Buscamos si ya existe el contenedor de desglose, si no lo creamos
             const cardParent = elementos.countMoney.closest('.uber-card');
             let desgloseContainer = cardParent.querySelector('.finance-breakdown');
             
@@ -311,7 +270,6 @@ export async function iniciarPanelAdmin(user) {
         }
     });
 
-    // Función global para el botón onclick del HTML inyectado (Aprobar Técnico)
     window.aprobarTecnico = async (uid) => {
         if(!confirm("¿Estás seguro de aprobar a este técnico? Tendrá acceso inmediato a ver solicitudes y aceptar trabajos.")) return;
         try {
@@ -328,23 +286,16 @@ export async function iniciarPanelAdmin(user) {
         }
     };
 
-    // ----------------------------------------------------------------------------------
-    // 1.D. NUEVO: GESTOR DE CATÁLOGO GRANULAR (V5.9) - CONTROL TOTAL
-    // ----------------------------------------------------------------------------------
-    // Esta función ahora construye la UI completa de las 4 Verticales para el Admin
-    // permitiendo apagar/encender servicios específicos (ej: Solo Grúas).
     window.abrirGestorCatalogo = async () => {
         const modal = document.getElementById("modalCatalogo");
         const container = document.getElementById("gridConfiguracion");
         if (modal) modal.classList.remove("hidden");
         
-        // Obtenemos la configuración actual de la nube
         const docRef = doc(db, "configuracion", "catalogo_global");
         const docSnap = await getDoc(docRef);
         let config = {}; 
         if(docSnap.exists()) config = docSnap.data();
 
-        // Estructura Maestra (Debe coincidir con la del Cliente para que los IDs funcionen)
         const MASTER_STRUCTURE = {
             "ROAD (Auxilio Vial)": [
                 { id: "road_llanta", label: "Llantera Móvil" },
@@ -379,7 +330,6 @@ export async function iniciarPanelAdmin(user) {
             container.innerHTML = "";
             let html = "";
             
-            // Iteramos sobre las categorías maestras para pintar la UI del Admin
             for (const [categoria, servicios] of Object.entries(MASTER_STRUCTURE)) {
                 html += `
                 <div class="mb-4 bg-zinc-900/50 p-3 rounded-xl border border-zinc-800">
@@ -387,9 +337,7 @@ export async function iniciarPanelAdmin(user) {
                     <div class="space-y-2">`;
                 
                 servicios.forEach(srv => {
-                    // Si no existe en la BD, asumimos false por seguridad (Próximamente por defecto)
                     const isChecked = config[srv.id] === true;
-                    
                     html += generarSwitchGranular(srv.id, srv.label, isChecked);
                 });
                 
@@ -399,16 +347,13 @@ export async function iniciarPanelAdmin(user) {
         }
     };
 
-    // Función modificada para guardar TODOS los switches granulares en Firestore
     window.guardarConfiguracionGlobal = async () => {
-        // Recolectamos todos los inputs que empiecen con "cfg_"
         const inputs = document.querySelectorAll('input[id^="cfg_"]');
         let nuevaConfig = {
-            updatedAt: serverTimestamp() // Audit log
+            updatedAt: serverTimestamp() 
         };
 
         inputs.forEach(input => {
-            // Extraemos el ID real (quitando el prefijo cfg_)
             const realId = input.id.replace("cfg_", "");
             nuevaConfig[realId] = input.checked;
         });
@@ -423,11 +368,6 @@ export async function iniciarPanelAdmin(user) {
         }
     };
 
-    // ----------------------------------------------------------------------------------
-    // 1.E. NUEVO: CONTROL DE RETIROS SPEI (V5.12 - LÓGICA BRIDGE BLINDADA)
-    // ----------------------------------------------------------------------------------
-    
-    // Toggle para cambiar entre Retiros Pendientes e Historial
     if(elementos.btnToggleHistorialRetiros) {
         let mostrandoHistorial = false;
         elementos.btnToggleHistorialRetiros.onclick = () => {
@@ -446,7 +386,6 @@ export async function iniciarPanelAdmin(user) {
         };
     }
 
-    // Llenado de Retiros Pendientes
     if (elementos.listaRetiros) {
         const qRetiros = query(collection(db, "retiros"), where("estado", "==", "pendiente"), orderBy("fecha_solicitud", "asc"));
         
@@ -486,11 +425,9 @@ export async function iniciarPanelAdmin(user) {
             });
         });
 
-        // --- FUNCIÓN GLOBAL REDEFINIDA (QUIRÚRGICA) ---
         window.aprobarRetiro = async (retiroId, tecnicoId, monto) => {
             if(!confirm("¿Confirmas que ya realizaste la transferencia SPEI por $"+monto.toFixed(2)+"?\n\nEsto descontará el saldo de la wallet mediante protocolo seguro Bridge.")) return;
             
-            // ESCUDO ANTI-DEDO NERVIOSO
             const btn = document.getElementById(`btn_aprobar_${retiroId}`);
             if(btn) {
                 btn.disabled = true;
@@ -499,7 +436,6 @@ export async function iniciarPanelAdmin(user) {
             }
 
             try {
-                // MODIFICACIÓN MAESTRA: LLAMADA AL BRIDGE
                 const { ejecutarRetiroSeguro } = await import('./fixgo-bridge.js');
                 await ejecutarRetiroSeguro(retiroId, tecnicoId, monto);
 
@@ -507,7 +443,6 @@ export async function iniciarPanelAdmin(user) {
             } catch (error) {
                 console.error("Error al procesar retiro:", error);
                 alert("❌ Error de seguridad al procesar el retiro en el Bridge.");
-                // Si falla, liberamos el botón
                 if(btn) {
                     btn.disabled = false;
                     btn.innerHTML = `<i class="fas fa-check-double"></i> MARCAR COMO PAGADO (SPEI)`;
@@ -517,9 +452,7 @@ export async function iniciarPanelAdmin(user) {
         };
     }
 
-    // 1.F NUEVO: Llenado del Historial de Retiros Aprobados (V5.11.6)
     if (elementos.listaHistorialRetiros) {
-        // Requiere índice compuesto en Firebase: estado ASC, fecha_aprobacion DESC
         const qHistorialRetiros = query(
             collection(db, "retiros"), 
             where("estado", "==", "aprobado"), 
@@ -563,7 +496,6 @@ export async function iniciarPanelAdmin(user) {
     }
 }
 
-// Helper para generar el HTML de switches individuales (V5.9)
 function generarSwitchGranular(id, label, checked) {
     return `
     <div class="flex justify-between items-center bg-black p-2 rounded-lg border border-zinc-800">
@@ -579,7 +511,6 @@ function generarSwitchGranular(id, label, checked) {
 // ======================================================================================
 // 2. PANEL DE TÉCNICO (SOCIO OPERADOR)
 // ======================================================================================
-// Gestiona la vista del tecnico.html, toggle On/Off, Radar, Bolsa de Trabajo y Flujo de Servicio.
 export async function iniciarPanelTecnico(user) {
     console.log(" 🔧  Iniciando Panel de Técnico...");
     
@@ -595,21 +526,16 @@ export async function iniciarPanelTecnico(user) {
         btnLlegue: document.getElementById("btnLlegue"),
         walletLabel: document.getElementById("walletSaldo"),
         btnRetiro: document.getElementById("btnRetiro"),
-        // NUEVOS ELEMENTOS V5.11.7: Historial de Retiros del Técnico
         contenedorHistorialRetiros: document.getElementById("contenedorHistorialRetiros"),
         listaMisRetiros: document.getElementById("listaMisRetiros")
     };
 
-    // ----------------------------------------------------------------------------------
-    // 2.A. ESTADO DEL TÉCNICO Y PERFIL (VERIFICACIÓN)
-    // ----------------------------------------------------------------------------------
     const tecnicoRef = doc(db, "users", user.uid);
     onSnapshot(tecnicoRef, (docSnap) => {
         if (!docSnap.exists()) return;
         const data = docSnap.data();
         const estado = data.estado || "pendiente";
 
-        // Caso: Pendiente de Aprobación (Cuenta bloqueada)
         if (estado === "pendiente") {
             if(elementos.statusLabel) {
                 elementos.statusLabel.innerText = "EN REVISIÓN";
@@ -632,17 +558,15 @@ export async function iniciarPanelTecnico(user) {
             return;
         }
 
-        // Caso: Activo (Puede operar)
         if (elementos.toggleONOFF) {
             elementos.toggleONOFF.disabled = false;
             elementos.toggleONOFF.checked = data.disponible === true;
         }
 
         if (data.disponible) {
-            // ENCENDIDO: Inicia GPS y Escucha Bolsa
             iniciarTracking(user.uid);
             elementos.seccionBolsa?.classList.remove("hidden");
-            escucharBolsa(user, elementos.listaBolsa); // Le pasamos el user para ver sus Skills
+            escucharBolsa(user, elementos.listaBolsa); 
 
             if(elementos.statusLabel) {
                 elementos.statusLabel.innerText = "EN LÍNEA";
@@ -650,7 +574,6 @@ export async function iniciarPanelTecnico(user) {
             }
             elementos.radarSection?.classList.remove("opacity-50", "grayscale");
         } else {
-            // APAGADO: Detiene GPS y Oculta Bolsa
             detieneTracking();
             elementos.seccionBolsa?.classList.add("hidden");
 
@@ -662,18 +585,13 @@ export async function iniciarPanelTecnico(user) {
         }
     });
 
-    // ----------------------------------------------------------------------------------
-    // 2.D. WALLET & GANANCIAS (V5.11.4 - LOGICA 24 HORAS + MATEMATICA DE RETIROS)
-    // ----------------------------------------------------------------------------------
     const qWallet = query(collection(db, "transacciones"), where("tecnico_id", "==", user.uid));
     const qRetirosPendientes = query(collection(db, "retiros"), where("tecnico_id", "==", user.uid), where("estado", "==", "pendiente"));
     
-    // Usamos variables globales para el estado financiero del técnico
     let saldoBrutoDisponible = 0;
     let saldoRetenido = 0;
     let retirosEnProceso = 0;
 
-    // Escuchador 1: Transacciones (El dinero ganado y los retiros ya aprobados)
     onSnapshot(qWallet, (snap) => {
         saldoBrutoDisponible = 0;
         saldoRetenido = 0;
@@ -683,11 +601,9 @@ export async function iniciarPanelTecnico(user) {
             const tx = docSnap.data();
             const monto = (tx.pago_tecnico || 0);
             
-            // Si la transacción es un retiro (monto negativo), se descuenta INMEDIATAMENTE
             if (tx.tipo === "retiro_fondos") {
                 saldoBrutoDisponible += monto; 
             } else {
-                // Lógica normal de 24 horas para ingresos por servicios
                 if (tx.fecha && tx.fecha.toDate) {
                     const fechaTx = tx.fecha.toDate();
                     const diffHoras = Math.abs(ahora - fechaTx) / 36e5;
@@ -706,7 +622,6 @@ export async function iniciarPanelTecnico(user) {
         actualizarUIWallet();
     });
 
-    // Escuchador 2: Retiros Pendientes
     onSnapshot(qRetirosPendientes, (snap) => {
         retirosEnProceso = 0;
         snap.forEach(docSnap => {
@@ -731,7 +646,6 @@ export async function iniciarPanelTecnico(user) {
             }
         }
 
-        // Lógica del Botón de Retiro
         if(elementos.btnRetiro) {
             if(retirosEnProceso > 0) {
                 elementos.btnRetiro.disabled = true;
@@ -775,9 +689,6 @@ export async function iniciarPanelTecnico(user) {
         }
     }
 
-    // ----------------------------------------------------------------------------------
-    // 2.E. NUEVO: HISTORIAL DE RETIROS DEL TÉCNICO (V5.11.7)
-    // ----------------------------------------------------------------------------------
     if (elementos.listaMisRetiros && elementos.contenedorHistorialRetiros) {
         const qMisRetiros = query(
             collection(db, "retiros"),
@@ -829,7 +740,6 @@ export async function iniciarPanelTecnico(user) {
         });
     }
 
-    // Switch ON/OFF
     if (elementos.toggleONOFF) {
         elementos.toggleONOFF.addEventListener("change", async (e) => {
             await updateDoc(tecnicoRef, {
@@ -839,9 +749,6 @@ export async function iniciarPanelTecnico(user) {
         });
     }
 
-    // ----------------------------------------------------------------------------------
-    // 2.B. BOLSA DE TRABAJO (CON SONIDO Y FILTRO DE SKILLS + RECHAZO V5.10)
-    // ----------------------------------------------------------------------------------
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
         const q = query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc"));
@@ -926,9 +833,6 @@ export async function iniciarPanelTecnico(user) {
         } catch (error) { console.error(error); }
     };
 
-    // ----------------------------------------------------------------------------------
- // 2.C. FLUJO ACTIVO (MISIONES Y MODAL EVIDENCIA BLINDADO V5.12)
-    // ----------------------------------------------------------------------------------
     const qMisiones = query(
         collection(db, "services"),
         where("tecnico_id", "==", user.uid),
@@ -995,12 +899,10 @@ export async function iniciarPanelTecnico(user) {
         await setDoc(rastreoRef, { estado: estado }, { merge: true });
     }
 
-    // MODAL DE COTIZACIÓN DETALLADA (V5.12 - MODULAR)
     function mostrarModalCotizacionDetallada(id, servicioData) {
         if(document.getElementById("modalCot")) return;
         let items = []; 
 
-        // Inyección dinámica desde el diccionario de plantillas
         const html = MODAL_TEMPLATES.COTIZACION(id);
         document.body.insertAdjacentHTML('beforeend', html);
 
@@ -1032,11 +934,9 @@ export async function iniciarPanelTecnico(user) {
         }, 100);
     }
 
-    // 📸 MODAL EVIDENCIA (REAL CON BASE64 Y LLAMADA BRIDGE BLINDADA V5.12 - MODULAR)
     function mostrarModalEvidencia(id) {
         if(document.getElementById("modalEvidencia")) return;
 
-        // Inyección dinámica desde el diccionario de plantillas
         const html = MODAL_TEMPLATES.EVIDENCIA;
         document.body.insertAdjacentHTML('beforeend', html);
         
@@ -1050,11 +950,9 @@ export async function iniciarPanelTecnico(user) {
             btn.disabled = true;
             
             try {
-                // Conversión a Base64
                 const b64_1 = await toBase64(f1);
                 const b64_2 = await toBase64(f2);
                 
-                // MODIFICACIÓN MAESTRA: LLAMADA AL BRIDGE (CEREBRO UNICORNIO)
                 const { finalizarServicioBlindado } = await import('./fixgo-bridge.js');
                 const respuesta = await finalizarServicioBlindado(id, user.uid, b64_1, b64_2);
 
@@ -1071,14 +969,13 @@ export async function iniciarPanelTecnico(user) {
         };
     }
 
-    // Helper: Convertir archivo a texto Base64
     const toBase64 = file => new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = () => resolve(reader.result);
         reader.onerror = error => reject(error);
     });
-    // 📄 PDF DE RETIRO (V5.11.7)
+
     window.generarPDFRetiro = async (retiroId) => {
         const { jsPDF } = await cargarLibreriaPDF();
         const docPdf = new jsPDF();
@@ -1088,7 +985,7 @@ export async function iniciarPanelTecnico(user) {
 }
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.1
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.2 (FLUJO RESTAURADO)
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
     console.log(" 📱  Iniciando Panel de Cliente...");
@@ -1098,15 +995,12 @@ export async function iniciarPanelCliente(user) {
         lista: document.getElementById("solicitudesCliente"),
         inputCat: document.getElementById("categoriaSeleccionada"),
         labelServicio: document.getElementById("btnLabel"),
-        // Estos IDs asumen que tus contenedores HTML dentro de cada acordeón se llaman así.
-        // Verifícalos en tu archivo cliente.html
         containerRoad: document.getElementById("content_road"),
         containerFix: document.getElementById("content_fix"),
         containerTech: document.getElementById("content_tech"),
         containerMaint: document.getElementById("content_maint")
     };
 
-    // Estructura Maestra (Debe coincidir con la de tu Admin)
     const MASTER_STRUCTURE = {
         "road": [
             { id: "road_llanta", label: "Llantera Móvil", icon: "fa-car-crash" },
@@ -1137,29 +1031,35 @@ export async function iniciarPanelCliente(user) {
         ]
     };
 
-    // 3.A. CARGAR CATÁLOGO DINÁMICO DESDE FIRESTORE
+    // 3.A. CARGAR CATÁLOGO DINÁMICO Y "PRÓXIMAMENTE"
     const docRef = doc(db, "configuracion", "catalogo_global");
     onSnapshot(docRef, (docSnap) => {
         let config = {}; 
         if(docSnap.exists()) config = docSnap.data();
 
-        // Función interna para inyectar HTML de forma dinámica
         const renderizarCategoria = (categoriaClave, contenedor) => {
             if(!contenedor) return;
-            contenedor.innerHTML = ""; // Limpiar antes de pintar
+            contenedor.innerHTML = ""; 
             let html = '<div class="grid grid-cols-2 gap-2 p-3 bg-black/50 rounded-b-xl border-x border-b border-zinc-800">';
             
             MASTER_STRUCTURE[categoriaClave].forEach(srv => {
-                // Validar si el admin lo tiene encendido. 
-                const isActivo = config[srv.id] !== false; // Asumimos true por defecto si no ha sido configurado
+                const isActivo = config[srv.id] !== false; 
                 
                 if (isActivo) {
                     html += `
                     <button onclick="window.seleccionarServicio('${srv.id}', '${srv.label}')" 
-                            class="flex flex-col items-center justify-center p-3 bg-zinc-900 border border-zinc-700 rounded-xl hover:bg-emerald-900/30 hover:border-emerald-500 transition-all text-gray-300 hover:text-emerald-400 active:scale-95">
+                            class="flex flex-col items-center justify-center p-3 bg-zinc-900 border border-zinc-700 rounded-xl hover:bg-emerald-900/30 hover:border-emerald-500 transition-all text-gray-300 hover:text-emerald-400 active:scale-95 shadow-lg">
                         <i class="fas ${srv.icon} text-lg mb-2"></i>
                         <span class="text-[10px] font-bold text-center leading-tight uppercase">${srv.label}</span>
                     </button>`;
+                } else {
+                    // AQUÍ ESTÁ EL CÓDIGO RESTAURADO PARA LOS "PRÓXIMAMENTE"
+                    html += `
+                    <div class="flex flex-col items-center justify-center p-3 bg-zinc-900/40 border border-zinc-800/40 rounded-xl opacity-60 cursor-not-allowed grayscale">
+                        <i class="fas ${srv.icon} text-lg mb-2 text-zinc-600"></i>
+                        <span class="text-[10px] font-bold text-center leading-tight uppercase text-zinc-500">${srv.label}</span>
+                        <span class="text-[8px] bg-zinc-800 text-zinc-400 px-2 mt-1 rounded tracking-widest font-black">PRÓXIMA</span>
+                    </div>`;
                 }
             });
             
@@ -1167,7 +1067,6 @@ export async function iniciarPanelCliente(user) {
             contenedor.innerHTML = html;
         };
 
-        // Renderizamos cada sección del catálogo
         renderizarCategoria("road", el.containerRoad);
         renderizarCategoria("fix", el.containerFix);
         renderizarCategoria("tech", el.containerTech);
@@ -1177,19 +1076,61 @@ export async function iniciarPanelCliente(user) {
     // 3.B. SELECCIÓN DE SERVICIO Y APERTURA DE FORMULARIO
     window.seleccionarServicio = (id, label) => {
         if(el.inputCat) el.inputCat.value = id;
-        if(el.labelServicio) el.labelServicio.innerText = "SOLICITAR " + label.toUpperCase();
+        if(el.labelServicio) el.labelServicio.innerText = label.toUpperCase();
         
-        // Abre tu modal de solicitud
         const modal = document.getElementById("modalSolicitud");
         if(modal) {
             modal.classList.remove("hidden");
             if(el.form) el.form.reset();
-        } else {
-            console.warn("No se encontró el modal de solicitud (modalSolicitud).");
         }
     };
 
-    // 3.C. ESCUCHA DE SOLICITUDES ACTIVAS DEL CLIENTE
+    // 3.C. LÓGICA DE ENVÍO DEL FORMULARIO A FIREBASE (RESTABLECIDA)
+    if (el.form) {
+        el.form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            
+            const btnSubmit = el.form.querySelector('button[type="submit"]');
+            const textoOriginal = btnSubmit.innerText;
+            btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
+            btnSubmit.disabled = true;
+
+            try {
+                const formData = new FormData(el.form);
+                
+                // Objeto estructurado para inyectar a Firestore
+                const nuevoServicio = {
+                    cliente_id: user.uid,
+                    cliente_nombre: user.nombre || "Cliente",
+                    cliente_telefono: user.telefono || "",
+                    categoria: formData.get("categoria"),
+                    direccion: formData.get("direccion"),
+                    descripcion: formData.get("descripcion"),
+                    estado: "pendiente",
+                    zona: "Cancún",
+                    created_at: serverTimestamp()
+                };
+
+                // Enviamos a la colección "services"
+                await addDoc(collection(db, "services"), nuevoServicio);
+
+                alert("✅ ¡Solicitud enviada con éxito! Buscando técnicos cercanos...");
+                
+                // Limpiamos y cerramos modal
+                el.form.reset();
+                document.getElementById("modalSolicitud").classList.add("hidden");
+
+            } catch (error) {
+                console.error("Error al guardar solicitud:", error);
+                alert("❌ Hubo un error al enviar tu solicitud. Intenta de nuevo.");
+            } finally {
+                btnSubmit.innerText = textoOriginal;
+                btnSubmit.disabled = false;
+            }
+        });
+    }
+
+    // 3.D. ESCUCHA DE SOLICITUDES ACTIVAS DEL CLIENTE
     onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc")), (snap) => {
         if(!el.lista) return;
         el.lista.innerHTML = "";
@@ -1237,7 +1178,7 @@ export async function iniciarPanelCliente(user) {
 }
 
 /**
- * 🔔 FIXGO AUDIO WATCHDOG (Vigilante de Alertas V5.12)
+ * 🔔 FIXGO AUDIO WATCHDOG
  */
 function iniciarVigilanciaAudio() {
     console.log("👂 Audio Watchdog: Iniciando escucha...");
@@ -1251,5 +1192,4 @@ function iniciarVigilanciaAudio() {
     });
 }
 
-// Ejecutamos el vigilante
 iniciarVigilanciaAudio();
