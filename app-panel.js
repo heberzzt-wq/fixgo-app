@@ -1,25 +1,11 @@
 /**
- * ======================================================================================
- * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
- * ======================================================================================
- * Archivo: app-panel.js
- * Versión: 5.12.0 (UNICORN BRIDGE & SECURITY BLIND)
- * Base: V5.11.7
- * Autor: Heber (CEO & Lead Architect)
- * Fecha: Febrero 2026
- * * DESCRIPCIÓN TÉCNICA:
- * Este archivo gestiona la lógica de negocio central de los 3 paneles (Admin, Técnico, Cliente).
- * Controla:
- * 1. Flujos de estado (Pendiente -> Asignado -> En Camino -> En Sitio -> Cotizando -> Trabajando -> Finalizado).
- * 2. Sistema de Verticales (ROAD, FIX, MAINT, TECH) con activación granular y UI Acordeón.
- * 3. Gestión Financiera BLINDADA (Delegada a fixgo-bridge.js para evitar manipulación).
- * 4. Wallet Inteligente (Liberación de fondos 24 horas + Retiros SPEI Atómicos).
- * 5. Evidencia y Seguridad (Bloqueo de garantías, fotos antes/después, coordenadas GPS).
- * 6. Generación de Documentos (PDF Fiscal Simulado + Comprobantes SPEI).
- * * REGLAS DE ARQUITECTURA:
- * - NO COMPACTAR.
- * - NO FRAGMENTAR.
- * - MANTENER LOGICA DE 1600+ LÍNEAS.
+ * ============================================================================
+ * FIXGO 2026 - PANEL MAESTRO DE CONTROL | app-panel.js | V 5.12.0
+ * Autor: Heber (CEO & Lead Architect) | Fecha: Febrero 2026
+ * ============================================================================
+ * CORE: Gestión de los 3 paneles (Admin, Técnico, Cliente). Flujos de estado, 
+ * Verticales, Finanzas blindadas (Bridge), Wallet SPEI, Evidencia GPS y PDFs.
+ * REGLAS MAESTRAS: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA COMPLETA.
  * ======================================================================================
  */
 
