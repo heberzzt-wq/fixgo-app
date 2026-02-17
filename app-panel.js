@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.12.7 (INFRAESTRUCTURA UNICORNIO: TRANSACCIONES ATÓMICAS + RAM SHIELD)
+ * Versión: 5.12.8 (ESCUDO DE LANZAMIENTO: TRANSACCIONES ATÓMICAS GLOBALES CLIENTE/TÉCNICO)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -77,7 +77,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.12.7: INFRAESTRUCTURA UNICORNIO CARGADA (Anti-Colisiones + Paginación RAM).");
+console.log(" 🚀  FIXGO 5.12.8: ESCUDO DE LANZAMIENTO (Transacciones Atómicas Totales).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -1398,7 +1398,7 @@ export async function iniciarPanelTecnico(user) {
 }
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.7
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.8
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
     console.log(" 📱  Iniciando Panel de Cliente...");
@@ -1599,7 +1599,7 @@ export async function iniciarPanelCliente(user) {
     }
 
     // ----------------------------------------------------------------------------------
-    // 3.3 MONITOR DE HISTORIAL & WATCHDOG DE NOTIFICACIONES AL CLIENTE (V5.12.7)
+    // 3.3 MONITOR DE HISTORIAL & WATCHDOG DE NOTIFICACIONES AL CLIENTE
     // ----------------------------------------------------------------------------------
     // 🛡️ ESCUDO RAM: Dibuja máximo 50 tickets en el historial del cliente
     onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc"), limit(50)), (snap) => {
@@ -1775,7 +1775,6 @@ export async function iniciarPanelCliente(user) {
     // 3.4 ACCIONES GLOBALES DEL CLIENTE
     // ----------------------------------------------------------------------------------
     
-    // --- NUEVO: FUNCIÓN PARA ABRIR EL MAPA DENTRO DEL PANEL (IFRAME MODAL) ---
     window.abrirMapaEnVivo = (id) => {
         const existingModal = document.getElementById('modalMapaVivo');
         if (existingModal) existingModal.remove();
@@ -1800,17 +1799,50 @@ export async function iniciarPanelCliente(user) {
         document.body.insertAdjacentHTML('beforeend', html);
     };
 
+    // 🔥 V5.12.8 - PROTECCIÓN ATÓMICA EN RESPUESTA DEL CLIENTE
     window.responderCotizacion = async (id, aceptado) => {
-        if (aceptado) {
-            await updateDoc(doc(db, "services", id), { estado: "trabajando" });
-            alert(" ✅  ¡Costo aprobado! El técnico comenzará a trabajar ahora.");
-        } else {
-            if(confirm(" ⚠  ¿Estás seguro de cancelar?\n\nAl haber llegado el técnico, se cobrará la visita mínima ($550).")) {
-                await updateDoc(doc(db, "services", id), {
-                    estado: "cancelado",
-                    costo_final: 550, 
-                    cancelado_razon: "Cliente rechazó cotización"
+        const serviceRef = doc(db, "services", id);
+        
+        try {
+            if (aceptado) {
+                // TÚNEL CUÁNTICO: Aceptar Cotización
+                await runTransaction(db, async (transaction) => {
+                    const sfDoc = await transaction.get(serviceRef);
+                    if (!sfDoc.exists()) throw "NO_EXISTE";
+                    
+                    // Valida que no se haya cancelado milisegundos antes
+                    if (sfDoc.data().estado !== "cotizando") throw "ESTADO_INVALIDO";
+                    
+                    transaction.update(serviceRef, { estado: "trabajando" });
                 });
+                alert(" ✅  ¡Costo aprobado! El técnico comenzará a trabajar ahora.");
+            } else {
+                if(confirm(" ⚠  ¿Estás seguro de cancelar?\n\nAl haber llegado el técnico, se cobrará la visita mínima ($550).")) {
+                    // TÚNEL CUÁNTICO: Cancelar Servicio
+                    await runTransaction(db, async (transaction) => {
+                        const sfDoc = await transaction.get(serviceRef);
+                        if (!sfDoc.exists()) throw "NO_EXISTE";
+                        
+                        const currentStatus = sfDoc.data().estado;
+                        if (currentStatus === "cancelado" || currentStatus === "finalizado") {
+                            throw "ESTADO_FINALIZADO";
+                        }
+
+                        transaction.update(serviceRef, {
+                            estado: "cancelado",
+                            costo_final: 550, 
+                            cancelado_razon: "Cliente rechazó cotización"
+                        });
+                    });
+                    alert(" 🚫  Servicio cancelado exitosamente.");
+                }
+            }
+        } catch (error) {
+            console.error("Error en transacción del cliente:", error);
+            if(error === "ESTADO_INVALIDO" || error === "ESTADO_FINALIZADO") {
+                alert("⚠️ Error: El estado del servicio ya cambió (fue cancelado o finalizado) y no puede ser modificado.");
+            } else {
+                alert("❌ Error de red al procesar tu respuesta. Intenta de nuevo.");
             }
         }
     };
@@ -1978,7 +2010,7 @@ export async function iniciarPanelCliente(user) {
 }
 
 /**
- * 🔔 FIXGO AUDIO WATCHDOG (Vigilante de Alertas V5.12.7)
+ * 🔔 FIXGO AUDIO WATCHDOG (Vigilante de Alertas V5.12.8)
  */
 function iniciarVigilanciaAudio() {
     console.log("👂 Audio Watchdog: Iniciando escucha de servicios pendientes...");
