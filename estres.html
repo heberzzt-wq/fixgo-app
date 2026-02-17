@@ -31,20 +31,11 @@
     </div>
 
     <script type="module">
-        import { 
-            db, 
-            auth, 
-            collection, 
-            addDoc, 
-            serverTimestamp, 
-            query, 
-            where, 
-            doc, 
-            updateDoc,
-            limit
-        } from "./firebase.js";
+        // 1. Solo importamos la conexión a tu base de datos y la sesión
+        import { db, auth } from "./firebase.js";
 
-        import { getDocs, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        // 2. Importamos TODO lo demás de forma absoluta desde Google para evitar bloqueos
+        import { collection, addDoc, serverTimestamp, query, where, doc, updateDoc, limit, getDocs, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const btnAtaque = document.getElementById('btnAtaque');
         const btnLimpiar = document.getElementById('btnLimpiar');
@@ -63,7 +54,7 @@
 
         btnAtaque.addEventListener('click', async () => {
             if (!auth.currentUser) {
-                imprimirLog("🛑 ERROR: Sesión no detectada. Inicia sesión como Admin en otra pestaña.", "error");
+                imprimirLog("🛑 ERROR: Sesión no detectada. Abre esta página en la misma ventana donde tienes tu sesión de Admin iniciada.", "error");
                 return;
             }
             
@@ -106,7 +97,7 @@
                     imprimirLog(`✅ Impacto confirmado. Acumulado: ${serviciosCreados} / ${totalServicios}`, "success");
 
                     if (serviciosCreados < totalServicios) {
-                        setTimeout(dispararLote, 500); // 0.5 seg de descanso entre ráfagas
+                        setTimeout(dispararLote, 500); 
                     } else {
                         iniciarFaseTecnicos();
                     }
@@ -117,7 +108,7 @@
 
             dispararLote();
 
-            // FASE 2: BAÑO DE SANGRE (COLISIONES CON TRANSACCIONES ATÓMICAS)
+            // FASE 2: BAÑO DE SANGRE (COLISIONES ATÓMICAS)
             const iniciarFaseTecnicos = () => {
                 imprimirLog("⏳ Desplegando 1,000 técnicos en el mapa...");
                 
@@ -126,7 +117,6 @@
                     imprimirLog("⚡ Los técnicos intentarán robarse los tickets al mismo tiempo...");
                     
                     try {
-                        // Traemos 200 tickets al azar para que 1000 técnicos se peleen por ellos
                         const qBolsa = query(collection(db, "services"), where("es_bot", "==", true), where("estado", "==", "pendiente"), limit(200));
                         const snapBolsa = await getDocs(qBolsa);
                         
@@ -137,14 +127,10 @@
                         let exitos = 0;
                         let colisiones = 0;
 
-                        // Soltamos a 1000 técnicos
                         for(let tech = 1; tech <= 1000; tech++) {
-                            // Cada técnico elige un ticket al azar de la bolsa pequeña (asegura peleas)
                             const ticketObjetivo = ticketsDisponibles[Math.floor(Math.random() * ticketsDisponibles.length)];
-                            
                             const serviceRef = doc(db, "services", ticketObjetivo);
 
-                            // AQUÍ PROBAMOS EL TÚNEL CUÁNTICO DEL PANEL
                             const intentoTransaccion = runTransaction(db, async (transaction) => {
                                 const sfDoc = await transaction.get(serviceRef);
                                 if (sfDoc.data().estado !== "pendiente") {
@@ -182,7 +168,7 @@
             };
         });
 
-        // LIMPIEZA POR LOTES (Para no romper el navegador al borrar 10k registros)
+        // LIMPIEZA POR LOTES
         btnLimpiar.addEventListener('click', async () => {
             btnLimpiar.disabled = true;
             imprimirLog("🧹 Iniciando purga digital en lotes de 500...");
@@ -204,7 +190,7 @@
                 });
                 
                 await Promise.all(promesasBorrar);
-                setTimeout(borrarLote, 300); // Llama al siguiente lote
+                setTimeout(borrarLote, 300); 
             };
 
             borrarLote();
