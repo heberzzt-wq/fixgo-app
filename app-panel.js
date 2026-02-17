@@ -1,10 +1,9 @@
-
 /**
  * ======================================================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.12.5 (MAPA IFRAME + ALERTA COBRO + TIMEOUT GPS + HISTORIAL TICKETS)
+ * Versión: 5.12.7 (INFRAESTRUCTURA UNICORNIO: TRANSACCIONES ATÓMICAS + RAM SHIELD)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -27,9 +26,24 @@ import {
     getDoc 
 } from "./firebase.js";
 
-import { getDocs, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// 🔥 INYECCIÓN NIVEL UBER: runTransaction (Atomicidad) y limit (Escudo RAM)
+import { getDocs, arrayUnion, runTransaction, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 import { activarAlertas, alertaTecnico } from "./alert-engine.js";
+
+/**
+ * SANITIZADOR MAESTRO (PREVENCIÓN XSS)
+ * Protege contra inyección de código en los innerHTML
+ */
+const escaparHTML = (str) => {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+};
 
 /**
  * ACTIVADOR MAESTRO (UNLOCKER)
@@ -63,7 +77,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.12.5: Sistema Full Cargado (Mapa Iframe + Alerta de Cobro Cliente + Historial Tickets).");
+console.log(" 🚀  FIXGO 5.12.7: INFRAESTRUCTURA UNICORNIO CARGADA (Anti-Colisiones + Paginación RAM).");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
@@ -71,6 +85,13 @@ console.log(" 🚀  FIXGO 5.12.5: Sistema Full Cargado (Mapa Iframe + Alerta de 
 export async function iniciarPanelAdmin(user) {
     console.log(" 🛡️  Iniciando Panel de Administrador...");
     
+    // 🚨 CANDADO DE SEGURIDAD MAESTRO: Validación estricta de rol
+    if (!user || user.rol !== "admin") {
+        console.error("🛑 ALERTA DE SEGURIDAD FIXGO: Intento de acceso no autorizado al Panel Admin.");
+        alert("🔒 ACCESO DENEGADO.");
+        return;
+    }
+
     const elementos = {
         lista: document.getElementById("listaTecnicos"),
         actividad: document.getElementById("listaTransacciones"),
@@ -120,12 +141,12 @@ export async function iniciarPanelAdmin(user) {
                 <div class="flex justify-between items-center">
                     <div>
                         <h4 class="font-bold text-white text-sm">
-                            ${data.nombre}
+                            ${escaparHTML(data.nombre)}
                             ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded ml-2 font-black">NUEVO</span>' : ''}
                         </h4>
-                        <p class="text-xs text-gray-400">${data.email}</p>
-                        <p class="text-[9px] text-blue-400 font-bold mt-1 tracking-wide">SKILLS: ${skillsStr}</p>
-                        <p class="text-xs text-gray-400">${data.telefono || ''}</p>
+                        <p class="text-xs text-gray-400">${escaparHTML(data.email)}</p>
+                        <p class="text-[9px] text-blue-400 font-bold mt-1 tracking-wide">SKILLS: ${escaparHTML(skillsStr)}</p>
+                        <p class="text-xs text-gray-400">${escaparHTML(data.telefono || '')}</p>
                         
                         <div class="mt-2 text-[10px] bg-black/20 p-1 rounded inline-block border border-white/5">
                             ${ineCheck} | ${csfCheck}
@@ -160,7 +181,8 @@ export async function iniciarPanelAdmin(user) {
         });
     }
 
-    const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"));
+    // 🛡️ ESCUDO RAM: Solo dibuja los 50 servicios más recientes en el panel Admin
+    const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"), limit(50));
 
     onSnapshot(qServicios, (snap) => {
         if(elementos.actividad) elementos.actividad.innerHTML = "";
@@ -192,14 +214,14 @@ export async function iniciarPanelAdmin(user) {
                 if(data.estado === "finalizado") colorEstado = "text-emerald-500";
                 if(data.estado === "cancelado") colorEstado = "text-red-500 line-through";
                 
-                const labelServicio = `${data.categoria} ${data.sub_servicio ? '• ' + data.sub_servicio : ''}`;
+                const labelServicio = escaparHTML(`${data.categoria} ${data.sub_servicio ? '• ' + data.sub_servicio : ''}`);
 
                 item.innerHTML = `
                 <div class="flex items-center gap-3">
                     <div class="bg-zinc-800 p-2 rounded-lg"><i class="fas fa-tools text-gray-400"></i></div>
                     <div>
                         <p class="text-xs font-bold text-white uppercase">${labelServicio}</p>
-                        <p class="text-[10px] text-gray-500">${data.cliente_nombre || 'Cliente'} • ${data.zona || 'Cancún'}</p>
+                        <p class="text-[10px] text-gray-500">${escaparHTML(data.cliente_nombre || 'Cliente')} • ${escaparHTML(data.zona || 'Cancún')}</p>
                     </div>
                 </div>
                 <div class="text-right">
@@ -212,7 +234,8 @@ export async function iniciarPanelAdmin(user) {
         });
         
         if(elementos.countServ) {
-            elementos.countServ.innerText = activos;
+            // Se calcula sobre los últimos 50 en la vista rápida
+            elementos.countServ.innerText = activos + (snap.size === 50 ? '+' : '');
             elementos.countServ.style.color = activos > 0 ? "#34d399" : "white";
         }
     });
@@ -402,7 +425,7 @@ export async function iniciarPanelAdmin(user) {
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-2">
                         <div>
-                            <p class="text-white font-bold text-sm uppercase">${ret.tecnico_nombre}</p>
+                            <p class="text-white font-bold text-sm uppercase">${escaparHTML(ret.tecnico_nombre)}</p>
                             <p class="text-[10px] text-gray-400">${fechaFormat}</p>
                         </div>
                         <span class="bg-yellow-500 text-black text-[9px] font-black px-2 py-1 rounded animate-pulse">PENDIENTE</span>
@@ -486,7 +509,7 @@ export async function iniciarPanelAdmin(user) {
                 card.className = "p-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl mb-2 flex justify-between items-center";
                 card.innerHTML = `
                     <div>
-                        <p class="text-white font-bold text-xs uppercase">${ret.tecnico_nombre}</p>
+                        <p class="text-white font-bold text-xs uppercase">${escaparHTML(ret.tecnico_nombre)}</p>
                         <p class="text-[9px] text-gray-500"><i class="fas fa-check-double text-emerald-500"></i> ${fechaFormat}</p>
                     </div>
                     <div class="text-right">
@@ -535,7 +558,7 @@ export async function iniciarPanelTecnico(user) {
         btnRetiro: document.getElementById("btnRetiro"),
         contenedorHistorialRetiros: document.getElementById("contenedorHistorialRetiros"),
         listaMisRetiros: document.getElementById("listaMisRetiros"),
-        listaMisTickets: document.getElementById("listaMisTickets") // AGREGADO PARA HISTORIAL DE SERVICIOS
+        listaMisTickets: document.getElementById("listaMisTickets") 
     };
 
     const tecnicoRef = doc(db, "users", user.uid);
@@ -749,7 +772,6 @@ export async function iniciarPanelTecnico(user) {
         });
     }
 
-    // --- NUEVO: LISTADO DEL HISTORIAL DE TICKETS (SERVICIOS FINALIZADOS) ---
     if (elementos.listaMisTickets) {
         const qMisTickets = query(
             collection(db, "services"),
@@ -789,7 +811,7 @@ export async function iniciarPanelTecnico(user) {
                 item.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-xl shadow-lg";
                 item.innerHTML = `
                     <div class="flex justify-between items-center mb-2">
-                        <span class="text-white font-bold text-xs uppercase">${s.categoria} | ${s.sub_servicio || 'GRAL'}</span>
+                        <span class="text-white font-bold text-xs uppercase">${escaparHTML(s.categoria)} | ${escaparHTML(s.sub_servicio || 'GRAL')}</span>
                         ${badgeStatus}
                     </div>
                     <div class="flex justify-between items-end">
@@ -822,7 +844,8 @@ export async function iniciarPanelTecnico(user) {
 
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
-        const q = query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc"));
+        // 🛡️ ESCUDO RAM: Dibuja máximo 50 tickets en la bolsa a la vez
+        const q = query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc"), limit(50));
 
         onSnapshot(q, (snap) => {
             contenedor.innerHTML = "";
@@ -859,12 +882,12 @@ export async function iniciarPanelTecnico(user) {
                 card.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
                     <span class="bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider">NUEVA SOLICITUD</span>
-                    <span class="text-white font-bold text-xs">${s.categoria ? s.categoria.toUpperCase() : 'GENERAL'}</span>
+                    <span class="text-white font-bold text-xs">${s.categoria ? escaparHTML(s.categoria.toUpperCase()) : 'GENERAL'}</span>
                 </div>
-                <h4 class="text-white font-bold text-base mb-1">${s.zona || 'Cancún'}</h4>
-                <p class="text-gray-300 text-sm mb-3 font-medium italic">"${s.descripcion}"</p>
+                <h4 class="text-white font-bold text-base mb-1">${escaparHTML(s.zona || 'Cancún')}</h4>
+                <p class="text-gray-300 text-sm mb-3 font-medium italic">"${escaparHTML(s.descripcion)}"</p>
                 <div class="flex items-center gap-2 mb-3 text-xs text-gray-500">
-                    <i class="fas fa-map-marker-alt"></i> ${s.direccion}
+                    <i class="fas fa-map-marker-alt"></i> ${escaparHTML(s.direccion)}
                 </div>
                 
                 <div class="flex gap-2">
@@ -898,6 +921,7 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
+    // 🔥 BLINDAJE ANTI-COLISIÓN (TRANSACCIONES ATÓMICAS)
     window.tomarServicio = async (id, uid, nombre) => {
         const qCheck = query(
             collection(db, "services"), 
@@ -912,17 +936,39 @@ export async function iniciarPanelTecnico(user) {
         }
 
         if(!confirm("¿Aceptar este servicio? \n\nSe notificará al cliente y se bloqueará la garantía.")) return;
+        
         try {
-            await updateDoc(doc(db, "services", id), {
-                estado: "asignado",
-                tecnico_id: uid,
-                tecnico_nombre: nombre,
-                tecnico_telefono: user.telefono || "",
-                asignado_at: serverTimestamp()
+            const serviceRef = doc(db, "services", id);
+            
+            // EL TÚNEL CUÁNTICO: Garantiza que nadie más toque este documento al mismo tiempo
+            await runTransaction(db, async (transaction) => {
+                const sfDoc = await transaction.get(serviceRef);
+                
+                if (!sfDoc.exists()) {
+                    throw "ERROR_NO_EXISTE";
+                }
+
+                if (sfDoc.data().estado !== "pendiente") {
+                    throw "ERROR_COLISION"; // ¡Otro técnico ganó la carrera!
+                }
+
+                transaction.update(serviceRef, {
+                    estado: "asignado",
+                    tecnico_id: uid,
+                    tecnico_nombre: nombre,
+                    tecnico_telefono: user.telefono || "",
+                    asignado_at: serverTimestamp()
+                });
             });
+            
+            console.log("🚀 Transacción Atómica Exitosa: Ticket asegurado.");
         } catch (error) {
             console.error(error);
-            alert("Error: El servicio ya fue tomado por otro técnico hace un momento.");
+            if (error === "ERROR_COLISION") {
+                alert("💥 ¡COLISIÓN EVITADA!\n\nFuiste demasiado lento. Otro técnico aceptó este servicio milisegundos antes que tú.");
+            } else {
+                alert("Error al procesar la solicitud en el servidor. Intenta de nuevo.");
+            }
         }
     };
 
@@ -959,13 +1005,13 @@ export async function iniciarPanelTecnico(user) {
             <div class="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">
                 ${s.estado.replace('_', ' ')}
             </div>
-            <h3 class="text-xl font-black text-white mb-1 uppercase">${s.categoria}</h3>
+            <h3 class="text-xl font-black text-white mb-1 uppercase">${escaparHTML(s.categoria)}</h3>
             <p class="text-gray-400 text-sm mb-4">
-                <i class="fas fa-map-marker-alt text-blue-500"></i> ${s.direccion}
+                <i class="fas fa-map-marker-alt text-blue-500"></i> ${escaparHTML(s.direccion)}
             </p>
             <div class="bg-black/50 p-4 rounded-xl mb-4">
                 <p class="text-xs text-gray-500 uppercase font-bold mb-1">Problema:</p>
-                <p class="text-sm text-white italic">"${s.descripcion}"</p>
+                <p class="text-sm text-white italic">"${escaparHTML(s.descripcion)}"</p>
             </div>
             <div class="flex gap-2">
                 <a href="https://waze.com/ul?q=${destinoWaze}" target="_blank" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-center text-sm transition-colors">
@@ -1098,7 +1144,7 @@ export async function iniciarPanelTecnico(user) {
                     row.className = "flex justify-between items-start border-b border-zinc-800 py-2 text-xs last:border-0 animate-fade-in";
                     row.innerHTML = `
                         <div class="flex-1">
-                            <p class="text-white font-bold"><span class="text-emerald-500">${item.cantidad} ${item.unidad}</span> ${item.descripcion}</p>
+                            <p class="text-white font-bold"><span class="text-emerald-500">${item.cantidad} ${escaparHTML(item.unidad)}</span> ${escaparHTML(item.descripcion)}</p>
                             <p class="text-gray-500 text-[10px]">$${item.precio} c/u</p>
                         </div>
                         <div class="text-right">
@@ -1352,7 +1398,7 @@ export async function iniciarPanelTecnico(user) {
 }
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.5
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.7
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
     console.log(" 📱  Iniciando Panel de Cliente...");
@@ -1553,9 +1599,10 @@ export async function iniciarPanelCliente(user) {
     }
 
     // ----------------------------------------------------------------------------------
-    // 3.3 MONITOR DE HISTORIAL & WATCHDOG DE NOTIFICACIONES AL CLIENTE (V5.12.4)
+    // 3.3 MONITOR DE HISTORIAL & WATCHDOG DE NOTIFICACIONES AL CLIENTE (V5.12.7)
     // ----------------------------------------------------------------------------------
-    onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc")), (snap) => {
+    // 🛡️ ESCUDO RAM: Dibuja máximo 50 tickets en el historial del cliente
+    onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc"), limit(50)), (snap) => {
         if(!el.lista) return;
         
         // --- 🐶 WATCHDOG CLIENTE: DETECCIÓN DE CAMBIOS DE ESTADO ---
@@ -1594,8 +1641,8 @@ export async function iniciarPanelCliente(user) {
                 if (s.detalles_cotizacion && s.detalles_cotizacion.length > 0) {
                     const filas = s.detalles_cotizacion.map(item => `
                         <tr>
-                            <td>${item.cantidad} ${item.unidad}</td>
-                            <td>${item.descripcion}</td>
+                            <td>${item.cantidad} ${escaparHTML(item.unidad)}</td>
+                            <td>${escaparHTML(item.descripcion)}</td>
                             <td class="quote-num">$${item.precio}</td>
                             <td class="quote-num text-white">$${(item.cantidad * item.precio).toFixed(2)}</td>
                         </tr>
@@ -1623,7 +1670,7 @@ export async function iniciarPanelCliente(user) {
                         </div>
                     `;
                 } else {
-                    htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${s.costo_final}</p><p class="text-gray-400 text-xs italic">"${s.diagnostico}"</p>`;
+                    htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${s.costo_final}</p><p class="text-gray-400 text-xs italic">"${escaparHTML(s.diagnostico)}"</p>`;
                 }
 
                 contenido = `
@@ -1696,7 +1743,7 @@ export async function iniciarPanelCliente(user) {
                 <div class="flex items-center gap-4">
                     <div class="w-3 h-3 ${dotColor} rounded-full shadow-[0_0_8px_currentColor]"></div>
                     <div>
-                        <h4 class="font-black text-white text-sm uppercase tracking-tight">${s.categoria} <span class="text-gray-500 font-normal ml-1">| ${s.sub_servicio || ''}</span></h4>
+                        <h4 class="font-black text-white text-sm uppercase tracking-tight">${escaparHTML(s.categoria)} <span class="text-gray-500 font-normal ml-1">| ${escaparHTML(s.sub_servicio || '')}</span></h4>
                         <div class="flex items-center gap-2 mt-1">
                             ${headerStatus}
                             <span class="text-[9px] text-gray-500">• ${fechaFormat}</span>
@@ -1708,7 +1755,7 @@ export async function iniciarPanelCliente(user) {
 
             <div id="hist-${id}" class="expandable-content bg-zinc-900/40">
                 <div class="p-4 border-t border-zinc-800/50">
-                    <p class="text-xs text-gray-400 truncate mb-3"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${s.direccion}</p>
+                    <p class="text-xs text-gray-400 truncate mb-3"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${escaparHTML(s.direccion)}</p>
                     
                     ${contenido}
 
@@ -1931,14 +1978,16 @@ export async function iniciarPanelCliente(user) {
 }
 
 /**
- * 🔔 FIXGO AUDIO WATCHDOG (Vigilante de Alertas V5.12.5)
+ * 🔔 FIXGO AUDIO WATCHDOG (Vigilante de Alertas V5.12.7)
  */
 function iniciarVigilanciaAudio() {
     console.log("👂 Audio Watchdog: Iniciando escucha de servicios pendientes...");
 
+    // 🛡️ ESCUDO RAM: Solo carga 10 recientes para el ping de audio
     const qAudio = query(
         collection(db, "services"), 
-        where("estado", "==", "pendiente")
+        where("estado", "==", "pendiente"),
+        limit(10)
     );
 
     onSnapshot(qAudio, (snapshot) => {
