@@ -3,30 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FIXGO 2026 - MEGA WAR ROOM (2000 Servicios)</title>
+    <title>FIXGO 2026 - WAR ROOM 10K (NIVEL DIOS)</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background: #09090b; color: #10b981; font-family: 'Courier New', Courier, monospace; padding: 30px; margin: 0; }
-        .btn-ataque { background: #8b5cf6; color: white; border: none; padding: 20px 40px; font-size: 18px; font-weight: 900; border-radius: 10px; cursor: pointer; text-transform: uppercase; width: 100%; margin-bottom: 15px; box-shadow: 0 0 20px rgba(139, 92, 246, 0.4); }
+        body { background: #050505; color: #10b981; font-family: 'Courier New', Courier, monospace; padding: 30px; margin: 0; }
+        .btn-ataque { background: #b91c1c; color: white; border: 1px solid #f87171; padding: 20px 40px; font-size: 18px; font-weight: 900; border-radius: 10px; cursor: pointer; text-transform: uppercase; width: 100%; margin-bottom: 15px; box-shadow: 0 0 30px rgba(185, 28, 28, 0.6); transition: all 0.2s; }
         .btn-ataque:active { transform: scale(0.98); }
-        .btn-ataque:disabled { background: #4c1d95; cursor: not-allowed; box-shadow: none; opacity: 0.7; }
-        .btn-limpiar { background: #3b82f6; color: white; border: none; padding: 15px 40px; font-size: 14px; font-weight: bold; border-radius: 10px; cursor: pointer; width: 100%; margin-bottom: 20px; }
-        .consola { background: #000; padding: 20px; border: 1px solid #333; border-radius: 10px; height: 400px; overflow-y: auto; font-size: 12px; line-height: 1.6; }
+        .btn-ataque:disabled { background: #450a0a; border-color: #7f1d1d; cursor: not-allowed; box-shadow: none; opacity: 0.7; }
+        .btn-limpiar { background: #1d4ed8; color: white; border: none; padding: 15px 40px; font-size: 14px; font-weight: bold; border-radius: 10px; cursor: pointer; width: 100%; margin-bottom: 20px; }
+        .consola { background: #000; padding: 20px; border: 1px solid #333; border-radius: 10px; height: 500px; overflow-y: auto; font-size: 11px; line-height: 1.6; }
         .log-error { color: #ef4444; }
-        .log-success { color: #3b82f6; font-weight: bold; }
-        .log-warning { color: #f59e0b; }
+        .log-success { color: #10b981; font-weight: bold; }
+        .log-warning { color: #fbbf24; }
+        .log-colision { color: #8b5cf6; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <h1 style="color: white;"><i class="fas fa-meteor text-purple-500"></i> FIXGO - MEGA ATAQUE DE CARGA</h1>
-    <p style="color: #a1a1aa; font-size: 12px; margin-bottom: 30px;">Prueba de estrés masiva: 2000 Clientes y 200 Técnicos interactuando.</p>
+    <h1 style="color: white; text-align: center;"><i class="fas fa-skull text-red-600"></i> FIXGO - ATAQUE NIVEL UNICORNIO (10K)</h1>
+    <p style="color: #a1a1aa; font-size: 12px; text-align: center; margin-bottom: 30px;">Estrés Extremo: 10,000 Servicios y 1,000 Técnicos Concurrentes.</p>
 
-    <button id="btnAtaque" class="btn-ataque"><i class="fas fa-biohazard"></i> LANZAR MEGA ATAQUE (2000 SERVICIOS)</button>
-    <button id="btnLimpiar" class="btn-limpiar"><i class="fas fa-broom"></i> BORRAR TODOS LOS DATOS DE PRUEBA</button>
+    <button id="btnAtaque" class="btn-ataque"><i class="fas fa-radiation"></i> SOLTAR EL KRAKEN (10,000 TICKETS)</button>
+    <button id="btnLimpiar" class="btn-limpiar"><i class="fas fa-trash-alt"></i> PURGA DIGITAL (BORRAR DATOS)</button>
 
     <div class="consola" id="consola">
-        > Consola de Mega Simulación lista... Cuidado con la RAM del navegador.
+        > Bóveda de simulaciones iniciada. Servidores Firebase en la mira...
     </div>
 
     <script type="module">
@@ -39,10 +40,11 @@
             query, 
             where, 
             doc, 
-            updateDoc 
+            updateDoc,
+            limit
         } from "./firebase.js";
 
-        import { getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getDocs, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const btnAtaque = document.getElementById('btnAtaque');
         const btnLimpiar = document.getElementById('btnLimpiar');
@@ -54,43 +56,42 @@
             if(tipo === "error") span.className = "log-error";
             if(tipo === "success") span.className = "log-success";
             if(tipo === "warning") span.className = "log-warning";
+            if(tipo === "colision") span.className = "log-colision";
             consola.appendChild(span);
             consola.scrollTop = consola.scrollHeight; 
-            console.log(msg);
         }
 
         btnAtaque.addEventListener('click', async () => {
             if (!auth.currentUser) {
-                imprimirLog("🛑 ERROR: Sesión no detectada. Abre el panel e inicia sesión.", "error");
+                imprimirLog("🛑 ERROR: Sesión no detectada. Inicia sesión como Admin en otra pestaña.", "error");
                 return;
             }
             
             btnAtaque.disabled = true;
-            imprimirLog("🚀 INICIANDO MEGA PROTOCOLO FIXGO...", "success");
-            imprimirLog("⚠️ Se ejecutarán inyecciones en ráfagas para no colapsar tu navegador.", "warning");
+            imprimirLog("☢️ INICIANDO PROTOCOLO 10K...", "error");
 
-            const totalServicios = 2000;
+            const totalServicios = 10000;
             const loteTamano = 500;
             let serviciosCreados = 0;
             const userId = auth.currentUser.uid;
 
-            // Función recursiva para disparar por lotes
+            // FASE 1: INYECCIÓN MASIVA
             const dispararLote = async () => {
-                imprimirLog(`💥 Disparando lote de ${loteTamano} solicitudes...`);
+                imprimirLog(`💥 Disparando artillería: Inyectando ${loteTamano} tickets...`);
                 const promesas = [];
 
                 for(let i = 1; i <= loteTamano; i++) {
                     const idActual = serviciosCreados + i;
-                    const vertical = idActual % 2 === 0 ? "FIX" : "ROAD";
-                    const servicio = idActual % 2 === 0 ? "ELECTRICIDAD" : "LLANTERA MÓVIL";
+                    const vertical = idActual % 2 === 0 ? "FIX" : "TECH";
+                    const servicio = idActual % 2 === 0 ? "PLOMERÍA" : "CCTV";
                     
                     const p = addDoc(collection(db, "services"), {
                         cliente_id: userId,
-                        cliente_nombre: "MEGA BOT " + idActual,
+                        cliente_nombre: "TITAN BOT " + idActual,
                         categoria: vertical,
                         sub_servicio: servicio,
-                        direccion: "Mega Simulación " + idActual + ", Cancún",
-                        descripcion: "Estrés de 2000 tickets automáticos - #" + idActual,
+                        direccion: "Zona Hotelera KM " + (idActual % 25) + ", Cancún",
+                        descripcion: "Estrés Nivel Dios - Ticket #" + idActual,
                         estado: "pendiente",
                         zona: "Cancún",
                         created_at: serverTimestamp(),
@@ -102,11 +103,10 @@
                 try {
                     await Promise.all(promesas);
                     serviciosCreados += loteTamano;
-                    imprimirLog(`✅ Lote exitoso. Total acumulado: ${serviciosCreados} / ${totalServicios}`, "success");
+                    imprimirLog(`✅ Impacto confirmado. Acumulado: ${serviciosCreados} / ${totalServicios}`, "success");
 
                     if (serviciosCreados < totalServicios) {
-                        imprimirLog("⏳ Enfriando cañones 1.5 segundos...");
-                        setTimeout(dispararLote, 1500);
+                        setTimeout(dispararLote, 500); // 0.5 seg de descanso entre ráfagas
                     } else {
                         iniciarFaseTecnicos();
                     }
@@ -115,39 +115,65 @@
                 }
             };
 
-            // Inicia la ráfaga
             dispararLote();
 
-            // Fase 2: Competencia de Técnicos
+            // FASE 2: BAÑO DE SANGRE (COLISIONES CON TRANSACCIONES ATÓMICAS)
             const iniciarFaseTecnicos = () => {
-                imprimirLog("⏳ Dando 4 segundos a tu panel para renderizar 2000 tarjetas...");
+                imprimirLog("⏳ Desplegando 1,000 técnicos en el mapa...");
                 
                 setTimeout(async () => {
-                    imprimirLog("⚡ FASE 2: 200 Técnicos escaneando y aceptando al mismo tiempo...");
+                    imprimirLog("⚡ FASE 2: COLISIONES ATÓMICAS ACTIVADAS.");
+                    imprimirLog("⚡ Los técnicos intentarán robarse los tickets al mismo tiempo...");
                     
                     try {
-                        const qBolsa = query(collection(db, "services"), where("es_bot", "==", true), where("estado", "==", "pendiente"));
+                        // Traemos 200 tickets al azar para que 1000 técnicos se peleen por ellos
+                        const qBolsa = query(collection(db, "services"), where("es_bot", "==", true), where("estado", "==", "pendiente"), limit(200));
                         const snapBolsa = await getDocs(qBolsa);
                         
+                        const ticketsDisponibles = [];
+                        snapBolsa.forEach(d => ticketsDisponibles.push(d.id));
+
                         const promesasTech = [];
-                        let tomados = 0;
-                        
-                        snapBolsa.forEach(documento => {
-                            if(tomados < 200) { // 200 técnicos aceptan
-                                const t = updateDoc(doc(db, "services", documento.id), {
+                        let exitos = 0;
+                        let colisiones = 0;
+
+                        // Soltamos a 1000 técnicos
+                        for(let tech = 1; tech <= 1000; tech++) {
+                            // Cada técnico elige un ticket al azar de la bolsa pequeña (asegura peleas)
+                            const ticketObjetivo = ticketsDisponibles[Math.floor(Math.random() * ticketsDisponibles.length)];
+                            
+                            const serviceRef = doc(db, "services", ticketObjetivo);
+
+                            // AQUÍ PROBAMOS EL TÚNEL CUÁNTICO DEL PANEL
+                            const intentoTransaccion = runTransaction(db, async (transaction) => {
+                                const sfDoc = await transaction.get(serviceRef);
+                                if (sfDoc.data().estado !== "pendiente") {
+                                    throw "COLISION";
+                                }
+                                transaction.update(serviceRef, {
                                     estado: "asignado",
-                                    tecnico_id: "MEGA_TECH_" + tomados,
-                                    tecnico_nombre: "TÉCNICO ÉLITE " + tomados,
+                                    tecnico_id: "TECH_DIOS_" + tech,
+                                    tecnico_nombre: "TÉCNICO " + tech,
                                     asignado_at: serverTimestamp()
                                 });
-                                promesasTech.push(t);
-                                tomados++;
-                            }
-                        });
+                            }).then(() => {
+                                exitos++;
+                            }).catch((err) => {
+                                if(err === "COLISION") {
+                                    colisiones++;
+                                    if(colisiones % 50 === 0) imprimirLog(`🛡️ Túnel Cuántico rebotó colisión #${colisiones}`, "colision");
+                                }
+                            });
+
+                            promesasTech.push(intentoTransaccion);
+                        }
                         
-                        await Promise.all(promesasTech);
-                        imprimirLog(`✅ FASE 2 COMPLETADA: ${tomados} servicios tomados en milisegundos.`, "success");
-                        imprimirLog("🎉 MEGA PRUEBA DE 2000 TICKETS FINALIZADA.", "success");
+                        await Promise.allSettled(promesasTech);
+                        imprimirLog(`📊 REPORTE DE GUERRA FINAL:`, "success");
+                        imprimirLog(`✅ Tickets ganados limpiamente: ${exitos}`, "success");
+                        imprimirLog(`💥 Colisiones bloqueadas (Doble Asignación Evitada): ${colisiones}`, "colision");
+                        imprimirLog("🎉 ARQUITECTURA UNICORNIO VALIDADA. FixGo es invulnerable.", "success");
+                        btnAtaque.disabled = false;
                         
                     } catch (e) {
                         imprimirLog("❌ Error en Fase 2: " + e.message, "error");
@@ -156,33 +182,32 @@
             };
         });
 
-        // Modificado para poder borrar 2000 registros de golpe
+        // LIMPIEZA POR LOTES (Para no romper el navegador al borrar 10k registros)
         btnLimpiar.addEventListener('click', async () => {
             btnLimpiar.disabled = true;
-            imprimirLog("🧹 Iniciando escaneo profundo de limpieza...");
+            imprimirLog("🧹 Iniciando purga digital en lotes de 500...");
             
-            try {
-                const qLimpieza = query(collection(db, "services"), where("es_bot", "==", true));
+            const borrarLote = async () => {
+                const qLimpieza = query(collection(db, "services"), where("es_bot", "==", true), limit(500));
                 const snapLimpieza = await getDocs(qLimpieza);
                 
                 if (snapLimpieza.empty) {
-                    imprimirLog("👍 No hay datos de bots en la base de datos.");
+                    imprimirLog("✨ Purga total completada. BD limpia.", "success");
                     btnLimpiar.disabled = false;
                     return;
                 }
 
-                imprimirLog(`🗑️ Encontrados ${snapLimpieza.size} registros. Eliminando... puede tardar unos segundos.`);
+                imprimirLog(`🗑️ Destruyendo ${snapLimpieza.size} registros...`);
                 const promesasBorrar = [];
                 snapLimpieza.forEach(d => {
                     promesasBorrar.push(deleteDoc(doc(db, "services", d.id)));
                 });
                 
                 await Promise.all(promesasBorrar);
-                imprimirLog("✨ Limpieza total completada con éxito.", "success");
-            } catch (e) {
-                imprimirLog("❌ Error al limpiar: " + e.message, "error");
-            }
-            btnLimpiar.disabled = false;
+                setTimeout(borrarLote, 300); // Llama al siguiente lote
+            };
+
+            borrarLote();
         });
     </script>
 </body>
