@@ -6,52 +6,33 @@
     <title>FixGo | Centro de Comando (God View)</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <style>
         /* ======================================================
            ESTILOS GENERALES (BASE UBER-BLACK MANTENIDA)
            ====================================================== */
         body, html { 
-            margin: 0; 
-            padding: 0; 
-            height: 100%; 
-            width: 100%;
-            font-family: 'Inter', sans-serif; 
-            overflow: hidden; 
-            background-color: #242f3e; 
+            margin: 0; padding: 0; height: 100%; width: 100%;
+            font-family: 'Inter', sans-serif; overflow: hidden; background-color: #242f3e;
         }
         
-        /* EL MAPA - CAPA BASE */
         #map { 
-            height: 100vh; 
-            width: 100vw; 
-            background: #242f3e; 
-            position: absolute;
-            top: 0; left: 0;
-            z-index: 1;
+            height: 100vh; width: 100vw; background: #242f3e; 
+            position: absolute; top: 0; left: 0; z-index: 1;
         }
 
-        /* PANEL FLOTANTE LATERAL (CENTRO DE CONTROL) */
         #panel-flotante {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            width: 320px;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 25px rgba(0,0,0,0.4);
-            z-index: 10;
-            max-height: 85vh;
-            overflow-y: auto;
-            backdrop-filter: blur(5px);
-            display: none; /* Controlado por Auth */
+            position: absolute; top: 20px; left: 20px; width: 320px;
+            background: rgba(255, 255, 255, 0.95); padding: 20px;
+            border-radius: 12px; box-shadow: 0 4px 25px rgba(0,0,0,0.4);
+            z-index: 10; max-height: 85vh; overflow-y: auto;
+            backdrop-filter: blur(5px); display: none;
         }
 
         h2 { margin: 0 0 5px 0; color: #111; font-size: 20px; font-weight: 800; }
         .stat { font-size: 13px; color: #666; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
         
-        /* LISTA TÉCNICOS EN VIVO */
         .tech-item {
             display: flex; align-items: center; padding: 12px;
             background: #fff; border: 1px solid #eee; border-radius: 8px;
@@ -70,15 +51,9 @@
         .tech-info span { font-size: 11px; color: #888; }
         
         .badge-vehiculo {
-            font-size: 9px;
-            text-transform: uppercase;
-            background: #0ea5e9;
-            color: white;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-top: 3px;
-            display: inline-block;
-            font-weight: 800;
+            font-size: 9px; text-transform: uppercase; background: #0ea5e9;
+            color: white; padding: 2px 6px; border-radius: 4px;
+            margin-top: 3px; display: inline-block; font-weight: 800;
         }
 
         .btn-refresh {
@@ -86,25 +61,16 @@
             padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; margin-top: 15px;
         }
 
-        /* LOGIN OVERLAY SECURITY */
         #login-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9);
-            z-index: 9999;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 9999;
+            display: flex; justify-content: center; align-items: center;
             backdrop-filter: blur(10px);
         }
         
         .login-box {
-            background: white;
-            padding: 40px;
-            border-radius: 20px;
-            width: 100%;
-            max-width: 380px;
-            text-align: center;
+            background: white; padding: 40px; border-radius: 20px;
+            width: 100%; max-width: 380px; text-align: center;
             box-shadow: 0 20px 60px rgba(0,0,0,0.6);
         }
         
@@ -114,23 +80,19 @@
         .input-group { margin-bottom: 18px; text-align: left; }
         .input-group label { display: block; font-size: 11px; font-weight: 900; margin-bottom: 6px; color: #222; text-transform: uppercase; }
         .input-group input {
-            width: 100%; padding: 14px;
-            border: 2px solid #eee; border-radius: 12px;
+            width: 100%; padding: 14px; border: 2px solid #eee; border-radius: 12px;
             font-size: 16px; box-sizing: border-box; transition: border 0.3s;
         }
         .input-group input:focus { border-color: #6366f1; outline: none; }
         
         .btn-login {
-            width: 100%; padding: 16px;
-            background: #111; color: white;
-            border: none; border-radius: 12px;
-            font-size: 16px; font-weight: bold;
+            width: 100%; padding: 16px; background: #111; color: white;
+            border: none; border-radius: 12px; font-size: 16px; font-weight: bold;
             cursor: pointer; transition: transform 0.2s;
         }
         .btn-login:active { transform: scale(0.98); }
         
         #error-msg { color: #ef4444; font-size: 13px; margin-top: 15px; font-weight: 600; display: none; }
-
     </style>
 </head>
 <body>
@@ -161,35 +123,46 @@
                 <p>Escaneando red...</p>
             </div>
         </div>
-        <button class="btn-refresh" onclick="centrarMapa()">🎯 Recentrar Operaciones</button>
+        <button class="btn-refresh" onclick="window.centrarMapa()">🎯 Recentrar Operaciones</button>
     </div>
 
     <div id="map"></div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    <script>
+        let radarMap = null;
+        let isRadarMapReady = false;
 
-        // CONFIGURACIÓN FIREBASE FIXGO
-        const firebaseConfig = {
-            apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0", 
-            authDomain: "fixgo-44e4d.firebaseapp.com",
-            projectId: "fixgo-44e4d",
-            storageBucket: "fixgo-44e4d.appspot.com",
-            messagingSenderId: "1005526685116",
-            appId: "1:1005526685116:web:62f1a823ff8761da85c7b9"
+        window.initMap = function() {
+            const cancun = { lat: 21.1619, lng: -86.8515 };
+            radarMap = new google.maps.Map(document.getElementById("map"), {
+                center: cancun,
+                zoom: 13,
+                disableDefaultUI: false,
+                styles: [
+                    { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+                    { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+                    { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
+                    { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] }
+                ]
+            });
+            isRadarMapReady = true;
+            window.dispatchEvent(new Event('radarMapReady'));
         };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
+        window.centrarMapa = () => {
+            if (radarMap) {
+                radarMap.setZoom(13);
+                radarMap.setCenter({ lat: 21.1619, lng: -86.8515 });
+            }
+        };
+    </script>
 
-        // GLOBALES DE OPERACIÓN
-        let map;
+    <script type="module">
+        // USAMOS NUESTRO FIREBASE.JS UNIFICADO PARA EVITAR CONFLICTOS
+        import { db, auth, onSnapshot, collection, query, where, signInWithEmailAndPassword, onAuthStateChanged } from './firebase.js';
+
         let markers = {};
 
-        // === DICCIONARIO DE ICONOS (TELEMETRÍA AVANZADA) ===
         const SVGS = {
             moto: "M20,16.5A2.5,2.5 0 0,1 17.5,19A2.5,2.5 0 0,1 15,16.5A2.5,2.5 0 0,1 17.5,14A2.5,2.5 0 0,1 20,16.5M5,16.5A2.5,2.5 0 0,1 2.5,19A2.5,2.5 0 0,1 0,16.5A2.5,2.5 0 0,1 2.5,14A2.5,2.5 0 0,1 5,16.5M20.3,12L19,8H15V6H13V8H9V10H11V12H9V14H15V12H20.3Z",
             auto: "M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z",
@@ -201,13 +174,12 @@
         const btnAcceder = document.getElementById('btnAcceder');
         const errorMsg = document.getElementById('error-msg');
 
-        // GESTIÓN DE SESIÓN
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 overlay.style.display = 'none';
                 panel.style.display = 'block';
-                if (!window.google) cargarScriptMaps();
-                else escucharFlota();
+                if (isRadarMapReady) escucharFlota();
+                else window.addEventListener('radarMapReady', escucharFlota);
             } else {
                 overlay.style.display = 'flex';
                 panel.style.display = 'none';
@@ -228,33 +200,8 @@
             }
         });
 
-        // INICIALIZACIÓN DE MAPA (ESTILO NOCTURNO)
-        window.initMap = function() {
-            const cancun = { lat: 21.1619, lng: -86.8515 };
-            map = new google.maps.Map(document.getElementById("map"), {
-                center: cancun,
-                zoom: 13,
-                disableDefaultUI: false,
-                styles: [
-                    { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-                    { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-                    { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
-                    { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] }
-                ]
-            });
-            escucharFlota();
-        };
-
-        function cargarScriptMaps() {
-            if (document.querySelector('script[src*="maps.googleapis.com"]')) return;
-            const script = document.createElement('script');
-            script.src = "https://maps.googleapis.com/maps/api/js?key=AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k&callback=initMap";
-            script.async = true; script.defer = true;
-            document.head.appendChild(script);
-        }
-
-        // === ESCUCHA ACTIVA DE FIRESTORE (MODO DIOS) ===
         function escucharFlota() {
+            if (!radarMap) return;
             const listaDiv = document.getElementById("lista-tecnicos");
             const q = query(collection(db, "users"), where("rol", "==", "tecnico"));
 
@@ -273,22 +220,19 @@
             });
         }
 
-        // === ACTUALIZACIÓN DE MARCADORES CON MODELO, AÑO Y COLOR ===
         function actualizarMarcador(id, data) {
             const pos = { lat: data.location.lat, lng: data.location.lng };
             const nombre = data.nombre || "Técnico";
             
-            // Extracción de metadatos de vehículo
             const vehiculo = data.tipoVehiculo || "auto"; 
             const modelo = data.modeloVehiculo || "No especificado";
             const anio = data.anioVehiculo || "N/A";
             const colorVehiculo = data.colorVehiculo || "N/A";
-            
-            // Telemetría de movimiento
-            const rumbo = (data.telemetria && data.telemetria.rumbo) || 0;
-            const velocidad = data.telemetria ? (data.telemetria.velocidad * 3.6).toFixed(1) : 0; // Convertimos a km/h
 
-            // Colores por tipo para visibilidad rápida
+            // BLINDAJE SENIOR: Optional Chaining para evitar fallos si telemetria es null
+            const rumbo = data.telemetria?.rumbo || 0;
+            const velocidad = data.telemetria?.velocidad ? (data.telemetria.velocidad * 3.6).toFixed(1) : 0;
+
             const colorIcono = vehiculo === 'moto' ? "#10b981" : (vehiculo === 'camioneta' ? "#f59e0b" : "#6366f1");
 
             if (markers[id]) {
@@ -299,7 +243,7 @@
             } else {
                 const marker = new google.maps.Marker({
                     position: pos,
-                    map: map,
+                    map: radarMap, // Usando la variable global segura
                     title: nombre,
                     icon: {
                         path: SVGS[vehiculo] || SVGS.auto,
@@ -312,8 +256,7 @@
                         rotation: rumbo
                     }
                 });
-                
-                // --- INFOWINDOW PERSONALIZADO (VERIFICACIÓN DE DETALLES) ---
+
                 const info = new google.maps.InfoWindow({ 
                     content: `
                         <div style='color:#111; font-family: sans-serif; padding: 10px; min-width: 180px;'>
@@ -329,12 +272,11 @@
                         </div>` 
                 });
 
-                marker.addListener("click", () => info.open(map, marker));
+                marker.addListener("click", () => info.open(radarMap, marker));
                 markers[id] = marker;
             }
         }
 
-        // LISTADO LATERAL
         function agregarItemLista(id, data) {
             const nombre = data.nombre || "Técnico";
             const vehiculo = data.tipoVehiculo || "auto";
@@ -354,21 +296,16 @@
             listaDiv.innerHTML += html;
         }
 
-        // FUNCIONES GLOBALES DE NAVEGACIÓN
         window.hacerZoom = (id) => {
-            if (markers[id]) {
-                map.panTo(markers[id].getPosition());
-                map.setZoom(18);
+            if (markers[id] && radarMap) {
+                radarMap.panTo(markers[id].getPosition());
+                radarMap.setZoom(18);
                 markers[id].setAnimation(google.maps.Animation.BOUNCE);
                 setTimeout(() => markers[id].setAnimation(null), 2000);
             }
         };
-
-        window.centrarMapa = () => {
-            map.setZoom(13);
-            map.setCenter({ lat: 21.1619, lng: -86.8515 });
-        };
-
     </script>
+    
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0&callback=initMap" async defer></script>
 </body>
 </html>
