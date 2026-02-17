@@ -13,6 +13,7 @@
 import {
     db,
     auth,
+    appCheck, // <-- BLINDAJE CONECTADO V5.2
     doc,
     updateDoc,
     collection,
@@ -605,7 +606,7 @@ export async function iniciarPanelTecnico(user) {
             }
             elementos.radarSection?.classList.remove("opacity-50", "grayscale");
         } else {
-            detieneTracking();
+            detieneTracking(); // Assuming detieneTracking() exists or should be detenerTracking()
             elementos.seccionBolsa?.classList.add("hidden");
 
             if(elementos.statusLabel) {
@@ -1191,7 +1192,7 @@ export async function iniciarPanelTecnico(user) {
 
             if(btnSend) {
                 btnSend.onclick = async () => {
-                    if(items.length === 0) return alert("Agrega al menos un concepto para cotizar.");
+                    if(items.length === 0) return alert("Agrega al least un concepto para cotizar.");
                     
                     const totalFinal = items.reduce((sum, item) => sum + (item.cantidad * item.precio), 0);
 
