@@ -1,9 +1,10 @@
 /**
  * ======================================================
- * FIXGO CORE - FIREBASE CONFIGURATION v5.1 (UNIFICADO)
+ * FIXGO CORE - FIREBASE CONFIGURATION v5.2 (BLINDADO)
  * ======================================================
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
 import { 
     getAuth, 
     onAuthStateChanged, 
@@ -40,6 +41,15 @@ const firebaseConfig = {
 
 // Inicialización de servicios
 const firebaseApp = initializeApp(firebaseConfig);
+
+// ======================================================
+// BLINDAJE 1000% - App Check con reCAPTCHA v3
+// ======================================================
+const appCheck = initializeAppCheck(firebaseApp, {
+    provider: new ReCaptchaV3Provider('TU_CLAVE_PUBLICA_RECAPTCHA_V3'),
+    isTokenAutoRefreshEnabled: true // Refresco automático para no interrumpir la sesión
+});
+
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 
@@ -133,6 +143,7 @@ async function registrarUsuario(email, password, rol, nombre) {
 export {
     auth, 
     db,
+    appCheck,
     observarAuth,
     registrarUsuario,
     signOut,
