@@ -46,7 +46,7 @@ const firebaseApp = initializeApp(firebaseConfig);
 // BLINDAJE 1000% - App Check con reCAPTCHA v3
 // ======================================================
 const appCheck = initializeAppCheck(firebaseApp, {
-    provider: new ReCaptchaV3Provider('TU_CLAVE_PUBLICA_RECAPTCHA_V3'),
+    provider: new ReCaptchaV3Provider('6LcEZG4sAAAAAKQQ60dgYGVzXO-Q-ZPPMB9gKNkh'),
     isTokenAutoRefreshEnabled: true // Refresco automático para no interrumpir la sesión
 });
 
