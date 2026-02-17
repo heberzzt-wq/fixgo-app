@@ -1,3 +1,4 @@
+
 /**
  * ======================================================================================
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
