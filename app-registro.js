@@ -2,7 +2,7 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 5.9 (VEHICLE TELEMETRY READY)
+ * Versión: 5.9 (VEHICLE TELEMETRY READY) - SENIOR OPTIMIZED
  * Base: V5.8 (STRIPE INTEGRATION + BANK DATA SECURE)
  * ======================================================
  */
@@ -121,10 +121,10 @@ if (btnRegistroCliente) {
 
             btnRegistroCliente.innerText = "Creando cuenta...";
 
-            // 2. Intentamos crear en Auth
+            // 2. Intentamos crear en Auth (Esto ya hace el respaldo básico en DB por firebase.js)
             usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
 
-            // 3. Intentamos guardar en Firestore CON TOKEN DE PAGO
+            // 3. RUTA MAESTRA: Guardamos los datos pesados y de pago SOLO en 'users'
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
@@ -149,7 +149,7 @@ if (btnRegistroCliente) {
         } catch (error) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
             
-            // Reversión
+            // Reversión (Limpieza de huérfanos)
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
                 console.warn("⚠️ Revirtiendo registro: Borrando usuario de Auth por fallo.");
                 await deleteUser(auth.currentUser).catch(e => console.error("Error borrando huérfano:", e));
@@ -235,10 +235,10 @@ if (btnRegistroTecnico) {
             btnRegistroTecnico.innerText = "Enviando Solicitud...";
             btnRegistroTecnico.disabled = true;
 
-            // 1. Registro en Auth
+            // 1. Registro en Auth (Respaldo básico manejado por firebase.js)
             usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
-            // 2. Registro en DB CON DATOS BANCARIOS Y VEHÍCULO
+            // 2. RUTA MAESTRA: Registro en DB CON DATOS BANCARIOS Y VEHÍCULO SOLO EN 'users'
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
@@ -318,27 +318,39 @@ if (btnGoogle) {
             
             if (!docSnap.exists()) {
                 const esTecnico = confirm("¿Eres TÉCNICO? [ACEPTAR] = SÍ / [CANCELAR] = CLIENTE");
+                const rolSeleccionado = esTecnico ? "tecnico" : "cliente";
                 
-                await setDoc(doc(db, "users", user.uid), {
+                const perfilBase = {
                     uid: user.uid,
                     nombre: user.displayName,
                     email: user.email,
-                    rol: esTecnico ? "tecnico" : "cliente",
+                    rol: rolSeleccionado,
                     tipoVehiculo: "auto", // Default
                     skills: esTecnico ? ["fix"] : [],
                     estado: esTecnico ? "pendiente" : "activo",
                     status: esTecnico ? "pendiente" : "activo",
                     creadoEn: serverTimestamp()
-                });
+                };
+
+                // Guardado en RUTA MAESTRA ('users')
+                await setDoc(doc(db, "users", user.uid), perfilBase);
+
+                // CORRECCIÓN SENIOR: Sincronización del respaldo para mantener coherencia con el registro manual
+                if (rolSeleccionado === 'tecnico') {
+                    await setDoc(doc(db, "tecnicos", user.uid), { ...perfilBase, disponible: false });
+                } else {
+                    await setDoc(doc(db, "clientes", user.uid), { ...perfilBase, pedidos: 0 });
+                }
                 
                 if(esTecnico) {
-                    alert("⚠️ Aviso: Deberás completar tu perfil bancario y vehículo.");
+                    alert("⚠️ Aviso: Deberás completar tu perfil bancario y vehículo en tu panel.");
                 } else {
-                    alert("⚠️ Aviso: Deberás agregar una tarjeta para solicitar servicios.");
+                    alert("⚠️ Aviso: Deberás agregar una tarjeta en tu panel para solicitar servicios.");
                 }
             }
         } catch (error) {
-            alert("Error con Google.");
+            alert("Error con Google. Intenta nuevamente.");
+            console.error(error);
         }
     });
 }
