@@ -48,23 +48,9 @@
     </main>
 
     <script>
-        // Definimos la función globalmente antes de que Google Maps la busque
-        window.initMap = function() {
-            console.log("⏳ Google Maps cargado. Esperando lógica de FixGo...");
-        };
-    </script>
+        let globalMap = null;
+        let isMapReady = false;
 
-    <script type="module">
-        import { db, onSnapshot, doc, auth, observarAuth } from './firebase.js';
-        
-        // Importamos la función visual del motor GPS
-        // Asegúrate de que gps-motor.js tenga 'export function actualizarMapaGPS'
-        import { actualizarMapaGPS } from './gps-motor.js';
-
-        let map;
-        let marcadorTecnico;
-
-        // Sobrescribimos la función initMap con la lógica real
         window.initMap = function() {
             console.log("🗺️ Inicializando Mapa FixGo (Modo Oscuro)...");
             
@@ -72,37 +58,17 @@
                 { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
                 { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
                 { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-                {
-                    featureType: "administrative.locality",
-                    elementType: "labels.text.fill",
-                    stylers: [{ color: "#d59563" }],
-                },
-                {
-                    featureType: "road",
-                    elementType: "geometry",
-                    stylers: [{ color: "#38414e" }],
-                },
-                {
-                    featureType: "road",
-                    elementType: "geometry.stroke",
-                    stylers: [{ color: "#212a37" }],
-                },
-                {
-                    featureType: "road",
-                    elementType: "labels.text.fill",
-                    stylers: [{ color: "#9ca5b3" }],
-                },
-                {
-                    featureType: "water",
-                    elementType: "geometry",
-                    stylers: [{ color: "#17263c" }],
-                }
+                { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+                { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
+                { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
+                { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b3" }] },
+                { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] }
             ];
 
             const mapElement = document.getElementById("map");
             
             if (mapElement) {
-                map = new google.maps.Map(mapElement, {
+                globalMap = new google.maps.Map(mapElement, {
                     center: { lat: 21.1619, lng: -86.8515 }, // Cancún Centro
                     zoom: 13,
                     styles: estiloOscuro,
@@ -110,55 +76,57 @@
                     streetViewControl: false,
                     mapTypeControl: false
                 });
+                isMapReady = true;
+                window.dispatchEvent(new Event('fixgoMapReady'));
             }
         };
+    </script>
 
-        // Si la API de Google cargó muy rápido y ya ejecutó la versión vacía,
-        // ejecutamos la real manualmente ahora.
-        if (window.google && window.google.maps) {
-            window.initMap();
+    <script type="module">
+        import { db, onSnapshot, doc, auth, observarAuth } from './firebase.js';
+        import { actualizarMapaGPS } from './gps-motor.js';
+
+        function arrancarRastreo() {
+            observarAuth((user) => {
+                if (!user) {
+                    console.log("Modo invitado: Viendo mapa sin sesión de usuario.");
+                } else {
+                    console.log("Sesión activa:", user.email);
+                }
+
+                const trackingDoc = doc(db, "rastreo", "tecnicoActivo");
+                
+                onSnapshot(trackingDoc, (snapshot) => {
+                    if (snapshot.exists()) {
+                        const data = snapshot.data();
+                        
+                        const txtNombre = document.getElementById("nombreTecnico");
+                        const txtEstado = document.getElementById("estadoTecnico");
+                        const txtUbi = document.getElementById("ubicacionTecnico");
+
+                        if(txtNombre) txtNombre.innerText = data.nombre || "Técnico FixGo";
+                        if(txtEstado) txtEstado.innerText = data.estado || "En Ruta";
+                        if(txtUbi && data.lat && data.lng) txtUbi.innerText = `${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}`;
+
+                        // Mover el marcador en el mapa usando globalMap
+                        if (globalMap && typeof actualizarMapaGPS === 'function' && data.lat && data.lng) {
+                            actualizarMapaGPS(globalMap, data.lat, data.lng);
+                        }
+                    } else {
+                        document.getElementById("estadoTecnico").innerText = "Esperando señal...";
+                    }
+                }, (error) => {
+                    console.error("Error leyendo rastreo:", error);
+                });
+            });
         }
 
-        // Conexión con Firebase para mover el carrito
-        observarAuth((user) => {
-            // No bloqueamos si no hay usuario, para que al menos se vea el mapa
-            if (!user) {
-                console.log("Modo invitado: Viendo mapa sin sesión de usuario.");
-            } else {
-                console.log("Sesión activa:", user.email);
-            }
-
-            // Escuchamos el documento donde el técnico escribe su posición
-            // Colección: 'rastreo', Documento: 'tecnicoActivo'
-            const trackingDoc = doc(db, "rastreo", "tecnicoActivo");
-            
-            onSnapshot(trackingDoc, (snapshot) => {
-                if (snapshot.exists()) {
-                    const data = snapshot.data();
-                    console.log("📍 Movimiento detectado:", data);
-
-                    // 1. Actualizar Textos
-                    const txtNombre = document.getElementById("nombreTecnico");
-                    const txtEstado = document.getElementById("estadoTecnico");
-                    const txtUbi = document.getElementById("ubicacionTecnico");
-
-                    if(txtNombre) txtNombre.innerText = data.nombre || "Técnico FixGo";
-                    if(txtEstado) txtEstado.innerText = data.estado || "En Ruta";
-                    if(txtUbi) txtUbi.innerText = `${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}`;
-
-                    // 2. Mover el marcador en el mapa
-                    // Usamos la función importada de gps-motor.js
-                    if (map && typeof actualizarMapaGPS === 'function') {
-                        actualizarMapaGPS(map, data.lat, data.lng);
-                    }
-                } else {
-                    console.log("Esperando que el técnico inicie ruta...");
-                    document.getElementById("estadoTecnico").innerText = "Esperando señal...";
-                }
-            }, (error) => {
-                console.error("Error leyendo rastreo:", error);
-            });
-        });
+        // Si el mapa ya cargó, arranca. Si no, espera el evento.
+        if (isMapReady) {
+            arrancarRastreo();
+        } else {
+            window.addEventListener('fixgoMapReady', arrancarRastreo);
+        }
     </script>
 
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0&callback=initMap" async defer></script>
