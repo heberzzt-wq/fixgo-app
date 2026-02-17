@@ -2,12 +2,12 @@
  * ======================================================
  * FIXGO 2026 - MAIN CONTROLLER (ROUTER & GATEKEEPER)
  * Archivo: app-main.js
- * Versión: 5.12.0 (Unicorn Gatekeeper & Anti-Flicker)
+ * Versión: 5.12.8 (Unicorn Gatekeeper & Anti-Flicker)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================
  */
 
-console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.12.0...");
+console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.12.8...");
 
 import { observarAuth, auth, signOut } from "./firebase.js";
 import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./app-panel.js";
@@ -95,8 +95,15 @@ function actualizarInterfazGlobal(user) {
         newBtn.addEventListener("click", async (e) => {
             e.preventDefault();
             if (confirm("¿Cerrar sesión de FixGo?")) {
-                await signOut(auth);
-                window.location.replace("login.html");
+                try {
+                    await signOut(auth);
+                    // PWA Fix: Aseguramos limpieza visual antes del redirect
+                    document.body.style.display = 'none';
+                    window.location.replace("login.html");
+                } catch (error) {
+                    console.error("Error al cerrar sesión:", error);
+                    alert("Hubo un problema cerrando sesión. Intenta de nuevo.");
+                }
             }
         });
     });
