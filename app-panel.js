@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.13.0 (FINANCIAL BI + REPUTATION SYSTEM + INSURANCE FUND)
+ * Versión: 5.13.1 (FINANCIAL BI + REPUTATION SYSTEM + INSURANCE FUND)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -78,181 +78,9 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.13.0: BI ENGINE + REPUTATION + INSURANCE FUND ACTIVATED.");
+console.log(" 🚀  FIXGO 5.13.1: BI ENGINE + REPUTATION + INSURANCE FUND ACTIVATED.");
 
 // ======================================================================================
-// ======================================================================================
-// 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
-// ======================================================================================
-export async function iniciarPanelAdmin(user) {
-    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.13.1)...");
-    
-    // 🚨 CANDADO DE SEGURIDAD MAESTRO: Validación estricta de rol
-    if (!user || user.rol !== "admin") {
-        console.error("🛑 ALERTA DE SEGURIDAD FIXGO: Intento de acceso no autorizado al Panel Admin.");
-        alert("🔒 ACCESO DENEGADO.");
-        return;
-    }
-
-    const elementos = {
-        lista: document.getElementById("listaTecnicos"),
-        actividad: document.getElementById("listaTransacciones"),
-        listaRetiros: document.getElementById("listaRetiros"),
-        btnToggleHistorialRetiros: document.getElementById("btnToggleHistorialRetiros"),
-        vistaRetirosPendientes: document.getElementById("vistaRetirosPendientes"),
-        vistaHistorialRetiros: document.getElementById("vistaHistorialRetiros"),
-        listaHistorialRetiros: document.getElementById("listaHistorialRetiros"),
-        countServ: document.querySelector(".fa-bolt")?.closest(".uber-card")?.querySelector("h3"),
-        countMoney: document.querySelector(".fa-wallet")?.closest(".uber-card")?.querySelector("h3"),
-        countOnline: document.getElementById("totalTecnicos")
-    };
-
-    if (elementos.lista) {
-        const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
-
-        onSnapshot(qTecnicos, (snap) => {
-            elementos.lista.innerHTML = ""; 
-
-            let contOnline = 0;
-            let contTotal = 0;
-            
-            if (snap.empty) {
-                elementos.lista.innerHTML = '<p class="text-gray-500 p-4 italic">No hay técnicos registrados en la base de datos.</p>';
-            }
-            
-            snap.forEach((docSnap) => {
-                const data = docSnap.data();
-                contTotal++;
-
-                if(data.disponible) {
-                    contOnline++;
-                }
-                
-                const esPendiente = (data.estado || "pendiente") === "pendiente";
-                const ineCheck = data.documentos?.ine ? '<span class="text-emerald-400"> ✅  INE</span>' : '<span class="text-red-500"> ❌  INE</span>';
-                const csfCheck = data.documentos?.csf ? '<span class="text-emerald-400"> ✅  CSF</span>' : '<span class="text-red-500"> ❌  CSF</span>';
-                const skillsStr = data.skills ? data.skills.join(" • ").toUpperCase() : "GENERAL";
-                
-                // --- SISTEMA DE REPUTACIÓN VISUAL ---
-                const reputacion = data.reputacion || 5.0;
-                const estrellas = "⭐".repeat(Math.round(reputacion));
-                const nivel = data.nivel || "BRONCE";
-                let colorNivel = "text-orange-500";
-                if(nivel === "PLATA") colorNivel = "text-gray-300";
-                if(nivel === "ORO") colorNivel = "text-yellow-400";
-
-                const estadoDot = data.disponible
-                    ? '<span class="text-emerald-500 font-bold text-[10px] animate-pulse">● ONLINE</span>'
-                    : '<span class="text-gray-500 text-[10px]">● OFFLINE</span>';
-
-                const card = document.createElement("div");
-                card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500' : 'bg-zinc-900 border-zinc-800'}`;
-
-                card.innerHTML = `
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h4 class="font-bold text-white text-sm">
-                            ${escaparHTML(data.nombre)}
-                            ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded ml-2 font-black">NUEVO</span>' : ''}
-                        </h4>
-                        <div class="flex items-center gap-2 text-[10px] mt-0.5">
-                            <span class="${colorNivel} font-black">${nivel}</span>
-                            <span class="text-yellow-500">${estrellas} (${reputacion.toFixed(1)})</span>
-                        </div>
-                        <p class="text-[9px] text-blue-400 font-bold mt-1 tracking-wide">SKILLS: ${escaparHTML(skillsStr)}</p>
-                        <p class="text-xs text-gray-400">${escaparHTML(data.telefono || '')}</p>
-                        
-                        <div class="mt-2 text-[10px] bg-black/20 p-1 rounded inline-block border border-white/5">
-                            ${ineCheck} | ${csfCheck}
-                        </div>
-                        
-                        <div class="mt-1">
-                            ${estadoDot}
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col gap-2">
-                        ${esPendiente ? `
-                        <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${docSnap.id}')">
-                            APROBAR ACCESO
-                        </button>
-                        ` : `
-                        <button class="bg-red-900/30 hover:bg-red-900/50 text-red-500 text-[9px] font-bold px-2 py-1 rounded border border-red-900/50" onclick="window.aplicarPenalizacionManual('${docSnap.id}')">
-                            <i class="fas fa-gavel"></i> PENALIZAR
-                        </button>
-                        `}
-                    </div>
-                </div>
-                `;
-                elementos.lista.appendChild(card);
-            });
-            
-            if(elementos.countOnline) {
-                elementos.countOnline.innerHTML = `${contOnline} <span class="text-sm text-gray-500">/ ${contTotal}</span>`;
-                elementos.countOnline.style.color = contOnline > 0 ? "#10b981" : "white";
-            }
-        });
-    }
-
-    // 🛡️ ESCUDO RAM: Solo dibuja los 50 servicios más recientes
-    const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"), limit(50));
-
-    onSnapshot(qServicios, (snap) => {
-        if(elementos.actividad) elementos.actividad.innerHTML = "";
-
-        let activos = 0;
-        
-        if (snap.empty) {
-            if(elementos.actividad) elementos.actividad.innerHTML = '<p class="text-gray-500 italic text-sm text-center mt-4">Sin actividad reciente en la plataforma.</p>';
-        }
-        
-        snap.forEach(docSnap => {
-            const data = docSnap.data();
-
-            if (!["finalizado", "cancelado"].includes(data.estado)) {
-                activos++;
-            }
-
-            if (elementos.actividad && elementos.actividad.children.length < 10) {
-                const item = document.createElement("div");
-                item.className = "flex justify-between items-center border-b border-white/5 py-3 last:border-0";
-
-                let colorEstado = "text-gray-400";
-                if(data.estado === "pendiente") colorEstado = "text-yellow-500";
-                if(data.estado === "asignado") colorEstado = "text-blue-300";
-                if(data.estado === "en_camino") colorEstado = "text-blue-400";
-                if(data.estado === "en_sitio") colorEstado = "text-purple-400";
-                if(data.estado === "cotizando") colorEstado = "text-orange-400";
-                if(data.estado === "trabajando") colorEstado = "text-blue-500 animate-pulse font-bold";
-                if(data.estado === "finalizado") colorEstado = "text-emerald-500";
-                if(data.estado === "cancelado") colorEstado = "text-red-500 line-through";
-                
-                const labelServicio = escaparHTML(`${data.categoria} ${data.sub_servicio ? '• ' + data.sub_servicio : ''}`);
-
-                item.innerHTML = `
-                <div class="flex items-center gap-3">
-                    <div class="bg-zinc-800 p-2 rounded-lg"><i class="fas fa-tools text-gray-400"></i></div>
-                    <div>
-                        <p class="text-xs font-bold text-white uppercase">${labelServicio}</p>
-                        <p class="text-[10px] text-gray-500">${escaparHTML(data.cliente_nombre || 'Cliente')} • ${escaparHTML(data.zona || 'Cancún')}</p>
-                    </div>
-                </div>
-                <div class="text-right">
-                    <p class="text-[10px] font-bold ${colorEstado} uppercase">${data.estado.replace('_', ' ')}</p>
-                    <p class="text-[9px] text-gray-600">Hace un momento</p>
-                </div>
-                `;
-                elementos.actividad.appendChild(item);
-            }
-        });
-        
-        if(elementos.countServ) {
-            elementos.countServ.innerText = activos + (snap.size === 50 ? '+' : '');
-            elementos.countServ.style.color = activos > 0 ? "#34d399" : "white";
-        }
-    });
-
- // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
 // ======================================================================================
 export async function iniciarPanelAdmin(user) {
@@ -496,20 +324,19 @@ export async function iniciarPanelAdmin(user) {
 
             // Renderizado del Dashboard BI (Actualizado V5.13.1)
             desgloseContainer.innerHTML = `
-                <div class="flex justify-between font-bold text-yellow-500 mb-1">
-                    <span>FONDO GARANTÍA (2%):</span> <span>$${globalGarantia.toFixed(2)}</span>
-                </div>
-                <div class="flex justify-between text-red-400"><span class="">IVA (16%):</span> <span>-$${globalIVA.toFixed(2)}</span></div>
-                <div class="flex justify-between text-red-400"><span class="">ISR (30%):</span> <span>-$${globalISR.toFixed(2)}</span></div>
-                <div class="flex justify-between text-gray-500"><span>STRIPE FEES:</span> <span>$${globalStripe.toFixed(2)}</span></div>
+                <div class="flex justify-between text-gray-300"><span>COMISIÓN FIXGO (32%):</span> <span>$${globalFixGo.toFixed(2)}</span></div>
+                <div class="flex justify-between text-red-400"><span>IVA (16% s/FixGo):</span> <span>-$${globalIVA.toFixed(2)}</span></div>
+                <div class="flex justify-between text-red-400"><span>ISR (30% s/FixGo):</span> <span>-$${globalISR.toFixed(2)}</span></div>
+                <div class="flex justify-between font-bold text-yellow-500"><span>FONDO GARANTÍA (2%):</span> <span>$${globalGarantia.toFixed(2)}</span></div>
+                <div class="flex justify-between text-gray-500"><span>STRIPE FEES (3.6%+$3):</span> <span>-$${globalStripe.toFixed(2)}</span></div>
                 
                 <div class="flex justify-between font-black text-white bg-emerald-600/30 px-2 py-1 rounded border border-emerald-500/50 my-2">
-                    <span>💵 UTILIDAD NETA:</span> <span>$${utilidadNetaReal.toFixed(2)}</span>
+                    <span>💵 UTILIDAD NETA FIXGO:</span> <span>$${utilidadNetaReal.toFixed(2)}</span>
                 </div>
 
                 <div class="flex justify-between"><span class="text-blue-400 font-bold">TECNICOS (LÍQUIDO):</span> <span>$${(globalTecnico - dineroRetenido).toFixed(2)}</span></div>
                 <div class="flex justify-between italic text-zinc-500 bg-black/20 px-1 rounded">
-                    <span>⏳ RETENIDO (24h):</span> <span>$${dineroRetenido.toFixed(2)}</span>
+                    <span>⏳ RETENIDO STRIPE (24h):</span> <span>$${dineroRetenido.toFixed(2)}</span>
                 </div>
                 <div class="flex justify-between font-bold mt-2 text-white border-t border-white/5 pt-1">
                     <span>TOTAL FLUJO HISTÓRICO:</span> <span>$${totalFlujo.toFixed(2)}</span>
