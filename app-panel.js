@@ -81,10 +81,11 @@ async function cargarLibreriaPDF() {
 console.log(" 🚀  FIXGO 5.13.0: BI ENGINE + REPUTATION + INSURANCE FUND ACTIVATED.");
 
 // ======================================================================================
+// ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
 // ======================================================================================
 export async function iniciarPanelAdmin(user) {
-    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI)...");
+    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.13.1)...");
     
     // 🚨 CANDADO DE SEGURIDAD MAESTRO: Validación estricta de rol
     if (!user || user.rol !== "admin") {
@@ -251,7 +252,49 @@ export async function iniciarPanelAdmin(user) {
         }
     });
 
-    
+    // --- DASHBOARD FINANCIERO PRO V5.13.1 (Business Intelligence & Real Split) ---
+    const qFinanzas = query(collection(db, "transacciones"));
+    onSnapshot(qFinanzas, (snap) => {
+        // 🧮 VARIABLES DE LA ARQUITECTURA FINANCIERA V5.13.1
+        let globalFixGo = 0;      // 32% del Total
+        let globalIVA = 0;        // 16% sobre la comisión de FixGo
+        let globalISR = 0;        // 30% sobre la utilidad de FixGo
+        let globalGarantia = 0;   // 2% del Total (Fondo de Seguridad)
+        let globalStripe = 0;     // 3.6% + $3.00 MXN (Costo Operativo)
+        let globalTecnico = 0;    // El remanente líquido
+        
+        let totalFlujo = 0;       // Volumen Bruto Transaccional (GTV)
+        let dineroRetenido = 0;   // Dinero en tránsito (Stripe < 24h)
+
+        const ahora = new Date();
+
+        snap.forEach(docSnap => {
+            const tx = docSnap.data();
+            
+            // Solo procesamos ingresos por servicios para la métrica de dispersión
+            if (tx.tipo === "ingreso_servicio") {
+                const monto = tx.monto_total || 0;
+                totalFlujo += monto;
+
+                // --- 🧠 LÓGICA MAESTRA DE DISPERSIÓN (V5.13.1) ---
+                const calcFixGo = monto * 0.32;               // 32% para FixGo
+                const calcGarantia = monto * 0.02;            // 2% Fondo Garantía
+                const calcStripe = (monto * 0.036) + 3.00;    // Costo Pasarela (3.6% + $3)
+                
+                // Impuestos Fiscales (Calculados sobre la parte de FixGo)
+                const calcIVA = calcFixGo * 0.16;             // 16% de IVA sobre la comisión
+                const calcISR = calcFixGo * 0.30;             // 30% de ISR sobre utilidad
+
+                // El técnico recibe: Total - (FixGo + Garantía + Stripe)
+                const calcTecnico = monto - calcFixGo - calcGarantia - calcStripe;
+
+                globalFixGo += calcFixGo;
+                globalIVA += calcIVA;
+                globalISR += calcISR;
+                globalGarantia += calcGarantia;
+                globalStripe += calcStripe;
+                globalTecnico += calcTecnico;
+
                 // Cálculo de Dinero Retenido (Servicios Ingresados < 24h)
                 if (tx.fecha && tx.fecha.toDate) {
                     const fechaTx = tx.fecha.toDate();
@@ -297,6 +340,7 @@ export async function iniciarPanelAdmin(user) {
             `;
         }
     });
+
     window.aprobarTecnico = async (uid) => {
         if(!confirm("¿Estás seguro de aprobar a este técnico? Tendrá acceso inmediato a ver solicitudes y aceptar trabajos.")) return;
         try {
@@ -581,7 +625,6 @@ function generarSwitchGranular(id, label, checked) {
         </label>
     </div>`;
 }
-
 
 // ======================================================================================
 // 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.13)
