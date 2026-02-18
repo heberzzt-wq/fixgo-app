@@ -3,10 +3,10 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.12.8 (ESCUDO DE LANZAMIENTO: TRANSACCIONES ATÓMICAS GLOBALES CLIENTE/TÉCNICO)
+ * Versión: 5.13.0 (FINANCIAL BI + REPUTATION SYSTEM + INSURANCE FUND)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
- * * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
+ * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
  * ======================================================================================
  */
 
@@ -27,8 +27,8 @@ import {
     getDoc 
 } from "./firebase.js";
 
-// 🔥 INYECCIÓN NIVEL UBER: runTransaction (Atomicidad) y limit (Escudo RAM)
-import { getDocs, arrayUnion, runTransaction, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// 🔥 INYECCIÓN NIVEL UBER: runTransaction (Atomicidad), limit (Escudo RAM) e increment (Contadores)
+import { getDocs, arrayUnion, runTransaction, limit, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 import { activarAlertas, alertaTecnico } from "./alert-engine.js";
 
@@ -78,13 +78,13 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.12.8: ESCUDO DE LANZAMIENTO (Transacciones Atómicas Totales).");
+console.log(" 🚀  FIXGO 5.13.0: BI ENGINE + REPUTATION + INSURANCE FUND ACTIVATED.");
 
 // ======================================================================================
-// 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL)
+// 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
 // ======================================================================================
 export async function iniciarPanelAdmin(user) {
-    console.log(" 🛡️  Iniciando Panel de Administrador...");
+    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI)...");
     
     // 🚨 CANDADO DE SEGURIDAD MAESTRO: Validación estricta de rol
     if (!user || user.rol !== "admin") {
@@ -131,6 +131,15 @@ export async function iniciarPanelAdmin(user) {
                 const ineCheck = data.documentos?.ine ? '<span class="text-emerald-400"> ✅  INE</span>' : '<span class="text-red-500"> ❌  INE</span>';
                 const csfCheck = data.documentos?.csf ? '<span class="text-emerald-400"> ✅  CSF</span>' : '<span class="text-red-500"> ❌  CSF</span>';
                 const skillsStr = data.skills ? data.skills.join(" • ").toUpperCase() : "GENERAL";
+                
+                // --- SISTEMA DE REPUTACIÓN VISUAL ---
+                const reputacion = data.reputacion || 5.0;
+                const estrellas = "⭐".repeat(Math.round(reputacion));
+                const nivel = data.nivel || "BRONCE";
+                let colorNivel = "text-orange-500";
+                if(nivel === "PLATA") colorNivel = "text-gray-300";
+                if(nivel === "ORO") colorNivel = "text-yellow-400";
+
                 const estadoDot = data.disponible
                     ? '<span class="text-emerald-500 font-bold text-[10px] animate-pulse">● ONLINE</span>'
                     : '<span class="text-gray-500 text-[10px]">● OFFLINE</span>';
@@ -145,7 +154,10 @@ export async function iniciarPanelAdmin(user) {
                             ${escaparHTML(data.nombre)}
                             ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded ml-2 font-black">NUEVO</span>' : ''}
                         </h4>
-                        <p class="text-xs text-gray-400">${escaparHTML(data.email)}</p>
+                        <div class="flex items-center gap-2 text-[10px] mt-0.5">
+                            <span class="${colorNivel} font-black">${nivel}</span>
+                            <span class="text-yellow-500">${estrellas} (${reputacion.toFixed(1)})</span>
+                        </div>
                         <p class="text-[9px] text-blue-400 font-bold mt-1 tracking-wide">SKILLS: ${escaparHTML(skillsStr)}</p>
                         <p class="text-xs text-gray-400">${escaparHTML(data.telefono || '')}</p>
                         
@@ -164,10 +176,9 @@ export async function iniciarPanelAdmin(user) {
                             APROBAR ACCESO
                         </button>
                         ` : `
-                        <div class="text-center">
-                            <i class="fas fa-check-circle text-emerald-800 text-2xl"></i>
-                            <p class="text-[8px] text-emerald-800 font-bold mt-1">VERIFICADO</p>
-                        </div>
+                        <button class="bg-red-900/30 hover:bg-red-900/50 text-red-500 text-[9px] font-bold px-2 py-1 rounded border border-red-900/50" onclick="window.aplicarPenalizacionManual('${docSnap.id}')">
+                            <i class="fas fa-gavel"></i> PENALIZAR
+                        </button>
                         `}
                     </div>
                 </div>
@@ -182,7 +193,7 @@ export async function iniciarPanelAdmin(user) {
         });
     }
 
-    // 🛡️ ESCUDO RAM: Solo dibuja los 50 servicios más recientes en el panel Admin
+    // 🛡️ ESCUDO RAM: Solo dibuja los 50 servicios más recientes
     const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"), limit(50));
 
     onSnapshot(qServicios, (snap) => {
@@ -235,12 +246,12 @@ export async function iniciarPanelAdmin(user) {
         });
         
         if(elementos.countServ) {
-            // Se calcula sobre los últimos 50 en la vista rápida
             elementos.countServ.innerText = activos + (snap.size === 50 ? '+' : '');
             elementos.countServ.style.color = activos > 0 ? "#34d399" : "white";
         }
     });
 
+    // --- DASHBOARD FINANCIERO PRO V5.13 (Business Intelligence) ---
     const qFinanzas = query(collection(db, "transacciones"));
     onSnapshot(qFinanzas, (snap) => {
         let globalFixGo = 0;
@@ -248,23 +259,34 @@ export async function iniciarPanelAdmin(user) {
         let globalISR = 0;
         let globalTecnico = 0;
         let totalFlujo = 0;
+        let fondoGarantia = 0;
+        let dineroRetenido = 0; // Dinero en tránsito (Stripe < 24h)
+
+        const ahora = new Date();
 
         snap.forEach(docSnap => {
             const tx = docSnap.data();
-            const fixgo = tx.comision_fixgo || 0;
-            const iva = tx.retencion_iva || 0;
-            const isr = tx.retencion_isr || 0;
-            const tecnico = tx.pago_tecnico || 0;
-            const total = tx.monto_total || 0;
+            
+            // Sumatoria Global Histórica
+            globalFixGo += (tx.comision_fixgo || 0);
+            globalIVA += (tx.retencion_iva || 0);
+            globalISR += (tx.retencion_isr || 0);
+            globalTecnico += (tx.pago_tecnico || 0);
+            totalFlujo += (tx.monto_total || 0);
+            fondoGarantia += (tx.aporte_garantia || 0); // Nuevo campo V5.13
 
-            globalFixGo += fixgo;
-            globalIVA += iva;
-            globalISR += isr;
-            globalTecnico += tecnico;
-            totalFlujo += total;
+            // Cálculo de Dinero Retenido (Servicios Ingresados < 24h)
+            if (tx.tipo === "ingreso_servicio" && tx.fecha && tx.fecha.toDate) {
+                const fechaTx = tx.fecha.toDate();
+                const diffHoras = Math.abs(ahora - fechaTx) / 36e5;
+                if (diffHoras < 24) {
+                    dineroRetenido += (tx.pago_tecnico || 0); // Esto es lo que NO se puede retirar aún
+                }
+            }
         });
 
         if(elementos.countMoney) {
+            // Mostramos Ganancia Neta FixGo
             elementos.countMoney.innerText = `$${globalFixGo.toFixed(2)}`;
             
             const cardParent = elementos.countMoney.closest('.uber-card');
@@ -276,11 +298,18 @@ export async function iniciarPanelAdmin(user) {
                 cardParent.appendChild(desgloseContainer);
             }
 
+            // Renderizado del Dashboard BI
             desgloseContainer.innerHTML = `
+                <div class="flex justify-between font-bold text-yellow-500 mb-1">
+                    <span>FONDO GARANTÍA (2%):</span> <span>$${fondoGarantia.toFixed(2)}</span>
+                </div>
                 <div class="flex justify-between"><span class="text-blue-400">IVA (8%):</span> <span>$${globalIVA.toFixed(2)}</span></div>
                 <div class="flex justify-between"><span class="text-orange-400">ISR (10%):</span> <span>$${globalISR.toFixed(2)}</span></div>
-                <div class="flex justify-between"><span class="text-emerald-400">TECNICOS:</span> <span>$${globalTecnico.toFixed(2)}</span></div>
-                <div class="flex justify-between font-bold mt-1 text-white border-t border-white/5 pt-1"><span>TOTAL FLUJO:</span> <span>$${totalFlujo.toFixed(2)}</span></div>
+                <div class="flex justify-between"><span class="text-emerald-400">TECNICOS (LÍQUIDO):</span> <span>$${(globalTecnico - dineroRetenido).toFixed(2)}</span></div>
+                <div class="flex justify-between italic text-zinc-500">
+                    <span>RETENIDO (STRIPE 24h):</span> <span>$${dineroRetenido.toFixed(2)}</span>
+                </div>
+                <div class="flex justify-between font-bold mt-1 text-white border-t border-white/5 pt-1"><span>TOTAL FLUJO HISTÓRICO:</span> <span>$${totalFlujo.toFixed(2)}</span></div>
             `;
         }
     });
@@ -292,6 +321,9 @@ export async function iniciarPanelAdmin(user) {
                 estado: "activo",
                 status: "activo",
                 verificado: true,
+                nivel: "BRONCE",
+                reputacion: 5.0,
+                servicios_completados: 0,
                 aprobadoEn: serverTimestamp()
             });
             alert(" ✅  Técnico Aprobado y Activado exitosamente.");
@@ -301,6 +333,35 @@ export async function iniciarPanelAdmin(user) {
         }
     };
 
+    window.aplicarPenalizacionManual = async (uid) => {
+        const motivo = prompt("Describe el motivo de la penalización:");
+        if (!motivo) return;
+        const monto = parseFloat(prompt("Monto a descontar de su Wallet ($):", "50"));
+        if (isNaN(monto)) return;
+
+        try {
+            await addDoc(collection(db, "transacciones"), {
+                tecnico_id: uid,
+                pago_tecnico: -Math.abs(monto),
+                monto_total: 0,
+                tipo: "penalizacion",
+                descripcion: `Admin: ${motivo}`,
+                fecha: serverTimestamp()
+            });
+            
+            // Bajamos reputación manualmente
+            await updateDoc(doc(db, "users", uid), {
+                reputacion: increment(-0.5)
+            });
+
+            alert(`⛔ Penalización de $${monto} aplicada al técnico.`);
+        } catch (e) {
+            console.error(e);
+            alert("Error al aplicar penalización.");
+        }
+    };
+
+    // [Se mantiene lógica de catálogo y retiros igual, pero asegurada]
     window.abrirGestorCatalogo = async () => {
         const modal = document.getElementById("modalCatalogo");
         const container = document.getElementById("gridConfiguracion");
@@ -540,7 +601,7 @@ function generarSwitchGranular(id, label, checked) {
 
 
 // ======================================================================================
-// 2. PANEL DE TÉCNICO (SOCIO OPERADOR)
+// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.13)
 // ======================================================================================
 export async function iniciarPanelTecnico(user) {
     console.log(" 🔧  Iniciando Panel de Técnico...");
@@ -606,7 +667,7 @@ export async function iniciarPanelTecnico(user) {
             }
             elementos.radarSection?.classList.remove("opacity-50", "grayscale");
         } else {
-            detieneTracking(); // Assuming detieneTracking() exists or should be detenerTracking()
+            detenerTracking();
             elementos.seccionBolsa?.classList.add("hidden");
 
             if(elementos.statusLabel) {
@@ -633,7 +694,7 @@ export async function iniciarPanelTecnico(user) {
             const tx = docSnap.data();
             const monto = (tx.pago_tecnico || 0);
             
-            if (tx.tipo === "retiro_fondos") {
+            if (tx.tipo === "retiro_fondos" || tx.tipo === "penalizacion") { // Penalizaciones restan directamente
                 saldoBrutoDisponible += monto; 
             } else {
                 if (tx.fecha && tx.fecha.toDate) {
@@ -721,6 +782,7 @@ export async function iniciarPanelTecnico(user) {
         }
     }
 
+    // [Se mantiene la lógica de listar mis retiros y tickets sin cambios]
     if (elementos.listaMisRetiros && elementos.contenedorHistorialRetiros) {
         const qMisRetiros = query(
             collection(db, "retiros"),
@@ -958,7 +1020,7 @@ export async function iniciarPanelTecnico(user) {
                     tecnico_id: uid,
                     tecnico_nombre: nombre,
                     tecnico_telefono: user.telefono || "",
-                    asignado_at: serverTimestamp()
+                    asignado_at: serverTimestamp() // Importante para calcular penalización por tiempo
                 });
             });
             
@@ -1022,6 +1084,11 @@ export async function iniciarPanelTecnico(user) {
                     <i class="fas fa-phone"></i>
                 </a>
             </div>
+            <div class="mt-4 border-t border-white/5 pt-4 text-center">
+                <button onclick="window.cancelarMisionActiva('${id}')" class="text-red-500 text-xs font-bold underline hover:text-red-400">
+                    CANCELAR SERVICIO (RIESGO PENALIZACIÓN)
+                </button>
+            </div>
             `;
             ls.appendChild(card);
 
@@ -1082,6 +1149,59 @@ export async function iniciarPanelTecnico(user) {
             alert("Error de conexión. Intenta de nuevo.");
         }
     }
+
+    // --- LÓGICA DE CANCELACIÓN CON PENALIZACIÓN (V5.13.0) ---
+    window.cancelarMisionActiva = async (serviceId) => {
+        if(!confirm("⚠️ ADVERTENCIA: Cancelar un servicio aceptado afecta tu reputación.\n\nSi han pasado más de 5 minutos desde que aceptaste, se aplicará una penalización automática de $50 MXN.\n\n¿Estás seguro de cancelar?")) return;
+
+        try {
+            const snap = await getDoc(doc(db, "services", serviceId));
+            if (!snap.exists()) return;
+            
+            const data = snap.data();
+            const ahora = new Date();
+            let aplicarMulta = false;
+
+            if (data.asignado_at) {
+                const tiempoAceptado = data.asignado_at.toDate();
+                const diffMin = (ahora - tiempoAceptado) / 60000; // Diferencia en minutos
+                if (diffMin > 5) aplicarMulta = true;
+            }
+
+            // Liberar el servicio
+            await updateDoc(doc(db, "services", serviceId), { 
+                estado: "pendiente", 
+                tecnico_id: null,
+                tecnico_nombre: null,
+                tecnico_telefono: null,
+                asignado_at: null,
+                rejected_by: arrayUnion(user.uid) // Evita que lo vuelva a ver
+            });
+
+            if (aplicarMulta) {
+                await addDoc(collection(db, "transacciones"), {
+                    tecnico_id: user.uid,
+                    pago_tecnico: -50,
+                    monto_total: 0,
+                    tipo: "penalizacion",
+                    descripcion: "Cancelación tardía de servicio (> 5 min)",
+                    fecha: serverTimestamp()
+                });
+                
+                await updateDoc(doc(db, "users", user.uid), {
+                    reputacion: increment(-0.2) // Baja reputación
+                });
+
+                alert("❌ Servicio cancelado. Se aplicó una penalización de $50 MXN por cancelación fuera de tiempo.");
+            } else {
+                alert("✅ Servicio cancelado sin penalización (dentro de los 5 min).");
+            }
+
+        } catch (e) {
+            console.error(e);
+            alert("Error al cancelar el servicio.");
+        }
+    };
 
     function mostrarModalCotizacionDetallada(id, servicioData) {
         if(document.getElementById("modalCot")) return;
@@ -1265,11 +1385,15 @@ export async function iniciarPanelTecnico(user) {
                 const servicioData = servicioSnap.data();
                 const costoTotal = servicioData.costo_final || 0;
 
-                const comisionFixGo = costoTotal * 0.32; 
-                const retencionIVA = costoTotal * 0.08;  
-                const retencionISR = costoTotal * 0.10;  
+                // --- MATEMÁTICA FINANCIERA V5.13.0 (FONDO GARANTÍA) ---
+                // Ajuste Senior: Se separa el 2% del total para el Fondo de Garantía
+                const comisionFixGoPura = costoTotal * 0.30; // 30%
+                const aporteGarantia = costoTotal * 0.02;    // 2%
+                const retencionIVA = costoTotal * 0.08;      // 8%
+                const retencionISR = costoTotal * 0.10;      // 10%
                 
-                const pagoNetoTecnico = costoTotal - (comisionFixGo + retencionIVA + retencionISR);
+                // El técnico recibe el 50% neto
+                const pagoNetoTecnico = costoTotal - (comisionFixGoPura + aporteGarantia + retencionIVA + retencionISR);
 
                 await actualizarEstado(id, "finalizado", {
                     evidencia: { antes: b64_1, despues: b64_2 },
@@ -1286,16 +1410,23 @@ export async function iniciarPanelTecnico(user) {
                     servicio_id: id,
                     tecnico_id: user.uid, 
                     monto_total: costoTotal,
-                    comision_fixgo: comisionFixGo, 
-                    retencion_iva: retencionIVA,   
-                    retencion_isr: retencionISR,   
+                    comision_fixgo: comisionFixGoPura, 
+                    aporte_garantia: aporteGarantia, // <-- REGISTRO EN BI
+                    retencion_iva: retencionIVA,    
+                    retencion_isr: retencionISR,    
                     pago_tecnico: pagoNetoTecnico, 
                     fecha: serverTimestamp(),
                     tipo: "ingreso_servicio"
                 });
 
+                // BONUS DE REPUTACIÓN AUTOMÁTICO
+                await updateDoc(doc(db, "users", user.uid), {
+                    reputacion: increment(0.1), // Sube reputación
+                    servicios_completados: increment(1)
+                });
+
                 document.getElementById("modalEvidencia").remove();
-                alert(" ✅  ¡Servicio Cerrado Exitosamente! Comisión y Retenciones aplicadas.");
+                alert(" ✅  ¡Servicio Cerrado Exitosamente! Comisión, Seguro y Retenciones aplicadas.");
             } catch (e) {
                 console.error(e);
                 alert("Error subiendo imágenes. Intenta fotos más pequeñas.");
@@ -1399,7 +1530,7 @@ export async function iniciarPanelTecnico(user) {
 }
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.12.8
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.13.0
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
     console.log(" 📱  Iniciando Panel de Cliente...");
