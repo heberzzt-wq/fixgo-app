@@ -630,10 +630,11 @@ function generarSwitchGranular(id, label, checked) {
     </div>`;
 }
 // ======================================================================================
-// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.13)
+// ======================================================================================
+// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.13.1)
 // ======================================================================================
 export async function iniciarPanelTecnico(user) {
-    console.log(" 🔧  Iniciando Panel de Técnico...");
+    console.log(" 🔧  Iniciando Panel de Técnico (Modo Reputación Activo)...");
     
     const elementos = {
         statusLabel: document.getElementById("statusLabel"),
@@ -649,7 +650,9 @@ export async function iniciarPanelTecnico(user) {
         btnRetiro: document.getElementById("btnRetiro"),
         contenedorHistorialRetiros: document.getElementById("contenedorHistorialRetiros"),
         listaMisRetiros: document.getElementById("listaMisRetiros"),
-        listaMisTickets: document.getElementById("listaMisTickets") 
+        listaMisTickets: document.getElementById("listaMisTickets"),
+        // Nuevo elemento para mostrar las estrellas en el perfil del técnico
+        perfilReputacion: document.getElementById("perfilReputacion") 
     };
 
     const tecnicoRef = doc(db, "users", user.uid);
@@ -657,6 +660,25 @@ export async function iniciarPanelTecnico(user) {
         if (!docSnap.exists()) return;
         const data = docSnap.data();
         const estado = data.estado || "pendiente";
+
+        // --- 🌟 RENDERIZADO DE ESTRELLAS Y NIVEL (BI VISUAL) ---
+        if (elementos.perfilReputacion) {
+            const reputacion = data.reputacion || 5.0;
+            const estrellas = "⭐".repeat(Math.round(reputacion));
+            const nivel = data.nivel || "BRONCE";
+            let colorNivel = "text-orange-500";
+            if(nivel === "PLATA") colorNivel = "text-gray-300";
+            if(nivel === "ORO") colorNivel = "text-yellow-400";
+
+            elementos.perfilReputacion.innerHTML = `
+                <div class="flex flex-col items-center justify-center p-4 bg-zinc-900/50 rounded-2xl border border-zinc-800 mb-4">
+                    <span class="${colorNivel} font-black text-[10px] tracking-[0.2em] mb-1">${nivel}</span>
+                    <div class="text-xl mb-1">${estrellas}</div>
+                    <p class="text-[10px] text-gray-500 font-bold uppercase">Reputación: <span class="text-white">${reputacion.toFixed(1)}</span></p>
+                    <p class="text-[9px] text-emerald-500 mt-1">${data.servicios_completados || 0} SERVICIOS FINALIZADOS</p>
+                </div>
+            `;
+        }
 
         if (estado === "pendiente") {
             if(elementos.statusLabel) {
@@ -706,6 +728,7 @@ export async function iniciarPanelTecnico(user) {
             elementos.radarSection?.classList.add("opacity-50", "grayscale");
         }
     });
+    // ... [Aquí sigue el resto de la lógica de wallet, retiros y misiones que ya tenemos]
 
     const qWallet = query(collection(db, "transacciones"), where("tecnico_id", "==", user.uid));
     const qRetirosPendientes = query(collection(db, "retiros"), where("tecnico_id", "==", user.uid), where("estado", "==", "pendiente"));
