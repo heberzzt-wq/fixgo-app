@@ -251,42 +251,20 @@ export async function iniciarPanelAdmin(user) {
         }
     });
 
-    // --- DASHBOARD FINANCIERO PRO V5.13 (Business Intelligence) ---
-    const qFinanzas = query(collection(db, "transacciones"));
-    onSnapshot(qFinanzas, (snap) => {
-        let globalFixGo = 0;
-        let globalIVA = 0;
-        let globalISR = 0;
-        let globalTecnico = 0;
-        let totalFlujo = 0;
-        let fondoGarantia = 0;
-        let dineroRetenido = 0; // Dinero en tránsito (Stripe < 24h)
-
-        const ahora = new Date();
-
-        snap.forEach(docSnap => {
-            const tx = docSnap.data();
-            
-            // Sumatoria Global Histórica
-            globalFixGo += (tx.comision_fixgo || 0);
-            globalIVA += (tx.retencion_iva || 0);
-            globalISR += (tx.retencion_isr || 0);
-            globalTecnico += (tx.pago_tecnico || 0);
-            totalFlujo += (tx.monto_total || 0);
-            fondoGarantia += (tx.aporte_garantia || 0); // Nuevo campo V5.13
-
-            // Cálculo de Dinero Retenido (Servicios Ingresados < 24h)
-            if (tx.tipo === "ingreso_servicio" && tx.fecha && tx.fecha.toDate) {
-                const fechaTx = tx.fecha.toDate();
-                const diffHoras = Math.abs(ahora - fechaTx) / 36e5;
-                if (diffHoras < 24) {
-                    dineroRetenido += (tx.pago_tecnico || 0); // Esto es lo que NO se puede retirar aún
+    
+                // Cálculo de Dinero Retenido (Servicios Ingresados < 24h)
+                if (tx.fecha && tx.fecha.toDate) {
+                    const fechaTx = tx.fecha.toDate();
+                    const diffHoras = Math.abs(ahora - fechaTx) / 36e5;
+                    if (diffHoras < 24) {
+                        dineroRetenido += calcTecnico; // Esto es lo que NO se puede retirar aún
+                    }
                 }
             }
         });
 
         if(elementos.countMoney) {
-            // Mostramos Ganancia Neta FixGo
+            // Mostramos Ganancia Neta FixGo (Comisión Pura)
             elementos.countMoney.innerText = `$${globalFixGo.toFixed(2)}`;
             
             const cardParent = elementos.countMoney.closest('.uber-card');
@@ -298,22 +276,27 @@ export async function iniciarPanelAdmin(user) {
                 cardParent.appendChild(desgloseContainer);
             }
 
-            // Renderizado del Dashboard BI
+            // Renderizado del Dashboard BI (Actualizado V5.13.1)
             desgloseContainer.innerHTML = `
                 <div class="flex justify-between font-bold text-yellow-500 mb-1">
-                    <span>FONDO GARANTÍA (2%):</span> <span>$${fondoGarantia.toFixed(2)}</span>
+                    <span>FONDO GARANTÍA (2%):</span> <span>$${globalGarantia.toFixed(2)}</span>
                 </div>
-                <div class="flex justify-between"><span class="text-blue-400">IVA (8%):</span> <span>$${globalIVA.toFixed(2)}</span></div>
-                <div class="flex justify-between"><span class="text-orange-400">ISR (10%):</span> <span>$${globalISR.toFixed(2)}</span></div>
-                <div class="flex justify-between"><span class="text-emerald-400">TECNICOS (LÍQUIDO):</span> <span>$${(globalTecnico - dineroRetenido).toFixed(2)}</span></div>
-                <div class="flex justify-between italic text-zinc-500">
-                    <span>RETENIDO (STRIPE 24h):</span> <span>$${dineroRetenido.toFixed(2)}</span>
+                <div class="flex justify-between"><span class="text-blue-400">IVA (16% S/COM):</span> <span>$${globalIVA.toFixed(2)}</span></div>
+                <div class="flex justify-between"><span class="text-orange-400">ISR (30% S/UTIL):</span> <span>$${globalISR.toFixed(2)}</span></div>
+                <div class="flex justify-between text-gray-500"><span>STRIPE (FEES):</span> <span>$${globalStripe.toFixed(2)}</span></div>
+                
+                <div class="flex justify-between"><span class="text-emerald-400 font-bold">TECNICOS (LÍQUIDO):</span> <span>$${(globalTecnico - dineroRetenido).toFixed(2)}</span></div>
+                
+                <div class="flex justify-between italic text-zinc-500 bg-black/20 px-1 rounded">
+                    <span>⏳ RETENIDO (24h):</span> <span>$${dineroRetenido.toFixed(2)}</span>
                 </div>
-                <div class="flex justify-between font-bold mt-1 text-white border-t border-white/5 pt-1"><span>TOTAL FLUJO HISTÓRICO:</span> <span>$${totalFlujo.toFixed(2)}</span></div>
+                
+                <div class="flex justify-between font-bold mt-2 text-white border-t border-white/5 pt-1">
+                    <span>TOTAL FLUJO HISTÓRICO:</span> <span>$${totalFlujo.toFixed(2)}</span>
+                </div>
             `;
         }
     });
-
     window.aprobarTecnico = async (uid) => {
         if(!confirm("¿Estás seguro de aprobar a este técnico? Tendrá acceso inmediato a ver solicitudes y aceptar trabajos.")) return;
         try {
