@@ -252,7 +252,179 @@ export async function iniciarPanelAdmin(user) {
         }
     });
 
-    // --- DASHBOARD FINANCIERO PRO V5.13.1 (Business Intelligence & Real Split) ---
+    // ======================================================================================
+// 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
+// ======================================================================================
+export async function iniciarPanelAdmin(user) {
+    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.13.1 - Clean)...");
+    
+    // 🚨 CANDADO DE SEGURIDAD MAESTRO: Validación estricta de rol
+    if (!user || user.rol !== "admin") {
+        console.error("🛑 ALERTA DE SEGURIDAD FIXGO: Intento de acceso no autorizado al Panel Admin.");
+        alert("🔒 ACCESO DENEGADO.");
+        return;
+    }
+
+    const elementos = {
+        lista: document.getElementById("listaTecnicos"),
+        actividad: document.getElementById("listaTransacciones"),
+        listaRetiros: document.getElementById("listaRetiros"),
+        btnToggleHistorialRetiros: document.getElementById("btnToggleHistorialRetiros"),
+        vistaRetirosPendientes: document.getElementById("vistaRetirosPendientes"),
+        vistaHistorialRetiros: document.getElementById("vistaHistorialRetiros"),
+        listaHistorialRetiros: document.getElementById("listaHistorialRetiros"),
+        countServ: document.querySelector(".fa-bolt")?.closest(".uber-card")?.querySelector("h3"),
+        countMoney: document.querySelector(".fa-wallet")?.closest(".uber-card")?.querySelector("h3"),
+        countOnline: document.getElementById("totalTecnicos")
+    };
+
+    // --- A. GESTIÓN DE TÉCNICOS ---
+    if (elementos.lista) {
+        const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
+
+        onSnapshot(qTecnicos, (snap) => {
+            elementos.lista.innerHTML = ""; 
+
+            let contOnline = 0;
+            let contTotal = 0;
+            
+            if (snap.empty) {
+                elementos.lista.innerHTML = '<p class="text-gray-500 p-4 italic">No hay técnicos registrados en la base de datos.</p>';
+            }
+            
+            snap.forEach((docSnap) => {
+                const data = docSnap.data();
+                contTotal++;
+
+                if(data.disponible) {
+                    contOnline++;
+                }
+                
+                const esPendiente = (data.estado || "pendiente") === "pendiente";
+                const ineCheck = data.documentos?.ine ? '<span class="text-emerald-400"> ✅  INE</span>' : '<span class="text-red-500"> ❌  INE</span>';
+                const csfCheck = data.documentos?.csf ? '<span class="text-emerald-400"> ✅  CSF</span>' : '<span class="text-red-500"> ❌  CSF</span>';
+                const skillsStr = data.skills ? data.skills.join(" • ").toUpperCase() : "GENERAL";
+                
+                // --- SISTEMA DE REPUTACIÓN VISUAL ---
+                const reputacion = data.reputacion || 5.0;
+                const estrellas = "⭐".repeat(Math.round(reputacion));
+                const nivel = data.nivel || "BRONCE";
+                let colorNivel = "text-orange-500";
+                if(nivel === "PLATA") colorNivel = "text-gray-300";
+                if(nivel === "ORO") colorNivel = "text-yellow-400";
+
+                const estadoDot = data.disponible
+                    ? '<span class="text-emerald-500 font-bold text-[10px] animate-pulse">● ONLINE</span>'
+                    : '<span class="text-gray-500 text-[10px]">● OFFLINE</span>';
+
+                const card = document.createElement("div");
+                card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500' : 'bg-zinc-900 border-zinc-800'}`;
+
+                card.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h4 class="font-bold text-white text-sm">
+                            ${escaparHTML(data.nombre)}
+                            ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded ml-2 font-black">NUEVO</span>' : ''}
+                        </h4>
+                        <div class="flex items-center gap-2 text-[10px] mt-0.5">
+                            <span class="${colorNivel} font-black">${nivel}</span>
+                            <span class="text-yellow-500">${estrellas} (${reputacion.toFixed(1)})</span>
+                        </div>
+                        <p class="text-[9px] text-blue-400 font-bold mt-1 tracking-wide">SKILLS: ${escaparHTML(skillsStr)}</p>
+                        <p class="text-xs text-gray-400">${escaparHTML(data.telefono || '')}</p>
+                        
+                        <div class="mt-2 text-[10px] bg-black/20 p-1 rounded inline-block border border-white/5">
+                            ${ineCheck} | ${csfCheck}
+                        </div>
+                        
+                        <div class="mt-1">
+                            ${estadoDot}
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        ${esPendiente ? `
+                        <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${docSnap.id}')">
+                            APROBAR ACCESO
+                        </button>
+                        ` : `
+                        <button class="bg-red-900/30 hover:bg-red-900/50 text-red-500 text-[9px] font-bold px-2 py-1 rounded border border-red-900/50" onclick="window.aplicarPenalizacionManual('${docSnap.id}')">
+                            <i class="fas fa-gavel"></i> PENALIZAR
+                        </button>
+                        `}
+                    </div>
+                </div>
+                `;
+                elementos.lista.appendChild(card);
+            });
+            
+            if(elementos.countOnline) {
+                elementos.countOnline.innerHTML = `${contOnline} <span class="text-sm text-gray-500">/ ${contTotal}</span>`;
+                elementos.countOnline.style.color = contOnline > 0 ? "#10b981" : "white";
+            }
+        });
+    }
+
+    // --- B. ACTIVIDAD RECIENTE (ESCUDO RAM) ---
+    const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"), limit(50));
+
+    onSnapshot(qServicios, (snap) => {
+        if(elementos.actividad) elementos.actividad.innerHTML = "";
+
+        let activos = 0;
+        
+        if (snap.empty) {
+            if(elementos.actividad) elementos.actividad.innerHTML = '<p class="text-gray-500 italic text-sm text-center mt-4">Sin actividad reciente en la plataforma.</p>';
+        }
+        
+        snap.forEach(docSnap => {
+            const data = docSnap.data();
+
+            if (!["finalizado", "cancelado"].includes(data.estado)) {
+                activos++;
+            }
+
+            if (elementos.actividad && elementos.actividad.children.length < 10) {
+                const item = document.createElement("div");
+                item.className = "flex justify-between items-center border-b border-white/5 py-3 last:border-0";
+
+                let colorEstado = "text-gray-400";
+                if(data.estado === "pendiente") colorEstado = "text-yellow-500";
+                if(data.estado === "asignado") colorEstado = "text-blue-300";
+                if(data.estado === "en_camino") colorEstado = "text-blue-400";
+                if(data.estado === "en_sitio") colorEstado = "text-purple-400";
+                if(data.estado === "cotizando") colorEstado = "text-orange-400";
+                if(data.estado === "trabajando") colorEstado = "text-blue-500 animate-pulse font-bold";
+                if(data.estado === "finalizado") colorEstado = "text-emerald-500";
+                if(data.estado === "cancelado") colorEstado = "text-red-500 line-through";
+                
+                const labelServicio = escaparHTML(`${data.categoria} ${data.sub_servicio ? '• ' + data.sub_servicio : ''}`);
+
+                item.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="bg-zinc-800 p-2 rounded-lg"><i class="fas fa-tools text-gray-400"></i></div>
+                    <div>
+                        <p class="text-xs font-bold text-white uppercase">${labelServicio}</p>
+                        <p class="text-[10px] text-gray-500">${escaparHTML(data.cliente_nombre || 'Cliente')} • ${escaparHTML(data.zona || 'Cancún')}</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] font-bold ${colorEstado} uppercase">${data.estado.replace('_', ' ')}</p>
+                    <p class="text-[9px] text-gray-600">Hace un momento</p>
+                </div>
+                `;
+                elementos.actividad.appendChild(item);
+            }
+        });
+        
+        if(elementos.countServ) {
+            elementos.countServ.innerText = activos + (snap.size === 50 ? '+' : '');
+            elementos.countServ.style.color = activos > 0 ? "#34d399" : "white";
+        }
+    });
+
+    // --- C. DASHBOARD FINANCIERO PRO V5.13.1 (Business Intelligence & Real Split) ---
     const qFinanzas = query(collection(db, "transacciones"));
     onSnapshot(qFinanzas, (snap) => {
         // 🧮 VARIABLES DE LA ARQUITECTURA FINANCIERA V5.13.1
@@ -310,7 +482,7 @@ export async function iniciarPanelAdmin(user) {
         const utilidadNetaReal = globalFixGo - globalIVA - globalISR;
 
         if(elementos.countMoney) {
-            // Mostramos Ganancia Neta FixGo (Comisión Bruta) en el número grande
+            // Mostramos Ganancia Neta FixGo (Comisión Bruta)
             elementos.countMoney.innerText = `$${globalFixGo.toFixed(2)}`;
             
             const cardParent = elementos.countMoney.closest('.uber-card');
@@ -322,7 +494,7 @@ export async function iniciarPanelAdmin(user) {
                 cardParent.appendChild(desgloseContainer);
             }
 
-            // Renderizado del Dashboard BI (Actualizado V5.13.1 con Utilidad Neta)
+            // Renderizado del Dashboard BI (Actualizado V5.13.1)
             desgloseContainer.innerHTML = `
                 <div class="flex justify-between font-bold text-yellow-500 mb-1">
                     <span>FONDO GARANTÍA (2%):</span> <span>$${globalGarantia.toFixed(2)}</span>
@@ -344,7 +516,9 @@ export async function iniciarPanelAdmin(user) {
                 </div>
             `;
         }
-   
+    });
+
+    // --- D. FUNCIONES DE ADMINISTRACIÓN ---
     window.aprobarTecnico = async (uid) => {
         if(!confirm("¿Estás seguro de aprobar a este técnico? Tendrá acceso inmediato a ver solicitudes y aceptar trabajos.")) return;
         try {
@@ -392,7 +566,6 @@ export async function iniciarPanelAdmin(user) {
         }
     };
 
-    // [Se mantiene lógica de catálogo y retiros igual, pero asegurada]
     window.abrirGestorCatalogo = async () => {
         const modal = document.getElementById("modalCatalogo");
         const container = document.getElementById("gridConfiguracion");
@@ -629,7 +802,6 @@ function generarSwitchGranular(id, label, checked) {
         </label>
     </div>`;
 }
-
 // ======================================================================================
 // 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.13)
 // ======================================================================================
