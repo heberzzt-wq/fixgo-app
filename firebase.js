@@ -1,6 +1,6 @@
 /**
  * ======================================================
- * FIXGO CORE - FIREBASE CONFIGURATION v5.2 (BLINDADO)
+ * FIXGO CORE - FIREBASE CONFIGURATION v5.3 (BLINDADO)
  * ======================================================
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -31,7 +31,7 @@ import {
 
 // Configuración de credenciales
 const firebaseConfig = {
-    apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0", 
+    apiKey: "AIzaSyBlE0bkNxYC3w7KG7t9D2NU-Q3jh3B5H7k", 
     authDomain: "fixgo-44e4d.firebaseapp.com",
     projectId: "fixgo-44e4d",
     storageBucket: "fixgo-44e4d.appspot.com",
@@ -45,6 +45,9 @@ const firebaseApp = initializeApp(firebaseConfig);
 // ======================================================
 // BLINDAJE 1000% - App Check con reCAPTCHA v3
 // ======================================================
+// 🦈 MODO DEBUG: Descomenta la siguiente línea si necesitas probar en localhost sin ser bloqueado
+// self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+
 const appCheck = initializeAppCheck(firebaseApp, {
     provider: new ReCaptchaV3Provider('6LcEZG4sAAAAAKQQ60dgYGVzXO-Q-ZPPMB9gKNkh'),
     isTokenAutoRefreshEnabled: true // Refresco automático para no interrumpir la sesión
