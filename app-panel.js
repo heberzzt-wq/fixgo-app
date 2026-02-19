@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.13.1 (FINANCIAL BI + REPUTATION SYSTEM + INSURANCE FUND)
+ * Versión: 5.13.1 (FINANCIAL BI + REPUTATION SYSTEM + INSURANCE FUND + AVATAR)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -651,8 +651,12 @@ export async function iniciarPanelTecnico(user) {
         contenedorHistorialRetiros: document.getElementById("contenedorHistorialRetiros"),
         listaMisRetiros: document.getElementById("listaMisRetiros"),
         listaMisTickets: document.getElementById("listaMisTickets"),
-        // Nuevo elemento para mostrar las estrellas en el perfil del técnico
-        perfilReputacion: document.getElementById("perfilReputacion") 
+        // Nuevos elementos granulares para el Header del Técnico
+        badgeNivel: document.getElementById("badgeNivel"),
+        contenedorEstrellas: document.getElementById("contenedorEstrellas"),
+        txtServicios: document.getElementById("txtServicios"),
+        fotoPerfil: document.getElementById("fotoPerfil"),
+        fotoIcono: document.getElementById("fotoIcono") 
     };
 
     const tecnicoRef = doc(db, "users", user.uid);
@@ -661,23 +665,42 @@ export async function iniciarPanelTecnico(user) {
         const data = docSnap.data();
         const estado = data.estado || "pendiente";
 
-        // --- 🌟 RENDERIZADO DE ESTRELLAS Y NIVEL (BI VISUAL) ---
-        if (elementos.perfilReputacion) {
-            const reputacion = data.reputacion || 5.0;
-            const estrellas = "⭐".repeat(Math.round(reputacion));
-            const nivel = data.nivel || "BRONCE";
-            let colorNivel = "text-orange-500";
-            if(nivel === "PLATA") colorNivel = "text-gray-300";
-            if(nivel === "ORO") colorNivel = "text-yellow-400";
+        // --- 🌟 RENDERIZADO DE ESTRELLAS, NIVEL Y FOTO (BI VISUAL GRANULAR) ---
+        const reputacion = data.reputacion || 5.0;
+        const estrellas = "⭐".repeat(Math.round(reputacion));
+        const nivel = data.nivel || "BRONCE";
+        
+        let colorNivel = "text-orange-500 bg-orange-600/20 border-orange-500/30";
+        if(nivel === "PLATA") colorNivel = "text-gray-300 bg-gray-600/20 border-gray-500/30";
+        if(nivel === "ORO") colorNivel = "text-yellow-400 bg-yellow-600/20 border-yellow-500/30";
 
-            elementos.perfilReputacion.innerHTML = `
-                <div class="flex flex-col items-center justify-center p-4 bg-zinc-900/50 rounded-2xl border border-zinc-800 mb-4">
-                    <span class="${colorNivel} font-black text-[10px] tracking-[0.2em] mb-1">${nivel}</span>
-                    <div class="text-xl mb-1">${estrellas}</div>
-                    <p class="text-[10px] text-gray-500 font-bold uppercase">Reputación: <span class="text-white">${reputacion.toFixed(1)}</span></p>
-                    <p class="text-[9px] text-emerald-500 mt-1">${data.servicios_completados || 0} SERVICIOS FINALIZADOS</p>
-                </div>
-            `;
+        // Renderizar Nivel en el Badge existente
+        if(elementos.badgeNivel) {
+            elementos.badgeNivel.className = `${colorNivel} text-[10px] font-black px-2 py-0.5 rounded border`;
+            elementos.badgeNivel.innerText = `NIVEL ${nivel}`;
+        }
+
+        // Renderizar Estrellas
+        if(elementos.contenedorEstrellas) {
+            elementos.contenedorEstrellas.innerHTML = `${estrellas} <span class="text-[10px] text-gray-500 font-bold ml-1">(${reputacion.toFixed(1)})</span>`;
+        }
+
+        // Renderizar Cantidad de Servicios
+        if(elementos.txtServicios) {
+            elementos.txtServicios.classList.remove("hidden");
+            elementos.txtServicios.innerText = `${data.servicios_completados || 0} SERVICIOS FINALIZADOS`;
+        }
+
+        // Renderizar Foto de Perfil (Si el técnico la subió previamente)
+        if(elementos.fotoPerfil && elementos.fotoIcono) {
+            if(data.foto_perfil) {
+                elementos.fotoPerfil.src = data.foto_perfil;
+                elementos.fotoPerfil.classList.remove("hidden");
+                elementos.fotoIcono.classList.add("hidden");
+            } else {
+                elementos.fotoPerfil.classList.add("hidden");
+                elementos.fotoIcono.classList.remove("hidden");
+            }
         }
 
         if (estado === "pendiente") {
@@ -728,7 +751,6 @@ export async function iniciarPanelTecnico(user) {
             elementos.radarSection?.classList.add("opacity-50", "grayscale");
         }
     });
-    // ... [Aquí sigue el resto de la lógica de wallet, retiros y misiones que ya tenemos]
 
     const qWallet = query(collection(db, "transacciones"), where("tecnico_id", "==", user.uid));
     const qRetirosPendientes = query(collection(db, "retiros"), where("tecnico_id", "==", user.uid), where("estado", "==", "pendiente"));
@@ -834,7 +856,6 @@ export async function iniciarPanelTecnico(user) {
         }
     }
 
-    // [Se mantiene la lógica de listar mis retiros y tickets sin cambios]
     if (elementos.listaMisRetiros && elementos.contenedorHistorialRetiros) {
         const qMisRetiros = query(
             collection(db, "retiros"),
