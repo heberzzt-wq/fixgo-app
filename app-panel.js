@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.15.0 (FASE 0: UBER CASH MODEL / BILLETERA NEGATIVA / EFECTIVO)
+ * Versión: 5.15.1 (FASE 0: UBER CASH MODEL + SHARK MODE BLINDADO)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -47,6 +47,25 @@ const escaparHTML = (str) => {
 };
 
 /**
+ * 🦈 SISTEMA ANTIFRAUDE MILITAR (SHARK MODE)
+ * Fórmula de Haversine para calcular distancia en metros entre dos coordenadas GPS
+ */
+function calcularDistancia(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // Radio de la Tierra en metros
+    const rad = Math.PI / 180;
+    const φ1 = lat1 * rad;
+    const φ2 = lat2 * rad;
+    const Δφ = (lat2 - lat1) * rad;
+    const Δλ = (lon2 - lon1) * rad;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; // Distancia en metros
+}
+
+/**
  * ACTIVADOR MAESTRO (UNLOCKER)
  */
 document.addEventListener('click', () => {
@@ -78,7 +97,7 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.15.0: UBER CASH MODEL (EFECTIVO) ACTIVATED.");
+console.log(" 🚀  FIXGO 5.15.1: UBER CASH MODEL (EFECTIVO) + SHARK MODE ACTIVATED.");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
@@ -713,10 +732,10 @@ function generarSwitchGranular(id, label, checked) {
 }
 // ======================================================================================
 // ======================================================================================
-// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.15.0)
+// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.15.1 SHARK MODE)
 // ======================================================================================
 export async function iniciarPanelTecnico(user) {
-    console.log(" 🔧  Iniciando Panel de Técnico (Modo Uber Cash / Billetera Negativa)...");
+    console.log(" 🔧  Iniciando Panel de Técnico (Modo Uber Cash / Billetera Negativa / Shark Blindaje)...");
     
     const elementos = {
         statusLabel: document.getElementById("statusLabel"),
@@ -1249,11 +1268,33 @@ export async function iniciarPanelTecnico(user) {
                 btn1.onclick = () => actualizarEstado(id, "en_camino");
             }
             else if (s.estado === "en_camino") {
+                // 🦈 INYECCIÓN SHARK MODE: Validación GPS Geocercada
                 btn2.classList.remove("hidden");
                 btn2.innerText = "YA LLEGUÉ AL SITIO";
-                btn2.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
+                btn2.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-all";
+                
                 btn2.onclick = () => {
-                    actualizarEstado(id, "en_sitio");
+                    const textoOriginal = btn2.innerHTML;
+                    btn2.innerHTML = '<i class="fas fa-satellite text-white animate-spin"></i> VERIFICANDO GPS...';
+                    btn2.disabled = true;
+
+                    if (navigator.geolocation && s.coords) {
+                        navigator.geolocation.getCurrentPosition((pos) => {
+                            const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, s.coords.lat, s.coords.lng);
+                            if (dist > 1000) { // Tolerancia de 1 KM
+                                alert(`🛑 ALERTA ANTIFRAUDE: El sistema detecta que estás a ${Math.round(dist)} metros del cliente.\n\nDebes estar físicamente en el lugar para cambiar el estado a "En Sitio".`);
+                                btn2.innerHTML = textoOriginal;
+                                btn2.disabled = false;
+                            } else {
+                                actualizarEstado(id, "en_sitio");
+                            }
+                        }, (err) => {
+                            console.warn("Error GPS técnico:", err);
+                            actualizarEstado(id, "en_sitio"); // Fallback si falla el GPS local
+                        }, { enableHighAccuracy: true });
+                    } else {
+                        actualizarEstado(id, "en_sitio"); // Fallback si el cliente no dejó coordenadas
+                    }
                 };
             }
             else if (s.estado === "en_sitio") {
@@ -1518,12 +1559,16 @@ export async function iniciarPanelTecnico(user) {
             if(!f1 || !f2) { alert(" ⚠  Ambas fotos son obligatorias para el reporte."); return; }
 
             const btn = document.getElementById("btnSubirEvidencia");
-            btn.innerText = "SUBIENDO EVIDENCIA...";
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROTEGIENDO EVIDENCIA...';
             btn.disabled = true;
             
             try {
                 const b64_1 = await toBase64(f1);
                 const b64_2 = await toBase64(f2);
+                
+                // 🦈 INYECCIÓN SHARK MODE: Metadatos para trazabilidad legal de la evidencia
+                const timestampMetadatos = new Date().toISOString();
+                const userAgentCorto = navigator.userAgent.substring(0, 50);
                 
                 const servicioSnap = await getDoc(doc(db, "services", id));
                 const servicioData = servicioSnap.data();
@@ -1543,7 +1588,15 @@ export async function iniciarPanelTecnico(user) {
                 const deudaTecnico = -(costoTotal * 0.32);
 
                 await actualizarEstado(id, "finalizado", {
-                    evidencia: { antes: b64_1, despues: b64_2 },
+                    evidencia: { 
+                        antes: b64_1, 
+                        despues: b64_2,
+                        metadatos: {
+                            fecha_captura: timestampMetadatos,
+                            dispositivo_tecnico: userAgentCorto,
+                            certificacion_legal: true
+                        }
+                    },
                     finalizado_at: serverTimestamp(),
                     folio_fiscal: "FX-" + Math.random().toString(36).substr(2, 9).toUpperCase(),
                     desglose: {
@@ -1679,10 +1732,10 @@ export async function iniciarPanelTecnico(user) {
 }
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.15.0
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.15.1
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
-    console.log(" 📱  Iniciando Panel de Cliente (Modo Bootstrapping / Efectivo)...");
+    console.log(" 📱  Iniciando Panel de Cliente (Modo Bootstrapping / Efectivo / Shark Blindado)...");
 
     const el = {
         form: document.getElementById("nuevaSolicitudForm"),
@@ -1806,11 +1859,21 @@ export async function iniciarPanelCliente(user) {
     cargarServiciosCliente();
 
     // ----------------------------------------------------------------------------------
-    // 3.2 ENVÍO DE SOLICITUD
+    // 3.2 ENVÍO DE SOLICITUD (SHARK MODE ANTI-SPAM)
     // ----------------------------------------------------------------------------------
+    let lastSubmitTime = 0; // 🔥 INYECCIÓN ANTI-SPAM
+
     if (el.form) {
         el.form.addEventListener("submit", async (e) => {
             e.preventDefault();
+            
+            // 🦈 REGLA ANTI-SPAM (30 segundos)
+            const now = Date.now();
+            if (now - lastSubmitTime < 30000) {
+                alert("⏳ SISTEMA ANTI-SPAM: Por favor espera al menos 30 segundos antes de enviar una nueva solicitud de servicio.");
+                return;
+            }
+
             const cat = el.inputCat.value; 
             const dir = el.form.querySelector('[name="direccion"]').value;
             const desc = el.form.querySelector('[name="descripcion"]').value;
@@ -1838,10 +1901,10 @@ export async function iniciarPanelCliente(user) {
             const btn = el.form.querySelector("button");
             const textoOriginal = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO...`;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO CONEXIÓN...`;
             
             setTimeout(() => {
-                btn.innerHTML = `<i class="fas fa-satellite-dish"></i> OBTENIENDO UBICACIÓN...`;
+                btn.innerHTML = `<i class="fas fa-satellite-dish"></i> OBTENIENDO UBICACIÓN SATELITAL...`;
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
                         async (pos) => {
@@ -1859,7 +1922,7 @@ export async function iniciarPanelCliente(user) {
                 } else {
                     enviarSolicitudFinal(cat, dir, desc, null, requiereFactura, datosFacturacion);
                 }
-            }, 500); // Reducido el timeout ya que no hay Stripe real
+            }, 500); 
             
             async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords, reqFac, datosFac) {
                 const partes = categoriaFull.split('_');
@@ -1887,7 +1950,9 @@ export async function iniciarPanelCliente(user) {
                         factura_enviada: false
                     });
                     
-                    alert(" ✅  ¡Solicitud Enviada!\nBuscando técnico cercano...");
+                    lastSubmitTime = Date.now(); // 🦈 Actualizamos reloj anti-spam al enviar éxito
+
+                    alert(" ✅  ¡Solicitud Enviada!\n\nNuestro sistema está buscando al técnico certificado más cercano...");
                     el.form.reset();
                     if(el.toggleFactura) {
                         el.toggleFactura.checked = false;
@@ -1904,7 +1969,7 @@ export async function iniciarPanelCliente(user) {
                     });
                 } catch (error) {
                     console.error(error);
-                    alert("Error al enviar solicitud.");
+                    alert("Error al enviar solicitud al servidor central.");
                 }
                 
                 btn.disabled = false;
@@ -1929,7 +1994,7 @@ export async function iniciarPanelCliente(user) {
 
                 // LA NOTIFICACIÓN TRIUNFAL DE COBRO
                 if (newData.estado === 'finalizado') {
-                    alert("✅ ¡Servicio terminado!\n\nRecuerda realizar el pago en efectivo al técnico. Revisa tu ticket final en pantalla.");
+                    alert("✅ ¡Servicio terminado exitosamente!\n\nPor favor, realiza el pago en efectivo directamente al técnico. Revisa tu comprobante digital en pantalla.");
                 }
             }
         });
@@ -1949,7 +2014,7 @@ export async function iniciarPanelCliente(user) {
             const s = docSnap.data();
             const id = docSnap.id;
             
-            let contenido = `<div class="p-4 bg-yellow-900/10 rounded-xl border border-yellow-500/30 mb-2"><span class="text-xs font-bold text-yellow-500 animate-pulse"> 🔎  BUSCANDO TÉCNICO...</span></div>`;
+            let contenido = `<div class="p-4 bg-yellow-900/10 rounded-xl border border-yellow-500/30 mb-2"><span class="text-xs font-bold text-yellow-500 animate-pulse"> 🔎  RASTREANDO TÉCNICO EN LA ZONA...</span></div>`;
             
             if (s.estado === "cotizando") {
                 let htmlTabla = "";
