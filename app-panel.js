@@ -453,6 +453,27 @@ export async function iniciarPanelAdmin(user) {
             alert("Error al aplicar penalización.");
         }
     };
+    window.registrarPagoTecnico = async (uid, nombre) => {
+        const monto = parseFloat(prompt(`¿Cuánto dinero te depositó / pagó ${nombre} para abonar a su deuda? ($):`, "0"));
+        if (isNaN(monto) || monto <= 0) return;
+
+        if(!confirm(`¿Confirmas que recibiste $${monto} de ${nombre}? Esto borrará o reducirá su deuda en el sistema.`)) return;
+
+        try {
+            await addDoc(collection(db, "transacciones"), {
+                tecnico_id: uid,
+                pago_tecnico: Math.abs(monto), // Inyecta saldo positivo para contrarrestar la deuda
+                monto_total: 0,
+                tipo: "abono_deuda",
+                descripcion: `Admin: Abono de deuda recibido (SPEI/OXXO)`,
+                fecha: serverTimestamp()
+            });
+            alert(`✅ Abono de $${monto} registrado con éxito. La billetera del técnico se ha liberado.`);
+        } catch (e) {
+            console.error(e);
+            alert("Error al registrar el abono en la base de datos.");
+        }
+    };
 
     window.abrirGestorCatalogo = async () => {
         const modal = document.getElementById("modalCatalogo");
