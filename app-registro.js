@@ -2,11 +2,13 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 5.9 (VEHICLE TELEMETRY READY) - SENIOR OPTIMIZED
+ * Versión: 5.9.1 (VEHICLE TELEMETRY READY + SHARK MODE BLINDADO)
  * Base: V5.8 (STRIPE INTEGRATION + BANK DATA SECURE)
+ * Autor: Heber (CEO & Lead Architect)
+ * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR.
  * ======================================================
  */
-console.log(" 🚀 [app-registro.js] Inicializando sistema V5.9 (Pagos + Telemetría de Vehículos)...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema V5.9.1 (Pagos + Telemetría de Vehículos + Seguridad Enterprise)...");
 
 import { 
     auth, 
@@ -26,6 +28,41 @@ import {
     signInWithPopup, 
     deleteUser 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+/**
+ * 🦈 SANITIZADOR MAESTRO (PREVENCIÓN XSS)
+ * Protege contra inyección de código en los inputs antes de ir a Firebase
+ */
+const escaparHTML = (str) => {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+};
+
+/**
+ * 🔐 VALIDACIÓN ENTERPRISE DE CONTRASEÑA
+ * Mínimo 8 caracteres, al menos 1 mayúscula y 1 número.
+ */
+const validarPassword = (pwd) => {
+    const re = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
+    return re.test(pwd);
+};
+
+// 🛡️ ESCUDO ANTI-BOT (RATE LIMITING FRONTEND)
+let lastActionTime = 0;
+const verificarRateLimit = () => {
+    const now = Date.now();
+    if (now - lastActionTime < 15000) {
+        alert("⏳ SISTEMA ANTI-BOT: Por seguridad, espera 15 segundos antes de intentar nuevamente.");
+        return false;
+    }
+    lastActionTime = now;
+    return true;
+};
 
 // ======================================================
 // 0. CONFIGURACIÓN DE STRIPE (TOKENIZACIÓN)
@@ -87,16 +124,25 @@ if (btnRegistroCliente) {
     btnRegistroCliente.addEventListener("click", async (e) => {
         e.preventDefault();
         
+        if (!verificarRateLimit()) return; // 🦈 Protección Anti-Bot
+        
         const form = document.getElementById("formRegistroCliente");
         if (!form) return;
 
-        const nombre = form.querySelector('[name="nombre"]')?.value.trim();
-        const email = form.querySelector('[name="email"]')?.value.trim();
+        // 🧹 Sanitización Inmediata
+        const nombre = escaparHTML(form.querySelector('[name="nombre"]')?.value.trim());
+        const email = form.querySelector('[name="email"]')?.value.trim().toLowerCase();
         const password = form.querySelector('[name="password"]')?.value.trim();
-        const telefono = form.querySelector('[name="telefono"]')?.value.trim();
+        const telefono = escaparHTML(form.querySelector('[name="telefono"]')?.value.trim());
 
         if (!nombre || !email || !password || !telefono) {
             alert("⚠️ Por favor, completa todos los campos personales.");
+            return;
+        }
+
+        // 🔐 Validación Enterprise
+        if (!validarPassword(password)) {
+            alert("🔒 SEGURIDAD: La contraseña debe tener mínimo 8 caracteres, incluir al menos 1 mayúscula y 1 número.");
             return;
         }
 
@@ -107,9 +153,10 @@ if (btnRegistroCliente) {
         }
 
         let usuarioAuth = null;
+        const textoOriginal = btnRegistroCliente.innerHTML;
 
         try {
-            btnRegistroCliente.innerText = "Validando Tarjeta...";
+            btnRegistroCliente.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con el Banco...';
             btnRegistroCliente.disabled = true;
 
             // 1. TOKENIZACIÓN DE TARJETA CON STRIPE
@@ -119,7 +166,7 @@ if (btnRegistroCliente) {
                 throw new Error(error.message); // Error de tarjeta inválida, fecha exp, etc.
             }
 
-            btnRegistroCliente.innerText = "Creando cuenta...";
+            btnRegistroCliente.innerHTML = '<i class="fas fa-shield-alt"></i> Creando Bóveda...';
 
             // 2. Intentamos crear en Auth (Esto ya hace el respaldo básico en DB por firebase.js)
             usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
@@ -156,7 +203,7 @@ if (btnRegistroCliente) {
             }
             
             manejarErroresAuth(error);
-            btnRegistroCliente.innerText = "Registrarme";
+            btnRegistroCliente.innerHTML = textoOriginal;
             btnRegistroCliente.disabled = false;
         }
     });
@@ -174,7 +221,7 @@ if ($("btnSubirINE")) {
     $("inputINE").addEventListener("change", () => {
         ineCargado = true;
         const btn = $("btnSubirINE");
-        btn.innerText = "✅ INE Cargada";
+        btn.innerHTML = '<i class="fas fa-check-circle"></i> INE Cargada';
         btn.classList.replace("bg-indigo-600", "bg-emerald-600");
     });
 }
@@ -183,7 +230,7 @@ if ($("btnSubirCSF")) {
     $("inputCSF").addEventListener("change", () => {
         csfCargado = true;
         const btn = $("btnSubirCSF");
-        btn.innerText = "✅ CSF Cargada";
+        btn.innerHTML = '<i class="fas fa-check-circle"></i> CSF Cargada';
         btn.classList.replace("bg-indigo-600", "bg-emerald-600");
     });
 }
@@ -192,26 +239,36 @@ if (btnRegistroTecnico) {
     btnRegistroTecnico.addEventListener("click", async (e) => {
         e.preventDefault();
         
+        if (!verificarRateLimit()) return; // 🦈 Protección Anti-Bot
+        
         const form = document.getElementById("formRegistroTecnico");
-        const nombre = form.querySelector('[name="nombre"]')?.value.trim();
-        const email = form.querySelector('[name="email"]')?.value.trim();
+        
+        // 🧹 Sanitización Inmediata
+        const nombre = escaparHTML(form.querySelector('[name="nombre"]')?.value.trim());
+        const email = form.querySelector('[name="email"]')?.value.trim().toLowerCase();
         const password = form.querySelector('[name="password"]')?.value.trim();
-        const telefono = form.querySelector('[name="telefono"]')?.value.trim();
+        const telefono = escaparHTML(form.querySelector('[name="telefono"]')?.value.trim());
         
         // --- NUEVOS CAMPOS: VEHÍCULO Y DATOS BANCARIOS ---
-        const clabe = form.querySelector('[name="clabe"]')?.value.trim();
-        const banco = form.querySelector('[name="banco"]')?.value.trim();
-        const tipoVehiculo = form.querySelector('[name="tipoVehiculo"]')?.value || "auto"; // Default
+        const clabe = escaparHTML(form.querySelector('[name="clabe"]')?.value.trim());
+        const banco = escaparHTML(form.querySelector('[name="banco"]')?.value.trim());
+        const tipoVehiculo = escaparHTML(form.querySelector('[name="tipoVehiculo"]')?.value) || "auto"; // Default
 
         if (!nombre || !email || !password || !telefono) {
             alert("⚠️ Faltan campos obligatorios básicos."); return;
         }
 
+        // 🔐 Validación Enterprise
+        if (!validarPassword(password)) {
+            alert("🔒 SEGURIDAD: La contraseña debe tener mínimo 8 caracteres, incluir al menos 1 mayúscula y 1 número.");
+            return;
+        }
+
         if (!clabe || clabe.length !== 18) {
-            alert("⚠️ La CLABE Interbancaria es obligatoria y debe tener 18 dígitos."); return;
+            alert("⚠️ La CLABE Interbancaria es obligatoria y debe tener exactamente 18 dígitos."); return;
         }
         if (!banco) {
-            alert("⚠️ Ingresa el nombre de tu Banco."); return;
+            alert("⚠️ Ingresa el nombre de tu Banco para recibir pagos."); return;
         }
 
         // 1. CAPTURA DE SKILLS (Habilidades)
@@ -226,13 +283,14 @@ if (btnRegistroTecnico) {
         }
 
         if (!ineCargado || !csfCargado) {
-            alert("⚠️ ALERTA: Sube INE y CSF para continuar."); return;
+            alert("⚠️ ALERTA: Por cumplimiento legal (KYC), debes subir tu INE y CSF para continuar."); return;
         }
 
         let usuarioAuth = null;
+        const textoOriginal = btnRegistroTecnico.innerHTML;
 
         try {
-            btnRegistroTecnico.innerText = "Enviando Solicitud...";
+            btnRegistroTecnico.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encriptando Datos...';
             btnRegistroTecnico.disabled = true;
 
             // 1. Registro en Auth (Respaldo básico manejado por firebase.js)
@@ -265,7 +323,7 @@ if (btnRegistroTecnico) {
                 creadoEn: serverTimestamp()
             }, { merge: true });
 
-            alert("✅ ¡Solicitud recibida! Tu vehículo y datos bancarios serán validados.");
+            alert("✅ ¡Solicitud recibida! Tu vehículo y datos bancarios serán validados por nuestro equipo de compliance.");
             window.location.href = "tecnico.html";
 
         } catch (error) {
@@ -275,7 +333,7 @@ if (btnRegistroTecnico) {
                 await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza:", e));
             }
             manejarErroresAuth(error);
-            btnRegistroTecnico.innerText = "Registrarme";
+            btnRegistroTecnico.innerHTML = textoOriginal;
             btnRegistroTecnico.disabled = false;
         }
     });
@@ -288,19 +346,26 @@ const btnLogin = $("btnLogin");
 if (btnLogin) {
     btnLogin.addEventListener("click", async (e) => {
         e.preventDefault();
+        
+        if (!verificarRateLimit()) return; // 🦈 Protección Anti-Bot
+
         const form = document.getElementById("formLogin");
-        const email = form.querySelector('[name="email"]')?.value.trim();
+        const email = form.querySelector('[name="email"]')?.value.trim().toLowerCase();
         const password = form.querySelector('[name="password"]')?.value.trim();
 
         if (!email || !password) {
             alert("⚠️ Ingresa datos completos."); return;
         }
+        
+        const textoOriginal = btnLogin.innerHTML;
         try {
-            btnLogin.innerText = "Validando...";
+            btnLogin.innerHTML = '<i class="fas fa-fingerprint animate-pulse"></i> Autenticando...';
+            btnLogin.disabled = true;
             await signInWithEmailAndPassword(auth, email, password);
         } catch (error) {
             manejarErroresAuth(error);
-            btnLogin.innerText = "Entrar";
+            btnLogin.innerHTML = textoOriginal;
+            btnLogin.disabled = false;
         }
     });
 }
@@ -309,7 +374,15 @@ const btnGoogle = $("btnLoginGoogle");
 if (btnGoogle) {
     btnGoogle.addEventListener("click", async (e) => {
         e.preventDefault();
+        
+        if (!verificarRateLimit()) return; // 🦈 Protección Anti-Bot
+        
+        const textoOriginal = btnGoogle.innerHTML;
+
         try {
+            btnGoogle.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando...';
+            btnGoogle.disabled = true;
+
             const provider = new GoogleAuthProvider();
             const result = await signInWithPopup(auth, provider);
             const user = result.user;
@@ -320,9 +393,12 @@ if (btnGoogle) {
                 const esTecnico = confirm("¿Eres TÉCNICO? [ACEPTAR] = SÍ / [CANCELAR] = CLIENTE");
                 const rolSeleccionado = esTecnico ? "tecnico" : "cliente";
                 
+                // 🧹 Sanitizamos el nombre que viene de Google por seguridad
+                const nombreSeguro = escaparHTML(user.displayName || "Usuario de Google");
+
                 const perfilBase = {
                     uid: user.uid,
-                    nombre: user.displayName,
+                    nombre: nombreSeguro,
                     email: user.email,
                     rol: rolSeleccionado,
                     tipoVehiculo: "auto", // Default
@@ -343,14 +419,16 @@ if (btnGoogle) {
                 }
                 
                 if(esTecnico) {
-                    alert("⚠️ Aviso: Deberás completar tu perfil bancario y vehículo en tu panel.");
+                    alert("⚠️ Aviso: Por seguridad, deberás completar tu perfil bancario y vehículo en tu panel.");
                 } else {
-                    alert("⚠️ Aviso: Deberás agregar una tarjeta en tu panel para solicitar servicios.");
+                    alert("⚠️ Aviso: Deberás agregar una tarjeta en tu panel para solicitar servicios (Garantía de Servicio).");
                 }
             }
         } catch (error) {
             alert("Error con Google. Intenta nuevamente.");
             console.error(error);
+            btnGoogle.innerHTML = textoOriginal;
+            btnGoogle.disabled = false;
         }
     });
 }
@@ -374,12 +452,12 @@ observarAuth((user) => {
 function manejarErroresAuth(error) {
     console.log("Código de error:", error.code);
     if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        alert("❌ Credenciales incorrectas o cuenta mal configurada.");
+        alert("❌ Credenciales incorrectas o cuenta mal configurada. Revisa tus datos.");
     } else if (error.code === 'auth/email-already-in-use') {
-        alert("⚠️ El correo ya está registrado. Intenta iniciar sesión.");
+        alert("⚠️ El correo ya está registrado en nuestro sistema. Intenta iniciar sesión.");
     } else if (error.code === 'auth/weak-password') {
-        alert("⚠️ La contraseña es muy débil.");
+        alert("⚠️ La contraseña es muy débil. Usa al menos 8 caracteres, números y mayúsculas.");
     } else {
-        alert("🚨 Error: " + error.message);
+        alert("🚨 Error de autenticación: " + error.message);
     }
 }
