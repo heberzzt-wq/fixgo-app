@@ -179,7 +179,10 @@ export async function iniciarPanelAdmin(user) {
                         <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${docSnap.id}')">
                             APROBAR ACCESO
                         </button>
-                        ` : `
+                       ` : `
+                        <button class="bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-900/50 mb-1" onclick="window.registrarPagoTecnico('${docSnap.id}', '${escaparHTML(data.nombre)}')">
+                            <i class="fas fa-money-bill-wave"></i> REGISTRAR PAGO
+                        </button>
                         <button class="bg-red-900/30 hover:bg-red-900/50 text-red-500 text-[9px] font-bold px-2 py-1 rounded border border-red-900/50" onclick="window.aplicarPenalizacionManual('${docSnap.id}')">
                             <i class="fas fa-gavel"></i> PENALIZAR
                         </button>
