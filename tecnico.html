@@ -105,14 +105,24 @@
         <div class="mt-8 mb-8">
             <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Mi Cartera</h3>
             
-            <div class="bg-emerald-950/20 border border-emerald-500/20 p-6 rounded-[2rem] mb-4 shadow-xl">
+            <div class="bg-emerald-950/20 border border-emerald-500/20 p-6 rounded-[2rem] mb-4 shadow-xl relative overflow-hidden">
+                <div id="stripeConnectOverlay" class="absolute inset-0 bg-black/95 z-10 flex flex-col items-center justify-center p-6 text-center backdrop-blur-sm transition-all duration-500">
+                    <i class="fab fa-stripe text-[#635BFF] text-5xl mb-3"></i>
+                    <h4 class="text-white font-black text-lg mb-1">Activa tu cuenta de cobro</h4>
+                    <p class="text-xs text-gray-400 mb-4">Para recibir pagos directos y solicitar retiros, necesitas vincular tu cuenta bancaria de forma segura.</p>
+                    <button id="btnVincularStripe" class="bg-[#635BFF] hover:bg-[#524ac9] text-white font-bold py-3 px-6 rounded-xl text-xs w-full transition-all shadow-lg shadow-[#635BFF]/30 flex items-center justify-center gap-2">
+                        <i class="fas fa-link"></i> VINCULAR CUENTA AHORA
+                    </button>
+                </div>
+
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <p class="text-slate-400 text-xs font-bold uppercase">Saldo Disponible</p>
                         <h4 id="walletSaldo" class="text-4xl font-black text-white">$0.00</h4>
                     </div>
-                    <div class="bg-emerald-500/10 text-emerald-500 p-3 rounded-2xl">
-                        <i class="fas fa-wallet text-xl"></i>
+                    <div class="bg-emerald-500/10 text-emerald-500 p-3 rounded-2xl flex flex-col items-center">
+                        <i class="fas fa-wallet text-xl mb-1"></i>
+                        <span id="badgeStripeStatus" class="text-[8px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded uppercase font-bold border border-green-500/30 hidden"><i class="fas fa-check-circle"></i> STRIPE OK</span>
                     </div>
                 </div>
                 <button id="btnRetiro" disabled class="w-full py-4 bg-emerald-600/20 text-emerald-500 font-black rounded-xl cursor-not-allowed text-sm">
