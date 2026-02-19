@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.13.1 (FINANCIAL BI + REPUTATION SYSTEM + INSURANCE FUND + AVATAR)
+ * Versión: 5.14.0 (FINANCIAL BI + STRIPE CONNECT + CFDI + INSURANCE FUND)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -78,13 +78,13 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.13.1: BI ENGINE + REPUTATION + INSURANCE FUND ACTIVATED.");
+console.log(" 🚀  FIXGO 5.14.0: STRIPE CONNECT + CFDI + BI ENGINE ACTIVATED.");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
 // ======================================================================================
 export async function iniciarPanelAdmin(user) {
-    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.13.1 - Clean)...");
+    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.14.0 - Stripe/CFDI)...");
     
     // 🚨 CANDADO DE SEGURIDAD MAESTRO: Validación estricta de rol
     if (!user || user.rol !== "admin") {
@@ -102,8 +102,11 @@ export async function iniciarPanelAdmin(user) {
         vistaHistorialRetiros: document.getElementById("vistaHistorialRetiros"),
         listaHistorialRetiros: document.getElementById("listaHistorialRetiros"),
         countServ: document.querySelector(".fa-bolt")?.closest(".uber-card")?.querySelector("h3"),
-        countMoney: document.querySelector(".fa-wallet")?.closest(".uber-card")?.querySelector("h3"),
-        countOnline: document.getElementById("totalTecnicos")
+        countMoney: document.getElementById("countMoneyFixgo"), // Actualizado a ID directo
+        countBovedaStripe: document.getElementById("countBovedaStripe"), // INYECCIÓN V5.14.0
+        countOnline: document.getElementById("totalTecnicos"),
+        listaFacturasPendientes: document.getElementById("listaFacturasPendientes"), // INYECCIÓN V5.14.0
+        contadorFacturas: document.getElementById("contadorFacturas") // INYECCIÓN V5.14.0
     };
 
     // --- A. GESTIÓN DE TÉCNICOS ---
@@ -199,6 +202,10 @@ export async function iniciarPanelAdmin(user) {
 
     onSnapshot(qServicios, (snap) => {
         if(elementos.actividad) elementos.actividad.innerHTML = "";
+        
+        // 🔥 INYECCIÓN V5.14.0: BANDEJA DE FACTURACIÓN
+        if(elementos.listaFacturasPendientes) elementos.listaFacturasPendientes.innerHTML = "";
+        let facturasPendientesCount = 0;
 
         let activos = 0;
         
@@ -208,6 +215,34 @@ export async function iniciarPanelAdmin(user) {
         
         snap.forEach(docSnap => {
             const data = docSnap.data();
+            const sid = docSnap.id;
+
+            // Lógica Facturación
+            if (data.factura_requerida && data.estado === "finalizado" && !data.factura_enviada) {
+                facturasPendientesCount++;
+                if (elementos.listaFacturasPendientes) {
+                    const facCard = document.createElement("div");
+                    facCard.className = "bg-zinc-900 border border-zinc-700 p-4 rounded-xl shadow-lg";
+                    facCard.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <p class="text-emerald-500 font-bold text-[10px] uppercase tracking-widest mb-1"><i class="fas fa-file-invoice"></i> Folio: ${data.folio_fiscal || sid.substring(0,6)}</p>
+                                <p class="text-white font-black text-sm">${escaparHTML(data.datos_facturacion?.razon_social || 'Desconocido')}</p>
+                            </div>
+                            <span class="text-white font-black bg-zinc-800 px-2 py-1 rounded text-xs">$${data.costo_final}</span>
+                        </div>
+                        <div class="bg-black p-2 rounded-lg text-[10px] text-gray-400 mb-3 space-y-1">
+                            <p><span class="font-bold text-gray-300">RFC:</span> ${escaparHTML(data.datos_facturacion?.rfc || 'N/A')}</p>
+                            <p><span class="font-bold text-gray-300">CP:</span> ${escaparHTML(data.datos_facturacion?.cp || 'N/A')}</p>
+                            <p><span class="font-bold text-gray-300">Régimen:</span> ${escaparHTML(data.datos_facturacion?.regimen || 'N/A')}</p>
+                        </div>
+                        <button class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-lg text-[10px] transition-colors" onclick="window.marcarFacturaEnviada('${sid}')">
+                            <i class="fas fa-check"></i> MARCAR COMO ENVIADA
+                        </button>
+                    `;
+                    elementos.listaFacturasPendientes.appendChild(facCard);
+                }
+            }
 
             if (!["finalizado", "cancelado"].includes(data.estado)) {
                 activos++;
@@ -246,16 +281,34 @@ export async function iniciarPanelAdmin(user) {
             }
         });
         
+        if (elementos.contadorFacturas) {
+            elementos.contadorFacturas.innerText = `${facturasPendientesCount} Solicitudes`;
+        }
+        if (facturasPendientesCount === 0 && elementos.listaFacturasPendientes) {
+             elementos.listaFacturasPendientes.innerHTML = `<div class="col-span-full text-gray-500 italic text-sm text-center py-6"><i class="fas fa-check-circle text-2xl mb-2 text-zinc-700 block"></i>No hay solicitudes de facturas pendientes.</div>`;
+        }
+
         if(elementos.countServ) {
             elementos.countServ.innerText = activos + (snap.size === 50 ? '+' : '');
             elementos.countServ.style.color = activos > 0 ? "#34d399" : "white";
         }
     });
 
-    // --- C. DASHBOARD FINANCIERO PRO V5.13.1 (Business Intelligence & Real Split) ---
+    // Función Admin para marcar factura como enviada
+    window.marcarFacturaEnviada = async (id) => {
+        if(!confirm("¿Confirmas que ya enviaste el CFDI a este cliente a través de tu portal del SAT?")) return;
+        try {
+            await updateDoc(doc(db, "services", id), { factura_enviada: true });
+        } catch(e) {
+            console.error("Error al actualizar factura:", e);
+            alert("Error al actualizar estado en la base de datos.");
+        }
+    };
+
+    // --- C. DASHBOARD FINANCIERO PRO V5.14.0 (Business Intelligence & Real Split) ---
     const qFinanzas = query(collection(db, "transacciones"));
     onSnapshot(qFinanzas, (snap) => {
-        // 🧮 VARIABLES DE LA ARQUITECTURA FINANCIERA V5.13.1
+        // 🧮 VARIABLES DE LA ARQUITECTURA FINANCIERA
         let globalFixGo = 0;      // 32% del Total (Comisión Bruta)
         let globalIVA = 0;        // 16% sobre la comisión de FixGo
         let globalISR = 0;        // 30% sobre la utilidad de FixGo
@@ -265,18 +318,22 @@ export async function iniciarPanelAdmin(user) {
         
         let totalFlujo = 0;       // Volumen Bruto Transaccional (GTV)
         let dineroRetenido = 0;   // Dinero en tránsito (Stripe < 24h)
+        let dineroRetiradoTecnicos = 0; // Para calcular saldo real en bóveda
 
         const ahora = new Date();
 
         snap.forEach(docSnap => {
             const tx = docSnap.data();
             
-            // Solo procesamos ingresos por servicios para la métrica de dispersión
+            if (tx.tipo === "retiro_fondos") {
+                 dineroRetiradoTecnicos += Math.abs(tx.pago_tecnico || 0);
+            }
+
             if (tx.tipo === "ingreso_servicio") {
                 const monto = tx.monto_total || 0;
                 totalFlujo += monto;
 
-                // --- 🧠 LÓGICA MAESTRA DE DISPERSIÓN (V5.13.1) ---
+                // --- 🧠 LÓGICA MAESTRA DE DISPERSIÓN ---
                 const calcFixGo = monto * 0.32;               // 32% para FixGo
                 const calcGarantia = monto * 0.02;            // 2% Fondo Garantía
                 const calcStripe = (monto * 0.036) + 3.00;    // Costo Pasarela (3.6% + $3)
@@ -306,12 +363,15 @@ export async function iniciarPanelAdmin(user) {
             }
         });
 
-        // 🔥 CÁLCULO FINAL: UTILIDAD NETA (Lo que te queda libre)
+        // 🔥 CÁLCULO FINAL: UTILIDAD NETA
         const utilidadNetaReal = globalFixGo - globalIVA - globalISR;
+        // 🔥 CÁLCULO STRIPE: El total ingresado menos lo que ya se retiró (Simulación)
+        const saldoBoveda = totalFlujo - dineroRetiradoTecnicos;
 
         if(elementos.countMoney) {
-            // Mostramos Ganancia Neta FixGo (Comisión Bruta)
+            // Mostramos Ganancia Neta FixGo
             elementos.countMoney.innerText = `$${globalFixGo.toFixed(2)}`;
+            if(elementos.countBovedaStripe) elementos.countBovedaStripe.innerText = `$${saldoBoveda.toFixed(2)}`;
             
             const cardParent = elementos.countMoney.closest('.uber-card');
             let desgloseContainer = cardParent.querySelector('.finance-breakdown');
@@ -319,10 +379,11 @@ export async function iniciarPanelAdmin(user) {
             if(!desgloseContainer) {
                 desgloseContainer = document.createElement('div');
                 desgloseContainer.className = "finance-breakdown mt-3 pt-3 border-t border-white/10 text-[9px] text-gray-400 space-y-1";
-                cardParent.appendChild(desgloseContainer);
+                // Insertamos antes del div de bóveda para que quede ordenado
+                cardParent.insertBefore(desgloseContainer, cardParent.children[1]); 
             }
 
-            // Renderizado del Dashboard BI (Actualizado V5.13.1)
+            // Renderizado del Dashboard BI 
             desgloseContainer.innerHTML = `
                 <div class="flex justify-between text-gray-300"><span>COMISIÓN FIXGO (32%):</span> <span>$${globalFixGo.toFixed(2)}</span></div>
                 <div class="flex justify-between text-red-400"><span>IVA (16% s/FixGo):</span> <span>-$${globalIVA.toFixed(2)}</span></div>
@@ -335,11 +396,8 @@ export async function iniciarPanelAdmin(user) {
                 </div>
 
                 <div class="flex justify-between"><span class="text-blue-400 font-bold">TECNICOS (LÍQUIDO):</span> <span>$${(globalTecnico - dineroRetenido).toFixed(2)}</span></div>
-                <div class="flex justify-between italic text-zinc-500 bg-black/20 px-1 rounded">
-                    <span>⏳ RETENIDO STRIPE (24h):</span> <span>$${dineroRetenido.toFixed(2)}</span>
-                </div>
-                <div class="flex justify-between font-bold mt-2 text-white border-t border-white/5 pt-1">
-                    <span>TOTAL FLUJO HISTÓRICO:</span> <span>$${totalFlujo.toFixed(2)}</span>
+                <div class="flex justify-between italic text-zinc-500 bg-black/20 px-1 rounded mb-2">
+                    <span>⏳ RETENIDO (24h):</span> <span>$${dineroRetenido.toFixed(2)}</span>
                 </div>
             `;
         }
@@ -631,10 +689,10 @@ function generarSwitchGranular(id, label, checked) {
 }
 // ======================================================================================
 // ======================================================================================
-// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.13.1)
+// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.14.0)
 // ======================================================================================
 export async function iniciarPanelTecnico(user) {
-    console.log(" 🔧  Iniciando Panel de Técnico (Modo Reputación Activo)...");
+    console.log(" 🔧  Iniciando Panel de Técnico (Modo Reputación + Stripe Connect)...");
     
     const elementos = {
         statusLabel: document.getElementById("statusLabel"),
@@ -651,12 +709,15 @@ export async function iniciarPanelTecnico(user) {
         contenedorHistorialRetiros: document.getElementById("contenedorHistorialRetiros"),
         listaMisRetiros: document.getElementById("listaMisRetiros"),
         listaMisTickets: document.getElementById("listaMisTickets"),
-        // Nuevos elementos granulares para el Header del Técnico
         badgeNivel: document.getElementById("badgeNivel"),
         contenedorEstrellas: document.getElementById("contenedorEstrellas"),
         txtServicios: document.getElementById("txtServicios"),
         fotoPerfil: document.getElementById("fotoPerfil"),
-        fotoIcono: document.getElementById("fotoIcono") 
+        fotoIcono: document.getElementById("fotoIcono"),
+        // INYECCIÓN V5.14.0: Stripe Connect Elements
+        stripeOverlay: document.getElementById("stripeConnectOverlay"),
+        btnVincularStripe: document.getElementById("btnVincularStripe"),
+        badgeStripeStatus: document.getElementById("badgeStripeStatus")
     };
 
     const tecnicoRef = doc(db, "users", user.uid);
@@ -665,7 +726,7 @@ export async function iniciarPanelTecnico(user) {
         const data = docSnap.data();
         const estado = data.estado || "pendiente";
 
-        // --- 🌟 RENDERIZADO DE ESTRELLAS, NIVEL Y FOTO (BI VISUAL GRANULAR) ---
+        // --- 🌟 RENDERIZADO DE ESTRELLAS, NIVEL Y FOTO ---
         const reputacion = data.reputacion || 5.0;
         const estrellas = "⭐".repeat(Math.round(reputacion));
         const nivel = data.nivel || "BRONCE";
@@ -674,24 +735,17 @@ export async function iniciarPanelTecnico(user) {
         if(nivel === "PLATA") colorNivel = "text-gray-300 bg-gray-600/20 border-gray-500/30";
         if(nivel === "ORO") colorNivel = "text-yellow-400 bg-yellow-600/20 border-yellow-500/30";
 
-        // Renderizar Nivel en el Badge existente
         if(elementos.badgeNivel) {
             elementos.badgeNivel.className = `${colorNivel} text-[10px] font-black px-2 py-0.5 rounded border`;
             elementos.badgeNivel.innerText = `NIVEL ${nivel}`;
         }
-
-        // Renderizar Estrellas
         if(elementos.contenedorEstrellas) {
             elementos.contenedorEstrellas.innerHTML = `${estrellas} <span class="text-[10px] text-gray-500 font-bold ml-1">(${reputacion.toFixed(1)})</span>`;
         }
-
-        // Renderizar Cantidad de Servicios
         if(elementos.txtServicios) {
             elementos.txtServicios.classList.remove("hidden");
             elementos.txtServicios.innerText = `${data.servicios_completados || 0} SERVICIOS FINALIZADOS`;
         }
-
-        // Renderizar Foto de Perfil (Si el técnico la subió previamente)
         if(elementos.fotoPerfil && elementos.fotoIcono) {
             if(data.foto_perfil) {
                 elementos.fotoPerfil.src = data.foto_perfil;
@@ -700,6 +754,40 @@ export async function iniciarPanelTecnico(user) {
             } else {
                 elementos.fotoPerfil.classList.add("hidden");
                 elementos.fotoIcono.classList.remove("hidden");
+            }
+        }
+
+        // 🔥 INYECCIÓN V5.14.0: LÓGICA STRIPE CONNECT SIMULADO
+        if (elementos.stripeOverlay && elementos.btnVincularStripe && elementos.badgeStripeStatus) {
+            if (data.stripe_account_id) {
+                // Ya está vinculado
+                elementos.stripeOverlay.classList.add("hidden");
+                elementos.badgeStripeStatus.classList.remove("hidden");
+            } else {
+                // No está vinculado, mostrar overlay
+                elementos.stripeOverlay.classList.remove("hidden");
+                elementos.badgeStripeStatus.classList.add("hidden");
+
+                elementos.btnVincularStripe.onclick = async () => {
+                    const btn = elementos.btnVincularStripe;
+                    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> CONECTANDO CON BANCO...`;
+                    btn.disabled = true;
+
+                    // Simulamos delay de API de Stripe
+                    setTimeout(async () => {
+                        try {
+                            await updateDoc(doc(db, "users", user.uid), {
+                                stripe_account_id: "acct_simulado_" + Math.random().toString(36).substr(2, 9)
+                            });
+                            alert("✅ ¡Cuenta bancaria vinculada con éxito a través de Stripe Connect!");
+                        } catch (e) {
+                            console.error(e);
+                            alert("Error al vincular cuenta.");
+                            btn.innerHTML = `<i class="fas fa-link"></i> VINCULAR CUENTA AHORA`;
+                            btn.disabled = false;
+                        }
+                    }, 2000);
+                };
             }
         }
 
@@ -1603,10 +1691,10 @@ export async function iniciarPanelTecnico(user) {
 }
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.13.0
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.14.0
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
-    console.log(" 📱  Iniciando Panel de Cliente...");
+    console.log(" 📱  Iniciando Panel de Cliente (Modo Stripe/CFDI)...");
 
     const el = {
         form: document.getElementById("nuevaSolicitudForm"),
@@ -1616,7 +1704,14 @@ export async function iniciarPanelCliente(user) {
         containerRoad: document.getElementById("content_road"),
         containerFix: document.getElementById("content_fix"),
         containerTech: document.getElementById("content_tech"),
-        containerMaint: document.getElementById("content_maint")
+        containerMaint: document.getElementById("content_maint"),
+        // INYECCIÓN V5.14.0: Elementos de Facturación y Stripe
+        stripeCard: document.getElementById("stripe_card"),
+        toggleFactura: document.getElementById("toggleFactura"),
+        facRfc: document.getElementById("fac_rfc"),
+        facRazon: document.getElementById("fac_razon"),
+        facCp: document.getElementById("fac_cp"),
+        facRegimen: document.getElementById("fac_regimen")
     };
 
     // ----------------------------------------------------------------------------------
@@ -1734,71 +1829,101 @@ export async function iniciarPanelCliente(user) {
             
             if (!cat) { alert(" ⚠  Por favor selecciona un servicio habilitado de la lista."); return; }
             
-            const btn = el.form.querySelector("button");
-            const textoOriginal = btn.innerText;
-            btn.disabled = true;
-            btn.innerText = "OBTENIENDO UBICACIÓN...";
-            
-            if (navigator.geolocation) {
-                // SE AUMENTÓ EL TIMEOUT A 15 SEGUNDOS PARA EVITAR ERRORES EN MOVILES
-                navigator.geolocation.getCurrentPosition(
-                    async (pos) => {
-                        await enviarSolicitudFinal(cat, dir, desc, {
-                            lat: pos.coords.latitude,
-                            lng: pos.coords.longitude
-                        });
-                    },
-                    async (err) => {
-                        console.warn("GPS Cliente no disponible:", err);
-                        await enviarSolicitudFinal(cat, dir, desc, null);
-                    },
-                    { timeout: 15000, maximumAge: 10000, enableHighAccuracy: true }
-                );
-            } else {
-                await enviarSolicitudFinal(cat, dir, desc, null);
+            // 🔥 INYECCIÓN V5.14.0: RECOLECCIÓN DE DATOS DE FACTURACIÓN
+            let requiereFactura = false;
+            let datosFacturacion = null;
+
+            if (el.toggleFactura && el.toggleFactura.checked) {
+                requiereFactura = true;
+                datosFacturacion = {
+                    rfc: el.facRfc?.value.toUpperCase(),
+                    razon_social: el.facRazon?.value,
+                    cp: el.facCp?.value,
+                    regimen: el.facRegimen?.value
+                };
+                if (!datosFacturacion.rfc || !datosFacturacion.razon_social) {
+                    alert("⚠️ Si requieres factura, por favor completa RFC y Razón Social.");
+                    return;
+                }
             }
+
+            const btn = el.form.querySelector("button");
+            const textoOriginal = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO PAGO...`;
             
-            async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords) {
+            // Simulación de delay de Stripe
+            setTimeout(() => {
+                btn.innerHTML = `<i class="fas fa-satellite-dish"></i> OBTENIENDO UBICACIÓN...`;
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        async (pos) => {
+                            await enviarSolicitudFinal(cat, dir, desc, {
+                                lat: pos.coords.latitude,
+                                lng: pos.coords.longitude
+                            }, requiereFactura, datosFacturacion);
+                        },
+                        async (err) => {
+                            console.warn("GPS Cliente no disponible:", err);
+                            await enviarSolicitudFinal(cat, dir, desc, null, requiereFactura, datosFacturacion);
+                        },
+                        { timeout: 15000, maximumAge: 10000, enableHighAccuracy: true }
+                    );
+                } else {
+                    enviarSolicitudFinal(cat, dir, desc, null, requiereFactura, datosFacturacion);
+                }
+            }, 1500);
+            
+            async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords, reqFac, datosFac) {
                 const partes = categoriaFull.split('_');
                 const vertical = partes[0].toUpperCase(); 
                 const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
 
-                if(confirm("Se realizará una retención temporal de garantía ($550 MXN).\n\n¿Autorizar solicitud?")) {
-                    try {
-                        await addDoc(collection(db, "services"), {
-                            cliente_id: user.uid,
-                            cliente_nombre: user.nombre || "Cliente",
-                            cliente_telefono: user.telefono || "",
-                            categoria: vertical,
-                            sub_servicio: servicio,
-                            categoria_id: categoriaFull,
-                            direccion: direccion,
-                            descripcion: descripcion,
-                            estado: "pendiente",
-                            zona: "Cancún",
-                            created_at: serverTimestamp(),
-                            retencion_inicial: 550,
-                            costo_final: 0,
-                            coords: coords 
-                        });
-                        alert(" ✅  ¡Solicitud Enviada! Buscando técnico cercano...");
-                        el.form.reset();
-                        
-                        const formContainer = document.getElementById("modalSolicitud");
-                        if(formContainer) formContainer.classList.add("hidden");
-
-                        if(el.labelServicio) el.labelServicio.innerText = "SERVICIO";
-                        document.querySelectorAll('.service-card-btn').forEach(btn => {
-                            btn.classList.remove('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
-                            btn.classList.add('bg-zinc-900', 'border-zinc-700');
-                        });
-                    } catch (error) {
-                        console.error(error);
-                        alert("Error al enviar solicitud.");
+                try {
+                    await addDoc(collection(db, "services"), {
+                        cliente_id: user.uid,
+                        cliente_nombre: user.nombre || "Cliente",
+                        cliente_telefono: user.telefono || "",
+                        categoria: vertical,
+                        sub_servicio: servicio,
+                        categoria_id: categoriaFull,
+                        direccion: direccion,
+                        descripcion: descripcion,
+                        estado: "pendiente",
+                        zona: "Cancún",
+                        created_at: serverTimestamp(),
+                        retencion_inicial: 550,
+                        costo_final: 0,
+                        coords: coords,
+                        // INYECCIÓN CFDI Y STRIPE SIMULADO
+                        pago_garantia_id: "pi_simulado_" + Math.random().toString(36).substr(2, 9),
+                        factura_requerida: reqFac,
+                        datos_facturacion: datosFac,
+                        factura_enviada: false
+                    });
+                    
+                    alert(" ✅  ¡Pago de garantía autorizado y Solicitud Enviada!\nBuscando técnico cercano...");
+                    el.form.reset();
+                    if(el.toggleFactura) {
+                        el.toggleFactura.checked = false;
+                        document.getElementById('datosFacturacion').classList.add('hidden');
                     }
+                    
+                    const formContainer = document.getElementById("modalSolicitud");
+                    if(formContainer) formContainer.classList.add("hidden");
+
+                    if(el.labelServicio) el.labelServicio.innerText = "SERVICIO";
+                    document.querySelectorAll('.service-card-btn').forEach(cardBtn => {
+                        cardBtn.classList.remove('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
+                        cardBtn.classList.add('bg-zinc-900', 'border-zinc-700');
+                    });
+                } catch (error) {
+                    console.error(error);
+                    alert("Error al enviar solicitud.");
                 }
+                
                 btn.disabled = false;
-                btn.innerText = textoOriginal;
+                btn.innerHTML = textoOriginal;
             }
         });
     }
@@ -1819,7 +1944,7 @@ export async function iniciarPanelCliente(user) {
 
                 // LA NOTIFICACIÓN TRIUNFAL DE COBRO
                 if (newData.estado === 'finalizado') {
-                    alert("✅ ¡Servicio terminado y pagado con éxito!\n\nEl cobro se ha procesado. Revisa tu ticket final y evidencia en pantalla.");
+                    alert("✅ ¡Servicio terminado y cobro a tu tarjeta procesado con éxito vía Stripe!\n\nRevisa tu ticket final y evidencia en pantalla.");
                 }
             }
         });
@@ -1888,6 +2013,7 @@ export async function iniciarPanelCliente(user) {
                     <div class="mt-2 p-2 bg-black/50 rounded border border-white/5">
                         <p class="legal-note" style="font-size: 8px; color: #666;">* SI HUBIERA CANCELACION TOTAL O PARCIAL... PENALIZACION DEL 20%.</p>
                         <p class="legal-note" style="font-size: 8px; color: #666;">* GARANTIA POR ESCRITO MINIMO DE 6 MESES.</p>
+                        <p class="legal-note mt-2 text-blue-400 font-bold"><i class="fab fa-stripe"></i> El cobro se realizará automáticamente a la tarjeta vinculada.</p>
                     </div>
                     <div class="flex gap-2 mt-4">
                         <button onclick="window.responderCotizacion('${id}', false)" class="flex-1 bg-red-900/50 hover:bg-red-900 text-red-200 text-xs py-3 rounded-lg font-bold transition-colors">
@@ -1904,7 +2030,7 @@ export async function iniciarPanelCliente(user) {
                 <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-xl mt-2">
                     <div class="flex justify-between items-center mb-3">
                         <span class="text-emerald-500 font-black text-xs uppercase tracking-widest">TICKET FINAL</span>
-                        <span class="bg-emerald-500 text-black text-[9px] font-bold px-2 py-0.5 rounded">PAGADO</span>
+                        <span class="bg-emerald-500 text-black text-[9px] font-bold px-2 py-0.5 rounded">COBRADO</span>
                     </div>
                     <div class="space-y-2 mb-4">
                         <div class="flex justify-between text-lg text-white font-black">
@@ -1920,6 +2046,7 @@ export async function iniciarPanelCliente(user) {
                     <button onclick="window.generarPDF('${id}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2">
                         <i class="fas fa-file-download text-red-500"></i> DESCARGAR REPORTE FISCAL
                     </button>
+                    ${s.factura_requerida ? `<p class="text-[9px] text-center mt-3 text-blue-400 italic">Factura CFDI solicitada. Te llegará por correo.</p>` : ''}
                 </div>
                 `;
             }
@@ -1942,7 +2069,6 @@ export async function iniciarPanelCliente(user) {
             const card = document.createElement("div");
             card.className = "uber-card rounded-2xl overflow-hidden shadow-lg mb-3";
 
-            // --- CAMBIO UX: EL BOTÓN DE MAPA AHORA USA ONCLICK Y LLAMA AL MODAL ---
             card.innerHTML = `
             <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="toggleAccordion('hist-${id}', 'icon-${id}')">
                 <div class="flex items-center gap-4">
@@ -2020,9 +2146,9 @@ export async function iniciarPanelCliente(user) {
                     
                     transaction.update(serviceRef, { estado: "trabajando" });
                 });
-                alert(" ✅  ¡Costo aprobado! El técnico comenzará a trabajar ahora.");
+                alert(" ✅  ¡Costo aprobado y retenido en Stripe! El técnico comenzará a trabajar ahora.");
             } else {
-                if(confirm(" ⚠  ¿Estás seguro de cancelar?\n\nAl haber llegado el técnico, se cobrará la visita mínima ($550).")) {
+                if(confirm(" ⚠  ¿Estás seguro de cancelar?\n\nAl haber llegado el técnico, se cobrará de la tarjeta la visita mínima ($550).")) {
                     // TÚNEL CUÁNTICO: Cancelar Servicio
                     await runTransaction(db, async (transaction) => {
                         const sfDoc = await transaction.get(serviceRef);
@@ -2039,7 +2165,7 @@ export async function iniciarPanelCliente(user) {
                             cancelado_razon: "Cliente rechazó cotización"
                         });
                     });
-                    alert(" 🚫  Servicio cancelado exitosamente.");
+                    alert(" 🚫  Servicio cancelado exitosamente. Se aplicó el cargo mínimo.");
                 }
             }
         } catch (error) {
