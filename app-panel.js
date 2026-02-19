@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.14.0 (FINANCIAL BI + STRIPE CONNECT + CFDI + INSURANCE FUND)
+ * Versión: 5.15.0 (FASE 0: UBER CASH MODEL / BILLETERA NEGATIVA / EFECTIVO)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -78,13 +78,13 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.14.0: STRIPE CONNECT + CFDI + BI ENGINE ACTIVATED.");
+console.log(" 🚀  FIXGO 5.15.0: UBER CASH MODEL (EFECTIVO) ACTIVATED.");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
 // ======================================================================================
 export async function iniciarPanelAdmin(user) {
-    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.14.0 - Stripe/CFDI)...");
+    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.15.0 - Bootstrapping)...");
     
     // 🚨 CANDADO DE SEGURIDAD MAESTRO: Validación estricta de rol
     if (!user || user.rol !== "admin") {
@@ -689,10 +689,10 @@ function generarSwitchGranular(id, label, checked) {
 }
 // ======================================================================================
 // ======================================================================================
-// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.14.0)
+// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.15.0)
 // ======================================================================================
 export async function iniciarPanelTecnico(user) {
-    console.log(" 🔧  Iniciando Panel de Técnico (Modo Reputación + Stripe Connect)...");
+    console.log(" 🔧  Iniciando Panel de Técnico (Modo Uber Cash / Billetera Negativa)...");
     
     const elementos = {
         statusLabel: document.getElementById("statusLabel"),
@@ -713,11 +713,7 @@ export async function iniciarPanelTecnico(user) {
         contenedorEstrellas: document.getElementById("contenedorEstrellas"),
         txtServicios: document.getElementById("txtServicios"),
         fotoPerfil: document.getElementById("fotoPerfil"),
-        fotoIcono: document.getElementById("fotoIcono"),
-        // INYECCIÓN V5.14.0: Stripe Connect Elements
-        stripeOverlay: document.getElementById("stripeConnectOverlay"),
-        btnVincularStripe: document.getElementById("btnVincularStripe"),
-        badgeStripeStatus: document.getElementById("badgeStripeStatus")
+        fotoIcono: document.getElementById("fotoIcono")
     };
 
     const tecnicoRef = doc(db, "users", user.uid);
@@ -754,40 +750,6 @@ export async function iniciarPanelTecnico(user) {
             } else {
                 elementos.fotoPerfil.classList.add("hidden");
                 elementos.fotoIcono.classList.remove("hidden");
-            }
-        }
-
-        // 🔥 INYECCIÓN V5.14.0: LÓGICA STRIPE CONNECT SIMULADO
-        if (elementos.stripeOverlay && elementos.btnVincularStripe && elementos.badgeStripeStatus) {
-            if (data.stripe_account_id) {
-                // Ya está vinculado
-                elementos.stripeOverlay.classList.add("hidden");
-                elementos.badgeStripeStatus.classList.remove("hidden");
-            } else {
-                // No está vinculado, mostrar overlay
-                elementos.stripeOverlay.classList.remove("hidden");
-                elementos.badgeStripeStatus.classList.add("hidden");
-
-                elementos.btnVincularStripe.onclick = async () => {
-                    const btn = elementos.btnVincularStripe;
-                    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> CONECTANDO CON BANCO...`;
-                    btn.disabled = true;
-
-                    // Simulamos delay de API de Stripe
-                    setTimeout(async () => {
-                        try {
-                            await updateDoc(doc(db, "users", user.uid), {
-                                stripe_account_id: "acct_simulado_" + Math.random().toString(36).substr(2, 9)
-                            });
-                            alert("✅ ¡Cuenta bancaria vinculada con éxito a través de Stripe Connect!");
-                        } catch (e) {
-                            console.error(e);
-                            alert("Error al vincular cuenta.");
-                            btn.innerHTML = `<i class="fas fa-link"></i> VINCULAR CUENTA AHORA`;
-                            btn.disabled = false;
-                        }
-                    }, 2000);
-                };
             }
         }
 
@@ -856,7 +818,9 @@ export async function iniciarPanelTecnico(user) {
             const tx = docSnap.data();
             const monto = (tx.pago_tecnico || 0);
             
-            if (tx.tipo === "retiro_fondos" || tx.tipo === "penalizacion") { // Penalizaciones restan directamente
+            // En V5.15.0 el pago_tecnico para servicios finalizados en efectivo es NEGATIVO.
+            // Por lo tanto, se irá restando automáticamente de saldoBrutoDisponible.
+            if (tx.tipo === "retiro_fondos" || tx.tipo === "penalizacion") { 
                 saldoBrutoDisponible += monto; 
             } else {
                 if (tx.fecha && tx.fecha.toDate) {
@@ -886,39 +850,37 @@ export async function iniciarPanelTecnico(user) {
     });
 
     function actualizarUIWallet() {
+        // En Modelo Efectivo, esto normalmente será un número negativo (Deuda)
         const saldoRealDisponible = saldoBrutoDisponible - retirosEnProceso;
+
+        // Formateo para que se vea bonito (-$320.00 en lugar de $-320.00)
+        let saldoFormat = saldoRealDisponible < 0 ? "-$" + Math.abs(saldoRealDisponible).toFixed(2) : "$" + saldoRealDisponible.toFixed(2);
 
         if(elementos.walletLabel) {
             elementos.walletLabel.innerHTML = `
-                $${saldoRealDisponible.toFixed(2)}
-                <span class="text-[9px] text-gray-400 block font-normal">PROCESANDO: $${saldoRetenido.toFixed(2)}</span>
+                ${saldoFormat}
+                <span class="text-[9px] text-gray-400 block font-normal">EN PROCESO: $${saldoRetenido.toFixed(2)}</span>
             `;
             
-            if(saldoRetenido > 0 || retirosEnProceso > 0) {
+            // Si la deuda supera -$1000, parpadea agresivo
+            if(saldoRealDisponible <= -1000) {
                  elementos.walletLabel.classList.add("animate-pulse"); 
             } else {
                  elementos.walletLabel.classList.remove("animate-pulse");
             }
         }
 
+        // El botón de retiro original está oculto en el HTML V5.15.0, pero mantenemos la lógica base
         if(elementos.btnRetiro) {
             if(retirosEnProceso > 0) {
                 elementos.btnRetiro.disabled = true;
-                elementos.btnRetiro.className = "w-full py-4 bg-emerald-900/40 text-emerald-500 font-black rounded-xl cursor-not-allowed text-sm animate-pulse border border-emerald-500/30";
                 elementos.btnRetiro.onclick = null;
-                elementos.btnRetiro.innerText = "RETIRO EN PROCESO ($" + retirosEnProceso.toFixed(2) + ")";
             } 
             else if(saldoRealDisponible > 0) {
                 elementos.btnRetiro.disabled = false;
-                elementos.btnRetiro.className = "w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-sm shadow-lg shadow-emerald-500/20 transition-all transform active:scale-95";
-                elementos.btnRetiro.innerText = "SOLICITAR RETIRO (SPEI)";
-                
                 elementos.btnRetiro.onclick = async () => {
                     if(!confirm(`¿Deseas solicitar el retiro de $${saldoRealDisponible.toFixed(2)} a tu cuenta vía SPEI?`)) return;
-                    
-                    elementos.btnRetiro.innerText = "SOLICITANDO...";
                     elementos.btnRetiro.disabled = true;
-                    
                     try {
                         await addDoc(collection(db, "retiros"), {
                             tecnico_id: user.uid,
@@ -927,19 +889,16 @@ export async function iniciarPanelTecnico(user) {
                             estado: "pendiente",
                             fecha_solicitud: serverTimestamp()
                         });
-                        alert("✅ Solicitud de retiro enviada con éxito. El administrador la procesará en breve.");
+                        alert("✅ Solicitud de retiro enviada con éxito.");
                     } catch (error) {
                         console.error("Error al solicitar retiro:", error);
                         alert("❌ Hubo un error al procesar tu solicitud. Intenta de nuevo.");
-                        elementos.btnRetiro.innerText = "SOLICITAR RETIRO (SPEI)";
                         elementos.btnRetiro.disabled = false;
                     }
                 };
             } else {
                 elementos.btnRetiro.disabled = true;
-                elementos.btnRetiro.className = "w-full py-4 bg-emerald-600/20 text-emerald-500 font-black rounded-xl cursor-not-allowed text-sm";
                 elementos.btnRetiro.onclick = null;
-                elementos.btnRetiro.innerText = "SOLICITAR RETIRO (SPEI)";
             }
         }
     }
@@ -1027,9 +986,9 @@ export async function iniciarPanelTecnico(user) {
                     if (diffHoras >= 24) esRetenido = false;
                 }
 
-                const badgeStatus = esRetenido 
-                    ? '<span class="bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 text-[8px] px-2 py-0.5 rounded font-black tracking-widest uppercase">EN PROCESO</span>'
-                    : '<span class="bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 text-[8px] px-2 py-0.5 rounded font-black tracking-widest uppercase">DISPONIBLE</span>';
+                // En Fase 0 ya no hay retención bancaria, el técnico tiene el dinero en su bolsa de inmediato.
+                // Ajustamos el badge a "COBRADO"
+                const badgeStatus = '<span class="bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 text-[8px] px-2 py-0.5 rounded font-black tracking-widest uppercase"><i class="fas fa-check-circle"></i> COBRADO</span>';
 
                 const item = document.createElement("div");
                 item.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-xl shadow-lg";
@@ -1044,7 +1003,7 @@ export async function iniciarPanelTecnico(user) {
                             <p class="text-[9px] text-gray-500"><i class="fas fa-hashtag"></i> Folio: ${s.folio_fiscal || id.substring(0,6).toUpperCase()}</p>
                         </div>
                         <div class="text-right">
-                            <p class="text-[10px] text-gray-500 mb-0.5 uppercase font-bold">Cobro Total:</p>
+                            <p class="text-[10px] text-gray-500 mb-0.5 uppercase font-bold">Cobro en Efectivo:</p>
                             <p class="text-emerald-400 font-black text-sm">$${s.costo_final ? s.costo_final.toFixed(2) : '0.00'}</p>
                         </div>
                     </div>
@@ -1119,7 +1078,7 @@ export async function iniciarPanelTecnico(user) {
                         <i class="fas fa-times"></i>
                     </button>
                     <button class="flex-[4] bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}')">
-                        ACEPTAR (BLOQUEAR $550)
+                        ACEPTAR (EFECTIVO)
                     </button>
                 </div>
                 `;
@@ -1159,7 +1118,7 @@ export async function iniciarPanelTecnico(user) {
             return;
         }
 
-        if(!confirm("¿Aceptar este servicio? \n\nSe notificará al cliente y se bloqueará la garantía.")) return;
+        if(!confirm("¿Aceptar este servicio? \n\nRecuerda cobrar en efectivo al cliente al finalizar.")) return;
         
         try {
             const serviceRef = doc(db, "services", id);
@@ -1287,7 +1246,7 @@ export async function iniciarPanelTecnico(user) {
             }
             else if (s.estado === "trabajando") {
                 btn2.classList.remove("hidden");
-                btn2.innerText = " 📸  FINALIZAR Y EVIDENCIA";
+                btn2.innerText = " 📸  FINALIZAR Y COBRAR";
                 btn2.disabled = false;
                 btn2.className = "w-full bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
                 btn2.onclick = () => mostrarModalEvidencia(id);
@@ -1507,7 +1466,7 @@ export async function iniciarPanelTecnico(user) {
         <div id="modalEvidencia" class="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
             <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700 shadow-2xl">
                 <h3 class="text-white font-black text-xl mb-4 text-center">REPORTE FINAL OBLIGATORIO</h3>
-                <p class="text-gray-400 text-xs mb-6 text-center">Para liberar el pago, sube la evidencia fotográfica.</p>
+                <p class="text-gray-400 text-xs mb-6 text-center">Toma tus fotos, cobra en efectivo y cierra la orden.</p>
 
                 <div class="space-y-4">
                     <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
@@ -1546,15 +1505,18 @@ export async function iniciarPanelTecnico(user) {
                 const servicioData = servicioSnap.data();
                 const costoTotal = servicioData.costo_final || 0;
 
-                // --- MATEMÁTICA FINANCIERA V5.13.0 (FONDO GARANTÍA) ---
-                // Ajuste Senior: Se separa el 2% del total para el Fondo de Garantía
-                const comisionFixGoPura = costoTotal * 0.30; // 30%
-                const aporteGarantia = costoTotal * 0.02;    // 2%
-                const retencionIVA = costoTotal * 0.08;      // 8%
-                const retencionISR = costoTotal * 0.10;      // 10%
+                // --- MATEMÁTICA FINANCIERA FASE 0 (EFECTIVO / DEUDA) ---
+                // El cliente pagó en efectivo el 100% al técnico.
+                // FixGo cobra su 32% de comisión total.
+                const comisionFixGoPura = costoTotal * 0.30; 
+                const aporteGarantia = costoTotal * 0.02;    
                 
-                // El técnico recibe el 50% neto
-                const pagoNetoTecnico = costoTotal - (comisionFixGoPura + aporteGarantia + retencionIVA + retencionISR);
+                // Retenciones de Ley calculadas solo para registro interno del Admin BI
+                const retencionIVA = costoTotal * 0.08;      
+                const retencionISR = costoTotal * 0.10;      
+                
+                // 🔥 LA DEUDA: El técnico se queda el efectivo, así que su "pago" en plataforma es negativo (lo que nos debe).
+                const deudaTecnico = -(costoTotal * 0.32);
 
                 await actualizarEstado(id, "finalizado", {
                     evidencia: { antes: b64_1, despues: b64_2 },
@@ -1572,12 +1534,14 @@ export async function iniciarPanelTecnico(user) {
                     tecnico_id: user.uid, 
                     monto_total: costoTotal,
                     comision_fixgo: comisionFixGoPura, 
-                    aporte_garantia: aporteGarantia, // <-- REGISTRO EN BI
+                    aporte_garantia: aporteGarantia, 
                     retencion_iva: retencionIVA,    
                     retencion_isr: retencionISR,    
-                    pago_tecnico: pagoNetoTecnico, 
+                    // Fase 0: El técnico debe el 32% del efectivo que cobró
+                    pago_tecnico: deudaTecnico, 
                     fecha: serverTimestamp(),
-                    tipo: "ingreso_servicio"
+                    tipo: "ingreso_servicio",
+                    metodo_pago: "efectivo"
                 });
 
                 // BONUS DE REPUTACIÓN AUTOMÁTICO
@@ -1587,7 +1551,7 @@ export async function iniciarPanelTecnico(user) {
                 });
 
                 document.getElementById("modalEvidencia").remove();
-                alert(" ✅  ¡Servicio Cerrado Exitosamente! Comisión, Seguro y Retenciones aplicadas.");
+                alert(" ✅  ¡Servicio Cerrado! Has cobrado en efectivo. La comisión de FixGo (32%) ha sido descontada de tu balance.");
             } catch (e) {
                 console.error(e);
                 alert("Error subiendo imágenes. Intenta fotos más pequeñas.");
@@ -1691,10 +1655,10 @@ export async function iniciarPanelTecnico(user) {
 }
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.14.0
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.15.0
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
-    console.log(" 📱  Iniciando Panel de Cliente (Modo Stripe/CFDI)...");
+    console.log(" 📱  Iniciando Panel de Cliente (Modo Bootstrapping / Efectivo)...");
 
     const el = {
         form: document.getElementById("nuevaSolicitudForm"),
@@ -1850,9 +1814,8 @@ export async function iniciarPanelCliente(user) {
             const btn = el.form.querySelector("button");
             const textoOriginal = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO PAGO...`;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO...`;
             
-            // Simulación de delay de Stripe
             setTimeout(() => {
                 btn.innerHTML = `<i class="fas fa-satellite-dish"></i> OBTENIENDO UBICACIÓN...`;
                 if (navigator.geolocation) {
@@ -1872,7 +1835,7 @@ export async function iniciarPanelCliente(user) {
                 } else {
                     enviarSolicitudFinal(cat, dir, desc, null, requiereFactura, datosFacturacion);
                 }
-            }, 1500);
+            }, 500); // Reducido el timeout ya que no hay Stripe real
             
             async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords, reqFac, datosFac) {
                 const partes = categoriaFull.split('_');
@@ -1892,17 +1855,15 @@ export async function iniciarPanelCliente(user) {
                         estado: "pendiente",
                         zona: "Cancún",
                         created_at: serverTimestamp(),
-                        retencion_inicial: 550,
+                        retencion_inicial: 0, // No retenemos nada en Fase 0
                         costo_final: 0,
                         coords: coords,
-                        // INYECCIÓN CFDI Y STRIPE SIMULADO
-                        pago_garantia_id: "pi_simulado_" + Math.random().toString(36).substr(2, 9),
                         factura_requerida: reqFac,
                         datos_facturacion: datosFac,
                         factura_enviada: false
                     });
                     
-                    alert(" ✅  ¡Pago de garantía autorizado y Solicitud Enviada!\nBuscando técnico cercano...");
+                    alert(" ✅  ¡Solicitud Enviada!\nBuscando técnico cercano...");
                     el.form.reset();
                     if(el.toggleFactura) {
                         el.toggleFactura.checked = false;
@@ -1944,7 +1905,7 @@ export async function iniciarPanelCliente(user) {
 
                 // LA NOTIFICACIÓN TRIUNFAL DE COBRO
                 if (newData.estado === 'finalizado') {
-                    alert("✅ ¡Servicio terminado y cobro a tu tarjeta procesado con éxito vía Stripe!\n\nRevisa tu ticket final y evidencia en pantalla.");
+                    alert("✅ ¡Servicio terminado!\n\nRecuerda realizar el pago en efectivo al técnico. Revisa tu ticket final en pantalla.");
                 }
             }
         });
@@ -2013,7 +1974,7 @@ export async function iniciarPanelCliente(user) {
                     <div class="mt-2 p-2 bg-black/50 rounded border border-white/5">
                         <p class="legal-note" style="font-size: 8px; color: #666;">* SI HUBIERA CANCELACION TOTAL O PARCIAL... PENALIZACION DEL 20%.</p>
                         <p class="legal-note" style="font-size: 8px; color: #666;">* GARANTIA POR ESCRITO MINIMO DE 6 MESES.</p>
-                        <p class="legal-note mt-2 text-blue-400 font-bold"><i class="fab fa-stripe"></i> El cobro se realizará automáticamente a la tarjeta vinculada.</p>
+                        <p class="legal-note mt-2 text-emerald-500 font-bold"><i class="fas fa-hand-holding-usd"></i> Pago en EFECTIVO directo al técnico al finalizar.</p>
                     </div>
                     <div class="flex gap-2 mt-4">
                         <button onclick="window.responderCotizacion('${id}', false)" class="flex-1 bg-red-900/50 hover:bg-red-900 text-red-200 text-xs py-3 rounded-lg font-bold transition-colors">
@@ -2030,11 +1991,11 @@ export async function iniciarPanelCliente(user) {
                 <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-xl mt-2">
                     <div class="flex justify-between items-center mb-3">
                         <span class="text-emerald-500 font-black text-xs uppercase tracking-widest">TICKET FINAL</span>
-                        <span class="bg-emerald-500 text-black text-[9px] font-bold px-2 py-0.5 rounded">COBRADO</span>
+                        <span class="bg-emerald-500 text-black text-[9px] font-bold px-2 py-0.5 rounded">FINALIZADO</span>
                     </div>
                     <div class="space-y-2 mb-4">
                         <div class="flex justify-between text-lg text-white font-black">
-                            <span>TOTAL:</span>
+                            <span>TOTAL PAGADO:</span>
                             <span>$${s.costo_final}</span>
                         </div>
                     </div>
@@ -2046,7 +2007,7 @@ export async function iniciarPanelCliente(user) {
                     <button onclick="window.generarPDF('${id}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2">
                         <i class="fas fa-file-download text-red-500"></i> DESCARGAR REPORTE FISCAL
                     </button>
-                    ${s.factura_requerida ? `<p class="text-[9px] text-center mt-3 text-blue-400 italic">Factura CFDI solicitada. Te llegará por correo.</p>` : ''}
+                    ${s.factura_requerida ? `<p class="text-[9px] text-center mt-3 text-emerald-400 italic">Factura CFDI solicitada. Te llegará por correo.</p>` : ''}
                 </div>
                 `;
             }
@@ -2141,14 +2102,13 @@ export async function iniciarPanelCliente(user) {
                     const sfDoc = await transaction.get(serviceRef);
                     if (!sfDoc.exists()) throw "NO_EXISTE";
                     
-                    // Valida que no se haya cancelado milisegundos antes
                     if (sfDoc.data().estado !== "cotizando") throw "ESTADO_INVALIDO";
                     
                     transaction.update(serviceRef, { estado: "trabajando" });
                 });
-                alert(" ✅  ¡Costo aprobado y retenido en Stripe! El técnico comenzará a trabajar ahora.");
+                alert(" ✅  ¡Costo aprobado! El técnico comenzará a trabajar ahora.");
             } else {
-                if(confirm(" ⚠  ¿Estás seguro de cancelar?\n\nAl haber llegado el técnico, se cobrará de la tarjeta la visita mínima ($550).")) {
+                if(confirm(" ⚠  ¿Estás seguro de cancelar?\n\nAl haber llegado el técnico, le deberás pagar el costo mínimo de visita ($550).")) {
                     // TÚNEL CUÁNTICO: Cancelar Servicio
                     await runTransaction(db, async (transaction) => {
                         const sfDoc = await transaction.get(serviceRef);
@@ -2165,7 +2125,7 @@ export async function iniciarPanelCliente(user) {
                             cancelado_razon: "Cliente rechazó cotización"
                         });
                     });
-                    alert(" 🚫  Servicio cancelado exitosamente. Se aplicó el cargo mínimo.");
+                    alert(" 🚫  Servicio cancelado exitosamente. Por favor, liquida el costo de visita al técnico.");
                 }
             }
         } catch (error) {
