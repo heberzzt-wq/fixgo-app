@@ -63,14 +63,20 @@
                     </div>
                 </div>
             </div>
-            <div class="uber-card p-6 rounded-2xl shadow-lg">
-                <div class="flex justify-between items-start">
+            <div class="uber-card p-6 rounded-2xl shadow-lg relative overflow-hidden">
+                <div class="flex justify-between items-start mb-2">
                     <div>
-                        <p class="text-gray-500 text-xs font-bold uppercase tracking-widest">Ingresos (32%)</p>
-                        <h3 class="text-3xl font-black text-white mt-1">$0.00</h3>
+                        <p class="text-gray-500 text-xs font-bold uppercase tracking-widest">Ingresos (FixGo 32%)</p>
+                        <h3 class="text-3xl font-black text-white mt-1" id="countMoneyFixgo">$0.00</h3>
                     </div>
                     <div class="bg-yellow-500/10 p-3 rounded-xl text-yellow-500">
                         <i class="fas fa-wallet"></i>
+                    </div>
+                </div>
+                <div class="border-t border-white/5 pt-3 mt-3">
+                    <div class="flex justify-between items-center bg-[#635BFF]/10 px-3 py-2 rounded-lg border border-[#635BFF]/20">
+                        <span class="text-[10px] text-gray-300 uppercase font-bold flex items-center gap-1"><i class="fab fa-stripe text-[#635BFF] text-lg"></i> Bóveda Stripe:</span>
+                        <span class="text-sm font-black text-blue-400" id="countBovedaStripe">$0.00</span>
                     </div>
                 </div>
             </div>
@@ -135,6 +141,24 @@
                 </div>
             </div>
         </div>
+
+        <div class="mt-8">
+            <div class="uber-card p-6 rounded-2xl shadow-2xl">
+                <div class="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
+                    <h2 class="font-black text-xl flex items-center gap-2">
+                        <i class="fas fa-file-invoice text-emerald-500"></i> Facturación CFDI (Solicitudes Pendientes)
+                    </h2>
+                    <span class="text-xs bg-emerald-900/30 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/30 font-bold" id="contadorFacturas">0 Solicitudes</span>
+                </div>
+                <div id="listaFacturasPendientes" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="col-span-full text-gray-500 italic text-sm text-center py-6">
+                        <i class="fas fa-check-circle text-2xl mb-2 text-zinc-700 block"></i>
+                        No hay solicitudes de facturas pendientes.
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </main>
 
     <div id="modalCatalogo" class="fixed inset-0 bg-black/90 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
