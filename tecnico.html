@@ -103,31 +103,25 @@
             </div>
 
         <div class="mt-8 mb-8">
-            <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Mi Cartera</h3>
+            <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Mi Cartera (Modo Efectivo)</h3>
             
-            <div class="bg-emerald-950/20 border border-emerald-500/20 p-6 rounded-[2rem] mb-4 shadow-xl relative overflow-hidden">
-                <div id="stripeConnectOverlay" class="absolute inset-0 bg-black/95 z-10 flex flex-col items-center justify-center p-6 text-center backdrop-blur-sm transition-all duration-500">
-                    <i class="fab fa-stripe text-[#635BFF] text-5xl mb-3"></i>
-                    <h4 class="text-white font-black text-lg mb-1">Activa tu cuenta de cobro</h4>
-                    <p class="text-xs text-gray-400 mb-4">Para recibir pagos directos y solicitar retiros, necesitas vincular tu cuenta bancaria de forma segura.</p>
-                    <button id="btnVincularStripe" class="bg-[#635BFF] hover:bg-[#524ac9] text-white font-bold py-3 px-6 rounded-xl text-xs w-full transition-all shadow-lg shadow-[#635BFF]/30 flex items-center justify-center gap-2">
-                        <i class="fas fa-link"></i> VINCULAR CUENTA AHORA
-                    </button>
-                </div>
-
+            <div class="bg-red-950/20 border border-red-500/20 p-6 rounded-[2rem] mb-4 shadow-xl relative overflow-hidden">
                 <div class="flex justify-between items-start mb-4">
                     <div>
-                        <p class="text-slate-400 text-xs font-bold uppercase">Saldo Disponible</p>
-                        <h4 id="walletSaldo" class="text-4xl font-black text-white">$0.00</h4>
+                        <p class="text-slate-400 text-xs font-bold uppercase">Balance (Deuda FixGo)</p>
+                        <h4 id="walletSaldo" class="text-4xl font-black text-red-500">$0.00</h4>
                     </div>
-                    <div class="bg-emerald-500/10 text-emerald-500 p-3 rounded-2xl flex flex-col items-center">
-                        <i class="fas fa-wallet text-xl mb-1"></i>
-                        <span id="badgeStripeStatus" class="text-[8px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded uppercase font-bold border border-green-500/30 hidden"><i class="fas fa-check-circle"></i> STRIPE OK</span>
+                    <div class="bg-red-500/10 text-red-500 p-3 rounded-2xl flex flex-col items-center">
+                        <i class="fas fa-hand-holding-usd text-xl"></i>
                     </div>
                 </div>
-                <button id="btnRetiro" disabled class="w-full py-4 bg-emerald-600/20 text-emerald-500 font-black rounded-xl cursor-not-allowed text-sm">
-                    SOLICITAR RETIRO (SPEI)
+                <p class="text-[9px] text-gray-400 mb-4 border-l-2 border-red-500 pl-2">Al cobrar en efectivo, retienes la comisión de FixGo (32%). Límite de deuda permitido: -$1,000 MXN.</p>
+                
+                <button onclick="document.getElementById('modalPagoDeuda').classList.remove('hidden')" class="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-sm shadow-lg shadow-red-900/20 transition-all transform active:scale-95 flex items-center justify-center gap-2">
+                    <i class="fas fa-file-invoice-dollar"></i> PAGAR MI DEUDA (SPEI/OXXO)
                 </button>
+                
+                <button id="btnRetiro" class="hidden"></button>
             </div>
 
             <div id="contenedorHistorialRetiros" class="hidden mb-6">
@@ -145,6 +139,43 @@
 
         </div>
     </main>
+
+    <div id="modalPagoDeuda" class="fixed inset-0 bg-black/95 z-[80] hidden flex flex-col p-4 animate-fade-in justify-center items-center backdrop-blur-sm">
+        <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-red-500/30 shadow-2xl relative">
+            <button onclick="document.getElementById('modalPagoDeuda').classList.add('hidden')" class="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
+            
+            <h2 class="text-xl font-black text-white mb-2"><i class="fas fa-university text-red-500"></i> Liquidar Deuda</h2>
+            <p class="text-xs text-gray-400 mb-6">Transfiere tu saldo pendiente a la cuenta oficial de FixGo para liberar tu billetera y seguir recibiendo viajes.</p>
+            
+            <div class="bg-black p-4 rounded-xl border border-zinc-800 space-y-3 mb-6 text-sm">
+                <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
+                    <span class="text-gray-500 font-bold text-xs uppercase">Banco</span>
+                    <span class="text-white font-black">BBVA Bancomer</span>
+                </div>
+                <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
+                    <span class="text-gray-500 font-bold text-xs uppercase">Beneficiario</span>
+                    <span class="text-white font-black">Heber (FixGo)</span>
+                </div>
+                <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
+                    <span class="text-gray-500 font-bold text-xs uppercase">CLABE SPEI</span>
+                    <span class="text-emerald-400 font-mono font-black tracking-widest text-xs">012345678901234567</span>
+                </div>
+                <div class="flex justify-between items-center pt-1">
+                    <span class="text-gray-500 font-bold text-xs uppercase">Concepto</span>
+                    <span class="text-white font-black text-xs bg-zinc-800 px-2 py-1 rounded">PAGO FIXGO</span>
+                </div>
+            </div>
+
+            <div class="bg-zinc-800/50 p-3 rounded-lg flex gap-3 items-start mb-6 border border-zinc-700">
+                <i class="fas fa-info-circle text-blue-400 text-lg mt-0.5"></i>
+                <p class="text-[10px] text-gray-300 leading-tight">Después de transferir o depositar en OXXO, envía el comprobante por WhatsApp a Soporte para aplicar tu saldo a favor.</p>
+            </div>
+
+            <a href="https://wa.me/529980000000?text=Hola,%20adjunto%20mi%20comprobante%20de%20pago%20de%20deuda%20FixGo." target="_blank" class="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl text-sm transition-all shadow-lg transform active:scale-95 flex justify-center items-center gap-2 text-center">
+                <i class="fab fa-whatsapp text-xl"></i> ENVIAR COMPROBANTE
+            </a>
+        </div>
+    </div>
 
     <div id="panelAcciones" class="fixed bottom-0 left-0 w-full bg-zinc-900 border-t border-zinc-800 p-6 z-50 rounded-t-[2rem] translate-y-full">
         <div class="max-w-4xl mx-auto flex flex-col gap-3">
