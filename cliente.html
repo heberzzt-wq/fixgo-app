@@ -152,8 +152,49 @@
                         class="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl py-3 px-4 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-gray-600"></textarea>
                 </div>
 
-                <button type="submit" class="w-full bg-white text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg transform active:scale-95">
-                    SOLICITAR AHORA
+                <div class="mt-6 border-t border-zinc-800 pt-4">
+                    <h3 class="text-xs font-bold text-gray-400 mb-3 uppercase flex items-center gap-2">
+                        <i class="fab fa-stripe text-[#635BFF] text-xl"></i> Método de Pago (Garantía)
+                    </h3>
+                    <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3 space-y-3">
+                        <div class="relative">
+                            <i class="fas fa-credit-card absolute left-3 top-3 text-gray-500"></i>
+                            <input type="text" id="stripe_card" placeholder="Número de Tarjeta" class="w-full bg-black text-white rounded-lg py-2 pl-10 pr-3 focus:outline-none focus:border-[#635BFF] focus:ring-1 focus:ring-[#635BFF] text-sm font-mono placeholder-gray-600" required>
+                        </div>
+                        <div class="flex gap-3">
+                            <input type="text" id="stripe_exp" placeholder="MM/AA" class="w-1/2 bg-black text-white rounded-lg py-2 px-3 focus:outline-none focus:border-[#635BFF] focus:ring-1 focus:ring-[#635BFF] text-sm font-mono placeholder-gray-600" required>
+                            <input type="text" id="stripe_cvc" placeholder="CVC" class="w-1/2 bg-black text-white rounded-lg py-2 px-3 focus:outline-none focus:border-[#635BFF] focus:ring-1 focus:ring-[#635BFF] text-sm font-mono placeholder-gray-600" required>
+                        </div>
+                        <p class="text-[9px] text-gray-500 italic text-center mt-2"><i class="fas fa-lock text-emerald-500"></i> Solo retendremos temporalmente $550.00 MXN</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 border-t border-zinc-800 pt-4 pb-2">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-xs font-bold text-gray-300 uppercase flex items-center gap-2"><i class="fas fa-file-invoice-dollar text-emerald-500"></i> Requiero Factura (CFDI)</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggleFactura" class="sr-only peer" onchange="document.getElementById('datosFacturacion').classList.toggle('hidden', !this.checked)">
+                            <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
+                    </div>
+                    
+                    <div id="datosFacturacion" class="hidden space-y-3 bg-black p-4 rounded-xl border border-zinc-800 transition-all">
+                        <input type="text" id="fac_rfc" name="fac_rfc" placeholder="RFC" class="w-full bg-zinc-900 text-white rounded-lg py-2 px-3 focus:outline-none focus:border-emerald-500 border border-zinc-800 text-sm placeholder-gray-500 uppercase">
+                        <input type="text" id="fac_razon" name="fac_razon" placeholder="Razón Social" class="w-full bg-zinc-900 text-white rounded-lg py-2 px-3 focus:outline-none focus:border-emerald-500 border border-zinc-800 text-sm placeholder-gray-500">
+                        <div class="flex gap-3">
+                            <input type="text" id="fac_cp" name="fac_cp" placeholder="Código Postal" class="w-1/2 bg-zinc-900 text-white rounded-lg py-2 px-3 focus:outline-none focus:border-emerald-500 border border-zinc-800 text-sm placeholder-gray-500">
+                            <select id="fac_regimen" name="fac_regimen" class="w-1/2 bg-zinc-900 text-white rounded-lg py-2 px-3 focus:outline-none focus:border-emerald-500 border border-zinc-800 text-xs text-gray-400">
+                                <option value="">Régimen Fiscal...</option>
+                                <option value="601">General de Ley Personas Morales</option>
+                                <option value="612">Personas Físicas con Actividades Empresariales</option>
+                                <option value="626">RESICO</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-white text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg transform active:scale-95 flex items-center justify-center gap-2 mt-4">
+                    <i class="fas fa-shield-alt"></i> SOLICITAR AHORA
                 </button>
             </form>
         </section>
