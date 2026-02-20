@@ -1060,9 +1060,9 @@ export async function iniciarPanelTecnico(user) {
             
             // En V5.15.0 el pago_tecnico para servicios finalizados en efectivo es NEGATIVO.
             // Por lo tanto, se irá restando automáticamente de saldoBrutoDisponible.
-            if (tx.tipo === "retiro_fondos" || tx.tipo === "penalizacion") { 
-                saldoBrutoDisponible += monto; 
-            } else {
+           if (tx.tipo === "retiro_fondos" || tx.tipo === "penalizacion" || tx.tipo === "abono_deuda") { 
+    saldoBrutoDisponible += monto; 
+} else {
                 if (tx.fecha && tx.fecha.toDate) {
                     const fechaTx = tx.fecha.toDate();
                     const diffHoras = Math.abs(ahora - fechaTx) / 36e5;
