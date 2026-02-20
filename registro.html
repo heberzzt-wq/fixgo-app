@@ -60,7 +60,7 @@
 
                     <label class="flex items-start gap-3 py-2 cursor-pointer">
                         <input type="checkbox" id="chkTerminosCliente" class="w-5 h-5 mt-0.5 accent-indigo-500 rounded">
-                        <span class="text-xs text-gray-400 leading-tight">He leído y acepto los <button type="button" onclick="document.getElementById('modalTerminos').classList.remove('hidden')" class="text-indigo-400 underline font-bold">Términos y Condiciones</button> y el <button type="button" onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="text-indigo-400 underline font-bold">Aviso de Privacidad</button>.</span>
+                        <span class="text-xs text-gray-400 leading-tight">He leído y acepto los <button type="button" id="linkTerminosCliente" class="text-indigo-400 underline font-bold">Términos y Condiciones</button> y el <button type="button" onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="text-indigo-400 underline font-bold">Aviso de Privacidad</button>.</span>
                     </label>
                     
                     <button type="submit" id="btnRegistroCliente" class="w-full bg-indigo-500 py-5 rounded-2xl font-black text-lg shadow-lg shadow-indigo-500/20 hover:bg-indigo-600 transition-all">
@@ -154,7 +154,7 @@
 
                     <label class="flex items-start gap-3 py-2 mt-4 cursor-pointer">
                         <input type="checkbox" id="chkTerminosTecnico" class="w-5 h-5 mt-0.5 accent-emerald-500 rounded">
-                        <span class="text-xs text-gray-400 leading-tight">Al registrarme como Socio, acepto los <button type="button" onclick="document.getElementById('modalTerminos').classList.remove('hidden')" class="text-emerald-400 underline font-bold">Términos y Condiciones</button> y el <button type="button" onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="text-emerald-400 underline font-bold">Aviso de Privacidad</button>.</span>
+                        <span class="text-xs text-gray-400 leading-tight">Al registrarme como Socio, acepto los <button type="button" id="linkTerminosTecnico" class="text-emerald-400 underline font-bold">Términos y Condiciones</button> y el <button type="button" onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="text-emerald-400 underline font-bold">Aviso de Privacidad</button>.</span>
                     </label>
                     
                     <button type="submit" id="btnRegistroTecnico" class="w-full bg-emerald-500 py-5 rounded-2xl font-black text-lg text-black shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all uppercase tracking-tight">
@@ -164,26 +164,39 @@
             </div>
 
         </section>
-        <div id="modalTerminos" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4">
+
+        <div id="modalTerminosCliente" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4">
             <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-zinc-700 shadow-2xl flex flex-col max-h-[80vh]">
                 <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
-                    <h3 class="text-white font-black text-xl">Términos y Condiciones</h3>
-                    <button type="button" onclick="document.getElementById('modalTerminos').classList.add('hidden')" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+                    <h3 class="text-white font-black text-xl">Términos y Condiciones de Uso (Clientes)</h3>
+                    <button type="button" id="btnCerrarTerminosCliente" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
                 </div>
                 <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
-                    <h4 class="text-white font-bold text-sm">PARTE A: PARA CLIENTES (USUARIOS)</h4>
-                    <p><strong>1. Naturaleza del Servicio:</strong> FixGo es una plataforma tecnológica de intermediación. No presta servicios de reparación directa. Los servicios son prestados por Técnicos independientes.</p>
-                    <p><strong>2. Presupuestos y Pagos:</strong> El Cliente pagará el 100% en EFECTIVO al Técnico. Si el Cliente rechaza la cotización con el Técnico en sitio, pagará una tarifa fija de $550.00 MXN por diagnóstico/traslado.</p>
-                    <p><strong>3. Cancelaciones:</strong> Cancelar un servicio con el Técnico en ruta generará cargos al método de pago en garantía.</p>
-                    <p><strong>4. Garantía:</strong> Se amparan 6 meses de garantía sobre mano de obra si el servicio fue finalizado oficialmente en la app con evidencia.</p>
-                    
-                    <h4 class="text-white font-bold text-sm mt-6">PARTE B: PARA SOCIOS TÉCNICOS</h4>
-                    <p><strong>1. Relación Comercial:</strong> El Técnico es un Contratista Independiente. No existe relación obrero-patronal.</p>
-                    <p><strong>2. Comisiones:</strong> El Técnico cobra el 100% en efectivo. FixGo cobra un 32% de comisión que se reflejará como "Deuda" en su Billetera. Debe liquidarse vía SPEI para evitar suspensión.</p>
-                    <p><strong>3. Anti-Fraude:</strong> Cancelar servicios tras 5 minutos genera $50 MXN de multa. Es obligatorio usar el GPS en sitio y subir fotos veraces. La suplantación de identidad causa baja definitiva.</p>
+                    <p><strong>1. Naturaleza del Servicio:</strong> FixGo es una plataforma tecnológica de intermediación. No presta servicios de reparación directa. Los servicios son prestados por Técnicos independientes ("Socios Pro").</p>
+                    <p><strong>2. Presupuestos y Pagos:</strong> El Cliente pagará el 100% del costo del servicio directamente al Técnico, según lo acordado en sitio. Si el Cliente solicita la visita y rechaza la cotización con el Técnico ya en sitio, se compromete a pagar una tarifa fija de $550.00 MXN por concepto de diagnóstico y traslado.</p>
+                    <p><strong>3. Cancelaciones:</strong> Cancelar un servicio después de que el Técnico ha sido asignado y se encuentra en ruta generará cargos al método de pago registrado como garantía.</p>
+                    <p><strong>4. Garantía:</strong> Se amparan 6 meses de garantía sobre la mano de obra, única y exclusivamente si el servicio fue documentado y finalizado oficialmente a través de la aplicación FixGo con la evidencia fotográfica correspondiente.</p>
                 </div>
                 <div class="mt-4 pt-4 border-t border-zinc-800 text-center">
-                    <button type="button" onclick="document.getElementById('modalTerminos').classList.add('hidden')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
+                    <button type="button" onclick="document.getElementById('modalTerminosCliente').classList.add('hidden')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="modalTerminosTecnico" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4">
+            <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-emerald-700 shadow-2xl flex flex-col max-h-[80vh]">
+                <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
+                    <h3 class="text-emerald-400 font-black text-xl">Contrato de Prestación de Servicios (Socios Pro)</h3>
+                    <button type="button" id="btnCerrarTerminosTecnico" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+                </div>
+                <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
+                    <p><strong>1. Relación Comercial:</strong> Al registrarse como Socio Pro, usted actúa como Contratista Independiente. No existe relación obrero-patronal, subordinación ni exclusividad con FixGo. Usted provee sus propias herramientas, vehículos y horarios.</p>
+                    <p><strong>2. Comisiones y Pagos:</strong> Usted cobrará el 100% del servicio en efectivo o transferencia directa del cliente. Por el uso de la plataforma, FixGo cobrará una comisión del 32% sobre cada servicio completado. Esta comisión se reflejará como "Deuda" en su Billetera FixGo y deberá ser liquidada vía SPEI periódicamente para evitar la suspensión de su cuenta.</p>
+                    <p><strong>3. Políticas Anti-Fraude:</strong> Cancelar servicios asignados injustificadamente después de 5 minutos de aceptación generará una penalización de $50 MXN. Es obligatorio el uso de GPS en sitio y subir fotografías reales de evidencia del servicio. La suplantación de identidad o perfiles falsos causará la baja definitiva e inmediata de la plataforma.</p>
+                    <p><strong>4. Responsabilidad Civil:</strong> El Socio Pro es el único responsable legal por daños causados a la propiedad del cliente durante la ejecución del servicio.</p>
+                </div>
+                <div class="mt-4 pt-4 border-t border-zinc-800 text-center">
+                    <button type="button" onclick="document.getElementById('modalTerminosTecnico').classList.add('hidden')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
                 </div>
             </div>
         </div>
@@ -202,7 +215,7 @@
                     <p><strong>5. Derechos ARCO:</strong> Puede ejercer sus derechos de Acceso, Rectificación, Cancelación u Oposición contactando a soporte técnico en la plataforma.</p>
                 </div>
                 <div class="mt-4 pt-4 border-t border-zinc-800 text-center">
-                    <button type="button" onclick="document.getElementById('modalPrivacidad').classList.add('hidden')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
+                    <button type="button" onclick="document.getElementById('modalPrivacidad').classList.add('hidden')" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
                 </div>
             </div>
         </div>
