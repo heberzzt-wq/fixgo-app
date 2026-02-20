@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.15.1 (FASE 0: UBER CASH MODEL + SHARK MODE BLINDADO + AUDITORÍA)
+ * Versión: 5.16.0 (FASE 0: UBER CASH MODEL + SHARK MODE BLINDADO + LOGISTICS SHIELD)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -97,13 +97,13 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.15.1: UBER CASH MODEL (EFECTIVO) + SHARK MODE ACTIVATED.");
+console.log(" 🚀  FIXGO 5.16.0: UBER CASH MODEL (EFECTIVO) + SHARK MODE ACTIVATED.");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
 // ======================================================================================
 export async function iniciarPanelAdmin(user) {
-    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.15.0 - Bootstrapping)...");
+    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.16.0 - Bootstrapping)...");
     
     // 🚨 CANDADO DE SEGURIDAD MAESTRO: Validación estricta de rol
     if (!user || user.rol !== "admin") {
@@ -485,7 +485,38 @@ export async function iniciarPanelAdmin(user) {
         }
     };
 
-    // 🔥 EXPEDIENTES DESBLOQUEADOS (ADMIN VIEW)
+    // 🔥 FUNCION ADMIN: CAMBIO FORZADO DE FOTO DE PERFIL
+    window.adminCambiarFotoTecnico = async (uid) => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    await updateDoc(doc(db, "users", uid), {
+                        foto_perfil: event.target.result,
+                        fotoPerfil: event.target.result // Compatibilidad
+                    });
+                    alert("✅ Foto del técnico actualizada exitosamente por el Administrador.");
+                    
+                    // Recargar el modal para ver los cambios de inmediato
+                    const modal = document.getElementById('modalExpediente');
+                    if(modal) modal.remove();
+                    window.verExpediente(uid); 
+                } catch(err) {
+                    console.error("Error subiendo foto:", err);
+                    alert("Error al actualizar la foto de perfil en el servidor.");
+                }
+            };
+            reader.readAsDataURL(file);
+        };
+        fileInput.click();
+    };
+
+    // 🔥 EXPEDIENTES DESBLOQUEADOS Y BLINDADOS (ADMIN VIEW V5.16.0)
     window.verExpediente = async (uid) => {
         if(document.getElementById("modalExpediente")) return;
         try {
@@ -495,15 +526,35 @@ export async function iniciarPanelAdmin(user) {
 
             const fotoUrl = t.foto_perfil || t.fotoPerfil || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.nombre)}&background=random`;
             
+            // --- Validaciones de Identidad ---
             const ineCheck = t.documentos?.ine ? '<span class="text-emerald-400"><i class="fas fa-check-circle"></i> Cargado</span>' : '<span class="text-red-500"><i class="fas fa-times-circle"></i> Faltante</span>';
             const csfCheck = t.documentos?.csf ? '<span class="text-emerald-400"><i class="fas fa-check-circle"></i> Cargado</span>' : '<span class="text-red-500"><i class="fas fa-times-circle"></i> Faltante</span>';
 
+            // --- Validaciones de Logística Operativa (Vehículo y Licencia) ---
+            const vehiculo = t.vehiculo || {};
+            const tipoVehiculo = vehiculo.tipo || 'NO REGISTRADO';
+            const placas = vehiculo.placas || 'N/A';
+            const licenciaCheck = t.documentos?.licencia ? '<span class="text-emerald-400"><i class="fas fa-check-circle"></i> Vigente</span>' : '<span class="text-red-500"><i class="fas fa-times-circle"></i> Faltante</span>';
+
+            // --- Validaciones de Certificados Técnicos ---
+            let certsHTML = '';
+            if (t.documentos && t.documentos.certificados && t.documentos.certificados.length > 0) {
+                certsHTML = t.documentos.certificados.map(c => `<span class="bg-emerald-900/30 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-500/50 mr-1 mb-1 inline-block"><i class="fas fa-award"></i> Validado</span>`).join('');
+            } else {
+                certsHTML = '<span class="text-red-500 text-xs font-bold"><i class="fas fa-times-circle"></i> Sin documentos de respaldo</span>';
+            }
+
             const html = `
             <div id="modalExpediente" class="fixed inset-0 bg-black/95 z-[70] flex items-center justify-center p-4 animate-fade-in">
-                <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700 shadow-2xl">
+                <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700 shadow-2xl overflow-y-auto max-h-[90vh]">
                     <div class="flex justify-between items-start mb-6 border-b border-zinc-800 pb-4">
                         <div class="flex items-center gap-4">
-                            <img src="${fotoUrl}" class="w-16 h-16 rounded-full border-2 border-blue-500 object-cover shadow-lg" alt="Foto">
+                            <div class="relative inline-block">
+                                <img src="${fotoUrl}" class="w-16 h-16 rounded-full border-2 border-blue-500 object-cover shadow-lg" alt="Foto">
+                                <button onclick="window.adminCambiarFotoTecnico('${uid}')" class="absolute -bottom-2 -right-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center border-2 border-zinc-900 transition-colors shadow-lg" title="Cambiar Foto">
+                                    <i class="fas fa-camera text-[10px]"></i>
+                                </button>
+                            </div>
                             <div>
                                 <h3 class="text-white font-black text-lg uppercase">${escaparHTML(t.nombre)}</h3>
                                 <p class="text-blue-400 text-xs font-bold">EXPEDIENTE CONFIDENCIAL</p>
@@ -528,6 +579,28 @@ export async function iniciarPanelAdmin(user) {
                                 <span class="text-white">Constancia Fiscal (CSF):</span> ${csfCheck}
                             </div>
                         </div>
+
+                        <div class="bg-black p-3 rounded-xl border border-zinc-800">
+                            <p class="text-[10px] text-gray-500 font-bold uppercase mb-1"><i class="fas fa-motorcycle"></i> Logística Operativa</p>
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-sm text-white">Vehículo:</span>
+                                <span class="text-sm text-blue-400 font-bold uppercase">${escaparHTML(tipoVehiculo)}</span>
+                            </div>
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-sm text-white">Placas:</span>
+                                <span class="text-sm text-blue-400 font-mono uppercase bg-blue-900/30 px-2 py-0.5 rounded border border-blue-500/30">${escaparHTML(placas)}</span>
+                            </div>
+                            <div class="flex justify-between text-sm mt-2 border-t border-zinc-800 pt-2">
+                                <span class="text-white">Licencia de Conducir:</span> ${licenciaCheck}
+                            </div>
+                        </div>
+
+                        <div class="bg-black p-3 rounded-xl border border-zinc-800">
+                            <p class="text-[10px] text-gray-500 font-bold uppercase mb-2"><i class="fas fa-certificate"></i> Credenciales y Especialidades</p>
+                            <div class="flex flex-wrap">
+                                ${certsHTML}
+                            </div>
+                        </div>
                         
                         <div class="bg-black p-3 rounded-xl border border-zinc-800">
                             <p class="text-[10px] text-gray-500 font-bold uppercase mb-1"><i class="fas fa-phone"></i> Contacto</p>
@@ -537,7 +610,7 @@ export async function iniciarPanelAdmin(user) {
                     </div>
 
                     <div class="mt-6">
-                        <button onclick="document.getElementById('modalExpediente').remove()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition-colors">
+                        <button onclick="document.getElementById('modalExpediente').remove()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-lg">
                             CERRAR EXPEDIENTE
                         </button>
                     </div>
@@ -856,7 +929,7 @@ function generarSwitchGranular(id, label, checked) {
 }
 // ======================================================================================
 // ======================================================================================
-// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.15.1 SHARK MODE)
+// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.16.0 SHARK MODE)
 // ======================================================================================
 export async function iniciarPanelTecnico(user) {
     console.log(" 🔧  Iniciando Panel de Técnico (Modo Uber Cash / Billetera Negativa / Shark Blindaje)...");
@@ -1883,7 +1956,7 @@ export async function iniciarPanelTecnico(user) {
 }
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.15.1
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.16.0
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
     console.log(" 📱  Iniciando Panel de Cliente (Modo Bootstrapping / Efectivo / Shark Blindado)...");
