@@ -2,13 +2,12 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 6.0 (LOGISTICS & COMPLIANCE GATEWAY + SHARK MODE)
- * Base: V5.9.1
+ * Versión: 6.1 (LOGISTICS + SHARK MODE + EMAIL GATEKEEPER)
  * Autor: Heber (CEO & Lead Architect)
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR.
  * ======================================================
  */
-console.log(" 🚀 [app-registro.js] Inicializando sistema V6.0 (Compliance, Logística y Credenciales)...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema V6.1 (Compliance, Logística y Gatekeeper de Correo)...");
 
 import { 
     auth, 
@@ -26,12 +25,12 @@ import {
 import { 
     GoogleAuthProvider, 
     signInWithPopup, 
-    deleteUser 
+    deleteUser,
+    sendEmailVerification // 🔥 INYECCIÓN V6.1: EL VERDUGO DE CORREOS
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 /**
  * 🦈 SANITIZADOR MAESTRO (PREVENCIÓN XSS)
- * Protege contra inyección de código en los inputs antes de ir a Firebase
  */
 const escaparHTML = (str) => {
     if (str === null || str === undefined) return '';
@@ -45,7 +44,6 @@ const escaparHTML = (str) => {
 
 /**
  * 🔐 VALIDACIÓN ENTERPRISE DE CONTRASEÑA
- * Mínimo 8 caracteres, al menos 1 mayúscula y 1 número.
  */
 const validarPassword = (pwd) => {
     const re = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
@@ -67,8 +65,6 @@ const verificarRateLimit = () => {
 // ======================================================
 // 📸 UTILIDAD DE CONVERSIÓN DE IMÁGENES A BASE64
 // ======================================================
-// Convertimos los archivos localmente a Base64 para guardarlos en Firestore
-// mientras se implementa Firebase Storage a nivel global.
 const fileToBase64 = file => new Promise((resolve, reject) => {
     if (!file) {
         resolve(null);
@@ -83,19 +79,16 @@ const fileToBase64 = file => new Promise((resolve, reject) => {
 // ======================================================
 // 0. CONFIGURACIÓN DE STRIPE (TOKENIZACIÓN)
 // ======================================================
-// Clave Pública proporcionada por Heber (Modo Test)
 const STRIPE_PUBLIC_KEY = 'pk_test_51SuznMFB3c4okYlKz7FZYdaftLAmuBWkO1cGlHDrzxbON37J8STqFtDsG6apf7zup4YJTmFbyVtmzdqIV0icjxeX00YVsW2OHU';
 let stripe = null;
 let elements = null;
 let cardElement = null;
 
-// Inicializamos Stripe solo si estamos en una página que lo requiera
 async function iniciarStripe() {
     if (window.Stripe) {
         stripe = window.Stripe(STRIPE_PUBLIC_KEY);
         elements = stripe.elements();
         
-        // Estilos base para el input de tarjeta (Dark Mode Friendly)
         const style = {
             base: {
                 color: "#ffffff",
@@ -112,18 +105,16 @@ async function iniciarStripe() {
             }
         };
 
-        // Montamos el elemento de tarjeta si existe el contenedor en el HTML
         if (document.getElementById("card-element")) {
             cardElement = elements.create("card", { style: style, hidePostalCode: true });
             cardElement.mount("#card-element");
             console.log(" 💳 Widget de Stripe montado correctamente.");
         }
     } else {
-        console.warn(" ⚠️ Librería Stripe.js no detectada en el HTML. Asegúrate de incluir el script en el head.");
+        console.warn(" ⚠️ Librería Stripe.js no detectada en el HTML.");
     }
 }
 
-// Intentamos iniciar Stripe al cargar el script
 if(document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', iniciarStripe);
 } else {
@@ -133,45 +124,38 @@ if(document.readyState === 'loading') {
 const $ = (id) => document.getElementById(id);
 
 // ======================================================
-// A. LÓGICA DE REGISTRO DE CLIENTES (CON METODO DE PAGO)
+// A. LÓGICA DE REGISTRO DE CLIENTES 
 // ======================================================
 const btnRegistroCliente = $("btnRegistroCliente");
 if (btnRegistroCliente) {
     btnRegistroCliente.addEventListener("click", async (e) => {
         e.preventDefault();
         
-        if (!verificarRateLimit()) return; // 🦈 Protección Anti-Bot
+        if (!verificarRateLimit()) return;
         
         const form = document.getElementById("formRegistroCliente");
         if (!form) return;
 
-        // 🧹 Sanitización Inmediata
         const nombre = escaparHTML(form.querySelector('[name="nombre"]')?.value.trim());
         const email = form.querySelector('[name="email"]')?.value.trim().toLowerCase();
         const password = form.querySelector('[name="password"]')?.value.trim();
         const telefono = escaparHTML(form.querySelector('[name="telefono"]')?.value.trim());
 
         if (!nombre || !email || !password || !telefono) {
-            alert("⚠️ Por favor, completa todos los campos personales.");
-            return;
+            alert("⚠️ Por favor, completa todos los campos personales."); return;
         }
 
-        // 🔐 Validación Enterprise
         if (!validarPassword(password)) {
-            alert("🔒 SEGURIDAD: La contraseña debe tener mínimo 8 caracteres, incluir al menos 1 mayúscula y 1 número.");
-            return;
+            alert("🔒 SEGURIDAD: La contraseña debe tener mínimo 8 caracteres, incluir al menos 1 mayúscula y 1 número."); return;
         }
-        // ⚖️ VALIDACIÓN LEGAL (TÉRMINOS Y PRIVACIDAD)
+        
         const termsAceptados = document.getElementById("chkTerminosCliente")?.checked;
         if (!termsAceptados) {
-            alert("⚖️ Obligatorio: Debes marcar la casilla aceptando los Términos y Condiciones y el Aviso de Privacidad para poder registrarte.");
-            return;
+            alert("⚖️ Obligatorio: Debes marcar la casilla aceptando los Términos y Condiciones."); return;
         }
 
-        // VALIDACIÓN DE STRIPE (OBLIGATORIO PARA GARANTÍA)
         if (!stripe || !cardElement) {
-            alert("⚠️ Error: El sistema de pagos no está cargado. Recarga la página.");
-            return;
+            alert("⚠️ Error: El sistema de pagos no está cargado. Recarga la página."); return;
         }
 
         let usuarioAuth = null;
@@ -181,19 +165,19 @@ if (btnRegistroCliente) {
             btnRegistroCliente.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con el Banco...';
             btnRegistroCliente.disabled = true;
 
-            // 1. TOKENIZACIÓN DE TARJETA CON STRIPE
             const { token, error } = await stripe.createToken(cardElement);
 
             if (error) {
-                throw new Error(error.message); // Error de tarjeta inválida, fecha exp, etc.
+                throw new Error(error.message); 
             }
 
             btnRegistroCliente.innerHTML = '<i class="fas fa-shield-alt"></i> Creando Bóveda...';
 
-            // 2. Intentamos crear en Auth (Esto ya hace el respaldo básico en DB por firebase.js)
             usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
 
-            // 3. RUTA MAESTRA: Guardamos los datos pesados y de pago SOLO en 'users'
+            // 🔥 INYECCIÓN V6.1: ENVIAR CORREO DE VALIDACIÓN AL CLIENTE
+            await sendEmailVerification(auth.currentUser);
+
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
@@ -212,18 +196,17 @@ if (btnRegistroCliente) {
                 }
             }, { merge: true });
 
-            alert(`¡Bienvenido, ${nombre}! Tu método de pago ha sido vinculado exitosamente.`);
-            window.location.href = "cliente.html";
+            // 🔥 DESCONECTAMOS AL USUARIO HASTA QUE VALIDE SU CORREO
+            await signOut(auth);
+
+            alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nTe hemos enviado un enlace al correo: ${email}.\n\n🛑 DEBES DARLE CLIC AL ENLACE PARA ACTIVAR TU CUENTA antes de poder iniciar sesión.`);
+            window.location.href = "login.html";
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
-            
-            // Reversión (Limpieza de huérfanos)
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
-                console.warn("⚠️ Revirtiendo registro: Borrando usuario de Auth por fallo.");
                 await deleteUser(auth.currentUser).catch(e => console.error("Error borrando huérfano:", e));
             }
-            
             manejarErroresAuth(error);
             btnRegistroCliente.innerHTML = textoOriginal;
             btnRegistroCliente.disabled = false;
@@ -232,19 +215,16 @@ if (btnRegistroCliente) {
 }
 
 // ======================================================
-// B. LÓGICA DE TÉCNICOS (COMPLIANCE, LOGÍSTICA Y BANCARIOS)
+// B. LÓGICA DE TÉCNICOS
 // ======================================================
 const btnRegistroTecnico = $("btnRegistroTecnico");
 
-// Variables para almacenar los archivos físicos antes de enviarlos a BD
 let archivoFotoPerfil = null;
 let archivoINE = null;
 let archivoCSF = null;
 let archivoLicencia = null;
-let archivosCertificados = []; // Puede ser más de uno
+let archivosCertificados = []; 
 
-// --- Listeners para los inputs de archivos ---
-// FOTO DE PERFIL
 if ($("btnSubirFoto")) {
     $("btnSubirFoto").addEventListener("click", () => $("inputFoto").click());
     $("inputFoto").addEventListener("change", (e) => {
@@ -257,7 +237,6 @@ if ($("btnSubirFoto")) {
     });
 }
 
-// INE
 if ($("btnSubirINE")) {
     $("btnSubirINE").addEventListener("click", () => $("inputINE").click());
     $("inputINE").addEventListener("change", (e) => {
@@ -270,7 +249,6 @@ if ($("btnSubirINE")) {
     });
 }
 
-// CSF
 if ($("btnSubirCSF")) {
     $("btnSubirCSF").addEventListener("click", () => $("inputCSF").click());
     $("inputCSF").addEventListener("change", (e) => {
@@ -283,7 +261,6 @@ if ($("btnSubirCSF")) {
     });
 }
 
-// LICENCIA DE CONDUCIR (Nuevo)
 if ($("btnSubirLicencia")) {
     $("btnSubirLicencia").addEventListener("click", () => $("inputLicencia").click());
     $("inputLicencia").addEventListener("change", (e) => {
@@ -296,11 +273,9 @@ if ($("btnSubirLicencia")) {
     });
 }
 
-// CERTIFICADOS / ESPECIALIDADES (Nuevo)
 if ($("btnSubirCertificados")) {
     $("btnSubirCertificados").addEventListener("click", () => $("inputCertificados").click());
     $("inputCertificados").addEventListener("change", (e) => {
-        // Permite selección múltiple
         archivosCertificados = Array.from(e.target.files);
         if(archivosCertificados.length > 0) {
             const btn = $("btnSubirCertificados");
@@ -314,67 +289,58 @@ if (btnRegistroTecnico) {
     btnRegistroTecnico.addEventListener("click", async (e) => {
         e.preventDefault();
         
-        if (!verificarRateLimit()) return; // 🦈 Protección Anti-Bot
+        if (!verificarRateLimit()) return;
         
         const form = document.getElementById("formRegistroTecnico");
         
-        // 🧹 Sanitización Inmediata
         const nombre = escaparHTML(form.querySelector('[name="nombre"]')?.value.trim());
         const email = form.querySelector('[name="email"]')?.value.trim().toLowerCase();
         const password = form.querySelector('[name="password"]')?.value.trim();
         const telefono = escaparHTML(form.querySelector('[name="telefono"]')?.value.trim());
         
-        // --- DATOS BANCARIOS ---
         const clabe = escaparHTML(form.querySelector('[name="clabe"]')?.value.trim());
         const banco = escaparHTML(form.querySelector('[name="banco"]')?.value.trim());
         
-        // --- LOGÍSTICA OPERATIVA ---
-        const tipoVehiculo = escaparHTML(form.querySelector('[name="tipoVehiculo"]')?.value) || "auto"; // Default
+        const tipoVehiculo = escaparHTML(form.querySelector('[name="tipoVehiculo"]')?.value) || "auto"; 
         const placas = escaparHTML(form.querySelector('[name="placas"]')?.value.trim().toUpperCase());
 
         if (!nombre || !email || !password || !telefono) {
-            alert("⚠️ Faltan campos obligatorios básicos (Nombre, Email, Contraseña, Teléfono)."); return;
+            alert("⚠️ Faltan campos obligatorios básicos."); return;
         }
 
-        // 🔐 Validación Enterprise
         if (!validarPassword(password)) {
-            alert("🔒 SEGURIDAD: La contraseña debe tener mínimo 8 caracteres, incluir al menos 1 mayúscula y 1 número.");
-            return;
+            alert("🔒 SEGURIDAD: La contraseña debe tener mínimo 8 caracteres, incluir al menos 1 mayúscula y 1 número."); return;
         }
 
         if (!clabe || clabe.length !== 18) {
-            alert("⚠️ La CLABE Interbancaria es obligatoria y debe tener exactamente 18 dígitos para recibir pagos."); return;
+            alert("⚠️ La CLABE Interbancaria debe tener exactamente 18 dígitos."); return;
         }
         if (!banco) {
             alert("⚠️ Ingresa el nombre de tu Banco."); return;
         }
         if (!placas && tipoVehiculo !== 'peaton') {
-            alert("⚠️ Debes ingresar las placas de tu vehículo para el registro logístico."); return;
+            alert("⚠️ Debes ingresar las placas de tu vehículo."); return;
         }
-        // ⚖️ VALIDACIÓN LEGAL (TÉRMINOS Y PRIVACIDAD)
+        
         const termsAceptados = document.getElementById("chkTerminosTecnico")?.checked;
         if (!termsAceptados) {
-            alert("⚖️ Obligatorio: Como Socio Especialista, debes marcar la casilla aceptando los Términos y el Aviso de Privacidad que rigen tu contrato.");
-            return;
+            alert("⚖️ Obligatorio: Acepta los Términos y el Aviso de Privacidad."); return;
         }
 
-        // 1. CAPTURA DE SKILLS (Habilidades)
         const skills = [];
         if(form.querySelector('[name="skill_road"]')?.checked) skills.push("road");
         if(form.querySelector('[name="skill_fix"]')?.checked) skills.push("fix");
         if(form.querySelector('[name="skill_tech"]')?.checked) skills.push("tech");
 
         if(skills.length === 0) {
-            alert("⚠️ Debes seleccionar al menos una especialidad (Skill).");
-            return;
+            alert("⚠️ Debes seleccionar al menos una especialidad (Skill)."); return;
         }
 
-        // VALIDACIÓN RIGUROSA DE DOCUMENTOS FÍSICOS (KYC + Logística)
         if (!archivoFotoPerfil) {
-            alert("📸 Faltante: Debes subir una fotografía de perfil clara para identificarte con el cliente."); return;
+            alert("📸 Faltante: Debes subir una fotografía de perfil."); return;
         }
         if (!archivoINE || !archivoCSF) {
-            alert("⚖️ Cumplimiento Legal (KYC): Es obligatorio subir la fotografía de tu INE y tu Constancia de Situación Fiscal (CSF)."); return;
+            alert("⚖️ Cumplimiento Legal: Es obligatorio subir tu INE y tu CSF."); return;
         }
         if (tipoVehiculo !== 'peaton' && !archivoLicencia) {
              alert("🚗 Logística: Si operas un vehículo, es obligatorio subir tu Licencia de Conducir."); return;
@@ -384,15 +350,15 @@ if (btnRegistroTecnico) {
         const textoOriginal = btnRegistroTecnico.innerHTML;
 
         try {
-            btnRegistroTecnico.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encriptando Datos y Documentos...';
+            btnRegistroTecnico.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encriptando Datos...';
             btnRegistroTecnico.disabled = true;
 
-            // 1. Registro en Auth (Respaldo básico manejado por firebase.js)
             usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
-            // 2. CONVERSIÓN MASIVA DE DOCUMENTOS A BASE64
-            // Nota de Arquitectura: Se usa Promise.all para procesamiento concurrente rápido
-            btnRegistroTecnico.innerHTML = '<i class="fas fa-file-upload animate-bounce"></i> Procesando Expediente Digital...';
+            // 🔥 INYECCIÓN V6.1: ENVIAR CORREO DE VALIDACIÓN AL TÉCNICO
+            await sendEmailVerification(auth.currentUser);
+
+            btnRegistroTecnico.innerHTML = '<i class="fas fa-file-upload animate-bounce"></i> Procesando Expediente...';
             
             const [b64Foto, b64INE, b64CSF, b64Licencia] = await Promise.all([
                 fileToBase64(archivoFotoPerfil),
@@ -401,13 +367,11 @@ if (btnRegistroTecnico) {
                 fileToBase64(archivoLicencia)
             ]);
 
-            // Procesamiento de certificados (Arreglo)
             let b64Certificados = [];
             if(archivosCertificados.length > 0) {
                 b64Certificados = await Promise.all(archivosCertificados.map(file => fileToBase64(file)));
             }
 
-            // 3. RUTA MAESTRA: Registro en DB CON EXPEDIENTE BLINDADO (users)
             btnRegistroTecnico.innerHTML = '<i class="fas fa-database animate-pulse"></i> Inyectando a Base de Datos...';
 
             await setDoc(doc(db, "users", usuarioAuth.uid), {
@@ -417,18 +381,13 @@ if (btnRegistroTecnico) {
                 telefono: telefono,
                 rol: "tecnico",
                 skills: skills,
-                foto_perfil: b64Foto, // Compatibilidad Principal
-                fotoPerfil: b64Foto,  // Compatibilidad Secundaria
+                foto_perfil: b64Foto, 
+                fotoPerfil: b64Foto,  
                 estado: "pendiente",
                 status: "pendiente",
                 disponible: false,
                 verificado: false,
-                // Estructura Logística V6.0
-                vehiculo: {
-                    tipo: tipoVehiculo,
-                    placas: placas
-                },
-                // Estructura de Cumplimiento (KYC) V6.0
+                vehiculo: { tipo: tipoVehiculo, placas: placas },
                 documentos: {
                     ine: b64INE,
                     csf: b64CSF,
@@ -436,7 +395,6 @@ if (btnRegistroTecnico) {
                     certificados: b64Certificados,
                     fecha_subida: serverTimestamp()
                 },
-                // Estructura Financiera
                 datos_bancarios: {
                     banco: banco,
                     clabe: clabe,
@@ -448,13 +406,15 @@ if (btnRegistroTecnico) {
                 creadoEn: serverTimestamp()
             }, { merge: true });
 
-            alert("✅ ¡Expediente Recibido! Tu vehículo, documentos y datos bancarios pasarán a revisión por el Administrador.");
-            window.location.href = "tecnico.html";
+            // 🔥 DESCONECTAMOS AL USUARIO HASTA QUE VALIDE SU CORREO
+            await signOut(auth);
+
+            alert(`✅ ¡Expediente Recibido!\n\n1️⃣ Te hemos enviado un enlace al correo: ${email}. DEBES DARLE CLIC PARA ACTIVAR TU CUENTA.\n2️⃣ Después, el Administrador validará tus documentos.`);
+            window.location.href = "login.html";
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Técnico:", error);
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
-                console.warn("⚠️ Fallo en DB: Limpiando Auth para permitir reintento.");
                 await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza:", e));
             }
             manejarErroresAuth(error);
@@ -465,14 +425,14 @@ if (btnRegistroTecnico) {
 }
 
 // ======================================================
-// C. LOGIN Y D. GOOGLE
+// C. LOGIN (GATEKEEPER DE CORREO ACTIVADO) Y D. GOOGLE
 // ======================================================
 const btnLogin = $("btnLogin");
 if (btnLogin) {
     btnLogin.addEventListener("click", async (e) => {
         e.preventDefault();
         
-        if (!verificarRateLimit()) return; // 🦈 Protección Anti-Bot
+        if (!verificarRateLimit()) return;
 
         const form = document.getElementById("formLogin");
         const email = form.querySelector('[name="email"]')?.value.trim().toLowerCase();
@@ -486,7 +446,26 @@ if (btnLogin) {
         try {
             btnLogin.innerHTML = '<i class="fas fa-fingerprint animate-pulse"></i> Autenticando...';
             btnLogin.disabled = true;
-            await signInWithEmailAndPassword(auth, email, password);
+            
+            // 1. Intentamos iniciar sesión con Firebase
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            const user = userCredential.user;
+
+            // 🔥 INYECCIÓN V6.1: EL VERDUGO DE CORREOS
+            // Si el correo no está verificado (y no es el super admin), lo pateamos fuera
+            if (!user.emailVerified) {
+                // Hacemos una excepción para ti (el CEO/Admin principal) para que no te quedes bloqueado
+                if (email !== "hebertoh-m@hotmail.com") {
+                    await signOut(auth); // Lo expulsamos inmediatamente
+                    alert(`🚨 ACCESO DENEGADO\n\nAún no has verificado tu correo electrónico (${email}).\n\nPor favor, revisa tu bandeja de entrada o carpeta de Spam y haz clic en el enlace de activación para poder ingresar.`);
+                    btnLogin.innerHTML = textoOriginal;
+                    btnLogin.disabled = false;
+                    return; // Detenemos la ejecución
+                }
+            }
+
+            // Si llega aquí, su correo sí está verificado (o es el Admin). El observador lo redirigirá.
+
         } catch (error) {
             manejarErroresAuth(error);
             btnLogin.innerHTML = textoOriginal;
@@ -500,7 +479,7 @@ if (btnGoogle) {
     btnGoogle.addEventListener("click", async (e) => {
         e.preventDefault();
         
-        if (!verificarRateLimit()) return; // 🦈 Protección Anti-Bot
+        if (!verificarRateLimit()) return;
         
         const textoOriginal = btnGoogle.innerHTML;
 
@@ -518,10 +497,7 @@ if (btnGoogle) {
                 const esTecnico = confirm("¿Eres TÉCNICO? [ACEPTAR] = SÍ / [CANCELAR] = CLIENTE");
                 const rolSeleccionado = esTecnico ? "tecnico" : "cliente";
                 
-                // 🧹 Sanitizamos el nombre que viene de Google por seguridad
                 const nombreSeguro = escaparHTML(user.displayName || "Usuario de Google");
-                
-                // Obtenemos la foto que Google nos da por defecto
                 const fotoGoogle = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(nombreSeguro)}&background=random`;
 
                 const perfilBase = {
@@ -529,11 +505,10 @@ if (btnGoogle) {
                     nombre: nombreSeguro,
                     email: user.email,
                     rol: rolSeleccionado,
-                    foto_perfil: fotoGoogle, // Inyectamos la foto desde el inicio
+                    foto_perfil: fotoGoogle, 
                     creadoEn: serverTimestamp()
                 };
 
-                // Si es técnico, le creamos el esqueleto V6.0 para que lo llene después en su panel
                 if (esTecnico) {
                     perfilBase.vehiculo = { tipo: "auto", placas: "" };
                     perfilBase.skills = ["fix"];
@@ -550,10 +525,8 @@ if (btnGoogle) {
                     perfilBase.status = "activo";
                 }
 
-                // Guardado en RUTA MAESTRA ('users')
                 await setDoc(doc(db, "users", user.uid), perfilBase);
 
-                // CORRECCIÓN SENIOR: Sincronización del respaldo para mantener coherencia con el registro manual
                 if (rolSeleccionado === 'tecnico') {
                     await setDoc(doc(db, "tecnicos", user.uid), { ...perfilBase });
                 } else {
@@ -579,7 +552,9 @@ if (btnGoogle) {
 // E. OBSERVADOR Y MANEJO DE ERRORES
 // ======================================================
 observarAuth((user) => {
-    if (user) {
+    // Si hay un usuario logueado pero su correo NO está verificado, no lo redirigimos
+    // (a menos que sea el Admin, que tiene un pase especial)
+    if (user && (user.emailVerified || user.email === "hebertoh-m@hotmail.com")) {
         const path = window.location.pathname;
         if (path.includes("login.html") || path.includes("registro")) {
             setTimeout(() => {
