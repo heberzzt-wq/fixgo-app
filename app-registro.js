@@ -2,13 +2,13 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 5.9.1 (VEHICLE TELEMETRY READY + SHARK MODE BLINDADO)
- * Base: V5.8 (STRIPE INTEGRATION + BANK DATA SECURE)
+ * Versión: 6.0 (LOGISTICS & COMPLIANCE GATEWAY + SHARK MODE)
+ * Base: V5.9.1
  * Autor: Heber (CEO & Lead Architect)
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR.
  * ======================================================
  */
-console.log(" 🚀 [app-registro.js] Inicializando sistema V5.9.1 (Pagos + Telemetría de Vehículos + Seguridad Enterprise)...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema V6.0 (Compliance, Logística y Credenciales)...");
 
 import { 
     auth, 
@@ -63,6 +63,22 @@ const verificarRateLimit = () => {
     lastActionTime = now;
     return true;
 };
+
+// ======================================================
+// 📸 UTILIDAD DE CONVERSIÓN DE IMÁGENES A BASE64
+// ======================================================
+// Convertimos los archivos localmente a Base64 para guardarlos en Firestore
+// mientras se implementa Firebase Storage a nivel global.
+const fileToBase64 = file => new Promise((resolve, reject) => {
+    if (!file) {
+        resolve(null);
+        return;
+    }
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+});
 
 // ======================================================
 // 0. CONFIGURACIÓN DE STRIPE (TOKENIZACIÓN)
@@ -210,28 +226,81 @@ if (btnRegistroCliente) {
 }
 
 // ======================================================
-// B. LÓGICA DE TÉCNICOS (CON DATOS BANCARIOS + VEHÍCULO)
+// B. LÓGICA DE TÉCNICOS (COMPLIANCE, LOGÍSTICA Y BANCARIOS)
 // ======================================================
 const btnRegistroTecnico = $("btnRegistroTecnico");
-let ineCargado = false;
-let csfCargado = false;
 
-if ($("btnSubirINE")) {
-    $("btnSubirINE").addEventListener("click", () => $("inputINE").click());
-    $("inputINE").addEventListener("change", () => {
-        ineCargado = true;
-        const btn = $("btnSubirINE");
-        btn.innerHTML = '<i class="fas fa-check-circle"></i> INE Cargada';
-        btn.classList.replace("bg-indigo-600", "bg-emerald-600");
+// Variables para almacenar los archivos físicos antes de enviarlos a BD
+let archivoFotoPerfil = null;
+let archivoINE = null;
+let archivoCSF = null;
+let archivoLicencia = null;
+let archivosCertificados = []; // Puede ser más de uno
+
+// --- Listeners para los inputs de archivos ---
+// FOTO DE PERFIL
+if ($("btnSubirFoto")) {
+    $("btnSubirFoto").addEventListener("click", () => $("inputFoto").click());
+    $("inputFoto").addEventListener("change", (e) => {
+        archivoFotoPerfil = e.target.files[0];
+        if(archivoFotoPerfil) {
+            const btn = $("btnSubirFoto");
+            btn.innerHTML = '<i class="fas fa-check-circle"></i> Foto Lista';
+            btn.classList.replace("bg-zinc-800", "bg-emerald-600");
+        }
     });
 }
+
+// INE
+if ($("btnSubirINE")) {
+    $("btnSubirINE").addEventListener("click", () => $("inputINE").click());
+    $("inputINE").addEventListener("change", (e) => {
+        archivoINE = e.target.files[0];
+        if(archivoINE) {
+            const btn = $("btnSubirINE");
+            btn.innerHTML = '<i class="fas fa-check-circle"></i> INE Cargada';
+            btn.classList.replace("bg-indigo-600", "bg-emerald-600");
+        }
+    });
+}
+
+// CSF
 if ($("btnSubirCSF")) {
     $("btnSubirCSF").addEventListener("click", () => $("inputCSF").click());
-    $("inputCSF").addEventListener("change", () => {
-        csfCargado = true;
-        const btn = $("btnSubirCSF");
-        btn.innerHTML = '<i class="fas fa-check-circle"></i> CSF Cargada';
-        btn.classList.replace("bg-indigo-600", "bg-emerald-600");
+    $("inputCSF").addEventListener("change", (e) => {
+        archivoCSF = e.target.files[0];
+        if(archivoCSF) {
+            const btn = $("btnSubirCSF");
+            btn.innerHTML = '<i class="fas fa-check-circle"></i> CSF Cargada';
+            btn.classList.replace("bg-indigo-600", "bg-emerald-600");
+        }
+    });
+}
+
+// LICENCIA DE CONDUCIR (Nuevo)
+if ($("btnSubirLicencia")) {
+    $("btnSubirLicencia").addEventListener("click", () => $("inputLicencia").click());
+    $("inputLicencia").addEventListener("change", (e) => {
+        archivoLicencia = e.target.files[0];
+        if(archivoLicencia) {
+            const btn = $("btnSubirLicencia");
+            btn.innerHTML = '<i class="fas fa-check-circle"></i> Licencia Cargada';
+            btn.classList.replace("bg-blue-600", "bg-emerald-600");
+        }
+    });
+}
+
+// CERTIFICADOS / ESPECIALIDADES (Nuevo)
+if ($("btnSubirCertificados")) {
+    $("btnSubirCertificados").addEventListener("click", () => $("inputCertificados").click());
+    $("inputCertificados").addEventListener("change", (e) => {
+        // Permite selección múltiple
+        archivosCertificados = Array.from(e.target.files);
+        if(archivosCertificados.length > 0) {
+            const btn = $("btnSubirCertificados");
+            btn.innerHTML = `<i class="fas fa-check-circle"></i> ${archivosCertificados.length} Certificado(s)`;
+            btn.classList.replace("bg-purple-600", "bg-emerald-600");
+        }
     });
 }
 
@@ -249,13 +318,16 @@ if (btnRegistroTecnico) {
         const password = form.querySelector('[name="password"]')?.value.trim();
         const telefono = escaparHTML(form.querySelector('[name="telefono"]')?.value.trim());
         
-        // --- NUEVOS CAMPOS: VEHÍCULO Y DATOS BANCARIOS ---
+        // --- DATOS BANCARIOS ---
         const clabe = escaparHTML(form.querySelector('[name="clabe"]')?.value.trim());
         const banco = escaparHTML(form.querySelector('[name="banco"]')?.value.trim());
+        
+        // --- LOGÍSTICA OPERATIVA ---
         const tipoVehiculo = escaparHTML(form.querySelector('[name="tipoVehiculo"]')?.value) || "auto"; // Default
+        const placas = escaparHTML(form.querySelector('[name="placas"]')?.value.trim().toUpperCase());
 
         if (!nombre || !email || !password || !telefono) {
-            alert("⚠️ Faltan campos obligatorios básicos."); return;
+            alert("⚠️ Faltan campos obligatorios básicos (Nombre, Email, Contraseña, Teléfono)."); return;
         }
 
         // 🔐 Validación Enterprise
@@ -265,10 +337,13 @@ if (btnRegistroTecnico) {
         }
 
         if (!clabe || clabe.length !== 18) {
-            alert("⚠️ La CLABE Interbancaria es obligatoria y debe tener exactamente 18 dígitos."); return;
+            alert("⚠️ La CLABE Interbancaria es obligatoria y debe tener exactamente 18 dígitos para recibir pagos."); return;
         }
         if (!banco) {
-            alert("⚠️ Ingresa el nombre de tu Banco para recibir pagos."); return;
+            alert("⚠️ Ingresa el nombre de tu Banco."); return;
+        }
+        if (!placas && tipoVehiculo !== 'peaton') {
+            alert("⚠️ Debes ingresar las placas de tu vehículo para el registro logístico."); return;
         }
 
         // 1. CAPTURA DE SKILLS (Habilidades)
@@ -282,21 +357,47 @@ if (btnRegistroTecnico) {
             return;
         }
 
-        if (!ineCargado || !csfCargado) {
-            alert("⚠️ ALERTA: Por cumplimiento legal (KYC), debes subir tu INE y CSF para continuar."); return;
+        // VALIDACIÓN RIGUROSA DE DOCUMENTOS FÍSICOS (KYC + Logística)
+        if (!archivoFotoPerfil) {
+            alert("📸 Faltante: Debes subir una fotografía de perfil clara para identificarte con el cliente."); return;
+        }
+        if (!archivoINE || !archivoCSF) {
+            alert("⚖️ Cumplimiento Legal (KYC): Es obligatorio subir la fotografía de tu INE y tu Constancia de Situación Fiscal (CSF)."); return;
+        }
+        if (tipoVehiculo !== 'peaton' && !archivoLicencia) {
+             alert("🚗 Logística: Si operas un vehículo, es obligatorio subir tu Licencia de Conducir."); return;
         }
 
         let usuarioAuth = null;
         const textoOriginal = btnRegistroTecnico.innerHTML;
 
         try {
-            btnRegistroTecnico.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encriptando Datos...';
+            btnRegistroTecnico.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encriptando Datos y Documentos...';
             btnRegistroTecnico.disabled = true;
 
             // 1. Registro en Auth (Respaldo básico manejado por firebase.js)
             usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
-            // 2. RUTA MAESTRA: Registro en DB CON DATOS BANCARIOS Y VEHÍCULO SOLO EN 'users'
+            // 2. CONVERSIÓN MASIVA DE DOCUMENTOS A BASE64
+            // Nota de Arquitectura: Se usa Promise.all para procesamiento concurrente rápido
+            btnRegistroTecnico.innerHTML = '<i class="fas fa-file-upload animate-bounce"></i> Procesando Expediente Digital...';
+            
+            const [b64Foto, b64INE, b64CSF, b64Licencia] = await Promise.all([
+                fileToBase64(archivoFotoPerfil),
+                fileToBase64(archivoINE),
+                fileToBase64(archivoCSF),
+                fileToBase64(archivoLicencia)
+            ]);
+
+            // Procesamiento de certificados (Arreglo)
+            let b64Certificados = [];
+            if(archivosCertificados.length > 0) {
+                b64Certificados = await Promise.all(archivosCertificados.map(file => fileToBase64(file)));
+            }
+
+            // 3. RUTA MAESTRA: Registro en DB CON EXPEDIENTE BLINDADO (users)
+            btnRegistroTecnico.innerHTML = '<i class="fas fa-database animate-pulse"></i> Inyectando a Base de Datos...';
+
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
@@ -304,26 +405,38 @@ if (btnRegistroTecnico) {
                 telefono: telefono,
                 rol: "tecnico",
                 skills: skills,
-                tipoVehiculo: tipoVehiculo, // Maestro para el GPS Motor
+                foto_perfil: b64Foto, // Compatibilidad Principal
+                fotoPerfil: b64Foto,  // Compatibilidad Secundaria
                 estado: "pendiente",
                 status: "pendiente",
                 disponible: false,
                 verificado: false,
+                // Estructura Logística V6.0
+                vehiculo: {
+                    tipo: tipoVehiculo,
+                    placas: placas
+                },
+                // Estructura de Cumplimiento (KYC) V6.0
                 documentos: {
-                    ine: true,
-                    csf: true,
+                    ine: b64INE,
+                    csf: b64CSF,
+                    licencia: b64Licencia || false,
+                    certificados: b64Certificados,
                     fecha_subida: serverTimestamp()
                 },
+                // Estructura Financiera
                 datos_bancarios: {
                     banco: banco,
                     clabe: clabe,
                     titular: nombre
                 },
-                nivel: "Bronce",
+                nivel: "BRONCE",
+                reputacion: 5.0,
+                servicios_completados: 0,
                 creadoEn: serverTimestamp()
             }, { merge: true });
 
-            alert("✅ ¡Solicitud recibida! Tu vehículo y datos bancarios serán validados por nuestro equipo de compliance.");
+            alert("✅ ¡Expediente Recibido! Tu vehículo, documentos y datos bancarios pasarán a revisión por el Administrador.");
             window.location.href = "tecnico.html";
 
         } catch (error) {
@@ -395,31 +508,48 @@ if (btnGoogle) {
                 
                 // 🧹 Sanitizamos el nombre que viene de Google por seguridad
                 const nombreSeguro = escaparHTML(user.displayName || "Usuario de Google");
+                
+                // Obtenemos la foto que Google nos da por defecto
+                const fotoGoogle = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(nombreSeguro)}&background=random`;
 
                 const perfilBase = {
                     uid: user.uid,
                     nombre: nombreSeguro,
                     email: user.email,
                     rol: rolSeleccionado,
-                    tipoVehiculo: "auto", // Default
-                    skills: esTecnico ? ["fix"] : [],
-                    estado: esTecnico ? "pendiente" : "activo",
-                    status: esTecnico ? "pendiente" : "activo",
+                    foto_perfil: fotoGoogle, // Inyectamos la foto desde el inicio
                     creadoEn: serverTimestamp()
                 };
+
+                // Si es técnico, le creamos el esqueleto V6.0 para que lo llene después en su panel
+                if (esTecnico) {
+                    perfilBase.vehiculo = { tipo: "auto", placas: "" };
+                    perfilBase.skills = ["fix"];
+                    perfilBase.estado = "pendiente";
+                    perfilBase.status = "pendiente";
+                    perfilBase.disponible = false;
+                    perfilBase.documentos = { ine: false, csf: false, licencia: false, certificados: [] };
+                    perfilBase.datos_bancarios = { banco: "", clabe: "", titular: nombreSeguro };
+                    perfilBase.nivel = "BRONCE";
+                    perfilBase.reputacion = 5.0;
+                    perfilBase.servicios_completados = 0;
+                } else {
+                    perfilBase.estado = "activo";
+                    perfilBase.status = "activo";
+                }
 
                 // Guardado en RUTA MAESTRA ('users')
                 await setDoc(doc(db, "users", user.uid), perfilBase);
 
                 // CORRECCIÓN SENIOR: Sincronización del respaldo para mantener coherencia con el registro manual
                 if (rolSeleccionado === 'tecnico') {
-                    await setDoc(doc(db, "tecnicos", user.uid), { ...perfilBase, disponible: false });
+                    await setDoc(doc(db, "tecnicos", user.uid), { ...perfilBase });
                 } else {
                     await setDoc(doc(db, "clientes", user.uid), { ...perfilBase, pedidos: 0 });
                 }
                 
                 if(esTecnico) {
-                    alert("⚠️ Aviso: Por seguridad, deberás completar tu perfil bancario y vehículo en tu panel.");
+                    alert("⚠️ Aviso: Tu perfil base fue creado con Google. Por seguridad y cumplimiento (KYC), deberás contactar al Administrador para subir tu INE, CSF, Licencia y Placas antes de ser aprobado.");
                 } else {
                     alert("⚠️ Aviso: Deberás agregar una tarjeta en tu panel para solicitar servicios (Garantía de Servicio).");
                 }
