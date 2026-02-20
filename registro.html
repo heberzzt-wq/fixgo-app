@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo | Registro Maestro V5.9</title>
+    <title>FixGo | Registro Maestro V6.0</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://js.stripe.com/v3/"></script>
@@ -74,56 +74,80 @@
 
                 <form id="formRegistroTecnico" class="space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input type="text" name="nombre" placeholder="Nombre" required class="uber-input w-full px-5 py-4 rounded-2xl">
+                        <input type="text" name="nombre" placeholder="Nombre completo" required class="uber-input w-full px-5 py-4 rounded-2xl">
                         <input type="tel" name="telefono" placeholder="Teléfono" required class="uber-input w-full px-5 py-4 rounded-2xl">
                     </div>
                     <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-5 py-4 rounded-2xl">
-                    <input type="password" name="password" placeholder="Contraseña" required class="uber-input w-full px-5 py-4 rounded-2xl">
+                    <input type="password" name="password" placeholder="Contraseña (Mín. 8, Mayús. y Núm.)" required class="uber-input w-full px-5 py-4 rounded-2xl">
 
                     <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
-                        <label class="block text-xs font-bold text-gray-400 mb-3 uppercase">Medio de Transporte</label>
-                        <select name="tipoVehiculo" class="uber-input w-full px-4 py-3 rounded-xl appearance-none cursor-pointer">
-                            <option value="moto">🏍️ Motocicleta (FixGo Express)</option>
+                        <label class="block text-xs font-bold text-gray-400 mb-3 uppercase"><i class="fas fa-motorcycle"></i> Logística Operativa</label>
+                        <select name="tipoVehiculo" class="uber-input w-full px-4 py-3 rounded-xl appearance-none cursor-pointer mb-3 outline-none focus:border-emerald-500">
                             <option value="auto">🚗 Automóvil (FixGo Estándar)</option>
-                            <option value="camioneta">🚚 Camioneta (FixGo Heavy)</option>
+                            <option value="moto">🏍️ Motocicleta (FixGo Express)</option>
+                            <option value="camioneta">🚚 Pick-up / Carga (FixGo Heavy)</option>
+                            <option value="peaton">🚶 A pie / Transporte Público</option>
                         </select>
+                        <input type="text" name="placas" placeholder="Número de Placas (Opcional si vas a pie)" class="uber-input w-full px-4 py-3 rounded-xl outline-none focus:border-emerald-500 font-mono uppercase">
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <input type="text" name="banco" placeholder="Nombre del Banco" required class="uber-input w-full px-5 py-4 rounded-2xl">
-                        <input type="text" name="clabe" placeholder="CLABE (18 dígitos)" maxlength="18" required class="uber-input w-full px-5 py-4 rounded-2xl">
+                        <input type="text" name="clabe" placeholder="CLABE (18 dígitos)" maxlength="18" required class="uber-input w-full px-5 py-4 rounded-2xl font-mono">
                     </div>
 
                     <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
-                        <label class="block text-xs font-bold text-gray-400 mb-3 uppercase">Especialidades</label>
+                        <label class="block text-xs font-bold text-gray-400 mb-3 uppercase">Especialidades (Skills)</label>
                         <div class="grid grid-cols-1 gap-2">
                             <label class="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-3 rounded-xl transition-all">
                                 <input type="checkbox" name="skill_road" class="w-5 h-5 accent-emerald-500 rounded-lg">
-                                <span class="text-sm font-bold"><i class="fas fa-car-crash text-yellow-500 w-6 text-center"></i> ROAD (Vial)</span>
+                                <span class="text-sm font-bold"><i class="fas fa-car-crash text-yellow-500 w-6 text-center"></i> ROAD (Auxilio Vial)</span>
                             </label>
                             <label class="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-3 rounded-xl transition-all">
                                 <input type="checkbox" name="skill_fix" class="w-5 h-5 accent-emerald-500 rounded-lg">
-                                <span class="text-sm font-bold"><i class="fas fa-tools text-blue-500 w-6 text-center"></i> FIX (Hogar)</span>
+                                <span class="text-sm font-bold"><i class="fas fa-tools text-blue-500 w-6 text-center"></i> FIX (Hogar/Oficina)</span>
                             </label>
                             <label class="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-3 rounded-xl transition-all">
                                 <input type="checkbox" name="skill_tech" class="w-5 h-5 accent-emerald-500 rounded-lg">
-                                <span class="text-sm font-bold"><i class="fas fa-microchip text-purple-500 w-6 text-center"></i> TECH (Sistemas)</span>
+                                <span class="text-sm font-bold"><i class="fas fa-microchip text-purple-500 w-6 text-center"></i> TECH (Sistemas/CCTV)</span>
                             </label>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="flex flex-col gap-2">
-                            <input type="file" id="inputINE" class="hidden">
-                            <button type="button" id="btnSubirINE" class="bg-zinc-800 py-3 rounded-2xl text-xs font-black hover:bg-zinc-700 transition-all uppercase">INE Frontal</button>
-                        </div>
-                        <div class="flex flex-col gap-2">
-                            <input type="file" id="inputCSF" class="hidden">
-                            <button type="button" id="btnSubirCSF" class="bg-zinc-800 py-3 rounded-2xl text-xs font-black hover:bg-zinc-700 transition-all uppercase">Constancia SF</button>
+                    <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
+                        <label class="block text-xs font-bold text-gray-400 mb-3 uppercase"><i class="fas fa-file-contract"></i> Expediente Digital (Obligatorio)</label>
+                        
+                        <div class="space-y-3">
+                            <button type="button" id="btnSubirFoto" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg text-sm transition-colors border border-zinc-600 flex items-center justify-center gap-2">
+                                <i class="fas fa-camera text-gray-400"></i> Subir Foto de Perfil (Selfie)
+                            </button>
+                            <input type="file" id="inputFoto" accept="image/*" class="hidden">
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <button type="button" id="btnSubirINE" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg text-xs transition-colors border border-zinc-600 flex items-center justify-center gap-2">
+                                    <i class="fas fa-id-badge text-indigo-400"></i> INE Frontal
+                                </button>
+                                <input type="file" id="inputINE" accept="image/*" class="hidden">
+                                
+                                <button type="button" id="btnSubirCSF" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg text-xs transition-colors border border-zinc-600 flex items-center justify-center gap-2">
+                                    <i class="fas fa-file-invoice-dollar text-indigo-400"></i> Constancia SF
+                                </button>
+                                <input type="file" id="inputCSF" accept="image/*, application/pdf" class="hidden">
+                            </div>
+
+                            <button type="button" id="btnSubirLicencia" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg text-sm transition-colors border border-zinc-600 flex items-center justify-center gap-2">
+                                <i class="fas fa-id-card text-blue-400"></i> Subir Licencia de Conducir
+                            </button>
+                            <input type="file" id="inputLicencia" accept="image/*" class="hidden">
+
+                            <button type="button" id="btnSubirCertificados" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg text-sm transition-colors border border-zinc-600 flex items-center justify-center gap-2">
+                                <i class="fas fa-certificate text-purple-400"></i> Subir Certificados/DC-3 (Múltiple)
+                            </button>
+                            <input type="file" id="inputCertificados" accept="application/pdf, image/*" multiple class="hidden">
                         </div>
                     </div>
                     
-                    <button type="submit" id="btnRegistroTecnico" class="w-full bg-emerald-500 py-5 rounded-2xl font-black text-lg shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all">
+                    <button type="submit" id="btnRegistroTecnico" class="w-full bg-emerald-500 py-5 rounded-2xl font-black text-lg text-black shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all uppercase tracking-tight">
                         Enviar Solicitud Socio
                     </button>
                 </form>
