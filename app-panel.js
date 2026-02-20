@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.15.1 (FASE 0: UBER CASH MODEL + SHARK MODE BLINDADO)
+ * Versión: 5.15.1 (FASE 0: UBER CASH MODEL + SHARK MODE BLINDADO + AUDITORÍA)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -151,10 +151,13 @@ export async function iniciarPanelAdmin(user) {
                 }
                 
                 const esPendiente = (data.estado || "pendiente") === "pendiente";
-                const ineCheck = data.documentos?.ine ? '<span class="text-emerald-400"> ✅  INE</span>' : '<span class="text-red-500"> ❌  INE</span>';
-                const csfCheck = data.documentos?.csf ? '<span class="text-emerald-400"> ✅  CSF</span>' : '<span class="text-red-500"> ❌  CSF</span>';
+                const ineCheck = data.documentos?.ine ? '<span class="text-emerald-400"> ✅ INE</span>' : '<span class="text-red-500"> ❌ INE</span>';
+                const csfCheck = data.documentos?.csf ? '<span class="text-emerald-400"> ✅ CSF</span>' : '<span class="text-red-500"> ❌ CSF</span>';
                 const skillsStr = data.skills ? data.skills.join(" • ").toUpperCase() : "GENERAL";
                 
+                // --- IDENTIDAD CONECTADA ---
+                const fotoUrl = data.foto_perfil || data.fotoPerfil || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nombre)}&background=random`;
+
                 // --- SISTEMA DE REPUTACIÓN VISUAL ---
                 const reputacion = data.reputacion || 5.0;
                 const estrellas = "⭐".repeat(Math.round(reputacion));
@@ -172,24 +175,27 @@ export async function iniciarPanelAdmin(user) {
 
                 card.innerHTML = `
                 <div class="flex justify-between items-center">
-                    <div>
-                        <h4 class="font-bold text-white text-sm">
-                            ${escaparHTML(data.nombre)}
-                            ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded ml-2 font-black">NUEVO</span>' : ''}
-                        </h4>
-                        <div class="flex items-center gap-2 text-[10px] mt-0.5">
-                            <span class="${colorNivel} font-black">${nivel}</span>
-                            <span class="text-yellow-500">${estrellas} (${reputacion.toFixed(1)})</span>
-                        </div>
-                        <p class="text-[9px] text-blue-400 font-bold mt-1 tracking-wide">SKILLS: ${escaparHTML(skillsStr)}</p>
-                        <p class="text-xs text-gray-400">${escaparHTML(data.telefono || '')}</p>
-                        
-                        <div class="mt-2 text-[10px] bg-black/20 p-1 rounded inline-block border border-white/5">
-                            ${ineCheck} | ${csfCheck}
-                        </div>
-                        
-                        <div class="mt-1">
-                            ${estadoDot}
+                    <div class="flex items-start gap-3">
+                        <img src="${fotoUrl}" class="w-12 h-12 rounded-full border border-zinc-700 object-cover shadow-lg" alt="Foto">
+                        <div>
+                            <h4 class="font-bold text-white text-sm">
+                                ${escaparHTML(data.nombre)}
+                                ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded ml-2 font-black">NUEVO</span>' : ''}
+                            </h4>
+                            <div class="flex items-center gap-2 text-[10px] mt-0.5">
+                                <span class="${colorNivel} font-black">${nivel}</span>
+                                <span class="text-yellow-500">${estrellas} (${reputacion.toFixed(1)})</span>
+                            </div>
+                            <p class="text-[9px] text-blue-400 font-bold mt-1 tracking-wide">SKILLS: ${escaparHTML(skillsStr)}</p>
+                            <p class="text-xs text-gray-400">${escaparHTML(data.telefono || '')}</p>
+                            
+                            <div class="mt-2 text-[10px] bg-black/20 p-1 rounded inline-block border border-white/5">
+                                ${ineCheck} | ${csfCheck}
+                            </div>
+                            
+                            <div class="mt-1">
+                                ${estadoDot}
+                            </div>
                         </div>
                     </div>
 
@@ -198,7 +204,10 @@ export async function iniciarPanelAdmin(user) {
                         <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${docSnap.id}')">
                             APROBAR ACCESO
                         </button>
-                       ` : `
+                        ` : `
+                        <button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 text-[9px] font-bold px-2 py-1 rounded border border-blue-900/50 mb-1" onclick="window.verExpediente('${docSnap.id}')">
+                            <i class="fas fa-folder-open"></i> EXPEDIENTE
+                        </button>
                         <button class="bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-900/50 mb-1" onclick="window.registrarPagoTecnico('${docSnap.id}', '${escaparHTML(data.nombre)}')">
                             <i class="fas fa-money-bill-wave"></i> REGISTRAR PAGO
                         </button>
@@ -272,7 +281,7 @@ export async function iniciarPanelAdmin(user) {
 
             if (elementos.actividad && elementos.actividad.children.length < 10) {
                 const item = document.createElement("div");
-                item.className = "flex justify-between items-center border-b border-white/5 py-3 last:border-0";
+                item.className = "flex justify-between items-start border-b border-white/5 py-3 last:border-0";
 
                 let colorEstado = "text-gray-400";
                 if(data.estado === "pendiente") colorEstado = "text-yellow-500";
@@ -286,12 +295,19 @@ export async function iniciarPanelAdmin(user) {
                 
                 const labelServicio = escaparHTML(`${data.categoria} ${data.sub_servicio ? '• ' + data.sub_servicio : ''}`);
 
+                // --- AUDITORÍA REAL ---
+                let btnAuditar = '';
+                if(data.estado === "finalizado") {
+                    btnAuditar = `<button class="mt-2 text-[9px] bg-purple-600/30 text-purple-400 font-bold px-2 py-1 rounded border border-purple-500/50 transition-colors hover:bg-purple-600/50 block" onclick="window.auditarServicio('${sid}')"><i class="fas fa-camera"></i> AUDITAR</button>`;
+                }
+
                 item.innerHTML = `
-                <div class="flex items-center gap-3">
-                    <div class="bg-zinc-800 p-2 rounded-lg"><i class="fas fa-tools text-gray-400"></i></div>
+                <div class="flex items-start gap-3">
+                    <div class="bg-zinc-800 p-2 rounded-lg mt-1"><i class="fas fa-tools text-gray-400"></i></div>
                     <div>
                         <p class="text-xs font-bold text-white uppercase">${labelServicio}</p>
                         <p class="text-[10px] text-gray-500">${escaparHTML(data.cliente_nombre || 'Cliente')} • ${escaparHTML(data.zona || 'Cancún')}</p>
+                        ${btnAuditar}
                     </div>
                 </div>
                 <div class="text-right">
@@ -426,6 +442,114 @@ export async function iniciarPanelAdmin(user) {
     });
 
     // --- D. FUNCIONES DE ADMINISTRACIÓN ---
+
+    // 🔥 AUDITORÍA REAL (SHARK MODE PARA CALIDAD)
+    window.auditarServicio = async (sid) => {
+        if(document.getElementById("modalAuditoria")) return;
+        try {
+            const docSnap = await getDoc(doc(db, "services", sid));
+            if(!docSnap.exists()) return alert("Servicio no encontrado.");
+            const s = docSnap.data();
+            
+            const fotoAntes = s.evidencia?.antes || 'https://via.placeholder.com/300x400?text=SIN+FOTO+ANTES';
+            const fotoDespues = s.evidencia?.despues || 'https://via.placeholder.com/300x400?text=SIN+FOTO+DESPUES';
+
+            const html = `
+            <div id="modalAuditoria" class="fixed inset-0 bg-black/95 z-[70] flex items-center justify-center p-4 animate-fade-in">
+                <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-zinc-700 shadow-2xl overflow-y-auto max-h-[90vh]">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-white font-black text-xl"><i class="fas fa-search text-purple-500"></i> AUDITORÍA DE CALIDAD</h3>
+                        <button onclick="document.getElementById('modalAuditoria').remove()" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+                    </div>
+                    <p class="text-xs text-gray-400 mb-4 border-b border-zinc-800 pb-2">Folio: ${s.folio_fiscal || sid.substring(0,6).toUpperCase()} | Técnico: ${escaparHTML(s.tecnico_nombre)}</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="text-center">
+                            <span class="bg-red-900/30 text-red-500 border border-red-500/50 text-[10px] font-black px-2 py-1 rounded uppercase tracking-widest block mb-2">ANTES</span>
+                            <img src="${fotoAntes}" class="w-full h-auto rounded-xl border border-zinc-700 object-cover shadow-lg" alt="Antes">
+                        </div>
+                        <div class="text-center">
+                            <span class="bg-emerald-900/30 text-emerald-500 border border-emerald-500/50 text-[10px] font-black px-2 py-1 rounded uppercase tracking-widest block mb-2">DESPUÉS</span>
+                            <img src="${fotoDespues}" class="w-full h-auto rounded-xl border border-zinc-700 object-cover shadow-lg" alt="Despues">
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="document.getElementById('modalAuditoria').remove()" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-2 px-6 rounded-lg text-sm transition-colors">CERRAR</button>
+                    </div>
+                </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
+        } catch(e) {
+            console.error(e);
+            alert("Error al cargar la auditoría.");
+        }
+    };
+
+    // 🔥 EXPEDIENTES DESBLOQUEADOS (ADMIN VIEW)
+    window.verExpediente = async (uid) => {
+        if(document.getElementById("modalExpediente")) return;
+        try {
+            const docSnap = await getDoc(doc(db, "users", uid));
+            if(!docSnap.exists()) return alert("Técnico no encontrado.");
+            const t = docSnap.data();
+
+            const fotoUrl = t.foto_perfil || t.fotoPerfil || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.nombre)}&background=random`;
+            
+            const ineCheck = t.documentos?.ine ? '<span class="text-emerald-400"><i class="fas fa-check-circle"></i> Cargado</span>' : '<span class="text-red-500"><i class="fas fa-times-circle"></i> Faltante</span>';
+            const csfCheck = t.documentos?.csf ? '<span class="text-emerald-400"><i class="fas fa-check-circle"></i> Cargado</span>' : '<span class="text-red-500"><i class="fas fa-times-circle"></i> Faltante</span>';
+
+            const html = `
+            <div id="modalExpediente" class="fixed inset-0 bg-black/95 z-[70] flex items-center justify-center p-4 animate-fade-in">
+                <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700 shadow-2xl">
+                    <div class="flex justify-between items-start mb-6 border-b border-zinc-800 pb-4">
+                        <div class="flex items-center gap-4">
+                            <img src="${fotoUrl}" class="w-16 h-16 rounded-full border-2 border-blue-500 object-cover shadow-lg" alt="Foto">
+                            <div>
+                                <h3 class="text-white font-black text-lg uppercase">${escaparHTML(t.nombre)}</h3>
+                                <p class="text-blue-400 text-xs font-bold">EXPEDIENTE CONFIDENCIAL</p>
+                            </div>
+                        </div>
+                        <button onclick="document.getElementById('modalExpediente').remove()" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="bg-black p-3 rounded-xl border border-zinc-800">
+                            <p class="text-[10px] text-gray-500 font-bold uppercase mb-1"><i class="fas fa-university"></i> Datos Bancarios</p>
+                            <p class="text-sm text-white font-mono">Banco: <span class="text-emerald-400">${escaparHTML(t.banco || 'NO REGISTRADO')}</span></p>
+                            <p class="text-sm text-white font-mono">CLABE: <span class="text-emerald-400">${escaparHTML(t.clabe || 'NO REGISTRADA')}</span></p>
+                        </div>
+
+                        <div class="bg-black p-3 rounded-xl border border-zinc-800">
+                            <p class="text-[10px] text-gray-500 font-bold uppercase mb-1"><i class="fas fa-id-card"></i> Identidad y Fiscal</p>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-white">INE/ID:</span> ${ineCheck}
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-white">Constancia Fiscal (CSF):</span> ${csfCheck}
+                            </div>
+                        </div>
+                        
+                        <div class="bg-black p-3 rounded-xl border border-zinc-800">
+                            <p class="text-[10px] text-gray-500 font-bold uppercase mb-1"><i class="fas fa-phone"></i> Contacto</p>
+                            <p class="text-sm text-white font-mono">${escaparHTML(t.telefono || 'Sin teléfono')}</p>
+                            <p class="text-xs text-gray-400">${escaparHTML(t.email || 'Sin correo')}</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <button onclick="document.getElementById('modalExpediente').remove()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition-colors">
+                            CERRAR EXPEDIENTE
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
+        } catch(e) {
+            console.error(e);
+            alert("Error al cargar expediente.");
+        }
+    };
+
     window.aprobarTecnico = async (uid) => {
         if(!confirm("¿Estás seguro de aprobar a este técnico? Tendrá acceso inmediato a ver solicitudes y aceptar trabajos.")) return;
         try {
@@ -786,8 +910,8 @@ export async function iniciarPanelTecnico(user) {
             elementos.txtServicios.innerText = `${data.servicios_completados || 0} SERVICIOS FINALIZADOS`;
         }
         if(elementos.fotoPerfil && elementos.fotoIcono) {
-            if(data.foto_perfil) {
-                elementos.fotoPerfil.src = data.foto_perfil;
+            if(data.foto_perfil || data.fotoPerfil) {
+                elementos.fotoPerfil.src = data.foto_perfil || data.fotoPerfil;
                 elementos.fotoPerfil.classList.remove("hidden");
                 elementos.fotoIcono.classList.add("hidden");
             } else {
@@ -1728,6 +1852,33 @@ export async function iniciarPanelTecnico(user) {
             console.error("Error al generar PDF de retiro:", error);
             alert("Hubo un error al generar el comprobante. Intenta de nuevo.");
         }
+    };
+
+    // 🔥 IDENTIDAD CONECTADA (CAMBIO DE FOTO EN PANEL TÉCNICO)
+    window.cambiarFotoPerfil = async (uid) => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            // Usamos Base64 para guardar en BD temporalmente mientras integramos Storage
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    await updateDoc(doc(db, "users", uid), {
+                        foto_perfil: event.target.result,
+                        fotoPerfil: event.target.result // Compatibilidad
+                    });
+                    alert("✅ Foto de perfil actualizada correctamente.");
+                } catch(err) {
+                    console.error("Error subiendo foto:", err);
+                    alert("Error al actualizar la foto de perfil en el servidor.");
+                }
+            };
+            reader.readAsDataURL(file);
+        };
+        fileInput.click();
     };
 }
 
