@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.17.3 (STORAGE 4K EVIDENCE + 4 PHOTOS + SHARK MODE + CONCILIACIÓN CSV)
+ * Versión: 5.17.4 (STORAGE 4K EVIDENCE + NOC EXPORT + UI DISCIPLINARIA STRIKES)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -118,13 +118,13 @@ const urlABase64 = async (url) => {
         return null;
     }
 };
-console.log(" 🚀  FIXGO 5.17.3: STORAGE EVIDENCE + SHARK TANK EXPORT ACTIVATED.");
+console.log(" 🚀  FIXGO 5.17.4: STORAGE EVIDENCE + SHARK TANK EXPORT + STRIKE UI ACTIVATED.");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
 // ======================================================================================
 export async function iniciarPanelAdmin(user) {
-    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.17.3 - Bootstrapping)...");
+    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.17.4 - Bootstrapping)...");
     
     // 🚨 CANDADO DE SEGURIDAD MAESTRO: Validación estricta de rol
     if (!user || user.rol !== "admin") {
@@ -1171,10 +1171,10 @@ function generarSwitchGranular(id, label, checked) {
 
 // ======================================================================================
 // ======================================================================================
-// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + V5.17.0 STORAGE EVIDENCE)
+// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + V5.17.4 UI DISCIPLINARIA)
 // ======================================================================================
 export async function iniciarPanelTecnico(user) {
-    console.log(" 🔧  Iniciando Panel de Técnico (Modo Uber Cash / Storage 4K / Shark Blindaje)...");
+    console.log(" 🔧  Iniciando Panel de Técnico (Modo Uber Cash / Storage 4K / UI Disciplinaria)...");
     
     const elementos = {
         statusLabel: document.getElementById("statusLabel"),
@@ -1203,6 +1203,7 @@ export async function iniciarPanelTecnico(user) {
         if (!docSnap.exists()) return;
         const data = docSnap.data();
         const estado = data.estado || "pendiente";
+        const strikes = data.strikes || 0;
 
         // --- 🌟 RENDERIZADO DE ESTRELLAS, NIVEL Y FOTO ---
         const reputacion = data.reputacion || 5.0;
@@ -1235,6 +1236,50 @@ export async function iniciarPanelTecnico(user) {
             }
         }
 
+        // 🔥 LÓGICA DE SUSPENSIÓN (STRIKES 1, 2 Y 3)
+        if (["suspendido", "suspendido_grave", "baneado_permanente"].includes(estado)) {
+            let msgSuspendido = "Cuenta Suspendida Temporalmente";
+            let descSuspendido = "Se ha detectado una anomalía en tu servicio. Revisa tu saldo retenido.";
+            let iconSuspendido = "fa-exclamation-triangle";
+            
+            if (estado === "suspendido") {
+                descSuspendido = "Penalización Nivel 1 (24 Horas). Tus fondos han sido retenidos preventivamente.";
+            } else if (estado === "suspendido_grave") {
+                msgSuspendido = "Suspensión Grave (7 Días)";
+                descSuspendido = "Penalización Nivel 2. Tienes múltiples reportes críticos. Tu saldo está congelado.";
+            } else if (estado === "baneado_permanente") {
+                msgSuspendido = "CUENTA BLOQUEADA DEFINITIVAMENTE";
+                descSuspendido = "Por violaciones graves a los términos de servicio de FixGo, esta cuenta ha sido cerrada.";
+                iconSuspendido = "fa-skull-crossbones";
+            }
+
+            if(elementos.statusLabel) {
+                elementos.statusLabel.innerText = "SUSPENDIDO";
+                elementos.statusLabel.className = "bg-red-900/50 text-red-500 status-badge font-black border border-red-500/50 animate-pulse";
+            }
+            if(elementos.toggleONOFF) {
+                elementos.toggleONOFF.disabled = true;
+                elementos.toggleONOFF.checked = false;
+            }
+            detenerTracking();
+            if(elementos.radarSection) elementos.radarSection.classList.add("hidden");
+            if(elementos.seccionBolsa) {
+                elementos.seccionBolsa.classList.remove("hidden");
+                elementos.seccionBolsa.innerHTML = `
+                <div class="p-6 bg-red-900/20 border border-red-500/50 rounded-2xl text-center shadow-xl shadow-red-900/20">
+                    <i class="fas ${iconSuspendido} text-red-500 text-4xl mb-4 animate-bounce"></i>
+                    <p class="text-red-500 text-lg font-black uppercase tracking-widest">${msgSuspendido}</p>
+                    <p class="text-gray-400 text-xs mt-2 leading-relaxed">${descSuspendido}</p>
+                    <div class="mt-5 inline-block bg-black px-4 py-2 rounded-lg border border-red-900">
+                        <p class="text-red-500 font-bold text-xs uppercase tracking-widest">STRIKES ACUMULADOS: ${strikes} / 3</p>
+                    </div>
+                </div>
+                `;
+            }
+            return; // Detiene la ejecución aquí para bloquear la app
+        }
+
+        // 🟡 LÓGICA DE REVISIÓN (NUEVOS TÉCNICOS)
         if (estado === "pendiente") {
             if(elementos.statusLabel) {
                 elementos.statusLabel.innerText = "EN REVISIÓN";
@@ -1257,6 +1302,7 @@ export async function iniciarPanelTecnico(user) {
             return;
         }
 
+        // 🟢 LÓGICA NORMAL (ACTIVOS)
         if (elementos.toggleONOFF) {
             elementos.toggleONOFF.disabled = false;
             elementos.toggleONOFF.checked = data.disponible === true;
