@@ -101,6 +101,23 @@ async function cargarLibreriaPDF() {
     });
 }
 
+// 🔥 TRADUCTOR DE IMÁGENES PARA EL PDF (V5.17.2)
+// Convierte URLs de Firebase en Base64 para que jsPDF pueda imprimirlas
+const urlABase64 = async (url) => {
+    if (!url || url.includes('via.placeholder')) return null;
+    try {
+        const response = await fetch(url, { mode: 'cors' });
+        const blob = await response.blob();
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        console.error("Error convirtiendo imagen para PDF:", e);
+        return null;
+    }
+};
 console.log(" 🚀  FIXGO 5.17.0: STORAGE EVIDENCE + 4 PHOTOS ACTIVATED.");
 
 // ======================================================================================
@@ -574,36 +591,27 @@ export async function iniciarPanelAdmin(user) {
             docPdf.text("EVIDENCIA FOTOGRÁFICA (ALMACENAMIENTO CLOUD)", 20, y);
             y += 10;
             
-            // Acomodo de las 4 Fotos en la hoja
+// 🔥 V5.17.2: Traducción Base64 para el Admin
             const f_a1 = data.evidencia?.antes1 || data.evidencia?.antes;
             const f_a2 = data.evidencia?.antes2;
             const f_d1 = data.evidencia?.despues1 || data.evidencia?.despues;
             const f_d2 = data.evidencia?.despues2;
 
-            if(f_a1) {
-                try {
-                    docPdf.addImage(f_a1, "JPEG", 20, y, 40, 30);
-                    docPdf.setFontSize(8); docPdf.text("ANTES 1", 20, y + 35);
-                } catch(e) {}
-            }
-            if(f_a2) {
-                try {
-                    docPdf.addImage(f_a2, "JPEG", 65, y, 40, 30);
-                    docPdf.setFontSize(8); docPdf.text("ANTES 2", 65, y + 35);
-                } catch(e) {}
-            }
-            if(f_d1) {
-                try {
-                    docPdf.addImage(f_d1, "JPEG", 110, y, 40, 30);
-                    docPdf.setFontSize(8); docPdf.text("DESPUÉS 1", 110, y + 35);
-                } catch(e) {}
-            }
-            if(f_d2) {
-                try {
-                    docPdf.addImage(f_d2, "JPEG", 155, y, 40, 30);
-                    docPdf.setFontSize(8); docPdf.text("DESPUÉS 2", 155, y + 35);
-                } catch(e) {}
-            }
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO FOTOS...';
+
+            // Descarga las imágenes de Cloud y las convierte para el PDF
+            const [b64_a1, b64_a2, b64_d1, b64_d2] = await Promise.all([
+                urlABase64(f_a1),
+                urlABase64(f_a2),
+                urlABase64(f_d1),
+                urlABase64(f_d2)
+            ]);
+
+            docPdf.setTextColor(0, 0, 0);
+            if(b64_a1) { docPdf.addImage(b64_a1, "JPEG", 20, y, 40, 30); docPdf.setFontSize(8); docPdf.text("ANTES 1", 20, y + 35); }
+            if(b64_a2) { docPdf.addImage(b64_a2, "JPEG", 65, y, 40, 30); docPdf.setFontSize(8); docPdf.text("ANTES 2", 65, y + 35); }
+            if(b64_d1) { docPdf.addImage(b64_d1, "JPEG", 110, y, 40, 30); docPdf.setFontSize(8); docPdf.text("DESPUÉS 1", 110, y + 35); }
+            if(b64_d2) { docPdf.addImage(b64_d2, "JPEG", 155, y, 40, 30); docPdf.setFontSize(8); docPdf.text("DESPUÉS 2", 155, y + 35); }
             
             docPdf.setFontSize(8);
             docPdf.setTextColor(150, 150, 150);
@@ -2707,36 +2715,27 @@ export async function iniciarPanelCliente(user) {
             docPdf.text("EVIDENCIA FOTOGRÁFICA (Cloud)", 20, y);
             y += 10;
             
-            // V5.17.0: Acomodo de 4 fotos en el PDF (40x30 mm cada una)
+      // 🔥 V5.17.2: Traducción Base64 para el Cliente
             const f_a1 = data.evidencia?.antes1 || data.evidencia?.antes;
             const f_a2 = data.evidencia?.antes2;
             const f_d1 = data.evidencia?.despues1 || data.evidencia?.despues;
             const f_d2 = data.evidencia?.despues2;
 
-            if(f_a1) {
-                try {
-                    docPdf.addImage(f_a1, "JPEG", 20, y, 40, 30);
-                    docPdf.setFontSize(8); docPdf.text("ANTES 1", 20, y + 35);
-                } catch(e) {}
-            }
-            if(f_a2) {
-                try {
-                    docPdf.addImage(f_a2, "JPEG", 65, y, 40, 30);
-                    docPdf.setFontSize(8); docPdf.text("ANTES 2", 65, y + 35);
-                } catch(e) {}
-            }
-            if(f_d1) {
-                try {
-                    docPdf.addImage(f_d1, "JPEG", 110, y, 40, 30);
-                    docPdf.setFontSize(8); docPdf.text("DESPUÉS 1", 110, y + 35);
-                } catch(e) {}
-            }
-            if(f_d2) {
-                try {
-                    docPdf.addImage(f_d2, "JPEG", 155, y, 40, 30);
-                    docPdf.setFontSize(8); docPdf.text("DESPUÉS 2", 155, y + 35);
-                } catch(e) {}
-            }
+            btn.innerText = "PROCESANDO FOTOS...";
+
+            // Descarga las imágenes de Cloud y las convierte para el PDF
+            const [b64_a1, b64_a2, b64_d1, b64_d2] = await Promise.all([
+                urlABase64(f_a1),
+                urlABase64(f_a2),
+                urlABase64(f_d1),
+                urlABase64(f_d2)
+            ]);
+
+            docPdf.setTextColor(0, 0, 0);
+            if(b64_a1) { docPdf.addImage(b64_a1, "JPEG", 20, y, 40, 30); docPdf.setFontSize(8); docPdf.text("ANTES 1", 20, y + 35); }
+            if(b64_a2) { docPdf.addImage(b64_a2, "JPEG", 65, y, 40, 30); docPdf.setFontSize(8); docPdf.text("ANTES 2", 65, y + 35); }
+            if(b64_d1) { docPdf.addImage(b64_d1, "JPEG", 110, y, 40, 30); docPdf.setFontSize(8); docPdf.text("DESPUÉS 1", 110, y + 35); }
+            if(b64_d2) { docPdf.addImage(b64_d2, "JPEG", 155, y, 40, 30); docPdf.setFontSize(8); docPdf.text("DESPUÉS 2", 155, y + 35); }
             
             docPdf.setFontSize(8);
             docPdf.setTextColor(150, 150, 150);
