@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.17.0 (STORAGE 4K EVIDENCE + 4 PHOTOS + SHARK MODE)
+ * Versión: 5.17.3 (STORAGE 4K EVIDENCE + 4 PHOTOS + SHARK MODE + CONCILIACIÓN CSV)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -118,13 +118,13 @@ const urlABase64 = async (url) => {
         return null;
     }
 };
-console.log(" 🚀  FIXGO 5.17.0: STORAGE EVIDENCE + 4 PHOTOS ACTIVATED.");
+console.log(" 🚀  FIXGO 5.17.3: STORAGE EVIDENCE + SHARK TANK EXPORT ACTIVATED.");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
 // ======================================================================================
 export async function iniciarPanelAdmin(user) {
-    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.17.0 - Bootstrapping)...");
+    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.17.3 - Bootstrapping)...");
     
     // 🚨 CANDADO DE SEGURIDAD MAESTRO: Validación estricta de rol
     if (!user || user.rol !== "admin") {
@@ -449,11 +449,112 @@ export async function iniciarPanelAdmin(user) {
                 <div class="flex justify-between italic text-zinc-500 bg-black/20 px-1 rounded mb-2">
                     <span>⏳ RETENIDO (24h):</span> <span>$${dineroRetenido.toFixed(2)}</span>
                 </div>
+
+                <button onclick="window.exportarConciliacionCSV()" class="w-full mt-3 bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 font-bold py-2 rounded-lg border border-blue-500/50 transition-colors flex items-center justify-center gap-2 text-[10px] shadow-lg">
+                    <i class="fas fa-file-excel"></i> EXPORTAR CONCILIACIÓN CONTABLE (CSV)
+                </button>
             `;
         }
     });
 
     // --- D. FUNCIONES DE ADMINISTRACIÓN ---
+
+    // 🔥 MOTOR DE EXPORTACIÓN CONTABLE (V5.17.3 - SHARK TANK VALUATION)
+    window.exportarConciliacionCSV = async () => {
+        const btn = document.activeElement;
+        const textoOrig = btn.innerHTML;
+        
+        if(!confirm("¿Deseas descargar el reporte maestro de conciliación contable? Se procesarán todas las transacciones históricas.")) return;
+        
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO DATA...';
+        btn.disabled = true;
+
+        try {
+            const qTrans = query(collection(db, "transacciones"), orderBy("fecha", "desc"));
+            const snap = await getDocs(qTrans);
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "FECHA,TIPO_OPERACION,FOLIO_SERVICIO,TECNICO_ID,INGRESO_BRUTO,COMISION_FIXGO_32,IVA_16,ISR_30,FONDO_GARANTIA_2,STRIPE_FEE,LIQUIDO_TECNICO,ESTADO_RETENCION\n";
+
+            const ahora = new Date();
+
+            snap.forEach(docSnap => {
+                const tx = docSnap.data();
+                
+                let fechaStr = "N/A";
+                let diffHoras = 999;
+                if(tx.fecha && tx.fecha.toDate) {
+                    const d = tx.fecha.toDate();
+                    // Formato DD/MM/YYYY HH:MM
+                    fechaStr = `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+                    diffHoras = Math.abs(ahora - d) / 36e5;
+                }
+
+                if(tx.tipo === "ingreso_servicio") {
+                    const monto = tx.monto_total || 0;
+                    const calcFixGo = monto * 0.32;
+                    const calcGarantia = monto * 0.02;
+                    const calcStripe = (monto * 0.036) + 3.00;
+                    const calcIVA = calcFixGo * 0.16;
+                    const calcISR = calcFixGo * 0.30;
+                    const calcTecnico = monto - calcFixGo - calcGarantia - calcStripe;
+
+                    let estadoRetencion = diffHoras < 24 ? "RETENIDO (24H)" : "LIBERADO";
+
+                    const fila = [
+                        `"${fechaStr}"`,
+                        `"INGRESO SERVICIO"`,
+                        `"${tx.servicio_id || 'N/A'}"`,
+                        `"${tx.tecnico_id || 'N/A'}"`,
+                        monto.toFixed(2),
+                        calcFixGo.toFixed(2),
+                        calcIVA.toFixed(2),
+                        calcISR.toFixed(2),
+                        calcGarantia.toFixed(2),
+                        calcStripe.toFixed(2),
+                        calcTecnico.toFixed(2),
+                        `"${estadoRetencion}"`
+                    ];
+                    csvContent += fila.join(",") + "\n";
+                } else {
+                    // Retiros, abonos, penalizaciones
+                    const fila = [
+                        `"${fechaStr}"`,
+                        `"${tx.tipo.toUpperCase()}"`,
+                        `"${tx.servicio_id || 'N/A'}"`,
+                        `"${tx.tecnico_id || 'N/A'}"`,
+                        "0.00", "0.00", "0.00", "0.00", "0.00", "0.00",
+                        (tx.pago_tecnico || 0).toFixed(2),
+                        `"APLICADO"`
+                    ];
+                    csvContent += fila.join(",") + "\n";
+                }
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `FixGo_Conciliacion_Contable_${new Date().getTime()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            btn.innerHTML = '<i class="fas fa-check-double"></i> EXPORTACIÓN EXITOSA';
+            btn.classList.replace("text-blue-400", "text-emerald-400");
+            
+            setTimeout(() => {
+                btn.innerHTML = textoOrig;
+                btn.disabled = false;
+                btn.classList.replace("text-emerald-400", "text-blue-400");
+            }, 3000);
+
+        } catch(e) {
+            console.error("Error exportando CSV Contable:", e);
+            alert("Error al conectar con la bóveda de transacciones.");
+            btn.innerHTML = textoOrig;
+            btn.disabled = false;
+        }
+    };
 
 // 🔥 AUDITORÍA REAL (V5.17.1: 4 FOTOS SOPORTADAS + BOTÓN DE DESCARGA PDF)
     window.auditarServicio = async (sid) => {
