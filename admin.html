@@ -142,6 +142,7 @@
             </div>
         </div>
 
+        <div id="dashboardAnalitico" class="mt-8 transition-all duration-500"></div>
         <div class="mt-8">
             <div class="uber-card p-6 rounded-2xl shadow-2xl">
                 <div class="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
@@ -184,5 +185,17 @@
 
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js"></script>
+
+    <script type="module">
+        import { auth, onAuthStateChanged } from './firebase.js';
+        import { iniciarMotorBI } from './app-bi.js';
+        
+        // El cerebro solo arranca si el administrador está logueado correctamente
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                iniciarMotorBI('dashboardAnalitico');
+            }
+        });
+    </script>
 </body>
 </html>
