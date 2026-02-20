@@ -2,12 +2,12 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 6.1 (LOGISTICS + SHARK MODE + EMAIL GATEKEEPER)
+ * Versión: 6.2 (LOGISTICS + SHARK MODE + EMAIL GATEKEEPER + LEGAL SPLIT)
  * Autor: Heber (CEO & Lead Architect)
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR.
  * ======================================================
  */
-console.log(" 🚀 [app-registro.js] Inicializando sistema V6.1 (Compliance, Logística y Gatekeeper de Correo)...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema V6.2 (Compliance Legal Separado, Logística y Gatekeeper)...");
 
 import { 
     auth, 
@@ -124,6 +124,41 @@ if(document.readyState === 'loading') {
 const $ = (id) => document.getElementById(id);
 
 // ======================================================
+// ⚖️ GESTIÓN DE TÉRMINOS Y CONDICIONES SEPARADOS
+// ======================================================
+const abrirModalLegal = (idModal) => {
+    const modal = $(idModal);
+    if (modal) modal.classList.remove("hidden");
+};
+
+const cerrarModalLegal = (idModal) => {
+    const modal = $(idModal);
+    if (modal) modal.classList.add("hidden");
+};
+
+// Controladores para Modal de CLIENTES
+if ($("linkTerminosCliente")) {
+    $("linkTerminosCliente").addEventListener("click", (e) => {
+        e.preventDefault();
+        abrirModalLegal("modalTerminosCliente");
+    });
+}
+if ($("btnCerrarTerminosCliente")) {
+    $("btnCerrarTerminosCliente").addEventListener("click", () => cerrarModalLegal("modalTerminosCliente"));
+}
+
+// Controladores para Modal de TÉCNICOS
+if ($("linkTerminosTecnico")) {
+    $("linkTerminosTecnico").addEventListener("click", (e) => {
+        e.preventDefault();
+        abrirModalLegal("modalTerminosTecnico");
+    });
+}
+if ($("btnCerrarTerminosTecnico")) {
+    $("btnCerrarTerminosTecnico").addEventListener("click", () => cerrarModalLegal("modalTerminosTecnico"));
+}
+
+// ======================================================
 // A. LÓGICA DE REGISTRO DE CLIENTES 
 // ======================================================
 const btnRegistroCliente = $("btnRegistroCliente");
@@ -151,7 +186,7 @@ if (btnRegistroCliente) {
         
         const termsAceptados = document.getElementById("chkTerminosCliente")?.checked;
         if (!termsAceptados) {
-            alert("⚖️ Obligatorio: Debes marcar la casilla aceptando los Términos y Condiciones."); return;
+            alert("⚖️ Obligatorio: Debes marcar la casilla aceptando los Términos y Condiciones de Uso para Clientes."); return;
         }
 
         if (!stripe || !cardElement) {
@@ -324,7 +359,7 @@ if (btnRegistroTecnico) {
         
         const termsAceptados = document.getElementById("chkTerminosTecnico")?.checked;
         if (!termsAceptados) {
-            alert("⚖️ Obligatorio: Acepta los Términos y el Aviso de Privacidad."); return;
+            alert("⚖️ Obligatorio: Acepta el Contrato de Prestación de Servicios, Términos y Aviso de Privacidad para Técnicos."); return;
         }
 
         const skills = [];
