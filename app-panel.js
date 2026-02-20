@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.16.0 (FASE 0: UBER CASH MODEL + SHARK MODE BLINDADO + LOGISTICS SHIELD)
+ * Versión: 5.17.0 (STORAGE 4K EVIDENCE + 4 PHOTOS + SHARK MODE)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -13,7 +13,8 @@
 import {
     db,
     auth,
-    appCheck, // <-- BLINDAJE CONECTADO V5.2
+    storage, // <-- NUEVA INYECCIÓN V5.17.0: DISCO DURO VIRTUAL
+    appCheck,
     doc,
     updateDoc,
     collection,
@@ -27,8 +28,11 @@ import {
     getDoc 
 } from "./firebase.js";
 
-// 🔥 INYECCIÓN NIVEL UBER: runTransaction (Atomicidad), limit (Escudo RAM) e increment (Contadores)
+// 🔥 INYECCIÓN NIVEL UBER (Firestore)
 import { getDocs, arrayUnion, runTransaction, limit, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// 🔥 INYECCIÓN NIVEL UBER (Storage)
+import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 import { activarAlertas, alertaTecnico } from "./alert-engine.js";
 
@@ -97,13 +101,13 @@ async function cargarLibreriaPDF() {
     });
 }
 
-console.log(" 🚀  FIXGO 5.16.0: UBER CASH MODEL (EFECTIVO) + SHARK MODE ACTIVATED.");
+console.log(" 🚀  FIXGO 5.17.0: STORAGE EVIDENCE + 4 PHOTOS ACTIVATED.");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
 // ======================================================================================
 export async function iniciarPanelAdmin(user) {
-    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.16.0 - Bootstrapping)...");
+    console.log(" 🛡️  Iniciando Panel de Administrador (Modo BI V5.17.0 - Bootstrapping)...");
     
     // 🚨 CANDADO DE SEGURIDAD MAESTRO: Validación estricta de rol
     if (!user || user.rol !== "admin") {
@@ -121,11 +125,11 @@ export async function iniciarPanelAdmin(user) {
         vistaHistorialRetiros: document.getElementById("vistaHistorialRetiros"),
         listaHistorialRetiros: document.getElementById("listaHistorialRetiros"),
         countServ: document.querySelector(".fa-bolt")?.closest(".uber-card")?.querySelector("h3"),
-        countMoney: document.getElementById("countMoneyFixgo"), // Actualizado a ID directo
-        countBovedaStripe: document.getElementById("countBovedaStripe"), // INYECCIÓN V5.14.0
+        countMoney: document.getElementById("countMoneyFixgo"), 
+        countBovedaStripe: document.getElementById("countBovedaStripe"), 
         countOnline: document.getElementById("totalTecnicos"),
-        listaFacturasPendientes: document.getElementById("listaFacturasPendientes"), // INYECCIÓN V5.14.0
-        contadorFacturas: document.getElementById("contadorFacturas") // INYECCIÓN V5.14.0
+        listaFacturasPendientes: document.getElementById("listaFacturasPendientes"), 
+        contadorFacturas: document.getElementById("contadorFacturas") 
     };
 
     // --- A. GESTIÓN DE TÉCNICOS ---
@@ -295,10 +299,10 @@ export async function iniciarPanelAdmin(user) {
                 
                 const labelServicio = escaparHTML(`${data.categoria} ${data.sub_servicio ? '• ' + data.sub_servicio : ''}`);
 
-                // --- AUDITORÍA REAL ---
+                // --- AUDITORÍA REAL (V5.17.0 4 PHOTOS) ---
                 let btnAuditar = '';
                 if(data.estado === "finalizado") {
-                    btnAuditar = `<button class="mt-2 text-[9px] bg-purple-600/30 text-purple-400 font-bold px-2 py-1 rounded border border-purple-500/50 transition-colors hover:bg-purple-600/50 block" onclick="window.auditarServicio('${sid}')"><i class="fas fa-camera"></i> AUDITAR</button>`;
+                    btnAuditar = `<button class="mt-2 text-[9px] bg-purple-600/30 text-purple-400 font-bold px-2 py-1 rounded border border-purple-500/50 transition-colors hover:bg-purple-600/50 block" onclick="window.auditarServicio('${sid}')"><i class="fas fa-camera"></i> AUDITAR (4 FOTOS)</button>`;
                 }
 
                 item.innerHTML = `
@@ -371,16 +375,13 @@ export async function iniciarPanelAdmin(user) {
                 const monto = tx.monto_total || 0;
                 totalFlujo += monto;
 
-                // --- 🧠 LÓGICA MAESTRA DE DISPERSIÓN ---
                 const calcFixGo = monto * 0.32;               // 32% para FixGo
                 const calcGarantia = monto * 0.02;            // 2% Fondo Garantía
                 const calcStripe = (monto * 0.036) + 3.00;    // Costo Pasarela (3.6% + $3)
                 
-                // Impuestos Fiscales (Calculados sobre la parte de FixGo)
                 const calcIVA = calcFixGo * 0.16;             // 16% de IVA sobre la comisión
                 const calcISR = calcFixGo * 0.30;             // 30% de ISR sobre utilidad
 
-                // El técnico recibe: Total - (FixGo + Garantía + Stripe)
                 const calcTecnico = monto - calcFixGo - calcGarantia - calcStripe;
 
                 globalFixGo += calcFixGo;
@@ -390,7 +391,6 @@ export async function iniciarPanelAdmin(user) {
                 globalStripe += calcStripe;
                 globalTecnico += calcTecnico;
 
-                // Cálculo de Dinero Retenido (Servicios Ingresados < 24h)
                 if (tx.fecha && tx.fecha.toDate) {
                     const fechaTx = tx.fecha.toDate();
                     const diffHoras = Math.abs(ahora - fechaTx) / 36e5;
@@ -401,13 +401,10 @@ export async function iniciarPanelAdmin(user) {
             }
         });
 
-        // 🔥 CÁLCULO FINAL: UTILIDAD NETA
         const utilidadNetaReal = globalFixGo - globalIVA - globalISR;
-        // 🔥 CÁLCULO STRIPE: El total ingresado menos lo que ya se retiró (Simulación)
         const saldoBoveda = totalFlujo - dineroRetiradoTecnicos;
 
         if(elementos.countMoney) {
-            // Mostramos Ganancia Neta FixGo
             elementos.countMoney.innerText = `$${globalFixGo.toFixed(2)}`;
             if(elementos.countBovedaStripe) elementos.countBovedaStripe.innerText = `$${saldoBoveda.toFixed(2)}`;
             
@@ -417,11 +414,9 @@ export async function iniciarPanelAdmin(user) {
             if(!desgloseContainer) {
                 desgloseContainer = document.createElement('div');
                 desgloseContainer.className = "finance-breakdown mt-3 pt-3 border-t border-white/10 text-[9px] text-gray-400 space-y-1";
-                // Insertamos antes del div de bóveda para que quede ordenado
                 cardParent.insertBefore(desgloseContainer, cardParent.children[1]); 
             }
 
-            // Renderizado del Dashboard BI 
             desgloseContainer.innerHTML = `
                 <div class="flex justify-between text-gray-300"><span>COMISIÓN FIXGO (32%):</span> <span>$${globalFixGo.toFixed(2)}</span></div>
                 <div class="flex justify-between text-red-400"><span>IVA (16% s/FixGo):</span> <span>-$${globalIVA.toFixed(2)}</span></div>
@@ -443,7 +438,7 @@ export async function iniciarPanelAdmin(user) {
 
     // --- D. FUNCIONES DE ADMINISTRACIÓN ---
 
-    // 🔥 AUDITORÍA REAL (SHARK MODE PARA CALIDAD)
+    // 🔥 AUDITORÍA REAL (V5.17.0: 4 FOTOS SOPORTADAS DESDE STORAGE)
     window.auditarServicio = async (sid) => {
         if(document.getElementById("modalAuditoria")) return;
         try {
@@ -451,37 +446,47 @@ export async function iniciarPanelAdmin(user) {
             if(!docSnap.exists()) return alert("Servicio no encontrado.");
             const s = docSnap.data();
             
-            const fotoAntes = s.evidencia?.antes || 'https://via.placeholder.com/300x400?text=SIN+FOTO+ANTES';
-            const fotoDespues = s.evidencia?.despues || 'https://via.placeholder.com/300x400?text=SIN+FOTO+DESPUES';
+            // Leemos las 4 URLs de Storage (Con fallback a la vieja estructura de 2 fotos para tickets viejos)
+            const f_a1 = s.evidencia?.antes1 || s.evidencia?.antes || 'https://via.placeholder.com/300x400?text=SIN+FOTO+ANTES+1';
+            const f_a2 = s.evidencia?.antes2 || 'https://via.placeholder.com/300x400?text=SIN+FOTO+ANTES+2';
+            const f_d1 = s.evidencia?.despues1 || s.evidencia?.despues || 'https://via.placeholder.com/300x400?text=SIN+FOTO+DESPUES+1';
+            const f_d2 = s.evidencia?.despues2 || 'https://via.placeholder.com/300x400?text=SIN+FOTO+DESPUES+2';
 
             const html = `
             <div id="modalAuditoria" class="fixed inset-0 bg-black/95 z-[70] flex items-center justify-center p-4 animate-fade-in">
-                <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-zinc-700 shadow-2xl overflow-y-auto max-h-[90vh]">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-white font-black text-xl"><i class="fas fa-search text-purple-500"></i> AUDITORÍA DE CALIDAD</h3>
-                        <button onclick="document.getElementById('modalAuditoria').remove()" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+                <div class="bg-zinc-900 w-full max-w-4xl rounded-3xl p-6 border border-zinc-700 shadow-2xl overflow-y-auto max-h-[90vh]">
+                    <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-3">
+                        <div>
+                            <h3 class="text-white font-black text-xl"><i class="fas fa-search text-purple-500"></i> AUDITORÍA FOTOGRÁFICA DE CALIDAD</h3>
+                            <p class="text-xs text-gray-400 mt-1">Folio: <span class="font-mono text-emerald-400">${s.folio_fiscal || sid.substring(0,6).toUpperCase()}</span> | Técnico: ${escaparHTML(s.tecnico_nombre)}</p>
+                        </div>
+                        <button onclick="document.getElementById('modalAuditoria').remove()" class="text-gray-500 hover:text-white bg-black p-2 rounded-xl"><i class="fas fa-times text-xl"></i></button>
                     </div>
-                    <p class="text-xs text-gray-400 mb-4 border-b border-zinc-800 pb-2">Folio: ${s.folio_fiscal || sid.substring(0,6).toUpperCase()} | Técnico: ${escaparHTML(s.tecnico_nombre)}</p>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="text-center">
-                            <span class="bg-red-900/30 text-red-500 border border-red-500/50 text-[10px] font-black px-2 py-1 rounded uppercase tracking-widest block mb-2">ANTES</span>
-                            <img src="${fotoAntes}" class="w-full h-auto rounded-xl border border-zinc-700 object-cover shadow-lg" alt="Antes">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="text-center relative group">
+                            <span class="absolute top-2 left-2 bg-red-900/80 text-red-400 border border-red-500/50 text-[10px] font-black px-2 py-1 rounded uppercase tracking-widest z-10 shadow-lg">ANTES 1</span>
+                            <img src="${f_a1}" class="w-full h-64 rounded-xl border border-zinc-700 object-cover shadow-lg transition-transform hover:scale-105" alt="Antes 1">
                         </div>
-                        <div class="text-center">
-                            <span class="bg-emerald-900/30 text-emerald-500 border border-emerald-500/50 text-[10px] font-black px-2 py-1 rounded uppercase tracking-widest block mb-2">DESPUÉS</span>
-                            <img src="${fotoDespues}" class="w-full h-auto rounded-xl border border-zinc-700 object-cover shadow-lg" alt="Despues">
+                        <div class="text-center relative group">
+                            <span class="absolute top-2 left-2 bg-red-900/80 text-red-400 border border-red-500/50 text-[10px] font-black px-2 py-1 rounded uppercase tracking-widest z-10 shadow-lg">ANTES 2</span>
+                            <img src="${f_a2}" class="w-full h-64 rounded-xl border border-zinc-700 object-cover shadow-lg transition-transform hover:scale-105" alt="Antes 2">
                         </div>
-                    </div>
-                    <div class="mt-6 flex justify-end">
-                        <button onclick="document.getElementById('modalAuditoria').remove()" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-2 px-6 rounded-lg text-sm transition-colors">CERRAR</button>
+                        <div class="text-center relative group">
+                            <span class="absolute top-2 left-2 bg-emerald-900/80 text-emerald-400 border border-emerald-500/50 text-[10px] font-black px-2 py-1 rounded uppercase tracking-widest z-10 shadow-lg">DESPUÉS 1</span>
+                            <img src="${f_d1}" class="w-full h-64 rounded-xl border border-zinc-700 object-cover shadow-lg transition-transform hover:scale-105" alt="Despues 1">
+                        </div>
+                        <div class="text-center relative group">
+                            <span class="absolute top-2 left-2 bg-emerald-900/80 text-emerald-400 border border-emerald-500/50 text-[10px] font-black px-2 py-1 rounded uppercase tracking-widest z-10 shadow-lg">DESPUÉS 2</span>
+                            <img src="${f_d2}" class="w-full h-64 rounded-xl border border-zinc-700 object-cover shadow-lg transition-transform hover:scale-105" alt="Despues 2">
+                        </div>
                     </div>
                 </div>
             </div>`;
             document.body.insertAdjacentHTML('beforeend', html);
         } catch(e) {
             console.error(e);
-            alert("Error al cargar la auditoría.");
+            alert("Error al cargar la auditoría fotográfica desde Firebase Storage.");
         }
     };
 
@@ -498,11 +503,9 @@ export async function iniciarPanelAdmin(user) {
                 try {
                     await updateDoc(doc(db, "users", uid), {
                         foto_perfil: event.target.result,
-                        fotoPerfil: event.target.result // Compatibilidad
+                        fotoPerfil: event.target.result 
                     });
                     alert("✅ Foto del técnico actualizada exitosamente por el Administrador.");
-                    
-                    // Recargar el modal para ver los cambios de inmediato
                     const modal = document.getElementById('modalExpediente');
                     if(modal) modal.remove();
                     window.verExpediente(uid); 
@@ -516,7 +519,7 @@ export async function iniciarPanelAdmin(user) {
         fileInput.click();
     };
 
-    // 🔥 EXPEDIENTES DESBLOQUEADOS Y BLINDADOS (ADMIN VIEW V5.16.0)
+    // 🔥 EXPEDIENTES DESBLOQUEADOS Y BLINDADOS
     window.verExpediente = async (uid) => {
         if(document.getElementById("modalExpediente")) return;
         try {
@@ -526,17 +529,14 @@ export async function iniciarPanelAdmin(user) {
 
             const fotoUrl = t.foto_perfil || t.fotoPerfil || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.nombre)}&background=random`;
             
-            // --- Validaciones de Identidad ---
             const ineCheck = t.documentos?.ine ? '<span class="text-emerald-400"><i class="fas fa-check-circle"></i> Cargado</span>' : '<span class="text-red-500"><i class="fas fa-times-circle"></i> Faltante</span>';
             const csfCheck = t.documentos?.csf ? '<span class="text-emerald-400"><i class="fas fa-check-circle"></i> Cargado</span>' : '<span class="text-red-500"><i class="fas fa-times-circle"></i> Faltante</span>';
 
-            // --- Validaciones de Logística Operativa (Vehículo y Licencia) ---
             const vehiculo = t.vehiculo || {};
             const tipoVehiculo = vehiculo.tipo || 'NO REGISTRADO';
             const placas = vehiculo.placas || 'N/A';
             const licenciaCheck = t.documentos?.licencia ? '<span class="text-emerald-400"><i class="fas fa-check-circle"></i> Vigente</span>' : '<span class="text-red-500"><i class="fas fa-times-circle"></i> Faltante</span>';
 
-            // --- Validaciones de Certificados Técnicos ---
             let certsHTML = '';
             if (t.documentos && t.documentos.certificados && t.documentos.certificados.length > 0) {
                 certsHTML = t.documentos.certificados.map(c => `<span class="bg-emerald-900/30 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-500/50 mr-1 mb-1 inline-block"><i class="fas fa-award"></i> Validado</span>`).join('');
@@ -658,7 +658,6 @@ export async function iniciarPanelAdmin(user) {
                 fecha: serverTimestamp()
             });
             
-            // Bajamos reputación manualmente
             await updateDoc(doc(db, "users", uid), {
                 reputacion: increment(-0.5)
             });
@@ -669,6 +668,7 @@ export async function iniciarPanelAdmin(user) {
             alert("Error al aplicar penalización.");
         }
     };
+
     window.registrarPagoTecnico = async (uid, nombre) => {
         const monto = parseFloat(prompt(`¿Cuánto dinero te depositó / pagó ${nombre} para abonar a su deuda? ($):`, "0"));
         if (isNaN(monto) || monto <= 0) return;
@@ -678,7 +678,7 @@ export async function iniciarPanelAdmin(user) {
         try {
             await addDoc(collection(db, "transacciones"), {
                 tecnico_id: uid,
-                pago_tecnico: Math.abs(monto), // Inyecta saldo positivo para contrarrestar la deuda
+                pago_tecnico: Math.abs(monto), 
                 monto_total: 0,
                 tipo: "abono_deuda",
                 descripcion: `Admin: Abono de deuda recibido (SPEI/OXXO)`,
@@ -927,12 +927,13 @@ function generarSwitchGranular(id, label, checked) {
         </label>
     </div>`;
 }
+
 // ======================================================================================
 // ======================================================================================
-// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + SISTEMA DE REPUTACIÓN V5.16.0 SHARK MODE)
+// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + V5.17.0 STORAGE EVIDENCE)
 // ======================================================================================
 export async function iniciarPanelTecnico(user) {
-    console.log(" 🔧  Iniciando Panel de Técnico (Modo Uber Cash / Billetera Negativa / Shark Blindaje)...");
+    console.log(" 🔧  Iniciando Panel de Técnico (Modo Uber Cash / Storage 4K / Shark Blindaje)...");
     
     const elementos = {
         statusLabel: document.getElementById("statusLabel"),
@@ -1058,11 +1059,9 @@ export async function iniciarPanelTecnico(user) {
             const tx = docSnap.data();
             const monto = (tx.pago_tecnico || 0);
             
-            // En V5.15.0 el pago_tecnico para servicios finalizados en efectivo es NEGATIVO.
-            // Por lo tanto, se irá restando automáticamente de saldoBrutoDisponible.
-           if (tx.tipo === "retiro_fondos" || tx.tipo === "penalizacion" || tx.tipo === "abono_deuda") { 
-    saldoBrutoDisponible += monto; 
-} else {
+            if (tx.tipo === "retiro_fondos" || tx.tipo === "penalizacion" || tx.tipo === "abono_deuda") { 
+                saldoBrutoDisponible += monto; 
+            } else {
                 if (tx.fecha && tx.fecha.toDate) {
                     const fechaTx = tx.fecha.toDate();
                     const diffHoras = Math.abs(ahora - fechaTx) / 36e5;
@@ -1090,10 +1089,7 @@ export async function iniciarPanelTecnico(user) {
     });
 
     function actualizarUIWallet() {
-        // En Modelo Efectivo, esto normalmente será un número negativo (Deuda)
         const saldoRealDisponible = saldoBrutoDisponible - retirosEnProceso;
-
-        // Formateo para que se vea bonito (-$320.00 en lugar de $-320.00)
         let saldoFormat = saldoRealDisponible < 0 ? "-$" + Math.abs(saldoRealDisponible).toFixed(2) : "$" + saldoRealDisponible.toFixed(2);
 
         if(elementos.walletLabel) {
@@ -1102,7 +1098,6 @@ export async function iniciarPanelTecnico(user) {
                 <span class="text-[9px] text-gray-400 block font-normal">EN PROCESO: $${saldoRetenido.toFixed(2)}</span>
             `;
             
-            // Si la deuda supera -$1000, parpadea agresivo
             if(saldoRealDisponible <= -1000) {
                  elementos.walletLabel.classList.add("animate-pulse"); 
             } else {
@@ -1110,7 +1105,6 @@ export async function iniciarPanelTecnico(user) {
             }
         }
 
-        // El botón de retiro original está oculto en el HTML V5.15.0, pero mantenemos la lógica base
         if(elementos.btnRetiro) {
             if(retirosEnProceso > 0) {
                 elementos.btnRetiro.disabled = true;
@@ -1226,8 +1220,6 @@ export async function iniciarPanelTecnico(user) {
                     if (diffHoras >= 24) esRetenido = false;
                 }
 
-                // En Fase 0 ya no hay retención bancaria, el técnico tiene el dinero en su bolsa de inmediato.
-                // Ajustamos el badge a "COBRADO"
                 const badgeStatus = '<span class="bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 text-[8px] px-2 py-0.5 rounded font-black tracking-widest uppercase"><i class="fas fa-check-circle"></i> COBRADO</span>';
 
                 const item = document.createElement("div");
@@ -1267,7 +1259,6 @@ export async function iniciarPanelTecnico(user) {
 
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
-        // 🛡️ ESCUDO RAM: Dibuja máximo 50 tickets en la bolsa a la vez
         const q = query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc"), limit(50));
 
         onSnapshot(q, (snap) => {
@@ -1344,7 +1335,6 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
-    // 🔥 BLINDAJE ANTI-COLISIÓN (TRANSACCIONES ATÓMICAS)
     window.tomarServicio = async (id, uid, nombre) => {
         const qCheck = query(
             collection(db, "services"), 
@@ -1363,24 +1353,18 @@ export async function iniciarPanelTecnico(user) {
         try {
             const serviceRef = doc(db, "services", id);
             
-            // EL TÚNEL CUÁNTICO: Garantiza que nadie más toque este documento al mismo tiempo
             await runTransaction(db, async (transaction) => {
                 const sfDoc = await transaction.get(serviceRef);
                 
-                if (!sfDoc.exists()) {
-                    throw "ERROR_NO_EXISTE";
-                }
-
-                if (sfDoc.data().estado !== "pendiente") {
-                    throw "ERROR_COLISION"; // ¡Otro técnico ganó la carrera!
-                }
+                if (!sfDoc.exists()) throw "ERROR_NO_EXISTE";
+                if (sfDoc.data().estado !== "pendiente") throw "ERROR_COLISION"; 
 
                 transaction.update(serviceRef, {
                     estado: "asignado",
                     tecnico_id: uid,
                     tecnico_nombre: nombre,
                     tecnico_telefono: user.telefono || "",
-                    asignado_at: serverTimestamp() // Importante para calcular penalización por tiempo
+                    asignado_at: serverTimestamp() 
                 });
             });
             
@@ -1465,7 +1449,6 @@ export async function iniciarPanelTecnico(user) {
                 btn1.onclick = () => actualizarEstado(id, "en_camino");
             }
             else if (s.estado === "en_camino") {
-                // 🦈 INYECCIÓN SHARK MODE: Validación GPS Geocercada
                 btn2.classList.remove("hidden");
                 btn2.innerText = "YA LLEGUÉ AL SITIO";
                 btn2.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-all";
@@ -1478,7 +1461,7 @@ export async function iniciarPanelTecnico(user) {
                     if (navigator.geolocation && s.coords) {
                         navigator.geolocation.getCurrentPosition((pos) => {
                             const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, s.coords.lat, s.coords.lng);
-                            if (dist > 1000) { // Tolerancia de 1 KM
+                            if (dist > 1000) { 
                                 alert(`🛑 ALERTA ANTIFRAUDE: El sistema detecta que estás a ${Math.round(dist)} metros del cliente.\n\nDebes estar físicamente en el lugar para cambiar el estado a "En Sitio".`);
                                 btn2.innerHTML = textoOriginal;
                                 btn2.disabled = false;
@@ -1487,10 +1470,10 @@ export async function iniciarPanelTecnico(user) {
                             }
                         }, (err) => {
                             console.warn("Error GPS técnico:", err);
-                            actualizarEstado(id, "en_sitio"); // Fallback si falla el GPS local
+                            actualizarEstado(id, "en_sitio"); 
                         }, { enableHighAccuracy: true });
                     } else {
-                        actualizarEstado(id, "en_sitio"); // Fallback si el cliente no dejó coordenadas
+                        actualizarEstado(id, "en_sitio"); 
                     }
                 };
             }
@@ -1532,7 +1515,6 @@ export async function iniciarPanelTecnico(user) {
         }
     }
 
-    // --- LÓGICA DE CANCELACIÓN CON PENALIZACIÓN (V5.13.0) ---
     window.cancelarMisionActiva = async (serviceId) => {
         if(!confirm("⚠️ ADVERTENCIA: Cancelar un servicio aceptado afecta tu reputación.\n\nSi han pasado más de 5 minutos desde que aceptaste, se aplicará una penalización automática de $50 MXN.\n\n¿Estás seguro de cancelar?")) return;
 
@@ -1546,18 +1528,17 @@ export async function iniciarPanelTecnico(user) {
 
             if (data.asignado_at) {
                 const tiempoAceptado = data.asignado_at.toDate();
-                const diffMin = (ahora - tiempoAceptado) / 60000; // Diferencia en minutos
+                const diffMin = (ahora - tiempoAceptado) / 60000; 
                 if (diffMin > 5) aplicarMulta = true;
             }
 
-            // Liberar el servicio
             await updateDoc(doc(db, "services", serviceId), { 
                 estado: "pendiente", 
                 tecnico_id: null,
                 tecnico_nombre: null,
                 tecnico_telefono: null,
                 asignado_at: null,
-                rejected_by: arrayUnion(user.uid) // Evita que lo vuelva a ver
+                rejected_by: arrayUnion(user.uid) 
             });
 
             if (aplicarMulta) {
@@ -1571,7 +1552,7 @@ export async function iniciarPanelTecnico(user) {
                 });
                 
                 await updateDoc(doc(db, "users", user.uid), {
-                    reputacion: increment(-0.2) // Baja reputación
+                    reputacion: increment(-0.2) 
                 });
 
                 alert("❌ Servicio cancelado. Se aplicó una penalización de $50 MXN por cancelación fuera de tiempo.");
@@ -1629,7 +1610,6 @@ export async function iniciarPanelTecnico(user) {
         </div>`;
         
         document.body.insertAdjacentHTML('beforeend', html);
-        console.log(" 🛠️ Modal de Cotización Abierto");
 
         const renderItems = () => {
             const container = document.getElementById("listaPartidas");
@@ -1675,7 +1655,6 @@ export async function iniciarPanelTecnico(user) {
 
             if(btnAdd) {
                 btnAdd.onclick = () => {
-                    console.log("Click en Agregar Item");
                     const cant = parseFloat(document.getElementById("inCant").value);
                     const unidad = document.getElementById("inUnidad").value.trim();
                     const desc = document.getElementById("inDesc").value.trim();
@@ -1721,29 +1700,41 @@ export async function iniciarPanelTecnico(user) {
         }, 100); 
     }
 
+    // 🔥 MODAL DE EVIDENCIA 4 FOTOS (MIGRADO A STORAGE V5.17.0)
     function mostrarModalEvidencia(id) {
         if(document.getElementById("modalEvidencia")) return;
 
         const html = `
         <div id="modalEvidencia" class="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
             <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700 shadow-2xl">
-                <h3 class="text-white font-black text-xl mb-4 text-center">REPORTE FINAL OBLIGATORIO</h3>
-                <p class="text-gray-400 text-xs mb-6 text-center">Toma tus fotos, cobra en efectivo y cierra la orden.</p>
+                <h3 class="text-white font-black text-xl mb-2 text-center">REPORTE FINAL OBLIGATORIO</h3>
+                <p class="text-gray-400 text-[10px] mb-6 text-center">Sube hasta 4 fotos (Mínimo 1 del Antes y 1 del Después) para liberar el cobro. Los archivos pesados se subirán directamente a Google Cloud.</p>
 
-                <div class="space-y-4">
-                    <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
-                        <label class="block text-xs font-bold text-emerald-500 mb-2 uppercase">FOTO DEL ANTES</label>
-                        <input type="file" id="fileAntes" accept="image/*" class="text-xs text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-white hover:file:bg-zinc-700">
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div class="bg-black p-3 rounded-xl border border-red-900/50 text-center">
+                        <label class="block text-[10px] font-bold text-red-500 mb-2 uppercase tracking-widest">ANTES (Foto 1)</label>
+                        <input type="file" id="fileA1" accept="image/*" class="text-[9px] w-full text-gray-400 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-2 file:rounded">
                     </div>
-                    <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center">
-                        <label class="block text-xs font-bold text-emerald-500 mb-2 uppercase">FOTO DEL DESPUÉS</label>
-                        <input type="file" id="fileDespues" accept="image/*" class="text-xs text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-white hover:file:bg-zinc-700">
+                    <div class="bg-black p-3 rounded-xl border border-red-900/50 text-center">
+                        <label class="block text-[10px] font-bold text-red-500 mb-2 uppercase tracking-widest">ANTES (Foto 2)</label>
+                        <input type="file" id="fileA2" accept="image/*" class="text-[9px] w-full text-gray-400 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-2 file:rounded">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-black p-3 rounded-xl border border-emerald-900/50 text-center">
+                        <label class="block text-[10px] font-bold text-emerald-500 mb-2 uppercase tracking-widest">DESPUÉS (Foto 1)</label>
+                        <input type="file" id="fileD1" accept="image/*" class="text-[9px] w-full text-gray-400 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-2 file:rounded">
+                    </div>
+                    <div class="bg-black p-3 rounded-xl border border-emerald-900/50 text-center">
+                        <label class="block text-[10px] font-bold text-emerald-500 mb-2 uppercase tracking-widest">DESPUÉS (Foto 2)</label>
+                        <input type="file" id="fileD2" accept="image/*" class="text-[9px] w-full text-gray-400 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-2 file:rounded">
                     </div>
                 </div>
 
                 <div class="flex gap-3 mt-8">
                     <button onclick="document.getElementById('modalEvidencia').remove()" class="flex-1 bg-zinc-800 text-white py-3 rounded-xl font-bold text-sm">CANCELAR</button>
-                    <button id="btnSubirEvidencia" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black py-3 rounded-xl font-black text-sm transition-colors">ENVIAR Y CERRAR</button>
+                    <button id="btnSubirEvidencia" class="flex-[2] bg-emerald-500 hover:bg-emerald-400 text-black py-3 rounded-xl font-black text-sm transition-colors">SUBIR Y CERRAR ORDEN</button>
                 </div>
             </div>
         </div>
@@ -1751,19 +1742,42 @@ export async function iniciarPanelTecnico(user) {
         document.body.insertAdjacentHTML('beforeend', html);
         
         document.getElementById("btnSubirEvidencia").onclick = async () => {
-            const f1 = document.getElementById("fileAntes").files[0];
-            const f2 = document.getElementById("fileDespues").files[0];
-            if(!f1 || !f2) { alert(" ⚠  Ambas fotos son obligatorias para el reporte."); return; }
+            const fA1 = document.getElementById("fileA1").files[0];
+            const fA2 = document.getElementById("fileA2").files[0];
+            const fD1 = document.getElementById("fileD1").files[0];
+            const fD2 = document.getElementById("fileD2").files[0];
+
+            if(!fA1 || !fD1) { alert(" ⚠  Es obligatorio subir al menos la FOTO 1 del ANTES y la FOTO 1 del DESPUÉS."); return; }
+
+            if (!storage) {
+                alert("❌ Error: Firebase Storage no está configurado. Contacta a soporte técnico.");
+                return;
+            }
 
             const btn = document.getElementById("btnSubirEvidencia");
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROTEGIENDO EVIDENCIA...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SUBIENDO AL SERVIDOR CLOUD...';
             btn.disabled = true;
             
             try {
-                const b64_1 = await toBase64(f1);
-                const b64_2 = await toBase64(f2);
+                // Función interna para subir y retornar URL
+                const subirImagenAStorage = async (file, nombreAsignado) => {
+                    if(!file) return null;
+                    const storageRef = ref(storage, `servicios/${id}/${nombreAsignado}_${Date.now()}.jpg`);
+                    await uploadBytes(storageRef, file);
+                    const url = await getDownloadURL(storageRef);
+                    return url;
+                };
+
+                // Subida concurrente de las 4 fotos para velocidad máxima
+                const [urlA1, urlA2, urlD1, urlD2] = await Promise.all([
+                    subirImagenAStorage(fA1, 'antes_1'),
+                    subirImagenAStorage(fA2, 'antes_2'),
+                    subirImagenAStorage(fD1, 'despues_1'),
+                    subirImagenAStorage(fD2, 'despues_2')
+                ]);
+
+                btn.innerHTML = '<i class="fas fa-cog fa-spin"></i> FINALIZANDO COBRO...';
                 
-                // 🦈 INYECCIÓN SHARK MODE: Metadatos para trazabilidad legal de la evidencia
                 const timestampMetadatos = new Date().toISOString();
                 const userAgentCorto = navigator.userAgent.substring(0, 50);
                 
@@ -1771,27 +1785,23 @@ export async function iniciarPanelTecnico(user) {
                 const servicioData = servicioSnap.data();
                 const costoTotal = servicioData.costo_final || 0;
 
-                // --- MATEMÁTICA FINANCIERA FASE 0 (EFECTIVO / DEUDA) ---
-                // El cliente pagó en efectivo el 100% al técnico.
-                // FixGo cobra su 32% de comisión total.
                 const comisionFixGoPura = costoTotal * 0.30; 
                 const aporteGarantia = costoTotal * 0.02;    
-                
-                // Retenciones de Ley calculadas solo para registro interno del Admin BI
                 const retencionIVA = costoTotal * 0.08;      
                 const retencionISR = costoTotal * 0.10;      
-                
-                // 🔥 LA DEUDA: El técnico se queda el efectivo, así que su "pago" en plataforma es negativo (lo que nos debe).
                 const deudaTecnico = -(costoTotal * 0.32);
 
                 await actualizarEstado(id, "finalizado", {
                     evidencia: { 
-                        antes: b64_1, 
-                        despues: b64_2,
+                        antes1: urlA1,
+                        antes2: urlA2 || null,
+                        despues1: urlD1,
+                        despues2: urlD2 || null,
                         metadatos: {
                             fecha_captura: timestampMetadatos,
                             dispositivo_tecnico: userAgentCorto,
-                            certificacion_legal: true
+                            certificacion_legal: true,
+                            almacenamiento: "Google Cloud Storage"
                         }
                     },
                     finalizado_at: serverTimestamp(),
@@ -1811,36 +1821,27 @@ export async function iniciarPanelTecnico(user) {
                     aporte_garantia: aporteGarantia, 
                     retencion_iva: retencionIVA,    
                     retencion_isr: retencionISR,    
-                    // Fase 0: El técnico debe el 32% del efectivo que cobró
                     pago_tecnico: deudaTecnico, 
                     fecha: serverTimestamp(),
                     tipo: "ingreso_servicio",
                     metodo_pago: "efectivo"
                 });
 
-                // BONUS DE REPUTACIÓN AUTOMÁTICO
                 await updateDoc(doc(db, "users", user.uid), {
-                    reputacion: increment(0.1), // Sube reputación
+                    reputacion: increment(0.1), 
                     servicios_completados: increment(1)
                 });
 
                 document.getElementById("modalEvidencia").remove();
-                alert(" ✅  ¡Servicio Cerrado! Has cobrado en efectivo. La comisión de FixGo (32%) ha sido descontada de tu balance.");
+                alert(" ✅  ¡Servicio Cerrado Exitosamente!\n\nLas fotos fueron resguardadas en la nube. Has cobrado en efectivo. La comisión de FixGo ha sido descontada de tu balance.");
             } catch (e) {
-                console.error(e);
-                alert("Error subiendo imágenes. Intenta fotos más pequeñas.");
-                btn.innerText = "REINTENTAR";
+                console.error("Error crítico subiendo evidencia a Storage:", e);
+                alert("Error de conexión al servidor Cloud. Revisa tu internet e intenta de nuevo.");
+                btn.innerText = "REINTENTAR SUBIDA";
                 btn.disabled = false;
             }
         };
     }
-
-    const toBase64 = file => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-    });
 
     window.generarPDFRetiro = async (retiroId) => {
         try {
@@ -1870,6 +1871,610 @@ export async function iniciarPanelTecnico(user) {
             docPdf.setTextColor(200, 200, 200);
             docPdf.setFontSize(10);
             docPdf.text("Comprobante de Liquidación (SPEI)", 20, 32);
+            
+            docPdf.setFontSize(8);
+            docPdf.setTextColor(150, 150, 150);
+            docPdf.text(`RFC EMISOR: FXG260211-H8A`, 20, 45);
+            
+            let fechaFormat = new Date().toLocaleDateString();
+            if(data.fecha_aprobacion) {
+                fechaFormat = new Date(data.fecha_aprobacion.seconds * 1000).toLocaleDateString();
+            }
+            
+            docPdf.text(`FOLIO RETIRO: SPEI-${data.id.substring(0,6).toUpperCase()}`, 130, 45);
+            docPdf.text(`FECHA APROBACIÓN: ${fechaFormat}`, 130, 50);
+
+            let y = 70;
+            docPdf.setTextColor(0, 0, 0);
+            docPdf.setFontSize(14);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.text("DETALLES DE LA TRANSFERENCIA", 20, y);
+
+            y += 10;
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setFontSize(11);
+            docPdf.text(`Beneficiario (Socio Técnico): ${data.tecnico_nombre}`, 20, y);
+            y += 8;
+            docPdf.text(`Estado: LIQUIDADO / APROBADO`, 20, y);
+            
+            y += 20;
+            
+            docPdf.setFillColor(245, 245, 245);
+            docPdf.rect(20, y, 170, 30, 'F');
+            
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(12);
+            docPdf.setTextColor(50, 50, 50);
+            docPdf.text("MONTO TRANSFERIDO:", 30, y + 18);
+            
+            docPdf.setFontSize(20);
+            docPdf.setTextColor(16, 185, 129); 
+            docPdf.text(`$${data.monto.toFixed(2)} MXN`, 110, y + 20);
+
+            y += 60;
+            docPdf.setFontSize(9);
+            docPdf.setTextColor(150, 150, 150);
+            docPdf.setFont("helvetica", "normal");
+            
+            const notaLegal = "Este documento es un comprobante de liquidación digital emitido por la plataforma FixGo. Los fondos han sido transferidos a la cuenta bancaria registrada por el socio especialista. El tiempo de reflejo en cuenta puede variar dependiendo de la institución bancaria receptora.";
+            const splitNota = docPdf.splitTextToSize(notaLegal, 170);
+            docPdf.text(splitNota, 20, y);
+            
+            docPdf.save(`FixGo_Liquidacion_${data.id.substring(0,6)}.pdf`);
+
+        } catch (error) {
+            console.error("Error al generar PDF de retiro:", error);
+            alert("Hubo un error al generar el comprobante. Intenta de nuevo.");
+        }
+    };
+
+    window.cambiarFotoPerfil = async (uid) => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    await updateDoc(doc(db, "users", uid), {
+                        foto_perfil: event.target.result,
+                        fotoPerfil: event.target.result 
+                    });
+                    alert("✅ Foto de perfil actualizada correctamente.");
+                } catch(err) {
+                    console.error("Error subiendo foto:", err);
+                    alert("Error al actualizar la foto de perfil en el servidor.");
+                }
+            };
+            reader.readAsDataURL(file);
+        };
+        fileInput.click();
+    };
+}
+
+// ======================================================================================
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.17.0
+// ======================================================================================
+export async function iniciarPanelCliente(user) {
+    console.log(" 📱  Iniciando Panel de Cliente (Modo Bootstrapping / Efectivo / 4K Storage)...");
+
+    const el = {
+        form: document.getElementById("nuevaSolicitudForm"),
+        lista: document.getElementById("solicitudesCliente"),
+        inputCat: document.getElementById("categoriaSeleccionada"),
+        labelServicio: document.getElementById("btnLabel"),
+        containerRoad: document.getElementById("content_road"),
+        containerFix: document.getElementById("content_fix"),
+        containerTech: document.getElementById("content_tech"),
+        containerMaint: document.getElementById("content_maint"),
+        stripeCard: document.getElementById("stripe_card"),
+        toggleFactura: document.getElementById("toggleFactura"),
+        facRfc: document.getElementById("fac_rfc"),
+        facRazon: document.getElementById("fac_razon"),
+        facCp: document.getElementById("fac_cp"),
+        facRegimen: document.getElementById("fac_regimen")
+    };
+
+    // ----------------------------------------------------------------------------------
+    // 3.1 CARGA DINÁMICA DE VERTICALES EN ACORDEÓN
+    // ----------------------------------------------------------------------------------
+    async function cargarServiciosCliente() {
+        console.log("Cargando servicios en contenedores dinámicos...");
+
+        onSnapshot(doc(db, "configuracion", "catalogo_global"), (docSnap) => {
+            const dbConfig = docSnap.exists() ? docSnap.data() : {};
+            
+            const DEFINICION_VERTICALES = {
+                road: [
+                    { id: "road_llanta", label: "Llantera Móvil", icon: "fa-car-crash" },
+                    { id: "road_cerrajero", label: "Cerrajería", icon: "fa-key" },
+                    { id: "road_grua", label: "Grúas", icon: "fa-truck-pickup" },
+                    { id: "road_mecanico", label: "Mecánico Gral.", icon: "fa-wrench" },
+                    { id: "road_corriente", label: "Paso Corriente", icon: "fa-car-battery" }
+                ],
+                fix: [
+                    { id: "fix_electricidad", label: "Electricidad", icon: "fa-plug" },
+                    { id: "fix_plomeria", label: "Plomería", icon: "fa-faucet" },
+                    { id: "fix_ac", label: "Aires Acondicionad.", icon: "fa-snowflake" },
+                    { id: "fix_jardin", label: "Jardinería", icon: "fa-leaf" },
+                    { id: "fix_pintura", label: "Pintura", icon: "fa-paint-roller" },
+                    { id: "fix_alberca", label: "Albercas", icon: "fa-swimming-pool" },
+                    { id: "fix_fumigacion", label: "Fumigación", icon: "fa-bug" }
+                ],
+                maint: [
+                    { id: "maint_general", label: "Mantenimiento Gral.", icon: "fa-building" }
+                ],
+                tech: [
+                    { id: "tech_cctv", label: "CCTV", icon: "fa-video" },
+                    { id: "tech_alarma", label: "Alarmas", icon: "fa-bell" },
+                    { id: "tech_acceso", label: "Accesos", icon: "fa-id-card" },
+                    { id: "tech_elevador", label: "Elevadores", icon: "fa-elevator" },
+                    { id: "tech_planta", label: "Plantas Eléc.", icon: "fa-charging-station" },
+                    { id: "tech_solar", label: "Paneles Solares", icon: "fa-solar-panel" }
+                ]
+            };
+
+            const renderizarCategoria = (categoriaClave, contenedor) => {
+                if(!contenedor) return;
+                contenedor.innerHTML = ""; 
+                let html = '<div class="grid grid-cols-2 gap-2 p-3 bg-black/50 rounded-b-xl border-x border-b border-zinc-800">';
+                
+                DEFINICION_VERTICALES[categoriaClave].forEach(srv => {
+                    const isActive = dbConfig[srv.id] !== false; 
+                    
+                    if (isActive) {
+                        html += `
+                        <div onclick="window.seleccionarServicio('${srv.id}', '${srv.label}')" 
+                             class="bg-zinc-900 border border-zinc-700 p-3 rounded-xl flex flex-col items-center text-center transition-all duration-200 service-card-btn opacity-100 hover:scale-105 hover:border-emerald-500 active:scale-95 cursor-pointer" id="card_${srv.id}">
+                            <div class="mb-2">
+                                <div class="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_5px_#10b981]"></div>
+                            </div>
+                            <i class="fas ${srv.icon} text-lg mb-2 text-gray-300"></i>
+                            <span class="text-white font-bold text-[10px] leading-tight uppercase">${srv.label}</span>
+                            <span class="text-[8px] text-gray-500 mt-1 uppercase tracking-widest font-bold">DISPONIBLE</span>
+                        </div>`;
+                    } else {
+                        html += `
+                        <div class="bg-zinc-900/40 border border-zinc-800/40 p-3 rounded-xl flex flex-col items-center text-center opacity-40 grayscale cursor-not-allowed">
+                            <div class="mb-2"><i class="fas fa-lock text-gray-600 text-xs"></i></div>
+                            <i class="fas ${srv.icon} text-lg mb-2 text-zinc-600"></i>
+                            <span class="text-white font-bold text-[10px] leading-tight uppercase">${srv.label}</span>
+                            <span class="text-[8px] text-gray-500 mt-1 uppercase tracking-widest font-bold">PRÓXIMAMENTE</span>
+                        </div>`;
+                    }
+                });
+                
+                html += '</div>';
+                contenedor.innerHTML = html;
+            };
+
+            renderizarCategoria("road", el.containerRoad);
+            renderizarCategoria("fix", el.containerFix);
+            renderizarCategoria("tech", el.containerTech);
+            renderizarCategoria("maint", el.containerMaint);
+
+            window.seleccionarServicio = (id, label) => {
+                document.querySelectorAll('.service-card-btn').forEach(btn => {
+                    btn.classList.remove('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
+                    btn.classList.add('bg-zinc-900', 'border-zinc-700');
+                });
+
+                const activeCard = document.getElementById(`card_${id}`);
+                if(activeCard) {
+                    activeCard.classList.remove('bg-zinc-900', 'border-zinc-700');
+                    activeCard.classList.add('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
+                }
+
+                if(el.inputCat) el.inputCat.value = id;
+                if(el.labelServicio) el.labelServicio.innerText = label.toUpperCase();
+
+                const formContainer = document.getElementById("modalSolicitud");
+                if(formContainer) formContainer.classList.remove("hidden");
+
+                el.form?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            };
+        });
+    }
+
+    cargarServiciosCliente();
+
+    // ----------------------------------------------------------------------------------
+    // 3.2 ENVÍO DE SOLICITUD (SHARK MODE ANTI-SPAM)
+    // ----------------------------------------------------------------------------------
+    let lastSubmitTime = 0; 
+
+    if (el.form) {
+        el.form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            
+            const now = Date.now();
+            if (now - lastSubmitTime < 30000) {
+                alert("⏳ SISTEMA ANTI-SPAM: Por favor espera al menos 30 segundos antes de enviar una nueva solicitud de servicio.");
+                return;
+            }
+
+            const cat = el.inputCat.value; 
+            const dir = el.form.querySelector('[name="direccion"]').value;
+            const desc = el.form.querySelector('[name="descripcion"]').value;
+            
+            if (!cat) { alert(" ⚠  Por favor selecciona un servicio habilitado de la lista."); return; }
+            
+            let requiereFactura = false;
+            let datosFacturacion = null;
+
+            if (el.toggleFactura && el.toggleFactura.checked) {
+                requiereFactura = true;
+                datosFacturacion = {
+                    rfc: el.facRfc?.value.toUpperCase(),
+                    razon_social: el.facRazon?.value,
+                    cp: el.facCp?.value,
+                    regimen: el.facRegimen?.value
+                };
+                if (!datosFacturacion.rfc || !datosFacturacion.razon_social) {
+                    alert("⚠️ Si requieres factura, por favor completa RFC y Razón Social.");
+                    return;
+                }
+            }
+
+            const btn = el.form.querySelector("button");
+            const textoOriginal = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO CONEXIÓN...`;
+            
+            setTimeout(() => {
+                btn.innerHTML = `<i class="fas fa-satellite-dish"></i> OBTENIENDO UBICACIÓN SATELITAL...`;
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        async (pos) => {
+                            await enviarSolicitudFinal(cat, dir, desc, {
+                                lat: pos.coords.latitude,
+                                lng: pos.coords.longitude
+                            }, requiereFactura, datosFacturacion);
+                        },
+                        async (err) => {
+                            console.warn("GPS Cliente no disponible:", err);
+                            await enviarSolicitudFinal(cat, dir, desc, null, requiereFactura, datosFacturacion);
+                        },
+                        { timeout: 15000, maximumAge: 10000, enableHighAccuracy: true }
+                    );
+                } else {
+                    enviarSolicitudFinal(cat, dir, desc, null, requiereFactura, datosFacturacion);
+                }
+            }, 500); 
+            
+            async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords, reqFac, datosFac) {
+                const partes = categoriaFull.split('_');
+                const vertical = partes[0].toUpperCase(); 
+                const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
+
+                try {
+                    await addDoc(collection(db, "services"), {
+                        cliente_id: user.uid,
+                        cliente_nombre: user.nombre || "Cliente",
+                        cliente_telefono: user.telefono || "",
+                        categoria: vertical,
+                        sub_servicio: servicio,
+                        categoria_id: categoriaFull,
+                        direccion: direccion,
+                        descripcion: descripcion,
+                        estado: "pendiente",
+                        zona: "Cancún",
+                        created_at: serverTimestamp(),
+                        retencion_inicial: 0, 
+                        costo_final: 0,
+                        coords: coords,
+                        factura_requerida: reqFac,
+                        datos_facturacion: datosFac,
+                        factura_enviada: false
+                    });
+                    
+                    lastSubmitTime = Date.now(); 
+
+                    alert(" ✅  ¡Solicitud Enviada!\n\nNuestro sistema está buscando al técnico certificado más cercano...");
+                    el.form.reset();
+                    if(el.toggleFactura) {
+                        el.toggleFactura.checked = false;
+                        document.getElementById('datosFacturacion').classList.add('hidden');
+                    }
+                    
+                    const formContainer = document.getElementById("modalSolicitud");
+                    if(formContainer) formContainer.classList.add("hidden");
+
+                    if(el.labelServicio) el.labelServicio.innerText = "SERVICIO";
+                    document.querySelectorAll('.service-card-btn').forEach(cardBtn => {
+                        cardBtn.classList.remove('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
+                        cardBtn.classList.add('bg-zinc-900', 'border-zinc-700');
+                    });
+                } catch (error) {
+                    console.error(error);
+                    alert("Error al enviar solicitud al servidor central.");
+                }
+                
+                btn.disabled = false;
+                btn.innerHTML = textoOriginal;
+            }
+        });
+    }
+
+    // ----------------------------------------------------------------------------------
+    // 3.3 MONITOR DE HISTORIAL & WATCHDOG DE NOTIFICACIONES AL CLIENTE
+    // ----------------------------------------------------------------------------------
+    onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc"), limit(50)), (snap) => {
+        if(!el.lista) return;
+        
+        snap.docChanges().forEach(change => {
+            if (change.type === 'modified') {
+                const newData = change.doc.data();
+                console.log(" 🔔  Actualización de servicio:", newData.estado);
+                sonarAlerta();
+
+                if (newData.estado === 'finalizado') {
+                    alert("✅ ¡Servicio terminado exitosamente!\n\nPor favor, realiza el pago en efectivo directamente al técnico. Revisa tu comprobante digital en pantalla.");
+                }
+            }
+        });
+        
+        el.lista.innerHTML = "";
+
+        if(snap.empty) {
+            el.lista.innerHTML = `
+            <div class="text-center py-8">
+                <i class="fas fa-history text-gray-700 text-3xl mb-2"></i>
+                <p class="text-gray-600 text-sm">Tus servicios aparecerán aquí.</p>
+            </div>`;
+            return;
+        }
+
+        snap.forEach(docSnap => {
+            const s = docSnap.data();
+            const id = docSnap.id;
+            
+            let contenido = `<div class="p-4 bg-yellow-900/10 rounded-xl border border-yellow-500/30 mb-2"><span class="text-xs font-bold text-yellow-500 animate-pulse"> 🔎  RASTREANDO TÉCNICO EN LA ZONA...</span></div>`;
+            
+            if (s.estado === "cotizando") {
+                let htmlTabla = "";
+                if (s.detalles_cotizacion && s.detalles_cotizacion.length > 0) {
+                    const filas = s.detalles_cotizacion.map(item => `
+                        <tr>
+                            <td>${item.cantidad} ${escaparHTML(item.unidad)}</td>
+                            <td>${escaparHTML(item.descripcion)}</td>
+                            <td class="quote-num">$${item.precio}</td>
+                            <td class="quote-num text-white">$${(item.cantidad * item.precio).toFixed(2)}</td>
+                        </tr>
+                    `).join('');
+                    
+                    htmlTabla = `
+                        <div class="bg-black border border-zinc-700 rounded-lg overflow-hidden my-3">
+                            <table class="quote-table" style="width: 100%; border-collapse: collapse; font-size: 10px; color: #ccc;">
+                                <thead>
+                                    <tr>
+                                        <th style="background: #1f1f1f; color: #10b981; padding: 4px;">CANT</th>
+                                        <th style="background: #1f1f1f; color: #10b981; padding: 4px;">DESC</th>
+                                        <th style="background: #1f1f1f; color: #10b981; padding: 4px;">P.U.</th>
+                                        <th style="background: #1f1f1f; color: #10b981; padding: 4px;">IMP.</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${filas}</tbody>
+                                <tfoot>
+                                    <tr class="quote-total-row" style="background: #1a1a1a; border-top: 2px solid #333;">
+                                        <td colspan="3" class="text-right font-bold text-gray-400" style="padding: 4px;">TOTAL:</td>
+                                        <td class="quote-num text-emerald-500 font-black text-sm" style="padding: 4px;">$${s.costo_final.toFixed(2)}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    `;
+                } else {
+                    htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${s.costo_final}</p><p class="text-gray-400 text-xs italic">"${escaparHTML(s.diagnostico)}"</p>`;
+                }
+
+                contenido = `
+                <div class="bg-zinc-800 p-4 rounded-lg border border-yellow-500 mt-2">
+                    <div class="flex justify-between items-center mb-2">
+                        <p class="text-yellow-500 text-xs font-bold uppercase">PRESUPUESTO GENERADO</p>
+                        <span class="bg-yellow-500/20 text-yellow-500 text-[9px] px-2 py-1 rounded">FOLIO: ${id.substring(0,6).toUpperCase()}</span>
+                    </div>
+                    ${htmlTabla}
+                    <div class="mt-2 p-2 bg-black/50 rounded border border-white/5">
+                        <p class="legal-note" style="font-size: 8px; color: #666;">* SI HUBIERA CANCELACION TOTAL O PARCIAL... PENALIZACION DEL 20%.</p>
+                        <p class="legal-note" style="font-size: 8px; color: #666;">* GARANTIA POR ESCRITO MINIMO DE 6 MESES.</p>
+                        <p class="legal-note mt-2 text-emerald-500 font-bold"><i class="fas fa-hand-holding-usd"></i> Pago en EFECTIVO directo al técnico al finalizar.</p>
+                    </div>
+                    <div class="flex gap-2 mt-4">
+                        <button onclick="window.responderCotizacion('${id}', false)" class="flex-1 bg-red-900/50 hover:bg-red-900 text-red-200 text-xs py-3 rounded-lg font-bold transition-colors">
+                            RECHAZAR
+                        </button>
+                        <button onclick="window.responderCotizacion('${id}', true)" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs py-3 rounded-lg transition-colors shadow-lg shadow-emerald-500/20">
+                            APROBAR COSTO
+                        </button>
+                    </div>
+                </div>
+                `;
+            } else if (s.estado === "finalizado") {
+                // V5.17.0: Renderizado en el Ticket de hasta 4 fotos (compatibilidad hacia atrás con 2)
+                const f_a1 = s.evidencia?.antes1 || s.evidencia?.antes;
+                const f_a2 = s.evidencia?.antes2;
+                const f_d1 = s.evidencia?.despues1 || s.evidencia?.despues;
+                const f_d2 = s.evidencia?.despues2;
+
+                contenido = `
+                <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-xl mt-2">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-emerald-500 font-black text-xs uppercase tracking-widest">TICKET FINAL</span>
+                        <span class="bg-emerald-500 text-black text-[9px] font-bold px-2 py-0.5 rounded">FINALIZADO</span>
+                    </div>
+                    <div class="space-y-2 mb-4">
+                        <div class="flex justify-between text-lg text-white font-black">
+                            <span>TOTAL PAGADO:</span>
+                            <span>$${s.costo_final}</span>
+                        </div>
+                    </div>
+                    <p class="text-[9px] text-gray-500 mb-2 font-bold uppercase">EVIDENCIA FOTOGRÁFICA (Cloud):</p>
+                    <div class="grid grid-cols-4 gap-1 mb-4">
+                        ${f_a1 ? `<div class="relative h-16"><img src="${f_a1}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
+                        ${f_a2 ? `<div class="relative h-16"><img src="${f_a2}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
+                        ${f_d1 ? `<div class="relative h-16"><img src="${f_d1}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
+                        ${f_d2 ? `<div class="relative h-16"><img src="${f_d2}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
+                    </div>
+                    <button onclick="window.generarPDF('${id}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2">
+                        <i class="fas fa-file-download text-red-500"></i> DESCARGAR REPORTE FISCAL
+                    </button>
+                    ${s.factura_requerida ? `<p class="text-[9px] text-center mt-3 text-emerald-400 italic">Factura CFDI solicitada. Te llegará por correo.</p>` : ''}
+                </div>
+                `;
+            }
+
+            let headerStatus = `<span class="text-[10px] font-bold text-yellow-500 animate-pulse">BUSCANDO...</span>`;
+            let dotColor = "bg-yellow-500";
+            if (s.estado !== "pendiente") {
+                headerStatus = `<span class="text-[10px] font-bold text-blue-400 uppercase">${s.estado.replace('_', ' ')}</span>`;
+                dotColor = "bg-blue-500";
+                if(s.estado === "finalizado") { headerStatus = `<span class="text-[10px] font-bold text-emerald-500">FINALIZADO</span>`; dotColor = "bg-emerald-500"; }
+                if(s.estado === "cancelado") { headerStatus = `<span class="text-[10px] font-bold text-red-500">CANCELADO</span>`; dotColor = "bg-red-500"; }
+            }
+
+            let fechaFormat = "";
+            if(s.created_at) {
+                const dateObj = new Date(s.created_at.seconds * 1000);
+                fechaFormat = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            }
+
+            const card = document.createElement("div");
+            card.className = "uber-card rounded-2xl overflow-hidden shadow-lg mb-3";
+
+            card.innerHTML = `
+            <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="toggleAccordion('hist-${id}', 'icon-${id}')">
+                <div class="flex items-center gap-4">
+                    <div class="w-3 h-3 ${dotColor} rounded-full shadow-[0_0_8px_currentColor]"></div>
+                    <div>
+                        <h4 class="font-black text-white text-sm uppercase tracking-tight">${escaparHTML(s.categoria)} <span class="text-gray-500 font-normal ml-1">| ${escaparHTML(s.sub_servicio || '')}</span></h4>
+                        <div class="flex items-center gap-2 mt-1">
+                            ${headerStatus}
+                            <span class="text-[9px] text-gray-500">• ${fechaFormat}</span>
+                        </div>
+                    </div>
+                </div>
+                <i id="icon-${id}" class="fas fa-chevron-down text-gray-400 chevron-icon"></i>
+            </div>
+
+            <div id="hist-${id}" class="expandable-content bg-zinc-900/40">
+                <div class="p-4 border-t border-zinc-800/50">
+                    <p class="text-xs text-gray-400 truncate mb-3"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${escaparHTML(s.direccion)}</p>
+                    
+                    ${contenido}
+
+                    ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `
+                    <button onclick="window.abrirMapaEnVivo('${id}')" class="w-full mt-4 text-center bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs py-3 rounded-xl border border-blue-500/30 transition-colors font-bold flex items-center justify-center gap-2">
+                        <i class="fas fa-map-marked-alt"></i> SEGUIR TÉCNICO EN VIVO
+                    </button>
+                    ` : ''}
+                </div>
+            </div>
+            `;
+            el.lista.appendChild(card);
+        });
+    });
+
+    window.abrirMapaEnVivo = (id) => {
+        const existingModal = document.getElementById('modalMapaVivo');
+        if (existingModal) existingModal.remove();
+
+        const html = `
+        <div id="modalMapaVivo" class="fixed inset-0 bg-black/95 z-[70] flex flex-col p-4 animate-fade-in">
+            <div class="flex justify-between items-center mb-4 mt-2">
+                <h3 class="text-white font-black text-lg"><i class="fas fa-satellite-dish text-blue-500 animate-pulse"></i> RASTREO EN VIVO</h3>
+                <button onclick="document.getElementById('modalMapaVivo').remove()" class="bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg font-bold text-xs transition-colors">
+                    <i class="fas fa-times"></i> CERRAR MAPA
+                </button>
+            </div>
+            <div class="flex-1 rounded-2xl overflow-hidden border border-zinc-700 relative bg-zinc-900 flex items-center justify-center">
+                <div class="absolute text-zinc-600 flex flex-col items-center z-0">
+                    <i class="fas fa-spinner fa-spin text-3xl mb-2"></i>
+                    <p class="text-xs font-bold uppercase tracking-widest">Conectando con GPS...</p>
+                </div>
+                <iframe src="rastreo.html?id=${id}" class="w-full h-full border-0 absolute inset-0 z-10"></iframe>
+            </div>
+        </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+    };
+
+    window.responderCotizacion = async (id, aceptado) => {
+        const serviceRef = doc(db, "services", id);
+        
+        try {
+            if (aceptado) {
+                await runTransaction(db, async (transaction) => {
+                    const sfDoc = await transaction.get(serviceRef);
+                    if (!sfDoc.exists()) throw "NO_EXISTE";
+                    if (sfDoc.data().estado !== "cotizando") throw "ESTADO_INVALIDO";
+                    transaction.update(serviceRef, { estado: "trabajando" });
+                });
+                alert(" ✅  ¡Costo aprobado! El técnico comenzará a trabajar ahora.");
+            } else {
+                if(confirm(" ⚠  ¿Estás seguro de cancelar?\n\nAl haber llegado el técnico, le deberás pagar el costo mínimo de visita ($550).")) {
+                    await runTransaction(db, async (transaction) => {
+                        const sfDoc = await transaction.get(serviceRef);
+                        if (!sfDoc.exists()) throw "NO_EXISTE";
+                        
+                        const currentStatus = sfDoc.data().estado;
+                        if (currentStatus === "cancelado" || currentStatus === "finalizado") {
+                            throw "ESTADO_FINALIZADO";
+                        }
+
+                        transaction.update(serviceRef, {
+                            estado: "cancelado",
+                            costo_final: 550, 
+                            cancelado_razon: "Cliente rechazó cotización"
+                        });
+                    });
+                    alert(" 🚫  Servicio cancelado exitosamente. Por favor, liquida el costo de visita al técnico.");
+                }
+            }
+        } catch (error) {
+            console.error("Error en transacción del cliente:", error);
+            if(error === "ESTADO_INVALIDO" || error === "ESTADO_FINALIZADO") {
+                alert("⚠️ Error: El estado del servicio ya cambió (fue cancelado o finalizado) y no puede ser modificado.");
+            } else {
+                alert("❌ Error de red al procesar tu respuesta. Intenta de nuevo.");
+            }
+        }
+    };
+
+    window.generarPDF = async (serviceId) => {
+        const btn = document.activeElement;
+        const textoOrig = btn.innerText;
+        btn.innerText = "OBTENIENDO DATOS...";
+        btn.disabled = true;
+
+        try {
+            const docRef = doc(db, "services", serviceId);
+            const docSnap = await getDoc(docRef);
+            
+            if (!docSnap.exists()) {
+                throw new Error("No se encontró el servicio en la base de datos.");
+            }
+            
+            const data = { ...docSnap.data(), id: serviceId };
+            const { jsPDF } = await cargarLibreriaPDF();
+            const docPdf = new jsPDF();
+            
+            docPdf.setFillColor(18, 18, 18);
+            docPdf.rect(0, 0, 215, 40, 'F');
+
+            docPdf.setTextColor(255, 255, 255);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(24);
+            docPdf.text("FIXGO", 20, 22);
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setTextColor(16, 185, 129); 
+            docPdf.text("MÉXICO", 60, 22);
+
+            docPdf.setTextColor(200, 200, 200);
+            docPdf.setFontSize(10);
+            docPdf.text("Comprobante de Servicio Digital", 20, 32);
             
             docPdf.setFontSize(8);
             docPdf.setTextColor(150, 150, 150);
