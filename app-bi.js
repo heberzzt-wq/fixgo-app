@@ -3,10 +3,8 @@
  * FIXGO 2026 - MOTOR DE INTELIGENCIA EMPRESARIAL Y CRM (BI ENGINE)
  * ======================================================================================
  * Archivo: app-bi.js
- * Versión: 1.0.0 (SLA Predictivo, Motor Disciplinario 3-Strikes, LTV VIP, Comisión Dinámica)
+ * Versión: 1.0.1 (Fix Importaciones CDN)
  * Autor: Heber (CEO & Lead Architect)
- * Fecha: Febrero 2026
- * REGLAS DE ARQUITECTURA: MÓDULO DESACOPLADO (READ-HEAVY / COMPUTE-HEAVY). NO COMPACTAR.
  * ======================================================================================
  */
 
@@ -16,13 +14,15 @@ import {
     query,
     where,
     onSnapshot,
-    getDocs,
     doc,
     updateDoc,
     serverTimestamp,
     addDoc,
     orderBy
 } from "./firebase.js";
+
+// 🔥 INYECCIÓN DIRECTA DEL CDN PARA FUNCIONES PESADAS (Igual que en app-panel.js)
+import { getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Utilidad de escape XSS
 const escaparHTML = (str) => {
