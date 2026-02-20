@@ -5,6 +5,7 @@
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
+import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 import { 
     getAuth, 
     onAuthStateChanged, 
@@ -55,6 +56,9 @@ const appCheck = initializeAppCheck(firebaseApp, {
 
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
+
+// 👇 ESTA ES LA LÍNEA QUE FALTABA (Inicializar Storage) 👇
+const storage = getStorage(firebaseApp);
 
 /**
  * OBSERVADOR DE SESIÓN INTELIGENTE
@@ -146,6 +150,7 @@ async function registrarUsuario(email, password, rol, nombre) {
 export {
     auth, 
     db,
+    storage, // 👇 ESTA ES LA PALABRA QUE FALTABA EXPORTAR 👇
     appCheck,
     observarAuth,
     registrarUsuario,
