@@ -3,7 +3,7 @@
  * FIXGO 2026 - MOTOR DE INTELIGENCIA EMPRESARIAL Y CRM (BI ENGINE)
  * ======================================================================================
  * Archivo: app-bi.js
- * Versión: 1.0.1 (Fix Importaciones CDN)
+ * Versión: 1.0.2 (Fix Importaciones CDN + PROTOCOLO DE CONTINGENCIA OFFLINE)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
@@ -50,7 +50,10 @@ export async function iniciarMotorBI(contenedorId) {
                     <h2 class="text-2xl font-black text-white"><i class="fas fa-brain text-purple-500"></i> NOC FIXGO: INTELIGENCIA OPERATIVA</h2>
                     <p class="text-xs text-gray-500 uppercase tracking-widest mt-1">Telemetría, SLA, Rendimiento y Control de Riesgos</p>
                 </div>
-                <div class="text-right">
+                <div class="text-right flex items-center gap-3">
+                    <button onclick="window.descargarBackupOperativo()" class="bg-red-900/30 hover:bg-red-900/80 text-red-500 hover:text-white border border-red-500/50 text-[10px] font-bold px-4 py-2 rounded-full transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)] uppercase tracking-widest flex items-center gap-2">
+                        <i class="fas fa-file-csv text-sm"></i> PLAN B: Exportar BD
+                    </button>
                     <span class="bg-emerald-900/30 text-emerald-400 border border-emerald-500/50 text-[10px] font-bold px-3 py-1 rounded-full animate-pulse">
                         SISTEMA EN LÍNEA
                     </span>
@@ -494,3 +497,68 @@ function procesarMotorComercialLTV(transacciones, servicios) {
     });
     contMétricas.innerHTML = htmlVert || '<p class="text-gray-500 text-xs text-center py-4 col-span-2">Sin datos de verticales.</p>';
 }
+
+// ======================================================================================
+// 🛡️ 4. MÓDULO DE CONTINGENCIA OPERATIVA (PLAN B - BACKUP OFFLINE)
+// ======================================================================================
+window.descargarBackupOperativo = async () => {
+    if(!confirm("⚠️ PROTOCOLO DE CONTINGENCIA (PLAN B) ⚠️\n\n¿Estás seguro de que deseas exportar la Base de Datos completa (Clientes y Técnicos) para operación manual fuera de línea?")) return;
+    
+    try {
+        console.log(" 🛡️ [NOC] Iniciando extracción masiva de datos de contingencia...");
+        
+        // Consultamos a todos los usuarios desde la raíz
+        const qUsers = query(collection(db, "users"));
+        const snap = await getDocs(qUsers);
+        
+        // Preparamos el contenido del CSV
+        let csvContent = "data:text/csv;charset=utf-8,";
+        // Cabeceras del archivo
+        csvContent += "Rol,Nombre,Telefono,Email,Estado,Info_Extra\n";
+
+        let contador = 0;
+
+        snap.forEach(docSnap => {
+            const u = docSnap.data();
+            const rol = (u.rol || "desconocido").toUpperCase();
+            
+            // Sanitizamos el nombre quitando comas para no romper el formato CSV
+            const nombre = escaparHTML(u.nombre || "Sin Nombre").replace(/,/g, " "); 
+            const telefono = u.telefono || "Sin Teléfono";
+            const email = u.email || "Sin Email";
+            const estado = (u.estado || "activo").toUpperCase();
+            
+            let extra = "N/A";
+            // Si es técnico, incluimos su vehículo y placas para la logística manual
+            if(rol === "TECNICO" && u.vehiculo) {
+                extra = `${u.vehiculo.tipo} - ${u.vehiculo.placas || 'Sin Placas'}`;
+            }
+
+            // Armamos la fila y la añadimos
+            const fila = `${rol},"${nombre}","${telefono}","${email}",${estado},"${extra}"`;
+            csvContent += fila + "\n";
+            contador++;
+        });
+
+        // Codificamos el texto para descarga y creamos un enlace invisible
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        
+        // Le damos un nombre profesional con la fecha actual
+        const hoy = new Date();
+        const fechaStr = hoy.toISOString().split('T')[0];
+        link.setAttribute("download", `FixGo_Contingencia_Operativa_${fechaStr}.csv`);
+        
+        // Disparamos la descarga
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        alert(`✅ Base de Datos Exportada con Éxito.\n\nSe descargaron ${contador} perfiles. El archivo CSV ya está en tu computadora listo para usarse en Excel y operar vía WhatsApp si es necesario.`);
+        
+    } catch(e) {
+        console.error("❌ Error Crítico en Protocolo de Contingencia:", e);
+        alert("🚨 Error al extraer la base de datos. Verifica tu conexión a internet.");
+    }
+};
