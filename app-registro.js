@@ -161,6 +161,12 @@ if (btnRegistroCliente) {
             alert("🔒 SEGURIDAD: La contraseña debe tener mínimo 8 caracteres, incluir al menos 1 mayúscula y 1 número.");
             return;
         }
+        // ⚖️ VALIDACIÓN LEGAL (TÉRMINOS Y PRIVACIDAD)
+        const termsAceptados = document.getElementById("chkTerminosCliente")?.checked;
+        if (!termsAceptados) {
+            alert("⚖️ Obligatorio: Debes marcar la casilla aceptando los Términos y Condiciones y el Aviso de Privacidad para poder registrarte.");
+            return;
+        }
 
         // VALIDACIÓN DE STRIPE (OBLIGATORIO PARA GARANTÍA)
         if (!stripe || !cardElement) {
@@ -344,6 +350,12 @@ if (btnRegistroTecnico) {
         }
         if (!placas && tipoVehiculo !== 'peaton') {
             alert("⚠️ Debes ingresar las placas de tu vehículo para el registro logístico."); return;
+        }
+        // ⚖️ VALIDACIÓN LEGAL (TÉRMINOS Y PRIVACIDAD)
+        const termsAceptados = document.getElementById("chkTerminosTecnico")?.checked;
+        if (!termsAceptados) {
+            alert("⚖️ Obligatorio: Como Socio Especialista, debes marcar la casilla aceptando los Términos y el Aviso de Privacidad que rigen tu contrato.");
+            return;
         }
 
         // 1. CAPTURA DE SKILLS (Habilidades)
