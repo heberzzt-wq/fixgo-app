@@ -438,7 +438,7 @@ export async function iniciarPanelAdmin(user) {
 
     // --- D. FUNCIONES DE ADMINISTRACIÓN ---
 
-    // 🔥 AUDITORÍA REAL (V5.17.0: 4 FOTOS SOPORTADAS DESDE STORAGE)
+// 🔥 AUDITORÍA REAL (V5.17.1: 4 FOTOS SOPORTADAS + BOTÓN DE DESCARGA PDF)
     window.auditarServicio = async (sid) => {
         if(document.getElementById("modalAuditoria")) return;
         try {
@@ -446,7 +446,7 @@ export async function iniciarPanelAdmin(user) {
             if(!docSnap.exists()) return alert("Servicio no encontrado.");
             const s = docSnap.data();
             
-            // Leemos las 4 URLs de Storage (Con fallback a la vieja estructura de 2 fotos para tickets viejos)
+            // Leemos las 4 URLs de Storage
             const f_a1 = s.evidencia?.antes1 || s.evidencia?.antes || 'https://via.placeholder.com/300x400?text=SIN+FOTO+ANTES+1';
             const f_a2 = s.evidencia?.antes2 || 'https://via.placeholder.com/300x400?text=SIN+FOTO+ANTES+2';
             const f_d1 = s.evidencia?.despues1 || s.evidencia?.despues || 'https://via.placeholder.com/300x400?text=SIN+FOTO+DESPUES+1';
@@ -481,12 +481,144 @@ export async function iniciarPanelAdmin(user) {
                             <img src="${f_d2}" class="w-full h-64 rounded-xl border border-zinc-700 object-cover shadow-lg transition-transform hover:scale-105" alt="Despues 2">
                         </div>
                     </div>
+                    
+                    <div class="mt-6 flex justify-end gap-3 border-t border-zinc-800 pt-4">
+                        <button id="btnDescargarPDFAdmin" onclick="window.generarPDFAdmin('${sid}')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded-lg text-sm transition-colors shadow-lg flex items-center gap-2">
+                            <i class="fas fa-file-pdf"></i> DESCARGAR REPORTE OFICIAL
+                        </button>
+                        <button onclick="document.getElementById('modalAuditoria').remove()" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-2 px-6 rounded-lg text-sm transition-colors">
+                            CERRAR
+                        </button>
+                    </div>
                 </div>
             </div>`;
             document.body.insertAdjacentHTML('beforeend', html);
         } catch(e) {
             console.error(e);
             alert("Error al cargar la auditoría fotográfica desde Firebase Storage.");
+        }
+    };
+
+    // 🔥 MOTOR PDF EXCLUSIVO PARA EL ADMINISTRADOR
+    window.generarPDFAdmin = async (serviceId) => {
+        const btn = document.getElementById('btnDescargarPDFAdmin');
+        const textoOrig = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GENERANDO...';
+        btn.disabled = true;
+
+        try {
+            const docRef = doc(db, "services", serviceId);
+            const docSnap = await getDoc(docRef);
+            
+            if (!docSnap.exists()) throw new Error("No se encontró el servicio.");
+            
+            const data = { ...docSnap.data(), id: serviceId };
+            const { jsPDF } = await cargarLibreriaPDF();
+            const docPdf = new jsPDF();
+            
+            // --- DISEÑO DEL REPORTE (MEMBRETE) ---
+            docPdf.setFillColor(18, 18, 18);
+            docPdf.rect(0, 0, 215, 40, 'F');
+            docPdf.setTextColor(255, 255, 255);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(24);
+            docPdf.text("FIXGO", 20, 22);
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setTextColor(16, 185, 129); 
+            docPdf.text("MÉXICO", 60, 22);
+            docPdf.setTextColor(200, 200, 200);
+            docPdf.setFontSize(10);
+            docPdf.text("Reporte Oficial de Calidad y Servicio", 20, 32);
+            
+            docPdf.setFontSize(8);
+            docPdf.setTextColor(150, 150, 150);
+            docPdf.text(`RFC EMISOR: FXG260211-H8A`, 20, 45);
+            if(data.folio_fiscal) docPdf.text(`FOLIO FISCAL: ${data.folio_fiscal}`, 150, 45);
+            docPdf.text(`FECHA EMISIÓN: ${new Date().toLocaleDateString()}`, 150, 50);
+
+            let y = 70;
+            docPdf.setTextColor(0, 0, 0);
+            docPdf.setFontSize(12);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.text("DETALLES OPERATIVOS", 20, y);
+
+            y += 10;
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setFontSize(10);
+            docPdf.text(`Cliente: ${data.cliente_nombre}`, 20, y);
+            docPdf.text(`Técnico Asignado: ${data.tecnico_nombre}`, 120, y);
+            y += 8;
+            docPdf.text(`Ubicación: ${data.direccion}`, 20, y);
+            const servicioLabel = `${data.categoria} ${data.sub_servicio ? '- ' + data.sub_servicio : ''}`;
+            docPdf.text(`Categoría: ${servicioLabel}`, 120, y);
+
+            y += 15;
+            docPdf.setDrawColor(200, 200, 200);
+            docPdf.line(20, y, 190, y);
+
+            y += 15;
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(12);
+            docPdf.text("RESUMEN FINANCIERO", 20, y);
+            
+            y += 10;
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setFontSize(14);
+            docPdf.setTextColor(16, 185, 129); 
+            docPdf.text(`Total Pagado (Efectivo): $${data.costo_final} MXN`, 20, y);
+            
+            y += 20;
+            docPdf.setTextColor(0, 0, 0);
+            docPdf.setFontSize(12);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.text("EVIDENCIA FOTOGRÁFICA (ALMACENAMIENTO CLOUD)", 20, y);
+            y += 10;
+            
+            // Acomodo de las 4 Fotos en la hoja
+            const f_a1 = data.evidencia?.antes1 || data.evidencia?.antes;
+            const f_a2 = data.evidencia?.antes2;
+            const f_d1 = data.evidencia?.despues1 || data.evidencia?.despues;
+            const f_d2 = data.evidencia?.despues2;
+
+            if(f_a1) {
+                try {
+                    docPdf.addImage(f_a1, "JPEG", 20, y, 40, 30);
+                    docPdf.setFontSize(8); docPdf.text("ANTES 1", 20, y + 35);
+                } catch(e) {}
+            }
+            if(f_a2) {
+                try {
+                    docPdf.addImage(f_a2, "JPEG", 65, y, 40, 30);
+                    docPdf.setFontSize(8); docPdf.text("ANTES 2", 65, y + 35);
+                } catch(e) {}
+            }
+            if(f_d1) {
+                try {
+                    docPdf.addImage(f_d1, "JPEG", 110, y, 40, 30);
+                    docPdf.setFontSize(8); docPdf.text("DESPUÉS 1", 110, y + 35);
+                } catch(e) {}
+            }
+            if(f_d2) {
+                try {
+                    docPdf.addImage(f_d2, "JPEG", 155, y, 40, 30);
+                    docPdf.setFontSize(8); docPdf.text("DESPUÉS 2", 155, y + 35);
+                } catch(e) {}
+            }
+            
+            docPdf.setFontSize(8);
+            docPdf.setTextColor(150, 150, 150);
+            docPdf.text("Este documento es un reporte de auditoría interno emitido por la plataforma FixGo.", 60, 280);
+            docPdf.save(`FixGo_Auditoria_${data.id.substring(0,6)}.pdf`);
+            
+            btn.innerHTML = '<i class="fas fa-check"></i> DESCARGADO';
+            btn.classList.replace("bg-red-600", "bg-emerald-600");
+            btn.disabled = false;
+
+        } catch (error) {
+            console.error(error);
+            alert("Error conectando con la nube. Asegúrate de tener conexión a internet estable para descargar el PDF.");
+            btn.innerHTML = '<i class="fas fa-file-pdf"></i> REINTENTAR';
+            btn.disabled = false;
         }
     };
 
