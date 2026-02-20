@@ -58,6 +58,11 @@
                         <p class="text-[10px] text-gray-500 mt-2">No realizamos cargos sin tu autorización. Es solo para verificar tu cuenta.</p>
                     </div>
 
+                    <label class="flex items-start gap-3 py-2 cursor-pointer">
+                        <input type="checkbox" id="chkTerminosCliente" class="w-5 h-5 mt-0.5 accent-indigo-500 rounded">
+                        <span class="text-xs text-gray-400 leading-tight">He leído y acepto los <button type="button" onclick="document.getElementById('modalTerminos').classList.remove('hidden')" class="text-indigo-400 underline font-bold">Términos y Condiciones</button> y el <button type="button" onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="text-indigo-400 underline font-bold">Aviso de Privacidad</button>.</span>
+                    </label>
+                    
                     <button type="submit" id="btnRegistroCliente" class="w-full bg-indigo-500 py-5 rounded-2xl font-black text-lg shadow-lg shadow-indigo-500/20 hover:bg-indigo-600 transition-all">
                         Crear Cuenta Cliente
                     </button>
@@ -146,6 +151,11 @@
                             <input type="file" id="inputCertificados" accept="application/pdf, image/*" multiple class="hidden">
                         </div>
                     </div>
+
+                    <label class="flex items-start gap-3 py-2 mt-4 cursor-pointer">
+                        <input type="checkbox" id="chkTerminosTecnico" class="w-5 h-5 mt-0.5 accent-emerald-500 rounded">
+                        <span class="text-xs text-gray-400 leading-tight">Al registrarme como Socio, acepto los <button type="button" onclick="document.getElementById('modalTerminos').classList.remove('hidden')" class="text-emerald-400 underline font-bold">Términos y Condiciones</button> y el <button type="button" onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="text-emerald-400 underline font-bold">Aviso de Privacidad</button>.</span>
+                    </label>
                     
                     <button type="submit" id="btnRegistroTecnico" class="w-full bg-emerald-500 py-5 rounded-2xl font-black text-lg text-black shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all uppercase tracking-tight">
                         Enviar Solicitud Socio
