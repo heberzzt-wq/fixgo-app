@@ -713,6 +713,21 @@ export async function iniciarPanelAdmin(user) {
             if(b64_a2) { docPdf.addImage(b64_a2, "JPEG", 65, y, 40, 30); docPdf.setFontSize(8); docPdf.text("ANTES 2", 65, y + 35); }
             if(b64_d1) { docPdf.addImage(b64_d1, "JPEG", 110, y, 40, 30); docPdf.setFontSize(8); docPdf.text("DESPUÉS 1", 110, y + 35); }
             if(b64_d2) { docPdf.addImage(b64_d2, "JPEG", 155, y, 40, 30); docPdf.setFontSize(8); docPdf.text("DESPUÉS 2", 155, y + 35); }
+
+            // --- INYECCIÓN V5.18.0: FIRMA DIGITAL EN PDF (ADMIN) ---
+            const firmaDigital = data.evidencia?.firma_cliente;
+            if (firmaDigital) {
+                y += 45; // Bajamos el cursor Y para que no encime con las fotos
+                docPdf.setFontSize(10);
+                docPdf.setFont("helvetica", "bold");
+                docPdf.setTextColor(0, 0, 0);
+                docPdf.text("FIRMA DE CONFORMIDAD DEL CLIENTE", 20, y);
+                docPdf.addImage(firmaDigital, "PNG", 20, y + 5, 60, 20); // Renderizamos la firma (formato PNG)
+                docPdf.setDrawColor(50, 50, 50);
+                docPdf.setLineWidth(0.5);
+                docPdf.line(20, y + 26, 80, y + 26); // Línea formal debajo de la firma
+            }
+            // -------------------------------------------------------
             
             docPdf.setFontSize(8);
             docPdf.setTextColor(150, 150, 150);
