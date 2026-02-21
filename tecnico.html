@@ -26,11 +26,19 @@
             box-shadow: 0 -5px 20px rgba(0,0,0,0.8);
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
+        /* Animaciones de entrada */
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body class="text-white min-h-screen pb-40"> 
 
-   <div id="dynamic-bg" class="fixed inset-0 z-[-2] bg-cover bg-center opacity-60 pointer-events-none"></div>
+    <div id="dynamic-bg" class="fixed inset-0 z-[-2] bg-cover bg-center opacity-60 pointer-events-none"></div>
     <div class="fixed inset-0 bg-gradient-to-b from-black/40 via-black/70 to-[#000000] z-[-1] pointer-events-none"></div>
 
     <nav class="p-6 flex justify-between items-center border-b border-white/5 sticky top-0 bg-black/95 z-20 backdrop-blur-md">
@@ -70,6 +78,20 @@
 
     <main class="px-6 space-y-6">
         
+        <audio id="audioAlerta" src="https://fixgo.app/assets/sounds/alert.mp3" preload="auto"></audio>
+
+        <div id="audioUnlocker" class="animate-fade-in">
+            <div class="bg-emerald-500/10 border border-emerald-500/40 p-4 rounded-2xl">
+                <div class="flex items-center gap-3 mb-3">
+                    <i class="fas fa-volume-up text-emerald-500 animate-pulse"></i>
+                    <p class="text-[10px] text-emerald-200 font-black uppercase tracking-widest">Seguridad de Notificaciones</p>
+                </div>
+                <button id="btnActivarAudio" class="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-4 rounded-xl text-xs transition-all shadow-lg flex items-center justify-center gap-2 border border-emerald-400">
+                    <i class="fas fa-satellite-dish text-base"></i> ACTIVAR RADAR DE ALERTAS (SONIDO)
+                </button>
+            </div>
+        </div>
+
         <div class="card-tecnico p-6 rounded-2xl flex justify-between items-center shadow-lg">
             <div>
                 <h3 class="font-black text-lg">Disponibilidad</h3>
@@ -97,14 +119,11 @@
                 <i class="fas fa-bolt text-yellow-500 animate-pulse drop-shadow-md"></i>
                 <h3 class="text-white text-xs font-black uppercase tracking-[0.2em] drop-shadow-md">Nuevas Solicitudes</h3>
             </div>
-            
             <div id="listaBolsa" class="space-y-3"></div>
-            
             <hr class="border-white/10 mt-6 mb-2">
         </div>
 
-        <div id="listaServicios" class="space-y-4">
-            </div>
+        <div id="listaServicios" class="space-y-4"></div>
 
         <div class="mt-8 mb-8">
             <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4 drop-shadow-md">Mi Cartera (Modo Efectivo)</h3>
@@ -124,14 +143,12 @@
                 <button onclick="document.getElementById('modalPagoDeuda').classList.remove('hidden')" class="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-sm shadow-lg shadow-red-900/40 transition-all transform active:scale-95 flex items-center justify-center gap-2 border border-red-500">
                     <i class="fas fa-file-invoice-dollar"></i> PAGAR MI DEUDA (SPEI/OXXO)
                 </button>
-                
                 <button id="btnRetiro" class="hidden"></button>
             </div>
 
             <div id="contenedorHistorialRetiros" class="hidden mb-6">
                 <p class="text-slate-400 text-[9px] font-bold uppercase tracking-widest mt-6 mb-3 pl-2 drop-shadow-md">Últimos movimientos</p>
-                <div id="listaMisRetiros" class="space-y-2">
-                </div>
+                <div id="listaMisRetiros" class="space-y-2"></div>
             </div>
 
             <div class="mt-8">
@@ -140,16 +157,14 @@
                     <p class="text-gray-400 text-[10px] text-center italic py-4">Cargando tu historial de servicios...</p>
                 </div>
             </div>
-
         </div>
     </main>
 
     <div id="modalPagoDeuda" class="fixed inset-0 bg-black/95 z-[80] hidden flex flex-col p-4 animate-fade-in justify-center items-center backdrop-blur-sm">
         <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-red-500/30 shadow-2xl relative">
             <button onclick="document.getElementById('modalPagoDeuda').classList.add('hidden')" class="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
-            
             <h2 class="text-xl font-black text-white mb-2"><i class="fas fa-university text-red-500"></i> Liquidar Deuda</h2>
-            <p class="text-xs text-gray-400 mb-6">Transfiere tu saldo pendiente a la cuenta oficial de FixGo para liberar tu billetera y seguir recibiendo viajes.</p>
+            <p class="text-xs text-gray-400 mb-6">Transfiere tu saldo pendiente a la cuenta oficial de FixGo para liberar tu billetera.</p>
             
             <div class="bg-black p-4 rounded-xl border border-zinc-800 space-y-3 mb-6 text-sm">
                 <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
@@ -164,18 +179,9 @@
                     <span class="text-gray-500 font-bold text-xs uppercase">CLABE SPEI</span>
                     <span class="text-emerald-400 font-mono font-black tracking-widest text-xs">012345678901234567</span>
                 </div>
-                <div class="flex justify-between items-center pt-1">
-                    <span class="text-gray-500 font-bold text-xs uppercase">Concepto</span>
-                    <span class="text-white font-black text-xs bg-zinc-800 px-2 py-1 rounded">PAGO FIXGO</span>
-                </div>
             </div>
 
-            <div class="bg-zinc-800/50 p-3 rounded-lg flex gap-3 items-start mb-6 border border-zinc-700">
-                <i class="fas fa-info-circle text-blue-400 text-lg mt-0.5"></i>
-                <p class="text-[10px] text-gray-300 leading-tight">Después de transferir o depositar en OXXO, envía el comprobante por WhatsApp a Soporte para aplicar tu saldo a favor.</p>
-            </div>
-
-            <a href="https://wa.me/529980000000?text=Hola,%20adjunto%20mi%20comprobante%20de%20pago%20de%20deuda%20FixGo." target="_blank" class="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl text-sm transition-all shadow-lg transform active:scale-95 flex justify-center items-center gap-2 text-center border border-green-500">
+            <a href="https://wa.me/529980000000?text=Hola,%20adjunto%20mi%20comprobante%20de%20pago%20de%20deuda%20FixGo." target="_blank" class="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl text-sm transition-all shadow-lg flex justify-center items-center gap-2 border border-green-500">
                 <i class="fab fa-whatsapp text-xl"></i> ENVIAR COMPROBANTE
             </a>
         </div>
@@ -187,38 +193,57 @@
                  <span class="text-[10px] font-black uppercase text-slate-500 tracking-widest">CONTROL DE MISIÓN</span>
                  <span class="text-emerald-500 text-xs font-bold animate-pulse">● EN VIVO</span>
             </div>
-
             <button id="btnEnCamino" class="hidden w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all border border-yellow-400">
-                <i class="fas fa-car-side text-xl"></i> 
-                <span>VOY EN CAMINO</span>
+                <i class="fas fa-car-side text-xl"></i> <span>VOY EN CAMINO</span>
             </button>
-            
             <button id="btnLlegue" class="hidden w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all border border-emerald-400">
-                <i class="fas fa-map-marker-alt text-xl"></i> 
-                <span>YA LLEGUÉ AL SITIO</span>
+                <i class="fas fa-map-marker-alt text-xl"></i> <span>YA LLEGUÉ AL SITIO</span>
             </button>
         </div>
     </div>
-    
+
     <script>
-        // ==============================================================
-        // SCRIPT: FONDO DINÁMICO ALEATORIO (AHORRO DATOS SOCIO PRO)
-        // ==============================================================
+        // SCRIPT: LÓGICA TÁCTICA DE AUDIO (REESCRITO SEGÚN CAPTURAS)
+        const audioAlerta = document.getElementById('audioAlerta');
+        const btnActivarAudio = document.getElementById('btnActivarAudio');
+        const audioUnlocker = document.getElementById('audioUnlocker');
+
+        btnActivarAudio.onclick = function() {
+            // 1. Intentamos reproducir para "despertar" el canal
+            audioAlerta.play().then(() => {
+                console.log("FixGo: Canal de audio desbloqueado con éxito.");
+                // Pausamos inmediatamente, el permiso ya quedó concedido
+                audioAlerta.pause();
+                audioAlerta.currentTime = 0;
+
+                // 2. Feedback visual y ocultamiento
+                btnActivarAudio.innerHTML = '<i class="fas fa-check"></i> RADAR ACTIVADO';
+                btnActivarAudio.classList.replace('bg-emerald-500', 'bg-zinc-800');
+                btnActivarAudio.classList.add('text-emerald-500');
+                
+                setTimeout(() => {
+                    audioUnlocker.classList.add('hidden');
+                }, 1000);
+            }).catch(err => {
+                console.error("Error al desbloquear audio:", err);
+                alert("⚠️ Por favor activa los sonidos en la configuración de tu navegador.");
+            });
+        };
+
+        // SCRIPT: FONDO DINÁMICO ALEATORIO
         const bgContainer = document.getElementById('dynamic-bg');
-        // Imágenes HQ de acción: mecánicos, electricistas, AC
         const images = [
-            'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Aire Acondicionado
-            'https://images.unsplash.com/photo-1581092160562-40aa08e78837?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Herramientas mecánicas
-            'https://images.unsplash.com/photo-1632759145351-1d592919f522?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Mantenimiento eléctrico
-            'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'  // Trabajo manual
+            'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80',
+            'https://images.unsplash.com/photo-1581092160562-40aa08e78837?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80',
+            'https://images.unsplash.com/photo-1632759145351-1d592919f522?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80',
+            'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'
         ];
-        
-        // Seleccionamos solo UNA imagen al azar cada vez que abre la app
         const randomImg = images[Math.floor(Math.random() * images.length)];
         bgContainer.style.backgroundImage = `url('${randomImg}')`;
     </script>
 
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js"></script>
+    <script type="module" src="./app-bi.js"></script>
 </body>
 </html>
