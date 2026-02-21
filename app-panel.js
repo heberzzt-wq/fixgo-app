@@ -2158,7 +2158,7 @@ export async function iniciarPanelTecnico(user) {
 
                 document.getElementById("modalEvidencia").remove();
                 alert(" ✅  ¡CÍRCULO DE SEGURIDAD CERRADO!\n\n1. Firma del cliente resguardada.\n2. Evidencia fotográfica en Cloud.\n3. Finanzas cobradas y repartidas.\n4. Reputación aumentada.");
-                alert(" ✅  ¡Servicio Cerrado Exitosamente!\n\nLas fotos fueron resguardadas en la nube. Has cobrado en efectivo. La comisión de FixGo ha sido descontada de tu balance.");
+                
             } catch (e) {
                 console.error("Error crítico subiendo evidencia a Storage:", e);
                 alert("Error de conexión al servidor Cloud. Revisa tu internet e intenta de nuevo.");
