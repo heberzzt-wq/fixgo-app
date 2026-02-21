@@ -2063,6 +2063,16 @@ export async function iniciarPanelTecnico(user) {
                     subirImagenAStorage(fD2, 'despues_2')
                 ]);
 
+                // --- INYECCIÓN V5.18.0: CANVAS DE FIRMA DIGITAL (NO REPUDIO) ---
+<div class="bg-black p-3 rounded-xl border border-blue-900/50 text-center mt-4">
+    <label class="block text-[10px] font-bold text-blue-400 mb-2 uppercase tracking-widest">
+        <i class="fas fa-pen-nib"></i> Firma Digital del Cliente (Aceptación de Servicio)
+    </label>
+    <canvas id="canvasFirma" class="w-full h-32 bg-zinc-800 rounded-lg border border-zinc-700 cursor-crosshair touch-none"></canvas>
+    <button type="button" onclick="window.limpiarFirma()" class="text-[9px] text-gray-500 mt-2 uppercase underline hover:text-white transition-colors">
+        <i class="fas fa-eraser"></i> Limpiar Firma
+    </button>
+</div>
                 btn.innerHTML = '<i class="fas fa-cog fa-spin"></i> FINALIZANDO COBRO...';
                 
                 const timestampMetadatos = new Date().toISOString();
@@ -2072,54 +2082,82 @@ export async function iniciarPanelTecnico(user) {
                 const servicioData = servicioSnap.data();
                 const costoTotal = servicioData.costo_final || 0;
 
+                // --- CÁLCULOS FINANCIEROS ---
                 const comisionFixGoPura = costoTotal * 0.30; 
                 const aporteGarantia = costoTotal * 0.02;    
                 const retencionIVA = costoTotal * 0.08;      
                 const retencionISR = costoTotal * 0.10;      
                 const deudaTecnico = -(costoTotal * 0.32);
 
-                await actualizarEstado(id, "finalizado", {
-                    evidencia: { 
-                        antes1: urlA1,
-                        antes2: urlA2 || null,
-                        despues1: urlD1,
-                        despues2: urlD2 || null,
-                        metadatos: {
-                            fecha_captura: timestampMetadatos,
-                            dispositivo_tecnico: userAgentCorto,
-                            certificacion_legal: true,
-                            almacenamiento: "Google Cloud Storage"
+                // --- CAPTURA DE LA FIRMA DIGITAL (Base64) ---
+                const canvas = document.getElementById("canvasFirma");
+                const firmaData = canvas ? canvas.toDataURL("image/png") : null;
+
+                // --- TRANSACCIÓN ATÓMICA V5.18.0 (TODO O NADA) ---
+                await runTransaction(db, async (transaction) => {
+                    const servicioRef = doc(db, "services", id);
+                    const tecnicoRef = doc(db, "users", user.uid);
+                    
+                    // 1. Validar estado para evitar doble ejecución
+                    const sSnap = await transaction.get(servicioRef);
+                    if (!sSnap.exists()) throw "ERROR_NO_EXISTE";
+                    if (sSnap.data().estado !== "trabajando") throw "ERROR_ESTADO_INVALIDO";
+
+                    // 2. Ejecutar Cierre de Orden (Firma + Fotos)
+                    transaction.update(servicioRef, {
+                        estado: "finalizado",
+                        finalizado_at: serverTimestamp(),
+                        folio_fiscal: "FX-" + Math.random().toString(36).substr(2, 9).toUpperCase(),
+                        evidencia: { 
+                            antes1: urlA1,
+                            antes2: urlA2 || null,
+                            despues1: urlD1,
+                            despues2: urlD2 || null,
+                            firma_cliente: firmaData, // <-- FIRMA INYECTADA
+                            metadatos: {
+                                fecha_captura: timestampMetadatos,
+                                dispositivo_tecnico: userAgentCorto,
+                                certificacion_legal: true,
+                                almacenamiento: "Google Cloud Storage + Firebase Auth"
+                            }
+                        },
+                        desglose: {
+                            subtotal: (costoTotal / 1.16).toFixed(2),
+                            iva: (costoTotal - (costoTotal / 1.16)).toFixed(2),
+                            total: costoTotal
                         }
-                    },
-                    finalizado_at: serverTimestamp(),
-                    folio_fiscal: "FX-" + Math.random().toString(36).substr(2, 9).toUpperCase(),
-                    desglose: {
-                        subtotal: (costoTotal / 1.16).toFixed(2),
-                        iva: (costoTotal - (costoTotal / 1.16)).toFixed(2),
-                        total: costoTotal
-                    }
+                    });
+
+                    // 3. Inyectar Transacción Financiera
+                    const transRef = doc(collection(db, "transacciones"));
+                    transaction.set(transRef, {
+                        servicio_id: id,
+                        tecnico_id: user.uid, 
+                        monto_total: costoTotal,
+                        comision_fixgo: comisionFixGoPura, 
+                        aporte_garantia: aporteGarantia, 
+                        retencion_iva: retencionIVA,    
+                        retencion_isr: retencionISR,    
+                        pago_tecnico: deudaTecnico, 
+                        fecha: serverTimestamp(),
+                        tipo: "ingreso_servicio",
+                        metodo_pago: "efectivo"
+                    });
+
+                    // 4. Actualizar Reputación y Contador del Técnico
+                    transaction.update(tecnicoRef, {
+                        reputacion: increment(0.1), 
+                        servicios_completados: increment(1)
+                    });
                 });
 
-                await addDoc(collection(db, "transacciones"), {
-                    servicio_id: id,
-                    tecnico_id: user.uid, 
-                    monto_total: costoTotal,
-                    comision_fixgo: comisionFixGoPura, 
-                    aporte_garantia: aporteGarantia, 
-                    retencion_iva: retencionIVA,    
-                    retencion_isr: retencionISR,    
-                    pago_tecnico: deudaTecnico, 
-                    fecha: serverTimestamp(),
-                    tipo: "ingreso_servicio",
-                    metodo_pago: "efectivo"
-                });
-
-                await updateDoc(doc(db, "users", user.uid), {
-                    reputacion: increment(0.1), 
-                    servicios_completados: increment(1)
-                });
+                // Si la transacción fue exitosa:
+                let textoMapa = "Disponible";
+                const rastreoRef = doc(db, "rastreo", "tecnicoActivo");
+                await setDoc(rastreoRef, { estado: textoMapa }, { merge: true });
 
                 document.getElementById("modalEvidencia").remove();
+                alert(" ✅  ¡CÍRCULO DE SEGURIDAD CERRADO!\n\n1. Firma del cliente resguardada.\n2. Evidencia fotográfica en Cloud.\n3. Finanzas cobradas y repartidas.\n4. Reputación aumentada.");
                 alert(" ✅  ¡Servicio Cerrado Exitosamente!\n\nLas fotos fueron resguardadas en la nube. Has cobrado en efectivo. La comisión de FixGo ha sido descontada de tu balance.");
             } catch (e) {
                 console.error("Error crítico subiendo evidencia a Storage:", e);
@@ -2128,6 +2166,41 @@ export async function iniciarPanelTecnico(user) {
                 btn.disabled = false;
             }
         };
+
+        // --- ACTIVACIÓN DEL MOTOR DE DIBUJO V5.18.0 ---
+        setTimeout(() => {
+            const canvas = document.getElementById('canvasFirma');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let dibujando = false;
+
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            ctx.strokeStyle = "#60a5fa"; // Azul FixGo
+            ctx.lineWidth = 3;
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+
+            const obtenerPos = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return { x: clientX - rect.left, y: clientY - rect.top };
+            };
+
+            const iniciar = (e) => { dibujando = true; const p = obtenerPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); };
+            const mover = (e) => { if (!dibujando) return; e.preventDefault(); const p = obtenerPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); };
+            const parar = () => { dibujando = false; };
+
+            canvas.addEventListener('mousedown', iniciar);
+            canvas.addEventListener('mousemove', mover);
+            canvas.addEventListener('mouseup', parar);
+            canvas.addEventListener('touchstart', iniciar);
+            canvas.addEventListener('touchmove', mover);
+            canvas.addEventListener('touchend', parar);
+
+            window.limpiarFirma = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); };
+        }, 100);
     }
 
     window.generarPDFRetiro = async (retiroId) => {
