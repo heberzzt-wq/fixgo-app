@@ -156,6 +156,7 @@ export {
     registrarUsuario,
     signOut,
     signInWithEmailAndPassword,
+    onAuthStateChanged, // 🔥 BLINDAJE: AQUÍ ESTÁ LA SOLUCIÓN. Exportamos la función para que el visor la encuentre 🔥
     doc, 
     setDoc, 
     updateDoc, 
