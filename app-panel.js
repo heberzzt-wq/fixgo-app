@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.17.4 (STORAGE 4K EVIDENCE + NOC EXPORT + UI DISCIPLINARIA STRIKES)
+ * Versión: 5.18.0 (STORAGE 4K EVIDENCE + NOC EXPORT + UI DISCIPLINARIA STRIKES + NO REPUDIO)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -2034,6 +2034,16 @@ export async function iniciarPanelTecnico(user) {
                     </div>
                 </div>
 
+                <div class="bg-black p-3 rounded-xl border border-blue-900/50 text-center mt-4">
+                    <label class="block text-[10px] font-bold text-blue-400 mb-2 uppercase tracking-widest">
+                        <i class="fas fa-pen-nib"></i> Firma Digital del Cliente (Aceptación de Servicio)
+                    </label>
+                    <canvas id="canvasFirma" class="w-full h-32 bg-zinc-800 rounded-lg border border-zinc-700 cursor-crosshair touch-none"></canvas>
+                    <button type="button" onclick="window.limpiarFirma()" class="text-[9px] text-gray-500 mt-2 uppercase underline hover:text-white transition-colors">
+                        <i class="fas fa-eraser"></i> Limpiar Firma
+                    </button>
+                </div>
+
                 <div class="flex gap-3 mt-8">
                     <button onclick="document.getElementById('modalEvidencia').remove()" class="flex-1 bg-zinc-800 text-white py-3 rounded-xl font-bold text-sm">CANCELAR</button>
                     <button id="btnSubirEvidencia" class="flex-[2] bg-emerald-500 hover:bg-emerald-400 text-black py-3 rounded-xl font-black text-sm transition-colors">SUBIR Y CERRAR ORDEN</button>
@@ -2078,16 +2088,6 @@ export async function iniciarPanelTecnico(user) {
                     subirImagenAStorage(fD2, 'despues_2')
                 ]);
 
-                // --- INYECCIÓN V5.18.0: CANVAS DE FIRMA DIGITAL (NO REPUDIO) ---
-<div class="bg-black p-3 rounded-xl border border-blue-900/50 text-center mt-4">
-    <label class="block text-[10px] font-bold text-blue-400 mb-2 uppercase tracking-widest">
-        <i class="fas fa-pen-nib"></i> Firma Digital del Cliente (Aceptación de Servicio)
-    </label>
-    <canvas id="canvasFirma" class="w-full h-32 bg-zinc-800 rounded-lg border border-zinc-700 cursor-crosshair touch-none"></canvas>
-    <button type="button" onclick="window.limpiarFirma()" class="text-[9px] text-gray-500 mt-2 uppercase underline hover:text-white transition-colors">
-        <i class="fas fa-eraser"></i> Limpiar Firma
-    </button>
-</div>
                 btn.innerHTML = '<i class="fas fa-cog fa-spin"></i> FINALIZANDO COBRO...';
                 
                 const timestampMetadatos = new Date().toISOString();
