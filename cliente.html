@@ -31,6 +31,10 @@
     </style>
 </head>
 <body class="text-white min-h-screen pb-20">
+    
+    <div id="dynamic-bg" class="fixed inset-0 z-[-2] transition-all duration-[2000ms] ease-in-out bg-cover bg-center opacity-40 pointer-events-none"></div>
+    <div class="fixed inset-0 bg-gradient-to-b from-black/50 via-black/80 to-[#000000] z-[-1] pointer-events-none"></div>
+
     <header class="p-6 flex justify-between items-center sticky top-0 bg-black/95 z-20 backdrop-blur-md border-b border-white/5">
         <h1 class="font-black text-2xl italic tracking-tighter">FIX<span class="text-emerald-500">GO</span></h1>
         <div class="flex items-center gap-3">
@@ -48,7 +52,7 @@
             
             <div id="gridCategoriasMaestras" class="space-y-4">
                 
-                <div class="uber-card rounded-2xl overflow-hidden shadow-lg">
+                <div class="uber-card rounded-2xl overflow-hidden shadow-lg border-white/5 backdrop-blur-sm bg-zinc-900/80">
                     <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="toggleAccordion('sub-road', 'icon-road')">
                         <div class="flex items-center gap-4">
                             <div class="bg-zinc-900 border border-zinc-800 p-3 rounded-xl text-emerald-500 shadow-inner">
@@ -67,7 +71,7 @@
                     </div>
                 </div>
 
-                <div class="uber-card rounded-2xl overflow-hidden shadow-lg">
+                <div class="uber-card rounded-2xl overflow-hidden shadow-lg border-white/5 backdrop-blur-sm bg-zinc-900/80">
                     <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="toggleAccordion('sub-fix', 'icon-fix')">
                         <div class="flex items-center gap-4">
                             <div class="bg-zinc-900 border border-zinc-800 p-3 rounded-xl text-emerald-500 shadow-inner">
@@ -86,7 +90,7 @@
                     </div>
                 </div>
 
-                <div class="uber-card rounded-2xl overflow-hidden shadow-lg">
+                <div class="uber-card rounded-2xl overflow-hidden shadow-lg border-white/5 backdrop-blur-sm bg-zinc-900/80">
                     <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="toggleAccordion('sub-tech', 'icon-tech')">
                         <div class="flex items-center gap-4">
                             <div class="bg-zinc-900 border border-zinc-800 p-3 rounded-xl text-emerald-500 shadow-inner">
@@ -105,7 +109,7 @@
                     </div>
                 </div>
 
-                <div class="uber-card rounded-2xl overflow-hidden shadow-lg">
+                <div class="uber-card rounded-2xl overflow-hidden shadow-lg border-white/5 backdrop-blur-sm bg-zinc-900/80">
                     <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="toggleAccordion('sub-maint', 'icon-maint')">
                         <div class="flex items-center gap-4">
                             <div class="bg-zinc-900 border border-zinc-800 p-3 rounded-xl text-emerald-500 shadow-inner">
@@ -127,7 +131,7 @@
             </div>
         </section>
 
-        <section id="modalSolicitud" class="uber-card p-6 rounded-[2rem] shadow-2xl relative overflow-hidden hidden">
+        <section id="modalSolicitud" class="uber-card p-6 rounded-[2rem] shadow-2xl relative overflow-hidden hidden bg-zinc-900/90 backdrop-blur-md">
             <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
             <h2 class="text-xl font-black mb-6 flex items-center gap-2">
                 <span class="bg-emerald-500 w-2 h-8 rounded-full"></span>
@@ -200,9 +204,9 @@
         <section>
             <h2 class="text-slate-500 text-xs font-black uppercase tracking-widest mb-4">Tu Actividad</h2>
             <div id="solicitudesCliente" class="space-y-4">
-                <div class="text-center py-8">
+                <div class="text-center py-8 bg-zinc-900/50 backdrop-blur-sm rounded-2xl border border-white/5">
                     <i class="fas fa-history text-gray-700 text-3xl mb-2"></i>
-                    <p class="text-gray-600 text-sm">Tus servicios aparecerán aquí.</p>
+                    <p class="text-gray-500 text-sm">Tus servicios aparecerán aquí.</p>
                 </div>
             </div>
         </section>
@@ -225,6 +229,32 @@
                 icon.classList.add('rotated');
             }
         }
+
+        // ==============================================================
+        // SCRIPT: ROTACIÓN DE FONDOS DINÁMICOS (UX PREMIUM CLIENTE)
+        // ==============================================================
+        const bgContainer = document.getElementById('dynamic-bg');
+        // Imágenes HQ libres de derechos orientadas a hogares modernos / servicios
+        const images = [
+            'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Sala elegante
+            'https://images.unsplash.com/photo-1556910103-1c02745a872f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Cocina limpia
+            'https://images.unsplash.com/photo-1505691938895-1758d7feb511?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'  // Interior corporativo/moderno
+        ];
+        let currentImg = 0;
+        
+        function changeBackground() {
+            // Precarga de imagen para transición suave (sin parpadeos)
+            const img = new Image();
+            img.src = images[currentImg];
+            img.onload = () => {
+                bgContainer.style.backgroundImage = `url('${images[currentImg]}')`;
+                currentImg = (currentImg + 1) % images.length;
+            };
+        }
+        
+        // Iniciar de inmediato y rotar cada 15 segundos
+        changeBackground();
+        setInterval(changeBackground, 15000);
     </script>
 
     <script type="module" src="./firebase.js"></script>
