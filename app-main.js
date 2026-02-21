@@ -2,18 +2,17 @@
  * ======================================================
  * FIXGO 2026 - MAIN CONTROLLER (ROUTER & GATEKEEPER)
  * Archivo: app-main.js
- * Versión: 5.12.8 (Unicorn Gatekeeper & Anti-Flicker)
+ * Versión: 5.12.9 (Reactivity Engine & Global Listener)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================
  */
 
-console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.12.8...");
+console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.12.9...");
 
 import { observarAuth, auth, signOut } from "./firebase.js";
 import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./app-panel.js";
 
 // 🛡️ GATEKEEPER FASE 1: BLINDAJE VISUAL (ANTI-FLICKER)
-// Ocultamos la página entera hasta que Firebase confirme el token.
 document.body.style.display = 'none';
 
 const RUTAS = {
@@ -32,10 +31,9 @@ observarAuth(async (user) => {
     if (!user) {
         if (!esPublica) {
             console.warn("⛔ Gatekeeper: Intruso detectado. Expulsando...");
-            window.location.replace("login.html"); // 'replace' evita que usen el botón "Atrás"
+            window.location.replace("login.html");
             return;
         }
-        // Si es pública y no hay sesión, le permitimos ver la página
         document.body.style.display = 'block'; 
         return;
     }
@@ -44,12 +42,8 @@ observarAuth(async (user) => {
     console.log(`✅ Usuario: ${user.email} | Rol: ${user.rol}`);
 
     /**
-     * ======================================================
      * 🛡️ GATEKEEPER FASE 2: INTERLOCK DE ROLES
-     * Verifica que el usuario tenga permiso de estar en esta URL.
-     * ======================================================
      */
-    
     if (user.rol === "tecnico" && archivoActual === RUTAS.cliente) {
         window.location.replace(RUTAS.tecnico);
         return;
@@ -67,7 +61,7 @@ observarAuth(async (user) => {
         return;
     }
 
-    // 🔓 GATEKEEPER APROBADO: El usuario es legítimo y está en su panel correcto.
+    // 🔓 GATEKEEPER APROBADO
     document.body.style.display = 'block';
 
     // 3. CARGA DE LÓGICA SEGÚN PÁGINA
@@ -77,10 +71,39 @@ observarAuth(async (user) => {
         else if (user.rol === "cliente" && archivoActual === RUTAS.cliente) await iniciarPanelCliente(user);
         
         actualizarInterfazGlobal(user);
+        iniciarEscuchaEventosDinamicos(); // <--- SOLUCIÓN AL BOTÓN MUERTO
     } catch (error) {
         console.error("❌ Error crítico en el arranque del sistema:", error);
     }
 });
+
+/**
+ * ⚡ MOTOR DE REACTIVIDAD: DELEGACIÓN DE EVENTOS GLOBAL
+ * Esta función asegura que botones inyectados después (como CREAR COTIZACIÓN) 
+ * funcionen sin recargar la página.
+ */
+function iniciarEscuchaEventosDinamicos() {
+    const panelAcciones = document.getElementById("panelAcciones");
+    
+    if (panelAcciones) {
+        // Eliminamos listeners previos para evitar duplicados
+        const nuevoPanel = panelAcciones.cloneNode(true);
+        panelAcciones.parentNode.replaceChild(nuevoPanel, panelAcciones);
+
+        nuevoPanel.addEventListener("click", (e) => {
+            // Buscamos el botón de cotización por texto o ID contenido
+            const btnCotizar = e.target.closest('button');
+            
+            if (btnCotizar && btnCotizar.innerText.includes("CREAR COTIZACIÓN")) {
+                console.log("🛠️ FixGo: Detectado clic en Cotización. Ejecutando motor...");
+                
+                // Disparar evento personalizado o llamar a la función de app-panel.js
+                window.dispatchEvent(new CustomEvent("abrirMotorCotizacion"));
+            }
+        });
+        console.log("🔗 [Reactivity] Listener de Panel de Acciones vinculado.");
+    }
+}
 
 /**
  * ACTUALIZADOR DE INTERFAZ GLOBAL
@@ -97,12 +120,10 @@ function actualizarInterfazGlobal(user) {
             if (confirm("¿Cerrar sesión de FixGo?")) {
                 try {
                     await signOut(auth);
-                    // PWA Fix: Aseguramos limpieza visual antes del redirect
                     document.body.style.display = 'none';
                     window.location.replace("login.html");
                 } catch (error) {
                     console.error("Error al cerrar sesión:", error);
-                    alert("Hubo un problema cerrando sesión. Intenta de nuevo.");
                 }
             }
         });
