@@ -2,12 +2,12 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 6.2 (LOGISTICS + SHARK MODE + EMAIL GATEKEEPER + LEGAL SPLIT)
+ * Versión: 6.3 (LOGISTICS + LEGAL SPLIT + DEV WHITELIST)
  * Autor: Heber (CEO & Lead Architect)
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR.
  * ======================================================
  */
-console.log(" 🚀 [app-registro.js] Inicializando sistema V6.2 (Compliance Legal Separado, Logística y Gatekeeper)...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema V6.3 (Compliance Legal Separado y DEV Whitelist)...");
 
 import { 
     auth, 
@@ -486,20 +486,27 @@ if (btnLogin) {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            // 🔥 INYECCIÓN V6.1: EL VERDUGO DE CORREOS
-            // Si el correo no está verificado (y no es el super admin), lo pateamos fuera
+            // 🔥 INYECCIÓN V6.3: LISTA BLANCA DE DESARROLLO (WHITELIST)
+            const LISTA_BLANCA_DEV = [
+                "hebertoh-m@hotmail.com", // VIP Admin
+                "cliente@test.com",       // Tester Cliente
+                "tecnico@test.com"        // Tester Técnico
+            ];
+
+            // Si el correo no está verificado, verificamos si está en la Lista Blanca
             if (!user.emailVerified) {
-                // Hacemos una excepción para ti (el CEO/Admin principal) para que no te quedes bloqueado
-                if (email !== "hebertoh-m@hotmail.com") {
+                if (!LISTA_BLANCA_DEV.includes(email)) {
                     await signOut(auth); // Lo expulsamos inmediatamente
                     alert(`🚨 ACCESO DENEGADO\n\nAún no has verificado tu correo electrónico (${email}).\n\nPor favor, revisa tu bandeja de entrada o carpeta de Spam y haz clic en el enlace de activación para poder ingresar.`);
                     btnLogin.innerHTML = textoOriginal;
                     btnLogin.disabled = false;
                     return; // Detenemos la ejecución
+                } else {
+                    console.warn(`🛠️ [MODO DEV]: Acceso permitido a Lista Blanca sin verificar: ${email}`);
                 }
             }
 
-            // Si llega aquí, su correo sí está verificado (o es el Admin). El observador lo redirigirá.
+            // Si llega aquí, su correo sí está verificado (o está en la Lista Blanca). El observador lo redirigirá.
 
         } catch (error) {
             manejarErroresAuth(error);
@@ -587,9 +594,16 @@ if (btnGoogle) {
 // E. OBSERVADOR Y MANEJO DE ERRORES
 // ======================================================
 observarAuth((user) => {
+    // 🔥 INYECCIÓN V6.3: LISTA BLANCA DE DESARROLLO (WHITELIST)
+    const LISTA_BLANCA_DEV = [
+        "hebertoh-m@hotmail.com", 
+        "cliente@test.com",       
+        "tecnico@test.com"        
+    ];
+
     // Si hay un usuario logueado pero su correo NO está verificado, no lo redirigimos
-    // (a menos que sea el Admin, que tiene un pase especial)
-    if (user && (user.emailVerified || user.email === "hebertoh-m@hotmail.com")) {
+    // (a menos que esté en la Lista Blanca)
+    if (user && (user.emailVerified || LISTA_BLANCA_DEV.includes(user.email))) {
         const path = window.location.pathname;
         if (path.includes("login.html") || path.includes("registro")) {
             setTimeout(() => {
