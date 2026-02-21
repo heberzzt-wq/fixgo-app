@@ -11,8 +11,9 @@
     <style>
         body { background-color: #000000; font-family: 'Inter', sans-serif; }
         .card-tecnico {
-            background: #0a0a0a;
-            border: 1px solid #1a1a1a;
+            background: rgba(10, 10, 10, 0.85); /* Ligeramente transparente para ver el fondo */
+            border: 1px solid rgba(255,255,255,0.05);
+            backdrop-filter: blur(8px); /* Efecto vidrio ahumado */
         }
         .status-badge {
             font-size: 10px;
@@ -29,7 +30,10 @@
 </head>
 <body class="text-white min-h-screen pb-40"> 
 
-    <nav class="p-6 flex justify-between items-center border-b border-slate-900 sticky top-0 bg-black/95 z-20 backdrop-blur-md">
+    <div id="dynamic-bg" class="fixed inset-0 z-[-2] bg-cover bg-center opacity-30 pointer-events-none"></div>
+    <div class="fixed inset-0 bg-gradient-to-b from-black/60 via-black/85 to-[#000000] z-[-1] pointer-events-none"></div>
+
+    <nav class="p-6 flex justify-between items-center border-b border-white/5 sticky top-0 bg-black/95 z-20 backdrop-blur-md">
         <div>
             <h1 class="font-black text-xl italic tracking-tighter">FIX<span class="text-emerald-500">GO</span> PRO</h1>
             <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Socio Especialista</p>
@@ -42,7 +46,7 @@
     <header class="p-6">
         <div class="card-tecnico p-6 rounded-[2rem] flex items-center gap-4 shadow-2xl">
             <div class="relative">
-                <div class="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center border-2 border-emerald-500 overflow-hidden">
+                <div class="w-20 h-20 bg-slate-800/80 rounded-full flex items-center justify-center border-2 border-emerald-500 overflow-hidden backdrop-blur-sm">
                     <i id="fotoIcono" class="fas fa-user-gear text-3xl text-gray-300"></i>
                     <img id="fotoPerfil" src="" alt="Perfil" class="hidden w-full h-full object-cover">
                 </div>
@@ -57,8 +61,8 @@
                 <p id="txtServicios" class="text-[9px] text-emerald-500 font-bold mb-2 hidden">0 SERVICIOS FINALIZADOS</p>
 
                 <div class="flex items-center gap-2 mt-2">
-                    <span id="badgeNivel" class="bg-zinc-800 text-zinc-500 text-[10px] font-black px-2 py-0.5 rounded border border-zinc-700">CARGANDO...</span>
-                    <button id="btnLogout" class="text-red-500 text-[10px] font-bold border border-red-900/50 px-2 py-0.5 rounded hover:bg-red-900/20 transition-colors">SALIR</button>
+                    <span id="badgeNivel" class="bg-zinc-800/80 backdrop-blur-sm text-zinc-400 text-[10px] font-black px-2 py-0.5 rounded border border-zinc-700">CARGANDO...</span>
+                    <button id="btnLogout" class="text-red-500 text-[10px] font-bold border border-red-900/50 px-2 py-0.5 rounded hover:bg-red-900/40 transition-colors">SALIR</button>
                 </div>
             </div>
         </div>
@@ -66,20 +70,20 @@
 
     <main class="px-6 space-y-6">
         
-        <div class="card-tecnico p-6 rounded-2xl flex justify-between items-center">
+        <div class="card-tecnico p-6 rounded-2xl flex justify-between items-center shadow-lg">
             <div>
                 <h3 class="font-black text-lg">Disponibilidad</h3>
-                <p class="text-xs text-gray-500">Recibir nuevas solicitudes</p>
+                <p class="text-xs text-gray-400">Recibir nuevas solicitudes</p>
             </div>
             <label class="inline-flex items-center cursor-pointer">
                 <input type="checkbox" id="toggleONOFF" class="hidden peer">
-                <div class="relative w-14 h-8 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-emerald-500"></div>
+                <div class="relative w-14 h-8 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
             </label>
         </div>
 
         <div id="radarSection" class="opacity-50 grayscale transition-all duration-500">
-            <p class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Estado de Conexión</p>
-            <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-2xl flex items-center gap-3">
+            <p class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-2 drop-shadow-md">Estado de Conexión</p>
+            <div class="bg-emerald-900/20 backdrop-blur-sm border border-emerald-500/30 p-4 rounded-2xl flex items-center gap-3 shadow-lg">
                 <div class="relative">
                     <span class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping"></span>
                     <i class="fas fa-satellite-dish text-emerald-500 relative z-10"></i>
@@ -90,34 +94,34 @@
 
         <div id="seccionBolsa" class="hidden transition-all duration-500">
             <div class="flex items-center gap-2 mb-4">
-                <i class="fas fa-bolt text-yellow-500 animate-pulse"></i>
-                <h3 class="text-white text-xs font-black uppercase tracking-[0.2em]">Nuevas Solicitudes</h3>
+                <i class="fas fa-bolt text-yellow-500 animate-pulse drop-shadow-md"></i>
+                <h3 class="text-white text-xs font-black uppercase tracking-[0.2em] drop-shadow-md">Nuevas Solicitudes</h3>
             </div>
             
             <div id="listaBolsa" class="space-y-3"></div>
             
-            <hr class="border-zinc-800 mt-6 mb-2">
+            <hr class="border-white/10 mt-6 mb-2">
         </div>
 
         <div id="listaServicios" class="space-y-4">
             </div>
 
         <div class="mt-8 mb-8">
-            <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Mi Cartera (Modo Efectivo)</h3>
+            <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4 drop-shadow-md">Mi Cartera (Modo Efectivo)</h3>
             
-            <div class="bg-red-950/20 border border-red-500/20 p-6 rounded-[2rem] mb-4 shadow-xl relative overflow-hidden">
+            <div class="bg-red-950/40 backdrop-blur-md border border-red-500/30 p-6 rounded-[2rem] mb-4 shadow-xl relative overflow-hidden">
                 <div class="flex justify-between items-start mb-4">
                     <div>
-                        <p class="text-slate-400 text-xs font-bold uppercase">Balance (Deuda FixGo)</p>
-                        <h4 id="walletSaldo" class="text-4xl font-black text-red-500">$0.00</h4>
+                        <p class="text-slate-300 text-xs font-bold uppercase drop-shadow-md">Balance (Deuda FixGo)</p>
+                        <h4 id="walletSaldo" class="text-4xl font-black text-red-400 drop-shadow-lg">$0.00</h4>
                     </div>
-                    <div class="bg-red-500/10 text-red-500 p-3 rounded-2xl flex flex-col items-center">
+                    <div class="bg-red-500/20 text-red-400 p-3 rounded-2xl flex flex-col items-center border border-red-500/20">
                         <i class="fas fa-hand-holding-usd text-xl"></i>
                     </div>
                 </div>
-                <p class="text-[9px] text-gray-400 mb-4 border-l-2 border-red-500 pl-2">Al cobrar en efectivo, retienes la comisión de FixGo (32%). Límite de deuda permitido: -$1,000 MXN.</p>
+                <p class="text-[9px] text-gray-300 mb-4 border-l-2 border-red-500 pl-2">Al cobrar en efectivo, retienes la comisión de FixGo (32%). Límite de deuda permitido: -$1,000 MXN.</p>
                 
-                <button onclick="document.getElementById('modalPagoDeuda').classList.remove('hidden')" class="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-sm shadow-lg shadow-red-900/20 transition-all transform active:scale-95 flex items-center justify-center gap-2">
+                <button onclick="document.getElementById('modalPagoDeuda').classList.remove('hidden')" class="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-sm shadow-lg shadow-red-900/40 transition-all transform active:scale-95 flex items-center justify-center gap-2 border border-red-500">
                     <i class="fas fa-file-invoice-dollar"></i> PAGAR MI DEUDA (SPEI/OXXO)
                 </button>
                 
@@ -125,15 +129,15 @@
             </div>
 
             <div id="contenedorHistorialRetiros" class="hidden mb-6">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mt-6 mb-3 pl-2">Últimos movimientos</p>
+                <p class="text-slate-400 text-[9px] font-bold uppercase tracking-widest mt-6 mb-3 pl-2 drop-shadow-md">Últimos movimientos</p>
                 <div id="listaMisRetiros" class="space-y-2">
                 </div>
             </div>
 
             <div class="mt-8">
-                <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Historial de Tickets (Servicios)</h3>
+                <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4 drop-shadow-md">Historial de Tickets (Servicios)</h3>
                 <div id="listaMisTickets" class="space-y-3">
-                    <p class="text-gray-600 text-[10px] text-center italic py-4">Cargando tu historial de servicios...</p>
+                    <p class="text-gray-400 text-[10px] text-center italic py-4">Cargando tu historial de servicios...</p>
                 </div>
             </div>
 
@@ -171,7 +175,7 @@
                 <p class="text-[10px] text-gray-300 leading-tight">Después de transferir o depositar en OXXO, envía el comprobante por WhatsApp a Soporte para aplicar tu saldo a favor.</p>
             </div>
 
-            <a href="https://wa.me/529980000000?text=Hola,%20adjunto%20mi%20comprobante%20de%20pago%20de%20deuda%20FixGo." target="_blank" class="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl text-sm transition-all shadow-lg transform active:scale-95 flex justify-center items-center gap-2 text-center">
+            <a href="https://wa.me/529980000000?text=Hola,%20adjunto%20mi%20comprobante%20de%20pago%20de%20deuda%20FixGo." target="_blank" class="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl text-sm transition-all shadow-lg transform active:scale-95 flex justify-center items-center gap-2 text-center border border-green-500">
                 <i class="fab fa-whatsapp text-xl"></i> ENVIAR COMPROBANTE
             </a>
         </div>
@@ -184,18 +188,36 @@
                  <span class="text-emerald-500 text-xs font-bold animate-pulse">● EN VIVO</span>
             </div>
 
-            <button id="btnEnCamino" class="hidden w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all">
+            <button id="btnEnCamino" class="hidden w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all border border-yellow-400">
                 <i class="fas fa-car-side text-xl"></i> 
                 <span>VOY EN CAMINO</span>
             </button>
             
-            <button id="btnLlegue" class="hidden w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all">
+            <button id="btnLlegue" class="hidden w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all border border-emerald-400">
                 <i class="fas fa-map-marker-alt text-xl"></i> 
                 <span>YA LLEGUÉ AL SITIO</span>
             </button>
         </div>
     </div>
     
+    <script>
+        // ==============================================================
+        // SCRIPT: FONDO DINÁMICO ALEATORIO (AHORRO DATOS SOCIO PRO)
+        // ==============================================================
+        const bgContainer = document.getElementById('dynamic-bg');
+        // Imágenes HQ de acción: mecánicos, electricistas, AC
+        const images = [
+            'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Aire Acondicionado
+            'https://images.unsplash.com/photo-1581092160562-40aa08e78837?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Herramientas mecánicas
+            'https://images.unsplash.com/photo-1632759145351-1d592919f522?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Mantenimiento eléctrico
+            'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'  // Trabajo manual
+        ];
+        
+        // Seleccionamos solo UNA imagen al azar cada vez que abre la app
+        const randomImg = images[Math.floor(Math.random() * images.length)];
+        bgContainer.style.backgroundImage = `url('${randomImg}')`;
+    </script>
+
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js"></script>
 </body>
