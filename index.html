@@ -50,6 +50,102 @@
         </div>
     </main>
 
+    <footer class="p-6 border-t border-white/10 text-center relative z-20 bg-black/80 backdrop-blur-md">
+        <div class="flex flex-wrap justify-center gap-4 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+            <button onclick="document.getElementById('modalTerminosCliente').classList.remove('hidden')" class="hover:text-emerald-500 transition-colors">Términos Cliente</button>
+            <button onclick="document.getElementById('modalTerminosTecnico').classList.remove('hidden')" class="hover:text-emerald-500 transition-colors">Términos Socio Pro</button>
+            <button onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="hover:text-emerald-500 transition-colors">Aviso de Privacidad</button>
+            <button onclick="document.getElementById('modalEliminacion').classList.remove('hidden')" class="hover:text-red-500 transition-colors">Eliminar Datos</button>
+        </div>
+        <p class="text-[9px] text-gray-700 mt-4">&copy; 2026 FixGo. Todos los derechos reservados.</p>
+    </footer>
+
+    <div id="modalTerminosCliente" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left">
+        <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-zinc-700 shadow-2xl flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
+                <h3 class="text-white font-black text-xl">Términos y Condiciones (Clientes)</h3>
+                <button type="button" onclick="document.getElementById('modalTerminosCliente').classList.add('hidden')" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
+                <p><strong>1. Naturaleza del Servicio:</strong> FixGo es una plataforma tecnológica de intermediación. No presta servicios de reparación directa. Los servicios son prestados por Técnicos independientes ("Socios Pro").</p>
+                <p><strong>2. Presupuestos y Pagos:</strong> El Cliente pagará el 100% del costo del servicio directamente al Técnico, según lo acordado en sitio. Si el Cliente solicita la visita y rechaza la cotización con el Técnico ya en sitio, se compromete a pagar una tarifa fija de $550.00 MXN por concepto de diagnóstico y traslado.</p>
+                <p><strong>3. Cancelaciones:</strong> Cancelar un servicio después de que el Técnico ha sido asignado y se encuentra en ruta generará cargos al método de pago registrado como garantía.</p>
+                <p><strong>4. Garantía:</strong> Se amparan 6 meses de garantía sobre la mano de obra, única y exclusivamente si el servicio fue documentado y finalizado oficialmente a través de la aplicación FixGo con la evidencia fotográfica correspondiente.</p>
+            </div>
+            <div class="mt-4 pt-4 border-t border-zinc-800 text-center">
+                <button type="button" onclick="document.getElementById('modalTerminosCliente').classList.add('hidden')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalTerminosTecnico" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left">
+        <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-emerald-700 shadow-2xl flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
+                <h3 class="text-emerald-400 font-black text-xl">Contrato de Servicios (Socio Pro)</h3>
+                <button type="button" onclick="document.getElementById('modalTerminosTecnico').classList.add('hidden')" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
+                <p><strong>1. Relación Comercial:</strong> Al registrarse como Socio Pro, usted actúa como Contratista Independiente. No existe relación obrero-patronal, subordinación ni exclusividad con FixGo. Usted provee sus propias herramientas, vehículos y horarios.</p>
+                <p><strong>2. Comisiones y Pagos:</strong> Usted cobrará el 100% del servicio en efectivo o transferencia directa del cliente. Por el uso de la plataforma, FixGo cobrará una comisión del 32% sobre cada servicio completado. Esta comisión se reflejará como "Deuda" en su Billetera FixGo y deberá ser liquidada vía SPEI periódicamente para evitar la suspensión de su cuenta.</p>
+                <p><strong>3. Políticas Anti-Fraude:</strong> Cancelar servicios asignados injustificadamente después de 5 minutos de aceptación generará una penalización de $50 MXN. Es obligatorio el uso de GPS en sitio y subir fotografías reales de evidencia del servicio. La suplantación de identidad o perfiles falsos causará la baja definitiva e inmediata de la plataforma.</p>
+                <p><strong>4. Responsabilidad Civil:</strong> El Socio Pro es el único responsable legal por daños causados a la propiedad del cliente durante la ejecución del servicio.</p>
+            </div>
+            <div class="mt-4 pt-4 border-t border-zinc-800 text-center">
+                <button type="button" onclick="document.getElementById('modalTerminosTecnico').classList.add('hidden')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalPrivacidad" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left">
+        <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-zinc-700 shadow-2xl flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
+                <h3 class="text-white font-black text-xl">Aviso de Privacidad</h3>
+                <button type="button" onclick="document.getElementById('modalPrivacidad').classList.add('hidden')" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
+                <p><strong>1. Identidad y Domicilio:</strong> FixGo es el responsable del tratamiento y protección de sus datos personales.</p>
+                <p><strong>2. Datos Recabados:</strong> Nombre, fotos (perfil, INE, CSF, Licencia), teléfono, correo, y Datos Sensibles como su Ubicación GPS en tiempo real y CLABE interbancaria.</p>
+                <p><strong>3. Finalidades:</strong> Conectar clientes con técnicos, procesar pagos, rastreo de seguridad durante el servicio, y validación de antecedentes (KYC).</p>
+                <p><strong>4. Transferencia de Datos:</strong> Sus datos bancarios son procesados por Stripe bajo encriptación militar. Compartiremos datos con autoridades solo por requerimiento legal.</p>
+                <p><strong>5. Derechos ARCO:</strong> Puede ejercer sus derechos de Acceso, Rectificación, Cancelación u Oposición contactando a soporte técnico en la plataforma.</p>
+            </div>
+            <div class="mt-4 pt-4 border-t border-zinc-800 text-center">
+                <button type="button" onclick="document.getElementById('modalPrivacidad').classList.add('hidden')" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalEliminacion" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left">
+        <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-red-900/50 shadow-2xl flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
+                <h3 class="text-white font-black text-xl">Solicitud de Eliminación de Datos</h3>
+                <button type="button" onclick="document.getElementById('modalEliminacion').classList.add('hidden')" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
+                <p>En estricto cumplimiento con las normativas de protección de datos personales y las políticas de distribución de aplicaciones (App Store y Google Play), usted tiene el derecho irrevocable de solicitar la eliminación permanente de su cuenta y todos los datos asociados a la misma.</p>
+                
+                <h4 class="text-white font-bold text-sm mt-4">¿Cómo solicitar la eliminación de su cuenta?</h4>
+                <p>Para procesar su solicitud de manera segura y verificar su identidad, por favor envíe un correo electrónico a nuestro equipo de soporte de datos:</p>
+                
+                <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center my-2">
+                    <a href="mailto:soporte@fixgo.com" class="text-emerald-400 font-bold text-lg tracking-widest">soporte@fixgo.com</a>
+                </div>
+                
+                <p><strong>Requisitos obligatorios del correo:</strong></p>
+                <ul class="list-disc pl-5 space-y-1 text-gray-500">
+                    <li>El mensaje debe ser enviado desde la <strong>misma dirección de correo electrónico</strong> con la que se registró en FixGo.</li>
+                    <li><strong>Asunto del correo:</strong> "Solicitud de Eliminación de Cuenta y Datos".</li>
+                    <li>En el cuerpo del mensaje, especifique si su cuenta es de "Cliente" o "Socio Pro".</li>
+                </ul>
+                
+                <p class="mt-4 border-t border-zinc-800 pt-4"><strong>Tiempos y Excepciones:</strong> Su solicitud será ejecutada en un plazo máximo de 7 días hábiles. Tenga en cuenta que ciertos registros de transacciones financieras (facturación, recibos, cobros) podrían ser retenidos temporalmente por estricto cumplimiento legal y fiscal ante las autoridades locales, pero su perfil público, fotografías, ubicación y acceso a la plataforma serán destruidos irreversiblemente.</p>
+            </div>
+            <div class="mt-4 pt-4 border-t border-zinc-800 text-center">
+                <button type="button" onclick="document.getElementById('modalEliminacion').classList.add('hidden')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { auth, observarAuth, signOut, doc, setDoc, db } from './firebase.js';
 
