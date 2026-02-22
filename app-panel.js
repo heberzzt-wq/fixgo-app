@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.2 (ANTI-SPAM SHIELD + NATIVE ANDROID PUSH + DYNAMIC ACTION BUTTONS)
+ * Versión: 5.18.3 (FCM PUSH ENGINE INTEGRATED + VAPID KEY + DYNAMIC BUTTONS)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -28,10 +28,12 @@ import {
     getDoc 
 } from "./firebase.js";
 
-// 🔥 INYECCIÓN NIVEL UBER (Firestore)
+// 🔥 INYECCIÓN NIVEL UBER (Firestore & Storage)
 import { getDocs, arrayUnion, runTransaction, limit, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-// 🔥 INYECCIÓN NIVEL UBER (Storage)
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+
+// 🔔 INYECCIÓN V5.18.3: MOTOR PUSH FCM (Firebase Cloud Messaging)
+import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 import { activarAlertas, alertaTecnico } from "./alert-engine.js";
@@ -76,15 +78,6 @@ document.addEventListener('click', () => {
     activarAlertas().then(() => {
         console.log("🔊 FIXGO AUDIO ENGINE: Desbloqueado y listo (Modo Sintetizador).");
     });
-
-    // 🔔 INYECCIÓN V5.18.1: Desbloqueo de Notificaciones Nativas tras el primer clic
-    if ("Notification" in window) {
-        if (Notification.permission !== "granted" && Notification.permission !== "denied") {
-            Notification.requestPermission().then(permission => {
-                console.log("🔔 FIXGO PUSH ENGINE: Permiso de notificaciones ->", permission);
-            });
-        }
-    }
 }, { once: true }); 
 
 function sonarAlerta() {
@@ -93,7 +86,7 @@ function sonarAlerta() {
 
 /**
  * 🔔 MOTOR DE NOTIFICACIONES PUSH (CORRECCIÓN ANDROID V5.18.2)
- * Se usa ServiceWorkerRegistration para garantizar compatibilidad móvil.
+ * Se usa ServiceWorkerRegistration para garantizar compatibilidad móvil local.
  */
 function lanzarNotificacionPush(titulo, cuerpo) {
     if (!("Notification" in window) || !("serviceWorker" in navigator)) {
@@ -150,7 +143,7 @@ const urlABase64 = async (url) => {
         return null;
     }
 };
-console.log(" 🚀  FIXGO 5.18.2: STORAGE EVIDENCE + SHARK TANK EXPORT + STRIKE UI ACTIVATED.");
+console.log(" 🚀  FIXGO 5.18.3: FCM PUSH ENGINE + STORAGE EVIDENCE + STRIKE UI ACTIVATED.");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
@@ -1218,11 +1211,14 @@ function generarSwitchGranular(id, label, checked) {
 
 // ======================================================================================
 // ======================================================================================
-// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + V5.18.2)
+// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + V5.18.3)
 // ======================================================================================
 export async function iniciarPanelTecnico(user) {
     console.log(" 🔧  Iniciando Panel de Técnico (Modo Uber Cash / Storage 4K / UI Disciplinaria)...");
     
+    // 🔥 INYECCIÓN V5.18.3: Registro y activación del Motor Push FCM para el técnico
+    activarMotorFCM(user.uid);
+
     const elementos = {
         statusLabel: document.getElementById("statusLabel"),
         toggleONOFF: document.getElementById("toggleONOFF"),
@@ -1231,8 +1227,8 @@ export async function iniciarPanelTecnico(user) {
         listaBolsa: document.getElementById("listaBolsa"),
         listaServicios: document.getElementById("listaServicios"),
         panelAcciones: document.getElementById("panelAcciones"),
-        btnEnCamino: document.getElementById("btnEnCamino"), // Ya no se usa directamente, pero se mantiene por seguridad
-        btnLlegue: document.getElementById("btnLlegue"),   // Ya no se usa directamente, pero se mantiene por seguridad
+        btnEnCamino: document.getElementById("btnEnCamino"), // Mantenido por si acaso
+        btnLlegue: document.getElementById("btnLlegue"),   // Mantenido por si acaso
         walletLabel: document.getElementById("walletSaldo"),
         btnRetiro: document.getElementById("btnRetiro"),
         contenedorHistorialRetiros: document.getElementById("contenedorHistorialRetiros"),
@@ -1809,9 +1805,7 @@ export async function iniciarPanelTecnico(user) {
                 </a>
             </div>
 
-            ${botonAccionHTML}
-
-            <div class="mt-4 border-t border-white/5 pt-4 text-center">
+            ${botonAccionHTML} <div class="mt-4 border-t border-white/5 pt-4 text-center">
                 <button onclick="window.cancelarMisionActiva('${id}')" class="text-red-500 text-xs font-bold underline hover:text-red-400">
                     CANCELAR SERVICIO (RIESGO PENALIZACIÓN)
                 </button>
@@ -2332,6 +2326,41 @@ export async function iniciarPanelTecnico(user) {
         };
         fileInput.click();
     };
+}
+
+/**
+ * 🔔 MOTOR FCM (FIREBASE CLOUD MESSAGING) V5.18.3
+ * Registra el dispositivo del técnico para recibir alertas en segundo plano (minimizado).
+ */
+async function activarMotorFCM(uid) {
+    try {
+        const messaging = getMessaging(); // Usa la app por defecto inicializada en firebase.js
+        const permission = await Notification.requestPermission();
+        
+        if (permission === 'granted') {
+            console.log("🔔 [FCM] Permiso concedido. Obteniendo Token...");
+            const currentToken = await getToken(messaging, { 
+                vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ' 
+            });
+            
+            if (currentToken) {
+                console.log("🔑 [FCM] Token generado. Vinculando al perfil del técnico.");
+                // Guardamos el token en su perfil para poder enviarle notificaciones Push remotas
+                await updateDoc(doc(db, "users", uid), { fcmToken: currentToken });
+            } else {
+                console.log("⚠️ [FCM] No se pudo generar el token de registro.");
+            }
+        }
+
+        // Listener para cuando la app está ABIERTA en pantalla (primer plano)
+        onMessage(messaging, (payload) => {
+            console.log("🔔 [FCM] Push recibido en Primer Plano:", payload);
+            sonarAlerta();
+        });
+
+    } catch (error) {
+        console.warn("⚠️ [FCM] El motor Push no está soportado en este navegador o fue bloqueado.", error);
+    }
 }
 
 // ======================================================================================
