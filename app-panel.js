@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.2 (ANTI-SPAM SHIELD + NATIVE ANDROID PUSH + GHOST RADAR REMOVED)
+ * Versión: 5.18.2 (ANTI-SPAM SHIELD + NATIVE ANDROID PUSH + DYNAMIC ACTION BUTTONS)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -1218,7 +1218,7 @@ function generarSwitchGranular(id, label, checked) {
 
 // ======================================================================================
 // ======================================================================================
-// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + V5.17.4 UI DISCIPLINARIA)
+// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + V5.18.2)
 // ======================================================================================
 export async function iniciarPanelTecnico(user) {
     console.log(" 🔧  Iniciando Panel de Técnico (Modo Uber Cash / Storage 4K / UI Disciplinaria)...");
@@ -1231,8 +1231,8 @@ export async function iniciarPanelTecnico(user) {
         listaBolsa: document.getElementById("listaBolsa"),
         listaServicios: document.getElementById("listaServicios"),
         panelAcciones: document.getElementById("panelAcciones"),
-        btnEnCamino: document.getElementById("btnEnCamino"),
-        btnLlegue: document.getElementById("btnLlegue"),
+        btnEnCamino: document.getElementById("btnEnCamino"), // Ya no se usa directamente, pero se mantiene por seguridad
+        btnLlegue: document.getElementById("btnLlegue"),   // Ya no se usa directamente, pero se mantiene por seguridad
         walletLabel: document.getElementById("walletSaldo"),
         btnRetiro: document.getElementById("btnRetiro"),
         contenedorHistorialRetiros: document.getElementById("contenedorHistorialRetiros"),
@@ -1727,6 +1727,7 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
+    // 🔥 MISIONES ACTIVAS (CON BOTONES DINÁMICOS V5.18.2)
     const qMisiones = query(
         collection(db, "services"),
         where("tecnico_id", "==", user.uid),
@@ -1754,6 +1755,37 @@ export async function iniciarPanelTecnico(user) {
                 ? `${s.coords.lat},${s.coords.lng}`
                 : encodeURIComponent(s.direccion);
 
+            // 1. Determinar qué botón renderizar según el estado
+            let botonAccionHTML = "";
+
+            if (s.estado === "asignado") {
+                botonAccionHTML = `
+                <button onclick="window.actualizarEstadoGlobal('${id}', 'en_camino')" class="w-full mt-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
+                    <i class="fas fa-motorcycle"></i> VOY EN CAMINO
+                </button>`;
+            } else if (s.estado === "en_camino") {
+                 botonAccionHTML = `
+                <button id="btn_llegada_${id}" onclick="window.validarLlegada('${id}', ${s.coords ? s.coords.lat : 'null'}, ${s.coords ? s.coords.lng : 'null'})" class="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
+                    <i class="fas fa-map-marker-alt"></i> YA LLEGUÉ AL SITIO
+                </button>`;
+            } else if (s.estado === "en_sitio") {
+                 botonAccionHTML = `
+                <button onclick="window.abrirCotizadorGlobal('${id}')" class="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
+                    <i class="fas fa-calculator"></i> CREAR COTIZACIÓN
+                </button>`;
+            } else if (s.estado === "cotizando") {
+                botonAccionHTML = `
+                <button disabled class="w-full mt-4 bg-zinc-700 text-gray-400 font-bold py-4 rounded-xl flex items-center justify-center gap-2 cursor-not-allowed">
+                    <i class="fas fa-hourglass-half animate-spin"></i> ESPERANDO AL CLIENTE...
+                </button>`;
+            } else if (s.estado === "trabajando") {
+                 botonAccionHTML = `
+                <button onclick="window.abrirEvidenciaGlobal('${id}')" class="w-full mt-4 bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
+                    <i class="fas fa-camera"></i> FINALIZAR Y COBRAR
+                </button>`;
+            }
+
+            // 2. Inyectar TODO en la tarjeta
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl";
             card.innerHTML = `
@@ -1776,6 +1808,9 @@ export async function iniciarPanelTecnico(user) {
                     <i class="fas fa-phone"></i>
                 </a>
             </div>
+
+            ${botonAccionHTML}
+
             <div class="mt-4 border-t border-white/5 pt-4 text-center">
                 <button onclick="window.cancelarMisionActiva('${id}')" class="text-red-500 text-xs font-bold underline hover:text-red-400">
                     CANCELAR SERVICIO (RIESGO PENALIZACIÓN)
@@ -1783,71 +1818,11 @@ export async function iniciarPanelTecnico(user) {
             </div>
             `;
             ls.appendChild(card);
-
-            const btn1 = elementos.btnEnCamino;
-            const btn2 = elementos.btnLlegue;
-
-            btn1.classList.add("hidden");
-            btn2.classList.add("hidden");
-
-            if (s.estado === "asignado") {
-                btn1.classList.remove("hidden");
-                btn1.innerText = "VOY EN CAMINO";
-                btn1.className = "w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
-                btn1.onclick = () => actualizarEstado(id, "en_camino");
-            }
-            else if (s.estado === "en_camino") {
-                btn2.classList.remove("hidden");
-                btn2.innerText = "YA LLEGUÉ AL SITIO";
-                btn2.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-all";
-                
-                btn2.onclick = () => {
-                    const textoOriginal = btn2.innerHTML;
-                    btn2.innerHTML = '<i class="fas fa-satellite text-white animate-spin"></i> VERIFICANDO GPS...';
-                    btn2.disabled = true;
-
-                    if (navigator.geolocation && s.coords) {
-                        navigator.geolocation.getCurrentPosition((pos) => {
-                            const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, s.coords.lat, s.coords.lng);
-                            if (dist > 1000) { 
-                                alert(`🛑 ALERTA ANTIFRAUDE: El sistema detecta que estás a ${Math.round(dist)} metros del cliente.\n\nDebes estar físicamente en el lugar para cambiar el estado a "En Sitio".`);
-                                btn2.innerHTML = textoOriginal;
-                                btn2.disabled = false;
-                            } else {
-                                actualizarEstado(id, "en_sitio");
-                            }
-                        }, (err) => {
-                            console.warn("Error GPS técnico:", err);
-                            actualizarEstado(id, "en_sitio"); 
-                        }, { enableHighAccuracy: true });
-                    } else {
-                        actualizarEstado(id, "en_sitio"); 
-                    }
-                };
-            }
-            else if (s.estado === "en_sitio") {
-                btn2.classList.remove("hidden");
-                btn2.innerText = "CREAR COTIZACIÓN";
-                btn2.className = "w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
-                btn2.onclick = () => mostrarModalCotizacionDetallada(id, s);
-            }
-            else if (s.estado === "cotizando") {
-                btn2.classList.remove("hidden");
-                btn2.innerText = "ESPERANDO AL CLIENTE...";
-                btn2.disabled = true;
-                btn2.className = "w-full bg-zinc-700 text-gray-400 font-bold py-4 rounded-xl cursor-not-allowed flex items-center justify-center gap-2";
-            }
-            else if (s.estado === "trabajando") {
-                btn2.classList.remove("hidden");
-                btn2.innerText = " 📸  FINALIZAR Y COBRAR";
-                btn2.disabled = false;
-                btn2.className = "w-full bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg";
-                btn2.onclick = () => mostrarModalEvidencia(id);
-            }
         });
     });
 
-    async function actualizarEstado(id, estado, extras = {}) {
+    // 3. Funciones Globales para los botones dinámicos
+    window.actualizarEstadoGlobal = async (id, estado, extras = {}) => {
         try {
             await updateDoc(doc(db, "services", id), { estado: estado, ...extras });
 
@@ -1861,57 +1836,41 @@ export async function iniciarPanelTecnico(user) {
             console.error("Error actualizando estado:", error);
             alert("Error de conexión. Intenta de nuevo.");
         }
-    }
+    };
 
-    window.cancelarMisionActiva = async (serviceId) => {
-        if(!confirm("⚠️ ADVERTENCIA: Cancelar un servicio aceptado afecta tu reputación.\n\nSi han pasado más de 5 minutos desde que aceptaste, se aplicará una penalización automática de $50 MXN.\n\n¿Estás seguro de cancelar?")) return;
+    window.validarLlegada = (id, targetLat, targetLng) => {
+        const btn = document.getElementById(`btn_llegada_${id}`);
+        const textoOriginal = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-satellite text-white animate-spin"></i> VERIFICANDO GPS...';
+        btn.disabled = true;
 
-        try {
-            const snap = await getDoc(doc(db, "services", serviceId));
-            if (!snap.exists()) return;
-            
-            const data = snap.data();
-            const ahora = new Date();
-            let aplicarMulta = false;
-
-            if (data.asignado_at) {
-                const tiempoAceptado = data.asignado_at.toDate();
-                const diffMin = (ahora - tiempoAceptado) / 60000; 
-                if (diffMin > 5) aplicarMulta = true;
-            }
-
-            await updateDoc(doc(db, "services", serviceId), { 
-                estado: "pendiente", 
-                tecnico_id: null,
-                tecnico_nombre: null,
-                tecnico_telefono: null,
-                asignado_at: null,
-                rejected_by: arrayUnion(user.uid) 
-            });
-
-            if (aplicarMulta) {
-                await addDoc(collection(db, "transacciones"), {
-                    tecnico_id: user.uid,
-                    pago_tecnico: -50,
-                    monto_total: 0,
-                    tipo: "penalizacion",
-                    descripcion: "Cancelación tardía de servicio (> 5 min)",
-                    fecha: serverTimestamp()
-                });
-                
-                await updateDoc(doc(db, "users", user.uid), {
-                    reputacion: increment(-0.2) 
-                });
-
-                alert("❌ Servicio cancelado. Se aplicó una penalización de $50 MXN por cancelación fuera de tiempo.");
-            } else {
-                alert("✅ Servicio cancelado sin penalización (dentro de los 5 min).");
-            }
-
-        } catch (e) {
-            console.error(e);
-            alert("Error al cancelar el servicio.");
+        if (navigator.geolocation && targetLat && targetLng) {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, targetLat, targetLng);
+                if (dist > 1000) { 
+                    alert(`🛑 ALERTA ANTIFRAUDE: El sistema detecta que estás a ${Math.round(dist)} metros del cliente.\n\nDebes estar físicamente en el lugar para cambiar el estado a "En Sitio".`);
+                    btn.innerHTML = textoOriginal;
+                    btn.disabled = false;
+                } else {
+                    window.actualizarEstadoGlobal(id, "en_sitio");
+                }
+            }, (err) => {
+                console.warn("Error GPS técnico:", err);
+                window.actualizarEstadoGlobal(id, "en_sitio"); 
+            }, { enableHighAccuracy: true });
+        } else {
+            window.actualizarEstadoGlobal(id, "en_sitio"); 
         }
+    };
+
+    window.abrirCotizadorGlobal = (id) => {
+        getDoc(doc(db, "services", id)).then(snap => {
+            if(snap.exists()) mostrarModalCotizacionDetallada(id, snap.data());
+        });
+    };
+
+    window.abrirEvidenciaGlobal = (id) => {
+        mostrarModalEvidencia(id);
     };
 
     function mostrarModalCotizacionDetallada(id, servicioData) {
