@@ -9,14 +9,14 @@ importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-comp
 const CACHE_NAME = 'fixgo-premium-cache-v1';
 const urlsToCache = ['/', '/manifest.json'];
 
-// INICIALIZAR FIREBASE EN SEGUNDO PLANO (Reemplaza con TUS credenciales de firebase.js)
+// INICIALIZAR FIREBASE EN SEGUNDO PLANO (Credenciales FixGo Oficiales)
 firebase.initializeApp({
-  apiKey: "TU_API_KEY",
-  authDomain: "TU_AUTH_DOMAIN",
-  projectId: "TU_PROJECT_ID",
-  storageBucket: "TU_STORAGE_BUCKET",
-  messagingSenderId: "TU_MESSAGING_SENDER_ID",
-  appId: "TU_APP_ID"
+  apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0", 
+  authDomain: "fixgo-44e4d.firebaseapp.com",
+  projectId: "fixgo-44e4d",
+  storageBucket: "fixgo-44e4d.firebasestorage.app",
+  messagingSenderId: "1005526685116",
+  appId: "1:1005526685116:web:62f1a823ff8761da85c7b9"
 });
 
 const messaging = firebase.messaging();
