@@ -2,24 +2,27 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#111111">
     <title>FixGo | Bienvenido</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icono-192.png">
+    
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js')
-                    .then(reg => console.log('FixGo Motor PWA activado en:', reg.scope))
-                    .catch(err => console.error('Error al iniciar Motor PWA:', err));
+                    .then(reg => console.log('✅ FixGo PWA Engine activado en:', reg.scope))
+                    .catch(err => console.error('❌ Error al iniciar Motor PWA:', err));
             });
         }
     </script>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background-color: #000000; font-family: 'Inter', sans-serif; }
+        body { background-color: #000000; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
         .hero-bg {
             background-image: radial-gradient(circle at center, #10b98120 0%, #000000 70%);
         }
@@ -35,29 +38,34 @@
         <div class="relative z-10 max-w-lg w-full">
             <h2 class="text-5xl font-black mb-4 tracking-tight">
                 Tu Técnico <br>
-
                 <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-700">EN CAMINO</span>
             </h2>
             
             <div id="actionArea" class="mt-10 flex flex-col gap-4">
                 <div id="loadingState" class="py-4">
-                    <i class="fas fa-circle-notch fa-spin text-emerald-500 text-2xl"></i>
+                    <i class="fas fa-circle-notch fa-spin text-emerald-500 text-3xl"></i>
+                    <p class="text-xs text-gray-500 mt-2 font-bold uppercase tracking-widest">Conectando al Servidor...</p>
                 </div>
 
                 <div id="guestOptions" class="hidden space-y-3">
-                    <a href="registro.html" class="block w-full bg-white text-black font-black py-4 rounded-xl">CREAR CUENTA</a>
-                    <a href="login.html" class="block w-full border border-white/20 text-white font-bold py-4 rounded-xl">INICIAR SESIÓN</a>
+                    <a href="registro.html" class="block w-full bg-white text-black font-black py-4 rounded-xl shadow-[0_0_15px_rgba(255,255,255,0.2)] transition-transform active:scale-95">CREAR CUENTA</a>
+                    <a href="login.html" class="block w-full border border-white/20 text-white font-bold py-4 rounded-xl hover:bg-white/5 transition-colors active:scale-95">INICIAR SESIÓN</a>
                 </div>
 
                 <div id="userOptions" class="hidden space-y-3">
-                    <div class="bg-emerald-900/30 border border-emerald-500/30 p-4 rounded-xl mb-4 text-left">
-                        <p class="text-[10px] text-emerald-400 font-bold uppercase">Sesión Activa</p>
-                        <p id="userNameDisplay" class="font-bold text-white text-lg">Usuario</p>
+                    <div class="bg-emerald-900/20 border border-emerald-500/30 p-4 rounded-xl mb-4 text-left flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-full bg-emerald-900 flex items-center justify-center text-emerald-500 border border-emerald-500/50">
+                            <i class="fas fa-user text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Sesión Activa</p>
+                            <p id="userNameDisplay" class="font-black text-white text-lg truncate w-48">Usuario</p>
+                        </div>
                     </div>
-                    <button id="btnDashboard" class="block w-full bg-emerald-500 text-black font-black py-4 rounded-xl hover:bg-emerald-400">
-                        IR A MI PANEL ->
+                    <button id="btnDashboard" class="block w-full bg-emerald-500 text-black font-black py-4 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-transform active:scale-95">
+                        ENTRAR A MI PANEL <i class="fas fa-arrow-right ml-2"></i>
                     </button>
-                    <button id="btnLogoutIndex" class="text-xs text-red-400 font-bold mt-4 underline">Cerrar Sesión</button>
+                    <button id="btnLogoutIndex" class="text-xs text-red-500 font-bold mt-4 underline hover:text-red-400 p-2">Cerrar Sesión Segura</button>
                 </div>
             </div>
         </div>
@@ -67,13 +75,13 @@
         <div class="flex flex-wrap justify-center gap-4 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
             <button onclick="document.getElementById('modalTerminosCliente').classList.remove('hidden')" class="hover:text-emerald-500 transition-colors">Términos Cliente</button>
             <button onclick="document.getElementById('modalTerminosTecnico').classList.remove('hidden')" class="hover:text-emerald-500 transition-colors">Términos Socio Pro</button>
-            <button onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="hover:text-emerald-500 transition-colors">Aviso de Privacidad</button>
+            <button onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="hover:text-emerald-500 transition-colors">Privacidad</button>
             <button onclick="document.getElementById('modalEliminacion').classList.remove('hidden')" class="hover:text-red-500 transition-colors">Eliminar Datos</button>
         </div>
-        <p class="text-[9px] text-gray-700 mt-4">&copy; 2026 FixGo. Todos los derechos reservados.</p>
+        <p class="text-[9px] text-gray-700 mt-4">&copy; 2026 FixGo Corp. Todos los derechos reservados.</p>
     </footer>
 
-    <div id="modalTerminosCliente" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left">
+    <div id="modalTerminosCliente" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left animate-fade-in">
         <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-zinc-700 shadow-2xl flex flex-col max-h-[80vh]">
             <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
                 <h3 class="text-white font-black text-xl">Términos y Condiciones (Clientes)</h3>
@@ -86,12 +94,12 @@
                 <p><strong>4. Garantía:</strong> Se amparan 6 meses de garantía sobre la mano de obra, única y exclusivamente si el servicio fue documentado y finalizado oficialmente a través de la aplicación FixGo con la evidencia fotográfica correspondiente.</p>
             </div>
             <div class="mt-4 pt-4 border-t border-zinc-800 text-center">
-                <button type="button" onclick="document.getElementById('modalTerminosCliente').classList.add('hidden')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
+                <button type="button" onclick="document.getElementById('modalTerminosCliente').classList.add('hidden')" class="bg-emerald-600 hover:bg-emerald-500 text-black font-black py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
             </div>
         </div>
     </div>
 
-    <div id="modalTerminosTecnico" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left">
+    <div id="modalTerminosTecnico" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left animate-fade-in">
         <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-emerald-700 shadow-2xl flex flex-col max-h-[80vh]">
             <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
                 <h3 class="text-emerald-400 font-black text-xl">Contrato de Servicios (Socio Pro)</h3>
@@ -104,12 +112,12 @@
                 <p><strong>4. Responsabilidad Civil:</strong> El Socio Pro es el único responsable legal por daños causados a la propiedad del cliente durante la ejecución del servicio.</p>
             </div>
             <div class="mt-4 pt-4 border-t border-zinc-800 text-center">
-                <button type="button" onclick="document.getElementById('modalTerminosTecnico').classList.add('hidden')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
+                <button type="button" onclick="document.getElementById('modalTerminosTecnico').classList.add('hidden')" class="bg-emerald-600 hover:bg-emerald-500 text-black font-black py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
             </div>
         </div>
     </div>
 
-    <div id="modalPrivacidad" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left">
+    <div id="modalPrivacidad" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left animate-fade-in">
         <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-zinc-700 shadow-2xl flex flex-col max-h-[80vh]">
             <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
                 <h3 class="text-white font-black text-xl">Aviso de Privacidad</h3>
@@ -119,7 +127,7 @@
                 <p><strong>1. Identidad y Domicilio:</strong> FixGo es el responsable del tratamiento y protección de sus datos personales.</p>
                 <p><strong>2. Datos Recabados:</strong> Nombre, fotos (perfil, INE, CSF, Licencia), teléfono, correo, y Datos Sensibles como su Ubicación GPS en tiempo real y CLABE interbancaria.</p>
                 <p><strong>3. Finalidades:</strong> Conectar clientes con técnicos, procesar pagos, rastreo de seguridad durante el servicio, y validación de antecedentes (KYC).</p>
-                <p><strong>4. Transferencia de Datos:</strong> Sus datos bancarios son procesados por Stripe bajo encriptación militar. Compartiremos datos con autoridades solo por requerimiento legal.</p>
+                <p><strong>4. Transferencia de Datos:</strong> Sus datos bancarios son procesados por pasarelas seguras bajo encriptación militar. Compartiremos datos con autoridades solo por requerimiento legal.</p>
                 <p><strong>5. Derechos ARCO:</strong> Puede ejercer sus derechos de Acceso, Rectificación, Cancelación u Oposición contactando a soporte técnico en la plataforma.</p>
             </div>
             <div class="mt-4 pt-4 border-t border-zinc-800 text-center">
@@ -128,7 +136,7 @@
         </div>
     </div>
 
-    <div id="modalEliminacion" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left">
+    <div id="modalEliminacion" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left animate-fade-in">
         <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-red-900/50 shadow-2xl flex flex-col max-h-[80vh]">
             <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
                 <h3 class="text-white font-black text-xl">Solicitud de Eliminación de Datos</h3>
@@ -141,7 +149,7 @@
                 <p>Para procesar su solicitud de manera segura y verificar su identidad, por favor envíe un correo electrónico a nuestro equipo de soporte de datos:</p>
                 
                 <div class="bg-black p-4 rounded-xl border border-zinc-800 text-center my-2">
-                    <a href="mailto:soporte@fixgo.com" class="text-emerald-400 font-bold text-lg tracking-widest">soporte@fixgo.com</a>
+                    <a href="mailto:soporte@fixgo.com" class="text-red-500 font-bold text-lg tracking-widest hover:text-red-400">soporte@fixgo.com</a>
                 </div>
                 
                 <p><strong>Requisitos obligatorios del correo:</strong></p>
@@ -169,33 +177,79 @@
         const btnDashboard = document.getElementById('btnDashboard');
         const btnLogoutIndex = document.getElementById('btnLogoutIndex');
 
+        // PWA Install Prompt Logic (Listo para cuando se requiera)
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            console.log('📱 PWA lista para instalar (Evento capturado)');
+            // Aquí podrías mostrar un botón de "Instalar App" en el futuro
+        });
+
+        // Observador de Firebase Authentication
         observarAuth((user) => {
+            // Oculta el spinner de carga
             loadingState.classList.add('hidden');
 
             if (user) {
+                // Usuario LOGUEADO
                 guestOptions.classList.add('hidden');
                 userOptions.classList.remove('hidden');
-                userNameDisplay.textContent = user.nombre || user.email;
+                
+                // Extraer el primer nombre si es posible
+                let displayName = user.nombre || user.email;
+                if(displayName.includes(' ')) displayName = displayName.split(' ')[0];
+                userNameDisplay.textContent = displayName;
 
                 btnDashboard.onclick = async () => {
-                    if (user.rol === 'tecnico') window.location.href = 'tecnico.html';
-                    else if (user.rol === 'cliente') window.location.href = 'cliente.html';
-                    else if (user.rol === 'admin' || user.rol === 'ADMIN') window.location.href = 'admin.html';
-                    else {
-                        const esTecnico = confirm("⚠️ Rol no definido.\n\n¿Eres TÉCNICO?\n(Aceptar = Técnico / Cancelar = Cliente)");
-                        const rolElegido = esTecnico ? 'tecnico' : 'cliente';
-                        await setDoc(doc(db, "usuarios", user.uid), {
-                            uid: user.uid, email: user.email, rol: rolElegido, nombre: user.displayName || "Usuario"
-                        }, { merge: true });
-                        window.location.href = esTecnico ? 'tecnico.html' : 'cliente.html';
+                    const textoOriginal = btnDashboard.innerHTML;
+                    btnDashboard.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENTRANDO...';
+                    btnDashboard.disabled = true;
+
+                    try {
+                        if (user.rol === 'tecnico') {
+                            window.location.href = 'tecnico.html';
+                        } else if (user.rol === 'cliente') {
+                            window.location.href = 'cliente.html';
+                        } else if (user.rol === 'admin' || user.rol === 'ADMIN') {
+                            window.location.href = 'admin.html';
+                        } else {
+                            // 🔥 CORRECCIÓN CRÍTICA: Asignación de rol nuevo en la colección 'users' (No 'usuarios')
+                            const esTecnico = confirm("⚠️ Rol no definido en Base de Datos.\n\n¿Deseas registrarte como TÉCNICO (Socio Pro)?\n(Aceptar = Técnico / Cancelar = Cliente)");
+                            const rolElegido = esTecnico ? 'tecnico' : 'cliente';
+                            
+                            await setDoc(doc(db, "users", user.uid), {
+                                uid: user.uid, 
+                                email: user.email, 
+                                rol: rolElegido, 
+                                nombre: user.displayName || "Usuario",
+                                estado: "pendiente", // Pasa a revisión si es técnico
+                                fechaRegistro: new Date()
+                            }, { merge: true });
+                            
+                            window.location.href = esTecnico ? 'tecnico.html' : 'cliente.html';
+                        }
+                    } catch (error) {
+                        console.error("Error al redirigir al dashboard:", error);
+                        alert("Error de conexión al cargar tu perfil. Intenta de nuevo.");
+                        btnDashboard.innerHTML = textoOriginal;
+                        btnDashboard.disabled = false;
                     }
                 };
 
                 btnLogoutIndex.onclick = async () => {
-                    await signOut(auth);
-                    window.location.reload();
+                    if(!confirm("¿Estás seguro de cerrar sesión en este dispositivo?")) return;
+                    try {
+                        await signOut(auth);
+                        window.location.reload();
+                    } catch (error) {
+                        console.error("Error al cerrar sesión:", error);
+                        alert("Error al intentar cerrar la sesión de Firebase.");
+                    }
                 };
+
             } else {
+                // Usuario INVITADO (No logueado)
                 userOptions.classList.add('hidden');
                 guestOptions.classList.remove('hidden');
             }
