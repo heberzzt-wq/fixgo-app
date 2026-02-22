@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.1 (STORAGE 4K EVIDENCE + NOC EXPORT + UI DISCIPLINARIA + PUSH & AUDIO UNLOCKED)
+ * Versión: 5.18.2 (ANTI-SPAM SHIELD + NATIVE ANDROID PUSH + GHOST RADAR REMOVED)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -92,25 +92,25 @@ function sonarAlerta() {
 }
 
 /**
- * 🔔 MOTOR DE NOTIFICACIONES PUSH (NATIVAS)
+ * 🔔 MOTOR DE NOTIFICACIONES PUSH (CORRECCIÓN ANDROID V5.18.2)
+ * Se usa ServiceWorkerRegistration para garantizar compatibilidad móvil.
  */
 function lanzarNotificacionPush(titulo, cuerpo) {
-    if (!("Notification" in window)) {
-        console.warn("Este navegador no soporta notificaciones de escritorio");
+    if (!("Notification" in window) || !("serviceWorker" in navigator)) {
         return;
     }
     if (Notification.permission === "granted") {
-        const opciones = {
-            body: cuerpo,
-            icon: "https://ui-avatars.com/api/?name=FixGo&background=10b981&color=fff",
-            vibrate: [200, 100, 200, 100, 200],
-            requireInteraction: true // Obliga al técnico a cerrarla o darle clic
-        };
-        const notificacion = new Notification(titulo, opciones);
-        notificacion.onclick = function() {
-            window.focus(); // Trae la pestaña al frente si estaba en segundo plano
-            this.close();
-        };
+        navigator.serviceWorker.ready.then((registration) => {
+            registration.showNotification(titulo, {
+                body: cuerpo,
+                icon: "icono-192.png",
+                badge: "icono-192.png",
+                vibrate: [200, 100, 200, 100, 200],
+                tag: "alerta-fixgo-unica", // Agrupa notificaciones para no hacer spam
+                renotify: true,
+                requireInteraction: true 
+            });
+        }).catch(err => console.error("Error al lanzar Push Nativo:", err));
     }
 }
 
@@ -150,7 +150,7 @@ const urlABase64 = async (url) => {
         return null;
     }
 };
-console.log(" 🚀  FIXGO 5.18.1: STORAGE EVIDENCE + SHARK TANK EXPORT + STRIKE UI + PUSH NOTIFICATIONS ACTIVATED.");
+console.log(" 🚀  FIXGO 5.18.2: STORAGE EVIDENCE + SHARK TANK EXPORT + STRIKE UI ACTIVATED.");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
@@ -1591,9 +1591,12 @@ export async function iniciarPanelTecnico(user) {
         });
     }
 
+    // 🔥 ESCUDO ANTI-SPAM (V5.18.2) INYECTADO AQUÍ
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
         const q = query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc"), limit(50));
+
+        let cargaInicial = true; // Activa el escudo al iniciar
 
         onSnapshot(q, (snap) => {
             contenedor.innerHTML = "";
@@ -1601,14 +1604,21 @@ export async function iniciarPanelTecnico(user) {
 
             if(snap.empty) {
                 contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">Escaneando zona... esperando solicitudes.</p>`;
+                cargaInicial = false; // Desactiva escudo si no hay nada
                 return;
             }
 
-            if(snap.docChanges().some(change => change.type === 'added')) {
-                console.log(" 🔔  Nueva solicitud detectada en Bolsa: SONANDO ALERTA");
+            // Detectar si hay cambios REALMENTE NUEVOS
+            let hayNuevos = false;
+            snap.docChanges().forEach(change => {
+                if (change.type === 'added') hayNuevos = true;
+            });
+
+            // Si NO es la carga inicial y SI hay servicios nuevos, ENTONCES suena.
+            if (!cargaInicial && hayNuevos) {
+                console.log(" 🔔  ¡Alerta Real! Nueva solicitud en la zona.");
                 sonarAlerta();
-                // 🔔 INYECCIÓN V5.18.1: Disparo de Notificación Push
-                lanzarNotificacionPush("¡NUEVA SOLICITUD FIXGO!", "Tienes un nuevo servicio pendiente en tu bolsa. ¡Revisa ahora!");
+                lanzarNotificacionPush("¡NUEVA SOLICITUD FIXGO!", "Servicio detectado en tu área. Ábrelo ahora.");
             }
 
             snap.forEach((docSnap) => {
@@ -1655,6 +1665,8 @@ export async function iniciarPanelTecnico(user) {
             if (counter === 0) {
                 contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">No hay solicitudes disponibles para tu perfil.</p>`;
             }
+
+            cargaInicial = false; // Desactiva el escudo después de la primera leída
         });
     }
 
@@ -3037,21 +3049,3 @@ export async function iniciarPanelCliente(user) {
         }
     };
 }
-
-function iniciarVigilanciaAudio() {
-    console.log("👂 Audio Watchdog: Iniciando escucha de servicios pendientes...");
-    const qAudio = query(collection(db, "services"), where("estado", "==", "pendiente"), limit(10));
-    onSnapshot(qAudio, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                const datos = change.doc.data();
-                console.log("🔔 ¡PING! Nuevo servicio detectado:", datos.categoria || "Servicio");
-                alertaTecnico(); 
-                // 🔔 INYECCIÓN V5.18.1: Disparo de Notificación Push
-                lanzarNotificacionPush("FixGo: Alerta de Servicio", `Nueva solicitud de ${datos.categoria || 'Mantenimiento'}.`);
-            }
-        });
-    });
-}
-
-iniciarVigilanciaAudio();
