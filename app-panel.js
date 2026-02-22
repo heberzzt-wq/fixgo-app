@@ -2329,27 +2329,42 @@ export async function iniciarPanelTecnico(user) {
 }
 
 /**
- * 🔔 MOTOR FCM (FIREBASE CLOUD MESSAGING) V5.18.3
+/**
+ * 🔔 MOTOR FCM (FIREBASE CLOUD MESSAGING) V5.18.4 - MODO DEPURACIÓN
  * Registra el dispositivo del técnico para recibir alertas en segundo plano (minimizado).
  */
 async function activarMotorFCM(uid) {
+    console.log("🛠️ [FCM DEBUG] Iniciando Motor FCM para UID:", uid);
     try {
         const messaging = getMessaging(); // Usa la app por defecto inicializada en firebase.js
+        console.log("🛠️ [FCM DEBUG] Instancia Messaging obtenida.");
+
+        console.log("🛠️ [FCM DEBUG] Solicitando permiso de notificaciones al navegador...");
         const permission = await Notification.requestPermission();
+        console.log("🛠️ [FCM DEBUG] Resultado del permiso:", permission);
         
         if (permission === 'granted') {
-            console.log("🔔 [FCM] Permiso concedido. Obteniendo Token...");
-            const currentToken = await getToken(messaging, { 
-                vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ' 
-            });
-            
-            if (currentToken) {
-                console.log("🔑 [FCM] Token generado. Vinculando al perfil del técnico.");
-                // Guardamos el token en su perfil para poder enviarle notificaciones Push remotas
-                await updateDoc(doc(db, "users", uid), { fcmToken: currentToken });
-            } else {
-                console.log("⚠️ [FCM] No se pudo generar el token de registro.");
+            console.log("🔔 [FCM] Permiso concedido. Obteniendo Token con VAPID...");
+            try {
+                 const currentToken = await getToken(messaging, { 
+                    vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ' 
+                });
+                
+                console.log("🛠️ [FCM DEBUG] Token recibido de Google:", currentToken ? "SÍ (Oculto por seguridad)" : "NO (null)");
+
+                if (currentToken) {
+                    console.log("🔑 [FCM] Token generado. Intentando guardar en DB...");
+                    // Guardamos el token en su perfil
+                    await updateDoc(doc(db, "users", uid), { fcmToken: currentToken });
+                    console.log("✅ [FCM] ¡Éxito! Token guardado en Firebase DB.");
+                } else {
+                    console.warn("⚠️ [FCM] El navegador no generó token. Verifica el sw.js.");
+                }
+            } catch (tokenError) {
+                 console.error("❌ [FCM CRÍTICO] Falló la obtención del Token. Error de Google:", tokenError);
             }
+        } else {
+             console.warn("🚫 [FCM] Permiso denegado por el usuario.");
         }
 
         // Listener para cuando la app está ABIERTA en pantalla (primer plano)
@@ -2359,10 +2374,9 @@ async function activarMotorFCM(uid) {
         });
 
     } catch (error) {
-        console.warn("⚠️ [FCM] El motor Push no está soportado en este navegador o fue bloqueado.", error);
+        console.error("❌ [FCM GENERAL] El motor Push falló al iniciar.", error);
     }
 }
-
 // ======================================================================================
 // 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.17.0
 // ======================================================================================
