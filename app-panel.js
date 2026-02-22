@@ -3,7 +3,7 @@
  * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.0 (STORAGE 4K EVIDENCE + NOC EXPORT + UI DISCIPLINARIA STRIKES + NO REPUDIO)
+ * Versión: 5.18.1 (STORAGE 4K EVIDENCE + NOC EXPORT + UI DISCIPLINARIA + PUSH & AUDIO UNLOCKED)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -70,16 +70,48 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * ACTIVADOR MAESTRO (UNLOCKER)
+ * ACTIVADOR MAESTRO (UNLOCKER) + PERMISOS PUSH
  */
 document.addEventListener('click', () => {
     activarAlertas().then(() => {
         console.log("🔊 FIXGO AUDIO ENGINE: Desbloqueado y listo (Modo Sintetizador).");
     });
+
+    // 🔔 INYECCIÓN V5.18.1: Desbloqueo de Notificaciones Nativas tras el primer clic
+    if ("Notification" in window) {
+        if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+            Notification.requestPermission().then(permission => {
+                console.log("🔔 FIXGO PUSH ENGINE: Permiso de notificaciones ->", permission);
+            });
+        }
+    }
 }, { once: true }); 
 
 function sonarAlerta() {
     alertaTecnico();
+}
+
+/**
+ * 🔔 MOTOR DE NOTIFICACIONES PUSH (NATIVAS)
+ */
+function lanzarNotificacionPush(titulo, cuerpo) {
+    if (!("Notification" in window)) {
+        console.warn("Este navegador no soporta notificaciones de escritorio");
+        return;
+    }
+    if (Notification.permission === "granted") {
+        const opciones = {
+            body: cuerpo,
+            icon: "https://ui-avatars.com/api/?name=FixGo&background=10b981&color=fff",
+            vibrate: [200, 100, 200, 100, 200],
+            requireInteraction: true // Obliga al técnico a cerrarla o darle clic
+        };
+        const notificacion = new Notification(titulo, opciones);
+        notificacion.onclick = function() {
+            window.focus(); // Trae la pestaña al frente si estaba en segundo plano
+            this.close();
+        };
+    }
 }
 
 // ======================================================================================
@@ -118,7 +150,7 @@ const urlABase64 = async (url) => {
         return null;
     }
 };
-console.log(" 🚀  FIXGO 5.17.4: STORAGE EVIDENCE + SHARK TANK EXPORT + STRIKE UI ACTIVATED.");
+console.log(" 🚀  FIXGO 5.18.1: STORAGE EVIDENCE + SHARK TANK EXPORT + STRIKE UI + PUSH NOTIFICATIONS ACTIVATED.");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
@@ -1575,6 +1607,8 @@ export async function iniciarPanelTecnico(user) {
             if(snap.docChanges().some(change => change.type === 'added')) {
                 console.log(" 🔔  Nueva solicitud detectada en Bolsa: SONANDO ALERTA");
                 sonarAlerta();
+                // 🔔 INYECCIÓN V5.18.1: Disparo de Notificación Push
+                lanzarNotificacionPush("¡NUEVA SOLICITUD FIXGO!", "Tienes un nuevo servicio pendiente en tu bolsa. ¡Revisa ahora!");
             }
 
             snap.forEach((docSnap) => {
@@ -3013,6 +3047,8 @@ function iniciarVigilanciaAudio() {
                 const datos = change.doc.data();
                 console.log("🔔 ¡PING! Nuevo servicio detectado:", datos.categoria || "Servicio");
                 alertaTecnico(); 
+                // 🔔 INYECCIÓN V5.18.1: Disparo de Notificación Push
+                lanzarNotificacionPush("FixGo: Alerta de Servicio", `Nueva solicitud de ${datos.categoria || 'Mantenimiento'}.`);
             }
         });
     });
