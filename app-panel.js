@@ -2330,7 +2330,8 @@ export async function iniciarPanelTecnico(user) {
 
 /**
 /**
- * 🔔 MOTOR FCM (FIREBASE CLOUD MESSAGING) V5.18.4 - MODO DEPURACIÓN
+/**
+ * 🔔 MOTOR FCM (FIREBASE CLOUD MESSAGING) V5.18.5 - CORRECCIÓN SERVICE WORKER
  * Registra el dispositivo del técnico para recibir alertas en segundo plano (minimizado).
  */
 async function activarMotorFCM(uid) {
@@ -2344,24 +2345,36 @@ async function activarMotorFCM(uid) {
         console.log("🛠️ [FCM DEBUG] Resultado del permiso:", permission);
         
         if (permission === 'granted') {
-            console.log("🔔 [FCM] Permiso concedido. Obteniendo Token con VAPID...");
-            try {
-                 const currentToken = await getToken(messaging, { 
-                    vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ' 
-                });
-                
-                console.log("🛠️ [FCM DEBUG] Token recibido de Google:", currentToken ? "SÍ (Oculto por seguridad)" : "NO (null)");
+            console.log("🔔 [FCM] Permiso concedido. Esperando Service Worker...");
+            
+            // 🚨 SOLUCIÓN: Esperamos a que nuestro sw.js esté listo y se lo pasamos a Firebase
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.ready.then(async (registration) => {
+                    console.log("🛠️ [FCM DEBUG] Service Worker listo. Obteniendo Token con VAPID...");
+                    try {
+                         const currentToken = await getToken(messaging, { 
+                            vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ',
+                            serviceWorkerRegistration: registration // Le indicamos a Firebase qué SW usar
+                        });
+                        
+                        console.log("🛠️ [FCM DEBUG] Token recibido de Google:", currentToken ? "SÍ (Oculto por seguridad)" : "NO (null)");
 
-                if (currentToken) {
-                    console.log("🔑 [FCM] Token generado. Intentando guardar en DB...");
-                    // Guardamos el token en su perfil
-                    await updateDoc(doc(db, "users", uid), { fcmToken: currentToken });
-                    console.log("✅ [FCM] ¡Éxito! Token guardado en Firebase DB.");
-                } else {
-                    console.warn("⚠️ [FCM] El navegador no generó token. Verifica el sw.js.");
-                }
-            } catch (tokenError) {
-                 console.error("❌ [FCM CRÍTICO] Falló la obtención del Token. Error de Google:", tokenError);
+                        if (currentToken) {
+                            console.log("🔑 [FCM] Token generado. Intentando guardar en DB...");
+                            // Guardamos el token en su perfil
+                            await updateDoc(doc(db, "users", uid), { fcmToken: currentToken });
+                            console.log("✅ [FCM] ¡Éxito! Token guardado en Firebase DB.");
+                        } else {
+                            console.warn("⚠️ [FCM] El navegador no generó token.");
+                        }
+                    } catch (tokenError) {
+                         console.error("❌ [FCM CRÍTICO] Falló la obtención del Token. Error de Google:", tokenError);
+                    }
+                }).catch(swError => {
+                    console.error("❌ [FCM CRÍTICO] Error con el Service Worker:", swError);
+                });
+            } else {
+                console.warn("⚠️ [FCM] El navegador no soporta Service Workers.");
             }
         } else {
              console.warn("🚫 [FCM] Permiso denegado por el usuario.");
