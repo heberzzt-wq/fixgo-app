@@ -1,9 +1,9 @@
 /**
  * ======================================================================================
- * FIXGO 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
+ * GESTIAPREMIUM 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.3 (FCM PUSH ENGINE INTEGRATED + VAPID KEY + DYNAMIC BUTTONS)
+ * Versión: 5.18.4 (FCM PUSH ENGINE INTEGRATED + EVOLUCIÓN IDENTIDAD VISUAL GESTIAPREMIUM)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -76,7 +76,7 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
  */
 document.addEventListener('click', () => {
     activarAlertas().then(() => {
-        console.log("🔊 FIXGO AUDIO ENGINE: Desbloqueado y listo (Modo Sintetizador).");
+        console.log("🔊 GESTIAPREMIUM AUDIO ENGINE: Desbloqueado y listo (Modo Sintetizador).");
     });
 }, { once: true }); 
 
@@ -99,7 +99,7 @@ function lanzarNotificacionPush(titulo, cuerpo) {
                 icon: "icono-192.png",
                 badge: "icono-192.png",
                 vibrate: [200, 100, 200, 100, 200],
-                tag: "alerta-fixgo-unica", // Agrupa notificaciones para no hacer spam
+                tag: "alerta-fixgo-unica", // Agrupa notificaciones para no hacer spam (Se mantiene ID interno)
                 renotify: true,
                 requireInteraction: true 
             });
@@ -143,7 +143,7 @@ const urlABase64 = async (url) => {
         return null;
     }
 };
-console.log(" 🚀  FIXGO 5.18.3: FCM PUSH ENGINE + STORAGE EVIDENCE + STRIKE UI ACTIVATED.");
+console.log(" 🚀  GESTIAPREMIUM 5.18.4: FCM PUSH ENGINE + STORAGE EVIDENCE + STRIKE UI ACTIVATED.");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
@@ -153,7 +153,7 @@ export async function iniciarPanelAdmin(user) {
     
     // 🚨 CANDADO DE SEGURIDAD MAESTRO: Validación estricta de rol
     if (!user || user.rol !== "admin") {
-        console.error("🛑 ALERTA DE SEGURIDAD FIXGO: Intento de acceso no autorizado al Panel Admin.");
+        console.error("🛑 ALERTA DE SEGURIDAD GESTIAPREMIUM: Intento de acceso no autorizado al Panel Admin.");
         alert("🔒 ACCESO DENEGADO.");
         return;
     }
@@ -234,11 +234,11 @@ export async function iniciarPanelAdmin(user) {
                             </div>
                             <p class="text-[9px] text-blue-400 font-bold mt-1 tracking-wide">SKILLS: ${escaparHTML(skillsStr)}</p>
                             <p class="text-xs text-gray-400">${escaparHTML(data.telefono || '')}</p>
-                            
+                            <br>
                             <div class="mt-2 text-[10px] bg-black/20 p-1 rounded inline-block border border-white/5">
                                 ${ineCheck} | ${csfCheck}
                             </div>
-                            
+                            <br>
                             <div class="mt-1">
                                 ${estadoDot}
                             </div>
@@ -394,8 +394,8 @@ export async function iniciarPanelAdmin(user) {
     onSnapshot(qFinanzas, (snap) => {
         // 🧮 VARIABLES DE LA ARQUITECTURA FINANCIERA
         let globalFixGo = 0;      // 32% del Total (Comisión Bruta)
-        let globalIVA = 0;        // 16% sobre la comisión de FixGo
-        let globalISR = 0;        // 30% sobre la utilidad de FixGo
+        let globalIVA = 0;        // 16% sobre la comisión
+        let globalISR = 0;        // 30% sobre la utilidad
         let globalGarantia = 0;   // 2% del Total (Fondo de Seguridad)
         let globalStripe = 0;     // 3.6% + $3.00 MXN (Costo Operativo)
         let globalTecnico = 0;    // El remanente líquido
@@ -417,7 +417,7 @@ export async function iniciarPanelAdmin(user) {
                 const monto = tx.monto_total || 0;
                 totalFlujo += monto;
 
-                const calcFixGo = monto * 0.32;               // 32% para FixGo
+                const calcFixGo = monto * 0.32;               // 32% para Plataforma
                 const calcGarantia = monto * 0.02;            // 2% Fondo Garantía
                 const calcStripe = (monto * 0.036) + 3.00;    // Costo Pasarela (3.6% + $3)
                 
@@ -460,14 +460,14 @@ export async function iniciarPanelAdmin(user) {
             }
 
             desgloseContainer.innerHTML = `
-                <div class="flex justify-between text-gray-300"><span>COMISIÓN FIXGO (32%):</span> <span>$${globalFixGo.toFixed(2)}</span></div>
-                <div class="flex justify-between text-red-400"><span>IVA (16% s/FixGo):</span> <span>-$${globalIVA.toFixed(2)}</span></div>
-                <div class="flex justify-between text-red-400"><span>ISR (30% s/FixGo):</span> <span>-$${globalISR.toFixed(2)}</span></div>
+                <div class="flex justify-between text-gray-300"><span>COMISIÓN GESTIAPREMIUM (32%):</span> <span>$${globalFixGo.toFixed(2)}</span></div>
+                <div class="flex justify-between text-red-400"><span>IVA (16% s/Comisión):</span> <span>-$${globalIVA.toFixed(2)}</span></div>
+                <div class="flex justify-between text-red-400"><span>ISR (30% s/Comisión):</span> <span>-$${globalISR.toFixed(2)}</span></div>
                 <div class="flex justify-between font-bold text-yellow-500"><span>FONDO GARANTÍA (2%):</span> <span>$${globalGarantia.toFixed(2)}</span></div>
                 <div class="flex justify-between text-gray-500"><span>STRIPE FEES (3.6%+$3):</span> <span>-$${globalStripe.toFixed(2)}</span></div>
                 
                 <div class="flex justify-between font-black text-white bg-emerald-600/30 px-2 py-1 rounded border border-emerald-500/50 my-2">
-                    <span>💵 UTILIDAD NETA FIXGO:</span> <span>$${utilidadNetaReal.toFixed(2)}</span>
+                    <span>💵 UTILIDAD NETA GESTIAPREMIUM:</span> <span>$${utilidadNetaReal.toFixed(2)}</span>
                 </div>
 
                 <div class="flex justify-between"><span class="text-blue-400 font-bold">TECNICOS (LÍQUIDO):</span> <span>$${(globalTecnico - dineroRetenido).toFixed(2)}</span></div>
@@ -499,7 +499,7 @@ export async function iniciarPanelAdmin(user) {
             const snap = await getDocs(qTrans);
 
             let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "FECHA,TIPO_OPERACION,FOLIO_SERVICIO,TECNICO_ID,INGRESO_BRUTO,COMISION_FIXGO_32,IVA_16,ISR_30,FONDO_GARANTIA_2,STRIPE_FEE,LIQUIDO_TECNICO,ESTADO_RETENCION\n";
+            csvContent += "FECHA,TIPO_OPERACION,FOLIO_SERVICIO,TECNICO_ID,INGRESO_BRUTO,COMISION_GESTIAPREMIUM_32,IVA_16,ISR_30,FONDO_GARANTIA_2,STRIPE_FEE,LIQUIDO_TECNICO,ESTADO_RETENCION\n";
 
             const ahora = new Date();
 
@@ -559,7 +559,7 @@ export async function iniciarPanelAdmin(user) {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `FixGo_Conciliacion_Contable_${new Date().getTime()}.csv`);
+            link.setAttribute("download", `GestiaPremium_Conciliacion_Contable_${new Date().getTime()}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -600,7 +600,7 @@ export async function iniciarPanelAdmin(user) {
                 <div class="bg-zinc-900 w-full max-w-4xl rounded-3xl p-6 border border-zinc-700 shadow-2xl overflow-y-auto max-h-[90vh]">
                     <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-3">
                         <div>
-                            <h3 class="text-white font-black text-xl"><i class="fas fa-search text-purple-500"></i> AUDITORÍA FOTOGRÁFICA DE CALIDAD</h3>
+                            <h3 class="text-white font-black text-xl flex items-center gap-2"><img src="assets/gestiapremium-icon.svg" class="w-6 h-6 inline-block drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]"> AUDITORÍA FOTOGRÁFICA DE CALIDAD</h3>
                             <p class="text-xs text-gray-400 mt-1">Folio: <span class="font-mono text-emerald-400">${s.folio_fiscal || sid.substring(0,6).toUpperCase()}</span> | Técnico: ${escaparHTML(s.tecnico_nombre)}</p>
                         </div>
                         <button onclick="document.getElementById('modalAuditoria').remove()" class="text-gray-500 hover:text-white bg-black p-2 rounded-xl"><i class="fas fa-times text-xl"></i></button>
@@ -665,10 +665,10 @@ export async function iniciarPanelAdmin(user) {
             docPdf.setTextColor(255, 255, 255);
             docPdf.setFont("helvetica", "bold");
             docPdf.setFontSize(24);
-            docPdf.text("FIXGO", 20, 22);
+            docPdf.text("GESTIAPREMIUM", 20, 22);
             docPdf.setFont("helvetica", "normal");
             docPdf.setTextColor(16, 185, 129); 
-            docPdf.text("MÉXICO", 60, 22);
+            docPdf.text("MÉXICO", 85, 22);
             docPdf.setTextColor(200, 200, 200);
             docPdf.setFontSize(10);
             docPdf.text("Reporte Oficial de Calidad y Servicio", 20, 32);
@@ -756,8 +756,8 @@ export async function iniciarPanelAdmin(user) {
             
             docPdf.setFontSize(8);
             docPdf.setTextColor(150, 150, 150);
-            docPdf.text("Este documento es un reporte de auditoría interno emitido por la plataforma FixGo.", 60, 280);
-            docPdf.save(`FixGo_Auditoria_${data.id.substring(0,6)}.pdf`);
+            docPdf.text("Este documento es un reporte de auditoría interno emitido por la plataforma GestiaPremium.", 60, 280);
+            docPdf.save(`GestiaPremium_Auditoria_${data.id.substring(0,6)}.pdf`);
             
             btn.innerHTML = '<i class="fas fa-check"></i> DESCARGADO';
             btn.classList.replace("bg-red-600", "bg-emerald-600");
@@ -838,7 +838,7 @@ export async function iniciarPanelAdmin(user) {
                             </div>
                             <div>
                                 <h3 class="text-white font-black text-lg uppercase">${escaparHTML(t.nombre)}</h3>
-                                <p class="text-blue-400 text-xs font-bold">EXPEDIENTE CONFIDENCIAL</p>
+                                <p class="text-blue-400 text-xs font-bold flex items-center gap-1"><img src="assets/gestiapremium-icon.svg" class="w-3 h-3"> EXPEDIENTE CONFIDENCIAL</p>
                             </div>
                         </div>
                         <button onclick="document.getElementById('modalExpediente').remove()" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
@@ -1292,7 +1292,7 @@ export async function iniciarPanelTecnico(user) {
                 descSuspendido = "Penalización Nivel 2. Tienes múltiples reportes críticos. Tu saldo está congelado.";
             } else if (estado === "baneado_permanente") {
                 msgSuspendido = "CUENTA BLOQUEADA DEFINITIVAMENTE";
-                descSuspendido = "Por violaciones graves a los términos de servicio de FixGo, esta cuenta ha sido cerrada.";
+                descSuspendido = "Por violaciones graves a los términos de servicio de GestiaPremium, esta cuenta ha sido cerrada.";
                 iconSuspendido = "fa-skull-crossbones";
             }
 
@@ -1614,7 +1614,7 @@ export async function iniciarPanelTecnico(user) {
             if (!cargaInicial && hayNuevos) {
                 console.log(" 🔔  ¡Alerta Real! Nueva solicitud en la zona.");
                 sonarAlerta();
-                lanzarNotificacionPush("¡NUEVA SOLICITUD FIXGO!", "Servicio detectado en tu área. Ábrelo ahora.");
+                lanzarNotificacionPush("¡NUEVA SOLICITUD GESTIAPREMIUM!", "Servicio detectado en tu área. Ábrelo ahora.");
             }
 
             snap.forEach((docSnap) => {
@@ -1876,7 +1876,7 @@ export async function iniciarPanelTecnico(user) {
         <div id="modalCot" class="fixed inset-0 bg-black/95 z-[60] flex flex-col p-4 animate-fade-in overflow-y-auto">
             <div class="bg-zinc-900 w-full max-w-lg mx-auto rounded-3xl p-6 border border-zinc-700 shadow-2xl flex-1 flex flex-col">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-white font-black text-xl">COTIZADOR PRO (ALAMO)</h3>
+                    <h3 class="text-white font-black text-xl flex items-center gap-2"><img src="assets/gestiapremium-icon.svg" class="w-6 h-6 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]"> COTIZADOR PRO (ALAMO)</h3>
                     <button onclick="document.getElementById('modalCot').remove()" class="text-gray-500"><i class="fas fa-times"></i></button>
                 </div>
                 
@@ -2008,6 +2008,7 @@ export async function iniciarPanelTecnico(user) {
         const html = `
         <div id="modalEvidencia" class="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
             <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-zinc-700 shadow-2xl">
+                <div class="flex justify-center mb-4"><img src="assets/gestiapremium-icon.svg" class="w-12 h-12 drop-shadow-[0_0_12px_rgba(59,130,246,0.5)]"></div>
                 <h3 class="text-white font-black text-xl mb-2 text-center">REPORTE FINAL OBLIGATORIO</h3>
                 <p class="text-gray-400 text-[10px] mb-6 text-center">Sube hasta 4 fotos (Mínimo 1 del Antes y 1 del Después) para liberar el cobro. Los archivos pesados se subirán directamente a Google Cloud.</p>
 
@@ -2190,7 +2191,7 @@ export async function iniciarPanelTecnico(user) {
 
             canvas.width = canvas.offsetWidth;
             canvas.height = canvas.offsetHeight;
-            ctx.strokeStyle = "#60a5fa"; // Azul FixGo
+            ctx.strokeStyle = "#60a5fa"; // Azul GestiaPremium
             ctx.lineWidth = 3;
             ctx.lineJoin = "round";
             ctx.lineCap = "round";
@@ -2237,10 +2238,10 @@ export async function iniciarPanelTecnico(user) {
             docPdf.setTextColor(255, 255, 255);
             docPdf.setFont("helvetica", "bold");
             docPdf.setFontSize(24);
-            docPdf.text("FIXGO", 20, 22);
+            docPdf.text("GESTIAPREMIUM", 20, 22);
             docPdf.setFont("helvetica", "normal");
             docPdf.setTextColor(16, 185, 129); 
-            docPdf.text("MÉXICO", 60, 22);
+            docPdf.text("MÉXICO", 85, 22);
 
             docPdf.setTextColor(200, 200, 200);
             docPdf.setFontSize(10);
@@ -2290,11 +2291,11 @@ export async function iniciarPanelTecnico(user) {
             docPdf.setTextColor(150, 150, 150);
             docPdf.setFont("helvetica", "normal");
             
-            const notaLegal = "Este documento es un comprobante de liquidación digital emitido por la plataforma FixGo. Los fondos han sido transferidos a la cuenta bancaria registrada por el socio especialista. El tiempo de reflejo en cuenta puede variar dependiendo de la institución bancaria receptora.";
+            const notaLegal = "Este documento es un comprobante de liquidación digital emitido por la plataforma GestiaPremium. Los fondos han sido transferidos a la cuenta bancaria registrada por el socio especialista. El tiempo de reflejo en cuenta puede variar dependiendo de la institución bancaria receptora.";
             const splitNota = docPdf.splitTextToSize(notaLegal, 170);
             docPdf.text(splitNota, 20, y);
             
-            docPdf.save(`FixGo_Liquidacion_${data.id.substring(0,6)}.pdf`);
+            docPdf.save(`GestiaPremium_Liquidacion_${data.id.substring(0,6)}.pdf`);
 
         } catch (error) {
             console.error("Error al generar PDF de retiro:", error);
@@ -2798,7 +2799,7 @@ export async function iniciarPanelCliente(user) {
             <div id="hist-${id}" class="expandable-content bg-zinc-900/40">
                 <div class="p-4 border-t border-zinc-800/50">
                     <p class="text-xs text-gray-400 truncate mb-3"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${escaparHTML(s.direccion)}</p>
-                    
+                    <br>
                     ${contenido}
 
                     ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `
@@ -2820,7 +2821,7 @@ export async function iniciarPanelCliente(user) {
         const html = `
         <div id="modalMapaVivo" class="fixed inset-0 bg-black/95 z-[70] flex flex-col p-4 animate-fade-in">
             <div class="flex justify-between items-center mb-4 mt-2">
-                <h3 class="text-white font-black text-lg"><i class="fas fa-satellite-dish text-blue-500 animate-pulse"></i> RASTREO EN VIVO</h3>
+                <h3 class="text-white font-black text-lg flex items-center gap-2"><img src="assets/gestiapremium-icon.svg" class="w-6 h-6 drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]"> RASTREO EN VIVO</h3>
                 <button onclick="document.getElementById('modalMapaVivo').remove()" class="bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg font-bold text-xs transition-colors">
                     <i class="fas fa-times"></i> CERRAR MAPA
                 </button>
@@ -2903,10 +2904,10 @@ export async function iniciarPanelCliente(user) {
             docPdf.setTextColor(255, 255, 255);
             docPdf.setFont("helvetica", "bold");
             docPdf.setFontSize(24);
-            docPdf.text("FIXGO", 20, 22);
+            docPdf.text("GESTIAPREMIUM", 20, 22);
             docPdf.setFont("helvetica", "normal");
             docPdf.setTextColor(16, 185, 129); 
-            docPdf.text("MÉXICO", 60, 22);
+            docPdf.text("MÉXICO", 85, 22);
 
             docPdf.setTextColor(200, 200, 200);
             docPdf.setFontSize(10);
@@ -3050,8 +3051,8 @@ export async function iniciarPanelCliente(user) {
             
             docPdf.setFontSize(8);
             docPdf.setTextColor(150, 150, 150);
-            docPdf.text("Este documento es un comprobante digital emitido por la plataforma FixGo.", 60, 280);
-            docPdf.save(`FixGo_Reporte_${data.id}.pdf`);
+            docPdf.text("Este documento es un comprobante digital emitido por la plataforma GestiaPremium.", 60, 280);
+            docPdf.save(`GestiaPremium_Reporte_${data.id}.pdf`);
             
             btn.innerText = "DESCARGAR REPORTE OFICIAL";
             btn.disabled = false;
