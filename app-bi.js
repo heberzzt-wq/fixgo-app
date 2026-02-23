@@ -1,9 +1,9 @@
 /**
  * ======================================================================================
- * FIXGO 2026 - MOTOR DE INTELIGENCIA EMPRESARIAL Y CRM (BI ENGINE)
+ * GESTIAPREMIUM 2026 - MOTOR DE INTELIGENCIA EMPRESARIAL Y CRM (BI ENGINE)
  * ======================================================================================
  * Archivo: app-bi.js
- * Versión: 1.0.2 (Fix Importaciones CDN + PROTOCOLO DE CONTINGENCIA OFFLINE)
+ * Versión: 1.0.3 (Evolución de Identidad Visual + PROTOCOLO DE CONTINGENCIA OFFLINE)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
@@ -34,7 +34,7 @@ const escaparHTML = (str) => {
 // 🧠 NÚCLEO DE INICIALIZACIÓN BI
 // ======================================================================================
 export async function iniciarMotorBI(contenedorId) {
-    console.log(" 🧠 Iniciando Motor de Inteligencia Empresarial FixGo (NOC Mode)...");
+    console.log(" 🧠 Iniciando Motor de Inteligencia Empresarial GestiaPremium (NOC Mode)...");
     
     const contenedor = document.getElementById(contenedorId);
     if (!contenedor) {
@@ -47,7 +47,10 @@ export async function iniciarMotorBI(contenedorId) {
         <div class="bg-black border border-zinc-800 rounded-3xl p-6 shadow-2xl mb-8">
             <div class="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
                 <div>
-                    <h2 class="text-2xl font-black text-white"><i class="fas fa-brain text-purple-500"></i> NOC FIXGO: INTELIGENCIA OPERATIVA</h2>
+                    <h2 class="text-2xl font-black text-white flex items-center gap-3">
+                        <img src="assets/gestiapremium-icon.svg" class="w-8 h-8 drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]" alt="GestiaPremium Logo"> 
+                        NOC GESTIAPREMIUM: INTELIGENCIA OPERATIVA
+                    </h2>
                     <p class="text-xs text-gray-500 uppercase tracking-widest mt-1">Telemetría, SLA, Rendimiento y Control de Riesgos</p>
                 </div>
                 <div class="text-right flex items-center gap-3">
@@ -428,7 +431,7 @@ function procesarMotorComercialLTV(transacciones, servicios) {
                 clientesHash[cid] = { nombre: cName, telefono: cPhone, total_gtv: 0, util_pura: 0, tickets: 0, ultimo_servicio: 0 };
             }
             clientesHash[cid].total_gtv += (tx.monto_total || 0);
-            clientesHash[cid].util_pura += (tx.comision_fixgo || 0); // Lo que realmente gana FixGo
+            clientesHash[cid].util_pura += (tx.comision_fixgo || 0); // Lo que realmente gana GestiaPremium
             clientesHash[cid].tickets++;
             
             if (srvRelacionado.created_at) {
@@ -490,7 +493,7 @@ function procesarMotorComercialLTV(transacciones, servicios) {
                 </div>
                 <div class="text-right">
                     <p class="text-emerald-500 font-black text-xs">$${v.ingresos.toFixed(2)}</p>
-                    <p class="text-[7px] text-zinc-600 uppercase">Utilidad Pura FixGo</p>
+                    <p class="text-[7px] text-zinc-600 uppercase">Utilidad Pura GestiaPremium</p>
                 </div>
             </div>
         `;
@@ -548,7 +551,7 @@ window.descargarBackupOperativo = async () => {
         // Le damos un nombre profesional con la fecha actual
         const hoy = new Date();
         const fechaStr = hoy.toISOString().split('T')[0];
-        link.setAttribute("download", `FixGo_Contingencia_Operativa_${fechaStr}.csv`);
+        link.setAttribute("download", `GestiaPremium_Contingencia_Operativa_${fechaStr}.csv`);
         
         // Disparamos la descarga
         document.body.appendChild(link);
