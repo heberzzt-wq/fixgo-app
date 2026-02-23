@@ -1,6 +1,6 @@
 {
-  "name": "FixGo Táctico",
-  "short_name": "FixGo",
+  "name": "GestiaPremium Táctico",
+  "short_name": "GestiaPremium",
   "description": "Plataforma premium de servicios y telemetría de unidades.",
   "start_url": "/",
   "display": "standalone",
@@ -9,13 +9,13 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "icono-192.png",
+      "src": "assets/icono-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icono-512.png",
+      "src": "assets/icono-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
