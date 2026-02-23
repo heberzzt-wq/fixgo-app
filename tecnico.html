@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>FixGo | Panel de Socio</title>
+    <title>GestiaPremium | Panel de Socio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -43,8 +43,11 @@
 
     <nav class="p-6 flex justify-between items-center border-b border-white/5 sticky top-0 bg-black/95 z-20 backdrop-blur-md">
         <div>
-            <h1 class="font-black text-xl italic tracking-tighter">FIX<span class="text-emerald-500">GO</span> PRO</h1>
-            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Socio Especialista</p>
+            <div class="flex items-center gap-2">
+                <img src="assets/gestiapremium-icon.svg" class="w-7 h-7 drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]" alt="GestiaPremium">
+                <h1 class="font-black text-xl tracking-tighter text-white">GESTIA<span class="text-blue-500">PREMIUM</span> <span class="text-gray-300">PRO</span></h1>
+            </div>
+            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">Socio Especialista</p>
         </div>
         <div id="statusBadge" class="bg-zinc-800 text-zinc-500 status-badge font-bold">
             <span id="statusLabel">OFFLINE</span>
@@ -131,14 +134,14 @@
             <div class="bg-red-950/40 backdrop-blur-md border border-red-500/30 p-6 rounded-[2rem] mb-4 shadow-xl relative overflow-hidden">
                 <div class="flex justify-between items-start mb-4">
                     <div>
-                        <p class="text-slate-300 text-xs font-bold uppercase drop-shadow-md">Balance (Deuda FixGo)</p>
+                        <p class="text-slate-300 text-xs font-bold uppercase drop-shadow-md">Balance (Deuda GestiaPremium)</p>
                         <h4 id="walletSaldo" class="text-4xl font-black text-red-400 drop-shadow-lg">$0.00</h4>
                     </div>
                     <div class="bg-red-500/20 text-red-400 p-3 rounded-2xl flex flex-col items-center border border-red-500/20">
                         <i class="fas fa-hand-holding-usd text-xl"></i>
                     </div>
                 </div>
-                <p class="text-[9px] text-gray-300 mb-4 border-l-2 border-red-500 pl-2">Al cobrar en efectivo, retienes la comisión de FixGo (32%). Límite de deuda permitido: -$1,000 MXN.</p>
+                <p class="text-[9px] text-gray-300 mb-4 border-l-2 border-red-500 pl-2">Al cobrar en efectivo, retienes la comisión de GestiaPremium (32%). Límite de deuda permitido: -$1,000 MXN.</p>
                 
                 <button onclick="document.getElementById('modalPagoDeuda').classList.remove('hidden')" class="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-sm shadow-lg shadow-red-900/40 transition-all transform active:scale-95 flex items-center justify-center gap-2 border border-red-500">
                     <i class="fas fa-file-invoice-dollar"></i> PAGAR MI DEUDA (SPEI/OXXO)
@@ -164,7 +167,7 @@
         <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-red-500/30 shadow-2xl relative">
             <button onclick="document.getElementById('modalPagoDeuda').classList.add('hidden')" class="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
             <h2 class="text-xl font-black text-white mb-2"><i class="fas fa-university text-red-500"></i> Liquidar Deuda</h2>
-            <p class="text-xs text-gray-400 mb-6">Transfiere tu saldo pendiente a la cuenta oficial de FixGo para liberar tu billetera.</p>
+            <p class="text-xs text-gray-400 mb-6">Transfiere tu saldo pendiente a la cuenta oficial de GestiaPremium para liberar tu billetera.</p>
             
             <div class="bg-black p-4 rounded-xl border border-zinc-800 space-y-3 mb-6 text-sm">
                 <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
@@ -173,7 +176,7 @@
                 </div>
                 <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
                     <span class="text-gray-500 font-bold text-xs uppercase">Beneficiario</span>
-                    <span class="text-white font-black">Heber (FixGo)</span>
+                    <span class="text-white font-black">Heber (GestiaPremium)</span>
                 </div>
                 <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
                     <span class="text-gray-500 font-bold text-xs uppercase">CLABE SPEI</span>
@@ -181,7 +184,7 @@
                 </div>
             </div>
 
-            <a href="https://wa.me/529980000000?text=Hola,%20adjunto%20mi%20comprobante%20de%20pago%20de%20deuda%20FixGo." target="_blank" class="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl text-sm transition-all shadow-lg flex justify-center items-center gap-2 border border-green-500">
+            <a href="https://wa.me/529980000000?text=Hola,%20adjunto%20mi%20comprobante%20de%20pago%20de%20deuda%20GestiaPremium." target="_blank" class="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl text-sm transition-all shadow-lg flex justify-center items-center gap-2 border border-green-500">
                 <i class="fab fa-whatsapp text-xl"></i> ENVIAR COMPROBANTE
             </a>
         </div>
@@ -211,7 +214,7 @@
         btnActivarAudio.onclick = function() {
             // 1. Intentamos reproducir para "despertar" el canal
             audioAlerta.play().then(() => {
-                console.log("FixGo: Canal de audio desbloqueado con éxito.");
+                console.log("GestiaPremium: Canal de audio desbloqueado con éxito.");
                 // Pausamos inmediatamente, el permiso ya quedó concedido
                 audioAlerta.pause();
                 audioAlerta.currentTime = 0;
