@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo - Rastreo Técnico</title>
+    <title>GestiaPremium - Rastreo Técnico</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -16,7 +16,10 @@
 <body class="text-white min-h-screen">
 
     <header class="max-w-4xl mx-auto flex justify-between items-center p-6">
-        <h1 class="text-3xl font-black tracking-tighter italic text-white">FIXGO</h1>
+        <div class="flex items-center gap-2">
+            <img src="assets/gestiapremium-icon.svg" class="w-8 h-8 drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]" alt="GestiaPremium">
+            <h1 class="text-3xl font-black tracking-tighter text-white">GESTIA<span class="text-blue-500">PREMIUM</span></h1>
+        </div>
         <a href="index.html" class="text-indigo-500 font-bold">Inicio</a>
     </header>
 
@@ -26,7 +29,7 @@
         <div id="map"></div>
 
         <div class="mt-6 uber-card p-6 rounded-2xl shadow-2xl">
-            <h3 class="font-black text-lg mb-4 text-emerald-500 flex items-center gap-2">
+            <h3 class="font-black text-lg mb-4 text-blue-500 flex items-center gap-2">
                 <i class="fas fa-satellite-dish animate-pulse"></i> Estado del Servicio
             </h3>
             
@@ -52,7 +55,7 @@
         let isMapReady = false;
 
         window.initMap = function() {
-            console.log("🗺️ Inicializando Mapa FixGo (Modo Oscuro)...");
+            console.log("🗺️ Inicializando Mapa GestiaPremium (Modo Oscuro)...");
             
             const estiloOscuro = [
                 { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
@@ -104,7 +107,7 @@
                         const txtEstado = document.getElementById("estadoTecnico");
                         const txtUbi = document.getElementById("ubicacionTecnico");
 
-                        if(txtNombre) txtNombre.innerText = data.nombre || "Técnico FixGo";
+                        if(txtNombre) txtNombre.innerText = data.nombre || "Socio GestiaPremium";
                         if(txtEstado) txtEstado.innerText = data.estado || "En Ruta";
                         if(txtUbi && data.lat && data.lng) txtUbi.innerText = `${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}`;
 
