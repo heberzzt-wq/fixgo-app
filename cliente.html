@@ -8,6 +8,7 @@
     <title>GestiaPremium | Solicitar Servicio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://js.stripe.com/v3/"></script>
     <style>
         body { background-color: #000000; font-family: 'Inter', sans-serif; }
         .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); }
@@ -160,20 +161,44 @@
                 </div>
 
                 <div class="mt-6 border-t border-zinc-800 pt-4">
-                    <h3 class="text-xs font-bold text-emerald-500 mb-3 uppercase flex items-center gap-2">
-                        <i class="fas fa-money-bill-wave text-xl"></i> Método de Pago
+                    <h3 class="text-xs font-bold text-gray-300 mb-3 uppercase flex items-center gap-2">
+                        <i class="fas fa-wallet text-emerald-500 text-xl"></i> Método de Pago
                     </h3>
-                    <div class="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4 flex items-center gap-4">
-                        <div class="bg-emerald-500/20 p-3 rounded-full text-emerald-400">
-                            <i class="fas fa-hand-holding-usd text-2xl"></i>
-                        </div>
-                        <div>
-                            <h4 class="text-white font-bold text-sm">Pago en Efectivo</h4>
-                            <p class="text-[10px] text-gray-400 mt-1">Pagarás directamente al técnico al finalizar el trabajo en tu domicilio. Sin tarjetas, sin retenciones.</p>
-                        </div>
+                    
+                    <div class="space-y-3">
+                        <label class="relative block cursor-pointer">
+                            <input type="radio" name="metodoPago" value="stripe" class="peer sr-only" checked onchange="document.getElementById('btnSubmitText').innerText = 'PROCEDER AL PAGO SEGURO'; document.getElementById('btnSubmitIcon').className = 'fas fa-lock'; document.getElementById('btnSubmitApp').className = 'w-full bg-blue-600 text-white font-black py-4 rounded-xl text-lg hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';">
+                            <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center gap-4 peer-checked:border-blue-500 peer-checked:bg-blue-900/20 transition-all">
+                                <div class="bg-blue-500/20 p-3 rounded-full text-blue-400">
+                                    <i class="fab fa-stripe-s text-2xl w-6 text-center"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <h4 class="text-white font-bold text-sm">Tarjeta de Crédito / Débito</h4>
+                                    <p class="text-[10px] text-gray-400 mt-1">Pago encriptado y seguro. (Test Mode)</p>
+                                </div>
+                                <div class="w-5 h-5 rounded-full border-2 border-zinc-600 peer-checked:border-blue-500 peer-checked:bg-blue-500 flex items-center justify-center transition-all">
+                                    <div class="w-2 h-2 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="relative block cursor-pointer">
+                            <input type="radio" name="metodoPago" value="efectivo" class="peer sr-only" onchange="document.getElementById('btnSubmitText').innerText = 'SOLICITAR AHORA'; document.getElementById('btnSubmitIcon').className = 'fas fa-paper-plane'; document.getElementById('btnSubmitApp').className = 'w-full bg-emerald-500 text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';">
+                            <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center gap-4 peer-checked:border-emerald-500 peer-checked:bg-emerald-900/20 transition-all">
+                                <div class="bg-emerald-500/20 p-3 rounded-full text-emerald-400">
+                                    <i class="fas fa-hand-holding-usd text-2xl w-6 text-center"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <h4 class="text-white font-bold text-sm">Pago en Efectivo</h4>
+                                    <p class="text-[10px] text-gray-400 mt-1">Pago directo al técnico al finalizar.</p>
+                                </div>
+                                <div class="w-5 h-5 rounded-full border-2 border-zinc-600 peer-checked:border-emerald-500 peer-checked:bg-emerald-500 flex items-center justify-center transition-all">
+                                    <div class="w-2 h-2 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
+                                </div>
+                            </div>
+                        </label>
                     </div>
                 </div>
-
                 <div class="mt-4 border-t border-zinc-800 pt-4 pb-2">
                     <div class="flex justify-between items-center mb-3">
                         <span class="text-xs font-bold text-gray-300 uppercase flex items-center gap-2"><i class="fas fa-file-invoice-dollar text-emerald-500"></i> Requiero Factura (CFDI)</span>
@@ -198,8 +223,8 @@
                     </div>
                 </div>
 
-                <button type="submit" class="w-full bg-emerald-500 text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4">
-                    <i class="fas fa-paper-plane"></i> SOLICITAR AHORA
+                <button type="submit" id="btnSubmitApp" class="w-full bg-blue-600 text-white font-black py-4 rounded-xl text-lg hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4">
+                    <i id="btnSubmitIcon" class="fas fa-lock"></i> <span id="btnSubmitText">PROCEDER AL PAGO SEGURO</span>
                 </button>
             </form>
         </section>
