@@ -15,7 +15,7 @@ import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./a
 // 💳 MOTOR STRIPE: INYECCIÓN DE LLAVE PÚBLICA (TEST MODE)
 const STRIPE_PUBLIC_KEY = "pk_test_51SuznMFB3c4okYlKz7FZYdaftLAmuBWkO1cGlHDrzxbON37J8STqFtDsG6apf7zup4YJTmFbyVtmzdqIV0icjxeX00YVsW2OHU";
 // URL de tu Payment Link de prueba creado en el Dashboard
-const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_..."; // <-- REEMPLAZA ESTO CON LA URL EXACTA QUE TE DIO STRIPE
+const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_8x2fZh5OR2WEek63oz1kA00"; // <-- REEMPLAZA ESTO CON LA URL EXACTA QUE TE DIO STRIPE
 
 // Inicializar objeto Stripe (la librería se cargó en el HTML)
 let stripe;
