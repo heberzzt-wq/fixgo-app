@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixGo | Registro Maestro V6.0</title>
+    <title>GestiaPremium | Registro Maestro V6.0</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://js.stripe.com/v3/"></script>
@@ -28,7 +28,10 @@
 <body class="text-white min-h-screen">
 
     <header class="max-w-6xl mx-auto flex justify-between items-center p-8">
-        <h1 class="text-4xl font-black tracking-tighter italic text-white">FIXGO<span class="text-indigo-500">.</span></h1>
+        <div class="flex items-center gap-3">
+            <img src="assets/gestiapremium-icon.svg" class="w-10 h-10 drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]" alt="GestiaPremium">
+            <h1 class="text-4xl font-black tracking-tighter text-white">GESTIA<span class="text-blue-500">PREMIUM</span></h1>
+        </div>
         <nav class="flex gap-6">
             <a href="index.html" class="text-gray-400 hover:text-white font-medium transition-colors">Inicio</a>
             <a href="login.html" class="bg-white text-black px-6 py-2 rounded-full font-bold hover:bg-gray-200 transition-all">Entrar</a>
@@ -105,9 +108,9 @@
                         <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
                             <label class="block text-xs font-bold text-gray-400 mb-3 uppercase"><i class="fas fa-motorcycle"></i> Logística Operativa</label>
                             <select name="tipoVehiculo" class="uber-input w-full px-4 py-3 rounded-xl appearance-none cursor-pointer mb-3 outline-none focus:border-emerald-500">
-                                <option value="auto">🚗 Automóvil (FixGo Estándar)</option>
-                                <option value="moto">🏍️ Motocicleta (FixGo Express)</option>
-                                <option value="camioneta">🚚 Pick-up / Carga (FixGo Heavy)</option>
+                                <option value="auto">🚗 Automóvil (GestiaPremium Estándar)</option>
+                                <option value="moto">🏍️ Motocicleta (GestiaPremium Express)</option>
+                                <option value="camioneta">🚚 Pick-up / Carga (GestiaPremium Heavy)</option>
                                 <option value="peaton">🚶 A pie / Transporte Público</option>
                             </select>
                             <input type="text" name="placas" placeholder="Número de Placas (Opcional si vas a pie)" class="uber-input w-full px-4 py-3 rounded-xl outline-none focus:border-emerald-500 font-mono uppercase">
@@ -190,10 +193,10 @@
                     <button type="button" id="btnCerrarTerminosCliente" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
                 </div>
                 <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
-                    <p><strong>1. Naturaleza del Servicio:</strong> FixGo es una plataforma tecnológica de intermediación. No presta servicios de reparación directa. Los servicios son prestados por Técnicos independientes ("Socios Pro").</p>
+                    <p><strong>1. Naturaleza del Servicio:</strong> GestiaPremium es una plataforma tecnológica de intermediación. No presta servicios de reparación directa. Los servicios son prestados por Técnicos independientes ("Socios Pro").</p>
                     <p><strong>2. Presupuestos y Pagos:</strong> El Cliente pagará el 100% del costo del servicio directamente al Técnico, según lo acordado en sitio. Si el Cliente solicita la visita y rechaza la cotización con el Técnico ya en sitio, se compromete a pagar una tarifa fija de $550.00 MXN por concepto de diagnóstico y traslado.</p>
                     <p><strong>3. Cancelaciones:</strong> Cancelar un servicio después de que el Técnico ha sido asignado y se encuentra en ruta generará cargos al método de pago registrado como garantía.</p>
-                    <p><strong>4. Garantía:</strong> Se amparan 6 meses de garantía sobre la mano de obra, única y exclusivamente si el servicio fue documentado y finalizado oficialmente a través de la aplicación FixGo con la evidencia fotográfica correspondiente.</p>
+                    <p><strong>4. Garantía:</strong> Se amparan 6 meses de garantía sobre la mano de obra, única y exclusivamente si el servicio fue documentado y finalizado oficialmente a través de la aplicación GestiaPremium con la evidencia fotográfica correspondiente.</p>
                 </div>
                 <div class="mt-4 pt-4 border-t border-zinc-800 text-center">
                     <button type="button" onclick="document.getElementById('modalTerminosCliente').classList.add('hidden')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">CERRAR Y ENTENDIDO</button>
@@ -208,8 +211,8 @@
                     <button type="button" id="btnCerrarTerminosTecnico" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
                 </div>
                 <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
-                    <p><strong>1. Relación Comercial:</strong> Al registrarse como Socio Pro, usted actúa como Contratista Independiente. No existe relación obrero-patronal, subordinación ni exclusividad con FixGo. Usted provee sus propias herramientas, vehículos y horarios.</p>
-                    <p><strong>2. Comisiones y Pagos:</strong> Usted cobrará el 100% del servicio en efectivo o transferencia directa del cliente. Por el uso de la plataforma, FixGo cobrará una comisión del 32% sobre cada servicio completado. Esta comisión se reflejará como "Deuda" en su Billetera FixGo y deberá ser liquidada vía SPEI periódicamente para evitar la suspensión de su cuenta.</p>
+                    <p><strong>1. Relación Comercial:</strong> Al registrarse como Socio Pro, usted actúa como Contratista Independiente. No existe relación obrero-patronal, subordinación ni exclusividad con GestiaPremium. Usted provee sus propias herramientas, vehículos y horarios.</p>
+                    <p><strong>2. Comisiones y Pagos:</strong> Usted cobrará el 100% del servicio en efectivo o transferencia directa del cliente. Por el uso de la plataforma, GestiaPremium cobrará una comisión del 32% sobre cada servicio completado. Esta comisión se reflejará como "Deuda" en su Billetera GestiaPremium y deberá ser liquidada vía SPEI periódicamente para evitar la suspensión de su cuenta.</p>
                     <p><strong>3. Políticas Anti-Fraude:</strong> Cancelar servicios asignados injustificadamente después de 5 minutos de aceptación generará una penalización de $50 MXN. Es obligatorio el uso de GPS en sitio y subir fotografías reales de evidencia del servicio. La suplantación de identidad o perfiles falsos causará la baja definitiva e inmediata de la plataforma.</p>
                     <p><strong>4. Responsabilidad Civil:</strong> El Socio Pro es el único responsable legal por daños causados a la propiedad del cliente durante la ejecución del servicio.</p>
                 </div>
@@ -226,7 +229,7 @@
                     <button type="button" onclick="document.getElementById('modalPrivacidad').classList.add('hidden')" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
                 </div>
                 <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
-                    <p><strong>1. Identidad y Domicilio:</strong> FixGo es el responsable del tratamiento y protección de sus datos personales.</p>
+                    <p><strong>1. Identidad y Domicilio:</strong> GestiaPremium es el responsable del tratamiento y protección de sus datos personales.</p>
                     <p><strong>2. Datos Recabados:</strong> Nombre, fotos (perfil, INE, CSF, Licencia), teléfono, correo, y Datos Sensibles como su Ubicación GPS en tiempo real y CLABE interbancaria.</p>
                     <p><strong>3. Finalidades:</strong> Conectar clientes con técnicos, procesar pagos, rastreo de seguridad durante el servicio, y validación de antecedentes (KYC).</p>
                     <p><strong>4. Transferencia de Datos:</strong> Sus datos bancarios son procesados por Stripe bajo encriptación militar. Compartiremos datos con autoridades solo por requerimiento legal.</p>
