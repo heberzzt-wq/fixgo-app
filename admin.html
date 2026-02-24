@@ -187,18 +187,5 @@
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js"></script>
 
-  <script type="module">
-        import { auth } from './firebase.js';
-        // Traemos el observador de sesión directo del CDN de Firebase Auth
-        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { iniciarMotorBI } from './app-bi.js';
-        
-        // El cerebro solo arranca si el administrador está logueado correctamente
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                iniciarMotorBI('dashboardAnalitico');
-            }
-        });
-    </script>
 </body>
 </html>
