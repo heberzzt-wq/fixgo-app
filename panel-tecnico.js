@@ -247,6 +247,10 @@ export async function iniciarPanelTecnico(user) {
 
  function actualizarUIWallet() {
  const saldoRealDisponible = saldoBrutoDisponible - retirosEnProceso;
+ 
+ // 🔥 INYECCIÓN: Guardamos el saldo real a nivel global para que el Radar (tomarServicio) pueda leerlo
+ window.saldoActualTecnico = saldoRealDisponible;
+
  let saldoFormat = saldoRealDisponible < 0 ? "-$" + Math.abs(saldoRealDisponible).toFixed(2) : "$" + saldoRealDisponible.toFixed(2);
 
  if(elementos.walletLabel) {
@@ -256,9 +260,9 @@ export async function iniciarPanelTecnico(user) {
  `;
  
  if(saldoRealDisponible <= -1000) {
- elementos.walletLabel.classList.add("animate-pulse"); 
+ elementos.walletLabel.classList.add("animate-pulse", "text-red-500"); 
  } else {
- elementos.walletLabel.classList.remove("animate-pulse");
+ elementos.walletLabel.classList.remove("animate-pulse", "text-red-500");
  }
  }
 
@@ -513,6 +517,12 @@ export async function iniciarPanelTecnico(user) {
  };
 
  window.tomarServicio = async (id, uid, nombre, metodo_pago) => {
+ // 🔥 INYECCIÓN: CANDADO ANTI-DEUDA MILITAR (-$1,000 MXN)
+ if (window.saldoActualTecnico <= -1000) {
+ alert("⛔ BLOQUEO FINANCIERO OPERATIVO\n\nTu saldo negativo ha superado el límite de -$1,000 MXN.\n\nPor políticas de GestiaPremium, debes liquidar tus comisiones pendientes para volver a aceptar servicios.");
+ return;
+ }
+
  const qCheck = query(
  collection(db, "services"), 
  where("tecnico_id", "==", uid),
