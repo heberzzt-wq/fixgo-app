@@ -312,8 +312,13 @@ export async function iniciarPanelCliente(user) {
  console.log(" 🔔 Actualización de servicio:", newData.estado);
  sonarAlerta();
 
+ // 🔥 CORRECCIÓN TEXTOS: Alertamos según método de pago
  if (newData.estado === 'finalizado') {
- alert("✅ ¡Servicio terminado exitosamente!\n\nPor favor, realiza el pago en efectivo directamente al técnico. Revisa tu comprobante digital en pantalla.");
+ if (newData.metodo_pago === 'stripe') {
+ alert("✅ ¡Servicio terminado exitosamente!\n\nTu pago ha sido procesado de forma segura vía STRIPE a tu tarjeta. Revisa tu comprobante digital en pantalla.");
+ } else {
+ alert("✅ ¡Servicio terminado exitosamente!\n\nPor favor, realiza el pago en EFECTIVO directamente al técnico. Revisa tu comprobante digital en pantalla.");
+ }
  }
  }
  });
@@ -381,6 +386,11 @@ export async function iniciarPanelCliente(user) {
  htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${s.costo_final}</p><p class="text-gray-400 text-xs italic">"${escaparHTML(s.diagnostico)}"</p>`;
  }
 
+ // 🔥 CORRECCIÓN TEXTOS: Mensaje dinámico debajo de la tabla
+ let textoCobroCotizacion = s.metodo_pago === 'stripe'
+ ? `<p class="legal-note mt-2 text-blue-400 font-bold"><i class="fas fa-credit-card"></i> El monto final será cobrado automáticamente a tu tarjeta vía STRIPE.</p>`
+ : `<p class="legal-note mt-2 text-emerald-500 font-bold"><i class="fas fa-hand-holding-usd"></i> Pago en EFECTIVO directo al técnico al finalizar.</p>`;
+
  contenido = `
  <div class="bg-zinc-800 p-4 rounded-lg border border-yellow-500 mt-2">
  <div class="flex justify-between items-center mb-2">
@@ -391,7 +401,7 @@ export async function iniciarPanelCliente(user) {
  <div class="mt-2 p-2 bg-black/50 rounded border border-white/5">
  <p class="legal-note" style="font-size: 8px; color: #666;">* SI HUBIERA CANCELACION TOTAL O PARCIAL... PENALIZACION DEL 20%.</p>
  <p class="legal-note" style="font-size: 8px; color: #666;">* GARANTIA POR ESCRITO MINIMO DE 6 MESES.</p>
- <p class="legal-note mt-2 text-emerald-500 font-bold"><i class="fas fa-hand-holding-usd"></i> Pago en EFECTIVO directo al técnico al finalizar.</p>
+ ${textoCobroCotizacion}
  </div>
  <div class="flex gap-2 mt-4">
  <button onclick="window.responderCotizacion('${id}', false)" class="flex-1 bg-red-900/50 hover:bg-red-900 text-red-200 text-xs py-3 rounded-lg font-bold transition-colors">
