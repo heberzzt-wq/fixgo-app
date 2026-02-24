@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - MOTOR DE INTELIGENCIA EMPRESARIAL Y CRM (BI ENGINE)
  * ======================================================================================
  * Archivo: app-bi.js
- * Versión: 1.0.3 (Evolución de Identidad Visual + PROTOCOLO DE CONTINGENCIA OFFLINE)
+ * Versión: 1.0.4 (Integración Stripe + RESTAURACIÓN DE LÓGICA MAESTRA)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
@@ -89,9 +89,20 @@ export async function iniciarMotorBI(contenedorId) {
                     </div>
                     
                     <div class="bg-zinc-900 rounded-2xl border border-zinc-700 p-5">
-                        <h3 class="text-white font-bold text-sm uppercase tracking-wider mb-4"><i class="fas fa-chart-pie text-emerald-500"></i> Inteligencia Comercial</h3>
-                        <div id="biMétricasComerciales" class="grid grid-cols-2 gap-3">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-white font-bold text-sm uppercase tracking-wider"><i class="fas fa-chart-pie text-emerald-500"></i> Inteligencia Comercial</h3>
+                            <div id="stripeHealthIndicator" class="flex items-center gap-1 text-[8px] font-bold text-zinc-500 uppercase">
+                                <span class="w-2 h-2 rounded-full bg-zinc-700"></span> Pasarela: Idle
+                            </div>
+                        </div>
+                        <div id="biMétricasComerciales" class="grid grid-cols-2 gap-3 mb-4">
                             <p class="text-xs text-gray-500 text-center py-4 col-span-2">Agrupando verticales...</p>
+                        </div>
+                        <div id="biStripeMonitor" class="bg-black/40 border border-zinc-800 rounded-xl p-3">
+                            <h4 class="text-[9px] text-zinc-500 font-black uppercase mb-2">Live Webhook Feed (Stripe)</h4>
+                            <div id="biStripeFeed" class="text-[10px] text-zinc-400 font-mono space-y-1">
+                                <span class="animate-pulse">Esperando señal de pago...</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -123,6 +134,8 @@ function iniciarEscuchaTelemetria() {
         let transacciones = [];
         snap.forEach(doc => transacciones.push({ id: doc.id, ...doc.data() }));
         procesarMotorComercialLTV(transacciones, dataServicios);
+        // Inyectamos la actualización del monitor de Stripe
+        actualizarMonitorStripe(transacciones);
     });
 }
 
@@ -133,6 +146,30 @@ function iniciarEscuchaFlota() {
         snap.forEach(doc => tecnicos.push({ id: doc.id, ...doc.data() }));
         procesarRankingYDisciplina(tecnicos);
     });
+}
+
+// NUEVA FUNCIÓN: Verificador de Hits de Stripe para el NOC
+function actualizarMonitorStripe(transacciones) {
+    const feed = document.getElementById("biStripeFeed");
+    const health = document.getElementById("stripeHealthIndicator");
+    if (!feed || !health) return;
+
+    // Filtramos las últimas transacciones de Stripe
+    const stripeTx = transacciones.filter(t => t.metodo === "stripe" || t.stripe_id).slice(0, 3);
+
+    if (stripeTx.length > 0) {
+        health.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> <span class="text-emerald-500">PASARELA ACTIVA</span>`;
+        feed.innerHTML = stripeTx.map(t => {
+            const hora = t.fecha ? t.fecha.toDate().toLocaleTimeString() : 'Ahora';
+            return `
+                <div class="flex justify-between items-center border-b border-zinc-900 pb-1">
+                    <span class="text-emerald-400 font-bold">$${(t.monto_total || 0).toFixed(2)}</span>
+                    <span class="text-[8px] text-zinc-500">${hora}</span>
+                    <span class="text-[7px] bg-zinc-800 px-1 rounded text-white">SUCCESS</span>
+                </div>
+            `;
+        }).join('');
+    }
 }
 
 // ======================================================================================
@@ -308,7 +345,7 @@ function procesarRankingYDisciplina(tecnicos) {
     contenedor.innerHTML = html || '<p class="text-gray-500 text-xs text-center py-4">No hay flota registrada.</p>';
 }
 
-// LÓGICA DE EJECUCIÓN DISCIPLINARIA
+// LÓGICA DE EJECUCIÓN DISCIPLINARIA (RESTAURADA LÍNEA POR LÍNEA)
 window.aplicarStrike = async (uid, nivelStrike, nombre) => {
     let msg = "";
     let nuevoEstado = "";
@@ -392,7 +429,7 @@ window.evaluarComisionesDinamicas = async () => {
 
             if (t.nivel !== nuevoNivel) {
                 if(nuevaComision < (t.comision_asignada || 0.32)) ascensos++; else degradaciones++;
-                await updateDoc(doc(db, "users", t.id), {
+                await updateDoc(doc(db, "users", docSnap.id), {
                     nivel: nuevoNivel,
                     comision_asignada: nuevaComision
                 });
@@ -502,7 +539,7 @@ function procesarMotorComercialLTV(transacciones, servicios) {
 }
 
 // ======================================================================================
-// 🛡️ 4. MÓDULO DE CONTINGENCIA OPERATIVA (PLAN B - BACKUP OFFLINE)
+// 🛡️ 4. MÓDULO DE CONTINGENCIA OPERATIVA (RESTAURADO COMPLETO)
 // ======================================================================================
 window.descargarBackupOperativo = async () => {
     if(!confirm("⚠️ PROTOCOLO DE CONTINGENCIA (PLAN B) ⚠️\n\n¿Estás seguro de que deseas exportar la Base de Datos completa (Clientes y Técnicos) para operación manual fuera de línea?")) return;
