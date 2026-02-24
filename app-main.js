@@ -2,12 +2,12 @@
  * ======================================================================================
  * GESTIAPREMIUM 2026 - MAIN CONTROLLER (ROUTER & GATEKEEPER)
  * Archivo: app-main.js
- * Versión: 5.15.2 (Fix Colisiones Firebase + Preservación Auth + Modo Dios)
+ * Versión: 5.15.3 (Fix Colisiones Firebase + Preservación Auth + Modo Dios + Excepción Efectivo Cliente)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
 
-console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.15.2...");
+console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.15.3...");
 
 // 🚨 FIX 1: Importamos doc y getDoc de NUESTRO firebase.js local. Cero colisiones.
 import { observarAuth, auth, signOut, db, collection, addDoc, serverTimestamp, getDoc, doc } from "./firebase.js";
@@ -109,7 +109,14 @@ observarAuth(async (userAuth) => {
         }
         else if (userAuth.rol === "cliente" && archivoActual === RUTAS.cliente) {
             await iniciarPanelCliente(userAuth);
-            iniciarMotorStripe(userAuth); 
+            
+            // 🔥 LÓGICA DE EXCEPCIÓN: Verificar si el Admin autorizó efectivo para este usuario específico
+            // Se busca el campo 'permisoEspecialEfectivo' en el documento del usuario en Firestore
+            const efectivoAutorizado = userData.permisoEspecialEfectivo === true;
+            if (efectivoAutorizado) {
+                console.log("🌟 [MODO DIOS ADMIN] Excepción aplicada: Pago en efectivo HABILITADO para este cliente.");
+            }
+            iniciarMotorStripe(userAuth, efectivoAutorizado); 
         }
         
         actualizarInterfazGlobal(userAuth);
@@ -119,14 +126,22 @@ observarAuth(async (userAuth) => {
     }
 });
 
-function iniciarMotorStripe(user) {
+// Se modifica la función para aceptar el parámetro de autorización de efectivo
+function iniciarMotorStripe(user, efectivoAutorizado = false) {
     const formularioSolicitud = document.getElementById('nuevaSolicitudForm');
+    const contenedorEfectivo = document.getElementById('contenedorOpcionEfectivo'); // Referencia al contenedor oculto en HTML
+
+    // 🔥 Si el Admin dio el permiso especial, mostramos el botón de efectivo
+    if (efectivoAutorizado && contenedorEfectivo) {
+        contenedorEfectivo.classList.remove('hidden'); // Quitamos la clase que lo oculta
+    }
     
     if (formularioSolicitud) {
         formularioSolicitud.addEventListener('submit', async (e) => {
             e.preventDefault(); 
+            // Obtenemos el método seleccionado. Si efectivo estaba oculto, el navegador enviará el que estaba visible y marcado (Stripe)
             const inputMetodo = document.querySelector('input[name="metodoPago"]:checked');
-            const metodoPagoSeleccionado = inputMetodo ? inputMetodo.value : "stripe"; // Por defecto digital
+            const metodoPagoSeleccionado = inputMetodo ? inputMetodo.value : "stripe"; 
             
             const formData = new FormData(formularioSolicitud);
             const datosServicio = Object.fromEntries(formData.entries());
@@ -138,22 +153,33 @@ function iniciarMotorStripe(user) {
             datosServicio.created_at = serverTimestamp();
             datosServicio.metodo_pago = metodoPagoSeleccionado;
 
+            console.log("🚀 Procesando solicitud con método de pago:", metodoPagoSeleccionado);
+
             try {
+                // Guardamos primero la intención en la base de datos
                 const docRef = await addDoc(collection(db, "services"), datosServicio);
                 console.log(`✅ Servicio creado con éxito en DB (ID: ${docRef.id}).`);
 
                 if (metodoPagoSeleccionado === "stripe") {
+                    // Flujo normal digital
                     const urlCobro = new URL(STRIPE_PAYMENT_LINK);
                     urlCobro.searchParams.append('prefilled_email', user.email);
+                    // Opcional: Podríamos pasar el ID del servicio a Stripe para conciliación futura
+                    // urlCobro.searchParams.append('client_reference_id', docRef.id);
                     window.location.href = urlCobro.toString();
-                } else {
-                    alert("Servicio solicitado correctamente. Pago en Efectivo habilitado.");
+                } else if (metodoPagoSeleccionado === "efectivo" && efectivoAutorizado) {
+                    // Flujo de excepción autorizado por Admin
+                    alert("✅ ¡Solicitud Exitosa! Tu pago en efectivo ha sido pre-aprobado por la administración. Un técnico se pondrá en contacto.");
                     formularioSolicitud.reset();
                     window.location.reload(); 
+                } else {
+                    // Seguridad extra: Alguien intentó forzar efectivo sin permiso
+                    console.error("⛔ Intento de pago en efectivo no autorizado.");
+                    alert("Error: Método de pago no válido.");
                 }
             } catch (error) {
                 console.error("❌ Error al crear documento en Firebase:", error);
-                alert("Hubo un error al generar la solicitud. Verifica tu conexión.");
+                alert("Hubo un error al generar la solicitud. Verifica tu conexión y reintenta.");
             }
         });
     }
