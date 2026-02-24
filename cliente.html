@@ -29,6 +29,8 @@
         .expandable-content.expanded { max-height: 2000px; /* Altura máxima holgada para el despliegue */ }
         .chevron-icon { transition: transform 0.3s ease; }
         .chevron-icon.rotated { transform: rotate(180deg); }
+        /* Clase de utilidad para ocultar elementos */
+        .hidden { display: none !important; }
     </style>
 </head>
 <body class="text-white min-h-screen pb-20">
@@ -182,7 +184,7 @@
                             </div>
                         </label>
 
-                        <label class="relative block cursor-pointer">
+                        <label id="contenedorOpcionEfectivo" class="relative block cursor-pointer hidden">
                             <input type="radio" name="metodoPago" value="efectivo" class="peer sr-only" onchange="document.getElementById('btnSubmitText').innerText = 'SOLICITAR AHORA'; document.getElementById('btnSubmitIcon').className = 'fas fa-paper-plane'; document.getElementById('btnSubmitApp').className = 'w-full bg-emerald-500 text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';">
                             <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center gap-4 peer-checked:border-emerald-500 peer-checked:bg-emerald-900/20 transition-all">
                                 <div class="bg-emerald-500/20 p-3 rounded-full text-emerald-400">
@@ -190,7 +192,7 @@
                                 </div>
                                 <div class="flex-1">
                                     <h4 class="text-white font-bold text-sm">Pago en Efectivo</h4>
-                                    <p class="text-[10px] text-gray-400 mt-1">Pago directo al técnico al finalizar.</p>
+                                    <p class="text-[10px] text-gray-400 mt-1">Pago directo al técnico al finalizar. (Requiere Aprobación)</p>
                                 </div>
                                 <div class="w-5 h-5 rounded-full border-2 border-zinc-600 peer-checked:border-emerald-500 peer-checked:bg-emerald-500 flex items-center justify-center transition-all">
                                     <div class="w-2 h-2 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
