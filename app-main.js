@@ -2,16 +2,18 @@
  * ======================================================================================
  * GESTIAPREMIUM 2026 - MAIN CONTROLLER (ROUTER & GATEKEEPER)
  * Archivo: app-main.js
- * Versión: 5.14.0 (Integración Stripe Auto-Inject Webhook Ready)
+ * Versión: 5.15.0 (Restauración de Privilegios Admin & Interlock)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
 
-console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.14.0...");
+console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.15.0...");
 
 // 🚨 INYECCIÓN DE DEPENDENCIAS DE BASE DE DATOS PARA CREAR EL SERVICIO
 import { observarAuth, auth, signOut, db, collection, addDoc, serverTimestamp } from "./firebase.js";
 import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./app-panel.js";
+// 🔧 INYECCIÓN CDN PARA RECUPERACIÓN MAESTRA DE ROL
+import { getDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"; 
 
 // 💳 MOTOR STRIPE: INYECCIÓN DE LLAVE PÚBLICA (TEST MODE)
 const STRIPE_PUBLIC_KEY = "pk_test_51SuznMFB3c4okYlKz7FZYdaftLAmuBWkO1cGlHDrzxbON37J8STqFtDsG6apf7zup4YJTmFbyVtmzdqIV0icjxeX00YVsW2OHU";
@@ -34,13 +36,13 @@ const RUTAS = {
     cliente: "cliente.html"
 };
 
-observarAuth(async (user) => {
+observarAuth(async (userAuth) => {
     const pathActual = window.location.pathname;
     const archivoActual = pathActual.substring(pathActual.lastIndexOf('/') + 1) || "index.html";
     const esPublica = RUTAS.publicas.includes(archivoActual);
 
     // 1. GUEST (Visitante sin sesión)
-    if (!user) {
+    if (!userAuth) {
         if (!esPublica) {
             console.warn("⛔ Gatekeeper: Intruso detectado. Expulsando...");
             window.location.replace("login.html");
@@ -50,7 +52,38 @@ observarAuth(async (user) => {
         return;
     }
 
-    // 2. LOGGED IN USER (Usuario autenticado)
+    // 🔧 CLONAMOS EL OBJETO USUARIO PARA INYECTARLE DATOS SEGUROS
+    let user = userAuth;
+
+    // 🛡️ REPARACIÓN DE EMERGENCIA (MODO DIOS): RECUPERAR ROL DIRECTO DE FIRESTORE
+    if (!user.rol) {
+        console.warn("⚠️ Gatekeeper: Rol 'undefined' detectado en memoria. Consultando Base de Datos Maestra...");
+        try {
+            const userDocRef = doc(db, "users", user.uid);
+            const userSnap = await getDoc(userDocRef);
+            
+            if (userSnap.exists()) {
+                // Fusionamos los datos de Auth con los de Firestore
+                user = { ...userAuth, ...userSnap.data() };
+            } else {
+                // 👑 MODO DIOS: Fallback absoluto para el CEO
+                if (user.email && user.email.toLowerCase() === "hebertoh-m@hotmail.com") {
+                    user.rol = "admin";
+                    console.log("👑 Gatekeeper: Modo Dios activado por correo maestro.");
+                } else {
+                    user.rol = "cliente"; // Fallback de seguridad para otros
+                }
+            }
+        } catch (error) {
+            console.error("❌ Error crítico leyendo perfil maestro:", error);
+            // Blindaje final por si se cae la red
+            if (user.email && user.email.toLowerCase() === "hebertoh-m@hotmail.com") {
+                user.rol = "admin";
+            }
+        }
+    }
+
+    // 2. LOGGED IN USER (Usuario autenticado y rol validado)
     console.log(`✅ Usuario: ${user.email} | Rol: ${user.rol}`);
 
     /**
