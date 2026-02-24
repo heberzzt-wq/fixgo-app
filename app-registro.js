@@ -2,12 +2,12 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 6.3 (LOGISTICS + LEGAL SPLIT + DEV WHITELIST)
+ * Versión: 6.4 (LOGISTICS + LEGAL SPLIT + ONBOARDING SIN FRICCIÓN)
  * Autor: Heber (CEO & Lead Architect)
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR.
  * ======================================================
  */
-console.log(" 🚀 [app-registro.js] Inicializando sistema V6.3 (Compliance Legal Separado y DEV Whitelist)...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema V6.4 (Onboarding Inmediato sin verificación de correo)...");
 
 import { 
     auth, 
@@ -25,8 +25,7 @@ import {
 import { 
     GoogleAuthProvider, 
     signInWithPopup, 
-    deleteUser,
-    sendEmailVerification // 🔥 INYECCIÓN V6.1: EL VERDUGO DE CORREOS
+    deleteUser
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 /**
@@ -210,9 +209,7 @@ if (btnRegistroCliente) {
 
             usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
 
-            // 🔥 INYECCIÓN V6.1: ENVIAR CORREO DE VALIDACIÓN AL CLIENTE
-            await sendEmailVerification(auth.currentUser);
-
+            // 🔥 ONBOARDING INMEDIATO: Ya NO pedimos validación de correo ni sacamos al usuario.
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
@@ -231,11 +228,9 @@ if (btnRegistroCliente) {
                 }
             }, { merge: true });
 
-            // 🔥 DESCONECTAMOS AL USUARIO HASTA QUE VALIDE SU CORREO
-            await signOut(auth);
-
-            alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nTe hemos enviado un enlace al correo: ${email}.\n\n🛑 DEBES DARLE CLIC AL ENLACE PARA ACTIVAR TU CUENTA antes de poder iniciar sesión.`);
-            window.location.href = "login.html";
+            alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nBienvenido a GestiaPremium. Ahora puedes solicitar tu servicio de inmediato.`);
+            
+            // El observador (observarAuth) detectará la sesión viva y lo redirigirá a cliente.html automáticamente.
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
@@ -390,9 +385,6 @@ if (btnRegistroTecnico) {
 
             usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
-            // 🔥 INYECCIÓN V6.1: ENVIAR CORREO DE VALIDACIÓN AL TÉCNICO
-            await sendEmailVerification(auth.currentUser);
-
             btnRegistroTecnico.innerHTML = '<i class="fas fa-file-upload animate-bounce"></i> Procesando Expediente...';
             
             const [b64Foto, b64INE, b64CSF, b64Licencia] = await Promise.all([
@@ -441,11 +433,10 @@ if (btnRegistroTecnico) {
                 creadoEn: serverTimestamp()
             }, { merge: true });
 
-            // 🔥 DESCONECTAMOS AL USUARIO HASTA QUE VALIDE SU CORREO
-            await signOut(auth);
-
-            alert(`✅ ¡Expediente Recibido!\n\n1️⃣ Te hemos enviado un enlace al correo: ${email}. DEBES DARLE CLIC PARA ACTIVAR TU CUENTA.\n2️⃣ Después, el Administrador validará tus documentos.`);
-            window.location.href = "login.html";
+            // 🔥 ONBOARDING INMEDIATO: Sin verificación de correo. Pasan a pendiente de Admin automáticamente.
+            alert(`✅ ¡Expediente Recibido!\n\nBienvenido, ${nombre}. Tu cuenta está en revisión. El Administrador validará tus documentos pronto.`);
+            
+            // Redirige naturalmente por el observador a tecnico.html (donde verá el cartel de 'En Revisión')
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Técnico:", error);
@@ -460,7 +451,7 @@ if (btnRegistroTecnico) {
 }
 
 // ======================================================
-// C. LOGIN (GATEKEEPER DE CORREO ACTIVADO) Y D. GOOGLE
+// C. LOGIN Y D. GOOGLE (GATEKEEPER LIBERADO)
 // ======================================================
 const btnLogin = $("btnLogin");
 if (btnLogin) {
@@ -482,31 +473,11 @@ if (btnLogin) {
             btnLogin.innerHTML = '<i class="fas fa-fingerprint animate-pulse"></i> Autenticando...';
             btnLogin.disabled = true;
             
-            // 1. Intentamos iniciar sesión con Firebase
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            const user = userCredential.user;
+            // 1. Iniciamos sesión. Firebase validará usuario y contraseña correctos.
+            await signInWithEmailAndPassword(auth, email, password);
 
-            // 🔥 INYECCIÓN V6.3: LISTA BLANCA DE DESARROLLO (WHITELIST)
-            const LISTA_BLANCA_DEV = [
-                "hebertoh-m@hotmail.com", // VIP Admin
-                "cliente@test.com",       // Tester Cliente
-                "tecnico@test.com"        // Tester Técnico
-            ];
-
-            // Si el correo no está verificado, verificamos si está en la Lista Blanca
-            if (!user.emailVerified) {
-                if (!LISTA_BLANCA_DEV.includes(email)) {
-                    await signOut(auth); // Lo expulsamos inmediatamente
-                    alert(`🚨 ACCESO DENEGADO\n\nAún no has verificado tu correo electrónico (${email}).\n\nPor favor, revisa tu bandeja de entrada o carpeta de Spam y haz clic en el enlace de activación para poder ingresar.`);
-                    btnLogin.innerHTML = textoOriginal;
-                    btnLogin.disabled = false;
-                    return; // Detenemos la ejecución
-                } else {
-                    console.warn(`🛠️ [MODO DEV]: Acceso permitido a Lista Blanca sin verificar: ${email}`);
-                }
-            }
-
-            // Si llega aquí, su correo sí está verificado (o está en la Lista Blanca). El observador lo redirigirá.
+            // 🔥 SE ELIMINÓ EL BLOQUEO POR CORREO NO VERIFICADO. 
+            // Si la clave es correcta, el observador en la línea 402 los dejará pasar directo.
 
         } catch (error) {
             manejarErroresAuth(error);
@@ -594,16 +565,9 @@ if (btnGoogle) {
 // E. OBSERVADOR Y MANEJO DE ERRORES
 // ======================================================
 observarAuth((user) => {
-    // 🔥 INYECCIÓN V6.3: LISTA BLANCA DE DESARROLLO (WHITELIST)
-    const LISTA_BLANCA_DEV = [
-        "hebertoh-m@hotmail.com", 
-        "cliente@test.com",       
-        "tecnico@test.com"        
-    ];
-
-    // Si hay un usuario logueado pero su correo NO está verificado, no lo redirigimos
-    // (a menos que esté en la Lista Blanca)
-    if (user && (user.emailVerified || LISTA_BLANCA_DEV.includes(user.email))) {
+    // 🔥 ONBOARDING INMEDIATO: Ya no evaluamos si el correo está verificado o si está en lista blanca.
+    // Solo comprobamos que haya una sesión activa.
+    if (user) {
         const path = window.location.pathname;
         if (path.includes("login.html") || path.includes("registro")) {
             setTimeout(() => {
