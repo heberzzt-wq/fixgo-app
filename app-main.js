@@ -1,21 +1,22 @@
 /**
- * ======================================================
+ * ======================================================================================
  * GESTIAPREMIUM 2026 - MAIN CONTROLLER (ROUTER & GATEKEEPER)
  * Archivo: app-main.js
- * Versión: 5.13.0 (Integración Stripe Payment Links)
+ * Versión: 5.14.0 (Integración Stripe Auto-Inject Webhook Ready)
  * Autor: Heber (CEO & Lead Architect)
- * ======================================================
+ * ======================================================================================
  */
 
-console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.13.0...");
+console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.14.0...");
 
-import { observarAuth, auth, signOut } from "./firebase.js";
+// 🚨 INYECCIÓN DE DEPENDENCIAS DE BASE DE DATOS PARA CREAR EL SERVICIO
+import { observarAuth, auth, signOut, db, collection, addDoc, serverTimestamp } from "./firebase.js";
 import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./app-panel.js";
 
 // 💳 MOTOR STRIPE: INYECCIÓN DE LLAVE PÚBLICA (TEST MODE)
 const STRIPE_PUBLIC_KEY = "pk_test_51SuznMFB3c4okYlKz7FZYdaftLAmuBWkO1cGlHDrzxbON37J8STqFtDsG6apf7zup4YJTmFbyVtmzdqIV0icjxeX00YVsW2OHU";
 // URL de tu Payment Link de prueba creado en el Dashboard
-const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_8x2fZh5OR2WEek63oz1kA00"; // <-- REEMPLAZA ESTO CON LA URL EXACTA QUE TE DIO STRIPE
+const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_8x2fZh5OR2WEek63oz1kA00"; 
 
 // Inicializar objeto Stripe (la librería se cargó en el HTML)
 let stripe;
@@ -92,15 +93,15 @@ observarAuth(async (user) => {
 });
 
 /**
- * 💳 MOTOR STRIPE: INTERCEPTOR DE SOLICITUDES
- * Controla el formulario de cliente.html para desviar hacia Stripe si elige Tarjeta.
+ * 💳 MOTOR STRIPE: INTERCEPTOR DE SOLICITUDES (ACTUALIZADO PARA AUTO-INYECCIÓN)
+ * Controla el formulario de cliente.html para crear la base de datos y desviar hacia Stripe.
  */
 function iniciarMotorStripe(user) {
     const formularioSolicitud = document.getElementById('nuevaSolicitudForm');
     
     if (formularioSolicitud) {
         formularioSolicitud.addEventListener('submit', async (e) => {
-            e.preventDefault(); // Detenemos el envío estándar para analizar el método de pago
+            e.preventDefault(); // Detenemos el envío estándar
 
             const metodoPagoSeleccionado = document.querySelector('input[name="metodoPago"]:checked').value;
             console.log("💳 Método de pago seleccionado:", metodoPagoSeleccionado);
@@ -108,28 +109,41 @@ function iniciarMotorStripe(user) {
             // Recolectar datos del formulario para mandarlos a Firebase
             const formData = new FormData(formularioSolicitud);
             const datosServicio = Object.fromEntries(formData.entries());
-            datosServicio.clienteEmail = user.email;
-            datosServicio.estadoPago = "pendiente";
+            
+            // 🚨 INYECCIÓN MAESTRA: Datos vitales para el Webhook y NOC
+            datosServicio.cliente_email = user.email; // El campo clave que busca index.js
+            datosServicio.cliente_nombre = user.nombre || user.email;
+            datosServicio.cliente_id = user.uid; // Identificador único
+            datosServicio.estado = "pendiente";  // Gatillo de seguridad
+            datosServicio.created_at = serverTimestamp();
+            datosServicio.metodo_pago = metodoPagoSeleccionado;
 
-            if (metodoPagoSeleccionado === "stripe") {
-                console.log("🚀 Redirigiendo a Pasarela Stripe segura...");
+            try {
+                console.log("💾 Escribiendo solicitud en la Base de Datos...");
                 
-                // 1. (Opcional) Aquí guardarías 'datosServicio' en Firestore con estado "pendiente"
-                // await guardarSolicitudEnFirebase(datosServicio);
+                // 1. Guardamos la solicitud en Firestore antes de enviarlo a Stripe
+                const docRef = await addDoc(collection(db, "services"), datosServicio);
+                console.log(`✅ Servicio creado con éxito en DB (ID: ${docRef.id}). Esperando confirmación de pago...`);
 
-                // 2. Redirigir al Payment Link (Inyectando el correo del cliente para que no lo tenga que teclear)
-                const urlCobro = new URL(STRIPE_PAYMENT_LINK);
-                urlCobro.searchParams.append('prefilled_email', user.email);
-                
-                // Ejecutamos la redirección (El cliente sale temporalmente de la app hacia Stripe)
-                window.location.href = urlCobro.toString();
+                if (metodoPagoSeleccionado === "stripe") {
+                    console.log("🚀 Redirigiendo a Pasarela Stripe segura...");
+                    
+                    // 2. Redirigir al Payment Link (Inyectando el correo del cliente)
+                    const urlCobro = new URL(STRIPE_PAYMENT_LINK);
+                    urlCobro.searchParams.append('prefilled_email', user.email);
+                    
+                    // Ejecutamos la redirección
+                    window.location.href = urlCobro.toString();
 
-            } else {
-                console.log("💵 Procesando pago en efectivo (Ruta Estándar)");
-                // Aquí ejecutas la función normal de app-panel.js para guardar en Firebase
-                // Ej: await registrarServicio(datosServicio);
-                alert("Servicio solicitado correctamente. Pago contra entrega.");
-                formularioSolicitud.reset();
+                } else {
+                    console.log("💵 Procesando pago en efectivo (Ruta Estándar)");
+                    alert("Servicio solicitado correctamente. Pago contra entrega.");
+                    formularioSolicitud.reset();
+                    window.location.reload(); // Refrescamos la interfaz del cliente
+                }
+            } catch (error) {
+                console.error("❌ Error al crear el documento en Firebase:", error);
+                alert("Hubo un error al generar la solicitud. Verifica tu conexión.");
             }
         });
     }
@@ -137,8 +151,6 @@ function iniciarMotorStripe(user) {
 
 /**
  * ⚡ MOTOR DE REACTIVIDAD: DELEGACIÓN DE EVENTOS GLOBAL
- * Esta función asegura que botones inyectados después (como CREAR COTIZACIÓN) 
- * funcionen sin recargar la página.
  */
 function iniciarEscuchaEventosDinamicos() {
     const panelAcciones = document.getElementById("panelAcciones");
@@ -149,13 +161,10 @@ function iniciarEscuchaEventosDinamicos() {
         panelAcciones.parentNode.replaceChild(nuevoPanel, panelAcciones);
 
         nuevoPanel.addEventListener("click", (e) => {
-            // Buscamos el botón de cotización por texto o ID contenido
             const btnCotizar = e.target.closest('button');
             
             if (btnCotizar && btnCotizar.innerText.includes("CREAR COTIZACIÓN")) {
                 console.log("🛠️ GestiaPremium: Detectado clic en Cotización. Ejecutando motor...");
-                
-                // Disparar evento personalizado o llamar a la función de app-panel.js
                 window.dispatchEvent(new CustomEvent("abrirMotorCotizacion"));
             }
         });
