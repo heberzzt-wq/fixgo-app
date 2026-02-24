@@ -155,7 +155,7 @@ export async function iniciarPanelCliente(user) {
  cargarServiciosCliente();
 
  // ----------------------------------------------------------------------------------
- // 3.2 ENVÍO DE SOLICITUD (SHARK MODE ANTI-SPAM)
+ // 3.2 ENVÍO DE SOLICITUD (SHARK MODE ANTI-SPAM & RUTEO DUAL STRIPE/EFECTIVO)
  // ----------------------------------------------------------------------------------
  let lastSubmitTime = 0; 
 
@@ -223,8 +223,19 @@ export async function iniciarPanelCliente(user) {
  const vertical = partes[0].toUpperCase(); 
  const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
 
+ // 🔥 INYECCIÓN: LÓGICA DE RUTEO DE PAGO SEGÚN PERMISOS VIP
+ const esEfectivoAutorizado = user.efectivo_autorizado === true;
+ let metodoSeleccionado = "stripe"; // Tarjeta por defecto
+
+ if (esEfectivoAutorizado) {
+ const quiereEfectivo = confirm("⭐ ERES CLIENTE VIP ⭐\n\nTienes autorización para pagar en EFECTIVO directo al técnico.\n\n- Toca [Aceptar] para solicitar con pago en EFECTIVO.\n- Toca [Cancelar] para retener $550 con TARJETA.");
+ if (quiereEfectivo) {
+ metodoSeleccionado = "efectivo";
+ }
+ }
+
  try {
- await addDoc(collection(db, "services"), {
+ const payloadTicket = {
  cliente_id: user.uid,
  cliente_nombre: user.nombre || "Cliente",
  cliente_telefono: user.telefono || "",
@@ -233,24 +244,26 @@ export async function iniciarPanelCliente(user) {
  categoria_id: categoriaFull,
  direccion: direccion,
  descripcion: descripcion,
- estado: "pendiente",
+ estado: metodoSeleccionado === "efectivo" ? "pendiente" : "iniciado_stripe", // <-- CLAVE ANTI-DUPLICADO
+ metodo_pago: metodoSeleccionado,
  zona: "Cancún",
  created_at: serverTimestamp(),
- retencion_inicial: 0, 
+ retencion_inicial: metodoSeleccionado === "stripe" ? 550 : 0, 
  costo_final: 0,
  coords: coords,
  factura_requerida: reqFac,
  datos_facturacion: datosFac,
  factura_enviada: false
- });
- 
+ };
+
+ // Creamos UN SOLO DOCUMENTO base
+ const docRef = await addDoc(collection(db, "services"), payloadTicket);
  lastSubmitTime = Date.now(); 
 
- alert(" ✅ ¡Solicitud Enviada!\n\nNuestro sistema está buscando al técnico certificado más cercano...");
  el.form.reset();
  if(el.toggleFactura) {
  el.toggleFactura.checked = false;
- document.getElementById('datosFacturacion').classList.add('hidden');
+ document.getElementById('datosFacturacion')?.classList.add('hidden');
  }
  
  const formContainer = document.getElementById("modalSolicitud");
@@ -261,6 +274,21 @@ export async function iniciarPanelCliente(user) {
  cardBtn.classList.remove('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
  cardBtn.classList.add('bg-zinc-900', 'border-zinc-700');
  });
+
+ // REDIRECCIÓN SEGÚN MÉTODO
+ if (metodoSeleccionado === "stripe") {
+ alert("🔒 Redirigiendo a pasarela segura...\n\nSe realizará una retención de $550 MXN por garantía. Tu técnico será asignado en cuanto confirmes el pago.");
+ // Hook para tu archivo fixgo-bridge.js
+ if (window.procesarPagoStripe) {
+ window.procesarPagoStripe(docRef.id, payloadTicket);
+ } else {
+ console.warn("Falta conectar la pasarela. Por favor, asegúrate de que fixgo-bridge.js lea este ticket ID:", docRef.id);
+ // Si no tienes la función conectada, aquí debes integrar el window.location.href a Stripe.
+ }
+ } else {
+ alert(" ✅ ¡Solicitud VIP en Efectivo Enviada!\n\nNuestro sistema está buscando al técnico certificado más cercano...");
+ }
+
  } catch (error) {
  console.error(error);
  alert("Error al enviar solicitud al servidor central.");
@@ -307,7 +335,16 @@ export async function iniciarPanelCliente(user) {
  
  let contenido = `<div class="p-4 bg-yellow-900/10 rounded-xl border border-yellow-500/30 mb-2"><span class="text-xs font-bold text-yellow-500 animate-pulse"> 🔎 RASTREANDO TÉCNICO EN LA ZONA...</span></div>`;
  
- if (s.estado === "cotizando") {
+ if (s.estado === "iniciado_stripe") {
+ // Visualización amigable para cuando el cliente aún no paga o está procesando
+ contenido = `
+ <div class="bg-blue-900/10 border border-blue-500/30 p-4 rounded-xl mt-2 text-center">
+ <i class="fas fa-credit-card text-blue-500 text-2xl mb-2 animate-bounce"></i>
+ <p class="text-blue-400 font-bold text-xs uppercase">PENDIENTE DE PAGO STRIPE</p>
+ <p class="text-gray-400 text-[10px] mt-1">Esperando confirmación del banco para despachar al técnico.</p>
+ </div>
+ `;
+ } else if (s.estado === "cotizando") {
  let htmlTabla = "";
  if (s.detalles_cotizacion && s.detalles_cotizacion.length > 0) {
  const filas = s.detalles_cotizacion.map(item => `
@@ -406,6 +443,7 @@ export async function iniciarPanelCliente(user) {
  dotColor = "bg-blue-500";
  if(s.estado === "finalizado") { headerStatus = `<span class="text-[10px] font-bold text-emerald-500">FINALIZADO</span>`; dotColor = "bg-emerald-500"; }
  if(s.estado === "cancelado") { headerStatus = `<span class="text-[10px] font-bold text-red-500">CANCELADO</span>`; dotColor = "bg-red-500"; }
+ if(s.estado === "iniciado_stripe") { headerStatus = `<span class="text-[10px] font-bold text-blue-400 animate-pulse">PAGO PENDIENTE (STRIPE)</span>`; dotColor = "bg-blue-500"; }
  }
 
  let fechaFormat = "";
