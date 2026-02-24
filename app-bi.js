@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - MOTOR DE INTELIGENCIA EMPRESARIAL Y CRM (BI ENGINE)
  * ======================================================================================
  * Archivo: app-bi.js
- * Versión: 1.0.4 (Integración Stripe + RESTAURACIÓN DE LÓGICA MAESTRA)
+ * Versión: 1.0.5 (Integración Stripe + RESTAURACIÓN MAESTRA + CONTROL EFECTIVO)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
@@ -107,6 +107,21 @@ export async function iniciarMotorBI(contenedorId) {
                     </div>
                 </div>
             </div>
+
+            <div class="col-span-1 lg:col-span-2 bg-zinc-900 rounded-2xl border border-blue-900/50 p-5 mt-6 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+                <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-3">
+                    <h3 class="text-white font-bold text-sm uppercase tracking-wider flex items-center gap-2">
+                        <i class="fas fa-money-bill-wave text-blue-400"></i> Control de Excepciones: Pagos en Efectivo
+                    </h3>
+                    <span class="bg-blue-900/30 text-blue-400 border border-blue-500/50 text-[9px] font-bold px-2 py-1 rounded uppercase tracking-widest">
+                        Tickets Activos en Tiempo Real
+                    </span>
+                </div>
+                <div id="biTicketsEfectivo" class="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                    <p class="text-xs text-gray-500 text-center py-4">Monitoreando operaciones en curso...</p>
+                </div>
+            </div>
+
         </div>
     `;
 
@@ -128,6 +143,8 @@ function iniciarEscuchaTelemetria() {
         dataServicios = [];
         snap.forEach(doc => dataServicios.push({ id: doc.id, ...doc.data() }));
         procesarSemaforosOperativos(dataServicios);
+        // 🔥 INYECTAMOS RENDERIZADO DEL NUEVO MÓDULO DE EFECTIVO
+        renderizarControlEfectivo(dataServicios); 
     });
 
     onSnapshot(qTrans, (snap) => {
@@ -539,7 +556,76 @@ function procesarMotorComercialLTV(transacciones, servicios) {
 }
 
 // ======================================================================================
-// 🛡️ 4. MÓDULO DE CONTINGENCIA OPERATIVA (RESTAURADO COMPLETO)
+// 💵 4. NUEVO MÓDULO: RENDERIZADO Y CONTROL DE EXCEPCIONES (EFECTIVO)
+// ======================================================================================
+function renderizarControlEfectivo(servicios) {
+    const contenedor = document.getElementById("biTicketsEfectivo");
+    if (!contenedor) return;
+
+    // Filtramos solo los servicios que están vivos/activos en este momento
+    const estadosActivos = ['buscando_tecnico', 'asignado', 'en_camino', 'cotizando', 'trabajando', 'pago_pendiente'];
+    const serviciosActivos = servicios.filter(s => estadosActivos.includes(s.estado));
+
+    if (serviciosActivos.length === 0) {
+        contenedor.innerHTML = '<p class="text-gray-500 text-xs text-center py-4"><i class="fas fa-check-double mb-2 text-xl block text-zinc-700"></i> No hay operaciones activas en este momento.</p>';
+        return;
+    }
+
+    let html = "";
+    serviciosActivos.forEach(s => {
+        // Verificamos si este ticket ya tiene el permiso de efectivo
+        const efectivoHabilitado = s.allowCashPayment === true;
+        
+        // Estilos condicionales
+        const cardBorder = efectivoHabilitado ? 'border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'border-zinc-800';
+        const statusBadge = `<span class="bg-zinc-800 text-zinc-400 text-[8px] px-2 py-0.5 rounded uppercase tracking-widest">${s.estado.replace('_', ' ')}</span>`;
+        
+        html += `
+            <div class="bg-black p-4 rounded-xl border ${cardBorder} flex justify-between items-center mb-2 transition-all">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <p class="text-white font-bold text-xs uppercase"><i class="fas fa-user text-blue-500"></i> ${escaparHTML(s.cliente_nombre || 'Cliente')}</p>
+                        ${statusBadge}
+                    </div>
+                    <p class="text-[9px] text-gray-500 font-mono">ID: ${s.id} | Servicio: ${escaparHTML(s.categoria || 'Gral')}</p>
+                </div>
+                
+                <div class="text-right">
+                    ${efectivoHabilitado ? `
+                        <div class="flex items-center gap-2 text-emerald-400 text-[10px] font-bold bg-emerald-900/20 px-3 py-1.5 rounded-full border border-emerald-500/30">
+                            <i class="fas fa-check-circle"></i> EFECTIVO HABILITADO
+                        </div>
+                    ` : `
+                        <button onclick="window.habilitarCobroEfectivo('${s.id}', '${escaparHTML(s.cliente_nombre || '')}')" 
+                                class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-4 py-2 rounded-lg transition-colors shadow-lg shadow-blue-900/50 flex items-center gap-2">
+                            <i class="fas fa-unlock-alt"></i> AUTORIZAR EFECTIVO
+                        </button>
+                    `}
+                </div>
+            </div>
+        `;
+    });
+
+    contenedor.innerHTML = html;
+}
+
+// LOGICA DE ACCIÓN: Disparador del Switch Mágico en Firebase
+window.habilitarCobroEfectivo = async (servicioId, clienteNombre) => {
+    if(!confirm(`🔐 AUTORIZACIÓN DE EXCEPCIÓN\n\n¿Estás seguro de habilitar el pago en EFECTIVO para el cliente ${clienteNombre}?\n\nAl confirmar, el botón de "Pagar en Efectivo" aparecerá mágicamente en la app de este cliente de forma instantánea.`)) return;
+
+    try {
+        await updateDoc(doc(db, "services", servicioId), {
+            allowCashPayment: true
+        });
+        alert(`✅ Permiso inyectado. El cliente ${clienteNombre} ya puede ver la opción de Efectivo.`);
+    } catch (e) {
+        console.error("Error al habilitar efectivo:", e);
+        alert("Error de conexión al inyectar el permiso.");
+    }
+};
+
+// ======================================================================================
+// 🛡️ 5. MÓDULO DE CONTINGENCIA OPERATIVA (RESTAURADO COMPLETO)
 // ======================================================================================
 window.descargarBackupOperativo = async () => {
     if(!confirm("⚠️ PROTOCOLO DE CONTINGENCIA (PLAN B) ⚠️\n\n¿Estás seguro de que deseas exportar la Base de Datos completa (Clientes y Técnicos) para operación manual fuera de línea?")) return;
