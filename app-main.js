@@ -2,21 +2,19 @@
  * ======================================================================================
  * GESTIAPREMIUM 2026 - MAIN CONTROLLER (ROUTER & GATEKEEPER)
  * Archivo: app-main.js
- * Versión: 5.15.3 (Fix Colisiones Firebase + Preservación Auth + Modo Dios + Excepción Efectivo Cliente)
+ * Versión: 5.15.4 (Blindaje de Rutas Estricto - Interlock Total)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
 
-console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.15.3...");
+console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.15.4...");
 
-// 🚨 FIX 1: Importamos doc y getDoc de NUESTRO firebase.js local. Cero colisiones.
+// 🚨 Importaciones de base de datos puras
 import { observarAuth, auth, signOut, db, collection, addDoc, serverTimestamp, getDoc, doc } from "./firebase.js";
 import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./app-panel.js";
-
-// 🚨 FIX 2: Traemos el inicializador del BI aquí para evitar carreras de tiempo.
 import { iniciarMotorBI } from "./app-bi.js"; 
 
-// 💳 MOTOR STRIPE: INYECCIÓN DE LLAVE PÚBLICA (TEST MODE)
+// 💳 MOTOR STRIPE
 const STRIPE_PUBLIC_KEY = "pk_test_51SuznMFB3c4okYlKz7FZYdaftLAmuBWkO1cGlHDrzxbON37J8STqFtDsG6apf7zup4YJTmFbyVtmzdqIV0icjxeX00YVsW2OHU";
 const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_8x2fZh5OR2WEek63oz1kA00"; 
 
@@ -39,6 +37,7 @@ observarAuth(async (userAuth) => {
     const archivoActual = pathActual.substring(pathActual.lastIndexOf('/') + 1) || "index.html";
     const esPublica = RUTAS.publicas.includes(archivoActual);
 
+    // 1. Visitante sin sesión
     if (!userAuth) {
         if (!esPublica) {
             console.warn("⛔ Gatekeeper: Intruso detectado. Expulsando...");
@@ -49,7 +48,6 @@ observarAuth(async (userAuth) => {
         return;
     }
 
-    // 🚨 FIX 4: Mantenemos el objeto original (userAuth) vivo. No lo destruimos con Spread (...).
     let userRol = null;
     let userData = {};
 
@@ -73,49 +71,44 @@ observarAuth(async (userAuth) => {
         }
     }
 
-    // Inyectamos los datos seguros al objeto maestro
     userAuth.rol = userRol;
     userAuth.nombre = userData.nombre || userAuth.email;
 
     console.log(`✅ Usuario: ${userAuth.email} | Rol validado: ${userAuth.rol}`);
 
-    if (userAuth.rol === "tecnico" && archivoActual === RUTAS.cliente) {
+    // 🔥 BLINDAJE ESTRICTO DE RUTAS (NUEVO INTERLOCK V5.15.4) 🔥
+    // Fuerza a cada rol a estar exactamente en su archivo. Ni siquiera el login podrá desviar al CEO.
+    if (userAuth.rol === "admin" && archivoActual !== RUTAS.admin) {
+        console.log("🔄 Desvío detectado. Retornando al Admin a su panel de control...");
+        window.location.replace(RUTAS.admin);
+        return;
+    }
+    if (userAuth.rol === "tecnico" && archivoActual !== RUTAS.tecnico) {
+        console.log("🔄 Desvío detectado. Retornando al Técnico a su panel operativo...");
         window.location.replace(RUTAS.tecnico);
         return;
     }
-    if (userAuth.rol === "cliente" && (archivoActual === RUTAS.tecnico || archivoActual === RUTAS.admin)) {
+    if (userAuth.rol === "cliente" && archivoActual !== RUTAS.cliente) {
+        console.log("🔄 Desvío detectado. Retornando al Cliente a su panel de servicio...");
         window.location.replace(RUTAS.cliente);
         return;
     }
-    if (esPublica) {
-        if (userAuth.rol === "admin") window.location.replace(RUTAS.admin);
-        else if (userAuth.rol === "tecnico") window.location.replace(RUTAS.tecnico);
-        else window.location.replace(RUTAS.cliente);
-        return;
-    }
 
+    // 🔓 Si llegó hasta aquí, está en la página correcta. Desbloqueamos UI.
     document.body.style.display = 'block';
 
     try {
-        if (userAuth.rol === "admin" && archivoActual === RUTAS.admin) {
+        if (userAuth.rol === "admin") {
             await iniciarPanelAdmin(userAuth);
-            // Iniciamos el Cerebro BI de forma segura 500ms después para evitar bloqueos
-            setTimeout(() => {
-                iniciarMotorBI('dashboardAnalitico');
-            }, 500);
+            setTimeout(() => { iniciarMotorBI('dashboardAnalitico'); }, 500);
         }
-        else if (userAuth.rol === "tecnico" && archivoActual === RUTAS.tecnico) {
+        else if (userAuth.rol === "tecnico") {
             await iniciarPanelTecnico(userAuth);
         }
-        else if (userAuth.rol === "cliente" && archivoActual === RUTAS.cliente) {
+        else if (userAuth.rol === "cliente") {
             await iniciarPanelCliente(userAuth);
-            
-            // 🔥 LÓGICA DE EXCEPCIÓN: Verificar si el Admin autorizó efectivo para este usuario específico
-            // Se busca el campo 'permisoEspecialEfectivo' en el documento del usuario en Firestore
+            // Lógica de Excepción Efectivo para Cliente
             const efectivoAutorizado = userData.permisoEspecialEfectivo === true;
-            if (efectivoAutorizado) {
-                console.log("🌟 [MODO DIOS ADMIN] Excepción aplicada: Pago en efectivo HABILITADO para este cliente.");
-            }
             iniciarMotorStripe(userAuth, efectivoAutorizado); 
         }
         
@@ -126,20 +119,18 @@ observarAuth(async (userAuth) => {
     }
 });
 
-// Se modifica la función para aceptar el parámetro de autorización de efectivo
 function iniciarMotorStripe(user, efectivoAutorizado = false) {
     const formularioSolicitud = document.getElementById('nuevaSolicitudForm');
-    const contenedorEfectivo = document.getElementById('contenedorOpcionEfectivo'); // Referencia al contenedor oculto en HTML
+    const contenedorEfectivo = document.getElementById('contenedorOpcionEfectivo');
 
-    // 🔥 Si el Admin dio el permiso especial, mostramos el botón de efectivo
+    // 🔥 Si el Admin dio el permiso, el botón de efectivo se muestra en el DOM
     if (efectivoAutorizado && contenedorEfectivo) {
-        contenedorEfectivo.classList.remove('hidden'); // Quitamos la clase que lo oculta
+        contenedorEfectivo.classList.remove('hidden'); 
     }
     
     if (formularioSolicitud) {
         formularioSolicitud.addEventListener('submit', async (e) => {
             e.preventDefault(); 
-            // Obtenemos el método seleccionado. Si efectivo estaba oculto, el navegador enviará el que estaba visible y marcado (Stripe)
             const inputMetodo = document.querySelector('input[name="metodoPago"]:checked');
             const metodoPagoSeleccionado = inputMetodo ? inputMetodo.value : "stripe"; 
             
@@ -153,33 +144,25 @@ function iniciarMotorStripe(user, efectivoAutorizado = false) {
             datosServicio.created_at = serverTimestamp();
             datosServicio.metodo_pago = metodoPagoSeleccionado;
 
-            console.log("🚀 Procesando solicitud con método de pago:", metodoPagoSeleccionado);
-
             try {
-                // Guardamos primero la intención en la base de datos
                 const docRef = await addDoc(collection(db, "services"), datosServicio);
                 console.log(`✅ Servicio creado con éxito en DB (ID: ${docRef.id}).`);
 
                 if (metodoPagoSeleccionado === "stripe") {
-                    // Flujo normal digital
                     const urlCobro = new URL(STRIPE_PAYMENT_LINK);
                     urlCobro.searchParams.append('prefilled_email', user.email);
-                    // Opcional: Podríamos pasar el ID del servicio a Stripe para conciliación futura
-                    // urlCobro.searchParams.append('client_reference_id', docRef.id);
                     window.location.href = urlCobro.toString();
                 } else if (metodoPagoSeleccionado === "efectivo" && efectivoAutorizado) {
-                    // Flujo de excepción autorizado por Admin
-                    alert("✅ ¡Solicitud Exitosa! Tu pago en efectivo ha sido pre-aprobado por la administración. Un técnico se pondrá en contacto.");
+                    alert("✅ ¡Solicitud Exitosa! Tu pago en efectivo ha sido pre-aprobado. Un técnico va en camino.");
                     formularioSolicitud.reset();
                     window.location.reload(); 
                 } else {
-                    // Seguridad extra: Alguien intentó forzar efectivo sin permiso
                     console.error("⛔ Intento de pago en efectivo no autorizado.");
                     alert("Error: Método de pago no válido.");
                 }
             } catch (error) {
                 console.error("❌ Error al crear documento en Firebase:", error);
-                alert("Hubo un error al generar la solicitud. Verifica tu conexión y reintenta.");
+                alert("Hubo un error al generar la solicitud. Verifica tu conexión.");
             }
         });
     }
