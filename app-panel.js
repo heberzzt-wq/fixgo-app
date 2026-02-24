@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - PANEL MAESTRO DE CONTROL (LOGIC CORE) - ARQUITECTURA MAESTRA
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.4 (FCM PUSH ENGINE INTEGRATED + EVOLUCIÓN IDENTIDAD VISUAL GESTIAPREMIUM)
+ * Versión: 5.18.6 (STRIPE DUAL RADAR & SMART WALLET SETTLEMENT)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Febrero 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
@@ -13,7 +13,7 @@
 import {
     db,
     auth,
-    storage, // <-- NUEVA INYECCIÓN V5.17.0: DISCO DURO VIRTUAL
+    storage, 
     appCheck,
     doc,
     updateDoc,
@@ -143,7 +143,7 @@ const urlABase64 = async (url) => {
         return null;
     }
 };
-console.log(" 🚀  GESTIAPREMIUM 5.18.4: FCM PUSH ENGINE + STORAGE EVIDENCE + STRIKE UI ACTIVATED.");
+console.log(" 🚀  GESTIAPREMIUM 5.18.6: STRIPE DUAL RADAR + SMART SETTLEMENT ACTIVATED.");
 
 // ======================================================================================
 // 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
@@ -330,7 +330,7 @@ export async function iniciarPanelAdmin(user) {
                 item.className = "flex justify-between items-start border-b border-white/5 py-3 last:border-0";
 
                 let colorEstado = "text-gray-400";
-                if(data.estado === "pendiente") colorEstado = "text-yellow-500";
+                if(data.estado === "pendiente" || data.estado === "pagado") colorEstado = "text-yellow-500";
                 if(data.estado === "asignado") colorEstado = "text-blue-300";
                 if(data.estado === "en_camino") colorEstado = "text-blue-400";
                 if(data.estado === "en_sitio") colorEstado = "text-purple-400";
@@ -465,7 +465,7 @@ export async function iniciarPanelAdmin(user) {
                 <div class="flex justify-between text-red-400"><span>ISR (30% s/Comisión):</span> <span>-$${globalISR.toFixed(2)}</span></div>
                 <div class="flex justify-between font-bold text-yellow-500"><span>FONDO GARANTÍA (2%):</span> <span>$${globalGarantia.toFixed(2)}</span></div>
                 <div class="flex justify-between text-gray-500"><span>STRIPE FEES (3.6%+$3):</span> <span>-$${globalStripe.toFixed(2)}</span></div>
-                
+                <br>
                 <div class="flex justify-between font-black text-white bg-emerald-600/30 px-2 py-1 rounded border border-emerald-500/50 my-2">
                     <span>💵 UTILIDAD NETA GESTIAPREMIUM:</span> <span>$${utilidadNetaReal.toFixed(2)}</span>
                 </div>
@@ -708,7 +708,7 @@ export async function iniciarPanelAdmin(user) {
             docPdf.setFont("helvetica", "normal");
             docPdf.setFontSize(14);
             docPdf.setTextColor(16, 185, 129); 
-            docPdf.text(`Total Pagado (Efectivo): $${data.costo_final} MXN`, 20, y);
+            docPdf.text(`Total Pagado: $${data.costo_final} MXN (${data.metodo_pago ? data.metodo_pago.toUpperCase() : 'EFECTIVO'})`, 20, y);
             
             y += 20;
             docPdf.setTextColor(0, 0, 0);
@@ -1211,12 +1211,11 @@ function generarSwitchGranular(id, label, checked) {
 
 // ======================================================================================
 // ======================================================================================
-// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + V5.18.3)
+// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + V5.18.6)
 // ======================================================================================
 export async function iniciarPanelTecnico(user) {
     console.log(" 🔧  Iniciando Panel de Técnico (Modo Uber Cash / Storage 4K / UI Disciplinaria)...");
     
-    // 🔥 INYECCIÓN V5.18.3: Registro y activación del Motor Push FCM para el técnico
     activarMotorFCM(user.uid);
 
     const elementos = {
@@ -1227,8 +1226,8 @@ export async function iniciarPanelTecnico(user) {
         listaBolsa: document.getElementById("listaBolsa"),
         listaServicios: document.getElementById("listaServicios"),
         panelAcciones: document.getElementById("panelAcciones"),
-        btnEnCamino: document.getElementById("btnEnCamino"), // Mantenido por si acaso
-        btnLlegue: document.getElementById("btnLlegue"),   // Mantenido por si acaso
+        btnEnCamino: document.getElementById("btnEnCamino"), 
+        btnLlegue: document.getElementById("btnLlegue"),   
         walletLabel: document.getElementById("walletSaldo"),
         btnRetiro: document.getElementById("btnRetiro"),
         contenedorHistorialRetiros: document.getElementById("contenedorHistorialRetiros"),
@@ -1319,7 +1318,7 @@ export async function iniciarPanelTecnico(user) {
                 </div>
                 `;
             }
-            return; // Detiene la ejecución aquí para bloquear la app
+            return; 
         }
 
         // 🟡 LÓGICA DE REVISIÓN (NUEVOS TÉCNICOS)
@@ -1389,7 +1388,8 @@ export async function iniciarPanelTecnico(user) {
             const tx = docSnap.data();
             const monto = (tx.pago_tecnico || 0);
             
-            if (tx.tipo === "retiro_fondos" || tx.tipo === "penalizacion" || tx.tipo === "abono_deuda") { 
+            // Abonos de Stripe ahora suman positivamente a la cuenta del técnico
+            if (tx.tipo === "retiro_fondos" || tx.tipo === "penalizacion" || tx.tipo === "abono_deuda" || tx.tipo === "abono_stripe") { 
                 saldoBrutoDisponible += monto; 
             } else {
                 if (tx.fecha && tx.fecha.toDate) {
@@ -1565,8 +1565,8 @@ export async function iniciarPanelTecnico(user) {
                             <p class="text-[9px] text-gray-500"><i class="fas fa-hashtag"></i> Folio: ${s.folio_fiscal || id.substring(0,6).toUpperCase()}</p>
                         </div>
                         <div class="text-right">
-                            <p class="text-[10px] text-gray-500 mb-0.5 uppercase font-bold">Cobro en Efectivo:</p>
-                            <p class="text-emerald-400 font-black text-sm">$${s.costo_final ? s.costo_final.toFixed(2) : '0.00'}</p>
+                            <p class="text-[10px] text-gray-500 mb-0.5 uppercase font-bold">Cobro ${s.metodo_pago === 'stripe' ? 'Stripe' : 'en Efectivo'}:</p>
+                            <p class="${s.metodo_pago === 'stripe' ? 'text-blue-400' : 'text-emerald-400'} font-black text-sm">$${s.costo_final ? s.costo_final.toFixed(2) : '0.00'}</p>
                         </div>
                     </div>
                 `;
@@ -1587,12 +1587,13 @@ export async function iniciarPanelTecnico(user) {
         });
     }
 
-    // 🔥 ESCUDO ANTI-SPAM (V5.18.2) INYECTADO AQUÍ
+    // 🔥 ESCUDO ANTI-SPAM + RADAR STRIPE (V5.18.6)
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
-        const q = query(collection(db, "services"), where("estado", "==", "pendiente"), orderBy("created_at", "desc"), limit(50));
+        // INYECCIÓN DE RADAR: Ahora escucha "pendiente" (Efectivo) y "pagado" (Stripe)
+        const q = query(collection(db, "services"), where("estado", "in", ["pendiente", "pagado"]), orderBy("created_at", "desc"), limit(50));
 
-        let cargaInicial = true; // Activa el escudo al iniciar
+        let cargaInicial = true;
 
         onSnapshot(q, (snap) => {
             contenedor.innerHTML = "";
@@ -1600,17 +1601,15 @@ export async function iniciarPanelTecnico(user) {
 
             if(snap.empty) {
                 contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">Escaneando zona... esperando solicitudes.</p>`;
-                cargaInicial = false; // Desactiva escudo si no hay nada
+                cargaInicial = false; 
                 return;
             }
 
-            // Detectar si hay cambios REALMENTE NUEVOS
             let hayNuevos = false;
             snap.docChanges().forEach(change => {
                 if (change.type === 'added') hayNuevos = true;
             });
 
-            // Si NO es la carga inicial y SI hay servicios nuevos, ENTONCES suena.
             if (!cargaInicial && hayNuevos) {
                 console.log(" 🔔  ¡Alerta Real! Nueva solicitud en la zona.");
                 sonarAlerta();
@@ -1632,12 +1631,21 @@ export async function iniciarPanelTecnico(user) {
 
                 counter++; 
 
+                // Identificador UI de método de pago
+                let badgeMetodo = s.metodo_pago === 'stripe'
+                    ? '<span class="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(37,99,235,0.8)]"><i class="fab fa-stripe-s"></i> PAGADO STRIPE</span>'
+                    : '<span class="bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(16,185,129,0.8)]"><i class="fas fa-money-bill"></i> PAGO EFECTIVO</span>';
+
+                let btnAceptar = s.metodo_pago === 'stripe'
+                    ? `<button class="flex-[4] bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}', 'stripe')">ACEPTAR TICKET</button>`
+                    : `<button class="flex-[4] bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}', 'efectivo')">ACEPTAR TICKET</button>`;
+
                 const card = document.createElement("div");
-                card.className = "bg-zinc-900 border border-zinc-700 p-4 rounded-xl mb-3 animate-pulse border-emerald-500 shadow-lg shadow-emerald-900/20";
+                card.className = `bg-zinc-900 border ${s.metodo_pago === 'stripe' ? 'border-blue-500 shadow-blue-900/20' : 'border-emerald-500 shadow-emerald-900/20'} p-4 rounded-xl mb-3 animate-pulse shadow-lg`;
 
                 card.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
-                    <span class="bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider">NUEVA SOLICITUD</span>
+                    ${badgeMetodo}
                     <span class="text-white font-bold text-xs">${s.categoria ? escaparHTML(s.categoria.toUpperCase()) : 'GENERAL'}</span>
                 </div>
                 <h4 class="text-white font-bold text-base mb-1">${escaparHTML(s.zona || 'Cancún')}</h4>
@@ -1650,9 +1658,7 @@ export async function iniciarPanelTecnico(user) {
                     <button class="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 font-bold py-3 rounded-lg text-xs transition-colors" onclick="window.rechazarServicio('${id}', '${tecnico.uid}')">
                         <i class="fas fa-times"></i>
                     </button>
-                    <button class="flex-[4] bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}')">
-                        ACEPTAR (EFECTIVO)
-                    </button>
+                    ${btnAceptar}
                 </div>
                 `;
                 contenedor.appendChild(card);
@@ -1662,7 +1668,7 @@ export async function iniciarPanelTecnico(user) {
                 contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">No hay solicitudes disponibles para tu perfil.</p>`;
             }
 
-            cargaInicial = false; // Desactiva el escudo después de la primera leída
+            cargaInicial = false; 
         });
     }
 
@@ -1679,7 +1685,7 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
-    window.tomarServicio = async (id, uid, nombre) => {
+    window.tomarServicio = async (id, uid, nombre, metodo_pago) => {
         const qCheck = query(
             collection(db, "services"), 
             where("tecnico_id", "==", uid),
@@ -1692,7 +1698,11 @@ export async function iniciarPanelTecnico(user) {
             return;
         }
 
-        if(!confirm("¿Aceptar este servicio? \n\nRecuerda cobrar en efectivo al cliente al finalizar.")) return;
+        let mensajeConfirmacion = metodo_pago === 'stripe' 
+            ? "¿Aceptar este servicio?\n\nEl cliente YA PAGÓ por adelantado con tarjeta. Dirígete de inmediato." 
+            : "¿Aceptar este servicio? \n\nRecuerda cobrar en efectivo al cliente al finalizar.";
+
+        if(!confirm(mensajeConfirmacion)) return;
         
         try {
             const serviceRef = doc(db, "services", id);
@@ -1701,7 +1711,8 @@ export async function iniciarPanelTecnico(user) {
                 const sfDoc = await transaction.get(serviceRef);
                 
                 if (!sfDoc.exists()) throw "ERROR_NO_EXISTE";
-                if (sfDoc.data().estado !== "pendiente") throw "ERROR_COLISION"; 
+                // Tolerancia de colisión ampliada para Efectivo y Stripe
+                if (!["pendiente", "pagado"].includes(sfDoc.data().estado)) throw "ERROR_COLISION"; 
 
                 transaction.update(serviceRef, {
                     estado: "asignado",
@@ -1723,7 +1734,7 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
-    // 🔥 MISIONES ACTIVAS (CON BOTONES DINÁMICOS V5.18.2)
+    // 🔥 MISIONES ACTIVAS (CON BOTONES DINÁMICOS V5.18.6)
     const qMisiones = query(
         collection(db, "services"),
         where("tecnico_id", "==", user.uid),
@@ -1751,7 +1762,6 @@ export async function iniciarPanelTecnico(user) {
                 ? `${s.coords.lat},${s.coords.lng}`
                 : encodeURIComponent(s.direccion);
 
-            // 1. Determinar qué botón renderizar según el estado
             let botonAccionHTML = "";
 
             if (s.estado === "asignado") {
@@ -1765,10 +1775,18 @@ export async function iniciarPanelTecnico(user) {
                     <i class="fas fa-map-marker-alt"></i> YA LLEGUÉ AL SITIO
                 </button>`;
             } else if (s.estado === "en_sitio") {
-                 botonAccionHTML = `
-                <button onclick="window.abrirCotizadorGlobal('${id}')" class="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
-                    <i class="fas fa-calculator"></i> CREAR COTIZACIÓN
-                </button>`;
+                // BYPASS INTELIGENTE: Si es Stripe, se salta la cotización
+                if (s.metodo_pago === 'stripe') {
+                    botonAccionHTML = `
+                    <button onclick="window.actualizarEstadoGlobal('${id}', 'trabajando')" class="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
+                        <i class="fas fa-tools"></i> INICIAR TRABAJO (PAGADO)
+                    </button>`;
+                } else {
+                    botonAccionHTML = `
+                    <button onclick="window.abrirCotizadorGlobal('${id}')" class="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
+                        <i class="fas fa-calculator"></i> CREAR COTIZACIÓN
+                    </button>`;
+                }
             } else if (s.estado === "cotizando") {
                 botonAccionHTML = `
                 <button disabled class="w-full mt-4 bg-zinc-700 text-gray-400 font-bold py-4 rounded-xl flex items-center justify-center gap-2 cursor-not-allowed">
@@ -1777,11 +1795,10 @@ export async function iniciarPanelTecnico(user) {
             } else if (s.estado === "trabajando") {
                  botonAccionHTML = `
                 <button onclick="window.abrirEvidenciaGlobal('${id}')" class="w-full mt-4 bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
-                    <i class="fas fa-camera"></i> FINALIZAR Y COBRAR
+                    <i class="fas fa-camera"></i> FINALIZAR Y CERRAR
                 </button>`;
             }
 
-            // 2. Inyectar TODO en la tarjeta
             const card = document.createElement("div");
             card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl";
             card.innerHTML = `
@@ -1805,7 +1822,8 @@ export async function iniciarPanelTecnico(user) {
                 </a>
             </div>
 
-            ${botonAccionHTML} <div class="mt-4 border-t border-white/5 pt-4 text-center">
+            ${botonAccionHTML} 
+            <div class="mt-4 border-t border-white/5 pt-4 text-center">
                 <button onclick="window.cancelarMisionActiva('${id}')" class="text-red-500 text-xs font-bold underline hover:text-red-400">
                     CANCELAR SERVICIO (RIESGO PENALIZACIÓN)
                 </button>
@@ -1815,7 +1833,6 @@ export async function iniciarPanelTecnico(user) {
         });
     });
 
-    // 3. Funciones Globales para los botones dinámicos
     window.actualizarEstadoGlobal = async (id, estado, extras = {}) => {
         try {
             await updateDoc(doc(db, "services", id), { estado: estado, ...extras });
@@ -2071,7 +2088,6 @@ export async function iniciarPanelTecnico(user) {
             btn.disabled = true;
             
             try {
-                // Función interna para subir y retornar URL
                 const subirImagenAStorage = async (file, nombreAsignado) => {
                     if(!file) return null;
                     const storageRef = ref(storage, `servicios/${id}/${nombreAsignado}_${Date.now()}.jpg`);
@@ -2080,7 +2096,6 @@ export async function iniciarPanelTecnico(user) {
                     return url;
                 };
 
-                // Subida concurrente de las 4 fotos para velocidad máxima
                 const [urlA1, urlA2, urlD1, urlD2] = await Promise.all([
                     subirImagenAStorage(fA1, 'antes_1'),
                     subirImagenAStorage(fA2, 'antes_2'),
@@ -2097,28 +2112,34 @@ export async function iniciarPanelTecnico(user) {
                 const servicioData = servicioSnap.data();
                 const costoTotal = servicioData.costo_final || 0;
 
-                // --- CÁLCULOS FINANCIEROS ---
+                // --- CÁLCULOS FINANCIEROS INTELIGENTES (STRIPE VS EFECTIVO) ---
                 const comisionFixGoPura = costoTotal * 0.30; 
                 const aporteGarantia = costoTotal * 0.02;    
                 const retencionIVA = costoTotal * 0.08;      
                 const retencionISR = costoTotal * 0.10;      
-                const deudaTecnico = -(costoTotal * 0.32);
+                
+                // LÓGICA DE LIQUIDACIÓN DUAL
+                let deudaTecnico = 0;
+                if (servicioData.metodo_pago === "stripe") {
+                    // La Bóveda retuvo el 100%. Le ABONAMOS su líquido a su Wallet para retiro.
+                    deudaTecnico = (costoTotal - (costoTotal * 0.32)); 
+                } else {
+                    // El Técnico tiene el 100% en efectivo. Le CARGAMOS el 32% a su deuda.
+                    deudaTecnico = -(costoTotal * 0.32);
+                }
 
-                // --- CAPTURA DE LA FIRMA DIGITAL (Base64) ---
                 const canvas = document.getElementById("canvasFirma");
                 const firmaData = canvas ? canvas.toDataURL("image/png") : null;
 
-                // --- TRANSACCIÓN ATÓMICA V5.18.0 (TODO O NADA) ---
+                // --- TRANSACCIÓN ATÓMICA V5.18.6 ---
                 await runTransaction(db, async (transaction) => {
                     const servicioRef = doc(db, "services", id);
                     const tecnicoRef = doc(db, "users", user.uid);
                     
-                    // 1. Validar estado para evitar doble ejecución
                     const sSnap = await transaction.get(servicioRef);
                     if (!sSnap.exists()) throw "ERROR_NO_EXISTE";
                     if (sSnap.data().estado !== "trabajando") throw "ERROR_ESTADO_INVALIDO";
 
-                    // 2. Ejecutar Cierre de Orden (Firma + Fotos)
                     transaction.update(servicioRef, {
                         estado: "finalizado",
                         finalizado_at: serverTimestamp(),
@@ -2128,7 +2149,7 @@ export async function iniciarPanelTecnico(user) {
                             antes2: urlA2 || null,
                             despues1: urlD1,
                             despues2: urlD2 || null,
-                            firma_cliente: firmaData, // <-- FIRMA INYECTADA
+                            firma_cliente: firmaData, 
                             metadatos: {
                                 fecha_captura: timestampMetadatos,
                                 dispositivo_tecnico: userAgentCorto,
@@ -2143,36 +2164,48 @@ export async function iniciarPanelTecnico(user) {
                         }
                     });
 
-                    // 3. Inyectar Transacción Financiera
-                    const transRef = doc(collection(db, "transacciones"));
-                    transaction.set(transRef, {
-                        servicio_id: id,
-                        tecnico_id: user.uid, 
-                        monto_total: costoTotal,
-                        comision_fixgo: comisionFixGoPura, 
-                        aporte_garantia: aporteGarantia, 
-                        retencion_iva: retencionIVA,    
-                        retencion_isr: retencionISR,    
-                        pago_tecnico: deudaTecnico, 
-                        fecha: serverTimestamp(),
-                        tipo: "ingreso_servicio",
-                        metodo_pago: "efectivo"
-                    });
+                    // Si es pago en Efectivo, registramos el ingreso completo aquí.
+                    // Si es Stripe, el ingreso YA lo registró el Webhook. Solo registramos la liquidación al técnico.
+                    if (servicioData.metodo_pago !== "stripe") {
+                        const transRef = doc(collection(db, "transacciones"));
+                        transaction.set(transRef, {
+                            servicio_id: id,
+                            tecnico_id: user.uid, 
+                            monto_total: costoTotal,
+                            comision_fixgo: comisionFixGoPura, 
+                            aporte_garantia: aporteGarantia, 
+                            retencion_iva: retencionIVA,    
+                            retencion_isr: retencionISR,    
+                            pago_tecnico: deudaTecnico, 
+                            fecha: serverTimestamp(),
+                            tipo: "ingreso_servicio",
+                            metodo_pago: "efectivo"
+                        });
+                    } else {
+                        const transRef = doc(collection(db, "transacciones"));
+                        transaction.set(transRef, {
+                            servicio_id: id,
+                            tecnico_id: user.uid,
+                            monto_total: 0, // 0 para no duplicar tu GTV en el Dashboard Admin
+                            pago_tecnico: Math.abs(deudaTecnico), // Abono positivo a su billetera
+                            fecha: serverTimestamp(),
+                            tipo: "abono_stripe",
+                            descripcion: "Liquidación por servicio pagado en Stripe"
+                        });
+                    }
 
-                    // 4. Actualizar Reputación y Contador del Técnico
                     transaction.update(tecnicoRef, {
                         reputacion: increment(0.1), 
                         servicios_completados: increment(1)
                     });
                 });
 
-                // Si la transacción fue exitosa:
                 let textoMapa = "Disponible";
                 const rastreoRef = doc(db, "rastreo", "tecnicoActivo");
                 await setDoc(rastreoRef, { estado: textoMapa }, { merge: true });
 
                 document.getElementById("modalEvidencia").remove();
-                alert(" ✅  ¡CÍRCULO DE SEGURIDAD CERRADO!\n\n1. Firma del cliente resguardada.\n2. Evidencia fotográfica en Cloud.\n3. Finanzas cobradas y repartidas.\n4. Reputación aumentada.");
+                alert(" ✅  ¡CÍRCULO DE SEGURIDAD CERRADO!\n\n1. Firma resguardada.\n2. Evidencia en Cloud.\n3. Finanzas liquidadas.\n4. Reputación aumentada.");
                 
             } catch (e) {
                 console.error("Error crítico subiendo evidencia a Storage:", e);
@@ -2182,7 +2215,6 @@ export async function iniciarPanelTecnico(user) {
             }
         };
 
-        // --- ACTIVACIÓN DEL MOTOR DE DIBUJO V5.18.0 ---
         setTimeout(() => {
             const canvas = document.getElementById('canvasFirma');
             if (!canvas) return;
@@ -2191,7 +2223,7 @@ export async function iniciarPanelTecnico(user) {
 
             canvas.width = canvas.offsetWidth;
             canvas.height = canvas.offsetHeight;
-            ctx.strokeStyle = "#60a5fa"; // Azul GestiaPremium
+            ctx.strokeStyle = "#60a5fa"; 
             ctx.lineWidth = 3;
             ctx.lineJoin = "round";
             ctx.lineCap = "round";
@@ -2330,15 +2362,13 @@ export async function iniciarPanelTecnico(user) {
 }
 
 /**
-/**
-/**
  * 🔔 MOTOR FCM (FIREBASE CLOUD MESSAGING) V5.18.5 - CORRECCIÓN SERVICE WORKER
  * Registra el dispositivo del técnico para recibir alertas en segundo plano (minimizado).
  */
 async function activarMotorFCM(uid) {
     console.log("🛠️ [FCM DEBUG] Iniciando Motor FCM para UID:", uid);
     try {
-        const messaging = getMessaging(); // Usa la app por defecto inicializada en firebase.js
+        const messaging = getMessaging(); 
         console.log("🛠️ [FCM DEBUG] Instancia Messaging obtenida.");
 
         console.log("🛠️ [FCM DEBUG] Solicitando permiso de notificaciones al navegador...");
@@ -2348,21 +2378,19 @@ async function activarMotorFCM(uid) {
         if (permission === 'granted') {
             console.log("🔔 [FCM] Permiso concedido. Esperando Service Worker...");
             
-            // 🚨 SOLUCIÓN: Esperamos a que nuestro sw.js esté listo y se lo pasamos a Firebase
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.ready.then(async (registration) => {
                     console.log("🛠️ [FCM DEBUG] Service Worker listo. Obteniendo Token con VAPID...");
                     try {
                          const currentToken = await getToken(messaging, { 
                             vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ',
-                            serviceWorkerRegistration: registration // Le indicamos a Firebase qué SW usar
+                            serviceWorkerRegistration: registration 
                         });
                         
                         console.log("🛠️ [FCM DEBUG] Token recibido de Google:", currentToken ? "SÍ (Oculto por seguridad)" : "NO (null)");
 
                         if (currentToken) {
                             console.log("🔑 [FCM] Token generado. Intentando guardar en DB...");
-                            // Guardamos el token en su perfil
                             await updateDoc(doc(db, "users", uid), { fcmToken: currentToken });
                             console.log("✅ [FCM] ¡Éxito! Token guardado en Firebase DB.");
                         } else {
@@ -2381,7 +2409,6 @@ async function activarMotorFCM(uid) {
              console.warn("🚫 [FCM] Permiso denegado por el usuario.");
         }
 
-        // Listener para cuando la app está ABIERTA en pantalla (primer plano)
         onMessage(messaging, (payload) => {
             console.log("🔔 [FCM] Push recibido en Primer Plano:", payload);
             sonarAlerta();
@@ -2730,7 +2757,6 @@ export async function iniciarPanelCliente(user) {
                 </div>
                 `;
             } else if (s.estado === "finalizado") {
-                // V5.17.0: Renderizado en el Ticket de hasta 4 fotos (compatibilidad hacia atrás con 2)
                 const f_a1 = s.evidencia?.antes1 || s.evidencia?.antes;
                 const f_a2 = s.evidencia?.antes2;
                 const f_d1 = s.evidencia?.despues1 || s.evidencia?.despues;
@@ -2800,6 +2826,7 @@ export async function iniciarPanelCliente(user) {
                 <div class="p-4 border-t border-zinc-800/50">
                     <p class="text-xs text-gray-400 truncate mb-3"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${escaparHTML(s.direccion)}</p>
                     <br>
+
                     ${contenido}
 
                     ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `
@@ -2863,7 +2890,7 @@ export async function iniciarPanelCliente(user) {
 
                         transaction.update(serviceRef, {
                             estado: "cancelado",
-                            costo_final: 550, 
+                            costo_final: 550, // <-- CANDADO DE GARANTÍA MILITAR
                             cancelado_razon: "Cliente rechazó cotización"
                         });
                     });
