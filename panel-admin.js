@@ -58,6 +58,47 @@ export async function iniciarPanelAdmin(user) {
  contadorFacturas: document.getElementById("contadorFacturas") 
  };
 
+ // 🔥 INYECCIÓN: BOTÓN FLOTANTE PARA AUTORIZAR EFECTIVO A CLIENTES
+ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
+ const adminToolbar = document.createElement("div");
+ adminToolbar.className = "mb-4 flex gap-2";
+ adminToolbar.innerHTML = `
+ <button id="btnAutorizarEfectivo" onclick="window.buscarYAutorizarCliente()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black py-3 px-4 rounded-xl shadow-lg border border-emerald-500/50 transition-transform active:scale-95 w-full md:w-auto flex items-center justify-center gap-2">
+ <i class="fas fa-hand-holding-usd"></i> AUTORIZAR PAGO EN EFECTIVO A CLIENTE
+ </button>
+ `;
+ elementos.lista.parentElement.insertBefore(adminToolbar, elementos.lista);
+ }
+
+ window.buscarYAutorizarCliente = async () => {
+ const email = prompt("Ingresa el CORREO ELECTRÓNICO del cliente al que deseas autorizar para pagar en EFECTIVO:");
+ if(!email) return;
+
+ try {
+ const q = query(collection(db, "users"), where("email", "==", email.trim().toLowerCase()));
+ const snap = await getDocs(q);
+ 
+ if(snap.empty) {
+ alert("❌ No se encontró ningún cliente registrado con ese correo.");
+ return;
+ }
+
+ const clienteId = snap.docs[0].id;
+ const clienteData = snap.docs[0].data();
+ const estadoActual = clienteData.efectivo_autorizado || false;
+ 
+ if(confirm(`👤 Cliente encontrado: ${clienteData.nombre}\n\nActualmente su permiso de efectivo es: ${estadoActual ? 'ACTIVO ✅' : 'INACTIVO ❌'}\n\n¿Deseas cambiar su estado de autorización?`)) {
+ await updateDoc(doc(db, "users", clienteId), {
+ efectivo_autorizado: !estadoActual
+ });
+ alert(`✅ Permiso actualizado. El cliente ahora ${!estadoActual ? 'SÍ' : 'NO'} verá el botón de Efectivo en su panel.`);
+ }
+ } catch(e) {
+ console.error("Error buscando cliente:", e);
+ alert("Hubo un error al buscar en la base de datos.");
+ }
+ };
+
  // --- A. GESTIÓN DE TÉCNICOS ---
  if (elementos.lista) {
  const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
@@ -216,7 +257,7 @@ export async function iniciarPanelAdmin(user) {
  item.className = "flex justify-between items-start border-b border-white/5 py-3 last:border-0";
 
  let colorEstado = "text-gray-400";
- if(data.estado === "pendiente" || data.estado === "pagado") colorEstado = "text-yellow-500";
+ if(data.estado === "pendiente" || data.estado === "pagado" || data.estado === "iniciado_stripe") colorEstado = "text-yellow-500";
  if(data.estado === "asignado") colorEstado = "text-blue-300";
  if(data.estado === "en_camino") colorEstado = "text-blue-400";
  if(data.estado === "en_sitio") colorEstado = "text-purple-400";
