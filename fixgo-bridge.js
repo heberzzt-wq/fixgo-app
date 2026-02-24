@@ -157,25 +157,28 @@ export async function procesarPagoStripe(serviceId, payloadTicket) {
     console.log("💳 BRIDGE: Iniciando conexión con Stripe para el ticket:", serviceId);
 
     try {
-        // =========================================================================
-        // 🔧 ESPACIO PARA TU API DE STRIPE
-        // Aquí debes hacer el fetch() a tu backend para generar la URL de Stripe
-        // y redirigir al cliente. 
-        // Ejemplo:
-        // const response = await fetch("TU_BACKEND/crear-sesion", { method: 'POST', body: ... });
-        // const session = await response.json();
-        // window.location.href = session.url;
-        // =========================================================================
+        // Hacemos la petición a tu servidor en Google Cloud Run
+        const response = await fetch("https://stripewebhook-72a7uqnggq-uc.a.run.app/create-checkout-session", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                // 🔥 ESTA ES LA CLAVE: Le mandamos el ID del ticket a tu servidor
+                serviceId: serviceId, 
+                descripcion: payloadTicket.descripcion || "Servicio GestiaPremium",
+                monto: 550 // Retención de garantía
+            })
+        });
 
-        console.log("Ticket listo para Stripe:", payloadTicket);
-        alert(`Redirección simulada a Stripe.\nTicket ID: ${serviceId}\n\nNota para Heber: Reemplaza este alert en fixgo-bridge.js con tu fetch() a Stripe.`);
+        const session = await response.json();
 
-        // 🚨 LA REGLA DE ORO DEL WEBHOOK (Tu backend):
-        // Cuando Stripe te confirme que el pago de los $550 fue exitoso, 
-        // tu webhook NO debe hacer un 'addDoc'. SOLO debe actualizar este documento así:
-        // await updateDoc(doc(db, "services", serviceId), { estado: "pagado" });
-        // Al hacer esto, el ticket pasará a estado "pagado" y aparecerá automáticamente 
-        // de color AZUL en el radar del técnico. ¡Adiós duplicados!
+        // Redirigimos al cliente a la pasarela de Stripe
+        if (session.url) {
+            window.location.href = session.url;
+        } else {
+            throw new Error("No se recibió URL de Stripe");
+        }
 
     } catch (error) {
         console.error("🚨 ERROR EN PASARELA STRIPE:", error);
