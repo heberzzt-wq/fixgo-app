@@ -23,19 +23,12 @@ import {
  getDoc 
 } from "./firebase.js";
 
-// Importaciones específicas de Firestore CDN usadas por el Admin
 import { getDocs, increment, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-// Importamos el Sistema Nervioso Compartido
 import { escaparHTML, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
 
-// ======================================================================================
-// 1. PANEL DE ADMINISTRADOR (TORRE DE CONTROL PRO)
-// ======================================================================================
 export async function iniciarPanelAdmin(user) {
  console.log(" 🛡️ Iniciando Panel de Administrador (Modo BI V5.17.4 - Bootstrapping)...");
  
- // 🚨 CANDADO DE SEGURIDAD MAESTRO: Validación estricta de rol
  if (!user || user.rol !== "admin") {
  console.error("🛑 ALERTA DE SEGURIDAD GESTIAPREMIUM: Intento de acceso no autorizado al Panel Admin.");
  alert("🔒 ACCESO DENEGADO.");
@@ -58,7 +51,6 @@ export async function iniciarPanelAdmin(user) {
  contadorFacturas: document.getElementById("contadorFacturas") 
  };
 
- // 🔥 INYECCIÓN: BOTÓN FLOTANTE PARA AUTORIZAR EFECTIVO A CLIENTES
  if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  const adminToolbar = document.createElement("div");
  adminToolbar.className = "mb-4 flex gap-2";
@@ -99,11 +91,9 @@ export async function iniciarPanelAdmin(user) {
  }
  };
 
- // --- A. GESTIÓN DE TÉCNICOS ---
  if (elementos.lista) {
  const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
 
- // Usamos un listener asíncrono para fusionar datos sin parpadear la UI
  onSnapshot(qTecnicos, async (snap) => {
  let contOnline = 0;
  let contTotal = 0;
@@ -114,7 +104,6 @@ export async function iniciarPanelAdmin(user) {
  return;
  }
 
- // Fragmento para renderizar todo de golpe y evitar parpadeos
  const fragment = document.createDocumentFragment();
  
  for (const docSnap of snap.docs) {
@@ -122,22 +111,12 @@ export async function iniciarPanelAdmin(user) {
  const uid = docSnap.id;
  contTotal++;
 
- // 🔥 MOTOR DE FUSIÓN (CROSS-COLLECTION SYNC): Rescata los datos de registro perdidos
- try {
- const tecSnap = await getDoc(doc(db, "tecnicos", uid));
- if (tecSnap.exists()) {
- // Los datos maestros de 'users' sobreescriben a 'tecnicos', pero rescatamos los documentos faltantes
- data = { ...tecSnap.data(), ...data }; 
- }
- } catch(e) { console.error("Error fusionando perfil técnico:", e); }
-
  if(data.disponible) {
  contOnline++;
  }
  
  const esPendiente = (data.estado || "pendiente") === "pendiente";
  
- // 🔥 ESCÁNER PROFUNDO DE DOCUMENTOS (Busca en múltiples formatos JSON)
  const ineUrl = data.documentos?.ine || data.ine || data.ine_url || data.identificacion || null;
  const csfUrl = data.documentos?.csf || data.csf || data.csf_url || data.constancia || null;
  
@@ -145,10 +124,8 @@ export async function iniciarPanelAdmin(user) {
  const csfCheck = csfUrl ? '<span class="text-emerald-400"> ✅ CSF</span>' : '<span class="text-red-500"> ❌ CSF</span>';
  const skillsStr = data.skills ? data.skills.join(" • ").toUpperCase() : "GENERAL";
  
- // --- IDENTIDAD CONECTADA ---
  const fotoUrl = data.foto_perfil || data.fotoPerfil || data.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nombre)}&background=random`;
 
- // --- SISTEMA DE REPUTACIÓN VISUAL ---
  const reputacion = data.reputacion || 5.0;
  const estrellas = "⭐".repeat(Math.round(reputacion));
  const nivel = data.nivel || "BRONCE";
@@ -214,7 +191,6 @@ export async function iniciarPanelAdmin(user) {
  fragment.appendChild(card);
  }
 
- // Volcamos el DOM de una sola vez
  elementos.lista.innerHTML = "";
  elementos.lista.appendChild(fragment);
  
@@ -225,13 +201,11 @@ export async function iniciarPanelAdmin(user) {
  });
  }
 
- // --- B. ACTIVIDAD RECIENTE (ESCUDO RAM) ---
  const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"), limit(50));
 
  onSnapshot(qServicios, (snap) => {
  if(elementos.actividad) elementos.actividad.innerHTML = "";
  
- // 🔥 INYECCIÓN V5.14.0: BANDEJA DE FACTURACIÓN
  if(elementos.listaFacturasPendientes) elementos.listaFacturasPendientes.innerHTML = "";
  let facturasPendientesCount = 0;
 
@@ -245,7 +219,6 @@ export async function iniciarPanelAdmin(user) {
  const data = docSnap.data();
  const sid = docSnap.id;
 
- // Lógica Facturación
  if (data.factura_requerida && data.estado === "finalizado" && !data.factura_enviada) {
  facturasPendientesCount++;
  if (elementos.listaFacturasPendientes) {
@@ -292,7 +265,6 @@ export async function iniciarPanelAdmin(user) {
  
  const labelServicio = escaparHTML(`${data.categoria} ${data.sub_servicio ? '• ' + data.sub_servicio : ''}`);
 
- // --- AUDITORÍA REAL (V5.17.0 4 PHOTOS) ---
  let btnAuditar = '';
  if(data.estado === "finalizado") {
  btnAuditar = `<button class="mt-2 text-[9px] bg-purple-600/30 text-purple-400 font-bold px-2 py-1 rounded border border-purple-500/50 transition-colors hover:bg-purple-600/50 block" onclick="window.auditarServicio('${sid}')"><i class="fas fa-camera"></i> AUDITAR (4 FOTOS)</button>`;
@@ -329,7 +301,6 @@ export async function iniciarPanelAdmin(user) {
  }
  });
 
- // Función Admin para marcar factura como enviada
  window.marcarFacturaEnviada = async (id) => {
  if(!confirm("¿Confirmas que ya enviaste el CFDI a este cliente a través de tu portal del SAT?")) return;
  try {
@@ -340,20 +311,18 @@ export async function iniciarPanelAdmin(user) {
  }
  };
 
- // --- C. DASHBOARD FINANCIERO PRO V5.14.0 (Business Intelligence & Real Split) ---
  const qFinanzas = query(collection(db, "transacciones"));
  onSnapshot(qFinanzas, (snap) => {
- // 🧮 VARIABLES DE LA ARQUITECTURA FINANCIERA
- let globalFixGo = 0; // 32% del Total (Comisión Bruta)
- let globalIVA = 0; // 16% sobre la comisión
- let globalISR = 0; // 30% sobre la utilidad
- let globalGarantia = 0; // 2% del Total (Fondo de Seguridad)
- let globalStripe = 0; // 3.6% + $3.00 MXN (Costo Operativo)
- let globalTecnico = 0; // El remanente líquido
+ let globalFixGo = 0; 
+ let globalIVA = 0; 
+ let globalISR = 0; 
+ let globalGarantia = 0; 
+ let globalStripe = 0; 
+ let globalTecnico = 0; 
  
- let totalFlujo = 0; // Volumen Bruto Transaccional (GTV)
- let dineroRetenido = 0; // Dinero en tránsito (Stripe < 24h)
- let dineroRetiradoTecnicos = 0; // Para calcular saldo real en bóveda
+ let totalFlujo = 0; 
+ let dineroRetenido = 0; 
+ let dineroRetiradoTecnicos = 0; 
 
  const ahora = new Date();
 
@@ -368,12 +337,12 @@ export async function iniciarPanelAdmin(user) {
  const monto = tx.monto_total || 0;
  totalFlujo += monto;
 
- const calcFixGo = monto * 0.32; // 32% para Plataforma
- const calcGarantia = monto * 0.02; // 2% Fondo Garantía
- const calcStripe = (monto * 0.036) + 3.00; // Costo Pasarela (3.6% + $3)
+ const calcFixGo = monto * 0.32; 
+ const calcGarantia = monto * 0.02; 
+ const calcStripe = (monto * 0.036) + 3.00; 
  
- const calcIVA = calcFixGo * 0.16; // 16% de IVA sobre la comisión
- const calcISR = calcFixGo * 0.30; // 30% de ISR sobre utilidad
+ const calcIVA = calcFixGo * 0.16; 
+ const calcISR = calcFixGo * 0.30; 
 
  const calcTecnico = monto - calcFixGo - calcGarantia - calcStripe;
 
@@ -434,9 +403,6 @@ export async function iniciarPanelAdmin(user) {
  }
  });
 
- // --- D. FUNCIONES DE ADMINISTRACIÓN ---
-
- // 🔥 MOTOR DE EXPORTACIÓN CONTABLE (V5.17.3 - SHARK TANK VALUATION)
  window.exportarConciliacionCSV = async () => {
  const btn = document.activeElement;
  const textoOrig = btn.innerHTML;
@@ -462,7 +428,6 @@ export async function iniciarPanelAdmin(user) {
  let diffHoras = 999;
  if(tx.fecha && tx.fecha.toDate) {
  const d = tx.fecha.toDate();
- // Formato DD/MM/YYYY HH:MM
  fechaStr = `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
  diffHoras = Math.abs(ahora - d) / 36e5;
  }
@@ -494,7 +459,6 @@ export async function iniciarPanelAdmin(user) {
  ];
  csvContent += fila.join(",") + "\n";
  } else {
- // Retiros, abonos, penalizaciones
  const fila = [
  `"${fechaStr}"`,
  `"${tx.tipo.toUpperCase()}"`,
@@ -533,7 +497,6 @@ export async function iniciarPanelAdmin(user) {
  }
  };
 
-// 🔥 AUDITORÍA REAL (V5.17.1: 4 FOTOS SOPORTADAS + BOTÓN DE DESCARGA PDF)
  window.auditarServicio = async (sid) => {
  if(document.getElementById("modalAuditoria")) return;
  try {
@@ -541,7 +504,6 @@ export async function iniciarPanelAdmin(user) {
  if(!docSnap.exists()) return alert("Servicio no encontrado.");
  const s = docSnap.data();
  
- // Leemos las 4 URLs de Storage
  const f_a1 = s.evidencia?.antes1 || s.evidencia?.antes || 'https://via.placeholder.com/300x400?text=SIN+FOTO+ANTES+1';
  const f_a2 = s.evidencia?.antes2 || 'https://via.placeholder.com/300x400?text=SIN+FOTO+ANTES+2';
  const f_d1 = s.evidencia?.despues1 || s.evidencia?.despues || 'https://via.placeholder.com/300x400?text=SIN+FOTO+DESPUES+1';
@@ -594,7 +556,6 @@ export async function iniciarPanelAdmin(user) {
  }
  };
 
- // 🔥 MOTOR PDF EXCLUSIVO PARA EL ADMINISTRADOR
  window.generarPDFAdmin = async (serviceId) => {
  const btn = document.getElementById('btnDescargarPDFAdmin');
  const textoOrig = btn.innerHTML;
@@ -611,7 +572,6 @@ export async function iniciarPanelAdmin(user) {
  const { jsPDF } = await cargarLibreriaPDF();
  const docPdf = new jsPDF();
  
- // --- DISEÑO DEL REPORTE (MEMBRETE) ---
  docPdf.setFillColor(18, 18, 18);
  docPdf.rect(0, 0, 215, 40, 'F');
  docPdf.setTextColor(255, 255, 255);
@@ -669,7 +629,6 @@ export async function iniciarPanelAdmin(user) {
  docPdf.text("EVIDENCIA FOTOGRÁFICA (ALMACENAMIENTO CLOUD)", 20, y);
  y += 10;
  
-// 🔥 V5.17.2: Traducción Base64 para el Admin
  const f_a1 = data.evidencia?.antes1 || data.evidencia?.antes;
  const f_a2 = data.evidencia?.antes2;
  const f_d1 = data.evidencia?.despues1 || data.evidencia?.despues;
@@ -677,7 +636,6 @@ export async function iniciarPanelAdmin(user) {
 
  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO FOTOS...';
 
- // Descarga las imágenes de Cloud y las convierte para el PDF
  const [b64_a1, b64_a2, b64_d1, b64_d2] = await Promise.all([
  urlABase64(f_a1),
  urlABase64(f_a2),
@@ -691,20 +649,18 @@ export async function iniciarPanelAdmin(user) {
  if(b64_d1) { docPdf.addImage(b64_d1, "JPEG", 110, y, 40, 30); docPdf.setFontSize(8); docPdf.text("DESPUÉS 1", 110, y + 35); }
  if(b64_d2) { docPdf.addImage(b64_d2, "JPEG", 155, y, 40, 30); docPdf.setFontSize(8); docPdf.text("DESPUÉS 2", 155, y + 35); }
 
- // --- INYECCIÓN V5.18.0: FIRMA DIGITAL EN PDF (ADMIN) ---
  const firmaDigital = data.evidencia?.firma_cliente;
  if (firmaDigital) {
- y += 45; // Bajamos el cursor Y para que no encime con las fotos
+ y += 45; 
  docPdf.setFontSize(10);
  docPdf.setFont("helvetica", "bold");
  docPdf.setTextColor(0, 0, 0);
  docPdf.text("FIRMA DE CONFORMIDAD DEL CLIENTE", 20, y);
- docPdf.addImage(firmaDigital, "PNG", 20, y + 5, 60, 20); // Renderizamos la firma (formato PNG)
+ docPdf.addImage(firmaDigital, "PNG", 20, y + 5, 60, 20); 
  docPdf.setDrawColor(50, 50, 50);
  docPdf.setLineWidth(0.5);
- docPdf.line(20, y + 26, 80, y + 26); // Línea formal debajo de la firma
+ docPdf.line(20, y + 26, 80, y + 26); 
  }
- // -------------------------------------------------------
  
  docPdf.setFontSize(8);
  docPdf.setTextColor(150, 150, 150);
@@ -723,7 +679,6 @@ export async function iniciarPanelAdmin(user) {
  }
  };
 
- // 🔥 FUNCION ADMIN: CAMBIO FORZADO DE FOTO DE PERFIL
  window.adminCambiarFotoTecnico = async (uid) => {
  const fileInput = document.createElement('input');
  fileInput.type = 'file';
@@ -752,7 +707,7 @@ export async function iniciarPanelAdmin(user) {
  fileInput.click();
  };
 
- // 🔥 EXPEDIENTES DESBLOQUEADOS Y BLINDADOS (LECTURA PROFUNDA DE DB)
+ // 🔥 EXPEDIENTES LIMPIADOS: Solo lee de 'users'
  window.verExpediente = async (uid) => {
  if(document.getElementById("modalExpediente")) return;
  try {
@@ -760,22 +715,14 @@ export async function iniciarPanelAdmin(user) {
  const docSnap = await getDoc(doc(db, "users", uid));
  if(docSnap.exists()) t = docSnap.data();
 
- // 🔥 FUSIÓN EN EXPEDIENTE: Traemos la data de registro original
- try {
- const tecSnap = await getDoc(doc(db, "tecnicos", uid));
- if(tecSnap.exists()) t = { ...tecSnap.data(), ...t };
- } catch(e) { console.warn("No se pudo leer la DB de respaldo"); }
-
  if(Object.keys(t).length === 0) return alert("Técnico no encontrado.");
 
  const fotoUrl = t.foto_perfil || t.fotoPerfil || t.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.nombre)}&background=random`;
  
- // Lectura profunda de URLs (Cualquier formato que haya usado el programador del registro)
  const ineUrl = t.documentos?.ine || t.ine || t.ine_url || t.identificacion || null;
  const csfUrl = t.documentos?.csf || t.csf || t.csf_url || t.constancia || null;
  const licUrl = t.documentos?.licencia || t.vehiculo?.licencia || t.licencia || t.licencia_url || null;
 
- // Extracción profunda de textos
  const banco = t.banco || t.datos_bancarios?.banco || t.banco_nombre || 'NO REGISTRADO';
  const clabe = t.clabe || t.datos_bancarios?.clabe || t.clabe_interbancaria || 'NO REGISTRADA';
 
@@ -783,7 +730,6 @@ export async function iniciarPanelAdmin(user) {
  const tipoVehiculo = vehiculo.tipo || t.vehiculo_tipo || t.tipo_vehiculo || 'NO REGISTRADO';
  const placas = vehiculo.placas || t.placas || t.vehiculo_placas || 'N/A';
 
- // Generación de Botones Funcionales
  const ineHTML = ineUrl ? `<a href="${ineUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
  const csfHTML = csfUrl ? `<a href="${csfUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
  const licHTML = licUrl ? `<a href="${licUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
@@ -795,7 +741,6 @@ export async function iniciarPanelAdmin(user) {
  certsHTML = '<span class="text-red-500 text-xs font-bold"><i class="fas fa-times-circle"></i> Sin documentos de respaldo</span>';
  }
 
- // Botón de aprobación rápida dentro del modal
  const btnAprobarModal = (t.estado === "pendiente") ? `
  <button onclick="window.aprobarTecnico('${uid}'); document.getElementById('modalExpediente').remove();" class="w-full mt-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl text-sm transition-colors shadow-lg">
  <i class="fas fa-user-check"></i> APROBAR TÉCNICO AHORA
@@ -885,7 +830,7 @@ export async function iniciarPanelAdmin(user) {
  window.aprobarTecnico = async (uid) => {
  if(!confirm("¿Estás seguro de aprobar a este técnico? Tendrá acceso inmediato a ver solicitudes y aceptar trabajos.")) return;
  try {
- const updates = {
+ await updateDoc(doc(db, "users", uid), {
  estado: "activo",
  status: "activo",
  verificado: true,
@@ -893,11 +838,7 @@ export async function iniciarPanelAdmin(user) {
  reputacion: 5.0,
  servicios_completados: 0,
  aprobadoEn: serverTimestamp()
- };
- 
- // Sincronización en ambas colecciones
- await updateDoc(doc(db, "users", uid), updates);
- try { await updateDoc(doc(db, "tecnicos", uid), updates); } catch(e) {}
+ });
 
  alert(" ✅ Técnico Aprobado y Activado exitosamente.");
  } catch (error) {
@@ -955,7 +896,6 @@ export async function iniciarPanelAdmin(user) {
  }
  };
 
- // 🔥 INYECCIÓN: GESTOR DE CATÁLOGO DINÁMICO Y COLAPSABLE
  window.abrirGestorCatalogo = async () => {
  const modal = document.getElementById("modalCatalogo");
  const container = document.getElementById("gridConfiguracion");
@@ -1003,7 +943,6 @@ export async function iniciarPanelAdmin(user) {
  
  for (const [categoria, servicios] of Object.entries(MASTER_STRUCTURE)) {
  const catId = `cat_admin_${indexCat}`;
- // El primer acordeón estará abierto por defecto para guiar al usuario
  const isHidden = indexCat === 0 ? "" : "hidden";
  const isRotated = indexCat === 0 ? "rotate-180" : "";
 
