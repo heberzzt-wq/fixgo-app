@@ -535,7 +535,6 @@ export async function iniciarPanelTecnico(user) {
             return;
         }
 
-        // 🔥 INYECCIÓN DE TEXTO CORREGIDO PARA EL TÉCNICO
         let mensajeConfirmacion = "¿Deseas aceptar esta misión de servicio?\n\nRecuerda: Es OBLIGATORIO elaborar el diagnóstico y la cotización al llegar al sitio.";
 
         if(!confirm(mensajeConfirmacion)) return;
@@ -547,7 +546,6 @@ export async function iniciarPanelTecnico(user) {
                 const sfDoc = await transaction.get(serviceRef);
                 
                 if (!sfDoc.exists()) throw "ERROR_NO_EXISTE";
-                // Tolerancia de colisión ampliada para Efectivo y Stripe
                 if (!["pendiente", "pagado"].includes(sfDoc.data().estado)) throw "ERROR_COLISION"; 
 
                 transaction.update(serviceRef, {
@@ -574,7 +572,6 @@ export async function iniciarPanelTecnico(user) {
     const qMisiones = query(
         collection(db, "services"),
         where("tecnico_id", "==", user.uid),
-        // Inyección: Agregamos "procesando_saldo" y "cancelado" a la lista de estados vivos
         where("estado", "in", ["asignado", "en_camino", "en_sitio", "cotizando", "procesando_saldo", "trabajando", "cancelado"]) 
     );
 
@@ -596,7 +593,6 @@ export async function iniciarPanelTecnico(user) {
         snap.docChanges().forEach(change => {
             if (change.type === 'modified') {
                 const sData = change.doc.data();
-                // Evitamos notificar si el técnico ya lo ocultó
                 if (sData.oculto_para_tecnico) return; 
 
                 if (sData.estado === 'trabajando') {
@@ -613,7 +609,6 @@ export async function iniciarPanelTecnico(user) {
             const s = docSnap.data();
             const id = docSnap.id;
 
-            // Si el técnico ya vio que fue cancelado y le dio ocultar, no lo mostramos
             if (s.oculto_para_tecnico) return;
 
             const destinoWaze = s.coords
@@ -633,7 +628,6 @@ export async function iniciarPanelTecnico(user) {
                     <i class="fas fa-map-marker-alt"></i> YA LLEGUÉ AL SITIO
                 </button>`;
             } else if (s.estado === "en_sitio") {
-                // 🔥 INYECCIÓN: DIAGNÓSTICO OBLIGATORIO PARA STRIPE Y EFECTIVO (Bypass Eliminado)
                 botonAccionHTML = `
                 <button onclick="window.abrirCotizadorGlobal('${id}')" class="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
                     <i class="fas fa-clipboard-list"></i> ELABORAR DIAGNÓSTICO Y COTIZAR
@@ -700,7 +694,6 @@ export async function iniciarPanelTecnico(user) {
         });
     });
 
-    // Permite al técnico borrar el ticket de su pantalla si el cliente lo rechazó
     window.ocultarTicketCancelado = async (id) => {
         try {
             await updateDoc(doc(db, "services", id), { oculto_para_tecnico: true });
@@ -725,6 +718,7 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
+    // 🔥 INYECCIÓN DE PROTOCOLO ANTI-BLOQUEO GPS Y TIMEOUT
     window.validarLlegada = (id, targetLat, targetLng) => {
         const btn = document.getElementById(`btn_llegada_${id}`);
         const textoOriginal = btn.innerHTML;
@@ -742,9 +736,14 @@ export async function iniciarPanelTecnico(user) {
                     window.actualizarEstadoGlobal(id, "en_sitio");
                 }
             }, (err) => {
-                console.warn("Error GPS técnico:", err);
+                console.warn("Error GPS técnico (Bypass activado por timeout/error):", err);
+                // Si falla el GPS (por estar bajo techo o timeout), NO bloqueamos al técnico.
                 window.actualizarEstadoGlobal(id, "en_sitio"); 
-            }, { enableHighAccuracy: true });
+            }, { 
+                enableHighAccuracy: true,
+                timeout: 10000, // ⏳ MÁXIMO 10 SEGUNDOS. Si satélite no responde, se activa Bypass.
+                maximumAge: 15000 
+            });
         } else {
             window.actualizarEstadoGlobal(id, "en_sitio"); 
         }
@@ -873,7 +872,6 @@ export async function iniciarPanelTecnico(user) {
 
             if(btnSend) {
                 btnSend.onclick = async () => {
-                    // 🔥 VALIDACIÓN DEL DIAGNÓSTICO
                     const diagTexto = document.getElementById("inDiagnostico").value.trim();
                     if (!diagTexto || diagTexto.length < 10) {
                         return alert("⚠️ OBLIGATORIO:\nDebes escribir un reporte de diagnóstico detallado (mínimo 10 caracteres) explicando qué falla tiene el cliente.");
@@ -888,7 +886,7 @@ export async function iniciarPanelTecnico(user) {
                     try {
                         await updateDoc(doc(db, "services", id), {
                             estado: "cotizando",
-                            diagnostico: diagTexto, // <-- Guardamos el diagnóstico en la nube
+                            diagnostico: diagTexto,
                             detalles_cotizacion: items, 
                             costo_final: totalFinal,
                             cotizado_at: serverTimestamp()
@@ -906,7 +904,6 @@ export async function iniciarPanelTecnico(user) {
         }, 100); 
     }
 
-    // 🔥 MODAL DE EVIDENCIA 4 FOTOS (MIGRADO A STORAGE V5.17.0)
     function mostrarModalEvidencia(id) {
         if(document.getElementById("modalEvidencia")) return;
 
@@ -1000,27 +997,21 @@ export async function iniciarPanelTecnico(user) {
                 const servicioData = servicioSnap.data();
                 const costoTotal = servicioData.costo_final || 0;
 
-                // --- CÁLCULOS FINANCIEROS INTELIGENTES (STRIPE VS EFECTIVO) ---
                 const comisionFixGoPura = costoTotal * 0.30; 
                 const aporteGarantia = costoTotal * 0.02; 
                 const retencionIVA = costoTotal * 0.08; 
                 const retencionISR = costoTotal * 0.10; 
                 
-                // LÓGICA DE LIQUIDACIÓN DUAL
                 let deudaTecnico = 0;
                 if (servicioData.metodo_pago === "stripe") {
-                    // La Bóveda retuvo el 100%. Le ABONAMOS su líquido a su Wallet para retiro.
-                    // NOTA: Matemáticamente es idéntico aunque se pague en 2 exhibiciones.
                     deudaTecnico = (costoTotal - (costoTotal * 0.32)); 
                 } else {
-                    // El Técnico tiene el 100% en efectivo. Le CARGAMOS el 32% a su deuda.
                     deudaTecnico = -(costoTotal * 0.32);
                 }
 
                 const canvas = document.getElementById("canvasFirma");
                 const firmaData = canvas ? canvas.toDataURL("image/png") : null;
 
-                // --- TRANSACCIÓN ATÓMICA V5.18.6 ---
                 await runTransaction(db, async (transaction) => {
                     const servicioRef = doc(db, "services", id);
                     const tecnicoRef = doc(db, "users", user.uid);
@@ -1053,8 +1044,6 @@ export async function iniciarPanelTecnico(user) {
                         }
                     });
 
-                    // Si es pago en Efectivo, registramos el ingreso completo aquí.
-                    // Si es Stripe, el ingreso YA lo registró el Webhook. Solo registramos la liquidación al técnico.
                     if (servicioData.metodo_pago !== "stripe") {
                         const transRef = doc(collection(db, "transacciones"));
                         transaction.set(transRef, {
@@ -1075,8 +1064,8 @@ export async function iniciarPanelTecnico(user) {
                         transaction.set(transRef, {
                             servicio_id: id,
                             tecnico_id: user.uid,
-                            monto_total: 0, // 0 para no duplicar tu GTV en el Dashboard Admin
-                            pago_tecnico: Math.abs(deudaTecnico), // Abono positivo a su billetera
+                            monto_total: 0, 
+                            pago_tecnico: Math.abs(deudaTecnico), 
                             fecha: serverTimestamp(),
                             tipo: "abono_stripe",
                             descripcion: "Liquidación por servicio pagado en Stripe"
@@ -1249,17 +1238,15 @@ export async function iniciarPanelTecnico(user) {
         fileInput.click();
     };
 
-    // 🔥 INYECCIÓN: MOTOR DE LOGO COMERCIAL DEL TÉCNICO (FACTURACIÓN)
     window.cambiarLogoFactura = async (uid) => {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = 'image/png, image/jpeg'; // Restringido a formatos limpios
+        fileInput.accept = 'image/png, image/jpeg'; 
         
         fileInput.onchange = async (e) => {
             const file = e.target.files[0];
             if(!file) return;
             
-            // Límite de tamaño para el logo (ej. 2MB max)
             if (file.size > 2 * 1024 * 1024) {
                 alert("⚠️ El logo es demasiado pesado. Elige una imagen menor a 2MB.");
                 return;
@@ -1268,7 +1255,6 @@ export async function iniciarPanelTecnico(user) {
             const reader = new FileReader();
             reader.onload = async (event) => {
                 try {
-                    // Actualizamos el perfil del técnico con su nuevo logo comercial
                     await updateDoc(doc(db, "users", uid), {
                         logo_factura: event.target.result 
                     });
@@ -1283,12 +1269,8 @@ export async function iniciarPanelTecnico(user) {
         fileInput.click();
     };
 
-} // <-- FIN DE LA FUNCIÓN INICIAR PANEL TÉCNICO
+} 
 
-/**
- * 🔔 MOTOR FCM (FIREBASE CLOUD MESSAGING) V5.18.5 - CORRECCIÓN SERVICE WORKER
- * Registra el dispositivo del técnico para recibir alertas en segundo plano (minimizado).
- */
 async function activarMotorFCM(uid) {
     console.log("🛠️ [FCM DEBUG] Iniciando Motor FCM para UID:", uid);
     try {
