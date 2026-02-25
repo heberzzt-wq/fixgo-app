@@ -103,19 +103,33 @@ export async function iniciarPanelAdmin(user) {
  if (elementos.lista) {
  const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
 
- onSnapshot(qTecnicos, (snap) => {
- elementos.lista.innerHTML = ""; 
-
+ // Usamos un listener asíncrono para fusionar datos sin parpadear la UI
+ onSnapshot(qTecnicos, async (snap) => {
  let contOnline = 0;
  let contTotal = 0;
  
  if (snap.empty) {
  elementos.lista.innerHTML = '<p class="text-gray-500 p-4 italic">No hay técnicos registrados en la base de datos.</p>';
+ if(elementos.countOnline) elementos.countOnline.innerHTML = `0 <span class="text-sm text-gray-500">/ 0</span>`;
+ return;
  }
+
+ // Fragmento para renderizar todo de golpe y evitar parpadeos
+ const fragment = document.createDocumentFragment();
  
- snap.forEach((docSnap) => {
- const data = docSnap.data();
+ for (const docSnap of snap.docs) {
+ let data = docSnap.data();
+ const uid = docSnap.id;
  contTotal++;
+
+ // 🔥 MOTOR DE FUSIÓN (CROSS-COLLECTION SYNC): Rescata los datos de registro perdidos
+ try {
+ const tecSnap = await getDoc(doc(db, "tecnicos", uid));
+ if (tecSnap.exists()) {
+ // Los datos maestros de 'users' sobreescriben a 'tecnicos', pero rescatamos los documentos faltantes
+ data = { ...tecSnap.data(), ...data }; 
+ }
+ } catch(e) { console.error("Error fusionando perfil técnico:", e); }
 
  if(data.disponible) {
  contOnline++;
@@ -123,9 +137,9 @@ export async function iniciarPanelAdmin(user) {
  
  const esPendiente = (data.estado || "pendiente") === "pendiente";
  
- // 🔥 ESCÁNER PROFUNDO DE DOCUMENTOS
- const ineUrl = data.documentos?.ine || data.ine || data.ine_url || null;
- const csfUrl = data.documentos?.csf || data.csf || data.csf_url || null;
+ // 🔥 ESCÁNER PROFUNDO DE DOCUMENTOS (Busca en múltiples formatos JSON)
+ const ineUrl = data.documentos?.ine || data.ine || data.ine_url || data.identificacion || null;
+ const csfUrl = data.documentos?.csf || data.csf || data.csf_url || data.constancia || null;
  
  const ineCheck = ineUrl ? '<span class="text-emerald-400"> ✅ INE</span>' : '<span class="text-red-500"> ❌ INE</span>';
  const csfCheck = csfUrl ? '<span class="text-emerald-400"> ✅ CSF</span>' : '<span class="text-red-500"> ❌ CSF</span>';
@@ -147,7 +161,7 @@ export async function iniciarPanelAdmin(user) {
  : '<span class="text-gray-500 text-[10px]">● OFFLINE</span>';
 
  const card = document.createElement("div");
- card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500' : 'bg-zinc-900 border-zinc-800'}`;
+ card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.1)]' : 'bg-zinc-900 border-zinc-800'}`;
 
  card.innerHTML = `
  <div class="flex justify-between items-center">
@@ -178,27 +192,31 @@ export async function iniciarPanelAdmin(user) {
  </div>
 
  <div class="flex flex-col gap-2">
- <button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 text-[9px] font-bold px-2 py-1 rounded border border-blue-900/50 mb-1" onclick="window.verExpediente('${docSnap.id}')">
+ <button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 text-[9px] font-bold px-2 py-1 rounded border border-blue-900/50 mb-1" onclick="window.verExpediente('${uid}')">
  <i class="fas fa-folder-open"></i> EXPEDIENTE
  </button>
  
  ${esPendiente ? `
- <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${docSnap.id}')">
+ <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${uid}')">
  APROBAR ACCESO
  </button>
  ` : `
- <button class="bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-900/50 mb-1" onclick="window.registrarPagoTecnico('${docSnap.id}', '${escaparHTML(data.nombre)}')">
+ <button class="bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-900/50 mb-1" onclick="window.registrarPagoTecnico('${uid}', '${escaparHTML(data.nombre)}')">
  <i class="fas fa-money-bill-wave"></i> REGISTRAR PAGO
  </button>
- <button class="bg-red-900/30 hover:bg-red-900/50 text-red-500 text-[9px] font-bold px-2 py-1 rounded border border-red-900/50" onclick="window.aplicarPenalizacionManual('${docSnap.id}')">
+ <button class="bg-red-900/30 hover:bg-red-900/50 text-red-500 text-[9px] font-bold px-2 py-1 rounded border border-red-900/50" onclick="window.aplicarPenalizacionManual('${uid}')">
  <i class="fas fa-gavel"></i> PENALIZAR
  </button>
  `}
  </div>
  </div>
  `;
- elementos.lista.appendChild(card);
- });
+ fragment.appendChild(card);
+ }
+
+ // Volcamos el DOM de una sola vez
+ elementos.lista.innerHTML = "";
+ elementos.lista.appendChild(fragment);
  
  if(elementos.countOnline) {
  elementos.countOnline.innerHTML = `${contOnline} <span class="text-sm text-gray-500">/ ${contTotal}</span>`;
@@ -738,25 +756,37 @@ export async function iniciarPanelAdmin(user) {
  window.verExpediente = async (uid) => {
  if(document.getElementById("modalExpediente")) return;
  try {
+ let t = {};
  const docSnap = await getDoc(doc(db, "users", uid));
- if(!docSnap.exists()) return alert("Técnico no encontrado.");
- const t = docSnap.data();
+ if(docSnap.exists()) t = docSnap.data();
+
+ // 🔥 FUSIÓN EN EXPEDIENTE: Traemos la data de registro original
+ try {
+ const tecSnap = await getDoc(doc(db, "tecnicos", uid));
+ if(tecSnap.exists()) t = { ...tecSnap.data(), ...t };
+ } catch(e) { console.warn("No se pudo leer la DB de respaldo"); }
+
+ if(Object.keys(t).length === 0) return alert("Técnico no encontrado.");
 
  const fotoUrl = t.foto_perfil || t.fotoPerfil || t.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.nombre)}&background=random`;
  
- // Lectura profunda de URLs
- const ineUrl = t.documentos?.ine || t.ine || t.ine_url || null;
- const csfUrl = t.documentos?.csf || t.csf || t.csf_url || null;
+ // Lectura profunda de URLs (Cualquier formato que haya usado el programador del registro)
+ const ineUrl = t.documentos?.ine || t.ine || t.ine_url || t.identificacion || null;
+ const csfUrl = t.documentos?.csf || t.csf || t.csf_url || t.constancia || null;
  const licUrl = t.documentos?.licencia || t.vehiculo?.licencia || t.licencia || t.licencia_url || null;
+
+ // Extracción profunda de textos
+ const banco = t.banco || t.datos_bancarios?.banco || t.banco_nombre || 'NO REGISTRADO';
+ const clabe = t.clabe || t.datos_bancarios?.clabe || t.clabe_interbancaria || 'NO REGISTRADA';
+
+ const vehiculo = t.vehiculo || {};
+ const tipoVehiculo = vehiculo.tipo || t.vehiculo_tipo || t.tipo_vehiculo || 'NO REGISTRADO';
+ const placas = vehiculo.placas || t.placas || t.vehiculo_placas || 'N/A';
 
  // Generación de Botones Funcionales
  const ineHTML = ineUrl ? `<a href="${ineUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
  const csfHTML = csfUrl ? `<a href="${csfUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
  const licHTML = licUrl ? `<a href="${licUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
-
- const vehiculo = t.vehiculo || {};
- const tipoVehiculo = vehiculo.tipo || 'NO REGISTRADO';
- const placas = vehiculo.placas || 'N/A';
 
  let certsHTML = '';
  if (t.documentos && t.documentos.certificados && t.documentos.certificados.length > 0) {
@@ -794,8 +824,8 @@ export async function iniciarPanelAdmin(user) {
  <div class="space-y-4">
  <div class="bg-black p-3 rounded-xl border border-zinc-800">
  <p class="text-[10px] text-gray-500 font-bold uppercase mb-1"><i class="fas fa-university"></i> Datos Bancarios</p>
- <p class="text-sm text-white font-mono">Banco: <span class="text-emerald-400">${escaparHTML(t.banco || 'NO REGISTRADO')}</span></p>
- <p class="text-sm text-white font-mono">CLABE: <span class="text-emerald-400">${escaparHTML(t.clabe || 'NO REGISTRADA')}</span></p>
+ <p class="text-sm text-white font-mono">Banco: <span class="text-emerald-400">${escaparHTML(banco)}</span></p>
+ <p class="text-sm text-white font-mono">CLABE: <span class="text-emerald-400">${escaparHTML(clabe)}</span></p>
  </div>
 
  <div class="bg-black p-3 rounded-xl border border-zinc-800">
@@ -855,7 +885,7 @@ export async function iniciarPanelAdmin(user) {
  window.aprobarTecnico = async (uid) => {
  if(!confirm("¿Estás seguro de aprobar a este técnico? Tendrá acceso inmediato a ver solicitudes y aceptar trabajos.")) return;
  try {
- await updateDoc(doc(db, "users", uid), {
+ const updates = {
  estado: "activo",
  status: "activo",
  verificado: true,
@@ -863,7 +893,12 @@ export async function iniciarPanelAdmin(user) {
  reputacion: 5.0,
  servicios_completados: 0,
  aprobadoEn: serverTimestamp()
- });
+ };
+ 
+ // Sincronización en ambas colecciones
+ await updateDoc(doc(db, "users", uid), updates);
+ try { await updateDoc(doc(db, "tecnicos", uid), updates); } catch(e) {}
+
  alert(" ✅ Técnico Aprobado y Activado exitosamente.");
  } catch (error) {
  console.error(error);
