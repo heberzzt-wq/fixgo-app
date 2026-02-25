@@ -900,6 +900,7 @@ export async function iniciarPanelAdmin(user) {
  }
  };
 
+ // 🔥 INYECCIÓN: GESTOR DE CATÁLOGO DINÁMICO Y COLAPSABLE
  window.abrirGestorCatalogo = async () => {
  const modal = document.getElementById("modalCatalogo");
  const container = document.getElementById("gridConfiguracion");
@@ -943,12 +944,23 @@ export async function iniciarPanelAdmin(user) {
  if (container) {
  container.innerHTML = "";
  let html = "";
+ let indexCat = 0;
  
  for (const [categoria, servicios] of Object.entries(MASTER_STRUCTURE)) {
+ const catId = `cat_admin_${indexCat}`;
+ // El primer acordeón estará abierto por defecto para guiar al usuario
+ const isHidden = indexCat === 0 ? "" : "hidden";
+ const isRotated = indexCat === 0 ? "rotate-180" : "";
+
  html += `
- <div class="mb-4 bg-zinc-900/50 p-3 rounded-xl border border-zinc-800">
- <h4 class="text-emerald-500 font-bold text-xs uppercase mb-3 border-b border-zinc-700 pb-1">${categoria}</h4>
- <div class="space-y-2">`;
+ <div class="mb-3 bg-zinc-900/80 rounded-xl border border-zinc-800 overflow-hidden shadow-lg">
+ <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/80 transition-colors" onclick="window.toggleCategoriaAdmin('${catId}')">
+ <h4 class="text-emerald-500 font-bold text-xs md:text-sm uppercase tracking-widest">${categoria}</h4>
+ <div class="bg-black/50 p-2 rounded-lg">
+ <i id="icon_${catId}" class="fas fa-chevron-down text-gray-400 transition-transform duration-300 ${isRotated}"></i>
+ </div>
+ </div>
+ <div id="${catId}" class="${isHidden} p-4 pt-0 space-y-3 border-t border-zinc-800/50 mt-2">`;
  
  servicios.forEach(srv => {
  const isChecked = config[srv.id] === true;
@@ -956,8 +968,18 @@ export async function iniciarPanelAdmin(user) {
  });
  
  html += `</div></div>`;
+ indexCat++;
  }
  container.innerHTML = html;
+ }
+ };
+
+ window.toggleCategoriaAdmin = (catId) => {
+ const content = document.getElementById(catId);
+ const icon = document.getElementById(`icon_${catId}`);
+ if(content && icon) {
+ content.classList.toggle('hidden');
+ icon.classList.toggle('rotate-180');
  }
  };
 
@@ -1128,11 +1150,11 @@ export async function iniciarPanelAdmin(user) {
 
 function generarSwitchGranular(id, label, checked) {
  return `
- <div class="flex justify-between items-center bg-black p-2 rounded-lg border border-zinc-800">
- <span class="text-gray-300 text-xs">${label}</span>
+ <div class="flex justify-between items-center bg-black p-3 rounded-lg border border-zinc-800">
+ <span class="text-gray-300 text-xs md:text-sm font-medium">${label}</span>
  <label class="relative inline-flex items-center cursor-pointer">
  <input type="checkbox" id="cfg_${id}" class="sr-only peer" ${checked ? 'checked' : ''}>
- <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+ <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
  </label>
  </div>`;
 }
