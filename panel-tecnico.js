@@ -195,7 +195,7 @@ export async function iniciarPanelTecnico(user) {
  elementos.statusLabel.innerText = "OFFLINE";
  elementos.statusLabel.className = "bg-red-500/20 text-red-500 status-badge font-bold";
  }
- elementos.radarSection?.classList.add("opacity-50", "grayscale");
+ elements.radarSection?.classList.add("opacity-50", "grayscale");
  }
  });
 
@@ -536,8 +536,8 @@ export async function iniciarPanelTecnico(user) {
  }
 
  let mensajeConfirmacion = metodo_pago === 'stripe' 
- ? "¿Aceptar este servicio?\n\nEl cliente YA PAGÓ por adelantado con tarjeta. Dirígete de inmediato." 
- : "¿Aceptar este servicio? \n\nRecuerda cobrar en efectivo al cliente al finalizar.";
+ ? "¿Aceptar este servicio?\n\nEl cliente YA PAGÓ la garantía con tarjeta. Dirígete de inmediato para cotizar." 
+ : "¿Aceptar este servicio? \n\nRecuerda elaborar la cotización al llegar.";
 
  if(!confirm(mensajeConfirmacion)) return;
  
@@ -571,12 +571,14 @@ export async function iniciarPanelTecnico(user) {
  }
  };
 
- // 🔥 MISIONES ACTIVAS (CON BOTONES DINÁMICOS V5.18.6)
+ // 🔥 MISIONES ACTIVAS & WATCHDOG DE CLIENTE (V5.19.0)
  const qMisiones = query(
  collection(db, "services"),
  where("tecnico_id", "==", user.uid),
- where("estado", "in", ["asignado", "en_camino", "en_sitio", "cotizando", "trabajando"])
+ // Inyección: Agregamos "cancelado" para que el técnico sepa si el cliente rechazó la cotización
+ where("estado", "in", ["asignado", "en_camino", "en_sitio", "cotizando", "trabajando", "cancelado"]) 
  );
+
  onSnapshot(qMisiones, (snap) => {
  const ls = elementos.listaServicios;
  const pa = elementos.panelAcciones;
@@ -590,10 +592,30 @@ export async function iniciarPanelTecnico(user) {
  }
 
  if(pa) pa.classList.remove("translate-y-full");
+
+ // 🔥 INYECCIÓN: WATCHDOG DE AUDIO PARA EL TÉCNICO
+ snap.docChanges().forEach(change => {
+ if (change.type === 'modified') {
+ const sData = change.doc.data();
+ // Evitamos notificar si el técnico ya lo ocultó
+ if (sData.oculto_para_tecnico) return; 
+
+ if (sData.estado === 'trabajando') {
+ sonarAlerta();
+ lanzarNotificacionPush("✅ ¡Cotización Aprobada!", "El cliente aceptó el presupuesto. Puedes iniciar la reparación.");
+ } else if (sData.estado === 'cancelado') {
+ sonarAlerta();
+ lanzarNotificacionPush("🚫 Servicio Declinado", "El cliente rechazó el presupuesto. Se ha aplicado el cargo de visita.");
+ }
+ }
+ });
  
  snap.forEach((docSnap) => {
  const s = docSnap.data();
  const id = docSnap.id;
+
+ // Si el técnico ya vio que fue cancelado y le dio ocultar, no lo mostramos
+ if (s.oculto_para_tecnico) return;
 
  const destinoWaze = s.coords
  ? `${s.coords.lat},${s.coords.lng}`
@@ -612,34 +634,36 @@ export async function iniciarPanelTecnico(user) {
  <i class="fas fa-map-marker-alt"></i> YA LLEGUÉ AL SITIO
  </button>`;
  } else if (s.estado === "en_sitio") {
- // BYPASS INTELIGENTE: Si es Stripe, se salta la cotización
- if (s.metodo_pago === 'stripe') {
- botonAccionHTML = `
- <button onclick="window.actualizarEstadoGlobal('${id}', 'trabajando')" class="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
- <i class="fas fa-tools"></i> INICIAR TRABAJO (PAGADO)
- </button>`;
- } else {
+ // 🔥 INYECCIÓN: DIAGNÓSTICO OBLIGATORIO PARA STRIPE Y EFECTIVO (Bypass Eliminado)
  botonAccionHTML = `
  <button onclick="window.abrirCotizadorGlobal('${id}')" class="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
- <i class="fas fa-calculator"></i> CREAR COTIZACIÓN
+ <i class="fas fa-clipboard-list"></i> ELABORAR DIAGNÓSTICO Y COTIZAR
  </button>`;
- }
  } else if (s.estado === "cotizando") {
  botonAccionHTML = `
  <button disabled class="w-full mt-4 bg-zinc-700 text-gray-400 font-bold py-4 rounded-xl flex items-center justify-center gap-2 cursor-not-allowed">
- <i class="fas fa-hourglass-half animate-spin"></i> ESPERANDO AL CLIENTE...
+ <i class="fas fa-hourglass-half animate-spin"></i> ESPERANDO APROBACIÓN DEL CLIENTE...
  </button>`;
  } else if (s.estado === "trabajando") {
  botonAccionHTML = `
  <button onclick="window.abrirEvidenciaGlobal('${id}')" class="w-full mt-4 bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
  <i class="fas fa-camera"></i> FINALIZAR Y CERRAR
  </button>`;
+ } else if (s.estado === "cancelado") {
+ botonAccionHTML = `
+ <div class="bg-red-900/30 border border-red-500 p-4 rounded-xl mt-4 text-center">
+ <p class="text-red-400 font-bold text-sm mb-2"><i class="fas fa-ban"></i> EL CLIENTE RECHAZÓ EL COSTO</p>
+ <p class="text-xs text-gray-300">El servicio fue cancelado. Cobra tu visita ($550 MXN) y cierra este ticket.</p>
+ </div>
+ <button onclick="window.ocultarTicketCancelado('${id}')" class="w-full mt-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-4 rounded-xl text-sm flex items-center justify-center gap-2 transition-transform active:scale-95">
+ <i class="fas fa-eye-slash"></i> OCULTAR Y CONTINUAR
+ </button>`;
  }
 
  const card = document.createElement("div");
- card.className = "bg-zinc-900 border border-blue-500/50 p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl";
+ card.className = `bg-zinc-900 border ${s.estado === 'cancelado' ? 'border-red-500' : 'border-blue-500/50'} p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl`;
  card.innerHTML = `
- <div class="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">
+ <div class="absolute top-0 right-0 ${s.estado === 'cancelado' ? 'bg-red-600' : 'bg-blue-600'} text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">
  ${s.estado.replace('_', ' ')}
  </div>
  <h3 class="text-xl font-black text-white mb-1 uppercase">${escaparHTML(s.categoria)}</h3>
@@ -647,11 +671,11 @@ export async function iniciarPanelTecnico(user) {
  <i class="fas fa-map-marker-alt text-blue-500"></i> ${escaparHTML(s.direccion)}
  </p>
  <div class="bg-black/50 p-4 rounded-xl mb-4">
- <p class="text-xs text-gray-500 uppercase font-bold mb-1">Problema:</p>
+ <p class="text-xs text-gray-500 uppercase font-bold mb-1">Problema Reportado:</p>
  <p class="text-sm text-white italic">"${escaparHTML(s.descripcion)}"</p>
  </div>
  <div class="flex gap-2">
- <a href="https://waze.com/ul?q=${destinoWaze}" target="_blank" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-center text-sm transition-colors">
+ <a href="https://waze.com/ul?q=${destinoWaze}" target="_blank" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-center text-sm transition-colors ${s.estado === 'cancelado' ? 'pointer-events-none opacity-50' : ''}">
  <i class="fab fa-waze"></i> IR CON WAZE
  </a>
  <a href="tel:${s.cliente_telefono}" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 px-4 rounded-xl text-center transition-colors">
@@ -660,15 +684,26 @@ export async function iniciarPanelTecnico(user) {
  </div>
 
  ${botonAccionHTML} 
+ 
+ ${s.estado !== 'cancelado' ? `
  <div class="mt-4 border-t border-white/5 pt-4 text-center">
  <button onclick="window.cancelarMisionActiva('${id}')" class="text-red-500 text-xs font-bold underline hover:text-red-400">
  CANCELAR SERVICIO (RIESGO PENALIZACIÓN)
  </button>
- </div>
+ </div>` : ''}
  `;
  ls.appendChild(card);
  });
  });
+
+ // Permite al técnico borrar el ticket de su pantalla si el cliente lo rechazó
+ window.ocultarTicketCancelado = async (id) => {
+ try {
+ await updateDoc(doc(db, "services", id), { oculto_para_tecnico: true });
+ } catch (e) {
+ console.error("Error al ocultar:", e);
+ }
+ };
 
  window.actualizarEstadoGlobal = async (id, estado, extras = {}) => {
  try {
@@ -730,10 +765,16 @@ export async function iniciarPanelTecnico(user) {
  <div id="modalCot" class="fixed inset-0 bg-black/95 z-[60] flex flex-col p-4 animate-fade-in overflow-y-auto">
  <div class="bg-zinc-900 w-full max-w-lg mx-auto rounded-3xl p-6 border border-zinc-700 shadow-2xl flex-1 flex flex-col">
  <div class="flex justify-between items-center mb-4">
- <h3 class="text-white font-black text-xl flex items-center gap-2"><img src="assets/gestiapremium-icon.svg" class="w-6 h-6 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]"> COTIZADOR PRO (ALAMO)</h3>
+ <h3 class="text-white font-black text-xl flex items-center gap-2"><img src="assets/gestiapremium-icon.svg" class="w-6 h-6 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]"> COTIZADOR PRO</h3>
  <button onclick="document.getElementById('modalCot').remove()" class="text-gray-500"><i class="fas fa-times"></i></button>
  </div>
  
+ <div class="bg-zinc-800 p-3 rounded-xl mb-4 border border-blue-900/50">
+ <label class="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2 block"><i class="fas fa-stethoscope"></i> 1. Reporte de Diagnóstico Obligatorio:</label>
+ <textarea id="inDiagnostico" rows="3" placeholder="Describe detalladamente el problema que encontraste en el sitio..." class="w-full bg-black text-white p-3 rounded-lg text-xs border border-zinc-600 focus:border-blue-500 outline-none resize-none"></textarea>
+ </div>
+
+ <label class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mb-2 block"><i class="fas fa-list"></i> 2. Conceptos y Costos:</label>
  <div class="flex-1 overflow-y-auto mb-4 border border-zinc-800 rounded-xl bg-black/50 p-2" id="listaPartidas">
  <p class="text-gray-600 text-xs text-center italic py-10">Agrega conceptos para cotizar.</p>
  </div>
@@ -759,7 +800,7 @@ export async function iniciarPanelTecnico(user) {
  </div>
 
  <button id="btnEnviarCot" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl text-sm shadow-lg shadow-blue-900/20 transition-transform active:scale-95">
- ENVIAR AL CLIENTE
+ ENVIAR DIAGNÓSTICO Y COSTOS AL CLIENTE
  </button>
  </div>
  </div>`;
@@ -828,21 +869,27 @@ export async function iniciarPanelTecnico(user) {
 
  if(btnSend) {
  btnSend.onclick = async () => {
- if(items.length === 0) return alert("Agrega al least un concepto para cotizar.");
+ // 🔥 VALIDACIÓN DEL DIAGNÓSTICO
+ const diagTexto = document.getElementById("inDiagnostico").value.trim();
+ if (!diagTexto || diagTexto.length < 10) {
+ return alert("⚠️ OBLIGATORIO:\nDebes escribir un reporte de diagnóstico detallado (mínimo 10 caracteres) explicando qué falla tiene el cliente.");
+ }
+
+ if(items.length === 0) return alert("Agrega al menos un concepto a cobrar.");
  
  const totalFinal = items.reduce((sum, item) => sum + (item.cantidad * item.precio), 0);
 
- if(!confirm(`¿Enviar cotización por $${totalFinal.toFixed(2)}?`)) return;
+ if(!confirm(`¿Enviar diagnóstico y cotización por un total de $${totalFinal.toFixed(2)} al cliente para su revisión?`)) return;
 
  try {
  await updateDoc(doc(db, "services", id), {
  estado: "cotizando",
+ diagnostico: diagTexto, // <-- Guardamos el diagnóstico en la nube
  detalles_cotizacion: items, 
  costo_final: totalFinal,
- cotizado_at: serverTimestamp(),
- diagnostico: "Cotización Detallada" 
+ cotizado_at: serverTimestamp()
  });
- alert(`✅ Cotización con ${items.length} partidas enviada correctamente.`);
+ alert(`✅ Diagnóstico y Cotización enviados.\n\nEspera a que el cliente lo apruebe en su aplicación para comenzar a trabajar.`);
  } catch (e) {
  console.error(e);
  alert("Error al guardar la cotización.");
