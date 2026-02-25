@@ -535,9 +535,8 @@ export async function iniciarPanelTecnico(user) {
  return;
  }
 
- let mensajeConfirmacion = metodo_pago === 'stripe' 
- ? "¿Aceptar este servicio?\n\nEl cliente YA PAGÓ la garantía con tarjeta. Dirígete de inmediato para cotizar." 
- : "¿Aceptar este servicio? \n\nRecuerda elaborar la cotización al llegar.";
+ // 🔥 INYECCIÓN DE TEXTO CORREGIDO PARA EL TÉCNICO
+ let mensajeConfirmacion = "¿Deseas aceptar esta misión de servicio?\n\nRecuerda: Es OBLIGATORIO elaborar el diagnóstico y la cotización al llegar al sitio.";
 
  if(!confirm(mensajeConfirmacion)) return;
  
