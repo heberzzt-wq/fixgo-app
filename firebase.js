@@ -27,7 +27,8 @@ import {
     where,           
     addDoc,          
     orderBy,         
-    serverTimestamp 
+    serverTimestamp,
+    limit // 🔥 INYECCIÓN: Agregamos limit para el paginado del NOC Admin
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Configuración de credenciales
@@ -167,5 +168,6 @@ export {
     where, 
     addDoc, 
     orderBy, 
-    serverTimestamp
+    serverTimestamp,
+    limit // 🔥 INYECCIÓN: Exportamos limit para el app-bi.js
 };
