@@ -2,16 +2,17 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 6.4 (LOGISTICS + LEGAL SPLIT + ONBOARDING SIN FRICCIÓN)
+ * Versión: 6.5 (STORAGE UPLOAD + ANTI-RACE CONDITION)
  * Autor: Heber (CEO & Lead Architect)
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR.
  * ======================================================
  */
-console.log(" 🚀 [app-registro.js] Inicializando sistema V6.4 (Onboarding Inmediato sin verificación de correo)...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema V6.5 (Storage Direct Upload + Anti-Redirect)...");
 
 import { 
     auth, 
     db, 
+    storage, 
     registrarUsuario, 
     signInWithEmailAndPassword, 
     signOut, 
@@ -27,6 +28,9 @@ import {
     signInWithPopup, 
     deleteUser
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+// 🔥 INYECCIÓN: Importamos la librería para subir archivos pesados directo a la nube
+import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
 /**
  * 🦈 SANITIZADOR MAESTRO (PREVENCIÓN XSS)
@@ -62,18 +66,14 @@ const verificarRateLimit = () => {
 };
 
 // ======================================================
-// 📸 UTILIDAD DE CONVERSIÓN DE IMÁGENES A BASE64
+// 📸 MOTOR CLOUD STORAGE (REEMPLAZA AL BASE64 PESADO)
 // ======================================================
-const fileToBase64 = file => new Promise((resolve, reject) => {
-    if (!file) {
-        resolve(null);
-        return;
-    }
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = error => reject(error);
-});
+const subirAStorage = async (file, path) => {
+    if (!file) return null;
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    return await getDownloadURL(storageRef);
+};
 
 // ======================================================
 // 0. CONFIGURACIÓN DE STRIPE (TOKENIZACIÓN)
@@ -196,6 +196,9 @@ if (btnRegistroCliente) {
         const textoOriginal = btnRegistroCliente.innerHTML;
 
         try {
+            // 🔥 BANDERA DE SEGURIDAD: Impide que el sistema redirija antes de terminar
+            window.isRegisteringLocal = true; 
+
             btnRegistroCliente.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con el Banco...';
             btnRegistroCliente.disabled = true;
 
@@ -209,7 +212,6 @@ if (btnRegistroCliente) {
 
             usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
 
-            // 🔥 ONBOARDING INMEDIATO: Ya NO pedimos validación de correo ni sacamos al usuario.
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
@@ -230,7 +232,8 @@ if (btnRegistroCliente) {
 
             alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nBienvenido a GestiaPremium. Ahora puedes solicitar tu servicio de inmediato.`);
             
-            // El observador (observarAuth) detectará la sesión viva y lo redirigirá a cliente.html automáticamente.
+            // Redirección Manual Segura
+            window.location.href = "cliente.html";
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
@@ -274,7 +277,7 @@ if ($("btnSubirINE")) {
         if(archivoINE) {
             const btn = $("btnSubirINE");
             btn.innerHTML = '<i class="fas fa-check-circle"></i> INE Cargada';
-            btn.classList.replace("bg-indigo-600", "bg-emerald-600");
+            btn.classList.replace("bg-zinc-800", "bg-emerald-600");
         }
     });
 }
@@ -286,7 +289,7 @@ if ($("btnSubirCSF")) {
         if(archivoCSF) {
             const btn = $("btnSubirCSF");
             btn.innerHTML = '<i class="fas fa-check-circle"></i> CSF Cargada';
-            btn.classList.replace("bg-indigo-600", "bg-emerald-600");
+            btn.classList.replace("bg-zinc-800", "bg-emerald-600");
         }
     });
 }
@@ -298,7 +301,7 @@ if ($("btnSubirLicencia")) {
         if(archivoLicencia) {
             const btn = $("btnSubirLicencia");
             btn.innerHTML = '<i class="fas fa-check-circle"></i> Licencia Cargada';
-            btn.classList.replace("bg-blue-600", "bg-emerald-600");
+            btn.classList.replace("bg-zinc-800", "bg-emerald-600");
         }
     });
 }
@@ -310,7 +313,7 @@ if ($("btnSubirCertificados")) {
         if(archivosCertificados.length > 0) {
             const btn = $("btnSubirCertificados");
             btn.innerHTML = `<i class="fas fa-check-circle"></i> ${archivosCertificados.length} Certificado(s)`;
-            btn.classList.replace("bg-purple-600", "bg-emerald-600");
+            btn.classList.replace("bg-zinc-800", "bg-emerald-600");
         }
     });
 }
@@ -380,46 +383,51 @@ if (btnRegistroTecnico) {
         const textoOriginal = btnRegistroTecnico.innerHTML;
 
         try {
+            // 🔥 BANDERA DE SEGURIDAD: Frena el redireccionamiento para darnos tiempo de subir los documentos a la Nube.
+            window.isRegisteringLocal = true; 
+
             btnRegistroTecnico.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encriptando Datos...';
             btnRegistroTecnico.disabled = true;
 
             usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
-            btnRegistroTecnico.innerHTML = '<i class="fas fa-file-upload animate-bounce"></i> Procesando Expediente...';
+            btnRegistroTecnico.innerHTML = '<i class="fas fa-cloud-upload-alt animate-bounce"></i> Subiendo Archivos Pesados a Google Cloud... (No cierres)';
             
-            const [b64Foto, b64INE, b64CSF, b64Licencia] = await Promise.all([
-                fileToBase64(archivoFotoPerfil),
-                fileToBase64(archivoINE),
-                fileToBase64(archivoCSF),
-                fileToBase64(archivoLicencia)
+            // Subida real a Google Storage (URLs ligeras en lugar de Base64 pesados)
+            const uid = usuarioAuth.uid;
+            const [urlFoto, urlINE, urlCSF, urlLicencia] = await Promise.all([
+                subirAStorage(archivoFotoPerfil, `expedientes/${uid}/perfil_${Date.now()}`),
+                subirAStorage(archivoINE, `expedientes/${uid}/ine_${Date.now()}`),
+                subirAStorage(archivoCSF, `expedientes/${uid}/csf_${Date.now()}`),
+                subirAStorage(archivoLicencia, `expedientes/${uid}/licencia_${Date.now()}`)
             ]);
 
-            let b64Certificados = [];
+            let urlsCertificados = [];
             if(archivosCertificados.length > 0) {
-                b64Certificados = await Promise.all(archivosCertificados.map(file => fileToBase64(file)));
+                urlsCertificados = await Promise.all(archivosCertificados.map((file, idx) => subirAStorage(file, `expedientes/${uid}/cert_${idx}_${Date.now()}`)));
             }
 
             btnRegistroTecnico.innerHTML = '<i class="fas fa-database animate-pulse"></i> Inyectando a Base de Datos...';
 
-            await setDoc(doc(db, "users", usuarioAuth.uid), {
-                uid: usuarioAuth.uid,
+            await setDoc(doc(db, "users", uid), {
+                uid: uid,
                 nombre: nombre,
                 email: email,
                 telefono: telefono,
                 rol: "tecnico",
                 skills: skills,
-                foto_perfil: b64Foto, 
-                fotoPerfil: b64Foto,  
+                foto_perfil: urlFoto, 
+                fotoPerfil: urlFoto,  
                 estado: "pendiente",
                 status: "pendiente",
                 disponible: false,
                 verificado: false,
                 vehiculo: { tipo: tipoVehiculo, placas: placas },
                 documentos: {
-                    ine: b64INE,
-                    csf: b64CSF,
-                    licencia: b64Licencia || false,
-                    certificados: b64Certificados,
+                    ine: urlINE,
+                    csf: urlCSF,
+                    licencia: urlLicencia || false,
+                    certificados: urlsCertificados,
                     fecha_subida: serverTimestamp()
                 },
                 datos_bancarios: {
@@ -433,10 +441,10 @@ if (btnRegistroTecnico) {
                 creadoEn: serverTimestamp()
             }, { merge: true });
 
-            // 🔥 ONBOARDING INMEDIATO: Sin verificación de correo. Pasan a pendiente de Admin automáticamente.
             alert(`✅ ¡Expediente Recibido!\n\nBienvenido, ${nombre}. Tu cuenta está en revisión. El Administrador validará tus documentos pronto.`);
             
-            // Redirige naturalmente por el observador a tecnico.html (donde verá el cartel de 'En Revisión')
+            // Redirección Manual Segura una vez que terminó 100% de inyectar datos
+            window.location.href = "tecnico.html";
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Técnico:", error);
@@ -446,6 +454,7 @@ if (btnRegistroTecnico) {
             manejarErroresAuth(error);
             btnRegistroTecnico.innerHTML = textoOriginal;
             btnRegistroTecnico.disabled = false;
+            window.isRegisteringLocal = false; // Liberamos la bandera en caso de error
         }
     });
 }
@@ -476,9 +485,6 @@ if (btnLogin) {
             // 1. Iniciamos sesión. Firebase validará usuario y contraseña correctos.
             await signInWithEmailAndPassword(auth, email, password);
 
-            // 🔥 SE ELIMINÓ EL BLOQUEO POR CORREO NO VERIFICADO. 
-            // Si la clave es correcta, el observador en la línea 402 los dejará pasar directo.
-
         } catch (error) {
             manejarErroresAuth(error);
             btnLogin.innerHTML = textoOriginal;
@@ -507,6 +513,7 @@ if (btnGoogle) {
             const docSnap = await getDoc(doc(db, "users", user.uid));
             
             if (!docSnap.exists()) {
+                window.isRegisteringLocal = true; // Bloquea redirección prematura
                 const esTecnico = confirm("¿Eres TÉCNICO? [ACEPTAR] = SÍ / [CANCELAR] = CLIENTE");
                 const rolSeleccionado = esTecnico ? "tecnico" : "cliente";
                 
@@ -539,18 +546,14 @@ if (btnGoogle) {
                 }
 
                 await setDoc(doc(db, "users", user.uid), perfilBase);
-
-                if (rolSeleccionado === 'tecnico') {
-                    await setDoc(doc(db, "tecnicos", user.uid), { ...perfilBase });
-                } else {
-                    await setDoc(doc(db, "clientes", user.uid), { ...perfilBase, pedidos: 0 });
-                }
                 
                 if(esTecnico) {
                     alert("⚠️ Aviso: Tu perfil base fue creado con Google. Por seguridad y cumplimiento (KYC), deberás contactar al Administrador para subir tu INE, CSF, Licencia y Placas antes de ser aprobado.");
                 } else {
                     alert("⚠️ Aviso: Deberás agregar una tarjeta en tu panel para solicitar servicios (Garantía de Servicio).");
                 }
+
+                window.location.href = esTecnico ? "tecnico.html" : "cliente.html";
             }
         } catch (error) {
             alert("Error con Google. Intenta nuevamente.");
@@ -565,9 +568,8 @@ if (btnGoogle) {
 // E. OBSERVADOR Y MANEJO DE ERRORES
 // ======================================================
 observarAuth((user) => {
-    // 🔥 ONBOARDING INMEDIATO: Ya no evaluamos si el correo está verificado o si está en lista blanca.
-    // Solo comprobamos que haya una sesión activa.
-    if (user) {
+    // 🔥 ESCUDO: Solo redirecciona automáticamente SI NO ESTAMOS en pleno proceso de registro
+    if (user && !window.isRegisteringLocal) {
         const path = window.location.pathname;
         if (path.includes("login.html") || path.includes("registro")) {
             setTimeout(() => {
