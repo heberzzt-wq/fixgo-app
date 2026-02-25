@@ -26,7 +26,7 @@ import {
 import { runTransaction, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Sistema Nervioso Compartido
-import { escaparHTML, cargarLibreriaPDF, urlABase64, sonarAlerta } from "./app-utils.js";
+import { escaparHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotificacionPush } from "./app-utils.js";
 
 // ======================================================================================
 // 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.17.0
@@ -223,7 +223,7 @@ export async function iniciarPanelCliente(user) {
  const vertical = partes[0].toUpperCase(); 
  const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
 
- // 🔥 INYECCIÓN: LÓGICA DE RUTEO DE PAGO SEGÚN PERMISOS VIP
+ // 🔥 LÓGICA DE RUTEO DE PAGO SEGÚN PERMISOS VIP
  const esEfectivoAutorizado = user.efectivo_autorizado === true;
  let metodoSeleccionado = "stripe"; // Tarjeta por defecto
 
@@ -301,7 +301,7 @@ export async function iniciarPanelCliente(user) {
  }
 
  // ----------------------------------------------------------------------------------
- // 3.3 MONITOR DE HISTORIAL & WATCHDOG DE NOTIFICACIONES AL CLIENTE
+ // 3.3 MONITOR DE HISTORIAL & WATCHDOG DE NOTIFICACIONES AL CLIENTE (INYECCIÓN V5)
  // ----------------------------------------------------------------------------------
  onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc"), limit(50)), (snap) => {
  if(!el.lista) return;
@@ -309,14 +309,25 @@ export async function iniciarPanelCliente(user) {
  snap.docChanges().forEach(change => {
  if (change.type === 'modified') {
  const newData = change.doc.data();
- console.log(" 🔔 Actualización de servicio:", newData.estado);
+ console.log(" 🔔 Cambio de estado detectado en ticket:", newData.estado);
+ 
+ // 🔥 INYECCIÓN: MOTOR DE AUDIO Y PUSH DINÁMICO PARA EL CLIENTE
  sonarAlerta();
 
- // 🔥 CORRECCIÓN TEXTOS: Alertamos según método de pago
- if (newData.estado === 'finalizado') {
+ if (newData.estado === 'asignado') {
+ lanzarNotificacionPush("Técnico Asignado", `${newData.tecnico_nombre} ha aceptado tu solicitud.`);
+ } else if (newData.estado === 'en_camino') {
+ lanzarNotificacionPush("Técnico en Camino", `${newData.tecnico_nombre} se dirige a tu ubicación.`);
+ } else if (newData.estado === 'en_sitio') {
+ lanzarNotificacionPush("Técnico en Sitio", "El técnico ha llegado a tu domicilio y comenzará el diagnóstico.");
+ } else if (newData.estado === 'cotizando') {
+ lanzarNotificacionPush("Reporte y Cotización Lista", "Revisa el diagnóstico y aprueba el presupuesto para iniciar.");
+ } else if (newData.estado === 'finalizado') {
  if (newData.metodo_pago === 'stripe') {
+ lanzarNotificacionPush("Servicio Finalizado", "Pago cobrado automáticamente a tu tarjeta.");
  alert("✅ ¡Servicio terminado exitosamente!\n\nTu pago ha sido procesado de forma segura vía STRIPE a tu tarjeta. Revisa tu comprobante digital en pantalla.");
  } else {
+ lanzarNotificacionPush("Servicio Finalizado", "Por favor, realiza el pago en efectivo al técnico.");
  alert("✅ ¡Servicio terminado exitosamente!\n\nPor favor, realiza el pago en EFECTIVO directamente al técnico. Revisa tu comprobante digital en pantalla.");
  }
  }
@@ -341,7 +352,6 @@ export async function iniciarPanelCliente(user) {
  let contenido = `<div class="p-4 bg-yellow-900/10 rounded-xl border border-yellow-500/30 mb-2"><span class="text-xs font-bold text-yellow-500 animate-pulse"> 🔎 RASTREANDO TÉCNICO EN LA ZONA...</span></div>`;
  
  if (s.estado === "iniciado_stripe") {
- // Visualización amigable para cuando el cliente aún no paga o está procesando
  contenido = `
  <div class="bg-blue-900/10 border border-blue-500/30 p-4 rounded-xl mt-2 text-center">
  <i class="fas fa-credit-card text-blue-500 text-2xl mb-2 animate-bounce"></i>
@@ -383,20 +393,28 @@ export async function iniciarPanelCliente(user) {
  </div>
  `;
  } else {
- htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${s.costo_final}</p><p class="text-gray-400 text-xs italic">"${escaparHTML(s.diagnostico)}"</p>`;
+ htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${s.costo_final}</p>`;
  }
 
- // 🔥 CORRECCIÓN TEXTOS: Mensaje dinámico debajo de la tabla
+ // 🔥 INYECCIÓN: RENDERIZADO VISUAL DEL REPORTE DE DIAGNÓSTICO
+ const reporteDiagnosticoHTML = s.diagnostico ? `
+ <div class="bg-black/50 border border-blue-900/50 p-3 rounded-lg mb-3 shadow-inner">
+ <p class="text-blue-400 text-[10px] font-bold uppercase tracking-widest mb-1"><i class="fas fa-clipboard-check"></i> Reporte de Diagnóstico Técnico:</p>
+ <p class="text-gray-300 text-xs italic leading-relaxed">"${escaparHTML(s.diagnostico)}"</p>
+ </div>
+ ` : '';
+
  let textoCobroCotizacion = s.metodo_pago === 'stripe'
  ? `<p class="legal-note mt-2 text-blue-400 font-bold"><i class="fas fa-credit-card"></i> El monto final será cobrado automáticamente a tu tarjeta vía STRIPE.</p>`
  : `<p class="legal-note mt-2 text-emerald-500 font-bold"><i class="fas fa-hand-holding-usd"></i> Pago en EFECTIVO directo al técnico al finalizar.</p>`;
 
  contenido = `
  <div class="bg-zinc-800 p-4 rounded-lg border border-yellow-500 mt-2">
- <div class="flex justify-between items-center mb-2">
+ <div class="flex justify-between items-center mb-3 border-b border-zinc-700 pb-2">
  <p class="text-yellow-500 text-xs font-bold uppercase">PRESUPUESTO GENERADO</p>
  <span class="bg-yellow-500/20 text-yellow-500 text-[9px] px-2 py-1 rounded">FOLIO: ${id.substring(0,6).toUpperCase()}</span>
  </div>
+ ${reporteDiagnosticoHTML}
  ${htmlTabla}
  <div class="mt-2 p-2 bg-black/50 rounded border border-white/5">
  <p class="legal-note" style="font-size: 8px; color: #666;">* SI HUBIERA CANCELACION TOTAL O PARCIAL... PENALIZACION DEL 20%.</p>
@@ -404,7 +422,7 @@ export async function iniciarPanelCliente(user) {
  ${textoCobroCotizacion}
  </div>
  <div class="flex gap-2 mt-4">
- <button onclick="window.responderCotizacion('${id}', false)" class="flex-1 bg-red-900/50 hover:bg-red-900 text-red-200 text-xs py-3 rounded-lg font-bold transition-colors">
+ <button onclick="window.responderCotizacion('${id}', false)" class="flex-1 bg-red-900/50 hover:bg-red-900 text-red-200 text-xs py-3 rounded-lg font-bold transition-colors shadow-lg">
  RECHAZAR
  </button>
  <button onclick="window.responderCotizacion('${id}', true)" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs py-3 rounded-lg transition-colors shadow-lg shadow-emerald-500/20">
@@ -438,7 +456,7 @@ export async function iniciarPanelCliente(user) {
  ${f_d1 ? `<div class="relative h-16"><img src="${f_d1}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
  ${f_d2 ? `<div class="relative h-16"><img src="${f_d2}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
  </div>
- <button onclick="window.generarPDF('${id}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2">
+ <button onclick="window.generarPDF('${id}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2 shadow-lg">
  <i class="fas fa-file-download text-red-500"></i> DESCARGAR REPORTE FISCAL
  </button>
  ${s.factura_requerida ? `<p class="text-[9px] text-center mt-3 text-emerald-400 italic">Factura CFDI solicitada. Te llegará por correo.</p>` : ''}
@@ -489,7 +507,7 @@ export async function iniciarPanelCliente(user) {
  ${contenido}
 
  ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `
- <button onclick="window.abrirMapaEnVivo('${id}')" class="w-full mt-4 text-center bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs py-3 rounded-xl border border-blue-500/30 transition-colors font-bold flex items-center justify-center gap-2">
+ <button onclick="window.abrirMapaEnVivo('${id}')" class="w-full mt-4 text-center bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs py-3 rounded-xl border border-blue-500/30 transition-colors font-bold flex items-center justify-center gap-2 shadow-lg">
  <i class="fas fa-map-marked-alt"></i> SEGUIR TÉCNICO EN VIVO
  </button>
  ` : ''}
@@ -508,11 +526,11 @@ export async function iniciarPanelCliente(user) {
  <div id="modalMapaVivo" class="fixed inset-0 bg-black/95 z-[70] flex flex-col p-4 animate-fade-in">
  <div class="flex justify-between items-center mb-4 mt-2">
  <h3 class="text-white font-black text-lg flex items-center gap-2"><img src="assets/gestiapremium-icon.svg" class="w-6 h-6 drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]"> RASTREO EN VIVO</h3>
- <button onclick="document.getElementById('modalMapaVivo').remove()" class="bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg font-bold text-xs transition-colors">
+ <button onclick="document.getElementById('modalMapaVivo').remove()" class="bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg font-bold text-xs transition-colors shadow-lg">
  <i class="fas fa-times"></i> CERRAR MAPA
  </button>
  </div>
- <div class="flex-1 rounded-2xl overflow-hidden border border-zinc-700 relative bg-zinc-900 flex items-center justify-center">
+ <div class="flex-1 rounded-2xl overflow-hidden border border-zinc-700 relative bg-zinc-900 flex items-center justify-center shadow-2xl">
  <div class="absolute text-zinc-600 flex flex-col items-center z-0">
  <i class="fas fa-spinner fa-spin text-3xl mb-2"></i>
  <p class="text-xs font-bold uppercase tracking-widest">Conectando con GPS...</p>
