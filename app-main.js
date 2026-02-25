@@ -2,25 +2,16 @@
  * ======================================================================================
  * GESTIAPREMIUM 2026 - MAIN CONTROLLER (ROUTER & GATEKEEPER)
  * Archivo: app-main.js
- * Versión: 5.15.5 (Fix Tickets Fantasma Stripe + Link Webhook + Categorías Exactas)
+ * Versión: 5.15.6 (Delegación de lógica Stripe a panel-cliente.js)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
 
-console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.15.5...");
+console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.15.6...");
 
-import { observarAuth, auth, signOut, db, collection, addDoc, serverTimestamp, getDoc, doc } from "./firebase.js";
+import { observarAuth, auth, signOut, db, getDoc, doc } from "./firebase.js";
 import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./app-panel.js";
 import { iniciarMotorBI } from "./app-bi.js"; 
-
-// 💳 MOTOR STRIPE
-const STRIPE_PUBLIC_KEY = "pk_test_51SuznMFB3c4okYlKz7FZYdaftLAmuBWkO1cGlHDrzxbON37J8STqFtDsG6apf7zup4YJTmFbyVtmzdqIV0icjxeX00YVsW2OHU";
-const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_8x2fZh5OR2WEek63oz1kA00"; 
-
-let stripe;
-if (window.Stripe) {
-    stripe = Stripe(STRIPE_PUBLIC_KEY);
-}
 
 document.body.style.display = 'none';
 
@@ -71,6 +62,8 @@ observarAuth(async (userAuth) => {
 
     userAuth.rol = userRol;
     userAuth.nombre = userData.nombre || userAuth.email;
+    // Pasa el permiso especial
+    userAuth.efectivo_autorizado = userData.efectivo_autorizado || false; 
 
     console.log(`✅ Usuario: ${userAuth.email} | Rol validado: ${userAuth.rol}`);
 
@@ -95,9 +88,14 @@ observarAuth(async (userAuth) => {
             await iniciarPanelTecnico(userAuth);
         }
         else if (userAuth.rol === "cliente") {
+            // panel-cliente.js se encarga de crear el ticket y manejar a Stripe
             await iniciarPanelCliente(userAuth);
-            const efectivoAutorizado = userData.permisoEspecialEfectivo === true;
-            iniciarMotorStripe(userAuth, efectivoAutorizado); 
+            
+            // Mostrar la opción de efectivo si el cliente está autorizado
+            const contenedorEfectivo = document.getElementById('contenedorOpcionEfectivo');
+            if (userAuth.efectivo_autorizado && contenedorEfectivo) {
+                 contenedorEfectivo.classList.remove('hidden'); 
+            }
         }
         
         actualizarInterfazGlobal(userAuth);
@@ -106,68 +104,6 @@ observarAuth(async (userAuth) => {
         console.error("❌ Error crítico en el arranque del sistema:", error);
     }
 });
-
-function iniciarMotorStripe(user, efectivoAutorizado = false) {
-    const formularioSolicitud = document.getElementById('nuevaSolicitudForm');
-    const contenedorEfectivo = document.getElementById('contenedorOpcionEfectivo');
-
-    if (efectivoAutorizado && contenedorEfectivo) {
-        contenedorEfectivo.classList.remove('hidden'); 
-    }
-    
-    if (formularioSolicitud) {
-        formularioSolicitud.addEventListener('submit', async (e) => {
-            e.preventDefault(); 
-            const inputMetodo = document.querySelector('input[name="metodoPago"]:checked');
-            const metodoPagoSeleccionado = inputMetodo ? inputMetodo.value : "stripe"; 
-            
-            const formData = new FormData(formularioSolicitud);
-            const datosBase = Object.fromEntries(formData.entries());
-            
-            // 🔥 FIX: Formateo estricto de Categoría (Para evitar discrepancias visuales)
-            const catOriginal = datosBase.categoria || "gral_gral";
-            const partes = catOriginal.split('_');
-            const catPrincipal = partes[0].toUpperCase();
-            const subServicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
-
-            const datosServicio = {
-                ...datosBase,
-                categoria: catPrincipal,
-                sub_servicio: subServicio,
-                categoria_id: catOriginal,
-                cliente_email: user.email,
-                cliente_nombre: user.nombre || user.email,
-                cliente_id: user.uid,
-                estado: "pendiente",
-                retencion_inicial: 550, // 🔒 GARANTÍA BASE REGISTRADA
-                created_at: serverTimestamp(),
-                metodo_pago: metodoPagoSeleccionado
-            };
-
-            try {
-                const docRef = await addDoc(collection(db, "services"), datosServicio);
-                console.log(`✅ Servicio creado con éxito en DB (ID: ${docRef.id}).`);
-
-                if (metodoPagoSeleccionado === "stripe") {
-                    const urlCobro = new URL(STRIPE_PAYMENT_LINK);
-                    urlCobro.searchParams.append('prefilled_email', user.email);
-                    // 🔗 FIX WEBHOOK: Le mandamos el ID exacto a Stripe para que no duplique.
-                    urlCobro.searchParams.append('client_reference_id', docRef.id); 
-                    window.location.href = urlCobro.toString();
-                } else if (metodoPagoSeleccionado === "efectivo" && efectivoAutorizado) {
-                    alert("✅ ¡Solicitud Exitosa! Tu pago en efectivo ha sido pre-aprobado. Un técnico va en camino.");
-                    formularioSolicitud.reset();
-                    window.location.reload(); 
-                } else {
-                    alert("Error: Método de pago no válido.");
-                }
-            } catch (error) {
-                console.error("❌ Error al crear documento en Firebase:", error);
-                alert("Hubo un error al generar la solicitud. Verifica tu conexión.");
-            }
-        });
-    }
-}
 
 function iniciarEscuchaEventosDinamicos() {
     const panelAcciones = document.getElementById("panelAcciones");
