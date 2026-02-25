@@ -152,9 +152,9 @@ export async function ejecutarRetiroSeguro(retiroId, tecnicoId, monto) {
     }
 }
 
-// 🔥 INYECCIÓN: MOTOR DE PAGOS STRIPE (ANTI-DUPLICADOS)
+// 🔥 INYECCIÓN: MOTOR DE PAGOS STRIPE (ANTI-DUPLICADOS) - PAGO INICIAL
 export async function procesarPagoStripe(serviceId, payloadTicket) {
-    console.log("💳 BRIDGE: Iniciando conexión con Stripe para el ticket:", serviceId);
+    console.log("💳 BRIDGE: Iniciando conexión con Stripe para el ticket (Garantía):", serviceId);
 
     try {
         // Hacemos la petición a tu servidor en Google Cloud Run
@@ -167,7 +167,8 @@ export async function procesarPagoStripe(serviceId, payloadTicket) {
                 // 🔥 ESTA ES LA CLAVE: Le mandamos el ID del ticket a tu servidor
                 serviceId: serviceId, 
                 descripcion: payloadTicket.descripcion || "Servicio GestiaPremium",
-                monto: 550 // Retención de garantía
+                monto: 550, // Retención de garantía
+                tipo_pago: "garantia_inicial" // Identificador para tu webhook backend
             })
         });
 
@@ -186,7 +187,42 @@ export async function procesarPagoStripe(serviceId, payloadTicket) {
     }
 }
 
-// Exponemos la función al entorno global (window) para que panel-cliente.js la encuentre
+// 🔥 INYECCIÓN: MOTOR DE PAGOS STRIPE - PAGO DE SALDO FINAL
+export async function procesarPagoSaldoStripe(serviceId, saldoPendiente) {
+    console.log("💳 BRIDGE: Iniciando conexión con Stripe para cobrar SALDO:", serviceId, saldoPendiente);
+
+    try {
+        const response = await fetch("https://stripewebhook-72a7uqnggq-uc.a.run.app/create-checkout-session", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                serviceId: serviceId, 
+                descripcion: "Liquidación de Saldo - Servicio GestiaPremium",
+                monto: saldoPendiente, // Cobramos la diferencia exacta
+                tipo_pago: "liquidacion_saldo" // Identificador clave para el webhook
+            })
+        });
+
+        const session = await response.json();
+
+        if (session.url) {
+            window.location.href = session.url;
+        } else {
+            throw new Error("No se recibió URL de Stripe para el saldo");
+        }
+
+    } catch (error) {
+        console.error("🚨 ERROR EN PASARELA STRIPE (SALDO):", error);
+        alert("Error al conectar con la pasarela segura para liquidar el saldo. Intenta de nuevo.");
+        // Revertimos el estado para que el cliente pueda volver a intentar pagar
+        await updateDoc(doc(db, "services", serviceId), { estado: "cotizando" });
+    }
+}
+
+// Exponemos las funciones al entorno global (window) para que panel-cliente.js las encuentre
 if (typeof window !== "undefined") {
     window.procesarPagoStripe = procesarPagoStripe;
+    window.procesarPagoSaldoStripe = procesarPagoSaldoStripe;
 }
