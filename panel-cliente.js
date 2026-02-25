@@ -275,15 +275,14 @@ export async function iniciarPanelCliente(user) {
  cardBtn.classList.add('bg-zinc-900', 'border-zinc-700');
  });
 
- // REDIRECCIÓN SEGÚN MÉTODO
+ // 🔥 CORRECCIÓN DEL MENSAJE DE SEGURIDAD $550 🔥
  if (metodoSeleccionado === "stripe") {
- alert("🔒 Redirigiendo a pasarela segura...\n\nSe realizará una retención de $550 MXN por garantía. Tu técnico será asignado en cuanto confirmes el pago.");
+ alert("🔒 SEGURIDAD GESTIAPREMIUM:\n\nSe realizará una RETENCIÓN DE GARANTÍA por $550 MXN en tu tarjeta.\n\nEste monto NO es el costo final, es solo para asegurar la visita del técnico. Al finalizar, este saldo se aplicará a tu cuenta total.");
  // Hook para tu archivo fixgo-bridge.js
  if (window.procesarPagoStripe) {
  window.procesarPagoStripe(docRef.id, payloadTicket);
  } else {
  console.warn("Falta conectar la pasarela. Por favor, asegúrate de que fixgo-bridge.js lea este ticket ID:", docRef.id);
- // Si no tienes la función conectada, aquí debes integrar el window.location.href a Stripe.
  }
  } else {
  alert(" ✅ ¡Solicitud VIP en Efectivo Enviada!\n\nNuestro sistema está buscando al técnico certificado más cercano...");
