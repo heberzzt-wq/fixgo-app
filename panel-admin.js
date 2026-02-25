@@ -721,24 +721,27 @@ export async function iniciarPanelAdmin(user) {
  
  const ineUrl = t.documentos?.ine || t.ine || t.ine_url || t.identificacion || null;
  const csfUrl = t.documentos?.csf || t.csf || t.csf_url || t.constancia || null;
- const licUrl = t.documentos?.licencia || t.vehiculo?.licencia || t.licencia || t.licencia_url || null;
+ const licUrl = t.documentos?.licencia || t.licencia || t.vehiculo?.licencia || null;
 
- const banco = t.banco || t.datos_bancarios?.banco || t.banco_nombre || 'NO REGISTRADO';
- const clabe = t.clabe || t.datos_bancarios?.clabe || t.clabe_interbancaria || 'NO REGISTRADA';
+ const banco = t.datos_bancarios?.banco || t.banco || t.banco_nombre || 'NO REGISTRADO';
+ const clabe = t.datos_bancarios?.clabe || t.clabe || t.clabe_interbancaria || 'NO REGISTRADA';
 
- const vehiculo = t.vehiculo || {};
- const tipoVehiculo = vehiculo.tipo || t.vehiculo_tipo || t.tipo_vehiculo || 'NO REGISTRADO';
- const placas = vehiculo.placas || t.placas || t.vehiculo_placas || 'N/A';
+ const tipoVehiculo = t.logistica?.vehiculo || t.vehiculo_tipo || t.vehiculo?.tipo || 'NO REGISTRADO';
+ const placas = t.logistica?.placas || t.placas || t.vehiculo?.placas || 'N/A';
+
+ const certUrl = t.documentos?.certificado || t.certificado || null;
 
  const ineHTML = ineUrl ? `<a href="${ineUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
  const csfHTML = csfUrl ? `<a href="${csfUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
  const licHTML = licUrl ? `<a href="${licUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
 
  let certsHTML = '';
- if (t.documentos && t.documentos.certificados && t.documentos.certificados.length > 0) {
- certsHTML = t.documentos.certificados.map(c => `<span class="bg-emerald-900/30 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-500/50 mr-1 mb-1 inline-block"><i class="fas fa-award"></i> Validado</span>`).join('');
+ if (certUrl) {
+    certsHTML = `<a href="${certUrl}" target="_blank" class="bg-emerald-900/30 text-emerald-400 text-[10px] font-bold px-3 py-1.5 rounded border border-emerald-500/50 mr-1 mb-1 inline-block hover:bg-emerald-900/50 transition-colors"><i class="fas fa-award"></i> Ver Certificado Oficial / DC-3</a>`;
+ } else if (t.documentos && t.documentos.certificados && t.documentos.certificados.length > 0) {
+    certsHTML = t.documentos.certificados.map(c => `<span class="bg-emerald-900/30 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-500/50 mr-1 mb-1 inline-block"><i class="fas fa-award"></i> Validado</span>`).join('');
  } else {
- certsHTML = '<span class="text-red-500 text-xs font-bold"><i class="fas fa-times-circle"></i> Sin documentos de respaldo</span>';
+    certsHTML = '<span class="text-red-500 text-xs font-bold"><i class="fas fa-times-circle"></i> Sin documentos de respaldo</span>';
  }
 
  const btnAprobarModal = (t.estado === "pendiente") ? `
@@ -807,7 +810,7 @@ export async function iniciarPanelAdmin(user) {
  
  <div class="bg-black p-3 rounded-xl border border-zinc-800">
  <p class="text-[10px] text-gray-500 font-bold uppercase mb-1"><i class="fas fa-phone"></i> Contacto</p>
- <p class="text-sm text-white font-mono">${escaparHTML(t.telefono || 'Sin teléfono')}</p>
+ <p class="text-sm text-white font-mono">${escaparHTML(t.telefono || t.phone || 'Sin teléfono')}</p>
  <p class="text-xs text-gray-400">${escaparHTML(t.email || 'Sin correo')}</p>
  </div>
  </div>
