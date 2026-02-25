@@ -122,12 +122,17 @@ export async function iniciarPanelAdmin(user) {
  }
  
  const esPendiente = (data.estado || "pendiente") === "pendiente";
- const ineCheck = data.documentos?.ine ? '<span class="text-emerald-400"> ✅ INE</span>' : '<span class="text-red-500"> ❌ INE</span>';
- const csfCheck = data.documentos?.csf ? '<span class="text-emerald-400"> ✅ CSF</span>' : '<span class="text-red-500"> ❌ CSF</span>';
+ 
+ // 🔥 ESCÁNER PROFUNDO DE DOCUMENTOS
+ const ineUrl = data.documentos?.ine || data.ine || data.ine_url || null;
+ const csfUrl = data.documentos?.csf || data.csf || data.csf_url || null;
+ 
+ const ineCheck = ineUrl ? '<span class="text-emerald-400"> ✅ INE</span>' : '<span class="text-red-500"> ❌ INE</span>';
+ const csfCheck = csfUrl ? '<span class="text-emerald-400"> ✅ CSF</span>' : '<span class="text-red-500"> ❌ CSF</span>';
  const skillsStr = data.skills ? data.skills.join(" • ").toUpperCase() : "GENERAL";
  
  // --- IDENTIDAD CONECTADA ---
- const fotoUrl = data.foto_perfil || data.fotoPerfil || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nombre)}&background=random`;
+ const fotoUrl = data.foto_perfil || data.fotoPerfil || data.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nombre)}&background=random`;
 
  // --- SISTEMA DE REPUTACIÓN VISUAL ---
  const reputacion = data.reputacion || 5.0;
@@ -173,14 +178,15 @@ export async function iniciarPanelAdmin(user) {
  </div>
 
  <div class="flex flex-col gap-2">
+ <button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 text-[9px] font-bold px-2 py-1 rounded border border-blue-900/50 mb-1" onclick="window.verExpediente('${docSnap.id}')">
+ <i class="fas fa-folder-open"></i> EXPEDIENTE
+ </button>
+ 
  ${esPendiente ? `
  <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${docSnap.id}')">
  APROBAR ACCESO
  </button>
  ` : `
- <button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 text-[9px] font-bold px-2 py-1 rounded border border-blue-900/50 mb-1" onclick="window.verExpediente('${docSnap.id}')">
- <i class="fas fa-folder-open"></i> EXPEDIENTE
- </button>
  <button class="bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-900/50 mb-1" onclick="window.registrarPagoTecnico('${docSnap.id}', '${escaparHTML(data.nombre)}')">
  <i class="fas fa-money-bill-wave"></i> REGISTRAR PAGO
  </button>
@@ -728,7 +734,7 @@ export async function iniciarPanelAdmin(user) {
  fileInput.click();
  };
 
- // 🔥 EXPEDIENTES DESBLOQUEADOS Y BLINDADOS
+ // 🔥 EXPEDIENTES DESBLOQUEADOS Y BLINDADOS (LECTURA PROFUNDA DE DB)
  window.verExpediente = async (uid) => {
  if(document.getElementById("modalExpediente")) return;
  try {
@@ -736,15 +742,21 @@ export async function iniciarPanelAdmin(user) {
  if(!docSnap.exists()) return alert("Técnico no encontrado.");
  const t = docSnap.data();
 
- const fotoUrl = t.foto_perfil || t.fotoPerfil || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.nombre)}&background=random`;
+ const fotoUrl = t.foto_perfil || t.fotoPerfil || t.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.nombre)}&background=random`;
  
- const ineCheck = t.documentos?.ine ? '<span class="text-emerald-400"><i class="fas fa-check-circle"></i> Cargado</span>' : '<span class="text-red-500"><i class="fas fa-times-circle"></i> Faltante</span>';
- const csfCheck = t.documentos?.csf ? '<span class="text-emerald-400"><i class="fas fa-check-circle"></i> Cargado</span>' : '<span class="text-red-500"><i class="fas fa-times-circle"></i> Faltante</span>';
+ // Lectura profunda de URLs
+ const ineUrl = t.documentos?.ine || t.ine || t.ine_url || null;
+ const csfUrl = t.documentos?.csf || t.csf || t.csf_url || null;
+ const licUrl = t.documentos?.licencia || t.vehiculo?.licencia || t.licencia || t.licencia_url || null;
+
+ // Generación de Botones Funcionales
+ const ineHTML = ineUrl ? `<a href="${ineUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
+ const csfHTML = csfUrl ? `<a href="${csfUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
+ const licHTML = licUrl ? `<a href="${licUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
 
  const vehiculo = t.vehiculo || {};
  const tipoVehiculo = vehiculo.tipo || 'NO REGISTRADO';
  const placas = vehiculo.placas || 'N/A';
- const licenciaCheck = t.documentos?.licencia ? '<span class="text-emerald-400"><i class="fas fa-check-circle"></i> Vigente</span>' : '<span class="text-red-500"><i class="fas fa-times-circle"></i> Faltante</span>';
 
  let certsHTML = '';
  if (t.documentos && t.documentos.certificados && t.documentos.certificados.length > 0) {
@@ -752,6 +764,13 @@ export async function iniciarPanelAdmin(user) {
  } else {
  certsHTML = '<span class="text-red-500 text-xs font-bold"><i class="fas fa-times-circle"></i> Sin documentos de respaldo</span>';
  }
+
+ // Botón de aprobación rápida dentro del modal
+ const btnAprobarModal = (t.estado === "pendiente") ? `
+ <button onclick="window.aprobarTecnico('${uid}'); document.getElementById('modalExpediente').remove();" class="w-full mt-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl text-sm transition-colors shadow-lg">
+ <i class="fas fa-user-check"></i> APROBAR TÉCNICO AHORA
+ </button>
+ ` : '';
 
  const html = `
  <div id="modalExpediente" class="fixed inset-0 bg-black/95 z-[70] flex items-center justify-center p-4 animate-fade-in">
@@ -766,7 +785,7 @@ export async function iniciarPanelAdmin(user) {
  </div>
  <div>
  <h3 class="text-white font-black text-lg uppercase">${escaparHTML(t.nombre)}</h3>
- <p class="text-blue-400 text-xs font-bold flex items-center gap-1"><img src="assets/gestiapremium-icon.svg" class="w-3 h-3"> EXPEDIENTE CONFIDENCIAL</p>
+ <p class="text-blue-400 text-xs font-bold flex items-center gap-1"><img src="assets/gestiapremium-icon.svg" class="w-3 h-3"> EXPEDIENTE OFICIAL</p>
  </div>
  </div>
  <button onclick="document.getElementById('modalExpediente').remove()" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
@@ -780,27 +799,27 @@ export async function iniciarPanelAdmin(user) {
  </div>
 
  <div class="bg-black p-3 rounded-xl border border-zinc-800">
- <p class="text-[10px] text-gray-500 font-bold uppercase mb-1"><i class="fas fa-id-card"></i> Identidad y Fiscal</p>
- <div class="flex justify-between text-sm mb-1">
- <span class="text-white">INE/ID:</span> ${ineCheck}
+ <p class="text-[10px] text-gray-500 font-bold uppercase mb-3"><i class="fas fa-id-card"></i> Identidad y Fiscal</p>
+ <div class="flex justify-between items-center mb-3">
+ <span class="text-white text-xs">Identificación (INE):</span> ${ineHTML}
  </div>
- <div class="flex justify-between text-sm">
- <span class="text-white">Constancia Fiscal (CSF):</span> ${csfCheck}
+ <div class="flex justify-between items-center">
+ <span class="text-white text-xs">Constancia Fiscal (CSF):</span> ${csfHTML}
  </div>
  </div>
 
  <div class="bg-black p-3 rounded-xl border border-zinc-800">
- <p class="text-[10px] text-gray-500 font-bold uppercase mb-1"><i class="fas fa-motorcycle"></i> Logística Operativa</p>
+ <p class="text-[10px] text-gray-500 font-bold uppercase mb-2"><i class="fas fa-motorcycle"></i> Logística Operativa</p>
  <div class="flex justify-between items-center mb-1">
  <span class="text-sm text-white">Vehículo:</span>
  <span class="text-sm text-blue-400 font-bold uppercase">${escaparHTML(tipoVehiculo)}</span>
  </div>
- <div class="flex justify-between items-center mb-1">
+ <div class="flex justify-between items-center mb-3">
  <span class="text-sm text-white">Placas:</span>
  <span class="text-sm text-blue-400 font-mono uppercase bg-blue-900/30 px-2 py-0.5 rounded border border-blue-500/30">${escaparHTML(placas)}</span>
  </div>
- <div class="flex justify-between text-sm mt-2 border-t border-zinc-800 pt-2">
- <span class="text-white">Licencia de Conducir:</span> ${licenciaCheck}
+ <div class="flex justify-between items-center border-t border-zinc-800 pt-3">
+ <span class="text-white text-xs">Licencia de Conducir:</span> ${licHTML}
  </div>
  </div>
 
@@ -819,7 +838,8 @@ export async function iniciarPanelAdmin(user) {
  </div>
 
  <div class="mt-6">
- <button onclick="document.getElementById('modalExpediente').remove()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-lg">
+ ${btnAprobarModal}
+ <button onclick="document.getElementById('modalExpediente').remove()" class="w-full mt-2 bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-lg">
  CERRAR EXPEDIENTE
  </button>
  </div>
