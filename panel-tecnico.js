@@ -451,6 +451,9 @@ export async function iniciarPanelTecnico(user) {
                 const s = docSnap.data();
                 const id = docSnap.id;
 
+                // 🔥 ESCUDO ANTI-BUCLES: Si el ticket ya tiene dueño, NUNCA lo muestres en el radar
+                if (s.tecnico_id) return; 
+
                 if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) {
                     return; 
                 }
