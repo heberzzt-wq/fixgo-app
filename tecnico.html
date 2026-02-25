@@ -209,20 +209,17 @@
     </div>
 
     <script>
-        // SCRIPT: LÓGICA TÁCTICA DE AUDIO (REESCRITO SEGÚN CAPTURAS)
+        // SCRIPT: LÓGICA TÁCTICA DE AUDIO
         const audioAlerta = document.getElementById('audioAlerta');
         const btnActivarAudio = document.getElementById('btnActivarAudio');
         const audioUnlocker = document.getElementById('audioUnlocker');
 
         btnActivarAudio.onclick = function() {
-            // 1. Intentamos reproducir para "despertar" el canal
             audioAlerta.play().then(() => {
                 console.log("GestiaPremium: Canal de audio desbloqueado con éxito.");
-                // Pausamos inmediatamente, el permiso ya quedó concedido
                 audioAlerta.pause();
                 audioAlerta.currentTime = 0;
 
-                // 2. Feedback visual y ocultamiento
                 btnActivarAudio.innerHTML = '<i class="fas fa-check"></i> RADAR ACTIVADO';
                 btnActivarAudio.classList.replace('bg-emerald-500', 'bg-zinc-800');
                 btnActivarAudio.classList.add('text-emerald-500');
@@ -246,14 +243,14 @@
         ];
         const randomImg = images[Math.floor(Math.random() * images.length)];
         bgContainer.style.backgroundImage = `url('${randomImg}')`;
-
-        // 🔥 INYECCIÓN PARA COMPARTIR EL UID AL DOM GLOBAL
+    </script>
+    
+    <script type="module">
         import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { auth } from "./firebase.js";
         onAuthStateChanged(auth, (user) => {
             if (user) window.currentUserUid = user.uid;
         });
-
     </script>
 
     <script type="module" src="./firebase.js"></script>
