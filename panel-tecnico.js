@@ -248,7 +248,6 @@ export async function iniciarPanelTecnico(user) {
     function actualizarUIWallet() {
         const saldoRealDisponible = saldoBrutoDisponible - retirosEnProceso;
         
-        // 🔥 INYECCIÓN: Guardamos el saldo real a nivel global para que el Radar (tomarServicio) pueda leerlo
         window.saldoActualTecnico = saldoRealDisponible;
 
         let saldoFormat = saldoRealDisponible < 0 ? "-$" + Math.abs(saldoRealDisponible).toFixed(2) : "$" + saldoRealDisponible.toFixed(2);
@@ -421,7 +420,6 @@ export async function iniciarPanelTecnico(user) {
     // 🔥 ESCUDO ANTI-SPAM + RADAR STRIPE (V5.18.6)
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
-        // INYECCIÓN DE RADAR: Ahora escucha "pendiente" (Efectivo) y "pagado" (Stripe)
         const q = query(collection(db, "services"), where("estado", "in", ["pendiente", "pagado"]), orderBy("created_at", "desc"), limit(50));
 
         let cargaInicial = true;
@@ -451,7 +449,7 @@ export async function iniciarPanelTecnico(user) {
                 const s = docSnap.data();
                 const id = docSnap.id;
 
-                // 🔥 ESCUDO ANTI-BUCLES: Si el ticket ya tiene dueño, NUNCA lo muestres en el radar
+                // 🔥 ESCUDO ANTI-BUCLES DE RADAR: Si el ticket ya fue asignado, JAMÁS lo muestres aquí
                 if (s.tecnico_id) return; 
 
                 if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) {
@@ -465,7 +463,6 @@ export async function iniciarPanelTecnico(user) {
 
                 counter++; 
 
-                // Identificador UI de método de pago
                 let badgeMetodo = s.metodo_pago === 'stripe'
                     ? '<span class="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(37,99,235,0.8)]"><i class="fab fa-stripe-s"></i> PAGADO STRIPE</span>'
                     : '<span class="bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(16,185,129,0.8)]"><i class="fas fa-money-bill"></i> PAGO EFECTIVO</span>';
@@ -520,7 +517,6 @@ export async function iniciarPanelTecnico(user) {
     };
 
     window.tomarServicio = async (id, uid, nombre, metodo_pago) => {
-        // 🔥 INYECCIÓN: CANDADO ANTI-DEUDA MILITAR (-$1,000 MXN)
         if (window.saldoActualTecnico <= -1000) {
             alert("⛔ BLOQUEO FINANCIERO OPERATIVO\n\nTu saldo negativo ha superado el límite de -$1,000 MXN.\n\nPor políticas de GestiaPremium, debes liquidar tus comisiones pendientes para volver a aceptar servicios.");
             return;
@@ -571,11 +567,12 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
-    // 🔥 MISIONES ACTIVAS & WATCHDOG DE CLIENTE (V5.19.0)
+    // 🔥 MISIONES ACTIVAS & ESCUDO DE RESILIENCIA (ANTI-ERRORES DE SERVIDOR)
     const qMisiones = query(
         collection(db, "services"),
         where("tecnico_id", "==", user.uid),
-        where("estado", "in", ["asignado", "en_camino", "en_sitio", "cotizando", "procesando_saldo", "trabajando", "cancelado"]) 
+        // 🔥 INYECCIÓN: Agregamos "pagado" aquí para que NUNCA desaparezca si el servidor falla
+        where("estado", "in", ["pagado", "asignado", "en_camino", "en_sitio", "cotizando", "procesando_saldo", "trabajando", "cancelado"]) 
     );
 
     onSnapshot(qMisiones, (snap) => {
@@ -592,15 +589,14 @@ export async function iniciarPanelTecnico(user) {
 
         if(pa) pa.classList.remove("translate-y-full");
 
-        // 🔥 INYECCIÓN: WATCHDOG DE AUDIO PARA EL TÉCNICO
         snap.docChanges().forEach(change => {
             if (change.type === 'modified') {
                 const sData = change.doc.data();
                 if (sData.oculto_para_tecnico) return; 
 
-                if (sData.estado === 'trabajando') {
+                if (sData.estado === 'trabajando' || sData.estado === 'pagado') {
                     sonarAlerta();
-                    lanzarNotificacionPush("✅ ¡Cotización Aprobada!", "El cliente aceptó el presupuesto. Puedes iniciar la reparación.");
+                    lanzarNotificacionPush("✅ ¡Pago Confirmado!", "El cliente ha liquidado el saldo. Puedes iniciar la reparación.");
                 } else if (sData.estado === 'cancelado') {
                     sonarAlerta();
                     lanzarNotificacionPush("🚫 Servicio Declinado", "El cliente rechazó el presupuesto. Se ha aplicado el cargo de visita.");
@@ -645,11 +641,20 @@ export async function iniciarPanelTecnico(user) {
                 <button disabled class="w-full mt-4 bg-blue-900/50 text-blue-400 font-bold py-4 rounded-xl border border-blue-500/30 flex items-center justify-center gap-2 cursor-not-allowed shadow-[0_0_15px_rgba(59,130,246,0.3)]">
                     <i class="fas fa-circle-notch fa-spin"></i> CLIENTE PAGANDO SALDO EN STRIPE...
                 </button>`;
-            } else if (s.estado === "trabajando") {
+            } else if (s.estado === "pagado" || s.estado === "trabajando") {
+                // 🔥 PROTOCOLO DE AUTO-SANACIÓN: Si por error del servidor el ticket dice "pagado" estando asignado, el técnico puede forzarlo a trabajando.
                 botonAccionHTML = `
+                <div class="bg-emerald-900/30 border border-emerald-500 p-4 rounded-xl mt-4 text-center">
+                    <p class="text-emerald-400 font-bold text-sm mb-2"><i class="fas fa-check-double"></i> PAGO DE SALDO APROBADO</p>
+                    <p class="text-[10px] text-emerald-100">El pago se procesó. Inicia el trabajo para habilitar la cámara.</p>
+                </div>
+                <button onclick="window.actualizarEstadoGlobal('${id}', 'trabajando')" class="w-full mt-3 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-blue-900/50">
+                    <i class="fas fa-tools"></i> INICIAR REPARACIÓN
+                </button>
+                ${s.estado === "trabajando" ? `
                 <button onclick="window.abrirEvidenciaGlobal('${id}')" class="w-full mt-4 bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
                     <i class="fas fa-camera"></i> FINALIZAR Y CERRAR
-                </button>`;
+                </button>` : ''}`;
             } else if (s.estado === "cancelado") {
                 botonAccionHTML = `
                 <div class="bg-red-900/30 border border-red-500 p-4 rounded-xl mt-4 text-center">
@@ -721,7 +726,6 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
-    // 🔥 INYECCIÓN DE PROTOCOLO ANTI-BLOQUEO GPS Y TIMEOUT
     window.validarLlegada = (id, targetLat, targetLng) => {
         const btn = document.getElementById(`btn_llegada_${id}`);
         const textoOriginal = btn.innerHTML;
@@ -740,11 +744,10 @@ export async function iniciarPanelTecnico(user) {
                 }
             }, (err) => {
                 console.warn("Error GPS técnico (Bypass activado por timeout/error):", err);
-                // Si falla el GPS (por estar bajo techo o timeout), NO bloqueamos al técnico.
                 window.actualizarEstadoGlobal(id, "en_sitio"); 
             }, { 
                 enableHighAccuracy: true,
-                timeout: 10000, // ⏳ MÁXIMO 10 SEGUNDOS. Si satélite no responde, se activa Bypass.
+                timeout: 10000, 
                 maximumAge: 15000 
             });
         } else {
