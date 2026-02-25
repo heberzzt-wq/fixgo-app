@@ -148,7 +148,69 @@ export async function iniciarPanelTecnico(user) {
             return; 
         }
 
-        // 🟡 LÓGICA DE REVISIÓN (NUEVOS TÉCNICOS)
+        // 🔥 NUEVO: INTERCEPTOR DE DOCUMENTOS FALTANTES (KYC RESCUE)
+        const ineUrl = data.documentos?.ine || data.ine || data.ine_url || data.identificacion || null;
+        const csfUrl = data.documentos?.csf || data.csf || data.csf_url || data.constancia || null;
+        const fotoUrl = data.foto_perfil || data.fotoPerfil || data.foto || null;
+        
+        // Si falta algo vital y no está baneado, activamos el Protocolo de Rescate
+        const faltaInfo = !ineUrl || !csfUrl || !fotoUrl;
+
+        if (faltaInfo) {
+            if(elementos.statusLabel) {
+                elementos.statusLabel.innerText = "REGISTRO INCOMPLETO";
+                elementos.statusLabel.className = "bg-orange-500/20 text-orange-500 status-badge font-bold animate-pulse";
+            }
+            if(elementos.toggleONOFF) {
+                elementos.toggleONOFF.disabled = true;
+                elementos.toggleONOFF.checked = false;
+            }
+            detenerTracking();
+            if(elementos.radarSection) elementos.radarSection.classList.add("hidden");
+            
+            if(elementos.seccionBolsa) {
+                elementos.seccionBolsa.classList.remove("hidden");
+                elementos.seccionBolsa.innerHTML = `
+                    <div class="p-6 bg-orange-900/10 border border-orange-500/50 rounded-2xl shadow-xl shadow-orange-900/20 animate-fade-in">
+                        <div class="text-center mb-6">
+                            <i class="fas fa-file-signature text-orange-500 text-4xl mb-3"></i>
+                            <h3 class="text-white font-black text-xl tracking-tight uppercase">Acción Requerida</h3>
+                            <p class="text-gray-400 text-xs mt-2">Hemos detectado que tu expediente oficial está incompleto. Por regulaciones de seguridad (KYC), es obligatorio subir los documentos faltantes para activar tu radar.</p>
+                        </div>
+                        
+                        <div class="space-y-4 text-left">
+                            <div class="bg-black p-4 rounded-xl border ${fotoUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
+                                <label class="block text-[10px] font-bold ${fotoUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
+                                    1. Foto de Perfil (Selfie) ${fotoUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
+                                </label>
+                                ${fotoUrl ? '<p class="text-[10px] text-gray-500">Documento en regla y validado.</p>' : '<input type="file" id="compFoto" accept="image/*" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
+                            </div>
+
+                            <div class="bg-black p-4 rounded-xl border ${ineUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
+                                <label class="block text-[10px] font-bold ${ineUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
+                                    2. Identificación Oficial (INE Frontal) ${ineUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
+                                </label>
+                                ${ineUrl ? '<p class="text-[10px] text-gray-500">Documento en regla y validado.</p>' : '<input type="file" id="compINE" accept="image/*" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
+                            </div>
+
+                            <div class="bg-black p-4 rounded-xl border ${csfUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
+                                <label class="block text-[10px] font-bold ${csfUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
+                                    3. Constancia de Situación Fiscal (CSF) ${csfUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
+                                </label>
+                                ${csfUrl ? '<p class="text-[10px] text-gray-500">Documento en regla y validado.</p>' : '<input type="file" id="compCSF" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
+                            </div>
+
+                            <button onclick="window.completarDocumentosTecnico('${user.uid}')" id="btnCompletarDocs" class="w-full mt-4 bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl text-sm transition-transform active:scale-95 shadow-lg flex justify-center items-center gap-2">
+                                <i class="fas fa-cloud-upload-alt text-lg"></i> SUBIR Y ENVIAR A REVISIÓN
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            return; // 🛑 Detiene la ejecución normal para que el usuario no pueda hacer nada más.
+        }
+
+        // 🟡 LÓGICA DE REVISIÓN (NUEVOS TÉCNICOS CON DOCUMENTOS COMPLETOS)
         if (estado === "pendiente") {
             if(elementos.statusLabel) {
                 elementos.statusLabel.innerText = "EN REVISIÓN";
@@ -164,7 +226,7 @@ export async function iniciarPanelTecnico(user) {
                 <div class="p-6 bg-yellow-900/10 border border-yellow-500/30 rounded-2xl text-center">
                     <i class="fas fa-lock text-yellow-500 text-2xl mb-2"></i>
                     <p class="text-yellow-500 text-sm font-bold">Cuenta en Revisión</p>
-                    <p class="text-gray-500 text-xs mt-1">El administrador está validando tus documentos.</p>
+                    <p class="text-gray-500 text-xs mt-1">El administrador está validando tus documentos oficiales.</p>
                 </div>
                 `;
             }
@@ -198,6 +260,71 @@ export async function iniciarPanelTecnico(user) {
             elements.radarSection?.classList.add("opacity-50", "grayscale");
         }
     });
+
+    // 📡 MOTOR GLOBAL DE SUBIDA DE DOCUMENTOS FALTANTES (KYC RESCUE)
+    window.completarDocumentosTecnico = async (uid) => {
+        const btn = document.getElementById("btnCompletarDocs");
+        const iFoto = document.getElementById("compFoto")?.files[0];
+        const iINE = document.getElementById("compINE")?.files[0];
+        const iCSF = document.getElementById("compCSF")?.files[0];
+
+        const reqFoto = document.getElementById("compFoto") && !iFoto;
+        const reqINE = document.getElementById("compINE") && !iINE;
+        const reqCSF = document.getElementById("compCSF") && !iCSF;
+
+        if (reqFoto || reqINE || reqCSF) {
+            alert("⚠️ Debes seleccionar todos los archivos faltantes marcados con ❌.");
+            return;
+        }
+
+        if (!storage) {
+            alert("❌ Error: Firebase Storage no está configurado.");
+            return;
+        }
+
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SUBIENDO A LA NUBE...';
+        btn.disabled = true;
+
+        try {
+            const subirAStorage = async (file, path) => {
+                if (!file) return null;
+                const storageRef = ref(storage, path);
+                await uploadBytes(storageRef, file);
+                return await getDownloadURL(storageRef);
+            };
+
+            const updates = {};
+            // Forzamos la creación del objeto documentos si no existe
+            updates['documentos.fecha_actualizacion'] = serverTimestamp();
+
+            if (iFoto) {
+                const urlF = await subirAStorage(iFoto, `expedientes/${uid}/perfil_fix_${Date.now()}.jpg`);
+                updates['foto_perfil'] = urlF;
+                updates['fotoPerfil'] = urlF;
+            }
+            if (iINE) {
+                const urlI = await subirAStorage(iINE, `expedientes/${uid}/ine_fix_${Date.now()}.jpg`);
+                updates['documentos.ine'] = urlI;
+            }
+            if (iCSF) {
+                const urlC = await subirAStorage(iCSF, `expedientes/${uid}/csf_fix_${Date.now()}.jpg`);
+                updates['documentos.csf'] = urlC;
+            }
+
+            // Lo devolvemos a estado pendiente para que el admin lo revise
+            updates['estado'] = "pendiente";
+
+            await updateDoc(doc(db, "users", uid), updates);
+            alert("✅ ¡Expediente Completado!\n\nLos documentos se han subido con éxito. El Administrador validará tu cuenta en breve.");
+            
+        } catch (error) {
+            console.error("Error crítico subiendo documentos:", error);
+            alert("Error al subir los documentos. Asegúrate de tener conexión a internet estable.");
+            btn.innerHTML = '<i class="fas fa-cloud-upload-alt text-lg"></i> REINTENTAR SUBIDA';
+            btn.disabled = false;
+        }
+    };
+
 
     const qWallet = query(collection(db, "transacciones"), where("tecnico_id", "==", user.uid));
     const qRetirosPendientes = query(collection(db, "retiros"), where("tecnico_id", "==", user.uid), where("estado", "==", "pendiente"));
@@ -417,7 +544,6 @@ export async function iniciarPanelTecnico(user) {
         });
     }
 
-    // 🔥 ESCUDO ANTI-SPAM + RADAR STRIPE (V5.18.6)
     function escucharBolsa(tecnico, contenedor) {
         if(!contenedor) return;
         const q = query(collection(db, "services"), where("estado", "in", ["pendiente", "pagado"]), orderBy("created_at", "desc"), limit(50));
@@ -449,7 +575,6 @@ export async function iniciarPanelTecnico(user) {
                 const s = docSnap.data();
                 const id = docSnap.id;
 
-                // 🔥 ESCUDO ANTI-BUCLES DE RADAR: Si el ticket ya fue asignado, JAMÁS lo muestres aquí
                 if (s.tecnico_id) return; 
 
                 if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) {
@@ -567,11 +692,9 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
-    // 🔥 MISIONES ACTIVAS & ESCUDO DE RESILIENCIA (ANTI-ERRORES DE SERVIDOR)
     const qMisiones = query(
         collection(db, "services"),
         where("tecnico_id", "==", user.uid),
-        // 🔥 INYECCIÓN: Agregamos "pagado" aquí para que NUNCA desaparezca si el servidor falla
         where("estado", "in", ["pagado", "asignado", "en_camino", "en_sitio", "cotizando", "procesando_saldo", "trabajando", "cancelado"]) 
     );
 
@@ -642,7 +765,6 @@ export async function iniciarPanelTecnico(user) {
                     <i class="fas fa-circle-notch fa-spin"></i> CLIENTE PAGANDO SALDO EN STRIPE...
                 </button>`;
             } else if (s.estado === "pagado" || s.estado === "trabajando") {
-                // 🔥 PROTOCOLO DE AUTO-SANACIÓN: Si por error del servidor el ticket dice "pagado" estando asignado, el técnico puede forzarlo a trabajando.
                 botonAccionHTML = `
                 <div class="bg-emerald-900/30 border border-emerald-500 p-4 rounded-xl mt-4 text-center">
                     <p class="text-emerald-400 font-bold text-sm mb-2"><i class="fas fa-check-double"></i> PAGO DE SALDO APROBADO</p>
