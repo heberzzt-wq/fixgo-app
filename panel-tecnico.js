@@ -1248,7 +1248,42 @@ export async function iniciarPanelTecnico(user) {
         };
         fileInput.click();
     };
-}
+
+    // 🔥 INYECCIÓN: MOTOR DE LOGO COMERCIAL DEL TÉCNICO (FACTURACIÓN)
+    window.cambiarLogoFactura = async (uid) => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/png, image/jpeg'; // Restringido a formatos limpios
+        
+        fileInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            
+            // Límite de tamaño para el logo (ej. 2MB max)
+            if (file.size > 2 * 1024 * 1024) {
+                alert("⚠️ El logo es demasiado pesado. Elige una imagen menor a 2MB.");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    // Actualizamos el perfil del técnico con su nuevo logo comercial
+                    await updateDoc(doc(db, "users", uid), {
+                        logo_factura: event.target.result 
+                    });
+                    alert("✅ Logo comercial actualizado.\n\nTus próximas facturas y comprobantes al cliente saldrán con tu identidad corporativa.");
+                } catch(err) {
+                    console.error("Error subiendo logo de factura:", err);
+                    alert("Error al guardar el logo en el servidor. Intenta de nuevo.");
+                }
+            };
+            reader.readAsDataURL(file);
+        };
+        fileInput.click();
+    };
+
+} // <-- FIN DE LA FUNCIÓN INICIAR PANEL TÉCNICO
 
 /**
  * 🔔 MOTOR FCM (FIREBASE CLOUD MESSAGING) V5.18.5 - CORRECCIÓN SERVICE WORKER
