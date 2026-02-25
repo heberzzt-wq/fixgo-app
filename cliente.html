@@ -264,11 +264,12 @@
         // SCRIPT: ROTACIÓN DE FONDOS DINÁMICOS (UX PREMIUM CLIENTE)
         // ==============================================================
         const bgContainer = document.getElementById('dynamic-bg');
-        // Imágenes HQ libres de derechos orientadas a hogares modernos / servicios
+        // Imágenes estables y temáticas
         const images = [
-            'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Sala elegante
-            'https://images.unsplash.com/photo-1484154218962-a197022b5858?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Cocina limpia (URL Corregida)
-            'https://images.unsplash.com/photo-1505691938895-1758d7feb511?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'  // Interior corporativo/moderno
+            'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Plomería
+            'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Electricidad
+            'https://images.unsplash.com/photo-1581092160562-40aa08e78837?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Construcción/Mantenimiento
+            'https://images.unsplash.com/photo-1632759145351-1d592919f522?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'  // Herramientas
         ];
         let currentImg = 0;
         
@@ -288,6 +289,7 @@
     </script>
 
     <script type="module" src="./firebase.js"></script>
+    <script type="module" src="./fixgo-bridge.js"></script>
     <script type="module" src="./app-main.js"></script>
 </body>
 </html>
