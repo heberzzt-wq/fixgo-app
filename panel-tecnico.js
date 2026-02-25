@@ -153,8 +153,16 @@ export async function iniciarPanelTecnico(user) {
         const csfUrl = data.documentos?.csf || data.csf || data.csf_url || data.constancia || null;
         const fotoUrl = data.foto_perfil || data.fotoPerfil || data.foto || null;
         
+        // Inyección de nuevos parámetros obligatorios
+        const banco = data.banco || data.datos_bancarios?.banco || null;
+        const clabe = data.clabe || data.datos_bancarios?.clabe || null;
+        const vehiculoTipo = data.vehiculo_tipo || data.logistica?.vehiculo || null;
+        const placas = data.placas || data.logistica?.placas || null;
+        const licenciaUrl = data.documentos?.licencia || data.licencia || null;
+        const certificadoUrl = data.documentos?.certificado || data.certificado || null;
+        
         // Si falta algo vital y no está baneado, activamos el Protocolo de Rescate
-        const faltaInfo = !ineUrl || !csfUrl || !fotoUrl;
+        const faltaInfo = !ineUrl || !csfUrl || !fotoUrl || !banco || !clabe || !vehiculoTipo || !placas || !licenciaUrl || !certificadoUrl;
 
         if (faltaInfo) {
             if(elementos.statusLabel) {
@@ -175,10 +183,10 @@ export async function iniciarPanelTecnico(user) {
                         <div class="text-center mb-6">
                             <i class="fas fa-file-signature text-orange-500 text-4xl mb-3"></i>
                             <h3 class="text-white font-black text-xl tracking-tight uppercase">Acción Requerida</h3>
-                            <p class="text-gray-400 text-xs mt-2">Hemos detectado que tu expediente oficial está incompleto. Por regulaciones de seguridad (KYC), es obligatorio subir los documentos faltantes para activar tu radar.</p>
+                            <p class="text-gray-400 text-xs mt-2">Hemos detectado que tu expediente oficial está incompleto. Por regulaciones de seguridad (KYC) y operativas, es obligatorio completar todos los datos para activar tu radar.</p>
                         </div>
                         
-                        <div class="space-y-4 text-left">
+                        <div class="space-y-4 text-left h-96 overflow-y-auto pr-2">
                             <div class="bg-black p-4 rounded-xl border ${fotoUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
                                 <label class="block text-[10px] font-bold ${fotoUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
                                     1. Foto de Perfil (Selfie) ${fotoUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
@@ -200,10 +208,50 @@ export async function iniciarPanelTecnico(user) {
                                 ${csfUrl ? '<p class="text-[10px] text-gray-500">Documento en regla y validado.</p>' : '<input type="file" id="compCSF" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
                             </div>
 
-                            <button onclick="window.completarDocumentosTecnico('${user.uid}')" id="btnCompletarDocs" class="w-full mt-4 bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl text-sm transition-transform active:scale-95 shadow-lg flex justify-center items-center gap-2">
-                                <i class="fas fa-cloud-upload-alt text-lg"></i> SUBIR Y ENVIAR A REVISIÓN
-                            </button>
+                            <div class="bg-black p-4 rounded-xl border ${banco && clabe ? 'border-emerald-900/50' : 'border-red-900/50'}">
+                                <label class="block text-[10px] font-bold ${banco && clabe ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
+                                    4. Datos Bancarios ${banco && clabe ? '✅ CUBIERTO' : '❌ FALTANTE'}
+                                </label>
+                                ${banco && clabe ? '<p class="text-[10px] text-gray-500">Datos registrados y validados.</p>' : `
+                                <input type="text" id="compBanco" placeholder="Nombre del Banco" class="mb-2 w-full text-xs text-white bg-zinc-800 border-0 py-2 px-3 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
+                                <input type="text" id="compClabe" placeholder="Cuenta CLABE (18 dígitos)" class="w-full text-xs text-white bg-zinc-800 border-0 py-2 px-3 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
+                                `}
+                            </div>
+
+                            <div class="bg-black p-4 rounded-xl border ${vehiculoTipo && placas ? 'border-emerald-900/50' : 'border-red-900/50'}">
+                                <label class="block text-[10px] font-bold ${vehiculoTipo && placas ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
+                                    5. Logística Operativa ${vehiculoTipo && placas ? '✅ CUBIERTO' : '❌ FALTANTE'}
+                                </label>
+                                ${vehiculoTipo && placas ? '<p class="text-[10px] text-gray-500">Vehículo registrado.</p>' : `
+                                <select id="compVehiculo" class="mb-2 w-full text-xs text-white bg-zinc-800 border-0 py-2 px-3 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
+                                    <option value="">Selecciona tipo de vehículo...</option>
+                                    <option value="Motocicleta">Motocicleta</option>
+                                    <option value="Auto">Automóvil</option>
+                                    <option value="Camioneta">Camioneta</option>
+                                    <option value="Bicicleta">Bicicleta</option>
+                                </select>
+                                <input type="text" id="compPlacas" placeholder="Placas del vehículo" class="w-full text-xs text-white bg-zinc-800 border-0 py-2 px-3 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
+                                `}
+                            </div>
+
+                            <div class="bg-black p-4 rounded-xl border ${licenciaUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
+                                <label class="block text-[10px] font-bold ${licenciaUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
+                                    6. Licencia de Conducir ${licenciaUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
+                                </label>
+                                ${licenciaUrl ? '<p class="text-[10px] text-gray-500">Documento en regla.</p>' : '<input type="file" id="compLicencia" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
+                            </div>
+
+                            <div class="bg-black p-4 rounded-xl border ${certificadoUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
+                                <label class="block text-[10px] font-bold ${certificadoUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
+                                    7. Certificados / DC-3 ${certificadoUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
+                                </label>
+                                ${certificadoUrl ? '<p class="text-[10px] text-gray-500">Certificados validados.</p>' : '<input type="file" id="compCertificado" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
+                            </div>
+
                         </div>
+                        <button onclick="window.completarDocumentosTecnico('${user.uid}')" id="btnCompletarDocs" class="w-full mt-4 bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl text-sm transition-transform active:scale-95 shadow-lg flex justify-center items-center gap-2">
+                            <i class="fas fa-cloud-upload-alt text-lg"></i> SUBIR Y ENVIAR A REVISIÓN
+                        </button>
                     </div>
                 `;
             }
@@ -264,16 +312,30 @@ export async function iniciarPanelTecnico(user) {
     // 📡 MOTOR GLOBAL DE SUBIDA DE DOCUMENTOS FALTANTES (KYC RESCUE)
     window.completarDocumentosTecnico = async (uid) => {
         const btn = document.getElementById("btnCompletarDocs");
+        
         const iFoto = document.getElementById("compFoto")?.files[0];
         const iINE = document.getElementById("compINE")?.files[0];
         const iCSF = document.getElementById("compCSF")?.files[0];
+        const iLicencia = document.getElementById("compLicencia")?.files[0];
+        const iCertificado = document.getElementById("compCertificado")?.files[0];
+
+        const vBanco = document.getElementById("compBanco")?.value.trim();
+        const vClabe = document.getElementById("compClabe")?.value.trim();
+        const vVehiculo = document.getElementById("compVehiculo")?.value;
+        const vPlacas = document.getElementById("compPlacas")?.value.trim();
 
         const reqFoto = document.getElementById("compFoto") && !iFoto;
         const reqINE = document.getElementById("compINE") && !iINE;
         const reqCSF = document.getElementById("compCSF") && !iCSF;
+        const reqLicencia = document.getElementById("compLicencia") && !iLicencia;
+        const reqCertificado = document.getElementById("compCertificado") && !iCertificado;
+        const reqBanco = document.getElementById("compBanco") && !vBanco;
+        const reqClabe = document.getElementById("compClabe") && !vClabe;
+        const reqVehiculo = document.getElementById("compVehiculo") && !vVehiculo;
+        const reqPlacas = document.getElementById("compPlacas") && !vPlacas;
 
-        if (reqFoto || reqINE || reqCSF) {
-            alert("⚠️ Debes seleccionar todos los archivos faltantes marcados con ❌.");
+        if (reqFoto || reqINE || reqCSF || reqLicencia || reqCertificado || reqBanco || reqClabe || reqVehiculo || reqPlacas) {
+            alert("⚠️ Debes completar todos los datos de texto y seleccionar todos los archivos faltantes marcados con ❌.");
             return;
         }
 
@@ -310,6 +372,19 @@ export async function iniciarPanelTecnico(user) {
                 const urlC = await subirAStorage(iCSF, `expedientes/${uid}/csf_fix_${Date.now()}.jpg`);
                 updates['documentos.csf'] = urlC;
             }
+            if (iLicencia) {
+                const urlL = await subirAStorage(iLicencia, `expedientes/${uid}/licencia_fix_${Date.now()}.jpg`);
+                updates['documentos.licencia'] = urlL;
+            }
+            if (iCertificado) {
+                const urlCert = await subirAStorage(iCertificado, `expedientes/${uid}/certificado_fix_${Date.now()}.jpg`);
+                updates['documentos.certificado'] = urlCert;
+            }
+            
+            if (vBanco) updates['datos_bancarios.banco'] = vBanco;
+            if (vClabe) updates['datos_bancarios.clabe'] = vClabe;
+            if (vVehiculo) updates['logistica.vehiculo'] = vVehiculo;
+            if (vPlacas) updates['logistica.placas'] = vPlacas;
 
             // Lo devolvemos a estado pendiente para que el admin lo revise
             updates['estado'] = "pendiente";
