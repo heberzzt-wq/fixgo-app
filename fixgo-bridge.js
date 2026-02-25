@@ -92,6 +92,29 @@ export async function finalizarServicioBlindado(serviceId, tecnicoId, b64_1, b64
             metodo: "AUTOMÁTICO_BRIDGE"
         });
 
+        // 6. WATCHDOG DE FACTURACIÓN DUAL (ÓRDENES PARA EL SAT)
+        // Genera la instrucción en la cola para que el backend Node.js / Cloud Function las timbre en 2do plano.
+        console.log("🧾 BRIDGE: Generando órdenes de facturación encoladas...");
+        await addDoc(collection(db, "ordenes_facturacion"), {
+            servicio_id: serviceId,
+            tecnico_id: tecnicoId,
+            fecha_orden: serverTimestamp(),
+            // FACTURA 1: Técnico al Cliente (100% del costo)
+            factura_cliente: {
+                monto: costoTotal,
+                // Si el cliente no dejó datos, se va a Público General por defecto para cuadrar con el SAT
+                receptor: data.datos_facturacion || { rfc: "XAXX010101000", razon_social: "PUBLICO GENERAL", cp: "77500", regimen: "616" },
+                estado: "pendiente_timbrado",
+                requerida_por_cliente: data.factura_requerida === true
+            },
+            // FACTURA 2: Gestia al Técnico (Comisión del 32%)
+            factura_comision: {
+                monto: montoComisionFixGo,
+                receptor_tecnico_id: tecnicoId, // El backend jalará el RFC del técnico de su perfil
+                estado: "pendiente_timbrado"
+            }
+        });
+
         return { success: true, neto: pagoNetoTecnico };
 
     } catch (error) {
