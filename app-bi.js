@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - MOTOR DE INTELIGENCIA EMPRESARIAL Y CRM (BI ENGINE)
  * ======================================================================================
  * Archivo: app-bi.js
- * Versión: 1.0.5 (Integración Stripe + RESTAURACIÓN MAESTRA + CONTROL EFECTIVO)
+ * Versión: 1.0.6 (Integración Stripe Live Feed Desbloqueado + Facturación)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
@@ -18,7 +18,8 @@ import {
     updateDoc,
     serverTimestamp,
     addDoc,
-    orderBy
+    orderBy,
+    limit // Añadido límite para rendimiento
 } from "./firebase.js";
 
 // 🔥 INYECCIÓN DIRECTA DEL CDN PARA FUNCIONES PESADAS (Igual que en app-panel.js)
@@ -134,25 +135,36 @@ export async function iniciarMotorBI(contenedorId) {
 // ======================================================================================
 function iniciarEscuchaTelemetria() {
     const qServices = query(collection(db, "services"), orderBy("created_at", "desc"));
-    const qTrans = query(collection(db, "transacciones"), where("tipo", "==", "ingreso_servicio"));
+    // 🔥 INYECCIÓN CLAVE: Quitamos el "where" para poder escuchar TODO lo de Stripe (Feed + Ingresos)
+    const qTrans = query(collection(db, "transacciones"), orderBy("fecha", "desc"), limit(100));
 
-    // Variables de Estado Globales para cruce de datos
     let dataServicios = [];
     
     onSnapshot(qServices, (snap) => {
         dataServicios = [];
         snap.forEach(doc => dataServicios.push({ id: doc.id, ...doc.data() }));
         procesarSemaforosOperativos(dataServicios);
-        // 🔥 INYECTAMOS RENDERIZADO DEL NUEVO MÓDULO DE EFECTIVO
         renderizarControlEfectivo(dataServicios); 
     });
 
     onSnapshot(qTrans, (snap) => {
-        let transacciones = [];
-        snap.forEach(doc => transacciones.push({ id: doc.id, ...doc.data() }));
-        procesarMotorComercialLTV(transacciones, dataServicios);
-        // Inyectamos la actualización del monitor de Stripe
-        actualizarMonitorStripe(transacciones);
+        let transaccionesIngreso = [];
+        let transaccionesStripeFeed = [];
+
+        snap.forEach(doc => {
+            const t = { id: doc.id, ...doc.data() };
+            // Filtramos en memoria para mantener el LTV intacto
+            if (t.tipo === "ingreso_servicio") {
+                transaccionesIngreso.push(t);
+            }
+            // Filtramos para el Webhook Feed
+            if (t.metodo === "stripe") {
+                transaccionesStripeFeed.push(t);
+            }
+        });
+
+        procesarMotorComercialLTV(transaccionesIngreso, dataServicios);
+        actualizarMonitorStripe(transaccionesStripeFeed);
     });
 }
 
@@ -171,18 +183,19 @@ function actualizarMonitorStripe(transacciones) {
     const health = document.getElementById("stripeHealthIndicator");
     if (!feed || !health) return;
 
-    // Filtramos las últimas transacciones de Stripe
-    const stripeTx = transacciones.filter(t => t.metodo === "stripe" || t.stripe_id).slice(0, 3);
+    // Solo mostramos los últimos 3 eventos de Stripe
+    const stripeTx = transacciones.slice(0, 3);
 
     if (stripeTx.length > 0) {
         health.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> <span class="text-emerald-500">PASARELA ACTIVA</span>`;
         feed.innerHTML = stripeTx.map(t => {
             const hora = t.fecha ? t.fecha.toDate().toLocaleTimeString() : 'Ahora';
+            const etiqueta = t.tipo === "webhook_feed" ? "WEBHOOK" : "SETTLEMENT";
             return `
                 <div class="flex justify-between items-center border-b border-zinc-900 pb-1">
                     <span class="text-emerald-400 font-bold">$${(t.monto_total || 0).toFixed(2)}</span>
-                    <span class="text-[8px] text-zinc-500">${hora}</span>
-                    <span class="text-[7px] bg-zinc-800 px-1 rounded text-white">SUCCESS</span>
+                    <span class="text-[8px] text-zinc-500">${hora} | ${etiqueta}</span>
+                    <span class="text-[7px] bg-zinc-800 px-1 rounded text-white shadow shadow-emerald-500/20">SUCCESS</span>
                 </div>
             `;
         }).join('');
