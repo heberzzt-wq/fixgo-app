@@ -3,8 +3,9 @@
  * GESTIAPREMIUM 2026 - MOTOR DE INTELIGENCIA EMPRESARIAL Y CRM (BI ENGINE)
  * ======================================================================================
  * Archivo: app-bi.js
- * Versión: 1.0.8 (Ajedrez 4D: Profitability per Technician + VCs Margins)
+ * Versión: 1.0.9 (Ajedrez 4D: Full Profitability Audit + NOC Telemetry)
  * Autor: Heber (CEO & Lead Architect)
+ * REGLAS: PROHIBICIÓN DE COMPACTACIÓN. INTEGRIDAD ABSOLUTA. REEMPLAZO DIRECTO.
  * ======================================================================================
  */
 
@@ -19,107 +20,162 @@ import {
     serverTimestamp,
     addDoc,
     orderBy,
-    limit // Añadido límite para rendimiento
+    limit 
 } from "./firebase.js";
 
-// 🔥 INYECCIÓN DIRECTA DEL CDN PARA FUNCIONES PESADAS (Igual que en app-panel.js)
+// 🔥 INYECCIÓN DIRECTA DEL CDN PARA FUNCIONES PESADAS 
 import { getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Utilidad de escape XSS
+/**
+ * ======================================================================================
+ * 🛠️ UTILIDADES DE SEGURIDAD Y FORMATEO SENIOR
+ * ======================================================================================
+ */
+
 const escaparHTML = (str) => {
     if (str === null || str === undefined) return '';
     return String(str).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m]);
 };
 
-// ======================================================================================
-// 🧠 NÚCLEO DE INICIALIZACIÓN BI
-// ======================================================================================
+// Cálculo de utilidad neta para la empresa:
+// $Utilidad = \sum (MontoTotal \times FeeVigente)$
+const fMoneda = (num) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(num || 0);
+
+/**
+ * ======================================================================================
+ * 🧠 NÚCLEO DE INICIALIZACIÓN BI (NETWORK OPERATIONS CENTER)
+ * ======================================================================================
+ */
 export async function iniciarMotorBI(contenedorId) {
-    console.log(" 🧠 Iniciando Motor de Inteligencia Empresarial GestiaPremium (NOC Mode)...");
+    console.log(" 🧠 [NOC] Iniciando Motor de Inteligencia Empresarial GestiaPremium (Ajedrez 4D Mode)...");
     
     const contenedor = document.getElementById(contenedorId);
     if (!contenedor) {
-        console.error("No se encontró el contenedor para el Dashboard Analítico.");
+        console.error("🚨 CRITICAL ERROR: No se encontró el contenedor para el Dashboard Analítico.");
         return;
     }
 
-    // Estructura Maestra del NOC
+    // Estructura Maestra del NOC (Visualización Táctica Premium)
     contenedor.innerHTML = `
-        <div class="bg-black border border-zinc-800 rounded-3xl p-6 shadow-2xl mb-8">
-            <div class="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
+        <div class="bg-black border border-zinc-800 rounded-3xl p-8 shadow-2xl mb-8 animate-fade-in">
+            
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-zinc-800 pb-6 gap-4">
                 <div>
-                    <h2 class="text-2xl font-black text-white flex items-center gap-3">
-                        <img src="assets/gestiapremium-icon.svg" class="w-8 h-8 drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]" alt="GestiaPremium Logo"> 
-                        NOC GESTIAPREMIUM: INTELIGENCIA OPERATIVA
+                    <h2 class="text-3xl font-black text-white flex items-center gap-3 tracking-tighter">
+                        <img src="assets/gestiapremium-icon.svg" class="w-10 h-10 drop-shadow-[0_0_15px_rgba(59,130,246,0.7)]" alt="GestiaPremium Logo"> 
+                        NOC GESTIAPREMIUM: MÓDULO BI
                     </h2>
-                    <p class="text-xs text-gray-500 uppercase tracking-widest mt-1">Telemetría, SLA, Rendimiento y Control de Riesgos</p>
+                    <p class="text-xs text-zinc-500 uppercase tracking-[0.2em] mt-1 font-bold">Inteligencia en Tiempo Real • Algoritmos Ajedrez 4D</p>
                 </div>
-                <div class="text-right flex items-center gap-3">
-                    <button onclick="window.descargarBackupOperativo()" class="bg-red-900/30 hover:bg-red-900/80 text-red-500 hover:text-white border border-red-500/50 text-[10px] font-bold px-4 py-2 rounded-full transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)] uppercase tracking-widest flex items-center gap-2">
-                        <i class="fas fa-file-csv text-sm"></i> PLAN B: Exportar BD
+                <div class="flex flex-wrap items-center gap-4">
+                    <div class="flex flex-col text-right mr-4 hidden lg:block">
+                        <span class="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">Estado del Motor</span>
+                        <span class="text-emerald-500 font-black text-xs animate-pulse">SISTEMA EN LÍNEA • V5.1.0</span>
+                    </div>
+                    <button id="btnBackupBI" onclick="window.descargarBackupOperativo()" class="bg-red-900/20 hover:bg-red-900/80 text-red-500 hover:text-white border border-red-500/40 text-[10px] font-black px-5 py-2.5 rounded-full transition-all shadow-[0_0_20px_rgba(239,68,68,0.15)] uppercase tracking-widest flex items-center gap-2">
+                        <i class="fas fa-file-csv text-sm"></i> PLAN B: EXPORTAR DATA
                     </button>
-                    <span class="bg-emerald-900/30 text-emerald-400 border border-emerald-500/50 text-[10px] font-bold px-3 py-1 rounded-full animate-pulse">
-                        SISTEMA EN LÍNEA
-                    </span>
                 </div>
             </div>
 
-            <div class="grid grid-cols-4 gap-4 mb-8" id="biSemaforos">
-                <div class="bg-zinc-900 p-4 rounded-xl border border-zinc-700 animate-pulse text-center"><p class="text-xs text-gray-500">Procesando SLA...</p></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10" id="biSemaforos">
+                <div class="bg-zinc-900/50 p-6 rounded-2xl border border-zinc-800 animate-pulse text-center">
+                    <div class="w-8 h-8 bg-zinc-800 rounded-full mx-auto mb-3"></div>
+                    <p class="text-xs text-zinc-500 font-bold uppercase">SLA Residencial</p>
+                </div>
+                <div class="bg-zinc-900/50 p-6 rounded-2xl border border-zinc-800 animate-pulse text-center">
+                    <div class="w-8 h-8 bg-zinc-800 rounded-full mx-auto mb-3"></div>
+                    <p class="text-xs text-zinc-500 font-bold uppercase">SLA Zona Hotelera</p>
+                </div>
+                <div class="bg-zinc-900/50 p-6 rounded-2xl border border-zinc-800 animate-pulse text-center">
+                    <div class="w-8 h-8 bg-zinc-800 rounded-full mx-auto mb-3"></div>
+                    <p class="text-xs text-zinc-500 font-bold uppercase">Conversión</p>
+                </div>
+                <div class="bg-zinc-900/50 p-6 rounded-2xl border border-zinc-800 animate-pulse text-center">
+                    <div class="w-8 h-8 bg-zinc-800 rounded-full mx-auto mb-3"></div>
+                    <p class="text-xs text-zinc-500 font-bold uppercase">Riesgo de Fuga</p>
+                </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-zinc-900 rounded-2xl border border-zinc-700 p-5">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-white font-bold text-sm uppercase tracking-wider"><i class="fas fa-motorcycle text-blue-500"></i> Rendimiento de Flota (Comisión Dinámica)</h3>
-                        <button onclick="window.evaluarComisionesDinamicas()" class="bg-blue-600 hover:bg-blue-500 text-white text-[9px] px-3 py-1.5 rounded font-bold shadow transition-colors">
-                            <i class="fas fa-sync-alt"></i> ACTUALIZAR NIVELES
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                <div class="bg-zinc-900/30 rounded-[2rem] border border-zinc-800 p-6 flex flex-col h-[700px] shadow-inner">
+                    <div class="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
+                        <h3 class="text-white font-black text-sm uppercase tracking-widest flex items-center gap-3">
+                            <i class="fas fa-motorcycle text-blue-500 text-lg"></i> 
+                            Monitor de Flota (Profitability)
+                        </h3>
+                        <button onclick="window.evaluarComisionesDinamicas()" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] px-4 py-2 rounded-xl font-black shadow-lg shadow-blue-900/40 transition-all active:scale-95 uppercase">
+                            <i class="fas fa-sync-alt mr-1"></i> Auditoría
                         </button>
                     </div>
-                    <div id="biRankingFlota" class="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-                        <p class="text-xs text-gray-500 text-center py-4">Analizando historial de técnicos...</p>
+                    <div id="biRankingFlota" class="flex-1 overflow-y-auto pr-3 custom-scrollbar space-y-4">
+                        <div class="flex flex-col items-center justify-center h-full text-zinc-600 italic">
+                            <i class="fas fa-satellite-dish mb-4 text-4xl opacity-20"></i>
+                            <p class="text-sm tracking-widest font-bold">ESPERANDO SEÑALES DE LA FLOTA...</p>
+                        </div>
                     </div>
                 </div>
 
-                <div class="flex flex-col gap-6">
-                    <div class="bg-zinc-900 rounded-2xl border border-zinc-700 p-5 flex-1">
-                        <h3 class="text-white font-bold text-sm uppercase tracking-wider mb-4"><i class="fas fa-crown text-yellow-500"></i> Motor de Retención VIP (LTV)</h3>
-                        <div id="biRankingClientes" class="space-y-3 max-h-[200px] overflow-y-auto pr-2">
-                            <p class="text-xs text-gray-500 text-center py-4">Calculando Lifetime Value...</p>
+                <div class="flex flex-col gap-8">
+                    
+                    <div class="bg-zinc-900/30 rounded-[2rem] border border-zinc-800 p-6 h-[330px] flex flex-col shadow-inner">
+                        <div class="flex justify-between items-center mb-5 border-b border-zinc-800 pb-3">
+                            <h3 class="text-white font-black text-sm uppercase tracking-widest flex items-center gap-3">
+                                <i class="fas fa-crown text-yellow-500"></i> 
+                                Radar de Valor (LTV)
+                            </h3>
+                            <span class="text-[9px] text-zinc-500 font-bold uppercase">Top 10 Clientes</span>
+                        </div>
+                        <div id="biRankingClientes" class="flex-1 overflow-y-auto pr-3 custom-scrollbar space-y-3">
+                            <p class="text-xs text-zinc-600 text-center py-10 font-bold tracking-widest animate-pulse">PROCESANDO HISTORIAL TRANSACCIONAL...</p>
                         </div>
                     </div>
                     
-                    <div class="bg-zinc-900 rounded-2xl border border-zinc-700 p-5">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-white font-bold text-sm uppercase tracking-wider"><i class="fas fa-chart-pie text-emerald-500"></i> Inteligencia Comercial</h3>
-                            <div id="stripeHealthIndicator" class="flex items-center gap-1 text-[8px] font-bold text-zinc-500 uppercase">
-                                <span class="w-2 h-2 rounded-full bg-zinc-700"></span> Pasarela: Idle
+                    <div class="bg-zinc-900/30 rounded-[2rem] border border-zinc-800 p-6 flex-1 flex flex-col shadow-inner">
+                        <div class="flex justify-between items-center mb-5">
+                            <h3 class="text-white font-black text-sm uppercase tracking-widest flex items-center gap-3">
+                                <i class="fas fa-chart-pie text-emerald-500"></i> 
+                                Inteligencia Comercial
+                            </h3>
+                            <div id="stripeHealthIndicator" class="flex items-center gap-2 bg-black/50 px-3 py-1.5 rounded-full border border-zinc-800">
+                                <span class="w-2 h-2 rounded-full bg-zinc-700 shadow-[0_0_10px_rgba(113,113,122,0.5)]"></span> 
+                                <span class="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Stripe: IDLE</span>
                             </div>
                         </div>
-                        <div id="biMétricasComerciales" class="grid grid-cols-2 gap-3 mb-4">
-                            <p class="text-xs text-gray-500 text-center py-4 col-span-2">Agrupando verticales...</p>
-                        </div>
-                        <div id="biStripeMonitor" class="bg-black/40 border border-zinc-800 rounded-xl p-3">
-                            <h4 class="text-[9px] text-zinc-500 font-black uppercase mb-2">Live Webhook Feed (Stripe)</h4>
-                            <div id="biStripeFeed" class="text-[10px] text-zinc-400 font-mono space-y-1">
-                                <span class="animate-pulse">Esperando señal de pago...</span>
+                        <div id="biMétricasComerciales" class="grid grid-cols-2 gap-4 mb-6">
+                            </div>
+                        <div id="biStripeMonitor" class="bg-black/60 border border-zinc-800 rounded-2xl p-4 mt-auto shadow-2xl">
+                            <h4 class="text-[9px] text-zinc-500 font-black uppercase mb-3 flex justify-between items-center tracking-widest">
+                                Live Transaction Feed
+                                <i class="fab fa-stripe text-lg text-[#635BFF]"></i>
+                            </h4>
+                            <div id="biStripeFeed" class="text-[10px] text-zinc-400 font-mono space-y-2 h-[80px] overflow-hidden">
+                                <span class="animate-pulse text-zinc-700">Esperando señal de pago encriptada...</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="col-span-1 lg:col-span-2 bg-zinc-900 rounded-2xl border border-blue-900/50 p-5 mt-6 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
-                <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-3">
-                    <h3 class="text-white font-bold text-sm uppercase tracking-wider flex items-center gap-2">
-                        <i class="fas fa-money-bill-wave text-blue-400"></i> Control de Excepciones: Pagos en Efectivo
-                    </h3>
-                    <span class="bg-blue-900/30 text-blue-400 border border-blue-500/50 text-[9px] font-bold px-2 py-1 rounded uppercase tracking-widest">
-                        Tickets Activos en Tiempo Real
+            <div class="bg-zinc-900/20 rounded-[2.5rem] border border-blue-900/40 p-8 mt-10 shadow-[0_0_30px_rgba(59,130,246,0.05)]">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-zinc-800 pb-4 gap-4">
+                    <div>
+                        <h3 class="text-white font-black text-lg uppercase tracking-tight flex items-center gap-3">
+                            <i class="fas fa-money-bill-wave text-blue-400"></i> 
+                            Protocolo de Excepción: Cobro Manual
+                        </h3>
+                        <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">Autorización directa desde el NOC para eludir pasarela</p>
+                    </div>
+                    <span class="bg-blue-900/30 text-blue-400 border border-blue-500/30 text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-tighter shadow-lg">
+                        Terminales en Sitio: Monitor Activo
                     </span>
                 </div>
-                <div id="biTicketsEfectivo" class="space-y-3 max-h-[300px] overflow-y-auto pr-2">
-                    <p class="text-xs text-gray-500 text-center py-4">Monitoreando operaciones en curso...</p>
+                <div id="biTicketsEfectivo" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
+                    <div class="col-span-full py-16 text-center">
+                        <i class="fas fa-shield-alt text-4xl text-zinc-800 mb-4 block"></i>
+                        <p class="text-zinc-600 text-xs font-black uppercase tracking-widest">Sin solicitudes de autorización pendientes</p>
+                    </div>
                 </div>
             </div>
 
@@ -130,12 +186,13 @@ export async function iniciarMotorBI(contenedorId) {
     iniciarEscuchaFlota();
 }
 
-// ======================================================================================
-// 📡 WATCHDOGS Y LISTENERS PRINCIPALES
-// ======================================================================================
+/**
+ * ======================================================================================
+ * 📡 WATCHDOGS: LISTENERS EN TIEMPO REAL
+ * ======================================================================================
+ */
 function iniciarEscuchaTelemetria() {
-    const qServices = query(collection(db, "services"), orderBy("created_at", "desc"));
-    // 🔥 INYECCIÓN CLAVE: Quitamos el "where" para poder escuchar TODO lo de Stripe (Feed + Ingresos)
+    const qServices = query(collection(db, "services"), orderBy("created_at", "desc"), limit(250));
     const qTrans = query(collection(db, "transacciones"), orderBy("fecha", "desc"), limit(100));
 
     let dataServicios = [];
@@ -153,11 +210,9 @@ function iniciarEscuchaTelemetria() {
 
         snap.forEach(doc => {
             const t = { id: doc.id, ...doc.data() };
-            // Filtramos en memoria para mantener el LTV intacto
             if (t.tipo === "ingreso_servicio") {
                 transaccionesIngreso.push(t);
             }
-            // Filtramos para el Webhook Feed
             if (t.metodo === "stripe") {
                 transaccionesStripeFeed.push(t);
             }
@@ -172,13 +227,21 @@ function iniciarEscuchaFlota() {
     const qUsers = query(collection(db, "users"), where("rol", "==", "tecnico"));
     const qTransProfit = query(collection(db, "transacciones"), where("tipo", "==", "ingreso_servicio"));
 
-    // 🔥 AJEDREZ 4D: Escucha cruzada de técnicos y sus transacciones de utilidad
+    // 🔥 AJEDREZ 4D: Auditoría cruzada de rentabilidad por técnico individual
     onSnapshot(qTransProfit, (transSnap) => {
         const profitMap = {};
+        const volumeMap = {};
+        const countMap = {};
+        
         transSnap.forEach(doc => {
             const tx = doc.data();
             if (tx.tecnico_id) {
+                // Utilidad Neta Empresa (GP Fee)
                 profitMap[tx.tecnico_id] = (profitMap[tx.tecnico_id] || 0) + (tx.comision_fixgo || 0);
+                // Volumen Bruto (GTV)
+                volumeMap[tx.tecnico_id] = (volumeMap[tx.tecnico_id] || 0) + (tx.monto_total || 0);
+                // Conteo de servicios pagados
+                countMap[tx.tecnico_id] = (countMap[tx.tecnico_id] || 0) + 1;
             }
         });
 
@@ -186,546 +249,504 @@ function iniciarEscuchaFlota() {
             let tecnicos = [];
             snap.forEach(doc => {
                 const profit = profitMap[doc.id] || 0;
-                tecnicos.push({ id: doc.id, generated_profit: profit, ...doc.data() });
+                const volume = volumeMap[doc.id] || 0;
+                const count = countMap[doc.id] || 0;
+                tecnicos.push({ 
+                    id: doc.id, 
+                    generated_profit: profit, 
+                    total_volume: volume,
+                    real_count: count,
+                    ...doc.data() 
+                });
             });
             procesarRankingYDisciplina(tecnicos);
         });
     });
 }
 
-// NUEVA FUNCIÓN: Verificador de Hits de Stripe para el NOC
+/**
+ * ======================================================================================
+ * 🚦 1. PROCESADOR DE SEMÁFOROS OPERATIVOS (SLA)
+ * ======================================================================================
+ */
 function actualizarMonitorStripe(transacciones) {
     const feed = document.getElementById("biStripeFeed");
     const health = document.getElementById("stripeHealthIndicator");
     if (!feed || !health) return;
 
-    // Solo mostramos los últimos 3 eventos de Stripe
-    const stripeTx = transacciones.slice(0, 3);
+    const stripeTx = transacciones.slice(0, 4);
 
     if (stripeTx.length > 0) {
-        health.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> <span class="text-emerald-500">PASARELA ACTIVA</span>`;
+        health.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span> <span class="text-emerald-500 font-black tracking-widest text-[9px]">STRIPE LIVE: ACTIVA</span>`;
         feed.innerHTML = stripeTx.map(t => {
-            const hora = t.fecha ? t.fecha.toDate().toLocaleTimeString() : 'Ahora';
+            const hora = t.fecha ? t.fecha.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Justo ahora';
             const etiqueta = t.tipo === "webhook_feed" ? "WEBHOOK" : "SETTLEMENT";
             return `
-                <div class="flex justify-between items-center border-b border-zinc-900 pb-1">
-                    <span class="text-emerald-400 font-bold">$${(t.monto_total || 0).toFixed(2)}</span>
-                    <span class="text-[8px] text-zinc-500">${hora} | ${etiqueta}</span>
-                    <span class="text-[7px] bg-zinc-800 px-1 rounded text-white shadow shadow-emerald-500/20">SUCCESS</span>
+                <div class="flex justify-between items-center border-b border-zinc-900 pb-2 mb-2 hover:bg-zinc-800/20 transition-all px-1">
+                    <span class="text-emerald-400 font-black">${fMoneda(t.monto_total)}</span>
+                    <span class="text-[8px] text-zinc-500 font-bold uppercase tracking-tight">${hora} • ${etiqueta}</span>
+                    <span class="text-[7px] bg-emerald-900/30 px-2 py-0.5 rounded-full text-emerald-400 border border-emerald-500/20 shadow-md font-black">SUCCESS</span>
                 </div>
             `;
         }).join('');
+    } else {
+        health.innerHTML = `<span class="w-2 h-2 rounded-full bg-zinc-700"></span> <span class="text-zinc-500 font-black tracking-widest text-[9px]">STRIPE: IDLE</span>`;
     }
 }
 
-// ======================================================================================
-// 🚦 1. PROCESADOR DE SEMÁFOROS OPERATIVOS (SLA)
-// ======================================================================================
 function procesarSemaforosOperativos(servicios) {
     const contenedor = document.getElementById("biSemaforos");
     if (!contenedor) return;
 
-    // Métricas
     let totalAsignados = 0;
-    let tiempoLlegadaTotalMinutos = 0;
     let totalCotizados = 0;
     let cotizacionesAprobadas = 0;
-    let totalFinalizados = 0;
     let posiblesFugas = 0;
     
-    // SLA Dinámico (Zona Hotelera vs General)
-    let llegadaZonaHotelera = { sum: 0, count: 0 };
-    let llegadaGeneral = { sum: 0, count: 0 };
+    let llegadaZH = { sum: 0, count: 0 };
+    let llegadaGen = { sum: 0, count: 0 };
 
     servicios.forEach(srv => {
-        // SLA de Llegada (Diferencia entre asignado_at y cotizado_at/trabajando/finalizado)
+        // Lógica de SLA de llegada
         if (srv.asignado_at && srv.cotizado_at) {
             const tAsig = srv.asignado_at.toDate();
             const tCot = srv.cotizado_at.toDate();
             const diffMinutos = Math.abs(tCot - tAsig) / 60000;
             
-            if (diffMinutos > 0 && diffMinutos < 180) { // Filtro de cordura (menos de 3h)
+            if (diffMinutos > 0 && diffMinutos < 240) { // Filtro de promedios coherentes
                 totalAsignados++;
-                tiempoLlegadaTotalMinutos += diffMinutos;
-
                 const zonaLower = (srv.zona || "").toLowerCase();
                 if (zonaLower.includes("hotelera") || zonaLower.includes("puerto cancun")) {
-                    llegadaZonaHotelera.sum += diffMinutos;
-                    llegadaZonaHotelera.count++;
+                    llegadaZH.sum += diffMinutos;
+                    llegadaZH.count++;
                 } else {
-                    llegadaGeneral.sum += diffMinutos;
-                    llegadaGeneral.count++;
+                    llegadaGen.sum += diffMinutos;
+                    llegadaGen.count++;
                 }
             }
         }
 
-        // Tasa de Cierre de Cotizaciones
+        // Tasa de Cierre Operativa
         if (srv.estado === "finalizado") {
             totalCotizados++;
             cotizacionesAprobadas++;
-            totalFinalizados++;
         }
         if (srv.estado === "cancelado" && srv.cancelado_razon === "Cliente rechazó cotización") {
             totalCotizados++;
         }
 
-        // Detección de Intentos de Fuga (Cancelación súbita después de cotizar o llegar)
+        // Detector de Fugas (Cancelación tras cotizar o llegar)
         if (srv.estado === "cancelado" && srv.cotizado_at && srv.tecnico_id) {
             posiblesFugas++;
         }
     });
 
-    // Cálculos
-    const promLlegadaGeneral = llegadaGeneral.count > 0 ? (llegadaGeneral.sum / llegadaGeneral.count) : 0;
-    const promLlegadaZH = llegadaZonaHotelera.count > 0 ? (llegadaZonaHotelera.sum / llegadaZonaHotelera.count) : 0;
-    const tasaAprobacion = totalCotizados > 0 ? ((cotizacionesAprobadas / totalCotizados) * 100).toFixed(1) : 0;
+    const promGen = llegadaGen.count > 0 ? (llegadaGen.sum / llegadaGen.count) : 0;
+    const promZH = llegadaZH.count > 0 ? (llegadaZH.sum / llegadaZH.count) : 0;
+    const tasaCierre = totalCotizados > 0 ? ((cotizacionesAprobadas / totalCotizados) * 100).toFixed(1) : 0;
 
-    // Evaluadores de Semáforo (Renders)
-    const renderSemaforo = (titulo, valor, unidad, evalColor) => {
-        let colorClass = "border-zinc-700 text-white";
-        let icon = "fa-check-circle text-gray-500";
-        let bgClass = "bg-zinc-900";
+    const renderCard = (titulo, valor, unidad, evalColor) => {
+        let border = "border-zinc-800 text-white";
+        let icon = "fa-check-circle text-zinc-700";
+        let bg = "bg-zinc-900/50";
+        let glow = "";
 
-        if (evalColor === "rojo") { colorClass = "border-red-500 text-red-500"; icon = "fa-exclamation-triangle text-red-500 animate-pulse"; bgClass = "bg-red-900/20"; }
-        if (evalColor === "amarillo") { colorClass = "border-yellow-500 text-yellow-500"; icon = "fa-exclamation-circle text-yellow-500"; bgClass = "bg-yellow-900/20"; }
-        if (evalColor === "verde") { colorClass = "border-emerald-500 text-emerald-400"; icon = "fa-check-double text-emerald-500"; bgClass = "bg-emerald-900/20"; }
+        if (evalColor === "rojo") { border = "border-red-600 text-red-500"; icon = "fa-exclamation-triangle animate-pulse"; bg = "bg-red-900/10"; glow = "shadow-[0_0_20px_rgba(220,38,38,0.1)]"; }
+        if (evalColor === "amarillo") { border = "border-yellow-600 text-yellow-500"; icon = "fa-exclamation-circle"; bg = "bg-yellow-900/10"; }
+        if (evalColor === "verde") { border = "border-emerald-600 text-emerald-400"; icon = "fa-check-double"; bg = "bg-emerald-900/10"; }
 
         return `
-            <div class="${bgClass} p-4 rounded-xl border ${colorClass} transition-all">
-                <div class="flex justify-between items-start mb-2">
-                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-400">${titulo}</h4>
-                    <i class="fas ${icon}"></i>
+            <div class="${bg} p-6 rounded-2xl border ${border} transition-all ${glow} flex flex-col justify-between h-[120px]">
+                <div class="flex justify-between items-start">
+                    <h4 class="text-[9px] font-black uppercase tracking-widest text-zinc-500">${titulo}</h4>
+                    <i class="fas ${icon} text-lg"></i>
                 </div>
                 <div class="flex items-end gap-1">
-                    <span class="text-2xl font-black">${valor}</span>
-                    <span class="text-xs mb-1 text-gray-500">${unidad}</span>
+                    <span class="text-4xl font-black">${valor}</span>
+                    <span class="text-[10px] mb-2 text-zinc-500 font-black uppercase tracking-tighter">${unidad}</span>
                 </div>
             </div>
         `;
     };
 
-    // Lógica Predictiva (Los rangos discutidos)
-    let colorLlegadaGen = promLlegadaGeneral <= 25 ? "verde" : (promLlegadaGeneral <= 40 ? "amarillo" : "rojo");
-    let colorLlegadaZH = promLlegadaZH <= 40 ? "verde" : (promLlegadaZH <= 60 ? "amarillo" : "rojo"); // Tolerancia ZH
-    let colorTasaCierre = tasaAprobacion >= 75 ? "verde" : (tasaAprobacion >= 50 ? "amarillo" : "rojo");
-    let colorFugas = posiblesFugas === 0 ? "verde" : (posiblesFugas === 1 ? "amarillo" : "rojo");
-
     contenedor.innerHTML = `
-        ${renderSemaforo("SLA LLEGADA (RESIDENCIAL)", promLlegadaGeneral.toFixed(0), "min", colorLlegadaGen)}
-        ${renderSemaforo("SLA LLEGADA (ZONA HOTELERA)", promLlegadaZH.toFixed(0), "min", colorLlegadaZH)}
-        ${renderSemaforo("TASA APROBACIÓN COTIZACIÓN", tasaAprobacion, "%", colorTasaCierre)}
-        ${renderSemaforo("ALERTAS DE FUGA / COLUSIÓN", posiblesFugas, "casos", colorFugas)}
+        ${renderCard("SLA RESIDENCIAL", promGen.toFixed(0), "min", promGen <= 30 ? "verde" : (promGen <= 45 ? "amarillo" : "rojo"))}
+        ${renderCard("SLA ZONA HOTELERA", promZH.toFixed(0), "min", promZH <= 45 ? "verde" : (promZH <= 60 ? "amarillo" : "rojo"))}
+        ${renderCard("CONVERSIÓN CIERRE", tasaCierre, "%", tasaCierre >= 80 ? "verde" : (tasaCierre >= 60 ? "amarillo" : "rojo"))}
+        ${renderCard("AUDITORÍA DE FUGAS", posiblesFugas, "casos", posiblesFugas === 0 ? "verde" : (posiblesFugas <= 2 ? "amarillo" : "rojo"))}
     `;
 }
 
-// ======================================================================================
-// 🏆 2. RANKING DE FLOTA Y MOTOR DISCIPLINARIO (3 STRIKES)
-// ======================================================================================
+/**
+ * ======================================================================================
+ * 🏆 2. RANKING DE FLOTA Y MOTOR DISCIPLINARIO (AJEDREZ 4D FULL)
+ * ======================================================================================
+ */
 function procesarRankingYDisciplina(tecnicos) {
     const contenedor = document.getElementById("biRankingFlota");
     if (!contenedor) return;
 
-    // Ordenamos por reputación y servicios completados (Mejores arriba)
-    const tecnicosOrdenados = tecnicos.sort((a, b) => {
-        const scoreA = (a.reputacion || 0) * (a.servicios_completados || 0);
-        const scoreB = (b.reputacion || 0) * (b.servicios_completados || 0);
-        return scoreB - scoreA;
-    });
+    // Meritocracia Ajedrez 4D: Mayor utilidad neta para la empresa va primero
+    const tecnicosOrdenados = tecnicos.sort((a, b) => b.generated_profit - a.generated_profit);
 
     let html = "";
-
     tecnicosOrdenados.forEach((t) => {
         const strikes = t.strikes || 0;
-        const nivel = t.nivel || "BRONCE";
-        // 🔥 INYECCIÓN DE PRECISIÓN: Se actualizó el valor default para mostrar 30% en UI si no tiene asignación
+        const nivel = (t.nivel || "BRONCE").toUpperCase();
         const comision = t.comision_asignada ? (t.comision_asignada * 100).toFixed(0) + "%" : "30%";
+        const suspendido = ["suspendido", "suspendido_grave", "baneado_permanente"].includes(t.estado);
         
         let colorStrike = strikes === 0 ? "text-emerald-500" : (strikes === 1 ? "text-yellow-500" : "text-red-500");
-        let iconNivel = "fa-medal text-orange-600";
-        if (nivel === "PLATA") iconNivel = "fa-medal text-gray-300";
-        if (nivel === "ORO") iconNivel = "fa-crown text-yellow-400";
-
-        const suspendido = t.estado === "suspendido" || t.estado === "suspendido_grave" || t.estado === "baneado_permanente";
-
-        // 🔥 AJEDREZ 4D: Renderizado de Utilidad Generada por Técnico
-        const profitHTML = `
-            <div class="mt-2 bg-emerald-900/10 border border-emerald-500/20 p-2 rounded-lg flex justify-between items-center">
-                <span class="text-[9px] text-emerald-500 font-black uppercase tracking-widest">Utilidad Generada:</span>
-                <span class="text-xs font-black text-emerald-400">$${(t.generated_profit || 0).toFixed(2)} MXN</span>
-            </div>
-        `;
+        let iconNivel = nivel === "ORO" ? "fa-crown text-yellow-400 shadow-yellow-500/50" : (nivel === "PLATA" ? "fa-medal text-zinc-300" : "fa-medal text-orange-600");
 
         html += `
-            <div class="flex flex-col bg-black p-3 rounded-xl border ${suspendido ? 'border-red-900/50 opacity-70' : 'border-zinc-800'} mb-2">
-                <div class="flex justify-between items-center mb-2">
-                    <div class="flex items-center gap-2">
-                        <img src="${t.foto_perfil || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.nombre)}`}" class="w-8 h-8 rounded-full border border-zinc-700">
+            <div class="flex flex-col bg-black p-5 rounded-3xl border ${suspendido ? 'border-red-900/50 opacity-60 shadow-none' : 'border-zinc-800 shadow-2xl hover:border-zinc-600'} mb-4 transition-all">
+                
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center gap-4">
+                        <div class="relative group">
+                            <img src="${t.foto_perfil || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.nombre)}&background=random`}" class="w-12 h-12 rounded-full border-2 border-zinc-800 object-cover shadow-lg transition-transform group-hover:scale-105">
+                            ${!suspendido && t.disponible ? '<span class="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-[3px] border-black rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]"></span>' : ''}
+                        </div>
                         <div>
-                            <p class="text-white font-bold text-xs uppercase">${escaparHTML(t.nombre)}</p>
-                            <div class="flex items-center gap-2 text-[9px] mt-0.5 font-bold">
-                                <span><i class="fas ${iconNivel}"></i> ${nivel} (Fee: ${comision})</span>
-                                <span class="text-gray-600">|</span>
+                            <p class="text-white font-black text-sm uppercase tracking-tight leading-none mb-1">${escaparHTML(t.nombre)}</p>
+                            <div class="flex items-center gap-2 text-[10px] font-black uppercase">
+                                <span class="text-blue-500 flex items-center gap-1"><i class="fas ${iconNivel}"></i> ${nivel}</span>
+                                <span class="text-zinc-700">•</span>
+                                <span class="text-zinc-400">FEE: ${comision}</span>
+                                <span class="text-zinc-700">•</span>
                                 <span class="${colorStrike}">STRIKES: ${strikes}/3</span>
                             </div>
                         </div>
                     </div>
                     <div class="text-right">
-                        <p class="text-emerald-400 font-black text-xs">${t.servicios_completados || 0} TICKETS</p>
-                        <p class="text-yellow-500 text-[9px]">⭐ ${(t.reputacion || 5).toFixed(1)}</p>
+                        <p class="text-emerald-400 font-black text-base leading-none">${fMoneda(t.generated_profit)}</p>
+                        <p class="text-[7px] text-zinc-600 uppercase font-black tracking-widest mt-1">Utilidad Neta FixGo</p>
                     </div>
                 </div>
 
-                ${profitHTML}
+                <div class="grid grid-cols-3 gap-3 mb-5">
+                    <div class="bg-zinc-900/50 p-3 rounded-2xl border border-zinc-800/50">
+                        <p class="text-[7px] text-zinc-500 uppercase font-black tracking-tighter mb-1">GTV Acumulado</p>
+                        <p class="text-[11px] text-white font-black font-mono">${fMoneda(t.total_volume)}</p>
+                    </div>
+                    <div class="bg-zinc-900/50 p-3 rounded-2xl border border-zinc-800/50">
+                        <p class="text-[7px] text-zinc-500 uppercase font-black tracking-tighter mb-1">Servicios Pagados</p>
+                        <p class="text-[11px] text-white font-black">${t.real_count || 0} Tx</p>
+                    </div>
+                    <div class="bg-zinc-900/50 p-3 rounded-2xl border border-zinc-800/50">
+                        <p class="text-[7px] text-zinc-500 uppercase font-black tracking-tighter mb-1">Reputación</p>
+                        <p class="text-[11px] text-yellow-500 font-black">⭐ ${(t.reputacion || 5).toFixed(1)}</p>
+                    </div>
+                </div>
 
                 ${!suspendido ? `
-                <div class="flex gap-1 mt-2 pt-2 border-t border-zinc-800">
-                    <button onclick="window.aplicarStrike('${t.id}', 1, '${escaparHTML(t.nombre)}')" class="flex-1 bg-yellow-900/30 hover:bg-yellow-900/60 text-yellow-500 text-[8px] py-1.5 rounded font-bold border border-yellow-500/30 transition-colors">
-                        <i class="fas fa-exclamation-triangle"></i> STRIKE 1 (24H)
-                    </button>
-                    <button onclick="window.aplicarStrike('${t.id}', 2, '${escaparHTML(t.nombre)}')" class="flex-1 bg-orange-900/30 hover:bg-orange-900/60 text-orange-500 text-[8px] py-1.5 rounded font-bold border border-orange-500/30 transition-colors">
-                        <i class="fas fa-gavel"></i> STRIKE 2 (7 DÍAS)
-                    </button>
-                    <button onclick="window.aplicarStrike('${t.id}', 3, '${escaparHTML(t.nombre)}')" class="flex-[0.5] bg-red-900/50 hover:bg-red-600 text-white text-[8px] py-1.5 rounded font-bold border border-red-500/50 transition-colors">
-                        <i class="fas fa-skull-crossbones"></i> BAN
-                    </button>
+                <div class="flex gap-2 pt-4 border-t border-zinc-800/50">
+                    <button onclick="window.aplicarStrike('${t.id}', 1, '${escaparHTML(t.nombre)}')" class="flex-1 bg-yellow-900/10 hover:bg-yellow-900/40 text-yellow-600 text-[8px] py-2.5 rounded-xl font-black border border-yellow-600/20 transition-all uppercase tracking-widest active:scale-95 shadow-lg">Strike 1 (24H)</button>
+                    <button onclick="window.aplicarStrike('${t.id}', 2, '${escaparHTML(t.nombre)}')" class="flex-1 bg-orange-900/10 hover:bg-orange-900/40 text-orange-600 text-[8px] py-2.5 rounded-xl font-black border border-orange-600/20 transition-all uppercase tracking-widest active:scale-95 shadow-lg">Strike 2 (7D)</button>
+                    <button onclick="window.aplicarStrike('${t.id}', 3, '${escaparHTML(t.nombre)}')" class="flex-1 bg-red-900/30 hover:bg-red-600 text-white text-[8px] py-2.5 rounded-xl font-black border border-red-500/30 transition-all uppercase tracking-widest active:scale-95 shadow-lg">BAN TOTAL</button>
                 </div>
                 ` : `
-                <div class="mt-2 pt-2 border-t border-red-900/50 text-center">
-                    <span class="bg-red-900 text-white text-[9px] font-black px-3 py-1 rounded uppercase tracking-widest">CUENTA SUSPENDIDA (${t.estado.replace('_', ' ')})</span>
-                    <button onclick="window.levantarCastigo('${t.id}')" class="ml-2 text-emerald-500 underline text-[9px] hover:text-emerald-400">Restaurar</button>
+                <div class="mt-2 pt-3 border-t border-red-900/50 text-center flex justify-between items-center bg-red-900/10 p-3 rounded-2xl border border-red-500/20">
+                    <span class="text-red-500 text-[9px] font-black uppercase tracking-widest flex items-center gap-2">
+                        <i class="fas fa-user-slash animate-pulse"></i> TERMINAL BLOQUEADA: ${t.estado.toUpperCase()}
+                    </span>
+                    <button onclick="window.levantarCastigo('${t.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black px-4 py-2 rounded-xl transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)]">RESTAURAR ACCESO</button>
                 </div>
                 `}
             </div>
         `;
     });
 
-    contenedor.innerHTML = html || '<p class="text-gray-500 text-xs text-center py-4">No hay flota registrada.</p>';
+    contenedor.innerHTML = html || '<div class="flex flex-col items-center justify-center h-full text-zinc-700 py-20"><i class="fas fa-radar text-4xl mb-4 opacity-20"></i><p class="font-black text-xs uppercase tracking-widest">Sincronizando con la red de servicios...</p></div>';
 }
 
-// LÓGICA DE EJECUCIÓN DISCIPLINARIA (RESTAURADA LÍNEA POR LÍNEA)
-window.aplicarStrike = async (uid, nivelStrike, nombre) => {
-    let msg = "";
-    let nuevoEstado = "";
-    let penalizacionMonto = 0;
-    
-    if (nivelStrike === 1) {
-        msg = `¿Aplicar STRIKE 1 a ${nombre}?\n\n- Se suspenderá 24 horas.\n- Retención preventiva de $200 MXN.\n- Se notifica baja de calidad.`;
-        nuevoEstado = "suspendido";
-        penalizacionMonto = 200;
-    } else if (nivelStrike === 2) {
-        msg = `¿Aplicar STRIKE 2 a ${nombre}?\n\n- Se suspenderá 7 DÍAS.\n- Retención fuerte de $500 MXN.\n- Queda al borde de la expulsión.`;
-        nuevoEstado = "suspendido_grave";
-        penalizacionMonto = 500;
-    } else if (nivelStrike === 3) {
-        msg = `🚨 ALERTA CRÍTICA 🚨\n\n¿BANEADO PERMANENTE a ${nombre}?\n\n- Se revoca acceso total.\n- Bloqueo de IP/Dispositivo.\n- Congelamiento final de fondos para revisión.`;
-        nuevoEstado = "baneado_permanente";
-        penalizacionMonto = 1000;
-    }
-
-    if (!confirm(msg)) return;
-
-    try {
-        // 1. Aplicar Strike en Perfil
-        await updateDoc(doc(db, "users", uid), {
-            estado: nuevoEstado,
-            strikes: nivelStrike,
-            disponible: false // Lo saca del mapa inmediatamente
-        });
-
-        // 2. Ejecutar Retención Financiera en Bóveda
-        await addDoc(collection(db, "transacciones"), {
-            tecnico_id: uid,
-            pago_tecnico: -Math.abs(penalizacionMonto),
-            monto_total: 0,
-            tipo: "penalizacion",
-            descripcion: `Sistema NOC: Strike Nivel ${nivelStrike} (Retención / Multa)`,
-            fecha: serverTimestamp()
-        });
-
-        alert(`✅ Sanción de Strike ${nivelStrike} aplicada exitosamente a ${nombre}. Fondos retenidos.`);
-    } catch (e) {
-        console.error("Error aplicando disciplina:", e);
-        alert("Error de conexión al aplicar la sanción.");
-    }
-};
-
-window.levantarCastigo = async (uid) => {
-    if(!confirm("¿Perdonar a este técnico y regresarlo a estatus Activo? Sus strikes no se borrarán, pero podrá trabajar.")) return;
-    try {
-        await updateDoc(doc(db, "users", uid), { estado: "activo" });
-    } catch(e) { alert("Error."); }
-};
-
-// EVALUADOR DE COMISIONES DINÁMICAS (GAMIFICACIÓN)
-window.evaluarComisionesDinamicas = async () => {
-    // 🔥 INYECCIÓN DE PRECISIÓN: Textos de confirmación actualizados a las nuevas tasas VC
-    if(!confirm("🤖 EL CEREBRO VA A EVALUAR A TODA LA FLOTA.\n\nEsto calculará el volumen, calificación y strikes de cada técnico para ascenderlos (Oro/24%) o degradarlos (Bronce/30%).\n\n¿Proceder con la auditoría mensual automática?")) return;
-    
-    try {
-        const qUsers = query(collection(db, "users"), where("rol", "==", "tecnico"));
-        const snap = await getDocs(qUsers);
-        
-        let ascensos = 0; let degradaciones = 0;
-
-        for (const docSnap of snap.docs) {
-            const t = docSnap.data();
-            const rep = t.reputacion || 0;
-            const svcs = t.servicios_completados || 0;
-            const strikes = t.strikes || 0;
-
-            let nuevoNivel = "BRONCE";
-            let nuevaComision = 0.30;
-
-            // 🔥 INYECCIÓN DE PRECISIÓN: Algoritmo de Gamificación con nuevos rangos
-            if (rep >= 4.8 && svcs >= 50 && strikes === 0) {
-                nuevoNivel = "ORO"; nuevaComision = 0.24; // Elite
-            } else if (rep >= 4.5 && svcs >= 20 && strikes <= 1) {
-                nuevoNivel = "PLATA"; nuevaComision = 0.27; // Intermedio
-            } else {
-                nuevoNivel = "BRONCE"; nuevaComision = 0.30; // Base / Castigado
-            }
-
-            if (t.nivel !== nuevoNivel) {
-                if(nuevaComision < (t.comision_asignada || 0.30)) ascensos++; else degradaciones++;
-                await updateDoc(doc(db, "users", docSnap.id), {
-                    nivel: nuevoNivel,
-                    comision_asignada: nuevaComision
-                });
-            }
-        }
-        alert(`✅ Cierre de Ciclo Exitoso.\n\nAscensos aplicados: ${ascensos}\nDegradaciones aplicadas: ${degradaciones}\n\nLos técnicos verán su nueva tasa de ganancia en su app.`);
-    } catch(e) {
-        console.error("Error evaluando comisiones:", e);
-        alert("Error corriendo el algoritmo de comisiones.");
-    }
-};
-
-// ======================================================================================
-// 🐋 3. MOTOR COMERCIAL VIP (LTV & CHURN RATE)
-// ======================================================================================
+/**
+ * ======================================================================================
+ * 🐋 3. MOTOR COMERCIAL VIP (LTV & CHURN RISK MANAGEMENT)
+ * ======================================================================================
+ */
 function procesarMotorComercialLTV(transacciones, servicios) {
     const contClientes = document.getElementById("biRankingClientes");
     const contMétricas = document.getElementById("biMétricasComerciales");
     if (!contClientes || !contMétricas) return;
 
-    // 1. Construcción del Perfil de Valor del Cliente (LTV)
     let clientesHash = {}; 
     let verticalHash = {};
 
     transacciones.forEach(tx => {
-        // Enlazar transacción con datos del servicio para obtener Cliente_ID y Vertical
-        const srvRelacionado = servicios.find(s => s.id === tx.servicio_id);
-        if (srvRelacionado && srvRelacionado.cliente_id) {
-            const cid = srvRelacionado.cliente_id;
-            const cName = srvRelacionado.cliente_nombre || "Usuario";
-            const cPhone = srvRelacionado.cliente_telefono || "Sin teléfono";
-            const vert = srvRelacionado.categoria || "GRAL";
+        const srv = servicios.find(s => s.id === tx.servicio_id);
+        if (srv && srv.cliente_id) {
+            const cid = srv.cliente_id;
+            const vert = srv.categoria || "GRAL";
             
-            // LTV Cliente
             if(!clientesHash[cid]) {
-                clientesHash[cid] = { nombre: cName, telefono: cPhone, total_gtv: 0, util_pura: 0, tickets: 0, ultimo_servicio: 0 };
+                clientesHash[cid] = { nombre: srv.cliente_nombre, telf: srv.cliente_telefono, gtv: 0, ltv: 0, count: 0, last: 0 };
             }
-            clientesHash[cid].total_gtv += (tx.monto_total || 0);
-            clientesHash[cid].util_pura += (tx.comision_fixgo || 0); // Lo que realmente gana GestiaPremium
-            clientesHash[cid].tickets++;
+            clientesHash[cid].gtv += (tx.monto_total || 0);
+            clientesHash[cid].ltv += (tx.comision_fixgo || 0); // Utilidad neta retenida
+            clientesHash[cid].count++;
             
-            if (srvRelacionado.created_at) {
-                const ms = srvRelacionado.created_at.seconds * 1000;
-                if(ms > clientesHash[cid].ultimo_servicio) clientesHash[cid].ultimo_servicio = ms;
+            if (srv.created_at) {
+                const ms = srv.created_at.seconds * 1000;
+                if(ms > clientesHash[cid].last) clientesHash[cid].last = ms;
             }
 
-            // Rentabilidad Vertical
-            if(!verticalHash[vert]) verticalHash[vert] = { ingresos: 0, tickets: 0 };
-            verticalHash[vert].ingresos += (tx.comision_fixgo || 0);
-            verticalHash[vert].tickets++;
+            if(!verticalHash[vert]) verticalHash[vert] = { rev: 0, count: 0 };
+            verticalHash[vert].rev += (tx.comision_fixgo || 0);
+            verticalHash[vert].count++;
         }
     });
 
-    // 2. Renderizado del Top VIP Clients (LTV)
-    const arrayClientes = Object.values(clientesHash).sort((a, b) => b.total_gtv - a.total_gtv).slice(0, 10);
-    
+    // Ranking VIP: Gross Transaction Value (GTV)
+    const arrayVips = Object.values(clientesHash).sort((a, b) => b.gtv - a.gtv).slice(0, 10);
     let htmlVIP = "";
-    const ahora = new Date().getTime();
+    const ahora = Date.now();
 
-    arrayClientes.forEach((c, idx) => {
-        const diasInactivo = c.ultimo_servicio > 0 ? Math.floor((ahora - c.ultimo_servicio) / (1000 * 60 * 60 * 24)) : 0;
-        
-        let badgeRiesgo = "";
-        let borderCard = "border-zinc-800";
-        if (diasInactivo > 60) {
-            badgeRiesgo = `<span class="bg-red-900/50 text-red-400 text-[8px] px-2 rounded ml-2 font-black border border-red-500/50">⚠️ RIESGO ABANDONO (${diasInactivo}d)</span>`;
-            borderCard = "border-red-900/50";
-        }
+    arrayVips.forEach((c, idx) => {
+        const diasInactivo = c.last > 0 ? Math.floor((ahora - c.last) / 86400000) : 0;
+        let badgeRiesgo = diasInactivo > 45 ? `<span class="bg-red-900/50 text-red-500 text-[8px] px-3 py-0.5 rounded-full ml-2 border border-red-500/20 font-black uppercase animate-pulse shadow-sm">⚠️ RIESGO CHURN</span>` : "";
 
         htmlVIP += `
-            <div class="flex justify-between items-center bg-black p-3 rounded-xl border ${borderCard} mb-2">
-                <div class="flex items-center gap-3">
-                    <div class="text-yellow-500 font-black text-xs w-4 text-center">#${idx + 1}</div>
+            <div class="flex justify-between items-center bg-black p-4 rounded-2xl border border-zinc-800 mb-3 hover:bg-zinc-900 transition-all group cursor-default">
+                <div class="flex items-center gap-4">
+                    <span class="text-zinc-800 font-black text-xs w-5 text-center group-hover:text-blue-600 transition-colors">#${idx + 1}</span>
                     <div>
-                        <p class="text-white font-bold text-xs uppercase">${escaparHTML(c.nombre)} ${badgeRiesgo}</p>
-                        <p class="text-[9px] text-gray-500 font-mono">${escaparHTML(c.telefono)} • ${c.tickets} Servicios</p>
+                        <p class="text-white font-black text-xs uppercase tracking-tight">${escaparHTML(c.nombre)} ${badgeRiesgo}</p>
+                        <p class="text-[9px] text-zinc-500 font-mono font-bold mt-1 tracking-tight">${c.count} TX • LTV NETO EMPRESA: <span class="text-emerald-500">${fMoneda(c.ltv)}</span></p>
                     </div>
                 </div>
                 <div class="text-right">
-                    <p class="text-emerald-400 font-black text-sm">$${c.total_gtv.toFixed(2)}</p>
-                    <p class="text-[8px] text-zinc-500 uppercase tracking-widest">LTV Neto: $${c.util_pura.toFixed(2)}</p>
+                    <p class="text-emerald-400 font-black text-sm tracking-tighter">${fMoneda(c.gtv)}</p>
+                    <p class="text-[7px] text-zinc-600 uppercase font-black tracking-widest mt-0.5">GTV Total</p>
                 </div>
             </div>
         `;
     });
-    contClientes.innerHTML = htmlVIP || '<p class="text-gray-500 text-xs text-center py-4">Faltan datos de transacciones para calcular el LTV.</p>';
+    contClientes.innerHTML = htmlVIP || '<p class="text-zinc-600 text-xs text-center py-10 font-black uppercase tracking-widest">Iniciando auditoría comercial...</p>';
 
-    // 3. Renderizado de Rentabilidad por Vertical
-    const arrayVerticales = Object.entries(verticalHash).map(([k, v]) => ({ nombre: k, ...v })).sort((a,b) => b.ingresos - a.ingresos);
-    
-    let htmlVert = "";
-    arrayVerticales.forEach(v => {
-        htmlVert += `
-            <div class="bg-black p-3 rounded-xl border border-zinc-800 flex justify-between items-center">
-                <div>
-                    <p class="text-white font-bold text-[10px] uppercase">${escaparHTML(v.nombre)}</p>
-                    <p class="text-[8px] text-gray-500">${v.tickets} Órdenes completadas</p>
+    // Rentabilidad por Vertical (Ajedrez 4D - Revenue Mix)
+    const arrayVert = Object.entries(verticalHash).map(([k, v]) => ({ n: k, ...v })).sort((a,b) => b.rev - a.rev);
+    contMétricas.innerHTML = arrayVert.map(v => `
+        <div class="bg-black p-4 rounded-2xl border border-zinc-800 hover:border-emerald-500/40 transition-all group h-[85px] flex flex-col justify-between">
+            <p class="text-white font-black text-[10px] uppercase truncate tracking-[0.1em] border-b border-zinc-900 pb-2 mb-2">${escaparHTML(v.n)}</p>
+            <div class="flex justify-between items-end">
+                <div class="flex flex-col">
+                    <span class="text-[12px] text-zinc-400 font-black leading-none">${v.count}</span>
+                    <span class="text-[7px] text-zinc-600 uppercase font-black tracking-tighter">Tickets</span>
                 </div>
                 <div class="text-right">
-                    <p class="text-emerald-500 font-black text-xs">$${v.ingresos.toFixed(2)}</p>
-                    <p class="text-[7px] text-zinc-600 uppercase">Utilidad Pura GestiaPremium</p>
+                    <span class="text-emerald-500 font-black text-sm leading-none">${fMoneda(v.rev)}</span>
+                    <p class="text-[7px] text-zinc-700 uppercase font-black mt-1">Utility</p>
                 </div>
             </div>
-        `;
-    });
-    contMétricas.innerHTML = htmlVert || '<p class="text-gray-500 text-xs text-center py-4 col-span-2">Sin datos de verticales.</p>';
+        </div>
+    `).join('') || '<p class="text-zinc-600 text-xs text-center py-5 col-span-full uppercase font-black opacity-30">Cargando Mix de Revenue...</p>';
 }
 
-// ======================================================================================
-// 💵 4. NUEVO MÓDULO: RENDERIZADO Y CONTROL DE EXCEPCIONES (EFECTIVO)
-// ======================================================================================
+/**
+ * ======================================================================================
+ * 💵 4. PROTOCOLOS DE EXCEPCIÓN Y ACCIONES (WINDOW SCOPE)
+ * ======================================================================================
+ */
 function renderizarControlEfectivo(servicios) {
     const contenedor = document.getElementById("biTicketsEfectivo");
     if (!contenedor) return;
 
-    // Filtramos solo los servicios que están vivos/activos en este momento
-    const estadosActivos = ['buscando_tecnico', 'asignado', 'en_camino', 'cotizando', 'trabajando', 'pago_pendiente'];
-    const serviciosActivos = servicios.filter(s => estadosActivos.includes(s.estado));
+    const vivos = servicios.filter(s => ['buscando_tecnico', 'asignado', 'en_camino', 'cotizando', 'trabajando', 'pago_pendiente'].includes(s.estado));
 
-    if (serviciosActivos.length === 0) {
-        contenedor.innerHTML = '<p class="text-gray-500 text-xs text-center py-4"><i class="fas fa-check-double mb-2 text-xl block text-zinc-700"></i> No hay operaciones activas en este momento.</p>';
+    if (vivos.length === 0) {
+        contenedor.innerHTML = `
+            <div class="col-span-full py-16 text-center">
+                <div class="bg-zinc-900/30 border border-zinc-800/50 rounded-3xl p-10">
+                    <i class="fas fa-check-double text-4xl text-zinc-800 mb-4 block opacity-30"></i>
+                    <p class="text-zinc-600 text-xs font-black uppercase tracking-[0.3em]">Operaciones Limpias: Sin Override Manual</p>
+                </div>
+            </div>`;
         return;
     }
 
-    let html = "";
-    serviciosActivos.forEach(s => {
-        // Verificamos si este ticket ya tiene el permiso de efectivo
-        const efectivoHabilitado = s.allowCashPayment === true;
-        
-        // Estilos condicionales
-        const cardBorder = efectivoHabilitado ? 'border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'border-zinc-800';
-        const statusBadge = `<span class="bg-zinc-800 text-zinc-400 text-[8px] px-2 py-0.5 rounded uppercase tracking-widest">${s.estado.replace('_', ' ')}</span>`;
-        
-        html += `
-            <div class="bg-black p-4 rounded-xl border ${cardBorder} flex justify-between items-center mb-2 transition-all">
-                <div>
-                    <div class="flex items-center gap-2 mb-1">
-                        <p class="text-white font-bold text-xs uppercase"><i class="fas fa-user text-blue-500"></i> ${escaparHTML(s.cliente_nombre || 'Cliente')}</p>
-                        ${statusBadge}
+    contenedor.innerHTML = vivos.map(s => {
+        const cashOk = s.allowCashPayment === true;
+        return `
+            <div class="bg-black p-5 rounded-[2rem] border ${cashOk ? 'border-emerald-500/50 shadow-2xl shadow-emerald-900/10' : 'border-zinc-800'} flex flex-col justify-between transition-all hover:border-blue-500/30">
+                <div class="mb-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <p class="text-white font-black text-sm uppercase tracking-tight leading-none mb-1"><i class="fas fa-user text-blue-500 text-[10px] mr-2"></i> ${escaparHTML(s.cliente_nombre || 'S/N')}</p>
+                        <span class="bg-zinc-800 text-zinc-400 text-[8px] px-3 py-1 rounded-full font-black uppercase tracking-[0.1em] border border-zinc-700">${s.estado.replace('_', ' ')}</span>
                     </div>
-                    <p class="text-[9px] text-gray-500 font-mono">ID: ${s.id} | Servicio: ${escaparHTML(s.categoria || 'Gral')}</p>
+                    <p class="text-[10px] text-zinc-500 font-mono font-bold mt-1 overflow-hidden truncate">ID: ${s.id.toUpperCase()}</p>
+                    <p class="text-[9px] text-zinc-600 font-black uppercase mt-1 tracking-widest italic">${escaparHTML(s.categoria || 'Gral')}</p>
                 </div>
                 
-                <div class="text-right">
-                    ${efectivoHabilitado ? `
-                        <div class="flex items-center gap-2 text-emerald-400 text-[10px] font-bold bg-emerald-900/20 px-3 py-1.5 rounded-full border border-emerald-500/30">
-                            <i class="fas fa-check-circle"></i> EFECTIVO HABILITADO
+                <div class="pt-5 border-t border-zinc-800/50">
+                    ${cashOk ? `
+                        <div class="text-emerald-400 text-[10px] font-black bg-emerald-900/20 px-4 py-4 rounded-2xl border border-emerald-500/30 text-center flex items-center justify-center gap-3 shadow-inner">
+                            <i class="fas fa-check-circle text-xl"></i> PAGO EN EFECTIVO AUTORIZADO
                         </div>
                     ` : `
                         <button onclick="window.habilitarCobroEfectivo('${s.id}', '${escaparHTML(s.cliente_nombre || '')}')" 
-                                class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-4 py-2 rounded-lg transition-colors shadow-lg shadow-blue-900/50 flex items-center gap-2">
-                            <i class="fas fa-unlock-alt"></i> AUTORIZAR EFECTIVO
+                                class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black py-4 rounded-2xl transition-all shadow-xl shadow-blue-900/40 uppercase tracking-widest active:scale-95 flex items-center justify-center gap-3">
+                            <i class="fas fa-unlock-alt"></i> INYECTAR OVERRIDE EFECTIVO
                         </button>
                     `}
                 </div>
             </div>
         `;
-    });
-
-    contenedor.innerHTML = html;
+    }).join('');
 }
 
-// LOGICA DE ACCIÓN: Disparador del Switch Mágico en Firebase
+/**
+ * ======================================================================================
+ * ⚡ DISPARADORES DE ACCIÓN Y SEGURIDAD
+ * ======================================================================================
+ */
 window.habilitarCobroEfectivo = async (servicioId, clienteNombre) => {
-    if(!confirm(`🔐 AUTORIZACIÓN DE EXCEPCIÓN\n\n¿Estás seguro de habilitar el pago en EFECTIVO para el cliente ${clienteNombre}?\n\nAl confirmar, el botón de "Pagar en Efectivo" aparecerá mágicamente en la app de este cliente de forma instantánea.`)) return;
+    const confirmCode = prompt(`🔐 AUTORIZACIÓN DE NIVEL CERO\n\n¿Permitir que el cliente ${clienteNombre} liquide su ticket en EFECTIVO?\n\nEsta acción bypass la pasarela de Stripe.\n\nESCRIBE "AUTORIZAR" PARA PROCEDER:`);
+    if (confirmCode !== "AUTORIZAR") return;
 
     try {
-        await updateDoc(doc(db, "services", servicioId), {
-            allowCashPayment: true
+        const btn = document.activeElement;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO INYECCIÓN...';
+        btn.disabled = true;
+
+        await updateDoc(doc(db, "services", servicioId), { 
+            allowCashPayment: true,
+            cashAuthorizedAt: serverTimestamp(),
+            audit_log_cash: `NOC-ADMIN-AUTH: ${new Date().toISOString()}`
         });
-        alert(`✅ Permiso inyectado. El cliente ${clienteNombre} ya puede ver la opción de Efectivo.`);
-    } catch (e) {
-        console.error("Error al habilitar efectivo:", e);
-        alert("Error de conexión al inyectar el permiso.");
+        alert(`✅ OPERACIÓN EXITOSA: Protocolo de efectivo activado para ${clienteNombre}. El cliente ahora verá el botón de pago manual.`);
+    } catch (e) { 
+        console.error("🚨 FAIL:", e); 
+        alert("❌ ERROR CRÍTICO: No se pudo inyectar el permiso en Firebase."); 
     }
 };
 
-// ======================================================================================
-// 🛡️ 5. MÓDULO DE CONTINGENCIA OPERATIVA (RESTAURADO COMPLETO)
-// ======================================================================================
-window.descargarBackupOperativo = async () => {
-    if(!confirm("⚠️ PROTOCOLO DE CONTINGENCIA (PLAN B) ⚠️\n\n¿Estás seguro de que deseas exportar la Base de Datos completa (Clientes y Técnicos) para operación manual fuera de línea?")) return;
-    
+window.aplicarStrike = async (uid, nivel, nombre) => {
+    const sanciones = {
+        1: { msg: "STRIKE 1: Suspensión 24h + Retención $200 MXN", estado: "suspendido", multa: 200, label: "ADVERTENCIA TIPO 1" },
+        2: { msg: "STRIKE 2: Suspensión 7 DÍAS + Retención $500 MXN", estado: "suspendido_grave", multa: 500, label: "BLOQUEO TIPO 2" },
+        3: { msg: "🚨 BAN PERMANENTE 🚨: Expulsión Total + Congelación $1000 MXN", estado: "baneado_permanente", multa: 1000, label: "TERMINACIÓN DE CONTRATO" }
+    };
+
+    const s = sanciones[nivel];
+    if (!confirm(`⚠️ PROTOCOLO DISCIPLINARIO NOC\n\n¿Estás 100% seguro de aplicar el ${s.msg} al técnico ${nombre}?\n\nEsta acción es auditable e irreversible en el historial del trabajador.`)) return;
+
     try {
-        console.log(" 🛡️ [NOC] Iniciando extracción masiva de datos de contingencia...");
-        
-        // Consultamos a todos los usuarios desde la raíz
-        const qUsers = query(collection(db, "users"));
-        const snap = await getDocs(qUsers);
-        
-        // Preparamos el contenido del CSV
-        let csvContent = "data:text/csv;charset=utf-8,";
-        // Cabeceras del archivo
-        csvContent += "Rol,Nombre,Telefono,Email,Estado,Info_Extra\n";
-
-        let contador = 0;
-
-        snap.forEach(docSnap => {
-            const u = docSnap.data();
-            const rol = (u.rol || "desconocido").toUpperCase();
-            
-            // Sanitizamos el nombre quitando comas para no romper el formato CSV
-            const nombre = escaparHTML(u.nombre || "Sin Nombre").replace(/,/g, " "); 
-            const telefono = u.telefono || "Sin Teléfono";
-            const email = u.email || "Sin Email";
-            const estado = (u.estado || "activo").toUpperCase();
-            
-            let extra = "N/A";
-            // Si es técnico, incluimos su vehículo y placas para la logística manual
-            if(rol === "TECNICO" && u.vehiculo) {
-                extra = `${u.vehiculo.tipo} - ${u.vehiculo.placas || 'Sin Placas'}`;
-            }
-
-            // Armamos la fila y la añadimos
-            const fila = `${rol},"${nombre}","${telefono}","${email}",${estado},"${extra}"`;
-            csvContent += fila + "\n";
-            contador++;
+        // Bloqueo de terminal operativa
+        await updateDoc(doc(db, "users", uid), {
+            estado: s.estado,
+            strikes: nivel,
+            disponible: false,
+            lastNocPenalty: serverTimestamp(),
+            nocPenaltyLabel: s.label
         });
 
-        // Codificamos el texto para descarga y creamos un enlace invisible
-        const encodedUri = encodeURI(csvContent);
+        // Inyección de multa en Wallet
+        await addDoc(collection(db, "transacciones"), {
+            tecnico_id: uid,
+            pago_tecnico: -Math.abs(s.multa),
+            monto_total: 0,
+            tipo: "penalizacion",
+            descripcion: `Protocolo NOC Disciplina: Strike ${nivel} (${s.label})`,
+            fecha: serverTimestamp(),
+            audit_ref: `NOC-PENALTY-${nivel}-${uid.substring(0,5)}`
+        });
+
+        alert(`✅ SANCIONADOR EJECUTADO: ${nombre} ha sido desconectado. Estado: ${s.estado.toUpperCase()}.`);
+    } catch (e) { 
+        console.error("🚨 NOC ERROR:", e); 
+        alert("❌ ERROR CRÍTICO: Falló la ejecución de la sanción."); 
+    }
+};
+
+window.levantarCastigo = async (uid) => {
+    if(!confirm("🔓 ¿Solicitar restauración de terminal a estatus ACTIVO?\n\n(Nota: Los strikes anteriores permanecerán en el expediente como historial de riesgo)")) return;
+    try {
+        await updateDoc(doc(db, "users", uid), { 
+            estado: "activo",
+            restoredByNoc: serverTimestamp() 
+        });
+        alert("✅ OPERACIÓN EXITOSA: Terminal restaurada y sincronizada.");
+    } catch(e) { alert("Error de comunicación con Firebase."); }
+};
+
+/**
+ * ======================================================================================
+ * 🤖 ALGORITMO DE GAMIFICACIÓN (AJEDREZ 4D - AUDITORÍA MENSUAL)
+ * ======================================================================================
+ */
+window.evaluarComisionesDinamicas = async () => {
+    if(!confirm("🤖 INICIANDO MOTOR DE GAMIFICACIÓN AJEDREZ 4D\n\nEste proceso ejecutará un escaneo masivo de la flota para reasignar beneficios económicos:\n\n- ORO: 24% GP Fee (Elite)\n- PLATA: 27% GP Fee (Senior)\n- BRONCE: 30% GP Fee (Junior/Riesgo)\n\n¿Proceder con el recalculo de rentabilidad?")) return;
+    
+    try {
+        const qUsers = query(collection(db, "users"), where("rol", "==", "tecnico"));
+        const snap = await getDocs(qUsers);
+        let promoted = 0; let demoted = 0; let stable = 0;
+
+        for (const docSnap of snap.docs) {
+            const t = docSnap.data();
+            const rep = t.reputacion || 0;
+            const svcs = t.servicios_completados || 0;
+            const s = t.strikes || 0;
+
+            let nv = "BRONCE"; 
+            let com = 0.30;
+
+            // Motor de Decisiones: Meritocracia Basada en Datos
+            if (rep >= 4.8 && svcs >= 50 && s === 0) { 
+                nv = "ORO"; com = 0.24; 
+            } else if (rep >= 4.5 && svcs >= 20 && s <= 1) { 
+                nv = "PLATA"; com = 0.27; 
+            }
+
+            if (t.nivel !== nv) {
+                if(com < (t.comision_asignada || 0.30)) promoted++; else demoted++;
+                await updateDoc(doc(db, "users", docSnap.id), { 
+                    nivel: nv, 
+                    comision_asignada: com,
+                    lastGamificationAudit: serverTimestamp()
+                });
+            } else { stable++; }
+        }
+        alert(`✅ AUDITORÍA DE CICLO FINALIZADA\n\n- Promovidos: ${promoted}\n- Degradados: ${demoted}\n- Sin cambios: ${stable}\n\nLos cambios en los márgenes de utilidad son efectivos de inmediato.`);
+    } catch(e) { console.error("🚨 MOTOR ERROR:", e); alert("❌ FALLO CRÍTICO: El algoritmo de comisiones falló."); }
+};
+
+/**
+ * ======================================================================================
+ * 🛡️ PROTOCOLO DE CONTINGENCIA (BACKUP CSV MAESTRO)
+ * ======================================================================================
+ */
+window.descargarBackupOperativo = async () => {
+    if(!confirm("⚠️ PROTOCOLO DE CONTINGENCIA ACTIVADO (PLAN B) ⚠️\n\n¿Exportar toda la base de datos maestra para operación fuera de línea vía WhatsApp?\n\nEsta acción descarga:\n- Directorio de Técnicos\n- Cartera de Clientes\n- Estados de Cuenta")) return;
+    
+    try {
+        const snap = await getDocs(query(collection(db, "users")));
+        let csv = "Rol,Nombre,Telefono,Email,Estado,Nivel,FEE_GP,Info_Logistica\n";
+
+        snap.forEach(d => {
+            const u = d.data();
+            const n = escaparHTML(u.nombre || "S/N").replace(/,/g, " "); 
+            const r = (u.rol || "N/D").toUpperCase();
+            const t = u.telefono || "N/D";
+            const m = u.email || "N/D";
+            const e = (u.estado || "activo").toUpperCase();
+            const niv = (u.nivel || "BRONCE").toUpperCase();
+            const fee = u.comision_asignada ? (u.comision_asignada * 100) + "%" : "30%";
+            const log = u.vehiculo ? `${u.vehiculo.tipo}-${u.vehiculo.placas}` : "Peatonal";
+            
+            csv += `${r},"${n}","${t}","${m}",${e},${niv},${fee},"${log}"\n`;
+        });
+
+        const fecha = new Date().toISOString().split('T')[0];
         const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        
-        // Le damos un nombre profesional con la fecha actual
-        const hoy = new Date();
-        const fechaStr = hoy.toISOString().split('T')[0];
-        link.setAttribute("download", `GestiaPremium_Contingencia_Operativa_${fechaStr}.csv`);
-        
-        // Disparamos la descarga
+        link.setAttribute("href", encodeURI("data:text/csv;charset=utf-8," + csv));
+        link.setAttribute("download", `GestiaPremium_MASTER_BACKUP_${fecha}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-
-        alert(`✅ Base de Datos Exportada con Éxito.\n\nSe descargaron ${contador} perfiles. El archivo CSV ya está en tu computadora listo para usarse en Excel y operar vía WhatsApp si es necesario.`);
         
-    } catch(e) {
-        console.error("❌ Error Crítico en Protocolo de Contingencia:", e);
-        alert("🚨 Error al extraer la base de datos. Verifica tu conexión a internet.");
-    }
+        alert(`✅ OPERACIÓN EXITOSA: Backup Maestro generado. Guárdalo en un lugar seguro.`);
+    } catch(e) { console.error("🚨 BACKUP FAIL:", e); alert("❌ ERROR: No se pudo extraer la base de datos."); }
 };
