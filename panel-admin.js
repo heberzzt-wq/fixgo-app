@@ -53,7 +53,8 @@ export async function iniciarPanelAdmin(user) {
  kpiTicketPromedio: document.getElementById("kpiTicketPromedio"),
  kpiLtvPromedio: document.getElementById("kpiLtvPromedio"),
  kpiTasaCancelacion: document.getElementById("kpiTasaCancelacion"),
- kpiMargenNeto: document.getElementById("kpiMargenNeto")
+ kpiMargenNeto: document.getElementById("kpiMargenNeto"),
+ kpiForecastRunRate: document.getElementById("kpiForecastRunRate")
  };
 
  if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
@@ -344,10 +345,13 @@ export async function iniciarPanelAdmin(user) {
  let dineroRetenido = 0; 
  let dineroRetiradoTecnicos = 0; 
 
- // 🔥 INYECCIÓN 3: CONTADOR DE PAGOS PARA TICKET PROMEDIO
+ // 🔥 INYECCIÓN 3: CONTADOR DE PAGOS PARA TICKET PROMEDIO Y RUN-RATE
  let conteoServiciosPagados = 0;
+ let flujoMesActual = 0;
 
  const ahora = new Date();
+ const mesActual = ahora.getMonth();
+ const anoActual = ahora.getFullYear();
 
  snap.forEach(docSnap => {
  const tx = docSnap.data();
@@ -379,6 +383,9 @@ export async function iniciarPanelAdmin(user) {
 
  if (tx.fecha && tx.fecha.toDate) {
  const fechaTx = tx.fecha.toDate();
+ if (fechaTx.getMonth() === mesActual && fechaTx.getFullYear() === anoActual) {
+ flujoMesActual += monto;
+ }
  const diffHoras = Math.abs(ahora - fechaTx) / 36e5;
  if (diffHoras < 24) {
  dineroRetenido += calcTecnico; 
@@ -390,7 +397,7 @@ export async function iniciarPanelAdmin(user) {
  const utilidadNetaReal = globalFixGo - globalIVA - globalISR;
  const saldoBoveda = totalFlujo - dineroRetiradoTecnicos;
 
- // 🔥 INYECCIÓN 3.1: CÁLCULO Y RENDERIZADO DE KPIs DE INVERSIÓN (AOV, LTV, MARGEN)
+ // 🔥 INYECCIÓN 3.1: CÁLCULO Y RENDERIZADO DE KPIs DE INVERSIÓN (AOV, LTV, MARGEN, RUN-RATE)
  if (elementos.kpiTicketPromedio) {
  const aov = conteoServiciosPagados > 0 ? (totalFlujo / conteoServiciosPagados) : 0;
  elementos.kpiTicketPromedio.innerText = `$${aov.toFixed(2)}`;
@@ -403,6 +410,12 @@ export async function iniciarPanelAdmin(user) {
  if (elementos.kpiMargenNeto) {
  const margen = totalFlujo > 0 ? (utilidadNetaReal / totalFlujo) * 100 : 0;
  elementos.kpiMargenNeto.innerText = `~${margen.toFixed(1)}%`;
+ }
+ if (elementos.kpiForecastRunRate) {
+ const diasPasados = ahora.getDate() || 1;
+ const diasEnMes = new Date(anoActual, mesActual + 1, 0).getDate();
+ const runRateMensual = (flujoMesActual / diasPasados) * diasEnMes;
+ elementos.kpiForecastRunRate.innerText = `$${runRateMensual.toFixed(2)}`;
  }
 
  if(elementos.countMoney) {
