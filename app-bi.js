@@ -49,6 +49,15 @@ const fMoneda = (num) => new Intl.NumberFormat('es-MX', { style: 'currency', cur
 export async function iniciarMotorBI(contenedorId) {
     console.log(" 🧠 [NOC] Iniciando Motor de Inteligencia Empresarial GestiaPremium (Ajedrez 4D Mode)...");
     
+    // 🔥 INYECCIÓN QUIRÚRGICA: Obligar al Motor BI a esperar a que el HTML exista
+    await new Promise(resolve => {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', resolve);
+        } else {
+            resolve();
+        }
+    });
+
     const contenedor = document.getElementById(contenedorId);
     if (!contenedor) {
         console.error("🚨 CRITICAL ERROR: No se encontró el contenedor para el Dashboard Analítico.");
