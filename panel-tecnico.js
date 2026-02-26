@@ -118,7 +118,7 @@ export async function iniciarPanelTecnico(user) {
                 <div class="border-t border-zinc-800 pt-3 mt-2">
                     <p class="text-[10px] text-gray-400 mb-1">Próxima meta: <span class="text-white font-bold">${sigNivel} (Ganas el ${beneSig}%)</span></p>
                     <div class="flex justify-between text-[9px] font-bold mb-1">
-                        <span class="${svcs >= reqSvcs ? 'text-emerald-500' : 'text-blue-400'}">${svcs}/${reqSvcs} Viajes</span>
+                        <span class="${svcs >= reqSvcs ? 'text-emerald-500' : 'text-blue-400'}">${svcs}/${reqSvcs} Servicios</span>
                         <span class="${reputacion >= reqRep ? 'text-emerald-500' : 'text-blue-400'}">⭐ ${reputacion.toFixed(1)}/${reqRep.toFixed(1)}</span>
                     </div>
                     <div class="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
