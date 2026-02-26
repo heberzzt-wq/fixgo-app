@@ -5,180 +5,323 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="GestiaPremium - Terminal de Mando Administrativo e Inversión">
+    
     <title>GestiaPremium - Panel Administrativo (Inversión)</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+
     <style>
-        body { background-color: #050505; }
-        .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #121212; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
-        /* Animación suave para acordeones */
+        :root {
+            --bg-ultra-black: #050505;
+            --card-glass: #121212;
+            --accent-blue: #3b82f6;
+            --accent-emerald: #10b981;
+        }
+
+        body { 
+            background-color: var(--bg-ultra-black); 
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* DISEÑO DE CARTAS 'UBER-GLASS' */
+        .uber-card { 
+            background-color: var(--card-glass); 
+            border: 1px solid rgba(255,255,255,0.08); 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .uber-card:hover {
+            border-color: rgba(59, 130, 246, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+        }
+
+        /* SCROLLBAR PERSONALIZADO ESTILO TERMINAL */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+
+        /* ANIMACIONES Y EFECTOS DE JERARQUÍA */
         .rotate-180 { transform: rotate(180deg); }
-        /* Brillo especial para sección de dinero */
-        .glow-money { box-shadow: 0 0 25px rgba(16, 185, 129, 0.15); }
+        
+        .glow-money { 
+            box-shadow: 0 0 40px rgba(16, 185, 129, 0.1); 
+            background: linear-gradient(135deg, #121212 0%, #080808 100%);
+        }
+
+        .kpi-investor-card {
+            background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%);
+        }
+
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+
+        /* Badge de estado en vivo */
+        .live-indicator {
+            position: relative;
+            display: inline-flex;
+            width: 8px;
+            height: 8px;
+            background-color: #10b981;
+            border-radius: 50%;
+        }
+        .live-indicator::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: inherit;
+            border-radius: 50%;
+            animation: pulse-live 1.5s infinite;
+        }
+        @keyframes pulse-live {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(3); opacity: 0; }
+        }
     </style>
 </head>
-<body class="text-white min-h-screen font-sans">
+<body class="text-zinc-200 min-h-screen">
     
-    <header class="max-w-7xl mx-auto flex justify-between items-center p-6 border-b border-white/10">
-        <div class="flex items-center gap-3">
-            <img src="assets/gestiapremium-icon.svg" class="w-10 h-10 drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]" alt="GestiaPremium">
-            <h1 class="text-3xl font-black tracking-tighter text-white">GESTIA<span class="text-blue-500">PREMIUM</span></h1>
-            <span class="bg-blue-600/20 text-blue-400 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-blue-500/30">Admin Mode</span>
+    <header class="max-w-[1600px] mx-auto flex justify-between items-center p-6 border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0 z-40">
+        <div class="flex items-center gap-4">
+            <div class="relative">
+                <img src="assets/gestiapremium-icon.svg" class="w-12 h-12 drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]" alt="GestiaPremium">
+            </div>
+            <div>
+                <h1 class="text-3xl font-black tracking-tighter text-white leading-none">GESTIA<span class="text-blue-500">PREMIUM</span></h1>
+                <div class="flex items-center gap-2 mt-1">
+                    <span class="live-indicator"></span>
+                    <span class="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500">Investor Control Panel 2026</span>
+                </div>
+            </div>
         </div>
 
-        <div class="flex items-center gap-4">
-            <button onclick="window.abrirGestorCatalogo()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-blue-900/20">
-                <i class="fas fa-sliders-h"></i> GESTIONAR CATÁLOGO
-            </button>
+        <div class="flex items-center gap-6">
+            <div class="hidden lg:flex items-center gap-2 bg-zinc-900/50 p-1.5 rounded-2xl border border-zinc-800">
+                <button onclick="window.abrirGestorCatalogo()" class="hover:bg-zinc-800 text-white font-bold py-2 px-5 rounded-xl text-[11px] flex items-center gap-2 transition-all uppercase tracking-widest">
+                    <i class="fas fa-sliders-h text-blue-500"></i> Catálogo
+                </button>
+                <div class="w-[1px] h-4 bg-zinc-800"></div>
+                <p class="text-[11px] px-4 text-zinc-500 font-bold uppercase tracking-tight">
+                    Admin: <span id="userName" class="text-white">Senior Architect</span>
+                </p>
+            </div>
 
-            <p class="text-sm text-gray-400 text-right hidden md:block">
-                Bienvenido, <span id="userName" class="text-white font-bold">Administrador</span>
-            </p>
-            <button id="logoutBtn" class="bg-red-600/10 text-red-500 border border-red-500/30 hover:bg-red-600 hover:text-white font-bold py-2 px-6 rounded-2xl transition-all text-sm flex items-center gap-2">
-                <i class="fas fa-power-off"></i> Salir
+            <button id="logoutBtn" class="group bg-red-600/10 text-red-500 border border-red-500/20 hover:bg-red-600 hover:text-white font-black py-2.5 px-6 rounded-2xl transition-all text-[11px] flex items-center gap-2 uppercase tracking-widest shadow-lg shadow-red-900/10">
+                <i class="fas fa-power-off group-hover:rotate-90 transition-transform"></i> Salir
             </button>
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 py-8">
+    <main class="max-w-[1600px] mx-auto px-6 py-10 animate-fade-in">
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div class="bg-black border border-zinc-800 p-4 rounded-xl shadow">
-                <p class="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-1"><i class="fas fa-ticket-alt text-blue-500 mr-1"></i> TICKET PROMEDIO (AOV)</p>
-                <p class="text-xl font-black text-white" id="kpiTicketPromedio">$0.00</p>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5 mb-10">
+            
+            <div class="uber-card kpi-investor-card p-5 rounded-[1.5rem] shadow-xl">
+                <div class="flex justify-between items-start mb-2">
+                    <p class="text-[10px] text-zinc-500 uppercase font-black tracking-widest">AOV (Ticket)</p>
+                    <i class="fas fa-ticket-alt text-blue-500/50"></i>
+                </div>
+                <p class="text-2xl font-black text-white tracking-tighter" id="kpiTicketPromedio">$0.00</p>
+                <p class="text-[8px] text-zinc-600 mt-1 font-bold">VALOR PROMEDIO VENTA</p>
             </div>
-            <div class="bg-black border border-zinc-800 p-4 rounded-xl shadow">
-                <p class="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-1"><i class="fas fa-gem text-yellow-500 mr-1"></i> LTV PROMEDIO</p>
-                <p class="text-xl font-black text-white" id="kpiLtvPromedio">$0.00</p>
+
+            <div class="uber-card kpi-investor-card p-5 rounded-[1.5rem] shadow-xl border-l-2 border-l-yellow-500/20">
+                <div class="flex justify-between items-start mb-2">
+                    <p class="text-[10px] text-zinc-500 uppercase font-black tracking-widest">LTV Promedio</p>
+                    <i class="fas fa-gem text-yellow-500/50"></i>
+                </div>
+                <p class="text-2xl font-black text-white tracking-tighter" id="kpiLtvPromedio">$0.00</p>
+                <p class="text-[8px] text-zinc-600 mt-1 font-bold">VALOR VIDA DEL CLIENTE</p>
             </div>
-            <div class="bg-black border border-zinc-800 p-4 rounded-xl shadow">
-                <p class="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-1"><i class="fas fa-ban text-red-500 mr-1"></i> TASA CANCELACIÓN</p>
-                <p class="text-xl font-black text-white" id="kpiTasaCancelacion">0%</p>
+
+            <div class="uber-card kpi-investor-card p-5 rounded-[1.5rem] shadow-xl border-l-2 border-l-red-500/20">
+                <div class="flex justify-between items-start mb-2">
+                    <p class="text-[10px] text-zinc-500 uppercase font-black tracking-widest">Churn Rate</p>
+                    <i class="fas fa-user-minus text-red-500/50"></i>
+                </div>
+                <p class="text-2xl font-black text-red-500 tracking-tighter" id="kpiTasaCancelacion">0%</p>
+                <p class="text-[8px] text-zinc-600 mt-1 font-bold">TASA DE ABANDONO</p>
             </div>
-            <div class="bg-emerald-900/10 border border-emerald-900/50 p-4 rounded-xl shadow">
-                <p class="text-[9px] text-emerald-500 uppercase font-bold tracking-widest mb-1"><i class="fas fa-percentage mr-1"></i> MARGEN NETO ESTIMADO</p>
-                <p class="text-xl font-black text-emerald-400" id="kpiMargenNeto">~18.4%</p>
+
+            <div class="uber-card kpi-investor-card p-5 rounded-[1.5rem] shadow-xl">
+                <div class="flex justify-between items-start mb-2">
+                    <p class="text-[10px] text-zinc-500 uppercase font-black tracking-widest">CAC Est.</p>
+                    <i class="fas fa-bullseye text-purple-500/50"></i>
+                </div>
+                <p class="text-2xl font-black text-white tracking-tighter" id="kpiCAC">$150.00</p>
+                <p class="text-[8px] text-zinc-600 mt-1 font-bold">COSTO POR CLIENTE NUEVO</p>
             </div>
+
+            <div class="uber-card kpi-investor-card p-5 rounded-[1.5rem] shadow-xl border-l-2 border-l-emerald-500/20">
+                <div class="flex justify-between items-start mb-2">
+                    <p class="text-[10px] text-zinc-500 uppercase font-black tracking-widest">Retención</p>
+                    <i class="fas fa-sync text-emerald-500/50"></i>
+                </div>
+                <p class="text-2xl font-black text-emerald-400 tracking-tighter" id="kpiRetencion">2.8x</p>
+                <p class="text-[8px] text-zinc-600 mt-1 font-bold">COMPRAS POR CLIENTE</p>
+            </div>
+
+            <div class="uber-card kpi-investor-card p-5 rounded-[1.5rem] shadow-xl bg-blue-900/5">
+                <div class="flex justify-between items-start mb-2">
+                    <p class="text-[10px] text-zinc-500 uppercase font-black tracking-widest">Forecast 30D</p>
+                    <i class="fas fa-chart-line text-blue-500/50"></i>
+                </div>
+                <p class="text-2xl font-black text-blue-400 tracking-tighter" id="kpiForecast">$0.00</p>
+                <p class="text-[8px] text-zinc-600 mt-1 font-bold">PROYECCIÓN POR RUN-RATE</p>
+            </div>
+
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="uber-card p-6 rounded-2xl shadow-lg border border-zinc-800">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <p class="text-gray-500 text-xs font-bold uppercase tracking-widest">Servicios Activos</p>
-                        <h3 class="text-3xl font-black text-white mt-1">--</h3>
-                    </div>
-                    <div class="bg-blue-500/10 p-3 rounded-xl text-blue-500">
-                        <i class="fas fa-bolt"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="uber-card p-6 rounded-2xl shadow-lg border border-zinc-800">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <p class="text-gray-500 text-xs font-bold uppercase tracking-widest">Técnicos Online</p>
-                        <h3 id="totalTecnicos" class="text-3xl font-black text-white mt-1">--</h3>
-                    </div>
-                    <div class="bg-purple-500/10 p-3 rounded-xl text-purple-500">
-                        <i class="fas fa-users"></i>
-                    </div>
-                </div>
-            </div>
 
-            <div class="bg-gradient-to-br from-zinc-900 to-black p-6 rounded-2xl border border-emerald-500/30 relative overflow-hidden glow-money">
-                <div class="absolute top-0 right-0 p-3 opacity-10">
-                    <i class="fas fa-chart-line text-6xl text-emerald-500"></i>
-                </div>
-                <div class="relative z-10">
-                    <p class="text-emerald-500 text-xs font-black uppercase tracking-widest mb-1">REVENUE BRUTO GESTIAPREMIUM</p>
-                    <h3 class="text-4xl font-black text-white mt-1 tracking-tighter drop-shadow-md" id="countMoneyFixgo">$0.00</h3>
-                    
-                    <div class="border-t border-white/10 pt-3 mt-4">
-                        <div class="flex justify-between items-center bg-[#635BFF]/10 px-3 py-2 rounded-lg border border-[#635BFF]/30">
-                            <span class="text-[10px] text-gray-300 uppercase font-bold flex items-center gap-1"><i class="fab fa-stripe text-[#635BFF] text-lg"></i> Bóveda Stripe:</span>
-                            <span class="text-sm font-black text-[#635BFF]" id="countBovedaStripe">$0.00</span>
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-10">
+            
+            <div class="lg:col-span-1 space-y-6">
+                <div class="uber-card p-8 rounded-[2rem] h-full flex flex-col justify-between shadow-2xl relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-4 opacity-10">
+                        <i class="fas fa-bolt text-5xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-zinc-500 text-xs font-black uppercase tracking-widest">Servicios Activos</p>
+                        <h3 class="text-6xl font-black text-white mt-4 tracking-tighter" id="totalServiciosActivos">--</h3>
+                        <p class="text-[10px] text-blue-500 font-bold mt-2 uppercase tracking-widest">Operaciones en curso</p>
+                    </div>
+                    <div class="pt-8 border-t border-white/5">
+                        <p class="text-zinc-500 text-xs font-black uppercase tracking-widest">Flota en línea</p>
+                        <div class="flex items-end gap-2 mt-2">
+                            <span id="totalTecnicos" class="text-3xl font-black text-emerald-500 tracking-tighter">--</span>
+                            <span class="text-xs text-zinc-600 mb-1 font-bold uppercase">Técnicos Online</span>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <div class="lg:col-span-3 glow-money rounded-[2.5rem] border border-emerald-500/30 p-10 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-10 shadow-2xl shadow-emerald-900/10">
+                
+                <div class="absolute -bottom-20 -left-20 w-64 h-64 bg-emerald-500/10 rounded-full blur-[100px]"></div>
+                
+                <div class="relative z-10 w-full md:w-1/2">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="bg-emerald-500/20 p-2 rounded-lg">
+                            <i class="fas fa-chart-bar text-emerald-500"></i>
+                        </div>
+                        <p class="text-emerald-500 text-[11px] font-black uppercase tracking-[0.3em]">Gross Revenue Manager</p>
+                    </div>
+                    <h3 class="text-7xl font-black text-white tracking-tighter drop-shadow-2xl" id="countMoneyFixgo">$0.00</h3>
+                    <p class="text-zinc-500 text-xs font-bold mt-4 max-w-xs leading-relaxed uppercase tracking-wider">
+                        Ingresos Brutos proyectados antes de dispersión y retenciones fiscales.
+                    </p>
+                </div>
+
+                <div class="relative z-10 w-full md:w-auto min-w-[320px] space-y-6">
+                    <div class="bg-black/50 backdrop-blur-xl border border-white/10 p-8 rounded-[2rem] shadow-2xl">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-[10px] text-zinc-400 font-black uppercase tracking-[0.2em] flex items-center gap-2">
+                                <i class="fab fa-stripe text-[#635BFF] text-xl"></i> Bóveda Stripe
+                            </span>
+                            <span class="text-[8px] bg-[#635BFF]/20 text-[#635BFF] px-2 py-0.5 rounded-full font-black border border-[#635BFF]/30 tracking-widest uppercase">Vault Balance</span>
+                        </div>
+                        <div class="flex items-end justify-between gap-4">
+                            <p class="text-4xl font-black text-white tracking-tighter" id="countBovedaStripe">$0.00</p>
+                            <div class="text-right">
+                                <p class="text-emerald-500 font-black text-xs" id="kpiMargenNeto">~18.4%</p>
+                                <p class="text-[7px] text-zinc-600 font-bold uppercase tracking-widest">Margen Estimado</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button onclick="window.exportarConciliacionCSV()" class="w-full bg-white/5 hover:bg-white/10 text-white font-black py-4 rounded-2xl border border-white/10 transition-all text-[10px] flex items-center justify-center gap-3 uppercase tracking-[0.2em] group">
+                        <i class="fas fa-file-excel text-emerald-500 group-hover:scale-125 transition-transform"></i> Descargar Conciliación Contable
+                    </button>
+                </div>
             </div>
+
+        </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div class="space-y-8">
-                <div class="uber-card p-6 rounded-2xl shadow-2xl h-[500px] flex flex-col">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="font-black text-xl flex items-center gap-2">
-                            <i class="fas fa-user-shield text-gray-400"></i> Aprobación
-                        </h2>
-                        <span class="text-xs bg-zinc-800 text-zinc-400 px-2 py-1 rounded">En vivo</span>
-                    </div>
-                    <div id="listaTecnicos" class="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
-                        <div class="flex flex-col items-center justify-center h-full text-gray-600 gap-3">
-                            <i class="fas fa-spinner fa-spin text-2xl"></i>
-                            <p class="text-sm">Cargando solicitudes...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="space-y-8">
-                <div class="uber-card p-6 rounded-2xl shadow-2xl h-[500px] flex flex-col">
-                    <h2 class="font-black text-xl mb-6 flex items-center gap-2">
-                        <i class="fas fa-exchange-alt text-gray-400"></i> Actividad
+            
+            <div class="uber-card p-8 rounded-[2rem] shadow-2xl h-[600px] flex flex-col">
+                <div class="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
+                    <h2 class="font-black text-xl flex items-center gap-3">
+                        <i class="fas fa-user-shield text-blue-500"></i> Aprobación
                     </h2>
-                    <div id="listaTransacciones" class="flex-1 overflow-y-auto custom-scrollbar">
-                        <p class="text-gray-500 italic text-sm text-center mt-10">Sin actividad reciente.</p>
+                    <span class="text-[9px] bg-zinc-800 text-zinc-400 px-3 py-1 rounded-full font-black uppercase tracking-widest border border-zinc-700">Audit Mode</span>
+                </div>
+                <div id="listaTecnicos" class="flex-1 overflow-y-auto pr-3 custom-scrollbar space-y-4">
+                    <div class="flex flex-col items-center justify-center h-full text-zinc-700 gap-4 opacity-50">
+                        <i class="fas fa-spinner fa-spin text-3xl"></i>
+                        <p class="text-xs font-black uppercase tracking-widest">Escaneando perfiles...</p>
                     </div>
                 </div>
             </div>
-            <div class="space-y-8">
-                <div class="uber-card p-6 rounded-2xl shadow-2xl h-[500px] flex flex-col relative">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="font-black text-xl flex items-center gap-2">
-                            <i class="fas fa-money-bill-transfer text-emerald-400"></i> Retiros (SPEI)
-                        </h2>
-                        <button id="btnToggleHistorialRetiros" class="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded transition-colors flex items-center gap-2 border border-zinc-700">
-                            <i class="fas fa-history"></i> Historial
-                        </button>
-                    </div>
-                    
-                    <div id="vistaRetirosPendientes" class="flex-1 overflow-y-auto pr-2 space-y-2 flex flex-col custom-scrollbar">
-                        <div id="listaRetiros" class="flex-1 space-y-2">
-                            <div class="flex flex-col items-center justify-center h-full text-gray-600 gap-3">
-                                <i class="fas fa-spinner fa-spin text-2xl"></i>
-                                <p class="text-sm">Escaneando bóveda...</p>
-                            </div>
-                        </div>
-                    </div>
 
-                    <div id="vistaHistorialRetiros" class="flex-1 overflow-y-auto pr-2 space-y-2 flex flex-col hidden custom-scrollbar">
-                        <p class="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-2 border-b border-zinc-800 pb-2">Últimos pagos realizados</p>
-                        <div id="listaHistorialRetiros" class="flex-1 space-y-2">
-                            <div class="flex flex-col items-center justify-center h-full text-gray-600 gap-3">
-                                <i class="fas fa-spinner fa-spin text-2xl"></i>
-                                <p class="text-sm">Cargando historial...</p>
-                            </div>
+            <div class="uber-card p-8 rounded-[2rem] shadow-2xl h-[600px] flex flex-col">
+                <div class="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
+                    <h2 class="font-black text-xl flex items-center gap-3">
+                        <i class="fas fa-exchange-alt text-emerald-500"></i> Actividad
+                    </h2>
+                    <span class="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Live Flow</span>
+                </div>
+                <div id="listaTransacciones" class="flex-1 overflow-y-auto custom-scrollbar space-y-2">
+                    <p class="text-zinc-800 italic text-sm text-center mt-20 font-black uppercase opacity-30">Sin eventos en cola</p>
+                </div>
+            </div>
+
+            <div class="uber-card p-8 rounded-[2rem] shadow-2xl h-[600px] flex flex-col relative overflow-hidden">
+                <div class="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
+                    <h2 class="font-black text-xl flex items-center gap-3">
+                        <i class="fas fa-money-bill-transfer text-emerald-400"></i> Retiros
+                    </h2>
+                    <button id="btnToggleHistorialRetiros" class="text-[10px] bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 px-4 py-2 rounded-xl transition-all font-black uppercase tracking-widest border border-zinc-700">
+                        <i class="fas fa-history mr-1"></i> Historial
+                    </button>
+                </div>
+                
+                <div id="vistaRetirosPendientes" class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                    <div id="listaRetiros" class="space-y-4">
+                        <div class="flex flex-col items-center justify-center h-full text-zinc-700 gap-4 py-20 opacity-50">
+                            <i class="fas fa-vault text-4xl"></i>
+                            <p class="text-xs font-black uppercase tracking-widest">Bóveda Balanceada</p>
                         </div>
                     </div>
+                </div>
+
+                <div id="vistaHistorialRetiros" class="flex-1 overflow-y-auto pr-2 custom-scrollbar hidden">
+                    <p class="text-[9px] text-zinc-600 uppercase font-black tracking-[0.2em] mb-4 text-center">Últimos pagos dispersados exitosamente</p>
+                    <div id="listaHistorialRetiros" class="space-y-2"></div>
                 </div>
             </div>
         </div>
 
-        <div id="dashboardAnalitico" class="mt-8 transition-all duration-500"></div>
+        <div id="dashboardAnalitico" class="mt-12 transition-all duration-700 min-h-[400px]">
+            </div>
         
-        <div class="mt-8">
-            <div class="uber-card p-6 rounded-2xl shadow-2xl">
-                <div class="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
-                    <h2 class="font-black text-xl flex items-center gap-2">
-                        <i class="fas fa-file-invoice text-emerald-500"></i> Facturación CFDI (Solicitudes Pendientes)
+        <div class="mt-12">
+            <div class="uber-card p-8 rounded-[2.5rem] shadow-2xl">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-white/5 pb-6 gap-4">
+                    <h2 class="font-black text-2xl flex items-center gap-4">
+                        <i class="fas fa-file-invoice text-emerald-500"></i> Facturación CFDI 4.0
                     </h2>
-                    <span class="text-xs bg-emerald-900/30 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/30 font-bold" id="contadorFacturas">0 Solicitudes</span>
+                    <div class="flex items-center gap-3">
+                        <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Solicitudes Pendientes:</span>
+                        <span class="bg-emerald-500/10 text-emerald-400 px-4 py-2 rounded-full border border-emerald-500/30 font-black text-xs shadow-lg animate-pulse" id="contadorFacturas">0</span>
+                    </div>
                 </div>
-                <div id="listaFacturasPendientes" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div class="col-span-full text-gray-500 italic text-sm text-center py-6">
-                        <i class="fas fa-check-circle text-2xl mb-2 text-zinc-700 block"></i>
-                        No hay solicitudes de facturas pendientes.
+                <div id="listaFacturasPendientes" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="col-span-full py-16 text-center bg-black/30 rounded-3xl border border-dashed border-white/5">
+                        <i class="fas fa-check-double text-4xl text-zinc-800 mb-4 block"></i>
+                        <p class="text-zinc-600 text-xs font-black uppercase tracking-widest italic">Cero solicitudes de factura pendientes en este ciclo</p>
                     </div>
                 </div>
             </div>
@@ -186,37 +329,42 @@
 
     </main>
 
-    <div id="modalCatalogo" class="fixed inset-0 bg-black/90 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-zinc-900 w-full max-w-3xl rounded-3xl p-6 border border-yellow-500/30 shadow-2xl relative flex flex-col max-h-[90vh]">
+    <div id="modalCatalogo" class="fixed inset-0 bg-black/95 z-50 hidden flex items-center justify-center p-4 backdrop-blur-xl">
+        <div class="bg-zinc-900 w-full max-w-3xl rounded-[3rem] p-10 border border-white/10 shadow-2xl relative flex flex-col max-h-[90vh] animate-fade-in">
             
-            <div class="flex justify-between items-start border-b border-zinc-800 pb-4 mb-4 shrink-0">
+            <div class="flex justify-between items-start border-b border-white/5 pb-8 mb-8 shrink-0">
                 <div>
-                    <h2 class="text-xl md:text-2xl font-black text-white flex items-center gap-3">
-                        <i class="fas fa-sliders-h text-yellow-500"></i> CATÁLOGO GLOBAL
+                    <h2 class="text-3xl font-black text-white tracking-tighter flex items-center gap-4">
+                        <i class="fas fa-sliders-h text-blue-500"></i> CATÁLOGO MAESTRO
                     </h2>
-                    <p class="text-gray-400 text-xs md:text-sm mt-1">Enciende o apaga servicios. Esto afecta la App del Cliente en tiempo real.</p>
+                    <p class="text-zinc-500 text-xs mt-2 font-bold uppercase tracking-widest">Interruptor global de servicios en tiempo real</p>
                 </div>
-                <button onclick="document.getElementById('modalCatalogo').classList.add('hidden')" class="bg-zinc-800 hover:bg-red-600 text-gray-300 hover:text-white px-3 py-2 rounded-lg font-bold text-xs transition-colors shrink-0 flex items-center gap-2">
-                    <i class="fas fa-times text-lg"></i> <span class="hidden md:inline">CERRAR</span>
+                <button onclick="document.getElementById('modalCatalogo').classList.add('hidden')" class="bg-zinc-800 hover:bg-red-600 text-white p-4 rounded-2xl transition-all shadow-xl group">
+                    <i class="fas fa-times text-xl group-hover:rotate-90 transition-transform"></i>
                 </button>
             </div>
 
-            <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            <div class="flex-1 overflow-y-auto pr-4 custom-scrollbar">
                 <div id="gridConfiguracion" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <p class="text-center col-span-full text-emerald-500 animate-pulse">Cargando configuración...</p>
+                    <p class="text-center col-span-full text-emerald-500 font-black uppercase tracking-widest animate-pulse">Sincronizando con la nube...</p>
                 </div>
             </div>
             
-            <div class="mt-4 pt-4 border-t border-zinc-800 text-center shrink-0">
-                <button onclick="window.guardarConfiguracionGlobal()" class="w-full md:w-auto bg-emerald-500 hover:bg-emerald-400 text-black font-black py-4 px-10 rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95 text-sm">
-                    <i class="fas fa-save mr-2"></i> GUARDAR CAMBIOS Y SINCRONIZAR
+            <div class="mt-10 pt-8 border-t border-white/5 text-center shrink-0">
+                <button onclick="window.guardarConfiguracionGlobal()" class="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white font-black py-5 px-16 rounded-[2rem] transition-all shadow-2xl shadow-blue-900/40 active:scale-95 text-xs uppercase tracking-[0.3em]">
+                    <i class="fas fa-save mr-3"></i> Guardar y Sincronizar Global
                 </button>
+                <p class="text-[9px] text-zinc-600 mt-6 font-black uppercase tracking-widest">Cambios de alto impacto: Afectarán la app del cliente instantáneamente</p>
             </div>
         </div>
     </div>
 
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js"></script>
+
+    <footer class="max-w-[1600px] mx-auto p-10 text-center opacity-30">
+        <p class="text-[10px] font-black text-zinc-500 uppercase tracking-[0.5em]">GestiaPremium Ecosystem • Built for Scale 2026</p>
+    </footer>
 
 </body>
 </html>
