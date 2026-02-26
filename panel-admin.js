@@ -48,7 +48,12 @@ export async function iniciarPanelAdmin(user) {
  countBovedaStripe: document.getElementById("countBovedaStripe"), 
  countOnline: document.getElementById("totalTecnicos"),
  listaFacturasPendientes: document.getElementById("listaFacturasPendientes"), 
- contadorFacturas: document.getElementById("contadorFacturas") 
+ contadorFacturas: document.getElementById("contadorFacturas"),
+ // 🔥 INYECCIÓN 1: ELEMENTOS KPI INVERSIONISTAS
+ kpiTicketPromedio: document.getElementById("kpiTicketPromedio"),
+ kpiLtvPromedio: document.getElementById("kpiLtvPromedio"),
+ kpiTasaCancelacion: document.getElementById("kpiTasaCancelacion"),
+ kpiMargenNeto: document.getElementById("kpiMargenNeto")
  };
 
  if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
@@ -210,6 +215,9 @@ export async function iniciarPanelAdmin(user) {
  let facturasPendientesCount = 0;
 
  let activos = 0;
+ // 🔥 INYECCIÓN 2: LÓGICA DE TASA DE CANCELACIÓN
+ let totalTickets = 0;
+ let canceladosTickets = 0;
  
  if (snap.empty) {
  if(elementos.actividad) elementos.actividad.innerHTML = '<p class="text-gray-500 italic text-sm text-center mt-4">Sin actividad reciente en la plataforma.</p>';
@@ -218,6 +226,11 @@ export async function iniciarPanelAdmin(user) {
  snap.forEach(docSnap => {
  const data = docSnap.data();
  const sid = docSnap.id;
+
+ totalTickets++;
+ if (data.estado === "cancelado") {
+ canceladosTickets++;
+ }
 
  if (data.factura_requerida && data.estado === "finalizado" && !data.factura_enviada) {
  facturasPendientesCount++;
@@ -299,6 +312,13 @@ export async function iniciarPanelAdmin(user) {
  elementos.countServ.innerText = activos + (snap.size === 50 ? '+' : '');
  elementos.countServ.style.color = activos > 0 ? "#34d399" : "white";
  }
+
+ // 🔥 INYECCIÓN 2.1: RENDERIZAR TASA DE CANCELACIÓN
+ if (elementos.kpiTasaCancelacion) {
+ const tasa = totalTickets > 0 ? (canceladosTickets / totalTickets) * 100 : 0;
+ elementos.kpiTasaCancelacion.innerText = `${tasa.toFixed(1)}%`;
+ elementos.kpiTasaCancelacion.className = tasa > 15 ? "text-xl font-black text-red-500" : "text-xl font-black text-white";
+ }
  });
 
  window.marcarFacturaEnviada = async (id) => {
@@ -324,6 +344,9 @@ export async function iniciarPanelAdmin(user) {
  let dineroRetenido = 0; 
  let dineroRetiradoTecnicos = 0; 
 
+ // 🔥 INYECCIÓN 3: CONTADOR DE PAGOS PARA TICKET PROMEDIO
+ let conteoServiciosPagados = 0;
+
  const ahora = new Date();
 
  snap.forEach(docSnap => {
@@ -336,6 +359,7 @@ export async function iniciarPanelAdmin(user) {
  if (tx.tipo === "ingreso_servicio") {
  const monto = tx.monto_total || 0;
  totalFlujo += monto;
+ conteoServiciosPagados++; // Contamos los servicios que sí se pagaron
 
  const calcFixGo = monto * 0.32; 
  const calcGarantia = monto * 0.02; 
@@ -366,17 +390,33 @@ export async function iniciarPanelAdmin(user) {
  const utilidadNetaReal = globalFixGo - globalIVA - globalISR;
  const saldoBoveda = totalFlujo - dineroRetiradoTecnicos;
 
+ // 🔥 INYECCIÓN 3.1: CÁLCULO Y RENDERIZADO DE KPIs DE INVERSIÓN (AOV, LTV, MARGEN)
+ if (elementos.kpiTicketPromedio) {
+ const aov = conteoServiciosPagados > 0 ? (totalFlujo / conteoServiciosPagados) : 0;
+ elementos.kpiTicketPromedio.innerText = `$${aov.toFixed(2)}`;
+ 
+ // LTV Estimado = AOV x 2.5 (Frecuencia de recompra estándar)
+ if (elementos.kpiLtvPromedio) {
+ elementos.kpiLtvPromedio.innerText = `$${(aov * 2.5).toFixed(2)}`;
+ }
+ }
+ if (elementos.kpiMargenNeto) {
+ const margen = totalFlujo > 0 ? (utilidadNetaReal / totalFlujo) * 100 : 0;
+ elementos.kpiMargenNeto.innerText = `~${margen.toFixed(1)}%`;
+ }
+
  if(elementos.countMoney) {
  elementos.countMoney.innerText = `$${globalFixGo.toFixed(2)}`;
  if(elementos.countBovedaStripe) elementos.countBovedaStripe.innerText = `$${saldoBoveda.toFixed(2)}`;
  
- const cardParent = elementos.countMoney.closest('.uber-card');
+ const cardParent = elementos.countMoney.closest('.bg-gradient-to-br') || elementos.countMoney.closest('.uber-card');
  let desgloseContainer = cardParent.querySelector('.finance-breakdown');
  
  if(!desgloseContainer) {
  desgloseContainer = document.createElement('div');
  desgloseContainer.className = "finance-breakdown mt-3 pt-3 border-t border-white/10 text-[9px] text-gray-400 space-y-1";
- cardParent.insertBefore(desgloseContainer, cardParent.children[1]); 
+ const referenceNode = cardParent.querySelector('.border-t.border-white\\/10') || cardParent.children[1];
+ cardParent.insertBefore(desgloseContainer, referenceNode); 
  }
 
  desgloseContainer.innerHTML = `
@@ -396,7 +436,7 @@ export async function iniciarPanelAdmin(user) {
  <span>⏳ RETENIDO (24h):</span> <span>$${dineroRetenido.toFixed(2)}</span>
  </div>
 
- <button onclick="window.exportarConciliacionCSV()" class="w-full mt-3 bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 font-bold py-2 rounded-lg border border-blue-500/50 transition-colors flex items-center justify-center gap-2 text-[10px] shadow-lg">
+ <button onclick="window.exportarConciliacionCSV()" class="w-full mt-3 bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 font-bold py-2 rounded-lg border border-blue-500/50 transition-colors flex items-center justify-center gap-2 text-[10px] shadow-lg relative z-20 cursor-pointer">
  <i class="fas fa-file-excel"></i> EXPORTAR CONCILIACIÓN CONTABLE (CSV)
  </button>
  `;
@@ -737,11 +777,11 @@ export async function iniciarPanelAdmin(user) {
 
  let certsHTML = '';
  if (certUrl) {
-    certsHTML = `<a href="${certUrl}" target="_blank" class="bg-emerald-900/30 text-emerald-400 text-[10px] font-bold px-3 py-1.5 rounded border border-emerald-500/50 mr-1 mb-1 inline-block hover:bg-emerald-900/50 transition-colors"><i class="fas fa-award"></i> Ver Certificado Oficial / DC-3</a>`;
+  certsHTML = `<a href="${certUrl}" target="_blank" class="bg-emerald-900/30 text-emerald-400 text-[10px] font-bold px-3 py-1.5 rounded border border-emerald-500/50 mr-1 mb-1 inline-block hover:bg-emerald-900/50 transition-colors"><i class="fas fa-award"></i> Ver Certificado Oficial / DC-3</a>`;
  } else if (t.documentos && t.documentos.certificados && t.documentos.certificados.length > 0) {
-    certsHTML = t.documentos.certificados.map(c => `<span class="bg-emerald-900/30 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-500/50 mr-1 mb-1 inline-block"><i class="fas fa-award"></i> Validado</span>`).join('');
+  certsHTML = t.documentos.certificados.map(c => `<span class="bg-emerald-900/30 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-500/50 mr-1 mb-1 inline-block"><i class="fas fa-award"></i> Validado</span>`).join('');
  } else {
-    certsHTML = '<span class="text-red-500 text-xs font-bold"><i class="fas fa-times-circle"></i> Sin documentos de respaldo</span>';
+  certsHTML = '<span class="text-red-500 text-xs font-bold"><i class="fas fa-times-circle"></i> Sin documentos de respaldo</span>';
  }
 
  const btnAprobarModal = (t.estado === "pendiente") ? `
