@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - MOTOR DE INTELIGENCIA EMPRESARIAL Y CRM (BI ENGINE)
  * ======================================================================================
  * Archivo: app-bi.js
- * Versión: 1.0.6 (Integración Stripe Live Feed Desbloqueado + Facturación)
+ * Versión: 1.0.7 (Integración Stripe Live Feed Desbloqueado + Facturación + VCs Margins)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
@@ -321,7 +321,8 @@ function procesarRankingYDisciplina(tecnicos) {
     tecnicosOrdenados.forEach((t) => {
         const strikes = t.strikes || 0;
         const nivel = t.nivel || "BRONCE";
-        const comision = t.comision_asignada ? (t.comision_asignada * 100).toFixed(0) + "%" : "32%";
+        // 🔥 INYECCIÓN DE PRECISIÓN: Se actualizó el valor default para mostrar 30% en UI si no tiene asignación
+        const comision = t.comision_asignada ? (t.comision_asignada * 100).toFixed(0) + "%" : "30%";
         
         let colorStrike = strikes === 0 ? "text-emerald-500" : (strikes === 1 ? "text-yellow-500" : "text-red-500");
         let iconNivel = "fa-medal text-orange-600";
@@ -431,7 +432,8 @@ window.levantarCastigo = async (uid) => {
 
 // EVALUADOR DE COMISIONES DINÁMICAS (GAMIFICACIÓN)
 window.evaluarComisionesDinamicas = async () => {
-    if(!confirm("🤖 EL CEREBRO VA A EVALUAR A TODA LA FLOTA.\n\nEsto calculará el volumen, calificación y strikes de cada técnico para ascenderlos (Oro/27%) o degradarlos (Bronce/32%).\n\n¿Proceder con la auditoría mensual automática?")) return;
+    // 🔥 INYECCIÓN DE PRECISIÓN: Textos de confirmación actualizados a las nuevas tasas VC
+    if(!confirm("🤖 EL CEREBRO VA A EVALUAR A TODA LA FLOTA.\n\nEsto calculará el volumen, calificación y strikes de cada técnico para ascenderlos (Oro/24%) o degradarlos (Bronce/30%).\n\n¿Proceder con la auditoría mensual automática?")) return;
     
     try {
         const qUsers = query(collection(db, "users"), where("rol", "==", "tecnico"));
@@ -446,19 +448,19 @@ window.evaluarComisionesDinamicas = async () => {
             const strikes = t.strikes || 0;
 
             let nuevoNivel = "BRONCE";
-            let nuevaComision = 0.32;
+            let nuevaComision = 0.30;
 
-            // Algoritmo de Gamificación
+            // 🔥 INYECCIÓN DE PRECISIÓN: Algoritmo de Gamificación con nuevos rangos
             if (rep >= 4.8 && svcs >= 50 && strikes === 0) {
-                nuevoNivel = "ORO"; nuevaComision = 0.27; // Elite
+                nuevoNivel = "ORO"; nuevaComision = 0.24; // Elite
             } else if (rep >= 4.5 && svcs >= 20 && strikes <= 1) {
-                nuevoNivel = "PLATA"; nuevaComision = 0.30; // Intermedio
+                nuevoNivel = "PLATA"; nuevaComision = 0.27; // Intermedio
             } else {
-                nuevoNivel = "BRONCE"; nuevaComision = 0.32; // Base / Castigado
+                nuevoNivel = "BRONCE"; nuevaComision = 0.30; // Base / Castigado
             }
 
             if (t.nivel !== nuevoNivel) {
-                if(nuevaComision < (t.comision_asignada || 0.32)) ascensos++; else degradaciones++;
+                if(nuevaComision < (t.comision_asignada || 0.30)) ascensos++; else degradaciones++;
                 await updateDoc(doc(db, "users", docSnap.id), {
                     nivel: nuevoNivel,
                     comision_asignada: nuevaComision
