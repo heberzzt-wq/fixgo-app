@@ -192,7 +192,7 @@
                                 </div>
                                 <div class="flex-1">
                                     <h4 class="text-white font-bold text-sm">Pago en Efectivo</h4>
-                                    <p class="text-[10px] text-gray-400 mt-1">Pago directo al técnico al finalizar. (Requiere Aprobación)</p>
+                                    <p class="text-[10px] text-gray-400 mt-1">Pago directo al técnico al finalizar. (VIP)</p>
                                 </div>
                                 <div class="w-5 h-5 rounded-full border-2 border-zinc-600 peer-checked:border-emerald-500 peer-checked:bg-emerald-500 flex items-center justify-center transition-all">
                                     <div class="w-2 h-2 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
@@ -242,6 +242,8 @@
         </section>
     </main>
 
+    <audio id="audioAlerta" src="https://fixgo.app/assets/sounds/alert.mp3" preload="auto" class="hidden"></audio>
+
     <script>
         function toggleAccordion(contentId, iconId) {
             const content = document.getElementById(contentId);
@@ -251,7 +253,6 @@
                 content.classList.remove('expanded');
                 icon.classList.remove('rotated');
             } else {
-                // Opcional: Cerrar los demás antes de abrir este (comentar si quieres múltiples abiertos)
                 document.querySelectorAll('.expandable-content').forEach(el => el.classList.remove('expanded'));
                 document.querySelectorAll('.chevron-icon').forEach(el => el.classList.remove('rotated'));
                 
