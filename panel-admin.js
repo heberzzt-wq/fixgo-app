@@ -459,14 +459,19 @@ export async function iniciarPanelAdmin(user) {
  elementos.countMoney.innerText = `$${globalFixGo.toFixed(2)}`;
  if(elementos.countBovedaStripe) elementos.countBovedaStripe.innerText = `$${saldoBoveda.toFixed(2)}`;
  
- const cardParent = elementos.countMoney.closest('.bg-gradient-to-br') || elementos.countMoney.closest('.uber-card');
+ // CORRECCIÓN QUIRÚRGICA DEL CONTENEDOR DE CLASES
+ const cardParent = elementos.countMoney.closest('.glow-money') || elementos.countMoney.closest('.uber-card') || elementos.countMoney.parentElement;
  let desgloseContainer = cardParent.querySelector('.finance-breakdown');
  
  if(!desgloseContainer) {
  desgloseContainer = document.createElement('div');
  desgloseContainer.className = "finance-breakdown mt-3 pt-3 border-t border-white/10 text-[9px] text-gray-400 space-y-1";
  const referenceNode = cardParent.querySelector('.border-t.border-white\\/10') || cardParent.children[1];
+ if (referenceNode) {
  cardParent.insertBefore(desgloseContainer, referenceNode); 
+ } else {
+ cardParent.appendChild(desgloseContainer);
+ }
  }
 
  desgloseContainer.innerHTML = `
