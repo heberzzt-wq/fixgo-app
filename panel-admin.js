@@ -54,8 +54,25 @@ export async function iniciarPanelAdmin(user) {
  kpiLtvPromedio: document.getElementById("kpiLtvPromedio"),
  kpiTasaCancelacion: document.getElementById("kpiTasaCancelacion"),
  kpiMargenNeto: document.getElementById("kpiMargenNeto"),
- kpiForecastRunRate: document.getElementById("kpiForecastRunRate")
+ kpiForecastRunRate: document.getElementById("kpiForecastRunRate"),
+ // 🔥 INYECCIÓN NUEVA: Elementos CAC y Retención
+ kpiCAC: document.getElementById("kpiCAC"),
+ kpiRetencion: document.getElementById("kpiRetencion")
  };
+
+ // 🔥 INYECCIÓN DE ESTADO GLOBAL PARA CAC EN TIEMPO REAL
+ let gastoMarketingGlobal = 0;
+ let clientesUnicosActivos = 1; 
+
+ onSnapshot(doc(db, "configuracion", "catalogo_global"), (docSnap) => {
+ if (docSnap.exists()) {
+ gastoMarketingGlobal = parseFloat(docSnap.data().gasto_marketing || 0);
+ if (elementos.kpiCAC) {
+ const cac = clientesUnicosActivos > 0 ? (gastoMarketingGlobal / clientesUnicosActivos) : gastoMarketingGlobal;
+ elementos.kpiCAC.innerText = `$${cac.toFixed(2)}`;
+ }
+ }
+ });
 
  if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  const adminToolbar = document.createElement("div");
@@ -220,6 +237,9 @@ export async function iniciarPanelAdmin(user) {
  let totalTickets = 0;
  let canceladosTickets = 0;
  
+ // 🔥 INYECCIÓN NUEVA: TRACKING MATEMÁTICO DE CLIENTES ÚNICOS PARA CAC Y RETENCIÓN
+ let setClientesUnicos = new Set();
+ 
  if (snap.empty) {
  if(elementos.actividad) elementos.actividad.innerHTML = '<p class="text-gray-500 italic text-sm text-center mt-4">Sin actividad reciente en la plataforma.</p>';
  }
@@ -231,6 +251,10 @@ export async function iniciarPanelAdmin(user) {
  totalTickets++;
  if (data.estado === "cancelado") {
  canceladosTickets++;
+ }
+
+ if (data.cliente_nombre) {
+ setClientesUnicos.add(data.cliente_nombre.trim().toLowerCase());
  }
 
  if (data.factura_requerida && data.estado === "finalizado" && !data.factura_enviada) {
@@ -302,6 +326,19 @@ export async function iniciarPanelAdmin(user) {
  }
  });
  
+ // 🔥 INYECCIÓN NUEVA: PROCESAMIENTO MATEMÁTICO DE CAC Y RETENCIÓN
+ clientesUnicosActivos = setClientesUnicos.size > 0 ? setClientesUnicos.size : 1;
+ 
+ if (elementos.kpiCAC) {
+ const cac = (gastoMarketingGlobal / clientesUnicosActivos);
+ elementos.kpiCAC.innerText = `$${cac.toFixed(2)}`;
+ }
+ 
+ if (elementos.kpiRetencion) {
+ const retencion = setClientesUnicos.size > 0 ? (totalTickets / setClientesUnicos.size) : 0;
+ elementos.kpiRetencion.innerText = `${retencion.toFixed(1)}x`;
+ }
+
  if (elementos.contadorFacturas) {
  elementos.contadorFacturas.innerText = `${facturasPendientesCount} Solicitudes`;
  }
@@ -994,7 +1031,18 @@ export async function iniciarPanelAdmin(user) {
 
  if (container) {
  container.innerHTML = "";
- let html = "";
+ // 🔥 INYECCIÓN: INPUT PARA PRESUPUESTO MARKETING
+ let html = `
+ <div class="mb-4 bg-blue-900/10 rounded-xl border border-blue-500/30 overflow-hidden shadow-lg p-4 col-span-1 md:col-span-2">
+ <h4 class="text-blue-400 font-bold text-xs md:text-sm uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fas fa-bullhorn"></i> Presupuesto Marketing (Mensual)</h4>
+ <div class="flex items-center bg-black p-3 rounded-lg border border-zinc-800">
+ <span class="text-emerald-500 font-bold mr-2">$</span>
+ <input type="number" id="cfg_gasto_marketing" class="bg-transparent text-white font-bold w-full focus:outline-none" placeholder="Ej. 5000" value="${config.gasto_marketing || 0}">
+ <span class="text-gray-500 text-xs ml-2">MXN</span>
+ </div>
+ <p class="text-[9px] text-gray-500 mt-2">Este valor se usará para calcular el CAC (Costo de Adquisición de Cliente) en tiempo real en el dashboard.</p>
+ </div>
+ `;
  let indexCat = 0;
  
  for (const [categoria, servicios] of Object.entries(MASTER_STRUCTURE)) {
@@ -1036,12 +1084,16 @@ export async function iniciarPanelAdmin(user) {
  window.guardarConfiguracionGlobal = async () => {
  const inputs = document.querySelectorAll('input[id^="cfg_"]');
  let nuevaConfig = {
- updatedAt: serverTimestamp() 
+ updatedAt: serverTimestamp(),
+ // 🔥 INYECCIÓN: GUARDAR EL DATO DE MARKETING
+ gasto_marketing: parseFloat(document.getElementById("cfg_gasto_marketing")?.value || 0)
  };
 
  inputs.forEach(input => {
+ if (input.id !== "cfg_gasto_marketing") {
  const realId = input.id.replace("cfg_", "");
  nuevaConfig[realId] = input.checked;
+ }
  });
  
  try {
