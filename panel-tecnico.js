@@ -5,6 +5,7 @@
  * Archivo: panel-tecnico.js
  * Descripción: Motor de radar, GPS, colisiones, cotizador y evidencia Cloud.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
+ * INYECCIÓN: Dashboard Gamificado (Punto 3 Evaluador VCs).
  * ======================================================================================
  */
 
@@ -24,24 +25,14 @@ import {
     getDoc 
 } from "./firebase.js";
 
-// 🔥 INYECCIÓN NIVEL UBER (Firestore & Storage)
 import { getDocs, arrayUnion, runTransaction, limit, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
-
-// 🔔 INYECCIÓN V5.18.3: MOTOR PUSH FCM (Firebase Cloud Messaging)
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
-
-// Motor GPS
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
-
-// Sistema Nervioso Compartido
 import { escaparHTML, calcularDistancia, sonarAlerta, lanzarNotificacionPush, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
 
-// ======================================================================================
-// 2. PANEL DE TÉCNICO (SOCIO OPERADOR + V5.18.6)
-// ======================================================================================
 export async function iniciarPanelTecnico(user) {
-    console.log(" 🔧 Iniciando Panel de Técnico (Modo Uber Cash / Storage 4K / UI Disciplinaria)...");
+    console.log(" 🔧 Iniciando Panel de Técnico (Modo Uber Cash / Gamificación Financiera Visual)...");
     
     activarMotorFCM(user.uid);
 
@@ -53,8 +44,6 @@ export async function iniciarPanelTecnico(user) {
         listaBolsa: document.getElementById("listaBolsa"),
         listaServicios: document.getElementById("listaServicios"),
         panelAcciones: document.getElementById("panelAcciones"),
-        btnEnCamino: document.getElementById("btnEnCamino"), 
-        btnLlegue: document.getElementById("btnLlegue"), 
         walletLabel: document.getElementById("walletSaldo"),
         btnRetiro: document.getElementById("btnRetiro"),
         contenedorHistorialRetiros: document.getElementById("contenedorHistorialRetiros"),
@@ -74,8 +63,8 @@ export async function iniciarPanelTecnico(user) {
         const estado = data.estado || "pendiente";
         const strikes = data.strikes || 0;
 
-        // --- 🌟 RENDERIZADO DE ESTRELLAS, NIVEL Y FOTO ---
         const reputacion = data.reputacion || 5.0;
+        const svcs = data.servicios_completados || 0;
         const estrellas = "⭐".repeat(Math.round(reputacion));
         const nivel = data.nivel || "BRONCE";
         
@@ -92,7 +81,7 @@ export async function iniciarPanelTecnico(user) {
         }
         if(elementos.txtServicios) {
             elementos.txtServicios.classList.remove("hidden");
-            elementos.txtServicios.innerText = `${data.servicios_completados || 0} SERVICIOS FINALIZADOS`;
+            elementos.txtServicios.innerText = `${svcs} SERVICIOS FINALIZADOS`;
         }
         if(elementos.fotoPerfil && elementos.fotoIcono) {
             if(data.foto_perfil || data.fotoPerfil) {
@@ -105,7 +94,67 @@ export async function iniciarPanelTecnico(user) {
             }
         }
 
-        // 🔥 LÓGICA DE SUSPENSIÓN (STRIKES 1, 2 Y 3)
+        // 🔥 INYECCIÓN: DASHBOARD GAMIFICADO (TRACKER DE INCENTIVOS) 🔥
+        // Esto le muestra al técnico qué gana y qué le falta para subir.
+        if (elementos.seccionBolsa && estado === "activo" && data.disponible) {
+            let tracker = document.getElementById("gamificationTracker");
+            if (!tracker) {
+                tracker = document.createElement("div");
+                tracker.id = "gamificationTracker";
+                elementos.seccionBolsa.parentNode.insertBefore(tracker, elementos.seccionBolsa);
+            }
+
+            const comisionActual = data.comision_asignada ? parseFloat(data.comision_asignada) : 0.30;
+            const gananciaNetaPorcentaje = Math.round((1 - comisionActual) * 100); // Lo que el técnico se lleva al bolsillo
+            
+            let sigNivel = ""; let reqSvcs = 0; let reqRep = 0; let beneSig = 0;
+            if (nivel === "BRONCE") { sigNivel = "PLATA"; reqSvcs = 20; reqRep = 4.5; beneSig = 73; }
+            else if (nivel === "PLATA") { sigNivel = "ORO"; reqSvcs = 50; reqRep = 4.8; beneSig = 76; }
+            else { sigNivel = "ÉLITE"; } // Oro
+
+            let progresoHTML = "";
+            if (sigNivel !== "ÉLITE") {
+                const pctSvcs = Math.min((svcs / reqSvcs) * 100, 100);
+                progresoHTML = `
+                <div class="border-t border-zinc-800 pt-3 mt-2">
+                    <p class="text-[10px] text-gray-400 mb-1">Próxima meta: <span class="text-white font-bold">${sigNivel} (Ganas el ${beneSig}%)</span></p>
+                    <div class="flex justify-between text-[9px] font-bold mb-1">
+                        <span class="${svcs >= reqSvcs ? 'text-emerald-500' : 'text-blue-400'}">${svcs}/${reqSvcs} Viajes</span>
+                        <span class="${reputacion >= reqRep ? 'text-emerald-500' : 'text-blue-400'}">⭐ ${reputacion.toFixed(1)}/${reqRep.toFixed(1)}</span>
+                    </div>
+                    <div class="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                        <div class="bg-blue-500 h-1.5 rounded-full transition-all duration-1000" style="width: ${pctSvcs}%"></div>
+                    </div>
+                </div>`;
+            } else {
+                progresoHTML = `
+                <div class="border-t border-yellow-900/50 pt-3 mt-2 text-center">
+                    <p class="text-[10px] text-yellow-500 font-bold tracking-widest"><i class="fas fa-crown"></i> ESTÁS EN EL RANGO MÁXIMO</p>
+                    <p class="text-[9px] text-gray-400">Mantén tus estrellas altas para no perder este privilegio.</p>
+                </div>`;
+            }
+
+            tracker.innerHTML = `
+            <div class="bg-black border ${nivel === 'ORO' ? 'border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.1)]' : 'border-zinc-800'} rounded-xl p-4 mb-4 shadow-lg animate-fade-in">
+                <div class="flex justify-between items-center mb-2">
+                    <div>
+                        <p class="text-[9px] text-gray-500 uppercase font-bold tracking-widest">Tu Tasa de Ganancia</p>
+                        <p class="text-2xl font-black text-emerald-400">${gananciaNetaPorcentaje}% <span class="text-[10px] text-gray-500 font-normal">Libres para ti</span></p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-1">Estatus Actual</p>
+                        <p class="${colorNivel} px-2 py-1 rounded text-[10px] font-black uppercase inline-block">${nivel}</p>
+                    </div>
+                </div>
+                ${progresoHTML}
+            </div>
+            `;
+        } else {
+            const tracker = document.getElementById("gamificationTracker");
+            if (tracker) tracker.remove();
+        }
+        // 🔥 FIN DE INYECCIÓN DASHBOARD GAMIFICADO 🔥
+
         if (["suspendido", "suspendido_grave", "baneado_permanente"].includes(estado)) {
             let msgSuspendido = "Cuenta Suspendida Temporalmente";
             let descSuspendido = "Se ha detectado una anomalía en tu servicio. Revisa tu saldo retenido.";
@@ -148,12 +197,9 @@ export async function iniciarPanelTecnico(user) {
             return; 
         }
 
-        // 🔥 NUEVO: INTERCEPTOR DE DOCUMENTOS FALTANTES (KYC RESCUE)
         const ineUrl = data.documentos?.ine || data.ine || data.ine_url || data.identificacion || null;
         const csfUrl = data.documentos?.csf || data.csf || data.csf_url || data.constancia || null;
         const fotoUrl = data.foto_perfil || data.fotoPerfil || data.foto || null;
-        
-        // Inyección de nuevos parámetros obligatorios
         const banco = data.banco || data.datos_bancarios?.banco || null;
         const clabe = data.clabe || data.datos_bancarios?.clabe || null;
         const vehiculoTipo = data.vehiculo_tipo || data.logistica?.vehiculo || null;
@@ -161,7 +207,6 @@ export async function iniciarPanelTecnico(user) {
         const licenciaUrl = data.documentos?.licencia || data.licencia || null;
         const certificadoUrl = data.documentos?.certificado || data.certificado || null;
         
-        // Si falta algo vital y no está baneado, activamos el Protocolo de Rescate
         const faltaInfo = !ineUrl || !csfUrl || !fotoUrl || !banco || !clabe || !vehiculoTipo || !placas || !licenciaUrl || !certificadoUrl;
 
         if (faltaInfo) {
@@ -193,21 +238,18 @@ export async function iniciarPanelTecnico(user) {
                                 </label>
                                 ${fotoUrl ? '<p class="text-[10px] text-gray-500">Documento en regla y validado.</p>' : '<input type="file" id="compFoto" accept="image/*" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
                             </div>
-
                             <div class="bg-black p-4 rounded-xl border ${ineUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
                                 <label class="block text-[10px] font-bold ${ineUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
                                     2. Identificación Oficial (INE Frontal) ${ineUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
                                 </label>
                                 ${ineUrl ? '<p class="text-[10px] text-gray-500">Documento en regla y validado.</p>' : '<input type="file" id="compINE" accept="image/*" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
                             </div>
-
                             <div class="bg-black p-4 rounded-xl border ${csfUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
                                 <label class="block text-[10px] font-bold ${csfUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
                                     3. Constancia de Situación Fiscal (CSF) ${csfUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
                                 </label>
                                 ${csfUrl ? '<p class="text-[10px] text-gray-500">Documento en regla y validado.</p>' : '<input type="file" id="compCSF" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
                             </div>
-
                             <div class="bg-black p-4 rounded-xl border ${banco && clabe ? 'border-emerald-900/50' : 'border-red-900/50'}">
                                 <label class="block text-[10px] font-bold ${banco && clabe ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
                                     4. Datos Bancarios ${banco && clabe ? '✅ CUBIERTO' : '❌ FALTANTE'}
@@ -217,7 +259,6 @@ export async function iniciarPanelTecnico(user) {
                                 <input type="text" id="compClabe" placeholder="Cuenta CLABE (18 dígitos)" class="w-full text-xs text-white bg-zinc-800 border-0 py-2 px-3 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
                                 `}
                             </div>
-
                             <div class="bg-black p-4 rounded-xl border ${vehiculoTipo && placas ? 'border-emerald-900/50' : 'border-red-900/50'}">
                                 <label class="block text-[10px] font-bold ${vehiculoTipo && placas ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
                                     5. Logística Operativa ${vehiculoTipo && placas ? '✅ CUBIERTO' : '❌ FALTANTE'}
@@ -233,21 +274,18 @@ export async function iniciarPanelTecnico(user) {
                                 <input type="text" id="compPlacas" placeholder="Placas del vehículo" class="w-full text-xs text-white bg-zinc-800 border-0 py-2 px-3 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
                                 `}
                             </div>
-
                             <div class="bg-black p-4 rounded-xl border ${licenciaUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
                                 <label class="block text-[10px] font-bold ${licenciaUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
                                     6. Licencia de Conducir ${licenciaUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
                                 </label>
                                 ${licenciaUrl ? '<p class="text-[10px] text-gray-500">Documento en regla.</p>' : '<input type="file" id="compLicencia" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
                             </div>
-
                             <div class="bg-black p-4 rounded-xl border ${certificadoUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
                                 <label class="block text-[10px] font-bold ${certificadoUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
                                     7. Certificados / DC-3 ${certificadoUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
                                 </label>
                                 ${certificadoUrl ? '<p class="text-[10px] text-gray-500">Certificados validados.</p>' : '<input type="file" id="compCertificado" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
                             </div>
-
                         </div>
                         <button onclick="window.completarDocumentosTecnico('${user.uid}')" id="btnCompletarDocs" class="w-full mt-4 bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl text-sm transition-transform active:scale-95 shadow-lg flex justify-center items-center gap-2">
                             <i class="fas fa-cloud-upload-alt text-lg"></i> SUBIR Y ENVIAR A REVISIÓN
@@ -255,10 +293,9 @@ export async function iniciarPanelTecnico(user) {
                     </div>
                 `;
             }
-            return; // 🛑 Detiene la ejecución normal para que el usuario no pueda hacer nada más.
+            return; 
         }
 
-        // 🟡 LÓGICA DE REVISIÓN (NUEVOS TÉCNICOS CON DOCUMENTOS COMPLETOS)
         if (estado === "pendiente") {
             if(elementos.statusLabel) {
                 elementos.statusLabel.innerText = "EN REVISIÓN";
@@ -281,7 +318,6 @@ export async function iniciarPanelTecnico(user) {
             return;
         }
 
-        // 🟢 LÓGICA NORMAL (ACTIVOS)
         if (elementos.toggleONOFF) {
             elementos.toggleONOFF.disabled = false;
             elementos.toggleONOFF.checked = data.disponible === true;
@@ -305,11 +341,10 @@ export async function iniciarPanelTecnico(user) {
                 elementos.statusLabel.innerText = "OFFLINE";
                 elementos.statusLabel.className = "bg-red-500/20 text-red-500 status-badge font-bold";
             }
-            elements.radarSection?.classList.add("opacity-50", "grayscale");
+            elementos.radarSection?.classList.add("opacity-50", "grayscale");
         }
     });
 
-    // 📡 MOTOR GLOBAL DE SUBIDA DE DOCUMENTOS FALTANTES (KYC RESCUE)
     window.completarDocumentosTecnico = async (uid) => {
         const btn = document.getElementById("btnCompletarDocs");
         
@@ -356,7 +391,6 @@ export async function iniciarPanelTecnico(user) {
             };
 
             const updates = {};
-            // Forzamos la creación del objeto documentos si no existe
             updates['documentos.fecha_actualizacion'] = serverTimestamp();
 
             if (iFoto) {
@@ -386,7 +420,6 @@ export async function iniciarPanelTecnico(user) {
             if (vVehiculo) updates['logistica.vehiculo'] = vVehiculo;
             if (vPlacas) updates['logistica.placas'] = vPlacas;
 
-            // Lo devolvemos a estado pendiente para que el admin lo revise
             updates['estado'] = "pendiente";
 
             await updateDoc(doc(db, "users", uid), updates);
@@ -417,7 +450,6 @@ export async function iniciarPanelTecnico(user) {
             const tx = docSnap.data();
             const monto = (tx.pago_tecnico || 0);
             
-            // Abonos de Stripe ahora suman positivamente a la cuenta del técnico
             if (tx.tipo === "retiro_fondos" || tx.tipo === "penalizacion" || tx.tipo === "abono_deuda" || tx.tipo === "abono_stripe") { 
                 saldoBrutoDisponible += monto; 
             } else {
@@ -449,7 +481,6 @@ export async function iniciarPanelTecnico(user) {
 
     function actualizarUIWallet() {
         const saldoRealDisponible = saldoBrutoDisponible - retirosEnProceso;
-        
         window.saldoActualTecnico = saldoRealDisponible;
 
         let saldoFormat = saldoRealDisponible < 0 ? "-$" + Math.abs(saldoRealDisponible).toFixed(2) : "$" + saldoRealDisponible.toFixed(2);
@@ -652,14 +683,10 @@ export async function iniciarPanelTecnico(user) {
 
                 if (s.tecnico_id) return; 
 
-                if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) {
-                    return; 
-                }
+                if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) return; 
 
                 const misSkills = tecnico.skills || [];
-                if (s.categoria && misSkills.length > 0 && !misSkills.includes(s.categoria)) {
-                    return; 
-                }
+                if (s.categoria && misSkills.length > 0 && !misSkills.includes(s.categoria)) return; 
 
                 counter++; 
 
@@ -1200,16 +1227,23 @@ export async function iniciarPanelTecnico(user) {
                 const servicioData = servicioSnap.data();
                 const costoTotal = servicioData.costo_final || 0;
 
-                const comisionFixGoPura = costoTotal * 0.30; 
+                // Leemos dinámicamente la comisión del técnico para el cobro manual
+                const tecnicoSnap = await getDoc(doc(db, "users", user.uid));
+                let tasaComision = 0.30;
+                if (tecnicoSnap.exists() && tecnicoSnap.data().comision_asignada) {
+                    tasaComision = parseFloat(tecnicoSnap.data().comision_asignada);
+                }
+
+                const comisionFixGoPura = costoTotal * tasaComision; 
                 const aporteGarantia = costoTotal * 0.02; 
                 const retencionIVA = costoTotal * 0.08; 
                 const retencionISR = costoTotal * 0.10; 
                 
                 let deudaTecnico = 0;
                 if (servicioData.metodo_pago === "stripe") {
-                    deudaTecnico = (costoTotal - (costoTotal * 0.32)); 
+                    deudaTecnico = (costoTotal - (costoTotal * tasaComision)); 
                 } else {
-                    deudaTecnico = -(costoTotal * 0.32);
+                    deudaTecnico = -(costoTotal * tasaComision);
                 }
 
                 const canvas = document.getElementById("canvasFirma");
@@ -1478,32 +1512,20 @@ async function activarMotorFCM(uid) {
     console.log("🛠️ [FCM DEBUG] Iniciando Motor FCM para UID:", uid);
     try {
         const messaging = getMessaging(); 
-        console.log("🛠️ [FCM DEBUG] Instancia Messaging obtenida.");
-
-        console.log("🛠️ [FCM DEBUG] Solicitando permiso de notificaciones al navegador...");
+        
         const permission = await Notification.requestPermission();
-        console.log("🛠️ [FCM DEBUG] Resultado del permiso:", permission);
         
         if (permission === 'granted') {
-            console.log("🔔 [FCM] Permiso concedido. Esperando Service Worker...");
-            
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.ready.then(async (registration) => {
-                    console.log("🛠️ [FCM DEBUG] Service Worker listo. Obteniendo Token con VAPID...");
                     try {
                         const currentToken = await getToken(messaging, { 
                             vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ',
                             serviceWorkerRegistration: registration 
                         });
                         
-                        console.log("🛠️ [FCM DEBUG] Token recibido de Google:", currentToken ? "SÍ (Oculto por seguridad)" : "NO (null)");
-
                         if (currentToken) {
-                            console.log("🔑 [FCM] Token generado. Intentando guardar en DB...");
                             await updateDoc(doc(db, "users", uid), { fcmToken: currentToken });
-                            console.log("✅ [FCM] ¡Éxito! Token guardado en Firebase DB.");
-                        } else {
-                            console.warn("⚠️ [FCM] El navegador no generó token.");
                         }
                     } catch (tokenError) {
                         console.error("❌ [FCM CRÍTICO] Falló la obtención del Token. Error de Google:", tokenError);
@@ -1511,18 +1533,11 @@ async function activarMotorFCM(uid) {
                 }).catch(swError => {
                     console.error("❌ [FCM CRÍTICO] Error con el Service Worker:", swError);
                 });
-            } else {
-                console.warn("⚠️ [FCM] El navegador no soporta Service Workers.");
             }
-        } else {
-            console.warn("🚫 [FCM] Permiso denegado por el usuario.");
         }
-
         onMessage(messaging, (payload) => {
-            console.log("🔔 [FCM] Push recibido en Primer Plano:", payload);
             sonarAlerta();
         });
-
     } catch (error) {
         console.error("❌ [FCM GENERAL] El motor Push falló al iniciar.", error);
     }
