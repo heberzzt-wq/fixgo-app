@@ -5,7 +5,7 @@
  * Archivo: panel-tecnico.js
  * Descripción: Motor de radar, GPS, colisiones, cotizador y evidencia Cloud.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
- * INYECCIÓN: Dashboard Gamificado (Punto 3 Evaluador VCs).
+ * INYECCIÓN: Dashboard Gamificado, Abandono de Misión y Telemetría aislada.
  * ======================================================================================
  */
 
@@ -95,7 +95,6 @@ export async function iniciarPanelTecnico(user) {
         }
 
         // 🔥 INYECCIÓN: DASHBOARD GAMIFICADO (TRACKER DE INCENTIVOS) 🔥
-        // Esto le muestra al técnico qué gana y qué le falta para subir.
         if (elementos.seccionBolsa && estado === "activo" && data.disponible) {
             let tracker = document.getElementById("gamificationTracker");
             if (!tracker) {
@@ -105,12 +104,12 @@ export async function iniciarPanelTecnico(user) {
             }
 
             const comisionActual = data.comision_asignada ? parseFloat(data.comision_asignada) : 0.30;
-            const gananciaNetaPorcentaje = Math.round((1 - comisionActual) * 100); // Lo que el técnico se lleva al bolsillo
+            const gananciaNetaPorcentaje = Math.round((1 - comisionActual) * 100); 
             
             let sigNivel = ""; let reqSvcs = 0; let reqRep = 0; let beneSig = 0;
             if (nivel === "BRONCE") { sigNivel = "PLATA"; reqSvcs = 20; reqRep = 4.5; beneSig = 73; }
             else if (nivel === "PLATA") { sigNivel = "ORO"; reqSvcs = 50; reqRep = 4.8; beneSig = 76; }
-            else { sigNivel = "ÉLITE"; } // Oro
+            else { sigNivel = "ÉLITE"; } 
 
             let progresoHTML = "";
             if (sigNivel !== "ÉLITE") {
@@ -934,6 +933,56 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
+    // 🔥 INYECCIÓN: Lógica de Abandono con Penalización Automática 🔥
+    window.cancelarMisionActiva = async (id) => {
+        const motivo = prompt("🚨 ESTÁS A PUNTO DE ABANDONAR UN SERVICIO ACEPTADO.\n\nEsto afectará tu reputación y aplicará una penalización automática de $150 MXN a tu Wallet por incumplimiento.\n\nEscribe el motivo de la cancelación:");
+        if (!motivo) return;
+
+        if (!confirm("Último aviso: ¿Confirmas el abandono de esta misión? Tu saldo será descontado inmediatamente.")) return;
+
+        try {
+            const sSnap = await getDoc(doc(db, "services", id));
+            if(sSnap.exists()) {
+                 const sData = sSnap.data();
+                 const nuevoEstado = sData.metodo_pago === 'stripe' ? 'pagado' : 'pendiente';
+                 
+                 // Regresamos el ticket a la bolsa y bloqueamos para este técnico
+                 await updateDoc(doc(db, "services", id), {
+                      estado: nuevoEstado,
+                      tecnico_id: null,
+                      tecnico_nombre: null,
+                      tecnico_telefono: null,
+                      asignado_at: null,
+                      rejected_by: arrayUnion(user.uid) 
+                 });
+            }
+
+            // Aplicamos multa financiera
+            await addDoc(collection(db, "transacciones"), {
+                tecnico_id: user.uid,
+                pago_tecnico: -150,
+                monto_total: 0,
+                tipo: "penalizacion",
+                descripcion: `Sistema: Abandono de servicio activo (Folio: ${id.substring(0,6)}) - Motivo: ${motivo}`,
+                fecha: serverTimestamp()
+            });
+
+            // Impacto en reputación
+            await updateDoc(doc(db, "users", user.uid), {
+                reputacion: increment(-0.3)
+            });
+
+            // Actualizamos la telemetría a Disponible
+            const rastreoRef = doc(db, "rastreo", user.uid);
+            await setDoc(rastreoRef, { estado: "Disponible" }, { merge: true });
+
+            alert("✅ Misión abandonada. La penalización ha sido aplicada a tu Wallet.");
+        } catch (e) {
+            console.error("Error al cancelar misión:", e);
+            alert("Error procesando la cancelación con el servidor.");
+        }
+    };
+
     window.actualizarEstadoGlobal = async (id, estado, extras = {}) => {
         try {
             await updateDoc(doc(db, "services", id), { estado: estado, ...extras });
@@ -942,7 +991,9 @@ export async function iniciarPanelTecnico(user) {
             if(estado === "en_sitio") textoMapa = "En Sitio";
             if(estado === "trabajando") textoMapa = "Trabajando";
             if(estado === "finalizado") textoMapa = "Disponible";
-            const rastreoRef = doc(db, "rastreo", "tecnicoActivo");
+            
+            // 🔥 INYECCIÓN: Fix de Colisión GPS (Rastreo Individual) 🔥
+            const rastreoRef = doc(db, "rastreo", user.uid);
             await setDoc(rastreoRef, { estado: textoMapa }, { merge: true });
         } catch (error) {
             console.error("Error actualizando estado:", error);
@@ -1227,7 +1278,6 @@ export async function iniciarPanelTecnico(user) {
                 const servicioData = servicioSnap.data();
                 const costoTotal = servicioData.costo_final || 0;
 
-                // Leemos dinámicamente la comisión del técnico para el cobro manual
                 const tecnicoSnap = await getDoc(doc(db, "users", user.uid));
                 let tasaComision = 0.30;
                 if (tecnicoSnap.exists() && tecnicoSnap.data().comision_asignada) {
@@ -1315,8 +1365,9 @@ export async function iniciarPanelTecnico(user) {
                     });
                 });
 
+                // 🔥 INYECCIÓN: Fix de Colisión GPS (Rastreo Individual) 🔥
                 let textoMapa = "Disponible";
-                const rastreoRef = doc(db, "rastreo", "tecnicoActivo");
+                const rastreoRef = doc(db, "rastreo", user.uid);
                 await setDoc(rastreoRef, { estado: textoMapa }, { merge: true });
 
                 document.getElementById("modalEvidencia").remove();
