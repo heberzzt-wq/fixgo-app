@@ -138,7 +138,7 @@ async function actualizarFirebase(lat, lng, velocidad, rumbo) {
   if (!user) return;
 
   try {
-    // A) Actualizamos perfil 'users' (Ubicación maestra)
+    // A) Actualizamos perfil 'users' (Ubicación maestra para el God View)
     const refUsuario = doc(db, "users", user.uid);
     await setDoc(refUsuario, {
         location: { lat, lng },
@@ -151,8 +151,9 @@ async function actualizarFirebase(lat, lng, velocidad, rumbo) {
         isOnline: true
     }, { merge: true });
 
-    // B) Actualizamos 'rastreo/tecnicoActivo' (Data para el Radar)
-    const refRastreo = doc(db, "rastreo", "tecnicoActivo");
+    // B) Actualizamos 'rastreo/{uid}' (Data puramente para el Cliente y su mapa)
+    // 🔥 CORRECCIÓN: Ahora usa el UID del técnico para evitar colisiones
+    const refRastreo = doc(db, "rastreo", user.uid);
     await setDoc(refRastreo, {
         uid: user.uid,
         nombre: user.displayName || "Técnico",
