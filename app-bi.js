@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - MOTOR DE INTELIGENCIA EMPRESARIAL Y CRM (BI ENGINE)
  * ======================================================================================
  * Archivo: app-bi.js
- * Versión: 1.0.7 (Integración Stripe Live Feed Desbloqueado + Facturación + VCs Margins)
+ * Versión: 1.0.8 (Ajedrez 4D: Profitability per Technician + VCs Margins)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
@@ -170,10 +170,26 @@ function iniciarEscuchaTelemetria() {
 
 function iniciarEscuchaFlota() {
     const qUsers = query(collection(db, "users"), where("rol", "==", "tecnico"));
-    onSnapshot(qUsers, (snap) => {
-        let tecnicos = [];
-        snap.forEach(doc => tecnicos.push({ id: doc.id, ...doc.data() }));
-        procesarRankingYDisciplina(tecnicos);
+    const qTransProfit = query(collection(db, "transacciones"), where("tipo", "==", "ingreso_servicio"));
+
+    // 🔥 AJEDREZ 4D: Escucha cruzada de técnicos y sus transacciones de utilidad
+    onSnapshot(qTransProfit, (transSnap) => {
+        const profitMap = {};
+        transSnap.forEach(doc => {
+            const tx = doc.data();
+            if (tx.tecnico_id) {
+                profitMap[tx.tecnico_id] = (profitMap[tx.tecnico_id] || 0) + (tx.comision_fixgo || 0);
+            }
+        });
+
+        onSnapshot(qUsers, (snap) => {
+            let tecnicos = [];
+            snap.forEach(doc => {
+                const profit = profitMap[doc.id] || 0;
+                tecnicos.push({ id: doc.id, generated_profit: profit, ...doc.data() });
+            });
+            procesarRankingYDisciplina(tecnicos);
+        });
     });
 }
 
@@ -331,6 +347,14 @@ function procesarRankingYDisciplina(tecnicos) {
 
         const suspendido = t.estado === "suspendido" || t.estado === "suspendido_grave" || t.estado === "baneado_permanente";
 
+        // 🔥 AJEDREZ 4D: Renderizado de Utilidad Generada por Técnico
+        const profitHTML = `
+            <div class="mt-2 bg-emerald-900/10 border border-emerald-500/20 p-2 rounded-lg flex justify-between items-center">
+                <span class="text-[9px] text-emerald-500 font-black uppercase tracking-widest">Utilidad Generada:</span>
+                <span class="text-xs font-black text-emerald-400">$${(t.generated_profit || 0).toFixed(2)} MXN</span>
+            </div>
+        `;
+
         html += `
             <div class="flex flex-col bg-black p-3 rounded-xl border ${suspendido ? 'border-red-900/50 opacity-70' : 'border-zinc-800'} mb-2">
                 <div class="flex justify-between items-center mb-2">
@@ -350,6 +374,8 @@ function procesarRankingYDisciplina(tecnicos) {
                         <p class="text-yellow-500 text-[9px]">⭐ ${(t.reputacion || 5).toFixed(1)}</p>
                     </div>
                 </div>
+
+                ${profitHTML}
 
                 ${!suspendido ? `
                 <div class="flex gap-1 mt-2 pt-2 border-t border-zinc-800">
