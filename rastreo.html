@@ -86,18 +86,33 @@
     </script>
 
     <script type="module">
-        import { db, onSnapshot, doc, auth, observarAuth } from './firebase.js';
+        import { db, onSnapshot, doc, getDoc, auth, observarAuth } from './firebase.js';
         import { actualizarMapaGPS } from './gps-motor.js';
 
-        function arrancarRastreo() {
-            observarAuth((user) => {
-                if (!user) {
-                    console.log("Modo invitado: Viendo mapa sin sesión de usuario.");
-                } else {
-                    console.log("Sesión activa:", user.email);
+        async function arrancarRastreo() {
+            // 🔥 CORRECCIÓN: Ruteo dinámico leyendo el parámetro URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const servicioId = urlParams.get('id');
+
+            if (!servicioId) {
+                document.getElementById("nombreTecnico").innerText = "ID Invalido";
+                document.getElementById("estadoTecnico").innerText = "Error de enlace";
+                return;
+            }
+
+            try {
+                // Obtenemos el ticket para saber quién es el técnico asignado
+                const docServicio = await getDoc(doc(db, "services", servicioId));
+                if (!docServicio.exists() || !docServicio.data().tecnico_id) {
+                    document.getElementById("nombreTecnico").innerText = "Sin Asignar";
+                    document.getElementById("estadoTecnico").innerText = "Buscando técnico cercano...";
+                    return;
                 }
 
-                const trackingDoc = doc(db, "rastreo", "tecnicoActivo");
+                const uidTecnico = docServicio.data().tecnico_id;
+                
+                // Ahora escuchamos EXCLUSIVAMENTE el documento de ese técnico
+                const trackingDoc = doc(db, "rastreo", uidTecnico);
                 
                 onSnapshot(trackingDoc, (snapshot) => {
                     if (snapshot.exists()) {
@@ -116,12 +131,15 @@
                             actualizarMapaGPS(globalMap, data.lat, data.lng);
                         }
                     } else {
-                        document.getElementById("estadoTecnico").innerText = "Esperando señal...";
+                        document.getElementById("estadoTecnico").innerText = "Esperando señal del técnico...";
                     }
                 }, (error) => {
                     console.error("Error leyendo rastreo:", error);
                 });
-            });
+
+            } catch (err) {
+                console.error("Error buscando servicio:", err);
+            }
         }
 
         // Si el mapa ya cargó, arranca. Si no, espera el evento.
