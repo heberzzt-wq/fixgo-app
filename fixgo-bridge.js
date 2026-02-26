@@ -21,7 +21,7 @@ import {
 } from "./firebase.js";
 
 /**
- * MOTOR DE CIERRE FINANCIERO BLINDADO
+ * MOTOR DE CIERRE FINANCIERO BLINDADO Y DINÁMICO
  * Aquí es donde se definen los porcentajes reales. 
  * Si el técnico intenta manipular el app-panel.js, este archivo ignora sus cambios
  * y aplica la ley de FixGo definida aquí.
@@ -45,23 +45,39 @@ export async function finalizarServicioBlindado(serviceId, tecnicoId, b64_1, b64
             throw new Error("El costo del servicio no ha sido definido o es inválido.");
         }
 
-        // 2. REGLAS DE NEGOCIO FIXGO (INALTERABLES)
-        // Heber, si mañana cambias de opinión, solo editas estos números aquí:
-        const COMISION_FIXGO_TASA = 0.32; // 32%
+        // 2. CONSULTA DINÁMICA DEL PERFIL DEL TÉCNICO (GAMIFICACIÓN)
+        const tecnicoRef = doc(db, "users", tecnicoId);
+        const tecnicoSnap = await getDoc(tecnicoRef);
+        
+        let TASA_COMISION_DINAMICA = 0.32; // Default (Bronce / Penalizado)
+        let nivelTecnico = "BRONCE";
+
+        if (tecnicoSnap.exists()) {
+            const tecnicoData = tecnicoSnap.data();
+            // Si el motor de BI le asignó una comisión mejor (Oro 0.27 o Plata 0.30), la respetamos
+            if (tecnicoData.comision_asignada && !isNaN(tecnicoData.comision_asignada)) {
+                TASA_COMISION_DINAMICA = parseFloat(tecnicoData.comision_asignada);
+            }
+            nivelTecnico = tecnicoData.nivel || "BRONCE";
+        }
+
+        console.log(`🎖️ Nivel del Técnico: ${nivelTecnico} | Tasa Aplicada: ${(TASA_COMISION_DINAMICA * 100)}%`);
+
+        // 3. REGLAS FISCALES INALTERABLES
         const RETENCION_IVA_TASA  = 0.08; // 8%
         const RETENCION_ISR_TASA  = 0.10; // 10%
 
-        // 3. MATEMÁTICA MAESTRA
-        const montoComisionFixGo = costoTotal * COMISION_FIXGO_TASA;
+        // 4. MATEMÁTICA MAESTRA (AHORA DINÁMICA)
+        const montoComisionFixGo = costoTotal * TASA_COMISION_DINAMICA;
         const montoIVA           = costoTotal * RETENCION_IVA_TASA;
         const montoISR           = costoTotal * RETENCION_ISR_TASA;
         
         // El pago neto real que se le depositará al técnico
         const pagoNetoTecnico = costoTotal - (montoComisionFixGo + montoIVA + montoISR);
 
-        console.log(`📊 Desglose: Total $${costoTotal} | FixGo: $${montoComisionFixGo} | Neto: $${pagoNetoTecnico}`);
+        console.log(`📊 Desglose: Total $${costoTotal} | FixGo: $${montoComisionFixGo.toFixed(2)} | Neto: $${pagoNetoTecnico.toFixed(2)}`);
 
-        // 4. ACTUALIZACIÓN DE SERVICIO (ESTADO FINAL)
+        // 5. ACTUALIZACIÓN DE SERVICIO (ESTADO FINAL)
         await updateDoc(servicioRef, {
             estado: "finalizado",
             evidencia: { 
@@ -69,15 +85,16 @@ export async function finalizarServicioBlindado(serviceId, tecnicoId, b64_1, b64
                 despues: b64_2 
             },
             finalizado_at: serverTimestamp(),
-            protocolo_seguridad: "V5-BLINDADO",
+            protocolo_seguridad: "V5-BLINDADO-DINAMICO",
             desglose_fiscal: {
                 subtotal: (costoTotal / 1.16).toFixed(2),
                 iva_cliente: (costoTotal - (costoTotal / 1.16)).toFixed(2),
-                total: costoTotal
+                total: costoTotal,
+                tasa_comision_aplicada: TASA_COMISION_DINAMICA // Guardamos evidencia para auditoría
             }
         });
 
-        // 5. REGISTRO CONTABLE ATÓMICO (TRANSACCIONES)
+        // 6. REGISTRO CONTABLE ATÓMICO (TRANSACCIONES)
         // Este registro es el que lee tu Panel de Admin para las gráficas de dinero.
         await addDoc(collection(db, "transacciones"), {
             servicio_id: serviceId,
@@ -89,11 +106,10 @@ export async function finalizarServicioBlindado(serviceId, tecnicoId, b64_1, b64
             pago_tecnico: pagoNetoTecnico,
             fecha: serverTimestamp(),
             tipo: "ingreso_servicio",
-            metodo: "AUTOMÁTICO_BRIDGE"
+            metodo: "AUTOMÁTICO_BRIDGE_DINAMICO"
         });
 
-        // 6. WATCHDOG DE FACTURACIÓN DUAL (ÓRDENES PARA EL SAT)
-        // Genera la instrucción en la cola para que el backend Node.js / Cloud Function las timbre en 2do plano.
+        // 7. WATCHDOG DE FACTURACIÓN DUAL (ÓRDENES PARA EL SAT)
         console.log("🧾 BRIDGE: Generando órdenes de facturación encoladas...");
         await addDoc(collection(db, "ordenes_facturacion"), {
             servicio_id: serviceId,
@@ -102,16 +118,17 @@ export async function finalizarServicioBlindado(serviceId, tecnicoId, b64_1, b64
             // FACTURA 1: Técnico al Cliente (100% del costo)
             factura_cliente: {
                 monto: costoTotal,
-                // Si el cliente no dejó datos, se va a Público General por defecto para cuadrar con el SAT
+                // Si el cliente no dejó datos, se va a Público General por defecto
                 receptor: data.datos_facturacion || { rfc: "XAXX010101000", razon_social: "PUBLICO GENERAL", cp: "77500", regimen: "616" },
                 estado: "pendiente_timbrado",
                 requerida_por_cliente: data.factura_requerida === true
             },
-            // FACTURA 2: Gestia al Técnico (Comisión del 32%)
+            // FACTURA 2: Gestia al Técnico (Comisión Variable Dinámica)
             factura_comision: {
                 monto: montoComisionFixGo,
-                receptor_tecnico_id: tecnicoId, // El backend jalará el RFC del técnico de su perfil
-                estado: "pendiente_timbrado"
+                receptor_tecnico_id: tecnicoId, 
+                estado: "pendiente_timbrado",
+                tasa_aplicada: TASA_COMISION_DINAMICA
             }
         });
 
@@ -126,7 +143,6 @@ export async function finalizarServicioBlindado(serviceId, tecnicoId, b64_1, b64
 /**
  * MOTOR DE RETIROS SEGUROS (ATÓMICO)
  * Garantiza que si se marca como pagado, se descuenta el dinero SIEMPRE.
- * Este tramo reemplaza la lógica manual del admin para evitar errores de saldo.
  */
 export async function ejecutarRetiroSeguro(retiroId, tecnicoId, monto) {
     console.log("🛡️ BRIDGE: Iniciando protocolo de retiro seguro para:", tecnicoId);
@@ -152,7 +168,6 @@ export async function ejecutarRetiroSeguro(retiroId, tecnicoId, monto) {
         });
 
         // 3. GENERACIÓN DE TRANSACCIÓN NEGATIVA (DESCUENTO DE WALLET)
-        // El movimiento maestro: usamos -Math.abs para asegurar que siempre sea resta.
         await addDoc(transaccionRef, {
             servicio_id: "RET-" + retiroId.substring(0, 5).toUpperCase(),
             tecnico_id: tecnicoId,
@@ -180,24 +195,21 @@ export async function procesarPagoStripe(serviceId, payloadTicket) {
     console.log("💳 BRIDGE: Iniciando conexión con Stripe para el ticket (Garantía):", serviceId);
 
     try {
-        // Hacemos la petición a tu servidor en Google Cloud Run
         const response = await fetch("https://stripewebhook-72a7uqnggq-uc.a.run.app/create-checkout-session", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                // 🔥 ESTA ES LA CLAVE: Le mandamos el ID del ticket a tu servidor
                 serviceId: serviceId, 
                 descripcion: payloadTicket.descripcion || "Servicio GestiaPremium",
                 monto: 550, // Retención de garantía
-                tipo_pago: "garantia_inicial" // Identificador para tu webhook backend
+                tipo_pago: "garantia_inicial" 
             })
         });
 
         const session = await response.json();
 
-        // Redirigimos al cliente a la pasarela de Stripe
         if (session.url) {
             window.location.href = session.url;
         } else {
@@ -223,8 +235,8 @@ export async function procesarPagoSaldoStripe(serviceId, saldoPendiente) {
             body: JSON.stringify({
                 serviceId: serviceId, 
                 descripcion: "Liquidación de Saldo - Servicio GestiaPremium",
-                monto: saldoPendiente, // Cobramos la diferencia exacta
-                tipo_pago: "liquidacion_saldo" // Identificador clave para el webhook
+                monto: saldoPendiente, 
+                tipo_pago: "liquidacion_saldo" 
             })
         });
 
@@ -239,12 +251,11 @@ export async function procesarPagoSaldoStripe(serviceId, saldoPendiente) {
     } catch (error) {
         console.error("🚨 ERROR EN PASARELA STRIPE (SALDO):", error);
         alert("Error al conectar con la pasarela segura para liquidar el saldo. Intenta de nuevo.");
-        // Revertimos el estado para que el cliente pueda volver a intentar pagar
         await updateDoc(doc(db, "services", serviceId), { estado: "cotizando" });
     }
 }
 
-// Exponemos las funciones al entorno global (window) para que panel-cliente.js las encuentre
+// Exponemos las funciones al entorno global
 if (typeof window !== "undefined") {
     window.procesarPagoStripe = procesarPagoStripe;
     window.procesarPagoSaldoStripe = procesarPagoSaldoStripe;
