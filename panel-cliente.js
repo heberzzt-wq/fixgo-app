@@ -34,6 +34,18 @@ import { escaparHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotifica
 export async function iniciarPanelCliente(user) {
     console.log(" 📱 Iniciando Panel de Cliente (Modo Bootstrapping / Efectivo / 4K Storage)...");
 
+    // 🔥 INYECCIÓN: Desbloqueo de Audio en la primera interacción del usuario
+    document.body.addEventListener('click', function unlockAudio() {
+        const audio = document.getElementById('audioAlerta');
+        if (audio && audio.paused) {
+            audio.play().then(() => {
+                audio.pause();
+                audio.currentTime = 0;
+                document.body.removeEventListener('click', unlockAudio);
+            }).catch(e => console.warn("Esperando interacción para audio..."));
+        }
+    }, { once: true });
+
     const el = {
         form: document.getElementById("nuevaSolicitudForm"),
         lista: document.getElementById("solicitudesCliente"),
@@ -186,8 +198,9 @@ export async function iniciarPanelCliente(user) {
                     cp: el.facCp?.value,
                     regimen: el.facRegimen?.value
                 };
-                if (!datosFacturacion.rfc || !datosFacturacion.razon_social) {
-                    alert("⚠️ Si requieres factura, por favor completa RFC y Razón Social.");
+                // 🔥 INYECCIÓN: Validación más estricta de CFDI
+                if (!datosFacturacion.rfc || !datosFacturacion.razon_social || !datosFacturacion.cp || !datosFacturacion.regimen) {
+                    alert("⚠️ Si requieres factura, es obligatorio llenar todos los campos (RFC, Razón Social, CP y Régimen).");
                     return;
                 }
             }
@@ -227,11 +240,10 @@ export async function iniciarPanelCliente(user) {
                 const esEfectivoAutorizado = user.efectivo_autorizado === true;
                 let metodoSeleccionado = "stripe"; // Tarjeta por defecto
 
-                if (esEfectivoAutorizado) {
-                    const quiereEfectivo = confirm("⭐ ERES CLIENTE VIP ⭐\n\nTienes autorización para pagar en EFECTIVO directo al técnico.\n\n- Toca [Aceptar] para solicitar con pago en EFECTIVO.\n- Toca [Cancelar] para retener $550 con TARJETA.");
-                    if (quiereEfectivo) {
-                        metodoSeleccionado = "efectivo";
-                    }
+                // Leemos del radio button del DOM (más seguro que un confirm)
+                const radioEfectivo = document.querySelector('input[name="metodoPago"][value="efectivo"]');
+                if (esEfectivoAutorizado && radioEfectivo && radioEfectivo.checked) {
+                    metodoSeleccionado = "efectivo";
                 }
 
                 try {
@@ -404,7 +416,6 @@ export async function iniciarPanelCliente(user) {
                     htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${s.costo_final}</p>`;
                 }
 
-                // 🔥 INYECCIÓN: RENDERIZADO VISUAL DEL REPORTE DE DIAGNÓSTICO
                 const reporteDiagnosticoHTML = s.diagnostico ? `
                 <div class="bg-black/50 border border-blue-900/50 p-3 rounded-lg mb-3 shadow-inner">
                     <p class="text-blue-400 text-[10px] font-bold uppercase tracking-widest mb-1"><i class="fas fa-clipboard-check"></i> Reporte de Diagnóstico Técnico:</p>
@@ -453,16 +464,27 @@ export async function iniciarPanelCliente(user) {
                 const f_d1 = s.evidencia?.despues1 || s.evidencia?.despues;
                 const f_d2 = s.evidencia?.despues2;
 
+                // 🔥 INYECCIÓN: Mostrar desglose en el ticket final
+                let subtotalHtml = "";
+                if (s.desglose) {
+                    subtotalHtml = `
+                    <div class="text-[10px] text-gray-400 font-mono mb-2 space-y-1">
+                        <div class="flex justify-between"><span>Subtotal:</span> <span>$${s.desglose.subtotal}</span></div>
+                        <div class="flex justify-between"><span>IVA (16%):</span> <span>$${s.desglose.iva}</span></div>
+                    </div>`;
+                }
+
                 contenido = `
                 <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-xl mt-2">
                     <div class="flex justify-between items-center mb-3">
                         <span class="text-emerald-500 font-black text-xs uppercase tracking-widest">TICKET FINAL</span>
                         <span class="bg-emerald-500 text-black text-[9px] font-bold px-2 py-0.5 rounded">FINALIZADO</span>
                     </div>
-                    <div class="space-y-2 mb-4">
-                        <div class="flex justify-between text-lg text-white font-black">
+                    <div class="mb-4 bg-black/40 p-3 rounded-lg border border-white/5">
+                        ${subtotalHtml}
+                        <div class="flex justify-between text-lg text-emerald-400 font-black border-t border-white/10 pt-2 mt-1">
                             <span>TOTAL PAGADO:</span>
-                            <span>$${s.costo_final}</span>
+                            <span>$${s.costo_final.toFixed(2)}</span>
                         </div>
                     </div>
                     <p class="text-[9px] text-gray-500 mb-2 font-bold uppercase">EVIDENCIA FOTOGRÁFICA (Cloud):</p>
@@ -548,7 +570,7 @@ export async function iniciarPanelCliente(user) {
         try {
             await updateDoc(doc(db, "services", id), { estado: "procesando_saldo" });
             
-            // Hook para fixgo-bridge.js (debes programar esta función en tu bridge o usar la genérica)
+            // Hook para fixgo-bridge.js
             if (window.procesarPagoSaldoStripe) {
                 window.procesarPagoSaldoStripe(id, saldo);
             } else {
