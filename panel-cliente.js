@@ -5,12 +5,13 @@
  * Archivo: panel-cliente.js
  * Descripción: Catálogo dinámico, cotizador interactivo, anti-spam y PDFs de usuario.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
- * INYECCIÓN: Feature Flags de Pago y Split Billing (PDF emitido por Técnico).
+ * INYECCIÓN: Botón de Emergencia (+50%) y Subida de Foto Inicial a Cloud.
  * ======================================================================================
  */
 
 import {
     db,
+    storage, // Import vital para la foto
     doc,
     updateDoc,
     collection,
@@ -23,17 +24,18 @@ import {
     getDoc 
 } from "./firebase.js";
 
-// Funciones específicas de Firestore importadas desde el CDN
+// Funciones específicas de Firestore y Storage importadas desde el CDN
 import { runTransaction, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
 // Sistema Nervioso Compartido
 import { escaparHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotificacionPush } from "./app-utils.js";
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.17.0
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.1
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
-    console.log(" 📱 Iniciando Panel de Cliente (Modo Bootstrapping / Efectivo / 4K Storage)...");
+    console.log(" 📱 Iniciando Panel de Cliente (Modo Urgencias 1.5x / Foto Inicial)...");
 
     // 🔥 INYECCIÓN: Desbloqueo de Audio en la primera interacción del usuario
     document.body.addEventListener('click', function unlockAudio() {
@@ -62,7 +64,10 @@ export async function iniciarPanelCliente(user) {
         facRfc: document.getElementById("fac_rfc"),
         facRazon: document.getElementById("fac_razon"),
         facCp: document.getElementById("fac_cp"),
-        facRegimen: document.getElementById("fac_regimen")
+        facRegimen: document.getElementById("fac_regimen"),
+        // Nuevos Elementos
+        inputFoto: document.getElementById("fotoProblemaCliente"),
+        toggleUrgencia: document.getElementById("toggleUrgencia")
     };
 
     // ----------------------------------------------------------------------------------
@@ -81,22 +86,20 @@ export async function iniciarPanelCliente(user) {
             if(el.stripeCard) el.stripeCard.classList.add("hidden");
         }
 
-        // Control de Visibilidad EFECTIVO (Sobrescribe regla VIP local si el global está encendido)
+        // Control de Visibilidad EFECTIVO
         if (configPagos.efectivo_activo || user.efectivo_autorizado) {
             if(el.efectivoCard) el.efectivoCard.classList.remove("hidden");
         } else {
             if(el.efectivoCard) el.efectivoCard.classList.add("hidden");
         }
 
-        // Lógica de Auto-Selección y Fuerza Bruta UI
+        // Lógica de Auto-Selección
         if (!configPagos.stripe_activo && (configPagos.efectivo_activo || user.efectivo_autorizado)) {
-            // Stripe apagado, forzar efectivo
             if(radioEfectivo) radioEfectivo.checked = true;
             document.getElementById('btnSubmitText').innerText = 'SOLICITAR AHORA (PAGO EN DOMICILIO)';
             document.getElementById('btnSubmitIcon').className = 'fas fa-hand-holding-usd';
             document.getElementById('btnSubmitApp').className = 'w-full bg-emerald-500 text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
         } else if (configPagos.stripe_activo && (!radioEfectivo || !radioEfectivo.checked)) {
-            // Stripe encendido y efectivo no pre-seleccionado manualmente
             if(radioStripe) radioStripe.checked = true;
             document.getElementById('btnSubmitText').innerText = 'PROCEDER AL PAGO SEGURO';
             document.getElementById('btnSubmitIcon').className = 'fas fa-lock';
@@ -208,7 +211,7 @@ export async function iniciarPanelCliente(user) {
     cargarServiciosCliente();
 
     // ----------------------------------------------------------------------------------
-    // 3.2 ENVÍO DE SOLICITUD (SHARK MODE ANTI-SPAM & RUTEO DUAL STRIPE/EFECTIVO)
+    // 3.2 ENVÍO DE SOLICITUD (SHARK MODE ANTI-SPAM & RUTEO DUAL & URGENCIA)
     // ----------------------------------------------------------------------------------
     let lastSubmitTime = 0; 
 
@@ -226,6 +229,11 @@ export async function iniciarPanelCliente(user) {
             const dir = el.form.querySelector('[name="direccion"]').value;
             const desc = el.form.querySelector('[name="descripcion"]').value;
             
+            // 🔥 LEER BANDERA DE EMERGENCIA
+            const isUrgencia = el.toggleUrgencia ? el.toggleUrgencia.checked : false;
+            // 🔥 LEER ARCHIVO DE FOTO
+            const fotoFile = el.inputFoto ? el.inputFoto.files[0] : null;
+
             if (!cat) { alert(" ⚠ Por favor selecciona un servicio habilitado de la lista."); return; }
             
             let requiereFactura = false;
@@ -245,33 +253,33 @@ export async function iniciarPanelCliente(user) {
                 }
             }
 
-            const btn = el.form.querySelector("button");
+            const btn = el.form.querySelector("button[type='submit']");
             const textoOriginal = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO CONEXIÓN...`;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO SOLICITUD...`;
             
             setTimeout(() => {
-                btn.innerHTML = `<i class="fas fa-satellite-dish"></i> OBTENIENDO UBICACIÓN SATELITAL...`;
+                btn.innerHTML = `<i class="fas fa-satellite-dish"></i> OBTENIENDO GPS...`;
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
                         async (pos) => {
                             await enviarSolicitudFinal(cat, dir, desc, {
                                 lat: pos.coords.latitude,
                                 lng: pos.coords.longitude
-                            }, requiereFactura, datosFacturacion);
+                            }, requiereFactura, datosFacturacion, isUrgencia, fotoFile);
                         },
                         async (err) => {
                             console.warn("GPS Cliente no disponible:", err);
-                            await enviarSolicitudFinal(cat, dir, desc, null, requiereFactura, datosFacturacion);
+                            await enviarSolicitudFinal(cat, dir, desc, null, requiereFactura, datosFacturacion, isUrgencia, fotoFile);
                         },
                         { timeout: 15000, maximumAge: 10000, enableHighAccuracy: true }
                     );
                 } else {
-                    enviarSolicitudFinal(cat, dir, desc, null, requiereFactura, datosFacturacion);
+                    enviarSolicitudFinal(cat, dir, desc, null, requiereFactura, datosFacturacion, isUrgencia, fotoFile);
                 }
             }, 500); 
             
-            async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords, reqFac, datosFac) {
+            async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords, reqFac, datosFac, flagUrgencia, archivoFoto) {
                 const partes = categoriaFull.split('_');
                 const vertical = partes[0].toUpperCase(); 
                 const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
@@ -281,6 +289,21 @@ export async function iniciarPanelCliente(user) {
                 if (radioEfectivo && radioEfectivo.checked) {
                     metodoSeleccionado = "efectivo";
                 }
+
+                // 🔥 SUBIR FOTO INICIAL A CLOUD SI EXISTE 🔥
+                let urlFotoDescargada = null;
+                if (archivoFoto && storage) {
+                    btn.innerHTML = `<i class="fas fa-cloud-upload-alt animate-bounce"></i> SUBIENDO FOTO A LA NUBE...`;
+                    try {
+                        const storageRef = ref(storage, `solicitudes_iniciales/${user.uid}_${Date.now()}.jpg`);
+                        await uploadBytes(storageRef, archivoFoto);
+                        urlFotoDescargada = await getDownloadURL(storageRef);
+                    } catch (e) {
+                        console.error("No se pudo subir la foto inicial:", e);
+                    }
+                }
+
+                btn.innerHTML = `<i class="fas fa-satellite-dish"></i> ENVIANDO A CENTRAL...`;
 
                 try {
                     const payloadTicket = {
@@ -301,7 +324,10 @@ export async function iniciarPanelCliente(user) {
                         coords: coords,
                         factura_requerida: reqFac,
                         datos_facturacion: datosFac,
-                        factura_enviada: false
+                        factura_enviada: false,
+                        // INYECCIÓN DE NUEVOS CAMPOS:
+                        urgencia: flagUrgencia,
+                        foto_problema: urlFotoDescargada
                     };
 
                     const docRef = await addDoc(collection(db, "services"), payloadTicket);
@@ -312,6 +338,7 @@ export async function iniciarPanelCliente(user) {
                         el.toggleFactura.checked = false;
                         document.getElementById('datosFacturacion')?.classList.add('hidden');
                     }
+                    if(el.toggleUrgencia) el.toggleUrgencia.checked = false;
                     
                     const formContainer = document.getElementById("modalSolicitud");
                     if(formContainer) formContainer.classList.add("hidden");
@@ -323,14 +350,18 @@ export async function iniciarPanelCliente(user) {
                     });
 
                     if (metodoSeleccionado === "stripe") {
-                        alert("🔒 SEGURIDAD GESTIAPREMIUM:\n\nSe realizará una RETENCIÓN DE GARANTÍA por $550 MXN en tu tarjeta.\n\nEste monto NO es el costo final, es solo para asegurar la visita del técnico. Al finalizar, este saldo se aplicará a tu cuenta total.");
+                        alert("🔒 SEGURIDAD GESTIAPREMIUM:\n\nSe realizará una RETENCIÓN DE GARANTÍA por $550 MXN en tu tarjeta.\n\nEste monto NO es el costo final, es solo para asegurar la visita del técnico.");
                         if (window.procesarPagoStripe) {
                             window.procesarPagoStripe(docRef.id, payloadTicket);
                         } else {
-                            console.warn("Falta conectar la pasarela. Por favor, asegúrate de que fixgo-bridge.js lea este ticket ID:", docRef.id);
+                            console.warn("Falta conectar la pasarela. Ticket ID:", docRef.id);
                         }
                     } else {
-                        alert(" ✅ ¡Solicitud Confirmada!\n\nEl pago se realizará en EFECTIVO directamente al técnico.\nNuestro sistema está buscando a la unidad más cercana...");
+                        if(flagUrgencia) {
+                            alert(" 🚨 ¡SOLICITUD DE EMERGENCIA RECIBIDA!\n\nNuestras unidades están en camino. Recuerda que la cotización final incluirá la tarifa prioritaria 1.5x.");
+                        } else {
+                            alert(" ✅ ¡Solicitud Confirmada!\n\nEl pago se realizará en EFECTIVO directamente al técnico.\nNuestro sistema está buscando a la unidad más cercana...");
+                        }
                     }
 
                 } catch (error) {
@@ -550,6 +581,16 @@ export async function iniciarPanelCliente(user) {
                 fechaFormat = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             }
 
+            // 🔥 MOSTRAR BADGE DE EMERGENCIA 🔥
+            const badgeUrgencia = s.urgencia ? `<span class="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(220,38,38,0.8)] uppercase ml-2"><i class="fas fa-fire"></i> EMERGENCIA</span>` : '';
+
+            // 🔥 MOSTRAR FOTO INICIAL EN EL HISTORIAL 🔥
+            const imgInicialHTML = s.foto_problema ? `
+            <div class="mt-3 mb-3 p-2 bg-black/50 border border-zinc-800 rounded-xl">
+                <p class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-2"><i class="fas fa-camera"></i> Foto del Problema:</p>
+                <img src="${s.foto_problema}" class="w-full h-32 object-cover rounded-lg border border-zinc-700">
+            </div>` : '';
+
             const card = document.createElement("div");
             card.className = "uber-card rounded-2xl overflow-hidden shadow-lg mb-3";
 
@@ -558,7 +599,7 @@ export async function iniciarPanelCliente(user) {
                 <div class="flex items-center gap-4">
                     <div class="w-3 h-3 ${dotColor} rounded-full shadow-[0_0_8px_currentColor]"></div>
                     <div>
-                        <h4 class="font-black text-white text-sm uppercase tracking-tight">${escaparHTML(s.categoria)} <span class="text-gray-500 font-normal ml-1">| ${escaparHTML(s.sub_servicio || '')}</span></h4>
+                        <h4 class="font-black text-white text-sm uppercase tracking-tight">${escaparHTML(s.categoria)} <span class="text-gray-500 font-normal ml-1">| ${escaparHTML(s.sub_servicio || '')}</span> ${badgeUrgencia}</h4>
                         <div class="flex items-center gap-2 mt-1">
                             ${headerStatus}
                             <span class="text-[9px] text-gray-500">• ${fechaFormat}</span>
@@ -572,6 +613,7 @@ export async function iniciarPanelCliente(user) {
                 <div class="p-4 border-t border-zinc-800/50">
                     <p class="text-xs text-gray-400 truncate mb-3"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${escaparHTML(s.direccion)}</p>
                     
+                    ${imgInicialHTML}
                     ${contenido}
 
                     ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `
@@ -697,7 +739,6 @@ export async function iniciarPanelCliente(user) {
             
             const data = { ...docSnap.data(), id: serviceId };
 
-            // 1. Extraer los datos fiscales del Técnico (Emisor)
             let tecnicoNombre = "ESPECIALISTA INDEPENDIENTE";
             let tecnicoLogo = null;
             let tecnicoRFC = "XAXX010101000";
@@ -723,7 +764,6 @@ export async function iniciarPanelCliente(user) {
             docPdf.rect(0, 0, 215, 40, 'F');
             docPdf.setTextColor(255, 255, 255);
             
-            // 2. Renderizar Logo y Nombre del Técnico
             if (tecnicoLogo) {
                 try {
                     const logoType = tecnicoLogo.includes("image/png") ? "PNG" : "JPEG";
@@ -882,7 +922,7 @@ export async function iniciarPanelCliente(user) {
                 docPdf.line(20, y + 26, 80, y + 26); 
             }
             
-            // 3. Leyenda de Intermediación (Protección Fiscal FixGo)
+            // 3. Leyenda de Intermediación
             docPdf.setFontSize(8);
             docPdf.setTextColor(150, 150, 150);
             const notaLegal = "Este documento es un comprobante de servicio emitido directamente por el especialista independiente que ejecutó la obra. Plataforma de intermediación tecnológica: GestiaPremium.";
