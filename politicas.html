@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Políticas de Servicio | GestiaPremium</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #000000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    </style>
+</head>
+<body class="text-gray-300 antialiased leading-relaxed pb-12">
+
+    <header class="bg-zinc-900 border-b border-zinc-800 p-6 sticky top-0 z-50">
+        <div class="max-w-3xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-balance-scale text-emerald-500 text-2xl"></i>
+                <div>
+                    <h1 class="font-black text-white text-lg tracking-tight uppercase">Políticas de Servicio</h1>
+                    <p class="text-[10px] text-gray-500 font-bold tracking-widest uppercase">Términos y Guía del Usuario</p>
+                </div>
+            </div>
+            <button onclick="window.close()" class="text-gray-500 hover:text-white transition-colors">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto p-6 space-y-8 mt-4">
+        <p class="text-sm font-medium text-gray-400">Bienvenido a la red de mantenimiento más segura de Cancún. Al utilizar nuestra plataforma, usted acepta los siguientes términos operativos:</p>
+
+        <section>
+            <h2 class="text-xl font-black text-white mb-4 flex items-center gap-2 border-b border-zinc-800 pb-2"><i class="fas fa-clipboard-check text-blue-500 text-sm"></i> 1. SOLICITUD Y DIAGNÓSTICO</h2>
+            <ul class="space-y-4 text-sm text-gray-400">
+                <li><strong class="text-gray-200">Desplazamiento Inmediato:</strong> Rastreamos y asignamos al especialista certificado más cercano a su ubicación.</li>
+                <li><strong class="text-gray-200">El Costo de Visita ($550.00 MXN):</strong> El especialista evaluará el problema y presentará un presupuesto exacto. Si lo <strong>APRUEBA</strong>, el costo de visita se absorbe en el precio final. Si lo <strong>RECHAZA</strong>, deberá cubrir únicamente el cargo por concepto de "Visita y Diagnóstico" ($550.00 MXN).</li>
+                <li><strong class="text-gray-200 text-red-400"><i class="fas fa-fire"></i> Tarifa de Emergencia:</strong> Si usted marca su solicitud como Emergencia, se aplicará un recargo automático del 50% (1.5x) sobre la tarifa base de reparación.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2 class="text-xl font-black text-white mb-4 flex items-center gap-2 border-b border-zinc-800 pb-2"><i class="fas fa-wallet text-emerald-500 text-sm"></i> 2. MÉTODOS DE PAGO</h2>
+            <ul class="list-disc list-inside space-y-3 text-sm text-gray-400 ml-2">
+                <li><strong class="text-gray-200">Presupuestos Fijos:</strong> El especialista no puede cobrar un monto distinto al aprobado en su pantalla.</li>
+                <li><strong class="text-gray-200">Pago en Efectivo:</strong> Se realiza de forma directa al especialista únicamente al finalizar la reparación.</li>
+                <li><strong class="text-gray-200">Pago Seguro (Stripe):</strong> Se realiza una retención temporal ($550) al solicitar. El cobro final se procesa automáticamente al terminar el trabajo.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2 class="text-xl font-black text-white mb-4 flex items-center gap-2 border-b border-zinc-800 pb-2"><i class="fas fa-certificate text-yellow-500 text-sm"></i> 3. GARANTÍAS Y FACTURACIÓN</h2>
+            <ul class="list-disc list-inside space-y-3 text-sm text-gray-400 ml-2">
+                <li><strong class="text-gray-200">Facturación:</strong> GestiaPremium es una plataforma de intermediación. El comprobante digital (o Factura CFDI) es emitido por el Socio Especialista que ejecutó la obra.</li>
+                <li><strong class="text-gray-200">Garantía por Escrito:</strong> Todo trabajo pagado a través de nuestra plataforma cuenta con garantía mínima de <strong>6 meses</strong> sobre la mano de obra.</li>
+                <li><strong class="text-gray-200">Reclamo:</strong> Repórtelo a través de la plataforma y el técnico acudirá sin costo de visita.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2 class="text-xl font-black text-white mb-4 flex items-center gap-2 border-b border-zinc-800 pb-2"><i class="fas fa-lock text-red-500 text-sm"></i> 4. SEGURIDAD Y CERO TOLERANCIA</h2>
+            <ul class="list-disc list-inside space-y-3 text-sm text-gray-400 ml-2">
+                <li><strong class="text-gray-200">Evidencia Fotográfica:</strong> Todo servicio exige fotos del "Antes y Después" guardadas en la nube y su firma digital de conformidad.</li>
+                <li><strong class="text-gray-200">Política Anti-Abuso:</strong> Cero tolerancia al fraude, maltrato o negativa de pago. Incurrir en esto resultará en el veto permanente del domicilio en nuestra base de datos central.</li>
+            </ul>
+        </section>
+        
+        <div class="text-center mt-10">
+            <img src="assets/gestiapremium-icon.svg" class="w-8 h-8 mx-auto opacity-50 mb-2">
+            <p class="text-xs text-zinc-600 font-bold uppercase tracking-widest">© 2026 GestiaPremium</p>
+        </div>
+    </main>
+</body>
+</html>
