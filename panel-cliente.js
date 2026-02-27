@@ -439,14 +439,14 @@ export async function iniciarPanelCliente(user) {
                             <tfoot>
                                 <tr class="quote-total-row" style="background: #1a1a1a; border-top: 2px solid #333;">
                                     <td colspan="3" class="text-right font-bold text-gray-400" style="padding: 4px;">TOTAL:</td>
-                                    <td class="quote-num text-emerald-500 font-black text-sm" style="padding: 4px;">$${s.costo_final.toFixed(2)}</td>
+                                    <td class="quote-num text-emerald-500 font-black text-sm" style="padding: 4px;">$${(s.costo_final || 0).toFixed(2)}</td>
                                 </tr>
                             </tfoot>
                         </table>
                     </div>
                     `;
                 } else {
-                    htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${s.costo_final}</p>`;
+                    htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${s.costo_final || 0}</p>`;
                 }
 
                 const reporteDiagnosticoHTML = s.diagnostico ? `
@@ -460,7 +460,7 @@ export async function iniciarPanelCliente(user) {
                     ? `<p class="legal-note mt-2 text-blue-400 font-bold"><i class="fas fa-credit-card"></i> El saldo final será cobrado automáticamente a tu tarjeta vía STRIPE.</p>`
                     : `<p class="legal-note mt-2 text-emerald-500 font-bold"><i class="fas fa-hand-holding-usd"></i> Pago en EFECTIVO directo al técnico al finalizar.</p>`;
 
-                let saldoPendiente = s.costo_final - (s.retencion_inicial || 0);
+                let saldoPendiente = (s.costo_final || 0) - (s.retencion_inicial || 0);
                 if (saldoPendiente < 0) saldoPendiente = 0;
 
                 let btnAprobarHTML = "";
@@ -497,6 +497,7 @@ export async function iniciarPanelCliente(user) {
                 const f_d1 = s.evidencia?.despues1 || s.evidencia?.despues;
                 const f_d2 = s.evidencia?.despues2;
 
+                // 🔥 INYECCIÓN: Mostrar desglose en el ticket final
                 let subtotalHtml = "";
                 if (s.desglose) {
                     subtotalHtml = `
@@ -516,7 +517,7 @@ export async function iniciarPanelCliente(user) {
                         ${subtotalHtml}
                         <div class="flex justify-between text-lg text-emerald-400 font-black border-t border-white/10 pt-2 mt-1">
                             <span>TOTAL PAGADO:</span>
-                            <span>$${s.costo_final.toFixed(2)}</span>
+                            <span>$${(s.costo_final || 0).toFixed(2)}</span>
                         </div>
                     </div>
                     <p class="text-[9px] text-gray-500 mb-2 font-bold uppercase">EVIDENCIA FOTOGRÁFICA (Cloud):</p>
@@ -587,6 +588,7 @@ export async function iniciarPanelCliente(user) {
         });
     });
 
+    // 🔥 INYECCIONES GLOBALES PARA EL CONTROL DE TICKETS Y SALDOS
     window.cancelarTicketFantasma = async (id) => {
         if(!confirm("¿Deseas cancelar esta solicitud que quedó pendiente de pago?")) return;
         try {
@@ -601,6 +603,7 @@ export async function iniciarPanelCliente(user) {
         try {
             await updateDoc(doc(db, "services", id), { estado: "procesando_saldo" });
             
+            // Hook para fixgo-bridge.js
             if (window.procesarPagoSaldoStripe) {
                 window.procesarPagoSaldoStripe(id, saldo);
             } else {
@@ -664,7 +667,7 @@ export async function iniciarPanelCliente(user) {
 
                         transaction.update(serviceRef, {
                             estado: "cancelado",
-                            costo_final: 550, 
+                            costo_final: 550, // <-- CANDADO DE GARANTÍA MILITAR
                             cancelado_razon: "Cliente rechazó cotización"
                         });
                     });
@@ -805,7 +808,7 @@ export async function iniciarPanelCliente(user) {
             docPdf.setFont("helvetica", "bold");
             docPdf.setFontSize(16);
             docPdf.setTextColor(16, 185, 129); 
-            docPdf.text(`$${data.costo_final} MXN`, 125, y + 35);
+            docPdf.text(`$${data.costo_final || 0} MXN`, 125, y + 35);
 
             y += 60;
             docPdf.setTextColor(0, 0, 0);
