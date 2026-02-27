@@ -17,6 +17,7 @@ import {
     onSnapshot,
     doc,
     updateDoc,
+    setDoc, // 🔥 CORRECCIÓN VITAL: Importado para poder crear el documento de Configuración
     serverTimestamp,
     addDoc,
     orderBy,
