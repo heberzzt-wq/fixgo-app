@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - MÓDULO DE CLIENTE (CEREBRO COMERCIAL)
  * ======================================================================================
  * Archivo: panel-cliente.js
- * Descripción: Catálogo dinámico, cotizador interactivo, anti-spam y PDFs de usuario.
+ * Descripción: Catálogo dinámico, cotizador, anti-spam y PDFs (Split Billing: 100% Técnico).
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
  * ======================================================================================
  */
@@ -29,10 +29,10 @@ import { runTransaction, limit } from "https://www.gstatic.com/firebasejs/10.8.0
 import { escaparHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotificacionPush } from "./app-utils.js";
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.17.0
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.0
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
-    console.log(" 📱 Iniciando Panel de Cliente (Modo Bootstrapping / Efectivo / 4K Storage)...");
+    console.log(" 📱 Iniciando Panel de Cliente (Modo Feature Flags & Split Billing PDF)...");
 
     // 🔥 INYECCIÓN: Desbloqueo de Audio en la primera interacción del usuario
     document.body.addEventListener('click', function unlockAudio() {
@@ -55,7 +55,7 @@ export async function iniciarPanelCliente(user) {
         containerFix: document.getElementById("content_fix"),
         containerTech: document.getElementById("content_tech"),
         containerMaint: document.getElementById("content_maint"),
-        stripeCard: document.getElementById("contenedorOpcionStripe"), // ID Actualizado
+        stripeCard: document.getElementById("contenedorOpcionStripe"), 
         efectivoCard: document.getElementById("contenedorOpcionEfectivo"),
         toggleFactura: document.getElementById("toggleFactura"),
         facRfc: document.getElementById("fac_rfc"),
@@ -80,7 +80,7 @@ export async function iniciarPanelCliente(user) {
             if(el.stripeCard) el.stripeCard.classList.add("hidden");
         }
 
-        // Control de Visibilidad EFECTIVO (Sobrescribe regla VIP local si el global está encendido)
+        // Control de Visibilidad EFECTIVO 
         if (configPagos.efectivo_activo || user.efectivo_autorizado) {
             if(el.efectivoCard) el.efectivoCard.classList.remove("hidden");
         } else {
@@ -89,13 +89,11 @@ export async function iniciarPanelCliente(user) {
 
         // Lógica de Auto-Selección y Fuerza Bruta UI
         if (!configPagos.stripe_activo && (configPagos.efectivo_activo || user.efectivo_autorizado)) {
-            // Stripe apagado, forzar efectivo
             if(radioEfectivo) radioEfectivo.checked = true;
             document.getElementById('btnSubmitText').innerText = 'SOLICITAR AHORA (PAGO EN DOMICILIO)';
             document.getElementById('btnSubmitIcon').className = 'fas fa-hand-holding-usd';
             document.getElementById('btnSubmitApp').className = 'w-full bg-emerald-500 text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
         } else if (configPagos.stripe_activo && (!radioEfectivo || !radioEfectivo.checked)) {
-            // Stripe encendido y efectivo no pre-seleccionado manualmente
             if(radioStripe) radioStripe.checked = true;
             document.getElementById('btnSubmitText').innerText = 'PROCEDER AL PAGO SEGURO';
             document.getElementById('btnSubmitIcon').className = 'fas fa-lock';
@@ -275,7 +273,6 @@ export async function iniciarPanelCliente(user) {
                 const vertical = partes[0].toUpperCase(); 
                 const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
 
-                // 🔥 LÓGICA DE RUTEO DE PAGO LEYENDO DEL DOM (Controlado por Switch)
                 let metodoSeleccionado = "stripe"; 
                 const radioEfectivo = document.querySelector('input[name="metodoPago"][value="efectivo"]');
                 if (radioEfectivo && radioEfectivo.checked) {
@@ -292,7 +289,7 @@ export async function iniciarPanelCliente(user) {
                         categoria_id: categoriaFull,
                         direccion: direccion,
                         descripcion: descripcion,
-                        estado: metodoSeleccionado === "efectivo" ? "pendiente" : "iniciado_stripe", // <-- CLAVE ANTI-DUPLICADO
+                        estado: metodoSeleccionado === "efectivo" ? "pendiente" : "iniciado_stripe",
                         metodo_pago: metodoSeleccionado,
                         zona: "Cancún",
                         created_at: serverTimestamp(),
@@ -327,10 +324,9 @@ export async function iniciarPanelCliente(user) {
                         if (window.procesarPagoStripe) {
                             window.procesarPagoStripe(docRef.id, payloadTicket);
                         } else {
-                            console.warn("Falta conectar la pasarela. Por favor, asegúrate de que fixgo-bridge.js lea este ticket ID:", docRef.id);
+                            console.warn("Falta conectar la pasarela.");
                         }
                     } else {
-                        // Modificado para no decir VIP si el switch de Efectivo está general
                         alert(" ✅ ¡Solicitud Confirmada!\n\nEl pago se realizará en EFECTIVO directamente al técnico.\nNuestro sistema está buscando a la unidad más cercana...");
                     }
 
@@ -497,7 +493,6 @@ export async function iniciarPanelCliente(user) {
                 const f_d1 = s.evidencia?.despues1 || s.evidencia?.despues;
                 const f_d2 = s.evidencia?.despues2;
 
-                // 🔥 INYECCIÓN: Mostrar desglose en el ticket final
                 let subtotalHtml = "";
                 if (s.desglose) {
                     subtotalHtml = `
@@ -528,7 +523,7 @@ export async function iniciarPanelCliente(user) {
                         ${f_d2 ? `<div class="relative h-16"><img src="${f_d2}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
                     </div>
                     <button onclick="window.generarPDF('${id}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2 shadow-lg">
-                        <i class="fas fa-file-download text-red-500"></i> DESCARGAR REPORTE FISCAL
+                        <i class="fas fa-file-download text-emerald-500"></i> DESCARGAR REPORTE / GARANTÍA
                     </button>
                     ${s.factura_requerida ? `<p class="text-[9px] text-center mt-3 text-emerald-400 italic">Factura CFDI solicitada. Te llegará por correo.</p>` : ''}
                 </div>
@@ -588,7 +583,6 @@ export async function iniciarPanelCliente(user) {
         });
     });
 
-    // 🔥 INYECCIONES GLOBALES PARA EL CONTROL DE TICKETS Y SALDOS
     window.cancelarTicketFantasma = async (id) => {
         if(!confirm("¿Deseas cancelar esta solicitud que quedó pendiente de pago?")) return;
         try {
@@ -602,15 +596,8 @@ export async function iniciarPanelCliente(user) {
         alert(`🔒 SEGURIDAD GESTIAPREMIUM:\n\nSerás redirigido a Stripe para cubrir el saldo pendiente de $${saldo.toFixed(2)} MXN.\n\nUna vez procesado el pago, el técnico comenzará a trabajar de inmediato.`);
         try {
             await updateDoc(doc(db, "services", id), { estado: "procesando_saldo" });
-            
-            // Hook para fixgo-bridge.js
             if (window.procesarPagoSaldoStripe) {
                 window.procesarPagoSaldoStripe(id, saldo);
-            } else {
-                console.warn("MODO DEV: Simulando éxito de Stripe (falta programar procesarPagoSaldoStripe en el bridge)");
-                setTimeout(async () => {
-                    await updateDoc(doc(db, "services", id), { estado: "trabajando" });
-                }, 2500);
             }
         } catch (error) {
             console.error("Error iniciando pago de saldo:", error);
@@ -644,7 +631,6 @@ export async function iniciarPanelCliente(user) {
 
     window.responderCotizacion = async (id, aceptado) => {
         const serviceRef = doc(db, "services", id);
-        
         try {
             if (aceptado) {
                 await runTransaction(db, async (transaction) => {
@@ -667,7 +653,7 @@ export async function iniciarPanelCliente(user) {
 
                         transaction.update(serviceRef, {
                             estado: "cancelado",
-                            costo_final: 550, // <-- CANDADO DE GARANTÍA MILITAR
+                            costo_final: 550, 
                             cancelado_razon: "Cliente rechazó cotización"
                         });
                     });
@@ -677,13 +663,14 @@ export async function iniciarPanelCliente(user) {
         } catch (error) {
             console.error("Error en transacción del cliente:", error);
             if(error === "ESTADO_INVALIDO" || error === "ESTADO_FINALIZADO") {
-                alert("⚠️ Error: El estado del servicio ya cambió (fue cancelado o finalizado) y no puede ser modificado.");
+                alert("⚠️ Error: El estado del servicio ya cambió y no puede ser modificado.");
             } else {
                 alert("❌ Error de red al procesar tu respuesta. Intenta de nuevo.");
             }
         }
     };
 
+    // 🔥 INYECCIÓN: SPLIT BILLING (MOTOR PDF DE CLIENTE - EMISIÓN DEL TÉCNICO AL 100%)
     window.generarPDF = async (serviceId) => {
         const btn = document.activeElement;
         const textoOrig = btn.innerText;
@@ -699,47 +686,74 @@ export async function iniciarPanelCliente(user) {
             }
             
             const data = { ...docSnap.data(), id: serviceId };
+
+            // Extraer datos del técnico para que él sea el emisor del recibo
+            let tecnicoNombre = data.tecnico_nombre || "TÉCNICO ASIGNADO";
+            if (data.tecnico_id) {
+                try {
+                    const techSnap = await getDoc(doc(db, "users", data.tecnico_id));
+                    if (techSnap.exists() && techSnap.data().nombre) {
+                        tecnicoNombre = techSnap.data().nombre;
+                    }
+                } catch(e) { console.warn("No se pudo obtener el perfil del técnico para el PDF."); }
+            }
+
             const { jsPDF } = await cargarLibreriaPDF();
             const docPdf = new jsPDF();
             
+            // Estructura Premium del Documento
             docPdf.setFillColor(18, 18, 18);
             docPdf.rect(0, 0, 215, 40, 'F');
 
             docPdf.setTextColor(255, 255, 255);
             docPdf.setFont("helvetica", "bold");
-            docPdf.setFontSize(24);
-            docPdf.text("GESTIAPREMIUM", 20, 22);
+            
+            // Ajuste dinámico de fuente para nombres largos
+            if (tecnicoNombre.length > 22) { docPdf.setFontSize(14); } 
+            else { docPdf.setFontSize(20); }
+            
+            docPdf.text(tecnicoNombre.toUpperCase(), 20, 22);
+
             docPdf.setFont("helvetica", "normal");
             docPdf.setTextColor(16, 185, 129); 
-            docPdf.text("MÉXICO", 85, 22);
+            docPdf.setFontSize(10);
+            docPdf.text("SOCIO OPERADOR / PRESTADOR DE SERVICIO", 20, 30);
+
+            // Marca de agua de la plataforma
+            docPdf.setTextColor(120, 120, 120);
+            docPdf.setFontSize(8);
+            docPdf.setFont("helvetica", "italic");
+            docPdf.text("Tecnología por GestiaPremium", 155, 22);
 
             docPdf.setTextColor(200, 200, 200);
             docPdf.setFontSize(10);
-            docPdf.text("Comprobante de Servicio Digital", 20, 32);
+            docPdf.setFont("helvetica", "normal");
+            docPdf.text("Reporte / Recibo de Servicio Físico", 20, 38);
             
             docPdf.setFontSize(8);
-            docPdf.setTextColor(150, 150, 150);
-            docPdf.text(`RFC EMISOR: FXG260211-H8A`, 20, 45);
-            docPdf.text(`RÉGIMEN FISCAL: 626 - Simplificado de Confianza`, 20, 50);
-            docPdf.text(`LUGAR EXPEDICIÓN: 77500, Cancún, Q.Roo`, 20, 55);
+            docPdf.setTextColor(120, 120, 120);
+            docPdf.text(`EMISOR: ${tecnicoNombre.toUpperCase()}`, 20, 50);
+            docPdf.text(`MÉTODO DE PAGO: ${data.metodo_pago === 'stripe' ? 'TARJETA DE CRÉDITO/DÉBITO' : 'EFECTIVO AL FINALIZAR'}`, 20, 55);
             
-            if(data.folio_fiscal) docPdf.text(`FOLIO FISCAL: ${data.folio_fiscal}`, 150, 45);
-            docPdf.text(`FECHA: ${new Date().toLocaleDateString()}`, 150, 50);
+            if(data.folio_fiscal) docPdf.text(`FOLIO: ${data.folio_fiscal}`, 155, 50);
+            let fechaCierre = new Date().toLocaleDateString();
+            if(data.finalizado_at) fechaCierre = data.finalizado_at.toDate().toLocaleDateString();
+            docPdf.text(`FECHA CIERRE: ${fechaCierre}`, 155, 55);
 
             let y = 70;
             docPdf.setTextColor(0, 0, 0);
             docPdf.setFontSize(12);
             docPdf.setFont("helvetica", "bold");
-            docPdf.text("DETALLES DEL SERVICIO", 20, y);
+            docPdf.text("DETALLES DEL CLIENTE Y UBICACIÓN", 20, y);
 
             y += 10;
             docPdf.setFont("helvetica", "normal");
             docPdf.setFontSize(10);
-            docPdf.text(`Cliente: ${data.cliente_nombre}`, 20, y);
+            docPdf.text(`Cliente Receptor: ${data.cliente_nombre || 'Público en General'}`, 20, y);
             const servicioLabel = `${data.categoria} ${data.sub_servicio ? '- ' + data.sub_servicio : ''}`;
-            docPdf.text(`Categoría: ${servicioLabel}`, 120, y);
+            docPdf.text(`Categoría Asignada: ${servicioLabel}`, 120, y);
             y += 8;
-            docPdf.text(`Ubicación: ${data.direccion}`, 20, y);
+            docPdf.text(`Ubicación de Trabajo: ${data.direccion}`, 20, y);
 
             y += 15;
             docPdf.setDrawColor(200, 200, 200);
@@ -748,7 +762,7 @@ export async function iniciarPanelCliente(user) {
             y += 15;
             docPdf.setFont("helvetica", "bold");
             docPdf.setFontSize(12);
-            docPdf.text("DIAGNÓSTICO TÉCNICO Y COSTOS", 20, y);
+            docPdf.text("CONCEPTOS DE REPARACIÓN (100% DEL COSTO)", 20, y);
 
             y += 10;
             
@@ -757,111 +771,4 @@ export async function iniciarPanelCliente(user) {
                 docPdf.setTextColor(100, 100, 100);
                 docPdf.setFont("helvetica", "bold");
                 
-                docPdf.text("CANT", 20, y);
-                docPdf.text("DESCRIPCIÓN", 45, y); 
-                docPdf.text("P.UNIT", 140, y);
-                docPdf.text("IMPORTE", 170, y);
-                
-                y += 5;
-                docPdf.setDrawColor(50, 50, 50);
-                docPdf.setLineWidth(0.5);
-                docPdf.line(20, y, 190, y);
-                y += 7;
-
-                docPdf.setFont("helvetica", "normal");
-                docPdf.setTextColor(0, 0, 0);
-                
-                data.detalles_cotizacion.forEach(item => {
-                    docPdf.text(`${item.cantidad} ${item.unidad}`, 20, y);
-                    const desc = item.descripcion.substring(0, 50) + (item.descripcion.length > 50 ? '...' : '');
-                    docPdf.text(desc, 45, y);
-                    docPdf.text(`$${item.precio}`, 140, y);
-                    docPdf.text(`$${(item.cantidad * item.precio).toFixed(2)}`, 170, y);
-                    y += 7;
-                });
-                y += 5; 
-            } else {
-                docPdf.setFont("helvetica", "normal");
-                docPdf.setFontSize(10);
-                docPdf.setTextColor(50, 50, 50); 
-                
-                const diagText = data.diagnostico || "(Sin desglose registrado en base de datos)";
-                const splitDiag = docPdf.splitTextToSize(diagText, 170);
-                
-                docPdf.text(splitDiag, 20, y);
-                y += (splitDiag.length * 7) + 5;
-            }
-
-            docPdf.setFillColor(245, 245, 245);
-            docPdf.rect(120, y, 70, 40, 'F'); 
-            
-            docPdf.setTextColor(0, 0, 0);
-            docPdf.setFontSize(10);
-            docPdf.text("IMPORTE TOTAL:", 125, y + 10);
-            
-            if (data.desglose) {
-                docPdf.setFontSize(8);
-                docPdf.text(`Subtotal: $${data.desglose.subtotal}`, 125, y + 18);
-                docPdf.text(`IVA (16%): $${data.desglose.iva}`, 125, y + 23);
-            }
-
-            docPdf.setFont("helvetica", "bold");
-            docPdf.setFontSize(16);
-            docPdf.setTextColor(16, 185, 129); 
-            docPdf.text(`$${data.costo_final || 0} MXN`, 125, y + 35);
-
-            y += 60;
-            docPdf.setTextColor(0, 0, 0);
-            docPdf.setFontSize(12);
-            docPdf.text("EVIDENCIA FOTOGRÁFICA (Cloud)", 20, y);
-            y += 10;
-            
-            const f_a1 = data.evidencia?.antes1 || data.evidencia?.antes;
-            const f_a2 = data.evidencia?.antes2;
-            const f_d1 = data.evidencia?.despues1 || data.evidencia?.despues;
-            const f_d2 = data.evidencia?.despues2;
-
-            btn.innerText = "PROCESANDO FOTOS...";
-
-            const [b64_a1, b64_a2, b64_d1, b64_d2] = await Promise.all([
-                urlABase64(f_a1),
-                urlABase64(f_a2),
-                urlABase64(f_d1),
-                urlABase64(f_d2)
-            ]);
-
-            docPdf.setTextColor(0, 0, 0);
-            if(b64_a1) { docPdf.addImage(b64_a1, "JPEG", 20, y, 40, 30); docPdf.setFontSize(8); docPdf.text("ANTES 1", 20, y + 35); }
-            if(b64_a2) { docPdf.addImage(b64_a2, "JPEG", 65, y, 40, 30); docPdf.setFontSize(8); docPdf.text("ANTES 2", 65, y + 35); }
-            if(b64_d1) { docPdf.addImage(b64_d1, "JPEG", 110, y, 40, 30); docPdf.setFontSize(8); docPdf.text("DESPUÉS 1", 110, y + 35); }
-            if(b64_d2) { docPdf.addImage(b64_d2, "JPEG", 155, y, 40, 30); docPdf.setFontSize(8); docPdf.text("DESPUÉS 2", 155, y + 35); }
-
-            const firmaDigitalCliente = data.evidencia?.firma_cliente;
-            if (firmaDigitalCliente) {
-                y += 45; 
-                docPdf.setFontSize(10);
-                docPdf.setFont("helvetica", "bold");
-                docPdf.setTextColor(0, 0, 0);
-                docPdf.text("FIRMA DE CONFORMIDAD DEL CLIENTE", 20, y);
-                docPdf.addImage(firmaDigitalCliente, "PNG", 20, y + 5, 60, 20); 
-                docPdf.setDrawColor(50, 50, 50);
-                docPdf.setLineWidth(0.5);
-                docPdf.line(20, y + 26, 80, y + 26); 
-            }
-            
-            docPdf.setFontSize(8);
-            docPdf.setTextColor(150, 150, 150);
-            docPdf.text("Este documento es un comprobante digital emitido por la plataforma GestiaPremium.", 60, 280);
-            docPdf.save(`GestiaPremium_Reporte_${data.id}.pdf`);
-            
-            btn.innerText = "DESCARGAR REPORTE OFICIAL";
-            btn.disabled = false;
-
-        } catch (error) {
-            console.error(error);
-            alert("Hubo un error generando el PDF. Asegúrate de tener conexión a internet.");
-            btn.innerText = "ERROR - REINTENTAR";
-            btn.disabled = false;
-        }
-    };
-}
+                docPdf.text("C
