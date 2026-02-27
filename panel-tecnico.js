@@ -5,7 +5,7 @@
  * Archivo: panel-tecnico.js
  * Descripción: Motor de radar, GPS, colisiones, cotizador y evidencia Cloud.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
- * INYECCIÓN: Dashboard Gamificado, Abandono de Misión y Split Billing (PDF Fee).
+ * INYECCIÓN: Dashboard Gamificado, Abandono de Misión, Split Billing y LOGO OFICIAL.
  * ======================================================================================
  */
 
@@ -1440,20 +1440,37 @@ export async function iniciarPanelTecnico(user) {
             docPdf.setFillColor(18, 18, 18);
             docPdf.rect(0, 0, 215, 40, 'F');
 
-            docPdf.setTextColor(255, 255, 255);
-            docPdf.setFont("helvetica", "bold");
-            docPdf.setFontSize(24);
-            docPdf.text("GESTIAPREMIUM", 20, 22);
-            docPdf.setFont("helvetica", "normal");
-            docPdf.setTextColor(59, 130, 246); 
-            docPdf.text("MÉXICO", 85, 22);
+            // 🔥 INYECCIÓN DE LOGO PNG (GESTIAPREMIUM)
+            let logoBase64 = null;
+            try { 
+                logoBase64 = await urlABase64("assets/icono-512.png"); 
+            } catch(e) { console.warn("Aviso: No se pudo cargar el logo PNG para el PDF"); }
+
+            if (logoBase64) {
+                docPdf.addImage(logoBase64, "PNG", 15, 8, 24, 24);
+                docPdf.setTextColor(255, 255, 255);
+                docPdf.setFont("helvetica", "bold");
+                docPdf.setFontSize(24);
+                docPdf.text("GESTIAPREMIUM", 42, 26);
+                docPdf.setFont("helvetica", "normal");
+                docPdf.setTextColor(59, 130, 246); 
+                docPdf.text("MÉXICO", 110, 26);
+            } else {
+                docPdf.setTextColor(255, 255, 255);
+                docPdf.setFont("helvetica", "bold");
+                docPdf.setFontSize(24);
+                docPdf.text("GESTIAPREMIUM", 20, 26);
+                docPdf.setFont("helvetica", "normal");
+                docPdf.setTextColor(59, 130, 246); 
+                docPdf.text("MÉXICO", 85, 26);
+            }
 
             docPdf.setTextColor(200, 200, 200);
             docPdf.setFontSize(10);
-            docPdf.text("Factura de Comisión por Uso de Plataforma", 20, 32);
+            docPdf.text("Factura de Comisión por Uso de Plataforma", 20, 35);
 
             docPdf.setTextColor(0, 0, 0);
-            let y = 50;
+            let y = 55;
             docPdf.setFontSize(10);
             docPdf.setFont("helvetica", "bold");
             docPdf.text("EMISOR:", 20, y);
@@ -1532,31 +1549,48 @@ export async function iniciarPanelTecnico(user) {
             docPdf.setFillColor(18, 18, 18);
             docPdf.rect(0, 0, 215, 40, 'F');
 
-            docPdf.setTextColor(255, 255, 255);
-            docPdf.setFont("helvetica", "bold");
-            docPdf.setFontSize(24);
-            docPdf.text("GESTIAPREMIUM", 20, 22);
-            docPdf.setFont("helvetica", "normal");
-            docPdf.setTextColor(16, 185, 129); 
-            docPdf.text("MÉXICO", 85, 22);
+            // 🔥 INYECCIÓN DE LOGO PNG TAMBIÉN PARA RETIROS SPEI
+            let logoBase64 = null;
+            try { 
+                logoBase64 = await urlABase64("assets/icono-512.png"); 
+            } catch(e) {}
+
+            if (logoBase64) {
+                docPdf.addImage(logoBase64, "PNG", 15, 8, 24, 24);
+                docPdf.setTextColor(255, 255, 255);
+                docPdf.setFont("helvetica", "bold");
+                docPdf.setFontSize(24);
+                docPdf.text("GESTIAPREMIUM", 42, 26);
+                docPdf.setFont("helvetica", "normal");
+                docPdf.setTextColor(16, 185, 129); 
+                docPdf.text("MÉXICO", 110, 26);
+            } else {
+                docPdf.setTextColor(255, 255, 255);
+                docPdf.setFont("helvetica", "bold");
+                docPdf.setFontSize(24);
+                docPdf.text("GESTIAPREMIUM", 20, 26);
+                docPdf.setFont("helvetica", "normal");
+                docPdf.setTextColor(16, 185, 129); 
+                docPdf.text("MÉXICO", 85, 26);
+            }
 
             docPdf.setTextColor(200, 200, 200);
             docPdf.setFontSize(10);
-            docPdf.text("Comprobante de Liquidación (SPEI)", 20, 32);
+            docPdf.text("Comprobante de Liquidación (SPEI)", 20, 35);
             
             docPdf.setFontSize(8);
             docPdf.setTextColor(150, 150, 150);
-            docPdf.text(`RFC EMISOR: FXG260211-H8A`, 20, 45);
+            docPdf.text(`RFC EMISOR: FXG260211-H8A`, 20, 48);
             
             let fechaFormat = new Date().toLocaleDateString();
             if(data.fecha_aprobacion) {
                 fechaFormat = new Date(data.fecha_aprobacion.seconds * 1000).toLocaleDateString();
             }
             
-            docPdf.text(`FOLIO RETIRO: SPEI-${data.id.substring(0,6).toUpperCase()}`, 130, 45);
-            docPdf.text(`FECHA APROBACIÓN: ${fechaFormat}`, 130, 50);
+            docPdf.text(`FOLIO RETIRO: SPEI-${data.id.substring(0,6).toUpperCase()}`, 130, 48);
+            docPdf.text(`FECHA APROBACIÓN: ${fechaFormat}`, 130, 53);
 
-            let y = 70;
+            let y = 75;
             docPdf.setTextColor(0, 0, 0);
             docPdf.setFontSize(14);
             docPdf.setFont("helvetica", "bold");
