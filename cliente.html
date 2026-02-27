@@ -168,7 +168,7 @@
                     </h3>
                     
                     <div class="space-y-3">
-                        <label class="relative block cursor-pointer">
+                        <label id="contenedorOpcionStripe" class="relative block cursor-pointer">
                             <input type="radio" name="metodoPago" value="stripe" class="peer sr-only" checked onchange="document.getElementById('btnSubmitText').innerText = 'PROCEDER AL PAGO SEGURO'; document.getElementById('btnSubmitIcon').className = 'fas fa-lock'; document.getElementById('btnSubmitApp').className = 'w-full bg-blue-600 text-white font-black py-4 rounded-xl text-lg hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';">
                             <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center gap-4 peer-checked:border-blue-500 peer-checked:bg-blue-900/20 transition-all">
                                 <div class="bg-blue-500/20 p-3 rounded-full text-blue-400">
@@ -185,14 +185,14 @@
                         </label>
 
                         <label id="contenedorOpcionEfectivo" class="relative block cursor-pointer hidden">
-                            <input type="radio" name="metodoPago" value="efectivo" class="peer sr-only" onchange="document.getElementById('btnSubmitText').innerText = 'SOLICITAR AHORA'; document.getElementById('btnSubmitIcon').className = 'fas fa-paper-plane'; document.getElementById('btnSubmitApp').className = 'w-full bg-emerald-500 text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';">
+                            <input type="radio" name="metodoPago" value="efectivo" class="peer sr-only" onchange="document.getElementById('btnSubmitText').innerText = 'SOLICITAR AHORA (PAGO EN DOMICILIO)'; document.getElementById('btnSubmitIcon').className = 'fas fa-hand-holding-usd'; document.getElementById('btnSubmitApp').className = 'w-full bg-emerald-500 text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';">
                             <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center gap-4 peer-checked:border-emerald-500 peer-checked:bg-emerald-900/20 transition-all">
                                 <div class="bg-emerald-500/20 p-3 rounded-full text-emerald-400">
                                     <i class="fas fa-hand-holding-usd text-2xl w-6 text-center"></i>
                                 </div>
                                 <div class="flex-1">
                                     <h4 class="text-white font-bold text-sm">Pago en Efectivo</h4>
-                                    <p class="text-[10px] text-gray-400 mt-1">Pago directo al técnico al finalizar. (VIP)</p>
+                                    <p class="text-[10px] text-gray-400 mt-1">Pago directo al técnico al finalizar la reparación.</p>
                                 </div>
                                 <div class="w-5 h-5 rounded-full border-2 border-zinc-600 peer-checked:border-emerald-500 peer-checked:bg-emerald-500 flex items-center justify-center transition-all">
                                     <div class="w-2 h-2 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
