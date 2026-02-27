@@ -26,10 +26,9 @@
 
         /* NUEVO: ESTILOS PARA TARJETAS EXPANSIBLES (ACORDEÓN) */
         .expandable-content { max-height: 0; overflow: hidden; transition: max-height 0.4s ease-in-out; }
-        .expandable-content.expanded { max-height: 2000px; /* Altura máxima holgada para el despliegue */ }
+        .expandable-content.expanded { max-height: 2000px; }
         .chevron-icon { transition: transform 0.3s ease; }
         .chevron-icon.rotated { transform: rotate(180deg); }
-        /* Clase de utilidad para ocultar elementos */
         .hidden { display: none !important; }
     </style>
 </head>
@@ -162,6 +161,23 @@
                         class="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl py-3 px-4 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-gray-600"></textarea>
                 </div>
 
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1 ml-2"><i class="fas fa-camera text-blue-500"></i> FOTO DEL PROBLEMA (Recomendado)</label>
+                    <input type="file" id="fotoProblemaCliente" accept="image/*" class="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-500 bg-black border border-zinc-800 rounded-xl p-2 cursor-pointer transition-all">
+                    <p class="text-[9px] text-gray-500 mt-1 ml-2">Ayuda al técnico a llevar las herramientas correctas.</p>
+                </div>
+
+                <div class="bg-red-900/20 border border-red-500/50 p-4 rounded-xl flex justify-between items-center transition-all hover:shadow-[0_0_15px_rgba(220,38,38,0.2)]">
+                    <div class="pr-2">
+                        <h4 class="text-red-500 font-black text-sm uppercase flex items-center gap-2"><i class="fas fa-siren-on animate-pulse"></i> PRIORIDAD EMERGENCIA</h4>
+                        <p class="text-[9px] text-gray-400 mt-1">Aplica un recargo del <strong class="text-red-400">+50% (1.5x)</strong> sobre la tarifa base. Ideal para contingencias 24/7.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="toggleUrgencia" class="sr-only peer">
+                        <div class="w-11 h-6 bg-black border border-red-900 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600 peer-checked:after:bg-white shadow-inner"></div>
+                    </label>
+                </div>
+
                 <div class="mt-6 border-t border-zinc-800 pt-4">
                     <h3 class="text-xs font-bold text-gray-300 mb-3 uppercase flex items-center gap-2">
                         <i class="fas fa-wallet text-emerald-500 text-xl"></i> Método de Pago
@@ -176,7 +192,7 @@
                                 </div>
                                 <div class="flex-1">
                                     <h4 class="text-white font-bold text-sm">Tarjeta de Crédito / Débito</h4>
-                                    <p class="text-[10px] text-gray-400 mt-1">Pago encriptado y seguro. (Test Mode)</p>
+                                    <p class="text-[10px] text-gray-400 mt-1">Pago encriptado y seguro.</p>
                                 </div>
                                 <div class="w-5 h-5 rounded-full border-2 border-zinc-600 peer-checked:border-blue-500 peer-checked:bg-blue-500 flex items-center justify-center transition-all">
                                     <div class="w-2 h-2 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
@@ -261,21 +277,16 @@
             }
         }
 
-        // ==============================================================
-        // SCRIPT: ROTACIÓN DE FONDOS DINÁMICOS (UX PREMIUM CLIENTE)
-        // ==============================================================
         const bgContainer = document.getElementById('dynamic-bg');
-        // Imágenes estables y temáticas
         const images = [
-            'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Plomería
-            'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Electricidad
-            'https://images.unsplash.com/photo-1581092160562-40aa08e78837?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80', // Construcción/Mantenimiento
-            'https://images.unsplash.com/photo-1632759145351-1d592919f522?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'  // Herramientas
+            'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80',
+            'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80',
+            'https://images.unsplash.com/photo-1581092160562-40aa08e78837?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80',
+            'https://images.unsplash.com/photo-1632759145351-1d592919f522?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80' 
         ];
         let currentImg = 0;
         
         function changeBackground() {
-            // Precarga de imagen para transición suave (sin parpadeos)
             const img = new Image();
             img.src = images[currentImg];
             img.onload = () => {
@@ -283,8 +294,6 @@
                 currentImg = (currentImg + 1) % images.length;
             };
         }
-        
-        // Iniciar de inmediato y rotar cada 15 segundos
         changeBackground();
         setInterval(changeBackground, 15000);
     </script>
