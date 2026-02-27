@@ -36,7 +36,12 @@
     </div>
 
     <script type="module">
-        import { db, collection, addDoc, updateDoc, doc, serverTimestamp, getDocs, query, where, limit, runTransaction } from "./firebase.js";
+        // 🔥 CORRECCIÓN DE ARQUITECTURA 🔥
+        // 1. Importamos la conexión de tu archivo local
+        import { db } from "./firebase.js";
+        
+        // 2. Importamos las herramientas pesadas directamente del CDN oficial de Google
+        import { collection, addDoc, updateDoc, doc, serverTimestamp, getDocs, query, where, limit, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const consola = document.getElementById("consolaLog");
 
