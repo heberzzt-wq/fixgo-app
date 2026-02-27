@@ -5,7 +5,7 @@
  * Archivo: panel-tecnico.js
  * Descripción: Motor de radar, GPS, colisiones, cotizador y evidencia Cloud.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
- * INYECCIÓN: Dashboard Gamificado, Abandono de Misión y Telemetría aislada.
+ * INYECCIÓN: Dashboard Gamificado, Abandono de Misión y Split Billing (PDF Fee).
  * ======================================================================================
  */
 
@@ -32,7 +32,7 @@ import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 import { escaparHTML, calcularDistancia, sonarAlerta, lanzarNotificacionPush, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
 
 export async function iniciarPanelTecnico(user) {
-    console.log(" 🔧 Iniciando Panel de Técnico (Modo Uber Cash / Gamificación Financiera Visual)...");
+    console.log(" 🔧 Iniciando Panel de Técnico (Modo Uber Cash / Gamificación / Split Billing PDF)...");
     
     activarMotorFCM(user.uid);
 
@@ -94,7 +94,6 @@ export async function iniciarPanelTecnico(user) {
             }
         }
 
-        // 🔥 INYECCIÓN: DASHBOARD GAMIFICADO (TRACKER DE INCENTIVOS) 🔥
         if (elementos.seccionBolsa && estado === "activo" && data.disponible) {
             let tracker = document.getElementById("gamificationTracker");
             if (!tracker) {
@@ -152,7 +151,6 @@ export async function iniciarPanelTecnico(user) {
             const tracker = document.getElementById("gamificationTracker");
             if (tracker) tracker.remove();
         }
-        // 🔥 FIN DE INYECCIÓN DASHBOARD GAMIFICADO 🔥
 
         if (["suspendido", "suspendido_grave", "baneado_permanente"].includes(estado)) {
             let msgSuspendido = "Cuenta Suspendida Temporalmente";
@@ -615,7 +613,9 @@ export async function iniciarPanelTecnico(user) {
                 const badgeStatus = '<span class="bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 text-[8px] px-2 py-0.5 rounded font-black tracking-widest uppercase"><i class="fas fa-check-circle"></i> COBRADO</span>';
 
                 const item = document.createElement("div");
-                item.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-xl shadow-lg";
+                item.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-xl shadow-lg mb-3";
+                
+                // 🔥 INYECCIÓN: Botón de Split Billing (Recibo de Comisión a nombre de GestiaPremium)
                 item.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
                     <span class="text-white font-bold text-xs uppercase">${escaparHTML(s.categoria)} | ${escaparHTML(s.sub_servicio || 'GRAL')}</span>
@@ -626,6 +626,11 @@ export async function iniciarPanelTecnico(user) {
                         <p class="text-[9px] text-gray-500 mb-1"><i class="fas fa-calendar-alt"></i> ${fechaFormat}</p>
                         <p class="text-[9px] text-gray-500"><i class="fas fa-hashtag"></i> Folio: ${s.folio_fiscal || id.substring(0,6).toUpperCase()}</p>
                     </div>
+                </div>
+                <div class="flex justify-between items-end mt-3 pt-3 border-t border-zinc-800/50">
+                    <button onclick="window.generarPDFComisionTecnico('${id}', '${user.uid}', '${user.nombre || 'Técnico'}')" class="text-blue-500 hover:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-3 py-2 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1 border border-blue-500/30 shadow">
+                        <i class="fas fa-file-invoice-dollar"></i> RECIBO FEE (GP)
+                    </button>
                     <div class="text-right">
                         <p class="text-[10px] text-gray-500 mb-0.5 uppercase font-bold">Cobro ${s.metodo_pago === 'stripe' ? 'Stripe' : 'en Efectivo'}:</p>
                         <p class="${s.metodo_pago === 'stripe' ? 'text-blue-400' : 'text-emerald-400'} font-black text-sm">$${s.costo_final ? s.costo_final.toFixed(2) : '0.00'}</p>
@@ -933,7 +938,6 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
-    // 🔥 INYECCIÓN: Lógica de Abandono con Penalización Automática 🔥
     window.cancelarMisionActiva = async (id) => {
         const motivo = prompt("🚨 ESTÁS A PUNTO DE ABANDONAR UN SERVICIO ACEPTADO.\n\nEsto afectará tu reputación y aplicará una penalización automática de $150 MXN a tu Wallet por incumplimiento.\n\nEscribe el motivo de la cancelación:");
         if (!motivo) return;
@@ -946,7 +950,6 @@ export async function iniciarPanelTecnico(user) {
                  const sData = sSnap.data();
                  const nuevoEstado = sData.metodo_pago === 'stripe' ? 'pagado' : 'pendiente';
                  
-                 // Regresamos el ticket a la bolsa y bloqueamos para este técnico
                  await updateDoc(doc(db, "services", id), {
                       estado: nuevoEstado,
                       tecnico_id: null,
@@ -957,7 +960,6 @@ export async function iniciarPanelTecnico(user) {
                  });
             }
 
-            // Aplicamos multa financiera
             await addDoc(collection(db, "transacciones"), {
                 tecnico_id: user.uid,
                 pago_tecnico: -150,
@@ -967,12 +969,10 @@ export async function iniciarPanelTecnico(user) {
                 fecha: serverTimestamp()
             });
 
-            // Impacto en reputación
             await updateDoc(doc(db, "users", user.uid), {
                 reputacion: increment(-0.3)
             });
 
-            // Actualizamos la telemetría a Disponible
             const rastreoRef = doc(db, "rastreo", user.uid);
             await setDoc(rastreoRef, { estado: "Disponible" }, { merge: true });
 
@@ -992,7 +992,6 @@ export async function iniciarPanelTecnico(user) {
             if(estado === "trabajando") textoMapa = "Trabajando";
             if(estado === "finalizado") textoMapa = "Disponible";
             
-            // 🔥 INYECCIÓN: Fix de Colisión GPS (Rastreo Individual) 🔥
             const rastreoRef = doc(db, "rastreo", user.uid);
             await setDoc(rastreoRef, { estado: textoMapa }, { merge: true });
         } catch (error) {
@@ -1365,7 +1364,6 @@ export async function iniciarPanelTecnico(user) {
                     });
                 });
 
-                // 🔥 INYECCIÓN: Fix de Colisión GPS (Rastreo Individual) 🔥
                 let textoMapa = "Disponible";
                 const rastreoRef = doc(db, "rastreo", user.uid);
                 await setDoc(rastreoRef, { estado: textoMapa }, { merge: true });
@@ -1415,6 +1413,107 @@ export async function iniciarPanelTecnico(user) {
             window.limpiarFirma = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); };
         }, 100);
     }
+
+    // 🔥 INYECCIÓN: Generador de Recibo de Comisión (GP Fee) para el Técnico 🔥
+    window.generarPDFComisionTecnico = async (serviceId, tecnicoId, tecnicoNombre) => {
+        try {
+            const docRef = doc(db, "services", serviceId);
+            const docSnap = await getDoc(docRef);
+            if (!docSnap.exists()) throw new Error("Servicio no encontrado en la base de datos.");
+            const sData = docSnap.data();
+
+            const techRef = doc(db, "users", tecnicoId);
+            const techSnap = await getDoc(techRef);
+            let tasaComision = 0.32; 
+            if (techSnap.exists() && techSnap.data().comision_asignada) {
+                tasaComision = parseFloat(techSnap.data().comision_asignada);
+            }
+
+            const costoTotal = sData.costo_final || 0;
+            const feeGP = costoTotal * tasaComision;
+            const subtotalFee = feeGP / 1.16;
+            const ivaFee = feeGP - subtotalFee;
+
+            const { jsPDF } = await cargarLibreriaPDF();
+            const docPdf = new jsPDF();
+
+            docPdf.setFillColor(18, 18, 18);
+            docPdf.rect(0, 0, 215, 40, 'F');
+
+            docPdf.setTextColor(255, 255, 255);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(24);
+            docPdf.text("GESTIAPREMIUM", 20, 22);
+            docPdf.setFont("helvetica", "normal");
+            docPdf.setTextColor(59, 130, 246); 
+            docPdf.text("MÉXICO", 85, 22);
+
+            docPdf.setTextColor(200, 200, 200);
+            docPdf.setFontSize(10);
+            docPdf.text("Factura de Comisión por Uso de Plataforma", 20, 32);
+
+            docPdf.setTextColor(0, 0, 0);
+            let y = 50;
+            docPdf.setFontSize(10);
+            docPdf.setFont("helvetica", "bold");
+            docPdf.text("EMISOR:", 20, y);
+            docPdf.setFont("helvetica", "normal");
+            docPdf.text("GestiaPremium (Plataforma Tecnológica)", 20, y+5);
+            docPdf.text("RFC: FXG260211-H8A", 20, y+10);
+            
+            docPdf.setFont("helvetica", "bold");
+            docPdf.text("RECEPTOR (Socio Especialista):", 120, y);
+            docPdf.setFont("helvetica", "normal");
+            docPdf.text(tecnicoNombre || "Técnico", 120, y+5);
+
+            y += 25;
+            docPdf.setDrawColor(200, 200, 200);
+            docPdf.line(20, y, 190, y);
+            
+            y += 10;
+            docPdf.setFont("helvetica", "bold");
+            docPdf.text("CONCEPTO", 20, y);
+            docPdf.text("IMPORTE", 160, y);
+            
+            y += 10;
+            docPdf.setFont("helvetica", "normal");
+            const folio = sData.folio_fiscal || serviceId.substring(0,6).toUpperCase();
+            docPdf.text("Cargo por Uso de Licencia de Software y Ruteo de Clientes", 20, y);
+            docPdf.text(`Correspondiente al Folio de Servicio: ${folio}`, 20, y+5);
+            
+            docPdf.text(`$${feeGP.toFixed(2)}`, 160, y);
+
+            y += 20;
+            docPdf.setFillColor(245, 245, 245);
+            docPdf.rect(110, y, 80, 30, 'F'); 
+            
+            docPdf.setFontSize(9);
+            docPdf.text(`Subtotal:`, 115, y+10);
+            docPdf.text(`$${subtotalFee.toFixed(2)}`, 160, y+10);
+            docPdf.text(`IVA (16%):`, 115, y+15);
+            docPdf.text(`$${ivaFee.toFixed(2)}`, 160, y+15);
+            
+            docPdf.setFont("helvetica", "bold");
+            docPdf.setFontSize(12);
+            docPdf.setTextColor(59, 130, 246);
+            docPdf.text(`TOTAL FEE:`, 115, y+25);
+            docPdf.text(`$${feeGP.toFixed(2)} MXN`, 150, y+25);
+
+            y += 50;
+            docPdf.setFontSize(8);
+            docPdf.setTextColor(150, 150, 150);
+            docPdf.setFont("helvetica", "normal");
+            const notaLegal = "Este documento ampara el cobro de comisiones por el uso de la infraestructura tecnológica de GestiaPremium para la conexión y ruteo de clientes. Las retenciones fiscales aplicables ya han sido calculadas con base en el contrato de asociación en participación vigente.";
+            const splitNota = docPdf.splitTextToSize(notaLegal, 170);
+            docPdf.text(splitNota, 20, y);
+
+            docPdf.save(`GestiaPremium_Comision_${folio}.pdf`);
+
+        } catch (error) {
+            console.error("Error generando PDF de Comisión:", error);
+            alert("Hubo un error al generar tu recibo de comisión fiscal.");
+        }
+    };
 
     window.generarPDFRetiro = async (retiroId) => {
         try {
