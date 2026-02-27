@@ -55,13 +55,53 @@ export async function iniciarPanelCliente(user) {
         containerFix: document.getElementById("content_fix"),
         containerTech: document.getElementById("content_tech"),
         containerMaint: document.getElementById("content_maint"),
-        stripeCard: document.getElementById("stripe_card"),
+        stripeCard: document.getElementById("contenedorOpcionStripe"), // ID Actualizado
+        efectivoCard: document.getElementById("contenedorOpcionEfectivo"),
         toggleFactura: document.getElementById("toggleFactura"),
         facRfc: document.getElementById("fac_rfc"),
         facRazon: document.getElementById("fac_razon"),
         facCp: document.getElementById("fac_cp"),
         facRegimen: document.getElementById("fac_regimen")
     };
+
+    // ----------------------------------------------------------------------------------
+    // 3.0 LECTOR MAESTRO DE FEATURE FLAGS (PASARELAS DE PAGO)
+    // ----------------------------------------------------------------------------------
+    onSnapshot(doc(db, "configuracion", "pagos"), (docSnap) => {
+        const configPagos = docSnap.exists() ? docSnap.data() : { stripe_activo: true, efectivo_activo: false };
+        
+        const radioStripe = document.querySelector('input[name="metodoPago"][value="stripe"]');
+        const radioEfectivo = document.querySelector('input[name="metodoPago"][value="efectivo"]');
+
+        // Control de Visibilidad STRIPE
+        if (configPagos.stripe_activo) {
+            if(el.stripeCard) el.stripeCard.classList.remove("hidden");
+        } else {
+            if(el.stripeCard) el.stripeCard.classList.add("hidden");
+        }
+
+        // Control de Visibilidad EFECTIVO (Sobrescribe regla VIP local si el global está encendido)
+        if (configPagos.efectivo_activo || user.efectivo_autorizado) {
+            if(el.efectivoCard) el.efectivoCard.classList.remove("hidden");
+        } else {
+            if(el.efectivoCard) el.efectivoCard.classList.add("hidden");
+        }
+
+        // Lógica de Auto-Selección y Fuerza Bruta UI
+        if (!configPagos.stripe_activo && (configPagos.efectivo_activo || user.efectivo_autorizado)) {
+            // Stripe apagado, forzar efectivo
+            if(radioEfectivo) radioEfectivo.checked = true;
+            document.getElementById('btnSubmitText').innerText = 'SOLICITAR AHORA (PAGO EN DOMICILIO)';
+            document.getElementById('btnSubmitIcon').className = 'fas fa-hand-holding-usd';
+            document.getElementById('btnSubmitApp').className = 'w-full bg-emerald-500 text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
+        } else if (configPagos.stripe_activo && (!radioEfectivo || !radioEfectivo.checked)) {
+            // Stripe encendido y efectivo no pre-seleccionado manualmente
+            if(radioStripe) radioStripe.checked = true;
+            document.getElementById('btnSubmitText').innerText = 'PROCEDER AL PAGO SEGURO';
+            document.getElementById('btnSubmitIcon').className = 'fas fa-lock';
+            document.getElementById('btnSubmitApp').className = 'w-full bg-blue-600 text-white font-black py-4 rounded-xl text-lg hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
+        }
+    });
 
     // ----------------------------------------------------------------------------------
     // 3.1 CARGA DINÁMICA DE VERTICALES EN ACORDEÓN
@@ -198,7 +238,6 @@ export async function iniciarPanelCliente(user) {
                     cp: el.facCp?.value,
                     regimen: el.facRegimen?.value
                 };
-                // 🔥 INYECCIÓN: Validación más estricta de CFDI
                 if (!datosFacturacion.rfc || !datosFacturacion.razon_social || !datosFacturacion.cp || !datosFacturacion.regimen) {
                     alert("⚠️ Si requieres factura, es obligatorio llenar todos los campos (RFC, Razón Social, CP y Régimen).");
                     return;
@@ -236,13 +275,10 @@ export async function iniciarPanelCliente(user) {
                 const vertical = partes[0].toUpperCase(); 
                 const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
 
-                // 🔥 LÓGICA DE RUTEO DE PAGO SEGÚN PERMISOS VIP
-                const esEfectivoAutorizado = user.efectivo_autorizado === true;
-                let metodoSeleccionado = "stripe"; // Tarjeta por defecto
-
-                // Leemos del radio button del DOM (más seguro que un confirm)
+                // 🔥 LÓGICA DE RUTEO DE PAGO LEYENDO DEL DOM (Controlado por Switch)
+                let metodoSeleccionado = "stripe"; 
                 const radioEfectivo = document.querySelector('input[name="metodoPago"][value="efectivo"]');
-                if (esEfectivoAutorizado && radioEfectivo && radioEfectivo.checked) {
+                if (radioEfectivo && radioEfectivo.checked) {
                     metodoSeleccionado = "efectivo";
                 }
 
@@ -268,7 +304,6 @@ export async function iniciarPanelCliente(user) {
                         factura_enviada: false
                     };
 
-                    // Creamos UN SOLO DOCUMENTO base
                     const docRef = await addDoc(collection(db, "services"), payloadTicket);
                     lastSubmitTime = Date.now(); 
 
@@ -287,17 +322,16 @@ export async function iniciarPanelCliente(user) {
                         cardBtn.classList.add('bg-zinc-900', 'border-zinc-700');
                     });
 
-                    // 🔥 CORRECCIÓN DEL MENSAJE DE SEGURIDAD $550 🔥
                     if (metodoSeleccionado === "stripe") {
                         alert("🔒 SEGURIDAD GESTIAPREMIUM:\n\nSe realizará una RETENCIÓN DE GARANTÍA por $550 MXN en tu tarjeta.\n\nEste monto NO es el costo final, es solo para asegurar la visita del técnico. Al finalizar, este saldo se aplicará a tu cuenta total.");
-                        // Hook para tu archivo fixgo-bridge.js
                         if (window.procesarPagoStripe) {
                             window.procesarPagoStripe(docRef.id, payloadTicket);
                         } else {
                             console.warn("Falta conectar la pasarela. Por favor, asegúrate de que fixgo-bridge.js lea este ticket ID:", docRef.id);
                         }
                     } else {
-                        alert(" ✅ ¡Solicitud VIP en Efectivo Enviada!\n\nNuestro sistema está buscando al técnico certificado más cercano...");
+                        // Modificado para no decir VIP si el switch de Efectivo está general
+                        alert(" ✅ ¡Solicitud Confirmada!\n\nEl pago se realizará en EFECTIVO directamente al técnico.\nNuestro sistema está buscando a la unidad más cercana...");
                     }
 
                 } catch (error) {
@@ -312,7 +346,7 @@ export async function iniciarPanelCliente(user) {
     }
 
     // ----------------------------------------------------------------------------------
-    // 3.3 MONITOR DE HISTORIAL & WATCHDOG DE NOTIFICACIONES AL CLIENTE (INYECCIÓN V5)
+    // 3.3 MONITOR DE HISTORIAL & WATCHDOG DE NOTIFICACIONES AL CLIENTE
     // ----------------------------------------------------------------------------------
     onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc"), limit(50)), (snap) => {
         if(!el.lista) return;
@@ -322,7 +356,6 @@ export async function iniciarPanelCliente(user) {
                 const newData = change.doc.data();
                 console.log(" 🔔 Cambio de estado detectado en ticket:", newData.estado);
                 
-                // 🔥 INYECCIÓN: MOTOR DE AUDIO Y PUSH DINÁMICO PARA EL CLIENTE
                 sonarAlerta();
 
                 if (newData.estado === 'asignado') {
@@ -464,7 +497,6 @@ export async function iniciarPanelCliente(user) {
                 const f_d1 = s.evidencia?.despues1 || s.evidencia?.despues;
                 const f_d2 = s.evidencia?.despues2;
 
-                // 🔥 INYECCIÓN: Mostrar desglose en el ticket final
                 let subtotalHtml = "";
                 if (s.desglose) {
                     subtotalHtml = `
@@ -555,7 +587,6 @@ export async function iniciarPanelCliente(user) {
         });
     });
 
-    // 🔥 INYECCIONES GLOBALES PARA EL CONTROL DE TICKETS Y SALDOS
     window.cancelarTicketFantasma = async (id) => {
         if(!confirm("¿Deseas cancelar esta solicitud que quedó pendiente de pago?")) return;
         try {
@@ -570,7 +601,6 @@ export async function iniciarPanelCliente(user) {
         try {
             await updateDoc(doc(db, "services", id), { estado: "procesando_saldo" });
             
-            // Hook para fixgo-bridge.js
             if (window.procesarPagoSaldoStripe) {
                 window.procesarPagoSaldoStripe(id, saldo);
             } else {
@@ -634,7 +664,7 @@ export async function iniciarPanelCliente(user) {
 
                         transaction.update(serviceRef, {
                             estado: "cancelado",
-                            costo_final: 550, // <-- CANDADO DE GARANTÍA MILITAR
+                            costo_final: 550, 
                             cancelado_razon: "Cliente rechazó cotización"
                         });
                     });
@@ -783,7 +813,6 @@ export async function iniciarPanelCliente(user) {
             docPdf.text("EVIDENCIA FOTOGRÁFICA (Cloud)", 20, y);
             y += 10;
             
-            // 🔥 V5.17.2: Traducción Base64 para el Cliente
             const f_a1 = data.evidencia?.antes1 || data.evidencia?.antes;
             const f_a2 = data.evidencia?.antes2;
             const f_d1 = data.evidencia?.despues1 || data.evidencia?.despues;
@@ -791,7 +820,6 @@ export async function iniciarPanelCliente(user) {
 
             btn.innerText = "PROCESANDO FOTOS...";
 
-            // Descarga las imágenes de Cloud y las convierte para el PDF
             const [b64_a1, b64_a2, b64_d1, b64_d2] = await Promise.all([
                 urlABase64(f_a1),
                 urlABase64(f_a2),
@@ -805,20 +833,18 @@ export async function iniciarPanelCliente(user) {
             if(b64_d1) { docPdf.addImage(b64_d1, "JPEG", 110, y, 40, 30); docPdf.setFontSize(8); docPdf.text("DESPUÉS 1", 110, y + 35); }
             if(b64_d2) { docPdf.addImage(b64_d2, "JPEG", 155, y, 40, 30); docPdf.setFontSize(8); docPdf.text("DESPUÉS 2", 155, y + 35); }
 
-            // --- INYECCIÓN V5.18.0: FIRMA DIGITAL EN PDF (CLIENTE) ---
             const firmaDigitalCliente = data.evidencia?.firma_cliente;
             if (firmaDigitalCliente) {
-                y += 45; // Bajamos el cursor Y
+                y += 45; 
                 docPdf.setFontSize(10);
                 docPdf.setFont("helvetica", "bold");
                 docPdf.setTextColor(0, 0, 0);
                 docPdf.text("FIRMA DE CONFORMIDAD DEL CLIENTE", 20, y);
-                docPdf.addImage(firmaDigitalCliente, "PNG", 20, y + 5, 60, 20); // Renderizamos la firma
+                docPdf.addImage(firmaDigitalCliente, "PNG", 20, y + 5, 60, 20); 
                 docPdf.setDrawColor(50, 50, 50);
                 docPdf.setLineWidth(0.5);
-                docPdf.line(20, y + 26, 80, y + 26); // Línea de firma
+                docPdf.line(20, y + 26, 80, y + 26); 
             }
-            // ---------------------------------------------------------
             
             docPdf.setFontSize(8);
             docPdf.setTextColor(150, 150, 150);
