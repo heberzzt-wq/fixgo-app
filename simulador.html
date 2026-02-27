@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GestiaPremium | Simulador de Estrés (Robot)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #050505; color: #00ff00; font-family: 'Courier New', Courier, monospace; }
+        .log-box { background-color: #000; border: 1px solid #333; height: 300px; overflow-y: auto; padding: 10px; }
+    </style>
+</head>
+<body class="p-8">
+
+    <div class="max-w-3xl mx-auto">
+        <h1 class="text-2xl font-black text-white mb-2 flex items-center gap-3">
+            <i class="fas fa-robot text-blue-500"></i> AUTOMATED E2E TESTING BOT
+        </h1>
+        <p class="text-gray-500 text-xs mb-8">Ejecutando inyecciones directas a Firestore saltando la interfaz gráfica.</p>
+
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <button id="btnTest1" class="bg-red-900/30 hover:bg-red-600 text-red-500 hover:text-white border border-red-500 font-bold py-4 rounded-xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.2)]">
+                <i class="fas fa-user-times mb-2 text-xl block"></i>
+                💥 PRUEBA 1: CLIENTE RECHAZA COTIZACIÓN
+            </button>
+            <button id="btnTest2" class="bg-orange-900/30 hover:bg-orange-600 text-orange-500 hover:text-white border border-orange-500 font-bold py-4 rounded-xl transition-all shadow-[0_0_15px_rgba(234,88,12,0.2)]">
+                <i class="fas fa-running mb-2 text-xl block"></i>
+                💥 PRUEBA 2: TÉCNICO ABANDONA MISIÓN
+            </button>
+        </div>
+
+        <div class="log-box rounded-xl text-xs" id="consolaLog">
+            <p class="text-gray-500">Esperando órdenes...</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db, collection, addDoc, updateDoc, doc, serverTimestamp, getDocs, query, where, limit, runTransaction } from "./firebase.js";
+
+        const consola = document.getElementById("consolaLog");
+
+        function log(msg, color = "text-green-500") {
+            const time = new Date().toLocaleTimeString();
+            consola.innerHTML += `<p class="${color}">[${time}] ${msg}</p>`;
+            consola.scrollTop = consola.scrollHeight;
+        }
+
+        async function obtenerUnTecnico() {
+            log("Buscando un técnico de prueba en la base de datos...", "text-blue-400");
+            const q = query(collection(db, "users"), where("rol", "==", "tecnico"), limit(1));
+            const snap = await getDocs(q);
+            if (snap.empty) {
+                log("❌ ERROR: No hay técnicos registrados para hacer la prueba.", "text-red-500");
+                return null;
+            }
+            const tech = snap.docs[0];
+            log(`✅ Técnico encontrado: ${tech.data().nombre} (${tech.id})`, "text-blue-400");
+            return { id: tech.id, ...tech.data() };
+        }
+
+        // =========================================================================
+        // PRUEBA 1: CLIENTE RECHAZA (Debe retener garantía de $550)
+        // =========================================================================
+        document.getElementById("btnTest1").onclick = async () => {
+            log("--- INICIANDO PRUEBA 1: CLIENTE RECHAZA COTIZACIÓN ---", "text-white font-bold bg-red-900/50 block p-1 mt-2");
+            const tech = await obtenerUnTecnico();
+            if(!tech) return;
+
+            try {
+                // 1. Crear el ticket
+                log("1. Robot Cliente pide un servicio (Motor Stripe encendido)...", "text-gray-300");
+                const ticketRef = await addDoc(collection(db, "services"), {
+                    cliente_id: "ROBOT_CLIENT_001",
+                    cliente_nombre: "[TEST] Cliente Arrepentido",
+                    categoria: "FIX",
+                    sub_servicio: "PLOMERÍA",
+                    estado: "pagado", // Simulamos que ya pagó la garantía
+                    metodo_pago: "stripe",
+                    retencion_inicial: 550,
+                    costo_final: 0,
+                    created_at: serverTimestamp()
+                });
+                const ticketId = ticketRef.id;
+                log(`Ticket Creado: ${ticketId}`, "text-emerald-500");
+
+                // Esperamos 2 segundos
+                await new Promise(r => setTimeout(r, 2000));
+
+                // 2. Técnico Cotiza
+                log("2. Robot Técnico llega y cotiza $3,500 MXN...", "text-yellow-400");
+                await updateDoc(doc(db, "services", ticketId), {
+                    estado: "cotizando",
+                    tecnico_id: tech.id,
+                    tecnico_nombre: tech.nombre,
+                    costo_final: 3500,
+                    cotizado_at: serverTimestamp()
+                });
+
+                await new Promise(r => setTimeout(r, 2000));
+
+                // 3. Cliente Rechaza
+                log("3. Robot Cliente ve los $3,500 y presiona botón RECHAZAR...", "text-orange-500");
+                await runTransaction(db, async (transaction) => {
+                    const sfRef = doc(db, "services", ticketId);
+                    transaction.update(sfRef, {
+                        estado: "cancelado",
+                        costo_final: 550, // Se aplica la retención
+                        cancelado_razon: "Simulación: Cliente rechazó cotización",
+                        finalizado_at: serverTimestamp()
+                    });
+                    
+                    // Inyectamos el pago al técnico por su vuelta en vano
+                    const transRef = doc(collection(db, "transacciones"));
+                    transaction.set(transRef, {
+                        servicio_id: ticketId,
+                        tecnico_id: tech.id,
+                        monto_total: 550,
+                        comision_fixgo: 550 * 0.32, // GestiaPremium se queda su comisión
+                        pago_tecnico: 550 * 0.68, // El técnico recibe su pago de visita
+                        tipo: "ingreso_servicio",
+                        metodo_pago: "stripe",
+                        descripcion: "Cobro de Garantía por Cancelación de Cliente",
+                        fecha: serverTimestamp()
+                    });
+                });
+
+                log("✅ PRUEBA 1 COMPLETADA: Revisa tu panel Admin. El Gross Revenue debió subir $550.", "text-white font-bold");
+
+            } catch (error) {
+                log("❌ ERROR en Prueba 1: " + error.message, "text-red-500");
+            }
+        };
+
+        // =========================================================================
+        // PRUEBA 2: TÉCNICO ABANDONA (Debe multar con -$150)
+        // =========================================================================
+        document.getElementById("btnTest2").onclick = async () => {
+            log("--- INICIANDO PRUEBA 2: TÉCNICO ABANDONA MISIÓN ---", "text-white font-bold bg-orange-900/50 block p-1 mt-2");
+            const tech = await obtenerUnTecnico();
+            if(!tech) return;
+
+            try {
+                // 1. Crear el ticket
+                log("1. Creando ticket disponible en la bolsa...", "text-gray-300");
+                const ticketRef = await addDoc(collection(db, "services"), {
+                    cliente_id: "ROBOT_CLIENT_002",
+                    cliente_nombre: "[TEST] Cliente Abandonado",
+                    categoria: "ROAD",
+                    estado: "pagado", 
+                    metodo_pago: "stripe",
+                    created_at: serverTimestamp()
+                });
+                const ticketId = ticketRef.id;
+
+                await new Promise(r => setTimeout(r, 1500));
+
+                // 2. Técnico acepta
+                log(`2. Robot Técnico (${tech.nombre}) acepta la misión...`, "text-yellow-400");
+                await updateDoc(doc(db, "services", ticketId), {
+                    estado: "en_camino",
+                    tecnico_id: tech.id,
+                    tecnico_nombre: tech.nombre
+                });
+
+                await new Promise(r => setTimeout(r, 2000));
+
+                // 3. Técnico Abandona
+                log(`3. Robot Técnico decide abandonar a mitad de camino. Aplicando Multa...`, "text-red-500");
+                
+                // Transacción simulada de abandono
+                await updateDoc(doc(db, "services", ticketId), {
+                    estado: "pagado", // Regresa a la bolsa
+                    tecnico_id: null,
+                    tecnico_nombre: null
+                });
+
+                // La multa
+                await addDoc(collection(db, "transacciones"), {
+                    tecnico_id: tech.id,
+                    pago_tecnico: -150,
+                    monto_total: 0,
+                    tipo: "penalizacion",
+                    descripcion: `Sistema: Abandono de servicio activo (Folio Test)`,
+                    fecha: serverTimestamp()
+                });
+
+                log("✅ PRUEBA 2 COMPLETADA: Revisa la billetera del técnico, debe tener -$150 MXN.", "text-white font-bold");
+
+            } catch (error) {
+                log("❌ ERROR en Prueba 2: " + error.message, "text-red-500");
+            }
+        };
+
+    </script>
+</body>
+</html>
