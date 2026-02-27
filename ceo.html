@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CEO Dashboard | GestiaPremium</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #09090b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .glass-card { background: rgba(24, 24, 27, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
+    </style>
+</head>
+<body class="text-white antialiased pb-10 h-screen overflow-x-hidden animate-fade-in">
+
+    <header class="p-5 border-b border-zinc-800 bg-black sticky top-0 z-50">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.5)]">
+                    <i class="fas fa-chess-king text-white text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-black text-lg leading-tight tracking-tight uppercase">CEO Radar</h1>
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                        <p class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Live Sync Activo</p>
+                    </div>
+                </div>
+            </div>
+            <p id="fechaHoy" class="text-[10px] text-gray-500 font-mono text-right uppercase"></p>
+        </div>
+    </header>
+
+    <main class="p-4 space-y-4 mt-2">
+        
+        <div class="grid grid-cols-2 gap-3">
+            <div class="glass-card p-4 rounded-2xl relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 opacity-10 text-emerald-500">
+                    <i class="fas fa-chart-line text-7xl"></i>
+                </div>
+                <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-1"><i class="fas fa-money-bill-wave text-emerald-500"></i> GTV / Ingreso Hoy</p>
+                <h2 id="valRev" class="text-2xl font-black text-white truncate">$0.00</h2>
+            </div>
+            
+            <div class="glass-card p-4 rounded-2xl relative overflow-hidden border-blue-900/30">
+                <div class="absolute -right-4 -top-4 opacity-10 text-blue-500">
+                    <i class="fas fa-wallet text-7xl"></i>
+                </div>
+                <p class="text-[9px] text-blue-400 font-bold uppercase tracking-widest mb-1"><i class="fas fa-piggy-bank"></i> Tu Comisión Hoy</p>
+                <h2 id="valCom" class="text-2xl font-black text-blue-400 truncate">$0.00</h2>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <div class="glass-card p-4 rounded-2xl text-center">
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">Servicios Hoy</p>
+                <div class="flex items-center justify-center gap-2">
+                    <i class="fas fa-bolt text-yellow-500 text-xl"></i>
+                    <span id="valServ" class="text-3xl font-black text-white">0</span>
+                </div>
+            </div>
+            
+            <div class="glass-card p-4 rounded-2xl text-center border-emerald-900/30">
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">Flota en Calle</p>
+                <div class="flex items-center justify-center gap-2">
+                    <i class="fas fa-motorcycle text-emerald-500 text-xl"></i>
+                    <span id="valTechs" class="text-3xl font-black text-emerald-400">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-6">
+            <h3 class="text-xs font-black text-white mb-3 uppercase tracking-widest border-b border-zinc-800 pb-2 flex items-center gap-2">
+                <i class="fas fa-satellite-dish text-gray-500"></i> Monitor de Alertas
+            </h3>
+            <div id="contenedorAlertas" class="space-y-2">
+                <div class="p-4 bg-zinc-900 rounded-xl border border-zinc-800 flex items-center justify-center gap-2 text-zinc-500 text-xs italic">
+                    <i class="fas fa-circle-notch fa-spin"></i> Escaneando base de datos...
+                </div>
+            </div>
+        </div>
+
+        <button onclick="window.location.href='admin.html'" class="w-full mt-8 bg-zinc-900 hover:bg-zinc-800 text-white font-bold py-4 rounded-xl text-xs uppercase tracking-widest border border-zinc-700 transition-colors flex justify-center items-center gap-2 shadow-lg">
+            <i class="fas fa-desktop"></i> Ir al Panel NOC Completo
+        </button>
+    </main>
+
+    <script type="module">
+        import { db, collection, query, where, orderBy, onSnapshot, limit } from "./firebase.js";
+
+        // Establecer el inicio del día actual para los cálculos de "HOY"
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        
+        // Formatear fecha en cabecera
+        const opcionesFecha = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+        document.getElementById('fechaHoy').innerText = new Date().toLocaleDateString('es-MX', opcionesFecha);
+
+        // 1. MONITOR DE FLOTA ACTIVA (Técnicos con disponible = true)
+        const qTechs = query(collection(db, "users"), where("rol", "==", "tecnico"), where("disponible", "==", true));
+        onSnapshot(qTechs, (snap) => {
+            document.getElementById('valTechs').innerText = snap.size;
+        });
+
+        // 2. MONITOR FINANCIERO (Transacciones de Hoy)
+        // Leemos las últimas 200 transacciones y filtramos por fecha en el cliente para no forzar índices
+        const qTx = query(collection(db, "transacciones"), orderBy("fecha", "desc"), limit(200));
+        onSnapshot(qTx, (snap) => {
+            let ingresosHoy = 0;
+            let comisionHoy = 0;
+
+            snap.forEach(docSnap => {
+                const tx = docSnap.data();
+                if (tx.fecha && tx.fecha.toDate) {
+                    const fechaTx = tx.fecha.toDate();
+                    if (fechaTx >= hoy && tx.tipo !== 'retiro_fondos' && tx.tipo !== 'penalizacion') {
+                        ingresosHoy += (tx.monto_total || 0);
+                        comisionHoy += (tx.comision_fixgo || 0);
+                    }
+                }
+            });
+
+            document.getElementById('valRev').innerText = `$${ingresosHoy.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('valCom').innerText = `$${comisionHoy.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        });
+
+        // 3. MONITOR OPERATIVO Y DE ALERTAS (Servicios de Hoy)
+        const qServ = query(collection(db, "services"), orderBy("created_at", "desc"), limit(100));
+        onSnapshot(qServ, (snap) => {
+            let serviciosHoy = 0;
+            let htmlAlertas = "";
+
+            snap.forEach(docSnap => {
+                const s = docSnap.data();
+                const id = docSnap.id;
+                
+                if (s.created_at && s.created_at.toDate) {
+                    const fechaSrv = s.created_at.toDate();
+                    
+                    if (fechaSrv >= hoy) {
+                        serviciosHoy++;
+                        
+                        // Generación de Alertas Tácticas
+                        if (s.estado === 'cancelado') {
+                            htmlAlertas += `
+                            <div class="p-3 bg-red-900/20 border-l-2 border-red-500 rounded-r-xl flex justify-between items-center animate-fade-in shadow-lg">
+                                <div>
+                                    <p class="text-xs font-bold text-red-500"><i class="fas fa-ban"></i> Servicio Cancelado</p>
+                                    <p class="text-[9px] text-gray-400 mt-0.5">Téc: ${s.tecnico_nombre || 'No asignado'}</p>
+                                </div>
+                                <span class="text-[9px] font-mono text-gray-500 uppercase">${id.substring(0,6)}</span>
+                            </div>`;
+                        } else if (s.estado === 'iniciado_stripe') {
+                            htmlAlertas += `
+                            <div class="p-3 bg-blue-900/20 border-l-2 border-blue-500 rounded-r-xl flex justify-between items-center animate-fade-in shadow-lg">
+                                <div>
+                                    <p class="text-xs font-bold text-blue-400 animate-pulse"><i class="fas fa-credit-card"></i> Pago Stripe Atorado</p>
+                                    <p class="text-[9px] text-gray-400 mt-0.5">Esperando confirmación del banco</p>
+                                </div>
+                                <span class="text-[9px] font-mono text-gray-500 uppercase">${id.substring(0,6)}</span>
+                            </div>`;
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('valServ').innerText = serviciosHoy;
+            
+            const contAlertas = document.getElementById('contenedorAlertas');
+            if (htmlAlertas === "") {
+                contAlertas.innerHTML = `
+                <div class="p-4 bg-emerald-900/10 border border-emerald-900/30 rounded-xl text-center shadow-inner">
+                    <i class="fas fa-check-circle text-emerald-500 text-2xl mb-2"></i>
+                    <p class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Sin alertas críticas</p>
+                    <p class="text-[9px] text-gray-500 mt-1">La operación fluye con normalidad.</p>
+                </div>`;
+            } else {
+                contAlertas.innerHTML = htmlAlertas;
+            }
+        });
+    </script>
+</body>
+</html>
