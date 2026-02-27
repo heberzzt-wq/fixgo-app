@@ -5,7 +5,7 @@
  * Archivo: panel-tecnico.js
  * Descripción: Motor de radar, GPS, colisiones, cotizador y evidencia Cloud.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
- * INYECCIÓN: Dashboard Gamificado, Abandono de Misión, Split Billing y LOGO OFICIAL.
+ * INYECCIÓN: Visor de Foto Inicial y Geocercas (Tarifas Premium 1.3x y Emergencias 1.5x).
  * ======================================================================================
  */
 
@@ -32,7 +32,7 @@ import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 import { escaparHTML, calcularDistancia, sonarAlerta, lanzarNotificacionPush, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
 
 export async function iniciarPanelTecnico(user) {
-    console.log(" 🔧 Iniciando Panel de Técnico (Modo Uber Cash / Gamificación / Split Billing PDF)...");
+    console.log(" 🔧 Iniciando Panel de Técnico (Modo Tarifas Inteligentes y Geocercas)...");
     
     activarMotorFCM(user.uid);
 
@@ -615,7 +615,6 @@ export async function iniciarPanelTecnico(user) {
                 const item = document.createElement("div");
                 item.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-xl shadow-lg mb-3";
                 
-                // 🔥 INYECCIÓN: Botón de Split Billing (Recibo de Comisión a nombre de GestiaPremium)
                 item.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
                     <span class="text-white font-bold text-xs uppercase">${escaparHTML(s.categoria)} | ${escaparHTML(s.sub_servicio || 'GRAL')}</span>
@@ -698,21 +697,41 @@ export async function iniciarPanelTecnico(user) {
                     ? '<span class="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(37,99,235,0.8)]"><i class="fab fa-stripe-s"></i> PAGADO STRIPE</span>'
                     : '<span class="bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(16,185,129,0.8)]"><i class="fas fa-money-bill"></i> PAGO EFECTIVO</span>';
 
+                // 🔥 INYECCIÓN: VISOR TÁCTICO DE ETIQUETA DE URGENCIA Y FOTO INICIAL EN EL RADAR
+                let badgeUrgencia = s.urgencia ? `<span class="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(220,38,38,0.8)] ml-2 animate-pulse"><i class="fas fa-fire"></i> EMERGENCIA</span>` : '';
+                
+                let previewFotoHTML = '';
+                if (s.foto_problema) {
+                    previewFotoHTML = `
+                    <div class="mt-2 mb-2 p-1.5 bg-black rounded-lg border border-zinc-700 flex items-center gap-2">
+                        <div class="w-12 h-12 rounded overflow-hidden shrink-0 border border-zinc-800">
+                            <img src="${s.foto_problema}" class="w-full h-full object-cover">
+                        </div>
+                        <p class="text-[9px] text-gray-400 leading-tight">El cliente adjuntó una foto del problema. Podrás verla a detalle al aceptar el ticket.</p>
+                    </div>`;
+                }
+
                 let btnAceptar = s.metodo_pago === 'stripe'
                     ? `<button class="flex-[4] bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}', 'stripe')">ACEPTAR TICKET</button>`
                     : `<button class="flex-[4] bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}', 'efectivo')">ACEPTAR TICKET</button>`;
 
                 const card = document.createElement("div");
-                card.className = `bg-zinc-900 border ${s.metodo_pago === 'stripe' ? 'border-blue-500 shadow-blue-900/20' : 'border-emerald-500 shadow-emerald-900/20'} p-4 rounded-xl mb-3 animate-pulse shadow-lg`;
+                card.className = `bg-zinc-900 border ${s.urgencia ? 'border-red-500 shadow-red-900/30' : (s.metodo_pago === 'stripe' ? 'border-blue-500 shadow-blue-900/20' : 'border-emerald-500 shadow-emerald-900/20')} p-4 rounded-xl mb-3 shadow-lg transition-transform`;
 
                 card.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
-                    ${badgeMetodo}
+                    <div>
+                        ${badgeMetodo}
+                        ${badgeUrgencia}
+                    </div>
                     <span class="text-white font-bold text-xs">${s.categoria ? escaparHTML(s.categoria.toUpperCase()) : 'GENERAL'}</span>
                 </div>
                 <h4 class="text-white font-bold text-base mb-1">${escaparHTML(s.zona || 'Cancún')}</h4>
-                <p class="text-gray-300 text-sm mb-3 font-medium italic">"${escaparHTML(s.descripcion)}"</p>
-                <div class="flex items-center gap-2 mb-3 text-xs text-gray-500">
+                <p class="text-gray-300 text-sm mb-2 font-medium italic">"${escaparHTML(s.descripcion)}"</p>
+                
+                ${previewFotoHTML}
+
+                <div class="flex items-center gap-2 mb-3 mt-2 text-xs text-gray-500">
                     <i class="fas fa-map-marker-alt"></i> ${escaparHTML(s.direccion)}
                 </div>
                 
@@ -894,13 +913,26 @@ export async function iniciarPanelTecnico(user) {
                 </button>`;
             }
 
+            // 🔥 INYECCIÓN: MOSTRAR FOTO AMPLIADA EN LA MISIÓN ACTIVA
+            let fotoMisionActivaHTML = '';
+            if (s.foto_problema) {
+                fotoMisionActivaHTML = `
+                <div class="mt-3 mb-3">
+                    <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-2"><i class="fas fa-camera"></i> Evidencia del Cliente:</p>
+                    <div class="w-full h-40 rounded-xl overflow-hidden border border-blue-900/50 relative">
+                        <img src="${s.foto_problema}" class="w-full h-full object-cover">
+                        <a href="${s.foto_problema}" target="_blank" class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-white px-3 py-1 rounded text-[9px] font-bold border border-white/20 hover:bg-black transition-colors"><i class="fas fa-expand"></i> VER COMPLETA</a>
+                    </div>
+                </div>`;
+            }
+
             const card = document.createElement("div");
-            card.className = `bg-zinc-900 border ${s.estado === 'cancelado' ? 'border-red-500' : 'border-blue-500/50'} p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl`;
+            card.className = `bg-zinc-900 border ${s.estado === 'cancelado' ? 'border-red-500' : (s.urgencia ? 'border-red-500 shadow-red-900/20' : 'border-blue-500/50')} p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl`;
             card.innerHTML = `
             <div class="absolute top-0 right-0 ${s.estado === 'cancelado' ? 'bg-red-600' : 'bg-blue-600'} text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">
                 ${s.estado.replace('_', ' ')}
             </div>
-            <h3 class="text-xl font-black text-white mb-1 uppercase">${escaparHTML(s.categoria)}</h3>
+            <h3 class="text-xl font-black text-white mb-1 uppercase">${escaparHTML(s.categoria)} ${s.urgencia ? '<span class="text-red-500 ml-1" title="Emergencia"><i class="fas fa-fire animate-pulse"></i></span>' : ''}</h3>
             <p class="text-gray-400 text-sm mb-4">
                 <i class="fas fa-map-marker-alt text-blue-500"></i> ${escaparHTML(s.direccion)}
             </p>
@@ -908,6 +940,9 @@ export async function iniciarPanelTecnico(user) {
                 <p class="text-xs text-gray-500 uppercase font-bold mb-1">Problema Reportado:</p>
                 <p class="text-sm text-white italic">"${escaparHTML(s.descripcion)}"</p>
             </div>
+            
+            ${fotoMisionActivaHTML}
+
             <div class="flex gap-2">
                 <a href="https://waze.com/ul?q=${destinoWaze}" target="_blank" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-center text-sm transition-colors ${s.estado === 'cancelado' ? 'pointer-events-none opacity-50' : ''}">
                     <i class="fab fa-waze"></i> IR CON WAZE
@@ -1029,9 +1064,51 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
+    // 🔥 INYECCIÓN: MOTOR DE GEOFENCING (CEREBRO FINANCIERO) 🔥
+    function calcularMultiplicadorTarifa(servicioData) {
+        let multiplicador = 1.0;
+        let razon = "TARIFA BASE REGULAR (1.0x)";
+        let color = "text-gray-400";
+
+        // 1. REGLA SUPREMA: SI ES EMERGENCIA, GANA EL 1.5x Y SE IGNORA LA ZONA
+        if (servicioData.urgencia === true) {
+            return { factor: 1.5, razon: "🔥 EMERGENCIA SOLICITADA (1.5x)", color: "text-red-500" };
+        }
+
+        // 2. SI NO ES EMERGENCIA, EVALUAMOS LAS GEOCERCAS (1.3x)
+        if (servicioData.coords && servicioData.coords.lat && servicioData.coords.lng) {
+            const lat = servicioData.coords.lat;
+            const lng = servicioData.coords.lng;
+
+            // Caja 1: Zona Hotelera / Isla Blanca
+            if (lat >= 21.03 && lat <= 21.20 && lng >= -86.85 && lng <= -86.74) {
+                return { factor: 1.3, razon: "💎 ZONA HOTELERA DETECTADA (1.3x)", color: "text-blue-400" };
+            }
+            // Caja 2: Puerto Cancún / Puerto Juárez
+            if (lat >= 21.16 && lat <= 21.19 && lng >= -86.81 && lng <= -86.79) {
+                return { factor: 1.3, razon: "💎 PUERTO CANCÚN DETECTADO (1.3x)", color: "text-blue-400" };
+            }
+            // Caja 3: Corredor Colosio (Cumbres/Campestre)
+            if (lat >= 21.05 && lat <= 21.12 && lng >= -86.86 && lng <= -86.82) {
+                return { factor: 1.3, razon: "💎 ZONA PREMIUM COLOSIO (1.3x)", color: "text-blue-400" };
+            }
+            // Caja 4: Polígono Sur (Huayacán/Jardines)
+            if (lat >= 21.10 && lat <= 21.14 && lng >= -86.89 && lng <= -86.84) {
+                return { factor: 1.3, razon: "💎 ZONA PREMIUM HUAYACÁN (1.3x)", color: "text-blue-400" };
+            }
+        }
+
+        // 3. SI NO CAYÓ EN NADA, SE QUEDA LA BASE
+        return { factor: multiplicador, razon: razon, color: color };
+    }
+
     window.abrirCotizadorGlobal = (id) => {
         getDoc(doc(db, "services", id)).then(snap => {
-            if(snap.exists()) mostrarModalCotizacionDetallada(id, snap.data());
+            if(snap.exists()) {
+                const data = snap.data();
+                const inteligencia = calcularMultiplicadorTarifa(data);
+                mostrarModalCotizacionDetallada(id, data, inteligencia);
+            }
         });
     };
 
@@ -1039,10 +1116,12 @@ export async function iniciarPanelTecnico(user) {
         mostrarModalEvidencia(id);
     };
 
-    function mostrarModalCotizacionDetallada(id, servicioData) {
+    // 🔥 MODIFICADO: COTIZADOR PRO AHORA RECIBE LA INTELIGENCIA ARTIFICIAL 🔥
+    function mostrarModalCotizacionDetallada(id, servicioData, inteligencia) {
         if(document.getElementById("modalCot")) return;
         
         let items = []; 
+        const isPremiumActivo = inteligencia.factor > 1.0;
 
         const html = `
         <div id="modalCot" class="fixed inset-0 bg-black/95 z-[60] flex flex-col p-4 animate-fade-in overflow-y-auto">
@@ -1051,13 +1130,19 @@ export async function iniciarPanelTecnico(user) {
                     <h3 class="text-white font-black text-xl flex items-center gap-2"><img src="assets/gestiapremium-icon.svg" class="w-6 h-6 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]"> COTIZADOR PRO</h3>
                     <button onclick="document.getElementById('modalCot').remove()" class="text-gray-500"><i class="fas fa-times"></i></button>
                 </div>
+
+                <div class="bg-black border border-zinc-800 p-3 rounded-xl mb-4 text-center">
+                    <p class="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-1">Motor de Tarifas Automático</p>
+                    <p class="text-xs font-black ${inteligencia.color} animate-pulse">${inteligencia.razon}</p>
+                    ${isPremiumActivo ? `<p class="text-[9px] text-gray-400 mt-1">El sistema multiplicará tus precios base automáticamente al agregarlos.</p>` : ''}
+                </div>
                 
                 <div class="bg-zinc-800 p-3 rounded-xl mb-4 border border-blue-900/50">
                     <label class="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2 block"><i class="fas fa-stethoscope"></i> 1. Reporte de Diagnóstico Obligatorio:</label>
                     <textarea id="inDiagnostico" rows="3" placeholder="Describe detalladamente el problema que encontraste en el sitio..." class="w-full bg-black text-white p-3 rounded-lg text-xs border border-zinc-600 focus:border-blue-500 outline-none resize-none"></textarea>
                 </div>
 
-                <label class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mb-2 block"><i class="fas fa-list"></i> 2. Conceptos y Costos:</label>
+                <label class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mb-2 block"><i class="fas fa-list"></i> 2. Conceptos y Costos (Ingresa tu precio NORMAL):</label>
                 <div class="flex-1 overflow-y-auto mb-4 border border-zinc-800 rounded-xl bg-black/50 p-2" id="listaPartidas">
                     <p class="text-gray-600 text-xs text-center italic py-10">Agrega conceptos para cotizar.</p>
                 </div>
@@ -1071,7 +1156,7 @@ export async function iniciarPanelTecnico(user) {
                     <div class="flex gap-2 items-center">
                         <div class="flex-1 relative">
                             <span class="absolute left-3 top-3 text-gray-500 text-xs">$</span>
-                            <input id="inPrecio" type="number" placeholder="Precio Unitario" class="w-full bg-black text-white p-3 pl-6 rounded-lg text-xs border border-zinc-600 focus:border-emerald-500 outline-none font-mono">
+                            <input id="inPrecio" type="number" placeholder="Precio Base" class="w-full bg-black text-white p-3 pl-6 rounded-lg text-xs border border-zinc-600 focus:border-emerald-500 outline-none font-mono">
                         </div>
                         <button id="btnAddItem" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-lg font-bold text-xs transition-colors"><i class="fas fa-plus"></i> AGREGAR</button>
                     </div>
@@ -1100,14 +1185,14 @@ export async function iniciarPanelTecnico(user) {
                 container.innerHTML = `<p class="text-gray-600 text-xs text-center italic py-4">Sin conceptos.</p>`;
             } else {
                 items.forEach((item, index) => {
-                    const importe = item.cantidad * item.precio;
+                    const importe = item.cantidad * item.precio_final; 
                     grandTotal += importe;
                     const row = document.createElement("div");
                     row.className = "flex justify-between items-start border-b border-zinc-800 py-2 text-xs last:border-0 animate-fade-in";
                     row.innerHTML = `
                     <div class="flex-1">
                         <p class="text-white font-bold"><span class="text-emerald-500">${item.cantidad} ${escaparHTML(item.unidad)}</span> ${escaparHTML(item.descripcion)}</p>
-                        <p class="text-gray-500 text-[10px]">$${item.precio} c/u</p>
+                        <p class="text-gray-500 text-[10px]">$${item.precio_final.toFixed(2)} c/u ${isPremiumActivo ? `<span class="text-emerald-500 ml-1">(Ajustado)</span>` : ''}</p>
                     </div>
                     <div class="text-right">
                         <p class="text-white font-mono">$${importe.toFixed(2)}</p>
@@ -1137,11 +1222,20 @@ export async function iniciarPanelTecnico(user) {
                     const cant = parseFloat(document.getElementById("inCant").value);
                     const unidad = document.getElementById("inUnidad").value.trim();
                     const desc = document.getElementById("inDesc").value.trim();
-                    const precio = parseFloat(document.getElementById("inPrecio").value);
+                    const precioBase = parseFloat(document.getElementById("inPrecio").value);
 
-                    if(!cant || !desc || !precio) return alert("Llena todos los campos del concepto.");
+                    if(!cant || !desc || !precioBase) return alert("Llena todos los campos del concepto.");
 
-                    items.push({ cantidad: cant, unidad: unidad || 'pz', descripcion: desc, precio: precio });
+                    // 🔥 APLICAR EL MULTIPLICADOR INVISIBLE AQUÍ 🔥
+                    const precioMultiplicado = precioBase * inteligencia.factor;
+
+                    items.push({ 
+                        cantidad: cant, 
+                        unidad: unidad || 'pz', 
+                        descripcion: desc, 
+                        precio: precioMultiplicado, // Guardamos el precio ya inflado en la BD
+                        precio_final: precioMultiplicado // Para uso del render
+                    });
                     
                     document.getElementById("inCant").value = "";
                     document.getElementById("inDesc").value = "";
@@ -1159,17 +1253,26 @@ export async function iniciarPanelTecnico(user) {
 
                     if(items.length === 0) return alert("Agrega al menos un concepto a cobrar.");
                     
-                    const totalFinal = items.reduce((sum, item) => sum + (item.cantidad * item.precio), 0);
+                    const totalFinal = items.reduce((sum, item) => sum + (item.cantidad * item.precio_final), 0);
 
-                    if(!confirm(`¿Enviar diagnóstico y cotización por un total de $${totalFinal.toFixed(2)} al cliente para su revisión?`)) return;
+                    if(!confirm(`¿Enviar diagnóstico y cotización por un total de $${totalFinal.toFixed(2)} al cliente para su revisión?\n\nEste precio ya incluye el multiplicador de zona si aplica.`)) return;
 
                     try {
+                        // Limpiar el array para guardar en BD (Stripe y la UI del cliente esperan "precio")
+                        const itemsLimpios = items.map(i => ({
+                            cantidad: i.cantidad,
+                            unidad: i.unidad,
+                            descripcion: i.descripcion,
+                            precio: i.precio_final 
+                        }));
+
                         await updateDoc(doc(db, "services", id), {
                             estado: "cotizando",
                             diagnostico: diagTexto,
-                            detalles_cotizacion: items, 
+                            detalles_cotizacion: itemsLimpios, 
                             costo_final: totalFinal,
-                            cotizado_at: serverTimestamp()
+                            cotizado_at: serverTimestamp(),
+                            factor_aplicado: inteligencia.factor // Guardamos huella de auditoría
                         });
                         alert(`✅ Diagnóstico y Cotización enviados.\n\nEspera a que el cliente lo apruebe en su aplicación para comenzar a trabajar.`);
                     } catch (e) {
@@ -1440,10 +1543,11 @@ export async function iniciarPanelTecnico(user) {
             docPdf.setFillColor(18, 18, 18);
             docPdf.rect(0, 0, 215, 40, 'F');
 
-            // 🔥 INYECCIÓN DE LOGO PNG (GESTIAPREMIUM)
+            // 🔥 INYECCIÓN DE LOGO PNG ABSOLUTO
             let logoBase64 = null;
             try { 
-                logoBase64 = await urlABase64("assets/icono-512.png"); 
+                const logoUrl = window.location.origin + '/assets/icono-512.png';
+                logoBase64 = await urlABase64(logoUrl); 
             } catch(e) { console.warn("Aviso: No se pudo cargar el logo PNG para el PDF"); }
 
             if (logoBase64) {
@@ -1549,10 +1653,10 @@ export async function iniciarPanelTecnico(user) {
             docPdf.setFillColor(18, 18, 18);
             docPdf.rect(0, 0, 215, 40, 'F');
 
-            // 🔥 INYECCIÓN DE LOGO PNG TAMBIÉN PARA RETIROS SPEI
             let logoBase64 = null;
             try { 
-                logoBase64 = await urlABase64("assets/icono-512.png"); 
+                const logoUrl = window.location.origin + '/assets/icono-512.png';
+                logoBase64 = await urlABase64(logoUrl); 
             } catch(e) {}
 
             if (logoBase64) {
