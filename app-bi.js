@@ -167,6 +167,48 @@ export async function iniciarMotorBI(contenedorId) {
                 </div>
             </div>
 
+            <div class="bg-zinc-900/20 rounded-[2.5rem] border border-emerald-900/40 p-8 mt-10 shadow-[0_0_30px_rgba(16,185,129,0.05)]">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-zinc-800 pb-4 gap-4">
+                    <div>
+                        <h3 class="text-white font-black text-lg uppercase tracking-tight flex items-center gap-3">
+                            <i class="fas fa-toggle-on text-emerald-400"></i> 
+                            Feature Flags: Gateways de Pago
+                        </h3>
+                        <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">Control maestro de flujo de caja en la aplicación del cliente</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <div class="bg-black p-6 rounded-3xl border border-zinc-800 flex justify-between items-center transition-all" id="cardGatewayStripe">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-[#635BFF]/20 p-4 rounded-xl text-[#635BFF]"><i class="fab fa-stripe-s text-2xl"></i></div>
+                            <div>
+                                <p class="text-white font-black uppercase tracking-widest">Motor Stripe</p>
+                                <p class="text-[10px] text-zinc-500 font-bold mt-1">Tarjetas y Retenciones</p>
+                            </div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggleStripeGW" class="sr-only peer" onchange="window.toggleGateway('stripe_activo', this.checked)">
+                            <div class="w-14 h-7 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-300 after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-[#635BFF]"></div>
+                        </label>
+                    </div>
+                    
+                    <div class="bg-black p-6 rounded-3xl border border-zinc-800 flex justify-between items-center transition-all" id="cardGatewayEfectivo">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-emerald-500/20 p-4 rounded-xl text-emerald-500"><i class="fas fa-hand-holding-usd text-2xl"></i></div>
+                            <div>
+                                <p class="text-white font-black uppercase tracking-widest">Modo Bootstrapping</p>
+                                <p class="text-[10px] text-zinc-500 font-bold mt-1">Pago 100% en Domicilio</p>
+                            </div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggleEfectivoGW" class="sr-only peer" onchange="window.toggleGateway('efectivo_activo', this.checked)">
+                            <div class="w-14 h-7 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-300 after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
             <div class="bg-zinc-900/20 rounded-[2.5rem] border border-blue-900/40 p-8 mt-10 shadow-[0_0_30px_rgba(59,130,246,0.05)]">
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-zinc-800 pb-4 gap-4">
                     <div>
@@ -193,6 +235,7 @@ export async function iniciarMotorBI(contenedorId) {
 
     iniciarEscuchaTelemetria();
     iniciarEscuchaFlota();
+    iniciarEscuchaGateways(); // 🔥 INYECCIÓN: Lector de estado de switches
 }
 
 /**
@@ -236,7 +279,6 @@ function iniciarEscuchaFlota() {
     const qUsers = query(collection(db, "users"), where("rol", "==", "tecnico"));
     const qTransProfit = query(collection(db, "transacciones"), where("tipo", "==", "ingreso_servicio"));
 
-    // 🔥 AJEDREZ 4D: Auditoría cruzada de rentabilidad por técnico individual
     onSnapshot(qTransProfit, (transSnap) => {
         const profitMap = {};
         const volumeMap = {};
@@ -245,11 +287,8 @@ function iniciarEscuchaFlota() {
         transSnap.forEach(doc => {
             const tx = doc.data();
             if (tx.tecnico_id) {
-                // Utilidad Neta Empresa (GP Fee)
                 profitMap[tx.tecnico_id] = (profitMap[tx.tecnico_id] || 0) + (tx.comision_fixgo || 0);
-                // Volumen Bruto (GTV)
                 volumeMap[tx.tecnico_id] = (volumeMap[tx.tecnico_id] || 0) + (tx.monto_total || 0);
-                // Conteo de servicios pagados
                 countMap[tx.tecnico_id] = (countMap[tx.tecnico_id] || 0) + 1;
             }
         });
@@ -272,6 +311,47 @@ function iniciarEscuchaFlota() {
         });
     });
 }
+
+// 🔥 INYECCIÓN: Lector de Switches de Gateways de Pago
+function iniciarEscuchaGateways() {
+    onSnapshot(doc(db, "configuracion", "pagos"), (docSnap) => {
+        const cbStripe = document.getElementById("toggleStripeGW");
+        const cbEfectivo = document.getElementById("toggleEfectivoGW");
+        const cardStripe = document.getElementById("cardGatewayStripe");
+        const cardEfectivo = document.getElementById("cardGatewayEfectivo");
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if(cbStripe) cbStripe.checked = data.stripe_activo === true;
+            if(cbEfectivo) cbEfectivo.checked = data.efectivo_activo === true;
+            
+            // Efectos visuales de encendido/apagado
+            if(cardStripe) {
+                if(data.stripe_activo) cardStripe.classList.replace("border-zinc-800", "border-[#635BFF]/50");
+                else cardStripe.classList.replace("border-[#635BFF]/50", "border-zinc-800");
+            }
+            if(cardEfectivo) {
+                if(data.efectivo_activo) cardEfectivo.classList.replace("border-zinc-800", "border-emerald-500/50");
+                else cardEfectivo.classList.replace("border-emerald-500/50", "border-zinc-800");
+            }
+        }
+    });
+}
+
+window.toggleGateway = async (campo, estado) => {
+    try {
+        await updateDoc(doc(db, "configuracion", "pagos"), { [campo]: estado });
+        console.log(`✅ Gateway ${campo} actualizado a: ${estado}`);
+    } catch (error) {
+        // Si no existe el documento, lo creamos
+        try {
+            await setDoc(doc(db, "configuracion", "pagos"), { [campo]: estado }, { merge: true });
+        } catch (e) {
+            console.error("Error al actualizar Gateway:", e);
+            alert("Error de conexión al actualizar el Switch Global.");
+        }
+    }
+};
 
 /**
  * ======================================================================================
@@ -395,7 +475,6 @@ function procesarRankingYDisciplina(tecnicos) {
     const contenedor = document.getElementById("biRankingFlota");
     if (!contenedor) return;
 
-    // Meritocracia Ajedrez 4D: Mayor utilidad neta para la empresa va primero
     const tecnicosOrdenados = tecnicos.sort((a, b) => b.generated_profit - a.generated_profit);
 
     let html = "";
@@ -493,7 +572,7 @@ function procesarMotorComercialLTV(transacciones, servicios) {
                 clientesHash[cid] = { nombre: srv.cliente_nombre, telf: srv.cliente_telefono, gtv: 0, ltv: 0, count: 0, last: 0 };
             }
             clientesHash[cid].gtv += (tx.monto_total || 0);
-            clientesHash[cid].ltv += (tx.comision_fixgo || 0); // Utilidad neta retenida
+            clientesHash[cid].ltv += (tx.comision_fixgo || 0); 
             clientesHash[cid].count++;
             
             if (srv.created_at) {
@@ -507,7 +586,6 @@ function procesarMotorComercialLTV(transacciones, servicios) {
         }
     });
 
-    // Ranking VIP: Gross Transaction Value (GTV)
     const arrayVips = Object.values(clientesHash).sort((a, b) => b.gtv - a.gtv).slice(0, 10);
     let htmlVIP = "";
     const ahora = Date.now();
@@ -534,7 +612,6 @@ function procesarMotorComercialLTV(transacciones, servicios) {
     });
     contClientes.innerHTML = htmlVIP || '<p class="text-zinc-600 text-xs text-center py-10 font-black uppercase tracking-widest">Iniciando auditoría comercial...</p>';
 
-    // Rentabilidad por Vertical (Ajedrez 4D - Revenue Mix)
     const arrayVert = Object.entries(verticalHash).map(([k, v]) => ({ n: k, ...v })).sort((a,b) => b.rev - a.rev);
     contMétricas.innerHTML = arrayVert.map(v => `
         <div class="bg-black p-4 rounded-2xl border border-zinc-800 hover:border-emerald-500/40 transition-all group h-[85px] flex flex-col justify-between">
