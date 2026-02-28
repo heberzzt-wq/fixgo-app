@@ -297,24 +297,22 @@
             document.getElementById('cardTecnico').classList.add('hidden');
             document.getElementById('selectorPerfil').classList.remove('hidden');
         }
-        document.getElementById('selectorPerfil').classList.remove('hidden');
-    }
 
-    function togglePassword(inputId, iconId) {
-        const input = document.getElementById(inputId);
-        const icon = document.getElementById(iconId);
-        
-        if (input.type === 'password') {
-            input.type = 'text';
-            icon.classList.remove('fa-eye');
-            icon.classList.add('fa-eye-slash');
-        } else {
-            input.type = 'password';
-            icon.classList.remove('fa-eye-slash');
-            icon.classList.add('fa-eye');
+        function togglePassword(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
         }
-    }
-</script>
-<script type="module" src="./app-registro.js"></script>
+    </script>
+    <script type="module" src="./app-registro.js"></script>
 </body>
 </html>
