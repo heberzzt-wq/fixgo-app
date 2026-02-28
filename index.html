@@ -74,15 +74,14 @@
         </div>
     </main>
 
-    <footer class="p-6 border-t border-white/10 text-center relative z-20 bg-black/80 backdrop-blur-md">
-        <div class="flex flex-wrap justify-center gap-4 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-            <button onclick="document.getElementById('modalTerminosCliente').classList.remove('hidden')" class="hover:text-blue-500 transition-colors">Términos Cliente</button>
-            <button onclick="document.getElementById('modalTerminosTecnico').classList.remove('hidden')" class="hover:text-blue-500 transition-colors">Términos Socio Pro</button>
-            <button onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="hover:text-blue-500 transition-colors">Privacidad</button>
-            <button onclick="document.getElementById('modalEliminacion').classList.remove('hidden')" class="hover:text-red-500 transition-colors">Eliminar Datos</button>
-        </div>
-        <p class="text-[9px] text-gray-700 mt-4">&copy; 2026 GestiaPremium Corp. Todos los derechos reservados.</p>
-    </footer>
+  <footer class="text-center py-6 mt-10">
+    <div class="flex justify-center gap-6 text-xs text-gray-500 mb-2">
+        <a href="politicas.html" class="hover:text-white transition-colors">Términos de Servicio</a>
+        <a href="privacidad.html" class="hover:text-white transition-colors">Aviso de Privacidad</a>
+        <a href="eliminar-datos.html" class="hover:text-white transition-colors">Eliminar Datos</a>
+    </div>
+    <p class="text-[10px] text-zinc-700 font-bold uppercase tracking-widest">© 2026 GestiaPremium Corp. Todos los derechos reservados.</p>
+</footer>
 
     <div id="modalTerminosCliente" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left animate-fade-in">
         <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-zinc-700 shadow-2xl flex flex-col max-h-[80vh]">
@@ -110,7 +109,7 @@
             </div>
             <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
                 <p><strong>1. Relación Comercial:</strong> Al registrarse como Socio Pro, usted actúa como Contratista Independiente. No existe relación obrero-patronal, subordinación ni exclusividad con GestiaPremium. Usted provee sus propias herramientas, vehículos y horarios.</p>
-                <p><strong>2. Comisiones y Pagos:</strong> Usted cobrará el 100% del servicio en efectivo o transferencia directa del cliente. Por el uso de la plataforma, GestiaPremium cobrará una comisión del 32% sobre cada servicio completado. Esta comisión se reflejará como "Deuda" en su Billetera GestiaPremium y deberá ser liquidada vía SPEI periódicamente para evitar la suspensión de su cuenta.</p>
+               <p><strong>2. Tarifa de Gestión Operativa:</strong> El método principal de cobro es automatizado a través de nuestra pasarela segura <strong>Stripe</strong>. Al finalizar un servicio, el sistema transfiere sus ganancias a su cuenta bancaria, descontando la 'Tarifa de Gestión Integral' del 32%. Esta tarifa garantiza la infraestructura tecnológica (servidores en la nube, facturación Split Billing) y la adquisición continua de clientes. <br><br> <strong class="text-emerald-500">Pagos en Efectivo (Exclusivo Nivel VIP):</strong> La habilitación para recibir pagos directos en efectivo está estrictamente reservada para Socios Pro que alcancen el estatus VIP. Solo en estos casos excepcionales, al recibir el 100% del pago en sitio, el 32% de la Tarifa de Gestión se reflejará como un 'Saldo Operativo' pendiente en su Billetera GestiaPremium, el cual deberá liquidarse periódicamente vía SPEI para mantener su cuenta activa.</p>
                 <p><strong>3. Políticas Anti-Fraude:</strong> Cancelar servicios asignados injustificadamente después de 5 minutos de aceptación generará una penalización de $50 MXN. Es obligatorio el uso de GPS en sitio y subir fotografías reales de evidencia del servicio. La suplantación de identidad o perfiles falsos causará la baja definitiva e inmediata de la plataforma.</p>
                 <p><strong>4. Responsabilidad Civil:</strong> El Socio Pro es el único responsable legal por daños causados a la propiedad del cliente durante la ejecución del servicio.</p>
             </div>
