@@ -84,7 +84,12 @@
                     <form id="formRegistroCliente" class="space-y-4">
                         <input type="text" name="nombre" placeholder="Nombre completo" required class="uber-input w-full px-5 py-4 rounded-2xl">
                         <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-5 py-4 rounded-2xl">
-                        <input type="password" name="password" placeholder="Contraseña segura" required class="uber-input w-full px-5 py-4 rounded-2xl">
+                       <div class="relative w-full">
+    <input type="password" id="passCliente" name="password" placeholder="Contraseña segura" required class="uber-input w-full px-5 py-4 rounded-2xl pr-12">
+    <button type="button" onclick="togglePassword('passCliente', 'iconPassCliente')" class="absolute inset-y-0 right-4 flex items-center text-gray-500 hover:text-white transition-colors">
+        <i id="iconPassCliente" class="fas fa-eye text-lg"></i>
+    </button>
+</div>
                         <input type="tel" name="telefono" placeholder="Teléfono de contacto" required class="uber-input w-full px-5 py-4 rounded-2xl">
                         
                         <div class="py-4">
@@ -126,8 +131,12 @@
                             <input type="tel" name="telefono" placeholder="Teléfono" required class="uber-input w-full px-5 py-4 rounded-2xl">
                         </div>
                         <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-5 py-4 rounded-2xl">
-                        <input type="password" name="password" placeholder="Contraseña (Mín. 8, Mayús. y Núm.)" required class="uber-input w-full px-5 py-4 rounded-2xl">
-
+                       <div class="relative w-full">
+    <input type="password" id="passTecnico" name="password" placeholder="Contraseña (Mín. 8, Mayús. y Núm.)" required class="uber-input w-full px-5 py-4 rounded-2xl pr-12">
+    <button type="button" onclick="togglePassword('passTecnico', 'iconPassTecnico')" class="absolute inset-y-0 right-4 flex items-center text-gray-500 hover:text-white transition-colors">
+        <i id="iconPassTecnico" class="fas fa-eye text-lg"></i>
+    </button>
+</div>
                         <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
                             <label class="block text-xs font-bold text-gray-400 mb-3 uppercase"><i class="fas fa-motorcycle"></i> Logística Operativa</label>
                             <select name="tipoVehiculo" class="uber-input w-full px-4 py-3 rounded-xl appearance-none cursor-pointer mb-3 outline-none focus:border-emerald-500">
@@ -288,7 +297,24 @@
             document.getElementById('cardTecnico').classList.add('hidden');
             document.getElementById('selectorPerfil').classList.remove('hidden');
         }
-    </script>
-    <script type="module" src="./app-registro.js"></script>
+        document.getElementById('selectorPerfil').classList.remove('hidden');
+    }
+
+    function togglePassword(inputId, iconId) {
+        const input = document.getElementById(inputId);
+        const icon = document.getElementById(iconId);
+        
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
+</script>
+<script type="module" src="./app-registro.js"></script>
 </body>
 </html>
