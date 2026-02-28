@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GestiaPremium | Directorio CRM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #000000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    </style>
+</head>
+<body class="text-white pb-20 antialiased">
+    
+    <header class="p-6 sticky top-0 bg-black/95 z-20 backdrop-blur-md border-b border-zinc-800">
+        <div class="flex justify-between items-center max-w-2xl mx-auto">
+            <h1 class="font-black text-xl text-white flex items-center gap-2">
+                <i class="fas fa-users text-blue-500"></i> DIRECTORIO B2B
+            </h1>
+            <button onclick="window.close()" class="bg-zinc-800 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors">
+                <i class="fas fa-times text-xs"></i>
+            </button>
+        </div>
+        <div class="max-w-2xl mx-auto mt-1">
+            <p class="text-[10px] text-gray-500 uppercase tracking-widest">Control de Flota y VIPs</p>
+        </div>
+    </header>
+
+    <main class="p-6 space-y-4 max-w-2xl mx-auto" id="listaClientes">
+        <div class="text-center py-10">
+            <i class="fas fa-circle-notch fa-spin text-3xl text-blue-500 mb-3"></i>
+            <p class="text-xs text-gray-500 font-bold uppercase tracking-widest">Cargando base de datos...</p>
+        </div>
+    </main>
+
+    <script type="module">
+        import { db, doc, updateDoc, collection, query, where, onSnapshot } from "./firebase.js";
+
+        const listaClientes = document.getElementById('listaClientes');
+
+        // Escuchar a todos los usuarios que tengan rol 'cliente'
+        const q = query(collection(db, "users"), where("rol", "==", "cliente"));
+
+        onSnapshot(q, (snap) => {
+            listaClientes.innerHTML = '';
+            
+            if(snap.empty) {
+                listaClientes.innerHTML = '<div class="text-center py-10 bg-zinc-900/50 rounded-2xl border border-zinc-800"><p class="text-gray-500 text-xs">Aún no tienes clientes registrados en la plataforma.</p></div>';
+                return;
+            }
+
+            snap.forEach(docSnap => {
+                const c = docSnap.data();
+                const id = docSnap.id;
+
+                // Estados
+                const isVIP = c.efectivo_autorizado || false;
+                const isBanned = c.estado === 'baneado_permanente';
+
+                // Badges
+                let badgeVIP = isVIP ? '<span class="bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 text-[8px] px-2 py-0.5 rounded font-black tracking-widest"><i class="fas fa-star"></i> VIP EFECTIVO</span>' : '';
+                let badgeBan = isBanned ? '<span class="bg-red-500/20 text-red-500 border border-red-500/30 text-[8px] px-2 py-0.5 rounded font-black tracking-widest"><i class="fas fa-ban"></i> BANEADO</span>' : '';
+
+                const card = document.createElement('div');
+                card.className = `bg-zinc-900 border ${isBanned ? 'border-red-900/50' : (isVIP ? 'border-emerald-900/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-zinc-800')} p-4 rounded-2xl relative shadow-lg transition-all`;
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h3 class="font-black text-white text-sm uppercase mb-1">${c.nombre || 'Cliente Sin Nombre'}</h3>
+                            <p class="text-[10px] text-gray-400"><i class="fas fa-envelope w-4 text-zinc-600"></i> ${c.email || 'Sin correo'}</p>
+                            <p class="text-[10px] text-gray-400"><i class="fas fa-phone w-4 text-zinc-600"></i> ${c.telefono || 'Sin teléfono'}</p>
+                        </div>
+                        <div class="flex flex-col gap-1 items-end">
+                            ${badgeVIP}
+                            ${badgeBan}
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2 mt-4 pt-4 border-t border-zinc-800/50">
+                        <button onclick="window.toggleVIP('${id}', ${isVIP})" class="flex-1 ${isVIP ? 'bg-zinc-800 text-gray-400 border-zinc-700' : 'bg-emerald-900/30 text-emerald-500 border-emerald-500/30 hover:bg-emerald-900/50'} font-bold py-3 rounded-xl text-[10px] transition-colors border shadow-sm">
+                            ${isVIP ? '<i class="fas fa-times"></i> QUITAR VIP' : '<i class="fas fa-star"></i> AUTORIZAR EFECTIVO'}
+                        </button>
+                        
+                        <button onclick="window.toggleBan('${id}', ${isBanned})" class="flex-1 ${isBanned ? 'bg-zinc-800 text-gray-400 border-zinc-700' : 'bg-red-900/30 text-red-500 border-red-500/30 hover:bg-red-900/50'} font-bold py-3 rounded-xl text-[10px] transition-colors border shadow-sm">
+                            ${isBanned ? '<i class="fas fa-undo"></i> DESBLOQUEAR' : '<i class="fas fa-skull-crossbones"></i> LISTA NEGRA'}
+                        </button>
+                    </div>
+                `;
+                listaClientes.appendChild(card);
+            });
+        });
+
+        // Funciones Globales para los Botones
+        window.toggleVIP = async (uid, currentStatus) => {
+            const msg = currentStatus 
+                ? "¿Seguro que deseas quitar el privilegio de pago en efectivo a este cliente?" 
+                : "💎 ¿Convertir en CLIENTE VIP B2B?\n\nAl autorizarlo, esta cuenta siempre podrá saltarse la retención de la tarjeta y pagar en efectivo directo al técnico (Ideal para Administradores de Airbnb y empresas).";
+            
+            if(!confirm(msg)) return;
+
+            try {
+                await updateDoc(doc(db, "users", uid), { efectivo_autorizado: !currentStatus });
+            } catch (e) {
+                console.error(e);
+                alert("Error al actualizar el estado del cliente.");
+            }
+        };
+
+        window.toggleBan = async (uid, currentStatus) => {
+            const msg = currentStatus 
+                ? "¿Deseas perdonar a este cliente y permitirle pedir servicios de nuevo?" 
+                : "🚨 ¿MANDAR A LA LISTA NEGRA?\n\nEl cliente será expulsado de la plataforma y su radar quedará inhabilitado de forma permanente.";
+            
+            if(!confirm(msg)) return;
+
+            try {
+                await updateDoc(doc(db, "users", uid), { estado: currentStatus ? "activo" : "baneado_permanente" });
+            } catch (e) {
+                console.error(e);
+                alert("Error al aplicar la penalización.");
+            }
+        };
+    </script>
+</body>
+</html>
