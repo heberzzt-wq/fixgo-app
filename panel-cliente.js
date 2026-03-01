@@ -5,7 +5,7 @@
  * Archivo: panel-cliente.js
  * Descripción: Catálogo dinámico, cotizador interactivo, anti-spam y PDFs de usuario.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
- * INYECCIÓN: Botón de Emergencia (+50%) y Subida de Foto Inicial a Cloud.
+ * INYECCIÓN: Botón de Emergencia (+50%), Subida de Foto Inicial a Cloud y Botón de Garantía.
  * ======================================================================================
  */
 
@@ -32,10 +32,10 @@ import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/fireba
 import { escaparHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotificacionPush } from "./app-utils.js";
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.1
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.2
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
-    console.log(" 📱 Iniciando Panel de Cliente (Modo Urgencias 1.5x / Foto Inicial)...");
+    console.log(" 📱 Iniciando Panel de Cliente (Modo Urgencias 1.5x / Foto Inicial / Garantías)...");
 
     // 🔥 INYECCIÓN: Desbloqueo de Audio en la primera interacción del usuario
     document.body.addEventListener('click', function unlockAudio() {
@@ -536,6 +536,7 @@ export async function iniciarPanelCliente(user) {
                     </div>`;
                 }
 
+                // 🔥 INYECCIÓN: BOTÓN SOLICITAR GARANTÍA 🔥
                 contenido = `
                 <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-xl mt-2">
                     <div class="flex justify-between items-center mb-3">
@@ -556,9 +557,15 @@ export async function iniciarPanelCliente(user) {
                         ${f_d1 ? `<div class="relative h-16"><img src="${f_d1}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
                         ${f_d2 ? `<div class="relative h-16"><img src="${f_d2}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
                     </div>
+                    
                     <button onclick="window.generarPDF('${id}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2 shadow-lg">
                         <i class="fas fa-file-download text-red-500"></i> DESCARGAR REPORTE OFICIAL
                     </button>
+                    
+                    <button onclick="window.abrirModalGarantia('${id}', '${s.tecnico_id}')" class="w-full mt-3 bg-black border border-orange-500 hover:bg-orange-900/40 text-orange-500 text-xs py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-[0_0_10px_rgba(249,115,22,0.2)]">
+                        <i class="fas fa-shield-alt"></i> SOLICITAR GARANTÍA / REPORTAR FALLA
+                    </button>
+
                     ${s.factura_requerida ? `<p class="text-[9px] text-center mt-3 text-emerald-400 italic">Factura CFDI solicitada. Te llegará por correo.</p>` : ''}
                 </div>
                 `;
