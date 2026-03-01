@@ -11,7 +11,7 @@ console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.18.7...");
 
 // ⚠️ IMPORTANTE: Agregamos query, getDocs, orderBy y limit para la Mesa de Ayuda
 import { 
-    observarAuth, auth, signOut, db, getDoc, doc, addDoc, collection, 
+    import { observarAuth, auth, signOut, db, getDoc, doc, addDoc, collection, updateDoc, serverTimestamp, getDocs, query, orderBy, limit } from "./firebase.js"; 
     updateDoc, serverTimestamp, query, getDocs, orderBy, limit 
 } from "./firebase.js";
 import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./app-panel.js";
