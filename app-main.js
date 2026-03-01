@@ -2,16 +2,18 @@
  * ======================================================================================
  * GESTIAPREMIUM 2026 - MAIN CONTROLLER (ROUTER & GATEKEEPER)
  * Archivo: app-main.js
- * Versión: 5.16.0 (Módulo de Disputas y Soporte Técnico integrado)
+ * Versión: 5.18.7 (Módulo de Garantías Inteligentes y Resolución de Conflictos)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
 
-console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.16.0...");
+console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.18.7...");
 
-// ⚠️ IMPORTANTE: Añadí addDoc, collection, updateDoc, y serverTimestamp. 
-// Asegúrate de que estén exportados en tu archivo firebase.js
-import { observarAuth, auth, signOut, db, getDoc, doc, addDoc, collection, updateDoc, serverTimestamp } from "./firebase.js";
+// ⚠️ IMPORTANTE: Agregamos query, getDocs, orderBy y limit para la Mesa de Ayuda
+import { 
+    observarAuth, auth, signOut, db, getDoc, doc, addDoc, collection, 
+    updateDoc, serverTimestamp, query, getDocs, orderBy, limit 
+} from "./firebase.js";
 import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./app-panel.js";
 import { iniciarMotorBI } from "./app-bi.js"; 
 
@@ -64,7 +66,6 @@ observarAuth(async (userAuth) => {
 
     userAuth.rol = userRol;
     userAuth.nombre = userData.nombre || userAuth.email;
-    // Pasa el permiso especial
     userAuth.efectivo_autorizado = userData.efectivo_autorizado || false; 
 
     console.log(`✅ Usuario: ${userAuth.email} | Rol validado: ${userAuth.rol}`);
@@ -90,10 +91,7 @@ observarAuth(async (userAuth) => {
             await iniciarPanelTecnico(userAuth);
         }
         else if (userAuth.rol === "cliente") {
-            // panel-cliente.js se encarga de crear el ticket y manejar a Stripe
             await iniciarPanelCliente(userAuth);
-            
-            // Mostrar la opción de efectivo si el cliente está autorizado
             const contenedorEfectivo = document.getElementById('contenedorOpcionEfectivo');
             if (userAuth.efectivo_autorizado && contenedorEfectivo) {
                  contenedorEfectivo.classList.remove('hidden'); 
@@ -112,7 +110,6 @@ function iniciarEscuchaEventosDinamicos() {
     if (panelAcciones) {
         const nuevoPanel = panelAcciones.cloneNode(true);
         panelAcciones.parentNode.replaceChild(nuevoPanel, panelAcciones);
-
         nuevoPanel.addEventListener("click", (e) => {
             const btnCotizar = e.target.closest('button');
             if (btnCotizar && btnCotizar.innerText.includes("CREAR COTIZACIÓN")) {
@@ -145,14 +142,13 @@ function actualizarInterfazGlobal(user) {
 }
 
 // ======================================================================================
-// 🚨 SISTEMA DE DISPUTAS Y SOPORTE GESTIAPREMIUM (SOCIO PRO)
+// 🚨 SISTEMA DE DISPUTAS (SOCIO PRO)
 // ======================================================================================
 
 window.abrirModalDisputa = function(serviceId, customerId) {
     document.getElementById('disputaServiceId').value = serviceId;
     document.getElementById('disputaCustomerId').value = customerId;
     document.getElementById('disputaDescripcion').value = '';
-    
     const modal = document.getElementById('modalDisputaPago');
     modal.classList.remove('hidden');
     modal.style.display = 'flex';
@@ -171,20 +167,16 @@ window.enviarReportePago = async function() {
     const btnEnviar = document.getElementById('btnEnviarDisputa');
 
     if (descripcion === '') {
-        alert("Por favor, describe el problema para que Soporte GestiaPremium pueda ayudarte.");
+        alert("Por favor, describe el problema.");
         return;
     }
 
     try {
         btnEnviar.disabled = true;
         btnEnviar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
-
         const authUser = auth.currentUser;
         if (!authUser) throw new Error("No hay usuario autenticado.");
 
-        console.log("🛡️ Iniciando protocolo de disputa para el servicio:", serviceId);
-
-        // 1. Crear el ticket maestro en V2.0
         const ticketRef = await addDoc(collection(db, "support_tickets"), {
             serviceId: serviceId,
             reportedBy: authUser.uid,
@@ -196,26 +188,21 @@ window.enviarReportePago = async function() {
             resolvedAt: null
         });
 
-        // 2. Insertar la queja como el primer mensaje del chat inmutable
         await addDoc(collection(db, `support_tickets/${ticketRef.id}/messages`), {
             senderId: authUser.uid,
             message: descripcion,
             timestamp: serverTimestamp()
         });
 
-        // 3. Congelar el servicio (Split Billing se detiene)
-        const serviceDocRef = doc(db, "services", serviceId);
-        await updateDoc(serviceDocRef, {
+        await updateDoc(doc(db, "services", serviceId), {
             status: "disputed",
             disputeTicketId: ticketRef.id
         });
 
         alert("🚨 Reporte enviado a GestiaPremium. El servicio ha sido bloqueado por seguridad.");
         window.cerrarModalDisputa();
-
     } catch (error) {
         console.error("❌ Error al crear la disputa:", error);
-        alert("Hubo un error al comunicar con el servidor de GestiaPremium. Intenta de nuevo.");
     } finally {
         btnEnviar.disabled = false;
         btnEnviar.innerHTML = '<i class="fas fa-paper-plane"></i> ENVIAR REPORTE';
@@ -223,14 +210,13 @@ window.enviarReportePago = async function() {
 };
 
 // ======================================================================================
-// 🛡️ SISTEMA DE GARANTÍAS PARA EL CLIENTE
+// 🛡️ SISTEMA DE GARANTÍAS (CLIENTE)
 // ======================================================================================
 
 window.abrirModalGarantia = function(serviceId, proId) {
     document.getElementById('garantiaServiceId').value = serviceId;
     document.getElementById('garantiaProId').value = proId;
     document.getElementById('garantiaDescripcion').value = '';
-    
     const modal = document.getElementById('modalGarantiaCliente');
     modal.classList.remove('hidden');
     modal.style.display = 'flex';
@@ -249,18 +235,16 @@ window.enviarReporteGarantia = async function() {
     const btnEnviar = document.getElementById('btnEnviarGarantia');
 
     if (descripcion === '') {
-        alert("Por favor, describe exactamente qué falló para validar la garantía.");
+        alert("Por favor, describe el fallo.");
         return;
     }
 
     try {
         btnEnviar.disabled = true;
         btnEnviar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
-
         const authUser = auth.currentUser;
         if (!authUser) throw new Error("No hay usuario autenticado.");
 
-        // 1. Crear el ticket de garantía
         const ticketRef = await addDoc(collection(db, "support_tickets"), {
             serviceId: serviceId,
             reportedBy: authUser.uid,
@@ -272,28 +256,62 @@ window.enviarReporteGarantia = async function() {
             resolvedAt: null
         });
 
-        // 2. Insertar la queja como mensaje
         await addDoc(collection(db, `support_tickets/${ticketRef.id}/messages`), {
             senderId: authUser.uid,
-            message: "SOLICITUD DE GARANTÍA: " + descripcion,
+            message: descripcion,
             timestamp: serverTimestamp()
         });
 
-        // 3. Actualizar el servicio para alertar al Admin
-        const serviceDocRef = doc(db, "services", serviceId);
-        await updateDoc(serviceDocRef, {
+        await updateDoc(doc(db, "services", serviceId), {
             estado: "warranty_requested", 
             warrantyTicketId: ticketRef.id
         });
 
-        alert("🛡️ Reporte de garantía enviado. El equipo de GestiaPremium revisará el caso y nos comunicaremos contigo pronto.");
+        alert("🛡️ Reporte enviado. GestiaPremium revisará el caso pronto.");
         window.cerrarModalGarantia();
-
     } catch (error) {
         console.error("❌ Error al solicitar garantía:", error);
-        alert("Hubo un error al comunicar con GestiaPremium. Intenta de nuevo.");
     } finally {
         btnEnviar.disabled = false;
         btnEnviar.innerHTML = '<i class="fas fa-shield-alt"></i> EXIGIR GARANTÍA';
+    }
+};
+
+// ======================================================================================
+// ⚖️ MESA DE AYUDA (JUEZ ADMIN): RESOLUCIÓN DE GARANTÍAS
+// ======================================================================================
+
+window.resolverGarantia = async (serviceId, ticketId, aprobar) => {
+    if(!confirm(aprobar ? "¿Seguro que deseas APROBAR la garantía? El técnico deberá regresar." : "¿Rechazar garantía?")) return;
+    
+    try {
+        if (aprobar) {
+            // 1. Buscamos el reporte de falla real del cliente para dárselo al técnico
+            const qMessages = query(collection(db, `support_tickets/${ticketId}/messages`), orderBy("timestamp", "asc"), limit(1));
+            const msgSnap = await getDocs(qMessages);
+            const reporteFalla = !msgSnap.empty ? msgSnap.docs[0].data().message : "Falla reportada en el servicio anterior.";
+
+            // 2. Reabrimos el servicio: le inyectamos el flag y el motivo
+            await updateDoc(doc(db, "services", serviceId), { 
+                estado: "trabajando",
+                es_garantia: true,
+                motivo_garantia: reporteFalla 
+            }); 
+        } else {
+            await updateDoc(doc(db, "services", serviceId), { estado: "finalizado" });
+        }
+
+        // 3. Cerramos el ticket de soporte
+        await updateDoc(doc(db, "support_tickets", ticketId), { 
+            status: "resolved", 
+            resolvedAt: serverTimestamp() 
+        });
+        
+        const modal = document.getElementById('modalJuezAdmin');
+        if(modal) modal.remove();
+        alert("✅ Sentencia aplicada. El técnico ha sido notificado del reporte.");
+
+    } catch (e) {
+        console.error("Error en tribunal:", e);
     }
 };
