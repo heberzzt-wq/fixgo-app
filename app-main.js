@@ -145,7 +145,7 @@ function actualizarInterfazGlobal(user) {
 }
 
 // ======================================================================================
-// 🚨 SISTEMA DE DISPUTAS Y SOPORTE GESTIAPREMIUM (NUEVO)
+// 🚨 SISTEMA DE DISPUTAS Y SOPORTE GESTIAPREMIUM (SOCIO PRO)
 // ======================================================================================
 
 window.abrirModalDisputa = function(serviceId, customerId) {
@@ -219,5 +219,81 @@ window.enviarReportePago = async function() {
     } finally {
         btnEnviar.disabled = false;
         btnEnviar.innerHTML = '<i class="fas fa-paper-plane"></i> ENVIAR REPORTE';
+    }
+};
+
+// ======================================================================================
+// 🛡️ SISTEMA DE GARANTÍAS PARA EL CLIENTE
+// ======================================================================================
+
+window.abrirModalGarantia = function(serviceId, proId) {
+    document.getElementById('garantiaServiceId').value = serviceId;
+    document.getElementById('garantiaProId').value = proId;
+    document.getElementById('garantiaDescripcion').value = '';
+    
+    const modal = document.getElementById('modalGarantiaCliente');
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+};
+
+window.cerrarModalGarantia = function() {
+    const modal = document.getElementById('modalGarantiaCliente');
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+};
+
+window.enviarReporteGarantia = async function() {
+    const serviceId = document.getElementById('garantiaServiceId').value;
+    const proId = document.getElementById('garantiaProId').value;
+    const descripcion = document.getElementById('garantiaDescripcion').value.trim();
+    const btnEnviar = document.getElementById('btnEnviarGarantia');
+
+    if (descripcion === '') {
+        alert("Por favor, describe exactamente qué falló para validar la garantía.");
+        return;
+    }
+
+    try {
+        btnEnviar.disabled = true;
+        btnEnviar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
+
+        const authUser = auth.currentUser;
+        if (!authUser) throw new Error("No hay usuario autenticado.");
+
+        // 1. Crear el ticket de garantía
+        const ticketRef = await addDoc(collection(db, "support_tickets"), {
+            serviceId: serviceId,
+            reportedBy: authUser.uid,
+            customerId: authUser.uid,
+            proId: proId,
+            issueType: "warranty_claim",
+            status: "open",
+            createdAt: serverTimestamp(),
+            resolvedAt: null
+        });
+
+        // 2. Insertar la queja como mensaje
+        await addDoc(collection(db, `support_tickets/${ticketRef.id}/messages`), {
+            senderId: authUser.uid,
+            message: "SOLICITUD DE GARANTÍA: " + descripcion,
+            timestamp: serverTimestamp()
+        });
+
+        // 3. Actualizar el servicio para alertar al Admin
+        const serviceDocRef = doc(db, "services", serviceId);
+        await updateDoc(serviceDocRef, {
+            estado: "warranty_requested", 
+            warrantyTicketId: ticketRef.id
+        });
+
+        alert("🛡️ Reporte de garantía enviado. El equipo de GestiaPremium revisará el caso y nos comunicaremos contigo pronto.");
+        window.cerrarModalGarantia();
+
+    } catch (error) {
+        console.error("❌ Error al solicitar garantía:", error);
+        alert("Hubo un error al comunicar con GestiaPremium. Intenta de nuevo.");
+    } finally {
+        btnEnviar.disabled = false;
+        btnEnviar.innerHTML = '<i class="fas fa-shield-alt"></i> EXIGIR GARANTÍA';
     }
 };
