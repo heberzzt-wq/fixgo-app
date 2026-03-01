@@ -74,15 +74,15 @@
                 <div class="flex items-center gap-2 mt-2 flex-wrap">
                     <span id="badgeNivel" class="bg-zinc-800/80 backdrop-blur-sm text-zinc-400 text-[10px] font-black px-2 py-0.5 rounded border border-zinc-700">CARGANDO...</span>
                     <button id="btnLogout" class="text-red-500 text-[10px] font-bold border border-red-900/50 px-2 py-0.5 rounded hover:bg-red-900/40 transition-colors">SALIR</button>
-                   <button onclick="window.cambiarLogoFactura(window.currentUserUid)" class="bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 font-bold border border-blue-500/50 px-2 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1">
-    <i class="fas fa-image"></i> LOGO FACTURA
-</button>
+                    <button onclick="window.cambiarLogoFactura(window.currentUserUid)" class="bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 font-bold border border-blue-500/50 px-2 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1">
+                        <i class="fas fa-image"></i> LOGO FACTURA
+                    </button>
 
-<button onclick="window.open('manual.html', '_blank')" class="bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 font-bold border border-blue-500/50 px-2 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1">
-    <i class="fas fa-book-open"></i> MANUAL DE OPERACIÓN
-</button>
+                    <button onclick="window.open('manual.html', '_blank')" class="bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 font-bold border border-blue-500/50 px-2 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1">
+                        <i class="fas fa-book-open"></i> MANUAL DE OPERACIÓN
+                    </button>
 
-</div>
+                </div>
             </div>
         </div>
     </header>
@@ -195,6 +195,30 @@
             <a href="https://wa.me/529980000000?text=Hola,%20adjunto%20mi%20comprobante%20de%20pago%20de%20deuda%20GestiaPremium." target="_blank" class="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl text-sm transition-all shadow-lg flex justify-center items-center gap-2 border border-green-500">
                 <i class="fab fa-whatsapp text-xl"></i> ENVIAR COMPROBANTE
             </a>
+        </div>
+    </div>
+
+    <div id="modalDisputaPago" class="fixed inset-0 bg-black/95 z-[90] hidden flex-col p-4 animate-fade-in justify-center items-center backdrop-blur-sm">
+        <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-red-500/50 shadow-2xl relative">
+            <h3 class="text-xl font-black mb-2 text-red-500"><i class="fas fa-exclamation-triangle"></i> Problema de Pago</h3>
+            <p class="text-xs text-gray-400 mb-4">
+                ¿El cliente se niega a pagar o no tiene el efectivo completo? Reporta el problema para bloquear el servicio y abrir un ticket de soporte.
+            </p>
+
+            <input type="hidden" id="disputaServiceId" value="">
+            <input type="hidden" id="disputaCustomerId" value="">
+
+            <div class="mb-4">
+                <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Detalla el problema:</label>
+                <textarea id="disputaDescripcion" rows="4" class="w-full p-3 bg-black border border-zinc-800 rounded-xl text-white text-sm focus:border-red-500 focus:outline-none transition-colors" placeholder="Ej: El cliente dice que solo tiene $200 de los $500 acordados..."></textarea>
+            </div>
+
+            <div class="flex justify-end gap-3 mt-6">
+                <button onclick="window.cerrarModalDisputa()" class="px-4 py-3 text-white font-bold bg-zinc-800 rounded-xl hover:bg-zinc-700 transition text-sm w-1/3 border border-zinc-700">Cancelar</button>
+                <button id="btnEnviarDisputa" onclick="window.enviarReportePago()" class="px-4 py-3 text-white font-black bg-red-600 rounded-xl hover:bg-red-500 transition shadow-lg shadow-red-900/40 text-sm w-2/3 flex items-center justify-center gap-2 border border-red-500">
+                    <i class="fas fa-paper-plane"></i> ENVIAR REPORTE
+                </button>
+            </div>
         </div>
     </div>
 
