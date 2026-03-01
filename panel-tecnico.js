@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - MÓDULO DE TÉCNICO (SOCIO OPERADOR)
  * ======================================================================================
  * Archivo: panel-tecnico.js
- * Versión: 5.18.8 (Inyección de Radar de Garantías y Reporte de Falla)
+ * Versión: 5.18.9 (Inyección de Radar de Garantías y Reporte de Falla Real-Time)
  * Descripción: Motor de radar, GPS, colisiones, cotizador y evidencia Cloud.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
  * ======================================================================================
@@ -823,6 +823,7 @@ export async function iniciarPanelTecnico(user) {
         where("estado", "in", ["pagado", "asignado", "en_camino", "en_sitio", "cotizando", "procesando_saldo", "trabajando", "cancelado"]) 
     );
 
+    // 🚨 VIGILANTE DE MISIONES MEJORADO 🚨
     onSnapshot(qMisiones, (snap) => {
         const ls = elementos.listaServicios;
         const pa = elementos.panelAcciones;
@@ -838,11 +839,19 @@ export async function iniciarPanelTecnico(user) {
         if(pa) pa.classList.remove("translate-y-full");
 
         snap.docChanges().forEach(change => {
-            if (change.type === 'modified') {
-                const sData = change.doc.data();
-                if (sData.oculto_para_tecnico) return; 
+            const sData = change.doc.data();
+            if (sData.oculto_para_tecnico) return; 
 
-                if (sData.estado === 'trabajando' || sData.estado === 'pagado') {
+            // 🔥 ESTA ES LA MAGIA QUE HACE QUE SUENE SIN REFRESCAR 🔥
+            if (change.type === 'added' || change.type === 'modified') {
+                if (sData.es_garantia && sData.estado === 'trabajando') {
+                    sonarAlerta();
+                    lanzarNotificacionPush("🚨 ¡GARANTÍA ACTIVADA!", "Un cliente reportó una falla. Revisa los detalles en tu panel.");
+                }
+            }
+
+            if (change.type === 'modified') {
+                if (!sData.es_garantia && (sData.estado === 'trabajando' || sData.estado === 'pagado')) {
                     sonarAlerta();
                     lanzarNotificacionPush("✅ ¡Pago Confirmado!", "El cliente ha liquidado el saldo. Puedes iniciar la reparación.");
                 } else if (sData.estado === 'cancelado') {
@@ -891,12 +900,13 @@ export async function iniciarPanelTecnico(user) {
                 </button>`;
             } else if (s.estado === "pagado" || s.estado === "trabajando") {
                 
-                // 🔥 INYECCIÓN: BOTÓN DE DISPUTA DE PAGO APLICADO AQUÍ 🔥
                 botonAccionHTML = `
-                <div class="bg-emerald-900/30 border border-emerald-500 p-4 rounded-xl mt-4 text-center">
+                ${!s.es_garantia ? `
+                <div class="bg-emerald-900/30 border border-emerald-500 p-4 rounded-xl mt-4 text-center mb-3">
                     <p class="text-emerald-400 font-bold text-sm mb-2"><i class="fas fa-check-double"></i> PAGO DE SALDO APROBADO</p>
                     <p class="text-[10px] text-emerald-100">El pago se procesó. Inicia el trabajo para habilitar la cámara.</p>
                 </div>
+                ` : ''}
                 
                 ${s.estado !== "trabajando" ? `
                 <button onclick="window.actualizarEstadoGlobal('${id}', 'trabajando')" class="w-full mt-3 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-blue-900/50">
@@ -909,7 +919,7 @@ export async function iniciarPanelTecnico(user) {
                     <i class="fas fa-camera"></i> FINALIZAR Y CERRAR
                 </button>` : ''}
                 
-                ${s.metodo_pago === 'efectivo' ? `
+                ${s.metodo_pago === 'efectivo' && !s.es_garantia ? `
                 <button onclick="window.abrirModalDisputa('${id}', '${s.cliente_id}')" class="w-full mt-3 bg-black border border-red-600 text-red-500 hover:bg-red-900/40 font-bold py-3 rounded-xl text-xs uppercase flex items-center justify-center gap-2 transition-all shadow-[0_0_10px_rgba(220,38,38,0.2)]">
                     <i class="fas fa-exclamation-triangle animate-pulse"></i> EL CLIENTE NO QUIERE PAGAR EN EFECTIVO
                 </button>
@@ -931,14 +941,13 @@ export async function iniciarPanelTecnico(user) {
             let alertaGarantiaHTML = "";
             if (s.es_garantia) {
                 alertaGarantiaHTML = `
-                <div class="bg-red-900/40 border-2 border-red-500 p-3 rounded-xl mb-4 animate-pulse">
-                    <p class="text-red-500 font-black text-[10px] uppercase tracking-tighter"><i class="fas fa-exclamation-circle"></i> REABIERTO POR GARANTÍA</p>
-                    <p class="text-white text-xs mt-1 font-bold uppercase">Reporte de Falla:</p>
-                    <p class="text-gray-200 text-[11px] italic mt-1 leading-relaxed">"${escaparHTML(s.motivo_garantia || 'El cliente reporta una falla en el trabajo anterior.')}"</p>
+                <div class="bg-red-900/40 border-2 border-red-500 p-3 rounded-xl mb-4 shadow-[0_0_15px_rgba(220,38,38,0.3)]">
+                    <p class="text-red-500 font-black text-[10px] uppercase tracking-tighter animate-pulse"><i class="fas fa-exclamation-circle"></i> TICKET REABIERTO POR GARANTÍA</p>
+                    <p class="text-white text-xs mt-2 font-bold uppercase">Reporte del cliente:</p>
+                    <p class="text-gray-200 text-[11px] italic mt-1 leading-relaxed border-l-2 border-red-500 pl-2">"${escaparHTML(s.motivo_garantia || 'El cliente reporta una falla en el trabajo anterior.')}"</p>
                 </div>`;
             }
 
-            // 🔥 INYECCIÓN: MOSTRAR FOTO AMPLIADA EN LA MISIÓN ACTIVA
             let fotoMisionActivaHTML = '';
             if (s.foto_problema) {
                 fotoMisionActivaHTML = `
@@ -952,19 +961,22 @@ export async function iniciarPanelTecnico(user) {
             }
 
             const card = document.createElement("div");
-            card.className = `bg-zinc-900 border ${s.estado === 'cancelado' ? 'border-red-500' : (s.urgencia ? 'border-red-500 shadow-red-900/20' : 'border-blue-500/50')} p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl`;
+            card.className = `bg-zinc-900 border ${s.estado === 'cancelado' ? 'border-red-500' : (s.urgencia || s.es_garantia ? 'border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.2)]' : 'border-blue-500/50')} p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl`;
             card.innerHTML = `
-            <div class="absolute top-0 right-0 ${s.estado === 'cancelado' ? 'bg-red-600' : 'bg-blue-600'} text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">
-                ${s.estado.replace('_', ' ')}
+            <div class="absolute top-0 right-0 ${s.estado === 'cancelado' || s.es_garantia ? 'bg-red-600' : 'bg-blue-600'} text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">
+                ${s.es_garantia ? 'GARANTÍA' : s.estado.replace('_', ' ')}
             </div>
             <h3 class="text-xl font-black text-white mb-1 uppercase">${escaparHTML(s.categoria)} ${s.urgencia ? '<span class="text-red-500 ml-1" title="Emergencia"><i class="fas fa-fire animate-pulse"></i></span>' : ''}</h3>
             <p class="text-gray-400 text-sm mb-4">
                 <i class="fas fa-map-marker-alt text-blue-500"></i> ${escaparHTML(s.direccion)}
             </p>
+            
+            ${!s.es_garantia ? `
             <div class="bg-black/50 p-4 rounded-xl mb-4">
                 <p class="text-xs text-gray-500 uppercase font-bold mb-1">Problema Reportado:</p>
                 <p class="text-sm text-white italic">"${escaparHTML(s.descripcion)}"</p>
             </div>
+            ` : ''}
             
             ${fotoMisionActivaHTML}
             ${alertaGarantiaHTML}
