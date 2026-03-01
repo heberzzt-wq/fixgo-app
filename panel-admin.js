@@ -1,9 +1,9 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - MÓDULO DE ADMINISTRACIÓN (CEREBRO FINANCIERO)
+ * GESTIAPREMIUM 2026 - MÓDULO DE ADMINISTRACIÓN (CEREBRO FINANCIERO & SUPPORT DESK)
  * ======================================================================================
  * Archivo: panel-admin.js
- * Descripción: Torre de control pro, finanzas, aprobación de técnicos y auditorías.
+ * Descripción: Torre de control pro, finanzas, aprobación de técnicos y resolución de disputas.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
  * ======================================================================================
  */
@@ -27,7 +27,7 @@ import { getDocs, increment, limit } from "https://www.gstatic.com/firebasejs/10
 import { escaparHTML, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
 
 export async function iniciarPanelAdmin(user) {
- console.log(" 🛡️ Iniciando Panel de Administrador (Modo BI V5.17.4 - Bootstrapping)...");
+ console.log(" 🛡️ Iniciando Panel de Administrador (Modo BI V5.18.5 - Support Desk Activo)...");
  
  if (!user || user.rol !== "admin") {
  console.error("🛑 ALERTA DE SEGURIDAD GESTIAPREMIUM: Intento de acceso no autorizado al Panel Admin.");
@@ -287,7 +287,7 @@ export async function iniciarPanelAdmin(user) {
  activos++;
  }
 
- if (elementos.actividad && elementos.actividad.children.length < 10) {
+ if (elementos.actividad && elementos.actividad.children.length < 15) { // Aumenté el límite visible a 15 para no perder disputas
  const item = document.createElement("div");
  item.className = "flex justify-between items-start border-b border-white/5 py-3 last:border-0";
 
@@ -301,11 +301,24 @@ export async function iniciarPanelAdmin(user) {
  if(data.estado === "finalizado") colorEstado = "text-emerald-500";
  if(data.estado === "cancelado") colorEstado = "text-red-500 line-through";
  
+ // 🔥 NUEVOS ESTADOS DE DISPUTA PARA EL ADMIN
+ if(data.estado === "disputed") colorEstado = "text-red-500 font-black animate-pulse";
+ if(data.estado === "warranty_requested") colorEstado = "text-orange-500 font-black animate-pulse";
+ 
  const labelServicio = escaparHTML(`${data.categoria} ${data.sub_servicio ? '• ' + data.sub_servicio : ''}`);
 
  let btnAuditar = '';
  if(data.estado === "finalizado") {
  btnAuditar = `<button class="mt-2 text-[9px] bg-purple-600/30 text-purple-400 font-bold px-2 py-1 rounded border border-purple-500/50 transition-colors hover:bg-purple-600/50 block" onclick="window.auditarServicio('${sid}')"><i class="fas fa-camera"></i> AUDITAR (4 FOTOS)</button>`;
+ }
+
+ // 🔥 INYECCIÓN: BOTÓN DE RESOLUCIÓN PARA EL JUEZ (ADMIN)
+ let btnSoporteAdmin = '';
+ if(data.estado === "disputed" || data.estado === "warranty_requested") {
+    btnSoporteAdmin = `
+    <button class="mt-2 text-[10px] bg-red-600 text-white font-black px-3 py-1.5 rounded border border-red-500 hover:bg-red-500 transition-colors shadow-[0_0_10px_rgba(220,38,38,0.5)] block" onclick="window.juzgarDisputaAdmin('${sid}', '${data.estado}')">
+        <i class="fas fa-gavel"></i> RESOLVER CASO
+    </button>`;
  }
 
  item.innerHTML = `
@@ -315,6 +328,7 @@ export async function iniciarPanelAdmin(user) {
  <p class="text-xs font-bold text-white uppercase">${labelServicio}</p>
  <p class="text-[10px] text-gray-500">${escaparHTML(data.cliente_nombre || 'Cliente')} • ${escaparHTML(data.zona || 'Cancún')}</p>
  ${btnAuditar}
+ ${btnSoporteAdmin}
  </div>
  </div>
  <div class="text-right">
@@ -358,6 +372,138 @@ export async function iniciarPanelAdmin(user) {
  elementos.kpiTasaCancelacion.className = tasa > 15 ? "text-xl font-black text-red-500" : "text-xl font-black text-white";
  }
  });
+
+ // ======================================================================================
+ // ⚖️ MESA DE AYUDA DEL JUEZ: LÓGICA DE RESOLUCIÓN DE DISPUTAS Y GARANTÍAS
+ // ======================================================================================
+ window.juzgarDisputaAdmin = async (serviceId, estadoActual) => {
+    if(document.getElementById("modalJuezAdmin")) return;
+    
+    // Primero, buscamos el ticket de soporte asociado a este servicio
+    try {
+        const qTickets = query(collection(db, "support_tickets"), where("serviceId", "==", serviceId), limit(1));
+        const ticketSnap = await getDocs(qTickets);
+        
+        if (ticketSnap.empty) {
+            alert("No se encontró el ticket de soporte en la base de datos.");
+            return;
+        }
+
+        const ticketDoc = ticketSnap.docs[0];
+        const t = ticketDoc.data();
+        const ticketId = ticketDoc.id;
+
+        // Ahora buscamos el primer mensaje para saber de qué trata
+        const qMessages = query(collection(db, `support_tickets/${ticketId}/messages`), orderBy("timestamp", "asc"), limit(1));
+        const msgSnap = await getDocs(qMessages);
+        let mensajeQueja = "Sin descripción proporcionada.";
+        if (!msgSnap.empty) {
+            mensajeQueja = msgSnap.docs[0].data().message;
+        }
+
+        const isWarranty = estadoActual === "warranty_requested";
+        const tipoProblema = isWarranty ? "SOLICITUD DE GARANTÍA" : "CLIENTE SE NIEGA A PAGAR";
+        const colorTema = isWarranty ? "text-orange-500" : "text-red-500";
+        const borderTema = isWarranty ? "border-orange-500" : "border-red-500";
+
+        // Botones dinámicos según el tipo de problema
+        let botonesAccion = "";
+        
+        if (isWarranty) {
+            botonesAccion = `
+                <button onclick="window.resolverGarantia('${serviceId}', '${ticketId}', true)" class="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-3 rounded-lg text-xs shadow-lg transition-transform active:scale-95 mb-2">
+                    <i class="fas fa-undo"></i> REABRIR SERVICIO (TÉCNICO DEBE VOLVER)
+                </button>
+                <button onclick="window.resolverGarantia('${serviceId}', '${ticketId}', false)" class="w-full bg-zinc-800 hover:bg-zinc-700 text-gray-300 font-bold py-3 rounded-lg text-xs border border-zinc-700 transition-colors">
+                    <i class="fas fa-times"></i> RECHAZAR GARANTÍA (CERRAR CASO)
+                </button>
+            `;
+        } else {
+            // Es problema de pago
+            botonesAccion = `
+                <button onclick="window.resolverDisputaPago('${serviceId}', '${ticketId}', 'pagado')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-lg text-xs shadow-lg transition-transform active:scale-95 mb-2">
+                    <i class="fas fa-check-double"></i> YA LE PAGÓ (LIBERAR COBRO AL TÉCNICO)
+                </button>
+                <button onclick="window.resolverDisputaPago('${serviceId}', '${ticketId}', 'cancelado')" class="w-full bg-red-900 hover:bg-red-800 text-white font-bold py-3 rounded-lg text-xs border border-red-500 transition-colors">
+                    <i class="fas fa-user-slash"></i> NO PAGÓ (CANCELAR SERVICIO Y VETAR CLIENTE)
+                </button>
+            `;
+        }
+
+        const html = `
+        <div id="modalJuezAdmin" class="fixed inset-0 bg-black/95 z-[90] flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
+            <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border ${borderTema} shadow-2xl relative">
+                <button onclick="document.getElementById('modalJuezAdmin').remove()" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+                
+                <h3 class="text-xl font-black mb-1 ${colorTema} uppercase"><i class="fas fa-gavel"></i> RESOLUCIÓN DE CASO</h3>
+                <p class="text-[10px] text-gray-500 font-mono mb-4">Ticket ID: ${ticketId.substring(0,8).toUpperCase()} | Srv ID: ${serviceId.substring(0,6).toUpperCase()}</p>
+                
+                <div class="bg-black border border-zinc-800 p-4 rounded-xl mb-6">
+                    <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Motivo del reporte:</p>
+                    <p class="text-sm text-white font-bold mb-3">${tipoProblema}</p>
+                    <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Descripción del usuario:</p>
+                    <p class="text-xs text-gray-300 italic border-l-2 ${borderTema} pl-2 py-1">"${escaparHTML(mensajeQueja)}"</p>
+                </div>
+
+                <div class="space-y-2">
+                    ${botonesAccion}
+                </div>
+            </div>
+        </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+
+    } catch (error) {
+        console.error("Error al abrir caso:", error);
+        alert("Hubo un error al intentar leer el ticket de soporte.");
+    }
+ };
+
+ // Resolución de Garantías
+ window.resolverGarantia = async (serviceId, ticketId, aprobar) => {
+    if(!confirm(aprobar ? "¿Seguro que deseas APROBAR la garantía? El servicio volverá al panel del técnico como 'Trabajando'." : "¿Seguro que deseas RECHAZAR la garantía? El caso se cerrará definitivamente.")) return;
+    
+    try {
+        if (aprobar) {
+            await updateDoc(doc(db, "services", serviceId), { estado: "trabajando" }); // Lo regresa
+        } else {
+            await updateDoc(doc(db, "services", serviceId), { estado: "finalizado" }); // Se queda como estaba
+        }
+        await updateDoc(doc(db, "support_tickets", ticketId), { status: "resolved", resolvedAt: serverTimestamp() });
+        
+        document.getElementById('modalJuezAdmin').remove();
+        alert("✅ Caso de garantía resuelto y cerrado exitosamente.");
+    } catch (e) {
+        console.error(e);
+        alert("Error al resolver la garantía.");
+    }
+ };
+
+ // Resolución de Disputas de Pago
+ window.resolverDisputaPago = async (serviceId, ticketId, decision) => {
+    let msg = decision === 'pagado' 
+        ? "¿El cliente ya le pagó al técnico? El sistema avanzará al paso de subir la evidencia (Firma y Fotos)." 
+        : "🚨 ATENCIÓN: Esto cancelará el servicio por falta de pago. ¿Deseas proceder?";
+    
+    if(!confirm(msg)) return;
+
+    try {
+        if (decision === 'pagado') {
+            await updateDoc(doc(db, "services", serviceId), { estado: "trabajando" }); 
+        } else {
+            await updateDoc(doc(db, "services", serviceId), { estado: "cancelado", cancelado_razon: "Cancelado por Admin: Cliente se negó a pagar el efectivo." });
+            // Aquí idealmente podrías agregar un código para banear al cliente, pero por ahora lo cancelamos
+        }
+        await updateDoc(doc(db, "support_tickets", ticketId), { status: "resolved", resolvedAt: serverTimestamp() });
+        
+        document.getElementById('modalJuezAdmin').remove();
+        alert("✅ Disputa de pago resuelta. El flujo se ha reactivado/cancelado.");
+    } catch (e) {
+        console.error(e);
+        alert("Error al resolver la disputa.");
+    }
+ };
+ // ======================================================================================
 
  window.marcarFacturaEnviada = async (id) => {
  if(!confirm("¿Confirmas que ya enviaste el CFDI a este cliente a través de tu portal del SAT?")) return;
