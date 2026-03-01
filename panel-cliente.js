@@ -5,13 +5,13 @@
  * Archivo: panel-cliente.js
  * Descripción: Catálogo dinámico, cotizador interactivo, anti-spam y PDFs de usuario.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
- * INYECCIÓN: Botón de Emergencia (+50%), Subida de Foto Inicial a Cloud y Botón de Garantía.
+ * INYECCIÓN: Botón de Emergencia (+50%), Subida de Foto Inicial a Cloud y Garantías.
  * ======================================================================================
  */
 
 import {
     db,
-    storage, // Import vital para la foto
+    storage, 
     doc,
     updateDoc,
     collection,
@@ -65,7 +65,6 @@ export async function iniciarPanelCliente(user) {
         facRazon: document.getElementById("fac_razon"),
         facCp: document.getElementById("fac_cp"),
         facRegimen: document.getElementById("fac_regimen"),
-        // Nuevos Elementos
         inputFoto: document.getElementById("fotoProblemaCliente"),
         toggleUrgencia: document.getElementById("toggleUrgencia")
     };
@@ -79,31 +78,34 @@ export async function iniciarPanelCliente(user) {
         const radioStripe = document.querySelector('input[name="metodoPago"][value="stripe"]');
         const radioEfectivo = document.querySelector('input[name="metodoPago"][value="efectivo"]');
 
-        // Control de Visibilidad STRIPE
         if (configPagos.stripe_activo) {
             if(el.stripeCard) el.stripeCard.classList.remove("hidden");
         } else {
             if(el.stripeCard) el.stripeCard.classList.add("hidden");
         }
 
-        // Control de Visibilidad EFECTIVO
         if (configPagos.efectivo_activo || user.efectivo_autorizado) {
             if(el.efectivoCard) el.efectivoCard.classList.remove("hidden");
         } else {
             if(el.efectivoCard) el.efectivoCard.classList.add("hidden");
         }
 
-        // Lógica de Auto-Selección
         if (!configPagos.stripe_activo && (configPagos.efectivo_activo || user.efectivo_autorizado)) {
             if(radioEfectivo) radioEfectivo.checked = true;
-            document.getElementById('btnSubmitText').innerText = 'SOLICITAR AHORA (PAGO EN DOMICILIO)';
-            document.getElementById('btnSubmitIcon').className = 'fas fa-hand-holding-usd';
-            document.getElementById('btnSubmitApp').className = 'w-full bg-emerald-500 text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
+            const btnText = document.getElementById('btnSubmitText');
+            if (btnText) btnText.innerText = 'SOLICITAR AHORA (PAGO EN DOMICILIO)';
+            const btnIcon = document.getElementById('btnSubmitIcon');
+            if (btnIcon) btnIcon.className = 'fas fa-hand-holding-usd';
+            const btnApp = document.getElementById('btnSubmitApp');
+            if (btnApp) btnApp.className = 'w-full bg-emerald-500 text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
         } else if (configPagos.stripe_activo && (!radioEfectivo || !radioEfectivo.checked)) {
             if(radioStripe) radioStripe.checked = true;
-            document.getElementById('btnSubmitText').innerText = 'PROCEDER AL PAGO SEGURO';
-            document.getElementById('btnSubmitIcon').className = 'fas fa-lock';
-            document.getElementById('btnSubmitApp').className = 'w-full bg-blue-600 text-white font-black py-4 rounded-xl text-lg hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
+            const btnText = document.getElementById('btnSubmitText');
+            if (btnText) btnText.innerText = 'PROCEDER AL PAGO SEGURO';
+            const btnIcon = document.getElementById('btnSubmitIcon');
+            if (btnIcon) btnIcon.className = 'fas fa-lock';
+            const btnApp = document.getElementById('btnSubmitApp');
+            if (btnApp) btnApp.className = 'w-full bg-blue-600 text-white font-black py-4 rounded-xl text-lg hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
         }
     });
 
@@ -229,9 +231,7 @@ export async function iniciarPanelCliente(user) {
             const dir = el.form.querySelector('[name="direccion"]').value;
             const desc = el.form.querySelector('[name="descripcion"]').value;
             
-            // 🔥 LEER BANDERA DE EMERGENCIA
             const isUrgencia = el.toggleUrgencia ? el.toggleUrgencia.checked : false;
-            // 🔥 LEER ARCHIVO DE FOTO
             const fotoFile = el.inputFoto ? el.inputFoto.files[0] : null;
 
             if (!cat) { alert(" ⚠ Por favor selecciona un servicio habilitado de la lista."); return; }
@@ -290,7 +290,6 @@ export async function iniciarPanelCliente(user) {
                     metodoSeleccionado = "efectivo";
                 }
 
-                // 🔥 SUBIR FOTO INICIAL A CLOUD SI EXISTE 🔥
                 let urlFotoDescargada = null;
                 if (archivoFoto && storage) {
                     btn.innerHTML = `<i class="fas fa-cloud-upload-alt animate-bounce"></i> SUBIENDO FOTO A LA NUBE...`;
@@ -325,7 +324,6 @@ export async function iniciarPanelCliente(user) {
                         factura_requerida: reqFac,
                         datos_facturacion: datosFac,
                         factura_enviada: false,
-                        // INYECCIÓN DE NUEVOS CAMPOS:
                         urgencia: flagUrgencia,
                         foto_problema: urlFotoDescargada
                     };
@@ -397,12 +395,18 @@ export async function iniciarPanelCliente(user) {
                 } else if (newData.estado === 'cotizando') {
                     lanzarNotificacionPush("Reporte y Cotización Lista", "Revisa el diagnóstico y aprueba el presupuesto para iniciar.");
                 } else if (newData.estado === 'finalizado') {
-                    if (newData.metodo_pago === 'stripe') {
-                        lanzarNotificacionPush("Servicio Finalizado", "Pago cobrado automáticamente a tu tarjeta.");
-                        alert("✅ ¡Servicio terminado exitosamente!\n\nTu pago ha sido procesado de forma segura vía STRIPE a tu tarjeta. Revisa tu comprobante digital en pantalla.");
+                    // 🔥 LÓGICA DE FINALIZACIÓN Y GARANTÍA $0 🔥
+                    if (newData.es_garantia) {
+                        lanzarNotificacionPush("✅ Garantía Finalizada", "Trabajo corregido satisfactoriamente.");
+                        alert("🛡️ GESTIAPREMIUM INFORMA:\n\nHas confirmado que el trabajo de garantía fue realizado correctamente. Este servicio NO TIENE COSTO para ti. ¡Gracias por tu paciencia!");
                     } else {
-                        lanzarNotificacionPush("Servicio Finalizado", "Por favor, realiza el pago en efectivo al técnico.");
-                        alert("✅ ¡Servicio terminado exitosamente!\n\nPor favor, realiza el pago en EFECTIVO directamente al técnico. Revisa tu comprobante digital en pantalla.");
+                        if (newData.metodo_pago === 'stripe') {
+                            lanzarNotificacionPush("Servicio Finalizado", "Pago cobrado automáticamente a tu tarjeta.");
+                            alert("✅ ¡Servicio terminado exitosamente!\n\nTu pago ha sido procesado de forma segura vía STRIPE a tu tarjeta. Revisa tu comprobante digital en pantalla.");
+                        } else {
+                            lanzarNotificacionPush("Servicio Finalizado", "Por favor, realiza el pago en efectivo al técnico.");
+                            alert("✅ ¡Servicio terminado exitosamente!\n\nPor favor, realiza el pago en EFECTIVO directamente al técnico. Revisa tu comprobante digital en pantalla.");
+                        }
                     }
                 }
             }
@@ -536,7 +540,7 @@ export async function iniciarPanelCliente(user) {
                     </div>`;
                 }
 
-                // 🔥 INYECCIÓN: BOTÓN SOLICITAR GARANTÍA 🔥
+                // 🔥 INYECCIÓN: BOTÓN SOLICITAR GARANTÍA AÑADIDO AL FINALIZAR 🔥
                 contenido = `
                 <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-xl mt-2">
                     <div class="flex justify-between items-center mb-3">
@@ -558,11 +562,11 @@ export async function iniciarPanelCliente(user) {
                         ${f_d2 ? `<div class="relative h-16"><img src="${f_d2}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
                     </div>
                     
-                    <button onclick="window.generarPDF('${id}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2 shadow-lg">
+                    <button onclick="window.generarPDF('${id}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2 shadow-lg mb-3">
                         <i class="fas fa-file-download text-red-500"></i> DESCARGAR REPORTE OFICIAL
                     </button>
                     
-                    <button onclick="window.abrirModalGarantia('${id}', '${s.tecnico_id}')" class="w-full mt-3 bg-black border border-orange-500 hover:bg-orange-900/40 text-orange-500 text-xs py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-[0_0_10px_rgba(249,115,22,0.2)]">
+                    <button onclick="window.abrirModalGarantia('${id}', '${s.tecnico_id}')" class="w-full bg-black border border-orange-500 hover:bg-orange-900/40 text-orange-500 text-xs py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-[0_0_10px_rgba(249,115,22,0.2)]">
                         <i class="fas fa-shield-alt"></i> SOLICITAR GARANTÍA / REPORTAR FALLA
                     </button>
 
@@ -588,10 +592,8 @@ export async function iniciarPanelCliente(user) {
                 fechaFormat = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             }
 
-            // 🔥 MOSTRAR BADGE DE EMERGENCIA 🔥
             const badgeUrgencia = s.urgencia ? `<span class="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(220,38,38,0.8)] uppercase ml-2"><i class="fas fa-fire"></i> EMERGENCIA</span>` : '';
 
-            // 🔥 MOSTRAR FOTO INICIAL EN EL HISTORIAL 🔥
             const imgInicialHTML = s.foto_problema ? `
             <div class="mt-3 mb-3 p-2 bg-black/50 border border-zinc-800 rounded-xl">
                 <p class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-2"><i class="fas fa-camera"></i> Foto del Problema:</p>
