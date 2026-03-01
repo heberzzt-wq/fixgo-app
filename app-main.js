@@ -2,14 +2,16 @@
  * ======================================================================================
  * GESTIAPREMIUM 2026 - MAIN CONTROLLER (ROUTER & GATEKEEPER)
  * Archivo: app-main.js
- * Versión: 5.15.6 (Delegación de lógica Stripe a panel-cliente.js)
+ * Versión: 5.16.0 (Módulo de Disputas y Soporte Técnico integrado)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
 
-console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.15.6...");
+console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.16.0...");
 
-import { observarAuth, auth, signOut, db, getDoc, doc } from "./firebase.js";
+// ⚠️ IMPORTANTE: Añadí addDoc, collection, updateDoc, y serverTimestamp. 
+// Asegúrate de que estén exportados en tu archivo firebase.js
+import { observarAuth, auth, signOut, db, getDoc, doc, addDoc, collection, updateDoc, serverTimestamp } from "./firebase.js";
 import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./app-panel.js";
 import { iniciarMotorBI } from "./app-bi.js"; 
 
@@ -141,3 +143,81 @@ function actualizarInterfazGlobal(user) {
         });
     });
 }
+
+// ======================================================================================
+// 🚨 SISTEMA DE DISPUTAS Y SOPORTE GESTIAPREMIUM (NUEVO)
+// ======================================================================================
+
+window.abrirModalDisputa = function(serviceId, customerId) {
+    document.getElementById('disputaServiceId').value = serviceId;
+    document.getElementById('disputaCustomerId').value = customerId;
+    document.getElementById('disputaDescripcion').value = '';
+    
+    const modal = document.getElementById('modalDisputaPago');
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+};
+
+window.cerrarModalDisputa = function() {
+    const modal = document.getElementById('modalDisputaPago');
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+};
+
+window.enviarReportePago = async function() {
+    const serviceId = document.getElementById('disputaServiceId').value;
+    const customerId = document.getElementById('disputaCustomerId').value;
+    const descripcion = document.getElementById('disputaDescripcion').value.trim();
+    const btnEnviar = document.getElementById('btnEnviarDisputa');
+
+    if (descripcion === '') {
+        alert("Por favor, describe el problema para que Soporte GestiaPremium pueda ayudarte.");
+        return;
+    }
+
+    try {
+        btnEnviar.disabled = true;
+        btnEnviar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
+
+        const authUser = auth.currentUser;
+        if (!authUser) throw new Error("No hay usuario autenticado.");
+
+        console.log("🛡️ Iniciando protocolo de disputa para el servicio:", serviceId);
+
+        // 1. Crear el ticket maestro en V2.0
+        const ticketRef = await addDoc(collection(db, "support_tickets"), {
+            serviceId: serviceId,
+            reportedBy: authUser.uid,
+            customerId: customerId,
+            proId: authUser.uid,
+            issueType: "payment_refusal",
+            status: "open",
+            createdAt: serverTimestamp(),
+            resolvedAt: null
+        });
+
+        // 2. Insertar la queja como el primer mensaje del chat inmutable
+        await addDoc(collection(db, `support_tickets/${ticketRef.id}/messages`), {
+            senderId: authUser.uid,
+            message: descripcion,
+            timestamp: serverTimestamp()
+        });
+
+        // 3. Congelar el servicio (Split Billing se detiene)
+        const serviceDocRef = doc(db, "services", serviceId);
+        await updateDoc(serviceDocRef, {
+            status: "disputed",
+            disputeTicketId: ticketRef.id
+        });
+
+        alert("🚨 Reporte enviado a GestiaPremium. El servicio ha sido bloqueado por seguridad.");
+        window.cerrarModalDisputa();
+
+    } catch (error) {
+        console.error("❌ Error al crear la disputa:", error);
+        alert("Hubo un error al comunicar con el servidor de GestiaPremium. Intenta de nuevo.");
+    } finally {
+        btnEnviar.disabled = false;
+        btnEnviar.innerHTML = '<i class="fas fa-paper-plane"></i> ENVIAR REPORTE';
+    }
+};
