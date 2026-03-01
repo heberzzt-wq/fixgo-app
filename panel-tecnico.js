@@ -3,9 +3,9 @@
  * GESTIAPREMIUM 2026 - MÓDULO DE TÉCNICO (SOCIO OPERADOR)
  * ======================================================================================
  * Archivo: panel-tecnico.js
+ * Versión: 5.18.8 (Inyección de Radar de Garantías y Reporte de Falla)
  * Descripción: Motor de radar, GPS, colisiones, cotizador y evidencia Cloud.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
- * INYECCIÓN: Visor de Foto Inicial y Geocercas (Tarifas Premium 1.3x y Emergencias 1.5x).
  * ======================================================================================
  */
 
@@ -275,13 +275,13 @@ export async function iniciarPanelTecnico(user) {
                                 <label class="block text-[10px] font-bold ${licenciaUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
                                     6. Licencia de Conducir ${licenciaUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
                                 </label>
-                                ${licenciaUrl ? '<p class="text-[10px] text-gray-500">Documento en regla.</p>' : '<input type="file" id="compLicencia" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
+                                ${licenciaUrl ? '<p class="text-[10px] text-gray-500">Documento en regla.</p>' : '<input type="file" id="compLicencia" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-2 file:rounded-lg w-full">'}
                             </div>
                             <div class="bg-black p-4 rounded-xl border ${certificadoUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
                                 <label class="block text-[10px] font-bold ${certificadoUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
                                     7. Certificados / DC-3 ${certificadoUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
                                 </label>
-                                ${certificadoUrl ? '<p class="text-[10px] text-gray-500">Certificados validados.</p>' : '<input type="file" id="compCertificado" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
+                                ${certificadoUrl ? '<p class="text-[10px] text-gray-500">Certificados validados.</p>' : '<input type="file" id="compCertificado" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-2 file:rounded-lg w-full">'}
                             </div>
                         </div>
                         <button onclick="window.completarDocumentosTecnico('${user.uid}')" id="btnCompletarDocs" class="w-full mt-4 bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl text-sm transition-transform active:scale-95 shadow-lg flex justify-center items-center gap-2">
@@ -927,6 +927,17 @@ export async function iniciarPanelTecnico(user) {
                 </button>`;
             }
 
+            // 🔥 INYECCIÓN: VISOR DE GARANTÍA PARA EL TÉCNICO 🔥
+            let alertaGarantiaHTML = "";
+            if (s.es_garantia) {
+                alertaGarantiaHTML = `
+                <div class="bg-red-900/40 border-2 border-red-500 p-3 rounded-xl mb-4 animate-pulse">
+                    <p class="text-red-500 font-black text-[10px] uppercase tracking-tighter"><i class="fas fa-exclamation-circle"></i> REABIERTO POR GARANTÍA</p>
+                    <p class="text-white text-xs mt-1 font-bold uppercase">Reporte de Falla:</p>
+                    <p class="text-gray-200 text-[11px] italic mt-1 leading-relaxed">"${escaparHTML(s.motivo_garantia || 'El cliente reporta una falla en el trabajo anterior.')}"</p>
+                </div>`;
+            }
+
             // 🔥 INYECCIÓN: MOSTRAR FOTO AMPLIADA EN LA MISIÓN ACTIVA
             let fotoMisionActivaHTML = '';
             if (s.foto_problema) {
@@ -956,6 +967,7 @@ export async function iniciarPanelTecnico(user) {
             </div>
             
             ${fotoMisionActivaHTML}
+            ${alertaGarantiaHTML}
 
             <div class="flex gap-2">
                 <a href="https://waze.com/ul?q=${destinoWaze}" target="_blank" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-center text-sm transition-colors ${s.estado === 'cancelado' ? 'pointer-events-none opacity-50' : ''}">
