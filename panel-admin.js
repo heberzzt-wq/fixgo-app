@@ -379,7 +379,6 @@ export async function iniciarPanelAdmin(user) {
  window.juzgarDisputaAdmin = async (serviceId, estadoActual) => {
     if(document.getElementById("modalJuezAdmin")) return;
     
-    // Primero, buscamos el ticket de soporte asociado a este servicio
     try {
         const qTickets = query(collection(db, "support_tickets"), where("serviceId", "==", serviceId), limit(1));
         const ticketSnap = await getDocs(qTickets);
@@ -390,10 +389,8 @@ export async function iniciarPanelAdmin(user) {
         }
 
         const ticketDoc = ticketSnap.docs[0];
-        const t = ticketDoc.data();
         const ticketId = ticketDoc.id;
 
-        // Ahora buscamos el primer mensaje para saber de qué trata
         const qMessages = query(collection(db, `support_tickets/${ticketId}/messages`), orderBy("timestamp", "asc"), limit(1));
         const msgSnap = await getDocs(qMessages);
         let mensajeQueja = "Sin descripción proporcionada.";
@@ -406,7 +403,6 @@ export async function iniciarPanelAdmin(user) {
         const colorTema = isWarranty ? "text-orange-500" : "text-red-500";
         const borderTema = isWarranty ? "border-orange-500" : "border-red-500";
 
-        // Botones dinámicos según el tipo de problema
         let botonesAccion = "";
         
         if (isWarranty) {
@@ -419,7 +415,6 @@ export async function iniciarPanelAdmin(user) {
                 </button>
             `;
         } else {
-            // Es problema de pago
             botonesAccion = `
                 <button onclick="window.resolverDisputaPago('${serviceId}', '${ticketId}', 'pagado')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-lg text-xs shadow-lg transition-transform active:scale-95 mb-2">
                     <i class="fas fa-check-double"></i> YA LE PAGÓ (LIBERAR COBRO AL TÉCNICO)
@@ -461,18 +456,34 @@ export async function iniciarPanelAdmin(user) {
 
  // Resolución de Garantías
  window.resolverGarantia = async (serviceId, ticketId, aprobar) => {
-    if(!confirm(aprobar ? "¿Seguro que deseas APROBAR la garantía? El servicio volverá al panel del técnico como 'Trabajando'." : "¿Seguro que deseas RECHAZAR la garantía? El caso se cerrará definitivamente.")) return;
+    if(!confirm(aprobar ? "🚨 ¿Seguro que deseas APROBAR la garantía? El técnico será forzado a regresar." : "¿Seguro que deseas RECHAZAR la garantía?")) return;
     
     try {
         if (aprobar) {
-            await updateDoc(doc(db, "services", serviceId), { estado: "trabajando" }); // Lo regresa
+            // 1. Extraemos el mensaje de la queja original
+            const qMessages = query(collection(db, `support_tickets/${ticketId}/messages`), orderBy("timestamp", "asc"), limit(1));
+            const msgSnap = await getDocs(qMessages);
+            const reporteFalla = !msgSnap.empty ? msgSnap.docs[0].data().message : "Falla reportada por el cliente.";
+
+            // 2. MAGIA: Reabrimos el servicio INYECTANDO LA BANDERA DE GARANTÍA
+            await updateDoc(doc(db, "services", serviceId), { 
+                estado: "trabajando",
+                es_garantia: true,
+                motivo_garantia: reporteFalla 
+            }); 
+            
+            alert("✅ Garantía APROBADA. El servicio regresó al técnico con la alerta roja.");
         } else {
-            await updateDoc(doc(db, "services", serviceId), { estado: "finalizado" }); // Se queda como estaba
+            await updateDoc(doc(db, "services", serviceId), { estado: "finalizado" });
+            alert("❌ Garantía RECHAZADA. El servicio se mantiene finalizado.");
         }
+
+        // 3. Tu labor como Juez terminó. Cerramos el ticket de disputa.
         await updateDoc(doc(db, "support_tickets", ticketId), { status: "resolved", resolvedAt: serverTimestamp() });
         
-        document.getElementById('modalJuezAdmin').remove();
-        alert("✅ Caso de garantía resuelto y cerrado exitosamente.");
+        const modal = document.getElementById('modalJuezAdmin');
+        if(modal) modal.remove();
+
     } catch (e) {
         console.error(e);
         alert("Error al resolver la garantía.");
@@ -492,7 +503,6 @@ export async function iniciarPanelAdmin(user) {
             await updateDoc(doc(db, "services", serviceId), { estado: "trabajando" }); 
         } else {
             await updateDoc(doc(db, "services", serviceId), { estado: "cancelado", cancelado_razon: "Cancelado por Admin: Cliente se negó a pagar el efectivo." });
-            // Aquí idealmente podrías agregar un código para banear al cliente, pero por ahora lo cancelamos
         }
         await updateDoc(doc(db, "support_tickets", ticketId), { status: "resolved", resolvedAt: serverTimestamp() });
         
