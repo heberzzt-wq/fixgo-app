@@ -890,18 +890,32 @@ export async function iniciarPanelTecnico(user) {
                     <i class="fas fa-circle-notch fa-spin"></i> CLIENTE PAGANDO SALDO EN STRIPE...
                 </button>`;
             } else if (s.estado === "pagado" || s.estado === "trabajando") {
+                
+                // 🔥 INYECCIÓN: BOTÓN DE DISPUTA DE PAGO APLICADO AQUÍ 🔥
                 botonAccionHTML = `
                 <div class="bg-emerald-900/30 border border-emerald-500 p-4 rounded-xl mt-4 text-center">
                     <p class="text-emerald-400 font-bold text-sm mb-2"><i class="fas fa-check-double"></i> PAGO DE SALDO APROBADO</p>
                     <p class="text-[10px] text-emerald-100">El pago se procesó. Inicia el trabajo para habilitar la cámara.</p>
                 </div>
+                
+                ${s.estado !== "trabajando" ? `
                 <button onclick="window.actualizarEstadoGlobal('${id}', 'trabajando')" class="w-full mt-3 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-blue-900/50">
                     <i class="fas fa-tools"></i> INICIAR REPARACIÓN
                 </button>
+                ` : ''}
+
                 ${s.estado === "trabajando" ? `
                 <button onclick="window.abrirEvidenciaGlobal('${id}')" class="w-full mt-4 bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
                     <i class="fas fa-camera"></i> FINALIZAR Y CERRAR
-                </button>` : ''}`;
+                </button>` : ''}
+                
+                ${s.metodo_pago === 'efectivo' ? `
+                <button onclick="window.abrirModalDisputa('${id}', '${s.cliente_id}')" class="w-full mt-3 bg-black border border-red-600 text-red-500 hover:bg-red-900/40 font-bold py-3 rounded-xl text-xs uppercase flex items-center justify-center gap-2 transition-all shadow-[0_0_10px_rgba(220,38,38,0.2)]">
+                    <i class="fas fa-exclamation-triangle animate-pulse"></i> EL CLIENTE NO QUIERE PAGAR EN EFECTIVO
+                </button>
+                ` : ''}
+                `;
+                
             } else if (s.estado === "cancelado") {
                 botonAccionHTML = `
                 <div class="bg-red-900/30 border border-red-500 p-4 rounded-xl mt-4 text-center">
