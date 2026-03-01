@@ -9,14 +9,12 @@
 
 console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.18.7...");
 
-// ⚠️ IMPORTANTE: Agregamos query, getDocs, orderBy y limit para la Mesa de Ayuda
-import { 
-    import { observarAuth, auth, signOut, db, getDoc, doc, addDoc, collection, updateDoc, serverTimestamp, getDocs, query, orderBy, limit } from "./firebase.js"; 
-    updateDoc, serverTimestamp, query, getDocs, orderBy, limit 
-} from "./firebase.js";
-import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./app-panel.js";
-import { iniciarMotorBI } from "./app-bi.js"; 
+// ⚠️ IMPORTANTE: Dividimos las importaciones. Las de Firebase CDN van separadas de tu firebase.js local.
+import { observarAuth, auth, signOut, db, getDoc, doc, addDoc, collection, updateDoc, serverTimestamp } from "./firebase.js";
+import { query, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./app-panel.js";
+import { iniciarMotorBI } from "./app-bi.js";
 document.body.style.display = 'none';
 
 const RUTAS = {
