@@ -8,7 +8,6 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body { background-color: #050505; }
-        /* El mapa tendrá altura fija y bordes redondeados */
         #map { width: 100%; height: 60vh; border-radius: 2rem; border: 1px solid #333; }
         .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); }
     </style>
@@ -55,7 +54,7 @@
         let isMapReady = false;
 
         window.initMap = function() {
-            console.log("🗺️ Inicializando Mapa GestiaPremium (Modo Oscuro)...");
+            console.log("🗺️ Inicializando Mapa GestiaPremium (Visor Cliente)...");
             
             const estiloOscuro = [
                 { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
@@ -72,10 +71,10 @@
             
             if (mapElement) {
                 globalMap = new google.maps.Map(mapElement, {
-                    center: { lat: 21.1619, lng: -86.8515 }, // Cancún Centro
-                    zoom: 13,
+                    center: { lat: 21.1619, lng: -86.8515 }, // Cancún Centro (Fallback)
+                    zoom: 14,
                     styles: estiloOscuro,
-                    disableDefaultUI: false, // Muestra controles de zoom
+                    disableDefaultUI: false, 
                     streetViewControl: false,
                     mapTypeControl: false
                 });
@@ -86,11 +85,10 @@
     </script>
 
     <script type="module">
-        import { db, onSnapshot, doc, getDoc, auth, observarAuth } from './firebase.js';
+        import { db, onSnapshot, doc, getDoc } from './firebase.js';
         import { actualizarMapaGPS } from './gps-motor.js';
 
         async function arrancarRastreo() {
-            // 🔥 CORRECCIÓN: Ruteo dinámico leyendo el parámetro URL
             const urlParams = new URLSearchParams(window.location.search);
             const servicioId = urlParams.get('id');
 
@@ -101,7 +99,6 @@
             }
 
             try {
-                // Obtenemos el ticket para saber quién es el técnico asignado
                 const docServicio = await getDoc(doc(db, "services", servicioId));
                 if (!docServicio.exists() || !docServicio.data().tecnico_id) {
                     document.getElementById("nombreTecnico").innerText = "Sin Asignar";
@@ -111,7 +108,7 @@
 
                 const uidTecnico = docServicio.data().tecnico_id;
                 
-                // Ahora escuchamos EXCLUSIVAMENTE el documento de ese técnico
+                // Escuchamos EXCLUSIVAMENTE el documento de telemetría de ese técnico
                 const trackingDoc = doc(db, "rastreo", uidTecnico);
                 
                 onSnapshot(trackingDoc, (snapshot) => {
@@ -126,7 +123,7 @@
                         if(txtEstado) txtEstado.innerText = data.estado || "En Ruta";
                         if(txtUbi && data.lat && data.lng) txtUbi.innerText = `${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}`;
 
-                        // Mover el marcador en el mapa usando globalMap
+                        // Mover el marcador en el mapa
                         if (globalMap && typeof actualizarMapaGPS === 'function' && data.lat && data.lng) {
                             actualizarMapaGPS(globalMap, data.lat, data.lng);
                         }
@@ -142,7 +139,6 @@
             }
         }
 
-        // Si el mapa ya cargó, arranca. Si no, espera el evento.
         if (isMapReady) {
             arrancarRastreo();
         } else {
