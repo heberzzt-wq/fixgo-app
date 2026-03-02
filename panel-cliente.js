@@ -32,7 +32,7 @@ import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/fireba
 import { escaparHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotificacionPush } from "./app-utils.js";
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.3
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.4
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
     console.log(" 📱 Iniciando Panel de Cliente (Gateways Blindados / GPS Anti-Freeze)...");
@@ -76,7 +76,6 @@ export async function iniciarPanelCliente(user) {
     // 3.0 LECTOR MAESTRO DE FEATURE FLAGS (PASARELAS DE PAGO Y UI DINÁMICA)
     // ==================================================================================
     
-    // Función para actualizar el botón de envío según el método seleccionado
     function actualizarBotonPagoUI(metodo) {
         const btn = el.form?.querySelector("button[type='submit']");
         if (!btn) return;
@@ -90,7 +89,6 @@ export async function iniciarPanelCliente(user) {
         }
     }
 
-    // Escuchar cuando el cliente cambia el método de pago manualmente (si ambos están activos)
     document.querySelectorAll('input[name="metodoPago"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             actualizarBotonPagoUI(e.target.value);
@@ -100,7 +98,6 @@ export async function iniciarPanelCliente(user) {
     onSnapshot(doc(db, "configuracion", "pagos"), (docSnap) => {
         const configPagos = docSnap.exists() ? docSnap.data() : { stripe_activo: true, efectivo_activo: false };
         
-        // Actualizamos estado global
         configGlobalPagos.stripe = configPagos.stripe_activo;
         configGlobalPagos.efectivo = configPagos.efectivo_activo;
         
@@ -108,7 +105,6 @@ export async function iniciarPanelCliente(user) {
         const radioEfectivo = document.querySelector('input[name="metodoPago"][value="efectivo"]');
         const efectivoPermitido = configPagos.efectivo_activo || user.efectivo_autorizado;
 
-        // Mostrar/Ocultar Tarjetas
         if (configPagos.stripe_activo) {
             if(el.stripeCard) el.stripeCard.classList.remove("hidden");
         } else {
@@ -121,17 +117,13 @@ export async function iniciarPanelCliente(user) {
             if(el.efectivoCard) el.efectivoCard.classList.add("hidden");
         }
 
-        // Lógica de forzado de selección (Evita ambigüedades)
         if (!configPagos.stripe_activo && efectivoPermitido) {
-            // SOLO EFECTIVO
             if(radioEfectivo) radioEfectivo.checked = true;
             actualizarBotonPagoUI('efectivo');
         } else if (configPagos.stripe_activo && !efectivoPermitido) {
-            // SOLO STRIPE
             if(radioStripe) radioStripe.checked = true;
             actualizarBotonPagoUI('stripe');
         } else if (configPagos.stripe_activo && efectivoPermitido) {
-            // AMBOS ACTIVOS: Respetar selección actual o forzar Stripe por defecto
             const checkedRadio = document.querySelector('input[name="metodoPago"]:checked');
             if (checkedRadio) {
                 actualizarBotonPagoUI(checkedRadio.value);
@@ -221,6 +213,12 @@ export async function iniciarPanelCliente(user) {
             renderizarCategoria("maint", el.containerMaint);
 
             window.seleccionarServicio = (id, label) => {
+                // 🔥 CAPA DE DEFENSA 1: BLOQUEO DE INTERFAZ 🔥
+                if (window.clienteTieneTicketActivo) {
+                    alert("⛔ BLOQUEO DE SISTEMA:\n\nYa tienes un servicio en proceso en este momento.\n\nPor favor, espera a que el técnico finalice el trabajo actual o cancela la solicitud pendiente antes de pedir otro servicio.");
+                    return; // Cortamos la ejecución aquí, el formulario no se abre.
+                }
+
                 document.querySelectorAll('.service-card-btn').forEach(btn => {
                     btn.classList.remove('bg-zinc-800', 'border-emerald-500', 'ring-1', 'ring-emerald-500');
                     btn.classList.add('bg-zinc-900', 'border-zinc-700');
@@ -249,25 +247,32 @@ export async function iniciarPanelCliente(user) {
     // 3.2 ENVÍO DE SOLICITUD (SHARK MODE ANTI-SPAM & RUTEO DUAL & URGENCIA)
     // ==================================================================================
     let lastSubmitTime = 0; 
-    let isSubmitting = false; // 🔥 INYECCIÓN: CANDADO DURO CONTRA CLICS MÚLTIPLES 🔥
+    let isSubmitting = false; 
 
     if (el.form) {
         el.form.addEventListener("submit", async (e) => {
             e.preventDefault();
 
-            // 1. Candado Duro: Si ya está procesando, ignoramos clics fantasma
+            // Candado contra doble clic rápido
             if (isSubmitting) return; 
             isSubmitting = true;
             
-            // 2. Candado de Tiempo: Evita ráfagas de 30 segundos
-            const now = Date.now();
-            if (now - lastSubmitTime < 30000) {
-                alert("⏳ SISTEMA ANTI-SPAM: Por favor espera al menos 30 segundos antes de enviar una nueva solicitud de servicio.");
-                isSubmitting = false; // Liberamos para que vuelva a intentar
+            // 🔥 CAPA DE DEFENSA 2: BLOQUEO DE FORMULARIO (Por si logró abrirlo) 🔥
+            if (window.clienteTieneTicketActivo) {
+                alert("⛔ BLOQUEO DE SISTEMA:\n\nDetectamos que ya tienes un servicio en curso. No puedes enviar una nueva solicitud.");
+                isSubmitting = false;
+                const formContainer = document.getElementById("modalSolicitud");
+                if(formContainer) formContainer.classList.add("hidden");
                 return;
             }
             
-            // 3. Bloqueo inmediato del reloj (Para que no puedan meter un 2do clic mientras Firebase piensa)
+            const now = Date.now();
+            if (now - lastSubmitTime < 30000) {
+                alert("⏳ SISTEMA ANTI-SPAM: Por favor espera al menos 30 segundos antes de enviar una nueva solicitud.");
+                isSubmitting = false;
+                return;
+            }
+            
             lastSubmitTime = now; 
 
             const cat = el.inputCat.value; 
@@ -295,7 +300,7 @@ export async function iniciarPanelCliente(user) {
                     regimen: el.facRegimen?.value
                 };
                 if (!datosFacturacion.rfc || !datosFacturacion.razon_social || !datosFacturacion.cp || !datosFacturacion.regimen) {
-                    alert("⚠️ Si requieres factura, es obligatorio llenar todos los campos (RFC, Razón Social, CP y Régimen).");
+                    alert("⚠️ Si requieres factura, es obligatorio llenar todos los campos.");
                     isSubmitting = false;
                     return;
                 }
@@ -306,14 +311,12 @@ export async function iniciarPanelCliente(user) {
             btn.disabled = true;
             btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO SOLICITUD...`;
             
-            // GPS BLINDADO CON TIMEOUT DE 6 SEGUNDOS
             const obtenerGPSConTimeout = () => {
                 return new Promise((resolve) => {
                     let resuelto = false;
                     const fallback = setTimeout(() => {
                         if(!resuelto) { 
                             resuelto = true; 
-                            console.warn("⏳ GPS Timeout Forzado. Enviando solicitud sin coordenadas."); 
                             resolve(null); 
                         }
                     }, 6000); 
@@ -368,7 +371,7 @@ export async function iniciarPanelCliente(user) {
 
                 let urlFotoDescargada = null;
                 if (archivoFoto && storage) {
-                    btn.innerHTML = `<i class="fas fa-cloud-upload-alt animate-bounce"></i> SUBIENDO FOTO A LA NUBE...`;
+                    btn.innerHTML = `<i class="fas fa-cloud-upload-alt animate-bounce"></i> SUBIENDO FOTO...`;
                     try {
                         const storageRef = ref(storage, `solicitudes_iniciales/${user.uid}_${Date.now()}.jpg`);
                         await uploadBytes(storageRef, archivoFoto);
@@ -422,7 +425,6 @@ export async function iniciarPanelCliente(user) {
                         cardBtn.classList.add('bg-zinc-900', 'border-zinc-700');
                     });
 
-                    // 🔥 INYECCIÓN: ACTUALIZACIÓN DE ALERTAS DE CONFIRMACIÓN (MARKETING NEURONAL) 🔥
                     if (metodoSeleccionado === "stripe") {
                         alert("🔒 SEGURIDAD GESTIAPREMIUM:\n\nSe realizará una RETENCIÓN DE GARANTÍA por $550 MXN en tu tarjeta.\n\nEste monto NO es el costo final, es solo para asegurar la visita del técnico.");
                         if (window.procesarPagoStripe) {
@@ -444,7 +446,7 @@ export async function iniciarPanelCliente(user) {
                 } finally {
                     btn.disabled = false;
                     btn.innerHTML = textoOriginal;
-                    isSubmitting = false; // 🔥 LÍNEA VITAL: Solo liberamos el candado cuando todo terminó.
+                    isSubmitting = false; // Liberamos el botón general
                 }
             }
         });
@@ -455,7 +457,17 @@ export async function iniciarPanelCliente(user) {
     // ==================================================================================
     onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc"), limit(50)), (snap) => {
         if(!el.lista) return;
-        
+
+        // 🔥 ESCÁNER DE TICKETS: Lee la base de datos para ver si ya hay uno vivo 🔥
+        let tieneActivo = false;
+        snap.forEach(docSnap => {
+            const s = docSnap.data();
+            if (["pendiente", "iniciado_stripe", "procesando_saldo", "asignado", "en_camino", "en_sitio", "cotizando", "trabajando"].includes(s.estado)) {
+                tieneActivo = true;
+            }
+        });
+        window.clienteTieneTicketActivo = tieneActivo; 
+
         snap.docChanges().forEach(change => {
             if (change.type === 'modified') {
                 const newData = change.doc.data();
