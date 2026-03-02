@@ -11,6 +11,18 @@
         .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); }
         .uber-input { background-color: #1e1e1e; border: none; color: white; }
         .uber-input:focus { outline: 2px solid #6366f1; }
+
+        /* 🔥 PARCHE: Ocultar el ojo nativo de navegadores (Edge, Chrome, Android) */
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
+            display: none;
+        }
+        input[type="password"]::-webkit-contacts-auto-fill-button,
+        input[type="password"]::-webkit-credentials-auto-fill-button {
+            visibility: hidden;
+            display: none !important;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body class="text-white bg-black min-h-screen">
@@ -28,12 +40,37 @@
         <h2 class="text-2xl font-black mb-6">Iniciar Sesión</h2>
         <form id="formLogin" class="space-y-4">
             <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-4 py-3 rounded-2xl">
-            <input type="password" name="password" placeholder="Contraseña" required class="uber-input w-full px-4 py-3 rounded-2xl">
+            
+            <div class="relative w-full">
+                <input type="password" id="passLogin" name="password" placeholder="Contraseña" required class="uber-input w-full px-4 py-3 rounded-2xl pr-12">
+                <button type="button" onclick="togglePassword('passLogin', 'iconPassLogin')" class="absolute inset-y-0 right-4 flex items-center text-gray-500 hover:text-white transition-colors">
+                    <i id="iconPassLogin" class="fas fa-eye text-lg"></i>
+                </button>
+            </div>
+
             <button type="submit" id="btnLogin" class="w-full bg-indigo-500 py-4 rounded-2xl font-black hover:bg-indigo-600 transition-all">Entrar</button>
         </form>
         <button id="btnLoginGoogle" class="w-full mt-4 bg-white text-black py-4 rounded-2xl font-black hover:bg-indigo-500 hover:text-white transition-all">Login con Google</button>
     </div>
 </main>
+
+<script>
+    // 🔥 LÓGICA DEL OJITO INYECTADA EN EL LOGIN 🔥
+    window.togglePassword = function(inputId, iconId) {
+        const input = document.getElementById(inputId);
+        const icon = document.getElementById(iconId);
+        
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    };
+</script>
 
 <script type="module" src="./app-registro.js"></script>
 </body>
