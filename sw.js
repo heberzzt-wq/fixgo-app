@@ -1,12 +1,12 @@
 /**
  * ======================================================
- * FIXGO CORE - SERVICE WORKER v1.2 (FCM PUSH ENGINE)
+ * FIXGO CORE - SERVICE WORKER v1.3 (FCM PUSH ENGINE + CORS FIX)
  * ======================================================
  */
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'fixgo-premium-cache-v1';
+const CACHE_NAME = 'fixgo-premium-cache-v2';
 const urlsToCache = ['/', '/manifest.json'];
 
 // INICIALIZAR FIREBASE EN SEGUNDO PLANO (Credenciales FixGo Oficiales)
@@ -32,7 +32,7 @@ messaging.onBackgroundMessage((payload) => {
     badge: '/icono-192.png',
     vibrate: [200, 100, 200, 100, 200], // Patrón táctico
     requireInteraction: true,
-    data: payload.data // Datos extra (como el ID del servicio)
+    data: payload.data 
   };
 
   return self.registration.showNotification(notificationTitle, notificationOptions);
@@ -57,7 +57,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// 3. CACHÉ Y ESTRATEGIA DE RED (Mantenemos tu blindaje anterior)
+// 3. CACHÉ Y ESTRATEGIA DE RED
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache)));
   self.skipWaiting();
@@ -72,7 +72,14 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+// 🔥 CORRECCIÓN VITAL: Solo interceptar recursos locales (Evita errores CORS de Maps/Stripe)
 self.addEventListener('fetch', event => {
-  if (event.request.url.includes('firestore') || event.request.url.includes('storage')) return;
-  event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+  // Si la petición va hacia Google, Stripe o Firebase, el SW no se mete.
+  if (!event.request.url.startsWith(self.location.origin)) {
+    return; 
+  }
+  
+  event.respondWith(
+    fetch(event.request).catch(() => caches.match(event.request))
+  );
 });
