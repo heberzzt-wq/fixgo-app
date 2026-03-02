@@ -410,6 +410,7 @@ export async function iniciarPanelCliente(user) {
                         cardBtn.classList.add('bg-zinc-900', 'border-zinc-700');
                     });
 
+                    // 🔥 INYECCIÓN: ACTUALIZACIÓN DE ALERTAS DE CONFIRMACIÓN (MARKETING NEURONAL) 🔥
                     if (metodoSeleccionado === "stripe") {
                         alert("🔒 SEGURIDAD GESTIAPREMIUM:\n\nSe realizará una RETENCIÓN DE GARANTÍA por $550 MXN en tu tarjeta.\n\nEste monto NO es el costo final, es solo para asegurar la visita del técnico.");
                         if (window.procesarPagoStripe) {
@@ -419,7 +420,7 @@ export async function iniciarPanelCliente(user) {
                         }
                     } else {
                         if(flagUrgencia) {
-                            alert(" 🚨 ¡SOLICITUD DE EMERGENCIA RECIBIDA!\n\nNuestras unidades están en camino. Recuerda que la cotización final incluirá la tarifa prioritaria 1.5x.");
+                            alert(" 🚨 ¡DESPLIEGUE PRIORITARIO ACTIVADO!\n\nNuestras unidades están en camino. Recuerda que la cotización final incluirá la tarifa de contingencia por atención express 24/7.");
                         } else {
                             alert(" ✅ ¡Solicitud Confirmada!\n\nEl pago se realizará en EFECTIVO directamente al técnico.\nNuestro sistema está buscando a la unidad más cercana...");
                         }
