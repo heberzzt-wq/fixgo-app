@@ -1,10 +1,9 @@
 /*******************************************************
  * FIXGO GPS MOTOR 2026
  * Archivo: gps-motor.js
- * Versión: 5.15 (RESILIENCE UPDATE: Cancún Shield)
- * Rol: Técnico & Visor
- * Función: Geolocalización + Tracking + Telemetría de Vehículo
- * Integración: Firebase Firestore + Google Maps
+ * Versión: 5.16 (RESILIENCE UPDATE & CROSS-OVER SHIELD)
+ * Rol: Técnico (Transmisor) & Visor Cliente (Receptor)
+ * Función: Geolocalización + Tracking + Telemetría
  *******************************************************/
 
 import { 
@@ -29,7 +28,7 @@ let tipoVehiculoLocal = "auto"; // Default de seguridad
 
 /* ==========================================================
     FUNCIÓN PARA VISOR (RASTREO.HTML)
-    Mueve el carrito en el mapa del cliente
+    Mueve el carrito en el mapa del cliente (Solo Receptor)
 ========================================================== */
 export function actualizarMapaGPS(mapReference, lat, lng) {
     if (!mapReference) return;
@@ -61,7 +60,7 @@ export function actualizarMapaGPS(mapReference, lat, lng) {
 }
 
 /* =========================
-    TRACKING EN TIEMPO REAL (TÉCNICO)
+    TRACKING EN TIEMPO REAL (TÉCNICO - TRANSMISOR)
 ========================= */
 export function iniciarTracking() {
   if (watchId !== null) return;
@@ -72,11 +71,11 @@ export function iniciarTracking() {
       return;
   }
 
-  // Aumentamos el timeout a 20s para dar margen en zonas de sombra en Cancún
+  // 🔥 CANDADOS ANTI-CACHÉ ACTIVADOS
   const opcionesTracking = {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 20000 
+      enableHighAccuracy: true, // Usa el chip GPS real, no la red Wi-Fi
+      maximumAge: 0,            // PROHIBIDO USAR CACHÉ. Siempre datos en vivo.
+      timeout: 15000            // 15 segundos máximo o tira error
   };
 
   watchId = navigator.geolocation.watchPosition(
@@ -101,7 +100,7 @@ export function iniciarTracking() {
       if (error.code === error.TIMEOUT) {
           console.warn("⏳ GPS Motor: Tiempo de espera agotado. Reintentando en segundo plano...");
       } else if (error.code === error.PERMISSION_DENIED) {
-          console.error("🚫 GPS Motor: El usuario denegó el acceso.");
+          console.error("🚫 GPS Motor: El usuario denegó el acceso al GPS.");
       } else {
           console.error("❌ Error en Tracking GPS:", error.message);
       }
@@ -131,7 +130,7 @@ function actualizarMapaPropio(lat, lng) {
 
 async function actualizarFirebase(lat, lng, velocidad, rumbo) {
   const ahora = Date.now();
-  if (ahora - ultimoUpdate < 5000) return; 
+  if (ahora - ultimoUpdate < 5000) return; // Limita subidas a 1 cada 5 seg para ahorrar cuota
   ultimoUpdate = ahora;
 
   const user = auth.currentUser;
@@ -152,7 +151,6 @@ async function actualizarFirebase(lat, lng, velocidad, rumbo) {
     }, { merge: true });
 
     // B) Actualizamos 'rastreo/{uid}' (Data puramente para el Cliente y su mapa)
-    // 🔥 CORRECCIÓN: Ahora usa el UID del técnico para evitar colisiones
     const refRastreo = doc(db, "rastreo", user.uid);
     await setDoc(refRastreo, {
         uid: user.uid,
@@ -174,7 +172,7 @@ async function actualizarFirebase(lat, lng, velocidad, rumbo) {
 }
 
 /* ==========================================================
-    AUTO-INICIO VISUAL (MAPA TÉCNICO) - LÓGICA V5.15
+    AUTO-INICIO VISUAL (MAPA TÉCNICO)
 ========================================================== */
 window.initMapaTecnico = async function () {
     console.log("🗺️ GPS Motor: Cargando perfil y solicitando ubicación...");
@@ -215,7 +213,6 @@ window.initMapaTecnico = async function () {
             iniciarTracking(); 
         },
         (err) => {
-            // FALLBACK INTELIGENTE: Si falla el GPS inicial, no bloqueamos la app
             console.warn("⚠️ GPS Inicial falló o dio Timeout. Activando modo resiliencia.");
             
             // Coordenadas céntricas de Cancún como punto de partida seguro
@@ -233,51 +230,48 @@ window.initMapaTecnico = async function () {
 };
 
 function inicializarMapaGoogle(coords) {
-    const mapElement = document.getElementById("mapa") || document.getElementById("map");
-    if (typeof google === "undefined") return;
+    const mapElement = document.getElementById("mapa") || document.getElementById("mapTecnico");
+    if (typeof google === "undefined" || !mapElement) return;
 
-    if (mapElement) {
-        mapa = new google.maps.Map(mapElement, {
-            center: coords,
-            zoom: 18, 
-            disableDefaultUI: true, 
-            styles: [ 
-                { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-                { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-                { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-                { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
-                { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
-                { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#263c3f" }] },
-                { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#6b9a76" }] },
-                { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
-                { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
-                { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b3" }] },
-                { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#746855" }] },
-                { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#1f2835" }] },
-                { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#f3d19c" }] },
-                { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] },
-                { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#515c6d" }] },
-                { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#17263c" }] },
-            ]
-        });
+    mapa = new google.maps.Map(mapElement, {
+        center: coords,
+        zoom: 18, 
+        disableDefaultUI: true, 
+        styles: [ 
+            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+            { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+            { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
+            { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
+            { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b3" }] },
+            { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] },
+        ]
+    });
 
-        marcadorTecnico = new google.maps.Marker({
-            position: coords,
-            map: mapa,
-            title: "Tu ubicación",
-            animation: google.maps.Animation.DROP,
-            icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 12,
-                fillColor: "#4f46e5", 
-                fillOpacity: 1,
-                strokeWeight: 3,
-                strokeColor: "#ffffff" 
-            }
-        });
-    }
+    marcadorTecnico = new google.maps.Marker({
+        position: coords,
+        map: mapa,
+        title: "Tu ubicación",
+        animation: google.maps.Animation.DROP,
+        icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 12,
+            fillColor: "#4f46e5", 
+            fillOpacity: 1,
+            strokeWeight: 3,
+            strokeColor: "#ffffff" 
+        }
+    });
 }
 
+// 🔥 SEGURO ANTI-CHOQUES: Solo arranca si NO estamos en la pantalla del cliente (rastreo.html)
 window.addEventListener("load", () => {
-    window.initMapaTecnico();
+    const isClientViewer = window.location.pathname.includes("rastreo.html");
+    if (!isClientViewer) {
+        // Verifica si existe el contenedor del mapa para el técnico
+        if (document.getElementById("mapa") || document.getElementById("mapTecnico")) {
+            window.initMapaTecnico();
+        }
+    }
 });
