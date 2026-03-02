@@ -249,16 +249,26 @@ export async function iniciarPanelCliente(user) {
     // 3.2 ENVÍO DE SOLICITUD (SHARK MODE ANTI-SPAM & RUTEO DUAL & URGENCIA)
     // ==================================================================================
     let lastSubmitTime = 0; 
+    let isSubmitting = false; // 🔥 INYECCIÓN: CANDADO DURO CONTRA CLICS MÚLTIPLES 🔥
 
     if (el.form) {
         el.form.addEventListener("submit", async (e) => {
             e.preventDefault();
+
+            // 1. Candado Duro: Si ya está procesando, ignoramos clics fantasma
+            if (isSubmitting) return; 
+            isSubmitting = true;
             
+            // 2. Candado de Tiempo: Evita ráfagas de 30 segundos
             const now = Date.now();
             if (now - lastSubmitTime < 30000) {
                 alert("⏳ SISTEMA ANTI-SPAM: Por favor espera al menos 30 segundos antes de enviar una nueva solicitud de servicio.");
+                isSubmitting = false; // Liberamos para que vuelva a intentar
                 return;
             }
+            
+            // 3. Bloqueo inmediato del reloj (Para que no puedan meter un 2do clic mientras Firebase piensa)
+            lastSubmitTime = now; 
 
             const cat = el.inputCat.value; 
             const dir = el.form.querySelector('[name="direccion"]').value;
@@ -267,7 +277,11 @@ export async function iniciarPanelCliente(user) {
             const isUrgencia = el.toggleUrgencia ? el.toggleUrgencia.checked : false;
             const fotoFile = el.inputFoto ? el.inputFoto.files[0] : null;
 
-            if (!cat) { alert(" ⚠ Por favor selecciona un servicio habilitado de la lista."); return; }
+            if (!cat) { 
+                alert(" ⚠ Por favor selecciona un servicio habilitado de la lista."); 
+                isSubmitting = false; 
+                return; 
+            }
             
             let requiereFactura = false;
             let datosFacturacion = null;
@@ -282,6 +296,7 @@ export async function iniciarPanelCliente(user) {
                 };
                 if (!datosFacturacion.rfc || !datosFacturacion.razon_social || !datosFacturacion.cp || !datosFacturacion.regimen) {
                     alert("⚠️ Si requieres factura, es obligatorio llenar todos los campos (RFC, Razón Social, CP y Régimen).");
+                    isSubmitting = false;
                     return;
                 }
             }
@@ -336,8 +351,7 @@ export async function iniciarPanelCliente(user) {
                 const vertical = partes[0].toUpperCase(); 
                 const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
 
-                // 🔥 DOBLE BLINDAJE DE MÉTODO DE PAGO 🔥
-                let metodoSeleccionado = "stripe"; // Fallback absoluto
+                let metodoSeleccionado = "stripe"; 
                 const checkedRadio = document.querySelector('input[name="metodoPago"]:checked');
                 const efectivoPermitido = configGlobalPagos.efectivo || user.efectivo_autorizado;
 
@@ -345,12 +359,11 @@ export async function iniciarPanelCliente(user) {
                     metodoSeleccionado = checkedRadio.value;
                 }
 
-                // Corrección automática si la UI se desfasó
                 if (metodoSeleccionado === "efectivo" && !efectivoPermitido) {
-                    metodoSeleccionado = "stripe"; // Efectivo no permitido, forzamos Stripe
+                    metodoSeleccionado = "stripe"; 
                 }
                 if (metodoSeleccionado === "stripe" && !configGlobalPagos.stripe && efectivoPermitido) {
-                    metodoSeleccionado = "efectivo"; // Stripe apagado, forzamos Efectivo
+                    metodoSeleccionado = "efectivo"; 
                 }
 
                 let urlFotoDescargada = null;
@@ -392,7 +405,6 @@ export async function iniciarPanelCliente(user) {
                     };
 
                     const docRef = await addDoc(collection(db, "services"), payloadTicket);
-                    lastSubmitTime = Date.now(); 
 
                     el.form.reset();
                     if(el.toggleFactura) {
@@ -429,10 +441,11 @@ export async function iniciarPanelCliente(user) {
                 } catch (error) {
                     console.error(error);
                     alert("Error al enviar solicitud al servidor central.");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = textoOriginal;
+                    isSubmitting = false; // 🔥 LÍNEA VITAL: Solo liberamos el candado cuando todo terminó.
                 }
-                
-                btn.disabled = false;
-                btn.innerHTML = textoOriginal;
             }
         });
     }
