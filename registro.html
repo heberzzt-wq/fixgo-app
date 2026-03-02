@@ -22,6 +22,18 @@
             border-radius: 1rem;
             border: 1px solid #2d2d2d;
         }
+
+        /* 🔥 PARCHE: Ocultar el ojo nativo de navegadores (Edge, Chrome, Android) */
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
+            display: none;
+        }
+        input[type="password"]::-webkit-contacts-auto-fill-button,
+        input[type="password"]::-webkit-credentials-auto-fill-button {
+            visibility: hidden;
+            display: none !important;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body class="text-white min-h-screen flex flex-col">
@@ -84,12 +96,14 @@
                     <form id="formRegistroCliente" class="space-y-4">
                         <input type="text" name="nombre" placeholder="Nombre completo" required class="uber-input w-full px-5 py-4 rounded-2xl">
                         <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-5 py-4 rounded-2xl">
-                       <div class="relative w-full">
-    <input type="password" id="passCliente" name="password" placeholder="Contraseña segura" required class="uber-input w-full px-5 py-4 rounded-2xl pr-12">
-    <button type="button" onclick="togglePassword('passCliente', 'iconPassCliente')" class="absolute inset-y-0 right-4 flex items-center text-gray-500 hover:text-white transition-colors">
-        <i id="iconPassCliente" class="fas fa-eye text-lg"></i>
-    </button>
-</div>
+                        
+                        <div class="relative w-full">
+                            <input type="password" id="passCliente" name="password" placeholder="Contraseña segura" required class="uber-input w-full px-5 py-4 rounded-2xl pr-12">
+                            <button type="button" onclick="togglePassword('passCliente', 'iconPassCliente')" class="absolute inset-y-0 right-4 flex items-center text-gray-500 hover:text-white transition-colors">
+                                <i id="iconPassCliente" class="fas fa-eye text-lg"></i>
+                            </button>
+                        </div>
+                        
                         <input type="tel" name="telefono" placeholder="Teléfono de contacto" required class="uber-input w-full px-5 py-4 rounded-2xl">
                         
                         <div class="py-4">
@@ -131,12 +145,14 @@
                             <input type="tel" name="telefono" placeholder="Teléfono" required class="uber-input w-full px-5 py-4 rounded-2xl">
                         </div>
                         <input type="email" name="email" placeholder="Correo electrónico" required class="uber-input w-full px-5 py-4 rounded-2xl">
-                       <div class="relative w-full">
-    <input type="password" id="passTecnico" name="password" placeholder="Contraseña (Mín. 8, Mayús. y Núm.)" required class="uber-input w-full px-5 py-4 rounded-2xl pr-12">
-    <button type="button" onclick="togglePassword('passTecnico', 'iconPassTecnico')" class="absolute inset-y-0 right-4 flex items-center text-gray-500 hover:text-white transition-colors">
-        <i id="iconPassTecnico" class="fas fa-eye text-lg"></i>
-    </button>
-</div>
+                        
+                        <div class="relative w-full">
+                            <input type="password" id="passTecnico" name="password" placeholder="Contraseña (Mín. 8, Mayús. y Núm.)" required class="uber-input w-full px-5 py-4 rounded-2xl pr-12">
+                            <button type="button" onclick="togglePassword('passTecnico', 'iconPassTecnico')" class="absolute inset-y-0 right-4 flex items-center text-gray-500 hover:text-white transition-colors">
+                                <i id="iconPassTecnico" class="fas fa-eye text-lg"></i>
+                            </button>
+                        </div>
+                        
                         <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
                             <label class="block text-xs font-bold text-gray-400 mb-3 uppercase"><i class="fas fa-motorcycle"></i> Logística Operativa</label>
                             <select name="tipoVehiculo" class="uber-input w-full px-4 py-3 rounded-xl appearance-none cursor-pointer mb-3 outline-none focus:border-emerald-500">
@@ -244,7 +260,7 @@
                 </div>
                 <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
                     <p><strong>1. Relación Comercial:</strong> Al registrarse como Socio Pro, usted actúa como Contratista Independiente. No existe relación obrero-patronal, subordinación ni exclusividad con GestiaPremium. Usted provee sus propias herramientas, vehículos y horarios.</p>
-                   <p><strong>2. Tarifa de Gestión Operativa:</strong> El método principal de cobro es automatizado a través de nuestra pasarela segura <strong>Stripe</strong>. Al finalizar un servicio, el sistema transfiere sus ganancias a su cuenta bancaria, descontando la 'Tarifa de Gestión Integral' del 32%. Esta tarifa garantiza la infraestructura tecnológica (servidores en la nube, facturación Split Billing) y la adquisición continua de clientes. <br><br> <strong class="text-emerald-500">Pagos en Efectivo (Exclusivo Nivel VIP):</strong> La habilitación para recibir pagos directos en efectivo está estrictamente reservada para Socios Pro que alcancen el estatus VIP. Solo en estos casos excepcionales, al recibir el 100% del pago en sitio, el 32% de la Tarifa de Gestión se reflejará como un 'Saldo Operativo' pendiente en su Billetera GestiaPremium, el cual deberá liquidarse periódicamente vía SPEI para mantener su cuenta activa.</p>
+                    <p><strong>2. Tarifa de Gestión Operativa:</strong> El método principal de cobro es automatizado a través de nuestra pasarela segura <strong>Stripe</strong>. Al finalizar un servicio, el sistema transfiere sus ganancias a su cuenta bancaria, descontando la 'Tarifa de Gestión Integral' del 32%. Esta tarifa garantiza la infraestructura tecnológica (servidores en la nube, facturación Split Billing) y la adquisición continua de clientes. <br><br> <strong class="text-emerald-500">Pagos en Efectivo (Exclusivo Nivel VIP):</strong> La habilitación para recibir pagos directos en efectivo está estrictamente reservada para Socios Pro que alcancen el estatus VIP. Solo en estos casos excepcionales, al recibir el 100% del pago en sitio, el 32% de la Tarifa de Gestión se reflejará como un 'Saldo Operativo' pendiente en su Billetera GestiaPremium, el cual deberá liquidarse periódicamente vía SPEI para mantener su cuenta activa.</p>
                     <p><strong>3. Políticas Anti-Fraude:</strong> Cancelar servicios asignados injustificadamente después de 5 minutos de aceptación generará una penalización de $150 MXN. Es obligatorio el uso de GPS en sitio y subir fotografías reales de evidencia del servicio. La suplantación de identidad o perfiles falsos causará la baja definitiva e inmediata de la plataforma.</p>
                     <p><strong>4. Responsabilidad Civil:</strong> El Socio Pro es el único responsable legal por daños causados a la propiedad del cliente durante la ejecución del servicio.</p>
                 </div>
