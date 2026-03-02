@@ -697,17 +697,18 @@ export async function iniciarPanelTecnico(user) {
                     ? '<span class="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(37,99,235,0.8)]"><i class="fab fa-stripe-s"></i> PAGADO STRIPE</span>'
                     : '<span class="bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(16,185,129,0.8)]"><i class="fas fa-money-bill"></i> PAGO EFECTIVO</span>';
 
-                // 🔥 INYECCIÓN: VISOR TÁCTICO DE ETIQUETA DE URGENCIA Y FOTO INICIAL EN EL RADAR
+           // 🔥 INYECCIÓN: VISOR TÁCTICO DE ETIQUETA DE URGENCIA Y FOTO INICIAL EN EL RADAR
                 let badgeUrgencia = s.urgencia ? `<span class="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(220,38,38,0.8)] ml-2 animate-pulse"><i class="fas fa-fire"></i> EMERGENCIA</span>` : '';
                 
                 let previewFotoHTML = '';
                 if (s.foto_problema) {
                     previewFotoHTML = `
-                    <div class="mt-2 mb-2 p-1.5 bg-black rounded-lg border border-zinc-700 flex items-center gap-2">
-                        <div class="w-12 h-12 rounded overflow-hidden shrink-0 border border-zinc-800">
+                    <div class="mt-3 mb-3">
+                        <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-2"><i class="fas fa-camera"></i> Evidencia Inicial del Cliente:</p>
+                        <div class="w-full h-40 rounded-xl overflow-hidden border border-blue-900/50 relative">
                             <img src="${s.foto_problema}" class="w-full h-full object-cover">
+                            <a href="${s.foto_problema}" target="_blank" class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-white px-3 py-1 rounded text-[9px] font-bold border border-white/20 hover:bg-black transition-colors"><i class="fas fa-expand"></i> VER COMPLETA</a>
                         </div>
-                        <p class="text-[9px] text-gray-400 leading-tight">El cliente adjuntó una foto del problema. Podrás verla a detalle al aceptar el ticket.</p>
                     </div>`;
                 }
 
