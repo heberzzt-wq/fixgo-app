@@ -5,7 +5,7 @@
  * Archivo: panel-cliente.js
  * Descripción: Catálogo dinámico, cotizador interactivo, anti-spam y PDFs de usuario.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
- * INYECCIÓN: Botón de Emergencia (+50%), Subida de Foto Inicial a Cloud, Garantías y GPS Fallback.
+ * INYECCIÓN: Blindaje estricto de Gateways de Pago (Stripe/Efectivo) + GPS Fallback.
  * ======================================================================================
  */
 
@@ -24,7 +24,7 @@ import {
     getDoc 
 } from "./firebase.js";
 
-// Funciones específicas de Firestore y Storage importadas desde el CDN
+// Funciones específicas de Firestore y Storage
 import { runTransaction, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
@@ -32,12 +32,12 @@ import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/fireba
 import { escaparHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotificacionPush } from "./app-utils.js";
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.2
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.3
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
-    console.log(" 📱 Iniciando Panel de Cliente (Modo Urgencias 1.5x / Foto Inicial / Garantías / GPS Anti-Freeze)...");
+    console.log(" 📱 Iniciando Panel de Cliente (Gateways Blindados / GPS Anti-Freeze)...");
 
-    // 🔥 INYECCIÓN: Desbloqueo de Audio en la primera interacción del usuario
+    // Desbloqueo de Audio en la primera interacción del usuario
     document.body.addEventListener('click', function unlockAudio() {
         const audio = document.getElementById('audioAlerta');
         if (audio && audio.paused) {
@@ -69,49 +69,82 @@ export async function iniciarPanelCliente(user) {
         toggleUrgencia: document.getElementById("toggleUrgencia")
     };
 
-    // ----------------------------------------------------------------------------------
-    // 3.0 LECTOR MAESTRO DE FEATURE FLAGS (PASARELAS DE PAGO)
-    // ----------------------------------------------------------------------------------
+    // Estado global de pagos para el blindaje final
+    let configGlobalPagos = { stripe: true, efectivo: false };
+
+    // ==================================================================================
+    // 3.0 LECTOR MAESTRO DE FEATURE FLAGS (PASARELAS DE PAGO Y UI DINÁMICA)
+    // ==================================================================================
+    
+    // Función para actualizar el botón de envío según el método seleccionado
+    function actualizarBotonPagoUI(metodo) {
+        const btn = el.form?.querySelector("button[type='submit']");
+        if (!btn) return;
+
+        if (metodo === 'efectivo') {
+            btn.innerHTML = `<i class="fas fa-hand-holding-usd"></i> SOLICITAR AHORA (PAGO EN DOMICILIO)`;
+            btn.className = 'w-full bg-emerald-500 text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
+        } else {
+            btn.innerHTML = `<i class="fas fa-lock"></i> PROCEDER AL PAGO SEGURO`;
+            btn.className = 'w-full bg-blue-600 text-white font-black py-4 rounded-xl text-lg hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
+        }
+    }
+
+    // Escuchar cuando el cliente cambia el método de pago manualmente (si ambos están activos)
+    document.querySelectorAll('input[name="metodoPago"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            actualizarBotonPagoUI(e.target.value);
+        });
+    });
+
     onSnapshot(doc(db, "configuracion", "pagos"), (docSnap) => {
         const configPagos = docSnap.exists() ? docSnap.data() : { stripe_activo: true, efectivo_activo: false };
         
+        // Actualizamos estado global
+        configGlobalPagos.stripe = configPagos.stripe_activo;
+        configGlobalPagos.efectivo = configPagos.efectivo_activo;
+        
         const radioStripe = document.querySelector('input[name="metodoPago"][value="stripe"]');
         const radioEfectivo = document.querySelector('input[name="metodoPago"][value="efectivo"]');
+        const efectivoPermitido = configPagos.efectivo_activo || user.efectivo_autorizado;
 
+        // Mostrar/Ocultar Tarjetas
         if (configPagos.stripe_activo) {
             if(el.stripeCard) el.stripeCard.classList.remove("hidden");
         } else {
             if(el.stripeCard) el.stripeCard.classList.add("hidden");
         }
 
-        if (configPagos.efectivo_activo || user.efectivo_autorizado) {
+        if (efectivoPermitido) {
             if(el.efectivoCard) el.efectivoCard.classList.remove("hidden");
         } else {
             if(el.efectivoCard) el.efectivoCard.classList.add("hidden");
         }
 
-        if (!configPagos.stripe_activo && (configPagos.efectivo_activo || user.efectivo_autorizado)) {
+        // Lógica de forzado de selección (Evita ambigüedades)
+        if (!configPagos.stripe_activo && efectivoPermitido) {
+            // SOLO EFECTIVO
             if(radioEfectivo) radioEfectivo.checked = true;
-            const btnText = document.getElementById('btnSubmitText');
-            if (btnText) btnText.innerText = 'SOLICITAR AHORA (PAGO EN DOMICILIO)';
-            const btnIcon = document.getElementById('btnSubmitIcon');
-            if (btnIcon) btnIcon.className = 'fas fa-hand-holding-usd';
-            const btnApp = document.getElementById('btnSubmitApp');
-            if (btnApp) btnApp.className = 'w-full bg-emerald-500 text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
-        } else if (configPagos.stripe_activo && (!radioEfectivo || !radioEfectivo.checked)) {
+            actualizarBotonPagoUI('efectivo');
+        } else if (configPagos.stripe_activo && !efectivoPermitido) {
+            // SOLO STRIPE
             if(radioStripe) radioStripe.checked = true;
-            const btnText = document.getElementById('btnSubmitText');
-            if (btnText) btnText.innerText = 'PROCEDER AL PAGO SEGURO';
-            const btnIcon = document.getElementById('btnSubmitIcon');
-            if (btnIcon) btnIcon.className = 'fas fa-lock';
-            const btnApp = document.getElementById('btnSubmitApp');
-            if (btnApp) btnApp.className = 'w-full bg-blue-600 text-white font-black py-4 rounded-xl text-lg hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
+            actualizarBotonPagoUI('stripe');
+        } else if (configPagos.stripe_activo && efectivoPermitido) {
+            // AMBOS ACTIVOS: Respetar selección actual o forzar Stripe por defecto
+            const checkedRadio = document.querySelector('input[name="metodoPago"]:checked');
+            if (checkedRadio) {
+                actualizarBotonPagoUI(checkedRadio.value);
+            } else {
+                if(radioStripe) radioStripe.checked = true;
+                actualizarBotonPagoUI('stripe');
+            }
         }
     });
 
-    // ----------------------------------------------------------------------------------
+    // ==================================================================================
     // 3.1 CARGA DINÁMICA DE VERTICALES EN ACORDEÓN
-    // ----------------------------------------------------------------------------------
+    // ==================================================================================
     async function cargarServiciosCliente() {
         console.log("Cargando servicios en contenedores dinámicos...");
 
@@ -212,9 +245,9 @@ export async function iniciarPanelCliente(user) {
 
     cargarServiciosCliente();
 
-    // ----------------------------------------------------------------------------------
+    // ==================================================================================
     // 3.2 ENVÍO DE SOLICITUD (SHARK MODE ANTI-SPAM & RUTEO DUAL & URGENCIA)
-    // ----------------------------------------------------------------------------------
+    // ==================================================================================
     let lastSubmitTime = 0; 
 
     if (el.form) {
@@ -258,12 +291,10 @@ export async function iniciarPanelCliente(user) {
             btn.disabled = true;
             btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO SOLICITUD...`;
             
-            // 🔥 GPS BLINDADO CON TIMEOUT DE 6 SEGUNDOS 🔥
+            // GPS BLINDADO CON TIMEOUT DE 6 SEGUNDOS
             const obtenerGPSConTimeout = () => {
                 return new Promise((resolve) => {
                     let resuelto = false;
-                    
-                    // Si en 6 segundos no hay respuesta del GPS, forzamos salida para que no se quede colgado
                     const fallback = setTimeout(() => {
                         if(!resuelto) { 
                             resuelto = true; 
@@ -305,10 +336,21 @@ export async function iniciarPanelCliente(user) {
                 const vertical = partes[0].toUpperCase(); 
                 const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
 
-                let metodoSeleccionado = "stripe"; 
-                const radioEfectivo = document.querySelector('input[name="metodoPago"][value="efectivo"]');
-                if (radioEfectivo && radioEfectivo.checked) {
-                    metodoSeleccionado = "efectivo";
+                // 🔥 DOBLE BLINDAJE DE MÉTODO DE PAGO 🔥
+                let metodoSeleccionado = "stripe"; // Fallback absoluto
+                const checkedRadio = document.querySelector('input[name="metodoPago"]:checked');
+                const efectivoPermitido = configGlobalPagos.efectivo || user.efectivo_autorizado;
+
+                if (checkedRadio) {
+                    metodoSeleccionado = checkedRadio.value;
+                }
+
+                // Corrección automática si la UI se desfasó
+                if (metodoSeleccionado === "efectivo" && !efectivoPermitido) {
+                    metodoSeleccionado = "stripe"; // Efectivo no permitido, forzamos Stripe
+                }
+                if (metodoSeleccionado === "stripe" && !configGlobalPagos.stripe && efectivoPermitido) {
+                    metodoSeleccionado = "efectivo"; // Stripe apagado, forzamos Efectivo
                 }
 
                 let urlFotoDescargada = null;
@@ -394,9 +436,9 @@ export async function iniciarPanelCliente(user) {
         });
     }
 
-    // ----------------------------------------------------------------------------------
+    // ==================================================================================
     // 3.3 MONITOR DE HISTORIAL & WATCHDOG DE NOTIFICACIONES AL CLIENTE
-    // ----------------------------------------------------------------------------------
+    // ==================================================================================
     onSnapshot(query(collection(db, "services"), where("cliente_id", "==", user.uid), orderBy("created_at", "desc"), limit(50)), (snap) => {
         if(!el.lista) return;
         
@@ -416,7 +458,6 @@ export async function iniciarPanelCliente(user) {
                 } else if (newData.estado === 'cotizando') {
                     lanzarNotificacionPush("Reporte y Cotización Lista", "Revisa el diagnóstico y aprueba el presupuesto para iniciar.");
                 } else if (newData.estado === 'finalizado') {
-                    // 🔥 LÓGICA DE FINALIZACIÓN Y GARANTÍA $0 🔥
                     if (newData.es_garantia) {
                         lanzarNotificacionPush("✅ Garantía Finalizada", "Trabajo corregido satisfactoriamente.");
                         alert("🛡️ GESTIAPREMIUM INFORMA:\n\nHas confirmado que el trabajo de garantía fue realizado correctamente. Este servicio NO TIENE COSTO para ti. ¡Gracias por tu paciencia!");
@@ -561,7 +602,6 @@ export async function iniciarPanelCliente(user) {
                     </div>`;
                 }
 
-                // 🔥 INYECCIÓN: BOTÓN SOLICITAR GARANTÍA AÑADIDO AL FINALIZAR 🔥
                 contenido = `
                 <div class="bg-emerald-900/10 border border-emerald-500/30 p-4 rounded-xl mt-2">
                     <div class="flex justify-between items-center mb-3">
