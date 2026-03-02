@@ -823,6 +823,9 @@ export async function iniciarPanelTecnico(user) {
         where("estado", "in", ["pagado", "asignado", "en_camino", "en_sitio", "cotizando", "procesando_saldo", "trabajando", "cancelado"]) 
     );
 
+    // 🔥 CANDADO DE SPAM INICIAL 🔥
+    let cargaInicialMisiones = true;
+
     // 🚨 VIGILANTE DE MISIONES MEJORADO 🚨
     onSnapshot(qMisiones, (snap) => {
         const ls = elementos.listaServicios;
@@ -833,6 +836,7 @@ export async function iniciarPanelTecnico(user) {
 
         if (snap.empty) {
             if(pa) pa.classList.add("translate-y-full");
+            cargaInicialMisiones = false;
             return;
         }
 
@@ -842,11 +846,12 @@ export async function iniciarPanelTecnico(user) {
             const sData = change.doc.data();
             if (sData.oculto_para_tecnico) return; 
 
-            // 🔥 ESTA ES LA MAGIA QUE HACE QUE SUENE SIN REFRESCAR 🔥
-            if (change.type === 'added' || change.type === 'modified') {
+            // 🔥 ALARMA DE GARANTÍA FORZADA (Ignora silencios) 🔥
+            if (change.type === 'added' && !cargaInicialMisiones) {
                 if (sData.es_garantia && sData.estado === 'trabajando') {
                     sonarAlerta();
-                    lanzarNotificacionPush("🚨 ¡GARANTÍA ACTIVADA!", "Un cliente reportó una falla. Revisa los detalles en tu panel.");
+                    alert("🚨 ¡ALERTA DE GARANTÍA!\n\nLa Central ha reabierto un ticket por falla. Revisa la franja roja en tu panel para ver el reporte exacto del cliente.");
+                    lanzarNotificacionPush("🚨 TICKET REABIERTO", "Garantía exigida por el cliente.");
                 }
             }
 
@@ -1001,6 +1006,9 @@ export async function iniciarPanelTecnico(user) {
             `;
             ls.appendChild(card);
         });
+
+        // 🔥 LIBERAR EL CANDADO AL TERMINAR DE PINTAR 🔥
+        cargaInicialMisiones = false; 
     });
 
     window.ocultarTicketCancelado = async (id) => {
