@@ -91,99 +91,113 @@
         </button>
     </main>
 
-    <script type="module">
-        import { db, collection, query, where, orderBy, onSnapshot, limit } from "./firebase.js";
+    
+<script type="module">
+        import { db, collection, query, where, orderBy, onSnapshot, limit, auth, observarAuth } from "./firebase.js";
 
-        // Establecer el inicio del día actual para los cálculos de "HOY"
-        const hoy = new Date();
-        hoy.setHours(0, 0, 0, 0);
-        
         // Formatear fecha en cabecera
         const opcionesFecha = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
         document.getElementById('fechaHoy').innerText = new Date().toLocaleDateString('es-MX', opcionesFecha);
 
-        // 1. MONITOR DE FLOTA ACTIVA (Técnicos con disponible = true)
-        const qTechs = query(collection(db, "users"), where("rol", "==", "tecnico"), where("disponible", "==", true));
-        onSnapshot(qTechs, (snap) => {
-            document.getElementById('valTechs').innerText = snap.size;
-        });
+        // 🔥 INYECCIÓN DE SEGURIDAD: Esperar autenticación antes de consultar
+        observarAuth((userAuth) => {
+            if (!userAuth || userAuth.email !== "hebertoh-m@hotmail.com") {
+                // Si no está logueado o no es el CEO, no cargamos nada
+                document.getElementById('contenedorAlertas').innerHTML = `
+                    <div class="p-4 bg-red-900/10 border border-red-900/30 rounded-xl text-center shadow-inner">
+                        <i class="fas fa-lock text-red-500 text-2xl mb-2"></i>
+                        <p class="text-[10px] text-red-500 font-bold uppercase tracking-widest">ACCESO RESTRINGIDO</p>
+                        <p class="text-[9px] text-gray-500 mt-1">Esperando validación de credenciales del CEO...</p>
+                    </div>`;
+                return;
+            }
 
-        // 2. MONITOR FINANCIERO (Transacciones de Hoy)
-        // Leemos las últimas 200 transacciones y filtramos por fecha en el cliente para no forzar índices
-        const qTx = query(collection(db, "transacciones"), orderBy("fecha", "desc"), limit(200));
-        onSnapshot(qTx, (snap) => {
-            let ingresosHoy = 0;
-            let comisionHoy = 0;
+            console.log("👑 Credenciales CEO validadas. Iniciando lectura segura de Firebase...");
 
-            snap.forEach(docSnap => {
-                const tx = docSnap.data();
-                if (tx.fecha && tx.fecha.toDate) {
-                    const fechaTx = tx.fecha.toDate();
-                    if (fechaTx >= hoy && tx.tipo !== 'retiro_fondos' && tx.tipo !== 'penalizacion') {
-                        ingresosHoy += (tx.monto_total || 0);
-                        comisionHoy += (tx.comision_fixgo || 0);
-                    }
-                }
+            // Establecer el inicio del día actual para los cálculos de "HOY"
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+
+            // 1. MONITOR DE FLOTA ACTIVA (Técnicos con disponible = true)
+            const qTechs = query(collection(db, "users"), where("rol", "==", "tecnico"), where("disponible", "==", true));
+            onSnapshot(qTechs, (snap) => {
+                document.getElementById('valTechs').innerText = snap.size;
             });
 
-            document.getElementById('valRev').innerText = `$${ingresosHoy.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-            document.getElementById('valCom').innerText = `$${comisionHoy.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        });
+            // 2. MONITOR FINANCIERO (Transacciones de Hoy)
+            const qTx = query(collection(db, "transacciones"), orderBy("fecha", "desc"), limit(200));
+            onSnapshot(qTx, (snap) => {
+                let ingresosHoy = 0;
+                let comisionHoy = 0;
 
-        // 3. MONITOR OPERATIVO Y DE ALERTAS (Servicios de Hoy)
-        const qServ = query(collection(db, "services"), orderBy("created_at", "desc"), limit(100));
-        onSnapshot(qServ, (snap) => {
-            let serviciosHoy = 0;
-            let htmlAlertas = "";
-
-            snap.forEach(docSnap => {
-                const s = docSnap.data();
-                const id = docSnap.id;
-                
-                if (s.created_at && s.created_at.toDate) {
-                    const fechaSrv = s.created_at.toDate();
-                    
-                    if (fechaSrv >= hoy) {
-                        serviciosHoy++;
-                        
-                        // Generación de Alertas Tácticas
-                        if (s.estado === 'cancelado') {
-                            htmlAlertas += `
-                            <div class="p-3 bg-red-900/20 border-l-2 border-red-500 rounded-r-xl flex justify-between items-center animate-fade-in shadow-lg">
-                                <div>
-                                    <p class="text-xs font-bold text-red-500"><i class="fas fa-ban"></i> Servicio Cancelado</p>
-                                    <p class="text-[9px] text-gray-400 mt-0.5">Téc: ${s.tecnico_nombre || 'No asignado'}</p>
-                                </div>
-                                <span class="text-[9px] font-mono text-gray-500 uppercase">${id.substring(0,6)}</span>
-                            </div>`;
-                        } else if (s.estado === 'iniciado_stripe') {
-                            htmlAlertas += `
-                            <div class="p-3 bg-blue-900/20 border-l-2 border-blue-500 rounded-r-xl flex justify-between items-center animate-fade-in shadow-lg">
-                                <div>
-                                    <p class="text-xs font-bold text-blue-400 animate-pulse"><i class="fas fa-credit-card"></i> Pago Stripe Atorado</p>
-                                    <p class="text-[9px] text-gray-400 mt-0.5">Esperando confirmación del banco</p>
-                                </div>
-                                <span class="text-[9px] font-mono text-gray-500 uppercase">${id.substring(0,6)}</span>
-                            </div>`;
+                snap.forEach(docSnap => {
+                    const tx = docSnap.data();
+                    if (tx.fecha && tx.fecha.toDate) {
+                        const fechaTx = tx.fecha.toDate();
+                        if (fechaTx >= hoy && tx.tipo !== 'retiro_fondos' && tx.tipo !== 'penalizacion') {
+                            ingresosHoy += (tx.monto_total || 0);
+                            comisionHoy += (tx.comision_fixgo || 0);
                         }
                     }
-                }
+                });
+
+                document.getElementById('valRev').innerText = `$${ingresosHoy.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                document.getElementById('valCom').innerText = `$${comisionHoy.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             });
 
-            document.getElementById('valServ').innerText = serviciosHoy;
-            
-            const contAlertas = document.getElementById('contenedorAlertas');
-            if (htmlAlertas === "") {
-                contAlertas.innerHTML = `
-                <div class="p-4 bg-emerald-900/10 border border-emerald-900/30 rounded-xl text-center shadow-inner">
-                    <i class="fas fa-check-circle text-emerald-500 text-2xl mb-2"></i>
-                    <p class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Sin alertas críticas</p>
-                    <p class="text-[9px] text-gray-500 mt-1">La operación fluye con normalidad.</p>
-                </div>`;
-            } else {
-                contAlertas.innerHTML = htmlAlertas;
-            }
+            // 3. MONITOR OPERATIVO Y DE ALERTAS (Servicios de Hoy)
+            const qServ = query(collection(db, "services"), orderBy("created_at", "desc"), limit(100));
+            onSnapshot(qServ, (snap) => {
+                let serviciosHoy = 0;
+                let htmlAlertas = "";
+
+                snap.forEach(docSnap => {
+                    const s = docSnap.data();
+                    const id = docSnap.id;
+                    
+                    if (s.created_at && s.created_at.toDate) {
+                        const fechaSrv = s.created_at.toDate();
+                        
+                        if (fechaSrv >= hoy) {
+                            serviciosHoy++;
+                            
+                            // Generación de Alertas Tácticas
+                            if (s.estado === 'cancelado') {
+                                htmlAlertas += `
+                                <div class="p-3 bg-red-900/20 border-l-2 border-red-500 rounded-r-xl flex justify-between items-center animate-fade-in shadow-lg">
+                                    <div>
+                                        <p class="text-xs font-bold text-red-500"><i class="fas fa-ban"></i> Servicio Cancelado</p>
+                                        <p class="text-[9px] text-gray-400 mt-0.5">Téc: ${s.tecnico_nombre || 'No asignado'}</p>
+                                    </div>
+                                    <span class="text-[9px] font-mono text-gray-500 uppercase">${id.substring(0,6)}</span>
+                                </div>`;
+                            } else if (s.estado === 'iniciado_stripe') {
+                                htmlAlertas += `
+                                <div class="p-3 bg-blue-900/20 border-l-2 border-blue-500 rounded-r-xl flex justify-between items-center animate-fade-in shadow-lg">
+                                    <div>
+                                        <p class="text-xs font-bold text-blue-400 animate-pulse"><i class="fas fa-credit-card"></i> Pago Stripe Atorado</p>
+                                        <p class="text-[9px] text-gray-400 mt-0.5">Esperando confirmación del banco</p>
+                                    </div>
+                                    <span class="text-[9px] font-mono text-gray-500 uppercase">${id.substring(0,6)}</span>
+                                </div>`;
+                            }
+                        }
+                    }
+                });
+
+                document.getElementById('valServ').innerText = serviciosHoy;
+                
+                const contAlertas = document.getElementById('contenedorAlertas');
+                if (htmlAlertas === "") {
+                    contAlertas.innerHTML = `
+                    <div class="p-4 bg-emerald-900/10 border border-emerald-900/30 rounded-xl text-center shadow-inner">
+                        <i class="fas fa-check-circle text-emerald-500 text-2xl mb-2"></i>
+                        <p class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Sin alertas críticas</p>
+                        <p class="text-[9px] text-gray-500 mt-1">La operación fluye con normalidad.</p>
+                    </div>`;
+                } else {
+                    contAlertas.innerHTML = htmlAlertas;
+                }
+            });
         });
     </script>
-</body>
-</html>
