@@ -5,7 +5,7 @@
  * Archivo: panel-cliente.js
  * Descripción: Catálogo dinámico, cotizador interactivo, anti-spam y PDFs de usuario.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
- * INYECCIÓN: Botón de Emergencia (+50%), Subida de Foto Inicial a Cloud y Garantías.
+ * INYECCIÓN: Botón de Emergencia (+50%), Subida de Foto Inicial a Cloud, Garantías y GPS Fallback.
  * ======================================================================================
  */
 
@@ -35,7 +35,7 @@ import { escaparHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotifica
 // 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.2
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
-    console.log(" 📱 Iniciando Panel de Cliente (Modo Urgencias 1.5x / Foto Inicial / Garantías)...");
+    console.log(" 📱 Iniciando Panel de Cliente (Modo Urgencias 1.5x / Foto Inicial / Garantías / GPS Anti-Freeze)...");
 
     // 🔥 INYECCIÓN: Desbloqueo de Audio en la primera interacción del usuario
     document.body.addEventListener('click', function unlockAudio() {
@@ -258,26 +258,47 @@ export async function iniciarPanelCliente(user) {
             btn.disabled = true;
             btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO SOLICITUD...`;
             
-            setTimeout(() => {
-                btn.innerHTML = `<i class="fas fa-satellite-dish"></i> OBTENIENDO GPS...`;
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        async (pos) => {
-                            await enviarSolicitudFinal(cat, dir, desc, {
-                                lat: pos.coords.latitude,
-                                lng: pos.coords.longitude
-                            }, requiereFactura, datosFacturacion, isUrgencia, fotoFile);
-                        },
-                        async (err) => {
-                            console.warn("GPS Cliente no disponible:", err);
-                            await enviarSolicitudFinal(cat, dir, desc, null, requiereFactura, datosFacturacion, isUrgencia, fotoFile);
-                        },
-                        { timeout: 15000, maximumAge: 10000, enableHighAccuracy: true }
-                    );
-                } else {
-                    enviarSolicitudFinal(cat, dir, desc, null, requiereFactura, datosFacturacion, isUrgencia, fotoFile);
-                }
-            }, 500); 
+            // 🔥 GPS BLINDADO CON TIMEOUT DE 6 SEGUNDOS 🔥
+            const obtenerGPSConTimeout = () => {
+                return new Promise((resolve) => {
+                    let resuelto = false;
+                    
+                    // Si en 6 segundos no hay respuesta del GPS, forzamos salida para que no se quede colgado
+                    const fallback = setTimeout(() => {
+                        if(!resuelto) { 
+                            resuelto = true; 
+                            console.warn("⏳ GPS Timeout Forzado. Enviando solicitud sin coordenadas."); 
+                            resolve(null); 
+                        }
+                    }, 6000); 
+
+                    if (navigator.geolocation) {
+                        btn.innerHTML = `<i class="fas fa-satellite-dish"></i> OBTENIENDO GPS...`;
+                        navigator.geolocation.getCurrentPosition(
+                            (pos) => { 
+                                if(!resuelto) { 
+                                    resuelto = true; 
+                                    clearTimeout(fallback); 
+                                    resolve({lat: pos.coords.latitude, lng: pos.coords.longitude}); 
+                                } 
+                            },
+                            (err) => { 
+                                if(!resuelto) { 
+                                    resuelto = true; 
+                                    clearTimeout(fallback); 
+                                    resolve(null); 
+                                } 
+                            },
+                            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                        );
+                    } else {
+                        if(!resuelto) { resuelto = true; clearTimeout(fallback); resolve(null); }
+                    }
+                });
+            };
+
+            const coordsObtenidas = await obtenerGPSConTimeout();
+            await enviarSolicitudFinal(cat, dir, desc, coordsObtenidas, requiereFactura, datosFacturacion, isUrgencia, fotoFile);
             
             async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords, reqFac, datosFac, flagUrgencia, archivoFoto) {
                 const partes = categoriaFull.split('_');
