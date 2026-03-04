@@ -113,6 +113,11 @@
                 <button onclick="window.abrirGestorCatalogo()" class="hover:bg-zinc-800 text-white font-bold py-2 px-5 rounded-xl text-[11px] flex items-center gap-2 transition-all uppercase tracking-widest">
                     <i class="fas fa-sliders-h text-blue-500"></i> Catálogo
                 </button>
+
+                <button id="btnImportarTareas" onclick="window.importarJSONGithub()" class="hover:bg-emerald-900/30 text-emerald-400 font-bold py-2 px-5 rounded-xl text-[11px] flex items-center gap-2 transition-all uppercase tracking-widest border border-emerald-500/20">
+                    <i class="fas fa-cloud-download-alt text-emerald-500"></i> Importar V5.18
+                </button>
+
                 <div class="w-[1px] h-4 bg-zinc-800"></div>
                 <p class="text-[11px] px-4 text-zinc-500 font-bold uppercase tracking-tight">
                     Admin: <span id="userName" class="text-white">Senior Architect</span>
@@ -360,6 +365,54 @@
 
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js"></script>
+
+    <script type="module">
+        import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { db } from "./firebase.js"; // Llama a tu propia conexión
+
+        window.importarJSONGithub = async function() {
+            const btn = document.getElementById('btnImportarTareas');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin text-emerald-500"></i> Importando...';
+            btn.disabled = true;
+
+            try {
+                // Lee el JSON que acabas de guardar en GitHub
+                const response = await fetch('./mantenimiento_edificio.json');
+                const data = await response.json();
+
+                // Une todas las categorías en un solo arreglo
+                const tasks = [
+                    ...data.Diaria, 
+                    ...data.Semanal_Quincenal, 
+                    ...data.Mensual, 
+                    ...data.Semestral_Anual
+                ];
+                
+                let count = 0;
+
+                // Sube una por una a la colección "services"
+                for (const task of tasks) {
+                    await addDoc(collection(db, 'services'), task);
+                    count++;
+                    btn.innerHTML = `<i class="fas fa-spinner fa-spin text-emerald-500"></i> ${count}/${tasks.length}...`;
+                }
+
+                // Éxito visual
+                btn.innerHTML = `<i class="fas fa-check"></i> ¡Éxito! (${count})`;
+                btn.classList.replace('text-emerald-400', 'text-white');
+                btn.classList.replace('hover:bg-emerald-900/30', 'bg-emerald-600');
+                btn.classList.replace('border-emerald-500/20', 'border-emerald-500');
+
+                alert(`¡Se inyectaron ${count} tareas exitosamente al panel de Jonathan!`);
+
+            } catch (error) {
+                console.error("Error importando JSON:", error);
+                btn.innerHTML = '<i class="fas fa-times text-red-500"></i> Error de Red';
+                alert("Hubo un error al chupar el JSON. Revisa la consola (F12).");
+                btn.disabled = false;
+            }
+        }
+    </script>
 
     <footer class="max-w-[1600px] mx-auto p-10 text-center opacity-30">
         <p class="text-[10px] font-black text-zinc-500 uppercase tracking-[0.5em]">GestiaPremium Ecosystem • Built for Scale 2026</p>
