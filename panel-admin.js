@@ -1447,7 +1447,10 @@ window.importarJSONGithub = async function() {
         let count = 0;
 
         // Inyectamos a la base de datos usando la conexión nativa existente (db)
-        for (const task of tasks) {
+       for (const task of tasks) {
+            // 🔥 AQUÍ ESTÁ LA MAGIA: Inyectamos la fecha nativa
+            task.created_at = serverTimestamp();
+            
             await addDoc(collection(db, 'services'), task);
             count++;
             btn.innerHTML = `<i class="fas fa-spinner fa-spin text-emerald-500"></i> ${count}/${tasks.length}...`;
