@@ -367,8 +367,9 @@
     <script type="module" src="./app-main.js"></script>
 
     <script type="module">
-        import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { db } from "./firebase.js"; // Llama a tu propia conexión
+        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        // Importamos tu configuración para asegurar que Firebase arranque, y luego forzamos la DB
+        import * as firebaseConfig from "./firebase.js";
 
         window.importarJSONGithub = async function() {
             const btn = document.getElementById('btnImportarTareas');
@@ -376,6 +377,9 @@
             btn.disabled = true;
 
             try {
+                // Instancia segura y forzada de la base de datos (Adiós error de CollectionReference)
+                const db = firebaseConfig.db || getFirestore();
+
                 // Lee el JSON que acabas de guardar en GitHub
                 const response = await fetch('./mantenimiento_edificio.json');
                 const data = await response.json();
