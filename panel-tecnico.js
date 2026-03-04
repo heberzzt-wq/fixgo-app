@@ -1091,11 +1091,13 @@ export async function iniciarPanelTecnico(user) {
         if (navigator.geolocation && targetLat && targetLng) {
             navigator.geolocation.getCurrentPosition((pos) => {
                 const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, targetLat, targetLng);
-                if (dist > 1000) { 
-                    alert(`🛑 ALERTA ANTIFRAUDE: El sistema detecta que estás a ${Math.round(dist)} metros del cliente.\n\nDebes estar físicamente en el lugar para cambiar el estado a "En Sitio".`);
+                if (dist > 200) { 
+                    console.log(`🛰️ [DEBUG TÉCNICO] Distancia calculada: ${Math.round(dist)} metros.`);
+                    alert(`🛑 ALERTA ANTIFRAUDE: El sistema detecta que estás a ${Math.round(dist)} metros del cliente.\n\nDebes estar a menos de 200m de Uxmal 39.`);
                     btn.innerHTML = textoOriginal;
                     btn.disabled = false;
                 } else {
+                    console.log("✅ [DEBUG TÉCNICO] ¡Llegada confirmada!");
                     window.actualizarEstadoGlobal(id, "en_sitio");
                 }
             }, (err) => {
@@ -1104,7 +1106,7 @@ export async function iniciarPanelTecnico(user) {
             }, { 
                 enableHighAccuracy: true,
                 timeout: 10000, 
-                maximumAge: 15000 
+                maximumAge: 0 
             });
         } else {
             window.actualizarEstadoGlobal(id, "en_sitio"); 
