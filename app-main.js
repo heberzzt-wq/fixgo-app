@@ -68,13 +68,14 @@ observarAuth(async (userAuth) => {
 
     console.log(`✅ Usuario: ${userAuth.email} | Rol validado: ${userAuth.rol}`);
 
-    if (userAuth.rol === "admin" && archivoActual !== RUTAS.admin) {
+    // === NUEVO RUTEO FLEXIBLE PARA VERCEL ===
+    if (userAuth.rol === "admin" && !pathActual.includes("admin")) {
         window.location.replace(RUTAS.admin); return;
     }
-    if (userAuth.rol === "tecnico" && archivoActual !== RUTAS.tecnico) {
+    if (userAuth.rol === "tecnico" && !pathActual.includes("tecnico")) {
         window.location.replace(RUTAS.tecnico); return;
     }
-    if (userAuth.rol === "cliente" && archivoActual !== RUTAS.cliente) {
+    if (userAuth.rol === "cliente" && !pathActual.includes("cliente")) {
         window.location.replace(RUTAS.cliente); return;
     }
 
