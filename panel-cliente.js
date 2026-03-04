@@ -311,40 +311,42 @@ export async function iniciarPanelCliente(user) {
             btn.disabled = true;
             btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO SOLICITUD...`;
             
-            const obtenerGPSConTimeout = () => {
-                return new Promise((resolve) => {
-                    let resuelto = false;
-                    const fallback = setTimeout(() => {
-                        if(!resuelto) { 
-                            resuelto = true; 
-                            resolve(null); 
-                        }
-                    }, 6000); 
+       const obtenerGPSConTimeout = () => {
+    return new Promise((resolve) => {
+        let resuelto = false;
+        console.log("🛰️ [CLIENTE] Iniciando sensor GPS..."); // <--- AGREGAR ESTO
 
-                    if (navigator.geolocation) {
-                        btn.innerHTML = `<i class="fas fa-satellite-dish"></i> OBTENIENDO GPS...`;
-                        navigator.geolocation.getCurrentPosition(
-                            (pos) => { 
-                                if(!resuelto) { 
-                                    resuelto = true; 
-                                    clearTimeout(fallback); 
-                                    resolve({lat: pos.coords.latitude, lng: pos.coords.longitude}); 
-                                } 
-                            },
-                            (err) => { 
-                                if(!resuelto) { 
-                                    resuelto = true; 
-                                    clearTimeout(fallback); 
-                                    resolve(null); 
-                                } 
-                            },
-                            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-                        );
-                    } else {
-                        if(!resuelto) { resuelto = true; clearTimeout(fallback); resolve(null); }
-                    }
-                });
-            };
+        const fallback = setTimeout(() => {
+            if(!resuelto) { 
+                resuelto = true; 
+                console.warn("⚠️ [CLIENTE] El sensor no respondió en 6 segundos."); // <--- AGREGAR ESTO
+                resolve(null); 
+            }
+        }, 6000); 
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => { 
+                    if(!resuelto) { 
+                        resuelto = true; 
+                        clearTimeout(fallback); 
+                        console.log(`✅ [CLIENTE] Ubicación capturada: ${pos.coords.latitude}, ${pos.coords.longitude}`); // <--- AGREGAR ESTO
+                        resolve({lat: pos.coords.latitude, lng: pos.coords.longitude}); 
+                    } 
+                },
+                (err) => { 
+                    if(!resuelto) { 
+                        resuelto = true; 
+                        clearTimeout(fallback); 
+                        console.error("❌ [CLIENTE] Error de sensor:", err.message); // <--- AGREGAR ESTO
+                        resolve(null); 
+                    } 
+                },
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 } // <-- maximumAge: 0 obliga a pedir una nueva, no una vieja
+            );
+        }
+    });
+};
 
             const coordsObtenidas = await obtenerGPSConTimeout();
             await enviarSolicitudFinal(cat, dir, desc, coordsObtenidas, requiereFactura, datosFacturacion, isUrgencia, fotoFile);
