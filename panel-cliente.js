@@ -354,10 +354,29 @@ export async function iniciarPanelCliente(user) {
     });
 };
 
-            const coordsObtenidas = await obtenerGPSConTimeout();
-            await enviarSolicitudFinal(cat, dir, desc, coordsObtenidas, requiereFactura, datosFacturacion, isUrgencia, fotoFile);
+           // 1. Intentamos obtener el GPS del hardware (Celular / Laptop)
+            let coordsObtenidas = await obtenerGPSConTimeout();
+
+            // 🔥 2. EL SNIPER DE WAZE/MAPS (OVERRIDE MANUAL) 🔥
+            const linkManual = document.getElementById("ubicacionManualWaze")?.value || "";
+            let linkMapaGuardar = linkManual;
+
+            if (linkManual.trim() !== "") {
+                // Buscamos coordenadas (Ej: 21.1619, -86.8515) o variaciones dentro del link
+                const regexCoords = /(-?\d{1,2}\.\d{4,})[,\s]+(-?\d{1,3}\.\d{4,})/;
+                const match = linkManual.match(regexCoords);
+                
+                if (match) {
+                    console.log("🎯 [BYPASS] Coordenadas extraídas del texto:", match[1], match[2]);
+                    // ¡SOBRESCRIBIMOS EL GPS DEL SENSOR!
+                    coordsObtenidas = { lat: parseFloat(match[1]), lng: parseFloat(match[2]) };
+                }
+            }
+
+            // 3. Enviamos el ticket final con las coordenadas y el link
+            await enviarSolicitudFinal(cat, dir, desc, coordsObtenidas, requiereFactura, datosFacturacion, isUrgencia, fotoFile, linkMapaGuardar);
             
-            async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords, reqFac, datosFac, flagUrgencia, archivoFoto) {
+            async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords, reqFac, datosFac, flagUrgencia, archivoFoto , linkManualText) {
                 const partes = categoriaFull.split('_');
                 const vertical = partes[0].toUpperCase(); 
                 const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
@@ -416,7 +435,8 @@ export async function iniciarPanelCliente(user) {
                         factura_enviada: false,
                         urgencia: flagUrgencia,
                         foto_problema: urlFotoDescargada,
-                        b2b_metadata: dataB2B
+                        b2b_metadata: dataB2B,
+                        link_waze_cliente: linkManualText || ""
                     };
 
                     const docRef = await addDoc(collection(db, "services"), payloadTicket);
