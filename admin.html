@@ -366,58 +366,6 @@
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js"></script>
 
-    <script type="module">
-        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        // Importamos tu configuración para asegurar que Firebase arranque, y luego forzamos la DB
-        import * as firebaseConfig from "./firebase.js";
-
-        window.importarJSONGithub = async function() {
-            const btn = document.getElementById('btnImportarTareas');
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin text-emerald-500"></i> Importando...';
-            btn.disabled = true;
-
-            try {
-                // Instancia segura y forzada de la base de datos (Adiós error de CollectionReference)
-                const db = firebaseConfig.db || getFirestore();
-
-                // Lee el JSON que acabas de guardar en GitHub
-                const response = await fetch('./mantenimiento_edificio.json');
-                const data = await response.json();
-
-                // Une todas las categorías en un solo arreglo
-                const tasks = [
-                    ...data.Diaria, 
-                    ...data.Semanal_Quincenal, 
-                    ...data.Mensual, 
-                    ...data.Semestral_Anual
-                ];
-                
-                let count = 0;
-
-                // Sube una por una a la colección "services"
-                for (const task of tasks) {
-                    await addDoc(collection(db, 'services'), task);
-                    count++;
-                    btn.innerHTML = `<i class="fas fa-spinner fa-spin text-emerald-500"></i> ${count}/${tasks.length}...`;
-                }
-
-                // Éxito visual
-                btn.innerHTML = `<i class="fas fa-check"></i> ¡Éxito! (${count})`;
-                btn.classList.replace('text-emerald-400', 'text-white');
-                btn.classList.replace('hover:bg-emerald-900/30', 'bg-emerald-600');
-                btn.classList.replace('border-emerald-500/20', 'border-emerald-500');
-
-                alert(`¡Se inyectaron ${count} tareas exitosamente al panel de Jonathan!`);
-
-            } catch (error) {
-                console.error("Error importando JSON:", error);
-                btn.innerHTML = '<i class="fas fa-times text-red-500"></i> Error de Red';
-                alert("Hubo un error al chupar el JSON. Revisa la consola (F12).");
-                btn.disabled = false;
-            }
-        }
-    </script>
-
     <footer class="max-w-[1600px] mx-auto p-10 text-center opacity-30">
         <p class="text-[10px] font-black text-zinc-500 uppercase tracking-[0.5em]">GestiaPremium Ecosystem • Built for Scale 2026</p>
     </footer>
