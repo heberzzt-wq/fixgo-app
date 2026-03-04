@@ -31,6 +31,9 @@ import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/fireba
 // Sistema Nervioso Compartido
 import { escaparHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotificacionPush } from "./app-utils.js";
 
+// Sistema Facility Management (B2B)
+import { iniciarSelectorB2B, obtenerMetadatosB2B } from "./modulo-b2b.js";
+
 // ======================================================================================
 // 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.4
 // ======================================================================================
@@ -243,6 +246,9 @@ export async function iniciarPanelCliente(user) {
 
     cargarServiciosCliente();
 
+    // Iniciar el cerebro B2B externo
+    iniciarSelectorB2B();
+
     // ==================================================================================
     // 3.2 ENVÍO DE SOLICITUD (SHARK MODE ANTI-SPAM & RUTEO DUAL & URGENCIA)
     // ==================================================================================
@@ -386,6 +392,9 @@ export async function iniciarPanelCliente(user) {
                 btn.innerHTML = `<i class="fas fa-satellite-dish"></i> ENVIANDO A CENTRAL...`;
 
                 try {
+                    // 🔥 1. EXTRAER DATOS B2B DEL NUEVO MÓDULO
+        const dataB2B = obtenerMetadatosB2B();
+                    
                     const payloadTicket = {
                         cliente_id: user.uid,
                         cliente_nombre: user.nombre || "Cliente",
@@ -406,7 +415,8 @@ export async function iniciarPanelCliente(user) {
                         datos_facturacion: datosFac,
                         factura_enviada: false,
                         urgencia: flagUrgencia,
-                        foto_problema: urlFotoDescargada
+                        foto_problema: urlFotoDescargada,
+                        b2b_metadata: dataB2B
                     };
 
                     const docRef = await addDoc(collection(db, "services"), payloadTicket);
