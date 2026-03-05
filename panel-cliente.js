@@ -458,7 +458,7 @@ export async function iniciarPanelCliente(user) {
                         categoria_id: categoriaFull,
                         direccion: direccion,
                         descripcion: descripcion,
-                        estado: metodoSeleccionado === "efectivo" ? "pendiente" : "iniciado_stripe",
+                        estado: (metodoSeleccionado === "efectivo" || metodoSeleccionado === "b2b") ? "pendiente" : "iniciado_stripe",
                         metodo_pago: metodoSeleccionado,
                         zona: "Cancún",
                         created_at: serverTimestamp(),
