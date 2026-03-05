@@ -930,7 +930,7 @@ window.iniciarMantenimiento = async (idTarea) => {
     const qMisiones = query(
         collection(db, "services"),
         where("tecnico_id", "==", user.uid),
-        where("estado", ["pagado", "asignado", "en_camino", "en_sitio", "cotizando", "procesando_saldo", "trabajando", "cancelado"]) 
+        
     );
 
     // 🔥 CANDADO DE SPAM INICIAL 🔥
