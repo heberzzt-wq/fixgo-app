@@ -373,6 +373,16 @@ export async function iniciarPanelCliente(user) {
                 }
             }
 
+
+            // 🔥 NUEVO: SNIPER DEL MAPA INTERACTIVO (OVERRIDE MÁXIMO) 🔥
+            const latMapa = document.getElementById("latDestino")?.value;
+            const lngMapa = document.getElementById("lngDestino")?.value;
+            
+            if (latMapa && lngMapa) {
+                console.log("🎯 [V5.18] Coordenadas capturadas del mapa interactivo:", latMapa, lngMapa);
+                coordsObtenidas = { lat: parseFloat(latMapa), lng: parseFloat(lngMapa) };
+            } 
+            
             // 3. Enviamos el ticket final con las coordenadas y el link
             await enviarSolicitudFinal(cat, dir, desc, coordsObtenidas, requiereFactura, datosFacturacion, isUrgencia, fotoFile, linkMapaGuardar);
             
@@ -1069,4 +1079,53 @@ export async function iniciarPanelCliente(user) {
             btn.disabled = false;
         }
     };
+    // ======================================================================================
+// 🔥 MOTOR DEL MAPA INTERACTIVO PARA JORGE (V5.18) 🔥
+// ======================================================================================
+let mapaJorge;
+
+document.getElementById('btnAbrirMapa')?.addEventListener('click', () => {
+    const contenedor = document.getElementById('contenedorMapaSeleccion');
+    contenedor.classList.toggle('hidden');
+    
+    // Si el mapa no existe aún, lo creamos
+    if (!mapaJorge && !contenedor.classList.contains('hidden')) {
+        // Centrado en Cancún por defecto
+        mapaJorge = L.map('mapaJorge').setView([21.1619, -86.8515], 14);
+        
+        // Capa de OpenStreetMap (Gratis y rápida)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(mapaJorge);
+        
+        // Cuando Jorge suelta el mapa, leemos el centro
+        mapaJorge.on('moveend', () => {
+            const centro = mapaJorge.getCenter();
+            document.getElementById('latDestino').value = centro.lat;
+            document.getElementById('lngDestino').value = centro.lng;
+        });
+
+        // Forzamos un re-render por si el div estaba oculto
+        setTimeout(() => { mapaJorge.invalidateSize(); }, 300);
+    }
+});
+
+// Cuando Jorge le da a "Confirmar este punto"
+document.getElementById('btnConfirmarPunto')?.addEventListener('click', () => {
+    const lat = document.getElementById('latDestino').value;
+    const lng = document.getElementById('lngDestino').value;
+    
+    if (lat && lng) {
+        // Le avisamos visualmente a Jorge que ya lo atrapamos
+        const inputDir = document.querySelector('[name="direccion"]');
+        if (inputDir) {
+            inputDir.value = `📍 Ubicación fijada en Mapa (${parseFloat(lat).toFixed(4)}, ${parseFloat(lng).toFixed(4)})`;
+            inputDir.classList.add('bg-emerald-900/30', 'border-emerald-500', 'text-emerald-400');
+        }
+        
+        document.getElementById('contenedorMapaSeleccion').classList.add('hidden');
+    } else {
+        alert("Mueve el mapa un poco para fijar tu ubicación.");
+    }
+});
 }
