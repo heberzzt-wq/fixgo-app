@@ -854,7 +854,25 @@ export async function iniciarPanelTecnico(user) {
             alert("Error al intentar rechazar el servicio. Intenta de nuevo.");
         }
     };
+window.iniciarMantenimiento = async (idTarea) => {
+    console.log("🛠️ Iniciando cirugía técnica para la tarea:", idTarea);
+    try {
+        const tareaRef = doc(db, "services", idTarea);
+        
+        await updateDoc(tareaRef, {
+            estado: "trabajando",
+            fecha_inicio: serverTimestamp(),
+            actualizado_at: serverTimestamp()
+        });
 
+        console.log("✅ Tarea iniciada con éxito.");
+        alert("¡Mantenimiento iniciado! Pasa a la sección de misiones.");
+
+    } catch (error) {
+        console.error("❌ Error al iniciar la tarea:", error);
+        alert("Hubo un problema. Intenta de nuevo.");
+    }
+};
     window.tomarServicio = async (id, uid, nombre, metodo_pago) => {
         if (window.saldoActualTecnico <= -1000) {
             alert("⛔ BLOQUEO FINANCIERO OPERATIVO\n\nTu saldo negativo ha superado el límite de -$1,000 MXN.\n\nPor políticas de GestiaPremium, debes liquidar tus comisiones pendientes para volver a aceptar servicios.");
