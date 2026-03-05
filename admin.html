@@ -333,6 +333,57 @@
 
     </main>
 
+    <div id="modalB2B" class="fixed inset-0 bg-black/95 z-[60] hidden flex items-center justify-center p-4 backdrop-blur-xl">
+        <div class="bg-zinc-950 w-full max-w-lg rounded-[2.5rem] p-8 border border-blue-900/30 shadow-2xl relative shadow-[0_0_50px_rgba(59,130,246,0.1)] animate-fade-in">
+            
+            <div class="flex justify-between items-start mb-6 border-b border-white/5 pb-6">
+                <div>
+                    <h2 class="text-2xl font-black text-white tracking-tighter flex items-center gap-3">
+                        <i class="fas fa-handshake text-blue-500"></i> Panel B2B
+                    </h2>
+                    <p class="text-zinc-500 text-[10px] mt-1 font-bold uppercase tracking-widest">Gestión de Contratos y Prepago</p>
+                </div>
+                <button onclick="document.getElementById('modalB2B').classList.add('hidden')" class="text-zinc-500 hover:text-white transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="mb-6 bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
+                <p class="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-1">Cliente Seleccionado</p>
+                <p id="b2bClienteNombre" class="text-lg font-black text-white">Cargando...</p>
+                <p id="b2bClienteEmail" class="text-xs text-blue-400 font-bold mt-1">...</p>
+                <input type="hidden" id="b2bClienteId">
+            </div>
+
+            <div class="bg-blue-900/10 p-5 rounded-2xl border border-blue-500/20 mb-6">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h4 class="text-blue-400 font-black text-sm">Activar Modalidad B2B</h4>
+                        <p class="text-[10px] text-zinc-400 mt-1 leading-tight">Oculta cobro en app y usa el saldo virtual para descontar servicios.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="toggleB2BAdmin" class="sr-only peer" onchange="document.getElementById('cajaSaldoVirtual').classList.toggle('hidden', !this.checked)">
+                        <div class="w-11 h-6 bg-black border border-blue-900 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-500 after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500 peer-checked:after:bg-white shadow-inner"></div>
+                    </label>
+                </div>
+
+                <div id="cajaSaldoVirtual" class="hidden mt-5 pt-5 border-t border-blue-900/50">
+                    <label class="block text-[10px] font-black text-zinc-400 mb-2 uppercase tracking-widest flex items-center gap-2">
+                        <i class="fas fa-coins text-emerald-500"></i> Bolsa de Prepago (MXN)
+                    </label>
+                    <div class="relative">
+                        <span class="absolute left-4 top-3 text-emerald-500 font-black">$</span>
+                        <input type="number" id="inputSaldoVirtual" placeholder="0.00" class="w-full bg-black border border-blue-900 text-emerald-400 font-black text-lg rounded-xl py-3 pl-8 pr-4 focus:outline-none focus:border-blue-500 transition-all shadow-inner">
+                    </div>
+                    <p class="text-[8px] text-emerald-600/50 mt-2 italic">* Este saldo se descontará automáticamente al finalizar cada ticket.</p>
+                </div>
+            </div>
+
+            <button onclick="window.guardarPerfilB2B()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl transition-all shadow-lg shadow-blue-900/30 text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95">
+                <i class="fas fa-save"></i> Actualizar Contrato
+            </button>
+        </div>
+    </div>
     <div id="modalCatalogo" class="fixed inset-0 bg-black/95 z-50 hidden flex items-center justify-center p-4 backdrop-blur-xl">
         <div class="bg-zinc-900 w-full max-w-3xl rounded-[3rem] p-10 border border-white/10 shadow-2xl relative flex flex-col max-h-[90vh] animate-fade-in">
             
