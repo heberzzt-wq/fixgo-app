@@ -875,7 +875,7 @@ window.iniciarMantenimiento = async (idTarea) => {
         alert("Hubo un problema. Intenta de nuevo.");
     }
 };
-};
+
     window.tomarServicio = async (id, uid, nombre, metodo_pago) => {
         if (window.saldoActualTecnico <= -1000) {
             alert("⛔ BLOQUEO FINANCIERO OPERATIVO\n\nTu saldo negativo ha superado el límite de -$1,000 MXN.\n\nPor políticas de GestiaPremium, debes liquidar tus comisiones pendientes para volver a aceptar servicios.");
