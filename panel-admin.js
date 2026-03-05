@@ -195,6 +195,9 @@ export async function iniciarPanelAdmin(user) {
  <button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 text-[9px] font-bold px-2 py-1 rounded border border-blue-900/50 mb-1" onclick="window.verExpediente('${uid}')">
  <i class="fas fa-folder-open"></i> EXPEDIENTE
  </button>
+ <button class="bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-900/50 mb-1" onclick="window.abrirGestorB2B('${uid}', '${escaparHTML(data.nombre)}', '${escaparHTML(data.email || '')}', ${data.b2b_activo || false}, ${data.saldo_virtual || 0})">
+ <i class="fas fa-handshake"></i> CONTRATO B2B
+ </button>
  
  ${esPendiente ? `
  <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${uid}')">
@@ -1469,5 +1472,78 @@ window.importarJSONGithub = async function() {
         btn.innerHTML = '<i class="fas fa-times text-red-500"></i> Falló Inyección';
         btn.disabled = false;
         alert("Error de red o conexión. Revisa la consola roja (F12) para detalles.");
+    }
+};
+
+
+// ======================================================================================
+// 🔥 MÓDULO B2B (PREPAGO Y CONTRATOS) - V5.18 🔥
+// ======================================================================================
+
+window.abrirGestorB2B = async (userId, nombre, email, estadoB2BActual, saldoActual) => {
+    const modal = document.getElementById('modalB2B');
+    if (!modal) {
+        alert("Error: El modal HTML para B2B no se encontró en la vista.");
+        return;
+    }
+    
+    modal.classList.remove('hidden');
+    
+    // Llenar datos visuales
+    document.getElementById('b2bClienteId').value = userId;
+    document.getElementById('b2bClienteNombre').innerText = nombre || 'Cliente sin nombre';
+    document.getElementById('b2bClienteEmail').innerText = email || 'Sin correo registrado';
+    
+    // Setear los switches y saldo con la data de Firebase
+    const toggle = document.getElementById('toggleB2BAdmin');
+    toggle.checked = estadoB2BActual;
+    document.getElementById('cajaSaldoVirtual').classList.toggle('hidden', !estadoB2BActual);
+    
+    document.getElementById('inputSaldoVirtual').value = saldoActual || 0;
+};
+
+window.guardarPerfilB2B = async () => {
+    const id = document.getElementById('b2bClienteId').value;
+    const isB2B = document.getElementById('toggleB2BAdmin').checked;
+    const saldo = parseFloat(document.getElementById('inputSaldoVirtual').value) || 0;
+    
+    if(!id) { 
+        alert("Error crítico: ID de cliente no encontrado."); 
+        return; 
+    }
+    
+    const btn = document.querySelector('#modalB2B button[onclick="window.guardarPerfilB2B()"]');
+    const txtOrg = btn.innerHTML;
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> GUARDANDO EN NUBE...`;
+    btn.disabled = true;
+
+    try {
+        // Inyectamos los "billetitos falsos" directamente al documento del usuario
+        await updateDoc(doc(db, "users", id), {
+            b2b_activo: isB2B,
+            saldo_virtual: isB2B ? saldo : 0,
+            fecha_modificacion_b2b: serverTimestamp()
+        });
+
+        // Opcional: Dejamos un rastro en las transacciones para auditoría
+        if (isB2B && saldo > 0) {
+            await addDoc(collection(db, "transacciones"), {
+                tecnico_id: id, // Usamos el ID del cliente aquí para tener el registro
+                tipo: "recarga_b2b",
+                monto_total: saldo,
+                descripcion: `Admin recargó saldo B2B virtual`,
+                fecha: serverTimestamp()
+            });
+        }
+
+        alert(`✅ ÉXITO: Perfil de ${document.getElementById('b2bClienteNombre').innerText} actualizado.\nModalidad B2B: ${isB2B ? 'ACTIVA' : 'INACTIVA'}\nSaldo Prepago: $${saldo} MXN.`);
+        document.getElementById('modalB2B').classList.add('hidden');
+        
+    } catch (error) {
+        console.error("Fallo al guardar B2B:", error);
+        alert("❌ Error de Firebase al actualizar el contrato.");
+    } finally {
+        btn.innerHTML = txtOrg;
+        btn.disabled = false;
     }
 };
