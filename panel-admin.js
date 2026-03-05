@@ -74,12 +74,15 @@ export async function iniciarPanelAdmin(user) {
  }
  });
 
- if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
+if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  const adminToolbar = document.createElement("div");
- adminToolbar.className = "mb-4 flex gap-2";
+ adminToolbar.className = "mb-4 flex flex-col gap-2";
  adminToolbar.innerHTML = `
- <button id="btnAutorizarEfectivo" onclick="window.buscarYAutorizarCliente()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black py-3 px-4 rounded-xl shadow-lg border border-emerald-500/50 transition-transform active:scale-95 w-full md:w-auto flex items-center justify-center gap-2">
+ <button id="btnAutorizarEfectivo" onclick="window.buscarYAutorizarCliente()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black py-3 px-4 rounded-xl shadow-lg border border-emerald-500/50 transition-transform active:scale-95 w-full flex items-center justify-center gap-2">
  <i class="fas fa-hand-holding-usd"></i> AUTORIZAR PAGO EN EFECTIVO A CLIENTE
+ </button>
+ <button id="btnBuscarB2B" onclick="window.buscarClienteParaB2B()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-black py-3 px-4 rounded-xl shadow-lg border border-blue-500/50 transition-transform active:scale-95 w-full flex items-center justify-center gap-2">
+ <i class="fas fa-handshake"></i> GESTIONAR CONTRATO B2B (BUSCAR CLIENTE)
  </button>
  `;
  elementos.lista.parentElement.insertBefore(adminToolbar, elementos.lista);
@@ -110,6 +113,42 @@ export async function iniciarPanelAdmin(user) {
  }
  } catch(e) {
  console.error("Error buscando cliente:", e);
+ alert("Hubo un error al buscar en la base de datos.");
+ }
+ };
+
+ window.buscarClienteParaB2B = async () => {
+ const email = prompt("Ingresa el CORREO ELECTRÓNICO del CLIENTE para gestionar su contrato B2B:");
+ if(!email) return;
+
+ try {
+ const q = query(collection(db, "users"), where("email", "==", email.trim().toLowerCase()));
+ const snap = await getDocs(q);
+ 
+ if(snap.empty) {
+ alert("❌ No se encontró ningún usuario registrado con ese correo.");
+ return;
+ }
+
+ const clienteDoc = snap.docs[0];
+ const data = clienteDoc.data();
+ 
+ if(data.rol === "tecnico") {
+ alert("⚠️ Este correo pertenece a un Técnico, debes buscar a un Cliente.");
+ return;
+ }
+
+ // Si lo encuentra, abrimos el modal mágico B2B
+ window.abrirGestorB2B(
+ clienteDoc.id, 
+ data.nombre, 
+ data.email, 
+ data.b2b_activo || false, 
+ data.saldo_virtual || 0
+ );
+
+ } catch(e) {
+ console.error("Error buscando cliente B2B:", e);
  alert("Hubo un error al buscar en la base de datos.");
  }
  };
@@ -195,11 +234,8 @@ export async function iniciarPanelAdmin(user) {
  <button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 text-[9px] font-bold px-2 py-1 rounded border border-blue-900/50 mb-1" onclick="window.verExpediente('${uid}')">
  <i class="fas fa-folder-open"></i> EXPEDIENTE
  </button>
- <button class="bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-900/50 mb-1" onclick="window.abrirGestorB2B('${uid}', '${escaparHTML(data.nombre)}', '${escaparHTML(data.email || '')}', ${data.b2b_activo || false}, ${data.saldo_virtual || 0})">
- <i class="fas fa-handshake"></i> CONTRATO B2B
- </button>
- 
- ${esPendiente ? `
+
+  ${esPendiente ? `
  <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${uid}')">
  APROBAR ACCESO
  </button>
