@@ -96,6 +96,23 @@ export async function iniciarPanelTecnico(user) {
 
         if (elementos.seccionBolsa && estado === "activo" && data.disponible) {
             let tracker = document.getElementById("gamificationTracker");
+            
+           // 🛡️ FILTRO SAAS V5.18: Limpieza de métricas financieras
+            
+            if (data.residencialId) {
+                console.log("🛠️ Modo Residencial: Ocultando indicadores de la calle.");
+                const trackerExistente = document.getElementById("gamificationTracker");
+                if (trackerExistente) trackerExistente.remove();
+                
+                // Ocultamos el balance de deuda y la tasa de comisión
+                if (elementos.txtServicios) elementos.txtServicios.classList.add("hidden");
+                
+                // EXTRA: Para quitar la barra roja de $0.00 (image_231fc3.png)
+                const cartera = document.querySelector('.bg-red-900\\/20, #seccion-cartera');
+                if (cartera) cartera.style.display = 'none';
+
+                return; // 🛑 Cortamos aquí para no calcular comisiones (Línea 105)
+            }
             if (!tracker) {
                 tracker = document.createElement("div");
                 tracker.id = "gamificationTracker";
