@@ -553,17 +553,21 @@ export async function iniciarPanelCliente(user) {
                     lanzarNotificacionPush("Técnico en Sitio", "El técnico ha llegado a tu domicilio y comenzará el diagnóstico.");
                 } else if (newData.estado === 'cotizando') {
                     lanzarNotificacionPush("Reporte y Cotización Lista", "Revisa el diagnóstico y aprueba el presupuesto para iniciar.");
-                } else if (newData.estado === 'finalizado') {
+               } else if (newData.estado === 'finalizado') {
                     if (newData.es_garantia) {
                         lanzarNotificacionPush("✅ Garantía Finalizada", "Trabajo corregido satisfactoriamente.");
-                        alert("🛡️ GESTIAPREMIUM INFORMA:\n\nHas confirmado que el trabajo de garantía fue realizado correctamente. Este servicio NO TIENE COSTO para ti. ¡Gracias por tu paciencia!");
+                        alert("🛡️ GESTIAPREMIUM INFORMA:\n\nHas confirmado que el trabajo de garantía fue realizado correctamente. Este servicio NO TIENE COSTO para ti.");
                     } else {
                         if (newData.metodo_pago === 'stripe') {
                             lanzarNotificacionPush("Servicio Finalizado", "Pago cobrado automáticamente a tu tarjeta.");
-                            alert("✅ ¡Servicio terminado exitosamente!\n\nTu pago ha sido procesado de forma segura vía STRIPE a tu tarjeta. Revisa tu comprobante digital en pantalla.");
+                            alert("✅ ¡Servicio terminado exitosamente!\n\nTu pago ha sido procesado de forma segura vía STRIPE a tu tarjeta.");
+                        } else if (newData.metodo_pago === 'b2b') {
+                            // 🔥 MENSAJE FINAL PARA CONTRATOS B2B 🔥
+                            lanzarNotificacionPush("Servicio Finalizado", "Cargo aplicado a tu contrato B2B.");
+                            alert("✅ ¡Servicio terminado exitosamente!\n\nEl costo se ha descontado de tu saldo prepago B2B de forma automática. Revisa tu comprobante digital.");
                         } else {
                             lanzarNotificacionPush("Servicio Finalizado", "Por favor, realiza el pago en efectivo al técnico.");
-                            alert("✅ ¡Servicio terminado exitosamente!\n\nPor favor, realiza el pago en EFECTIVO directamente al técnico. Revisa tu comprobante digital en pantalla.");
+                            alert("✅ ¡Servicio terminado exitosamente!\n\nPor favor, realiza el pago en EFECTIVO directamente al técnico.");
                         }
                     }
                 }
