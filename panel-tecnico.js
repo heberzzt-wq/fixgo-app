@@ -725,6 +725,46 @@ export async function iniciarPanelTecnico(user) {
                     </div>`;
                 }
 
+            // --- INICIO DE NUEVA TARJETA V5.18 ---
+                const tarjetaHTML = `
+                <div class="bg-zinc-800/90 rounded-2xl p-4 mb-4 border border-zinc-700/50 relative overflow-hidden shadow-lg backdrop-blur-sm">
+                    <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.8)]"></div>
+                    
+                    <div class="flex justify-between items-start mb-3 pl-2">
+                        <div class="flex flex-col gap-1">
+                            <div class="flex gap-2 flex-wrap">
+                                ${typeof badgeMetodo !== 'undefined' ? badgeMetodo : ''}
+                                ${typeof badgeUrgencia !== 'undefined' && badgeUrgencia ? badgeUrgencia : ''}
+                            </div>
+                            <span class="text-zinc-400 text-[10px] uppercase font-bold tracking-wider mt-1">ID Tarea: #${id.substring(0,6)}</span>
+                        </div>
+                        <div class="bg-zinc-900/80 px-2 py-1 rounded text-[10px] text-zinc-300 font-mono border border-zinc-700/50">
+                            <i class="fas fa-clock text-amber-500 mr-1"></i> PENDIENTE
+                        </div>
+                    </div>
+
+                    <div class="pl-2 mb-2 mt-3">
+                        <h3 class="text-white font-black text-lg leading-tight mb-2 tracking-wide uppercase">${s.titulo || 'Tarea sin título'}</h3>
+                        <p class="text-zinc-300 text-sm flex items-center gap-2 font-medium bg-zinc-900/50 p-2 rounded-lg border border-zinc-800 inline-block mb-2">
+                            <i class="fas fa-microchip text-amber-500"></i> Equipo: <span class="text-amber-400 font-bold">${s.activoId || 'No especificado'}</span>
+                        </p>
+                    </div>
+
+                    <div class="pl-2">
+                        ${typeof previewFotoHTML !== 'undefined' ? previewFotoHTML : ''}
+                    </div>
+
+                    <div class="pl-2 flex gap-3 mt-4">
+                        <button onclick="iniciarMantenimiento('${id}')" class="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 text-black font-black py-3 rounded-xl shadow-[0_0_15px_rgba(245,158,11,0.4)] hover:shadow-[0_0_20px_rgba(245,158,11,0.6)] active:scale-95 transition-all flex items-center justify-center gap-2 uppercase text-sm">
+                            <i class="fas fa-wrench text-lg"></i> Iniciar Tarea
+                        </button>
+                    </div>
+                </div>
+                `;
+                
+                contenedor.innerHTML += tarjetaHTML;
+                // --- FIN DE NUEVA TARJETA V5.18 ---
+            
                 let btnAceptar = s.metodo_pago === 'stripe'
                     ? `<button class="flex-[4] bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}', 'stripe')">ACEPTAR TICKET</button>`
                     : `<button class="flex-[4] bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}', 'efectivo')">ACEPTAR TICKET</button>`;
