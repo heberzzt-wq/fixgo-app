@@ -499,6 +499,9 @@ export async function iniciarPanelCliente(user) {
                         } else {
                             console.warn("Falta conectar la pasarela. Ticket ID:", docRef.id);
                         }
+                    } else if (metodoSeleccionado === "b2b") {
+                        // 🔥 MENSAJE EXCLUSIVO PARA JORGE (B2B) 🔥
+                        alert("✅ ¡SOLICITUD B2B CONFIRMADA!\n\nTu servicio ha sido registrado con cargo a tu contrato. El saldo se descontará de tu bolsa virtual al finalizar el trabajo.");
                     } else {
                         if(flagUrgencia) {
                             alert(" 🚨 ¡DESPLIEGUE PRIORITARIO ACTIVADO!\n\nNuestras unidades están en camino. Recuerda que la cotización final incluirá la tarifa de contingencia por atención express 24/7.");
