@@ -861,6 +861,8 @@ window.iniciarMantenimiento = async (idTarea) => {
         
         await updateDoc(tareaRef, {
             estado: "trabajando",
+            tecnico_id: user.uid, // 👈 ¡ESTA ES LA MAGIA QUE LO HACE APARECER!
+            tecnico_nombre: user.nombre || "Técnico Residencial",
             fecha_inicio: serverTimestamp(),
             actualizado_at: serverTimestamp()
         });
@@ -872,6 +874,7 @@ window.iniciarMantenimiento = async (idTarea) => {
         console.error("❌ Error al iniciar la tarea:", error);
         alert("Hubo un problema. Intenta de nuevo.");
     }
+};
 };
     window.tomarServicio = async (id, uid, nombre, metodo_pago) => {
         if (window.saldoActualTecnico <= -1000) {
