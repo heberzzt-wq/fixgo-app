@@ -79,11 +79,14 @@ export async function iniciarPanelCliente(user) {
     // 3.0 LECTOR MAESTRO DE FEATURE FLAGS (PASARELAS DE PAGO Y UI DINÁMICA)
     // ==================================================================================
     
-    function actualizarBotonPagoUI(metodo) {
+   function actualizarBotonPagoUI(metodo) {
         const btn = el.form?.querySelector("button[type='submit']");
         if (!btn) return;
 
-        if (metodo === 'efectivo') {
+        if (metodo === 'b2b') {
+            btn.innerHTML = `<i class="fas fa-handshake"></i> SOLICITAR CON CARGO A CONTRATO`;
+            btn.className = 'w-full bg-blue-600 text-white font-black py-4 rounded-xl text-lg hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
+        } else if (metodo === 'efectivo') {
             btn.innerHTML = `<i class="fas fa-hand-holding-usd"></i> SOLICITAR AHORA (PAGO EN DOMICILIO)`;
             btn.className = 'w-full bg-emerald-500 text-black font-black py-4 rounded-xl text-lg hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 transform active:scale-95 flex items-center justify-center gap-2 mt-4';
         } else {
@@ -106,7 +109,30 @@ export async function iniciarPanelCliente(user) {
         
         const radioStripe = document.querySelector('input[name="metodoPago"][value="stripe"]');
         const radioEfectivo = document.querySelector('input[name="metodoPago"][value="efectivo"]');
+        const radioB2B = document.querySelector('input[name="metodoPago"][value="b2b"]');
+        const contenedorB2B = document.getElementById("contenedorOpcionB2B");
+        const lblSaldo = document.getElementById("lblSaldoB2B");
+
         const efectivoPermitido = configPagos.efectivo_activo || user.efectivo_autorizado;
+
+        // 🔥 LÓGICA B2B (OVERRIDE MÁXIMO) 🔥
+        if (user.b2b_activo) {
+            // Escondemos Stripe y Efectivo, solo mostramos B2B
+            if(el.stripeCard) el.stripeCard.classList.add("hidden");
+            if(el.efectivoCard) el.efectivoCard.classList.add("hidden");
+            if(contenedorB2B) {
+                contenedorB2B.classList.remove("hidden");
+                lblSaldo.innerText = (user.saldo_virtual || 0).toFixed(2);
+                if(radioB2B) {
+                    radioB2B.checked = true;
+                    actualizarBotonPagoUI('b2b');
+                }
+            }
+            return; // Cortamos la ejecución aquí, B2B manda.
+        }
+
+        // --- LÓGICA NORMAL (SI NO ES B2B) ---
+        if(contenedorB2B) contenedorB2B.classList.add("hidden");
 
         if (configPagos.stripe_activo) {
             if(el.stripeCard) el.stripeCard.classList.remove("hidden");
@@ -128,7 +154,7 @@ export async function iniciarPanelCliente(user) {
             actualizarBotonPagoUI('stripe');
         } else if (configPagos.stripe_activo && efectivoPermitido) {
             const checkedRadio = document.querySelector('input[name="metodoPago"]:checked');
-            if (checkedRadio) {
+            if (checkedRadio && checkedRadio.value !== 'b2b') {
                 actualizarBotonPagoUI(checkedRadio.value);
             } else {
                 if(radioStripe) radioStripe.checked = true;
@@ -136,7 +162,6 @@ export async function iniciarPanelCliente(user) {
             }
         }
     });
-
     // ==================================================================================
     // 3.1 CARGA DINÁMICA DE VERTICALES EN ACORDEÓN
     // ==================================================================================
