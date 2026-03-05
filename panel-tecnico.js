@@ -854,27 +854,28 @@ export async function iniciarPanelTecnico(user) {
             alert("Error al intentar rechazar el servicio. Intenta de nuevo.");
         }
     };
-window.iniciarMantenimiento = async (idTarea) => {
-    console.log("🛠️ Iniciando cirugía técnica para la tarea:", idTarea);
-    try {
-        const tareaRef = doc(db, "services", idTarea);
-        
-        await updateDoc(tareaRef, {
-            estado: "trabajando",
-            tecnico_id: user.uid, // 👈 ¡ESTA ES LA MAGIA QUE LO HACE APARECER!
-            tecnico_nombre: user.nombre || "Técnico Residencial",
-            fecha_inicio: serverTimestamp(),
-            actualizado_at: serverTimestamp()
-        });
 
-        console.log("✅ Tarea iniciada con éxito.");
-        alert("¡Mantenimiento iniciado! Pasa a la sección de misiones.");
+    window.iniciarMantenimiento = async (idTarea) => {
+        console.log("🛠️ Iniciando cirugía técnica para la tarea:", idTarea);
+        try {
+            const tareaRef = doc(db, "services", idTarea);
+            
+            await updateDoc(tareaRef, {
+                estado: "trabajando",
+                tecnico_id: user.uid, // 👈 ¡ESTA ES LA MAGIA QUE LO HACE APARECER!
+                tecnico_nombre: user.nombre || "Técnico Residencial",
+                fecha_inicio: serverTimestamp(),
+                actualizado_at: serverTimestamp()
+            });
 
-    } catch (error) {
-        console.error("❌ Error al iniciar la tarea:", error);
-        alert("Hubo un problema. Intenta de nuevo.");
-    }
-};
+            console.log("✅ Tarea iniciada con éxito.");
+            alert("¡Mantenimiento iniciado! Pasa a la sección de misiones.");
+
+        } catch (error) {
+            console.error("❌ Error al iniciar la tarea:", error);
+            alert("Hubo un problema. Intenta de nuevo.");
+        }
+    };
 
     window.tomarServicio = async (id, uid, nombre, metodo_pago) => {
         if (window.saldoActualTecnico <= -1000) {
@@ -927,10 +928,10 @@ window.iniciarMantenimiento = async (idTarea) => {
         }
     };
 
+    // 🚀 BYPASS V5.18: Quitamos el 'in' para evitar el bloqueo del Índice Compuesto
     const qMisiones = query(
         collection(db, "services"),
-        where("tecnico_id", "==", user.uid),
-        
+        where("tecnico_id", "==", user.uid)
     );
 
     // 🔥 CANDADO DE SPAM INICIAL 🔥
@@ -980,11 +981,20 @@ window.iniciarMantenimiento = async (idTarea) => {
             const s = docSnap.data();
             const id = docSnap.id;
 
+            // --- INYECCIÓN V5.18: FILTRO MANUAL DE ESTADOS ACTIVOS ---
+            const estadosActivos = ["pagado", "asignado", "en_camino", "en_sitio", "cotizando", "procesando_saldo", "trabajando", "cancelado"];
+            if (!estadosActivos.includes(s.estado)) return;
+
             if (s.oculto_para_tecnico) return;
+
+            // --- INYECCIÓN V5.18: BLINDAJE B2B (Datos Salvavidas) ---
+            const categoriaSafe = s.categoria || (s.tipo === 'mantenimiento' ? 'MANTENIMIENTO' : 'GENERAL');
+            const direccionSafe = s.direccion || 'Instalaciones del Residencial';
+            const descripcionSafe = s.descripcion || s.titulo || s.problema || 'Mantenimiento en curso';
 
             const destinoWaze = s.coords
                 ? `${s.coords.lat},${s.coords.lng}`
-                : encodeURIComponent(s.direccion);
+                : encodeURIComponent(direccionSafe);
 
             let botonAccionHTML = "";
 
@@ -1081,15 +1091,15 @@ window.iniciarMantenimiento = async (idTarea) => {
             <div class="absolute top-0 right-0 ${s.estado === 'cancelado' || s.es_garantia ? 'bg-red-600' : 'bg-blue-600'} text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">
                 ${s.es_garantia ? 'GARANTÍA' : s.estado.replace('_', ' ')}
             </div>
-            <h3 class="text-xl font-black text-white mb-1 uppercase">${escaparHTML(s.categoria)} ${s.urgencia ? '<span class="text-red-500 ml-1" title="Emergencia"><i class="fas fa-fire animate-pulse"></i></span>' : ''}</h3>
+            <h3 class="text-xl font-black text-white mb-1 uppercase">${escaparHTML(categoriaSafe)} ${s.urgencia ? '<span class="text-red-500 ml-1" title="Emergencia"><i class="fas fa-fire animate-pulse"></i></span>' : ''}</h3>
             <p class="text-gray-400 text-sm mb-4">
-                <i class="fas fa-map-marker-alt text-blue-500"></i> ${escaparHTML(s.direccion)}
+                <i class="fas fa-map-marker-alt text-blue-500"></i> ${escaparHTML(direccionSafe)}
             </p>
             
             ${!s.es_garantia ? `
             <div class="bg-black/50 p-4 rounded-xl mb-4">
                 <p class="text-xs text-gray-500 uppercase font-bold mb-1">Problema Reportado:</p>
-                <p class="text-sm text-white italic">"${escaparHTML(s.descripcion || s.titulo || s.problema || 'Mantenimiento de Activo')}"</p>
+                <p class="text-sm text-white italic">"${escaparHTML(descripcionSafe)}"</p>
             </div>
             ` : ''}
             
