@@ -1089,7 +1089,7 @@ window.iniciarMantenimiento = async (idTarea) => {
             ${!s.es_garantia ? `
             <div class="bg-black/50 p-4 rounded-xl mb-4">
                 <p class="text-xs text-gray-500 uppercase font-bold mb-1">Problema Reportado:</p>
-                <p class="text-sm text-white italic">"${escaparHTML(s.descripcion)}"</p>
+                <p class="text-sm text-white italic">"${escaparHTML(s.descripcion || s.titulo || s.problema || 'Mantenimiento de Activo')}"</p>
             </div>
             ` : ''}
             
