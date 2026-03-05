@@ -654,48 +654,61 @@ export async function iniciarPanelTecnico(user) {
     }
 
     function escucharBolsa(tecnico, contenedor) {
-        if(!contenedor) return;
-        const q = query(collection(db, "services"), where("estado", "in", ["pendiente", "pagado"]), orderBy("created_at", "desc"), limit(50));
+    if(!contenedor) return;
 
-        let cargaInicial = true;
+    // 1. NUEVO MOTOR V5.18: Apuntamos a 'tareas' y filtramos por estatus
+    const q = query(
+        collection(db, "tareas"), 
+        where("estatus", "==", "pendiente")
+        // Nota: Quité el orderBy "created_at" temporalmente para que no te pida un índice en Firestore ahora mismo.
+    );
 
-        onSnapshot(q, (snap) => {
-            contenedor.innerHTML = "";
-            let counter = 0;
+    let cargaInicial = true;
 
-            if(snap.empty) {
-                contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">Escaneando zona... esperando solicitudes.</p>`;
-                cargaInicial = false; 
-                return;
-            }
+    onSnapshot(q, (snap) => {
+        contenedor.innerHTML = "";
+        let counter = 0;
 
-            let hayNuevos = false;
-            snap.docChanges().forEach(change => {
-                if (change.type === 'added') hayNuevos = true;
-            });
+        if(snap.empty) {
+            contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">Escaneando zona del Residencial... sin mantenimientos pendientes.</p>`;
+            cargaInicial = false; 
+            return;
+        }
 
-            if (!cargaInicial && hayNuevos) {
-                console.log(" 🔔 ¡Alerta Real! Nueva solicitud en la zona.");
-                sonarAlerta();
-                lanzarNotificacionPush("¡NUEVA SOLICITUD GESTIAPREMIUM!", "Servicio detectado en tu área. Ábrelo ahora.");
-            }
+        let hayNuevos = false;
+        snap.docChanges().forEach(change => {
+            if (change.type === 'added') hayNuevos = true;
+        });
 
-            snap.forEach((docSnap) => {
-                const s = docSnap.data();
-                const id = docSnap.id;
+        if (!cargaInicial && hayNuevos) {
+            console.log(" 🔔 ¡Alerta Real! Nueva tarea de mantenimiento asignada.");
+            sonarAlerta(); 
+            lanzarNotificacionPush("¡NUEVA TAREA GESTIAPREMIUM!", "Revisa tu panel de mantenimiento.");
+        }
 
-                if (s.tecnico_id) return; 
+        snap.forEach((docSnap) => {
+            const s = docSnap.data();
+            const id = docSnap.id;
 
-                if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) return; 
+            // 2. AISLAMIENTO MULTI-TENANT: Solo muestra tareas de su residencial
+            if (s.residencialId !== tecnico.residencialId) return;
 
-                const misSkills = tecnico.skills || [];
-                if (s.categoria && misSkills.length > 0 && !misSkills.includes(s.categoria)) return; 
+            // 3. FILTRO DE ASIGNACIÓN: 
+            // Si la tarea tiene un técnico asignado y NO es él (usamos el id viejo y el nuevo para no fallar), la ignoramos.
+            if (s.tecnicoId && s.tecnicoId !== tecnico.uid && s.tecnicoId !== "jonathan_tec_01") return; 
 
-                counter++; 
+            // Filtro de skills (lo mantenemos intacto)
+            const misSkills = tecnico.skills || [];
+            if (s.categoria && misSkills.length > 0 && !misSkills.includes(s.categoria)) return; 
 
-                let badgeMetodo = s.metodo_pago === 'stripe'
-                    ? '<span class="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(37,99,235,0.8)]"><i class="fab fa-stripe-s"></i> PAGADO STRIPE</span>'
-                    : '<span class="bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(16,185,129,0.8)]"><i class="fas fa-money-bill"></i> PAGO EFECTIVO</span>';
+            counter++; 
+
+            // 4. ADIÓS STRIPE/EFECTIVO: Badge exclusivo de mantenimiento interno
+            let badgeMetodo = '<span class="bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(245,158,11,0.8)]"><i class="fas fa-tools"></i> MANTENIMIENTO INTERNO</span>';
+
+            // Aquí abajo ya continúa tu lógica normal para inyectar el HTML (título de la tarea, botón de aceptar, etc.)
+            // Asegúrate de usar s.titulo en vez de s.servicio o lo que tuvieras antes.
+            // ...
 
            // 🔥 INYECCIÓN: VISOR TÁCTICO DE ETIQUETA DE URGENCIA Y FOTO INICIAL EN EL RADAR
                 let badgeUrgencia = s.urgencia ? `<span class="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(220,38,38,0.8)] ml-2 animate-pulse"><i class="fas fa-fire"></i> EMERGENCIA</span>` : '';
