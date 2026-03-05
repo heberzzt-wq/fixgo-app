@@ -687,30 +687,16 @@ export async function iniciarPanelTecnico(user) {
         }
 
         snap.forEach((docSnap) => {
-            const s = docSnap.data();
-            const id = docSnap.id;
+                const s = docSnap.data();
+                const id = docSnap.id;
 
-            // 2. AISLAMIENTO MULTI-TENANT: Solo muestra tareas de su residencial
-            if (s.residencialId !== tecnico.residencialId) return;
+                // 1. FILTROS GENERALES DE ASIGNACIÓN
+                if (s.tecnico_id && s.tecnico_id !== tecnico.uid) return; 
+                if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) return; 
+                const misSkills = tecnico.skills || [];
+                if (s.categoria && misSkills.length > 0 && !misSkills.includes(s.categoria)) return; 
 
-            // 3. FILTRO DE ASIGNACIÓN: 
-            // Si la tarea tiene un técnico asignado y NO es él (usamos el id viejo y el nuevo para no fallar), la ignoramos.
-            if (s.tecnicoId && s.tecnicoId !== tecnico.uid && s.tecnicoId !== "jonathan_tec_01") return; 
-
-            // Filtro de skills (lo mantenemos intacto)
-            const misSkills = tecnico.skills || [];
-            if (s.categoria && misSkills.length > 0 && !misSkills.includes(s.categoria)) return; 
-
-            counter++; 
-
-            // 4. ADIÓS STRIPE/EFECTIVO: Badge exclusivo de mantenimiento interno
-            let badgeMetodo = '<span class="bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(245,158,11,0.8)]"><i class="fas fa-tools"></i> MANTENIMIENTO INTERNO</span>';
-
-            // Aquí abajo ya continúa tu lógica normal para inyectar el HTML (título de la tarea, botón de aceptar, etc.)
-            // Asegúrate de usar s.titulo en vez de s.servicio o lo que tuvieras antes.
-            // ...
-
-           // 🔥 INYECCIÓN: VISOR TÁCTICO DE ETIQUETA DE URGENCIA Y FOTO INICIAL EN EL RADAR
+                // 2. VISOR TÁCTICO DE FOTO Y URGENCIA (Compartido para ambos mundos)
                 let badgeUrgencia = s.urgencia ? `<span class="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(220,38,38,0.8)] ml-2 animate-pulse"><i class="fas fa-fire"></i> EMERGENCIA</span>` : '';
                 
                 let previewFotoHTML = '';
@@ -725,80 +711,104 @@ export async function iniciarPanelTecnico(user) {
                     </div>`;
                 }
 
-            // --- INICIO DE NUEVA TARJETA V5.18 ---
-                const tarjetaHTML = `
-                <div class="bg-zinc-800/90 rounded-2xl p-4 mb-4 border border-zinc-700/50 relative overflow-hidden shadow-lg backdrop-blur-sm">
-                    <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.8)]"></div>
-                    
-                    <div class="flex justify-between items-start mb-3 pl-2">
-                        <div class="flex flex-col gap-1">
-                            <div class="flex gap-2 flex-wrap">
-                                ${typeof badgeMetodo !== 'undefined' ? badgeMetodo : ''}
-                                ${typeof badgeUrgencia !== 'undefined' && badgeUrgencia ? badgeUrgencia : ''}
-                            </div>
-                            <span class="text-zinc-400 text-[10px] uppercase font-bold tracking-wider mt-1">ID Tarea: #${id.substring(0,6)}</span>
-                        </div>
-                        <div class="bg-zinc-900/80 px-2 py-1 rounded text-[10px] text-zinc-300 font-mono border border-zinc-700/50">
-                            <i class="fas fa-clock text-amber-500 mr-1"></i> PENDIENTE
-                        </div>
-                    </div>
+                counter++; 
 
-                    <div class="pl-2 mb-2 mt-3">
-                        <h3 class="text-white font-black text-lg leading-tight mb-2 tracking-wide uppercase">${s.titulo || 'Tarea sin título'}</h3>
-                        <p class="text-zinc-300 text-sm flex items-center gap-2 font-medium bg-zinc-900/50 p-2 rounded-lg border border-zinc-800 inline-block mb-2">
-                            <i class="fas fa-microchip text-amber-500"></i> Equipo: <span class="text-amber-400 font-bold">${s.activoId || 'No especificado'}</span>
-                        </p>
-                    </div>
-
-                    <div class="pl-2">
-                        ${typeof previewFotoHTML !== 'undefined' ? previewFotoHTML : ''}
-                    </div>
-
-                    <div class="pl-2 flex gap-3 mt-4">
-                        <button onclick="iniciarMantenimiento('${id}')" class="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 text-black font-black py-3 rounded-xl shadow-[0_0_15px_rgba(245,158,11,0.4)] hover:shadow-[0_0_20px_rgba(245,158,11,0.6)] active:scale-95 transition-all flex items-center justify-center gap-2 uppercase text-sm">
-                            <i class="fas fa-wrench text-lg"></i> Iniciar Tarea
-                        </button>
-                    </div>
-                </div>
-                `;
-                
-                contenedor.innerHTML += tarjetaHTML;
-                // --- FIN DE NUEVA TARJETA V5.18 ---
-            
-                let btnAceptar = s.metodo_pago === 'stripe'
-                    ? `<button class="flex-[4] bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}', 'stripe')">ACEPTAR TICKET</button>`
-                    : `<button class="flex-[4] bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}', 'efectivo')">ACEPTAR TICKET</button>`;
-
+                // 3. EL ENRUTADOR VISUAL (AQUÍ SEPARADOS EL B2B DEL B2C)
                 const card = document.createElement("div");
-                card.className = `bg-zinc-900 border ${s.urgencia ? 'border-red-500 shadow-red-900/30' : (s.metodo_pago === 'stripe' ? 'border-blue-500 shadow-blue-900/20' : 'border-emerald-500 shadow-emerald-900/20')} p-4 rounded-xl mb-3 shadow-lg transition-transform`;
 
-                card.innerHTML = `
-                <div class="flex justify-between items-center mb-2">
-                    <div>
-                        ${badgeMetodo}
-                        ${badgeUrgencia}
+                if (s.tipo === 'mantenimiento') {
+                    // ==========================================
+                    // MUNDO B2B: MANTENIMIENTO INTERNO (RESIDENCIAL)
+                    // ==========================================
+                    
+                    // Filtro de seguridad: Si no es de su condominio, lo ignoramos
+                    if (s.residencialId && s.residencialId !== tecnico.residencialId) {
+                        counter--; 
+                        return; 
+                    }
+
+                    let badgeMaint = '<span class="bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(245,158,11,0.8)]"><i class="fas fa-tools"></i> MANTENIMIENTO INTERNO</span>';
+                    
+                    card.className = "w-full"; // Contenedor transparente
+                    card.innerHTML = `
+                    <div class="bg-zinc-800/90 rounded-2xl p-4 mb-4 border border-zinc-700/50 relative overflow-hidden shadow-lg backdrop-blur-sm">
+                        <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.8)]"></div>
+                        
+                        <div class="flex justify-between items-start mb-3 pl-2">
+                            <div class="flex flex-col gap-1">
+                                <div class="flex gap-2 flex-wrap">
+                                    ${badgeMaint}
+                                    ${badgeUrgencia}
+                                </div>
+                                <span class="text-zinc-400 text-[10px] uppercase font-bold tracking-wider mt-1">ID Tarea: #${id.substring(0,6)}</span>
+                            </div>
+                            <div class="bg-zinc-900/80 px-2 py-1 rounded text-[10px] text-zinc-300 font-mono border border-zinc-700/50">
+                                <i class="fas fa-clock text-amber-500 mr-1"></i> PENDIENTE
+                            </div>
+                        </div>
+
+                        <div class="pl-2 mb-2 mt-3">
+                            <h3 class="text-white font-black text-lg leading-tight mb-2 tracking-wide uppercase">${s.titulo || 'Tarea sin título'}</h3>
+                            <p class="text-zinc-300 text-sm flex items-center gap-2 font-medium bg-zinc-900/50 p-2 rounded-lg border border-zinc-800 inline-block mb-2">
+                                <i class="fas fa-microchip text-amber-500"></i> Equipo: <span class="text-amber-400 font-bold">${s.activoId || 'No especificado'}</span>
+                            </p>
+                        </div>
+
+                        <div class="pl-2">
+                            ${previewFotoHTML}
+                        </div>
+
+                        <div class="pl-2 flex gap-3 mt-4">
+                            <button onclick="iniciarMantenimiento('${id}')" class="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 text-black font-black py-3 rounded-xl shadow-[0_0_15px_rgba(245,158,11,0.4)] hover:shadow-[0_0_20px_rgba(245,158,11,0.6)] active:scale-95 transition-all flex items-center justify-center gap-2 uppercase text-sm">
+                                <i class="fas fa-wrench text-lg"></i> Iniciar Tarea
+                            </button>
+                        </div>
                     </div>
-                    <span class="text-white font-bold text-xs">${s.categoria ? escaparHTML(s.categoria.toUpperCase()) : 'GENERAL'}</span>
-                </div>
-                <h4 class="text-white font-bold text-base mb-1">${escaparHTML(s.zona || 'Cancún')}</h4>
-                <p class="text-gray-300 text-sm mb-2 font-medium italic">"${escaparHTML(s.descripcion)}"</p>
-                
-                ${previewFotoHTML}
+                    `;
+                } else {
+                    // ==========================================
+                    // MUNDO B2C: SERVICIOS PÚBLICOS (FIX, ROAD, TECH)
+                    // ==========================================
+                    
+                    let badgeMetodo = s.metodo_pago === 'stripe'
+                        ? '<span class="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(37,99,235,0.8)]"><i class="fab fa-stripe-s"></i> PAGADO STRIPE</span>'
+                        : '<span class="bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(16,185,129,0.8)]"><i class="fas fa-money-bill"></i> PAGO EFECTIVO</span>';
 
-                <div class="flex items-center gap-2 mb-3 mt-2 text-xs text-gray-500">
-                    <i class="fas fa-map-marker-alt"></i> ${escaparHTML(s.direccion)}
-                </div>
-                
-                <div class="flex gap-2">
-                    <button class="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 font-bold py-3 rounded-lg text-xs transition-colors" onclick="window.rechazarServicio('${id}', '${tecnico.uid}')">
-                        <i class="fas fa-times"></i>
-                    </button>
-                    ${btnAceptar}
-                </div>
-                `;
+                    let btnAceptar = s.metodo_pago === 'stripe'
+                        ? `<button class="flex-[4] bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}', 'stripe')">ACEPTAR TICKET</button>`
+                        : `<button class="flex-[4] bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-lg text-xs uppercase transition-all transform active:scale-95" onclick="window.tomarServicio('${id}', '${tecnico.uid}', '${tecnico.nombre}', 'efectivo')">ACEPTAR TICKET</button>`;
+
+                    card.className = `bg-zinc-900 border ${s.urgencia ? 'border-red-500 shadow-red-900/30' : (s.metodo_pago === 'stripe' ? 'border-blue-500 shadow-blue-900/20' : 'border-emerald-500 shadow-emerald-900/20')} p-4 rounded-xl mb-3 shadow-lg transition-transform`;
+
+                    card.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <div>
+                            ${badgeMetodo}
+                            ${badgeUrgencia}
+                        </div>
+                        <span class="text-white font-bold text-xs">${s.categoria ? escaparHTML(s.categoria.toUpperCase()) : 'GENERAL'}</span>
+                    </div>
+                    <h4 class="text-white font-bold text-base mb-1">${escaparHTML(s.zona || 'Cancún')}</h4>
+                    <p class="text-gray-300 text-sm mb-2 font-medium italic">"${escaparHTML(s.descripcion || '')}"</p>
+                    
+                    ${previewFotoHTML}
+
+                    <div class="flex items-center gap-2 mb-3 mt-2 text-xs text-gray-500">
+                        <i class="fas fa-map-marker-alt"></i> ${escaparHTML(s.direccion || 'Ubicación no especificada')}
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button class="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 font-bold py-3 rounded-lg text-xs transition-colors" onclick="window.rechazarServicio('${id}', '${tecnico.uid}')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        ${btnAceptar}
+                    </div>
+                    `;
+                }
+
+                // Inyectamos la tarjeta final al contenedor
                 contenedor.appendChild(card);
             });
-
             if (counter === 0) {
                 contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">No hay solicitudes disponibles para tu perfil.</p>`;
             }
