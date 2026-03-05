@@ -656,37 +656,41 @@ export async function iniciarPanelTecnico(user) {
     function escucharBolsa(tecnico, contenedor) {
     if(!contenedor) return;
 
-    // 1. NUEVO MOTOR V5.18: Apuntamos a 'tareas' y filtramos por estatus
-    const q = query(
-        collection(db, "tareas"), 
-        where("estatus", "==", "pendiente")
-        // Nota: Quité el orderBy "created_at" temporalmente para que no te pida un índice en Firestore ahora mismo.
-    );
+    // 1. TUBERÍA UNIFICADA: Apuntamos a 'services' (Bolsa Universal)
+        const q = query(
+            collection(db, "services"), 
+            where("estado", "in", ["pendiente", "pagado"]), // "estado" es el estándar B2C
+            limit(50)
+        );
 
-    let cargaInicial = true;
+        let cargaInicial = true;
 
-    onSnapshot(q, (snap) => {
-        contenedor.innerHTML = "";
-        let counter = 0;
+        onSnapshot(q, (snap) => {
+            if(!contenedor) return;
+            contenedor.innerHTML = "";
+            let counter = 0;
 
-        if(snap.empty) {
-            contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">Escaneando zona del Residencial... sin mantenimientos pendientes.</p>`;
-            cargaInicial = false; 
-            return;
-        }
+            if(snap.empty) {
+                contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">Escaneando zona... esperando solicitudes.</p>`;
+                cargaInicial = false; 
+                return;
+            }
 
-        let hayNuevos = false;
-        snap.docChanges().forEach(change => {
-            if (change.type === 'added') hayNuevos = true;
-        });
+            // 2. DETECTOR DE NUEVAS ENTRADAS (Híbrido B2B/B2C)
+            let hayNuevos = false;
+            snap.docChanges().forEach(change => {
+                if (change.type === 'added') hayNuevos = true;
+            });
 
-        if (!cargaInicial && hayNuevos) {
-            console.log(" 🔔 ¡Alerta Real! Nueva tarea de mantenimiento asignada.");
-            sonarAlerta(); 
-            lanzarNotificacionPush("¡NUEVA TAREA GESTIAPREMIUM!", "Revisa tu panel de mantenimiento.");
-        }
+            if (!cargaInicial && hayNuevos) {
+                console.log(" 🔔 ¡ALERTA GESTIAPREMIUM! Nueva solicitud detectada.");
+                sonarAlerta(); 
+                lanzarNotificacionPush("¡NUEVA SOLICITUD!", "Tienes un servicio o mantenimiento pendiente.");
+            }
 
-        snap.forEach((docSnap) => {
+            cargaInicial = false; // Bajamos el switch después de la primera lectura
+
+            snap.forEach((docSnap) => {
                 const s = docSnap.data();
                 const id = docSnap.id;
 
