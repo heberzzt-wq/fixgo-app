@@ -1450,13 +1450,28 @@ export async function iniciarPanelTecnico(user) {
                 const canvas = document.getElementById("canvasFirma");
                 const firmaData = canvas ? canvas.toDataURL("image/png") : null;
 
-                await runTransaction(db, async (transaction) => {
+               await runTransaction(db, async (transaction) => {
                     const servicioRef = doc(db, "services", id);
                     const tecnicoRef = doc(db, "users", user.uid);
-                    
+                    // 🔥 REFERENCIA AL PERFIL DE JORGE (CLIENTE)
+                    const clienteRef = doc(db, "users", servicioData.cliente_id); 
+
                     const sSnap = await transaction.get(servicioRef);
                     if (!sSnap.exists()) throw "ERROR_NO_EXISTE";
                     if (sSnap.data().estado !== "trabajando") throw "ERROR_ESTADO_INVALIDO";
+
+                    // 🔥 1. COBRO B2B: DESCONTO DE SALDO VIRTUAL A JORGE 🔥
+                    if (servicioData.metodo_pago === "b2b") {
+                        const cSnap = await transaction.get(clienteRef);
+                        if (cSnap.exists()) {
+                            const saldoActual = cSnap.data().saldo_virtual || 0;
+                            const nuevoSaldo = saldoActual - costoTotal;
+                            
+                            // Actualizamos el saldo de Jorge en su documento personal
+                            transaction.update(clienteRef, { saldo_virtual: nuevoSaldo });
+                            console.log(`🎯 [B2B] Cobro exitoso. Nuevo Saldo de Jorge: $${nuevoSaldo}`);
+                        }
+                    }
 
                     transaction.update(servicioRef, {
                         estado: "finalizado",
@@ -1482,8 +1497,10 @@ export async function iniciarPanelTecnico(user) {
                         }
                     });
 
-                    if (servicioData.metodo_pago !== "stripe") {
-                        const transRef = doc(collection(db, "transacciones"));
+                    // 🔥 2. REGISTRO CONTABLE (Efectivo vs. Digitales/B2B) 🔥
+                    const transRef = doc(collection(db, "transacciones"));
+                    
+                    if (servicioData.metodo_pago === "efectivo") {
                         transaction.set(transRef, {
                             servicio_id: id,
                             tecnico_id: user.uid, 
@@ -1498,15 +1515,15 @@ export async function iniciarPanelTecnico(user) {
                             metodo_pago: "efectivo"
                         });
                     } else {
-                        const transRef = doc(collection(db, "transacciones"));
+                        // Aquí entran STRIPE y B2B: El sistema abona la lana a Jonathan
                         transaction.set(transRef, {
                             servicio_id: id,
                             tecnico_id: user.uid,
                             monto_total: 0, 
                             pago_tecnico: Math.abs(deudaTecnico), 
                             fecha: serverTimestamp(),
-                            tipo: "abono_stripe",
-                            descripcion: "Liquidación por servicio pagado en Stripe"
+                            tipo: servicioData.metodo_pago === "b2b" ? "abono_b2b" : "abono_stripe",
+                            descripcion: `Liquidación por servicio pagado vía ${servicioData.metodo_pago.toUpperCase()}`
                         });
                     }
 
