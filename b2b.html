@@ -3,179 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GestiaPremium B2B | Control Center</title>
+    <title>Gestia B2B | Puerto Cancún Control Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
-        body { 
-            background: radial-gradient(circle at top right, #0a0a0a, #000); 
-            color: #fff; 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
-            min-height: 100vh;
-        }
-        .glass-card { 
-            background: rgba(255, 255, 255, 0.03); 
-            backdrop-filter: blur(20px); 
-            border: 1px solid rgba(255, 255, 255, 0.08); 
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-        }
-        .emerald-glow { box-shadow: 0 0 20px rgba(16, 185, 129, 0.2); }
-        .input-premium {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.3s ease;
-        }
-        .input-premium:focus {
-            border-color: #10b981;
-            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1);
-        }
+        body { background: radial-gradient(circle at top right, #0a0a0a, #000); color: #fff; font-family: 'Plus Jakarta Sans', sans-serif; min-height: 100vh; }
+        .glass-card { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(25px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .input-premium { background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); transition: all 0.3s ease; }
+        .input-premium:focus { border-color: #10b981; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); }
     </style>
 </head>
-<body class="p-4 md:p-8 overflow-x-hidden">
+<body class="p-4 md:p-8">
 
-    <div id="panelAdminB2B" class="max-w-7xl mx-auto hidden space-y-8">
+    <div id="panelAdminB2B" class="max-w-7xl mx-auto hidden space-y-6">
         
-        <header class="flex justify-between items-end border-b border-white/5 pb-6">
-            <div class="space-y-1">
-                <div class="flex items-center gap-3">
-                    <div class="w-3 h-3 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_#10b981]"></div>
-                    <span class="text-[10px] font-black tracking-[0.3em] text-zinc-500 uppercase">Live Systems Operations</span>
-                </div>
-                <h1 id="lblNombreResidencial" class="text-3xl md:text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-white to-zinc-500 bg-clip-text text-transparent italic">
-                    PUERTO CANCÚN CENTRAL
-                </h1>
+        <header class="flex justify-between items-center border-b border-white/5 pb-6">
+            <div>
+                <p class="text-[9px] font-black text-emerald-500 uppercase tracking-[0.4em] mb-1">Puerto Cancún Infrastructure Monitoring</p>
+                <h1 id="lblNombreResidencial" class="text-3xl md:text-4xl font-black italic tracking-tighter uppercase text-white">PUERTO CANCÚN CENTRAL</h1>
             </div>
-            <div class="text-right hidden md:block">
-                <p class="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Global Security Protocol</p>
-                <p class="text-sm font-bold text-emerald-500">v5.18 SENIOR MASTER</p>
+            <div class="text-right">
+                <p id="clock" class="text-xs font-mono text-zinc-400 italic">--:--:--</p>
             </div>
         </header>
 
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="glass-card p-5 rounded-2xl">
-                <p class="text-[10px] font-bold text-zinc-500 uppercase">Plantilla Total</p>
-                <h2 id="countPersonal" class="text-3xl font-black mt-1">0</h2>
-                <div class="w-full bg-white/5 h-1 mt-3 rounded-full overflow-hidden">
-                    <div class="bg-emerald-500 h-full w-2/3"></div>
-                </div>
-            </div>
-            <div class="glass-card p-5 rounded-2xl">
-                <p class="text-[10px] font-bold text-zinc-500 uppercase">Tickets Activos</p>
-                <h2 id="countTickets" class="text-3xl font-black mt-1">0</h2>
-                <div class="w-full bg-white/5 h-1 mt-3 rounded-full overflow-hidden">
-                    <div class="bg-blue-500 h-full w-1/3"></div>
-                </div>
-            </div>
-            <div class="glass-card p-5 rounded-2xl">
-                <p class="text-[10px] font-bold text-zinc-500 uppercase">Personal en Turno</p>
-                <h2 class="text-3xl font-black mt-1 text-emerald-400">ONLINE</h2>
-            </div>
-            <div class="glass-card p-5 rounded-2xl border-l-4 border-emerald-500">
-                <p class="text-[10px] font-bold text-zinc-500 uppercase">Nivel de Respuesta</p>
-                <h2 class="text-3xl font-black mt-1 uppercase">Optimo</h2>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
-            <div class="lg:col-span-4 space-y-6">
-                
-                <div class="glass-card rounded-3xl p-8 space-y-6">
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20 text-emerald-500">
-                            <i class="fas fa-id-card"></i>
-                        </div>
-                        <h3 class="text-sm font-black uppercase tracking-widest text-white">Gestión de Talento</h3>
+            <div class="lg:col-span-8 space-y-6">
+                <div class="glass-card rounded-3xl p-8 border-t-2 border-emerald-500/50 shadow-2xl">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-sm font-black uppercase tracking-widest text-emerald-400 italic"><i class="fas fa-bolt mr-2"></i> Ejecutar Orden de Trabajo (OT)</h3>
+                        <span class="text-[9px] bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-full font-black uppercase">Despacho Logístico</span>
                     </div>
-                    
-                    <form id="formAltaPersonal" class="space-y-5">
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Identidad del Empleado</label>
-                            <input type="text" id="regNombre" placeholder="Nombre y Apellidos" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Línea Directa</label>
-                                <input type="tel" id="regTelefono" placeholder="998..." class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Cargo</label>
-                                <select id="regRol" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none">
-                                    <option value="tecnico">ING. TÉCNICO</option>
-                                    <option value="limpieza">OPERATIVO LIMPIEZA</option>
-                                    <option value="seguridad">SEGURIDAD ELITE</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Especialidad Técnica</label>
-                            <input type="text" id="regEspecialidad" placeholder="Ej. Marina / Domótica" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Acceso (Email)</label>
-                            <input type="email" id="regCorreo" placeholder="emp@gestia.com" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
-                        </div>
-                        <button type="submit" id="btnGuardarPersonal" class="w-full bg-white text-black font-black py-4 rounded-2xl hover:bg-emerald-500 hover:text-white transition-all transform hover:-translate-y-1 active:scale-95 text-xs uppercase tracking-widest shadow-2xl">
-                            Dar de Alta en el Sistema
-                        </button>
-                    </form>
-                </div>
 
-                <div class="glass-card rounded-3xl p-8 space-y-6 border-t-4 border-emerald-500">
-                    <h3 class="text-sm font-black uppercase tracking-widest text-white flex items-center gap-4">
-                         <div class="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20 text-emerald-500">
-                            <i class="fas fa-paper-plane"></i>
-                        </div>
-                        Despacho Inmediato
-                    </h3>
-                    <form id="formTicketB2B" class="space-y-5">
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Punto de Incidencia</label>
-                            <input type="text" id="tickArea" placeholder="Ej. Muelle 4 / Penthouse B" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Prioridad y Tarea</label>
-                            <input type="text" id="tickDesc" placeholder="Describa el requerimiento" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Especialista Asignado</label>
-                            <select id="tickAsignado" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
-                                <option value="">Esperando Personal...</option>
+                    <form id="formTicketB2B" class="grid grid-cols-1 md:grid-cols-12 gap-5">
+                        <div class="md:col-span-6">
+                            <label class="text-[9px] font-black text-zinc-500 uppercase mb-2 block tracking-widest">Sector Operativo</label>
+                            <select id="tickZona" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
+                                <option value="">SELECCIONAR SECTOR</option>
+                                <option value="puerto_escondido">PUERTO ESCONDIDO (Canales)</option>
+                                <option value="el_tope_25">EL TOPE 25 (Infraestructura)</option>
+                                <option value="la_marina">LA MARINA / MUELLES (175 Amarres)</option>
+                                <option value="los_canales">LOS CANALES (Residencial Lujo)</option>
+                                <option value="la_laguna">LA LAGUNA (I & II)</option>
+                                <option value="campo_golf">CAMPO DE GOLF (18 Hoyos)</option>
+                                <option value="torres_sls_harbour">TORRES SLS / HARBOUR / MARINA</option>
+                                <option value="novocancun">NOVO CANCÚN / OCEAN BEACH</option>
+                                <option value="beach_clubs">CLUBES DE PLAYA (Norte/Sur)</option>
+                                <option value="commercial_town">MARINA TOWN CENTER / MALL</option>
                             </select>
                         </div>
-                        <button type="submit" id="btnCrearTicket" class="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl hover:bg-emerald-400 transition-all transform hover:-translate-y-1 active:scale-95 text-xs uppercase tracking-widest shadow-[0_10px_30px_rgba(16,185,129,0.3)]">
-                            Ejecutar Orden de Trabajo
-                        </button>
+
+                        <div class="md:col-span-6">
+                            <label class="text-[9px] font-black text-zinc-500 uppercase mb-2 block tracking-widest">Punto de Incidencia / Lote / Depto</label>
+                            <input type="text" id="tickPunto" placeholder="Ej. Lote 14 / Torre A-402 / Muelle 4" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
+                        </div>
+
+                        <div class="md:col-span-4">
+                            <label class="text-[9px] font-black text-zinc-500 uppercase mb-2 block tracking-widest">Nivel de Prioridad</label>
+                            <select id="tickPrioridad" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
+                                <option value="normal">NORMAL (Mantenimiento)</option>
+                                <option value="urgente">⚠️ URGENTE (Fuga/Falla)</option>
+                                <option value="critico">🚨 CRÍTICO (Paro de Operación)</option>
+                            </select>
+                        </div>
+
+                        <div class="md:col-span-8">
+                            <label class="text-[9px] font-black text-zinc-500 uppercase mb-2 block tracking-widest">Especialista Asignado</label>
+                            <select id="tickAsignado" class="w-full input-premium rounded-xl p-4 text-sm text-emerald-400 font-bold outline-none" required>
+                                <option value="">CARGANDO PLANTILLA...</option>
+                            </select>
+                        </div>
+
+                        <div class="md:col-span-12">
+                            <label class="text-[9px] font-black text-zinc-500 uppercase mb-2 block tracking-widest">Instrucciones Técnicas</label>
+                            <input type="text" id="tickDesc" placeholder="Detalle la tarea a realizar en campo..." class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
+                        </div>
+
+                        <div class="md:col-span-12 pt-2">
+                            <button type="submit" id="btnCrearTicket" class="w-full bg-emerald-600 hover:bg-emerald-400 text-white font-black py-5 rounded-2xl transition-all shadow-[0_15px_30px_rgba(16,185,129,0.2)] active:scale-95 text-xs uppercase tracking-[0.2em]">
+                                Enviar Orden de Trabajo a Campo
+                            </button>
+                        </div>
                     </form>
+                </div>
+
+                <div class="glass-card rounded-3xl overflow-hidden shadow-2xl">
+                    <div class="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+                        <h3 class="text-xs font-black uppercase tracking-widest text-zinc-400 italic">Estatus de Activos en Red</h3>
+                    </div>
+                    <table class="w-full text-left">
+                        <thead class="bg-black/50 text-[9px] text-zinc-500 font-black uppercase tracking-widest">
+                            <tr>
+                                <th class="p-6">Especialista</th>
+                                <th class="p-6">Especialidad / Rol</th>
+                                <th class="p-6 text-center">Estatus</th>
+                                <th class="p-6 text-right">Comandos</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaEmpleadosB2B" class="divide-y divide-white/5"></tbody>
+                    </table>
                 </div>
             </div>
 
-            <div class="lg:col-span-8 space-y-6">
-                <div class="glass-card rounded-3xl overflow-hidden">
-                    <div class="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-                        <div>
-                            <h3 class="text-lg font-black uppercase tracking-tighter italic">Monitor de Plantilla</h3>
-                            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Estado operacional de activos humanos</p>
-                        </div>
-                        <div class="flex gap-2">
-                            <div class="px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20 text-[9px] font-black text-emerald-500">REAL-TIME</div>
-                        </div>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-black/40">
-                                <tr class="text-[10px] uppercase text-zinc-500 font-black">
-                                    <th class="p-6">Especialista</th>
-                                    <th class="p-6 text-center">Rango / Rol</th>
-                                    <th class="p-6 text-center">Status Operativo</th>
-                                    <th class="p-6 text-right">Comandos</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tablaEmpleadosB2B" class="divide-y divide-white/5">
-                                </tbody>
-                        </table>
-                    </div>
+            <div class="lg:col-span-4 space-y-6">
+                <div class="glass-card rounded-3xl p-8 space-y-6">
+                    <h3 class="text-sm font-black uppercase tracking-widest italic text-white border-b border-white/5 pb-4">
+                        <i class="fas fa-id-badge mr-2 text-emerald-500"></i> Gestión de Talento
+                    </h3>
+                    <form id="formAltaPersonal" class="space-y-4">
+                        <input type="text" id="regNombre" placeholder="NOMBRE COMPLETO" class="w-full input-premium rounded-xl p-4 text-xs text-white outline-none" required>
+                        <input type="tel" id="regTelefono" placeholder="MÓVIL DIRECTO" class="w-full input-premium rounded-xl p-4 text-xs text-white outline-none" required>
+                        <select id="regRol" class="w-full input-premium rounded-xl p-4 text-xs text-white outline-none">
+                            <option value="tecnico">ING. TÉCNICO DE CAMPO</option>
+                            <option value="seguridad">OFICIAL DE SEGURIDAD ELITE</option>
+                            <option value="supervisor">SUPERVISOR DE SECTOR</option>
+                            <option value="mantenimiento">MAESTRO DE MANTENIMIENTO</option>
+                        </select>
+                        <input type="text" id="regEspecialidad" placeholder="ESPECIALIDAD (EJ. NAUTICA / AC / CFE)" class="w-full input-premium rounded-xl p-4 text-xs text-white outline-none" required>
+                        <input type="email" id="regCorreo" placeholder="CORREO INSTITUCIONAL" class="w-full input-premium rounded-xl p-4 text-xs text-white outline-none" required>
+                        <button type="submit" id="btnGuardarPersonal" class="w-full bg-white text-black font-black py-4 rounded-xl hover:bg-emerald-500 hover:text-white transition-all active:scale-95 text-[10px] uppercase tracking-widest shadow-xl">
+                            Dar de Alta en Red B2B
+                        </button>
+                    </form>
+                </div>
+
+                <div class="glass-card rounded-3xl p-8 border-l-4 border-emerald-500 bg-gradient-to-br from-emerald-900/10 to-transparent">
+                    <p class="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Mantenimientos en Curso</p>
+                    <h2 id="countTickets" class="text-4xl font-black italic">0</h2>
                 </div>
             </div>
         </div>
