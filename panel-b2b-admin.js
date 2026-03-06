@@ -1,7 +1,6 @@
 import { db, doc, onSnapshot, collection, addDoc, serverTimestamp, query, where } from "./firebase.js";
 
 let adminContext = null; // Guardará los datos del administrador logueado
-
 export function iniciarPanelAdminB2B(userAuth) {
     console.log("👔 Arrancando Panel Administrador B2B...");
     
