@@ -1,34 +1,30 @@
-import { auth, db, doc, onSnapshot, collection, addDoc, serverTimestamp, query, where } from "./firebase.js";
+import { auth, db, doc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, serverTimestamp, query, where } from "./firebase.js";
 
-let adminContext = null; // Empezamos en blanco, Firebase nos dirá quién es
+let adminContext = null; 
 
-console.log("👔 Arrancando Panel Administrador B2B (Modo Real)...");
+console.log("👔 Arrancando Panel Administrador B2B (Modo Recursos Humanos)...");
 
-// 1. Escáner de seguridad: ¿Quién entró a la página?
+// 1. Escáner de seguridad
 auth.onAuthStateChanged((userAuth) => {
     if (!userAuth) {
         console.warn("🔒 Nadie ha iniciado sesión. El panel está bloqueado.");
-        return; // Si no hay sesión, no hacemos nada
+        return; 
     }
 
-    console.log("✅ Usuario detectado. Buscando su condominio...");
-
-    // 2. Buscar el perfil de este usuario en la base de datos
+    // 2. Buscar el perfil de este usuario
     const adminRef = doc(db, "users", userAuth.uid);
     onSnapshot(adminRef, (docSnap) => {
         if (!docSnap.exists()) return;
 
         adminContext = docSnap.data();
 
-        // 3. Ya tenemos sus datos, ahora sí encendemos el panel
+        // 3. Encendemos el panel
         document.getElementById("panelAdminB2B").classList.remove("hidden");
         document.getElementById("lblNombreResidencial").innerText = adminContext.nombre_residencial || "Condominio Sin Nombre";
 
-        // 4. Arrancamos el radar de empleados con su ID real
+        // 4. Arrancamos el radar de empleados
         if (adminContext.residencialId) {
             escucharPlantilla(adminContext.residencialId);
-        } else {
-            console.warn("⚠️ Cuidado: Tu cuenta no tiene un 'residencialId' asignado.");
         }
     });
 });
@@ -39,7 +35,6 @@ document.getElementById("formAltaPersonal").addEventListener("submit", registrar
 async function registrarEmpleado(e) {
     e.preventDefault();
 
-    // Candado de seguridad antes de guardar
     if (!adminContext || !adminContext.residencialId) {
         return alert("Error crítico: Tu cuenta no tiene un ID de condominio configurado.");
     }
@@ -55,7 +50,7 @@ async function registrarEmpleado(e) {
         email: document.getElementById("regCorreo").value.trim().toLowerCase(),
         rol: document.getElementById("regRol").value,
         especialidad: document.getElementById("regEspecialidad").value,
-        residencialId: adminContext.residencialId, // 👈 Sello de Aislamiento Automático
+        residencialId: adminContext.residencialId, 
         nombre_residencial: adminContext.nombre_residencial,
         estado: "activo",
         disponible: true,
@@ -93,9 +88,16 @@ function escucharPlantilla(residencialId) {
 
         snap.forEach(docSnap => {
             const emp = docSnap.data();
+            const empId = docSnap.id; // 👈 OBTENEMOS EL ID ÚNICO DEL DOCUMENTO
             
-            // Ocultamos al CEO o al Admin para que no salgan en la lista de chacha/técnicos
             if(emp.rol === "admin_b2b" || emp.rol === "ceo") return; 
+
+            // ⚡ BOTONES DE ACCIÓN DINÁMICOS
+            const btnSuspender = emp.estado === 'activo' 
+                ? `<button onclick="window.cambiarEstado('${empId}', 'suspendido')" class="text-yellow-500 hover:text-yellow-400 p-1 transition-transform active:scale-90" title="Suspender Temporalmente"><i class="fas fa-pause-circle text-lg"></i></button>`
+                : `<button onclick="window.cambiarEstado('${empId}', 'activo')" class="text-emerald-500 hover:text-emerald-400 p-1 transition-transform active:scale-90" title="Reactivar"><i class="fas fa-play-circle text-lg"></i></button>`;
+            
+            const btnEliminar = `<button onclick="window.eliminarEmpleado('${empId}', '${emp.nombre}')" class="text-red-500 hover:text-red-400 p-1 ml-2 transition-transform active:scale-90" title="Despedir (Borrar)"><i class="fas fa-trash text-lg"></i></button>`;
 
             const row = document.createElement("tr");
             row.className = "border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors";
@@ -104,13 +106,45 @@ function escucharPlantilla(residencialId) {
                 <td class="p-3 text-[10px] text-zinc-400 uppercase font-black tracking-wider">${emp.rol ? emp.rol.replace('_', ' ') : 'N/A'}</td>
                 <td class="p-3 text-xs text-emerald-400">${emp.especialidad || 'N/A'}</td>
                 <td class="p-3 text-xs text-blue-300 font-mono">${emp.telefono}</td>
-                <td class="p-3 text-right">
-                    <span class="${emp.estado === 'activo' ? 'bg-emerald-900/30 text-emerald-500 border-emerald-500/30' : 'bg-red-900/30 text-red-500 border-red-500/30'} border px-2 py-1 rounded text-[9px] font-black uppercase">
+                <td class="p-3 text-right flex justify-end items-center gap-3">
+                    <span class="${emp.estado === 'activo' ? 'bg-emerald-900/30 text-emerald-500 border-emerald-500/30' : 'bg-red-900/30 text-red-500 border-red-500/30'} border px-2 py-1 rounded text-[9px] font-black uppercase w-20 text-center">
                         ${emp.estado}
                     </span>
+                    <div class="border-l border-zinc-700 pl-3 flex items-center">
+                        ${btnSuspender}
+                        ${btnEliminar}
+                    </div>
                 </td>
             `;
             tabla.appendChild(row);
         });
     });
 }
+
+// ============================================================================
+// 🛠️ FUNCIONES GLOBALES DE RECURSOS HUMANOS
+// ============================================================================
+
+window.cambiarEstado = async function(empId, nuevoEstado) {
+    if(!confirm(`¿Seguro que deseas cambiar el estado a ${nuevoEstado.toUpperCase()}?`)) return;
+    
+    try {
+        const empleadoRef = doc(db, "users", empId);
+        await updateDoc(empleadoRef, { estado: nuevoEstado });
+    } catch (error) {
+        console.error("Error al actualizar estado:", error);
+        alert("❌ Permiso denegado o error de conexión.");
+    }
+};
+
+window.eliminarEmpleado = async function(empId, nombre) {
+    if(!confirm(`⚠️ PELIGRO: ¿Estás seguro de que quieres DESPEDIR y borrar a ${nombre}?\n\nEsta acción NO se puede deshacer.`)) return;
+    
+    try {
+        const empleadoRef = doc(db, "users", empId);
+        await deleteDoc(empleadoRef);
+    } catch (error) {
+        console.error("Error al eliminar:", error);
+        alert("❌ Permiso denegado para borrar. Revisa tus reglas de Firebase.");
+    }
+};
