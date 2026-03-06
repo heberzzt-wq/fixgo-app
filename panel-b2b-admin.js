@@ -2,46 +2,39 @@ import { auth, db, doc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, se
 
 let adminContext = null; 
 
-console.log("👔 Arrancando Panel Administrador B2B (Modo Recursos Humanos)...");
+console.log("👔 GESTIA B2B: Motor de Administración Senior Activo.");
 
-// 1. Escáner de seguridad
+// 1. CONTROL DE ACCESO Y CONTEXTO
 auth.onAuthStateChanged((userAuth) => {
     if (!userAuth) {
-        console.warn("🔒 Nadie ha iniciado sesión. El panel está bloqueado.");
+        console.warn("🔒 Acceso denegado: Sin sesión activa.");
+        window.location.href = "login.html";
         return; 
     }
 
-    // 2. Buscar el perfil de este usuario
     const adminRef = doc(db, "users", userAuth.uid);
     onSnapshot(adminRef, (docSnap) => {
         if (!docSnap.exists()) return;
 
         adminContext = docSnap.data();
-
-        // 3. Encendemos el panel
         document.getElementById("panelAdminB2B").classList.remove("hidden");
-        document.getElementById("lblNombreResidencial").innerText = adminContext.nombre_residencial || "Condominio Sin Nombre";
+        document.getElementById("lblNombreResidencial").innerText = adminContext.nombre_residencial || "Complejo Corporativo";
 
-        // 4. Arrancamos el radar de empleados
         if (adminContext.residencialId) {
             escucharPlantilla(adminContext.residencialId);
         }
     });
 });
 
-// Conectamos el botón de guardar
-document.getElementById("formAltaPersonal").addEventListener("submit", registrarEmpleado);
-
-async function registrarEmpleado(e) {
+// 2. REGISTRO DE NUEVO PERSONAL
+document.getElementById("formAltaPersonal").addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    if (!adminContext || !adminContext.residencialId) {
-        return alert("Error crítico: Tu cuenta no tiene un ID de condominio configurado.");
-    }
+    if (!adminContext?.residencialId) return alert("Error: Contexto B2B no cargado.");
 
     const btn = document.getElementById("btnGuardarPersonal");
-    const textoOriginal = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> CREANDO...';
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
     btn.disabled = true;
 
     const nuevoEmpleado = {
@@ -59,92 +52,112 @@ async function registrarEmpleado(e) {
 
     try {
         await addDoc(collection(db, "users"), nuevoEmpleado);
-        alert(`✅ Empleado Registrado Exitosamente para ${adminContext.nombre_residencial}.`);
+        alert("✅ Personal dado de alta correctamente.");
         document.getElementById("formAltaPersonal").reset();
     } catch (error) {
-        console.error("Error al registrar:", error);
-        alert("❌ Error al guardar en base de datos. Revisa tu conexión.");
+        console.error("Error B2B Registro:", error);
+        alert("❌ Error en Firebase. Revisa las reglas de escritura.");
     } finally {
-        btn.innerHTML = textoOriginal;
+        btn.innerHTML = originalText;
         btn.disabled = false;
     }
-}
+});
 
+// 3. GENERACIÓN DE ÓRDENES DE TRABAJO (TICKETS)
+document.getElementById("formTicketB2B").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    
+    if (!adminContext) return;
+
+    const btn = document.getElementById("btnCrearTicket");
+    btn.disabled = true;
+    btn.innerHTML = "ENVIANDO...";
+
+    const ticketData = {
+        residencialId: adminContext.residencialId,
+        nombre_residencial: adminContext.nombre_residencial,
+        ubicacion: document.getElementById("tickArea").value.trim(),
+        descripcion: document.getElementById("tickDesc").value.trim(),
+        tecnicoId: document.getElementById("tickAsignado").value,
+        status: "pendiente",
+        tipo: "B2B_INTERNO",
+        metodo_pago: "nomina_interna",
+        fecha_creacion: serverTimestamp(),
+        creado_por: auth.currentUser.uid
+    };
+
+    try {
+        await addDoc(collection(db, "services"), ticketData);
+        alert("🚀 Orden despachada al técnico.");
+        document.getElementById("formTicketB2B").reset();
+    } catch (error) {
+        alert("❌ Error al generar ticket.");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = "ENVIAR ORDEN";
+    }
+});
+
+// 4. RADAR DE PLANTILLA EN TIEMPO REAL
 function escucharPlantilla(residencialId) {
-    const q = query(
-        collection(db, "users"), 
-        where("residencialId", "==", residencialId)
-    );
+    const q = query(collection(db, "users"), where("residencialId", "==", residencialId));
 
     onSnapshot(q, (snap) => {
         const tabla = document.getElementById("tablaEmpleadosB2B");
+        const selectTecnicos = document.getElementById("tickAsignado");
         if (!tabla) return;
-        tabla.innerHTML = "";
 
-        if (snap.empty) {
-            tabla.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-xs text-gray-500">Aún no tienes personal registrado en este complejo.</td></tr>`;
-            return;
-        }
+        tabla.innerHTML = "";
+        selectTecnicos.innerHTML = '<option value="">-- Seleccionar Técnico --</option>';
+        
+        let count = 0;
 
         snap.forEach(docSnap => {
             const emp = docSnap.data();
-            const empId = docSnap.id; // 👈 OBTENEMOS EL ID ÚNICO DEL DOCUMENTO
+            const empId = docSnap.id;
             
             if(emp.rol === "admin_b2b" || emp.rol === "ceo") return; 
+            count++;
 
-            // ⚡ BOTONES DE ACCIÓN DINÁMICOS
-            const btnSuspender = emp.estado === 'activo' 
-                ? `<button onclick="window.cambiarEstado('${empId}', 'suspendido')" class="text-yellow-500 hover:text-yellow-400 p-1 transition-transform active:scale-90" title="Suspender Temporalmente"><i class="fas fa-pause-circle text-lg"></i></button>`
-                : `<button onclick="window.cambiarEstado('${empId}', 'activo')" class="text-emerald-500 hover:text-emerald-400 p-1 transition-transform active:scale-90" title="Reactivar"><i class="fas fa-play-circle text-lg"></i></button>`;
-            
-            const btnEliminar = `<button onclick="window.eliminarEmpleado('${empId}', '${emp.nombre}')" class="text-red-500 hover:text-red-400 p-1 ml-2 transition-transform active:scale-90" title="Despedir (Borrar)"><i class="fas fa-trash text-lg"></i></button>`;
+            // Actualizar select de tickets (solo técnicos activos)
+            if (emp.rol === "tecnico" && emp.estado === "activo") {
+                const opt = document.createElement("option");
+                opt.value = empId;
+                opt.textContent = `${emp.nombre} (${emp.especialidad})`;
+                selectTecnicos.appendChild(opt);
+            }
 
+            // Dibujar Fila en Tabla
             const row = document.createElement("tr");
-            row.className = "border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors";
+            row.className = "border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors text-xs";
             row.innerHTML = `
-                <td class="p-3 text-sm font-bold text-white">${emp.nombre}</td>
-                <td class="p-3 text-[10px] text-zinc-400 uppercase font-black tracking-wider">${emp.rol ? emp.rol.replace('_', ' ') : 'N/A'}</td>
-                <td class="p-3 text-xs text-emerald-400">${emp.especialidad || 'N/A'}</td>
-                <td class="p-3 text-xs text-blue-300 font-mono">${emp.telefono}</td>
-                <td class="p-3 text-right flex justify-end items-center gap-3">
-                    <span class="${emp.estado === 'activo' ? 'bg-emerald-900/30 text-emerald-500 border-emerald-500/30' : 'bg-red-900/30 text-red-500 border-red-500/30'} border px-2 py-1 rounded text-[9px] font-black uppercase w-20 text-center">
-                        ${emp.estado}
-                    </span>
-                    <div class="border-l border-zinc-700 pl-3 flex items-center">
-                        ${btnSuspender}
-                        ${btnEliminar}
-                    </div>
+                <td class="p-4 font-bold text-white">${emp.nombre}</td>
+                <td class="p-4 uppercase text-zinc-400 text-[10px] font-black">${emp.rol}</td>
+                <td class="p-4 text-emerald-400">${emp.especialidad}</td>
+                <td class="p-4 text-right flex justify-end gap-2">
+                    <button onclick="window.cambiarEstado('${empId}', '${emp.estado === 'activo' ? 'suspendido' : 'activo'}')" 
+                        class="${emp.estado === 'activo' ? 'text-yellow-500' : 'text-emerald-500'} p-1">
+                        <i class="fas ${emp.estado === 'activo' ? 'fa-pause-circle' : 'fa-play-circle'}"></i>
+                    </button>
+                    <button onclick="window.eliminarEmpleado('${empId}', '${emp.nombre}')" class="text-red-500 p-1">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </td>
             `;
             tabla.appendChild(row);
         });
+
+        document.getElementById("countPersonal").innerText = `${count} Personal Registrado`;
     });
 }
 
-// ============================================================================
-// 🛠️ FUNCIONES GLOBALES DE RECURSOS HUMANOS
-// ============================================================================
-
-window.cambiarEstado = async function(empId, nuevoEstado) {
-    if(!confirm(`¿Seguro que deseas cambiar el estado a ${nuevoEstado.toUpperCase()}?`)) return;
-    
-    try {
-        const empleadoRef = doc(db, "users", empId);
-        await updateDoc(empleadoRef, { estado: nuevoEstado });
-    } catch (error) {
-        console.error("Error al actualizar estado:", error);
-        alert("❌ Permiso denegado o error de conexión.");
-    }
+// 5. FUNCIONES GLOBALES DE GESTIÓN
+window.cambiarEstado = async (id, estado) => {
+    if(!confirm(`¿Cambiar estado a ${estado}?`)) return;
+    await updateDoc(doc(db, "users", id), { estado: estado });
 };
 
-window.eliminarEmpleado = async function(empId, nombre) {
-    if(!confirm(`⚠️ PELIGRO: ¿Estás seguro de que quieres DESPEDIR y borrar a ${nombre}?\n\nEsta acción NO se puede deshacer.`)) return;
-    
-    try {
-        const empleadoRef = doc(db, "users", empId);
-        await deleteDoc(empleadoRef);
-    } catch (error) {
-        console.error("Error al eliminar:", error);
-        alert("❌ Permiso denegado para borrar. Revisa tus reglas de Firebase.");
-    }
+window.eliminarEmpleado = async (id, nombre) => {
+    if(!confirm(`¿Eliminar permanentemente a ${nombre}?`)) return;
+    await deleteDoc(doc(db, "users", id));
 };
