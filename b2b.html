@@ -3,117 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestia B2B - Administración</title>
+    <title>GestiaPremium B2B | Control Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #000; color: #fff; font-family: 'Inter', sans-serif; }
-        .glass { background: rgba(24, 24, 27, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(63, 63, 70, 0.5); }
+        body { 
+            background: radial-gradient(circle at top right, #0a0a0a, #000); 
+            color: #fff; 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            min-height: 100vh;
+        }
+        .glass-card { 
+            background: rgba(255, 255, 255, 0.03); 
+            backdrop-filter: blur(20px); 
+            border: 1px solid rgba(255, 255, 255, 0.08); 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .emerald-glow { box-shadow: 0 0 20px rgba(16, 185, 129, 0.2); }
+        .input-premium {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        .input-premium:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1);
+        }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-4 md:p-8 overflow-x-hidden">
 
-    <div id="panelAdminB2B" class="max-w-6xl mx-auto hidden">
+    <div id="panelAdminB2B" class="max-w-7xl mx-auto hidden space-y-8">
         
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-            <div>
-                <h1 class="text-2xl font-black tracking-tighter uppercase text-white">Panel Residencial</h1>
-                <p id="lblNombreResidencial" class="text-emerald-500 font-bold text-sm uppercase tracking-widest">Cargando complejo...</p>
+        <header class="flex justify-between items-end border-b border-white/5 pb-6">
+            <div class="space-y-1">
+                <div class="flex items-center gap-3">
+                    <div class="w-3 h-3 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_#10b981]"></div>
+                    <span class="text-[10px] font-black tracking-[0.3em] text-zinc-500 uppercase">Live Systems Operations</span>
+                </div>
+                <h1 id="lblNombreResidencial" class="text-3xl md:text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-white to-zinc-500 bg-clip-text text-transparent italic">
+                    PUERTO CANCÚN CENTRAL
+                </h1>
             </div>
-            <div class="bg-zinc-900 px-4 py-2 rounded-lg border border-zinc-800">
-                <span class="text-[10px] text-zinc-500 block font-black uppercase">Estado del Sistema</span>
-                <span class="text-xs text-emerald-400 font-bold"><i class="fas fa-shield-alt mr-1"></i> GESTIAPREMIUM V5.18</span>
+            <div class="text-right hidden md:block">
+                <p class="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Global Security Protocol</p>
+                <p class="text-sm font-bold text-emerald-500">v5.18 SENIOR MASTER</p>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="glass-card p-5 rounded-2xl">
+                <p class="text-[10px] font-bold text-zinc-500 uppercase">Plantilla Total</p>
+                <h2 id="countPersonal" class="text-3xl font-black mt-1">0</h2>
+                <div class="w-full bg-white/5 h-1 mt-3 rounded-full overflow-hidden">
+                    <div class="bg-emerald-500 h-full w-2/3"></div>
+                </div>
+            </div>
+            <div class="glass-card p-5 rounded-2xl">
+                <p class="text-[10px] font-bold text-zinc-500 uppercase">Tickets Activos</p>
+                <h2 id="countTickets" class="text-3xl font-black mt-1">0</h2>
+                <div class="w-full bg-white/5 h-1 mt-3 rounded-full overflow-hidden">
+                    <div class="bg-blue-500 h-full w-1/3"></div>
+                </div>
+            </div>
+            <div class="glass-card p-5 rounded-2xl">
+                <p class="text-[10px] font-bold text-zinc-500 uppercase">Personal en Turno</p>
+                <h2 class="text-3xl font-black mt-1 text-emerald-400">ONLINE</h2>
+            </div>
+            <div class="glass-card p-5 rounded-2xl border-l-4 border-emerald-500">
+                <p class="text-[10px] font-bold text-zinc-500 uppercase">Nivel de Respuesta</p>
+                <h2 class="text-3xl font-black mt-1 uppercase">Optimo</h2>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
-            <div class="lg:col-span-1 space-y-6">
-                <div class="glass rounded-2xl p-6">
-                    <h3 class="text-white font-black text-sm mb-6 uppercase tracking-widest border-b border-zinc-800 pb-4">
-                        <i class="fas fa-user-plus mr-2 text-emerald-500"></i> Registro de Personal
-                    </h3>
+            <div class="lg:col-span-4 space-y-6">
+                
+                <div class="glass-card rounded-3xl p-8 space-y-6">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20 text-emerald-500">
+                            <i class="fas fa-id-card"></i>
+                        </div>
+                        <h3 class="text-sm font-black uppercase tracking-widest text-white">Gestión de Talento</h3>
+                    </div>
                     
-                    <form id="formAltaPersonal" class="space-y-4">
-                        <div>
-                            <label class="block text-[10px] text-zinc-500 font-bold mb-1 uppercase">Nombre Completo</label>
-                            <input type="text" id="regNombre" placeholder="Ej. Juan Pérez" class="w-full bg-black border border-zinc-800 rounded-lg p-3 text-white text-sm focus:border-emerald-500 outline-none transition-all" required>
+                    <form id="formAltaPersonal" class="space-y-5">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Identidad del Empleado</label>
+                            <input type="text" id="regNombre" placeholder="Nombre y Apellidos" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-[10px] text-zinc-500 font-bold mb-1 uppercase">Teléfono</label>
-                                <input type="tel" id="regTelefono" placeholder="998..." class="w-full bg-black border border-zinc-800 rounded-lg p-3 text-white text-sm focus:border-emerald-500 outline-none" required>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Línea Directa</label>
+                                <input type="tel" id="regTelefono" placeholder="998..." class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
                             </div>
-                            <div>
-                                <label class="block text-[10px] text-zinc-500 font-bold mb-1 uppercase">Rol</label>
-                                <select id="regRol" class="w-full bg-black border border-zinc-800 rounded-lg p-3 text-white text-sm focus:border-emerald-500 outline-none">
-                                    <option value="tecnico">Técnico</option>
-                                    <option value="limpieza">Limpieza</option>
-                                    <option value="seguridad">Seguridad</option>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Cargo</label>
+                                <select id="regRol" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none">
+                                    <option value="tecnico">ING. TÉCNICO</option>
+                                    <option value="limpieza">OPERATIVO LIMPIEZA</option>
+                                    <option value="seguridad">SEGURIDAD ELITE</option>
                                 </select>
                             </div>
                         </div>
-                        <div>
-                            <label class="block text-[10px] text-zinc-500 font-bold mb-1 uppercase">Correo Electrónico</label>
-                            <input type="email" id="regCorreo" placeholder="empleado@gmail.com" class="w-full bg-black border border-zinc-800 rounded-lg p-3 text-white text-sm focus:border-emerald-500 outline-none" required>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Especialidad Técnica</label>
+                            <input type="text" id="regEspecialidad" placeholder="Ej. Marina / Domótica" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
                         </div>
-                        <div>
-                            <label class="block text-[10px] text-zinc-500 font-bold mb-1 uppercase">Especialidad</label>
-                            <input type="text" id="regEspecialidad" placeholder="Ej. Plomería / Electricidad" class="w-full bg-black border border-zinc-800 rounded-lg p-3 text-white text-sm focus:border-emerald-500 outline-none" required>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Acceso (Email)</label>
+                            <input type="email" id="regCorreo" placeholder="emp@gestia.com" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
                         </div>
-                        <button type="submit" id="btnGuardarPersonal" class="w-full bg-white text-black font-black py-4 rounded-xl hover:bg-emerald-500 hover:text-white transition-all active:scale-95 text-xs uppercase tracking-widest mt-4">
-                            Registrar Empleado
+                        <button type="submit" id="btnGuardarPersonal" class="w-full bg-white text-black font-black py-4 rounded-2xl hover:bg-emerald-500 hover:text-white transition-all transform hover:-translate-y-1 active:scale-95 text-xs uppercase tracking-widest shadow-2xl">
+                            Dar de Alta en el Sistema
+                        </button>
+                    </form>
+                </div>
+
+                <div class="glass-card rounded-3xl p-8 space-y-6 border-t-4 border-emerald-500">
+                    <h3 class="text-sm font-black uppercase tracking-widest text-white flex items-center gap-4">
+                         <div class="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20 text-emerald-500">
+                            <i class="fas fa-paper-plane"></i>
+                        </div>
+                        Despacho Inmediato
+                    </h3>
+                    <form id="formTicketB2B" class="space-y-5">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Punto de Incidencia</label>
+                            <input type="text" id="tickArea" placeholder="Ej. Muelle 4 / Penthouse B" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Prioridad y Tarea</label>
+                            <input type="text" id="tickDesc" placeholder="Describa el requerimiento" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-zinc-500 uppercase ml-1">Especialista Asignado</label>
+                            <select id="tickAsignado" class="w-full input-premium rounded-xl p-4 text-sm text-white outline-none" required>
+                                <option value="">Esperando Personal...</option>
+                            </select>
+                        </div>
+                        <button type="submit" id="btnCrearTicket" class="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl hover:bg-emerald-400 transition-all transform hover:-translate-y-1 active:scale-95 text-xs uppercase tracking-widest shadow-[0_10px_30px_rgba(16,185,129,0.3)]">
+                            Ejecutar Orden de Trabajo
                         </button>
                     </form>
                 </div>
             </div>
 
-            <div class="lg:col-span-2 space-y-6">
-                
-                <div class="glass rounded-2xl p-6 border-l-4 border-l-emerald-500">
-                    <h3 class="text-white font-black text-sm mb-6 uppercase tracking-widest flex justify-between items-center">
-                        <span><i class="fas fa-ticket-alt mr-2 text-emerald-500"></i> Generar Orden de Trabajo</span>
-                        <span class="text-[9px] bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded">MÓDULO B2B</span>
-                    </h3>
-                    <form id="formTicketB2B" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="md:col-span-1">
-                            <label class="block text-[10px] text-zinc-500 font-bold mb-1 uppercase">Ubicación / Depto</label>
-                            <input type="text" id="tickArea" placeholder="Ej. Depto 204" class="w-full bg-black border border-zinc-800 rounded-lg p-3 text-white text-sm focus:border-emerald-500 outline-none" required>
+            <div class="lg:col-span-8 space-y-6">
+                <div class="glass-card rounded-3xl overflow-hidden">
+                    <div class="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+                        <div>
+                            <h3 class="text-lg font-black uppercase tracking-tighter italic">Monitor de Plantilla</h3>
+                            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Estado operacional de activos humanos</p>
                         </div>
-                        <div class="md:col-span-2">
-                            <label class="block text-[10px] text-zinc-500 font-bold mb-1 uppercase">Descripción del Problema</label>
-                            <input type="text" id="tickDesc" placeholder="Ej. Fuga en baño principal" class="w-full bg-black border border-zinc-800 rounded-lg p-3 text-white text-sm focus:border-emerald-500 outline-none" required>
+                        <div class="flex gap-2">
+                            <div class="px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20 text-[9px] font-black text-emerald-500">REAL-TIME</div>
                         </div>
-                        <div class="md:col-span-2">
-                            <label class="block text-[10px] text-zinc-500 font-bold mb-1 uppercase">Asignar Personal</label>
-                            <select id="tickAsignado" class="w-full bg-black border border-zinc-800 rounded-lg p-3 text-white text-sm focus:border-emerald-500 outline-none" required>
-                                <option value="">Cargando técnicos disponibles...</option>
-                            </select>
-                        </div>
-                        <div class="flex items-end">
-                            <button type="submit" id="btnCrearTicket" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 rounded-lg transition-all active:scale-95 text-[10px] uppercase">
-                                Enviar Orden
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <div class="glass rounded-2xl overflow-hidden">
-                    <div class="p-6 border-b border-zinc-800 flex justify-between items-center">
-                        <h3 class="text-white font-black text-sm uppercase tracking-widest">Plantilla Activa</h3>
-                        <span class="text-[10px] text-zinc-500 font-mono" id="countPersonal">0 Empleados</span>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="bg-zinc-900/50 text-[10px] uppercase text-zinc-500 font-black">
-                                    <th class="p-4">Empleado</th>
-                                    <th class="p-4">Puesto</th>
-                                    <th class="p-4">Especialidad</th>
-                                    <th class="p-4 text-right">Acciones</th>
+                        <table class="w-full text-left">
+                            <thead class="bg-black/40">
+                                <tr class="text-[10px] uppercase text-zinc-500 font-black">
+                                    <th class="p-6">Especialista</th>
+                                    <th class="p-6 text-center">Rango / Rol</th>
+                                    <th class="p-6 text-center">Status Operativo</th>
+                                    <th class="p-6 text-right">Comandos</th>
                                 </tr>
                             </thead>
-                            <tbody id="tablaEmpleadosB2B">
+                            <tbody id="tablaEmpleadosB2B" class="divide-y divide-white/5">
                                 </tbody>
                         </table>
                     </div>
