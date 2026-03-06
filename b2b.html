@@ -1,0 +1,76 @@
+<div id="panelAdminB2B" class="w-full max-w-6xl mx-auto p-4 sm:p-8 animate-fade-in hidden">
+    
+    <div class="mb-8">
+        <h2 class="text-3xl font-black text-white tracking-tight uppercase flex items-center gap-3">
+            <i class="fas fa-building text-blue-500"></i> Panel Residencial: <span id="lblNombreResidencial" class="text-blue-400">Cargando...</span>
+        </h2>
+        <p class="text-gray-400 text-sm mt-1">Centro de Mando B2B - Gestión de Personal Operativo</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="bg-zinc-900/80 backdrop-blur-md border border-zinc-700/50 rounded-2xl shadow-xl p-6 h-fit">
+            <h3 class="text-lg font-black text-white uppercase tracking-widest mb-4 border-b border-zinc-800 pb-2"><i class="fas fa-user-plus text-emerald-500"></i> Nuevo Empleado</h3>
+            
+            <form id="formAltaPersonal" class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Nombre Completo</label>
+                    <input type="text" id="regNombre" required placeholder="Ej: Jonathan Pérez" class="w-full bg-black text-white border border-zinc-700 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 text-xs">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Teléfono (WhatsApp)</label>
+                    <input type="tel" id="regTelefono" required placeholder="998 123 4567" class="w-full bg-black text-white border border-zinc-700 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 text-xs">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Correo Electrónico (Acceso)</label>
+                    <input type="email" id="regCorreo" required placeholder="tecnico@condominio.com" class="w-full bg-black text-white border border-zinc-700 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 text-xs">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Rol</label>
+                        <select id="regRol" class="w-full bg-black text-white border border-zinc-700 rounded-xl px-3 py-3 focus:outline-none focus:border-emerald-500 text-xs">
+                            <option value="tecnico_interno">Técnico</option>
+                            <option value="guardia">Guardia</option>
+                            <option value="supervisor">Supervisor</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Especialidad</label>
+                        <select id="regEspecialidad" class="w-full bg-black text-white border border-zinc-700 rounded-xl px-3 py-3 focus:outline-none focus:border-emerald-500 text-xs">
+                            <option value="General">General</option>
+                            <option value="Plomería">Plomería</option>
+                            <option value="Electricidad">Electricidad</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="pt-2">
+                    <button type="submit" id="btnGuardarPersonal" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest transition-transform active:scale-95 shadow-lg flex justify-center items-center gap-2">
+                        Registrar Empleado
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="lg:col-span-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-700/50 rounded-2xl shadow-xl overflow-hidden flex flex-col">
+            <div class="p-6 border-b border-zinc-800 bg-black/30">
+                <h3 class="text-lg font-black text-white uppercase tracking-widest"><i class="fas fa-users text-blue-500"></i> Plantilla Activa</h3>
+            </div>
+            <div class="overflow-x-auto flex-1 p-2">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="text-[10px] text-zinc-500 uppercase tracking-widest border-b border-zinc-800">
+                            <th class="p-3">Nombre</th>
+                            <th class="p-3">Rol</th>
+                            <th class="p-3">Especialidad</th>
+                            <th class="p-3">Contacto</th>
+                            <th class="p-3 text-right">Estatus</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaEmpleadosB2B" class="divide-y divide-zinc-800/50">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
