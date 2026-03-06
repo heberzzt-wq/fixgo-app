@@ -2,31 +2,30 @@ import { auth, db, doc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, se
 
 let adminContext = null; 
 
-console.log("💎 GESTIAPREMIUM: High-End B2B Engine v5.18 Online.");
+console.log("⚡ GESTIA MASTER: Puerto Cancún Logic Engine v5.18 Online.");
 
-// 1. MONITOR DE ACCESO NIVEL SENIOR
+// Reloj en tiempo real
+setInterval(() => {
+    const clock = document.getElementById('clock');
+    if(clock) clock.innerText = new Date().toLocaleTimeString('es-MX', { hour12: false });
+}, 1000);
+
+// 1. MONITOR DE ACCESO MASTER
 auth.onAuthStateChanged((userAuth) => {
     if (!userAuth) {
         window.location.href = "login.html";
         return; 
     }
 
-    const adminRef = doc(db, "users", userAuth.uid);
-    onSnapshot(adminRef, (docSnap) => {
-        if (!docSnap.exists()) {
-            console.error("Critical: Admin Profile Missing.");
-            return;
-        }
+    onSnapshot(doc(db, "users", userAuth.uid), (docSnap) => {
+        if (!docSnap.exists()) return;
 
         adminContext = docSnap.data();
+        document.getElementById("panelAdminB2B").classList.remove("hidden");
         
-        // Revelar panel con efecto
-        const panel = document.getElementById("panelAdminB2B");
-        panel.classList.remove("hidden");
-        panel.classList.add("animate-in", "fade-in", "duration-1000");
-        
-        document.getElementById("lblNombreResidencial").innerText = 
-            adminContext.nombre_residencial ? adminContext.nombre_residencial.toUpperCase() : "MASTER CONTROL CENTER";
+        // Marcamos el territorio: Puerto Cancún
+        const nombreDisplay = adminContext.nombre_residencial || "OPERACIONES PUERTO CANCÚN";
+        document.getElementById("lblNombreResidencial").innerText = nombreDisplay.toUpperCase();
 
         if (adminContext.residencialId) {
             escucharPlantillaRealTime(adminContext.residencialId);
@@ -42,7 +41,7 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
 
     const btn = document.getElementById("btnGuardarPersonal");
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> ENCRIPTANDO...';
+    btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> PROCESANDO...';
 
     const nuevoEmpleado = {
         nombre: document.getElementById("regNombre").value.trim(),
@@ -59,47 +58,50 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
 
     try {
         await addDoc(collection(db, "users"), nuevoEmpleado);
-        alert("✅ Activo registrado en la red GestiaPremium.");
+        alert("✅ Activo desplegado en el sistema.");
         document.getElementById("formAltaPersonal").reset();
     } catch (err) {
-        alert("❌ Error de protocolo en Base de Datos.");
+        alert("❌ Error de Firebase. Revisa las reglas.");
     } finally {
         btn.disabled = false;
-        btn.innerHTML = "Dar de Alta en el Sistema";
+        btn.innerHTML = "Dar de Alta en Red B2B";
     }
 });
 
-// 3. DESPACHO DE ÓRDENES DE TRABAJO
+// 3. DESPACHO DE ÓRDENES DE TRABAJO (OT)
 document.getElementById("formTicketB2B").addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!adminContext) return;
 
     const btn = document.getElementById("btnCrearTicket");
     btn.disabled = true;
-    btn.innerHTML = "DESPACHANDO...";
+    btn.innerHTML = "ENVIANDO ORDEN...";
 
+    // Estructura de Orden de Trabajo para Puerto Cancún
     const ticketData = {
         residencialId: adminContext.residencialId,
         nombre_residencial: adminContext.nombre_residencial,
-        ubicacion: document.getElementById("tickArea").value.trim(),
+        sector: document.getElementById("tickZona").value, // Macro-Zona
+        punto_exacto: document.getElementById("tickPunto").value.trim(), // Lote/Muelle/Depto
         descripcion: document.getElementById("tickDesc").value.trim(),
+        prioridad: document.getElementById("tickPrioridad").value,
         tecnicoId: document.getElementById("tickAsignado").value,
         status: "pendiente",
-        prioridad: "alta",
         tipo: "B2B_INTERNO",
+        metodo_pago: "nomina_residencial",
         fecha_creacion: serverTimestamp(),
         creado_por: auth.currentUser.uid
     };
 
     try {
         await addDoc(collection(db, "services"), ticketData);
-        alert("🚀 Orden de trabajo despachada. Técnico notificado.");
+        alert("🚀 ORDEN DESPACHADA: El especialista recibirá la notificación de inmediato.");
         document.getElementById("formTicketB2B").reset();
     } catch (err) {
-        alert("❌ Fallo en el despacho.");
+        alert("❌ Error al despachar orden.");
     } finally {
         btn.disabled = false;
-        btn.innerHTML = "Ejecutar Orden de Trabajo";
+        btn.innerHTML = "Despachar Orden de Trabajo";
     }
 });
 
@@ -115,14 +117,11 @@ function escucharPlantillaRealTime(residencialId) {
         tabla.innerHTML = "";
         select.innerHTML = '<option value="">-- Seleccionar Especialista --</option>';
         
-        let total = 0;
-
         snap.forEach(docSnap => {
             const emp = docSnap.data();
             const empId = docSnap.id;
             
             if(emp.rol === "admin_b2b" || emp.rol === "ceo") return; 
-            total++;
 
             if (emp.rol === "tecnico" && emp.estado === "activo") {
                 const opt = document.createElement("option");
@@ -132,42 +131,36 @@ function escucharPlantillaRealTime(residencialId) {
             }
 
             const row = document.createElement("tr");
-            row.className = "hover:bg-white/[0.02] transition-all group";
+            row.className = "hover:bg-white/[0.02] transition-all text-xs";
             row.innerHTML = `
                 <td class="p-6">
-                    <div class="font-bold text-white text-sm">${emp.nombre}</div>
-                    <div class="text-[10px] text-zinc-500 font-mono italic">${emp.email}</div>
+                    <div class="font-bold text-white uppercase tracking-tighter">${emp.nombre}</div>
+                    <div class="text-[9px] text-zinc-600 font-mono">${emp.email}</div>
+                </td>
+                <td class="p-6">
+                    <div class="text-[10px] text-emerald-500 font-black uppercase tracking-widest">${emp.rol}</div>
+                    <div class="text-[9px] text-zinc-400 font-bold uppercase italic">${emp.especialidad}</div>
                 </td>
                 <td class="p-6 text-center">
-                    <span class="text-[9px] font-black tracking-widest bg-white/5 border border-white/10 px-3 py-1 rounded-full text-zinc-400 uppercase">
-                        ${emp.rol}
+                    <span class="px-3 py-1 rounded-full text-[9px] font-black border ${emp.estado === 'activo' ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/5' : 'border-red-500/20 text-red-500 bg-red-500/5'}">
+                        ${emp.estado.toUpperCase()}
                     </span>
-                </td>
-                <td class="p-6 text-center">
-                    <div class="flex items-center justify-center gap-2">
-                        <div class="w-2 h-2 rounded-full ${emp.estado === 'activo' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-red-500'}"></div>
-                        <span class="text-[10px] font-black uppercase ${emp.estado === 'activo' ? 'text-emerald-500' : 'text-red-500'}">
-                            ${emp.estado}
-                        </span>
-                    </div>
                 </td>
                 <td class="p-6 text-right">
                     <div class="flex justify-end gap-3">
                         <button onclick="window.cambiarEstado('${empId}', '${emp.estado === 'activo' ? 'suspendido' : 'activo'}')" 
-                            class="w-8 h-8 rounded-lg border border-white/5 flex items-center justify-center hover:bg-emerald-500/20 hover:text-emerald-500 transition-all">
-                            <i class="fas ${emp.estado === 'activo' ? 'fa-pause' : 'fa-play'} text-[10px]"></i>
+                            class="text-zinc-500 hover:text-white transition-colors p-2">
+                            <i class="fas ${emp.estado === 'activo' ? 'fa-pause' : 'fa-play'} text-[11px]"></i>
                         </button>
                         <button onclick="window.eliminarEmpleado('${empId}', '${emp.nombre}')" 
-                            class="w-8 h-8 rounded-lg border border-white/5 flex items-center justify-center hover:bg-red-500/20 hover:text-red-500 transition-all text-zinc-600">
-                            <i class="fas fa-trash-alt text-[10px]"></i>
+                            class="text-zinc-700 hover:text-red-500 transition-colors p-2">
+                            <i class="fas fa-trash-alt text-[11px]"></i>
                         </button>
                     </div>
                 </td>
             `;
             tabla.appendChild(row);
         });
-
-        document.getElementById("countPersonal").innerText = total;
     });
 }
 
@@ -178,16 +171,12 @@ function conectarContadorTickets(residencialId) {
     });
 }
 
-// 5. COMANDOS GLOBALES
+// 5. COMANDOS GLOBALES DE GESTIÓN
 window.cambiarEstado = async (id, estado) => {
-    try {
-        await updateDoc(doc(db, "users", id), { estado: estado });
-    } catch (e) { alert("Acceso Denegado."); }
+    await updateDoc(doc(db, "users", id), { estado: estado });
 };
 
 window.eliminarEmpleado = async (id, nombre) => {
     if(!confirm(`¿ELIMINAR ACCESO A ${nombre.toUpperCase()}?`)) return;
-    try {
-        await deleteDoc(doc(db, "users", id));
-    } catch (e) { alert("Error de privilegios."); }
+    await deleteDoc(doc(db, "users", id));
 };
