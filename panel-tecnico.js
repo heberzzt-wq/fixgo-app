@@ -855,24 +855,29 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
-    window.iniciarMantenimiento = async (idTarea) => {
-        console.log("🛠️ Iniciando cirugía técnica para la tarea:", idTarea);
+  window.iniciarMantenimiento = async (idServicio) => {
+        console.log("🛠️ Iniciando cirugía técnica para el servicio:", idServicio);
         try {
-            const tareaRef = doc(db, "services", idTarea);
+            // ¡AQUÍ ESTÁ LA MAGIA! Apuntando 100% a la colección "services"
+            const servicioRef = doc(db, "services", idServicio);
             
-            await updateDoc(tareaRef, {
+            // 🛡️ BLINDAJE B2B: Inyectamos los datos comerciales para que el servidor no lo rechace
+            await updateDoc(servicioRef, {
                 estado: "trabajando",
-                tecnico_id: user.uid, // 👈 ¡ESTA ES LA MAGIA QUE LO HACE APARECER!
+                tecnico_id: user.uid, 
                 tecnico_nombre: user.nombre || "Técnico Residencial",
+                metodo_pago: "b2b", // 👈 LA LLAVE MAESTRA para el Split Billing
+                cliente_id: "admin_residencial", // 👈 Relleno de seguridad para el servidor
+                tipo: "mantenimiento",
                 fecha_inicio: serverTimestamp(),
                 actualizado_at: serverTimestamp()
             });
 
-            console.log("✅ Tarea iniciada con éxito.");
+            console.log("✅ Servicio iniciado y anclado al servidor.");
             alert("¡Mantenimiento iniciado! Pasa a la sección de misiones.");
 
         } catch (error) {
-            console.error("❌ Error al iniciar la tarea:", error);
+            console.error("❌ Error al iniciar el servicio:", error);
             alert("Hubo un problema. Intenta de nuevo.");
         }
     };
