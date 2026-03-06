@@ -1,56 +1,38 @@
 import { db, doc, onSnapshot, collection, addDoc, serverTimestamp, query, where } from "./firebase.js";
 
-let adminContext = null; // Guardará los datos del administrador logueado
-export function iniciarPanelAdminB2B(userAuth) {
-    console.log("👔 Arrancando Panel Administrador B2B...");
-    
-    // Mostramos el panel
-    document.getElementById("panelAdminB2B").classList.remove("hidden");
+// Datos de prueba simulando que ya inició sesión un gerente
+let adminContext = {
+    residencialId: "puerto_cancun_001", 
+    nombre_residencial: "Puerto Cancún Central"
+};
 
-    // 1. Escuchar los datos del Administrador actual
-    const adminRef = doc(db, "users", userAuth.uid);
-    onSnapshot(adminRef, (docSnap) => {
-        if (!docSnap.exists()) return;
-        adminContext = docSnap.data();
-        
-        // Poner el nombre del condominio en el título
-        const lblResidencial = document.getElementById("lblNombreResidencial");
-        if(lblResidencial) lblResidencial.innerText = adminContext.nombre_residencial || "Complejo Sin Nombre";
-        
-        // Arrancar el radar de empleados para la tabla
-        if(adminContext.residencialId) {
-            escucharPlantilla(adminContext.residencialId);
-        } else {
-            console.warn("⚠️ Este administrador no tiene un residencialId asignado.");
-        }
-    });
+console.log("👔 Arrancando Panel Administrador B2B...");
 
-    // 2. Conectar el Formulario de Alta
-    const form = document.getElementById("formAltaPersonal");
-    if(form) {
-        form.addEventListener("submit", registrarEmpleado);
-    }
-}
+// 1. Mostramos el panel y ponemos el nombre
+document.getElementById("panelAdminB2B").classList.remove("hidden");
+document.getElementById("lblNombreResidencial").innerText = adminContext.nombre_residencial;
+
+// 2. Arrancamos el radar de la tabla
+escucharPlantilla(adminContext.residencialId);
+
+// 3. Conectamos el botón de guardar
+document.getElementById("formAltaPersonal").addEventListener("submit", registrarEmpleado);
 
 async function registrarEmpleado(e) {
     e.preventDefault();
-    if (!adminContext || !adminContext.residencialId) {
-        return alert("Error: Tu cuenta de Admin no tiene un ID de condominio configurado.");
-    }
 
     const btn = document.getElementById("btnGuardarPersonal");
     const textoOriginal = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> CREANDO...';
     btn.disabled = true;
 
-    // Construimos el JSON del nuevo empleado con el candado B2B
     const nuevoEmpleado = {
         nombre: document.getElementById("regNombre").value.trim(),
         telefono: document.getElementById("regTelefono").value.trim(),
         email: document.getElementById("regCorreo").value.trim().toLowerCase(),
         rol: document.getElementById("regRol").value,
         especialidad: document.getElementById("regEspecialidad").value,
-        residencialId: adminContext.residencialId, // 👈 Sello de Aislamiento B2B
+        residencialId: adminContext.residencialId, 
         nombre_residencial: adminContext.nombre_residencial,
         estado: "activo",
         disponible: true,
@@ -59,7 +41,7 @@ async function registrarEmpleado(e) {
 
     try {
         await addDoc(collection(db, "users"), nuevoEmpleado);
-        alert(`✅ Empleado Registrado Exitosamente.\n\nPor favor, dile a ${nuevoEmpleado.nombre} que inicie sesión en la app con su correo electrónico.`);
+        alert(`✅ Empleado Registrado Exitosamente.`);
         document.getElementById("formAltaPersonal").reset();
     } catch (error) {
         console.error("Error al registrar:", error);
@@ -71,7 +53,6 @@ async function registrarEmpleado(e) {
 }
 
 function escucharPlantilla(residencialId) {
-    // Buscamos solo a los usuarios que pertenezcan a ESTE condominio
     const q = query(
         collection(db, "users"), 
         where("residencialId", "==", residencialId)
@@ -89,8 +70,6 @@ function escucharPlantilla(residencialId) {
 
         snap.forEach(docSnap => {
             const emp = docSnap.data();
-            
-            // Ocultamos al propio admin de la tabla para que solo vea a su staff
             if(emp.rol === "admin_b2b") return; 
 
             const row = document.createElement("tr");
