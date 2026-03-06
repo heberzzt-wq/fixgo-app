@@ -26,9 +26,10 @@ import {
     query,           
     where,           
     addDoc,          
-    orderBy,         
+    orderBy,          
     serverTimestamp,
-    limit // 🔥 INYECCIÓN: Agregamos limit para el paginado del NOC Admin
+    limit,
+    deleteDoc // 🔥 INYECCIÓN: Agregamos deleteDoc para el panel B2B
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Configuración de credenciales
@@ -169,5 +170,6 @@ export {
     addDoc, 
     orderBy, 
     serverTimestamp,
-    limit // 🔥 INYECCIÓN: Exportamos limit para el app-bi.js
+    limit,
+    deleteDoc // 🔥 INYECCIÓN B2B
 };
