@@ -2,12 +2,12 @@
  * ======================================================================================
  * GESTIAPREMIUM 2026 - MAIN CONTROLLER (ROUTER & GATEKEEPER)
  * Archivo: app-main.js
- * Versión: 5.18.7 (Módulo de Garantías Inteligentes y Resolución de Conflictos)
+ * Versión: 6.0.0 (Gatekeeper Multi-Tenant: B2C, GP, B2B Admin, Técnico Interno)
  * Autor: Heber (CEO & Lead Architect)
  * ======================================================================================
  */
 
-console.log("🚦 [app-main.js] Iniciando Gatekeeper v5.18.7...");
+console.log("🚦 [app-main.js] Iniciando Gatekeeper Multi-Tenant v6.0.0...");
 
 // ⚠️ IMPORTANTE: Dividimos las importaciones. Las de Firebase CDN van separadas de tu firebase.js local.
 import { observarAuth, auth, signOut, db, getDoc, doc, addDoc, collection, updateDoc, serverTimestamp } from "./firebase.js";
@@ -21,7 +21,8 @@ const RUTAS = {
     publicas: ["index.html", "login.html", "registro.html", "/"],
     admin: "admin.html",
     tecnico: "tecnico.html",
-    cliente: "cliente.html"
+    cliente: "cliente.html",
+    residencial: "residencial.html" // 🏢 NUEVA RUTA: Tenant Dashboard B2B
 };
 
 observarAuth(async (userAuth) => {
@@ -48,6 +49,7 @@ observarAuth(async (userAuth) => {
         console.log("👑 Gatekeeper: Privilegios de CEO (Admin) FORZADOS por correo maestro.");
     } else {
         try {
+            // 🛡️ Búsqueda en la colección unificada de usuarios
             const userDocRef = doc(db, "users", userAuth.uid);
             const userSnap = await getDoc(userDocRef);
             if (userSnap.exists()) {
@@ -62,13 +64,20 @@ observarAuth(async (userAuth) => {
         }
     }
 
-    userAuth.rol = userRol;
+    // 🏗️ NORMALIZACIÓN DE ROLES (Para soportar V5 y la nueva V6 B2B)
+    let rolEnrutamiento = userRol;
+    if (userRol === "b2c") rolEnrutamiento = "cliente";
+    if (userRol === "tecnico_gp" || userRol === "tecnico_interno") rolEnrutamiento = "tecnico";
+    
+    // Guardamos el rol real original para que los paneles sepan qué permisos activar
+    userAuth.rol_real = userRol; 
+    userAuth.rol = rolEnrutamiento;
     userAuth.nombre = userData.nombre || userAuth.email;
     userAuth.efectivo_autorizado = userData.efectivo_autorizado || false; 
 
-    console.log(`✅ Usuario: ${userAuth.email} | Rol validado: ${userAuth.rol}`);
+    console.log(`✅ Usuario: ${userAuth.email} | Rol Base: ${userAuth.rol} | Rol Real: ${userAuth.rol_real}`);
 
-    // === NUEVO RUTEO FLEXIBLE PARA VERCEL ===
+    // === NUEVO RUTEO FLEXIBLE DE 4 VÍAS PARA VERCEL ===
     if (userAuth.rol === "admin" && !pathActual.includes("admin")) {
         window.location.replace(RUTAS.admin); return;
     }
@@ -77,6 +86,9 @@ observarAuth(async (userAuth) => {
     }
     if (userAuth.rol === "cliente" && !pathActual.includes("cliente")) {
         window.location.replace(RUTAS.cliente); return;
+    }
+    if (userAuth.rol_real === "b2b_admin" && !pathActual.includes("residencial")) {
+        window.location.replace(RUTAS.residencial); return;
     }
 
     document.body.style.display = 'block';
@@ -87,6 +99,7 @@ observarAuth(async (userAuth) => {
             setTimeout(() => { iniciarMotorBI('dashboardAnalitico'); }, 500);
         }
         else if (userAuth.rol === "tecnico") {
+            // panel-tecnico.js ahora leerá 'userAuth.rol_real' para saber si es Interno o GP
             await iniciarPanelTecnico(userAuth);
         }
         else if (userAuth.rol === "cliente") {
@@ -94,6 +107,19 @@ observarAuth(async (userAuth) => {
             const contenedorEfectivo = document.getElementById('contenedorOpcionEfectivo');
             if (userAuth.efectivo_autorizado && contenedorEfectivo) {
                  contenedorEfectivo.classList.remove('hidden'); 
+            }
+        }
+        else if (userAuth.rol_real === "b2b_admin") {
+            // 🏢 IMPORTACIÓN DINÁMICA: No rompe el código si aún no existe app-panel.js
+            try {
+                const module = await import("./app-panel.js");
+                if (module.iniciarPanelResidencial) {
+                    await module.iniciarPanelResidencial(userAuth);
+                } else {
+                    console.warn("Fase 1 completada: Esperando creación de iniciarPanelResidencial()");
+                }
+            } catch (e) {
+                console.warn("El módulo de panel residencial aún está en construcción.");
             }
         }
         
