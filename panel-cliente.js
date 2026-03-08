@@ -892,7 +892,7 @@ export async function iniciarPanelCliente(user) {
         }
     };
 
-    // 🔥 INYECCIÓN SPLIT BILLING: PDF EMITIDO POR EL TÉCNICO (100% COSTO) 🔥
+    // 🔥 INYECCIÓN SPLIT BILLING (SERVERLESS): LECTURA SEGURA SIN 'getDoc' A 'users' 🔥
     window.generarPDF = async (serviceId) => {
         const btn = document.activeElement;
         const textoOrig = btn.innerText;
@@ -909,23 +909,12 @@ export async function iniciarPanelCliente(user) {
             
             const data = { ...docSnap.data(), id: serviceId };
 
-            let tecnicoNombre = "ESPECIALISTA INDEPENDIENTE";
-            let tecnicoLogo = null;
-            let tecnicoRFC = "XAXX010101000";
-            
-            if (data.tecnico_id) {
-                try {
-                    const techSnap = await getDoc(doc(db, "users", data.tecnico_id));
-                    if (techSnap.exists()) {
-                        const tData = techSnap.data();
-                        tecnicoNombre = (tData.nombre || tecnicoNombre).toUpperCase();
-                        tecnicoLogo = tData.logo_factura || null;
-                        tecnicoRFC = tData.rfc || tecnicoRFC;
-                    }
-                } catch(e) {
-                    console.warn("No se pudo obtener el perfil del técnico para el PDF.");
-                }
-            }
+            // 🔥 NUEVO FLUJO DE DESNORMALIZACIÓN 🔥
+            // Ya no consultamos la colección "users" para evitar bloqueos de seguridad V2.0.
+            // En su lugar, el técnico debió inyectar estos datos en el ticket al momento de aceptarlo/finalizarlo.
+            let tecnicoNombre = data.tecnico_nombre_fiscal ? data.tecnico_nombre_fiscal.toUpperCase() : (data.tecnico_nombre ? data.tecnico_nombre.toUpperCase() : "ESPECIALISTA INDEPENDIENTE");
+            let tecnicoLogo = data.tecnico_logo_factura || null;
+            let tecnicoRFC = data.tecnico_rfc || "XAXX010101000";
 
             const { jsPDF } = await cargarLibreriaPDF();
             const docPdf = new jsPDF();
