@@ -855,9 +855,18 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
+  // 🔥 INYECCIÓN B2B: LECTURA DE PERFIL PARA SPLIT BILLING SIN QUEMAR REGLAS 🔥
   window.iniciarMantenimiento = async (idServicio) => {
         console.log("🛠️ Iniciando cirugía técnica para el servicio:", idServicio);
         try {
+            // Obtenemos los datos fiscales del técnico desde su propio perfil
+            const miPerfilSnap = await getDoc(doc(db, "users", user.uid));
+            const miPerfil = miPerfilSnap.exists() ? miPerfilSnap.data() : {};
+
+            const nombreFiscal = miPerfil.nombre_fiscal || miPerfil.nombre || user.nombre || "Técnico Residencial";
+            const rfcTech = miPerfil.rfc || "XAXX010101000";
+            const logoFactura = miPerfil.logo_factura || null;
+
             // ¡AQUÍ ESTÁ LA MAGIA! Apuntando 100% a la colección "services"
             const servicioRef = doc(db, "services", idServicio);
             
@@ -866,6 +875,9 @@ export async function iniciarPanelTecnico(user) {
                 estado: "trabajando",
                 tecnico_id: user.uid, 
                 tecnico_nombre: user.nombre || "Técnico Residencial",
+                tecnico_nombre_fiscal: nombreFiscal, // 👈 INYECCIÓN PARA PDF CLIENTE
+                tecnico_rfc: rfcTech,                // 👈 INYECCIÓN PARA PDF CLIENTE
+                tecnico_logo_factura: logoFactura,   // 👈 INYECCIÓN PARA PDF CLIENTE
                 metodo_pago: "b2b", // 👈 LA LLAVE MAESTRA para el Split Billing
                 cliente_id: "admin_residencial", // 👈 Relleno de seguridad para el servidor
                 tipo: "mantenimiento",
@@ -882,6 +894,7 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
+    // 🔥 INYECCIÓN B2C: LECTURA DE PERFIL PARA SPLIT BILLING EN TRANSACCIÓN 🔥
     window.tomarServicio = async (id, uid, nombre, metodo_pago) => {
         if (window.saldoActualTecnico <= -1000) {
             alert("⛔ BLOQUEO FINANCIERO OPERATIVO\n\nTu saldo negativo ha superado el límite de -$1,000 MXN.\n\nPor políticas de GestiaPremium, debes liquidar tus comisiones pendientes para volver a aceptar servicios.");
@@ -905,6 +918,14 @@ export async function iniciarPanelTecnico(user) {
         if(!confirm(mensajeConfirmacion)) return;
         
         try {
+            // Obtenemos los datos fiscales del técnico desde su propio perfil
+            const miPerfilSnap = await getDoc(doc(db, "users", uid));
+            const miPerfil = miPerfilSnap.exists() ? miPerfilSnap.data() : {};
+
+            const nombreFiscal = miPerfil.nombre_fiscal || miPerfil.nombre || nombre;
+            const rfcTech = miPerfil.rfc || "XAXX010101000";
+            const logoFactura = miPerfil.logo_factura || null;
+
             const serviceRef = doc(db, "services", id);
             
             await runTransaction(db, async (transaction) => {
@@ -917,7 +938,10 @@ export async function iniciarPanelTecnico(user) {
                     estado: "asignado",
                     tecnico_id: uid,
                     tecnico_nombre: nombre,
-                    tecnico_telefono: user.telefono || "",
+                    tecnico_nombre_fiscal: nombreFiscal, // 👈 INYECCIÓN PARA PDF CLIENTE
+                    tecnico_rfc: rfcTech,                // 👈 INYECCIÓN PARA PDF CLIENTE
+                    tecnico_logo_factura: logoFactura,   // 👈 INYECCIÓN PARA PDF CLIENTE
+                    tecnico_telefono: miPerfil.telefono || user.telefono || "",
                     asignado_at: serverTimestamp() 
                 });
             });
