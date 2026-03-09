@@ -225,7 +225,7 @@
                     <p class="text-[9px] text-gray-500 mt-1 ml-2">Ayuda al técnico a llevar las herramientas correctas.</p>
                 </div>
 
-                <div class="bg-red-900/20 border border-red-500/50 p-4 rounded-xl flex justify-between items-center transition-all hover:shadow-[0_0_15px_rgba(220,38,38,0.2)]">
+               <div class="bg-red-900/20 border border-red-500/50 p-4 rounded-xl flex justify-between items-center transition-all hover:shadow-[0_0_15px_rgba(220,38,38,0.2)]">
                     <div class="pr-2">
                         <h4 class="text-red-500 font-black text-sm uppercase flex items-center gap-2"><i class="fas fa-siren-on animate-pulse"></i> PRIORIDAD EMERGENCIA</h4>
                         <p class="text-xs text-gray-400 mt-1">Despliegue prioritario inmediato. <span class="font-bold text-red-400">Aplica tarifa de contingencia</span> por atención express 24/7.</p>
@@ -234,6 +234,19 @@
                         <div class="w-11 h-6 bg-black border border-red-900 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600 peer-checked:after:bg-white shadow-inner"></div>
                     </label>
                 </div>
+
+                <label class="flex items-center gap-3 p-4 bg-zinc-900 border border-zinc-700 rounded-xl cursor-pointer hover:border-blue-500 transition-colors mb-4 shadow-md mt-4">
+                    <input type="checkbox" id="togglePrivada" class="w-6 h-6 accent-blue-500 rounded cursor-pointer">
+                    <div class="flex-1">
+                        <p class="text-sm font-black text-white uppercase tracking-tight"><i class="fas fa-torii-gate text-blue-400 mr-1"></i> Vivo en Privada / Caseta</p>
+                        <p class="text-[10px] text-gray-400 mt-1 leading-tight">Al asignar a tu Socio Pro, generaremos un Pase QR con las placas de su vehículo para agilizar su acceso en seguridad.</p>
+                    </div>
+                </label>
+                ```
+
+Listo, con esto hemos superado el **Paso 1**. El checkbox "Vivo en Privada" ya debe aparecer en tu interfaz de cliente justo arriba de la sección de "Método de Pago".
+
+Dime "listo" cuando lo tengas y pasamos al **Paso 2** (que es en `panel-cliente.js` donde configuraremos la lógica para leer ese botón y pintar el QR).
 
                 <div class="mt-6 border-t border-zinc-800 pt-4">
                     <h3 class="text-xs font-bold text-gray-300 mb-3 uppercase flex items-center gap-2">
