@@ -1,6 +1,7 @@
 /**
  * ======================================================
- * FIXGO CORE - FIREBASE CONFIGURATION v5.3 (BLINDADO)
+ * GESTIAPREMIUM 2026 - FIREBASE CONFIGURATION v5.4
+ * Arquitectura: COLECCIÓN UNIFICADA (Sin Fallbacks Legacy)
  * ======================================================
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -26,10 +27,10 @@ import {
     query,           
     where,           
     addDoc,          
-    orderBy,          
+    orderBy,         
     serverTimestamp,
     limit,
-    deleteDoc // 🔥 INYECCIÓN: Agregamos deleteDoc para el panel B2B
+    deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Configuración de credenciales
@@ -48,23 +49,20 @@ const firebaseApp = initializeApp(firebaseConfig);
 // ======================================================
 // BLINDAJE 1000% - App Check con reCAPTCHA v3
 // ======================================================
-// 🦈 MODO DEBUG: Descomenta la siguiente línea si necesitas probar en localhost sin ser bloqueado
-// self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+// self.FIREBASE_APPCHECK_DEBUG_TOKEN = true; // Descomentar para localhost
 
 const appCheck = initializeAppCheck(firebaseApp, {
     provider: new ReCaptchaV3Provider('6LcEZG4sAAAAAKQQ60dgYGVzXO-Q-ZPPMB9gKNkh'),
-    isTokenAutoRefreshEnabled: true // Refresco automático para no interrumpir la sesión
+    isTokenAutoRefreshEnabled: true
 });
 
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
-
-// 👇 ESTA ES LA LÍNEA QUE FALTABA (Inicializar Storage) 👇
 const storage = getStorage(firebaseApp);
 
 /**
- * OBSERVADOR DE SESIÓN INTELIGENTE
- * Verifica el estado del usuario y busca su rol en la base de datos.
+ * OBSERVADOR DE SESIÓN INTELIGENTE (OPTIMIZADO V2.0)
+ * Consulta ÚNICAMENTE la colección maestra unificada para reducir costos de lectura.
  */
 function observarAuth(callback) {
     return onAuthStateChanged(auth, async (user) => {
@@ -74,44 +72,26 @@ function observarAuth(callback) {
         }
 
         try {
-            // 1. Buscamos primero en la colección MAESTRA 'users' (Inglés)
-            // Esta es la colección unificada donde deben estar Admins, Clientes y Técnicos.
-            let snap = await getDoc(doc(db, "users", user.uid));
+            // 🔥 Búsqueda directa y exclusiva en la colección unificada 'users'
+            const snap = await getDoc(doc(db, "users", user.uid));
             
-            // 2. Fallback: Si no está en 'users', buscamos en 'tecnicos'
-            if (!snap.exists()) {
-                snap = await getDoc(doc(db, "tecnicos", user.uid));
-            }
-
-            // 3. Fallback: Si no está, buscamos en 'clientes'
-            if (!snap.exists()) {
-                snap = await getDoc(doc(db, "clientes", user.uid));
-            }
-
-            // 4. Fallback: Si no está, buscamos en 'admins' (legacy)
-            if (!snap.exists()) {
-                snap = await getDoc(doc(db, "admins", user.uid));
-            }
-
             if (snap.exists()) {
                 const data = snap.data();
-                // Combinamos la info de Auth con la info encontrada en la Base de Datos
                 const finalUser = { ...user, ...data };
                 callback(finalUser);
             } else {
-                console.warn("Usuario autenticado pero sin perfil en DB (users/tecnicos/clientes).");
+                console.warn("⚠️ Usuario autenticado pero sin perfil en la DB maestra 'users'.");
                 callback(user); 
             }
-
         } catch (e) {
-            console.error("Error recuperando perfil:", e);
+            console.error("❌ Error recuperando perfil unificado:", e);
             callback(user);
         }
     });
 }
 
 /**
- * REGISTRO BLINDADO
+ * REGISTRO BLINDADO (SINGLE SOURCE OF TRUTH)
  * Crea el usuario en Auth y guarda sus datos en la colección 'users'.
  */
 async function registrarUsuario(email, password, rol, nombre) {
@@ -129,17 +109,11 @@ async function registrarUsuario(email, password, rol, nombre) {
             creadoEn: serverTimestamp()
         };
 
-        // 3. Guardar en la colección MAESTRA 'users' (Inglés)
+        // 3. Guardado ÚNICO en la colección MAESTRA 'users'
+        // Se eliminaron las escrituras redundantes a colecciones legacy para ahorrar costos y evitar fragmentación
         await setDoc(doc(db, "users", uid), perfil);
 
-        // 4. Guardar copia en colección específica (Respaldo por seguridad)
-        if (rol === 'tecnico') {
-            await setDoc(doc(db, "tecnicos", uid), { ...perfil, disponible: false });
-        } else {
-            await setDoc(doc(db, "clientes", uid), { ...perfil, pedidos: 0 });
-        }
-
-        // 5. Actualizar nombre visual en Auth
+        // 4. Actualizar nombre visual en Auth
         await updateProfile(cred.user, { displayName: nombre });
         
         return cred.user;
@@ -152,13 +126,13 @@ async function registrarUsuario(email, password, rol, nombre) {
 export {
     auth, 
     db,
-    storage, // 👇 ESTA ES LA PALABRA QUE FALTABA EXPORTAR 👇
+    storage, 
     appCheck,
     observarAuth,
     registrarUsuario,
     signOut,
     signInWithEmailAndPassword,
-    onAuthStateChanged, // 🔥 BLINDAJE: AQUÍ ESTÁ LA SOLUCIÓN. Exportamos la función para que el visor la encuentre 🔥
+    onAuthStateChanged, 
     doc, 
     setDoc, 
     updateDoc, 
@@ -171,5 +145,5 @@ export {
     orderBy, 
     serverTimestamp,
     limit,
-    deleteDoc // 🔥 INYECCIÓN B2B
+    deleteDoc 
 };
