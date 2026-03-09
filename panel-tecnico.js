@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - MÓDULO DE TÉCNICO (SOCIO OPERADOR)
  * ======================================================================================
  * Archivo: panel-tecnico.js
- * Versión: 5.18.9 (Inyección de Radar de Garantías y Reporte de Falla Real-Time)
+ * Versión: 5.18.10 (Inyección de Datos de Vehículo para Pase QR Caseta)
  * Descripción: Motor de radar, GPS, colisiones, cotizador y evidencia Cloud.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
  * ======================================================================================
@@ -32,7 +32,7 @@ import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 import { escaparHTML, calcularDistancia, sonarAlerta, lanzarNotificacionPush, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
 
 export async function iniciarPanelTecnico(user) {
-    console.log(" 🔧 Iniciando Panel de Técnico (Modo Tarifas Inteligentes y Geocercas)...");
+    console.log(" 🔧 Iniciando Panel de Técnico (Modo Tarifas Inteligentes y Pase QR)...");
     
     activarMotorFCM(user.uid);
 
@@ -112,8 +112,8 @@ export async function iniciarPanelTecnico(user) {
                 });
 
                 // 3. Eliminar visualmente el Tracker de comisiones
-                const tracker = document.getElementById("gamificationTracker");
-                if (tracker) tracker.style.display = 'none';
+                const trackerElem = document.getElementById("gamificationTracker"); // Renombrado para no opacar
+                if (trackerElem) trackerElem.style.display = 'none';
 
                 // 🛑 QUITAMOS EL RETURN para que el código siga a las siguientes líneas
             }
@@ -855,22 +855,26 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
-  // 🔥 INYECCIÓN B2B: LECTURA DE PERFIL PARA SPLIT BILLING SIN QUEMAR REGLAS 🔥
+  // 🔥 INYECCIÓN B2B: LECTURA DE PERFIL PARA SPLIT BILLING SIN QUEMAR REGLAS Y PASE QR 🔥
   window.iniciarMantenimiento = async (idServicio) => {
         console.log("🛠️ Iniciando cirugía técnica para el servicio:", idServicio);
         try {
-            // Obtenemos los datos fiscales del técnico desde su propio perfil
+            // Obtenemos los datos fiscales y logísticos del técnico desde su propio perfil
             const miPerfilSnap = await getDoc(doc(db, "users", user.uid));
             const miPerfil = miPerfilSnap.exists() ? miPerfilSnap.data() : {};
 
             const nombreFiscal = miPerfil.nombre_fiscal || miPerfil.nombre || user.nombre || "Técnico Residencial";
             const rfcTech = miPerfil.rfc || "XAXX010101000";
             const logoFactura = miPerfil.logo_factura || null;
+            
+            // 🔥 NUEVO: DATOS VEHICULARES PARA EL PASE QR
+            const vehiculoTech = miPerfil.logistica?.vehiculo || miPerfil.vehiculo_tipo || "NO ESPECIFICADO";
+            const placasTech = miPerfil.logistica?.placas || miPerfil.placas || "SIN PLACAS";
 
             // ¡AQUÍ ESTÁ LA MAGIA! Apuntando 100% a la colección "services"
             const servicioRef = doc(db, "services", idServicio);
             
-            // 🛡️ BLINDAJE B2B: Inyectamos los datos comerciales para que el servidor no lo rechace
+            // 🛡️ BLINDAJE B2B: Inyectamos los datos comerciales y de vehículo para que el servidor no lo rechace
             await updateDoc(servicioRef, {
                 estado: "trabajando",
                 tecnico_id: user.uid, 
@@ -878,6 +882,8 @@ export async function iniciarPanelTecnico(user) {
                 tecnico_nombre_fiscal: nombreFiscal, // 👈 INYECCIÓN PARA PDF CLIENTE
                 tecnico_rfc: rfcTech,                // 👈 INYECCIÓN PARA PDF CLIENTE
                 tecnico_logo_factura: logoFactura,   // 👈 INYECCIÓN PARA PDF CLIENTE
+                tecnico_vehiculo: vehiculoTech,      // 🔥 INYECCIÓN PARA PASE QR
+                tecnico_placas: placasTech,          // 🔥 INYECCIÓN PARA PASE QR
                 metodo_pago: "b2b", // 👈 LA LLAVE MAESTRA para el Split Billing
                 cliente_id: "admin_residencial", // 👈 Relleno de seguridad para el servidor
                 tipo: "mantenimiento",
@@ -894,7 +900,7 @@ export async function iniciarPanelTecnico(user) {
         }
     };
 
-    // 🔥 INYECCIÓN B2C: LECTURA DE PERFIL PARA SPLIT BILLING EN TRANSACCIÓN 🔥
+    // 🔥 INYECCIÓN B2C: LECTURA DE PERFIL PARA SPLIT BILLING EN TRANSACCIÓN Y PASE QR 🔥
     window.tomarServicio = async (id, uid, nombre, metodo_pago) => {
         if (window.saldoActualTecnico <= -1000) {
             alert("⛔ BLOQUEO FINANCIERO OPERATIVO\n\nTu saldo negativo ha superado el límite de -$1,000 MXN.\n\nPor políticas de GestiaPremium, debes liquidar tus comisiones pendientes para volver a aceptar servicios.");
@@ -918,13 +924,17 @@ export async function iniciarPanelTecnico(user) {
         if(!confirm(mensajeConfirmacion)) return;
         
         try {
-            // Obtenemos los datos fiscales del técnico desde su propio perfil
+            // Obtenemos los datos fiscales y logísticos del técnico desde su propio perfil
             const miPerfilSnap = await getDoc(doc(db, "users", uid));
             const miPerfil = miPerfilSnap.exists() ? miPerfilSnap.data() : {};
 
             const nombreFiscal = miPerfil.nombre_fiscal || miPerfil.nombre || nombre;
             const rfcTech = miPerfil.rfc || "XAXX010101000";
             const logoFactura = miPerfil.logo_factura || null;
+
+            // 🔥 NUEVO: DATOS VEHICULARES PARA EL PASE QR
+            const vehiculoTech = miPerfil.logistica?.vehiculo || miPerfil.vehiculo_tipo || "NO ESPECIFICADO";
+            const placasTech = miPerfil.logistica?.placas || miPerfil.placas || "SIN PLACAS";
 
             const serviceRef = doc(db, "services", id);
             
@@ -941,6 +951,8 @@ export async function iniciarPanelTecnico(user) {
                     tecnico_nombre_fiscal: nombreFiscal, // 👈 INYECCIÓN PARA PDF CLIENTE
                     tecnico_rfc: rfcTech,                // 👈 INYECCIÓN PARA PDF CLIENTE
                     tecnico_logo_factura: logoFactura,   // 👈 INYECCIÓN PARA PDF CLIENTE
+                    tecnico_vehiculo: vehiculoTech,      // 🔥 INYECCIÓN PARA PASE QR
+                    tecnico_placas: placasTech,          // 🔥 INYECCIÓN PARA PASE QR
                     tecnico_telefono: miPerfil.telefono || user.telefono || "",
                     asignado_at: serverTimestamp() 
                 });
@@ -1185,6 +1197,8 @@ export async function iniciarPanelTecnico(user) {
                       tecnico_id: null,
                       tecnico_nombre: null,
                       tecnico_telefono: null,
+                      tecnico_vehiculo: null, // 🔥 LIMPIAMOS DATOS LOGÍSTICOS
+                      tecnico_placas: null,   // 🔥 LIMPIAMOS DATOS LOGÍSTICOS
                       asignado_at: null,
                       rejected_by: arrayUnion(user.uid) 
                  });
