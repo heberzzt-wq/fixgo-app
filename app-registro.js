@@ -2,12 +2,12 @@
  * ======================================================
  * GESTIAPREMIUM 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 6.6 (STORAGE UPLOAD + FIRESTORE RULES COMPLIANT)
+ * Versión: 6.7 (STRIPE EXCISED + CANVAS COMPRESSION + RULES COMPLIANT)
  * Autor: Heber (CEO & Lead Architect)
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR.
  * ======================================================
  */
-console.log(" 🚀 [app-registro.js] Inicializando sistema V6.6 (Storage Direct + Rules Compliant)...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema V6.7 (Clean Auth + Canvas Optimization)...");
 
 import { 
     auth, 
@@ -30,6 +30,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+
+const $ = (id) => document.getElementById(id);
 
 /**
  * 🦈 SANITIZADOR MAESTRO (PREVENCIÓN XSS)
@@ -69,7 +71,6 @@ const verificarRateLimit = () => {
 // ======================================================
 const comprimirImagen = (file) => {
     return new Promise((resolve, reject) => {
-        // Si no es imagen (ej. un PDF), lo dejamos pasar tal cual
         if (!file || !file.type.match(/image.*/)) { 
             resolve(file); 
             return; 
@@ -84,7 +85,6 @@ const comprimirImagen = (file) => {
                 const canvas = document.createElement('canvas');
                 let { width, height } = img;
                 
-                // Redimensionar a max 1024px
                 if (width > height) { 
                     if (width > 1024) { height *= 1024 / width; width = 1024; } 
                 } else { 
@@ -96,7 +96,6 @@ const comprimirImagen = (file) => {
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                // Convertir a JPEG calidad 70%
                 canvas.toBlob((blob) => {
                     resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));
                 }, 'image/jpeg', 0.7);
@@ -109,58 +108,11 @@ const comprimirImagen = (file) => {
 
 const subirAStorage = async (file, path) => {
     if (!file) return null;
-    const archivoOptimizado = await comprimirImagen(file); // Pasa por el filtro de compresión
+    const archivoOptimizado = await comprimirImagen(file); 
     const storageRef = ref(storage, path);
     await uploadBytes(storageRef, archivoOptimizado);
     return await getDownloadURL(storageRef);
 };
-
-// ======================================================
-// 0. CONFIGURACIÓN DE STRIPE (TOKENIZACIÓN)
-// ======================================================
-const STRIPE_PUBLIC_KEY = 'pk_test_51SuznMFB3c4okYlKz7FZYdaftLAmuBWkO1cGlHDrzxbON37J8STqFtDsG6apf7zup4YJTmFbyVtmzdqIV0icjxeX00YVsW2OHU';
-let stripe = null;
-let elements = null;
-let cardElement = null;
-
-async function iniciarStripe() {
-    if (window.Stripe) {
-        stripe = window.Stripe(STRIPE_PUBLIC_KEY);
-        elements = stripe.elements();
-        
-        const style = {
-            base: {
-                color: "#ffffff",
-                fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
-                fontSmoothing: "antialiased",
-                fontSize: "16px",
-                "::placeholder": {
-                    color: "#aab7c4"
-                }
-            },
-            invalid: {
-                color: "#fa755a",
-                iconColor: "#fa755a"
-            }
-        };
-
-        if (document.getElementById("card-element")) {
-            cardElement = elements.create("card", { style: style, hidePostalCode: true });
-            cardElement.mount("#card-element");
-            console.log(" 💳 Widget de Stripe montado correctamente.");
-        }
-    } else {
-        console.warn(" ⚠️ Librería Stripe.js no detectada en el HTML.");
-    }
-}
-
-if(document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', iniciarStripe);
-} else {
-    iniciarStripe();
-}
-
-const $ = (id) => document.getElementById(id);
 
 // ======================================================
 // ⚖️ GESTIÓN DE TÉRMINOS Y CONDICIONES SEPARADOS
@@ -226,46 +178,28 @@ if (btnRegistroCliente) {
             alert("⚖️ Obligatorio: Debes marcar la casilla aceptando los Términos y Condiciones de Uso para Clientes."); return;
         }
 
-        if (!stripe || !cardElement) {
-            alert("⚠️ Error: El sistema de pagos no está cargado. Recarga la página."); return;
-        }
-
         let usuarioAuth = null;
         const textoOriginal = btnRegistroCliente.innerHTML;
 
         try {
             window.isRegisteringLocal = true; 
 
-            btnRegistroCliente.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con el Banco...';
+            btnRegistroCliente.innerHTML = '<i class="fas fa-shield-alt"></i> Creando Perfil Seguro...';
             btnRegistroCliente.disabled = true;
 
-            const { token, error } = await stripe.createToken(cardElement);
-
-            if (error) {
-                throw new Error(error.message); 
-            }
-
-            btnRegistroCliente.innerHTML = '<i class="fas fa-shield-alt"></i> Creando Bóveda...';
-
-            // Aquí firebase.js ya inyectó uid, email y rol en la colección 'users'
+            // firebase.js maneja la creación base (uid, email, rol)
             usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
 
-            // 🔥 CORRECCIÓN CRÍTICA: Eliminamos uid, email y rol del merge para no chocar con las reglas de Firestore V2.0
+            // Inyectamos el resto de datos sin disparar las reglas de seguridad
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 nombre: nombre,
                 telefono: telefono,
                 estado: "activo",
                 status: "activo",
-                metodo_pago_default: {
-                    stripe_token: token.id, 
-                    marca: token.card.brand,
-                    last4: token.card.last4,
-                    exp_month: token.card.exp_month,
-                    exp_year: token.card.exp_year
-                }
+                metodo_pago_default: "efectivo" // PAGO EN EFECTIVO POR DEFECTO PARA EL FLUJO ACTUAL
             }, { merge: true });
 
-            alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nBienvenido a GestiaPremium. Ahora puedes solicitar tu servicio de inmediato.`);
+            alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nBienvenido a GestiaPremium. Ahora puedes solicitar tu servicio.`);
             
             window.location.href = "cliente.html";
 
@@ -273,6 +207,7 @@ if (btnRegistroCliente) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
                 await deleteUser(auth.currentUser).catch(e => console.error("Error borrando huérfano:", e));
+                await db.collection('users').doc(usuarioAuth.uid).delete().catch(e => console.log("Limpieza de DB fallida:", e)); 
             }
             manejarErroresAuth(error);
             btnRegistroCliente.innerHTML = textoOriginal;
@@ -422,10 +357,9 @@ if (btnRegistroTecnico) {
             btnRegistroTecnico.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encriptando Datos...';
             btnRegistroTecnico.disabled = true;
 
-            // Aquí firebase.js inyecta el doc maestro con uid, email y rol = tecnico
             usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
-            btnRegistroTecnico.innerHTML = '<i class="fas fa-cloud-upload-alt animate-bounce"></i> Subiendo Archivos Pesados... (No cierres)';
+            btnRegistroTecnico.innerHTML = '<i class="fas fa-cloud-upload-alt animate-bounce"></i> Subiendo Archivos a la Nube...';
             
             const uid = usuarioAuth.uid;
             const [urlFoto, urlINE, urlCSF, urlLicencia] = await Promise.all([
@@ -442,7 +376,6 @@ if (btnRegistroTecnico) {
 
             btnRegistroTecnico.innerHTML = '<i class="fas fa-database animate-pulse"></i> Inyectando a Base de Datos...';
 
-            // 🔥 CORRECCIÓN CRÍTICA: Se eliminan 'uid', 'email', 'rol' y 'creadoEn' del objeto para evitar rechazo de Firebase Rules
             await setDoc(doc(db, "users", uid), {
                 nombre: nombre,
                 telefono: telefono,
@@ -479,6 +412,7 @@ if (btnRegistroTecnico) {
             console.error("❌ Error Crítico en Registro Técnico:", error);
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
                 await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza Auth:", e));
+                await db.collection('users').doc(usuarioAuth.uid).delete().catch(e => console.log("Limpieza DB:", e));
             }
             manejarErroresAuth(error);
             btnRegistroTecnico.innerHTML = textoOriginal;
@@ -540,7 +474,6 @@ if (btnGoogle) {
 
             const docSnap = await getDoc(doc(db, "users", user.uid));
             
-            // Si el doc no existe, es una CREACIÓN. Las reglas de Firestore SÍ permiten crear con uid, email y rol.
             if (!docSnap.exists()) {
                 window.isRegisteringLocal = true; 
                 const esTecnico = confirm("¿Eres TÉCNICO? [ACEPTAR] = SÍ / [CANCELAR] = CLIENTE");
@@ -572,6 +505,7 @@ if (btnGoogle) {
                 } else {
                     perfilBase.estado = "activo";
                     perfilBase.status = "activo";
+                    perfilBase.metodo_pago_default = "efectivo"; // Flujo Efectivo
                 }
 
                 await setDoc(doc(db, "users", user.uid), perfilBase);
@@ -579,12 +513,11 @@ if (btnGoogle) {
                 if(esTecnico) {
                     alert("⚠️ Aviso: Tu perfil base fue creado con Google. Por seguridad y cumplimiento (KYC), deberás contactar al Administrador para subir tu INE, CSF, Licencia y Placas antes de ser aprobado.");
                 } else {
-                    alert("⚠️ Aviso: Deberás agregar una tarjeta en tu panel para solicitar servicios (Garantía de Servicio).");
+                    alert("⚠️ Aviso: Tu perfil fue creado exitosamente. Ya puedes solicitar servicios.");
                 }
 
                 window.location.href = esTecnico ? "tecnico.html" : "cliente.html";
             } else {
-                // Si el usuario ya existe, dejamos que observarAuth haga la redirección
                 window.location.href = docSnap.data().rol === "tecnico" ? "tecnico.html" : "cliente.html";
             }
         } catch (error) {
