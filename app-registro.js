@@ -1,13 +1,13 @@
 /**
  * ======================================================
- * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
+ * GESTIAPREMIUM 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 6.5 (STORAGE UPLOAD + ANTI-RACE CONDITION)
+ * Versión: 6.6 (STORAGE UPLOAD + FIRESTORE RULES COMPLIANT)
  * Autor: Heber (CEO & Lead Architect)
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR.
  * ======================================================
  */
-console.log(" 🚀 [app-registro.js] Inicializando sistema V6.5 (Storage Direct Upload + Anti-Redirect)...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema V6.6 (Storage Direct + Rules Compliant)...");
 
 import { 
     auth, 
@@ -29,7 +29,6 @@ import {
     deleteUser
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-// 🔥 INYECCIÓN: Importamos la librería para subir archivos pesados directo a la nube
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
 /**
@@ -135,7 +134,6 @@ const cerrarModalLegal = (idModal) => {
     if (modal) modal.classList.add("hidden");
 };
 
-// Controladores para Modal de CLIENTES
 if ($("linkTerminosCliente")) {
     $("linkTerminosCliente").addEventListener("click", (e) => {
         e.preventDefault();
@@ -146,7 +144,6 @@ if ($("btnCerrarTerminosCliente")) {
     $("btnCerrarTerminosCliente").addEventListener("click", () => cerrarModalLegal("modalTerminosCliente"));
 }
 
-// Controladores para Modal de TÉCNICOS
 if ($("linkTerminosTecnico")) {
     $("linkTerminosTecnico").addEventListener("click", (e) => {
         e.preventDefault();
@@ -196,7 +193,6 @@ if (btnRegistroCliente) {
         const textoOriginal = btnRegistroCliente.innerHTML;
 
         try {
-            // 🔥 BANDERA DE SEGURIDAD: Impide que el sistema redirija antes de terminar
             window.isRegisteringLocal = true; 
 
             btnRegistroCliente.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con el Banco...';
@@ -210,15 +206,13 @@ if (btnRegistroCliente) {
 
             btnRegistroCliente.innerHTML = '<i class="fas fa-shield-alt"></i> Creando Bóveda...';
 
+            // Aquí firebase.js ya inyectó uid, email y rol en la colección 'users'
             usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
 
+            // 🔥 CORRECCIÓN CRÍTICA: Eliminamos uid, email y rol del merge para no chocar con las reglas de Firestore V2.0
             await setDoc(doc(db, "users", usuarioAuth.uid), {
-                uid: usuarioAuth.uid,
                 nombre: nombre,
-                email: email,
                 telefono: telefono,
-                rol: "cliente",
-                creadoEn: serverTimestamp(),
                 estado: "activo",
                 status: "activo",
                 metodo_pago_default: {
@@ -232,7 +226,6 @@ if (btnRegistroCliente) {
 
             alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nBienvenido a GestiaPremium. Ahora puedes solicitar tu servicio de inmediato.`);
             
-            // Redirección Manual Segura
             window.location.href = "cliente.html";
 
         } catch (error) {
@@ -383,17 +376,16 @@ if (btnRegistroTecnico) {
         const textoOriginal = btnRegistroTecnico.innerHTML;
 
         try {
-            // 🔥 BANDERA DE SEGURIDAD: Frena el redireccionamiento para darnos tiempo de subir los documentos a la Nube.
             window.isRegisteringLocal = true; 
 
             btnRegistroTecnico.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encriptando Datos...';
             btnRegistroTecnico.disabled = true;
 
+            // Aquí firebase.js inyecta el doc maestro con uid, email y rol = tecnico
             usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
-            btnRegistroTecnico.innerHTML = '<i class="fas fa-cloud-upload-alt animate-bounce"></i> Subiendo Archivos Pesados a Google Cloud... (No cierres)';
+            btnRegistroTecnico.innerHTML = '<i class="fas fa-cloud-upload-alt animate-bounce"></i> Subiendo Archivos Pesados... (No cierres)';
             
-            // Subida real a Google Storage (URLs ligeras en lugar de Base64 pesados)
             const uid = usuarioAuth.uid;
             const [urlFoto, urlINE, urlCSF, urlLicencia] = await Promise.all([
                 subirAStorage(archivoFotoPerfil, `expedientes/${uid}/perfil_${Date.now()}`),
@@ -409,12 +401,10 @@ if (btnRegistroTecnico) {
 
             btnRegistroTecnico.innerHTML = '<i class="fas fa-database animate-pulse"></i> Inyectando a Base de Datos...';
 
+            // 🔥 CORRECCIÓN CRÍTICA: Se eliminan 'uid', 'email', 'rol' y 'creadoEn' del objeto para evitar rechazo de Firebase Rules
             await setDoc(doc(db, "users", uid), {
-                uid: uid,
                 nombre: nombre,
-                email: email,
                 telefono: telefono,
-                rol: "tecnico",
                 skills: skills,
                 foto_perfil: urlFoto, 
                 fotoPerfil: urlFoto,  
@@ -437,24 +427,22 @@ if (btnRegistroTecnico) {
                 },
                 nivel: "BRONCE",
                 reputacion: 5.0,
-                servicios_completados: 0,
-                creadoEn: serverTimestamp()
+                servicios_completados: 0
             }, { merge: true });
 
             alert(`✅ ¡Expediente Recibido!\n\nBienvenido, ${nombre}. Tu cuenta está en revisión. El Administrador validará tus documentos pronto.`);
             
-            // Redirección Manual Segura una vez que terminó 100% de inyectar datos
             window.location.href = "tecnico.html";
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Técnico:", error);
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
-                await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza:", e));
+                await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza Auth:", e));
             }
             manejarErroresAuth(error);
             btnRegistroTecnico.innerHTML = textoOriginal;
             btnRegistroTecnico.disabled = false;
-            window.isRegisteringLocal = false; // Liberamos la bandera en caso de error
+            window.isRegisteringLocal = false; 
         }
     });
 }
@@ -482,7 +470,6 @@ if (btnLogin) {
             btnLogin.innerHTML = '<i class="fas fa-fingerprint animate-pulse"></i> Autenticando...';
             btnLogin.disabled = true;
             
-            // 1. Iniciamos sesión. Firebase validará usuario y contraseña correctos.
             await signInWithEmailAndPassword(auth, email, password);
 
         } catch (error) {
@@ -512,8 +499,9 @@ if (btnGoogle) {
 
             const docSnap = await getDoc(doc(db, "users", user.uid));
             
+            // Si el doc no existe, es una CREACIÓN. Las reglas de Firestore SÍ permiten crear con uid, email y rol.
             if (!docSnap.exists()) {
-                window.isRegisteringLocal = true; // Bloquea redirección prematura
+                window.isRegisteringLocal = true; 
                 const esTecnico = confirm("¿Eres TÉCNICO? [ACEPTAR] = SÍ / [CANCELAR] = CLIENTE");
                 const rolSeleccionado = esTecnico ? "tecnico" : "cliente";
                 
@@ -554,6 +542,9 @@ if (btnGoogle) {
                 }
 
                 window.location.href = esTecnico ? "tecnico.html" : "cliente.html";
+            } else {
+                // Si el usuario ya existe, dejamos que observarAuth haga la redirección
+                window.location.href = docSnap.data().rol === "tecnico" ? "tecnico.html" : "cliente.html";
             }
         } catch (error) {
             alert("Error con Google. Intenta nuevamente.");
@@ -568,12 +559,11 @@ if (btnGoogle) {
 // E. OBSERVADOR Y MANEJO DE ERRORES
 // ======================================================
 observarAuth((user) => {
-    // 🔥 ESCUDO: Solo redirecciona automáticamente SI NO ESTAMOS en pleno proceso de registro
     if (user && !window.isRegisteringLocal) {
         const path = window.location.pathname;
         if (path.includes("login.html") || path.includes("registro")) {
             setTimeout(() => {
-                if (user.rol === "tecnico") window.location.href = "tecnico.html";
+                if (user.rol === "tecnico" || user.rol === "tecnico_gp") window.location.href = "tecnico.html";
                 else if (user.rol === "admin") window.location.href = "admin.html";
                 else window.location.href = "cliente.html";
             }, 600);
