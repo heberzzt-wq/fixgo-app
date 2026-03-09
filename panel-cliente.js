@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - MÓDULO DE CLIENTE (CEREBRO COMERCIAL)
  * ======================================================================================
  * Archivo: panel-cliente.js
- * Descripción: Catálogo dinámico, cotizador interactivo, anti-spam y PDFs de usuario.
+ * Descripción: Catálogo dinámico, cotizador interactivo, anti-spam, QR Caseta y PDFs.
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
  * INYECCIÓN: Blindaje estricto de Gateways de Pago (Stripe/Efectivo) + GPS Fallback.
  * ======================================================================================
@@ -35,10 +35,10 @@ import { escaparHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotifica
 import { iniciarSelectorB2B, obtenerMetadatosB2B } from "./modulo-b2b.js";
 
 // ======================================================================================
-// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.4
+// 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.5 (Con QR Caseta y Alertas)
 // ======================================================================================
 export async function iniciarPanelCliente(user) {
-    console.log(" 📱 Iniciando Panel de Cliente (Gateways Blindados / GPS Anti-Freeze)...");
+    console.log(" 📱 Iniciando Panel de Cliente (Gateways Blindados / GPS / Pase QR)...");
 
     // Desbloqueo de Audio en la primera interacción del usuario
     document.body.addEventListener('click', function unlockAudio() {
@@ -64,6 +64,7 @@ export async function iniciarPanelCliente(user) {
         stripeCard: document.getElementById("contenedorOpcionStripe"), 
         efectivoCard: document.getElementById("contenedorOpcionEfectivo"),
         toggleFactura: document.getElementById("toggleFactura"),
+        togglePrivada: document.getElementById("togglePrivada"), // 🔥 NUEVO: CAPTURA DEL TOGGLE PRIVADA
         facRfc: document.getElementById("fac_rfc"),
         facRazon: document.getElementById("fac_razon"),
         facCp: document.getElementById("fac_cp"),
@@ -311,6 +312,7 @@ export async function iniciarPanelCliente(user) {
             const desc = el.form.querySelector('[name="descripcion"]').value;
             
             const isUrgencia = el.toggleUrgencia ? el.toggleUrgencia.checked : false;
+            const isPrivada = el.togglePrivada ? el.togglePrivada.checked : false; // 🔥 NUEVO: LEER PRIVADA
             const fotoFile = el.inputFoto ? el.inputFoto.files[0] : null;
 
             if (!cat) { 
@@ -345,12 +347,12 @@ export async function iniciarPanelCliente(user) {
        const obtenerGPSConTimeout = () => {
     return new Promise((resolve) => {
         let resuelto = false;
-        console.log("🛰️ [CLIENTE] Iniciando sensor GPS..."); // <--- AGREGAR ESTO
+        console.log("🛰️ [CLIENTE] Iniciando sensor GPS..."); 
 
         const fallback = setTimeout(() => {
             if(!resuelto) { 
                 resuelto = true; 
-                console.warn("⚠️ [CLIENTE] El sensor no respondió en 6 segundos."); // <--- AGREGAR ESTO
+                console.warn("⚠️ [CLIENTE] El sensor no respondió en 6 segundos."); 
                 resolve(null); 
             }
         }, 6000); 
@@ -361,7 +363,7 @@ export async function iniciarPanelCliente(user) {
                     if(!resuelto) { 
                         resuelto = true; 
                         clearTimeout(fallback); 
-                        console.log(`✅ [CLIENTE] Ubicación capturada: ${pos.coords.latitude}, ${pos.coords.longitude}`); // <--- AGREGAR ESTO
+                        console.log(`✅ [CLIENTE] Ubicación capturada: ${pos.coords.latitude}, ${pos.coords.longitude}`); 
                         resolve({lat: pos.coords.latitude, lng: pos.coords.longitude}); 
                     } 
                 },
@@ -369,17 +371,17 @@ export async function iniciarPanelCliente(user) {
                     if(!resuelto) { 
                         resuelto = true; 
                         clearTimeout(fallback); 
-                        console.error("❌ [CLIENTE] Error de sensor:", err.message); // <--- AGREGAR ESTO
+                        console.error("❌ [CLIENTE] Error de sensor:", err.message); 
                         resolve(null); 
                     } 
                 },
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 } // <-- maximumAge: 0 obliga a pedir una nueva, no una vieja
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 } 
             );
         }
     });
 };
 
-           // 1. Intentamos obtener el GPS del hardware (Celular / Laptop)
+            // 1. Intentamos obtener el GPS del hardware (Celular / Laptop)
             let coordsObtenidas = await obtenerGPSConTimeout();
 
             // 🔥 2. EL SNIPER DE WAZE/MAPS (OVERRIDE MANUAL) 🔥
@@ -408,10 +410,10 @@ export async function iniciarPanelCliente(user) {
                 coordsObtenidas = { lat: parseFloat(latMapa), lng: parseFloat(lngMapa) };
             } 
             
-            // 3. Enviamos el ticket final con las coordenadas y el link
-            await enviarSolicitudFinal(cat, dir, desc, coordsObtenidas, requiereFactura, datosFacturacion, isUrgencia, fotoFile, linkMapaGuardar);
+            // 3. Enviamos el ticket final con las coordenadas y el link (PASO 2: ENVIAR isPrivada)
+            await enviarSolicitudFinal(cat, dir, desc, coordsObtenidas, requiereFactura, datosFacturacion, isUrgencia, fotoFile, linkMapaGuardar, isPrivada);
             
-            async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords, reqFac, datosFac, flagUrgencia, archivoFoto , linkManualText) {
+            async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords, reqFac, datosFac, flagUrgencia, archivoFoto , linkManualText, flagPrivada) {
                 const partes = categoriaFull.split('_');
                 const vertical = partes[0].toUpperCase(); 
                 const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
@@ -469,6 +471,7 @@ export async function iniciarPanelCliente(user) {
                         datos_facturacion: datosFac,
                         factura_enviada: false,
                         urgencia: flagUrgencia,
+                        es_privada: flagPrivada, // 🔥 NUEVO: GUARDAR PRIVADA EN BD
                         foto_problema: urlFotoDescargada,
                         b2b_metadata: dataB2B,
                         link_waze_cliente: linkManualText || ""
@@ -482,6 +485,7 @@ export async function iniciarPanelCliente(user) {
                         document.getElementById('datosFacturacion')?.classList.add('hidden');
                     }
                     if(el.toggleUrgencia) el.toggleUrgencia.checked = false;
+                    if(el.togglePrivada) el.togglePrivada.checked = false; // Resetear privada
                     
                     const formContainer = document.getElementById("modalSolicitud");
                     if(formContainer) formContainer.classList.add("hidden");
@@ -545,6 +549,7 @@ export async function iniciarPanelCliente(user) {
                 
                 sonarAlerta();
 
+                // 🔥 PASO 3: ALERTAS FÍSICAS REEMPLAZAN A LAS PUSH PARA EVITAR QUE EL CLIENTE LAS IGNORE
                 if (newData.estado === 'asignado') {
                     alert(`✅ TÉCNICO ASIGNADO\n\n${newData.tecnico_nombre} ha aceptado tu solicitud y revisará los detalles.`);
                 } else if (newData.estado === 'en_camino') {
@@ -756,6 +761,49 @@ export async function iniciarPanelCliente(user) {
                 <img src="${s.foto_problema}" class="w-full h-32 object-cover rounded-lg border border-zinc-700">
             </div>` : '';
 
+            // 🔥 NUEVA LÓGICA: IDENTIDAD DEL VEHÍCULO Y PASE QR 🔥
+            const techNombre = s.tecnico_nombre || "Especialista";
+            const techVehiculo = s.tecnico_vehiculo || "No especificado";
+            const techPlacas = s.tecnico_placas || "PENDIENTE";
+
+            let infoLogisticaHTML = "";
+            if (s.estado === 'asignado' || s.estado === 'en_camino' || s.estado === 'en_sitio') {
+                if (s.es_privada) {
+                    // Generar QR de acceso al vuelo usando api.qrserver.com
+                    const qrData = encodeURIComponent(`ACCESO GESTIAPREMIUM\nFolio: ${id.substring(0,6).toUpperCase()}\nTécnico: ${techNombre}\nVehículo: ${techVehiculo.toUpperCase()}\nPlacas: ${techPlacas.toUpperCase()}`);
+                    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${qrData}`;
+
+                    infoLogisticaHTML = `
+                    <div class="mt-4 bg-zinc-950 p-4 rounded-xl border border-blue-500/40 text-center shadow-lg">
+                        <p class="text-xs text-blue-400 font-bold uppercase mb-3"><i class="fas fa-qrcode"></i> Pase de Acceso a Caseta</p>
+                        <div class="bg-white inline-block p-2 rounded-xl mb-3">
+                            <img src="${qrUrl}" alt="QR Acceso" class="w-32 h-32">
+                        </div>
+                        <p class="text-[10px] text-gray-400 mb-3 leading-tight">Muestra este código al guardia para agilizar el acceso seguro de <b>${techNombre}</b>.</p>
+                        <div class="bg-black p-3 rounded-lg text-xs flex justify-between items-center border border-zinc-800">
+                            <span class="text-gray-300 uppercase"><i class="fas fa-car text-blue-500"></i> ${techVehiculo}</span>
+                            <span class="font-mono font-bold text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded bg-emerald-500/10">${techPlacas}</span>
+                        </div>
+                    </div>`;
+                } else {
+                    // Si no es privada, al menos mostramos por seguridad las placas del vehículo
+                    infoLogisticaHTML = `
+                    <div class="mt-4 bg-zinc-950 p-3 rounded-xl border border-zinc-700/50 flex justify-between items-center shadow-md">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 bg-zinc-800 rounded-full flex items-center justify-center text-gray-400"><i class="fas fa-car"></i></div>
+                            <div>
+                                <p class="text-[9px] text-gray-500 uppercase font-bold">Vehículo en ruta</p>
+                                <p class="text-xs text-white font-bold uppercase">${techVehiculo}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[9px] text-gray-500 uppercase font-bold">Placas</p>
+                            <p class="text-xs text-emerald-400 font-mono font-bold border border-emerald-500/30 px-2 py-0.5 rounded bg-emerald-500/10">${techPlacas}</p>
+                        </div>
+                    </div>`;
+                }
+            }
+
             const card = document.createElement("div");
             card.className = "uber-card rounded-2xl overflow-hidden shadow-lg mb-3";
 
@@ -779,6 +827,7 @@ export async function iniciarPanelCliente(user) {
                     <p class="text-xs text-gray-400 truncate mb-3"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${escaparHTML(s.direccion)}</p>
                     
                     ${imgInicialHTML}
+                    ${infoLogisticaHTML}
                     ${contenido}
 
                     ${(s.estado === 'en_camino' || s.estado === 'en_sitio') ? `
