@@ -65,12 +65,53 @@ const verificarRateLimit = () => {
 };
 
 // ======================================================
-// 📸 MOTOR CLOUD STORAGE (REEMPLAZA AL BASE64 PESADO)
+// 📸 MOTOR CLOUD STORAGE (COMPRESIÓN FRONTEND + UPLOAD)
 // ======================================================
+const comprimirImagen = (file) => {
+    return new Promise((resolve, reject) => {
+        // Si no es imagen (ej. un PDF), lo dejamos pasar tal cual
+        if (!file || !file.type.match(/image.*/)) { 
+            resolve(file); 
+            return; 
+        }
+        
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let { width, height } = img;
+                
+                // Redimensionar a max 1024px
+                if (width > height) { 
+                    if (width > 1024) { height *= 1024 / width; width = 1024; } 
+                } else { 
+                    if (height > 1024) { width *= 1024 / height; height = 1024; } 
+                }
+                
+                canvas.width = width; 
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Convertir a JPEG calidad 70%
+                canvas.toBlob((blob) => {
+                    resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));
+                }, 'image/jpeg', 0.7);
+            };
+            img.onerror = error => reject(error);
+        };
+        reader.onerror = error => reject(error);
+    });
+};
+
 const subirAStorage = async (file, path) => {
     if (!file) return null;
+    const archivoOptimizado = await comprimirImagen(file); // Pasa por el filtro de compresión
     const storageRef = ref(storage, path);
-    await uploadBytes(storageRef, file);
+    await uploadBytes(storageRef, archivoOptimizado);
     return await getDownloadURL(storageRef);
 };
 
