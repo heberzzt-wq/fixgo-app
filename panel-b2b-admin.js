@@ -36,6 +36,7 @@ auth.onAuthStateChanged((userAuth) => {
             escucharBitacoraRealTime(adminContext.edificioId); // TAREA 1: Monitor de Bitácora
         }
     });
+});
 
 // 2. REGISTRO DE ACTIVOS HUMANOS
 document.getElementById("formAltaPersonal").addEventListener("submit", async (e) => {
