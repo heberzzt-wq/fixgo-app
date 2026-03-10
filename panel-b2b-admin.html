@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GestiaPremium - Cabina de Mando B2B</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #050505; color: #e5e7eb; font-family: 'Inter', sans-serif; }
+        .card { background-color: #121212; border: 1px solid rgba(255,255,255,0.05); border-radius: 1.5rem; padding: 1.5rem; }
+        .input-dark { background-color: #1f1f1e; border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 0.75rem; }
+        .input-dark:focus { outline: 2px solid #3b82f6; }
+        .btn-primary { background-color: #3b82f6; color: white; font-weight: 900; border-radius: 0.75rem; transition: background-color 0.2s; }
+        .btn-primary:hover { background-color: #2563eb; }
+        .btn-primary:disabled { background-color: #374151; cursor: not-allowed; }
+        .table-dark th { border-bottom: 1px solid rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body>
+
+    <div id="panelAdminB2B" class="hidden p-4 md:p-8 max-w-7xl mx-auto">
+        <!-- HEADER -->
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 id="lblNombreEdificio" class="text-2xl md:text-3xl font-black tracking-tighter text-white">CARGANDO EDIFICIO...</h1>
+                <p class="text-zinc-500 text-sm">Cabina de Mando NOC B2B</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div id="clock" class="text-xl font-mono bg-zinc-900 text-emerald-400 px-4 py-2 rounded-xl border border-white/5">00:00:00</div>
+                <button onclick="window.logout()" class="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors px-4 py-2 rounded-xl font-bold text-sm">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- KPI GRID -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="card">
+                <p class="text-sm font-bold text-zinc-400 uppercase tracking-widest">Órdenes Pendientes</p>
+                <h2 id="countOrdenesPendientes" class="text-4xl font-black text-amber-400 mt-2">0</h2>
+            </div>
+            <div class="card">
+                <p class="text-sm font-bold text-zinc-400 uppercase tracking-widest">Técnicos Activos</p>
+                <h2 id="countTecnicosActivos" class="text-4xl font-black text-emerald-400 mt-2">0</h2>
+            </div>
+            <div class="card">
+                <p class="text-sm font-bold text-zinc-400 uppercase tracking-widest">Mantenimientos Hoy</p>
+                <h2 id="countMantenimientosHoy" class="text-4xl font-black text-blue-400 mt-2">0</h2>
+            </div>
+        </section>
+
+        <!-- MAIN GRID -->
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- ACTION CENTER -->
+            <div class="card lg:col-span-1">
+                <h3 class="text-lg font-black text-white mb-4">Despacho Rápido de OT</h3>
+                <form id="formTicketB2B" class="space-y-4">
+                    <input id="tickPunto" type="text" placeholder="Punto Exacto (Ej: Depto 502, Alberca)" required class="input-dark w-full p-3">
+                    <textarea id="tickDesc" placeholder="Descripción del problema o tarea..." required rows="3" class="input-dark w-full p-3"></textarea>
+                    <select id="tickPrioridad" required class="input-dark w-full p-3">
+                        <option value="baja">Prioridad Baja</option>
+                        <option value="media">Prioridad Media</option>
+                        <option value="alta">Prioridad Alta (Urgente)</option>
+                    </select>
+                    <select id="tickAsignado" required class="input-dark w-full p-3">
+                        <option value="">-- Asignar Especialista --</option>
+                    </select>
+                    <button id="btnCrearTicket" type="submit" class="btn-primary w-full py-3">Despachar Orden de Trabajo</button>
+                </form>
+            </div>
+
+            <!-- RADAR & BITACORA -->
+            <div class="card lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- RADAR DE PERSONAL -->
+                <div>
+                    <h3 class="text-lg font-black text-white mb-4">Radar de Personal</h3>
+                    <div class="h-96 overflow-y-auto pr-2">
+                        <table class="w-full text-left table-dark">
+                            <thead>
+                                <tr>
+                                    <th class="p-2 text-xs text-zinc-500">Nombre</th>
+                                    <th class="p-2 text-xs text-zinc-500">Estatus</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaEmpleadosB2B">
+                                <!-- Filas inyectadas por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- LIVE STREAM BITACORA -->
+                <div>
+                    <h3 class="text-lg font-black text-white mb-4">Bitácora en Vivo</h3>
+                    <div id="feedBitacora" class="space-y-3 h-96 overflow-y-auto pr-2">
+                        <!-- Feed inyectado por JS -->
+                        <p class="text-zinc-600 text-sm italic text-center pt-10">Esperando reportes de cierre...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Este formulario oculto es para la funcionalidad de alta de personal, que no se muestra en la UI principal -->
+    <form id="formAltaPersonal" class="hidden">
+        <input id="regNombre">
+        <input id="regTelefono">
+        <input id="regCorreo">
+        <input id="regRol">
+        <input id="regEspecialidad">
+        <button id="btnGuardarPersonal"></button>
+    </form>
+
+    <script type="module" src="./firebase.js"></script>
+    <script type="module" src="./panel-b2b-admin.js"></script>
+</body>
+</html>
