@@ -23,8 +23,9 @@ auth.onAuthStateChanged((userAuth) => {
         adminContext = docSnap.data();
         document.getElementById("panelAdminB2B").classList.remove("hidden");
         
-        // TAREA 1: Normalización de Campos
-        const nombreEdificio = adminContext.edificioNombre || "EDIFICIO SIN NOMBRE";
+      // TAREA 1: Normalización de Campos (Refactor V5.18)
+        // Usa el nombre si existe, si no usa el ID (uxmal39), o un texto por defecto
+        const nombreEdificio = adminContext.edificioNombre || adminContext.edificioId || "CABINA DE MANDO B2B";
         document.getElementById("lblNombreEdificio").innerText = nombreEdificio.toUpperCase();
 
         // TAREA 1: Sincronía de IDs
@@ -35,7 +36,6 @@ auth.onAuthStateChanged((userAuth) => {
             escucharBitacoraRealTime(adminContext.edificioId); // TAREA 1: Monitor de Bitácora
         }
     });
-});
 
 // 2. REGISTRO DE ACTIVOS HUMANOS
 document.getElementById("formAltaPersonal").addEventListener("submit", async (e) => {
