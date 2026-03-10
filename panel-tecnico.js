@@ -436,7 +436,13 @@ export async function iniciarPanelTecnico(user) {
             if (vBanco) updates['datos_bancarios.banco'] = vBanco;
             if (vClabe) updates['datos_bancarios.clabe'] = vClabe;
             if (vVehiculo) updates['logistica.vehiculo'] = vVehiculo;
-            if (vPlacas) updates['logistica.placas'] = vPlacas;
+       if (vPlacas) {
+                // 🛡️ LIMPIEZA SNIPER: Mayúsculas, sin espacios y sin basura.
+                // Jonathan solo tendrá que tocar y pegar en la app de su caseta.
+                const placasLimpias = vPlacas.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+                updates['logistica.placas'] = placasLimpias;
+                updates['placas'] = placasLimpias; // Duplicamos en raíz para reportes rápidos en el NOC
+            }
 
             updates['estado'] = "pendiente";
 
