@@ -6,6 +6,7 @@
     <title>GestiaPremium | Registro Maestro V6.0</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://js.stripe.com/v3/"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <style>
@@ -15,7 +16,12 @@
         .uber-input { background-color: #1e1e1e; border: 1px solid #2d2d2d; color: white; transition: all 0.3s; }
         .uber-input:focus { border-color: #6366f1; outline: none; background-color: #252525; }
         
-        /* ❌ SE ELIMINÓ EL ESTILO #card-element AQUÍ */
+        #card-element {
+            padding: 12px;
+            background: #1e1e1e;
+            border-radius: 1rem;
+            border: 1px solid #2d2d2d;
+        }
 
         /* 🔥 PARCHE: Ocultar el ojo nativo de navegadores (Edge, Chrome, Android) */
         input[type="password"]::-ms-reveal,
@@ -100,7 +106,19 @@
                         
                         <input type="tel" name="telefono" placeholder="Teléfono de contacto" required class="uber-input w-full px-5 py-4 rounded-2xl">
                         
-                        <label class="flex items-start gap-3 py-2 cursor-pointer mt-4">
+                        <div class="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-widest"><i class="fas fa-building text-blue-400 mr-2"></i>Vinculación B2B (Opcional)</label>
+                            <input type="text" name="codigoB2B" placeholder="Ej: UXMAL39 (Deja vacío si no está vinculado a edificio)" class="uber-input w-full px-5 py-3 rounded-xl text-sm uppercase font-mono tracking-wider" maxlength="20">
+                            <p class="text-[10px] text-gray-500 mt-2">Si ingresas un código, tu cuenta se configurará como Cliente B2B con acceso a la bitácora de tu edificio.</p>
+                        </div>
+                        
+                        <div class="py-4">
+                            <label class="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-widest">Método de Garantía (Stripe)</label>
+                            <div id="card-element"></div>
+                            <p class="text-[10px] text-gray-500 mt-2">No realizamos cargos sin tu autorización. Es solo para verificar tu cuenta.</p>
+                        </div>
+
+                        <label class="flex items-start gap-3 py-2 cursor-pointer">
                             <input type="checkbox" id="chkTerminosCliente" class="w-5 h-5 mt-0.5 accent-indigo-500 rounded">
                             <span class="text-xs text-gray-400 leading-tight">He leído y acepto los <button type="button" onclick="document.getElementById('modalTerminosCliente').classList.remove('hidden')" class="text-indigo-400 underline font-bold">Términos y Condiciones</button> y el <button type="button" onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="text-indigo-400 underline font-bold">Aviso de Privacidad</button>.</span>
                         </label>
@@ -248,7 +266,7 @@
                 </div>
                 <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
                     <p><strong>1. Relación Comercial:</strong> Al registrarse como Socio Pro, usted actúa como Contratista Independiente. No existe relación obrero-patronal, subordinación ni exclusividad con GestiaPremium. Usted provee sus propias herramientas, vehículos y horarios.</p>
-                    <p><strong>2. Tarifa de Gestión Operativa:</strong> El método principal de cobro es automatizado a través de nuestra pasarela segura. Al finalizar un servicio, el sistema transfiere sus ganancias a su cuenta bancaria, descontando la 'Tarifa de Gestión Integral' del 32%. Esta tarifa garantiza la infraestructura tecnológica (servidores en la nube, facturación Split Billing) y la adquisición continua de clientes. <br><br> <strong class="text-emerald-500">Pagos en Efectivo (Exclusivo Nivel VIP):</strong> La habilitación para recibir pagos directos en efectivo está estrictamente reservada para Socios Pro que alcancen el estatus VIP. Solo en estos casos excepcionales, al recibir el 100% del pago en sitio, el 32% de la Tarifa de Gestión se reflejará como un 'Saldo Operativo' pendiente en su Billetera GestiaPremium, el cual deberá liquidarse periódicamente vía SPEI para mantener su cuenta activa.</p>
+                    <p><strong>2. Tarifa de Gestión Operativa:</strong> El método principal de cobro es automatizado a través de nuestra pasarela segura <strong>Stripe</strong>. Al finalizar un servicio, el sistema transfiere sus ganancias a su cuenta bancaria, descontando la 'Tarifa de Gestión Integral' del 32%. Esta tarifa garantiza la infraestructura tecnológica (servidores en la nube, facturación Split Billing) y la adquisición continua de clientes. <br><br> <strong class="text-emerald-500">Pagos en Efectivo (Exclusivo Nivel VIP):</strong> La habilitación para recibir pagos directos en efectivo está estrictamente reservada para Socios Pro que alcancen el estatus VIP. Solo en estos casos excepcionales, al recibir el 100% del pago en sitio, el 32% de la Tarifa de Gestión se reflejará como un 'Saldo Operativo' pendiente en su Billetera GestiaPremium, el cual deberá liquidarse periódicamente vía SPEI para mantener su cuenta activa.</p>
                     <p><strong>3. Políticas Anti-Fraude:</strong> Cancelar servicios asignados injustificadamente después de 5 minutos de aceptación generará una penalización de $150 MXN. Es obligatorio el uso de GPS en sitio y subir fotografías reales de evidencia del servicio. La suplantación de identidad o perfiles falsos causará la baja definitiva e inmediata de la plataforma.</p>
                     <p><strong>4. Responsabilidad Civil:</strong> El Socio Pro es el único responsable legal por daños causados a la propiedad del cliente durante la ejecución del servicio.</p>
                 </div>
@@ -268,7 +286,7 @@
                     <p><strong>1. Identidad y Domicilio:</strong> GestiaPremium es el responsable del tratamiento y protección de sus datos personales.</p>
                     <p><strong>2. Datos Recabados:</strong> Nombre, fotos (perfil, INE, CSF, Licencia), teléfono, correo, y Datos Sensibles como su Ubicación GPS en tiempo real y CLABE interbancaria.</p>
                     <p><strong>3. Finalidades:</strong> Conectar clientes con técnicos, procesar pagos, rastreo de seguridad durante el servicio, y validación de antecedentes (KYC).</p>
-                    <p><strong>4. Transferencia de Datos:</strong> Sus datos bancarios son procesados bajo estándares de encriptación militar. Compartiremos datos con autoridades solo por requerimiento legal.</p>
+                    <p><strong>4. Transferencia de Datos:</strong> Sus datos bancarios son procesados por Stripe bajo encriptación militar. Compartiremos datos con autoridades solo por requerimiento legal.</p>
                     <p><strong>5. Derechos ARCO:</strong> Puede ejercer sus derechos de Acceso, Rectificación, Cancelación u Oposición contactando a soporte técnico en la plataforma.</p>
                 </div>
                 <div class="mt-4 pt-4 border-t border-zinc-800 text-center">
