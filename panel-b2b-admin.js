@@ -127,7 +127,8 @@ function escucharPlantillaRealTime(edificioId) {
             const emp = docSnap.data();
             const empId = docSnap.id;
             
-            if(emp.rol === "admin_b2b" || emp.rol === "ceo") return; 
+            // 🛠️ FIX 1: Agregamos "cliente" a la lista de exclusión para que Jorge no salga en la tabla
+            if(emp.rol === "admin_b2b" || emp.rol === "ceo" || emp.rol === "cliente") return; 
 
             if (emp.rol === "tecnico" && emp.estado === "activo") {
                 tecnicosActivos++;
@@ -142,7 +143,7 @@ function escucharPlantillaRealTime(edificioId) {
             row.innerHTML = `
                 <td class="p-3">
                     <div class="font-bold text-white uppercase tracking-tighter">${emp.nombre}</div>
-                    <div class="text-[10px] text-zinc-400 font-bold uppercase italic">${emp.especialidad}</div>
+                    <div class="text-[10px] text-zinc-400 font-bold uppercase italic">${emp.especialidad || 'GENERAL'}</div>
                 </td>
                 <td class="p-3 text-center">
                     <span class="px-3 py-1 rounded-full text-[9px] font-black border ${emp.estado === 'activo' ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/5' : 'border-red-500/20 text-red-500 bg-red-500/5'}">
