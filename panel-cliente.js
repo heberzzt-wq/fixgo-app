@@ -761,7 +761,7 @@ export async function iniciarPanelCliente(user) {
                 <img src="${s.foto_problema}" class="w-full h-32 object-cover rounded-lg border border-zinc-700">
             </div>` : '';
 
-            // 🔥 NUEVA LÓGICA: IDENTIDAD DEL VEHÍCULO Y PASE QR 🔥
+          // 🔥 LOGÍSTICA PARA CASETA (EDICIÓN CANCÚN - SIN QR INTERNO) 🔥
             const techNombre = s.tecnico_nombre || "Especialista";
             const techVehiculo = s.tecnico_vehiculo || "No especificado";
             const techPlacas = s.tecnico_placas || "PENDIENTE";
@@ -769,20 +769,30 @@ export async function iniciarPanelCliente(user) {
             let infoLogisticaHTML = "";
             if (s.estado === 'asignado' || s.estado === 'en_camino' || s.estado === 'en_sitio') {
                 if (s.es_privada) {
-                    // Generar QR de acceso al vuelo usando api.qrserver.com
-                    const qrData = encodeURIComponent(`ACCESO GESTIAPREMIUM\nFolio: ${id.substring(0,6).toUpperCase()}\nTécnico: ${techNombre}\nVehículo: ${techVehiculo.toUpperCase()}\nPlacas: ${techPlacas.toUpperCase()}`);
-                    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${qrData}`;
-
+                    // Jonathan necesita copiar estos datos a su app de caseta (Colonno, Residentia, etc.)
                     infoLogisticaHTML = `
-                    <div class="mt-4 bg-zinc-950 p-4 rounded-xl border border-blue-500/40 text-center shadow-lg">
-                        <p class="text-xs text-blue-400 font-bold uppercase mb-3"><i class="fas fa-qrcode"></i> Pase de Acceso a Caseta</p>
-                        <div class="bg-white inline-block p-2 rounded-xl mb-3">
-                            <img src="${qrUrl}" alt="QR Acceso" class="w-32 h-32">
+                    <div class="mt-4 bg-blue-900/10 p-4 rounded-xl border border-blue-500/30 shadow-lg shadow-blue-500/5">
+                        <div class="flex items-center gap-2 mb-3">
+                            <i class="fas fa-torii-gate text-blue-400"></i>
+                            <p class="text-[10px] text-blue-400 font-black uppercase tracking-widest">Datos para App de tu Privada</p>
                         </div>
-                        <p class="text-[10px] text-gray-400 mb-3 leading-tight">Muestra este código al guardia para agilizar el acceso seguro de <b>${techNombre}</b>.</p>
-                        <div class="bg-black p-3 rounded-lg text-xs flex justify-between items-center border border-zinc-800">
-                            <span class="text-gray-300 uppercase"><i class="fas fa-car text-blue-500"></i> ${techVehiculo}</span>
-                            <span class="font-mono font-bold text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded bg-emerald-500/10">${techPlacas}</span>
+                        <p class="text-[10px] text-gray-400 mb-4 leading-tight">Usa esta info para generar el pase en la app de tu residencial:</p>
+                        
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                            <div class="bg-black/60 p-3 rounded-lg border border-zinc-800">
+                                <p class="text-[8px] text-gray-500 uppercase font-bold mb-1">Vehículo / Modelo</p>
+                                <p class="text-xs text-white font-bold uppercase truncate">${techVehiculo}</p>
+                            </div>
+                            <div class="bg-black/60 p-3 rounded-lg border border-zinc-800 relative cursor-pointer active:scale-95 transition-transform" 
+                                 onclick="navigator.clipboard.writeText('${techPlacas}'); alert('Placas copiadas: ${techPlacas}');">
+                                <p class="text-[8px] text-gray-500 uppercase font-bold mb-1">Placas (Toca p/ copiar)</p>
+                                <p class="text-xs text-emerald-400 font-mono font-black">${techPlacas.toUpperCase()}</p>
+                                <i class="fas fa-copy absolute right-2 top-2 text-[8px] text-zinc-600"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-zinc-900 p-2 rounded-lg text-center border border-zinc-800/50">
+                            <p class="text-[9px] text-gray-400 font-bold uppercase">Nombre del Técnico: <span class="text-white">${techNombre}</span></p>
                         </div>
                     </div>`;
                 } else {
