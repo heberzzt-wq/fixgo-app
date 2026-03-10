@@ -23,8 +23,7 @@ auth.onAuthStateChanged((userAuth) => {
         adminContext = docSnap.data();
         document.getElementById("panelAdminB2B").classList.remove("hidden");
         
-      // TAREA 1: Normalización de Campos (Refactor V5.18)
-        // Usa el nombre si existe, si no usa el ID (uxmal39), o un texto por defecto
+        // TAREA 1: Normalización de Campos (Refactor V5.18)
         const nombreEdificio = adminContext.edificioNombre || adminContext.edificioId || "CABINA DE MANDO B2B";
         document.getElementById("lblNombreEdificio").innerText = nombreEdificio.toUpperCase();
 
@@ -33,7 +32,7 @@ auth.onAuthStateChanged((userAuth) => {
             escucharPlantillaRealTime(adminContext.edificioId);
             conectarContadorTickets(adminContext.edificioId);
             conectarContadorMantenimientosHoy(adminContext.edificioId);
-            escucharBitacoraRealTime(adminContext.edificioId); // TAREA 1: Monitor de Bitácora
+            escucharBitacoraRealTime(adminContext.edificioId);
         }
     });
 });
@@ -54,7 +53,7 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
         rol: document.getElementById("regRol").value,
         especialidad: document.getElementById("regEspecialidad").value,
         edificioId: adminContext.edificioId, 
-        edificioNombre: adminContext.edificioNombre,
+        edificioNombre: adminContext.edificioNombre || adminContext.edificioId,
         estado: "activo",
         disponible: true,
         fecha_registro: serverTimestamp()
@@ -83,7 +82,7 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
 
     const ticketData = {
         edificioId: adminContext.edificioId,
-        edificioNombre: adminContext.edificioNombre,
+        edificioNombre: adminContext.edificioNombre || adminContext.edificioId,
         ubicacion_especifica: document.getElementById("tickPunto").value.trim(),
         descripcion: document.getElementById("tickDesc").value.trim(),
         prioridad: document.getElementById("tickPrioridad").value,
@@ -92,7 +91,7 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
         fecha_programada: new Date().toISOString().split('T')[0], // Programado para hoy
         equipo_nombre: "Mantenimiento General",
         tipo: "mantenimiento",
-        fecha_creacion: serverTimestamp(), // Mantenemos la fecha de creación
+        fecha_creacion: serverTimestamp(),
         creado_por: auth.currentUser.uid
     };
 
@@ -111,7 +110,6 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
 
 // 4. RADAR DE PLANTILLA Y MÉTRICAS
 function escucharPlantillaRealTime(edificioId) {
-    // TAREA 1: Filtro de Seguridad
     const q = query(collection(db, "users"), where("edificioId", "==", edificioId));
 
     onSnapshot(q, (snap) => {
@@ -127,22 +125,21 @@ function escucharPlantillaRealTime(edificioId) {
             const emp = docSnap.data();
             const empId = docSnap.id;
             
-            // Filtro para ignorar a administradores y clientes
+            // Filtro estricto: Ocultar admin, ceo y cliente (Jorge)
             if(emp.rol === "admin_b2b" || emp.rol === "ceo" || emp.rol === "cliente") return; 
 
-            // 🛠️ FIX ULTRA-SEGURO: Extraer la especialidad sin romper el código
+            // FIX: Extraer la especialidad sin romper
             let textoEspecialidad = "GENERAL";
             if (emp.especialidad) {
                 textoEspecialidad = emp.especialidad;
             } else if (emp.skills && emp.skills.length > 0) {
-                textoEspecialidad = emp.skills.join(', '); // Pone "fix, tech, maint"
+                textoEspecialidad = emp.skills.join(', '); // Maneja el array [fix, tech]
             }
 
             if (emp.rol === "tecnico" && emp.estado === "activo") {
                 tecnicosActivos++;
                 const opt = document.createElement("option");
                 opt.value = empId;
-                // Usamos el texto extraído de forma segura
                 opt.textContent = `${emp.nombre.toUpperCase()} [${textoEspecialidad.toUpperCase()}]`;
                 select.appendChild(opt);
             }
@@ -166,28 +163,8 @@ function escucharPlantillaRealTime(edificioId) {
         document.getElementById("countTecnicosActivos").innerText = tecnicosActivos;
     });
 }
-            const row = document.createElement("tr");
-            row.className = "hover:bg-white/[0.02] transition-all text-xs border-b border-white/5";
-            row.innerHTML = `
-                <td class="p-3">
-                    <div class="font-bold text-white uppercase tracking-tighter">${emp.nombre}</div>
-                    <div class="text-[10px] text-zinc-400 font-bold uppercase italic">${emp.especialidad || 'GENERAL'}</div>
-                </td>
-                <td class="p-3 text-center">
-                    <span class="px-3 py-1 rounded-full text-[9px] font-black border ${emp.estado === 'activo' ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/5' : 'border-red-500/20 text-red-500 bg-red-500/5'}">
-                        ${emp.estado.toUpperCase()}
-                    </span>
-                </td>
-            `;
-            tabla.appendChild(row);
-        });
-
-        document.getElementById("countTecnicosActivos").innerText = tecnicosActivos;
-    });
-}
 
 function conectarContadorTickets(edificioId) {
-    // TAREA 1: Redirección y Filtro de Seguridad
     const q = query(collection(db, "servicios_b2b"), where("edificioId", "==", edificioId), where("status", "in", ["programado", "en_proceso"]));
     onSnapshot(q, (snap) => {
         document.getElementById("countOrdenesPendientes").innerText = snap.size;
@@ -202,7 +179,6 @@ function conectarContadorMantenimientosHoy(edificioId) {
     });
 }
 
-// TAREA 1: Monitor de Bitácora
 function escucharBitacoraRealTime(edificioId) {
     const q = query(collection(db, "bitacora_edificios"), where("edificioId", "==", edificioId), orderBy("fecha", "desc"), limit(10));
 
@@ -224,7 +200,7 @@ function escucharBitacoraRealTime(edificioId) {
             item.className = "bg-zinc-900 p-3 rounded-xl border border-white/5";
             item.innerHTML = `
                 <div class="flex justify-between items-start">
-                    <p class="text-sm font-bold text-white">${log.tecnico || 'Técnico'}</p>
+                    <p class="text-sm font-bold text-white">${log.tecnico_nombre || log.tecnico || 'Técnico'}</p>
                     <span class="text-xs text-zinc-500">${fecha}</span>
                 </div>
                 <p class="text-xs text-zinc-400 mt-1 mb-2">Finalizó: ${log.resumen || 'Mantenimiento'}</p>
@@ -273,4 +249,9 @@ window.verDetalleBitacora = async (servicioId) => {
     } catch (error) {
         console.error("Error al ver detalle:", error);
     }
+};
+
+// 🛠️ FIX GLOBAL: Función para cerrar sesión desde el HTML
+window.logout = () => {
+    auth.signOut();
 };
