@@ -877,6 +877,12 @@ export async function iniciarPanelTecnico(user) {
             const vehiculoTech = miPerfil.logistica?.vehiculo || miPerfil.vehiculo_tipo || "NO ESPECIFICADO";
             const placasTech = miPerfil.logistica?.placas || miPerfil.placas || "SIN PLACAS";
 
+            // 🔒 CANDADO JONATHAN: Verificación de placas para acceso a caseta
+            if (!placasTech || placasTech === "SIN PLACAS") {
+                alert("⛔ ACCESO DENEGADO (PASE QR)\n\nEl sistema de seguridad de Jonathan (Caseta) requiere que tengas tus placas registradas para aceptar este servicio.\n\nPor favor, completa tu perfil en la sección de 'Registro Incompleto'.");
+                return;
+            }
+
             // ¡AQUÍ ESTÁ LA MAGIA! Apuntando 100% a la colección "services"
             const servicioRef = doc(db, "services", idServicio);
             
@@ -940,7 +946,13 @@ export async function iniciarPanelTecnico(user) {
 
             // 🔥 NUEVO: DATOS VEHICULARES PARA EL PASE QR
             const vehiculoTech = miPerfil.logistica?.vehiculo || miPerfil.vehiculo_tipo || "NO ESPECIFICADO";
-            const placasTech = miPerfil.logistica?.placas || miPerfil.placas || "SIN PLACAS";
+            const placasTech = miPerfil.logistica?.placas || miPerfil.placas || null;
+
+            // 🔒 CANDADO JONATHAN: Verificación de placas para acceso a caseta
+            if (!placasTech) {
+                alert("⛔ ACCESO DENEGADO (PASE QR)\n\nEl sistema de seguridad de Jonathan (Caseta) requiere que tengas tus placas registradas para aceptar este servicio.\n\nPor favor, completa tu perfil en la sección de 'Registro Incompleto'.");
+                return;
+            }
 
             const serviceRef = doc(db, "services", id);
             
@@ -1203,8 +1215,8 @@ export async function iniciarPanelTecnico(user) {
                       tecnico_id: null,
                       tecnico_nombre: null,
                       tecnico_telefono: null,
-                      tecnico_vehiculo: null, // 🔥 LIMPIAMOS DATOS LOGÍSTICOS
-                      tecnico_placas: null,   // 🔥 LIMPIAMOS DATOS LOGÍSTICOS
+                      tecnico_vehiculo: null,
+                      tecnico_placas: null,
                       asignado_at: null,
                       rejected_by: arrayUnion(user.uid) 
                  });
