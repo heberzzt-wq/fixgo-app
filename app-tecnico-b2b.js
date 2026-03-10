@@ -19,13 +19,13 @@ import {
     where,
     onSnapshot,
     addDoc
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 import {
     ref,
     uploadBytes,
     getDownloadURL
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
 // ESTADO GLOBAL
 let ordenId = new URLSearchParams(window.location.search).get("id");
