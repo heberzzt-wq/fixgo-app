@@ -1,13 +1,13 @@
 /**
  * ======================================================
- * GESTIAPREMIUM 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
+ * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 6.7 (STRIPE EXCISED + CANVAS COMPRESSION + RULES COMPLIANT)
+ * Versión: 6.5 (STORAGE UPLOAD + ANTI-RACE CONDITION)
  * Autor: Heber (CEO & Lead Architect)
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR.
  * ======================================================
  */
-console.log(" 🚀 [app-registro.js] Inicializando sistema V6.7 (Clean Auth + Canvas Optimization)...");
+console.log(" 🚀 [app-registro.js] Inicializando sistema V6.5 (Storage Direct Upload + Anti-Redirect)...");
 
 import { 
     auth, 
@@ -29,9 +29,8 @@ import {
     deleteUser
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
+// 🔥 INYECCIÓN: Importamos la librería para subir archivos pesados directo a la nube
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
-
-const $ = (id) => document.getElementById(id);
 
 /**
  * 🦈 SANITIZADOR MAESTRO (PREVENCIÓN XSS)
@@ -67,52 +66,61 @@ const verificarRateLimit = () => {
 };
 
 // ======================================================
-// 📸 MOTOR CLOUD STORAGE (COMPRESIÓN FRONTEND + UPLOAD)
+// 📸 MOTOR CLOUD STORAGE (REEMPLAZA AL BASE64 PESADO)
 // ======================================================
-const comprimirImagen = (file) => {
-    return new Promise((resolve, reject) => {
-        if (!file || !file.type.match(/image.*/)) { 
-            resolve(file); 
-            return; 
-        }
-        
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (event) => {
-            const img = new Image();
-            img.src = event.target.result;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let { width, height } = img;
-                
-                if (width > height) { 
-                    if (width > 1024) { height *= 1024 / width; width = 1024; } 
-                } else { 
-                    if (height > 1024) { width *= 1024 / height; height = 1024; } 
-                }
-                
-                canvas.width = width; 
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                
-                canvas.toBlob((blob) => {
-                    resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));
-                }, 'image/jpeg', 0.7);
-            };
-            img.onerror = error => reject(error);
-        };
-        reader.onerror = error => reject(error);
-    });
-};
-
 const subirAStorage = async (file, path) => {
     if (!file) return null;
-    const archivoOptimizado = await comprimirImagen(file); 
     const storageRef = ref(storage, path);
-    await uploadBytes(storageRef, archivoOptimizado);
+    await uploadBytes(storageRef, file);
     return await getDownloadURL(storageRef);
 };
+
+// ======================================================
+// 0. CONFIGURACIÓN DE STRIPE (TOKENIZACIÓN)
+// ======================================================
+const STRIPE_PUBLIC_KEY = 'pk_test_51SuznMFB3c4okYlKz7FZYdaftLAmuBWkO1cGlHDrzxbON37J8STqFtDsG6apf7zup4YJTmFbyVtmzdqIV0icjxeX00YVsW2OHU';
+let stripe = null;
+let elements = null;
+let cardElement = null;
+
+async function iniciarStripe() {
+    if (window.Stripe) {
+        stripe = window.Stripe(STRIPE_PUBLIC_KEY);
+        elements = stripe.elements();
+        
+        const style = {
+            base: {
+                color: "#ffffff",
+                fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+                fontSmoothing: "antialiased",
+                fontSize: "16px",
+                "::placeholder": {
+                    color: "#aab7c4"
+                }
+            },
+            invalid: {
+                color: "#fa755a",
+                iconColor: "#fa755a"
+            }
+        };
+
+        if (document.getElementById("card-element")) {
+            cardElement = elements.create("card", { style: style, hidePostalCode: true });
+            cardElement.mount("#card-element");
+            console.log(" 💳 Widget de Stripe montado correctamente.");
+        }
+    } else {
+        console.warn(" ⚠️ Librería Stripe.js no detectada en el HTML.");
+    }
+}
+
+if(document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', iniciarStripe);
+} else {
+    iniciarStripe();
+}
+
+const $ = (id) => document.getElementById(id);
 
 // ======================================================
 // ⚖️ GESTIÓN DE TÉRMINOS Y CONDICIONES SEPARADOS
@@ -127,6 +135,7 @@ const cerrarModalLegal = (idModal) => {
     if (modal) modal.classList.add("hidden");
 };
 
+// Controladores para Modal de CLIENTES
 if ($("linkTerminosCliente")) {
     $("linkTerminosCliente").addEventListener("click", (e) => {
         e.preventDefault();
@@ -137,6 +146,7 @@ if ($("btnCerrarTerminosCliente")) {
     $("btnCerrarTerminosCliente").addEventListener("click", () => cerrarModalLegal("modalTerminosCliente"));
 }
 
+// Controladores para Modal de TÉCNICOS
 if ($("linkTerminosTecnico")) {
     $("linkTerminosTecnico").addEventListener("click", (e) => {
         e.preventDefault();
@@ -164,6 +174,7 @@ if (btnRegistroCliente) {
         const email = form.querySelector('[name="email"]')?.value.trim().toLowerCase();
         const password = form.querySelector('[name="password"]')?.value.trim();
         const telefono = escaparHTML(form.querySelector('[name="telefono"]')?.value.trim());
+        const codigoB2B = escaparHTML(form.querySelector('[name="codigoB2B"]')?.value.trim().toUpperCase()) || null;
 
         if (!nombre || !email || !password || !telefono) {
             alert("⚠️ Por favor, completa todos los campos personales."); return;
@@ -178,36 +189,69 @@ if (btnRegistroCliente) {
             alert("⚖️ Obligatorio: Debes marcar la casilla aceptando los Términos y Condiciones de Uso para Clientes."); return;
         }
 
+        if (!stripe || !cardElement) {
+            alert("⚠️ Error: El sistema de pagos no está cargado. Recarga la página."); return;
+        }
+
         let usuarioAuth = null;
         const textoOriginal = btnRegistroCliente.innerHTML;
 
         try {
+            // 🔥 BANDERA DE SEGURIDAD: Impide que el sistema redirija antes de terminar
             window.isRegisteringLocal = true; 
 
-            btnRegistroCliente.innerHTML = '<i class="fas fa-shield-alt"></i> Creando Perfil Seguro...';
+            btnRegistroCliente.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con el Banco...';
             btnRegistroCliente.disabled = true;
 
-            // firebase.js maneja la creación base (uid, email, rol)
+            const { token, error } = await stripe.createToken(cardElement);
+
+            if (error) {
+                throw new Error(error.message); 
+            }
+
+            btnRegistroCliente.innerHTML = '<i class="fas fa-shield-alt"></i> Creando Bóveda...';
+
             usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
 
-            // Inyectamos el resto de datos sin disparar las reglas de seguridad
+            // 🌍 DETERMINACIÓN DE TIPO DE CUENTA Y EDIFICIO
+            let tipoCuenta = "B2C";
+            let edificioID = null;
+
+            if (codigoB2B && codigoB2B.length > 0) {
+                tipoCuenta = "B2B";
+                edificioID = codigoB2B.toLowerCase();
+            }
+
             await setDoc(doc(db, "users", usuarioAuth.uid), {
+                uid: usuarioAuth.uid,
                 nombre: nombre,
+                email: email,
                 telefono: telefono,
+                rol: "cliente",
+                tipo_cuenta: tipoCuenta,
+                edificioId: edificioID,
+                creadoEn: serverTimestamp(),
                 estado: "activo",
                 status: "activo",
-                metodo_pago_default: "efectivo" // PAGO EN EFECTIVO POR DEFECTO PARA EL FLUJO ACTUAL
+                metodo_pago_default: {
+                    stripe_token: token.id, 
+                    marca: token.card.brand,
+                    last4: token.card.last4,
+                    exp_month: token.card.exp_month,
+                    exp_year: token.card.exp_year
+                }
             }, { merge: true });
 
-            alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nBienvenido a GestiaPremium. Ahora puedes solicitar tu servicio.`);
+            alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nBienvenido a GestiaPremium. Ahora puedes solicitar tu servicio de inmediato.`);
             
-            window.location.href = "cliente.html";
+            // Redirección Inteligente: B2B → panel-b2b-admin.html | B2C → cliente.html
+            const rutaDestino = tipoCuenta === "B2B" ? "panel-b2b-admin.html" : "cliente.html";
+            window.location.href = rutaDestino;
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
                 await deleteUser(auth.currentUser).catch(e => console.error("Error borrando huérfano:", e));
-                await db.collection('users').doc(usuarioAuth.uid).delete().catch(e => console.log("Limpieza de DB fallida:", e)); 
             }
             manejarErroresAuth(error);
             btnRegistroCliente.innerHTML = textoOriginal;
@@ -352,6 +396,7 @@ if (btnRegistroTecnico) {
         const textoOriginal = btnRegistroTecnico.innerHTML;
 
         try {
+            // 🔥 BANDERA DE SEGURIDAD: Frena el redireccionamiento para darnos tiempo de subir los documentos a la Nube.
             window.isRegisteringLocal = true; 
 
             btnRegistroTecnico.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encriptando Datos...';
@@ -359,8 +404,9 @@ if (btnRegistroTecnico) {
 
             usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
 
-            btnRegistroTecnico.innerHTML = '<i class="fas fa-cloud-upload-alt animate-bounce"></i> Subiendo Archivos a la Nube...';
+            btnRegistroTecnico.innerHTML = '<i class="fas fa-cloud-upload-alt animate-bounce"></i> Subiendo Archivos Pesados a Google Cloud... (No cierres)';
             
+            // Subida real a Google Storage (URLs ligeras en lugar de Base64 pesados)
             const uid = usuarioAuth.uid;
             const [urlFoto, urlINE, urlCSF, urlLicencia] = await Promise.all([
                 subirAStorage(archivoFotoPerfil, `expedientes/${uid}/perfil_${Date.now()}`),
@@ -377,8 +423,11 @@ if (btnRegistroTecnico) {
             btnRegistroTecnico.innerHTML = '<i class="fas fa-database animate-pulse"></i> Inyectando a Base de Datos...';
 
             await setDoc(doc(db, "users", uid), {
+                uid: uid,
                 nombre: nombre,
+                email: email,
                 telefono: telefono,
+                rol: "tecnico",
                 skills: skills,
                 foto_perfil: urlFoto, 
                 fotoPerfil: urlFoto,  
@@ -401,23 +450,24 @@ if (btnRegistroTecnico) {
                 },
                 nivel: "BRONCE",
                 reputacion: 5.0,
-                servicios_completados: 0
+                servicios_completados: 0,
+                creadoEn: serverTimestamp()
             }, { merge: true });
 
             alert(`✅ ¡Expediente Recibido!\n\nBienvenido, ${nombre}. Tu cuenta está en revisión. El Administrador validará tus documentos pronto.`);
             
+            // Redirección Manual Segura una vez que terminó 100% de inyectar datos
             window.location.href = "tecnico.html";
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Técnico:", error);
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
-                await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza Auth:", e));
-                await db.collection('users').doc(usuarioAuth.uid).delete().catch(e => console.log("Limpieza DB:", e));
+                await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza:", e));
             }
             manejarErroresAuth(error);
             btnRegistroTecnico.innerHTML = textoOriginal;
             btnRegistroTecnico.disabled = false;
-            window.isRegisteringLocal = false; 
+            window.isRegisteringLocal = false; // Liberamos la bandera en caso de error
         }
     });
 }
@@ -445,6 +495,7 @@ if (btnLogin) {
             btnLogin.innerHTML = '<i class="fas fa-fingerprint animate-pulse"></i> Autenticando...';
             btnLogin.disabled = true;
             
+            // 1. Iniciamos sesión. Firebase validará usuario y contraseña correctos.
             await signInWithEmailAndPassword(auth, email, password);
 
         } catch (error) {
@@ -475,7 +526,7 @@ if (btnGoogle) {
             const docSnap = await getDoc(doc(db, "users", user.uid));
             
             if (!docSnap.exists()) {
-                window.isRegisteringLocal = true; 
+                window.isRegisteringLocal = true; // Bloquea redirección prematura
                 const esTecnico = confirm("¿Eres TÉCNICO? [ACEPTAR] = SÍ / [CANCELAR] = CLIENTE");
                 const rolSeleccionado = esTecnico ? "tecnico" : "cliente";
                 
@@ -486,6 +537,9 @@ if (btnGoogle) {
                     uid: user.uid,
                     nombre: nombreSeguro,
                     email: user.email,
+                  // 🛡️ LIMPIEZA DE REGISTRO: Convertimos a minúsculas para evitar duplicados
+                    email: email.toLowerCase(),
+
                     rol: rolSeleccionado,
                     foto_perfil: fotoGoogle, 
                     creadoEn: serverTimestamp()
@@ -505,7 +559,6 @@ if (btnGoogle) {
                 } else {
                     perfilBase.estado = "activo";
                     perfilBase.status = "activo";
-                    perfilBase.metodo_pago_default = "efectivo"; // Flujo Efectivo
                 }
 
                 await setDoc(doc(db, "users", user.uid), perfilBase);
@@ -513,12 +566,10 @@ if (btnGoogle) {
                 if(esTecnico) {
                     alert("⚠️ Aviso: Tu perfil base fue creado con Google. Por seguridad y cumplimiento (KYC), deberás contactar al Administrador para subir tu INE, CSF, Licencia y Placas antes de ser aprobado.");
                 } else {
-                    alert("⚠️ Aviso: Tu perfil fue creado exitosamente. Ya puedes solicitar servicios.");
+                    alert("⚠️ Aviso: Deberás agregar una tarjeta en tu panel para solicitar servicios (Garantía de Servicio).");
                 }
 
                 window.location.href = esTecnico ? "tecnico.html" : "cliente.html";
-            } else {
-                window.location.href = docSnap.data().rol === "tecnico" ? "tecnico.html" : "cliente.html";
             }
         } catch (error) {
             alert("Error con Google. Intenta nuevamente.");
@@ -533,11 +584,12 @@ if (btnGoogle) {
 // E. OBSERVADOR Y MANEJO DE ERRORES
 // ======================================================
 observarAuth((user) => {
+    // 🔥 ESCUDO: Solo redirecciona automáticamente SI NO ESTAMOS en pleno proceso de registro
     if (user && !window.isRegisteringLocal) {
         const path = window.location.pathname;
         if (path.includes("login.html") || path.includes("registro")) {
             setTimeout(() => {
-                if (user.rol === "tecnico" || user.rol === "tecnico_gp") window.location.href = "tecnico.html";
+                if (user.rol === "tecnico") window.location.href = "tecnico.html";
                 else if (user.rol === "admin") window.location.href = "admin.html";
                 else window.location.href = "cliente.html";
             }, 600);
