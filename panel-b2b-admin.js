@@ -127,17 +127,45 @@ function escucharPlantillaRealTime(edificioId) {
             const emp = docSnap.data();
             const empId = docSnap.id;
             
-            // 🛠️ FIX 1: Agregamos "cliente" a la lista de exclusión para que Jorge no salga en la tabla
+            // Filtro para ignorar a administradores y clientes
             if(emp.rol === "admin_b2b" || emp.rol === "ceo" || emp.rol === "cliente") return; 
+
+            // 🛠️ FIX ULTRA-SEGURO: Extraer la especialidad sin romper el código
+            let textoEspecialidad = "GENERAL";
+            if (emp.especialidad) {
+                textoEspecialidad = emp.especialidad;
+            } else if (emp.skills && emp.skills.length > 0) {
+                textoEspecialidad = emp.skills.join(', '); // Pone "fix, tech, maint"
+            }
 
             if (emp.rol === "tecnico" && emp.estado === "activo") {
                 tecnicosActivos++;
                 const opt = document.createElement("option");
                 opt.value = empId;
-                opt.textContent = `${emp.nombre.toUpperCase()} [${emp.especialidad.toUpperCase()}]`;
+                // Usamos el texto extraído de forma segura
+                opt.textContent = `${emp.nombre.toUpperCase()} [${textoEspecialidad.toUpperCase()}]`;
                 select.appendChild(opt);
             }
 
+            const row = document.createElement("tr");
+            row.className = "hover:bg-white/[0.02] transition-all text-xs border-b border-white/5";
+            row.innerHTML = `
+                <td class="p-3">
+                    <div class="font-bold text-white uppercase tracking-tighter">${emp.nombre}</div>
+                    <div class="text-[10px] text-zinc-400 font-bold uppercase italic">${textoEspecialidad.toUpperCase()}</div>
+                </td>
+                <td class="p-3 text-center">
+                    <span class="px-3 py-1 rounded-full text-[9px] font-black border ${emp.estado === 'activo' ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/5' : 'border-red-500/20 text-red-500 bg-red-500/5'}">
+                        ${emp.estado.toUpperCase()}
+                    </span>
+                </td>
+            `;
+            tabla.appendChild(row);
+        });
+
+        document.getElementById("countTecnicosActivos").innerText = tecnicosActivos;
+    });
+}
             const row = document.createElement("tr");
             row.className = "hover:bg-white/[0.02] transition-all text-xs border-b border-white/5";
             row.innerHTML = `
