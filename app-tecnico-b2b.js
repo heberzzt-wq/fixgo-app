@@ -34,6 +34,31 @@ let MaterialesTemporales = [];
 // REFACTOR 1: La ID del edificio ahora es dinámica y se carga desde el perfil.
 let edificioIdGlobal = null;
 
+// --- UTILIDADES DE UI ---
+function showToast(message, isError = false) {
+    const toast = document.createElement('div');
+    toast.className = `fixed bottom-24 left-1/2 -translate-x-1/2 p-3 rounded-lg text-white text-xs font-bold shadow-lg z-50 transition-opacity duration-300 ${isError ? 'bg-red-600' : 'bg-emerald-600'}`;
+    toast.innerText = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+function setButtonLoading(button, isLoading, originalText = 'Acción') {
+    if (!button) return;
+    if (isLoading) {
+        button.disabled = true;
+        button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO...`;
+    } else {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+
+
 // --- INICIALIZACIÓN ---
 auth.onAuthStateChanged(async (user) => {
     if(!user) return window.location.href = "login.html";
@@ -46,12 +71,12 @@ auth.onAuthStateChanged(async (user) => {
             console.log(`🏢 Técnico autenticado para el edificio: ${edificioIdGlobal}`);
         } else {
             document.body.innerHTML = `<div class="p-8 text-center text-red-500 text-lg font-black">ERROR DE ACCESO: Tu perfil no está asignado a ningún edificio. Contacta a tu administrador.</div>`;
-            alert("Error de perfil: No tienes un edificio B2B asignado.");
+            showToast("Error de perfil: No tienes un edificio B2B asignado.", true);
             return;
         }
     } catch (error) {
         console.error("Error crítico al obtener perfil:", error);
-        alert("Error de conexión al verificar tu perfil. No se puede continuar.");
+        showToast("Error de conexión al verificar tu perfil. No se puede continuar.", true);
         return;
     }
 
@@ -113,10 +138,14 @@ window.seleccionarTarea = (id) => {
 window.enviarDiagnostico = async () => {
     const diag = document.getElementById("diagInput").value.trim();
     const file = document.getElementById("fileAntes").files[0];
+    const btn = document.querySelector('#step1 button[onclick="enviarDiagnostico()"]');
+    const originalText = btn.innerHTML;
 
-    if(!diag || !file) return alert("Jonathan, falta diagnóstico o foto inicial.");
+    if(!diag || !file) return showToast("Falta diagnóstico o foto inicial.", true);
 
+    setButtonLoading(btn, true);
     try {
+        showToast("Subiendo diagnóstico...");
         const path = `evidencias/${ordenId}/antes_${Date.now()}.jpg`;
         const storageRef = ref(storage, path);
         await uploadBytes(storageRef, file);
@@ -129,10 +158,13 @@ window.enviarDiagnostico = async () => {
             fecha_diagnostico: serverTimestamp()
         });
 
+        showToast("Diagnóstico subido con éxito.", false);
         document.getElementById("step1").classList.add("step-inactive");
         document.getElementById("step2").classList.remove("step-inactive");
     } catch (e) {
-        alert("Error al subir diagnóstico. Reintenta.");
+        showToast("Error al subir diagnóstico. Reintenta.", true);
+    } finally {
+        setButtonLoading(btn, false, originalText);
     }
 };
 
@@ -166,14 +198,24 @@ window.removerMaterial = (id) => {
 };
 
 window.confirmarMateriales = async () => {
+    const btn = document.querySelector('#step2 button[onclick="confirmarMateriales()"]');
+    const originalText = btn.innerHTML;
+    setButtonLoading(btn, true);
+
     try {
+        showToast("Guardando insumos...");
         // REGLA 3: El nombre del campo es 'materiales_utilizados'
         await updateDoc(doc(db, "servicios_b2b", ordenId), {
             materiales_utilizados: MaterialesTemporales
         });
+        showToast("Insumos confirmados.", false);
         document.getElementById("step2").classList.add("step-inactive");
         document.getElementById("step3").classList.remove("step-inactive");
-    } catch (e) { alert("Error al guardar materiales."); }
+    } catch (e) { 
+        showToast("Error al guardar materiales.", true);
+    } finally {
+        setButtonLoading(btn, false, originalText);
+    }
 };
 
 // --- PASO 3: CIERRE ---
@@ -181,9 +223,14 @@ window.subirEvidenciaFinal = async () => {
     const file = document.getElementById("fileDespues").files[0];
     const obs = document.getElementById("obs-finales").value.trim();
 
-    if(!file || !obs) return alert("Falta la foto final o las notas de cierre.");
+    if(!file || !obs) return showToast("Falta la foto final o las notas de cierre.", true);
+
+    const btn = document.getElementById("btnUploadDespues");
+    const originalText = btn.innerHTML;
+    setButtonLoading(btn, true);
 
     try {
+        showToast("Subiendo evidencia final...");
         const path = `evidencias/${ordenId}/despues_${Date.now()}.jpg`;
         const storageRef = ref(storage, path);
         await uploadBytes(storageRef, file);
@@ -194,10 +241,15 @@ window.subirEvidenciaFinal = async () => {
             observaciones_finales: obs
         });
 
+        showToast("Evidencia validada.", false);
         document.getElementById("step3").classList.add("step-inactive");
         document.getElementById("step4").classList.remove("step-inactive");
         initSignaturePad();
-    } catch (e) { alert("Error al subir reporte final."); }
+    } catch (e) { 
+        showToast("Error al subir reporte final.", true);
+    } finally {
+        setButtonLoading(btn, false, originalText);
+    }
 };
 
 // --- PASO 4: FIRMA ---
@@ -229,16 +281,21 @@ function initSignaturePad() {
 window.clearSignature = () => ctx.clearRect(0, 0, canvas.width, canvas.height);
 
 window.finalizarOrden = async () => {
+    const btn = document.querySelector('#step4 button[onclick="finalizarOrden()"]');
+    const originalText = btn.innerHTML;
+    setButtonLoading(btn, true);
+
     try {
-        const uid = auth.currentUser?.uid;
-        if (!uid) return alert("❌ Error: Usuario no autenticado.");
-
-
-        const userDoc = await getDoc(doc(db, "users", uid));
-        if (!userDoc.exists()) {
-            alert("❌ Error: Perfil de usuario no encontrado.");
-            return;
+        if (ctx.getImageData(0, 0, canvas.width, canvas.height).data.some(channel => channel !== 0)) {
+            // Canvas no está vacío
+        } else {
+            throw new Error("La firma de conformidad es obligatoria.");
         }
+
+        const uid = auth.currentUser?.uid;
+        if (!uid) throw new Error("Usuario no autenticado.");
+        const userDoc = await getDoc(doc(db, "users", uid));
+        if (!userDoc.exists()) throw new Error("Perfil de usuario no encontrado.");
 
         const nombreTecnico = userDoc.data().nombre || "Técnico";
 
@@ -265,11 +322,13 @@ window.finalizarOrden = async () => {
             materiales_utilizados: MaterialesTemporales // REFACTOR 3: Añadir consistencia de insumos
         });
 
-        alert(`🏆 BITÁCORA DE ${edificioIdGlobal.toUpperCase()} ACTUALIZADA.\n\nTécnico: ${nombreTecnico}\nPresione OK para continuar.`);
+        showToast(`Bitácora de ${edificioIdGlobal.toUpperCase()} actualizada.`);
         window.location.reload();
     } catch (e) {
-        console.error("❌ Error al cerrar bitácora:", e);
-        alert("Error al cerrar bitácora. Reintenta.");
+        console.error("Error al cerrar bitácora:", e);
+        showToast(e.message || "Error al cerrar bitácora. Reintenta.", true);
+    } finally {
+        setButtonLoading(btn, false, originalText);
     }
 };
 
