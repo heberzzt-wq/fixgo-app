@@ -1,7 +1,7 @@
 /**
- * GESTIA PREMIUM - V5.18
+ * GESTIA PREMIUM - V5.19
  * MOTOR DE OPERACIONES B2B (Uxmal 39)
- * FIX: Importaciones desacopladas para evitar SyntaxError de export
+ * FIX: Importación de getDocs para el módulo de Rutinas Preventivas.
  * Lead Architect: Heberto Mendoza
  */
 
@@ -12,6 +12,7 @@ import { auth, db, storage } from "./firebase.js";
 import {
     doc,
     getDoc,
+    getDocs,
     updateDoc,
     serverTimestamp,
     collection,
@@ -33,6 +34,8 @@ let canvas, ctx, isDrawing = false;
 let MaterialesTemporales = [];
 // REFACTOR 1: La ID del edificio ahora es dinámica y se carga desde el perfil.
 let edificioIdGlobal = null;
+let rutinaDiariaTareas = []; // TAREA 2: To keep track of tasks for the day
+let rutinaCompletadaIds = new Set(); // TAREA 2: To track completed tasks
 
 // --- UTILIDADES DE UI ---
 function showToast(message, isError = false) {
@@ -85,12 +88,14 @@ auth.onAuthStateChanged(async (user) => {
         document.getElementById("flujoTecnico").classList.remove("hidden");
     } else {
         cargarTareasProgramadas();
+        cargarRutinaPreventiva(); // TAREA 2: NEW
     }
 });
 
 // --- CARGA DE DATOS ---
 function cargarTareasProgramadas() {
     const contenedor = document.getElementById("contenedor-tareas-diarias");
+    if (!contenedor) return;
     const hoy = new Date().toISOString().split('T')[0];
 
     // REFACTOR 1: La consulta ahora usa la variable global dinámica.
@@ -132,6 +137,134 @@ window.seleccionarTarea = (id) => {
     ordenId = id;
     document.getElementById("listaTareasHoy").classList.add("hidden");
     document.getElementById("flujoTecnico").classList.remove("hidden");
+};
+
+// --- TAREA 2 (V5.19): MOTOR DE RUTINAS PREVENTIVAS ---
+async function cargarRutinaPreventiva() {
+    if (!edificioIdGlobal) return;
+
+    const rutinaContainer = document.getElementById("rutinaPreventiva");
+    const checklistContainer = document.getElementById("checklist-rutinas");
+    if (!rutinaContainer || !checklistContainer) return;
+
+    try {
+        // 1. Get the master routine config
+        const rutinaRef = doc(db, "config_rutinas", edificioIdGlobal);
+        const rutinaSnap = await getDoc(rutinaRef);
+
+        if (!rutinaSnap.exists()) {
+            rutinaContainer.classList.add("hidden");
+            return;
+        }
+        rutinaContainer.classList.remove("hidden");
+
+        const rutinaMaster = rutinaSnap.data();
+        let tareasDelDia = [];
+
+        // 2. Logic for frequency
+        const hoy = new Date();
+        const diaSemana = hoy.getDay(); // 0=Domingo, 1=Lunes
+        const diaMes = hoy.getDate();
+
+        // Always add Daily tasks
+        if (rutinaMaster.Diaria) tareasDelDia.push(...rutinaMaster.Diaria);
+
+        // Add Weekly tasks on Mondays
+        if (diaSemana === 1 && rutinaMaster.Semanal_Quincenal) {
+            tareasDelDia.push(...rutinaMaster.Semanal_Quincenal);
+        }
+
+        // Add Monthly tasks on the 1st
+        if (diaMes === 1 && rutinaMaster.Mensual) {
+            tareasDelDia.push(...rutinaMaster.Mensual);
+        }
+        
+        // Add Annual tasks on Jan 1st
+        if (diaMes === 1 && hoy.getMonth() === 0 && rutinaMaster.Semestral_Anual) {
+            tareasDelDia.push(...rutinaMaster.Semestral_Anual);
+        }
+
+        rutinaDiariaTareas = tareasDelDia; // Store for later checks
+
+        // 3. Get today's completed tasks to pre-fill checkboxes
+        const fechaHoyStr = hoy.toISOString().split('T')[0];
+        const qLogs = query(
+            collection(db, "log_rutinas"),
+            where("edificioId", "==", edificioIdGlobal),
+            where("fechaCompletado", "==", fechaHoyStr)
+        );
+        const logSnapshot = await getDocs(qLogs);
+        rutinaCompletadaIds = new Set(logSnapshot.docs.map(d => d.data().tareaId));
+
+        // 4. Render the checklist
+        renderizarChecklist();
+
+    } catch (error) {
+        console.error("Error cargando rutina preventiva:", error);
+        checklistContainer.innerHTML = `<p class="text-red-500 text-xs">Error al cargar rutina.</p>`;
+    }
+}
+
+function renderizarChecklist() {
+    const checklistContainer = document.getElementById("checklist-rutinas");
+    if (!checklistContainer) return;
+
+    if (rutinaDiariaTareas.length === 0) {
+        checklistContainer.innerHTML = `<p class="text-zinc-500 text-xs italic">No hay tareas de rutina programadas para hoy.</p>`;
+        return;
+    }
+
+    checklistContainer.innerHTML = rutinaDiariaTareas.map(tarea => {
+        const isCompleted = rutinaCompletadaIds.has(tarea.id_tarea);
+        return `
+            <div class="glass-card p-3 rounded-lg border ${isCompleted ? 'border-emerald-500/50 bg-emerald-900/20' : 'border-zinc-800'} flex items-center justify-between gap-3">
+                <div class="flex-1">
+                    <p class="text-xs font-bold ${isCompleted ? 'text-emerald-400 line-through' : 'text-white'}">${tarea.descripcion}</p>
+                    <p class="text-[9px] text-zinc-500 uppercase">${tarea.sistema} - ${tarea.equipo}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    ${!isCompleted ? `
+                    <button onclick="window.reportarHallazgoEnRutina('${encodeURIComponent(JSON.stringify(tarea))}')" class="bg-red-600/20 text-red-400 text-[9px] font-bold px-2 py-2 rounded-lg border border-red-500/30 hover:bg-red-500 hover:text-white transition-all">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </button>
+                    <button onclick="window.marcarRutinaOK('${tarea.id_tarea}', this)" class="bg-zinc-700 text-white text-[9px] font-bold px-3 py-2 rounded-lg border border-zinc-600 hover:bg-emerald-600 transition-all">
+                        OK
+                    </button>
+                    ` : `
+                    <span class="text-emerald-500 text-lg"><i class="fas fa-check-circle"></i></span>
+                    `}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+window.marcarRutinaOK = async (tareaId, button) => {
+    if (rutinaCompletadaIds.has(tareaId)) return;
+
+    setButtonLoading(button, true, 'OK');
+    try {
+        const fechaHoyStr = new Date().toISOString().split('T')[0];
+        await addDoc(collection(db, "log_rutinas"), {
+            edificioId: edificioIdGlobal,
+            tecnicoId: auth.currentUser.uid,
+            tecnicoNombre: auth.currentUser.displayName || "Técnico",
+            tareaId: tareaId,
+            fechaCompletado: fechaHoyStr,
+            timestamp: serverTimestamp(),
+            status: 'ok',
+            novedad: false
+        });
+
+        rutinaCompletadaIds.add(tareaId);
+        renderizarChecklist(); // Re-render to show completion
+        showToast("Tarea de rutina completada.", false);
+
+    } catch (error) {
+        console.error("Error al marcar rutina:", error);
+        showToast("Error al guardar. Intenta de nuevo.", true);
+        setButtonLoading(button, false, 'OK');
+    }
 };
 
 // --- PASO 1: DIAGNÓSTICO ---
@@ -184,6 +317,7 @@ window.agregarMaterial = () => {
 
 function renderizarMateriales() {
     const lista = document.getElementById("lista-materiales-acumulados");
+    if (!lista) return;
     lista.innerHTML = MaterialesTemporales.map(m => `
         <div class="flex justify-between items-center bg-zinc-900 p-2 rounded-lg border border-white/5 text-[9px]">
             <span>${m.cantidad}x <b>${m.nombre}</b></span>
@@ -255,6 +389,7 @@ window.subirEvidenciaFinal = async () => {
 // --- PASO 4: FIRMA ---
 function initSignaturePad() {
     canvas = document.getElementById("signaturePad");
+    if (!canvas) return;
     ctx = canvas.getContext("2d");
     const r = canvas.getBoundingClientRect();
     canvas.width = r.width;
@@ -278,7 +413,9 @@ function initSignaturePad() {
     canvas.addEventListener("touchend", stop);
 }
 
-window.clearSignature = () => ctx.clearRect(0, 0, canvas.width, canvas.height);
+window.clearSignature = () => {
+    if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+};
 
 window.finalizarOrden = async () => {
     const btn = document.querySelector('#step4 button[onclick="finalizarOrden()"]');
@@ -337,8 +474,96 @@ window.previewImg = (input, divId) => {
     if (file) {
         const reader = new FileReader();
         reader.onload = (e) => {
-            document.getElementById(divId).innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover rounded-xl">`;
+            const previewContainer = document.getElementById(divId);
+            if (previewContainer) {
+                previewContainer.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover rounded-xl">`;
+            }
         };
         reader.readAsDataURL(file);
+    }
+};
+
+window.reportarHallazgoEnRutina = async (tareaString) => {
+    const tarea = JSON.parse(decodeURIComponent(tareaString));
+    if (!confirm(`¿Deseas reportar un hallazgo para la tarea "${tarea.descripcion}"?\n\nEsto creará una nueva orden de trabajo correctiva que deberás atender.`)) return;
+
+    try {
+        // Create a new reactive ticket from the routine task
+        const newTicket = {
+            edificioId: edificioIdGlobal,
+            edificioNombre: "Uxmal 39", // This should be dynamic if possible
+            ubicacion_especifica: tarea.ubicacion,
+            descripcion: `HALLAZGO EN RUTINA: ${tarea.descripcion}`,
+            prioridad: tarea.prioridad || 'media',
+            tecnicoId: auth.currentUser.uid, // Pre-assign to self
+            status: "en_proceso", // Start directly in process
+            fecha_programada: new Date().toISOString().split('T')[0],
+            equipo_nombre: tarea.equipo,
+            tipo: "correctivo_de_rutina",
+            fecha_creacion: serverTimestamp(),
+            creado_por: auth.currentUser.uid,
+            origen_rutina_id: tarea.id_tarea
+        };
+
+        const docRef = await addDoc(collection(db, "servicios_b2b"), newTicket);
+        showToast("Orden correctiva creada. Completa el diagnóstico.", false);
+
+        // Mark the routine task as "reported"
+        const fechaHoyStr = new Date().toISOString().split('T')[0];
+        await addDoc(collection(db, "log_rutinas"), {
+            edificioId: edificioIdGlobal,
+            tecnicoId: auth.currentUser.uid,
+            tecnicoNombre: auth.currentUser.displayName || "Técnico",
+            tareaId: tarea.id_tarea,
+            fechaCompletado: fechaHoyStr,
+            timestamp: serverTimestamp(),
+            status: 'reportado',
+            novedad: true,
+            servicio_b2b_id: docRef.id
+        });
+
+        // Redirect to the new ticket flow
+        window.location.href = `?id=${docRef.id}`;
+
+    } catch (error) {
+        console.error("Error reportando hallazgo:", error);
+        showToast("Error al crear la orden correctiva.", true);
+    }
+};
+
+window.finalizarRutinaDiaria = async () => {
+    const totalTareas = rutinaDiariaTareas.length;
+    const completadas = rutinaCompletadaIds.size;
+
+    if (completadas < totalTareas) {
+        alert(`Aún no has completado toda la rutina. Faltan ${totalTareas - completadas} tareas.`);
+        return;
+    }
+
+    if (!confirm("¿Confirmas el cierre de la bitácora de rutina preventiva de hoy?")) return;
+
+    const btn = document.getElementById('btnFinalizarRutina');
+    setButtonLoading(btn, true, 'FINALIZAR...');
+
+    try {
+        // TAREA 3: Generate logbook entry
+        await addDoc(collection(db, "bitacora_edificios"), {
+            edificioId: edificioIdGlobal,
+            servicioId: `RUTINA-${new Date().toISOString().split('T')[0]}`,
+            fecha: serverTimestamp(),
+            tecnico: auth.currentUser.displayName || "Técnico",
+            tecnico_uid: auth.currentUser.uid,
+            resumen: `Rutina Preventiva Diaria completada al 100% (${completadas}/${totalTareas}). Sin novedades reportadas directamente desde el checklist.`,
+            tipo: "RUTINA_PREVENTIVA"
+        });
+
+        showToast("Bitácora de rutina cerrada con éxito.", false);
+        btn.innerHTML = '<i class="fas fa-check-circle"></i> RUTINA CERRADA';
+        btn.disabled = true;
+
+    } catch (error) {
+        console.error("Error al finalizar rutina:", error);
+        showToast("Error al cerrar la bitácora de rutina.", true);
+        setButtonLoading(btn, false, 'FINALIZAR Y CERRAR BITÁCORA DE RUTINA');
     }
 };
