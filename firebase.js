@@ -68,41 +68,55 @@ const storage = getStorage(firebaseApp);
  * Esta función decide a qué página mandar al usuario apenas entra.
  */
 export function verificarYRedireccionar(user) {
-    if (!user) return;
-    if (typeof window === "undefined") return;
+    if (!user || typeof window === "undefined") return;
 
-    // Normalizamos el rol a minúsculas para evitar errores (Admin vs admin)
-    const role = (user.rol || user.role || "").toLowerCase(); 
-    const subType = user.sub_type || 'marketplace';
     const path = window.location.pathname;
+    const currentPage = path.split('/').pop();
 
-    console.log(`🚦 ENRUTADOR V5.18: Rol=${role}, Tipo=${subType}, Path=${path}`);
+    // 1. Normalización de datos desde Firestore (flexible y a prueba de errores)
+    const role = (user.rol || user.role || "").toLowerCase();
+    const subType = (user.sub_type || user.subtype || 'marketplace').toLowerCase();
 
-    // 1. PRIORIDAD MÁXIMA: Si eres ADMIN, vas al NOC directamente
+    console.log(`🚦 ENRUTADOR BLINDADO: Rol='${role}', Tipo='${subType}', Path='${currentPage}'`);
+
+    // 2. Lógica de redirección por prioridad
+    // PRIORIDAD 1: ADMIN
     if (role === 'admin') {
-        if (!path.includes('admin.html')) {
+        if (currentPage !== 'admin.html') {
             window.location.href = 'admin.html';
         }
-        return; 
+        return; // Detiene la ejecución para admin
     }
 
-    // 2. Lógica para TÉCNICOS
+    // PRIORIDAD 2: TÉCNICOS
     if (role === 'tecnico') {
         if (subType === 'saas') {
-            if (!path.includes('tecnico-b2b.html')) window.location.href = 'tecnico-b2b.html';
-        } else {
-            if (!path.includes('panel-tecnico.html')) window.location.href = 'panel-tecnico.html';
+            if (currentPage !== 'tecnico-b2b.html') {
+                window.location.href = 'tecnico-b2b.html';
+            }
+        } else { // Marketplace
+            if (currentPage !== 'panel-tecnico.html') {
+                window.location.href = 'panel-tecnico.html';
+            }
         }
-    } 
-    // 3. Lógica para CLIENTES (Jonathan/Jorge)
-    else if (role === 'cliente' || role === 'client') {
+        return;
+    }
+
+    // PRIORIDAD 3: CLIENTES
+    if (role === 'cliente' || role === 'client') {
         if (subType === 'saas') {
-            if (!path.includes('dashboard-b2b.html')) window.location.href = 'dashboard-b2b.html';
-        } else {
-            if (!path.includes('index.html') && !path.includes('dashboard-client.html') && path !== '/') {
+            // Asumiendo que el dashboard B2B de cliente es 'dashboard-b2b.html'
+            if (currentPage !== 'dashboard-b2b.html') { 
+                window.location.href = 'dashboard-b2b.html';
+            }
+        } else { // Marketplace
+            // Si está en alguna de estas páginas, no hagas nada
+            const validMarketplacePages = ['index.html', 'dashboard-client.html', '']; // '' para la raíz del sitio
+            if (!validMarketplacePages.includes(currentPage)) {
                 window.location.href = 'index.html';
             }
         }
+        return;
     }
 }
 
@@ -140,6 +154,7 @@ export function observarAuth(callback) {
 
             if (snap.exists()) {
                 const data = snap.data();
+                console.log("DATOS RECUPERADOS:", data); // <-- Log de depuración solicitado
                 const finalUser = { ...user, ...data };
                 
                 // 🚀 REDIRECCIÓN AUTOMÁTICA SEGÚN ROL Y TIPO
