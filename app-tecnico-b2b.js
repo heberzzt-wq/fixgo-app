@@ -1,7 +1,7 @@
 /**
- * GESTIA PREMIUM - V5.19
+ * GESTIA PREMIUM - V5.18
  * MOTOR DE OPERACIONES B2B (Uxmal 39)
- * FIX: Importación de getDocs para el módulo de Rutinas Preventivas.
+ * FIX: Importaciones desacopladas para evitar SyntaxError de export
  * Lead Architect: Heberto Mendoza
  */
 
@@ -60,6 +60,20 @@ function setButtonLoading(button, isLoading, originalText = 'Acción') {
     }
 }
 
+// 🛡️ REGLA 2: EL CANDADO JONATHAN
+async function validarPaseCaseta() {
+    const user = auth.currentUser;
+    if (!user) return false;
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    const data = userDoc.data();
+    
+    if (!data.tecnico_placas || data.tecnico_placas === "000-000" || data.tecnico_placas.trim() === "") {
+        alert("🚨 BLOQUEO DE SEGURIDAD: No tienes placas registradas. Jonathan, no puedes iniciar servicios sin datos de vehículo para el pase de caseta.");
+        return false;
+    }
+    return true;
+}
+
 
 
 // --- INICIALIZACIÓN ---
@@ -95,7 +109,6 @@ auth.onAuthStateChanged(async (user) => {
 // --- CARGA DE DATOS ---
 function cargarTareasProgramadas() {
     const contenedor = document.getElementById("contenedor-tareas-diarias");
-    if (!contenedor) return;
     const hoy = new Date().toISOString().split('T')[0];
 
     // REFACTOR 1: La consulta ahora usa la variable global dinámica.
@@ -133,7 +146,11 @@ function cargarTareasProgramadas() {
     });
 }
 
-window.seleccionarTarea = (id) => {
+window.seleccionarTarea = async (id) => {
+    // 🛡️ Aplicando Regla 2
+    const tienePase = await validarPaseCaseta();
+    if (!tienePase) return; 
+
     ordenId = id;
     document.getElementById("listaTareasHoy").classList.add("hidden");
     document.getElementById("flujoTecnico").classList.remove("hidden");
@@ -317,7 +334,6 @@ window.agregarMaterial = () => {
 
 function renderizarMateriales() {
     const lista = document.getElementById("lista-materiales-acumulados");
-    if (!lista) return;
     lista.innerHTML = MaterialesTemporales.map(m => `
         <div class="flex justify-between items-center bg-zinc-900 p-2 rounded-lg border border-white/5 text-[9px]">
             <span>${m.cantidad}x <b>${m.nombre}</b></span>
@@ -389,7 +405,6 @@ window.subirEvidenciaFinal = async () => {
 // --- PASO 4: FIRMA ---
 function initSignaturePad() {
     canvas = document.getElementById("signaturePad");
-    if (!canvas) return;
     ctx = canvas.getContext("2d");
     const r = canvas.getBoundingClientRect();
     canvas.width = r.width;
@@ -413,9 +428,7 @@ function initSignaturePad() {
     canvas.addEventListener("touchend", stop);
 }
 
-window.clearSignature = () => {
-    if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-};
+window.clearSignature = () => ctx.clearRect(0, 0, canvas.width, canvas.height);
 
 window.finalizarOrden = async () => {
     const btn = document.querySelector('#step4 button[onclick="finalizarOrden()"]');
@@ -474,10 +487,7 @@ window.previewImg = (input, divId) => {
     if (file) {
         const reader = new FileReader();
         reader.onload = (e) => {
-            const previewContainer = document.getElementById(divId);
-            if (previewContainer) {
-                previewContainer.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover rounded-xl">`;
-            }
+            document.getElementById(divId).innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover rounded-xl">`;
         };
         reader.readAsDataURL(file);
     }
