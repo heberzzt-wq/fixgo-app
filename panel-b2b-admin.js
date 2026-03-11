@@ -238,66 +238,6 @@ function escucharAvanceRutina(edificioId) {
     });
 }
 
-// TAREA 1 (V5.19): Monitor de Avance de Rutina Preventiva
-function escucharAvanceRutina(edificioId) {
-    const hoy = new Date().toISOString().split('T')[0];
-    const dashboardRutinas = document.getElementById('dashboard-rutinas');
-    if (!dashboardRutinas) return;
-
-    // Query para obtener las tareas de rutina completadas hoy
-    const q = query(
-        collection(db, "log_rutinas"),
-        where("edificioId", "==", edificioId),
-        where("fechaCompletado", "==", hoy)
-    );
-
-    onSnapshot(q, async (logSnapshot) => {
-        const completadasHoyIds = new Set(logSnapshot.docs.map(d => d.data().tareaId));
-
-        // Obtener la rutina maestra para saber el total de tareas diarias
-        const rutinaRef = doc(db, "config_rutinas", edificioId);
-        const rutinaSnap = await getDoc(rutinaRef);
-
-        if (!rutinaSnap.exists()) {
-            dashboardRutinas.innerHTML = `<p class="text-xs text-zinc-500">No hay plan de rutina cargado.</p>`;
-            return;
-        }
-
-        const rutinaMaster = rutinaSnap.data();
-        const tareasDiariasTotales = rutinaMaster.Diaria || [];
-        const totalDiarias = tareasDiariasTotales.length;
-        
-        let completadasDiarias = 0;
-        tareasDiariasTotales.forEach(tarea => {
-            if (completadasHoyIds.has(tarea.id_tarea)) {
-                completadasDiarias++;
-            }
-        });
-
-        const porcentaje = totalDiarias > 0 ? Math.round((completadasDiarias / totalDiarias) * 100) : 0;
-
-        // TAREA 2: Actualizar la UI del Dashboard de Seguimiento
-        dashboardRutinas.innerHTML = `
-            <h4 class="text-xs font-black uppercase text-zinc-500 mb-2 tracking-widest">Avance Rutina Preventiva (Hoy)</h4>
-            <div class="flex items-center gap-4">
-                <div class="relative w-16 h-16">
-                    <svg class="w-full h-full" viewBox="0 0 36 36">
-                        <path class="stroke-current text-zinc-700" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3"></path>
-                        <path class="stroke-current text-emerald-500 transition-all duration-500" stroke-dasharray="${porcentaje}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3" stroke-linecap="round"></path>
-                    </svg>
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-lg font-black text-white">${porcentaje}%</span>
-                    </div>
-                </div>
-                <div>
-                    <p class="text-white font-bold">${completadasDiarias} de ${totalDiarias} tareas diarias</p>
-                    <p class="text-xs text-zinc-400">Completadas por el equipo.</p>
-                </div>
-            </div>
-        `;
-    });
-}
-
 // TAREA 1: Monitor de Bitácora
 function escucharBitacoraRealTime(edificioId) {
     const q = query(collection(db, "bitacora_edificios"), where("edificioId", "==", edificioId), orderBy("fecha", "desc"), limit(10));
