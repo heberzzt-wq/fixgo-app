@@ -1,4 +1,4 @@
-import { auth, db, doc, getDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, serverTimestamp, query, where, orderBy, limit } from "./firebase.js";
+import { auth, db, doc, getDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, serverTimestamp, query, where, orderBy, limit, setDoc } from "./firebase.js";
 
 let adminContext = null; 
 
@@ -23,8 +23,8 @@ auth.onAuthStateChanged((userAuth) => {
         adminContext = docSnap.data();
         document.getElementById("panelAdminB2B").classList.remove("hidden");
         
-        // TAREA 1: Normalización de Campos (Refactor V5.18)
-        const nombreEdificio = adminContext.edificioNombre || adminContext.edificioId || "CABINA DE MANDO B2B";
+        // TAREA 1: Normalización de Campos
+        const nombreEdificio = adminContext.edificioNombre || "EDIFICIO SIN NOMBRE";
         document.getElementById("lblNombreEdificio").innerText = nombreEdificio.toUpperCase();
 
         // TAREA 1: Sincronía de IDs
@@ -33,6 +33,7 @@ auth.onAuthStateChanged((userAuth) => {
             conectarContadorTickets(adminContext.edificioId);
             conectarContadorMantenimientosHoy(adminContext.edificioId);
             escucharBitacoraRealTime(adminContext.edificioId);
+            escucharAvanceRutina(adminContext.edificioId); // TAREA 1: V5.19
         }
     });
 });
@@ -53,7 +54,7 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
         rol: document.getElementById("regRol").value,
         especialidad: document.getElementById("regEspecialidad").value,
         edificioId: adminContext.edificioId, 
-        edificioNombre: adminContext.edificioNombre || adminContext.edificioId,
+        edificioNombre: adminContext.edificioNombre,
         estado: "activo",
         disponible: true,
         fecha_registro: serverTimestamp()
@@ -82,7 +83,7 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
 
     const ticketData = {
         edificioId: adminContext.edificioId,
-        edificioNombre: adminContext.edificioNombre || adminContext.edificioId,
+        edificioNombre: adminContext.edificioNombre,
         ubicacion_especifica: document.getElementById("tickPunto").value.trim(),
         descripcion: document.getElementById("tickDesc").value.trim(),
         prioridad: document.getElementById("tickPrioridad").value,
@@ -91,25 +92,26 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
         fecha_programada: new Date().toISOString().split('T')[0], // Programado para hoy
         equipo_nombre: "Mantenimiento General",
         tipo: "mantenimiento",
-        fecha_creacion: serverTimestamp(),
+        fecha_creacion: serverTimestamp(), // Mantenemos la fecha de creación
         creado_por: auth.currentUser.uid
     };
 
     try {
-       // TAREA 1: Redirección de Colección
+        // TAREA 1: Redirección de Colección
         await addDoc(collection(db, "servicios_b2b"), ticketData);
         alert("🚀 ORDEN DESPACHADA: El especialista recibirá la notificación de inmediato.");
         document.getElementById("formTicketB2B").reset();
     } catch (err) {
-        console.error("🔥 ERROR AL DESPACHAR:", err); // 👈 ¡ESTA ES LA LUPA MAGICA!
         alert("❌ Error al despachar orden.");
     } finally {
         btn.disabled = false;
         btn.innerHTML = "Despachar Orden de Trabajo";
     }
 });
+
 // 4. RADAR DE PLANTILLA Y MÉTRICAS
 function escucharPlantillaRealTime(edificioId) {
+    // TAREA 1: Filtro de Seguridad
     const q = query(collection(db, "users"), where("edificioId", "==", edificioId));
 
     onSnapshot(q, (snap) => {
@@ -125,22 +127,13 @@ function escucharPlantillaRealTime(edificioId) {
             const emp = docSnap.data();
             const empId = docSnap.id;
             
-            // Filtro estricto: Ocultar admin, ceo y cliente (Jorge)
-            if(emp.rol === "admin_b2b" || emp.rol === "ceo" || emp.rol === "cliente") return; 
-
-            // FIX: Extraer la especialidad sin romper
-            let textoEspecialidad = "GENERAL";
-            if (emp.especialidad) {
-                textoEspecialidad = emp.especialidad;
-            } else if (emp.skills && emp.skills.length > 0) {
-                textoEspecialidad = emp.skills.join(', '); // Maneja el array [fix, tech]
-            }
+            if(emp.rol === "admin_b2b" || emp.rol === "ceo") return; 
 
             if (emp.rol === "tecnico" && emp.estado === "activo") {
                 tecnicosActivos++;
                 const opt = document.createElement("option");
                 opt.value = empId;
-                opt.textContent = `${emp.nombre.toUpperCase()} [${textoEspecialidad.toUpperCase()}]`;
+                opt.textContent = `${emp.nombre.toUpperCase()} [${emp.especialidad.toUpperCase()}]`;
                 select.appendChild(opt);
             }
 
@@ -149,7 +142,7 @@ function escucharPlantillaRealTime(edificioId) {
             row.innerHTML = `
                 <td class="p-3">
                     <div class="font-bold text-white uppercase tracking-tighter">${emp.nombre}</div>
-                    <div class="text-[10px] text-zinc-400 font-bold uppercase italic">${textoEspecialidad.toUpperCase()}</div>
+                    <div class="text-[10px] text-zinc-400 font-bold uppercase italic">${emp.especialidad}</div>
                 </td>
                 <td class="p-3 text-center">
                     <span class="px-3 py-1 rounded-full text-[9px] font-black border ${emp.estado === 'activo' ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/5' : 'border-red-500/20 text-red-500 bg-red-500/5'}">
@@ -165,6 +158,7 @@ function escucharPlantillaRealTime(edificioId) {
 }
 
 function conectarContadorTickets(edificioId) {
+    // TAREA 1: Redirección y Filtro de Seguridad
     const q = query(collection(db, "servicios_b2b"), where("edificioId", "==", edificioId), where("status", "in", ["programado", "en_proceso"]));
     onSnapshot(q, (snap) => {
         document.getElementById("countOrdenesPendientes").innerText = snap.size;
@@ -179,6 +173,67 @@ function conectarContadorMantenimientosHoy(edificioId) {
     });
 }
 
+// TAREA 1 (V5.19): Monitor de Avance de Rutina Preventiva
+function escucharAvanceRutina(edificioId) {
+    const hoy = new Date().toISOString().split('T')[0];
+    const dashboardRutinas = document.getElementById('dashboard-rutinas');
+    if (!dashboardRutinas) return;
+
+    // Query para obtener las tareas de rutina completadas hoy
+    const q = query(
+        collection(db, "log_rutinas"),
+        where("edificioId", "==", edificioId),
+        where("fechaCompletado", "==", hoy)
+    );
+
+    onSnapshot(q, async (logSnapshot) => {
+        const completadasHoyIds = new Set(logSnapshot.docs.map(d => d.data().tareaId));
+
+        // Obtener la rutina maestra para saber el total de tareas diarias
+        const rutinaRef = doc(db, "config_rutinas", edificioId);
+        const rutinaSnap = await getDoc(rutinaRef);
+
+        if (!rutinaSnap.exists()) {
+            dashboardRutinas.innerHTML = `<p class="text-xs text-zinc-500">No hay plan de rutina cargado.</p>`;
+            return;
+        }
+
+        const rutinaMaster = rutinaSnap.data();
+        const tareasDiariasTotales = rutinaMaster.Diaria || [];
+        const totalDiarias = tareasDiariasTotales.length;
+        
+        let completadasDiarias = 0;
+        tareasDiariasTotales.forEach(tarea => {
+            if (completadasHoyIds.has(tarea.id_tarea)) {
+                completadasDiarias++;
+            }
+        });
+
+        const porcentaje = totalDiarias > 0 ? Math.round((completadasDiarias / totalDiarias) * 100) : 0;
+
+        // TAREA 2: Actualizar la UI del Dashboard de Seguimiento
+        dashboardRutinas.innerHTML = `
+            <h4 class="text-xs font-black uppercase text-zinc-500 mb-2 tracking-widest">Avance Rutina Preventiva (Hoy)</h4>
+            <div class="flex items-center gap-4">
+                <div class="relative w-16 h-16">
+                    <svg class="w-full h-full" viewBox="0 0 36 36">
+                        <path class="stroke-current text-zinc-700" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3"></path>
+                        <path class="stroke-current text-emerald-500 transition-all duration-500" stroke-dasharray="${porcentaje}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3" stroke-linecap="round"></path>
+                    </svg>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-lg font-black text-white">${porcentaje}%</span>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-white font-bold">${completadasDiarias} de ${totalDiarias} tareas diarias</p>
+                    <p class="text-xs text-zinc-400">Completadas por el equipo.</p>
+                </div>
+            </div>
+        `;
+    });
+}
+
+// TAREA 1: Monitor de Bitácora
 function escucharBitacoraRealTime(edificioId) {
     const q = query(collection(db, "bitacora_edificios"), where("edificioId", "==", edificioId), orderBy("fecha", "desc"), limit(10));
 
@@ -200,7 +255,7 @@ function escucharBitacoraRealTime(edificioId) {
             item.className = "bg-zinc-900 p-3 rounded-xl border border-white/5";
             item.innerHTML = `
                 <div class="flex justify-between items-start">
-                    <p class="text-sm font-bold text-white">${log.tecnico_nombre || log.tecnico || 'Técnico'}</p>
+                    <p class="text-sm font-bold text-white">${log.tecnico || 'Técnico'}</p>
                     <span class="text-xs text-zinc-500">${fecha}</span>
                 </div>
                 <p class="text-xs text-zinc-400 mt-1 mb-2">Finalizó: ${log.resumen || 'Mantenimiento'}</p>
@@ -251,7 +306,39 @@ window.verDetalleBitacora = async (servicioId) => {
     }
 };
 
-// 🛠️ FIX GLOBAL: Función para cerrar sesión desde el HTML
-window.logout = () => {
-    auth.signOut();
+// TAREA 1 (V5.19): Función para importar el plan maestro de mantenimiento
+window.importarRutinaMaestra = async () => {
+    if (!adminContext?.edificioId) return alert("Contexto de administrador no cargado.");
+    if (!confirm(`¿Deseas importar el plan maestro de mantenimiento para ${adminContext.edificioNombre}? Esto sobreescribirá cualquier rutina existente.`)) return;
+
+    const btn = document.activeElement;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> CARGANDO JSON...';
+
+    try {
+        const response = await fetch('./mantenimiento_edificio.json');
+        if (!response.ok) throw new Error('No se pudo cargar el archivo mantenimiento_edificio.json');
+        const rutinaData = await response.json();
+
+        btn.innerHTML = '<i class="fas fa-database"></i> GUARDANDO EN FIREBASE...';
+
+        const rutinaRef = doc(db, "config_rutinas", adminContext.edificioId);
+        await setDoc(rutinaRef, {
+            ...rutinaData,
+            lastUpdated: serverTimestamp(),
+            updatedBy: auth.currentUser.uid
+        });
+
+        alert("✅ Plan Maestro de Mantenimiento importado y guardado con éxito.");
+    } catch (error) {
+        console.error("Error importando rutina:", error);
+        alert("❌ Error al importar la rutina. Revisa la consola.");
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
 };
+
+// SOLUCIÓN: Exponer la función de logout al scope global para que el HTML pueda llamarla.
+window.logout = () => auth.signOut();
