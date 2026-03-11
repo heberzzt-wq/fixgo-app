@@ -34,6 +34,9 @@ auth.onAuthStateChanged((userAuth) => {
             conectarContadorMantenimientosHoy(adminContext.edificioId);
             escucharBitacoraRealTime(adminContext.edificioId);
             escucharAvanceRutina(adminContext.edificioId); // TAREA 1: V5.19
+        } else {
+            console.error("⛔ ERROR CRÍTICO: El usuario Admin B2B no tiene 'edificioId' asignado.");
+            alert("⚠️ PERFIL INCOMPLETO:\nTu usuario tiene el rol correcto, pero no está vinculado a ningún edificio (Falta 'edificioId').\n\nContacta a soporte para vincularte a 'uxmal-39'.");
         }
     });
 });
