@@ -96,18 +96,18 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
     };
 
     try {
-        // TAREA 1: Redirección de Colección
+       // TAREA 1: Redirección de Colección
         await addDoc(collection(db, "servicios_b2b"), ticketData);
         alert("🚀 ORDEN DESPACHADA: El especialista recibirá la notificación de inmediato.");
         document.getElementById("formTicketB2B").reset();
     } catch (err) {
+        console.error("🔥 ERROR AL DESPACHAR:", err); // 👈 ¡ESTA ES LA LUPA MAGICA!
         alert("❌ Error al despachar orden.");
     } finally {
         btn.disabled = false;
         btn.innerHTML = "Despachar Orden de Trabajo";
     }
 });
-
 // 4. RADAR DE PLANTILLA Y MÉTRICAS
 function escucharPlantillaRealTime(edificioId) {
     const q = query(collection(db, "users"), where("edificioId", "==", edificioId));
