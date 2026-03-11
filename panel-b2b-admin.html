@@ -37,6 +37,14 @@
             </div>
         </header>
 
+        <div class="mt-4 mb-6">
+            <button onclick="window.importarRutinaMaestra()" 
+                    class="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-[10px] font-black py-2 px-4 rounded-lg border border-white/5 transition-all flex items-center gap-2 uppercase tracking-widest">
+                <i class="fas fa-file-import"></i> 
+                Sincronizar Plan Maestro (JSON)
+            </button>
+        </div>
+
         <!-- KPI GRID -->
         <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div class="card">
@@ -51,6 +59,11 @@
                 <p class="text-sm font-bold text-zinc-400 uppercase tracking-widest">Mantenimientos Hoy</p>
                 <h2 id="countMantenimientosHoy" class="text-4xl font-black text-blue-400 mt-2">0</h2>
             </div>
+        </section>
+
+        <!-- V5.19 - DASHBOARD DE RUTINAS -->
+        <section id="dashboard-rutinas" class="mb-8 card">
+            <!-- El contenido del dashboard de avance de rutina se inyectará aquí por JS -->
         </section>
 
         <!-- MAIN GRID -->
