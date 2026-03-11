@@ -1,7 +1,8 @@
 /**
  * ======================================================
- * FIXGO CORE - FIREBASE CONFIGURATION v5.3 (BLINDADO)
+ * FIXGO CORE - GESTIAPREMIUM v5.18 (TRAFFIC CONTROL)
  * ======================================================
+ * Integración: B2B SaaS + Marketplace + App Check
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
@@ -23,16 +24,16 @@ import {
     getDoc, 
     collection,      
     onSnapshot,      
-    query,           
-    where,           
+    query,            
+    where,            
     addDoc,          
     orderBy,          
     serverTimestamp,
     limit,
-    deleteDoc // 🔥 INYECCIÓN: Agregamos deleteDoc para el panel B2B
+    deleteDoc 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Configuración de credenciales
+// 1. Configuración de credenciales (Mantenemos tus llaves originales)
 const firebaseConfig = {
     apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0", 
     authDomain: "fixgo-44e4d.firebaseapp.com",
@@ -42,31 +43,58 @@ const firebaseConfig = {
     appId: "1:1005526685116:web:62f1a823ff8761da85c7b9"
 };
 
-// Inicialización de servicios
+// 2. Inicialización de servicios
 const firebaseApp = initializeApp(firebaseConfig);
 
-// ======================================================
-// BLINDAJE 1000% - App Check con reCAPTCHA v3
-// ======================================================
-// 🦈 MODO DEBUG: Descomenta la siguiente línea si necesitas probar en localhost sin ser bloqueado
+// MODO DEBUG para App Check
 self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
 
 const appCheck = initializeAppCheck(firebaseApp, {
     provider: new ReCaptchaV3Provider('6LcEZG4sAAAAAKQQ60dgYGVzXO-Q-ZPPMB9gKNkh'),
-    isTokenAutoRefreshEnabled: true // Refresco automático para no interrumpir la sesión
+    isTokenAutoRefreshEnabled: true 
 });
 
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
-
-// 👇 ESTA ES LA LÍNEA QUE FALTABA (Inicializar Storage) 👇
 const storage = getStorage(firebaseApp);
 
 /**
- * OBSERVADOR DE SESIÓN INTELIGENTE
- * Verifica el estado del usuario y busca su rol en la base de datos.
+ * 🔥 ENRUTADOR DE TRÁFICO INTELIGENTE (B2B vs MARKETPLACE)
+ * Esta función decide a qué página mandar al usuario apenas entra.
  */
-function observarAuth(callback) {
+export function verificarYRedireccionar(user) {
+    if (!user) return;
+    if (typeof window === "undefined") return; 
+
+    const role = user.rol;
+    const subType = user.sub_type || 'marketplace'; 
+    const path = window.location.pathname;
+
+    console.log(`🚦 Enrutador: Rol=${role}, Tipo=${subType}, Path=${path}`);
+
+    if (role === 'tecnico') {
+        if (subType === 'saas') {
+            if (!path.includes('tecnico-b2b.html')) window.location.href = 'tecnico-b2b.html';
+        } else {
+            if (!path.includes('panel-tecnico.html')) window.location.href = 'panel-tecnico.html';
+        }
+    } else if (role === 'cliente' || role === 'client') {
+        if (subType === 'saas') {
+            if (!path.includes('dashboard-b2b.html')) window.location.href = 'dashboard-b2b.html';
+        } else {
+            // Marketplace Residencial
+            if (!path.includes('index.html') && !path.includes('dashboard-client.html') && path !== '/') {
+                window.location.href = 'index.html';
+            }
+        }
+    }
+}
+
+/**
+ * 🧠 OBSERVADOR DE SESIÓN INTELIGENTE
+ * Verifica quién eres y te inyecta en el enrutador automáticamente.
+ */
+export function observarAuth(callback) {
     return onAuthStateChanged(auth, async (user) => {
         if (!user) {
             callback(null);
@@ -74,102 +102,69 @@ function observarAuth(callback) {
         }
 
         try {
-            // 1. Buscamos primero en la colección MAESTRA 'users' (Inglés)
-            // Esta es la colección unificada donde deben estar Admins, Clientes y Técnicos.
+            // Busqueda en cascada (Users -> Tecnicos -> Clientes -> Admins)
             let snap = await getDoc(doc(db, "users", user.uid));
-            
-            // 2. Fallback: Si no está en 'users', buscamos en 'tecnicos'
-            if (!snap.exists()) {
-                snap = await getDoc(doc(db, "tecnicos", user.uid));
-            }
-
-            // 3. Fallback: Si no está, buscamos en 'clientes'
-            if (!snap.exists()) {
-                snap = await getDoc(doc(db, "clientes", user.uid));
-            }
-
-            // 4. Fallback: Si no está, buscamos en 'admins' (legacy)
-            if (!snap.exists()) {
-                snap = await getDoc(doc(db, "admins", user.uid));
-            }
+            if (!snap.exists()) snap = await getDoc(doc(db, "tecnicos", user.uid));
+            if (!snap.exists()) snap = await getDoc(doc(db, "clientes", user.uid));
+            if (!snap.exists()) snap = await getDoc(doc(db, "admins", user.uid));
 
             if (snap.exists()) {
                 const data = snap.data();
-                // Combinamos la info de Auth con la info encontrada en la Base de Datos
                 const finalUser = { ...user, ...data };
+                
+                // 🚀 REDIRECCIÓN AUTOMÁTICA SEGÚN ROL Y TIPO
+                verificarYRedireccionar(finalUser);
+                
                 callback(finalUser);
             } else {
-                console.warn("Usuario autenticado pero sin perfil en DB (users/tecnicos/clientes).");
+                console.warn("Usuario sin perfil en DB.");
                 callback(user); 
             }
-
         } catch (e) {
-            console.error("Error recuperando perfil:", e);
+            console.error("Error en observarAuth:", e);
             callback(user);
         }
     });
 }
 
 /**
- * REGISTRO BLINDADO
- * Crea el usuario en Auth y guarda sus datos en la colección 'users'.
+ * 📝 REGISTRO BLINDADO v5.18
+ * Soporta registro con sub_type para diferenciar B2B de Marketplace.
  */
-async function registrarUsuario(email, password, rol, nombre) {
+export async function registrarUsuario(email, password, rol, nombre, subType = 'marketplace') {
     try {
-        // 1. Crear usuario en Firebase Authentication
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const uid = cred.user.uid;
         
-        // 2. Preparar el objeto de perfil
         const perfil = {
             uid: uid,
             email: email,
             rol: rol,
+            sub_type: subType, // 'saas' o 'marketplace'
             nombre: nombre || "Usuario Nuevo",
             creadoEn: serverTimestamp()
         };
 
-        // 3. Guardar en la colección MAESTRA 'users' (Inglés)
         await setDoc(doc(db, "users", uid), perfil);
 
-        // 4. Guardar copia en colección específica (Respaldo por seguridad)
+        // Copia de respaldo según rol
         if (rol === 'tecnico') {
             await setDoc(doc(db, "tecnicos", uid), { ...perfil, disponible: false });
         } else {
             await setDoc(doc(db, "clientes", uid), { ...perfil, pedidos: 0 });
         }
 
-        // 5. Actualizar nombre visual en Auth
         await updateProfile(cred.user, { displayName: nombre });
-        
         return cred.user;
     } catch (error) {
         throw error;
     }
 }
 
-// EXPORTACIÓN DE FUNCIONES Y VARIABLES
+// 📦 EXPORTACIÓN MAESTRA
 export {
-    auth, 
-    db,
-    storage, // 👇 ESTA ES LA PALABRA QUE FALTABA EXPORTAR 👇
-    appCheck,
-    observarAuth,
-    registrarUsuario,
-    signOut,
-    signInWithEmailAndPassword,
-    onAuthStateChanged, // 🔥 BLINDAJE: AQUÍ ESTÁ LA SOLUCIÓN. Exportamos la función para que el visor la encuentre 🔥
-    doc, 
-    setDoc, 
-    updateDoc, 
-    getDoc, 
-    collection, 
-    onSnapshot, 
-    query, 
-    where, 
-    addDoc, 
-    orderBy, 
-    serverTimestamp,
-    limit,
-    deleteDoc // 🔥 INYECCIÓN B2B
+    auth, db, storage, appCheck,
+    signOut, signInWithEmailAndPassword, onAuthStateChanged,
+    doc, setDoc, updateDoc, getDoc, collection, onSnapshot,
+    query, where, addDoc, orderBy, serverTimestamp, limit, deleteDoc
 };
