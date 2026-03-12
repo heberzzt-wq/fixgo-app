@@ -85,61 +85,84 @@ auth.onAuthStateChanged((userAuth) => {
 
 
 // ======================================================
-// 2. REGISTRO DE ACTIVOS HUMANOS
+// 2. REGISTRO DE ACTIVOS HUMANOS (B2B ENGINE)
 // ======================================================
 
 document.getElementById("formAltaPersonal").addEventListener("submit", async (e) => {
-
     e.preventDefault();
-    if (!adminContext?.edificioId) return;
+
+    // Bloqueo de seguridad: No operamos sin contexto de edificio
+    if (!adminContext?.edificioId) {
+        alert("❌ Error de Contexto: No se detectó un edificio vinculado a tu cuenta.");
+        return;
+    }
 
     const btn = document.getElementById("btnGuardarPersonal");
+    const originalText = btn.innerHTML;
 
+    // UI Feedback
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> PROCESANDO...';
+    btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> DESPLEGANDO ACTIVO...';
+
+    // Captura de datos
+    const emailInput = document.getElementById("regCorreo").value.trim().toLowerCase();
+    const nombreInput = document.getElementById("regNombre").value.trim();
+    const rolInput = document.getElementById("regRol").value;
 
     const nuevoEmpleado = {
-
-        nombre: document.getElementById("regNombre").value.trim(),
+        // Datos Personales
+        nombre: nombreInput,
         telefono: document.getElementById("regTelefono").value.trim(),
-        email: document.getElementById("regCorreo").value.trim().toLowerCase(),
-
-        rol: document.getElementById("regRol").value,
-        especialidad: document.getElementById("regEspecialidad").value,
-
+        email: emailInput,
+        foto_perfil: "https://via.placeholder.com/150?text=SIN+FOTO",
+        
+        // Atributos Operativos
+        rol: rolInput,
+        especialidad: document.getElementById("regEspecialidad").value || "General",
+        nivel: "BRONCE",
+        reputacion: 5,
+        
+        // ADN B2B (Vinculación Automática)
+        edificioId: adminContext.edificioId,
+        edificioNombre: adminContext.edificioNombre || adminContext.nombre_edificio || "Edificio B2B",
+        
+        // Logística Inicial
         tecnico_vehiculo: "PENDIENTE",
         tecnico_placas: "000-000",
-
-        edificioId: adminContext.edificioId,
-        edificioNombre: adminContext.edificioNombre,
-
+        location: { lat: 0, lng: 0 },
+        
+        // Estados
         estado: "activo",
+        status: "activo",
         disponible: true,
+        isOnline: false,
+        verificado: true,
 
-        fecha_registro: serverTimestamp()
+        // Metadatos
+        fecha_registro: serverTimestamp(),
+        creadoPorAdmin: auth.currentUser.uid
     };
 
     try {
-
+        // 1. Validar que el empleado no exista (Opcional pero recomendado)
+        // 2. Insertar en la colección principal de usuarios
         await addDoc(collection(db, "users"), nuevoEmpleado);
 
-        alert("✅ Activo desplegado en el sistema.");
+        console.log(`✅ Nuevo técnico ${nombreInput} asignado a ${adminContext.edificioId}`);
+        
+        alert(`🚀 ¡ÉXITO!\n${nombreInput.toUpperCase()} ha sido dado de alta como ${rolInput.toUpperCase()} para este edificio.`);
 
+        // Limpiar formulario
         document.getElementById("formAltaPersonal").reset();
 
     } catch (err) {
-
-        alert("❌ Error de Firebase. Revisa las reglas.");
-
+        console.error("Error en Alta B2B:", err);
+        alert("❌ ERROR CRÍTICO: No se pudo registrar el activo. Revisa la conexión o reglas de Firestore.");
     } finally {
-
         btn.disabled = false;
-        btn.innerHTML = "Dar de Alta en Red B2B";
-
+        btn.innerHTML = originalText;
     }
-
 });
-
 
 // ======================================================
 // 3. DESPACHO DE ORDENES DE TRABAJO
