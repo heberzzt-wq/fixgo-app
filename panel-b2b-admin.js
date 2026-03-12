@@ -2,351 +2,375 @@ import { auth, db, doc, getDoc, onSnapshot, collection, addDoc, updateDoc, delet
 
 let adminContext = null; 
 
-console.log("⚡ GESTIA MASTER: NOC B2B Cabina de Mando v5.18 Online.");
+console.log("⚡ GESTIA MASTER: NOC B2B Cabina de Mando v5.19 Online.");
 
-// Reloj en tiempo real
+// ======================================================
+// RELOJ EN TIEMPO REAL
+// ======================================================
+
 setInterval(() => {
     const clock = document.getElementById('clock');
     if(clock) clock.innerText = new Date().toLocaleTimeString('es-MX', { hour12: false });
 }, 1000);
 
-// 1. MONITOR DE ACCESO MASTER
+
+// ======================================================
+// 1. MONITOR DE ACCESO MASTER & CONTEXTO B2B (FIX)
+// ======================================================
+
 auth.onAuthStateChanged((userAuth) => {
+
     if (!userAuth) {
         window.location.href = "login.html";
-        return; 
+        return;
     }
 
+    // Escuchamos el perfil del usuario en tiempo real
     onSnapshot(doc(db, "users", userAuth.uid), (docSnap) => {
-        if (!docSnap.exists()) return;
+
+        if (!docSnap.exists()) {
+            console.error("⛔ Perfil no encontrado en Firestore.");
+            return;
+        }
 
         adminContext = docSnap.data();
-        document.getElementById("panelAdminB2B").classList.remove("hidden");
-        
-        // TAREA 1: Normalización de Campos
-        const nombreEdificio = adminContext.edificioNombre || "EDIFICIO SIN NOMBRE";
-        document.getElementById("lblNombreEdificio").innerText = nombreEdificio.toUpperCase();
 
-        // TAREA 1: Sincronía de IDs
-        if (adminContext.edificioId) {
-            escucharPlantillaRealTime(adminContext.edificioId);
-            conectarContadorTickets(adminContext.edificioId);
-            conectarContadorMantenimientosHoy(adminContext.edificioId);
-            escucharBitacoraRealTime(adminContext.edificioId);
-            escucharAvanceRutina(adminContext.edificioId); // TAREA 1: V5.19
-        } else {
-            console.error("⛔ ERROR CRÍTICO: El usuario Admin B2B no tiene 'edificioId' asignado.");
-            alert("⚠️ PERFIL INCOMPLETO:\nTu usuario tiene el rol correcto, pero no está vinculado a ningún edificio (Falta 'edificioId').\n\nContacta a soporte para vincularte a 'uxmal-39'.");
+        // ------------------------------------------------
+        // REGLA DE SEGURIDAD
+        // ------------------------------------------------
+
+        if (!adminContext.edificioId) {
+
+            console.error("⛔ ERROR CRÍTICO: Admin B2B sin edificioId.");
+
+            alert(
+                "⚠️ PERFIL INCOMPLETO:\n" +
+                "Tu usuario no está vinculado a ningún edificio.\n\n" +
+                "Contacta a soporte para completar la vinculación."
+            );
+
+            document.getElementById("panelAdminB2B").classList.add("hidden");
+            return;
         }
+
+        // ------------------------------------------------
+        // ACTIVACIÓN DE UI
+        // ------------------------------------------------
+
+        document.getElementById("panelAdminB2B").classList.remove("hidden");
+
+        // Normalización de nombre
+        const nombreEdificio =
+            adminContext.edificioNombre ||
+            adminContext.nombre_edificio ||
+            "EDIFICIO SIN NOMBRE";
+
+        const lbl = document.getElementById("lblNombreEdificio");
+        if (lbl) lbl.innerText = nombreEdificio.toUpperCase();
+
+
+        // ------------------------------------------------
+        // DISPARO DE MONITORES
+        // ------------------------------------------------
+
+        escucharPlantillaRealTime(adminContext.edificioId);
+        conectarContadorTickets(adminContext.edificioId);
+        conectarContadorMantenimientosHoy(adminContext.edificioId);
+        escucharBitacoraRealTime(adminContext.edificioId);
+        escucharAvanceRutina(adminContext.edificioId);
+
     });
+
 });
 
+
+// ======================================================
 // 2. REGISTRO DE ACTIVOS HUMANOS
+// ======================================================
+
 document.getElementById("formAltaPersonal").addEventListener("submit", async (e) => {
+
     e.preventDefault();
     if (!adminContext?.edificioId) return;
 
     const btn = document.getElementById("btnGuardarPersonal");
+
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> PROCESANDO...';
 
     const nuevoEmpleado = {
+
         nombre: document.getElementById("regNombre").value.trim(),
         telefono: document.getElementById("regTelefono").value.trim(),
         email: document.getElementById("regCorreo").value.trim().toLowerCase(),
+
         rol: document.getElementById("regRol").value,
         especialidad: document.getElementById("regEspecialidad").value,
-        
-        // 🛡️ REGLA 2: Datos para el pase de caseta
-        tecnico_vehiculo: "PENDIENTE", // O agregar el input en el HTML
-        tecnico_placas: "000-000",    // O agregar el input en el HTML
-        
-        edificioId: adminContext.edificioId, 
+
+        tecnico_vehiculo: "PENDIENTE",
+        tecnico_placas: "000-000",
+
+        edificioId: adminContext.edificioId,
         edificioNombre: adminContext.edificioNombre,
+
         estado: "activo",
         disponible: true,
+
         fecha_registro: serverTimestamp()
     };
 
     try {
+
         await addDoc(collection(db, "users"), nuevoEmpleado);
+
         alert("✅ Activo desplegado en el sistema.");
+
         document.getElementById("formAltaPersonal").reset();
+
     } catch (err) {
+
         alert("❌ Error de Firebase. Revisa las reglas.");
+
     } finally {
+
         btn.disabled = false;
         btn.innerHTML = "Dar de Alta en Red B2B";
+
     }
+
 });
 
-// 3. DESPACHO DE ÓRDENES DE TRABAJO (OT)
+
+// ======================================================
+// 3. DESPACHO DE ORDENES DE TRABAJO
+// ======================================================
+
 document.getElementById("formTicketB2B").addEventListener("submit", async (e) => {
+
     e.preventDefault();
     if (!adminContext) return;
 
     const btn = document.getElementById("btnCrearTicket");
+
     btn.disabled = true;
     btn.innerHTML = "ENVIANDO ORDEN...";
 
     const ticketData = {
+
         edificioId: adminContext.edificioId,
         edificioNombre: adminContext.edificioNombre,
+
         ubicacion_especifica: document.getElementById("tickPunto").value.trim(),
         descripcion: document.getElementById("tickDesc").value.trim(),
+
         prioridad: document.getElementById("tickPrioridad").value,
         tecnicoId: document.getElementById("tickAsignado").value,
-        status: "programado", // Estado inicial para que lo vea el técnico
-        fecha_programada: new Date().toISOString().split('T')[0], // Programado para hoy
+
+        status: "programado",
+
+        fecha_programada: new Date().toISOString().split('T')[0],
+
         equipo_nombre: "Mantenimiento General",
         tipo: "mantenimiento",
-        fecha_creacion: serverTimestamp(), // Mantenemos la fecha de creación
+
+        fecha_creacion: serverTimestamp(),
+
         creado_por: auth.currentUser.uid
     };
 
     try {
-        // TAREA 1: Redirección de Colección
+
         await addDoc(collection(db, "servicios_b2b"), ticketData);
-        alert("🚀 ORDEN DESPACHADA: El especialista recibirá la notificación de inmediato.");
+
+        alert("🚀 ORDEN DESPACHADA");
+
         document.getElementById("formTicketB2B").reset();
+
     } catch (err) {
+
         alert("❌ Error al despachar orden.");
+
     } finally {
+
         btn.disabled = false;
         btn.innerHTML = "Despachar Orden de Trabajo";
+
     }
+
 });
 
-// 4. RADAR DE PLANTILLA Y MÉTRICAS
+
+// ======================================================
+// 4. RADAR DE PLANTILLA
+// ======================================================
+
 function escucharPlantillaRealTime(edificioId) {
-    // TAREA 1: Filtro de Seguridad
-    const q = query(collection(db, "users"), where("edificioId", "==", edificioId));
+
+    const q = query(
+        collection(db, "users"),
+        where("edificioId", "==", edificioId)
+    );
 
     onSnapshot(q, (snap) => {
+
         const tabla = document.getElementById("tablaEmpleadosB2B");
         const select = document.getElementById("tickAsignado");
+
         if (!tabla) return;
 
         tabla.innerHTML = "";
         select.innerHTML = '<option value="">-- Seleccionar Especialista --</option>';
+
         let tecnicosActivos = 0;
-        
+
         snap.forEach(docSnap => {
+
             const emp = docSnap.data();
             const empId = docSnap.id;
-            
-            if(emp.rol === "admin_b2b" || emp.rol === "ceo") return; 
+
+            if(emp.rol === "admin_b2b" || emp.rol === "ceo") return;
 
             if (emp.rol === "tecnico" && emp.estado === "activo") {
+
                 tecnicosActivos++;
+
                 const opt = document.createElement("option");
+
                 opt.value = empId;
-                opt.textContent = `${(emp.nombre || 'Sin Nombre').toUpperCase()} [${(emp.especialidad || 'General').toUpperCase()}]`;
+                opt.textContent =
+                    `${(emp.nombre || 'SIN NOMBRE').toUpperCase()} ` +
+                    `[${(emp.especialidad || 'GENERAL').toUpperCase()}]`;
+
                 select.appendChild(opt);
+
             }
 
-            const row = document.createElement("tr");
-            row.className = "hover:bg-white/[0.02] transition-all text-xs border-b border-white/5";
-            row.innerHTML = `
-                <td class="p-3">
-                    <div class="font-bold text-white uppercase tracking-tighter">${emp.nombre || 'Sin Nombre'}</div>
-                    <div class="text-[10px] text-zinc-400 font-bold uppercase italic">${emp.especialidad || 'General'}</div>
-                </td>
-                <td class="p-3 text-center">
-                    <span class="px-3 py-1 rounded-full text-[9px] font-black border ${emp.estado === 'activo' ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/5' : 'border-red-500/20 text-red-500 bg-red-500/5'}">
-                        ${(emp.estado || 'pendiente').toUpperCase()}
-                    </span>
-                </td>
-            `;
-            tabla.appendChild(row);
         });
 
         document.getElementById("countTecnicosActivos").innerText = tecnicosActivos;
+
     });
+
 }
 
+
+// ======================================================
+// 5. CONTADORES
+// ======================================================
+
 function conectarContadorTickets(edificioId) {
-    // TAREA 1: Redirección y Filtro de Seguridad
-    const q = query(collection(db, "servicios_b2b"), where("edificioId", "==", edificioId), where("status", "in", ["programado", "en_proceso"]));
+
+    const q = query(
+        collection(db, "servicios_b2b"),
+        where("edificioId", "==", edificioId),
+        where("status", "in", ["programado", "en_proceso"])
+    );
+
     onSnapshot(q, (snap) => {
         document.getElementById("countOrdenesPendientes").innerText = snap.size;
     });
+
 }
 
 function conectarContadorMantenimientosHoy(edificioId) {
+
     const hoy = new Date().toISOString().split('T')[0];
-    const q = query(collection(db, "servicios_b2b"), where("edificioId", "==", edificioId), where("fecha_programada", "==", hoy));
+
+    const q = query(
+        collection(db, "servicios_b2b"),
+        where("edificioId", "==", edificioId),
+        where("fecha_programada", "==", hoy)
+    );
+
     onSnapshot(q, (snap) => {
         document.getElementById("countMantenimientosHoy").innerText = snap.size;
     });
+
 }
 
-// TAREA 1 (V5.19): Monitor de Avance de Rutina Preventiva
-function escucharAvanceRutina(edificioId) {
-    const hoy = new Date().toISOString().split('T')[0];
-    const dashboardRutinas = document.getElementById('dashboard-rutinas');
-    if (!dashboardRutinas) return;
 
-    // Query para obtener las tareas de rutina completadas hoy
-    const q = query(
-        collection(db, "log_rutinas"),
-        where("edificioId", "==", edificioId),
-        where("fechaCompletado", "==", hoy)
+// ======================================================
+// IMPORTADOR DE PLAN MAESTRO (FIX ROBUSTO)
+// ======================================================
+
+window.importarRutinaMaestra = async () => {
+
+    if (!adminContext?.edificioId) {
+        return alert("❌ ERROR: El contexto del edificio no ha cargado correctamente.");
+    }
+
+    const confirmacion = confirm(
+        `¿Deseas importar el plan maestro para ${
+            adminContext.edificioNombre || "este edificio"
+        }?\n\nEsto actualizará las rutinas diarias, semanales y mensuales.`
     );
 
-    onSnapshot(q, async (logSnapshot) => {
-        const completadasHoyIds = new Set(logSnapshot.docs.map(d => d.data().tareaId));
-
-        // Obtener la rutina maestra para saber el total de tareas diarias
-        const rutinaRef = doc(db, "config_rutinas", edificioId);
-        const rutinaSnap = await getDoc(rutinaRef);
-
-        if (!rutinaSnap.exists()) {
-            dashboardRutinas.innerHTML = `<p class="text-xs text-zinc-500">No hay plan de rutina cargado.</p>`;
-            return;
-        }
-
-        const rutinaMaster = rutinaSnap.data();
-        const tareasDiariasTotales = rutinaMaster.Diaria || [];
-        const totalDiarias = tareasDiariasTotales.length;
-        
-        let completadasDiarias = 0;
-        tareasDiariasTotales.forEach(tarea => {
-            if (completadasHoyIds.has(tarea.id_tarea)) {
-                completadasDiarias++;
-            }
-        });
-
-        const porcentaje = totalDiarias > 0 ? Math.round((completadasDiarias / totalDiarias) * 100) : 0;
-
-        // TAREA 2: Actualizar la UI del Dashboard de Seguimiento
-        dashboardRutinas.innerHTML = `
-            <h4 class="text-xs font-black uppercase text-zinc-500 mb-2 tracking-widest">Avance Rutina Preventiva (Hoy)</h4>
-            <div class="flex items-center gap-4">
-                <div class="relative w-16 h-16">
-                    <svg class="w-full h-full" viewBox="0 0 36 36">
-                        <path class="stroke-current text-zinc-700" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3"></path>
-                        <path class="stroke-current text-emerald-500 transition-all duration-500" stroke-dasharray="${porcentaje}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3" stroke-linecap="round"></path>
-                    </svg>
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-lg font-black text-white">${porcentaje}%</span>
-                    </div>
-                </div>
-                <div>
-                    <p class="text-white font-bold">${completadasDiarias} de ${totalDiarias} tareas diarias</p>
-                    <p class="text-xs text-zinc-400">Completadas por el equipo.</p>
-                </div>
-            </div>
-        `;
-    });
-}
-
-// TAREA 1: Monitor de Bitácora
-function escucharBitacoraRealTime(edificioId) {
-    const q = query(collection(db, "bitacora_edificios"), where("edificioId", "==", edificioId), orderBy("fecha", "desc"), limit(10));
-
-    onSnapshot(q, (snap) => {
-        const feed = document.getElementById("feedBitacora");
-        if (!feed) return;
-        feed.innerHTML = "";
-
-        if (snap.empty) {
-            feed.innerHTML = `<p class="text-zinc-600 text-sm italic text-center pt-10">Esperando reportes de cierre...</p>`;
-            return;
-        }
-
-        snap.forEach(docSnap => {
-            const log = docSnap.data();
-            const fecha = log.fecha ? log.fecha.toDate().toLocaleTimeString('es-MX') : '';
-
-            const item = document.createElement("div");
-            item.className = "bg-zinc-900 p-3 rounded-xl border border-white/5";
-            item.innerHTML = `
-                <div class="flex justify-between items-start">
-                    <p class="text-sm font-bold text-white">${log.tecnico || 'Técnico'}</p>
-                    <span class="text-xs text-zinc-500">${fecha}</span>
-                </div>
-                <p class="text-xs text-zinc-400 mt-1 mb-2">Finalizó: ${log.resumen || 'Mantenimiento'}</p>
-                <button onclick="window.verDetalleBitacora('${log.servicioId}')" class="text-xs font-bold text-blue-400 hover:text-blue-300">
-                    [ Ver Foto/Firma ]
-                </button>
-            `;
-            feed.appendChild(item);
-        });
-    });
-}
-
-// 5. COMANDOS GLOBALES DE GESTIÓN
-window.cambiarEstado = async (id, estado) => {
-    await updateDoc(doc(db, "users", id), { estado: estado });
-};
-
-window.eliminarEmpleado = async (id, nombre) => {
-    if(!confirm(`¿ELIMINAR ACCESO A ${nombre.toUpperCase()}?`)) return;
-    await deleteDoc(doc(db, "users", id));
-};
-
-window.verDetalleBitacora = async (servicioId) => {
-    if (!servicioId) return;
-    try {
-        const docSnap = await getDoc(doc(db, "servicios_b2b", servicioId));
-        if (!docSnap.exists()) {
-            alert("No se encontró el detalle de esta orden de trabajo.");
-            return;
-        }
-        const data = docSnap.data();
-        const foto = data.foto_despues || 'https://via.placeholder.com/300?text=No+Foto';
-        const firma = data.firma_conformidad || 'https://via.placeholder.com/300x100?text=No+Firma';
-
-        const modalHTML = `
-            <div id="modalDetalle" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onclick="this.remove()">
-                <div class="bg-zinc-900 p-6 rounded-2xl border border-white/10 max-w-sm w-full space-y-4">
-                    <h4 class="font-bold text-white">Evidencia de Cierre</h4>
-                    <p class="text-xs text-zinc-400">Foto del Trabajo Finalizado:</p>
-                    <img src="${foto}" class="rounded-lg w-full h-auto max-h-60 object-cover">
-                    <p class="text-xs text-zinc-400">Firma de Conformidad:</p>
-                    <img src="${firma}" class="rounded-lg bg-white p-2">
-                </div>
-            </div>`;
-        document.body.insertAdjacentHTML('beforeend', modalHTML);
-    } catch (error) {
-        console.error("Error al ver detalle:", error);
-    }
-};
-
-// TAREA 1 (V5.19): Función para importar el plan maestro de mantenimiento
-window.importarRutinaMaestra = async () => {
-    if (!adminContext?.edificioId) return alert("Contexto de administrador no cargado.");
-    if (!confirm(`¿Deseas importar el plan maestro de mantenimiento para ${adminContext.edificioNombre}? Esto sobreescribirá cualquier rutina existente.`)) return;
+    if (!confirmacion) return;
 
     const btn = document.activeElement;
-    const originalText = btn.innerHTML;
+
+    const originalHTML = btn.innerHTML;
+
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> CARGANDO JSON...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SINCRONIZANDO...';
 
     try {
+
         const response = await fetch('./mantenimiento_edificio.json');
-        if (!response.ok) throw new Error('No se pudo cargar el archivo mantenimiento_edificio.json');
+
+        if (!response.ok) {
+            throw new Error(
+                `HTTP ${response.status}. Verifica que mantenimiento_edificio.json exista en la raíz.`
+            );
+        }
+
         const rutinaData = await response.json();
 
-        btn.innerHTML = '<i class="fas fa-database"></i> GUARDANDO EN FIREBASE...';
-
         const rutinaRef = doc(db, "config_rutinas", adminContext.edificioId);
-        await setDoc(rutinaRef, {
-            ...rutinaData,
-            lastUpdated: serverTimestamp(),
-            updatedBy: auth.currentUser.uid
-        });
 
-        alert("✅ Plan Maestro de Mantenimiento importado y guardado con éxito.");
+        await setDoc(
+            rutinaRef,
+            {
+                ...rutinaData,
+
+                edificioId: adminContext.edificioId,
+
+                lastUpdated: serverTimestamp(),
+
+                updatedBy: auth.currentUser.uid,
+
+                version_core: "5.19"
+            },
+            { merge: true }
+        );
+
+        console.log(
+            "✅ Plan Maestro guardado en config_rutinas/" +
+            adminContext.edificioId
+        );
+
+        alert("✅ SINCRONIZACIÓN EXITOSA");
+
     } catch (error) {
-        console.error("Error importando rutina:", error);
-        alert("❌ Error al importar la rutina. Revisa la consola.");
+
+        console.error("❌ Error Crítico:", error);
+
+        alert(
+            `❌ ERROR DE SINCRONIZACIÓN\n\n${error.message}\n\nRevisa el JSON.`
+        );
+
     } finally {
-        btn.innerHTML = originalText;
+
+        btn.innerHTML = originalHTML;
         btn.disabled = false;
+
     }
+
 };
 
-// SOLUCIÓN: Exponer la función de logout al scope global para que el HTML pueda llamarla.
+
+// ======================================================
+// LOGOUT
+// ======================================================
+
 window.logout = () => auth.signOut();
