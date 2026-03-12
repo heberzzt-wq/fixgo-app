@@ -20,7 +20,8 @@ import {
     getDoc, 
     setDoc, 
     serverTimestamp,
-    observarAuth 
+    observarAuth,
+    validarClaveB2B // 🔥 INYECCIÓN: Importamos el validador de llaves
 } from "./firebase.js";
 
 import { 
@@ -200,6 +201,27 @@ if (btnRegistroCliente) {
             // 🔥 BANDERA DE SEGURIDAD: Impide que el sistema redirija antes de terminar
             window.isRegisteringLocal = true; 
 
+            // 🚀 NUEVA LÓGICA B2B: Validar la clave ANTES de cobrar y crear usuarios
+            let esAdminB2B = false;
+            let datosLlave = null;
+
+            if (codigoB2B && codigoB2B.length > 0) {
+                btnRegistroCliente.innerHTML = '<i class="fas fa-key"></i> Verificando Clave B2B...';
+                btnRegistroCliente.disabled = true;
+
+                datosLlave = await validarClaveB2B(codigoB2B);
+
+                if (!datosLlave) {
+                    alert("❌ La Clave B2B ingresada es incorrecta o no existe. Verifica con tu corporativo.");
+                    btnRegistroCliente.innerHTML = textoOriginal;
+                    btnRegistroCliente.disabled = false;
+                    window.isRegisteringLocal = false;
+                    return; // Detiene el registro si la clave es falsa
+                }
+                
+                esAdminB2B = true;
+            }
+
             btnRegistroCliente.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con el Banco...';
             btnRegistroCliente.disabled = true;
 
@@ -211,25 +233,27 @@ if (btnRegistroCliente) {
 
             btnRegistroCliente.innerHTML = '<i class="fas fa-shield-alt"></i> Creando Bóveda...';
 
-            usuarioAuth = await registrarUsuario(email, password, "cliente", nombre);
+            // 🌍 DETERMINACIÓN DE ROL Y SUBTIPO BASADO EN LA CLAVE B2B
+            const rolFinal = esAdminB2B ? "admin_b2b" : "cliente";
+            const subtipoFinal = esAdminB2B ? "saas" : "marketplace";
 
-            // 🌍 DETERMINACIÓN DE TIPO DE CUENTA Y EDIFICIO
-            let tipoCuenta = "B2C";
-            let edificioID = null;
+            // Pasamos los parámetros exactos a Firebase
+            usuarioAuth = await registrarUsuario(email, password, rolFinal, nombre, subtipoFinal);
 
-            if (codigoB2B && codigoB2B.length > 0) {
-                tipoCuenta = "B2B";
-                edificioID = codigoB2B.toLowerCase();
-            }
+            // 🌍 DETERMINACIÓN DE EDIFICIO BASADO EN LA LLAVE B2B
+            let tipoCuenta = esAdminB2B ? "B2B" : "B2C";
+            let edificioID = esAdminB2B ? (datosLlave.edificioId || codigoB2B.toLowerCase()) : null;
+            let edificioNombreFinal = esAdminB2B ? (datosLlave.edificioNombre || "Edificio B2B") : null;
 
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 uid: usuarioAuth.uid,
                 nombre: nombre,
                 email: email,
                 telefono: telefono,
-                rol: "cliente",
-                tipo_cuenta: tipoCuenta,
-                edificioId: edificioID,
+                rol: rolFinal, // Ahora sí se guarda como "admin_b2b"
+                tipo_cuenta: tipoCuenta, // "B2B"
+                edificioId: edificioID, // "uxmal39"
+                edificioNombre: edificioNombreFinal, // "Uxmal 39"
                 creadoEn: serverTimestamp(),
                 estado: "activo",
                 status: "activo",
@@ -242,10 +266,10 @@ if (btnRegistroCliente) {
                 }
             }, { merge: true });
 
-            alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nBienvenido a GestiaPremium. Ahora puedes solicitar tu servicio de inmediato.`);
+            alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nBienvenido a GestiaPremium. Tu perfil de ${esAdminB2B ? 'Administrador B2B' : 'Cliente'} ha sido creado.`);
             
             // Redirección Inteligente: B2B → panel-b2b-admin.html | B2C → cliente.html
-            const rutaDestino = tipoCuenta === "B2B" ? "panel-b2b-admin.html" : "cliente.html";
+            const rutaDestino = esAdminB2B ? "panel-b2b-admin.html" : "cliente.html";
             window.location.href = rutaDestino;
 
         } catch (error) {
@@ -256,6 +280,7 @@ if (btnRegistroCliente) {
             manejarErroresAuth(error);
             btnRegistroCliente.innerHTML = textoOriginal;
             btnRegistroCliente.disabled = false;
+            window.isRegisteringLocal = false;
         }
     });
 }
@@ -591,7 +616,7 @@ observarAuth((user) => {
         if (path.includes("login.html") || path.includes("registro")) {
             setTimeout(() => {
                 if (user.rol === "tecnico") window.location.href = "tecnico.html";
-                else if (user.rol === "admin") window.location.href = "admin.html";
+                else if (user.rol === "admin" || user.rol === "admin_b2b") window.location.href = "admin.html";
                 else window.location.href = "cliente.html";
             }, 600);
         }
