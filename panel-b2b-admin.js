@@ -143,17 +143,18 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
         creadoPorAdmin: auth.currentUser.uid
     };
 
-    try {
-        // 1. Validar que el empleado no exista (Opcional pero recomendado)
-        // 2. Insertar en la colección principal de usuarios
+   try {
+        // 1. Insertar en la colección principal de usuarios
         await addDoc(collection(db, "users"), nuevoEmpleado);
 
         console.log(`✅ Nuevo técnico ${nombreInput} asignado a ${adminContext.edificioId}`);
         
         alert(`🚀 ¡ÉXITO!\n${nombreInput.toUpperCase()} ha sido dado de alta como ${rolInput.toUpperCase()} para este edificio.`);
 
-        // Limpiar formulario
+        // --- LAS 2 LÍNEAS DE CIERRE Y LIMPIEZA ---
+        document.getElementById("modalAltaPersonal").classList.add("hidden"); 
         document.getElementById("formAltaPersonal").reset();
+        // -----------------------------------------
 
     } catch (err) {
         console.error("Error en Alta B2B:", err);
@@ -162,7 +163,6 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
         btn.disabled = false;
         btn.innerHTML = originalText;
     }
-});
 
 // ======================================================
 // 3. DESPACHO DE ORDENES DE TRABAJO
