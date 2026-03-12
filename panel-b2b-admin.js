@@ -13,189 +13,6 @@ setInterval(() => {
     if(clock) clock.innerText = new Date().toLocaleTimeString('es-MX', { hour12: false });
 }, 1000);
 
-
-// ======================================================
-// 1. MONITOR DE ACCESO MASTER & CONTEXTO B2B (FIX)
-// ======================================================
-
-auth.onAuthStateChanged((userAuth) => {
-
-    if (!userAuth) {
-        window.location.href = "login.html";
-        return;
-    }
-
-    // Escuchamos el perfil del usuario en tiempo real
-    onSnapshot(doc(db, "users", userAuth.uid), (docSnap) => {
-
-        if (!docSnap.exists()) {
-            console.error("⛔ Perfil no encontrado en Firestore.");
-            return;
-        }
-
-        adminContext = docSnap.data();
-
-        // ------------------------------------------------
-        // REGLA DE SEGURIDAD
-        // ------------------------------------------------
-
-        if (!adminContext.edificioId) {
-
-            console.error("⛔ ERROR CRÍTICO: Admin B2B sin edificioId.");
-
-            alert(
-                "⚠️ PERFIL INCOMPLETO:\n" +
-                "Tu usuario no está vinculado a ningún edificio.\n\n" +
-                "Contacta a soporte para completar la vinculación."
-            );
-
-            document.getElementById("panelAdminB2B").classList.add("hidden");
-            return;
-        }
-
-        // ------------------------------------------------
-        // ACTIVACIÓN DE UI
-        // ------------------------------------------------
-
-        document.getElementById("panelAdminB2B").classList.remove("hidden");
-
-        // Normalización de nombre
-        const nombreEdificio =
-            adminContext.edificioNombre ||
-            adminContext.nombre_edificio ||
-            "EDIFICIO SIN NOMBRE";
-
-        const lbl = document.getElementById("lblNombreEdificio");
-        if (lbl) lbl.innerText = nombreEdificio.toUpperCase();
-
-
-        // ------------------------------------------------
-        // DISPARO DE MONITORES
-        // ------------------------------------------------
-
-        escucharPlantillaRealTime(adminContext.edificioId);
-        conectarContadorTickets(adminContext.edificioId);
-        conectarContadorMantenimientosHoy(adminContext.edificioId);
-        escucharBitacoraRealTime(adminContext.edificioId);
-        escucharAvanceRutina(adminContext.edificioId);
-
-    });
-
-});
-
-
-// ======================================================
-// 2. REGISTRO DE ACTIVOS HUMANOS (CORREGIDO)
-// ======================================================
-document.getElementById("formAltaPersonal").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if (!adminContext?.edificioId) return;
-
-    const btn = document.getElementById("btnGuardarPersonal");
-    const originalText = "Dar de Alta en Red B2B";
-
-    // Definimos las variables antes de usarlas
-    const nombreInput = document.getElementById("regNombre").value.trim();
-    const emailInput = document.getElementById("regCorreo").value.trim().toLowerCase();
-    const rolInput = document.getElementById("regRol").value;
-
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> PROCESANDO...';
-
-    const nuevoEmpleado = {
-        nombre: nombreInput,
-        telefono: document.getElementById("regTelefono").value.trim(),
-        email: emailInput,
-        rol: rolInput,
-        especialidad: document.getElementById("regEspecialidad").value,
-        tecnico_vehiculo: "PENDIENTE",
-        tecnico_placas: "000-000",
-        edificioId: adminContext.edificioId,
-        edificioNombre: adminContext.edificioNombre || "Edificio B2B",
-        estado: "activo",
-        status: "activo",
-        disponible: true,
-        fecha_registro: serverTimestamp()
-    };
-
-    try {
-        await addDoc(collection(db, "users"), nuevoEmpleado);
-
-        console.log(`✅ Nuevo técnico ${nombreInput} asignado.`);
-        alert(`🚀 ¡ÉXITO!\n${nombreInput.toUpperCase()} registrado correctamente.`);
-
-        // CIERRE Y LIMPIEZA
-        document.getElementById("modalAltaPersonal").classList.add("hidden"); 
-        document.getElementById("formAltaPersonal").reset();
-
-    } catch (err) {
-        console.error("Error en Alta B2B:", err);
-        alert("❌ Error al registrar. Revisa la consola.");
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-    }
-});
-
-// ======================================================
-// 3. DESPACHO DE ORDENES DE TRABAJO
-// ======================================================
-
-document.getElementById("formTicketB2B").addEventListener("submit", async (e) => {
-
-    e.preventDefault();
-    if (!adminContext) return;
-
-    const btn = document.getElementById("btnCrearTicket");
-
-    btn.disabled = true;
-    btn.innerHTML = "ENVIANDO ORDEN...";
-
-    const ticketData = {
-
-        edificioId: adminContext.edificioId,
-        edificioNombre: adminContext.edificioNombre,
-
-        ubicacion_especifica: document.getElementById("tickPunto").value.trim(),
-        descripcion: document.getElementById("tickDesc").value.trim(),
-
-        prioridad: document.getElementById("tickPrioridad").value,
-        tecnicoId: document.getElementById("tickAsignado").value,
-
-        status: "programado",
-
-        fecha_programada: new Date().toISOString().split('T')[0],
-
-        equipo_nombre: "Mantenimiento General",
-        tipo: "mantenimiento",
-
-        fecha_creacion: serverTimestamp(),
-
-        creado_por: auth.currentUser.uid
-    };
-
-    try {
-
-        await addDoc(collection(db, "servicios_b2b"), ticketData);
-
-        alert("🚀 ORDEN DESPACHADA");
-
-        document.getElementById("formTicketB2B").reset();
-
-    } catch (err) {
-
-        alert("❌ Error al despachar orden.");
-
-    } finally {
-
-        btn.disabled = false;
-        btn.innerHTML = "Despachar Orden de Trabajo";
-
-    }
-
-});
-
-
 // ======================================================
 // 4. RADAR DE PLANTILLA (REPARADO: Inyección de Tabla)
 // ======================================================
@@ -520,9 +337,188 @@ window.importarRutinaMaestra = async () => {
 
 };
 
-
 // ======================================================
 // LOGOUT
 // ======================================================
 
 window.logout = () => auth.signOut();
+
+// ======================================================
+// 1. MONITOR DE ACCESO MASTER & CONTEXTO B2B (FIX)
+// ======================================================
+
+auth.onAuthStateChanged((userAuth) => {
+
+    if (!userAuth) {
+        window.location.href = "login.html";
+        return;
+    }
+
+    // Escuchamos el perfil del usuario en tiempo real
+    onSnapshot(doc(db, "users", userAuth.uid), (docSnap) => {
+
+        if (!docSnap.exists()) {
+            console.error("⛔ Perfil no encontrado en Firestore.");
+            return;
+        }
+
+        adminContext = docSnap.data();
+
+        // ------------------------------------------------
+        // REGLA DE SEGURIDAD
+        // ------------------------------------------------
+
+        if (!adminContext.edificioId) {
+
+            console.error("⛔ ERROR CRÍTICO: Admin B2B sin edificioId.");
+
+            alert(
+                "⚠️ PERFIL INCOMPLETO:\n" +
+                "Tu usuario no está vinculado a ningún edificio.\n\n" +
+                "Contacta a soporte para completar la vinculación."
+            );
+
+            document.getElementById("panelAdminB2B").classList.add("hidden");
+            return;
+        }
+
+        // ------------------------------------------------
+        // ACTIVACIÓN DE UI
+        // ------------------------------------------------
+
+        document.getElementById("panelAdminB2B").classList.remove("hidden");
+
+        // Normalización de nombre
+        const nombreEdificio =
+            adminContext.edificioNombre ||
+            adminContext.nombre_edificio ||
+            "EDIFICIO SIN NOMBRE";
+
+        const lbl = document.getElementById("lblNombreEdificio");
+        if (lbl) lbl.innerText = nombreEdificio.toUpperCase();
+
+
+        // ------------------------------------------------
+        // DISPARO DE MONITORES
+        // ------------------------------------------------
+
+        escucharPlantillaRealTime(adminContext.edificioId);
+        conectarContadorTickets(adminContext.edificioId);
+        conectarContadorMantenimientosHoy(adminContext.edificioId);
+        escucharBitacoraRealTime(adminContext.edificioId);
+        escucharAvanceRutina(adminContext.edificioId);
+
+    });
+
+});
+
+// ======================================================
+// 2. REGISTRO DE ACTIVOS HUMANOS (CORREGIDO)
+// ======================================================
+document.getElementById("formAltaPersonal").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!adminContext?.edificioId) return;
+
+    const btn = document.getElementById("btnGuardarPersonal");
+    const originalText = "Dar de Alta en Red B2B";
+
+    // Definimos las variables antes de usarlas
+    const nombreInput = document.getElementById("regNombre").value.trim();
+    const emailInput = document.getElementById("regCorreo").value.trim().toLowerCase();
+    const rolInput = document.getElementById("regRol").value;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> PROCESANDO...';
+
+    const nuevoEmpleado = {
+        nombre: nombreInput,
+        telefono: document.getElementById("regTelefono").value.trim(),
+        email: emailInput,
+        rol: rolInput,
+        especialidad: document.getElementById("regEspecialidad").value,
+        tecnico_vehiculo: "PENDIENTE",
+        tecnico_placas: "000-000",
+        edificioId: adminContext.edificioId,
+        edificioNombre: adminContext.edificioNombre || "Edificio B2B",
+        estado: "activo",
+        status: "activo",
+        disponible: true,
+        fecha_registro: serverTimestamp()
+    };
+
+    try {
+        await addDoc(collection(db, "users"), nuevoEmpleado);
+
+        console.log(`✅ Nuevo técnico ${nombreInput} asignado.`);
+        alert(`🚀 ¡ÉXITO!\n${nombreInput.toUpperCase()} registrado correctamente.`);
+
+        // CIERRE Y LIMPIEZA
+        document.getElementById("modalAltaPersonal").classList.add("hidden"); 
+        document.getElementById("formAltaPersonal").reset();
+
+    } catch (err) {
+        console.error("Error en Alta B2B:", err);
+        alert("❌ Error al registrar. Revisa la consola.");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+});
+
+// ======================================================
+// 3. DESPACHO DE ORDENES DE TRABAJO
+// ======================================================
+
+document.getElementById("formTicketB2B").addEventListener("submit", async (e) => {
+
+    e.preventDefault();
+    if (!adminContext) return;
+
+    const btn = document.getElementById("btnCrearTicket");
+
+    btn.disabled = true;
+    btn.innerHTML = "ENVIANDO ORDEN...";
+
+    const ticketData = {
+
+        edificioId: adminContext.edificioId,
+        edificioNombre: adminContext.edificioNombre,
+
+        ubicacion_especifica: document.getElementById("tickPunto").value.trim(),
+        descripcion: document.getElementById("tickDesc").value.trim(),
+
+        prioridad: document.getElementById("tickPrioridad").value,
+        tecnicoId: document.getElementById("tickAsignado").value,
+
+        status: "programado",
+
+        fecha_programada: new Date().toISOString().split('T')[0],
+
+        equipo_nombre: "Mantenimiento General",
+        tipo: "mantenimiento",
+
+        fecha_creacion: serverTimestamp(),
+
+        creado_por: auth.currentUser.uid
+    };
+
+    try {
+
+        await addDoc(collection(db, "servicios_b2b"), ticketData);
+
+        alert("🚀 ORDEN DESPACHADA");
+
+        document.getElementById("formTicketB2B").reset();
+
+    } catch (err) {
+
+        alert("❌ Error al despachar orden.");
+
+    } finally {
+
+        btn.disabled = false;
+        btn.innerHTML = "Despachar Orden de Trabajo";
+
+    }
+
+});
