@@ -74,8 +74,6 @@ async function validarPaseCaseta() {
     return true;
 }
 
-
-
 // --- INICIALIZACIÓN ---
 auth.onAuthStateChanged(async (user) => {
     if(!user) return window.location.href = "login.html";
@@ -83,13 +81,37 @@ auth.onAuthStateChanged(async (user) => {
     // REFACTOR 1: Al inicio, obtenemos el ID del edificio desde el perfil del técnico.
     try {
         const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists() && userDoc.data().edificioId) {
-            edificioIdGlobal = userDoc.data().edificioId;
-            console.log(`🏢 Técnico autenticado para el edificio: ${edificioIdGlobal}`);
-        } else {
-            document.body.innerHTML = `<div class="p-8 text-center text-red-500 text-lg font-black">ERROR DE ACCESO: Tu perfil no está asignado a ningún edificio. Contacta a tu administrador.</div>`;
-            showToast("Error de perfil: No tienes un edificio B2B asignado.", true);
-            return;
+        
+        if (userDoc.exists()) {
+            const data = userDoc.data();
+
+            // 🔥 CIRUGÍA VISUAL B2B: Ocultar Wallet y Documentos a técnicos B2B
+            if (data.tipo_cuenta === "B2B") {
+                console.log("🛠️ Perfil B2B detectado. Despejando panel visual...");
+                
+                // Escáner de IDs comunes para ocultarlos
+                const elementosOcultar = [
+                    "wallet", "billetera", "seccion-wallet", "contenedor-wallet", "caja-wallet",
+                    "documentos", "seccion-documentos", "contenedor-documentos", "documentos_requeridos"
+                ];
+                
+                elementosOcultar.forEach(id => {
+                    const elemento = document.getElementById(id);
+                    if (elemento) {
+                        elemento.classList.add("hidden");
+                        elemento.style.display = "none"; // Seguro de doble candado
+                    }
+                });
+            }
+
+            if (data.edificioId) {
+                edificioIdGlobal = data.edificioId;
+                console.log(`🏢 Técnico autenticado para el edificio: ${edificioIdGlobal}`);
+            } else {
+                document.body.innerHTML = `<div class="p-8 text-center text-red-500 text-lg font-black">ERROR DE ACCESO: Tu perfil no está asignado a ningún edificio. Contacta a tu administrador.</div>`;
+                showToast("Error de perfil: No tienes un edificio B2B asignado.", true);
+                return;
+            }
         }
     } catch (error) {
         console.error("Error crítico al obtener perfil:", error);
@@ -417,7 +439,7 @@ function initSignaturePad() {
         const rect = canvas.getBoundingClientRect();
         const ex = e.touches ? e.touches[0].clientX : e.clientX;
         const ey = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: ex - rect.left, y: ey - rect.top };
+        return { x: ex - rect.left, y: ey - top };
     };
 
     canvas.addEventListener("mousedown", start);
