@@ -153,114 +153,123 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  }
  };
 
+ // ======================================================================================
+ // 🔥 MOTOR DE RENDERIZADO DE TÉCNICOS (CON BYPASS B2B)
+ // ======================================================================================
  if (elementos.lista) {
- const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
-
- onSnapshot(qTecnicos, async (snap) => {
- let contOnline = 0;
- let contTotal = 0;
- 
- if (snap.empty) {
- elementos.lista.innerHTML = '<p class="text-gray-500 p-4 italic">No hay técnicos registrados en la base de datos.</p>';
- if(elementos.countOnline) elementos.countOnline.innerHTML = `0 <span class="text-sm text-gray-500">/ 0</span>`;
- return;
- }
-
- const fragment = document.createDocumentFragment();
- 
- for (const docSnap of snap.docs) {
- let data = docSnap.data();
- const uid = docSnap.id;
- contTotal++;
-
- if(data.disponible) {
- contOnline++;
- }
- 
- const esPendiente = (data.estado || "pendiente") === "pendiente";
- 
- const ineUrl = data.documentos?.ine || data.ine || data.ine_url || data.identificacion || null;
- const csfUrl = data.documentos?.csf || data.csf || data.csf_url || data.constancia || null;
- 
- const ineCheck = ineUrl ? '<span class="text-emerald-400"> ✅ INE</span>' : '<span class="text-red-500"> ❌ INE</span>';
- const csfCheck = csfUrl ? '<span class="text-emerald-400"> ✅ CSF</span>' : '<span class="text-red-500"> ❌ CSF</span>';
- const skillsStr = data.skills ? data.skills.join(" • ").toUpperCase() : "GENERAL";
- 
- const fotoUrl = data.foto_perfil || data.fotoPerfil || data.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nombre)}&background=random`;
-
- const reputacion = data.reputacion || 5.0;
- const estrellas = "⭐".repeat(Math.round(reputacion));
- const nivel = data.nivel || "BRONCE";
- let colorNivel = "text-orange-500";
- if(nivel === "PLATA") colorNivel = "text-gray-300";
- if(nivel === "ORO") colorNivel = "text-yellow-400";
-
- const estadoDot = data.disponible
- ? '<span class="text-emerald-500 font-bold text-[10px] animate-pulse">● ONLINE</span>'
- : '<span class="text-gray-500 text-[10px]">● OFFLINE</span>';
-
- const card = document.createElement("div");
- card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.1)]' : 'bg-zinc-900 border-zinc-800'}`;
-
- card.innerHTML = `
- <div class="flex justify-between items-center">
- <div class="flex items-start gap-3">
- <img src="${fotoUrl}" class="w-12 h-12 rounded-full border border-zinc-700 object-cover shadow-lg" alt="Foto">
- <div>
- <h4 class="font-bold text-white text-sm">
- ${escaparHTML(data.nombre)}
- ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded ml-2 font-black">NUEVO</span>' : ''}
- </h4>
- <div class="flex items-center gap-2 text-[10px] mt-0.5">
- <span class="${colorNivel} font-black">${nivel}</span>
- <span class="text-yellow-500">${estrellas} (${reputacion.toFixed(1)})</span>
- </div>
- <p class="text-[9px] text-blue-400 font-bold mt-1 tracking-wide">SKILLS: ${escaparHTML(skillsStr)}</p>
- <p class="text-xs text-gray-400">${escaparHTML(data.telefono || '')}</p>
- 
-
- <div class="mt-2 text-[10px] bg-black/20 p-1 rounded inline-block border border-white/5">
- ${ineCheck} | ${csfCheck}
- </div>
- 
-
- <div class="mt-1">
- ${estadoDot}
- </div>
- </div>
- </div>
-
- <div class="flex flex-col gap-2">
- <button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 text-[9px] font-bold px-2 py-1 rounded border border-blue-900/50 mb-1" onclick="window.verExpediente('${uid}')">
- <i class="fas fa-folder-open"></i> EXPEDIENTE
- </button>
-
-  ${esPendiente ? `
- <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${uid}')">
- APROBAR ACCESO
- </button>
- ` : `
- <button class="bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-900/50 mb-1" onclick="window.registrarPagoTecnico('${uid}', '${escaparHTML(data.nombre)}')">
- <i class="fas fa-money-bill-wave"></i> REGISTRAR PAGO
- </button>
- <button class="bg-red-900/30 hover:bg-red-900/50 text-red-500 text-[9px] font-bold px-2 py-1 rounded border border-red-900/50" onclick="window.aplicarPenalizacionManual('${uid}')">
- <i class="fas fa-gavel"></i> PENALIZAR
- </button>
- `}
- </div>
- </div>
- `;
- fragment.appendChild(card);
- }
-
- elementos.lista.innerHTML = "";
- elementos.lista.appendChild(fragment);
- 
- if(elementos.countOnline) {
- elementos.countOnline.innerHTML = `${contOnline} <span class="text-sm text-gray-500">/ ${contTotal}</span>`;
- elementos.countOnline.style.color = contOnline > 0 ? "#10b981" : "white";
- }
- });
+    const qTecnicos = query(collection(db, "users"), where("rol", "==", "tecnico"));
+   
+    onSnapshot(qTecnicos, async (snap) => {
+    let contOnline = 0;
+    let contTotal = 0;
+    
+    if (snap.empty) {
+    elementos.lista.innerHTML = '<p class="text-gray-500 p-4 italic">No hay técnicos registrados en la base de datos.</p>';
+    if(elementos.countOnline) elementos.countOnline.innerHTML = `0 <span class="text-sm text-gray-500">/ 0</span>`;
+    return;
+    }
+   
+    const fragment = document.createDocumentFragment();
+    
+    for (const docSnap of snap.docs) {
+    let data = docSnap.data();
+    const uid = docSnap.id;
+    
+    // 🔥 EL FILTRO MÁGICO: Si es un técnico B2B (tipo_cuenta === 'B2B'), lo saltamos
+    if (data.tipo_cuenta === "B2B") {
+        continue; // Salta al siguiente técnico en el bucle
+    }
+   
+    contTotal++;
+   
+    if(data.disponible) {
+    contOnline++;
+    }
+    
+    const esPendiente = (data.estado || "pendiente") === "pendiente";
+    
+    const ineUrl = data.documentos?.ine || data.ine || data.ine_url || data.identificacion || null;
+    const csfUrl = data.documentos?.csf || data.csf || data.csf_url || data.constancia || null;
+    
+    const ineCheck = ineUrl ? '<span class="text-emerald-400"> ✅ INE</span>' : '<span class="text-red-500"> ❌ INE</span>';
+    const csfCheck = csfUrl ? '<span class="text-emerald-400"> ✅ CSF</span>' : '<span class="text-red-500"> ❌ CSF</span>';
+    const skillsStr = data.skills ? data.skills.join(" • ").toUpperCase() : "GENERAL";
+    
+    const fotoUrl = data.foto_perfil || data.fotoPerfil || data.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nombre)}&background=random`;
+   
+    const reputacion = data.reputacion || 5.0;
+    const estrellas = "⭐".repeat(Math.round(reputacion));
+    const nivel = data.nivel || "BRONCE";
+    let colorNivel = "text-orange-500";
+    if(nivel === "PLATA") colorNivel = "text-gray-300";
+    if(nivel === "ORO") colorNivel = "text-yellow-400";
+   
+    const estadoDot = data.disponible
+    ? '<span class="text-emerald-500 font-bold text-[10px] animate-pulse">● ONLINE</span>'
+    : '<span class="text-gray-500 text-[10px]">● OFFLINE</span>';
+   
+    const card = document.createElement("div");
+    card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.1)]' : 'bg-zinc-900 border-zinc-800'}`;
+   
+    card.innerHTML = `
+    <div class="flex justify-between items-center">
+    <div class="flex items-start gap-3">
+    <img src="${fotoUrl}" class="w-12 h-12 rounded-full border border-zinc-700 object-cover shadow-lg" alt="Foto">
+    <div>
+    <h4 class="font-bold text-white text-sm">
+    ${escaparHTML(data.nombre)}
+    ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded ml-2 font-black">NUEVO</span>' : ''}
+    </h4>
+    <div class="flex items-center gap-2 text-[10px] mt-0.5">
+    <span class="${colorNivel} font-black">${nivel}</span>
+    <span class="text-yellow-500">${estrellas} (${reputacion.toFixed(1)})</span>
+    </div>
+    <p class="text-[9px] text-blue-400 font-bold mt-1 tracking-wide">SKILLS: ${escaparHTML(skillsStr)}</p>
+    <p class="text-xs text-gray-400">${escaparHTML(data.telefono || '')}</p>
+    
+   
+    <div class="mt-2 text-[10px] bg-black/20 p-1 rounded inline-block border border-white/5">
+    ${ineCheck} | ${csfCheck}
+    </div>
+    
+   
+    <div class="mt-1">
+    ${estadoDot}
+    </div>
+    </div>
+    </div>
+   
+    <div class="flex flex-col gap-2">
+    <button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 text-[9px] font-bold px-2 py-1 rounded border border-blue-900/50 mb-1" onclick="window.verExpediente('${uid}')">
+    <i class="fas fa-folder-open"></i> EXPEDIENTE
+    </button>
+   
+     ${esPendiente ? `
+    <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${uid}')">
+    APROBAR ACCESO
+    </button>
+    ` : `
+    <button class="bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-900/50 mb-1" onclick="window.registrarPagoTecnico('${uid}', '${escaparHTML(data.nombre)}')">
+    <i class="fas fa-money-bill-wave"></i> REGISTRAR PAGO
+    </button>
+    <button class="bg-red-900/30 hover:bg-red-900/50 text-red-500 text-[9px] font-bold px-2 py-1 rounded border border-red-900/50" onclick="window.aplicarPenalizacionManual('${uid}')">
+    <i class="fas fa-gavel"></i> PENALIZAR
+    </button>
+    `}
+    </div>
+    </div>
+    `;
+    fragment.appendChild(card);
+    }
+   
+    elementos.lista.innerHTML = "";
+    elementos.lista.appendChild(fragment);
+    
+    if(elementos.countOnline) {
+    elementos.countOnline.innerHTML = `${contOnline} <span class="text-sm text-gray-500">/ ${contTotal}</span>`;
+    elementos.countOnline.style.color = contOnline > 0 ? "#10b981" : "white";
+    }
+    });
  }
 
  const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"), limit(50));
