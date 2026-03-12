@@ -95,7 +95,7 @@ export function verificarYRedireccionar(user) {
 
     // PRIORIDAD 2: TÉCNICOS
     if (role === 'tecnico') {
-        const targetTecnico = (subType === 'saas') ? 'tecnico-b2b.html' : 'panel-tecnico.html';
+        const targetTecnico = (subType === 'saas') ? 'tecnico-b2b.html' : 'tecnico.html';
         if (currentPage !== targetTecnico) {
             window.location.href = targetTecnico;
         }
