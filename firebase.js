@@ -91,8 +91,13 @@ export function verificarYRedireccionar(user) {
 
     let role = (user.rol || user.role || "").toLowerCase();
 
-    const subType =
-        (user.sub_type || user.subtype || "marketplace").toLowerCase();
+    // 🔧 PARCHE B2B
+    const subType = (
+        user.sub_type ||
+        user.subtype ||
+        (user.tipo_cuenta === "B2B" ? "saas" : null) ||
+        "marketplace"
+    ).toLowerCase();
 
     // ⚡ BYPASS ADMIN
     if (user.email && user.email.toLowerCase() === "hebertoh-m@hotmail.com") {
