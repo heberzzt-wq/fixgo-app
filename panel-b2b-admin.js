@@ -1,4 +1,6 @@
-import { auth, db, doc, getDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, serverTimestamp, query, where, orderBy, limit, setDoc } from "./firebase.js";
+import { auth, db, doc, getDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, serverTimestamp, query, where, orderBy, limit, setDoc, app } from "./firebase.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 let adminContext = null; 
 
@@ -425,44 +427,57 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
     const nombreInput = document.getElementById("regNombre").value.trim();
     const emailInput = document.getElementById("regCorreo").value.trim().toLowerCase();
     const rolInput = document.getElementById("regRol").value;
+    const passwordTemp = "123456"; // 🔥 INYECCIÓN: Contraseña corporativa por defecto
 
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> PROCESANDO...';
-
-    const nuevoEmpleado = {
-        // Datos Personales
-        nombre: nombreInput,
-        telefono: document.getElementById("regTelefono").value.trim(),
-        email: emailInput,
-        
-        // Atributos Operativos
-        rol: rolInput,
-        tipo_cuenta: "B2B", // 🛡️ EL ESCUDO CONTRA EL FLUJO B2C
-        especialidad: document.getElementById("regEspecialidad").value,
-        tecnico_vehiculo: "N/A",
-        tecnico_placas: "N/A",
-        
-        // Contexto B2B
-        edificioId: adminContext.edificioId,
-        edificioNombre: adminContext.edificioNombre || "Edificio B2B",
-        
-        // 🚀 BANDERAS DE BYPASS (Salta la aprobación del CEO y el Expediente)
-        estado: "activo",
-        status: "activo",
-        disponible: true,
-        verificado: true,
-        aprobado: true, 
-        aprobadoPor: "admin_b2b",
-        expediente_completo: true, // Evita que la app le pida subir documentos
-        
-        fecha_registro: serverTimestamp()
-    };
+    btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> CREANDO CUENTA OFICIAL...';
 
     try {
-        await addDoc(collection(db, "users"), nuevoEmpleado);
+        // 1. MAGIA B2B: Crear usuario en Firebase Auth usando la App Secundaria
+        const secondaryApp = initializeApp(app.options, "SecondaryApp" + Date.now());
+        const secondaryAuth = getAuth(secondaryApp);
+        
+        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, emailInput, passwordTemp);
+        const nuevoUid = userCredential.user.uid;
+        
+        // Desconectamos la app secundaria para no interferir con la sesión actual del Admin
+        await signOut(secondaryAuth);
 
-        console.log(`✅ Nuevo técnico B2B ${nombreInput} asignado.`);
-        alert(`🚀 ¡ÉXITO!\n${nombreInput.toUpperCase()} registrado y auto-aprobado para este edificio.`);
+        // 2. Crear el perfil en Firestore AMARRADO al UID real
+        const nuevoEmpleado = {
+            // Datos Personales
+            nombre: nombreInput,
+            telefono: document.getElementById("regTelefono").value.trim(),
+            email: emailInput,
+            
+            // Atributos Operativos
+            rol: rolInput,
+            tipo_cuenta: "B2B", // 🛡️ EL ESCUDO CONTRA EL FLUJO B2C
+            especialidad: document.getElementById("regEspecialidad").value,
+            tecnico_vehiculo: "N/A",
+            tecnico_placas: "N/A",
+            
+            // Contexto B2B
+            edificioId: adminContext.edificioId,
+            edificioNombre: adminContext.edificioNombre || "Edificio B2B",
+            
+            // 🚀 BANDERAS DE BYPASS (Salta la aprobación del CEO y el Expediente)
+            estado: "activo",
+            status: "activo",
+            disponible: true,
+            verificado: true,
+            aprobado: true, 
+            aprobadoPor: "admin_b2b",
+            expediente_completo: true, // Evita que la app le pida subir documentos
+            
+            fecha_registro: serverTimestamp()
+        };
+
+        // En lugar de addDoc, usamos setDoc con el UID correcto
+        await setDoc(doc(db, "users", nuevoUid), nuevoEmpleado);
+
+        console.log(`✅ Nuevo técnico B2B ${nombreInput} asignado con UID: ${nuevoUid}`);
+        alert(`🚀 ¡ÉXITO!\n${nombreInput.toUpperCase()} ha sido dado de alta oficialmente en GestiaPremium.\n\n📧 Correo: ${emailInput}\n🔑 Contraseña temporal: ${passwordTemp}\n\nInstruye al técnico a INICIAR SESIÓN (no registrarse).`);
 
         // CIERRE Y LIMPIEZA
         document.getElementById("modalAltaPersonal").classList.add("hidden"); 
@@ -470,7 +485,11 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
 
     } catch (err) {
         console.error("Error en Alta B2B:", err);
-        alert("❌ Error al registrar. Revisa la consola.");
+        if (err.code === "auth/email-already-in-use") {
+            alert("❌ ERROR: Ese correo ya existe en la plataforma. Dile al técnico que use otro o bórralo primero desde Firebase Auth.");
+        } else {
+            alert("❌ Error al registrar. Revisa la consola.");
+        }
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
