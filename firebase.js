@@ -106,14 +106,14 @@ export function verificarYRedireccionar(user) {
     if (role === 'cliente' || role === 'client') {
         if (subType === 'saas') {
             if (currentPage !== 'dashboard-b2b.html') { 
-                window.location.href = 'dashboard-b2b.html';
+                window.location.href = 'cliente.html';
             }
         } else { // Marketplace
             // Si el usuario ya está logueado como cliente, evitamos que esté en login.html
             // Pero permitimos que navegue en index o dashboard-client
             const forbiddenPages = ['login.html', 'registro.html'];
             if (forbiddenPages.includes(currentPage)) {
-                window.location.href = 'dashboard-client.html';
+                window.location.href = 'cliente.html';
             }
         }
         return;
