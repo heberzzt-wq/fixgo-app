@@ -413,7 +413,7 @@ auth.onAuthStateChanged((userAuth) => {
 });
 
 // ======================================================
-// 2. REGISTRO DE ACTIVOS HUMANOS (CORREGIDO)
+// 2. REGISTRO DE ACTIVOS HUMANOS (VERSIÓN BYPASS B2B)
 // ======================================================
 document.getElementById("formAltaPersonal").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -422,7 +422,6 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
     const btn = document.getElementById("btnGuardarPersonal");
     const originalText = "Dar de Alta en Red B2B";
 
-    // Definimos las variables antes de usarlas
     const nombreInput = document.getElementById("regNombre").value.trim();
     const emailInput = document.getElementById("regCorreo").value.trim().toLowerCase();
     const rolInput = document.getElementById("regRol").value;
@@ -431,26 +430,39 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
     btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> PROCESANDO...';
 
     const nuevoEmpleado = {
+        // Datos Personales
         nombre: nombreInput,
         telefono: document.getElementById("regTelefono").value.trim(),
         email: emailInput,
+        
+        // Atributos Operativos
         rol: rolInput,
+        tipo_cuenta: "B2B", // 🛡️ EL ESCUDO CONTRA EL FLUJO B2C
         especialidad: document.getElementById("regEspecialidad").value,
-        tecnico_vehiculo: "PENDIENTE",
-        tecnico_placas: "000-000",
+        tecnico_vehiculo: "N/A",
+        tecnico_placas: "N/A",
+        
+        // Contexto B2B
         edificioId: adminContext.edificioId,
         edificioNombre: adminContext.edificioNombre || "Edificio B2B",
+        
+        // 🚀 BANDERAS DE BYPASS (Salta la aprobación del CEO y el Expediente)
         estado: "activo",
         status: "activo",
         disponible: true,
+        verificado: true,
+        aprobado: true, 
+        aprobadoPor: "admin_b2b",
+        expediente_completo: true, // Evita que la app le pida subir documentos
+        
         fecha_registro: serverTimestamp()
     };
 
     try {
         await addDoc(collection(db, "users"), nuevoEmpleado);
 
-        console.log(`✅ Nuevo técnico ${nombreInput} asignado.`);
-        alert(`🚀 ¡ÉXITO!\n${nombreInput.toUpperCase()} registrado correctamente.`);
+        console.log(`✅ Nuevo técnico B2B ${nombreInput} asignado.`);
+        alert(`🚀 ¡ÉXITO!\n${nombreInput.toUpperCase()} registrado y auto-aprobado para este edificio.`);
 
         // CIERRE Y LIMPIEZA
         document.getElementById("modalAltaPersonal").classList.add("hidden"); 
