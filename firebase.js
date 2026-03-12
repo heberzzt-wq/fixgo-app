@@ -56,7 +56,8 @@ const firebaseConfig = {
 // 2. INICIALIZACIÓN
 // ======================================================
 
-const firebaseApp = initializeApp(firebaseConfig);
+// 🔥 AJUSTE: Renombramos a 'app' para compatibilidad con la creación de cuentas B2B
+const app = initializeApp(firebaseConfig);
 
 
 // 🛡️ DEBUG LOCAL APP CHECK
@@ -65,15 +66,15 @@ if (window.location.hostname === "localhost" || window.location.hostname === "12
 }
 
 
-const appCheck = initializeAppCheck(firebaseApp, {
+const appCheck = initializeAppCheck(app, {
     provider: new ReCaptchaV3Provider('6LcEZG4sAAAAAKQQ60dgYGVzXO-Q-ZPPMB9gKNkh'),
     isTokenAutoRefreshEnabled: true
 });
 
 
-const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp);
-const storage = getStorage(firebaseApp);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
 
 
 // ======================================================
@@ -399,7 +400,7 @@ export async function registrarUsuario(
 // ======================================================
 
 export {
-
+    app, // 🔥 INYECCIÓN: Ahora 'app' está expuesto para poder crear la App Secundaria
     auth,
     db,
     storage,
