@@ -130,54 +130,86 @@ auth.onAuthStateChanged(async (user) => {
 
 // --- CARGA DE DATOS ---
 function cargarTareasProgramadas() {
-    const contenedor = document.getElementById("contenedor-tareas-diarias");
-    const hoy = new Date().toISOString().split('T')[0];
 
-    // REFACTOR 1: La consulta ahora usa la variable global dinámica.
+    const contenedor = document.getElementById("contenedor-tareas-diarias");
+
+    if (!contenedor || !edificioIdGlobal) return;
+
     const q = query(
         collection(db, "servicios_b2b"),
         where("edificioId", "==", edificioIdGlobal),
-        where("fecha_programada", "==", hoy),
-        where("status", "in", ["programado", "en_proceso"])
+        where("status", "in", ["pendiente", "programado", "en_proceso"])
     );
 
     onSnapshot(q, (snapshot) => {
-        contenedor.innerHTML = '';
+
+        contenedor.innerHTML = "";
+
         if (snapshot.empty) {
-            contenedor.innerHTML = `<div class="p-8 text-center text-zinc-600 text-[10px] font-bold uppercase tracking-widest border border-dashed border-zinc-800 rounded-2xl">${edificioIdGlobal.replace('-', ' ').toUpperCase()}: Sin pendientes hoy</div>`;
+
+            contenedor.innerHTML = `
+            <div class="p-8 text-center text-zinc-600 text-[10px] font-bold uppercase tracking-widest border border-dashed border-zinc-800 rounded-2xl">
+                ${edificioIdGlobal.replace('-', ' ').toUpperCase()} : SIN SERVICIOS ACTIVOS
+            </div>`;
+
             return;
         }
 
         snapshot.forEach((docSnap) => {
+
             const tarea = docSnap.data();
             const id = docSnap.id;
+
             const div = document.createElement("div");
-            div.className = "p-4 glass-card rounded-xl border border-white/5 flex justify-between items-center";
+
+            div.className =
+                "p-4 glass-card rounded-xl border border-white/5 flex justify-between items-center";
+
             div.innerHTML = `
                 <div>
-                    <h4 class="text-sm font-black italic text-emerald-500">${tarea.equipo_nombre || 'Mantenimiento'}</h4>
-                    <p class="text-[9px] text-zinc-500 uppercase font-bold">${tarea.ubicacion_especifica || 'General'}</p>
+                    <h4 class="text-sm font-black italic text-emerald-500">
+                        ${tarea.descripcion || tarea.equipo || "Mantenimiento"}
+                    </h4>
+
+                    <p class="text-[9px] text-zinc-500 uppercase font-bold">
+                        ${tarea.ubicacion_especifica || tarea.direccion || "General"}
+                    </p>
                 </div>
-                <button onclick="seleccionarTarea('${id}')" class="bg-emerald-500 text-black text-[9px] font-black px-3 py-2 rounded-lg">INICIAR</button>
+
+                <button
+                    onclick="seleccionarTarea('${id}')"
+                    class="bg-emerald-500 text-black text-[9px] font-black px-3 py-2 rounded-lg">
+                    INICIAR
+                </button>
             `;
+
             contenedor.appendChild(div);
+
         });
+
     }, (error) => {
+
         console.error("Error en Snapshot:", error);
-        contenedor.innerHTML = `<div class="p-4 text-red-500 text-center text-[10px]">Error de conexión con la bitácora</div>`;
+
+        contenedor.innerHTML =
+            `<div class="p-4 text-red-500 text-center text-[10px]">
+                Error de conexión con la bitácora
+            </div>`;
     });
 }
 
 window.seleccionarTarea = async (id) => {
-    // 🛡️ Aplicando Regla 2
+
     const tienePase = await validarPaseCaseta();
-    if (!tienePase) return; 
+
+    if (!tienePase) return;
 
     ordenId = id;
+
     document.getElementById("listaTareasHoy").classList.add("hidden");
     document.getElementById("flujoTecnico").classList.remove("hidden");
-};
 
+};
 // --- TAREA 2 (V5.19): MOTOR DE RUTINAS PREVENTIVAS ---
 async function cargarRutinaPreventiva() {
     if (!edificioIdGlobal) return;
