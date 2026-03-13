@@ -5,6 +5,8 @@
  * Integración: B2B SaaS + Marketplace + App Check
  * REPARACIÓN: Anti-Bucle de Redirección + Admin Bypass
  * REGLA 1: NO COMPACTAR. NO CORTAR. CÓDIGO COMPLETO.
+ * AUTOR: Heber (CEO & Lead Architect)
+ * ======================================================
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -222,7 +224,7 @@ export function observarAuth(callback) {
             let snap = await getDoc(doc(db, "users", user.uid));
 
 
-            // ♻️ MIGRACIÓN LEGACY
+            // ♻️ MIGRACIÓN LEGACY (NO CORTAR)
             if (!snap.exists()) {
 
                 let legacySnap = await getDoc(doc(db, "tecnicos", user.uid));
@@ -330,7 +332,7 @@ export async function validarClaveB2B(clave) {
 
 
 // ======================================================
-// 📝 REGISTRO BLINDADO
+// 📝 REGISTRO BLINDADO (ATÓMICO V5.19)
 // ======================================================
 
 export async function registrarUsuario(
@@ -358,6 +360,7 @@ export async function registrarUsuario(
             sub_type: subType,
             nombre: nombre || "Usuario Nuevo",
             creadoEn: serverTimestamp(),
+            actualizadoEn: serverTimestamp(), // ✨ Línea de auditoría de actualización
             empresa_id: empresaId || null,
             tipo_cuenta: (subType === "saas") ? "B2B" : "B2C",
             status: "activo",
@@ -365,7 +368,7 @@ export async function registrarUsuario(
 
         };
 
-        // 🏢 DATOS B2B ATÓMICOS
+        // 🏢 INYECTAR EDIFICIO SI ES B2B (Evita el "Perfil Incompleto")
         if (b2bData) {
             perfil.edificioId = b2bData.edificioId;
             perfil.edificioNombre = b2bData.edificioNombre;
@@ -388,9 +391,11 @@ export async function registrarUsuario(
         }
 
 
+        // ESCRITURA MAESTRA (SSoT)
         await setDoc(doc(db, "users", uid), perfil);
 
 
+        // ESPEJOS LEGACY (COMPATIBILIDAD V4)
         if (rol === "tecnico") {
 
             await setDoc(
