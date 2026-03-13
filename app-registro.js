@@ -162,6 +162,7 @@ if ($("btnCerrarTerminosTecnico")) {
 // A. LÓGICA DE REGISTRO DE CLIENTES 
 // ======================================================
 const btnRegistroCliente = $("btnRegistroCliente");
+
 if (btnRegistroCliente) {
     btnRegistroCliente.addEventListener("click", async (e) => {
         e.preventDefault();
@@ -178,20 +179,24 @@ if (btnRegistroCliente) {
         const codigoB2B = escaparHTML(form.querySelector('[name="codigoB2B"]')?.value.trim().toUpperCase()) || null;
 
         if (!nombre || !email || !password || !telefono) {
-            alert("⚠️ Por favor, completa todos los campos personales."); return;
+            alert("⚠️ Por favor, completa todos los campos personales."); 
+            return;
         }
 
         if (!validarPassword(password)) {
-            alert("🔒 SEGURIDAD: La contraseña debe tener mínimo 8 caracteres, incluir al menos 1 mayúscula y 1 número."); return;
+            alert("🔒 SEGURIDAD: La contraseña debe tener mínimo 8 caracteres, incluir al menos 1 mayúscula y 1 número."); 
+            return;
         }
         
         const termsAceptados = document.getElementById("chkTerminosCliente")?.checked;
         if (!termsAceptados) {
-            alert("⚖️ Obligatorio: Debes marcar la casilla aceptando los Términos y Condiciones de Uso para Clientes."); return;
+            alert("⚖️ Obligatorio: Debes marcar la casilla aceptando los Términos y Condiciones de Uso para Clientes."); 
+            return;
         }
 
         if (!stripe || !cardElement) {
-            alert("⚠️ Error: El sistema de pagos no está cargado. Recarga la página."); return;
+            alert("⚠️ Error: El sistema de pagos no está cargado. Recarga la página."); 
+            return;
         }
 
         let usuarioAuth = null;
@@ -201,10 +206,10 @@ if (btnRegistroCliente) {
             // 🔥 BANDERA DE SEGURIDAD: Impide que el sistema redirija antes de terminar
             window.isRegisteringLocal = true; 
 
-            // 🚀 NUEVA LÓGICA B2B: Validar la clave ANTES de cobrar y crear usuarios
             let esAdminB2B = false;
             let datosLlave = null;
 
+            // 🚀 VALIDACIÓN PREVIA DE LLAVE
             if (codigoB2B && codigoB2B.length > 0) {
                 btnRegistroCliente.innerHTML = '<i class="fas fa-key"></i> Verificando Clave B2B...';
                 btnRegistroCliente.disabled = true;
@@ -216,7 +221,7 @@ if (btnRegistroCliente) {
                     btnRegistroCliente.innerHTML = textoOriginal;
                     btnRegistroCliente.disabled = false;
                     window.isRegisteringLocal = false;
-                    return; // Detiene el registro si la clave es falsa
+                    return; 
                 }
                 
                 esAdminB2B = true;
@@ -233,37 +238,35 @@ if (btnRegistroCliente) {
 
             btnRegistroCliente.innerHTML = '<i class="fas fa-shield-alt"></i> Creando Bóveda...';
 
-            // 🌍 DETERMINACIÓN DE ROL Y SUBTIPO BASADO EN LA CLAVE B2B
             const rolFinal = esAdminB2B ? "admin_b2b" : "cliente";
             const subtipoFinal = esAdminB2B ? "saas" : "marketplace";
 
-            // Pasamos los parámetros exactos a Firebase
-            usuarioAuth = await registrarUsuario(email, password, rolFinal, nombre, subtipoFinal);
+            // 🚀 REGISTRO ATÓMICO: Inyectamos edificioId desde el nacimiento del usuario
+            usuarioAuth = await registrarUsuario(
+                email, 
+                password, 
+                rolFinal, 
+                nombre, 
+                subtipoFinal, 
+                null, // empresaId
+                esAdminB2B ? {
+                    edificioId: datosLlave.edificioId,
+                    edificioNombre: datosLlave.edificioNombre
+                } : null
+            );
 
-            // 🌍 DETERMINACIÓN DE EDIFICIO BASADO EN LA LLAVE B2B
-            let tipoCuenta = esAdminB2B ? "B2B" : "B2C";
-            let edificioID = esAdminB2B ? (datosLlave.edificioId || codigoB2B.toLowerCase()) : null;
-            let edificioNombreFinal = esAdminB2B ? (datosLlave.edificioNombre || "Edificio B2B") : null;
-
+            // 💳 ACTUALIZACIÓN DE MÉTODO DE PAGO Y AUDITORÍA
+            // Los campos rol, tipo_cuenta, edificioId y edificioNombre ya están en el perfil por registrarUsuario
             await setDoc(doc(db, "users", usuarioAuth.uid), {
-                uid: usuarioAuth.uid,
-                nombre: nombre,
-                email: email,
                 telefono: telefono,
-                rol: rolFinal, // Ahora sí se guarda como "admin_b2b"
-                tipo_cuenta: tipoCuenta, // "B2B"
-                edificioId: edificioID, // "uxmal39"
-                edificioNombre: edificioNombreFinal, // "Uxmal 39"
-                creadoEn: serverTimestamp(),
-                estado: "activo",
-                status: "activo",
                 metodo_pago_default: {
                     stripe_token: token.id, 
                     marca: token.card.brand,
                     last4: token.card.last4,
                     exp_month: token.card.exp_month,
                     exp_year: token.card.exp_year
-                }
+                },
+                actualizadoEn: serverTimestamp()
             }, { merge: true });
 
             alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nBienvenido a GestiaPremium. Tu perfil de ${esAdminB2B ? 'Administrador B2B' : 'Cliente'} ha sido creado.`);
@@ -274,9 +277,12 @@ if (btnRegistroCliente) {
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
+            
+            // Limpieza de huérfano si algo truena después de crear la cuenta Auth
             if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
-                await deleteUser(auth.currentUser).catch(e => console.error("Error borrando huérfano:", e));
+                await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza:", e));
             }
+
             manejarErroresAuth(error);
             btnRegistroCliente.innerHTML = textoOriginal;
             btnRegistroCliente.disabled = false;
@@ -284,7 +290,6 @@ if (btnRegistroCliente) {
         }
     });
 }
-
 // ======================================================
 // B. LÓGICA DE TÉCNICOS
 // ======================================================
