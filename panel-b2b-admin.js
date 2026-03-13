@@ -88,31 +88,40 @@ function conectarContadorTickets(edificioId) {
     const q = query(
         collection(db, "servicios_b2b"),
         where("edificioId", "==", edificioId),
-        where("status", "in", ["programado", "en_proceso"])
+        where("status", "in", ["pendiente", "programado", "en_proceso"])
     );
 
     onSnapshot(q, (snap) => {
-        document.getElementById("countOrdenesPendientes").innerText = snap.size;
+
+        const label = document.getElementById("countOrdenesPendientes");
+
+        if (label) {
+            label.innerText = snap.size;
+        }
+
     });
 
 }
 
 function conectarContadorMantenimientosHoy(edificioId) {
 
-    const hoy = new Date().toISOString().split('T')[0];
-
     const q = query(
         collection(db, "servicios_b2b"),
         where("edificioId", "==", edificioId),
-        where("fecha_programada", "==", hoy)
+        where("status", "in", ["pendiente", "programado", "en_proceso"])
     );
 
     onSnapshot(q, (snap) => {
-        document.getElementById("countMantenimientosHoy").innerText = snap.size;
+
+        const label = document.getElementById("countMantenimientosHoy");
+
+        if (label) {
+            label.innerText = snap.size;
+        }
+
     });
 
 }
-
 // ======================================================
 // 6. MONITOR DE BITÁCORA EN VIVO
 // ======================================================
