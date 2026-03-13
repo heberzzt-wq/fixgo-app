@@ -291,7 +291,7 @@ if (btnRegistroCliente) {
     });
 }
 // ======================================================
-// B. LÓGICA DE TÉCNICOS
+// B. LÓGICA DE TÉCNICOS (SOCIOS PRO)
 // ======================================================
 const btnRegistroTecnico = $("btnRegistroTecnico");
 
@@ -427,17 +427,16 @@ if (btnRegistroTecnico) {
         const textoOriginal = btnRegistroTecnico.innerHTML;
 
         try {
-            // 🔥 BANDERA DE SEGURIDAD: Frena el redireccionamiento para darnos tiempo de subir los documentos a la Nube.
             window.isRegisteringLocal = true; 
 
             btnRegistroTecnico.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encriptando Datos...';
             btnRegistroTecnico.disabled = true;
 
-            usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre);
+            // Registro en Firebase Auth (Marketplace por defecto para técnicos)
+            usuarioAuth = await registrarUsuario(email, password, "tecnico", nombre, "marketplace");
 
-            btnRegistroTecnico.innerHTML = '<i class="fas fa-cloud-upload-alt animate-bounce"></i> Subiendo Archivos Pesados a Google Cloud... (No cierres)';
+            btnRegistroTecnico.innerHTML = '<i class="fas fa-cloud-upload-alt animate-bounce"></i> Subiendo Archivos Pesados...';
             
-            // Subida real a Google Storage (URLs ligeras en lugar de Base64 pesados)
             const uid = usuarioAuth.uid;
             const [urlFoto, urlINE, urlCSF, urlLicencia] = await Promise.all([
                 subirAStorage(archivoFotoPerfil, `expedientes/${uid}/perfil_${Date.now()}`),
@@ -453,19 +452,12 @@ if (btnRegistroTecnico) {
 
             btnRegistroTecnico.innerHTML = '<i class="fas fa-database animate-pulse"></i> Inyectando a Base de Datos...';
 
+            // Actualización de perfil con documentos y marca de auditoría
             await setDoc(doc(db, "users", uid), {
-                uid: uid,
-                nombre: nombre,
-                email: email,
                 telefono: telefono,
-                rol: "tecnico",
                 skills: skills,
                 foto_perfil: urlFoto, 
                 fotoPerfil: urlFoto,  
-                estado: "pendiente",
-                status: "pendiente",
-                disponible: false,
-                verificado: false,
                 vehiculo: { tipo: tipoVehiculo, placas: placas },
                 documentos: {
                     ine: urlINE,
@@ -482,12 +474,10 @@ if (btnRegistroTecnico) {
                 nivel: "BRONCE",
                 reputacion: 5.0,
                 servicios_completados: 0,
-                creadoEn: serverTimestamp()
+                actualizadoEn: serverTimestamp() // ✨ Auditoría añadida
             }, { merge: true });
 
-            alert(`✅ ¡Expediente Recibido!\n\nBienvenido, ${nombre}. Tu cuenta está en revisión. El Administrador validará tus documentos pronto.`);
-            
-            // Redirección Manual Segura una vez que terminó 100% de inyectar datos
+            alert(`✅ ¡Expediente Recibido!\n\nBienvenido, ${nombre}. Tu cuenta está en revisión.`);
             window.location.href = "tecnico.html";
 
         } catch (error) {
@@ -498,11 +488,10 @@ if (btnRegistroTecnico) {
             manejarErroresAuth(error);
             btnRegistroTecnico.innerHTML = textoOriginal;
             btnRegistroTecnico.disabled = false;
-            window.isRegisteringLocal = false; // Liberamos la bandera en caso de error
+            window.isRegisteringLocal = false;
         }
     });
 }
-
 // ======================================================
 // C. LOGIN Y D. GOOGLE (GATEKEEPER LIBERADO)
 // ======================================================
