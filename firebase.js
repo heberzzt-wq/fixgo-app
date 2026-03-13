@@ -4,6 +4,7 @@
  * ======================================================
  * Integración: B2B SaaS + Marketplace + App Check
  * REPARACIÓN: Anti-Bucle de Redirección + Admin Bypass
+ * REGLAS: NO COMPACTAR. NO CORTAR. CÓDIGO COMPLETO.
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -100,7 +101,7 @@ export function verificarYRedireccionar(user) {
         "marketplace"
     ).toLowerCase();
 
-    // ⚡ BYPASS ADMIN
+    // ⚡ BYPASS ADMIN (HEBERTO)
     if (user.email && user.email.toLowerCase() === "hebertoh-m@hotmail.com") {
         role = "admin";
     }
@@ -109,7 +110,7 @@ export function verificarYRedireccionar(user) {
 
 
     // =========================
-    // ADMIN
+    // 1. ADMIN MAESTRO (HEBERTO)
     // =========================
 
     if (role === "admin") {
@@ -127,7 +128,25 @@ export function verificarYRedireccionar(user) {
 
 
     // =========================
-    // TECNICOS
+    // 2. ADMIN B2B (JORGE / EDIFICIOS)
+    // =========================
+
+    if (role === "admin_b2b") {
+
+        if (currentPage !== "panel-b2b-admin.html") {
+
+            console.log("🏢 Admin B2B detectado → Panel NOC Edificio");
+
+            window.location.href = "panel-b2b-admin.html";
+
+        }
+
+        return;
+    }
+
+
+    // =========================
+    // 3. TECNICOS
     // =========================
 
     if (role === "tecnico") {
@@ -148,13 +167,15 @@ export function verificarYRedireccionar(user) {
 
 
     // =========================
-    // CLIENTES
+    // 4. CLIENTES
     // =========================
 
     if (role === "cliente" || role === "client") {
 
         if (subType === "saas") {
 
+            // Si es un cliente SaaS (B2B) pero no es el admin_b2b (rol=cliente)
+            // Lo mandamos al panel B2B pero con permisos limitados (si aplica)
             if (currentPage !== "panel-b2b-admin.html") {
 
                 window.location.href = "panel-b2b-admin.html";
@@ -203,7 +224,7 @@ export function observarAuth(callback) {
             let snap = await getDoc(doc(db, "users", user.uid));
 
 
-            // ♻️ MIGRACIÓN LEGACY
+            // ♻️ MIGRACIÓN LEGACY (NO CORTAR ESTE BLOQUE)
             if (!snap.exists()) {
 
                 let legacySnap = await getDoc(doc(db, "tecnicos", user.uid));
@@ -240,6 +261,7 @@ export function observarAuth(callback) {
                     ...data
                 };
 
+                // RE-APLICAR BYPASS EN OBJETO FINAL
                 if (finalUser.email &&
                     finalUser.email.toLowerCase() === "hebertoh-m@hotmail.com") {
 
@@ -337,7 +359,8 @@ export async function registrarUsuario(
             sub_type: subType,
             nombre: nombre || "Usuario Nuevo",
             creadoEn: serverTimestamp(),
-            empresa_id: empresaId || null
+            empresa_id: empresaId || null,
+            tipo_cuenta: (subType === "saas") ? "B2B" : "B2C"
 
         };
 
@@ -400,7 +423,7 @@ export async function registrarUsuario(
 // ======================================================
 
 export {
-    app, // 🔥 INYECCIÓN: Ahora 'app' está expuesto para poder crear la App Secundaria
+    app, 
     auth,
     db,
     storage,
