@@ -53,32 +53,55 @@ function addYears(date, years) {
 }
 
 // ======================================================
-// LÓGICA DE FRECUENCIA Y VALIDACIÓN
+// LÓGICA DE FRECUENCIA Y VALIDACIÓN (V1.1 - Estabilizada)
 // ======================================================
 
 /**
- * Calcula la fecha de la siguiente ejecución basada en la frecuencia
+ * Calcula la fecha de la siguiente ejecución basada en la frecuencia.
+ * Ajuste: Usa 'ultima_generacion' como ancla para evitar el desfase (drift).
  */
 function calcularProxima(rutina) {
-    const hoy = new Date();
+    // Si ya existe una fecha de generación previa, la usamos como base
+    // para que el calendario sea exacto. Si es nueva, usamos el 'hoy' real.
+    const baseDate = (rutina.ultima_generacion && rutina.ultima_generacion.toDate) 
+        ? rutina.ultima_generacion.toDate() 
+        : new Date();
+
+    const d = new Date(baseDate);
+
     switch (rutina.frecuencia) {
-        case "diaria": return addDays(hoy, 1);
-        case "semanal": return addDays(hoy, 7);
+        case "diaria": 
+            return addDays(d, 1);
+        case "semanal": 
+            return addDays(d, 7);
         case "quincenal":
-        case "Semanal_Quincenal": return addDays(hoy, 15);
-        case "mensual": return addMonths(hoy, 1);
-        case "anual": return addYears(hoy, 1);
-        default: return addMonths(hoy, 1); 
+        case "Semanal_Quincenal": 
+            return addDays(d, 15);
+        case "mensual": 
+            return addMonths(d, 1);
+        case "anual": 
+            return addYears(d, 1);
+        default: 
+            return addMonths(d, 1); 
     }
 }
 
 /**
- * Valida si la rutina debe ejecutarse el día de hoy
+ * Valida si la rutina debe ejecutarse el día de hoy.
+ * Mantiene la lógica de comparación contra el Timestamp de Firestore.
  */
 function debeEjecutar(rutina) {
+    // Si no hay fecha programada, es una rutina nueva: se ejecuta de inmediato.
     if (!rutina.proxima_ejecucion) return true;
+
     const hoy = new Date();
-    const prox = rutina.proxima_ejecucion.toDate ? rutina.proxima_ejecucion.toDate() : new Date(rutina.proxima_ejecucion);
+    
+    // Convertimos el Timestamp de Firestore a Date de JS para comparar.
+    const prox = rutina.proxima_ejecucion.toDate 
+        ? rutina.proxima_ejecucion.toDate() 
+        : new Date(rutina.proxima_ejecucion);
+
+    // Si la fecha programada ya llegó o ya pasó, es hora de trabajar.
     return prox <= hoy;
 }
 
@@ -101,34 +124,62 @@ async function existeServicioHoy(rutinaId) {
 }
 
 // ======================================================
-// ASIGNACIÓN Y CREACIÓN DE OT
+// ASIGNACIÓN Y CREACIÓN DE OT (V1.3 - Agenda Exacta y Carga Balanceada)
 // ======================================================
 
 /**
- * Selecciona al técnico responsable (Skill Match)
+ * Selecciona al técnico responsable. 
+ * Mejora: Si no hay default, busca al técnico con el skill necesario que tenga 
+ * la fecha de 'ultima_asignacion' más antigua (Balanceo Round Robin).
  */
 async function seleccionarTecnico(rutina) {
+    // 1. Prioridad: Técnico asignado fijamente en la rutina
     if (rutina.tecnico_default) return rutina.tecnico_default;
+
+    // 2. Si no, buscamos técnicos activos con el skill, ordenados por quién lleva más tiempo libre
     const snap = await db.collection("tecnicos")
         .where("activo", "==", true)
         .where("skills", "array-contains", rutina.categoria)
-        .limit(1).get();
-    return snap.empty ? null : snap.docs[0].id;
+        .orderBy("ultima_asignacion", "asc") 
+        .limit(1)
+        .get();
+
+    if (snap.empty) return null;
+
+    const tecnicoDoc = snap.docs[0];
+    const tecnicoId = tecnicoDoc.id;
+
+    // 3. Marcamos al técnico como "recién asignado" para que pase al final de la fila
+    await tecnicoDoc.ref.update({
+        ultima_asignacion: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return tecnicoId;
 }
 
 /**
- * Genera el documento en servicios_b2b con la estructura de Gestia
+ * Genera el documento en servicios_b2b con la estructura de Gestia.
+ * Mejora: Sincroniza la fecha_programada con la agenda real de la rutina (Ajuste 4.1).
  */
 async function crearServicio(rutinaId, rutina) {
     const tecnico = await seleccionarTecnico(rutina);
     const servicioRef = db.collection("servicios_b2b").doc();
+    
+    // USAMOS LA FECHA PROGRAMADA DE LA RUTINA. 
+    // Si por algo no existe, usamos el momento actual como respaldo.
+    const fechaAgenda = rutina.proxima_ejecucion || admin.firestore.Timestamp.fromDate(new Date());
+
     const nuevaOT = {
         tipo: "preventivo",
         origen: "rutina_auto",
         rutinaId: rutinaId,
+        
+        // Datos de Ubicación
         edificioId: rutina.edificioId || "sin_id",
         edificioNombre: rutina.edificioNombre || "Edificio General",
         direccion: rutina.direccion || "",
+
+        // Datos del Trabajo
         titulo: rutina.nombre || "Mantenimiento Preventivo",
         descripcion: rutina.descripcion || "Generado automáticamente por sistema",
         sistema: rutina.sistema || "General",
@@ -136,20 +187,26 @@ async function crearServicio(rutinaId, rutina) {
         categoria: rutina.categoria || "MAINT (B2B)",
         sub_servicio: rutina.sub_servicio || "Preventivo",
         id_tarea: rutina.id_tarea || `TSK-AUTO-${Date.now().toString().slice(-4)}`,
+
+        // Asignación y Estado
         tecnico_asignado: tecnico,
         responsable: "tecnico",
         status: "pendiente",
         estado: "pendiente",
         prioridad: rutina.prioridad || "media",
+
+        // Trazabilidad y Fechas
         creadoPor: "scheduler",
         creadoEn: admin.firestore.FieldValue.serverTimestamp(),
         actualizadoEn: admin.firestore.FieldValue.serverTimestamp(),
-        fecha_programada: admin.firestore.Timestamp.fromDate(new Date())
+        
+        // AJUSTE 4.1: La OT queda agendada para cuando le tocaba, no cuando corrió el script
+        fecha_programada: fechaAgenda
     };
+
     await servicioRef.set(nuevaOT);
     return servicioRef.id;
 }
-
 // ======================================================
 // GESTIÓN DE AUDITORÍA Y ACTUALIZACIÓN
 // ======================================================
@@ -195,58 +252,62 @@ async function procesarRutina(doc) {
 }
 
 // ======================================================
-// DISPARADOR PRINCIPAL (SCHEDULER)
+// DISPARADOR PRINCIPAL (SCHEDULER V1.4 - BATCHED)
 // ======================================================
 
-/**
- * Función que corre cada día a las 2:00 AM hora CDMX
- */
 exports.schedulerRutinasPreventivas = functions.pubsub
     .schedule("0 2 * * *")
     .timeZone(TZ)
     .onRun(async (context) => {
-        console.log("⚙️ Iniciando ejecución diaria de rutinas preventivas...");
+        console.log("⚙️ Ejecutando Motor Preventivo V1.4 (Batched)...");
 
         try {
-            // Buscamos solo rutinas activas para ahorrar capacidad de cómputo
             const rutinasSnap = await db.collection("config_rutinas")
                 .where("activo", "==", true)
                 .get();
 
             if (rutinasSnap.empty) {
-                console.log("ℹ️ No hay rutinas activas para procesar.");
+                console.log("ℹ️ No hay rutinas activas.");
                 return null;
             }
 
-            let procesadas = 0;
+            const totalRutinas = rutinasSnap.docs;
+            const tamanoLote = 20; // Ajuste 5: Control de flujo
+            let exitosas = 0;
 
-            // Procesamos cada rutina una por una para evitar timeouts masivos
-            for (const doc of rutinasSnap.docs) {
-                try {
-                    await procesarRutina(doc);
-                    procesadas++;
-                } catch (error) {
-                    console.error(`❌ Error procesando rutina ${doc.id}:`, error);
-                    await logScheduler({
-                        tipo: "error_critico_rutina",
-                        rutinaId: doc.id,
-                        error: error.message
-                    });
-                }
+            // Procesamiento por lotes para evitar saturación
+            for (let i = 0; i < totalRutinas.length; i += tamanoLote) {
+                const lote = totalRutinas.slice(i, i + tamanoLote);
+                
+                const promesasLote = lote.map(async (doc) => {
+                    try {
+                        await procesarRutina(doc);
+                        exitosas++;
+                    } catch (err) {
+                        console.error(`❌ Error en rutina ${doc.id}:`, err);
+                        await logScheduler({
+                            tipo: "error_individual",
+                            rutinaId: doc.id,
+                            error: err.message
+                        });
+                    }
+                });
+
+                await Promise.all(promesasLote);
+                console.log(`⏳ Lote procesado: ${i + lote.length} de ${totalRutinas.length}`);
             }
 
-            console.log(`✅ Proceso finalizado. Rutinas evaluadas: ${procesadas}`);
             await logScheduler({
-                tipo: "ciclo_completo_exitoso",
-                totalEvaluadas: procesadas
+                tipo: "resumen_ejecucion",
+                total: totalRutinas.length,
+                exitosas
             });
 
+            console.log(`✅ Ciclo finalizado exitosamente.`);
+
         } catch (error) {
-            console.error("🚨 ERROR GENERAL EN EL SCHEDULER:", error);
-            await logScheduler({
-                tipo: "error_fatal_sistema",
-                error: error.message
-            });
+            console.error("🚨 ERROR CRÍTICO:", error);
+            await logScheduler({ tipo: "error_fatal", error: error.message });
         }
 
         return null;
