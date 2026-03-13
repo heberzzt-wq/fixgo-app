@@ -1,10 +1,10 @@
 /**
  * ======================================================
- * FIXGO CORE - GESTIAPREMIUM v5.18 (TRAFFIC CONTROL)
+ * FIXGO CORE - GESTIAPREMIUM v5.19 (TRAFFIC CONTROL)
  * ======================================================
  * Integración: B2B SaaS + Marketplace + App Check
  * REPARACIÓN: Anti-Bucle de Redirección + Admin Bypass
- * REGLAS: NO COMPACTAR. NO CORTAR. CÓDIGO COMPLETO.
+ * REGLA 1: NO COMPACTAR. NO CORTAR. CÓDIGO COMPLETO.
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -106,7 +106,7 @@ export function verificarYRedireccionar(user) {
         role = "admin";
     }
 
-    console.log(`🚦 ROUTER FIXGO v5.18 | rol=${role} | tipo=${subType} | page=${currentPage}`);
+    console.log(`🚦 ROUTER FIXGO v5.19 | rol=${role} | tipo=${subType} | page=${currentPage}`);
 
 
     // =========================
@@ -174,8 +174,6 @@ export function verificarYRedireccionar(user) {
 
         if (subType === "saas") {
 
-            // Si es un cliente SaaS (B2B) pero no es el admin_b2b (rol=cliente)
-            // Lo mandamos al panel B2B pero con permisos limitados (si aplica)
             if (currentPage !== "panel-b2b-admin.html") {
 
                 window.location.href = "panel-b2b-admin.html";
@@ -224,7 +222,7 @@ export function observarAuth(callback) {
             let snap = await getDoc(doc(db, "users", user.uid));
 
 
-            // ♻️ MIGRACIÓN LEGACY (NO CORTAR ESTE BLOQUE)
+            // ♻️ MIGRACIÓN LEGACY
             if (!snap.exists()) {
 
                 let legacySnap = await getDoc(doc(db, "tecnicos", user.uid));
@@ -341,7 +339,8 @@ export async function registrarUsuario(
     rol,
     nombre,
     subType = "marketplace",
-    empresaId = null
+    empresaId = null,
+    b2bData = null // 🚀 INYECCIÓN PARA REGISTRO ATÓMICO
 ) {
 
     try {
@@ -360,9 +359,17 @@ export async function registrarUsuario(
             nombre: nombre || "Usuario Nuevo",
             creadoEn: serverTimestamp(),
             empresa_id: empresaId || null,
-            tipo_cuenta: (subType === "saas") ? "B2B" : "B2C"
+            tipo_cuenta: (subType === "saas") ? "B2B" : "B2C",
+            status: "activo",
+            estado: "activo"
 
         };
+
+        // 🏢 DATOS B2B ATÓMICOS
+        if (b2bData) {
+            perfil.edificioId = b2bData.edificioId;
+            perfil.edificioNombre = b2bData.edificioNombre;
+        }
 
 
         // 💰 WALLET SOLO MARKETPLACE
