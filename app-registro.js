@@ -615,23 +615,17 @@ observarAuth((user) => {
         const path = window.location.pathname;
         if (path.includes("login.html") || path.includes("registro")) {
             setTimeout(() => {
-                if (user.rol === "tecnico") window.location.href = "tecnico.html";
-                else if (user.rol === "admin" || user.rol === "admin_b2b") window.location.href = "admin.html";
-                else window.location.href = "cliente.html";
+                // 🚀 REDIRECCIÓN MAESTRA CORREGIDA: Separamos los cables de Admin
+                if (user.rol === "tecnico") {
+                    window.location.href = "tecnico.html";
+                } else if (user.rol === "admin_b2b") {
+                    window.location.href = "panel-b2b-admin.html"; // Jorge va a su panel B2B
+                } else if (user.rol === "admin") {
+                    window.location.href = "admin.html"; // Heberto va a su Panel Maestro
+                } else {
+                    window.location.href = "cliente.html";
+                }
             }, 600);
         }
     }
 });
-
-function manejarErroresAuth(error) {
-    console.log("Código de error:", error.code);
-    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        alert("❌ Credenciales incorrectas o cuenta mal configurada. Revisa tus datos.");
-    } else if (error.code === 'auth/email-already-in-use') {
-        alert("⚠️ El correo ya está registrado en nuestro sistema. Intenta iniciar sesión.");
-    } else if (error.code === 'auth/weak-password') {
-        alert("⚠️ La contraseña es muy débil. Usa al menos 8 caracteres, números y mayúsculas.");
-    } else {
-        alert("🚨 Error de autenticación: " + error.message);
-    }
-}
