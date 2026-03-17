@@ -457,21 +457,33 @@ window.subirEvidenciaFinal = async () => {
 };
 
 // --- PASO 4: FIRMA ---
+let hasFirmaDrawn = false; // Nueva bandera para optimizar la validación de la firma
+
 function initSignaturePad() {
     canvas = document.getElementById("signaturePad");
-    ctx = canvas.getContext("2d");
+    // Agregamos willReadFrequently para eliminar el warning de lectura de Canvas2D
+    ctx = canvas.getContext("2d", { willReadFrequently: true });
     const r = canvas.getBoundingClientRect();
     canvas.width = r.width;
     canvas.height = r.height;
 
     const start = (e) => { isDrawing = true; ctx.beginPath(); const p = getP(e); ctx.moveTo(p.x, p.y); };
-    const draw = (e) => { if(!isDrawing) return; const p = getP(e); ctx.lineTo(p.x, p.y); ctx.strokeStyle = "#10b981"; ctx.lineWidth = 2; ctx.stroke(); };
+    const draw = (e) => { 
+        if(!isDrawing) return; 
+        hasFirmaDrawn = true; // El técnico hizo un trazo, actualizamos la bandera
+        const p = getP(e); 
+        ctx.lineTo(p.x, p.y); 
+        ctx.strokeStyle = "#10b981"; 
+        ctx.lineWidth = 2; 
+        ctx.stroke(); 
+    };
     const stop = () => isDrawing = false;
     const getP = (e) => {
         const rect = canvas.getBoundingClientRect();
         const ex = e.touches ? e.touches[0].clientX : e.clientX;
         const ey = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: ex - rect.left, y: ey - top };
+        // CORRECCIÓN: Cambiamos 'top' por 'rect.top'
+        return { x: ex - rect.left, y: ey - rect.top };
     };
 
     canvas.addEventListener("mousedown", start);
@@ -482,7 +494,10 @@ function initSignaturePad() {
     canvas.addEventListener("touchend", stop);
 }
 
-window.clearSignature = () => ctx.clearRect(0, 0, canvas.width, canvas.height);
+window.clearSignature = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasFirmaDrawn = false; // Reseteamos la bandera si limpian el lienzo
+};
 
 window.finalizarOrden = async () => {
     const btn = document.querySelector('#step4 button[onclick="finalizarOrden()"]');
@@ -490,9 +505,8 @@ window.finalizarOrden = async () => {
     setButtonLoading(btn, true);
 
     try {
-        if (ctx.getImageData(0, 0, canvas.width, canvas.height).data.some(channel => channel !== 0)) {
-            // Canvas no está vacío
-        } else {
+        // Validamos usando la bandera en lugar de escanear los pixeles
+        if (!hasFirmaDrawn) {
             throw new Error("La firma de conformidad es obligatoria.");
         }
 
@@ -582,7 +596,7 @@ window.reportarHallazgoEnRutina = async (tareaString) => {
             fechaCompletado: fechaHoyStr,
             timestamp: serverTimestamp(),
             status: 'reportado',
-            novedad: true,
+            novedada: true,
             servicio_b2b_id: docRef.id
         });
 
