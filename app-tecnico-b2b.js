@@ -1,7 +1,7 @@
 /**
  * =====================================================
  * GESTIA PREMIUM
- * B2B ENGINE V5.22
+ * B2B ENGINE V5.23
  * Arquitectura Optimizada Offline + Cache
  * Lead Architect: Heberto Mendoza
  * =====================================================
@@ -99,10 +99,21 @@ request.onupgradeneeded=e=>{
 
 const db=e.target.result;
 
+if(!db.objectStoreNames.contains("tareas")){
 db.createObjectStore("tareas",{keyPath:"id"});
+}
+
+if(!db.objectStoreNames.contains("historial")){
 db.createObjectStore("historial",{keyPath:"id"});
+}
+
+if(!db.objectStoreNames.contains("sync_queue")){
 db.createObjectStore("sync_queue",{autoIncrement:true});
+}
+
+if(!db.objectStoreNames.contains("fotos_pendientes")){
 db.createObjectStore("fotos_pendientes",{autoIncrement:true});
+}
 
 };
 
@@ -1546,5 +1557,5 @@ reader.readAsDataURL(file);
 
 /* =====================================================
 FIN ARCHIVO
-GESTIA PREMIUM V5.22
+GESTIA PREMIUM V5.23
 ===================================================== */
