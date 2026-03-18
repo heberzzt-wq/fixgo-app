@@ -20,7 +20,9 @@ import {
     query,
     where,
     onSnapshot,
-    addDoc
+    addDoc,
+    orderBy,
+    limit
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 import {
@@ -49,6 +51,7 @@ window.logout = () => {
         });
     }
 };
+
 // --- MOTOR DE NAVEGACIÓN (BOTTOM TABS) ---
 window.cambiarSeccion = (seccionDestino) => {
     const secciones = ['seccion-tareas', 'seccion-historial', 'seccion-perfil'];
@@ -224,6 +227,7 @@ async function validarPaseCaseta() {
     }
     return true;
 }
+window.validarPaseCaseta = validarPaseCaseta; // Exposición para HTML si es necesario
 
 // --- INICIALIZACIÓN ---
 auth.onAuthStateChanged(async (user) => {
