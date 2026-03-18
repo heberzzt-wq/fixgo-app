@@ -7,6 +7,7 @@
 
 // 1. IMPORTAR INSTANCIAS LOCALES
 import { auth, db, storage, signOut } from "./firebase.js";
+window.auth = auth; // 🔥 EXPOSICIÓN GLOBAL: Soluciona error "auth is not defined" en HTML
 
 // 2. IMPORTAR FUNCIONES DESDE LA LIBRERÍA (CDN)
 import {
