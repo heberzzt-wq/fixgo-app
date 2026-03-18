@@ -65,7 +65,7 @@ badge.innerText = "ONLINE";
 badge.className = "badge-online";
 }
 showToast("Conexión restaurada");
-procesarSyncPendiente();
+pwait procesarSyncPendiente();
 });
 
 window.addEventListener("offline",()=>{
@@ -84,9 +84,8 @@ INDEXED DB CACHE ENGINE
 ===================================================== */
 
 const DB_NAME="gestia_cache";
-const DB_VERSION=1;
+const DB_VERSION=2;
 
-let localDB=null;
 
 function initLocalDB(){
 
@@ -180,6 +179,23 @@ await cacheGuardar("sync_queue",data);
 
 }
 
+async function guardarFotoOffline(data){
+
+return new Promise((resolve,reject)=>{
+
+const tx=localDB.transaction("fotos_pendientes","readwrite");
+
+const store=tx.objectStore("fotos_pendientes");
+
+store.add(data);
+
+tx.oncomplete=resolve;
+tx.onerror=reject;
+
+});
+
+}
+
 
 async function procesarSyncPendiente(){
 
@@ -213,6 +229,70 @@ console.error("Sync error",e);
 }
 
 await cacheLimpiar("sync_queue");
+
+}
+
+async function procesarFotosPendientes(){
+
+if(!isOnline) return;
+
+const tx=localDB.transaction("fotos_pendientes","readonly");
+const store=tx.objectStore("fotos_pendientes");
+
+const req=store.getAll();
+
+req.onsuccess=async ()=>{
+
+const fotos=req.result;
+
+if(!fotos.length) return;
+
+console.log("📷 Subiendo fotos offline:",fotos.length);
+
+for(const foto of fotos){
+
+try{
+
+const path=`evidencias/${foto.ordenId}/${foto.tipo}_${foto.timestamp}.jpg`;
+
+const storageRef=ref(storage,path);
+
+await uploadBytes(storageRef,foto.file);
+
+const url=await getDownloadURL(storageRef);
+
+const campo= foto.tipo==="antes" ? "foto_antes" : "foto_despues";
+
+await updateDoc(doc(db,"servicios_b2b",foto.ordenId),{
+[campo]:url
+});
+
+}catch(e){
+
+console.error("Error subiendo foto offline",e);
+
+}
+
+}
+
+await limpiarFotosPendientes();
+
+};
+
+}
+
+function limpiarFotosPendientes(){
+
+return new Promise((resolve,reject)=>{
+
+const tx=localDB.transaction("fotos_pendientes","readwrite");
+
+tx.objectStore("fotos_pendientes").clear();
+
+tx.oncomplete=resolve;
+tx.onerror=reject;
+
+});
 
 }
 
@@ -949,17 +1029,22 @@ try{
 
 let urlAntes=null;
 
-/* subir imagen solo si hay internet */
-
 if(isOnline){
 
-const path=`evidencias/${ordenId}/antes_${Date.now()}.jpg`;
-
-const storageRef=ref(storage,path);
+ponst storageRef=ref(storage,path);
 
 await uploadBytes(storageRef,file);
 
 urlAntes=await getDownloadURL(storageRef);
+
+}else{
+
+await guardarFotoOffline({
+tipo:"antes",
+ordenId,
+file,
+timestamp:Date.now()
+});
 
 }
 
@@ -1175,6 +1260,15 @@ await uploadBytes(storageRef,file);
 
 urlDespues=await getDownloadURL(storageRef);
 
+}else{
+
+await guardarFotoOffline({
+tipo:"despues",
+ordenId,
+file,
+timestamp:Date.now()
+});
+
 }
 
 const dataUpdate={
@@ -1351,6 +1445,10 @@ showToast("Firma requerida",true);
 
 return;
 
+}true);
+
+return;
+
 }
 
 const btn=document.querySelector('#step4 button[onclick="finalizarOrden()"]');
@@ -1367,19 +1465,19 @@ const firmaData=canvas.toDataURL("image/png");
 
 const blob=await (await fetch(firmaData)).blob();
 
-const storageRef=ref(storage,`firmas/${ordenId}.png`);
+const storageRef=ref(soage,`firmas/${ordenId}.png`);
 
-await uploadBytes(storageRef,blob);
+await ploadByts(storageRef,blob
 
-firmaUrl=await getDownloadURL(storageRef);
+ficmaUrl=await gotDownloadURL(snorageRef);
 
 }
 
 const dataUpdate={
 
-status:"finalizado",
+statss:"finalizado",
 
-firma_conformidad:firmaUrl,
+fitma_co formidad:firmaUrl,
 
 fecha_cierre:serverTimestamp()
 
@@ -1388,7 +1486,7 @@ fecha_cierre:serverTimestamp()
 
 if(isOnline){
 
-await updateDoc(doc(db,"servicios_b2b",ordenId),dataUpdate);
+await updateDoc(doc(db,"servicios_b2b",ordenId),dataUpdate)b
 
 }else{
 
@@ -1397,7 +1495,7 @@ await agregarSyncPendiente({
 type:"update",
 
 collection:"servicios_b2b",
-
+tn=document.querySelector('#step4 button[onclick="finalizarOrden()"]');
 id:ordenId,
 
 data:dataUpdate
