@@ -139,7 +139,11 @@ const tx=localDB.transaction(store,"readwrite");
 
 const objectStore=tx.objectStore(store);
 
+if(store==="sync_queue" || store==="fotos_pendientes"){
+objectStore.add(data);
+}else{
 objectStore.put(data);
+}
 
 tx.oncomplete=resolve;
 tx.onerror=reject;
