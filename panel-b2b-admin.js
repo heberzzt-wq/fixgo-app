@@ -1,7 +1,7 @@
 /**
  * =====================================================
  * GESTIA PREMIUM - NOC B2B CABINA DE MANDO
- * VERSION: 5.24 (Step 1: Cache Engine & Data Sync)
+ * VERSION: 5.25 (Step 2: Professional Full Report View)
  * Lead Architect: Heberto Mendoza
  * =====================================================
  */
@@ -29,10 +29,10 @@ window.addEventListener("offline", () => {
 });
 
 /* =====================================================
-   INDEXED DB CACHE ENGINE (NUEVO PASO 1)
+   INDEXED DB CACHE ENGINE
    ===================================================== */
 const DB_NAME = "gestia_cache";
-const DB_VERSION = 2; // Mantener versión para compatibilidad con el engine del técnico
+const DB_VERSION = 2; 
 let localDB;
 
 function initLocalDB() {
@@ -41,7 +41,6 @@ function initLocalDB() {
 
         request.onupgradeneeded = e => {
             const db = e.target.result;
-            // Creamos los almacenes si no existen (Cajones de las capturas)
             if (!db.objectStoreNames.contains("tareas")) {
                 db.createObjectStore("tareas", { keyPath: "id" });
             }
@@ -196,17 +195,12 @@ function conectarContadorMantenimientosHoy(edificioId) {
 }
 
 // ======================================================
-// 6. MONITOR DE BITÁCORA EN VIVO & SINCRONIZACIÓN DE HISTORIAL
+// 6. MONITOR DE BITÁCORA EN VIVO & SINCRONIZACIÓN
 // ======================================================
 
-/**
- * Función mejorada del Paso 1: Escucha servicios_b2b para tener TODA la data
- * de Jonathan (fotos, materiales, etc.) y la guarda en historial local.
- */
 async function sincronizarHistorialConFirestore(edificioId) {
     if (!isOnline) return;
 
-    // Consultamos directamente los servicios finalizados (donde está el oro de la info)
     const q = query(
         collection(db, "servicios_b2b"),
         where("edificioId", "==", edificioId),
@@ -218,12 +212,10 @@ async function sincronizarHistorialConFirestore(edificioId) {
     onSnapshot(q, async (snap) => {
         console.log(`🔄 Sincronizando ${snap.size} servicios al cache local...`);
         
-        // No limpiamos todo, solo actualizamos/añadimos lo nuevo para que persista
         for (const docSnap of snap.docs) {
             const data = docSnap.data();
             const id = docSnap.id;
             
-            // Estructuramos el item para el historial local
             const itemHistorial = {
                 id: id,
                 ...data,
@@ -250,7 +242,6 @@ async function renderizarHistorialDesdeCache() {
         return;
     }
 
-    // Ordenamos por fecha de cierre más reciente
     items.sort((a, b) => new Date(b.fecha_para_ordenar) - new Date(a.fecha_para_ordenar));
 
     items.forEach(log => {
@@ -263,46 +254,141 @@ async function renderizarHistorialDesdeCache() {
                 <p class="text-sm font-bold text-white">${log.tecnico_nombre || 'Especialista'}</p>
                 <span class="text-xs text-zinc-500">${fecha}</span>
             </div>
-            <p class="text-xs text-zinc-400 mt-1 mb-2">Finalizó: ${log.descripcion || 'Mantenimiento'}</p>
+            <p class="text-xs text-zinc-400 mt-1 mb-2">Finalizó: ${log.equipo_nombre || log.descripcion || 'Mantenimiento'}</p>
             <button onclick="window.verDetalleBitacora('${log.id}')" class="text-xs font-bold text-emerald-400 hover:text-emerald-300">
-                [ Ver Reporte Completo ]
+                [ VER REPORTE DESPLEGABLE ]
             </button>
         `;
         feed.appendChild(item);
     });
 }
 
-// Función global para ver la evidencia del técnico
+/**
+ * PASO 2: Visualización de Reporte Avanzado
+ * Genera un reporte completo con toda la info que Jonathan sube.
+ */
 window.verDetalleBitacora = async (servicioId) => {
     if (!servicioId) return;
+    
     try {
-        // Primero intentamos leer de cache para velocidad
+        // 1. Obtener la data (Cache o Firestore)
         const items = await cacheLeerTodos("historial");
         let data = items.find(i => i.id === servicioId);
 
-        // Si no está en cache, buscamos en Firestore
         if(!data) {
             const docSnap = await getDoc(doc(db, "servicios_b2b", servicioId));
-            if (!docSnap.exists()) return alert("No se encontró evidencia del servicio.");
+            if (!docSnap.exists()) return alert("Reporte no localizado.");
             data = docSnap.data();
         }
-        
-        const foto = data.foto_despues || 'https://via.placeholder.com/300?text=Sin+Foto';
-        const firma = data.firma_conformidad || 'https://via.placeholder.com/300x100?text=Sin+Firma';
 
+        // 2. Procesar Materiales
+        let materialesHTML = '<p class="text-zinc-500 italic">No se registraron materiales.</p>';
+        if (data.materiales_utilizados && data.materiales_utilizados.length > 0) {
+            materialesHTML = `<ul class="space-y-1">
+                ${data.materiales_utilizados.map(m => `
+                    <li class="flex justify-between text-xs bg-black/30 p-2 rounded border border-white/5">
+                        <span class="text-zinc-300 font-bold">${m.nombre.toUpperCase()}</span>
+                        <span class="text-emerald-500">x${m.cantidad}</span>
+                    </li>
+                `).join('')}
+            </ul>`;
+        }
+
+        // 3. Formatear Fecha
+        const fechaFin = data.fecha_cierre?.toDate ? data.fecha_cierre.toDate().toLocaleString() : 'Reciente';
+
+        // 4. Inyección del Modal Reporte
         const modalHTML = `
-            <div id="modalDetalle" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onclick="this.remove()">
-                <div class="bg-zinc-900 p-6 rounded-2xl border border-white/10 max-w-sm w-full space-y-4" onclick="event.stopPropagation()">
-                    <h4 class="font-bold text-white">Evidencia de Cierre</h4>
-                    <p class="text-xs text-zinc-400">Foto del resultado:</p>
-                    <img src="${foto}" class="rounded-lg w-full h-auto max-h-60 object-cover">
-                    <p class="text-xs text-zinc-400">Firma de conformidad:</p>
-                    <img src="${firma}" class="rounded-lg bg-white p-2 w-full">
-                    <button class="w-full py-2 bg-zinc-800 rounded-lg text-xs font-bold" onclick="document.getElementById('modalDetalle').remove()">CERRAR VISTA</button>
+            <div id="modalDetalle" class="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4 overflow-y-auto" onclick="this.remove()">
+                <div class="bg-zinc-950 border border-emerald-500/30 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
+                    
+                    <div class="bg-emerald-500 p-6 flex justify-between items-center">
+                        <div>
+                            <p class="text-[10px] font-black text-emerald-950 uppercase tracking-[0.3em]">Reporte de Servicio B2B</p>
+                            <h2 class="text-2xl font-black text-black italic uppercase leading-none mt-1">${data.equipo_nombre || 'MANTENIMIENTO'}</h2>
+                        </div>
+                        <button onclick="document.getElementById('modalDetalle').remove()" class="text-emerald-950 hover:scale-110 transition-transform">
+                            <i class="fas fa-times-circle text-2xl"></i>
+                        </button>
+                    </div>
+
+                    <div class="p-6 space-y-8 max-h-[75vh] overflow-y-auto">
+                        
+                        <div class="grid grid-cols-2 gap-4 border-b border-white/5 pb-4">
+                            <div>
+                                <label class="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Técnico Responsable</label>
+                                <p class="text-sm font-bold text-white uppercase">${data.tecnico_nombre || 'N/A'}</p>
+                            </div>
+                            <div class="text-right">
+                                <label class="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Finalizado en</label>
+                                <p class="text-sm font-bold text-white uppercase">${fechaFin}</p>
+                            </div>
+                        </div>
+
+                        <section>
+                            <h4 class="text-xs font-black text-emerald-500 uppercase mb-3 flex items-center gap-2">
+                                <i class="fas fa-stethoscope"></i> 1. Diagnóstico Inicial
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-zinc-900/50 p-4 rounded-2xl border border-white/5">
+                                <div>
+                                    <p class="text-xs text-zinc-300 italic">"${data.diagnostico_inicial || 'Sin diagnóstico registrado'}"</p>
+                                </div>
+                                <div>
+                                    <p class="text-[9px] font-black text-zinc-500 uppercase mb-2">Evidencia de Entrada:</p>
+                                    <img src="${data.foto_antes || 'https://via.placeholder.com/300?text=Sin+Foto'}" class="w-full aspect-video object-cover rounded-xl border border-white/10 shadow-lg">
+                                </div>
+                            </div>
+                        </section>
+
+                        <section>
+                            <h4 class="text-xs font-black text-emerald-500 uppercase mb-3 flex items-center gap-2">
+                                <i class="fas fa-box-open"></i> 2. Insumos y Materiales
+                            </h4>
+                            <div class="bg-zinc-900/50 p-4 rounded-2xl border border-white/5">
+                                ${materialesHTML}
+                            </div>
+                        </section>
+
+                        <section>
+                            <h4 class="text-xs font-black text-emerald-500 uppercase mb-3 flex items-center gap-2">
+                                <i class="fas fa-check-double"></i> 3. Resultado y Cierre
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-zinc-900/50 p-4 rounded-2xl border border-white/5">
+                                <div>
+                                    <p class="text-[9px] font-black text-zinc-500 uppercase mb-2 italic">Observaciones del Técnico:</p>
+                                    <p class="text-xs text-zinc-300">${data.observaciones_finales || 'Servicio completado satisfactoriamente.'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-[9px] font-black text-zinc-500 uppercase mb-2 font-bold">Evidencia de Salida:</p>
+                                    <img src="${data.foto_despues || 'https://via.placeholder.com/300?text=Sin+Foto'}" class="w-full aspect-video object-cover rounded-xl border border-white/10 shadow-lg">
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="border-t border-white/10 pt-6">
+                            <div class="flex flex-col items-center justify-center bg-white p-4 rounded-2xl">
+                                <p class="text-[9px] font-black text-zinc-400 uppercase mb-2">Firma Digital de Conformidad</p>
+                                <img src="${data.firma_conformidad || 'https://via.placeholder.com/300x100?text=Firma+Pendiente'}" class="max-h-32">
+                            </div>
+                        </section>
+
+                    </div>
+                    
+                    <div class="p-4 bg-zinc-900 text-center">
+                        <button class="text-[10px] font-black text-zinc-500 uppercase tracking-widest hover:text-white transition-colors" onclick="document.getElementById('modalDetalle').remove()">
+                            Cerrar Expediente Técnico
+                        </button>
+                    </div>
+
                 </div>
             </div>`;
+
         document.body.insertAdjacentHTML('beforeend', modalHTML);
-    } catch (e) { console.error("Error al recuperar detalle:", e); }
+
+    } catch (e) { 
+        console.error("Error al renderizar reporte:", e); 
+        alert("Error al cargar la info del reporte.");
+    }
 };
 
 // ======================================================
@@ -405,7 +491,7 @@ window.importarRutinaMaestra = async () => {
             edificioId: adminContext.edificioId,
             lastUpdated: serverTimestamp(),
             updatedBy: auth.currentUser.uid,
-            version_core: "5.24"
+            version_core: "5.25"
         }, { merge: true });
 
         alert("✅ SINCRONIZACIÓN EXITOSA");
@@ -431,7 +517,6 @@ auth.onAuthStateChanged(async (userAuth) => {
         return;
     }
 
-    // PASO 1: Inicializamos la base de datos local del Admin
     await initLocalDB();
 
     onSnapshot(doc(db, "users", userAuth.uid), (docSnap) => {
@@ -450,15 +535,12 @@ auth.onAuthStateChanged(async (userAuth) => {
         const lbl = document.getElementById("lblNombreEdificio");
         if (lbl) lbl.innerText = nombreEdificio.toUpperCase();
 
-        // Lanzamos el render inicial desde cache (Rápido)
         renderizarHistorialDesdeCache();
 
-        // Disparamos monitores
         escucharPlantillaRealTime(adminContext.edificioId);
         conectarContadorTickets(adminContext.edificioId);
         conectarContadorMantenimientosHoy(adminContext.edificioId);
         
-        // El Paso 1 principal: Sincronizar el historial de servicios_b2b al cache
         sincronizarHistorialConFirestore(adminContext.edificioId);
         
         escucharAvanceRutina(adminContext.edificioId);
@@ -546,7 +628,7 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
         descripcion: document.getElementById("tickDesc").value.trim(),
         prioridad: document.getElementById("tickPrioridad").value,
         tecnicoId: tecnicoSelect.value,
-        tecnico_nombre: tecnicoNombre, // Guardamos nombre para el cache del admin
+        tecnico_nombre: tecnicoNombre, 
         status: "programado",
         fecha_programada: new Date().toISOString().split('T')[0],
         equipo_nombre: "Mantenimiento General",
