@@ -1,7 +1,7 @@
 /**
  * =====================================================
  * GESTIA PREMIUM - NOC B2B CABINA DE MANDO
- * VERSION: 5.26 (Ghost Filter & Data Integrity)
+ * VERSION: 5.27 (Data Structure Map Fix)
  * Lead Architect: Heberto Mendoza
  * =====================================================
  */
@@ -203,7 +203,7 @@ function conectarContadorMantenimientosHoy(edificioId) {
 }
 
 // ======================================================
-// 6. SINCRONIZACIÓN Y FILTRO ANTI-FANTASMA (FIX)
+// 6. SINCRONIZACIÓN Y FILTRO (CORREGIDO AL JSON REAL)
 // ======================================================
 
 async function sincronizarHistorialConFirestore(edificioId) {
@@ -225,12 +225,12 @@ async function sincronizarHistorialConFirestore(edificioId) {
             const id = docSnap.id;
             
             /**
-             * REGLA DE INTEGRIDAD (ANTI-FANTASMA):
-             * Ignoramos documentos que no tengan fecha de cierre o nombre de equipo.
-             * Esto evita que aparezcan filas vacías con --:--
+             * REGLA DE INTEGRIDAD: 
+             * Solo procesamos si existe fecha_cierre.
+             * Quitamos la validación estricta de técnico/equipo_nombre porque en rutinas puede no venir.
              */
-            if(!data.fecha_cierre || !data.equipo_nombre || data.equipo_nombre === "ok") {
-                console.warn("⚠️ Filtrando OT incompleta/fantasma:", id);
+            if(!data.fecha_cierre) {
+                console.warn("⚠️ Filtrando OT sin fecha de cierre:", id);
                 continue;
             }
 
@@ -255,13 +255,8 @@ async function renderizarHistorialDesdeCache() {
 
     feed.innerHTML = "";
 
-    // Filtro de seguridad secundario sobre el cache
-    const itemsValidos = items.filter(i => 
-        i.fecha_para_ordenar && 
-        i.equipo_nombre && 
-        i.equipo_nombre !== "ok" &&
-        i.tecnico_nombre
-    );
+    // Filtramos solo para asegurar que tengan la fecha, que es lo único 100% seguro en el cierre
+    const itemsValidos = items.filter(i => i.fecha_para_ordenar);
 
     if (itemsValidos.length === 0) {
         feed.innerHTML = `
@@ -279,14 +274,18 @@ async function renderizarHistorialDesdeCache() {
         const d = new Date(log.fecha_para_ordenar);
         const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
+        // MAPEAMOS DIRECTAMENTE A TUS VARIABLES (equipo)
+        const nombreEquipoDisplay = log.equipo || log.descripcion || "Mantenimiento General";
+        const nombreTecnicoDisplay = log.tecnico_nombre || "TÉCNICO DE CAMPO";
+
         const item = document.createElement("div");
         item.className = "bg-zinc-900 p-4 rounded-xl border border-white/5 mb-3 hover:border-emerald-500/30 transition-all";
         item.innerHTML = `
             <div class="flex justify-between items-start mb-1">
-                <p class="text-[11px] font-black text-white uppercase tracking-tighter">${log.tecnico_nombre || 'Especialista'}</p>
+                <p class="text-[11px] font-black text-white uppercase tracking-tighter">${nombreTecnicoDisplay}</p>
                 <span class="text-[10px] text-zinc-500 font-mono font-bold">${hora}</span>
             </div>
-            <p class="text-[11px] text-zinc-400 mb-3">Servicio: <span class="text-zinc-200 font-bold uppercase">${log.equipo_nombre}</span></p>
+            <p class="text-[11px] text-zinc-400 mb-3">Servicio: <span class="text-zinc-200 font-bold uppercase">${nombreEquipoDisplay}</span></p>
             <button onclick="window.verDetalleBitacora('${log.id}')" class="text-[10px] font-black text-emerald-400 hover:text-emerald-300 transition-colors uppercase tracking-widest">
                 [ Abrir Expediente Técnico ]
             </button>
@@ -296,7 +295,7 @@ async function renderizarHistorialDesdeCache() {
 }
 
 /* =====================================================
-   VISUALIZACIÓN DE REPORTE PROFESIONAL
+   VISUALIZACIÓN DE REPORTE PROFESIONAL (MAPEADO EXACTO)
    ===================================================== */
 window.verDetalleBitacora = async (servicioId) => {
     if (!servicioId) return;
@@ -311,7 +310,7 @@ window.verDetalleBitacora = async (servicioId) => {
             data = docSnap.data();
         }
 
-        // Render de Materiales
+        // Render de Materiales (Tu array materiales_utilizados)
         let materialesHTML = '<p class="text-zinc-600 italic text-xs">No se registraron materiales en esta intervención.</p>';
         if (data.materiales_utilizados && data.materiales_utilizados.length > 0) {
             materialesHTML = `<div class="space-y-1">
@@ -325,15 +324,21 @@ window.verDetalleBitacora = async (servicioId) => {
         }
 
         const fechaDisplay = data.fecha_cierre?.toDate ? data.fecha_cierre.toDate().toLocaleString('es-MX') : 'Finalizado recientemente';
+        
+        // MAPEAMOS DIRECTAMENTE A TUS VARIABLES (equipo)
+        const equipoPrincipal = data.equipo || data.descripcion || "Mantenimiento General";
+        const tecnicoResponsable = data.tecnico_nombre || "Técnico de Campo";
+        const diagInicial = data.diagnostico_inicial || "Sin comentarios iniciales registrados.";
+        const obsFinales = data.observaciones_finales || "Intervención completada sin novedades adicionales.";
 
         const modalHTML = `
             <div id="modalDetalle" class="fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 overflow-y-auto" onclick="this.remove()">
                 <div class="bg-zinc-950 border border-emerald-500/30 w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
                     
                     <div class="bg-emerald-500 p-8 flex justify-between items-center">
-                        <div>
+                        <div class="max-w-[80%]">
                             <p class="text-[10px] font-black text-emerald-900 uppercase tracking-[0.4em] mb-1">Expediente de Mantenimiento</p>
-                            <h2 class="text-3xl font-black text-black italic uppercase leading-none">${data.equipo_nombre}</h2>
+                            <h2 class="text-2xl font-black text-black italic uppercase leading-tight truncate">${equipoPrincipal}</h2>
                         </div>
                         <button onclick="document.getElementById('modalDetalle').remove()" class="text-emerald-900 hover:scale-110 transition-transform">
                             <i class="fas fa-times-circle text-3xl"></i>
@@ -345,7 +350,7 @@ window.verDetalleBitacora = async (servicioId) => {
                         <div class="grid grid-cols-2 gap-6 border-b border-white/5 pb-6">
                             <div>
                                 <label class="text-[9px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Especialista Asignado</label>
-                                <p class="text-sm font-black text-white uppercase">${data.tecnico_nombre || 'N/A'}</p>
+                                <p class="text-sm font-black text-white uppercase">${tecnicoResponsable}</p>
                             </div>
                             <div class="text-right">
                                 <label class="text-[9px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Sello de Cierre</label>
@@ -359,7 +364,7 @@ window.verDetalleBitacora = async (servicioId) => {
                             </h4>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-zinc-900/40 p-5 rounded-3xl border border-white/5">
                                 <div>
-                                    <p class="text-xs text-zinc-400 leading-relaxed italic">"${data.diagnostico_inicial || 'Sin comentarios iniciales'}"</p>
+                                    <p class="text-xs text-zinc-400 leading-relaxed italic">"${diagInicial}"</p>
                                 </div>
                                 <div>
                                     <img src="${data.foto_antes || 'https://via.placeholder.com/400?text=SIN+FOTO'}" class="w-full aspect-video object-cover rounded-2xl border border-white/10 shadow-2xl">
@@ -383,7 +388,7 @@ window.verDetalleBitacora = async (servicioId) => {
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-zinc-900/40 p-5 rounded-3xl border border-white/5">
                                 <div>
                                     <label class="text-[9px] font-black text-zinc-600 uppercase mb-2 block">Notas Finales:</label>
-                                    <p class="text-xs text-zinc-300 leading-relaxed">${data.observaciones_finales || 'Intervención completada sin novedades adicionales.'}</p>
+                                    <p class="text-xs text-zinc-300 leading-relaxed">${obsFinales}</p>
                                 </div>
                                 <div>
                                     <img src="${data.foto_despues || 'https://via.placeholder.com/400?text=SIN+FOTO'}" class="w-full aspect-video object-cover rounded-2xl border border-white/10 shadow-2xl">
@@ -505,7 +510,7 @@ window.importarRutinaMaestra = async () => {
             edificioId: adminContext.edificioId,
             lastUpdated: serverTimestamp(),
             updatedBy: auth.currentUser.uid,
-            version_core: "5.26"
+            version_core: "5.27"
         }, { merge: true });
 
         alert("✅ MASTER SYNC OK");
@@ -633,7 +638,7 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
         tecnico_nombre: tName,
         status: "programado",
         fecha_programada: new Date().toISOString().split('T')[0],
-        equipo_nombre: "Mantenimiento General",
+        equipo: "Mantenimiento General",
         tipo: "mantenimiento",
         fecha_creacion: serverTimestamp(),
         creado_por: auth.currentUser.uid
