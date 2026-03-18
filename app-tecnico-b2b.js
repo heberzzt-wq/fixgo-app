@@ -998,54 +998,76 @@ renderizarHistorial(historial);
 
 
 /* =====================================================
-RENDER HISTORIAL
+RENDER HISTORIAL - VERSION CORREGIDA V5.22
 ===================================================== */
 
-function renderizarHistorial(items){
+function renderizarHistorial(items) {
+    const contenedor = document.getElementById("lista-historial-unificada");
 
-const contenedor=document.getElementById("lista-historial-unificada");
+    if (!contenedor) return;
 
-contenedor.innerHTML="";
+    // Limpiamos el contenedor
+    contenedor.innerHTML = "";
 
-if(items.length===0){
+    // Si no hay items, mostramos el mensaje de vacío
+    if (!items || items.length === 0) {
+        contenedor.innerHTML = `
+            <div class="p-6 text-center text-zinc-600 italic">
+                Sin historial para mostrar
+            </div>
+        `;
+        return;
+    }
 
-contenedor.innerHTML=`
-<div class="p-6 text-center text-zinc-600">
-Sin historial
-</div>
-`;
+    // Ordenamos por fecha de la más reciente a la más antigua antes de pintar
+    const itemsOrdenados = [...items].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
-return;
+    itemsOrdenados.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "p-4 rounded-xl border border-zinc-800 mb-3 bg-zinc-900/50";
 
-}
+        // Formateo seguro de fecha para evitar el error de "Invalid Date"
+        let fechaDisplay = "Fecha no disponible";
+        try {
+            if (item.fecha) {
+                const d = new Date(item.fecha);
+                // Si la fecha es válida, la formateamos amigablemente para el técnico
+                if (!isNaN(d.getTime())) {
+                    fechaDisplay = d.toLocaleString('es-MX', {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                }
+            }
+        } catch (e) {
+            console.error("Error formateando fecha del item:", item);
+        }
 
+        div.innerHTML = `
+            <div class="flex justify-between items-start mb-1">
+                <p class="text-[10px] font-black text-emerald-400 uppercase tracking-wider">
+                    ${item.tipo || 'SERVICIO'}
+                </p>
+                <p class="text-[10px] text-zinc-500 font-mono">
+                    ${fechaDisplay}
+                </p>
+            </div>
+            
+            <h5 class="text-sm font-bold text-zinc-200 mb-1">
+                ${item.titulo || 'Mantenimiento General'}
+            </h5>
 
-items.forEach(item=>{
+            <p class="text-xs text-zinc-400 leading-relaxed">
+                ${item.descripcion || 'Sin observaciones adicionales'}
+            </p>
+        `;
 
-const div=document.createElement("div");
-
-div.className="p-4 rounded-xl border border-zinc-800 mb-2";
-
-div.innerHTML=`
-
-<p class="text-xs font-black text-emerald-400">
-${item.tipo} — ${item.titulo}
-</p>
-
-<p class="text-[10px] text-zinc-500">
-${new Date(item.fecha).toLocaleString()}
-</p>
-
-<p class="text-xs text-zinc-300">
-${item.descripcion}
-</p>
-
-`;
-
-contenedor.appendChild(div);
-
-});
-
+        contenedor.appendChild(div);
+    });
+    
+    console.log(`✅ Renderizados ${itemsOrdenados.length} elementos en la bitácora.`);
 }
 
 /* =====================================================
