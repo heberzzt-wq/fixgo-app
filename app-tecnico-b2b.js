@@ -57,7 +57,6 @@ NETWORK MANAGER
 
 let isOnline=navigator.onLine;
 
-window.addEventListener("online",()=>{
 window.addEventListener("online",async ()=>{
 isOnline=true;
 const badge = document.getElementById("networkBadge");
@@ -66,7 +65,6 @@ badge.innerText = "ONLINE";
 badge.className = "badge-online";
 }
 showToast("Conexión restaurada");
-await procesarSyncPendiente();
 await procesarFotosPendientes();
 await procesarSyncPendiente();
 });
@@ -89,6 +87,7 @@ INDEXED DB CACHE ENGINE
 const DB_NAME="gestia_cache";
 const DB_VERSION=2;
 
+let localDB;
 
 function initLocalDB(){
 
@@ -103,6 +102,7 @@ const db=e.target.result;
 db.createObjectStore("tareas",{keyPath:"id"});
 db.createObjectStore("historial",{keyPath:"id"});
 db.createObjectStore("sync_queue",{autoIncrement:true});
+db.createObjectStore("fotos_pendientes",{autoIncrement:true});
 
 };
 
@@ -1034,7 +1034,7 @@ let urlAntes=null;
 
 if(isOnline){
 
-const storageRef=ref(storage,path);
+const path=`evidencias/${ordenId}/antes_${Date.now()}.jpg`;
 const storageRef=ref(storage,path);
 
 await uploadBytes(storageRef,file);
@@ -1444,15 +1444,8 @@ FINALIZAR ORDEN
 window.finalizarOrden=async()=>{
 
 if(!hasFirma){
-
 showToast("Firma requerida",true);
-
 return;
-
-}true);
-
-return;
-
 }
 
 const btn=document.querySelector('#step4 button[onclick="finalizarOrden()"]');
@@ -1470,12 +1463,9 @@ const firmaData=canvas.toDataURL("image/png");
 const blob=await (await fetch(firmaData)).blob();
 
 const storageRef=ref(storage,`firmas/${ordenId}.png`);
-const storageRef=ref(storage,`firmas/${ordenId}.png`);
 
-await uploadBytes(storageRef,blob
 await uploadBytes(storageRef,blob);
 
-ficmaUrl=await gotDownloadURL(snorageRef);
 firmaUrl=await getDownloadURL(storageRef);
 
 }
@@ -1483,9 +1473,7 @@ firmaUrl=await getDownloadURL(storageRef);
 const dataUpdate={
 
 status:"finalizado",
-status:"finalizado",
 
-fitma_coformidad:firmaUrl,
 firma_conformidad:firmaUrl,
 
 fecha_cierre:serverTimestamp()
@@ -1495,7 +1483,6 @@ fecha_cierre:serverTimestamp()
 
 if(isOnline){
 
-await updateDoc(doc(db,"servicios_b2b",ordenId),dataUpdate)b
 await updateDoc(doc(db,"servicios_b2b",ordenId),dataUpdate);
 
 }else{
@@ -1505,7 +1492,6 @@ await agregarSyncPendiente({
 type:"update",
 
 collection:"servicios_b2b",
-tn=document.querySelector('#step4 button[onclick="finalizarOrden()"]');
 
 id:ordenId,
 
