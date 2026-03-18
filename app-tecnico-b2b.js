@@ -1,7 +1,7 @@
 /**
- * GESTIA PREMIUM - V5.18
+ * GESTIA PREMIUM - V5.20
  * MOTOR DE OPERACIONES B2B (Uxmal 39)
- * FIX: Importaciones desacopladas para evitar SyntaxError de export
+ * FEATURE: Bottom Sheet OT y Navegación Inferior
  * Lead Architect: Heberto Mendoza
  */
 
@@ -34,8 +34,143 @@ let canvas, ctx, isDrawing = false;
 let MaterialesTemporales = [];
 // REFACTOR 1: La ID del edificio ahora es dinámica y se carga desde el perfil.
 let edificioIdGlobal = null;
-let rutinaDiariaTareas = []; // TAREA 2: To keep track of tasks for the day
-let rutinaCompletadaIds = new Set(); // TAREA 2: To track completed tasks
+let rutinaDiariaTareas = []; // To keep track of tasks for the day
+let rutinaCompletadaIds = new Set(); // To track completed tasks
+window.tareasDiariasGlobal = {}; // NUEVO: Diccionario para guardar datos completos de la OT
+
+// --- MOTOR DE NAVEGACIÓN (BOTTOM TABS) ---
+window.cambiarSeccion = (seccionDestino) => {
+    const secciones = ['seccion-tareas', 'seccion-historial', 'seccion-perfil'];
+    
+    secciones.forEach(seccion => {
+        const elemento = document.getElementById(seccion);
+        if (elemento) {
+            if (seccion === seccionDestino) {
+                elemento.classList.remove('hidden');
+            } else {
+                elemento.classList.add('hidden');
+            }
+        }
+    });
+};
+
+// --- MOTOR UI: BOTTOM SHEET (HOJA DE REPORTE OT) ---
+function inicializarBottomSheet() {
+    if (document.getElementById('ot-bottom-sheet')) return;
+    
+    const sheet = document.createElement('div');
+    sheet.id = 'ot-bottom-sheet';
+    // Comienza oculto
+    sheet.className = 'fixed inset-0 z-[100] flex flex-col justify-end hidden';
+    sheet.innerHTML = `
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onclick="cerrarHojaReporte()"></div>
+        
+        <div id="ot-sheet-content" class="relative bg-zinc-950 border-t border-zinc-800 rounded-t-3xl p-6 transform translate-y-full transition-transform duration-300 w-full max-w-md mx-auto shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+            
+            <div class="w-12 h-1.5 bg-zinc-700 rounded-full mx-auto mb-6"></div>
+            
+            <div class="flex justify-between items-start mb-4">
+                <div class="pr-4">
+                    <p id="ot-id" class="text-zinc-500 text-[10px] font-mono mb-1 tracking-widest">#OT-0000</p>
+                    <h2 id="ot-equipo" class="text-2xl font-black text-white italic leading-tight uppercase">EQUIPO</h2>
+                    <p id="ot-ubicacion" class="text-xs text-emerald-500 font-bold mt-2"><i class="fas fa-map-marker-alt"></i> UBICACIÓN</p>
+                </div>
+                <span id="ot-prioridad" class="text-[9px] font-black px-3 py-1.5 rounded-md uppercase border tracking-wider mt-1">MEDIA</span>
+            </div>
+
+            <hr class="border-zinc-800/80 my-5">
+
+            <div class="space-y-5">
+                <div>
+                    <p class="text-[10px] text-zinc-500 uppercase font-bold mb-1 tracking-wider">Falla / Acción a Realizar</p>
+                    <p id="ot-descripcion" class="text-sm text-zinc-200 leading-relaxed">...</p>
+                </div>
+                
+                <div class="flex gap-4">
+                    <div class="flex-1 bg-zinc-900/50 p-3 rounded-xl border border-zinc-800/50">
+                        <p class="text-[9px] text-zinc-500 uppercase font-bold mb-1"><i class="far fa-calendar-alt"></i> Fecha Prog.</p>
+                        <p id="ot-fecha" class="text-xs text-zinc-300 font-medium">...</p>
+                    </div>
+                    <div class="flex-1 bg-zinc-900/50 p-3 rounded-xl border border-zinc-800/50">
+                        <p class="text-[9px] text-zinc-500 uppercase font-bold mb-1"><i class="far fa-user"></i> Reportó</p>
+                        <p id="ot-reporta" class="text-xs text-zinc-300 font-medium">Administración</p>
+                    </div>
+                </div>
+
+                <div class="bg-zinc-900 p-4 rounded-xl border border-zinc-700/50 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-bl-[100px] blur-xl"></div>
+                    <p class="text-[10px] text-emerald-500 uppercase font-bold mb-2 tracking-wider"><i class="fas fa-toolbox"></i> Herramientas / Notas Mantenimiento</p>
+                    <p id="ot-herramientas" class="text-xs text-zinc-300 leading-relaxed italic">Sin herramientas especiales requeridas. Procedimiento estándar de mantenimiento.</p>
+                </div>
+            </div>
+
+            <div class="mt-8 flex flex-col gap-3">
+                <button id="btn-iniciar-ot" class="w-full bg-emerald-500 text-black font-black py-4 rounded-2xl text-[13px] tracking-widest shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-95 transition-all">
+                    INICIAR SERVICIO
+                </button>
+                <button onclick="cerrarHojaReporte()" class="w-full bg-transparent text-zinc-500 hover:text-white font-bold py-3 rounded-2xl text-xs tracking-wider transition-colors">
+                    CERRAR REPORTE
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(sheet);
+}
+
+window.abrirHojaReporte = (id) => {
+    const tarea = window.tareasDiariasGlobal[id];
+    if(!tarea) return;
+
+    // 1. Llenar los datos de la UI
+    document.getElementById('ot-id').innerText = `#OT-${id.substring(0,6).toUpperCase()}`;
+    document.getElementById('ot-equipo').innerText = tarea.equipo || "Mantenimiento General";
+    document.getElementById('ot-ubicacion').innerHTML = `<i class="fas fa-map-marker-alt"></i> ${tarea.ubicacion_especifica || tarea.direccion || "General"}`;
+    document.getElementById('ot-descripcion').innerText = tarea.descripcion || "Sin descripción detallada de falla o acción.";
+    document.getElementById('ot-fecha').innerText = tarea.fecha_programada || new Date().toLocaleDateString();
+    document.getElementById('ot-reporta').innerText = tarea.creado_por_nombre || "Admin B2B";
+    
+    // Si tienes un campo de herramientas en tu DB, lo lee, si no, pone un fallback
+    document.getElementById('ot-herramientas').innerText = tarea.herramientas_sugeridas || tarea.notas_especiales || "Revisar el manual del equipo antes de intervenir. Sin herramientas especiales sugeridas por administración.";
+
+    // 2. Configurar la etiqueta de prioridad
+    const prioBadge = document.getElementById('ot-prioridad');
+    const prio = (tarea.prioridad || "media").toLowerCase();
+    prioBadge.innerText = prio;
+    prioBadge.className = 'text-[9px] font-black px-3 py-1.5 rounded-md uppercase border tracking-wider mt-1 ' + 
+        (prio === 'alta' || prio === 'critica' ? 'bg-red-500/10 text-red-500 border-red-500/30' : 
+         prio === 'baja' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' : 
+         'bg-yellow-500/10 text-yellow-500 border-yellow-500/30');
+
+    // 3. Conectar el botón de Iniciar
+    document.getElementById('btn-iniciar-ot').onclick = () => {
+        cerrarHojaReporte();
+        seleccionarTarea(id); // Dispara el candado y pasa al flujo
+    };
+
+    // 4. Mostrar y Animar el Bottom Sheet
+    const sheet = document.getElementById('ot-bottom-sheet');
+    const content = document.getElementById('ot-sheet-content');
+    sheet.classList.remove('hidden');
+    
+    // Pequeño timeout para que el CSS registre el display:block antes de animar el slide-up
+    setTimeout(() => {
+        content.classList.remove('translate-y-full');
+    }, 10);
+};
+
+window.cerrarHojaReporte = () => {
+    const sheet = document.getElementById('ot-bottom-sheet');
+    const content = document.getElementById('ot-sheet-content');
+    if(!sheet || !content) return;
+
+    // 1. Animar slide-down
+    content.classList.add('translate-y-full');
+    
+    // 2. Ocultar contenedor después de la transición
+    setTimeout(() => {
+        sheet.classList.add('hidden');
+    }, 300);
+};
 
 // --- UTILIDADES DE UI ---
 function showToast(message, isError = false) {
@@ -78,18 +213,18 @@ async function validarPaseCaseta() {
 auth.onAuthStateChanged(async (user) => {
     if(!user) return window.location.href = "login.html";
 
-    // REFACTOR 1: Al inicio, obtenemos el ID del edificio desde el perfil del técnico.
+    // Inyectar el HTML de la Orden de Trabajo
+    inicializarBottomSheet();
+
     try {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         
         if (userDoc.exists()) {
             const data = userDoc.data();
 
-            // 🔥 CIRUGÍA VISUAL B2B: Ocultar Wallet y Documentos a técnicos B2B
             if (data.tipo_cuenta === "B2B") {
                 console.log("🛠️ Perfil B2B detectado. Despejando panel visual...");
                 
-                // Escáner de IDs comunes para ocultarlos
                 const elementosOcultar = [
                     "wallet", "billetera", "seccion-wallet", "contenedor-wallet", "caja-wallet",
                     "documentos", "seccion-documentos", "contenedor-documentos", "documentos_requeridos"
@@ -99,7 +234,7 @@ auth.onAuthStateChanged(async (user) => {
                     const elemento = document.getElementById(id);
                     if (elemento) {
                         elemento.classList.add("hidden");
-                        elemento.style.display = "none"; // Seguro de doble candado
+                        elemento.style.display = "none";
                     }
                 });
             }
@@ -124,15 +259,13 @@ auth.onAuthStateChanged(async (user) => {
         document.getElementById("flujoTecnico").classList.remove("hidden");
     } else {
         cargarTareasProgramadas();
-        cargarRutinaPreventiva(); // TAREA 2: NEW
+        cargarRutinaPreventiva();
     }
 });
 
 // --- CARGA DE DATOS ---
 function cargarTareasProgramadas() {
-
     const contenedor = document.getElementById("contenedor-tareas-diarias");
-
     if (!contenedor || !edificioIdGlobal) return;
 
     const q = query(
@@ -142,75 +275,77 @@ function cargarTareasProgramadas() {
     );
 
     onSnapshot(q, (snapshot) => {
-
         contenedor.innerHTML = "";
+        
+        // Limpiamos la caché global de tareas en cada actualización
+        window.tareasDiariasGlobal = {};
 
         if (snapshot.empty) {
-
             contenedor.innerHTML = `
-            <div class="p-8 text-center text-zinc-600 text-[10px] font-bold uppercase tracking-widest border border-dashed border-zinc-800 rounded-2xl">
+            <div class="p-8 mt-4 text-center text-zinc-600 text-[10px] font-bold uppercase tracking-widest border border-dashed border-zinc-800 rounded-2xl">
                 ${edificioIdGlobal.replace('-', ' ').toUpperCase()} : SIN SERVICIOS ACTIVOS
             </div>`;
-
             return;
         }
 
         snapshot.forEach((docSnap) => {
-
             const tarea = docSnap.data();
             const id = docSnap.id;
+            
+            // Guardamos la tarea en el diccionario global para usarla en el Bottom Sheet
+            window.tareasDiariasGlobal[id] = tarea;
 
             const div = document.createElement("div");
-
-            div.className =
-                "p-4 glass-card rounded-xl border border-white/5 flex justify-between items-center";
+            // Nuevo diseño de la tarjeta: ahora toda la tarjeta es clickeable
+            div.className = "mb-3 p-4 glass-card rounded-2xl border border-zinc-800 flex justify-between items-center cursor-pointer hover:bg-zinc-900/50 transition-colors active:scale-95";
+            div.onclick = () => abrirHojaReporte(id);
 
             div.innerHTML = `
-                <div>
-                    <h4 class="text-sm font-black italic text-emerald-500">
-                        ${tarea.descripcion || tarea.equipo || "Mantenimiento"}
+                <div class="flex-1">
+                    <h4 class="text-lg font-black italic text-white leading-tight uppercase">
+                        ${tarea.equipo || "Mantenimiento General"}
                     </h4>
-
-                    <p class="text-[9px] text-zinc-500 uppercase font-bold">
-                        ${tarea.ubicacion_especifica || tarea.direccion || "General"}
+                    <p class="text-xs text-emerald-500 font-bold mb-1">
+                        ${tarea.descripcion || "Revisión Técnica"}
+                    </p>
+                    <p class="text-[10px] text-zinc-500 uppercase font-medium">
+                        <i class="fas fa-map-marker-alt"></i> ${tarea.ubicacion_especifica || tarea.direccion || "General"}
                     </p>
                 </div>
-
-                <button
-                    onclick="seleccionarTarea('${id}')"
-                    class="bg-emerald-500 text-black text-[9px] font-black px-3 py-2 rounded-lg">
-                    INICIAR
-                </button>
+                <div class="ml-3 flex flex-col items-center">
+                    <div class="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 mb-1 border border-zinc-700">
+                        <i class="fas fa-file-signature"></i>
+                    </div>
+                    <span class="text-[8px] text-zinc-500 font-bold uppercase">Ver OT</span>
+                </div>
             `;
 
             contenedor.appendChild(div);
-
         });
 
     }, (error) => {
-
         console.error("Error en Snapshot:", error);
-
         contenedor.innerHTML =
-            `<div class="p-4 text-red-500 text-center text-[10px]">
-                Error de conexión con la bitácora
+            `<div class="p-4 mt-4 text-red-500 text-center text-[10px] font-bold border border-red-500/20 rounded-xl bg-red-500/5">
+                ERROR DE CONEXIÓN CON LA BITÁCORA
             </div>`;
     });
 }
 
 window.seleccionarTarea = async (id) => {
-
     const tienePase = await validarPaseCaseta();
-
     if (!tienePase) return;
 
     ordenId = id;
 
+    // Asegurarnos de que el modal esté cerrado por si acaso
+    cerrarHojaReporte();
+
     document.getElementById("listaTareasHoy").classList.add("hidden");
     document.getElementById("flujoTecnico").classList.remove("hidden");
-
 };
-// --- TAREA 2 (V5.19): MOTOR DE RUTINAS PREVENTIVAS ---
+
+// --- MOTOR DE RUTINAS PREVENTIVAS ---
 async function cargarRutinaPreventiva() {
     if (!edificioIdGlobal) return;
 
@@ -219,7 +354,6 @@ async function cargarRutinaPreventiva() {
     if (!rutinaContainer || !checklistContainer) return;
 
     try {
-        // 1. Get the master routine config
         const rutinaRef = doc(db, "config_rutinas", edificioIdGlobal);
         const rutinaSnap = await getDoc(rutinaRef);
 
@@ -232,32 +366,26 @@ async function cargarRutinaPreventiva() {
         const rutinaMaster = rutinaSnap.data();
         let tareasDelDia = [];
 
-        // 2. Logic for frequency
         const hoy = new Date();
-        const diaSemana = hoy.getDay(); // 0=Domingo, 1=Lunes
+        const diaSemana = hoy.getDay(); 
         const diaMes = hoy.getDate();
 
-        // Always add Daily tasks
         if (rutinaMaster.Diaria) tareasDelDia.push(...rutinaMaster.Diaria);
 
-        // Add Weekly tasks on Mondays
         if (diaSemana === 1 && rutinaMaster.Semanal_Quincenal) {
             tareasDelDia.push(...rutinaMaster.Semanal_Quincenal);
         }
 
-        // Add Monthly tasks on the 1st
         if (diaMes === 1 && rutinaMaster.Mensual) {
             tareasDelDia.push(...rutinaMaster.Mensual);
         }
         
-        // Add Annual tasks on Jan 1st
         if (diaMes === 1 && hoy.getMonth() === 0 && rutinaMaster.Semestral_Anual) {
             tareasDelDia.push(...rutinaMaster.Semestral_Anual);
         }
 
-        rutinaDiariaTareas = tareasDelDia; // Store for later checks
+        rutinaDiariaTareas = tareasDelDia; 
 
-        // 3. Get today's completed tasks to pre-fill checkboxes
         const fechaHoyStr = hoy.toISOString().split('T')[0];
         const qLogs = query(
             collection(db, "log_rutinas"),
@@ -267,7 +395,6 @@ async function cargarRutinaPreventiva() {
         const logSnapshot = await getDocs(qLogs);
         rutinaCompletadaIds = new Set(logSnapshot.docs.map(d => d.data().tareaId));
 
-        // 4. Render the checklist
         renderizarChecklist();
 
     } catch (error) {
@@ -288,7 +415,7 @@ function renderizarChecklist() {
     checklistContainer.innerHTML = rutinaDiariaTareas.map(tarea => {
         const isCompleted = rutinaCompletadaIds.has(tarea.id_tarea);
         return `
-            <div class="glass-card p-3 rounded-lg border ${isCompleted ? 'border-emerald-500/50 bg-emerald-900/20' : 'border-zinc-800'} flex items-center justify-between gap-3">
+            <div class="glass-card p-3 rounded-lg border ${isCompleted ? 'border-emerald-500/50 bg-emerald-900/20' : 'border-zinc-800'} flex items-center justify-between gap-3 mb-2">
                 <div class="flex-1">
                     <p class="text-xs font-bold ${isCompleted ? 'text-emerald-400 line-through' : 'text-white'}">${tarea.descripcion}</p>
                     <p class="text-[9px] text-zinc-500 uppercase">${tarea.sistema} - ${tarea.equipo}</p>
@@ -328,7 +455,7 @@ window.marcarRutinaOK = async (tareaId, button) => {
         });
 
         rutinaCompletadaIds.add(tareaId);
-        renderizarChecklist(); // Re-render to show completion
+        renderizarChecklist(); 
         showToast("Tarea de rutina completada.", false);
 
     } catch (error) {
@@ -389,7 +516,7 @@ window.agregarMaterial = () => {
 function renderizarMateriales() {
     const lista = document.getElementById("lista-materiales-acumulados");
     lista.innerHTML = MaterialesTemporales.map(m => `
-        <div class="flex justify-between items-center bg-zinc-900 p-2 rounded-lg border border-white/5 text-[9px]">
+        <div class="flex justify-between items-center bg-zinc-900 p-2 rounded-lg border border-white/5 text-[9px] mb-2">
             <span>${m.cantidad}x <b>${m.nombre}</b></span>
             <button onclick="removerMaterial(${m.id})" class="text-red-500"><i class="fas fa-times"></i></button>
         </div>
@@ -408,7 +535,6 @@ window.confirmarMateriales = async () => {
 
     try {
         showToast("Guardando insumos...");
-        // REGLA 3: El nombre del campo es 'materiales_utilizados'
         await updateDoc(doc(db, "servicios_b2b", ordenId), {
             materiales_utilizados: MaterialesTemporales
         });
@@ -457,11 +583,10 @@ window.subirEvidenciaFinal = async () => {
 };
 
 // --- PASO 4: FIRMA ---
-let hasFirmaDrawn = false; // Nueva bandera para optimizar la validación de la firma
+let hasFirmaDrawn = false; 
 
 function initSignaturePad() {
     canvas = document.getElementById("signaturePad");
-    // Agregamos willReadFrequently para eliminar el warning de lectura de Canvas2D
     ctx = canvas.getContext("2d", { willReadFrequently: true });
     const r = canvas.getBoundingClientRect();
     canvas.width = r.width;
@@ -470,7 +595,7 @@ function initSignaturePad() {
     const start = (e) => { isDrawing = true; ctx.beginPath(); const p = getP(e); ctx.moveTo(p.x, p.y); };
     const draw = (e) => { 
         if(!isDrawing) return; 
-        hasFirmaDrawn = true; // El técnico hizo un trazo, actualizamos la bandera
+        hasFirmaDrawn = true; 
         const p = getP(e); 
         ctx.lineTo(p.x, p.y); 
         ctx.strokeStyle = "#10b981"; 
@@ -482,7 +607,6 @@ function initSignaturePad() {
         const rect = canvas.getBoundingClientRect();
         const ex = e.touches ? e.touches[0].clientX : e.clientX;
         const ey = e.touches ? e.touches[0].clientY : e.clientY;
-        // CORRECCIÓN: Cambiamos 'top' por 'rect.top'
         return { x: ex - rect.left, y: ey - rect.top };
     };
 
@@ -496,7 +620,7 @@ function initSignaturePad() {
 
 window.clearSignature = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    hasFirmaDrawn = false; // Reseteamos la bandera si limpian el lienzo
+    hasFirmaDrawn = false; 
 };
 
 window.finalizarOrden = async () => {
@@ -505,7 +629,6 @@ window.finalizarOrden = async () => {
     setButtonLoading(btn, true);
 
     try {
-        // Validamos usando la bandera en lugar de escanear los pixeles
         if (!hasFirmaDrawn) {
             throw new Error("La firma de conformidad es obligatoria.");
         }
@@ -529,15 +652,15 @@ window.finalizarOrden = async () => {
             fecha_cierre: serverTimestamp()
         });
 
-        // 📊 INYECCIÓN A BITÁCORA CON REGLAS DE NEGOCIO
+        // INYECCIÓN A BITÁCORA
         await addDoc(collection(db, "bitacora_edificios"), {
-            edificioId: edificioIdGlobal, // REFACTOR 1: Usar ID dinámico
+            edificioId: edificioIdGlobal,
             servicioId: ordenId,
-            fecha: serverTimestamp(), // REFACTOR 2: Usar Sello de Tiempo del Servidor
+            fecha: serverTimestamp(),
             tecnico: nombreTecnico,
             tecnico_uid: uid,
             resumen: document.getElementById("obs-finales").value,
-            materiales_utilizados: MaterialesTemporales // REFACTOR 3: Añadir consistencia de insumos
+            materiales_utilizados: MaterialesTemporales 
         });
 
         showToast(`Bitácora de ${edificioIdGlobal.toUpperCase()} actualizada.`);
@@ -566,15 +689,14 @@ window.reportarHallazgoEnRutina = async (tareaString) => {
     if (!confirm(`¿Deseas reportar un hallazgo para la tarea "${tarea.descripcion}"?\n\nEsto creará una nueva orden de trabajo correctiva que deberás atender.`)) return;
 
     try {
-        // Create a new reactive ticket from the routine task
         const newTicket = {
             edificioId: edificioIdGlobal,
-            edificioNombre: "Uxmal 39", // This should be dynamic if possible
+            edificioNombre: "Uxmal 39", 
             ubicacion_especifica: tarea.ubicacion,
             descripcion: `HALLAZGO EN RUTINA: ${tarea.descripcion}`,
             prioridad: tarea.prioridad || 'media',
-            tecnicoId: auth.currentUser.uid, // Pre-assign to self
-            status: "en_proceso", // Start directly in process
+            tecnicoId: auth.currentUser.uid, 
+            status: "en_proceso", 
             fecha_programada: new Date().toISOString().split('T')[0],
             equipo_nombre: tarea.equipo,
             tipo: "correctivo_de_rutina",
@@ -586,7 +708,6 @@ window.reportarHallazgoEnRutina = async (tareaString) => {
         const docRef = await addDoc(collection(db, "servicios_b2b"), newTicket);
         showToast("Orden correctiva creada. Completa el diagnóstico.", false);
 
-        // Mark the routine task as "reported"
         const fechaHoyStr = new Date().toISOString().split('T')[0];
         await addDoc(collection(db, "log_rutinas"), {
             edificioId: edificioIdGlobal,
@@ -600,7 +721,6 @@ window.reportarHallazgoEnRutina = async (tareaString) => {
             servicio_b2b_id: docRef.id
         });
 
-        // Redirect to the new ticket flow
         window.location.href = `?id=${docRef.id}`;
 
     } catch (error) {
@@ -624,7 +744,6 @@ window.finalizarRutinaDiaria = async () => {
     setButtonLoading(btn, true, 'FINALIZAR...');
 
     try {
-        // TAREA 3: Generate logbook entry
         await addDoc(collection(db, "bitacora_edificios"), {
             edificioId: edificioIdGlobal,
             servicioId: `RUTINA-${new Date().toISOString().split('T')[0]}`,
