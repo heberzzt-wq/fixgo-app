@@ -1,14 +1,11 @@
 /**
- * GESTIA PREMIUM - V5.21
- * MOTOR DE OPERACIONES B2B
- * Archivo: app-tecnico-b2b.js
- * Parte 1/3
- * Arquitectura: Firebase v10 + JS Modules
+ * =====================================================
+ * GESTIA PREMIUM
+ * B2B ENGINE V5.22
+ * Arquitectura Optimizada Offline + Cache
+ * Lead Architect: Heberto Mendoza
+ * =====================================================
  */
-
-// ======================================================
-// IMPORTACIONES
-// ======================================================
 
 import { auth, db, storage, signOut } from "./firebase.js";
 
@@ -33,175 +30,304 @@ uploadBytes,
 getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-// ======================================================
-// EXPOSICIÓN GLOBAL BASE
-// ======================================================
 
-window.auth = auth;
-
-// ======================================================
-// ESTADO GLOBAL
-// ======================================================
+/* =====================================================
+GLOBAL STATE
+===================================================== */
 
 let ordenId = new URLSearchParams(window.location.search).get("id");
 
-let canvas = null;
-let ctx = null;
-let isDrawing = false;
+let canvas;
+let ctx;
+let isDrawing=false;
 
-let MaterialesTemporales = [];
+let edificioIdGlobal=null;
 
-let edificioIdGlobal = null;
+let MaterialesTemporales=[];
 
-let rutinaDiariaTareas = [];
-let rutinaCompletadaIds = new Set();
+let rutinaDiariaTareas=[];
+let rutinaCompletadaIds=new Set();
 
-window.tareasDiariasGlobal = {};
+window.tareasDiariasGlobal={};
 
-let hasFirmaDrawn = false;
 
-// ======================================================
-// UTILIDADES UI
-// ======================================================
+/* =====================================================
+NETWORK MANAGER
+===================================================== */
 
-function showToast(message, isError = false) {
+let isOnline=navigator.onLine;
 
-const toast = document.createElement("div");
+window.addEventListener("online",()=>{
+isOnline=true;
+showToast("Conexión restaurada");
+procesarSyncPendiente();
+});
 
-toast.className =
-`fixed bottom-24 left-1/2 -translate-x-1/2 p-3 rounded-lg text-white text-xs font-bold z-50
-${isError ? "bg-red-600" : "bg-emerald-600"}`;
+window.addEventListener("offline",()=>{
+isOnline=false;
+showToast("Modo Offline activado",true);
+});
 
-toast.innerText = message;
+
+/* =====================================================
+INDEXED DB CACHE ENGINE
+===================================================== */
+
+const DB_NAME="gestia_cache";
+const DB_VERSION=1;
+
+let localDB=null;
+
+function initLocalDB(){
+
+return new Promise((resolve,reject)=>{
+
+const request=indexedDB.open(DB_NAME,DB_VERSION);
+
+request.onupgradeneeded=e=>{
+
+const db=e.target.result;
+
+db.createObjectStore("tareas",{keyPath:"id"});
+db.createObjectStore("historial",{keyPath:"id"});
+db.createObjectStore("sync_queue",{autoIncrement:true});
+
+};
+
+request.onsuccess=e=>{
+localDB=e.target.result;
+resolve();
+};
+
+request.onerror=e=>{
+reject(e);
+};
+
+});
+
+}
+
+
+function cacheGuardar(store,data){
+
+return new Promise((resolve,reject)=>{
+
+const tx=localDB.transaction(store,"readwrite");
+
+const objectStore=tx.objectStore(store);
+
+objectStore.put(data);
+
+tx.oncomplete=resolve;
+tx.onerror=reject;
+
+});
+
+}
+
+
+function cacheLeerTodos(store){
+
+return new Promise((resolve,reject)=>{
+
+const tx=localDB.transaction(store,"readonly");
+
+const objectStore=tx.objectStore(store);
+
+const req=objectStore.getAll();
+
+req.onsuccess=()=>resolve(req.result);
+req.onerror=reject;
+
+});
+
+}
+
+
+function cacheLimpiar(store){
+
+return new Promise((resolve,reject)=>{
+
+const tx=localDB.transaction(store,"readwrite");
+
+tx.objectStore(store).clear();
+
+tx.oncomplete=resolve;
+tx.onerror=reject;
+
+});
+
+}
+
+
+/* =====================================================
+SYNC QUEUE
+===================================================== */
+
+async function agregarSyncPendiente(data){
+
+await cacheGuardar("sync_queue",data);
+
+}
+
+
+async function procesarSyncPendiente(){
+
+if(!isOnline) return;
+
+const items=await cacheLeerTodos("sync_queue");
+
+if(items.length===0) return;
+
+console.log("🔄 Procesando sync offline:",items.length);
+
+for(const item of items){
+
+try{
+
+if(item.type==="update"){
+
+await updateDoc(
+doc(db,item.collection,item.id),
+item.data
+);
+
+}
+
+}catch(e){
+
+console.error("Sync error",e);
+
+}
+
+}
+
+await cacheLimpiar("sync_queue");
+
+}
+
+
+/* =====================================================
+UTILIDADES UI
+===================================================== */
+
+function showToast(message,isError=false){
+
+const toast=document.createElement("div");
+
+toast.className=`fixed bottom-24 left-1/2 -translate-x-1/2 p-3 rounded-lg text-white text-xs font-bold shadow-lg z-50 ${isError?'bg-red-600':'bg-emerald-600'}`;
+
+toast.innerText=message;
 
 document.body.appendChild(toast);
 
-setTimeout(() => {
-toast.style.opacity = "0";
-setTimeout(() => toast.remove(), 300);
-}, 3000);
+setTimeout(()=>{
+
+toast.remove();
+
+},3000);
 
 }
 
-function setButtonLoading(button, isLoading, originalText = "Acción") {
 
-if (!button) return;
 
-if (isLoading) {
+function setButtonLoading(button,state,text="Procesando"){
 
-button.disabled = true;
-button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO`;
+if(!button) return;
 
-} else {
+if(state){
 
-button.disabled = false;
-button.innerHTML = originalText;
+button.disabled=true;
+button.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${text}`;
+
+}else{
+
+button.disabled=false;
 
 }
 
 }
 
-// ======================================================
-// NAVEGACIÓN
-// ======================================================
 
-function cambiarSeccion(seccionDestino) {
+/* =====================================================
+AUTENTICACIÓN
+===================================================== */
 
-const secciones = [
+window.logout=()=>{
+
+if(confirm("¿Cerrar sesión?")){
+
+signOut(auth).then(()=>{
+
+window.location.href="login.html";
+
+});
+
+}
+
+};
+
+
+/* =====================================================
+NAVEGACIÓN
+===================================================== */
+
+window.cambiarSeccion=(id)=>{
+
+const secciones=[
 "seccion-tareas",
 "seccion-historial",
 "seccion-perfil"
 ];
 
-secciones.forEach(seccion => {
+secciones.forEach(sec=>{
 
-const el = document.getElementById(seccion);
+const el=document.getElementById(sec);
 
-if (!el) return;
+if(el){
 
-if (seccion === seccionDestino) {
-el.classList.remove("hidden");
-} else {
-el.classList.add("hidden");
+el.classList.toggle("hidden",sec!==id);
+
 }
 
 });
 
-if (seccionDestino === "seccion-historial") {
+if(id==="seccion-historial"){
 
 cargarHistorialUnificado();
 
 }
 
-}
+};
 
-window.cambiarSeccion = cambiarSeccion;
 
-// ======================================================
-// LOGOUT
-// ======================================================
+/* =====================================================
+BOTTOM SHEET OT
+===================================================== */
 
-function logout() {
+function inicializarBottomSheet(){
 
-if (!confirm("¿Cerrar sesión del técnico?")) return;
+if(document.getElementById("ot-bottom-sheet")) return;
 
-signOut(auth)
-.then(() => {
+const sheet=document.createElement("div");
 
-window.location.href = "login.html";
+sheet.id="ot-bottom-sheet";
 
-})
-.catch((error) => {
+sheet.className="fixed inset-0 z-[100] hidden";
 
-console.error("Error logout", error);
-
-});
-
-}
-
-window.logout = logout;
-
-// ======================================================
-// BOTTOM SHEET OT
-// ======================================================
-
-function inicializarBottomSheet() {
-
-if (document.getElementById("ot-bottom-sheet")) return;
-
-const sheet = document.createElement("div");
-
-sheet.id = "ot-bottom-sheet";
-
-sheet.className =
-"fixed inset-0 z-[100] flex flex-col justify-end hidden";
-
-sheet.innerHTML = `
-
-<div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="cerrarHojaReporte()"></div>
+sheet.innerHTML=`
+<div class="absolute inset-0 bg-black/80 backdrop-blur-sm"
+onclick="cerrarHojaReporte()"></div>
 
 <div id="ot-sheet-content"
-class="relative bg-zinc-950 border-t border-zinc-800 rounded-t-3xl p-6 transform translate-y-full transition-transform duration-300 w-full max-w-md mx-auto">
+class="absolute bottom-0 left-0 right-0 bg-zinc-950 p-6 rounded-t-3xl transform translate-y-full transition">
 
-<div class="flex justify-between items-center mb-4">
+<h2 id="ot-equipo" class="text-xl font-black mb-2"></h2>
 
-<h2 id="ot-equipo" class="text-xl font-black text-white">EQUIPO</h2>
-
-<button onclick="cerrarHojaReporte()" class="text-zinc-400 text-lg">✕</button>
-
-</div>
-
-<p id="ot-descripcion" class="text-sm text-zinc-300 mb-4"></p>
-
-<div class="flex justify-between text-xs text-zinc-500 mb-6">
-
-<span id="ot-ubicacion"></span>
-<span id="ot-fecha"></span>
-
-</div>
+<p id="ot-descripcion" class="text-xs text-zinc-300 mb-4"></p>
 
 <button id="btn-iniciar-ot"
-class="w-full bg-emerald-500 text-black font-bold py-3 rounded-xl">
+class="w-full bg-emerald-500 text-black py-3 rounded-xl font-black">
 INICIAR SERVICIO
 </button>
 
@@ -212,98 +338,78 @@ document.body.appendChild(sheet);
 
 }
 
-// ======================================================
-// ABRIR HOJA OT
-// ======================================================
 
-function abrirHojaReporte(id) {
+window.abrirHojaReporte=(id)=>{
 
-const tarea = window.tareasDiariasGlobal[id];
+const tarea=window.tareasDiariasGlobal[id];
 
-if (!tarea) return;
+if(!tarea) return;
 
-document.getElementById("ot-equipo").innerText =
-tarea.equipo || "Mantenimiento";
+document.getElementById("ot-equipo").innerText=tarea.equipo;
 
-document.getElementById("ot-descripcion").innerText =
-tarea.descripcion || "";
+document.getElementById("ot-descripcion").innerText=tarea.descripcion;
 
-document.getElementById("ot-ubicacion").innerText =
-tarea.ubicacion_especifica || "Ubicación general";
-
-document.getElementById("ot-fecha").innerText =
-tarea.fecha_programada || new Date().toLocaleDateString();
-
-document.getElementById("btn-iniciar-ot").onclick = () => {
+document.getElementById("btn-iniciar-ot").onclick=()=>{
 
 cerrarHojaReporte();
 seleccionarTarea(id);
 
 };
 
-const sheet = document.getElementById("ot-bottom-sheet");
-const content = document.getElementById("ot-sheet-content");
+const sheet=document.getElementById("ot-bottom-sheet");
+
+const content=document.getElementById("ot-sheet-content");
 
 sheet.classList.remove("hidden");
 
-setTimeout(() => {
+setTimeout(()=>{
 
 content.classList.remove("translate-y-full");
 
-}, 10);
+},10);
 
-}
+};
 
-window.abrirHojaReporte = abrirHojaReporte;
 
-// ======================================================
-// CERRAR HOJA OT
-// ======================================================
+window.cerrarHojaReporte=()=>{
 
-function cerrarHojaReporte() {
+const sheet=document.getElementById("ot-bottom-sheet");
 
-const sheet = document.getElementById("ot-bottom-sheet");
-const content = document.getElementById("ot-sheet-content");
-
-if (!sheet || !content) return;
+const content=document.getElementById("ot-sheet-content");
 
 content.classList.add("translate-y-full");
 
-setTimeout(() => {
+setTimeout(()=>{
 
 sheet.classList.add("hidden");
 
-}, 300);
+},300);
 
-}
+};
 
-window.cerrarHojaReporte = cerrarHojaReporte;
 
-// ======================================================
-// SEGURIDAD CASETA
-// FIX JONATHAN
-// ======================================================
+/* =====================================================
+SEGURIDAD PASE CASETA
+===================================================== */
 
-async function validarPaseCaseta() {
+async function validarPaseCaseta(){
 
-const user = auth.currentUser;
+const user=auth.currentUser;
 
-if (!user) return false;
+if(!user) return false;
 
-const userDoc = await getDoc(doc(db, "users", user.uid));
+const userDoc=await getDoc(doc(db,"users",user.uid));
 
-if (!userDoc.exists()) return false;
-
-const data = userDoc.data();
+const data=userDoc.data();
 
 const tienePlacas =
 data.tecnico_placas ||
 data.placas ||
 (data.logistica && data.logistica.placas);
 
-if (!tienePlacas) {
+if(!tienePlacas){
 
-alert("🚨 BLOQUEO DE SEGURIDAD: Debes registrar placas para pase de caseta.");
+alert("🚨 Debes registrar placas para iniciar servicio.");
 
 return false;
 
@@ -313,82 +419,46 @@ return true;
 
 }
 
-window.validarPaseCaseta = validarPaseCaseta;
+window.validarPaseCaseta=validarPaseCaseta;
 
-// ======================================================
-// SELECCIÓN OT
-// ======================================================
 
-async function seleccionarTarea(id) {
+/* =====================================================
+INIT AUTH
+===================================================== */
 
-const ok = await validarPaseCaseta();
+auth.onAuthStateChanged(async(user)=>{
 
-if (!ok) return;
+if(!user){
 
-ordenId = id;
-
-cerrarHojaReporte();
-
-document.getElementById("listaTareasHoy").classList.add("hidden");
-
-document.getElementById("flujoTecnico").classList.remove("hidden");
-
-}
-
-window.seleccionarTarea = seleccionarTarea;
-
-// ======================================================
-// AUTH INIT
-// ======================================================
-
-auth.onAuthStateChanged(async (user) => {
-
-if (!user) {
-
-window.location.href = "login.html";
+window.location.href="login.html";
 return;
 
 }
+
+await initLocalDB();
 
 inicializarBottomSheet();
 
-try {
+const userDoc=await getDoc(doc(db,"users",user.uid));
 
-const userDoc = await getDoc(doc(db, "users", user.uid));
+const data=userDoc.data();
 
-if (!userDoc.exists()) {
+edificioIdGlobal=data.edificioId;
 
-document.body.innerHTML = "<h1>Error perfil</h1>";
+if(!edificioIdGlobal){
+
+alert("Perfil sin edificio asignado");
 return;
 
 }
 
-const data = userDoc.data();
-
-if (!data.edificioId) {
-
-document.body.innerHTML =
-"<h1>Perfil sin edificio asignado</h1>";
-return;
-
-}
-
-edificioIdGlobal = data.edificioId;
-
-} catch (e) {
-
-console.error("Error perfil:", e);
-return;
-
-}
-
-if (ordenId) {
+if(ordenId){
 
 document.getElementById("listaTareasHoy").classList.add("hidden");
 
 document.getElementById("flujoTecnico").classList.remove("hidden");
 
-} else {
+}else{
 
 cargarTareasProgramadas();
 cargarRutinaPreventiva();
@@ -396,159 +466,72 @@ cargarRutinaPreventiva();
 }
 
 });
-// ======================================================
-// SINCRONIZACIÓN AUTOMÁTICA DE RUTINAS
-// ======================================================
+/* =====================================================
+CARGA DE TAREAS PROGRAMADAS (OPTIMIZADA CON CACHE)
+===================================================== */
 
-async function sincronizarRutinasMaestras() {
+async function cargarTareasProgramadas(){
 
-if (!edificioIdGlobal) return;
+const contenedor=document.getElementById("contenedor-tareas-diarias");
 
-const inicioDia = new Date();
-inicioDia.setHours(0,0,0,0);
+if(!contenedor || !edificioIdGlobal) return;
 
-const qCheck = query(
+
+/* ----------------------------------
+1️⃣ CARGAR DESDE CACHE PRIMERO
+---------------------------------- */
+
+const cacheTareas=await cacheLeerTodos("tareas");
+
+if(cacheTareas.length>0){
+
+renderizarTareas(cacheTareas);
+
+}
+
+
+/* ----------------------------------
+2️⃣ SI OFFLINE → SALIR
+---------------------------------- */
+
+if(!isOnline){
+
+console.log("Modo offline: usando cache");
+
+return;
+
+}
+
+
+/* ----------------------------------
+3️⃣ CONSULTA FIRESTORE
+---------------------------------- */
+
+const q=query(
+
 collection(db,"servicios_b2b"),
+
 where("edificioId","==",edificioIdGlobal),
-where("fecha_creacion",">=",inicioDia),
-where("origen","==","sistema_rutinas")
-);
 
-const checkSnap = await getDocs(qCheck);
-
-if (!checkSnap.empty) {
-
-console.log("Rutinas ya generadas hoy");
-return;
-
-}
-
-console.log("Sincronizando plan maestro de rutinas");
-
-try {
-
-const rutinaRef = doc(db,"config_rutinas",edificioIdGlobal);
-
-const rutinaSnap = await getDoc(rutinaRef);
-
-if (!rutinaSnap.exists()) {
-
-console.log("No existe configuración de rutinas");
-return;
-
-}
-
-const master = rutinaSnap.data();
-
-let tareasAInyectar = [];
-
-const hoy = new Date();
-const diaSemana = hoy.getDay();
-const diaMes = hoy.getDate();
-const mes = hoy.getMonth();
-
-if (master.Diaria && Array.isArray(master.Diaria)) {
-
-tareasAInyectar.push(...master.Diaria);
-
-}
-
-if (diaSemana === 1 && master.Semanal_Quincenal) {
-
-tareasAInyectar.push(...master.Semanal_Quincenal);
-
-}
-
-if (diaMes === 1 && master.Mensual) {
-
-tareasAInyectar.push(...master.Mensual);
-
-}
-
-if (diaMes === 1 && mes === 0 && master.Semestral_Anual) {
-
-tareasAInyectar.push(...master.Semestral_Anual);
-
-}
-
-if (tareasAInyectar.length === 0) {
-
-console.log("Sin tareas para hoy");
-return;
-
-}
-
-const promesas = tareasAInyectar.map(tarea => {
-
-return addDoc(collection(db,"servicios_b2b"),{
-
-edificioId: edificioIdGlobal,
-
-descripcion: tarea.descripcion || "Mantenimiento general",
-
-equipo: tarea.equipo || "General",
-
-ubicacion_especifica: tarea.ubicacion || "Sin definir",
-
-prioridad: tarea.prioridad || "media",
-
-status: "pendiente",
-
-tipo: "preventivo",
-
-fecha_programada: hoy.toISOString().split("T")[0],
-
-fecha_creacion: serverTimestamp(),
-
-origen: "sistema_rutinas",
-
-creado_por_nombre: "Sistema automático"
-
-});
-
-});
-
-await Promise.all(promesas);
-
-showToast(`Rutinas sincronizadas: ${tareasAInyectar.length}`);
-
-} catch(e){
-
-console.error("Error sincronizando rutinas",e);
-
-}
-
-}
-
-// ======================================================
-// CARGAR TAREAS PROGRAMADAS
-// ======================================================
-
-function cargarTareasProgramadas(){
-
-const cont = document.getElementById("contenedor-tareas-diarias");
-
-if(!cont || !edificioIdGlobal) return;
-
-const q = query(
-collection(db,"servicios_b2b"),
-where("edificioId","==",edificioIdGlobal),
 where("status","in",["pendiente","programado","en_proceso"])
+
 );
 
-onSnapshot(q,(snapshot)=>{
 
-cont.innerHTML="";
+onSnapshot(q,async(snapshot)=>{
+
+contenedor.innerHTML="";
 
 window.tareasDiariasGlobal={};
 
+await cacheLimpiar("tareas");
+
 if(snapshot.empty){
 
-cont.innerHTML=`
-<div class="p-8 text-center text-xs text-zinc-500">
-Sin tareas activas. Verificando plan maestro...
-</div>
-`;
+contenedor.innerHTML=`
+<div class="p-8 text-center text-zinc-600 text-xs">
+Sin tareas activas
+</div>`;
 
 sincronizarRutinasMaestras();
 
@@ -556,839 +539,907 @@ return;
 
 }
 
-snapshot.forEach(docSnap=>{
 
-const tarea = docSnap.data();
-const id = docSnap.id;
+snapshot.forEach(async(docSnap)=>{
 
-window.tareasDiariasGlobal[id] = tarea;
+const tarea=docSnap.data();
 
-const div = document.createElement("div");
+const id=docSnap.id;
 
-div.className="mb-3 p-4 border border-zinc-800 rounded-xl cursor-pointer";
+const data={id,...tarea};
 
-div.onclick=()=>abrirHojaReporte(id);
+await cacheGuardar("tareas",data);
+
+window.tareasDiariasGlobal[id]=tarea;
+
+});
+
+renderizarTareas(await cacheLeerTodos("tareas"));
+
+});
+
+}
+
+
+/* =====================================================
+RENDER TARJETAS TAREAS
+===================================================== */
+
+function renderizarTareas(tareas){
+
+const contenedor=document.getElementById("contenedor-tareas-diarias");
+
+contenedor.innerHTML="";
+
+tareas.forEach(tarea=>{
+
+window.tareasDiariasGlobal[tarea.id]=tarea;
+
+const div=document.createElement("div");
+
+div.className="mb-3 p-4 glass-card rounded-2xl border border-zinc-800 flex justify-between items-center cursor-pointer";
+
+div.onclick=()=>abrirHojaReporte(tarea.id);
 
 div.innerHTML=`
 
-<h4 class="font-bold text-white">
-${tarea.equipo || "Equipo"}
+<div>
+
+<h4 class="text-lg font-black italic uppercase">
+${tarea.equipo || "Mantenimiento"}
 </h4>
 
 <p class="text-xs text-emerald-500">
-${tarea.descripcion || ""}
+${tarea.descripcion || "Revisión técnica"}
 </p>
-
-<p class="text-[10px] text-zinc-500">
-${tarea.ubicacion_especifica || "Ubicación general"}
-</p>
-
-`;
-
-cont.appendChild(div);
-
-});
-
-},(error)=>{
-
-console.error("Error snapshot tareas",error);
-
-});
-
-}
-
-// ======================================================
-// MOTOR RUTINA PREVENTIVA
-// ======================================================
-
-async function cargarRutinaPreventiva(){
-
-if(!edificioIdGlobal) return;
-
-const rutinaContainer=document.getElementById("rutinaPreventiva");
-
-const checklistContainer=document.getElementById("checklist-rutinas");
-
-if(!rutinaContainer || !checklistContainer) return;
-
-try{
-
-const rutinaRef = doc(db,"config_rutinas",edificioIdGlobal);
-
-const rutinaSnap = await getDoc(rutinaRef);
-
-if(!rutinaSnap.exists()){
-
-rutinaContainer.classList.add("hidden");
-return;
-
-}
-
-rutinaContainer.classList.remove("hidden");
-
-const rutinaMaster=rutinaSnap.data();
-
-let tareasDelDia=[];
-
-const hoy=new Date();
-const diaSemana=hoy.getDay();
-const diaMes=hoy.getDate();
-
-if(rutinaMaster.Diaria)
-tareasDelDia.push(...rutinaMaster.Diaria);
-
-if(diaSemana===1 && rutinaMaster.Semanal_Quincenal)
-tareasDelDia.push(...rutinaMaster.Semanal_Quincenal);
-
-if(diaMes===1 && rutinaMaster.Mensual)
-tareasDelDia.push(...rutinaMaster.Mensual);
-
-rutinaDiariaTareas=tareasDelDia;
-
-const fechaHoyStr=hoy.toISOString().split("T")[0];
-
-const qLogs=query(
-collection(db,"log_rutinas"),
-where("edificioId","==",edificioIdGlobal),
-where("fechaCompletado","==",fechaHoyStr)
-);
-
-const logSnapshot=await getDocs(qLogs);
-
-rutinaCompletadaIds=new Set(
-logSnapshot.docs.map(d=>d.data().tareaId)
-);
-
-renderizarChecklist();
-
-}catch(e){
-
-console.error("Error rutina preventiva",e);
-
-}
-
-}
-
-// ======================================================
-// RENDER CHECKLIST
-// ======================================================
-
-function renderizarChecklist(){
-
-const checklistContainer=document.getElementById("checklist-rutinas");
-
-if(!checklistContainer) return;
-
-if(rutinaDiariaTareas.length===0){
-
-checklistContainer.innerHTML=
-`<p class="text-xs text-zinc-500">No hay tareas hoy</p>`;
-
-return;
-
-}
-
-checklistContainer.innerHTML=rutinaDiariaTareas.map(tarea=>{
-
-const completed=rutinaCompletadaIds.has(tarea.id_tarea);
-
-return`
-
-<div class="border border-zinc-800 p-3 rounded-lg mb-2 flex justify-between">
-
-<div>
-<p class="text-xs font-bold ${completed?'line-through text-emerald-400':'text-white'}">
-${tarea.descripcion}
-</p>
-
-<p class="text-[9px] text-zinc-500">
-${tarea.equipo}
-</p>
-</div>
-
-<div>
-
-${!completed ? `
-
-<button onclick="marcarRutinaOK('${tarea.id_tarea}',this)"
-class="bg-emerald-600 text-white text-[10px] px-3 py-1 rounded">
-OK
-</button>
-
-<button onclick="reportarHallazgoEnRutina('${encodeURIComponent(JSON.stringify(tarea))}')"
-class="bg-red-600 text-white text-[10px] px-2 py-1 rounded">
-!
-</button>
-
-` : `<span class="text-emerald-500">✔</span>`}
 
 </div>
 
+<div class="text-xs text-zinc-500">
+VER OT
 </div>
 
 `;
 
-}).join("");
-
-}
-
-// ======================================================
-// MARCAR RUTINA OK
-// ======================================================
-
-async function marcarRutinaOK(tareaId,button){
-
-if(rutinaCompletadaIds.has(tareaId)) return;
-
-setButtonLoading(button,true,"OK");
-
-try{
-
-const fechaHoyStr=new Date().toISOString().split("T")[0];
-
-await addDoc(collection(db,"log_rutinas"),{
-
-edificioId:edificioIdGlobal,
-tecnicoId:auth.currentUser.uid,
-tecnicoNombre:auth.currentUser.displayName || "Tecnico",
-tareaId:tareaId,
-fechaCompletado:fechaHoyStr,
-timestamp:serverTimestamp(),
-status:"ok",
-novedad:false
+contenedor.appendChild(div);
 
 });
 
-rutinaCompletadaIds.add(tareaId);
-
-renderizarChecklist();
-
-showToast("Rutina registrada");
-
-}catch(e){
-
-console.error(e);
-showToast("Error guardando rutina",true);
-
-setButtonLoading(button,false,"OK");
-
 }
 
-}
 
-// ======================================================
-// REPORTAR HALLAZGO
-// ======================================================
 
-async function reportarHallazgoEnRutina(tareaString){
-
-const tarea=JSON.parse(decodeURIComponent(tareaString));
-
-if(!confirm(`Crear OT por hallazgo en "${tarea.descripcion}"?`))
-return;
-
-try{
-
-const newTicket={
-
-edificioId:edificioIdGlobal,
-
-ubicacion_especifica:tarea.ubicacion,
-
-descripcion:`HALLAZGO EN RUTINA: ${tarea.descripcion}`,
-
-equipo:tarea.equipo,
-
-prioridad:tarea.prioridad || "media",
-
-status:"en_proceso",
-
-fecha_programada:new Date().toISOString().split("T")[0],
-
-tipo:"correctivo_rutina",
-
-fecha_creacion:serverTimestamp(),
-
-origen_rutina_id:tarea.id_tarea
-
-};
-
-const docRef=await addDoc(
-collection(db,"servicios_b2b"),
-newTicket
-);
-
-showToast("OT correctiva creada");
-
-window.location.href=`?id=${docRef.id}`;
-
-}catch(e){
-
-console.error("Error hallazgo",e);
-showToast("Error creando OT",true);
-
-}
-
-}
-
-window.reportarHallazgoEnRutina = reportarHallazgoEnRutina;
-
-// ======================================================
-// HISTORIAL UNIFICADO
-// ======================================================
+/* =====================================================
+HISTORIAL UNIFICADO OPTIMIZADO
+===================================================== */
 
 async function cargarHistorialUnificado(){
 
-const cont=document.getElementById("lista-historial-unificada");
+const contenedor=document.getElementById("lista-historial-unificada");
 
-if(!cont || !edificioIdGlobal) return;
+if(!contenedor || !edificioIdGlobal) return;
 
-try{
 
-const qServicios=query(
-collection(db,"servicios_b2b"),
-where("edificioId","==",edificioIdGlobal),
-where("status","==","finalizado"),
-orderBy("fecha_cierre","desc"),
-limit(50)
-);
+/* ----------------------------------
+1️⃣ CACHE
+---------------------------------- */
 
-const qRutinas=query(
-collection(db,"log_rutinas"),
-where("edificioId","==",edificioIdGlobal),
-orderBy("timestamp","desc"),
-limit(100)
-);
+const cacheHistorial=await cacheLeerTodos("historial");
 
-const [serviciosSnap,rutinasSnap]=await Promise.all([
-getDocs(qServicios),
-getDocs(qRutinas)
-]);
+if(cacheHistorial.length>0){
 
-let historial=[];
-
-serviciosSnap.forEach(d=>{
-
-const data=d.data();
-
-historial.push({
-
-fecha:data.fecha_cierre?.toDate() || new Date(),
-tipo:"OT",
-titulo:data.equipo,
-desc:data.observaciones_finales || ""
-
-});
-
-});
-
-rutinasSnap.forEach(d=>{
-
-const data=d.data();
-
-historial.push({
-
-fecha:data.timestamp?.toDate() || new Date(),
-tipo:"RUTINA",
-titulo:data.tareaId,
-desc:data.status
-
-});
-
-});
-
-historial.sort((a,b)=>b.fecha-a.fecha);
-
-cont.innerHTML=historial.map(item=>`
-
-<div class="border border-zinc-800 p-3 rounded-xl mb-2">
-
-<p class="text-xs font-bold">
-${item.tipo} - ${item.titulo}
-</p>
-
-<p class="text-[10px] text-zinc-500">
-${item.fecha.toLocaleString()}
-</p>
-
-<p class="text-xs text-zinc-300">
-${item.desc}
-</p>
-
-</div>
-
-`).join("");
-
-}catch(e){
-
-console.error("Error historial",e);
+renderizarHistorial(cacheHistorial);
 
 }
 
-}
-// ======================================================
-// PASO 1 - DIAGNÓSTICO
-// ======================================================
 
-async function enviarDiagnostico() {
+/* ----------------------------------
+2️⃣ OFFLINE
+---------------------------------- */
 
-const diag = document.getElementById("diagInput")?.value.trim();
-const file = document.getElementById("fileAntes")?.files[0];
+if(!isOnline){
 
-const btn = document.querySelector('#step1 button[onclick="enviarDiagnostico()"]');
-const originalText = btn ? btn.innerHTML : "ENVIAR";
+console.log("Historial offline");
 
-if (!diag || !file) {
-
-showToast("Falta diagnóstico o foto inicial", true);
 return;
 
 }
 
-setButtonLoading(btn, true);
 
-try {
+/* ----------------------------------
+3️⃣ FIRESTORE
+---------------------------------- */
 
-const path = `evidencias/${ordenId}/antes_${Date.now()}.jpg`;
+const qServicios=query(
 
-const storageRef = ref(storage, path);
+collection(db,"servicios_b2b"),
 
-await uploadBytes(storageRef, file);
+where("edificioId","==",edificioIdGlobal),
 
-const urlAntes = await getDownloadURL(storageRef);
+where("status","==","finalizado"),
 
-await updateDoc(doc(db,"servicios_b2b",ordenId),{
+orderBy("fecha_cierre","desc"),
 
-diagnostico_inicial: diag,
-foto_antes: urlAntes,
-status: "en_proceso",
-fecha_diagnostico: serverTimestamp()
+limit(40)
+
+);
+
+
+const qRutinas=query(
+
+collection(db,"log_rutinas"),
+
+where("edificioId","==",edificioIdGlobal),
+
+orderBy("timestamp","desc"),
+
+limit(80)
+
+);
+
+
+const [serviciosSnap,rutinasSnap]=await Promise.all([
+
+getDocs(qServicios),
+getDocs(qRutinas)
+
+]);
+
+
+let historial=[];
+
+
+/* ----------------------------------
+MAP SERVICIOS
+---------------------------------- */
+
+serviciosSnap.forEach(docSnap=>{
+
+const data=docSnap.data();
+
+historial.push({
+
+id:docSnap.id,
+
+tipo:"OT",
+
+titulo:data.equipo || "Servicio",
+
+fecha:data.fecha_cierre?.toDate() || new Date(),
+
+descripcion:data.observaciones_finales || ""
 
 });
 
+});
+
+
+/* ----------------------------------
+MAP RUTINAS
+---------------------------------- */
+
+rutinasSnap.forEach(docSnap=>{
+
+const data=docSnap.data();
+
+historial.push({
+
+id:docSnap.id,
+
+tipo:"RUTINA",
+
+titulo:"Rutina preventiva",
+
+fecha:data.timestamp?.toDate() || new Date(),
+
+descripcion:data.status
+
+});
+
+});
+
+
+/* ----------------------------------
+ORDENAR
+---------------------------------- */
+
+historial.sort((a,b)=>b.fecha-a.fecha);
+
+
+/* ----------------------------------
+GUARDAR CACHE
+---------------------------------- */
+
+await cacheLimpiar("historial");
+
+for(const item of historial){
+
+await cacheGuardar("historial",item);
+
+}
+
+
+renderizarHistorial(historial);
+
+}
+
+
+
+/* =====================================================
+RENDER HISTORIAL
+===================================================== */
+
+function renderizarHistorial(items){
+
+const contenedor=document.getElementById("lista-historial-unificada");
+
+contenedor.innerHTML="";
+
+if(items.length===0){
+
+contenedor.innerHTML=`
+<div class="p-6 text-center text-zinc-600">
+Sin historial
+</div>
+`;
+
+return;
+
+}
+
+
+items.forEach(item=>{
+
+const div=document.createElement("div");
+
+div.className="p-4 rounded-xl border border-zinc-800 mb-2";
+
+div.innerHTML=`
+
+<p class="text-xs font-black text-emerald-400">
+${item.tipo} — ${item.titulo}
+</p>
+
+<p class="text-[10px] text-zinc-500">
+${new Date(item.fecha).toLocaleString()}
+</p>
+
+<p class="text-xs text-zinc-300">
+${item.descripcion}
+</p>
+
+`;
+
+contenedor.appendChild(div);
+
+});
+
+}
+
+
+
+/* =====================================================
+SINCRONIZACIÓN PLAN MAESTRO RUTINAS
+===================================================== */
+
+async function sincronizarRutinasMaestras(){
+
+if(!isOnline) return;
+
+const inicioDia=new Date();
+
+inicioDia.setHours(0,0,0,0);
+
+const qCheck=query(
+
+collection(db,"servicios_b2b"),
+
+where("edificioId","==",edificioIdGlobal),
+
+where("fecha_creacion",">=",inicioDia),
+
+where("origen","==","sistema_rutinas")
+
+);
+
+const snap=await getDocs(qCheck);
+
+if(!snap.empty){
+
+return;
+
+}
+
+
+const rutinaRef=doc(db,"config_rutinas",edificioIdGlobal);
+
+const rutinaSnap=await getDoc(rutinaRef);
+
+if(!rutinaSnap.exists()) return;
+
+const master=rutinaSnap.data();
+
+let tareas=[];
+
+if(master.Diaria) tareas.push(...master.Diaria);
+
+if(tareas.length===0) return;
+
+
+const promesas=tareas.map(t=>{
+
+return addDoc(collection(db,"servicios_b2b"),{
+
+edificioId:edificioIdGlobal,
+
+descripcion:t.descripcion,
+
+equipo:t.equipo,
+
+status:"pendiente",
+
+origen:"sistema_rutinas",
+
+fecha_creacion:serverTimestamp()
+
+});
+
+});
+
+
+await Promise.all(promesas);
+
+showToast("Rutinas sincronizadas");
+
+}
+/* =====================================================
+SELECCIONAR TAREA
+===================================================== */
+
+window.seleccionarTarea = async(id)=>{
+
+const tienePase = await validarPaseCaseta();
+
+if(!tienePase) return;
+
+ordenId=id;
+
+cerrarHojaReporte();
+
+document.getElementById("listaTareasHoy").classList.add("hidden");
+
+document.getElementById("flujoTecnico").classList.remove("hidden");
+
+};
+
+
+/* =====================================================
+PASO 1 DIAGNOSTICO
+===================================================== */
+
+window.enviarDiagnostico = async()=>{
+
+const diag=document.getElementById("diagInput").value.trim();
+
+const file=document.getElementById("fileAntes").files[0];
+
+const btn=document.querySelector('#step1 button[onclick="enviarDiagnostico()"]');
+
+if(!diag || !file){
+
+showToast("Falta diagnóstico o foto",true);
+
+return;
+
+}
+
+setButtonLoading(btn,true);
+
+try{
+
+let urlAntes=null;
+
+/* subir imagen solo si hay internet */
+
+if(isOnline){
+
+const path=`evidencias/${ordenId}/antes_${Date.now()}.jpg`;
+
+const storageRef=ref(storage,path);
+
+await uploadBytes(storageRef,file);
+
+urlAntes=await getDownloadURL(storageRef);
+
+}
+
+const dataUpdate={
+
+diagnostico_inicial:diag,
+
+foto_antes:urlAntes,
+
+status:"en_proceso",
+
+fecha_diagnostico:serverTimestamp()
+
+};
+
+
+if(isOnline){
+
+await updateDoc(doc(db,"servicios_b2b",ordenId),dataUpdate);
+
+}else{
+
+await agregarSyncPendiente({
+
+type:"update",
+
+collection:"servicios_b2b",
+
+id:ordenId,
+
+data:dataUpdate
+
+});
+
+}
+
+
+document.getElementById("step1").classList.add("step-inactive");
+
+document.getElementById("step2").classList.remove("step-inactive");
+
 showToast("Diagnóstico guardado");
 
-document.getElementById("step1")?.classList.add("step-inactive");
-document.getElementById("step2")?.classList.remove("step-inactive");
+}catch(e){
 
-} catch(e){
-
-console.error(e);
-showToast("Error subiendo diagnóstico",true);
-
-} finally {
-
-setButtonLoading(btn,false,originalText);
+showToast("Error diagnóstico",true);
 
 }
 
-}
+setButtonLoading(btn,false);
 
-window.enviarDiagnostico = enviarDiagnostico;
+};
 
 
-// ======================================================
-// PASO 2 - MATERIALES
-// ======================================================
 
-function agregarMaterial(){
+/* =====================================================
+PASO 2 MATERIALES
+===================================================== */
 
-const nombre = document.getElementById("mat-nombre")?.value.trim();
-const cantidad = document.getElementById("mat-cantidad")?.value;
+window.agregarMaterial = ()=>{
+
+const nombre=document.getElementById("mat-nombre").value.trim();
+
+const cantidad=document.getElementById("mat-cantidad").value;
 
 if(!nombre || !cantidad) return;
 
-const item = {
-nombre,
-cantidad,
-id: Date.now()
-};
+MaterialesTemporales.push({
 
-MaterialesTemporales.push(item);
+nombre,
+
+cantidad,
+
+id:Date.now()
+
+});
 
 renderizarMateriales();
 
 document.getElementById("mat-nombre").value="";
+
 document.getElementById("mat-cantidad").value="";
 
-}
+};
 
-window.agregarMaterial = agregarMaterial;
+
 
 function renderizarMateriales(){
 
-const lista = document.getElementById("lista-materiales-acumulados");
+const lista=document.getElementById("lista-materiales-acumulados");
 
-if(!lista) return;
+lista.innerHTML="";
 
-lista.innerHTML = MaterialesTemporales.map(m=>`
+MaterialesTemporales.forEach(m=>{
 
-<div class="flex justify-between bg-zinc-900 p-2 rounded mb-2 text-[10px]">
+const div=document.createElement("div");
 
-<span>${m.cantidad}x <b>${m.nombre}</b></span>
+div.className="flex justify-between bg-zinc-900 p-2 rounded";
 
-<button onclick="removerMaterial(${m.id})" class="text-red-500">X</button>
+div.innerHTML=`
 
-</div>
+<span>${m.cantidad}x ${m.nombre}</span>
 
-`).join("");
+<button onclick="removerMaterial(${m.id})">X</button>
+
+`;
+
+lista.appendChild(div);
+
+});
 
 }
 
-function removerMaterial(id){
 
-MaterialesTemporales = MaterialesTemporales.filter(m=>m.id!==id);
+
+window.removerMaterial=(id)=>{
+
+MaterialesTemporales=MaterialesTemporales.filter(m=>m.id!==id);
 
 renderizarMateriales();
 
-}
+};
 
-window.removerMaterial = removerMaterial;
 
-async function confirmarMateriales(){
 
-const btn = document.querySelector('#step2 button[onclick="confirmarMateriales()"]');
-const originalText = btn ? btn.innerHTML : "CONFIRMAR";
+window.confirmarMateriales=async()=>{
+
+const btn=document.querySelector('#step2 button[onclick="confirmarMateriales()"]');
 
 setButtonLoading(btn,true);
 
 try{
 
-await updateDoc(doc(db,"servicios_b2b",ordenId),{
+const dataUpdate={
 
-materiales_utilizados: MaterialesTemporales
+materiales_utilizados:MaterialesTemporales
+
+};
+
+
+if(isOnline){
+
+await updateDoc(doc(db,"servicios_b2b",ordenId),dataUpdate);
+
+}else{
+
+await agregarSyncPendiente({
+
+type:"update",
+
+collection:"servicios_b2b",
+
+id:ordenId,
+
+data:dataUpdate
 
 });
 
-showToast("Materiales guardados");
+}
 
-document.getElementById("step2")?.classList.add("step-inactive");
-document.getElementById("step3")?.classList.remove("step-inactive");
+
+document.getElementById("step2").classList.add("step-inactive");
+
+document.getElementById("step3").classList.remove("step-inactive");
+
+showToast("Materiales guardados");
 
 }catch(e){
 
-console.error(e);
 showToast("Error guardando materiales",true);
 
-}finally{
-
-setButtonLoading(btn,false,originalText);
-
 }
 
-}
+setButtonLoading(btn,false);
 
-window.confirmarMateriales = confirmarMateriales;
+};
 
 
-// ======================================================
-// PASO 3 - EVIDENCIA FINAL
-// ======================================================
 
-async function subirEvidenciaFinal(){
+/* =====================================================
+PASO 3 EVIDENCIA FINAL
+===================================================== */
 
-const file = document.getElementById("fileDespues")?.files[0];
-const obs = document.getElementById("obs-finales")?.value.trim();
+window.subirEvidenciaFinal=async()=>{
+
+const file=document.getElementById("fileDespues").files[0];
+
+const obs=document.getElementById("obs-finales").value.trim();
+
+const btn=document.getElementById("btnUploadDespues");
 
 if(!file || !obs){
 
-showToast("Falta evidencia o observaciones",true);
+showToast("Falta evidencia o notas",true);
+
 return;
 
 }
 
-const btn = document.getElementById("btnUploadDespues");
-const originalText = btn ? btn.innerHTML : "SUBIR";
-
 setButtonLoading(btn,true);
 
 try{
 
-const path = `evidencias/${ordenId}/despues_${Date.now()}.jpg`;
+let urlDespues=null;
 
-const storageRef = ref(storage,path);
+if(isOnline){
+
+const path=`evidencias/${ordenId}/despues_${Date.now()}.jpg`;
+
+const storageRef=ref(storage,path);
 
 await uploadBytes(storageRef,file);
 
-const urlDespues = await getDownloadURL(storageRef);
+urlDespues=await getDownloadURL(storageRef);
 
-await updateDoc(doc(db,"servicios_b2b",ordenId),{
+}
 
-foto_despues: urlDespues,
-observaciones_finales: obs
+const dataUpdate={
+
+foto_despues:urlDespues,
+
+observaciones_finales:obs
+
+};
+
+
+if(isOnline){
+
+await updateDoc(doc(db,"servicios_b2b",ordenId),dataUpdate);
+
+}else{
+
+await agregarSyncPendiente({
+
+type:"update",
+
+collection:"servicios_b2b",
+
+id:ordenId,
+
+data:dataUpdate
 
 });
 
-showToast("Evidencia final subida");
+}
 
-document.getElementById("step3")?.classList.add("step-inactive");
-document.getElementById("step4")?.classList.remove("step-inactive");
+document.getElementById("step3").classList.add("step-inactive");
+
+document.getElementById("step4").classList.remove("step-inactive");
 
 initSignaturePad();
 
+showToast("Evidencia guardada");
+
 }catch(e){
 
-console.error(e);
-showToast("Error subiendo evidencia",true);
-
-}finally{
-
-setButtonLoading(btn,false,originalText);
+showToast("Error evidencia",true);
 
 }
 
-}
+setButtonLoading(btn,false);
 
-window.subirEvidenciaFinal = subirEvidenciaFinal;
+};
 
 
-// ======================================================
-// FIRMA DIGITAL (SOPORTE MÓVIL)
-// ======================================================
+
+/* =====================================================
+FIRMA MOVIL
+===================================================== */
+
+let hasFirma=false;
 
 function initSignaturePad(){
 
-canvas = document.getElementById("signaturePad");
+canvas=document.getElementById("signaturePad");
 
-if(!canvas) return;
+ctx=canvas.getContext("2d");
 
-ctx = canvas.getContext("2d");
+const rect=canvas.getBoundingClientRect();
 
-const rect = canvas.getBoundingClientRect();
+canvas.width=rect.width;
 
-canvas.width = rect.width;
-canvas.height = rect.height;
+canvas.height=rect.height;
 
-function getPos(e){
+const getPoint=(e)=>{
 
-const r = canvas.getBoundingClientRect();
+const r=canvas.getBoundingClientRect();
 
 if(e.touches){
 
-return {
-x: e.touches[0].clientX - r.left,
-y: e.touches[0].clientY - r.top
+return{
+
+x:e.touches[0].clientX-r.left,
+
+y:e.touches[0].clientY-r.top
+
 };
 
 }
 
-return {
-x: e.clientX - r.left,
-y: e.clientY - r.top
+return{
+
+x:e.clientX-r.left,
+
+y:e.clientY-r.top
+
 };
 
-}
+};
 
-function start(e){
 
-isDrawing = true;
+const start=e=>{
 
-const p = getPos(e);
+isDrawing=true;
+
+const p=getPoint(e);
 
 ctx.beginPath();
+
 ctx.moveTo(p.x,p.y);
 
-}
+};
 
-function draw(e){
+
+const draw=e=>{
 
 if(!isDrawing) return;
 
-hasFirmaDrawn = true;
+hasFirma=true;
 
-const p = getPos(e);
+const p=getPoint(e);
 
 ctx.lineTo(p.x,p.y);
 
 ctx.strokeStyle="#10b981";
+
 ctx.lineWidth=2;
 
 ctx.stroke();
 
-}
+};
 
-function stop(){
+
+const stop=()=>{
 
 isDrawing=false;
 
-}
+};
+
 
 canvas.addEventListener("mousedown",start);
+
 canvas.addEventListener("mousemove",draw);
+
 window.addEventListener("mouseup",stop);
 
+
+/* MOBILE */
+
 canvas.addEventListener("touchstart",start);
+
 canvas.addEventListener("touchmove",draw);
+
 canvas.addEventListener("touchend",stop);
 
 }
 
-function clearSignature(){
 
-if(!ctx || !canvas) return;
+
+window.clearSignature=()=>{
 
 ctx.clearRect(0,0,canvas.width,canvas.height);
 
-hasFirmaDrawn=false;
+hasFirma=false;
+
+};
+
+
+
+/* =====================================================
+FINALIZAR ORDEN
+===================================================== */
+
+window.finalizarOrden=async()=>{
+
+if(!hasFirma){
+
+showToast("Firma requerida",true);
+
+return;
 
 }
 
-window.clearSignature = clearSignature;
-
-
-// ======================================================
-// CIERRE DE ORDEN
-// ======================================================
-
-async function finalizarOrden(){
-
-const btn = document.querySelector('#step4 button[onclick="finalizarOrden()"]');
-const originalText = btn ? btn.innerHTML : "FINALIZAR";
+const btn=document.querySelector('#step4 button[onclick="finalizarOrden()"]');
 
 setButtonLoading(btn,true);
 
 try{
 
-if(!hasFirmaDrawn){
+let firmaUrl=null;
 
-throw new Error("Firma obligatoria");
+if(isOnline){
 
-}
+const firmaData=canvas.toDataURL("image/png");
 
-const firmaData = canvas.toDataURL("image/png");
+const blob=await (await fetch(firmaData)).blob();
 
-const storageRef = ref(storage,`firmas/${ordenId}.png`);
-
-const blob = await (await fetch(firmaData)).blob();
+const storageRef=ref(storage,`firmas/${ordenId}.png`);
 
 await uploadBytes(storageRef,blob);
 
-const firmaUrl = await getDownloadURL(storageRef);
+firmaUrl=await getDownloadURL(storageRef);
 
-await updateDoc(doc(db,"servicios_b2b",ordenId),{
+}
+
+const dataUpdate={
 
 status:"finalizado",
+
 firma_conformidad:firmaUrl,
+
 fecha_cierre:serverTimestamp()
 
+};
+
+
+if(isOnline){
+
+await updateDoc(doc(db,"servicios_b2b",ordenId),dataUpdate);
+
+}else{
+
+await agregarSyncPendiente({
+
+type:"update",
+
+collection:"servicios_b2b",
+
+id:ordenId,
+
+data:dataUpdate
+
 });
 
-await addDoc(collection(db,"bitacora_edificios"),{
+}
 
-edificioId:edificioIdGlobal,
-servicioId:ordenId,
-fecha:serverTimestamp(),
-tecnico:auth.currentUser.displayName || "Tecnico",
-tecnico_uid:auth.currentUser.uid,
-resumen:document.getElementById("obs-finales")?.value,
-materiales_utilizados:MaterialesTemporales
 
-});
-
-showToast("Orden finalizada");
+showToast("Servicio cerrado");
 
 window.location.reload();
 
 }catch(e){
 
-console.error(e);
-
-showToast(e.message,true);
-
-}finally{
-
-setButtonLoading(btn,false,originalText);
+showToast("Error cierre",true);
 
 }
 
-}
+setButtonLoading(btn,false);
 
-window.finalizarOrden = finalizarOrden;
+};
 
 
-// ======================================================
-// PREVIEW IMAGEN
-// ======================================================
 
-function previewImg(input,divId){
+/* =====================================================
+PREVIEW IMAGEN
+===================================================== */
 
-const file = input.files[0];
+window.previewImg=(input,id)=>{
+
+const file=input.files[0];
 
 if(!file) return;
 
-const reader = new FileReader();
+const reader=new FileReader();
 
-reader.onload = e => {
+reader.onload=e=>{
 
-document.getElementById(divId).innerHTML =
-`<img src="${e.target.result}" class="w-full h-full object-cover rounded">`;
+document.getElementById(id).innerHTML=
+
+`<img src="${e.target.result}" class="w-full h-full object-cover rounded-xl">`;
 
 };
 
 reader.readAsDataURL(file);
 
-}
-
-window.previewImg = previewImg;
+};
 
 
-// ======================================================
-// CIERRE RUTINA DIARIA
-// ======================================================
 
-async function finalizarRutinaDiaria(){
-
-const total = rutinaDiariaTareas.length;
-const completadas = rutinaCompletadaIds.size;
-
-if(completadas < total){
-
-alert(`Faltan ${total-completadas} tareas`);
-
-return;
-
-}
-
-if(!confirm("Cerrar bitácora de rutina diaria?")) return;
-
-const btn = document.getElementById("btnFinalizarRutina");
-
-setButtonLoading(btn,true,"FINALIZANDO");
-
-try{
-
-await addDoc(collection(db,"bitacora_edificios"),{
-
-edificioId:edificioIdGlobal,
-
-servicioId:`RUTINA-${new Date().toISOString().split("T")[0]}`,
-
-fecha:serverTimestamp(),
-
-tecnico:auth.currentUser.displayName || "Tecnico",
-
-tecnico_uid:auth.currentUser.uid,
-
-resumen:`Rutina preventiva completada ${completadas}/${total}`,
-
-tipo:"RUTINA_PREVENTIVA"
-
-});
-
-showToast("Rutina cerrada");
-
-btn.innerHTML="RUTINA CERRADA";
-btn.disabled=true;
-
-}catch(e){
-
-console.error(e);
-showToast("Error cerrando rutina",true);
-
-setButtonLoading(btn,false,"FINALIZAR");
-
-}
-
-}
-
-window.finalizarRutinaDiaria = finalizarRutinaDiaria;
+/* =====================================================
+FIN ARCHIVO
+GESTIA PREMIUM V5.22
+===================================================== */
