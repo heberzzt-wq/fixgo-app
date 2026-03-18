@@ -59,12 +59,22 @@ let isOnline=navigator.onLine;
 
 window.addEventListener("online",()=>{
 isOnline=true;
+const badge = document.getElementById("networkBadge");
+if(badge){
+badge.innerText = "ONLINE";
+badge.className = "badge-online";
+}
 showToast("Conexión restaurada");
 procesarSyncPendiente();
 });
 
 window.addEventListener("offline",()=>{
 isOnline=false;
+const badge = document.getElementById("networkBadge");
+if(badge){
+badge.innerText = "OFFLINE";
+badge.className = "badge-offline";
+}
 showToast("Modo Offline activado",true);
 });
 
