@@ -1,24 +1,117 @@
+/**
+ * =====================================================
+ * GESTIA PREMIUM - NOC B2B CABINA DE MANDO
+ * VERSION: 5.24 (Step 1: Cache Engine & Data Sync)
+ * Lead Architect: Heberto Mendoza
+ * =====================================================
+ */
+
 import { auth, db, doc, getDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, serverTimestamp, query, where, orderBy, limit, setDoc, app } from "./firebase.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 let adminContext = null; 
 
-console.log("⚡ GESTIA MASTER: NOC B2B Cabina de Mando v5.19 Online.");
+/* =====================================================
+   ESTADO GLOBAL & RED
+   ===================================================== */
+let isOnline = navigator.onLine;
+
+window.addEventListener("online", () => {
+    isOnline = true;
+    console.log("🟢 Conexión restablecida - Sincronizando NOC...");
+    if(adminContext?.edificioId) sincronizarHistorialConFirestore(adminContext.edificioId);
+});
+
+window.addEventListener("offline", () => {
+    isOnline = false;
+    console.log("🔴 NOC en modo Offline - Usando Cache Local");
+});
+
+/* =====================================================
+   INDEXED DB CACHE ENGINE (NUEVO PASO 1)
+   ===================================================== */
+const DB_NAME = "gestia_cache";
+const DB_VERSION = 2; // Mantener versión para compatibilidad con el engine del técnico
+let localDB;
+
+function initLocalDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onupgradeneeded = e => {
+            const db = e.target.result;
+            // Creamos los almacenes si no existen (Cajones de las capturas)
+            if (!db.objectStoreNames.contains("tareas")) {
+                db.createObjectStore("tareas", { keyPath: "id" });
+            }
+            if (!db.objectStoreNames.contains("historial")) {
+                db.createObjectStore("historial", { keyPath: "id" });
+            }
+            if (!db.objectStoreNames.contains("sync_queue")) {
+                db.createObjectStore("sync_queue", { autoIncrement: true });
+            }
+            if (!db.objectStoreNames.contains("fotos_pendientes")) {
+                db.createObjectStore("fotos_pendientes", { autoIncrement: true });
+            }
+        };
+
+        request.onsuccess = e => {
+            localDB = e.target.result;
+            console.log("📦 IndexedDB inicializada en Admin NOC");
+            resolve();
+        };
+
+        request.onerror = e => {
+            console.error("❌ Error al abrir IndexedDB", e);
+            reject(e);
+        };
+    });
+}
+
+function cacheGuardar(store, data) {
+    return new Promise((resolve, reject) => {
+        if(!localDB) return resolve();
+        const tx = localDB.transaction(store, "readwrite");
+        const objectStore = tx.objectStore(store);
+        objectStore.put(data);
+        tx.oncomplete = resolve;
+        tx.onerror = reject;
+    });
+}
+
+function cacheLeerTodos(store) {
+    return new Promise((resolve, reject) => {
+        if(!localDB) return resolve([]);
+        const tx = localDB.transaction(store, "readonly");
+        const objectStore = tx.objectStore(store);
+        const req = objectStore.getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = reject;
+    });
+}
+
+function cacheLimpiar(store) {
+    return new Promise((resolve, reject) => {
+        if(!localDB) return resolve();
+        const tx = localDB.transaction(store, "readwrite");
+        tx.objectStore(store).clear();
+        tx.oncomplete = resolve;
+        tx.onerror = reject;
+    });
+}
 
 // ======================================================
 // RELOJ EN TIEMPO REAL
 // ======================================================
-
 setInterval(() => {
     const clock = document.getElementById('clock');
     if(clock) clock.innerText = new Date().toLocaleTimeString('es-MX', { hour12: false });
 }, 1000);
 
 // ======================================================
-// 4. RADAR DE PLANTILLA (REPARADO: Inyección de Tabla)
+// 4. RADAR DE PLANTILLA
 // ======================================================
-
 function escucharPlantillaRealTime(edificioId) {
     const q = query(
         collection(db, "users"),
@@ -31,7 +124,6 @@ function escucharPlantillaRealTime(edificioId) {
 
         if (!tabla) return;
 
-        // Limpieza de UI
         tabla.innerHTML = "";
         select.innerHTML = '<option value="">-- Seleccionar Especialista --</option>';
 
@@ -41,10 +133,8 @@ function escucharPlantillaRealTime(edificioId) {
             const emp = docSnap.data();
             const empId = docSnap.id;
 
-            // Filtro de seguridad: No mostrar administradores en el radar operativo
             if(emp.rol === "admin_b2b" || emp.rol === "ceo" || emp.rol === "admin") return;
 
-            // 1. Llenado del Select de Despacho
             if (emp.rol === "tecnico" && emp.estado === "activo") {
                 tecnicosActivos++;
                 const opt = document.createElement("option");
@@ -53,7 +143,6 @@ function escucharPlantillaRealTime(edificioId) {
                 select.appendChild(opt);
             }
 
-            // 2. Inyección Visual en la Tabla (Lo que faltaba)
             const row = document.createElement("tr");
             row.className = "hover:bg-white/[0.02] transition-all text-xs border-b border-white/5";
             row.innerHTML = `
@@ -82,86 +171,104 @@ function escucharPlantillaRealTime(edificioId) {
 // ======================================================
 // 5. CONTADORES
 // ======================================================
-
 function conectarContadorTickets(edificioId) {
-
     const q = query(
         collection(db, "servicios_b2b"),
         where("edificioId", "==", edificioId),
         where("status", "in", ["pendiente", "programado", "en_proceso"])
     );
-
     onSnapshot(q, (snap) => {
-
         const label = document.getElementById("countOrdenesPendientes");
-
-        if (label) {
-            label.innerText = snap.size;
-        }
-
+        if (label) label.innerText = snap.size;
     });
-
 }
 
 function conectarContadorMantenimientosHoy(edificioId) {
-
     const q = query(
         collection(db, "servicios_b2b"),
         where("edificioId", "==", edificioId),
         where("status", "in", ["pendiente", "programado", "en_proceso"])
     );
-
     onSnapshot(q, (snap) => {
-
         const label = document.getElementById("countMantenimientosHoy");
-
-        if (label) {
-            label.innerText = snap.size;
-        }
-
+        if (label) label.innerText = snap.size;
     });
-
 }
+
 // ======================================================
-// 6. MONITOR DE BITÁCORA EN VIVO
+// 6. MONITOR DE BITÁCORA EN VIVO & SINCRONIZACIÓN DE HISTORIAL
 // ======================================================
 
-function escucharBitacoraRealTime(edificioId) {
+/**
+ * Función mejorada del Paso 1: Escucha servicios_b2b para tener TODA la data
+ * de Jonathan (fotos, materiales, etc.) y la guarda en historial local.
+ */
+async function sincronizarHistorialConFirestore(edificioId) {
+    if (!isOnline) return;
+
+    // Consultamos directamente los servicios finalizados (donde está el oro de la info)
     const q = query(
-        collection(db, "bitacora_edificios"), 
-        where("edificioId", "==", edificioId), 
-        orderBy("fecha", "desc"), 
-        limit(10)
+        collection(db, "servicios_b2b"),
+        where("edificioId", "==", edificioId),
+        where("status", "==", "finalizado"),
+        orderBy("fecha_cierre", "desc"),
+        limit(20)
     );
 
-    onSnapshot(q, (snap) => {
-        const feed = document.getElementById("feedBitacora");
-        if (!feed) return;
-        feed.innerHTML = "";
-
-        if (snap.empty) {
-            feed.innerHTML = `<p class="text-zinc-600 text-sm italic text-center pt-10">Esperando reportes de cierre...</p>`;
-            return;
+    onSnapshot(q, async (snap) => {
+        console.log(`🔄 Sincronizando ${snap.size} servicios al cache local...`);
+        
+        // No limpiamos todo, solo actualizamos/añadimos lo nuevo para que persista
+        for (const docSnap of snap.docs) {
+            const data = docSnap.data();
+            const id = docSnap.id;
+            
+            // Estructuramos el item para el historial local
+            const itemHistorial = {
+                id: id,
+                ...data,
+                tipo: "OT",
+                fecha_para_ordenar: data.fecha_cierre?.toDate() || new Date()
+            };
+            
+            await cacheGuardar("historial", itemHistorial);
         }
+        
+        renderizarHistorialDesdeCache();
+    });
+}
 
-        snap.forEach(docSnap => {
-            const log = docSnap.data();
-            const fecha = log.fecha ? log.fecha.toDate().toLocaleTimeString('es-MX') : '--:--';
+async function renderizarHistorialDesdeCache() {
+    const items = await cacheLeerTodos("historial");
+    const feed = document.getElementById("feedBitacora");
+    if (!feed) return;
 
-            const item = document.createElement("div");
-            item.className = "bg-zinc-900 p-3 rounded-xl border border-white/5";
-            item.innerHTML = `
-                <div class="flex justify-between items-start">
-                    <p class="text-sm font-bold text-white">${log.tecnico || 'Técnico'}</p>
-                    <span class="text-xs text-zinc-500">${fecha}</span>
-                </div>
-                <p class="text-xs text-zinc-400 mt-1 mb-2">Finalizó: ${log.resumen || 'Mantenimiento'}</p>
-                <button onclick="window.verDetalleBitacora('${log.servicioId}')" class="text-xs font-bold text-blue-400 hover:text-blue-300">
-                    [ Ver Foto/Firma ]
-                </button>
-            `;
-            feed.appendChild(item);
-        });
+    feed.innerHTML = "";
+
+    if (items.length === 0) {
+        feed.innerHTML = `<p class="text-zinc-600 text-sm italic text-center pt-10">Esperando reportes de cierre...</p>`;
+        return;
+    }
+
+    // Ordenamos por fecha de cierre más reciente
+    items.sort((a, b) => new Date(b.fecha_para_ordenar) - new Date(a.fecha_para_ordenar));
+
+    items.forEach(log => {
+        const fecha = log.fecha_para_ordenar ? new Date(log.fecha_para_ordenar).toLocaleTimeString('es-MX') : '--:--';
+
+        const item = document.createElement("div");
+        item.className = "bg-zinc-900 p-3 rounded-xl border border-white/5 mb-3";
+        item.innerHTML = `
+            <div class="flex justify-between items-start">
+                <p class="text-sm font-bold text-white">${log.tecnico_nombre || 'Especialista'}</p>
+                <span class="text-xs text-zinc-500">${fecha}</span>
+            </div>
+            <p class="text-xs text-zinc-400 mt-1 mb-2">Finalizó: ${log.descripcion || 'Mantenimiento'}</p>
+            <button onclick="window.verDetalleBitacora('${log.id}')" class="text-xs font-bold text-emerald-400 hover:text-emerald-300">
+                [ Ver Reporte Completo ]
+            </button>
+        `;
+        feed.appendChild(item);
     });
 }
 
@@ -169,10 +276,17 @@ function escucharBitacoraRealTime(edificioId) {
 window.verDetalleBitacora = async (servicioId) => {
     if (!servicioId) return;
     try {
-        const docSnap = await getDoc(doc(db, "servicios_b2b", servicioId));
-        if (!docSnap.exists()) return alert("No se encontró evidencia del servicio.");
+        // Primero intentamos leer de cache para velocidad
+        const items = await cacheLeerTodos("historial");
+        let data = items.find(i => i.id === servicioId);
+
+        // Si no está en cache, buscamos en Firestore
+        if(!data) {
+            const docSnap = await getDoc(doc(db, "servicios_b2b", servicioId));
+            if (!docSnap.exists()) return alert("No se encontró evidencia del servicio.");
+            data = docSnap.data();
+        }
         
-        const data = docSnap.data();
         const foto = data.foto_despues || 'https://via.placeholder.com/300?text=Sin+Foto';
         const firma = data.firma_conformidad || 'https://via.placeholder.com/300x100?text=Sin+Firma';
 
@@ -192,15 +306,13 @@ window.verDetalleBitacora = async (servicioId) => {
 };
 
 // ======================================================
-// 7. MONITOR DE AVANCE DE RUTINA (V5.19 - COMPLEMENTO)
+// 7. MONITOR DE AVANCE DE RUTINA (V5.19)
 // ======================================================
-
 function escucharAvanceRutina(edificioId) {
     const hoy = new Date().toISOString().split('T')[0];
     const dashboardRutinas = document.getElementById('dashboard-rutinas');
     if (!dashboardRutinas) return;
 
-    // 1. Monitoreamos los logs de tareas completadas hoy
     const q = query(
         collection(db, "log_rutinas"),
         where("edificioId", "==", edificioId),
@@ -208,10 +320,7 @@ function escucharAvanceRutina(edificioId) {
     );
 
     onSnapshot(q, async (logSnapshot) => {
-        // Creamos un Set con los IDs de tareas terminadas para comparar rápido
         const completadasHoyIds = new Set(logSnapshot.docs.map(d => d.data().tareaId));
-        
-        // 2. Traemos el Plan Maestro (el que acabas de sincronizar con el JSON)
         const rutinaSnap = await getDoc(doc(db, "config_rutinas", edificioId));
 
         if (!rutinaSnap.exists()) {
@@ -224,7 +333,7 @@ function escucharAvanceRutina(edificioId) {
         }
 
         const rutinaMaster = rutinaSnap.data();
-        const tareasDiarias = rutinaMaster.Diaria || []; // Ajusta según la estructura de tu JSON
+        const tareasDiarias = rutinaMaster.Diaria || []; 
         const totalTareas = tareasDiarias.length;
         
         let conteoCompletadas = 0;
@@ -234,10 +343,8 @@ function escucharAvanceRutina(edificioId) {
             }
         });
 
-        // 3. Cálculo de porcentaje para el gráfico SVG
         const porcentaje = totalTareas > 0 ? Math.round((conteoCompletadas / totalTareas) * 100) : 0;
 
-        // 4. Inyección de UI en el Dashboard
         dashboardRutinas.innerHTML = `
             <h4 class="text-[10px] font-black uppercase text-zinc-500 mb-4 tracking-widest flex items-center gap-2">
                 <i class="fas fa-chart-pie text-emerald-500"></i> Avance Rutina Preventiva (Hoy)
@@ -270,161 +377,96 @@ function escucharAvanceRutina(edificioId) {
 }
 
 // ======================================================
-// IMPORTADOR DE PLAN MAESTRO (FIX ROBUSTO)
+// IMPORTADOR DE PLAN MAESTRO
 // ======================================================
-
 window.importarRutinaMaestra = async () => {
-
     if (!adminContext?.edificioId) {
         return alert("❌ ERROR: El contexto del edificio no ha cargado correctamente.");
     }
 
-    const confirmacion = confirm(
-        `¿Deseas importar el plan maestro para ${
-            adminContext.edificioNombre || "este edificio"
-        }?\n\nEsto actualizará las rutinas diarias, semanales y mensuales.`
-    );
-
+    const confirmacion = confirm(`¿Deseas importar el plan maestro?`);
     if (!confirmacion) return;
 
     const btn = document.activeElement;
-
     const originalHTML = btn.innerHTML;
 
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SINCRONIZANDO...';
 
     try {
-
         const response = await fetch('./mantenimiento_edificio.json');
-
-        if (!response.ok) {
-            throw new Error(
-                `HTTP ${response.status}. Verifica que mantenimiento_edificio.json exista en la raíz.`
-            );
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}.`);
 
         const rutinaData = await response.json();
-
         const rutinaRef = doc(db, "config_rutinas", adminContext.edificioId);
 
-        await setDoc(
-            rutinaRef,
-            {
-                ...rutinaData,
-
-                edificioId: adminContext.edificioId,
-
-                lastUpdated: serverTimestamp(),
-
-                updatedBy: auth.currentUser.uid,
-
-                version_core: "5.19"
-            },
-            { merge: true }
-        );
-
-        console.log(
-            "✅ Plan Maestro guardado en config_rutinas/" +
-            adminContext.edificioId
-        );
+        await setDoc(rutinaRef, {
+            ...rutinaData,
+            edificioId: adminContext.edificioId,
+            lastUpdated: serverTimestamp(),
+            updatedBy: auth.currentUser.uid,
+            version_core: "5.24"
+        }, { merge: true });
 
         alert("✅ SINCRONIZACIÓN EXITOSA");
-
     } catch (error) {
-
-        console.error("❌ Error Crítico:", error);
-
-        alert(
-            `❌ ERROR DE SINCRONIZACIÓN\n\n${error.message}\n\nRevisa el JSON.`
-        );
-
+        alert(`❌ ERROR: ${error.message}`);
     } finally {
-
         btn.innerHTML = originalHTML;
         btn.disabled = false;
-
     }
-
 };
 
 // ======================================================
 // LOGOUT
 // ======================================================
-
 window.logout = () => auth.signOut();
 
 // ======================================================
-// 1. MONITOR DE ACCESO MASTER & CONTEXTO B2B (FIX)
+// 1. MONITOR DE ACCESO & INICIO DE CACHE
 // ======================================================
-
-auth.onAuthStateChanged((userAuth) => {
-
+auth.onAuthStateChanged(async (userAuth) => {
     if (!userAuth) {
         window.location.href = "login.html";
         return;
     }
 
-    // Escuchamos el perfil del usuario en tiempo real
-    onSnapshot(doc(db, "users", userAuth.uid), (docSnap) => {
+    // PASO 1: Inicializamos la base de datos local del Admin
+    await initLocalDB();
 
-        if (!docSnap.exists()) {
-            console.error("⛔ Perfil no encontrado en Firestore.");
-            return;
-        }
+    onSnapshot(doc(db, "users", userAuth.uid), (docSnap) => {
+        if (!docSnap.exists()) return;
 
         adminContext = docSnap.data();
 
-        // ------------------------------------------------
-        // REGLA DE SEGURIDAD
-        // ------------------------------------------------
-
         if (!adminContext.edificioId) {
-
-            console.error("⛔ ERROR CRÍTICO: Admin B2B sin edificioId.");
-
-            alert(
-                "⚠️ PERFIL INCOMPLETO:\n" +
-                "Tu usuario no está vinculado a ningún edificio.\n\n" +
-                "Contacta a soporte para completar la vinculación."
-            );
-
             document.getElementById("panelAdminB2B").classList.add("hidden");
             return;
         }
 
-        // ------------------------------------------------
-        // ACTIVACIÓN DE UI
-        // ------------------------------------------------
-
         document.getElementById("panelAdminB2B").classList.remove("hidden");
 
-        // Normalización de nombre
-        const nombreEdificio =
-            adminContext.edificioNombre ||
-            adminContext.nombre_edificio ||
-            "EDIFICIO SIN NOMBRE";
-
+        const nombreEdificio = adminContext.edificioNombre || adminContext.nombre_edificio || "EDIFICIO SIN NOMBRE";
         const lbl = document.getElementById("lblNombreEdificio");
         if (lbl) lbl.innerText = nombreEdificio.toUpperCase();
 
+        // Lanzamos el render inicial desde cache (Rápido)
+        renderizarHistorialDesdeCache();
 
-        // ------------------------------------------------
-        // DISPARO DE MONITORES
-        // ------------------------------------------------
-
+        // Disparamos monitores
         escucharPlantillaRealTime(adminContext.edificioId);
         conectarContadorTickets(adminContext.edificioId);
         conectarContadorMantenimientosHoy(adminContext.edificioId);
-        escucharBitacoraRealTime(adminContext.edificioId);
+        
+        // El Paso 1 principal: Sincronizar el historial de servicios_b2b al cache
+        sincronizarHistorialConFirestore(adminContext.edificioId);
+        
         escucharAvanceRutina(adminContext.edificioId);
-
     });
-
 });
 
 // ======================================================
-// 2. REGISTRO DE ACTIVOS HUMANOS (VERSIÓN BYPASS B2B)
+// 2. REGISTRO DE ACTIVOS HUMANOS
 // ======================================================
 document.getElementById("formAltaPersonal").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -436,69 +478,47 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
     const nombreInput = document.getElementById("regNombre").value.trim();
     const emailInput = document.getElementById("regCorreo").value.trim().toLowerCase();
     const rolInput = document.getElementById("regRol").value;
-    const passwordTemp = "123456"; // 🔥 INYECCIÓN: Contraseña corporativa por defecto
+    const passwordTemp = "123456";
 
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> CREANDO CUENTA OFICIAL...';
+    btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> CREANDO CUENTA...';
 
     try {
-        // 1. MAGIA B2B: Crear usuario en Firebase Auth usando la App Secundaria
         const secondaryApp = initializeApp(app.options, "SecondaryApp" + Date.now());
         const secondaryAuth = getAuth(secondaryApp);
         
         const userCredential = await createUserWithEmailAndPassword(secondaryAuth, emailInput, passwordTemp);
         const nuevoUid = userCredential.user.uid;
-        
-        // Desconectamos la app secundaria para no interferir con la sesión actual del Admin
         await signOut(secondaryAuth);
 
-        // 2. Crear el perfil en Firestore AMARRADO al UID real
         const nuevoEmpleado = {
-            // Datos Personales
             nombre: nombreInput,
             telefono: document.getElementById("regTelefono").value.trim(),
             email: emailInput,
-            
-            // Atributos Operativos
             rol: rolInput,
-            tipo_cuenta: "B2B", // 🛡️ EL ESCUDO CONTRA EL FLUJO B2C
+            tipo_cuenta: "B2B",
             especialidad: document.getElementById("regEspecialidad").value,
             tecnico_vehiculo: "N/A",
             tecnico_placas: "N/A",
-            
-            // Contexto B2B
             edificioId: adminContext.edificioId,
             edificioNombre: adminContext.edificioNombre || "Edificio B2B",
-            
-            // 🚀 BANDERAS DE BYPASS (Salta la aprobación del CEO y el Expediente)
             estado: "activo",
             status: "activo",
             disponible: true,
             verificado: true,
             aprobado: true, 
             aprobadoPor: "admin_b2b",
-            expediente_completo: true, // Evita que la app le pida subir documentos
-            
+            expediente_completo: true,
             fecha_registro: serverTimestamp()
         };
 
-        // En lugar de addDoc, usamos setDoc con el UID correcto
         await setDoc(doc(db, "users", nuevoUid), nuevoEmpleado);
-
-        console.log(`✅ Nuevo técnico B2B ${nombreInput} asignado con UID: ${nuevoUid}`);
-        alert(`🚀 ¡ÉXITO!\n${nombreInput.toUpperCase()} ha sido dado de alta oficialmente en GestiaPremium.\n\n📧 Correo: ${emailInput}\n🔑 Contraseña temporal: ${passwordTemp}\n\nInstruye al técnico a INICIAR SESIÓN (no registrarse).`);
-
-        // CIERRE Y LIMPIEZA
+        alert(`🚀 ¡ÉXITO! Técnico ${nombreInput} registrado.`);
         document.getElementById("modalAltaPersonal").classList.add("hidden"); 
         document.getElementById("formAltaPersonal").reset();
 
     } catch (err) {
-        console.error("Error en Alta B2B:", err);
-        if (err.code === "auth/email-already-in-use") {
-            alert("❌ ERROR: Ese correo ya existe en la plataforma. Dile al técnico que use otro o bórralo primero desde Firebase Auth.");
-        } else {
-            alert("❌ Error al registrar. Revisa la consola.");
-        }
+        alert("❌ Error al registrar.");
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
@@ -508,57 +528,41 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
 // ======================================================
 // 3. DESPACHO DE ORDENES DE TRABAJO
 // ======================================================
-
 document.getElementById("formTicketB2B").addEventListener("submit", async (e) => {
-
     e.preventDefault();
     if (!adminContext) return;
 
     const btn = document.getElementById("btnCrearTicket");
-
     btn.disabled = true;
     btn.innerHTML = "ENVIANDO ORDEN...";
 
-    const ticketData = {
+    const tecnicoSelect = document.getElementById("tickAsignado");
+    const tecnicoNombre = tecnicoSelect.options[tecnicoSelect.selectedIndex].text;
 
+    const ticketData = {
         edificioId: adminContext.edificioId,
         edificioNombre: adminContext.edificioNombre,
-
         ubicacion_especifica: document.getElementById("tickPunto").value.trim(),
         descripcion: document.getElementById("tickDesc").value.trim(),
-
         prioridad: document.getElementById("tickPrioridad").value,
-        tecnicoId: document.getElementById("tickAsignado").value,
-
+        tecnicoId: tecnicoSelect.value,
+        tecnico_nombre: tecnicoNombre, // Guardamos nombre para el cache del admin
         status: "programado",
-
         fecha_programada: new Date().toISOString().split('T')[0],
-
         equipo_nombre: "Mantenimiento General",
         tipo: "mantenimiento",
-
         fecha_creacion: serverTimestamp(),
-
         creado_por: auth.currentUser.uid
     };
 
     try {
-
         await addDoc(collection(db, "servicios_b2b"), ticketData);
-
         alert("🚀 ORDEN DESPACHADA");
-
         document.getElementById("formTicketB2B").reset();
-
     } catch (err) {
-
         alert("❌ Error al despachar orden.");
-
     } finally {
-
         btn.disabled = false;
         btn.innerHTML = "Despachar Orden de Trabajo";
-
     }
-
 });
