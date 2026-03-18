@@ -197,15 +197,33 @@ await cacheGuardar("sync_queue",data);
 
 }
 
+/**
+ * Guarda fotos en IndexedDB convirtiéndolas a Base64.
+ * Evita problemas de serialización de objetos File/Blob.
+ */
 async function guardarFotoOffline(data){
 
+// 1. Convertimos el archivo a Base64 antes de tocar la DB
+const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(data.file);
+});
+
+// 2. Guardamos en el store con la transacción limpia
 return new Promise((resolve,reject)=>{
 
 const tx=localDB.transaction("fotos_pendientes","readwrite");
 
 const store=tx.objectStore("fotos_pendientes");
 
-store.add(data);
+store.add({
+    tipo: data.tipo,
+    ordenId: data.ordenId,
+    timestamp: data.timestamp,
+    base64: base64
+});
 
 tx.oncomplete=resolve;
 tx.onerror=reject;
@@ -250,6 +268,10 @@ await cacheLimpiar("sync_queue");
 
 }
 
+/**
+ * Procesa fotos pendientes convirtiendo Base64 de vuelta a Blob
+ * para ser compatible con uploadBytes de Firebase.
+ */
 async function procesarFotosPendientes(){
 
 if(!isOnline) return;
@@ -275,7 +297,11 @@ const path=`evidencias/${foto.ordenId}/${foto.tipo}_${foto.timestamp}.jpg`;
 
 const storageRef=ref(storage,path);
 
-await uploadBytes(storageRef,foto.file);
+// Convertimos el Base64 almacenado a Blob para la subida
+const response = await fetch(foto.base64);
+const blob = await response.blob();
+
+await uploadBytes(storageRef, blob);
 
 const url=await getDownloadURL(storageRef);
 
@@ -648,7 +674,8 @@ return;
 }
 
 
-snapshot.forEach(async(docSnap)=>{
+// CORRECCIÓN PUNTO 3: Bucle for...of para asegurar AWAIT
+for(const docSnap of snapshot.docs){
 
 const tarea=docSnap.data();
 
@@ -660,11 +687,108 @@ await cacheGuardar("tareas",data);
 
 window.tareasDiariasGlobal[id]=tarea;
 
-});
+}
 
 renderizarTareas(await cacheLeerTodos("tareas"));
 
 });
+
+}
+/* =====================================================
+SINCRONIZACIÓN PLAN MAESTRO RUTINAS
+===================================================== */
+
+/**
+ * Trigger de carga para rutinas preventivas.
+ * Valida edificio y conexión antes de sincronizar.
+ */
+async function cargarRutinaPreventiva(){
+
+if(!edificioIdGlobal) return;
+
+if(!isOnline) return;
+
+try{
+
+await sincronizarRutinasMaestras();
+
+}catch(e){
+
+console.error("Error rutinas preventivas",e);
+
+}
+
+}
+
+
+async function sincronizarRutinasMaestras(){
+
+if(!isOnline) return;
+
+const inicioDia=new Date();
+
+inicioDia.setHours(0,0,0,0);
+
+const qCheck=query(
+
+collection(db,"servicios_b2b"),
+
+where("edificioId","==",edificioIdGlobal),
+
+where("fecha_creacion",">=",inicioDia),
+
+where("origen","==","sistema_rutinas")
+
+);
+
+const snap=await getDocs(qCheck);
+
+if(!snap.empty){
+
+return;
+
+}
+
+
+const rutinaRef=doc(db,"config_rutinas",edificioIdGlobal);
+
+const rutinaSnap=await getDoc(rutinaRef);
+
+if(!rutinaSnap.exists()) return;
+
+const master=rutinaSnap.data();
+
+let tareas=[];
+
+if(master.Diaria) tareas.push(...master.Diaria);
+
+if(tareas.length===0) return;
+
+
+const promesas=tareas.map(t=>{
+
+return addDoc(collection(db,"servicios_b2b"),{
+
+edificioId:edificioIdGlobal,
+
+descripcion:t.descripcion,
+
+equipo:t.equipo,
+
+status:"pendiente",
+
+origen:"sistema_rutinas",
+
+fecha_creacion:serverTimestamp()
+
+});
+
+});
+
+
+await Promise.all(promesas);
+
+showToast("Rutinas sincronizadas");
 
 }
 
@@ -924,82 +1048,6 @@ contenedor.appendChild(div);
 
 }
 
-
-
-/* =====================================================
-SINCRONIZACIÓN PLAN MAESTRO RUTINAS
-===================================================== */
-
-async function sincronizarRutinasMaestras(){
-
-if(!isOnline) return;
-
-const inicioDia=new Date();
-
-inicioDia.setHours(0,0,0,0);
-
-const qCheck=query(
-
-collection(db,"servicios_b2b"),
-
-where("edificioId","==",edificioIdGlobal),
-
-where("fecha_creacion",">=",inicioDia),
-
-where("origen","==","sistema_rutinas")
-
-);
-
-const snap=await getDocs(qCheck);
-
-if(!snap.empty){
-
-return;
-
-}
-
-
-const rutinaRef=doc(db,"config_rutinas",edificioIdGlobal);
-
-const rutinaSnap=await getDoc(rutinaRef);
-
-if(!rutinaSnap.exists()) return;
-
-const master=rutinaSnap.data();
-
-let tareas=[];
-
-if(master.Diaria) tareas.push(...master.Diaria);
-
-if(tareas.length===0) return;
-
-
-const promesas=tareas.map(t=>{
-
-return addDoc(collection(db,"servicios_b2b"),{
-
-edificioId:edificioIdGlobal,
-
-descripcion:t.descripcion,
-
-equipo:t.equipo,
-
-status:"pendiente",
-
-origen:"sistema_rutinas",
-
-fecha_creacion:serverTimestamp()
-
-});
-
-});
-
-
-await Promise.all(promesas);
-
-showToast("Rutinas sincronizadas");
-
-}
 /* =====================================================
 SELECCIONAR TAREA
 ===================================================== */
@@ -1027,11 +1075,15 @@ PASO 1 DIAGNOSTICO
 
 window.enviarDiagnostico = async()=>{
 
-const diag=document.getElementById("diagInput").value.trim();
+const diagInput = document.getElementById("diagInput");
+const fileAntes = document.getElementById("fileAntes");
 
-const file=document.getElementById("fileAntes").files[0];
+if(!diagInput || !fileAntes) return;
 
-const btn=document.querySelector('#step1 button[onclick="enviarDiagnostico()"]');
+const diag = diagInput.value.trim();
+const file = fileAntes.files[0];
+
+const btn = document.querySelector('#step1 button[onclick="enviarDiagnostico()"]');
 
 if(!diag || !file){
 
@@ -1045,16 +1097,16 @@ setButtonLoading(btn,true);
 
 try{
 
-let urlAntes=null;
+let urlAntes = null;
 
 if(isOnline){
 
-const path=`evidencias/${ordenId}/antes_${Date.now()}.jpg`;
-const storageRef=ref(storage,path);
+const path = `evidencias/${ordenId}/antes_${Date.now()}.jpg`;
+const storageRef = ref(storage,path);
 
 await uploadBytes(storageRef,file);
 
-urlAntes=await getDownloadURL(storageRef);
+urlAntes = await getDownloadURL(storageRef);
 
 }else{
 
@@ -1067,7 +1119,7 @@ timestamp:Date.now()
 
 }
 
-const dataUpdate={
+const dataUpdate = {
 
 diagnostico_inicial:diag,
 
@@ -1101,9 +1153,11 @@ data:dataUpdate
 }
 
 
-document.getElementById("step1").classList.add("step-inactive");
+const step1 = document.getElementById("step1");
+if(step1) step1.classList.add("step-inactive");
 
-document.getElementById("step2").classList.remove("step-inactive");
+const step2 = document.getElementById("step2");
+if(step2) step2.classList.remove("step-inactive");
 
 showToast("Diagnóstico guardado");
 
@@ -1125,9 +1179,13 @@ PASO 2 MATERIALES
 
 window.agregarMaterial = ()=>{
 
-const nombre=document.getElementById("mat-nombre").value.trim();
+const matNombreInput = document.getElementById("mat-nombre");
+const matCantidadInput = document.getElementById("mat-cantidad");
 
-const cantidad=document.getElementById("mat-cantidad").value;
+if(!matNombreInput || !matCantidadInput) return;
+
+const nombre = matNombreInput.value.trim();
+const cantidad = matCantidadInput.value;
 
 if(!nombre || !cantidad) return;
 
@@ -1143,9 +1201,8 @@ id:Date.now()
 
 renderizarMateriales();
 
-document.getElementById("mat-nombre").value="";
-
-document.getElementById("mat-cantidad").value="";
+matNombreInput.value = "";
+matCantidadInput.value = "";
 
 };
 
@@ -1153,17 +1210,19 @@ document.getElementById("mat-cantidad").value="";
 
 function renderizarMateriales(){
 
-const lista=document.getElementById("lista-materiales-acumulados");
+const lista = document.getElementById("lista-materiales-acumulados");
 
-lista.innerHTML="";
+if(!lista) return;
+
+lista.innerHTML = "";
 
 MaterialesTemporales.forEach(m=>{
 
-const div=document.createElement("div");
+const div = document.createElement("div");
 
-div.className="flex justify-between bg-zinc-900 p-2 rounded";
+div.className = "flex justify-between bg-zinc-900 p-2 rounded";
 
-div.innerHTML=`
+div.innerHTML = `
 
 <span>${m.cantidad}x ${m.nombre}</span>
 
@@ -1179,9 +1238,9 @@ lista.appendChild(div);
 
 
 
-window.removerMaterial=(id)=>{
+window.removerMaterial = (id)=>{
 
-MaterialesTemporales=MaterialesTemporales.filter(m=>m.id!==id);
+MaterialesTemporales = MaterialesTemporales.filter(m=>m.id!==id);
 
 renderizarMateriales();
 
@@ -1189,15 +1248,15 @@ renderizarMateriales();
 
 
 
-window.confirmarMateriales=async()=>{
+window.confirmarMateriales = async()=>{
 
-const btn=document.querySelector('#step2 button[onclick="confirmarMateriales()"]');
+const btn = document.querySelector('#step2 button[onclick="confirmarMateriales()"]');
 
 setButtonLoading(btn,true);
 
 try{
 
-const dataUpdate={
+const dataUpdate = {
 
 materiales_utilizados:MaterialesTemporales
 
@@ -1225,9 +1284,11 @@ data:dataUpdate
 }
 
 
-document.getElementById("step2").classList.add("step-inactive");
+const step2 = document.getElementById("step2");
+if(step2) step2.classList.add("step-inactive");
 
-document.getElementById("step3").classList.remove("step-inactive");
+const step3 = document.getElementById("step3");
+if(step3) step3.classList.remove("step-inactive");
 
 showToast("Materiales guardados");
 
@@ -1247,13 +1308,17 @@ setButtonLoading(btn,false);
 PASO 3 EVIDENCIA FINAL
 ===================================================== */
 
-window.subirEvidenciaFinal=async()=>{
+window.subirEvidenciaFinal = async()=>{
 
-const file=document.getElementById("fileDespues").files[0];
+const fileDespuesInput = document.getElementById("fileDespues");
+const obsFinalesInput = document.getElementById("obs-finales");
 
-const obs=document.getElementById("obs-finales").value.trim();
+if(!fileDespuesInput || !obsFinalesInput) return;
 
-const btn=document.getElementById("btnUploadDespues");
+const file = fileDespuesInput.files[0];
+const obs = obsFinalesInput.value.trim();
+
+const btn = document.getElementById("btnUploadDespues");
 
 if(!file || !obs){
 
@@ -1267,17 +1332,17 @@ setButtonLoading(btn,true);
 
 try{
 
-let urlDespues=null;
+let urlDespues = null;
 
 if(isOnline){
 
-const path=`evidencias/${ordenId}/despues_${Date.now()}.jpg`;
+const path = `evidencias/${ordenId}/despues_${Date.now()}.jpg`;
 
-const storageRef=ref(storage,path);
+const storageRef = ref(storage,path);
 
 await uploadBytes(storageRef,file);
 
-urlDespues=await getDownloadURL(storageRef);
+urlDespues = await getDownloadURL(storageRef);
 
 }else{
 
@@ -1290,7 +1355,7 @@ timestamp:Date.now()
 
 }
 
-const dataUpdate={
+const dataUpdate = {
 
 foto_despues:urlDespues,
 
@@ -1319,9 +1384,11 @@ data:dataUpdate
 
 }
 
-document.getElementById("step3").classList.add("step-inactive");
+const step3 = document.getElementById("step3");
+if(step3) step3.classList.add("step-inactive");
 
-document.getElementById("step4").classList.remove("step-inactive");
+const step4 = document.getElementById("step4");
+if(step4) step4.classList.remove("step-inactive");
 
 initSignaturePad();
 
@@ -1336,8 +1403,6 @@ showToast("Error evidencia",true);
 setButtonLoading(btn,false);
 
 };
-
-
 
 /* =====================================================
 FIRMA MOVIL
