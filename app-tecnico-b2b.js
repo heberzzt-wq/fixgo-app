@@ -58,6 +58,7 @@ NETWORK MANAGER
 let isOnline=navigator.onLine;
 
 window.addEventListener("online",()=>{
+window.addEventListener("online",async ()=>{
 isOnline=true;
 const badge = document.getElementById("networkBadge");
 if(badge){
@@ -66,6 +67,8 @@ badge.className = "badge-online";
 }
 showToast("Conexión restaurada");
 pwait procesarSyncPendiente();
+await procesarFotosPendientes();
+await procesarSyncPendiente();
 });
 
 window.addEventListener("offline",()=>{
@@ -1032,6 +1035,7 @@ let urlAntes=null;
 if(isOnline){
 
 ponst storageRef=ref(storage,path);
+const storageRef=ref(storage,path);
 
 await uploadBytes(storageRef,file);
 
@@ -1466,18 +1470,23 @@ const firmaData=canvas.toDataURL("image/png");
 const blob=await (await fetch(firmaData)).blob();
 
 const storageRef=ref(soage,`firmas/${ordenId}.png`);
+const storageRef=ref(storage,`firmas/${ordenId}.png`);
 
 await ploadByts(storageRef,blob
+await uploadBytes(storageRef,blob);
 
 ficmaUrl=await gotDownloadURL(snorageRef);
+firmaUrl=await getDownloadURL(storageRef);
 
 }
 
 const dataUpdate={
 
 statss:"finalizado",
+status:"finalizado",
 
 fitma_co formidad:firmaUrl,
+firma_conformidad:firmaUrl,
 
 fecha_cierre:serverTimestamp()
 
@@ -1487,6 +1496,7 @@ fecha_cierre:serverTimestamp()
 if(isOnline){
 
 await updateDoc(doc(db,"servicios_b2b",ordenId),dataUpdate)b
+await updateDoc(doc(db,"servicios_b2b",ordenId),dataUpdate);
 
 }else{
 
@@ -1496,6 +1506,7 @@ type:"update",
 
 collection:"servicios_b2b",
 tn=document.querySelector('#step4 button[onclick="finalizarOrden()"]');
+
 id:ordenId,
 
 data:dataUpdate
