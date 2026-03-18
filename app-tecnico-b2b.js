@@ -1,7 +1,7 @@
 /**
  * GESTIA PREMIUM - V5.20
  * MOTOR DE OPERACIONES B2B (Uxmal 39)
- * FEATURE: Bottom Sheet OT y Navegación Inferior + Sincronización Automática
+ * FEATURE: Historial Unificado + Logout Scope Fix + Sincronización Automática
  * Lead Architect: Heberto Mendoza
  */
 
@@ -19,7 +19,8 @@ import {
     query,
     where,
     onSnapshot,
-    addDoc
+    addDoc,
+    signOut
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 import {
@@ -38,6 +39,16 @@ let rutinaDiariaTareas = []; // To keep track of tasks for the day
 let rutinaCompletadaIds = new Set(); // To track completed tasks
 window.tareasDiariasGlobal = {}; // NUEVO: Diccionario para guardar datos completos de la OT
 
+// --- MOTOR DE AUTENTICACIÓN ---
+window.logout = () => {
+    if (confirm("¿Estás seguro de que deseas cerrar tu sesión de técnico?")) {
+        signOut(auth).then(() => {
+            window.location.href = "login.html";
+        }).catch((error) => {
+            console.error("Error al cerrar sesión:", error);
+        });
+    }
+};
 // --- MOTOR DE NAVEGACIÓN (BOTTOM TABS) ---
 window.cambiarSeccion = (seccionDestino) => {
     const secciones = ['seccion-tareas', 'seccion-historial', 'seccion-perfil'];
@@ -52,6 +63,11 @@ window.cambiarSeccion = (seccionDestino) => {
             }
         }
     });
+
+    // 🔥 INYECCIÓN: Si vamos al historial, cargamos la data unificada.
+    if (seccionDestino === 'seccion-historial') {
+        cargarHistorialUnificado();
+    }
 };
 
 // --- MOTOR UI: BOTTOM SHEET (HOJA DE REPORTE OT) ---
@@ -202,7 +218,7 @@ async function validarPaseCaseta() {
     const userDoc = await getDoc(doc(db, "users", user.uid));
     const data = userDoc.data();
     
-    if (!data.tecnico_placas || data.tecnico_placas === "000-000" || data.tecnico_placas.trim() === "") {
+    if (!data.placas && !data.logistica?.placas) {
         alert("🚨 BLOQUEO DE SEGURIDAD: No tienes placas registradas. Jonathan, no puedes iniciar servicios sin datos de vehículo para el pase de caseta.");
         return false;
     }
@@ -262,6 +278,99 @@ auth.onAuthStateChanged(async (user) => {
         cargarRutinaPreventiva();
     }
 });
+
+// --- MOTOR DE HISTORIAL UNIFICADO (OTs + RUTINAS) ---
+async function cargarHistorialUnificado() {
+    const contenedor = document.getElementById("lista-historial-unificada");
+    if (!contenedor || !edificioIdGlobal) return;
+
+    contenedor.innerHTML = `<div class="p-8 mt-4 text-center text-zinc-600 text-[10px] font-bold uppercase tracking-widest border border-dashed border-zinc-800 rounded-2xl animate-pulse">
+        <i class="fas fa-sync fa-spin mb-2"></i> CARGANDO BITÁCORA COMPLETA...
+    </div>`;
+
+    try {
+        // 1. Definir ambas consultas
+        const qServicios = query(
+            collection(db, "servicios_b2b"),
+            where("edificioId", "==", edificioIdGlobal),
+            where("status", "==", "finalizado"),
+            orderBy("fecha_cierre", "desc"),
+            limit(50)
+        );
+
+        const qRutinas = query(
+            collection(db, "log_rutinas"),
+            where("edificioId", "==", edificioIdGlobal),
+            orderBy("timestamp", "desc"),
+            limit(100)
+        );
+
+        // 2. Ejecutar consultas en paralelo con Promise.all()
+        const [serviciosSnap, rutinasSnap] = await Promise.all([
+            getDocs(qServicios),
+            getDocs(qRutinas)
+        ]);
+
+        // 3. Mapear resultados a un formato común
+        const historialServicios = serviciosSnap.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                fecha: data.fecha_cierre?.toDate() || new Date(0),
+                tipo: 'OT',
+                titulo: data.equipo || 'Servicio Correctivo',
+                descripcion: data.observaciones_finales || data.diagnostico_inicial || 'Sin resumen.',
+                status: 'Finalizado',
+                color: 'border-blue-500/30 bg-blue-900/10'
+            };
+        });
+
+        const rutinaDescMap = new Map(rutinaDiariaTareas.map(t => [t.id_tarea, t.descripcion]));
+        const historialRutinas = rutinasSnap.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                fecha: data.timestamp?.toDate() || new Date(0),
+                tipo: 'RUTINA',
+                titulo: rutinaDescMap.get(data.tareaId) || 'Tarea de Rutina',
+                descripcion: `Tarea de rutina completada. Estado: ${data.status}`,
+                status: data.status === 'ok' ? 'OK' : 'Reportado',
+                color: data.status === 'ok' ? 'border-emerald-500/30 bg-emerald-900/10' : 'border-red-500/30 bg-red-900/10'
+            };
+        });
+
+        // 4. Combinar y ordenar
+        const historialCompleto = [...historialServicios, ...historialRutinas];
+        historialCompleto.sort((a, b) => b.fecha - a.fecha);
+
+        // 5. Renderizar
+        if (historialCompleto.length === 0) {
+            contenedor.innerHTML = `<div class="p-8 mt-4 text-center text-zinc-700 text-xs italic">No hay registros en tu historial.</div>`;
+            return;
+        }
+
+        contenedor.innerHTML = historialCompleto.map(item => `
+            <div class="p-4 rounded-2xl border ${item.color} mb-3">
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <p class="text-xs font-black uppercase ${item.tipo === 'OT' ? 'text-blue-400' : 'text-emerald-400'}">
+                            <i class="fas ${item.tipo === 'OT' ? 'fa-tools' : 'fa-clipboard-check'}"></i> ${item.tipo}: ${item.titulo}
+                        </p>
+                        <p class="text-[10px] text-zinc-500 font-bold">${item.fecha.toLocaleString()}</p>
+                    </div>
+                    <span class="text-[9px] font-bold bg-black/50 px-2 py-1 rounded border border-zinc-700">${item.status}</span>
+                </div>
+                <p class="text-xs text-zinc-300 italic">"${item.descripcion}"</p>
+            </div>
+        `).join('');
+
+    } catch (error) {
+        console.error("Error cargando historial unificado:", error);
+        contenedor.innerHTML = `<div class="p-4 mt-4 text-red-500 text-center text-[10px] font-bold border border-red-500/20 rounded-xl bg-red-500/5">
+            ERROR DE CONEXIÓN AL CARGAR LA BITÁCORA
+        </div>`;
+    }
+}
 
 // --- MOTOR DE SINCRONIZACIÓN AUTOMÁTICA (FALLBACK CLIENT-SIDE) ---
 async function sincronizarRutinasMaestras() {
