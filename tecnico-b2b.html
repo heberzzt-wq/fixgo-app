@@ -1,160 +1,452 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gestia Premium | Operaciones B2B</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
-    <style>
-        body { background: #000; color: #fff; font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
-        .step-inactive { opacity: 0.15; pointer-events: none; filter: grayscale(1); }
-        canvas { background: #111; border: 1px dashed #333; touch-action: none; }
-        .btn-step { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .glass-card { background: rgba(24, 24, 27, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.05); }
-        input, textarea, select { background: #000 !important; border: 1px solid #27272a !important; color: white !important; }
-        input:focus, textarea:focus { border-color: #10b981 !important; outline: none; }
-        
-        /* Animación para el Bottom Sheet que agregamos vía JS */
-        .translate-y-full { transform: translateY(100%); }
-        .translate-y-0 { transform: translateY(0); }
-    </style>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>Gestia Premium | Operaciones B2B</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+
+<style>
+
+body{
+background:#000;
+color:#fff;
+font-family:'Plus Jakarta Sans',sans-serif;
+overflow-x:hidden;
+}
+
+.step-inactive{
+opacity:.15;
+pointer-events:none;
+filter:grayscale(1);
+}
+
+canvas{
+background:#111;
+border:1px dashed #333;
+touch-action:none;
+}
+
+.glass-card{
+background:rgba(24,24,27,.8);
+backdrop-filter:blur(10px);
+border:1px solid rgba(255,255,255,.05);
+}
+
+input,textarea,select{
+background:#000!important;
+border:1px solid #27272a!important;
+color:white!important;
+}
+
+input:focus,textarea:focus{
+border-color:#10b981!important;
+outline:none;
+}
+
+.translate-y-full{
+transform:translateY(100%);
+}
+
+.touch-none{
+touch-action:none;
+}
+
+.skeleton{
+background:linear-gradient(
+90deg,
+#111 25%,
+#1f1f1f 37%,
+#111 63%
+);
+background-size:400% 100%;
+animation:skeleton 1.4s ease infinite;
+}
+
+@keyframes skeleton{
+0%{background-position:100% 50%}
+100%{background-position:0 50%}
+}
+
+</style>
+
 </head>
+
 <body class="p-4 pb-24">
 
-    <header class="mb-6">
-        <div class="flex justify-between items-center mb-4">
-            <div class="flex items-center gap-2">
-                <div class="w-6 h-6 bg-emerald-500 rounded-lg flex items-center justify-center font-black text-black text-[10px]">G</div>
-                <span class="font-black tracking-tighter text-sm uppercase">Gestia <span class="text-emerald-500">Premium</span></span>
-            </div>
-            <span class="text-[10px] bg-zinc-800 px-3 py-1 rounded-full font-bold text-zinc-400 tracking-tighter">V5.20 - B2B ENGINE</span>
-        </div>
 
-        <div id="headerOrden" class="p-4 glass-card rounded-2xl border-l-4 border-emerald-500">
-            <div class="flex justify-between items-start">
-                <div>
-                    <p class="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Edificio Uxmal 39</p>
-                    <h2 id="txtPunto" class="text-xl font-black italic uppercase leading-none">Mantenimiento <br> de Activos</h2>
-                </div>
-                <div class="text-right">
-                    <span id="txtPrioridad" class="text-[8px] px-2 py-1 rounded bg-red-500/20 text-red-500 font-black tracking-widest uppercase">SLA CRÍTICO</span>
-                </div>
-            </div>
-        </div>
-    </header>
+<!-- ====================================================== -->
+<!-- HEADER -->
+<!-- ====================================================== -->
 
-    <main id="seccion-tareas">
-        <section id="listaTareasHoy" class="mb-8">
-            <h3 class="text-[10px] font-black uppercase text-zinc-500 mb-4 tracking-widest"><i class="fas fa-calendar-check mr-2 text-emerald-500"></i>Tareas Programadas</h3>
-            <div id="contenedor-tareas-diarias" class="space-y-3">
-                </div>
-        </section>
+<header class="mb-6">
 
-        <section id="rutinaPreventiva" class="mb-8 hidden">
-            <h3 class="text-[10px] font-black uppercase text-zinc-500 mb-4 tracking-widest"><i class="fas fa-clipboard-list mr-2 text-blue-500"></i>Rutina Diaria (Preventivo)</h3>
-            <div id="checklist-rutinas" class="space-y-3">
-                </div>
-            <button id="btnFinalizarRutina" onclick="finalizarRutinaDiaria()" class="w-full mt-4 bg-zinc-900 border border-zinc-800 text-zinc-400 font-black py-4 rounded-xl text-[10px] uppercase tracking-widest">
-                Finalizar y Cerrar Rutina
-            </button>
-        </section>
+<div class="flex justify-between items-center mb-4">
 
-        <div id="flujoTecnico" class="space-y-6 hidden">
-            <div id="step1" class="glass-card p-6 rounded-3xl space-y-4">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-sm font-black uppercase tracking-tighter"><span class="text-emerald-500 mr-2">01</span> Diagnóstico</h3>
-                    <i class="fas fa-microscope text-zinc-700"></i>
-                </div>
-                <textarea id="diagInput" placeholder="Describe el estado inicial..." class="w-full rounded-xl p-4 text-sm h-28"></textarea>
-                <div id="previewAntes" class="w-full aspect-video bg-black rounded-xl border border-dashed border-zinc-800 flex items-center justify-center overflow-hidden">
-                    <i class="fas fa-camera text-2xl text-zinc-800"></i>
-                </div>
-                <input type="file" id="fileAntes" accept="image/*" capture="camera" class="hidden" onchange="previewImg(this, 'previewAntes')">
-                <div class="flex gap-2">
-                    <button onclick="document.getElementById('fileAntes').click()" class="w-1/3 bg-zinc-800 text-white font-black py-4 rounded-xl text-[10px] uppercase tracking-tighter">Foto</button>
-                    <button onclick="enviarDiagnostico()" class="w-2/3 bg-emerald-600 text-white font-black py-4 rounded-xl text-[10px] uppercase tracking-widest">Subir</button>
-                </div>
-            </div>
+<div class="flex items-center gap-2">
 
-            <div id="step2" class="step-inactive glass-card p-6 rounded-3xl space-y-4 text-orange-500">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-sm font-black uppercase tracking-tighter"><span>02</span> Insumos</h3>
-                    <i class="fas fa-box-open"></i>
-                </div>
-                <div class="grid grid-cols-3 gap-2">
-                    <input type="text" id="mat-nombre" placeholder="Nombre" class="col-span-2 p-3 text-[10px] rounded-lg">
-                    <input type="number" id="mat-cantidad" placeholder="Cant." class="p-3 text-[10px] rounded-lg">
-                </div>
-                <button onclick="agregarMaterial()" class="w-full bg-zinc-800 text-zinc-300 font-bold py-3 rounded-xl text-[10px] uppercase">+ Agregar</button>
-                <div id="lista-materiales-acumulados" class="space-y-2"></div>
-                <button onclick="confirmarMateriales()" class="w-full bg-orange-600 text-white font-black py-4 rounded-xl text-[10px] uppercase tracking-widest">Confirmar</button>
-            </div>
+<div class="w-6 h-6 bg-emerald-500 rounded-lg flex items-center justify-center font-black text-black text-[10px]">
+G
+</div>
 
-            <div id="step3" class="step-inactive glass-card p-6 rounded-3xl space-y-4 text-blue-500">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-sm font-black uppercase tracking-tighter"><span>03</span> Evidencia</h3>
-                    <i class="fas fa-check-double"></i>
-                </div>
-                <div id="previewDespues" class="w-full aspect-video bg-black rounded-xl border border-dashed border-zinc-800 flex items-center justify-center overflow-hidden">
-                    <i class="fas fa-tools text-2xl text-zinc-800"></i>
-                </div>
-                <input type="file" id="fileDespues" accept="image/*" capture="camera" class="hidden" onchange="previewImg(this, 'previewDespues')">
-                <textarea id="obs-finales" placeholder="Notas finales..." class="w-full rounded-xl p-4 text-sm h-20"></textarea>
-                <button onclick="document.getElementById('fileDespues').click()" class="w-full bg-zinc-800 text-white font-black py-4 rounded-xl text-[10px] uppercase">Foto Final</button>
-                <button id="btnUploadDespues" onclick="subirEvidenciaFinal()" class="w-full bg-blue-600 text-white font-black py-4 rounded-xl text-[10px] uppercase tracking-widest">Validar</button>
-            </div>
+<span class="font-black tracking-tighter text-sm uppercase">
+Gestia <span class="text-emerald-500">Premium</span>
+</span>
 
-            <div id="step4" class="step-inactive glass-card p-6 rounded-3xl space-y-4">
-                <h3 class="text-sm font-black uppercase text-emerald-400 tracking-tighter"><span>04</span> Conformidad</h3>
-                <canvas id="signaturePad" class="w-full h-40 rounded-xl"></canvas>
-                <div class="flex gap-2">
-                    <button onclick="clearSignature()" class="w-1/3 bg-zinc-800 text-zinc-400 font-bold py-3 rounded-xl text-[10px] uppercase">Borrar</button>
-                    <button onclick="finalizarOrden()" class="w-2/3 bg-emerald-500 text-black font-black py-3 rounded-xl text-[10px] uppercase tracking-tighter">Finalizar</button>
-                </div>
-            </div>
-        </div>
-    </main>
+</div>
 
-    <main id="seccion-historial" class="hidden">
-        <h3 class="text-xs font-black uppercase text-zinc-500 mb-6 tracking-widest">Historial de Servicios</h3>
-        <div class="p-8 text-center glass-card rounded-2xl border-dashed border-zinc-800">
-            <i class="fas fa-clock-rotate-left text-2xl text-zinc-800 mb-3"></i>
-            <p class="text-[10px] text-zinc-600 font-bold uppercase">No hay servicios cerrados recientemente en este edificio.</p>
-        </div>
-    </main>
+<span class="text-[10px] bg-zinc-800 px-3 py-1 rounded-full font-bold text-zinc-400 tracking-tighter">
+V5.21 - B2B ENGINE
+</span>
 
-    <main id="seccion-perfil" class="hidden text-center">
-        <h3 class="text-xs font-black uppercase text-zinc-500 mb-6 tracking-widest">Mi Perfil Técnico</h3>
-        <div class="w-24 h-24 bg-zinc-900 rounded-full mx-auto mb-4 border-2 border-emerald-500 flex items-center justify-center">
-            <i class="fas fa-user-gear text-3xl text-zinc-700"></i>
-        </div>
-        <h4 class="text-xl font-black italic uppercase">Jonathan</h4>
-        <p class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Técnico B2B Asignado</p>
-        
-        <div class="mt-8 space-y-3">
-            <button onclick="auth.signOut()" class="w-full bg-red-600/10 text-red-500 border border-red-500/20 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest">Cerrar Sesión</button>
-        </div>
-    </main>
+</div>
 
-    <nav class="fixed bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur-xl border-t border-white/5 flex justify-around items-center z-[60]">
-        <button id="btn-tab-tareas" onclick="window.cambiarSeccion('seccion-tareas')" class="flex flex-col items-center text-emerald-500 transition-all">
-            <i class="fas fa-tasks text-lg"></i>
-            <span class="text-[8px] font-bold mt-1 uppercase">Tareas</span>
-        </button>
-        
-        <button id="btn-tab-historial" onclick="window.cambiarSeccion('seccion-historial')" class="flex flex-col items-center text-zinc-600 transition-all">
-            <i class="fas fa-history text-lg"></i>
-            <span class="text-[8px] font-bold mt-1 uppercase">Historial</span>
-        </button>
-        
-        <button id="btn-tab-perfil" onclick="window.cambiarSeccion('seccion-perfil')" class="flex flex-col items-center text-zinc-600 transition-all">
-            <i class="fas fa-user-circle text-lg"></i>
-            <span class="text-[8px] font-bold mt-1 uppercase">Perfil</span>
-        </button>
-    </nav>
 
-    <script type="module" src="./app-tecnico-b2b.js"></script>
+<div id="headerOrden" class="p-4 glass-card rounded-2xl border-l-4 border-emerald-500">
+
+<div class="flex justify-between items-start">
+
+<div>
+
+<p class="text-[10px] font-black text-emerald-500 uppercase tracking-widest">
+Edificio Uxmal 39
+</p>
+
+<h2 id="txtPunto" class="text-xl font-black italic uppercase leading-none">
+Mantenimiento <br> de Activos
+</h2>
+
+</div>
+
+<div class="text-right">
+
+<span id="txtPrioridad" class="text-[8px] px-2 py-1 rounded bg-red-500/20 text-red-500 font-black tracking-widest uppercase">
+SLA CRÍTICO
+</span>
+
+</div>
+
+</div>
+
+</div>
+
+</header>
+
+
+<!-- ====================================================== -->
+<!-- SECCIÓN TAREAS -->
+<!-- ====================================================== -->
+
+<main id="seccion-tareas">
+
+
+<section id="listaTareasHoy" class="mb-8">
+
+<div class="flex justify-between items-center mb-4">
+
+<h3 class="text-[10px] font-black uppercase text-zinc-500 tracking-widest">
+<i class="fas fa-calendar-check mr-2 text-emerald-500"></i>
+Tareas Programadas
+</h3>
+
+<span id="contadorTareas"
+class="text-[9px] bg-zinc-800 px-2 py-1 rounded text-zinc-400">
+0
+</span>
+
+</div>
+
+<div id="contenedor-tareas-diarias" class="space-y-3">
+
+<div class="p-4 rounded-xl skeleton h-16"></div>
+<div class="p-4 rounded-xl skeleton h-16"></div>
+
+</div>
+
+</section>
+
+
+
+<!-- ====================================================== -->
+<!-- RUTINA PREVENTIVA -->
+<!-- ====================================================== -->
+
+<section id="rutinaPreventiva" class="mb-8 hidden">
+
+<h3 class="text-[10px] font-black uppercase text-zinc-500 mb-4 tracking-widest">
+<i class="fas fa-clipboard-list mr-2 text-blue-500"></i>
+Rutina Diaria
+</h3>
+
+<div id="checklist-rutinas" class="space-y-3"></div>
+
+<button
+id="btnFinalizarRutina"
+onclick="finalizarRutinaDiaria()"
+class="w-full mt-4 bg-zinc-900 border border-zinc-800 text-zinc-400 font-black py-4 rounded-xl text-[10px] uppercase tracking-widest">
+
+Finalizar Rutina
+
+</button>
+
+</section>
+
+
+
+<!-- ====================================================== -->
+<!-- FLUJO TÉCNICO -->
+<!-- ====================================================== -->
+
+<div id="flujoTecnico" class="space-y-6 hidden">
+
+
+<!-- DIAGNÓSTICO -->
+
+<div id="step1" class="glass-card p-6 rounded-3xl space-y-4">
+
+<h3 class="text-sm font-black uppercase tracking-tighter">
+<span class="text-emerald-500 mr-2">01</span>
+Diagnóstico
+</h3>
+
+<textarea
+id="diagInput"
+placeholder="Describe el estado inicial..."
+class="w-full rounded-xl p-4 text-sm h-28">
+</textarea>
+
+<div id="previewAntes"
+class="w-full aspect-video bg-black rounded-xl border border-dashed border-zinc-800 flex items-center justify-center overflow-hidden">
+
+<i class="fas fa-camera text-2xl text-zinc-800"></i>
+
+</div>
+
+<input
+type="file"
+id="fileAntes"
+accept="image/*"
+capture="environment"
+class="hidden"
+onchange="previewImg(this,'previewAntes')">
+
+<div class="flex gap-2">
+
+<button
+onclick="document.getElementById('fileAntes').click()"
+class="w-1/3 bg-zinc-800 text-white font-black py-4 rounded-xl text-[10px] uppercase">
+
+Foto
+
+</button>
+
+<button
+onclick="enviarDiagnostico()"
+class="w-2/3 bg-emerald-600 text-white font-black py-4 rounded-xl text-[10px] uppercase">
+
+Subir
+
+</button>
+
+</div>
+
+</div>
+
+
+
+<!-- INSUMOS -->
+
+<div id="step2" class="step-inactive glass-card p-6 rounded-3xl space-y-4 text-orange-500">
+
+<h3 class="text-sm font-black uppercase tracking-tighter">
+<span>02</span> Insumos
+</h3>
+
+<div class="grid grid-cols-3 gap-2">
+
+<input id="mat-nombre" placeholder="Nombre" class="col-span-2 p-3 text-[10px] rounded-lg">
+
+<input id="mat-cantidad" type="number" placeholder="Cant." class="p-3 text-[10px] rounded-lg">
+
+</div>
+
+<button onclick="agregarMaterial()" class="w-full bg-zinc-800 py-3 rounded-xl text-[10px] uppercase">
++ Agregar
+</button>
+
+<div id="lista-materiales-acumulados"></div>
+
+<button onclick="confirmarMateriales()" class="w-full bg-orange-600 py-4 rounded-xl text-[10px] uppercase">
+Confirmar
+</button>
+
+</div>
+
+
+
+<!-- EVIDENCIA -->
+
+<div id="step3" class="step-inactive glass-card p-6 rounded-3xl space-y-4 text-blue-500">
+
+<h3 class="text-sm font-black uppercase tracking-tighter">
+<span>03</span> Evidencia
+</h3>
+
+<div id="previewDespues"
+class="w-full aspect-video bg-black rounded-xl border border-dashed border-zinc-800 flex items-center justify-center overflow-hidden">
+
+<i class="fas fa-tools text-2xl text-zinc-800"></i>
+
+</div>
+
+<input
+type="file"
+id="fileDespues"
+accept="image/*"
+capture="environment"
+class="hidden"
+onchange="previewImg(this,'previewDespues')">
+
+<textarea
+id="obs-finales"
+placeholder="Notas finales..."
+class="w-full rounded-xl p-4 text-sm h-20">
+</textarea>
+
+<button
+onclick="document.getElementById('fileDespues').click()"
+class="w-full bg-zinc-800 py-4 rounded-xl text-[10px] uppercase">
+
+Foto Final
+
+</button>
+
+<button
+id="btnUploadDespues"
+onclick="subirEvidenciaFinal()"
+class="w-full bg-blue-600 py-4 rounded-xl text-[10px] uppercase">
+
+Validar
+
+</button>
+
+</div>
+
+
+
+<!-- FIRMA -->
+
+<div id="step4" class="step-inactive glass-card p-6 rounded-3xl space-y-4">
+
+<h3 class="text-sm font-black uppercase text-emerald-400">
+04 Conformidad
+</h3>
+
+<canvas id="signaturePad"
+class="w-full h-40 rounded-xl touch-none"></canvas>
+
+<div class="flex gap-2">
+
+<button onclick="clearSignature()" class="w-1/3 bg-zinc-800 py-3 rounded-xl text-[10px] uppercase">
+Borrar
+</button>
+
+<button onclick="finalizarOrden()" class="w-2/3 bg-emerald-500 text-black py-3 rounded-xl text-[10px] uppercase">
+Finalizar
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+</main>
+
+
+<!-- ====================================================== -->
+<!-- HISTORIAL -->
+<!-- ====================================================== -->
+
+<main id="seccion-historial" class="hidden">
+
+<h3 class="text-xs font-black uppercase text-zinc-500 mb-6 tracking-widest">
+Historial de Servicios
+</h3>
+
+<div id="lista-historial-unificada" class="space-y-3"></div>
+
+</main>
+
+
+<!-- ====================================================== -->
+<!-- PERFIL -->
+<!-- ====================================================== -->
+
+<main id="seccion-perfil" class="hidden text-center">
+
+<h3 class="text-xs font-black uppercase text-zinc-500 mb-6 tracking-widest">
+Mi Perfil Técnico
+</h3>
+
+<div class="w-24 h-24 bg-zinc-900 rounded-full mx-auto mb-4 border-2 border-emerald-500 flex items-center justify-center">
+<i class="fas fa-user-gear text-3xl text-zinc-700"></i>
+</div>
+
+<h4 class="text-xl font-black italic uppercase">Jonathan</h4>
+
+<p class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">
+Técnico B2B
+</p>
+
+<div class="mt-8">
+
+<button
+onclick="logout()"
+class="w-full bg-red-600/10 text-red-500 border border-red-500/20 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest">
+
+Cerrar Sesión
+
+</button>
+
+</div>
+
+</main>
+
+
+<!-- ====================================================== -->
+<!-- NAV -->
+<!-- ====================================================== -->
+
+<nav class="fixed bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur-xl border-t border-white/5 flex justify-around items-center">
+
+<button onclick="cambiarSeccion('seccion-tareas')" class="flex flex-col items-center text-emerald-500">
+<i class="fas fa-tasks text-lg"></i>
+<span class="text-[8px] mt-1 uppercase">Tareas</span>
+</button>
+
+<button onclick="cambiarSeccion('seccion-historial')" class="flex flex-col items-center text-zinc-600">
+<i class="fas fa-history text-lg"></i>
+<span class="text-[8px] mt-1 uppercase">Historial</span>
+</button>
+
+<button onclick="cambiarSeccion('seccion-perfil')" class="flex flex-col items-center text-zinc-600">
+<i class="fas fa-user-circle text-lg"></i>
+<span class="text-[8px] mt-1 uppercase">Perfil</span>
+</button>
+
+</nav>
+
+
+<script type="module" src="./app-tecnico-b2b.js"></script>
+
 </body>
 </html>
