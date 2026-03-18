@@ -1,7 +1,7 @@
 /**
  * GESTIA PREMIUM - V5.20
  * MOTOR DE OPERACIONES B2B (Uxmal 39)
- * FEATURE: Bottom Sheet OT y Navegación Inferior
+ * FEATURE: Bottom Sheet OT y Navegación Inferior + Sincronización Automática
  * Lead Architect: Heberto Mendoza
  */
 
@@ -263,6 +263,100 @@ auth.onAuthStateChanged(async (user) => {
     }
 });
 
+// --- MOTOR DE SINCRONIZACIÓN AUTOMÁTICA (FALLBACK CLIENT-SIDE) ---
+async function sincronizarRutinasMaestras() {
+    if (!edificioIdGlobal) return;
+    
+    // 1. Candado: Verificar si ya existen tareas generadas HOY para evitar duplicados (incluso si están finalizadas)
+    const inicioDia = new Date();
+    inicioDia.setHours(0,0,0,0);
+    
+    // Buscamos cualquier tarea creada hoy para este edificio, sin importar el estado
+    const qCheck = query(
+        collection(db, "servicios_b2b"),
+        where("edificioId", "==", edificioIdGlobal),
+        where("fecha_creacion", ">=", inicioDia),
+        where("origen", "==", "sistema_rutinas") // Tag para identificar auto-generadas
+    );
+    
+    const checkSnap = await getDocs(qCheck);
+    if (!checkSnap.empty) {
+        console.log("🔄 Rutinas del día ya existen en BD (Activas o Finalizadas). No se requiere sincronización.");
+        return;
+    }
+
+    console.log("⚙️ Sincronizando Plan Maestro de Rutinas (Cliente-Side Fallback)...");
+    
+    try {
+        const rutinaRef = doc(db, "config_rutinas", edificioIdGlobal);
+        const rutinaSnap = await getDoc(rutinaRef);
+        
+        if (!rutinaSnap.exists()) {
+            console.log("⚠️ No se encontró configuración de rutinas para este edificio.");
+            return;
+        }
+        
+        const master = rutinaSnap.data();
+        let tareasAInyectar = [];
+        
+        // Lógica de fechas (Diaria, Semanal, etc)
+        const hoy = new Date();
+        const diaSemana = hoy.getDay(); // 0 = Domingo, 1 = Lunes...
+        const diaMes = hoy.getDate();
+        const mes = hoy.getMonth();
+
+        // 1. Rutinas Diarias
+        if (master.Diaria && Array.isArray(master.Diaria)) {
+            tareasAInyectar.push(...master.Diaria);
+        }
+        // 2. Semanales/Quincenales (Solo Lunes)
+        if (diaSemana === 1 && master.Semanal_Quincenal && Array.isArray(master.Semanal_Quincenal)) {
+            tareasAInyectar.push(...master.Semanal_Quincenal);
+        }
+        // 3. Mensuales (Día 1)
+        if (diaMes === 1 && master.Mensual && Array.isArray(master.Mensual)) {
+            tareasAInyectar.push(...master.Mensual);
+        }
+        // 4. Anuales (1ro Enero)
+        if (diaMes === 1 && mes === 0 && master.Semestral_Anual && Array.isArray(master.Semestral_Anual)) {
+            tareasAInyectar.push(...master.Semestral_Anual);
+        }
+
+        if (tareasAInyectar.length === 0) {
+            console.log("ℹ️ No hay tareas programadas en el plan maestro para hoy.");
+            return;
+        }
+
+        // Inyección Masiva (Promise.all para velocidad)
+        const promesas = tareasAInyectar.map(tarea => {
+            return addDoc(collection(db, "servicios_b2b"), {
+                edificioId: edificioIdGlobal,
+                descripcion: tarea.descripcion || "Mantenimiento General",
+                equipo: tarea.equipo || "General",
+                ubicacion_especifica: tarea.ubicacion || "Sin definir",
+                prioridad: tarea.prioridad || "Media",
+                herramientas_sugeridas: tarea.herramientas || "",
+                notas_especiales: tarea.notas || "",
+                status: "pendiente",
+                estado: "pendiente", // Compatibilidad
+                fecha_programada: hoy.toISOString().split('T')[0],
+                fecha_creacion: serverTimestamp(),
+                origen: "sistema_rutinas",
+                tipo: "preventivo",
+                creado_por_nombre: "Sistema Automático B2B"
+            });
+        });
+
+        await Promise.all(promesas);
+        console.log(`✅ Se inyectaron ${tareasAInyectar.length} tareas maestras exitosamente.`);
+        showToast(`Plan Maestro Sincronizado: ${tareasAInyectar.length} tareas cargadas.`, false);
+
+    } catch (e) {
+        console.error("Error crítico sincronizando rutinas:", e);
+        showToast("Error al sincronizar rutinas del día.", true);
+    }
+}
+
 // --- CARGA DE DATOS ---
 function cargarTareasProgramadas() {
     const contenedor = document.getElementById("contenedor-tareas-diarias");
@@ -282,9 +376,12 @@ function cargarTareasProgramadas() {
 
         if (snapshot.empty) {
             contenedor.innerHTML = `
-            <div class="p-8 mt-4 text-center text-zinc-600 text-[10px] font-bold uppercase tracking-widest border border-dashed border-zinc-800 rounded-2xl">
-                ${edificioIdGlobal.replace('-', ' ').toUpperCase()} : SIN SERVICIOS ACTIVOS
+            <div class="p-8 mt-4 text-center text-zinc-600 text-[10px] font-bold uppercase tracking-widest border border-dashed border-zinc-800 rounded-2xl animate-pulse">
+                <i class="fas fa-sync fa-spin mb-2"></i> VERIFICANDO PLAN MAESTRO...
             </div>`;
+            
+            // 🔥 DISPARADOR AUTOMÁTICO: Si no hay tareas activas, intentamos sincronizar
+            sincronizarRutinasMaestras();
             return;
         }
 
