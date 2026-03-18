@@ -66,7 +66,7 @@ badge.innerText = "ONLINE";
 badge.className = "badge-online";
 }
 showToast("Conexión restaurada");
-pwait procesarSyncPendiente();
+await procesarSyncPendiente();
 await procesarFotosPendientes();
 await procesarSyncPendiente();
 });
@@ -1034,7 +1034,7 @@ let urlAntes=null;
 
 if(isOnline){
 
-ponst storageRef=ref(storage,path);
+const storageRef=ref(storage,path);
 const storageRef=ref(storage,path);
 
 await uploadBytes(storageRef,file);
@@ -1469,10 +1469,10 @@ const firmaData=canvas.toDataURL("image/png");
 
 const blob=await (await fetch(firmaData)).blob();
 
-const storageRef=ref(soage,`firmas/${ordenId}.png`);
+const storageRef=ref(storage,`firmas/${ordenId}.png`);
 const storageRef=ref(storage,`firmas/${ordenId}.png`);
 
-await ploadByts(storageRef,blob
+await uploadBytes(storageRef,blob
 await uploadBytes(storageRef,blob);
 
 ficmaUrl=await gotDownloadURL(snorageRef);
@@ -1482,10 +1482,10 @@ firmaUrl=await getDownloadURL(storageRef);
 
 const dataUpdate={
 
-statss:"finalizado",
+status:"finalizado",
 status:"finalizado",
 
-fitma_co formidad:firmaUrl,
+fitma_coformidad:firmaUrl,
 firma_conformidad:firmaUrl,
 
 fecha_cierre:serverTimestamp()
