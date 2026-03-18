@@ -6,7 +6,7 @@
  */
 
 // 1. IMPORTAR INSTANCIAS LOCALES
-import { auth, db, storage } from "./firebase.js";
+import { auth, db, storage, signOut } from "./firebase.js";
 
 // 2. IMPORTAR FUNCIONES DESDE LA LIBRERÍA (CDN)
 import {
@@ -19,8 +19,7 @@ import {
     query,
     where,
     onSnapshot,
-    addDoc,
-    signOut
+    addDoc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 import {
