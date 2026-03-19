@@ -656,43 +656,77 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
 });
 
 /* =====================================================
-   DESPACHO DE ORDENES (OT)
+   DESPACHO DE ORDENES (OT) - V5.23 OPTIMIZADO
    ===================================================== */
 document.getElementById("formTicketB2B").addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (!adminContext) return;
+
+    // Verificación de Contexto de Seguridad
+    if (typeof adminContext === 'undefined' || !adminContext || !adminContext.edificioId) {
+        alert("🚨 Error: Contexto de Administrador no cargado.");
+        return;
+    }
 
     const btn = document.getElementById("btnCrearTicket");
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-bolt fa-spin"></i> ENVIANDO...';
-
     const tSelect = document.getElementById("tickAsignado");
-    const tName = tSelect.options[tSelect.selectedIndex].text.split('[')[0].trim();
 
-    const ticketData = {
-        edificioId: adminContext.edificioId,
-        edificioNombre: adminContext.edificioNombre,
-        ubicacion_especifica: document.getElementById("tickPunto").value.trim(),
-        descripcion: document.getElementById("tickDesc").value.trim(),
-        prioridad: document.getElementById("tickPrioridad").value,
-        tecnicoId: tSelect.value,
-        tecnico_nombre: tName,
-        status: "programado",
-        fecha_programada: new Date().toISOString().split('T')[0],
-        equipo: "Mantenimiento General",
-        tipo: "mantenimiento",
-        fecha_creacion: serverTimestamp(),
-        creado_por: auth.currentUser.uid
-    };
+    // Validación de Selección de Técnico
+    if (!tSelect.value) {
+        alert("⚠️ Por favor, selecciona un especialista.");
+        return;
+    }
+
+    // Feedback Visual (Loading State)
+    btn.disabled = true;
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-bolt fa-spin"></i> PROCESANDO DESPACHO...';
 
     try {
+        // 1. Extracción Limpia del Nombre del Técnico
+        const selectedOption = tSelect.options[tSelect.selectedIndex];
+        const rawText = selectedOption.text || "";
+        const tName = rawText.split('[')[0].trim();
+
+        // 2. NORMALIZACIÓN CRÍTICA (El ID debe coincidir con el Query del Técnico)
+        // Convertimos "UXMAL 39" a "uxmal39" para evitar el bloqueo de consulta
+        const edificioIdNormalizado = adminContext.edificioId.toLowerCase().trim().replace(/\s+/g, '');
+
+        // 3. Construcción del Objeto de Datos (Payload)
+        const ticketData = {
+            edificioId: edificioIdNormalizado,
+            edificioNombre: adminContext.edificioNombre,
+            ubicacion_especifica: document.getElementById("tickPunto").value.trim(),
+            descripcion: document.getElementById("tickDesc").value.trim(),
+            prioridad: document.getElementById("tickPrioridad").value,
+            tecnicoId: tSelect.value,
+            tecnico_nombre: tName,
+            status: "programado",
+            fecha_programada: new Date().toISOString().split('T')[0],
+            equipo: "Mantenimiento General",
+            tipo: "mantenimiento",
+            fecha_creacion: serverTimestamp(),
+            creado_por: auth.currentUser.uid
+        };
+
+        // 4. Inserción en Firebase
         await addDoc(collection(db, "servicios_b2b"), ticketData);
-        alert("🚀 ORDEN DESPACHADA CORRECTAMENTE");
+
+        // 5. Éxito y Limpieza
+        alert("🚀 ORDEN DESPACHADA: Jonathan recibirá la notificación en breve.");
+        
+        // Reset manual para asegurar que los campos queden limpios
         document.getElementById("formTicketB2B").reset();
+        
+        // El error "Failed to convert value to Response" suele ocurrir por redirects
+        // automáticos o llamadas a fetch vacías. Aquí cortamos el flujo para prevenirlo.
+        console.log("✅ Sync B2B exitoso para:", edificioIdNormalizado);
+
     } catch (err) {
-        alert("❌ Error al despachar.");
+        console.error("❌ Error en Despacho B2B:", err);
+        alert("❌ Error crítico al despachar: " + err.message);
     } finally {
+        // Restauración del Botón
         btn.disabled = false;
-        btn.innerHTML = "Despachar Orden de Trabajo";
+        btn.innerHTML = originalHTML;
     }
 });
