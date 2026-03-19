@@ -599,7 +599,46 @@ if (btnGoogle) {
         }
     });
 }
+/* ======================================================
+   MÓDULO: DICCIONARIO DE ERRORES (V6.5)
+   ====================================================== */
+/**
+ * Traduce los códigos técnicos de Firebase Auth a mensajes amigables.
+ * Soluciona el ReferenceError detectado en la línea 522.
+ */
+function manejarErroresAuth(error) {
+    console.error(" 🚨 [Firebase Auth Error]:", error.code);
+    let mensaje = "Ocurrió un error inesperado al procesar tu solicitud. Intenta de nuevo.";
 
+    switch (error.code) {
+        case 'auth/email-already-in-use':
+            mensaje = "Este correo electrónico ya está registrado en el sistema. Intenta iniciar sesión.";
+            break;
+        case 'auth/invalid-email':
+            mensaje = "El formato del correo electrónico ingresado no es válido.";
+            break;
+        case 'auth/weak-password':
+            mensaje = "La contraseña es muy débil. Usa al menos 8 caracteres, incluyendo mayúsculas y números.";
+            break;
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential':
+            mensaje = "Correo o contraseña incorrectos. Verifica tus credenciales.";
+            break;
+        case 'auth/network-request-failed':
+            mensaje = "Error de red. Revisa tu conexión a internet e intenta nuevamente.";
+            break;
+        case 'auth/too-many-requests':
+            mensaje = "Demasiados intentos fallidos. El acceso ha sido bloqueada temporalmente por seguridad.";
+            break;
+        case 'auth/internal-error':
+            mensaje = "Error interno del servidor. Por favor, recarga la página.";
+            break;
+    }
+
+    // Usamos alert para mantener consistencia con el estilo de app-registro.js
+    alert("🚨 GESTIA PREMIUM:\n\n" + mensaje);
+}
 // ======================================================
 // E. OBSERVADOR Y MANEJO DE ERRORES
 // ======================================================
