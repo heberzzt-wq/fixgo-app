@@ -582,14 +582,14 @@ window.validarPaseCaseta=validarPaseCaseta;
 
 
 /* =====================================================
-   INIT AUTH - V5.23 (ESTRUCTURA DE FLUJO CORREGIDA)
+   INIT AUTH - V5.24 (CORRECCIÓN SINTAXIS Y FLUJO ÚNICO)
    ===================================================== */
 
-auth.onAuthStateChanged(async(user)=>{
+auth.onAuthStateChanged(async (user) => {
 
-    if(!user){
+    if (!user) {
         // Si no hay sesión, redirección inmediata
-        window.location.href="login.html";
+        window.location.href = "login.html";
         return;
     }
 
@@ -597,100 +597,98 @@ auth.onAuthStateChanged(async(user)=>{
     await initLocalDB();
     inicializarBottomSheet();
 
-    // 2. Extracción de Credenciales Operativas
-    const userDoc = await getDoc(doc(db, "users", user.uid));
-    const data = userDoc.data();
-
-    if(!data || !data.edificioId){
-        alert("🚨 Perfil sin nodo de edificio asignado. Contacta al NOC.");
-        return;
-    }
-
-    // -----------------------------------------------------
-    // NORMALIZACIÓN QUIRÚRGICA DE ID
-    // -----------------------------------------------------
-    // Convertimos "UXMAL 39" -> "uxmal39" para garantizar match
-    // con el despacho del Admin.
-    edificioIdGlobal = data.edificioId.toLowerCase().trim().replace(/\s+/g, '');
-    
-    console.log("🛠️ Nodo Operativo Conectado:", edificioIdGlobal);
-    // -----------------------------------------------------
-
-    // 3. Inyección en Cabecera (UI Premium)
-    const txtEdificio = document.getElementById("txtEdificio");
-    if(txtEdificio) {
-        // Mostramos el nombre visual (amigable) en el header
-        txtEdificio.innerText = data.edificioNombre || data.edificioId.toUpperCase();
-    }
-
-    // 4. Inyección de Identidad en Perfil (Fase B)
-    const pNombre = document.getElementById("perfilNombre");
-    const pEspecialidad = document.getElementById("perfilEspecialidad");
-    const pEdificio = document.getElementById("perfilEdificio");
-    const pTelefono = document.getElementById("perfilTelefono");
-    const pEmail = document.getElementById("perfilEmail");
-    const imgTag = document.getElementById("perfilFotoImg");
-    const icon = document.getElementById("iconAstronauta");
-
-    if(pNombre) pNombre.innerText = data.nombre || "Técnico de Campo";
-    if(pEspecialidad) pEspecialidad.innerText = data.especialidad || "General";
-    if(pEdificio) pEdificio.innerText = data.edificioNombre || "No Asignado";
-    if(pTelefono) pTelefono.innerText = data.telefono || "Sin registrar";
-    if(pEmail) pEmail.innerText = data.email || user.email;
-
-    // 5. Carga de Avatar Operativo
-    if (data.foto_perfil) {
-        if (imgTag && icon) {
-            imgTag.src = data.foto_perfil;
-            imgTag.classList.remove("hidden");
-            icon.classList.add("hidden");
+    try {
+        // 2. Extracción de Credenciales Operativas
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        
+        if (!userDoc.exists()) {
+            console.error("No se encontró el documento del usuario");
+            return;
         }
-    } else {
-        if (imgTag && icon) {
-            imgTag.classList.add("hidden");
-            icon.classList.remove("hidden");
+
+        const data = userDoc.data();
+
+        if (!data || !data.edificioId) {
+            alert("🚨 Perfil sin nodo de edificio asignado. Contacta al NOC.");
+            return;
         }
-    }
 
-    // 6. DISPARO DE LÓGICA DE NEGOCIO (DENTRO DEL AUTH)
-    // Solo aquí edificioIdGlobal tiene el valor correcto para las consultas
-    if(ordenId){
-        // Si hay una ID en la URL, Jonathan está ejecutando una OT
-        document.getElementById("listaTareasHoy").classList.add("hidden");
-        document.getElementById("flujoTecnico").classList.remove("hidden");
+        // -----------------------------------------------------
+        // NORMALIZACIÓN QUIRÚRGICA DE ID
+        // -----------------------------------------------------
+        // Garantizamos match con el despacho del Admin (case insensitive y sin espacios)
+        edificioIdGlobal = data.edificioId.toLowerCase().trim().replace(/\s+/g, '');
+        
+        console.log("🛠️ Nodo Operativo Conectado:", edificioIdGlobal);
+        // -----------------------------------------------------
 
+        // 3. Inyección en Cabecera (UI Premium)
+        const txtEdificio = document.getElementById("txtEdificio");
+        if (txtEdificio) {
+            txtEdificio.innerText = data.edificioNombre || data.edificioId.toUpperCase();
+        }
+
+        // 4. Inyección de Identidad en Perfil (Fase B)
+        const pNombre = document.getElementById("perfilNombre");
+        const pEspecialidad = document.getElementById("perfilEspecialidad");
+        const pEdificio = document.getElementById("perfilEdificio");
+        const pTelefono = document.getElementById("perfilTelefono");
+        const pEmail = document.getElementById("perfilEmail");
+        const imgTag = document.getElementById("perfilFotoImg");
+        const icon = document.getElementById("iconAstronauta");
+
+        if (pNombre) pNombre.innerText = data.nombre || "Técnico de Campo";
+        if (pEspecialidad) pEspecialidad.innerText = data.especialidad || "General";
+        if (pEdificio) pEdificio.innerText = data.edificioNombre || "No Asignado";
+        if (pTelefono) pTelefono.innerText = data.telefono || "Sin registrar";
+        if (pEmail) pEmail.innerText = data.email || user.email;
+
+        // 5. Carga de Avatar Operativo
+        if (data.foto_perfil) {
+            if (imgTag && icon) {
+                imgTag.src = data.foto_perfil;
+                imgTag.classList.remove("hidden");
+                icon.classList.add("hidden");
+            }
+        } else {
+            if (imgTag && icon) {
+                imgTag.classList.add("hidden");
+                icon.classList.remove("hidden");
+            }
+        }
+
+        // 6. LÓGICA DE NAVEGACIÓN Y DISPARO DE NEGOCIO
+        // Todo esto debe vivir aquí dentro para que edificioIdGlobal ya tenga valor
+        const listaTareasHoy = document.getElementById("listaTareasHoy");
+        const flujoTecnico = document.getElementById("flujoTecnico");
         const txtPunto = document.getElementById("txtPunto");
-        if(txtPunto) txtPunto.innerText = "Ejecutando OT...";
-    } else {
-        // Si no hay ordenId, cargamos el Dashboard normal
-        cargarTareasProgramadas();
-        cargarRutinaPreventiva();
+
+        if (ordenId) {
+            // Jonathan está ejecutando una OT específica
+            if (listaTareasHoy) listaTareasHoy.classList.add("hidden");
+            if (flujoTecnico) flujoTecnico.classList.remove("hidden");
+
+            if (txtPunto) txtPunto.innerText = "Ejecutando OT...";
+            
+            console.log("🚀 Modo OT Activo:", ordenId);
+        } else {
+            // Dashboard normal: Limpiamos vista y cargamos datos
+            if (listaTareasHoy) listaTareasHoy.classList.remove("hidden");
+            if (flujoTecnico) flujoTecnico.classList.add("hidden");
+
+            if (txtPunto) txtPunto.innerText = "Dashboard Diario";
+
+            // Solo disparamos las cargas si NO estamos dentro de una OT
+            await cargarTareasProgramadas();
+            await cargarRutinaPreventiva();
+        }
+
+    } catch (error) {
+        console.error("Error en Init Auth:", error);
+        showToast("Error de conexión con el servidor", true);
     }
-
-}); // <--- CIERRE ÚNICO Y CORRECTO DEL AUTH
-// =====================================================
-
-// Lógica de navegación basada en ordenId
-if(ordenId){
-
-document.getElementById("listaTareasHoy").classList.add("hidden");
-
-document.getElementById("flujoTecnico").classList.remove("hidden");
-
-// NUEVO: Si entró a una OT, le cambiamos el subtítulo del Header
-const txtPunto = document.getElementById("txtPunto");
-if(txtPunto) txtPunto.innerText = "Ejecutando OT...";
-
-}else{
-
-cargarTareasProgramadas();
-cargarRutinaPreventiva();
 
 }
-
-});
-
-
 /* =====================================================
 CARGA DE TAREAS PROGRAMADAS (OPTIMIZADA CON CACHE)
 ===================================================== */
