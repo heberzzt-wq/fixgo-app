@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="es">
 
@@ -133,80 +132,58 @@ color:#f87171;
 
 <body class="p-4 pb-24">
 
-<!-- ====================================================== -->
-<!-- NETWORK BADGE -->
-<!-- ====================================================== -->
-
 <div id="networkBadge" class="badge-online">
 ONLINE
 </div>
 
 
-<!-- ====================================================== -->
-<!-- HEADER -->
-<!-- ====================================================== -->
+<header class="mb-8 space-y-5">
 
-<header class="mb-6">
+<div class="flex justify-between items-center">
 
-<div class="flex justify-between items-center mb-4">
-
-<div class="flex items-center gap-2">
-
-<div class="w-6 h-6 bg-emerald-500 rounded-lg flex items-center justify-center font-black text-black text-[10px]">
-G
+<div class="flex items-center gap-3">
+    <img src="./assets/logo.png" alt="Logo" class="w-8 h-8 object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+    <div class="hidden w-8 h-8 bg-emerald-500 rounded-xl items-center justify-center font-black text-black text-[12px] shadow-lg shadow-emerald-500/20">
+        G
+    </div>
+    <span class="font-black tracking-tighter text-lg uppercase text-white">
+        Gestia<span class="text-emerald-500">Premium</span>
+    </span>
 </div>
 
-<span class="font-black tracking-tighter text-sm uppercase">
-Gestia <span class="text-emerald-500">Premium</span>
-</span>
-
-</div>
-
-<span class="text-[10px] bg-zinc-800 px-3 py-1 rounded-full font-bold text-zinc-400 tracking-tighter">
-V5.22
+<span class="text-[9px] bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-full font-black text-zinc-500 tracking-widest uppercase shadow-inner">
+    V5.23
 </span>
 
 </div>
 
 
-<div id="headerOrden"
-class="p-4 glass-card rounded-2xl border-l-4 border-emerald-500">
-
-<div class="flex justify-between items-start">
-
-<div>
-
-<p id="txtEdificio"
-class="text-[10px] font-black text-emerald-500 uppercase tracking-widest">
-Cargando...
-</p>
-
-<h2 id="txtPunto"
-class="text-xl font-black italic uppercase leading-none">
-Servicio
-</h2>
-
-</div>
-
-<div class="text-right">
-
-<span id="txtPrioridad"
-class="text-[8px] px-2 py-1 rounded bg-red-500/20 text-red-500 font-black tracking-widest uppercase">
-SLA
-</span>
-
-</div>
-
-</div>
-
+<div id="headerOrden" class="p-5 glass-card rounded-3xl border-t-2 border-zinc-800 relative overflow-hidden transition-all duration-300">
+    <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+    
+    <div class="relative z-10 flex justify-between items-center">
+        <div>
+            <p class="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1 flex items-center gap-1">
+                <i class="fas fa-map-marker-alt text-emerald-500"></i> Ubicación Asignada
+            </p>
+            <h2 id="txtEdificio" class="text-xl font-black italic uppercase text-white leading-none truncate max-w-[220px]">
+                Conectando...
+            </h2>
+            <p id="txtPunto" class="text-[10px] text-emerald-500 font-bold uppercase mt-2 tracking-widest">
+                Panel Operativo
+            </p>
+        </div>
+        
+        <div id="badgePrioridadContainer" class="text-right hidden">
+            <span id="txtPrioridad" class="text-[9px] px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 font-black tracking-widest uppercase shadow-sm">
+                SLA
+            </span>
+        </div>
+    </div>
 </div>
 
 </header>
 
-
-<!-- ====================================================== -->
-<!-- SECCIÓN TAREAS -->
-<!-- ====================================================== -->
 
 <main id="seccion-tareas">
 
@@ -237,10 +214,6 @@ class="text-[9px] bg-zinc-800 px-2 py-1 rounded text-zinc-400">
 </section>
 
 
-<!-- ====================================================== -->
-<!-- RUTINA PREVENTIVA -->
-<!-- ====================================================== -->
-
 <section id="rutinaPreventiva" class="mb-8 hidden">
 
 <h3 class="text-[10px] font-black uppercase text-zinc-500 mb-4 tracking-widest">
@@ -262,14 +235,8 @@ Finalizar Rutina
 </section>
 
 
-<!-- ====================================================== -->
-<!-- FLUJO TECNICO -->
-<!-- ====================================================== -->
-
 <div id="flujoTecnico" class="space-y-6 hidden">
 
-
-<!-- DIAGNOSTICO -->
 
 <div id="step1"
 class="glass-card p-6 rounded-3xl space-y-4">
@@ -322,8 +289,6 @@ Subir
 </div>
 
 
-<!-- INSUMOS -->
-
 <div id="step2"
 class="step-inactive glass-card p-6 rounded-3xl space-y-4 text-orange-500">
 
@@ -358,8 +323,6 @@ Confirmar
 
 </div>
 
-
-<!-- EVIDENCIA -->
 
 <div id="step3"
 class="step-inactive glass-card p-6 rounded-3xl space-y-4 text-blue-500">
@@ -408,8 +371,6 @@ Validar
 </div>
 
 
-<!-- FIRMA -->
-
 <div id="step4"
 class="step-inactive glass-card p-6 rounded-3xl space-y-4">
 
@@ -442,10 +403,6 @@ Finalizar
 </main>
 
 
-<!-- ====================================================== -->
-<!-- HISTORIAL -->
-<!-- ====================================================== -->
-
 <main id="seccion-historial" class="hidden">
 
 <h3 class="text-xs font-black uppercase text-zinc-500 mb-6 tracking-widest">
@@ -456,10 +413,6 @@ Historial
 
 </main>
 
-
-<!-- ====================================================== -->
-<!-- PERFIL -->
-<!-- ====================================================== -->
 
 <main id="seccion-perfil" class="hidden text-center">
 
@@ -494,10 +447,6 @@ Cerrar Sesión
 </main>
 
 
-<!-- ====================================================== -->
-<!-- NAV -->
-<!-- ====================================================== -->
-
 <nav
 class="fixed bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur-xl border-t border-white/5 flex justify-around items-center">
 
@@ -523,4 +472,3 @@ class="fixed bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur-xl border-t b
 
 </body>
 </html>
-```
