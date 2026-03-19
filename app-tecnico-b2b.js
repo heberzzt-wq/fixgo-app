@@ -582,54 +582,53 @@ window.validarPaseCaseta=validarPaseCaseta;
 
 
 /* =====================================================
-   INIT AUTH - V5.23 (REESCRITURA COMPLETA)
+   INIT AUTH - V5.23 (ESTRUCTURA DE FLUJO CORREGIDA)
    ===================================================== */
 
 auth.onAuthStateChanged(async(user)=>{
 
     if(!user){
+        // Si no hay sesión, redirección inmediata
         window.location.href="login.html";
         return;
     }
 
-    // 1. Inicialización de Motores Locales
+    // 1. Inicialización de Entorno Local
     await initLocalDB();
     inicializarBottomSheet();
 
-    // 2. Extracción de Perfil de Usuario
+    // 2. Extracción de Credenciales Operativas
     const userDoc = await getDoc(doc(db, "users", user.uid));
     const data = userDoc.data();
 
     if(!data || !data.edificioId){
-        alert("🚨 Perfil sin edificio asignado. Contacta al soporte.");
+        alert("🚨 Perfil sin nodo de edificio asignado. Contacta al NOC.");
         return;
     }
 
     // -----------------------------------------------------
-    // NORMALIZACIÓN DE ID (SOLUCIÓN AL BLOQUEO DE ÓRDENES)
+    // NORMALIZACIÓN QUIRÚRGICA DE ID
     // -----------------------------------------------------
-    // Forzamos minúsculas y eliminamos espacios para que 
-    // coincida exactamente con lo que despacha el Admin.
+    // Convertimos "UXMAL 39" -> "uxmal39" para garantizar match
+    // con el despacho del Admin.
     edificioIdGlobal = data.edificioId.toLowerCase().trim().replace(/\s+/g, '');
     
     console.log("🛠️ Nodo Operativo Conectado:", edificioIdGlobal);
     // -----------------------------------------------------
 
-    // 3. Inyectar el nombre del edificio en el Header (Paso A.2)
+    // 3. Inyección en Cabecera (UI Premium)
     const txtEdificio = document.getElementById("txtEdificio");
     if(txtEdificio) {
-        // Para el usuario mostramos el nombre amigable, no el slug
+        // Mostramos el nombre visual (amigable) en el header
         txtEdificio.innerText = data.edificioNombre || data.edificioId.toUpperCase();
     }
 
-    // 4. Inyección de Datos en el Perfil (Fase B)
+    // 4. Inyección de Identidad en Perfil (Fase B)
     const pNombre = document.getElementById("perfilNombre");
     const pEspecialidad = document.getElementById("perfilEspecialidad");
     const pEdificio = document.getElementById("perfilEdificio");
     const pTelefono = document.getElementById("perfilTelefono");
     const pEmail = document.getElementById("perfilEmail");
-
-    // Referencias para la Identidad Visual
     const imgTag = document.getElementById("perfilFotoImg");
     const icon = document.getElementById("iconAstronauta");
 
@@ -639,7 +638,7 @@ auth.onAuthStateChanged(async(user)=>{
     if(pTelefono) pTelefono.innerText = data.telefono || "Sin registrar";
     if(pEmail) pEmail.innerText = data.email || user.email;
 
-    // 5. Lógica de Visualización de Foto de Perfil (V5.23)
+    // 5. Carga de Avatar Operativo
     if (data.foto_perfil) {
         if (imgTag && icon) {
             imgTag.src = data.foto_perfil;
@@ -647,16 +646,16 @@ auth.onAuthStateChanged(async(user)=>{
             icon.classList.add("hidden");
         }
     } else {
-        // Respaldo del astronauta si no hay foto en Storage
         if (imgTag && icon) {
             imgTag.classList.add("hidden");
             icon.classList.remove("hidden");
         }
     }
 
-    // 6. CONTROL DE FLUJO Y NAVEGACIÓN (INDISPENSABLE)
+    // 6. DISPARO DE LÓGICA DE NEGOCIO (DENTRO DEL AUTH)
+    // Solo aquí edificioIdGlobal tiene el valor correcto para las consultas
     if(ordenId){
-        // Si hay una ID en la URL, ocultamos lista y mostramos flujo de ejecución
+        // Si hay una ID en la URL, Jonathan está ejecutando una OT
         document.getElementById("listaTareasHoy").classList.add("hidden");
         document.getElementById("flujoTecnico").classList.remove("hidden");
 
@@ -668,7 +667,7 @@ auth.onAuthStateChanged(async(user)=>{
         cargarRutinaPreventiva();
     }
 
-});
+}); // <--- CIERRE ÚNICO Y CORRECTO DEL AUTH
 // =====================================================
 
 // Lógica de navegación basada en ordenId
