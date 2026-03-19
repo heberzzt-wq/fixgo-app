@@ -919,51 +919,96 @@ showToast("Rutinas sincronizadas");
 
 
 /* =====================================================
-RENDER TARJETAS TAREAS
-===================================================== */
+   RENDER TARJETAS TAREAS (V5.26 - PRIORIDAD Y JERARQUÍA)
+   ===================================================== */
 
-function renderizarTareas(tareas){
+function renderizarTareas(tareas) {
 
-const contenedor=document.getElementById("contenedor-tareas-diarias");
+    const contenedor = document.getElementById("contenedor-tareas-diarias");
 
-contenedor.innerHTML="";
+    if (!contenedor) return;
 
-tareas.forEach(tarea=>{
+    // 1. Limpieza total del contenedor para refrescar la vista
+    contenedor.innerHTML = "";
 
-window.tareasDiariasGlobal[tarea.id]=tarea;
+    /**
+     * 2. LÓGICA DE ORDENAMIENTO (SORTING)
+     * Priorizamos: 
+     * 1ro: Tareas de prioridad "alta".
+     * 2do: Tareas manuales (Admin).
+     * 3ro: Rutinas del sistema.
+     */
+    const tareasOrdenadas = [...tareas].sort((a, b) => {
+        // Si 'a' es alta y 'b' no, 'a' sube (-1)
+        if (a.priority === "alta" || a.prioridad === "alta") {
+            if (b.priority !== "alta" && b.prioridad !== "alta") return -1;
+        }
+        // Si 'b' es alta y 'a' no, 'b' sube (1)
+        if (b.priority === "alta" || b.prioridad === "alta") {
+            if (a.priority !== "alta" && a.prioridad !== "alta") return 1;
+        }
+        
+        // Si tienen la misma prioridad, ordenamos por fecha (más nuevas arriba)
+        const fechaA = a.fecha_creacion?.seconds || 0;
+        const fechaB = b.fecha_creacion?.seconds || 0;
+        return fechaB - fechaA;
+    });
 
-const div=document.createElement("div");
+    // 3. GENERACIÓN DINÁMICA DE TARJETAS
+    tareasOrdenadas.forEach(tarea => {
 
-div.className="mb-3 p-4 glass-card rounded-2xl border border-zinc-800 flex justify-between items-center cursor-pointer";
+        // Sincronización con el estado global para el Bottom Sheet
+        window.tareasDiariasGlobal[tarea.id] = tarea;
 
-div.onclick=()=>abrirHojaReporte(tarea.id);
+        const esAlta = (tarea.priority === "alta" || tarea.prioridad === "alta");
+        const esManual = tarea.origen !== "sistema_rutinas";
 
-div.innerHTML=`
+        const div = document.createElement("div");
 
-<div>
+        /**
+         * ESTILOS DINÁMICOS:
+         * Si es ALTA: Borde rojo y efecto sutil de pulso para llamar la atención.
+         * Si es NORMAL: Estilo glass-card original.
+         */
+        div.className = `mb-3 p-4 rounded-2xl border transition-all active:scale-95 flex justify-between items-center cursor-pointer ${
+            esAlta 
+            ? 'bg-red-950/10 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.1)] animate-pulse' 
+            : 'glass-card border-zinc-800 bg-zinc-900/40'
+        }`;
 
-<h4 class="text-lg font-black italic uppercase">
-${tarea.equipo || "Mantenimiento"}
-</h4>
+        div.onclick = () => abrirHojaReporte(tarea.id);
 
-<p class="text-xs text-emerald-500">
-${tarea.descripcion || "Revisión técnica"}
-</p>
+        // Badge de identificación: Reportado (Admin) vs Rutina (Sistema)
+        const badgeHTML = esManual 
+            ? `<span class="bg-emerald-500 text-black text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter mb-1 inline-block">REPORTADO</span>`
+            : `<span class="bg-zinc-800 text-zinc-500 text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter mb-1 inline-block">SISTEMA</span>`;
 
-</div>
+        div.innerHTML = `
+            <div class="flex items-center gap-4">
+                <div class="w-1 h-8 rounded-full ${esAlta ? 'bg-red-500' : 'bg-zinc-700'}"></div>
+                
+                <div>
+                    ${badgeHTML}
+                    <h4 class="text-base font-black italic uppercase leading-tight ${esAlta ? 'text-red-500' : 'text-zinc-100'}">
+                        ${tarea.equipo || "MANTENIMIENTO"}
+                    </h4>
+                    <p class="text-xs ${esAlta ? 'text-red-400 font-bold' : 'text-emerald-500'}">
+                        ${tarea.descripcion || "Revisión técnica solicitada"}
+                    </p>
+                </div>
+            </div>
 
-<div class="text-xs text-zinc-500">
-VER OT
-</div>
+            <div class="text-right">
+                <i class="fas ${esAlta ? 'fa-exclamation-circle text-red-500' : 'fa-chevron-right text-zinc-700'} text-xs"></i>
+                <p class="text-[9px] font-bold text-zinc-600 mt-2">VER OT</p>
+            </div>
+        `;
 
-`;
+        contenedor.appendChild(div);
+    });
 
-contenedor.appendChild(div);
-
-});
-
+    console.log(`🚀 Renderizado B2B: ${tareasOrdenadas.length} tareas procesadas.`);
 }
-
 
 
 /* =====================================================
