@@ -1909,7 +1909,7 @@ async function activarNotificacionesBolsillo(userId) {
             // 2. Obtenemos el Token (ID único de radio)
             // REEMPLAZA EL STRING VACÍO CON TU CLAVE VAPID DE FIREBASE
             const token = await getToken(messaging, { 
-                vapidKey: 'BMt0IIn8N-U5Sg9vGfXo0Y0k9p-0m-kY8_W4D2o0zE_E_X0-8zW-0zE-E-E-E-E' // <--- TU VAPID AQUÍ
+                vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ' // <--- TU VAPID AQUÍ
             });
 
             if (token) {
