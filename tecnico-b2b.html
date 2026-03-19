@@ -421,12 +421,20 @@ Historial
 Mi Perfil Operativo
 </h3>
 
-<div class="w-24 h-24 bg-zinc-900 rounded-full mx-auto mb-4 border-2 border-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 relative">
-    <i class="fas fa-user-astronaut text-3xl text-emerald-500/50"></i>
-    <div class="absolute bottom-0 right-0 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-black text-black text-xs">
-        <i class="fas fa-check"></i>
+<div id="containerAvatar" 
+     onclick="document.getElementById('inputFotoPerfil').click()"
+     class="w-24 h-24 bg-zinc-900 rounded-full mx-auto mb-4 border-2 border-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 relative overflow-hidden cursor-pointer active:scale-95 transition-transform">
+    
+    <i id="iconAstronauta" class="fas fa-user-astronaut text-3xl text-emerald-500/50"></i>
+    
+    <img id="perfilFotoImg" class="hidden w-full h-full object-cover">
+
+    <div class="absolute bottom-0 right-0 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-black text-black text-[10px]">
+        <i class="fas fa-camera"></i>
     </div>
 </div>
+
+<input type="file" id="inputFotoPerfil" accept="image/*" class="hidden" onchange="subirFotoPerfil(this)">
 
 <h4 id="perfilNombre" class="text-xl font-black italic uppercase text-white leading-none">
     Cargando...
