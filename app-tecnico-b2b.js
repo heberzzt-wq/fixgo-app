@@ -690,96 +690,108 @@ auth.onAuthStateChanged(async (user) => {
 
 });
 /* =====================================================
-CARGA DE TAREAS PROGRAMADAS (OPTIMIZADA CON CACHE)
+CARGA DE TAREAS PROGRAMADAS (OPTIMIZADA CON CACHE V5.25)
 ===================================================== */
 
 async function cargarTareasProgramadas(){
 
 const contenedor=document.getElementById("contenedor-tareas-diarias");
 
-if(!contenedor || !edificioIdGlobal) return;
+// Protección de entrada: Si no hay contenedor o ID de edificio, abortamos.
+if(!contenedor || !edificioIdGlobal){
+    console.warn("⚠️ Abortando carga: Contenedor o edificioIdGlobal ausentes.");
+    return;
+}
 
+console.log("🔍 Buscando OTs para el nodo operativo:", edificioIdGlobal);
 
 /* ----------------------------------
-1️⃣ CARGAR DESDE CACHE PRIMERO
+1️⃣ CARGAR DESDE CACHE PRIMERO (UX Inmediata)
 ---------------------------------- */
 
-const cacheTareas=await cacheLeerTodos("tareas");
-
-if(cacheTareas.length>0){
-
-renderizarTareas(cacheTareas);
-
+try {
+    const cacheTareas = await cacheLeerTodos("tareas");
+    if(cacheTareas.length > 0){
+        console.log("📦 Datos locales encontrados:", cacheTareas.length);
+        renderizarTareas(cacheTareas);
+    }
+} catch (err) {
+    console.error("Error al leer cache inicial:", err);
 }
 
 
 /* ----------------------------------
-2️⃣ SI OFFLINE → SALIR
+2️⃣ SI OFFLINE → SALIR (No intentamos Snapshot)
 ---------------------------------- */
 
 if(!isOnline){
-
-console.log("Modo offline: usando cache");
-
-return;
-
+    console.log("📡 Modo offline activo: Se mantiene vista de cache.");
+    return;
 }
 
 
 /* ----------------------------------
-3️⃣ CONSULTA FIRESTORE
+3️⃣ CONSULTA FIRESTORE (Real-Time)
 ---------------------------------- */
 
-const q=query(
-
-collection(db,"servicios_b2b"),
-
-where("edificioId","==",edificioIdGlobal),
-
-where("status","in",["pendiente","programado","en_proceso"])
-
+const q = query(
+    collection(db, "servicios_b2b"),
+    where("edificioId", "==", edificioIdGlobal),
+    where("status", "in", ["pendiente", "programado", "en_proceso"])
 );
 
 
-onSnapshot(q,async(snapshot)=>{
+onSnapshot(q, async (snapshot) => {
+    
+    console.log("📥 Snapshot recibido. Documentos en nube:", snapshot.size);
 
-contenedor.innerHTML="";
+    // Limpiamos el estado volátil y preparamos el contenedor
+    contenedor.innerHTML = "";
+    window.tareasDiariasGlobal = {};
 
-window.tareasDiariasGlobal={};
+    if(snapshot.empty){
+        console.warn("⚠️ No se encontraron OTs para:", edificioIdGlobal);
+        contenedor.innerHTML = `
+            <div class="p-8 text-center text-zinc-600 text-xs">
+                Sin tareas activas hoy
+            </div>`;
+        
+        // Si no hay OTs manuales, intentamos disparar las rutinas automáticas
+        await sincronizarRutinasMaestras();
+        return;
+    }
 
-await cacheLimpiar("tareas");
+    // 1. Limpiamos cache local para sincronizar con la verdad de la nube
+    await cacheLimpiar("tareas");
 
-if(snapshot.empty){
+    const tareasParaRender = [];
 
-contenedor.innerHTML=`
-<div class="p-8 text-center text-zinc-600 text-xs">
-Sin tareas activas
-</div>`;
+    // 2. Procesamiento con bucle for...of para asegurar asincronía (AWAIT)
+    for(const docSnap of snapshot.docs){
+        try {
+            const tarea = docSnap.data();
+            const id = docSnap.id;
+            const data = { id, ...tarea };
 
-sincronizarRutinasMaestras();
+            // Guardamos en el motor de cache IndexedDB
+            await cacheGuardar("tareas", data);
 
-return;
+            // Actualizamos el mapa global para acceso rápido en UI
+            window.tareasDiariasGlobal[id] = tarea;
+            
+            tareasParaRender.push(data);
+        } catch (docErr) {
+            console.error("Error procesando documento individual:", docSnap.id, docErr);
+        }
+    }
 
-}
+    // 3. Renderizado final con los datos procesados
+    console.log("✅ Interfaz actualizada con", tareasParaRender.length, "tareas.");
+    renderizarTareas(tareasParaRender);
 
-
-// CORRECCIÓN PUNTO 3: Bucle for...of para asegurar AWAIT
-for(const docSnap of snapshot.docs){
-
-const tarea=docSnap.data();
-
-const id=docSnap.id;
-
-const data={id,...tarea};
-
-await cacheGuardar("tareas",data);
-
-window.tareasDiariasGlobal[id]=tarea;
-
-}
-
-renderizarTareas(await cacheLeerTodos("tareas"));
-
+}, (error) => {
+    console.error("❌ Error en el listener de Firestore:", error);
+    showToast("Error de sincronización con el NOC", true);
 });
 
 }
