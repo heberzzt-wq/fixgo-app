@@ -690,7 +690,7 @@ auth.onAuthStateChanged(async (user) => {
 
 });
 /* =====================================================
-CARGA DE TAREAS PROGRAMADAS (OPTIMIZADA CON CACHE V5.25)
+CARGA DE TAREAS PROGRAMADAS (OPTIMIZADA CON CACHE V5.26)
 ===================================================== */
 
 async function cargarTareasProgramadas(){
@@ -731,7 +731,7 @@ if(!isOnline){
 
 
 /* ----------------------------------
-3️⃣ CONSULTA FIRESTORE (Real-Time)
+3️⃣ CONSULTA FIRESTORE (Real-Time con Detector de Cambios)
 ---------------------------------- */
 
 const q = query(
@@ -740,10 +740,31 @@ const q = query(
     where("status", "in", ["pendiente", "programado", "en_proceso"])
 );
 
+// Variable de control para no alertar tareas viejas al abrir la app
+let isInitialLoad = true;
 
 onSnapshot(q, async (snapshot) => {
     
     console.log("📥 Snapshot recibido. Documentos en nube:", snapshot.size);
+
+    // --- DETECTOR DE NOVEDADES (ALERTA PARA JONATHAN) ---
+    if (!isInitialLoad) {
+        snapshot.docChanges().forEach((change) => {
+            // Solo alertamos si es un documento NUEVO (added)
+            if (change.type === "added") {
+                const dataNueva = change.doc.data();
+                // Si tú la mandas con prioridad alta, disparamos el "grito"
+                if (dataNueva.prioridad === "alta") {
+                    showToast(`🚨 URGENTE: ${dataNueva.equipo || 'REVISIÓN'}`, true);
+                    
+                    // Vibración para Jonathan (si está en Android/Chrome)
+                    if (navigator.vibrate) {
+                        navigator.vibrate([200, 100, 200]);
+                    }
+                }
+            }
+        });
+    }
 
     // Limpiamos el estado volátil y preparamos el contenedor
     contenedor.innerHTML = "";
@@ -756,8 +777,8 @@ onSnapshot(q, async (snapshot) => {
                 Sin tareas activas hoy
             </div>`;
         
-        // Si no hay OTs manuales, intentamos disparar las rutinas automáticas
         await sincronizarRutinasMaestras();
+        isInitialLoad = false; // Marcamos carga como finalizada aunque esté vacía
         return;
     }
 
@@ -788,6 +809,9 @@ onSnapshot(q, async (snapshot) => {
     // 3. Renderizado final con los datos procesados
     console.log("✅ Interfaz actualizada con", tareasParaRender.length, "tareas.");
     renderizarTareas(tareasParaRender);
+
+    // Finalizamos la carga inicial para que los siguientes snapshots sí alerten
+    isInitialLoad = false;
 
 }, (error) => {
     console.error("❌ Error en el listener de Firestore:", error);
