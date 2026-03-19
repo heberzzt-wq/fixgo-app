@@ -617,6 +617,23 @@ if(txtEdificio) {
     txtEdificio.innerText = data.edificioNombre || "EDIFICIO B2B";
 }
 
+// =====================================================
+// NUEVO: INYECTAR DATOS EN EL PERFIL (FASE B)
+// =====================================================
+const pNombre = document.getElementById("perfilNombre");
+const pEspecialidad = document.getElementById("perfilEspecialidad");
+const pEdificio = document.getElementById("perfilEdificio");
+const pTelefono = document.getElementById("perfilTelefono");
+const pEmail = document.getElementById("perfilEmail");
+
+if(pNombre) pNombre.innerText = data.nombre || "Técnico de Campo";
+if(pEspecialidad) pEspecialidad.innerText = data.especialidad || "General";
+if(pEdificio) pEdificio.innerText = data.edificioNombre || "No Asignado";
+if(pTelefono) pTelefono.innerText = data.telefono || "Sin registrar";
+if(pEmail) pEmail.innerText = data.email || "Sin registrar";
+// =====================================================
+
+
 if(ordenId){
 
 document.getElementById("listaTareasHoy").classList.add("hidden");
