@@ -582,75 +582,93 @@ window.validarPaseCaseta=validarPaseCaseta;
 
 
 /* =====================================================
-INIT AUTH
-===================================================== */
+   INIT AUTH - V5.23 (REESCRITURA COMPLETA)
+   ===================================================== */
 
 auth.onAuthStateChanged(async(user)=>{
 
-if(!user){
-
-window.location.href="login.html";
-return;
-
-}
-
-await initLocalDB();
-
-inicializarBottomSheet();
-
-const userDoc=await getDoc(doc(db,"users",user.uid));
-
-const data=userDoc.data();
-
-edificioIdGlobal=data.edificioId;
-
-if(!edificioIdGlobal){
-
-alert("Perfil sin edificio asignado");
-return;
-
-}
-
-// NUEVO: Inyectar el nombre del edificio en el Header (Paso A.2)
-const txtEdificio = document.getElementById("txtEdificio");
-if(txtEdificio) {
-    txtEdificio.innerText = data.edificioNombre || "EDIFICIO B2B";
-}
-
-// =====================================================
-// NUEVO: INYECTAR DATOS EN EL PERFIL (FASE B) - V5.23
-// =====================================================
-const pNombre = document.getElementById("perfilNombre");
-const pEspecialidad = document.getElementById("perfilEspecialidad");
-const pEdificio = document.getElementById("perfilEdificio");
-const pTelefono = document.getElementById("perfilTelefono");
-const pEmail = document.getElementById("perfilEmail");
-
-// Referencias para la Identidad Visual (Nuevos IDs del Paso 1)
-const imgTag = document.getElementById("perfilFotoImg");
-const icon = document.getElementById("iconAstronauta");
-
-// Inyección de Textos base
-if(pNombre) pNombre.innerText = data.nombre || "Técnico de Campo";
-if(pEspecialidad) pEspecialidad.innerText = data.especialidad || "General";
-if(pEdificio) pEdificio.innerText = data.edificioNombre || "No Asignado";
-if(pTelefono) pTelefono.innerText = data.telefono || "Sin registrar";
-if(pEmail) pEmail.innerText = data.email || "Sin registrar";
-
-// Lógica de Visualización de Foto de Perfil
-if (data.foto_perfil) {
-    if (imgTag && icon) {
-        imgTag.src = data.foto_perfil;
-        imgTag.classList.remove("hidden");
-        icon.classList.add("hidden");
+    if(!user){
+        window.location.href="login.html";
+        return;
     }
-} else {
-    // Si no hay foto en Firestore, mantenemos el respaldo del astronauta
-    if (imgTag && icon) {
-        imgTag.classList.add("hidden");
-        icon.classList.remove("hidden");
+
+    // 1. Inicialización de Motores Locales
+    await initLocalDB();
+    inicializarBottomSheet();
+
+    // 2. Extracción de Perfil de Usuario
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    const data = userDoc.data();
+
+    if(!data || !data.edificioId){
+        alert("🚨 Perfil sin edificio asignado. Contacta al soporte.");
+        return;
     }
-}
+
+    // -----------------------------------------------------
+    // NORMALIZACIÓN DE ID (SOLUCIÓN AL BLOQUEO DE ÓRDENES)
+    // -----------------------------------------------------
+    // Forzamos minúsculas y eliminamos espacios para que 
+    // coincida exactamente con lo que despacha el Admin.
+    edificioIdGlobal = data.edificioId.toLowerCase().trim().replace(/\s+/g, '');
+    
+    console.log("🛠️ Nodo Operativo Conectado:", edificioIdGlobal);
+    // -----------------------------------------------------
+
+    // 3. Inyectar el nombre del edificio en el Header (Paso A.2)
+    const txtEdificio = document.getElementById("txtEdificio");
+    if(txtEdificio) {
+        // Para el usuario mostramos el nombre amigable, no el slug
+        txtEdificio.innerText = data.edificioNombre || data.edificioId.toUpperCase();
+    }
+
+    // 4. Inyección de Datos en el Perfil (Fase B)
+    const pNombre = document.getElementById("perfilNombre");
+    const pEspecialidad = document.getElementById("perfilEspecialidad");
+    const pEdificio = document.getElementById("perfilEdificio");
+    const pTelefono = document.getElementById("perfilTelefono");
+    const pEmail = document.getElementById("perfilEmail");
+
+    // Referencias para la Identidad Visual
+    const imgTag = document.getElementById("perfilFotoImg");
+    const icon = document.getElementById("iconAstronauta");
+
+    if(pNombre) pNombre.innerText = data.nombre || "Técnico de Campo";
+    if(pEspecialidad) pEspecialidad.innerText = data.especialidad || "General";
+    if(pEdificio) pEdificio.innerText = data.edificioNombre || "No Asignado";
+    if(pTelefono) pTelefono.innerText = data.telefono || "Sin registrar";
+    if(pEmail) pEmail.innerText = data.email || user.email;
+
+    // 5. Lógica de Visualización de Foto de Perfil (V5.23)
+    if (data.foto_perfil) {
+        if (imgTag && icon) {
+            imgTag.src = data.foto_perfil;
+            imgTag.classList.remove("hidden");
+            icon.classList.add("hidden");
+        }
+    } else {
+        // Respaldo del astronauta si no hay foto en Storage
+        if (imgTag && icon) {
+            imgTag.classList.add("hidden");
+            icon.classList.remove("hidden");
+        }
+    }
+
+    // 6. CONTROL DE FLUJO Y NAVEGACIÓN (INDISPENSABLE)
+    if(ordenId){
+        // Si hay una ID en la URL, ocultamos lista y mostramos flujo de ejecución
+        document.getElementById("listaTareasHoy").classList.add("hidden");
+        document.getElementById("flujoTecnico").classList.remove("hidden");
+
+        const txtPunto = document.getElementById("txtPunto");
+        if(txtPunto) txtPunto.innerText = "Ejecutando OT...";
+    } else {
+        // Si no hay ordenId, cargamos el Dashboard normal
+        cargarTareasProgramadas();
+        cargarRutinaPreventiva();
+    }
+
+});
 // =====================================================
 
 // Lógica de navegación basada en ordenId
