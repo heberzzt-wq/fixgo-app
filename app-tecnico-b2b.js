@@ -688,7 +688,7 @@ auth.onAuthStateChanged(async (user) => {
         showToast("Error de conexión con el servidor", true);
     }
 
-}
+});
 /* =====================================================
 CARGA DE TAREAS PROGRAMADAS (OPTIMIZADA CON CACHE)
 ===================================================== */
