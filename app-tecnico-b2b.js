@@ -449,20 +449,36 @@ sheet.id="ot-bottom-sheet";
 
 sheet.className="fixed inset-0 z-[100] hidden";
 
+// HTML enriquecido para el Desplegable (Paso B)
 sheet.innerHTML=`
 <div class="absolute inset-0 bg-black/80 backdrop-blur-sm"
 onclick="cerrarHojaReporte()"></div>
 
 <div id="ot-sheet-content"
-class="absolute bottom-0 left-0 right-0 bg-zinc-950 p-6 rounded-t-3xl transform translate-y-full transition">
+class="absolute bottom-0 left-0 right-0 bg-zinc-950 p-6 rounded-t-3xl transform translate-y-full transition-transform duration-300">
 
-<h2 id="ot-equipo" class="text-xl font-black mb-2"></h2>
+<div class="w-12 h-1.5 bg-zinc-800 rounded-full mx-auto mb-6"></div>
 
-<p id="ot-descripcion" class="text-xs text-zinc-300 mb-4"></p>
+<div class="flex items-start justify-between mb-4">
+    <h2 id="ot-equipo" class="text-xl font-black italic uppercase text-white w-3/4 leading-tight"></h2>
+    <span id="ot-prioridad-badge" class="text-[9px] px-2 py-1 rounded font-black tracking-widest uppercase mt-1"></span>
+</div>
+
+<div class="space-y-4 mb-8">
+    <div class="bg-black/50 p-3 rounded-xl border border-white/5">
+        <p class="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1"><i class="fas fa-map-marker-alt"></i> Ubicación Exacta</p>
+        <p id="ot-ubicacion" class="text-xs text-white font-bold uppercase"></p>
+    </div>
+
+    <div class="bg-black/50 p-3 rounded-xl border border-white/5">
+        <p class="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1"><i class="fas fa-clipboard-list"></i> Instrucciones / Fallo</p>
+        <p id="ot-descripcion" class="text-xs text-zinc-300 leading-relaxed"></p>
+    </div>
+</div>
 
 <button id="btn-iniciar-ot"
-class="w-full bg-emerald-500 text-black py-3 rounded-xl font-black">
-INICIAR SERVICIO
+class="w-full bg-emerald-500 text-black py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-transform">
+<i class="fas fa-play-circle mr-2"></i> INICIAR SERVICIO
 </button>
 
 </div>
@@ -479,9 +495,23 @@ const tarea=window.tareasDiariasGlobal[id];
 
 if(!tarea) return;
 
-document.getElementById("ot-equipo").innerText=tarea.equipo;
+// Mapeo de datos al nuevo diseño
+document.getElementById("ot-equipo").innerText=tarea.equipo || "MANTENIMIENTO";
+document.getElementById("ot-descripcion").innerText=tarea.descripcion || "Sin instrucciones detalladas.";
+document.getElementById("ot-ubicacion").innerText=tarea.ubicacion_especifica || "Ubicación General";
 
-document.getElementById("ot-descripcion").innerText=tarea.descripcion;
+// Manejo visual de la Prioridad
+const badgePrioridad = document.getElementById("ot-prioridad-badge");
+if(tarea.prioridad === "alta") {
+    badgePrioridad.innerText = "🚨 ALTA";
+    badgePrioridad.className = "text-[9px] px-2 py-1 rounded font-black tracking-widest uppercase mt-1 bg-red-500/20 text-red-500 border border-red-500/20";
+} else if (tarea.prioridad === "media") {
+    badgePrioridad.innerText = "⚠️ MEDIA";
+    badgePrioridad.className = "text-[9px] px-2 py-1 rounded font-black tracking-widest uppercase mt-1 bg-amber-500/20 text-amber-500 border border-amber-500/20";
+} else {
+    badgePrioridad.innerText = "NORMAL";
+    badgePrioridad.className = "text-[9px] px-2 py-1 rounded font-black tracking-widest uppercase mt-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20";
+}
 
 document.getElementById("btn-iniciar-ot").onclick=()=>{
 
@@ -491,15 +521,13 @@ seleccionarTarea(id);
 };
 
 const sheet=document.getElementById("ot-bottom-sheet");
-
 const content=document.getElementById("ot-sheet-content");
 
 sheet.classList.remove("hidden");
 
+// Pequeño delay para asegurar que el display:block se aplicó antes de animar
 setTimeout(()=>{
-
 content.classList.remove("translate-y-full");
-
 },10);
 
 };
@@ -508,15 +536,12 @@ content.classList.remove("translate-y-full");
 window.cerrarHojaReporte=()=>{
 
 const sheet=document.getElementById("ot-bottom-sheet");
-
 const content=document.getElementById("ot-sheet-content");
 
 content.classList.add("translate-y-full");
 
 setTimeout(()=>{
-
 sheet.classList.add("hidden");
-
 },300);
 
 };
@@ -586,11 +611,21 @@ return;
 
 }
 
+// NUEVO: Inyectar el nombre del edificio en el Header (Paso A.2)
+const txtEdificio = document.getElementById("txtEdificio");
+if(txtEdificio) {
+    txtEdificio.innerText = data.edificioNombre || "EDIFICIO B2B";
+}
+
 if(ordenId){
 
 document.getElementById("listaTareasHoy").classList.add("hidden");
 
 document.getElementById("flujoTecnico").classList.remove("hidden");
+
+// NUEVO: Si entró a una OT, le cambiamos el subtítulo del Header
+const txtPunto = document.getElementById("txtPunto");
+if(txtPunto) txtPunto.innerText = "Ejecutando OT...";
 
 }else{
 
