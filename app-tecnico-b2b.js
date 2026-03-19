@@ -1890,7 +1890,75 @@ window.subirFotoPerfil = async (input) => {
         if (container) container.style.opacity = "1";
     }
 };
+/* =====================================================
+   NUEVAS FUNCIONES: MOTOR DE PUSH & ALERTAS (V5.28)
+   ===================================================== */
 
+/**
+ * Registra el ID del radio del técnico en la central.
+ * @param {string} userId - El UID del técnico Jonathan.
+ */
+async function activarNotificacionesBolsillo(userId) {
+    try {
+        const messaging = getMessaging();
+        
+        // 1. Pedimos permiso al navegador
+        const permission = await Notification.requestPermission();
+        
+        if (permission === 'granted') {
+            // 2. Obtenemos el Token (ID único de radio)
+            // REEMPLAZA EL STRING VACÍO CON TU CLAVE VAPID DE FIREBASE
+            const token = await getToken(messaging, { 
+                vapidKey: 'BMt0IIn8N-U5Sg9vGfXo0Y0k9p-0m-kY8_W4D2o0zE_E_X0-8zW-0zE-E-E-E-E' // <--- TU VAPID AQUÍ
+            });
+
+            if (token) {
+                console.log("🎫 ID de Radio obtenido:", token);
+                
+                // 3. Lo guardamos en su perfil de Firestore
+                await updateDoc(doc(db, "users", userId), {
+                    fcmToken: token,
+                    ultimaSincronizacionPush: serverTimestamp()
+                });
+                
+                console.log("✅ Jonathan está conectado a la central de radio.");
+            }
+        }
+    } catch (error) {
+        console.error("❌ Error al activar radio:", error);
+    }
+}
+
+/**
+ * Dispara el sonido de alerta del sistema.
+ */
+function sonarAlerta() {
+    try {
+        // Sonido táctico de emergencia
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.play().catch(e => console.log("Audio en espera de interacción."));
+    } catch (e) {
+        console.error("No se pudo reproducir la alerta sonora.");
+    }
+}
+
+/**
+ * Envía la orden de notificación al velador (Service Worker).
+ */
+function lanzarNotificacionPush(titulo, mensaje) {
+    if (!('serviceWorker' in navigator)) return;
+
+    navigator.serviceWorker.ready.then(registration => {
+        registration.showNotification(titulo, {
+            body: mensaje,
+            icon: "favicon.png",
+            badge: "favicon.png",
+            vibrate: [300, 100, 300, 100, 300],
+            requireInteraction: true, // Se queda en pantalla hasta que Jonathan la vea
+            data: { url: window.location.href }
+        });
+    });
+}
 /* =====================================================
 FIN ARCHIVO
 GESTIA PREMIUM V5.23
