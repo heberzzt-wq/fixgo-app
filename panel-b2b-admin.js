@@ -117,7 +117,7 @@ setInterval(() => {
 }, 1000);
 
 // ======================================================
-// 4. RADAR DE PLANTILLA OPERATIVA
+// 4. RADAR DE PLANTILLA OPERATIVA - V5.23 (OPTIMIZADO FOTO)
 // ======================================================
 function escucharPlantillaRealTime(edificioId) {
     const q = query(
@@ -132,7 +132,11 @@ function escucharPlantillaRealTime(edificioId) {
         if (!tabla) return;
 
         tabla.innerHTML = "";
-        select.innerHTML = '<option value="">-- Seleccionar Especialista --</option>';
+        
+        // Reiniciamos el select de asignación en la creación de tickets
+        if(select) {
+            select.innerHTML = '<option value="">-- Seleccionar Especialista --</option>';
+        }
 
         let tecnicosActivos = 0;
 
@@ -140,41 +144,78 @@ function escucharPlantillaRealTime(edificioId) {
             const emp = docSnap.data();
             const empId = docSnap.id;
 
+            // Filtro de Seguridad: Solo personal operativo en el Radar
             if(emp.rol === "admin_b2b" || emp.rol === "ceo" || emp.rol === "admin") return;
 
+            // Actualizar Select de Asignación (Solo técnicos activos)
             if (emp.rol === "tecnico" && emp.estado === "activo") {
                 tecnicosActivos++;
-                const opt = document.createElement("option");
-                opt.value = empId;
-                opt.textContent = `${(emp.nombre || 'SIN NOMBRE').toUpperCase()} [${(emp.especialidad || 'GENERAL').toUpperCase()}]`;
-                select.appendChild(opt);
+                if(select) {
+                    const opt = document.createElement("option");
+                    opt.value = empId;
+                    opt.textContent = `${(emp.nombre || 'SIN NOMBRE').toUpperCase()} [${(emp.especialidad || 'GENERAL').toUpperCase()}]`;
+                    select.appendChild(opt);
+                }
             }
 
+            // Construcción de la Fila con Identidad Visual
             const row = document.createElement("tr");
             row.className = "hover:bg-white/[0.02] transition-all text-xs border-b border-white/5";
+            
+            // Lógica de Avatar: Foto Real vs Astronauta Placeholder
+            const avatarHTML = emp.foto_perfil 
+                ? `<img src="${emp.foto_perfil}" class="w-full h-full object-cover">`
+                : `<div class="w-full h-full flex items-center justify-center bg-zinc-800 text-zinc-600">
+                     <i class="fas fa-user-astronaut text-[10px]"></i>
+                   </div>`;
+
             row.innerHTML = `
                 <td class="p-4">
-                    <div class="font-bold text-white uppercase tracking-tighter">${emp.nombre || 'Sin Nombre'}</div>
-                    <div class="text-[10px] text-zinc-400 font-bold uppercase italic">${emp.especialidad || 'General'}</div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full border border-white/10 overflow-hidden flex-shrink-0 bg-black shadow-inner">
+                            ${avatarHTML}
+                        </div>
+                        
+                        <div>
+                            <div class="font-bold text-white uppercase tracking-tighter">
+                                ${emp.nombre || 'Sin Nombre'}
+                            </div>
+                            <div class="text-[10px] text-zinc-400 font-bold uppercase italic">
+                                ${emp.especialidad || 'General'}
+                            </div>
+                        </div>
+                    </div>
                 </td>
+                
                 <td class="p-4 text-center">
                     <span class="px-3 py-1 rounded-full text-[9px] font-black border ${
                         emp.estado === 'activo' 
-                        ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/5' 
+                        ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/5 shadow-[0_0_10px_rgba(16,185,129,0.05)]' 
                         : 'border-red-500/20 text-red-500 bg-red-500/5'
                     }">
                         ${(emp.estado || 'pendiente').toUpperCase()}
                     </span>
                 </td>
+
+                <td class="p-4 text-right">
+                    <button onclick="verDetalleTecnico('${empId}')" class="text-zinc-600 hover:text-white transition-colors">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                </td>
             `;
             tabla.appendChild(row);
         });
 
+        // Actualización de contadores en el Dashboard
         const countLabel = document.getElementById("countTecnicosActivos");
-        if (countLabel) countLabel.innerText = tecnicosActivos;
+        if (countLabel) {
+            countLabel.innerText = tecnicosActivos;
+            // Animación sutil de actualización
+            countLabel.classList.add("text-emerald-400");
+            setTimeout(() => countLabel.classList.remove("text-emerald-400"), 1000);
+        }
     });
 }
-
 // ======================================================
 // 5. CONTADORES DE DASHBOARD
 // ======================================================
