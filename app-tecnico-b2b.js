@@ -618,7 +618,7 @@ if(txtEdificio) {
 }
 
 // =====================================================
-// NUEVO: INYECTAR DATOS EN EL PERFIL (FASE B)
+// NUEVO: INYECTAR DATOS EN EL PERFIL (FASE B) - V5.23
 // =====================================================
 const pNombre = document.getElementById("perfilNombre");
 const pEspecialidad = document.getElementById("perfilEspecialidad");
@@ -626,14 +626,34 @@ const pEdificio = document.getElementById("perfilEdificio");
 const pTelefono = document.getElementById("perfilTelefono");
 const pEmail = document.getElementById("perfilEmail");
 
+// Referencias para la Identidad Visual (Nuevos IDs del Paso 1)
+const imgTag = document.getElementById("perfilFotoImg");
+const icon = document.getElementById("iconAstronauta");
+
+// Inyección de Textos base
 if(pNombre) pNombre.innerText = data.nombre || "Técnico de Campo";
 if(pEspecialidad) pEspecialidad.innerText = data.especialidad || "General";
 if(pEdificio) pEdificio.innerText = data.edificioNombre || "No Asignado";
 if(pTelefono) pTelefono.innerText = data.telefono || "Sin registrar";
 if(pEmail) pEmail.innerText = data.email || "Sin registrar";
+
+// Lógica de Visualización de Foto de Perfil
+if (data.foto_perfil) {
+    if (imgTag && icon) {
+        imgTag.src = data.foto_perfil;
+        imgTag.classList.remove("hidden");
+        icon.classList.add("hidden");
+    }
+} else {
+    // Si no hay foto en Firestore, mantenemos el respaldo del astronauta
+    if (imgTag && icon) {
+        imgTag.classList.add("hidden");
+        icon.classList.remove("hidden");
+    }
+}
 // =====================================================
 
-
+// Lógica de navegación basada en ordenId
 if(ordenId){
 
 document.getElementById("listaTareasHoy").classList.add("hidden");
@@ -652,6 +672,8 @@ cargarRutinaPreventiva();
 }
 
 });
+
+
 /* =====================================================
 CARGA DE TAREAS PROGRAMADAS (OPTIMIZADA CON CACHE)
 ===================================================== */
@@ -1696,7 +1718,75 @@ reader.readAsDataURL(file);
 
 };
 
+/* =====================================================
+   MÓDULO: GESTIÓN DE FOTO DE PERFIL (V5.23)
+   ===================================================== */
 
+/**
+ * Procesa la subida de la foto de perfil de Jonathan.
+ * Maneja el flujo de Storage -> Firestore -> UI Update.
+ * @param {HTMLInputElement} input - El input file disparado desde el perfil.
+ */
+window.subirFotoPerfil = async (input) => {
+    const file = input.files[0];
+    if (!file) return;
+
+    const user = auth.currentUser;
+    if (!user) {
+        showToast("Sesión no válida", true);
+        return;
+    }
+
+    // Referencias de UI
+    const container = document.getElementById("containerAvatar");
+    const imgTag = document.getElementById("perfilFotoImg");
+    const icon = document.getElementById("iconAstronauta");
+    
+    // Feedback visual inmediato (Loading state)
+    if (container) container.style.opacity = "0.5";
+    showToast("Subiendo foto oficial...");
+
+    try {
+        if (!isOnline) {
+            // Nota: Para fotos de perfil (identidad), forzamos online para evitar 
+            // que el NOC vea un perfil vacío durante el despliegue.
+            showToast("Se requiere conexión para actualizar perfil", true);
+            if (container) container.style.opacity = "1";
+            return;
+        }
+
+        // 1. Definir ruta en Storage: perfiles_tecnicos/{uid}.jpg
+        // Usamos el UID para que cada técnico solo tenga una foto activa (sobrescribe)
+        const storagePath = `perfiles_tecnicos/${user.uid}.jpg`;
+        const storageRef = ref(storage, storagePath);
+
+        // 2. Upload directo a Firebase Storage
+        await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(storageRef);
+
+        // 3. Actualizar el documento del técnico en Firestore (V2.0 Security Rules)
+        const userRef = doc(db, "users", user.uid);
+        await updateDoc(userRef, {
+            foto_perfil: downloadURL,
+            ultima_actualizacion_perfil: serverTimestamp()
+        });
+
+        // 4. Actualización de la Interfaz (UI)
+        if (imgTag && icon) {
+            imgTag.src = downloadURL;
+            imgTag.classList.remove("hidden");
+            icon.classList.add("hidden");
+        }
+
+        showToast("Foto actualizada correctamente");
+
+    } catch (error) {
+        console.error("Error en subirFotoPerfil:", error);
+        showToast("Error al subir la imagen", true);
+    } finally {
+        if (container) container.style.opacity = "1";
+    }
+};
 
 /* =====================================================
 FIN ARCHIVO
