@@ -690,7 +690,7 @@ auth.onAuthStateChanged(async (user) => {
 
 });
 /* =====================================================
-CARGA DE TAREAS PROGRAMADAS (OPTIMIZADA CON CACHE V5.26)
+CARGA DE TAREAS PROGRAMADAS (V5.27 - AUDIO & NOTIFICACIONES)
 ===================================================== */
 
 async function cargarTareasProgramadas(){
@@ -703,10 +703,15 @@ if(!contenedor || !edificioIdGlobal){
     return;
 }
 
+// SOLICITUD DE PERMISOS (Para que aparezca el banner de "Permitir notificaciones")
+if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+    Notification.requestPermission();
+}
+
 console.log("🔍 Buscando OTs para el nodo operativo:", edificioIdGlobal);
 
 /* ----------------------------------
-1️⃣ CARGAR DESDE CACHE PRIMERO (UX Inmediata)
+1️⃣ CARGAR DESDE CACHE PRIMERO
 ---------------------------------- */
 
 try {
@@ -721,7 +726,7 @@ try {
 
 
 /* ----------------------------------
-2️⃣ SI OFFLINE → SALIR (No intentamos Snapshot)
+2️⃣ SI OFFLINE → SALIR
 ---------------------------------- */
 
 if(!isOnline){
@@ -731,7 +736,7 @@ if(!isOnline){
 
 
 /* ----------------------------------
-3️⃣ CONSULTA FIRESTORE (Real-Time con Detector de Cambios)
+3️⃣ CONSULTA FIRESTORE (Real-Time con Alerta Sonora)
 ---------------------------------- */
 
 const q = query(
@@ -740,78 +745,80 @@ const q = query(
     where("status", "in", ["pendiente", "programado", "en_proceso"])
 );
 
-// Variable de control para no alertar tareas viejas al abrir la app
-let isInitialLoad = true;
+// Flag para no alertar tareas viejas al cargar la app por primera vez
+let cargaInicialFinalizada = false;
 
 onSnapshot(q, async (snapshot) => {
     
     console.log("📥 Snapshot recibido. Documentos en nube:", snapshot.size);
 
-    // --- DETECTOR DE NOVEDADES (ALERTA PARA JONATHAN) ---
-    if (!isInitialLoad) {
+    // --- LÓGICA DE ALERTA PARA JONATHAN ---
+    if (cargaInicialFinalizada) {
         snapshot.docChanges().forEach((change) => {
-            // Solo alertamos si es un documento NUEVO (added)
             if (change.type === "added") {
-                const dataNueva = change.doc.data();
-                // Si tú la mandas con prioridad alta, disparamos el "grito"
-                if (dataNueva.prioridad === "alta") {
-                    showToast(`🚨 URGENTE: ${dataNueva.equipo || 'REVISIÓN'}`, true);
+                const nuevaTarea = change.doc.data();
+                
+                // Si la tarea es Prioridad Alta, lanzamos toda la artillería
+                if (nuevaTarea.prioridad === "alta") {
                     
-                    // Vibración para Jonathan (si está en Android/Chrome)
-                    if (navigator.vibrate) {
-                        navigator.vibrate([200, 100, 200]);
+                    // 1. Sonido de Alerta (Audio)
+                    // Puedes cambiar esta URL por un archivo local como 'assets/alert.mp3'
+                    const alertaSonido = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                    alertaSonido.play().catch(e => console.log("Audio bloqueado por el navegador hasta interacción del usuario."));
+
+                    // 2. Notificación Nativa de Windows/Android (Funciona incluso con la pestaña en segundo plano)
+                    if (Notification.permission === "granted") {
+                        new Notification("🚨 NUEVA EMERGENCIA", {
+                            body: `Equipo: ${nuevaTarea.equipo || 'No especificado'}\n${nuevaTarea.descripcion || ''}`,
+                            icon: "favicon.png" // O el logo de Gestia
+                        });
                     }
+
+                    // 3. Vibración (Solo dispositivos móviles)
+                    if (navigator.vibrate) {
+                        navigator.vibrate([300, 100, 300, 100, 300]);
+                    }
+
+                    showToast(`🚨 EMERGENCIA DETECTADA: ${nuevaTarea.equipo}`, true);
                 }
             }
         });
     }
 
-    // Limpiamos el estado volátil y preparamos el contenedor
+    // Limpieza de UI y Cache (Tu lógica base)
     contenedor.innerHTML = "";
     window.tareasDiariasGlobal = {};
 
     if(snapshot.empty){
         console.warn("⚠️ No se encontraron OTs para:", edificioIdGlobal);
-        contenedor.innerHTML = `
-            <div class="p-8 text-center text-zinc-600 text-xs">
-                Sin tareas activas hoy
-            </div>`;
-        
+        contenedor.innerHTML = `<div class="p-8 text-center text-zinc-600 text-xs">Sin tareas activas hoy</div>`;
         await sincronizarRutinasMaestras();
-        isInitialLoad = false; // Marcamos carga como finalizada aunque esté vacía
+        cargaInicialFinalizada = true;
         return;
     }
 
-    // 1. Limpiamos cache local para sincronizar con la verdad de la nube
     await cacheLimpiar("tareas");
 
     const tareasParaRender = [];
 
-    // 2. Procesamiento con bucle for...of para asegurar asincronía (AWAIT)
     for(const docSnap of snapshot.docs){
         try {
             const tarea = docSnap.data();
             const id = docSnap.id;
             const data = { id, ...tarea };
 
-            // Guardamos en el motor de cache IndexedDB
             await cacheGuardar("tareas", data);
-
-            // Actualizamos el mapa global para acceso rápido en UI
             window.tareasDiariasGlobal[id] = tarea;
-            
             tareasParaRender.push(data);
         } catch (docErr) {
-            console.error("Error procesando documento individual:", docSnap.id, docErr);
+            console.error("Error procesando documento:", docSnap.id, docErr);
         }
     }
 
-    // 3. Renderizado final con los datos procesados
-    console.log("✅ Interfaz actualizada con", tareasParaRender.length, "tareas.");
     renderizarTareas(tareasParaRender);
-
-    // Finalizamos la carga inicial para que los siguientes snapshots sí alerten
-    isInitialLoad = false;
+    
+    // Marcamos que la primera carga terminó para que las siguientes sí suenen
+    cargaInicialFinalizada = true;
 
 }, (error) => {
     console.error("❌ Error en el listener de Firestore:", error);
