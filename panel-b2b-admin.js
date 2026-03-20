@@ -28,28 +28,72 @@ import {
 let adminContext = null;
 
 /* =====================================================
-   ESTADO GLOBAL & RED
+    MÓDULO: DESPACHO TÁCTICO B2B (FIX CORS)
    ===================================================== */
+async function enviarPushEmergenciaB2B(tokenDestino, equipo, descripcion) {
+    console.log("📡 Disparando señal de radio al bolsillo...");
+
+    // NOTA CRÍTICA: No usamos fetch a fcm.googleapis.com (CORS LOCK)
+    // En su lugar, registramos la orden en la colección 'notificaciones_pendientes'
+    // para que el backend la procese, o usamos el trigger de Firestore.
+    
+    try {
+        await addDoc(collection(db, "notificaciones_pendientes"), {
+            token: tokenDestino,
+            titulo: "🚨 NUEVA ORDEN: " + equipo,
+            mensaje: descripcion,
+            prioridad: "alta",
+            timestamp: serverTimestamp(),
+            status: "ready"
+        });
+
+        showToast("Señal enviada al radio del técnico");
+        return true;
+    } catch (error) {
+        console.error("Error en Despacho B2B:", error);
+        showToast("Falla en la antena de despacho", true);
+        return false;
+    }
+}
+/* =====================================================
+   ESTADO GLOBAL & RED (V5.18 - Refactored)
+   ===================================================== */
+
+// 1. Inicialización de estado basada en la realidad del navegador
 let isOnline = navigator.onLine;
 
-window.addEventListener("online", () => {
-    isOnline = true;
+/**
+ * Centraliza la actualización de la interfaz y la lógica de red
+ * @param {boolean} onlineStatus - El estado actual de la conexión
+ */
+const actualizarInterfazRed = (onlineStatus) => {
+    isOnline = onlineStatus;
     const badge = document.getElementById("networkBadge");
-    if(badge){
-        badge.innerText = "ONLINE";
-        badge.className = "badge-online";
-    }
-    if(adminContext?.edificioId) sincronizarHistorialConFirestore(adminContext.edificioId);
-});
 
-window.addEventListener("offline", () => {
-    isOnline = false;
-    const badge = document.getElementById("networkBadge");
-    if(badge){
-        badge.innerText = "OFFLINE";
-        badge.className = "badge-offline";
+    if (badge) {
+        if (isOnline) {
+            badge.innerText = "ONLINE";
+            badge.className = "badge-online";
+            
+            // Disparar sincronización solo si hay contexto de edificio
+            if (adminContext?.edificioId) {
+                console.log(`[Red] Conectado. Sincronizando edificio: ${adminContext.edificioId}`);
+                sincronizarHistorialConFirestore(adminContext.edificioId);
+            }
+        } else {
+            badge.innerText = "OFFLINE";
+            badge.className = "badge-offline";
+            console.warn("[Red] El dispositivo está fuera de línea.");
+        }
     }
-});
+};
+
+// 2. Listeners de eventos de red
+window.addEventListener("online", () => actualizarInterfazRed(true));
+window.addEventListener("offline", () => actualizarInterfazRed(false));
+
+// 3. Ejecución inmediata al cargar para asegurar que el badge sea correcto desde el inicio
+actualizarInterfazRed(navigator.onLine);
 
 /* =====================================================
    INDEXED DB CACHE ENGINE
