@@ -1920,11 +1920,11 @@ window.subirFotoPerfil = async (input) => {
     }
 };
 /* =====================================================
-   NUEVAS FUNCIONES: MOTOR DE PUSH & ALERTAS (V5.29)
+    NUEVAS FUNCIONES: MOTOR DE PUSH & ALERTAS (V5.30)
    ===================================================== */
 
 /**
- * Registra el ID del radio del técnico en la central con Debug Logs.
+ * Registra el ID del radio del técnico en la central.
  * @param {string} userId - El UID del técnico Jonathan.
  */
 async function activarNotificacionesBolsillo(userId) {
@@ -1933,23 +1933,25 @@ async function activarNotificacionesBolsillo(userId) {
     try {
         const messaging = getMessaging();
         
-        // 1. Pedimos permiso (Aparece el cuadro de Chrome/Android)
-        console.log("🔔 Pidiendo permiso de notificación...");
+        // 1. Pedimos permiso
         const permission = await Notification.requestPermission();
         console.log("🔔 Resultado del permiso:", permission);
 
         if (permission === 'granted') {
-            // 2. Obtenemos el Token
             console.log("🎫 Solicitando Token a Google (FCM)...");
             
+            // 🔥 SOLUCIÓN AL 404: 
+            // Esperamos a que el Service Worker esté listo antes de pedir el token
+            const registration = await navigator.serviceWorker.ready;
+
             const currentToken = await getToken(messaging, { 
-                vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ' 
+                vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ',
+                serviceWorkerRegistration: registration // <-- Esto mata el error 404
             });
 
             if (currentToken) {
                 console.log("✅ TOKEN RECIBIDO:", currentToken);
                 
-                // 3. Lo guardamos en su perfil de Firestore
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, {
                     fcmToken: currentToken,
@@ -1959,7 +1961,7 @@ async function activarNotificacionesBolsillo(userId) {
                 console.log("💾 BASE DE DATOS: Token guardado en el perfil de Jonathan.");
                 showToast("Radio B2B Sintonizado");
             } else {
-                console.warn("⚠️ Google no generó Token. ¿El archivo sw.js está en la raíz?");
+                console.warn("⚠️ Google no generó Token.");
             }
         } else {
             console.error("🚫 Permiso denegado por el usuario.");
@@ -1967,7 +1969,6 @@ async function activarNotificacionesBolsillo(userId) {
         }
     } catch (error) {
         console.error("❌ ERROR CRÍTICO EN RADIO:", error);
-        // Si sale error de 'messaging/registration-token-not-found', es el sw.js
     }
 }
 
