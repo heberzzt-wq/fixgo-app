@@ -1,6 +1,6 @@
 /**
  * ======================================================
- * GESTIA PREMIUM - SERVICE WORKER v5.33 (SAFE IMPROVED)
+ * GESTIA PREMIUM - SERVICE WORKER v5.34 (FCM HARDENED)
  * Proyecto: fixgo-44e4d
  * Lead Architect: Heberto Mendoza
  * ======================================================
@@ -11,7 +11,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
 // 🔥 Configuración de Caché
-const CACHE_NAME = 'gestia-premium-cache-v3.4';
+const CACHE_NAME = 'gestia-premium-cache-v3.5';
 
 const urlsToCache = [
   '/',
@@ -30,7 +30,7 @@ firebase.initializeApp({
   appId: "1:1005526685116:web:62f1a823ff8761da85c7b9"
 });
 
-// Soporte seguro para navegadores
+// Soporte seguro
 let messaging = null;
 
 if (firebase.messaging.isSupported()) {
@@ -38,55 +38,97 @@ if (firebase.messaging.isSupported()) {
 }
 
 /**
- * RECEPTOR DE NOTIFICACIONES EN SEGUNDO PLANO
+ * RECEPTOR FCM BACKGROUND
  */
 
 if (messaging) {
 
   messaging.onBackgroundMessage((payload) => {
 
-    console.log('[Gestia SW] Recibido Push en background:', payload);
+    console.log('[Gestia SW] Push FCM recibido:', payload);
 
-    const notificationTitle =
-      payload.notification?.title || '🚨 NUEVA ORDEN GESTIA';
+    const title = payload.notification?.title || "🚨 NUEVA ORDEN GESTIA";
 
-    const notificationOptions = {
+    const options = {
 
-      body:
-        payload.notification?.body ||
-        'Atención: Tienes una nueva asignación pendiente.',
+      body: payload.notification?.body || "Tienes una nueva orden asignada",
 
       icon: '/assets/icono-192.png',
       badge: '/assets/icono-192.png',
 
-      vibrate: [500,110,500,110,450,110,200,110,170,40,450,110,200,110,170,40,500],
+      vibrate: [500,110,500,110,450,110],
 
-      // Anti duplicado por orden
-      tag: payload.data?.orderId || 'gestia-urgent-alert',
-
-      renotify: true,
       requireInteraction: true,
+      renotify: true,
 
-      priority: 'high',
+      tag: payload.data?.orderId || "gestia-alert",
 
       data: {
         url: payload.data?.url || '/',
-        type: payload.data?.type || 'B2B_ORDER',
         orderId: payload.data?.orderId || null
       }
 
     };
 
-    return self.registration.showNotification(
-      notificationTitle,
-      notificationOptions
-    );
+    return self.registration.showNotification(title, options);
 
   });
 
 }
 
-// 3. ACCIÓN AL TOCAR LA NOTIFICACIÓN
+/**
+ * CAPTURA UNIVERSAL DE PUSH
+ * (para pruebas de Firebase Console)
+ */
+
+self.addEventListener('push', (event) => {
+
+  console.log('[Gestia SW] Evento PUSH detectado');
+
+  let payload = {};
+
+  try {
+    payload = event.data.json();
+  } catch (e) {
+    payload = { notification: { title: "Gestia", body: "Nueva notificación" }};
+  }
+
+  const title =
+    payload.notification?.title ||
+    payload.data?.title ||
+    "🚨 NUEVA ORDEN GESTIA";
+
+  const options = {
+
+    body:
+      payload.notification?.body ||
+      payload.data?.body ||
+      "Tienes una nueva orden asignada",
+
+    icon: '/assets/icono-192.png',
+    badge: '/assets/icono-192.png',
+
+    vibrate: [500,110,500,110,450,110],
+
+    requireInteraction: true,
+    renotify: true,
+
+    tag: payload.data?.orderId || "gestia-alert",
+
+    data: {
+      url: payload.data?.url || '/',
+      orderId: payload.data?.orderId || null
+    }
+
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(title, options)
+  );
+
+});
+
+// 3. CLICK EN NOTIFICACIÓN
 self.addEventListener('notificationclick', (event) => {
 
   event.notification.close();
@@ -100,9 +142,7 @@ self.addEventListener('notificationclick', (event) => {
       includeUncontrolled: true
     }).then(windowClients => {
 
-      for (let i = 0; i < windowClients.length; i++) {
-
-        let client = windowClients[i];
+      for (let client of windowClients) {
 
         if (client.url.includes(targetUrl) && 'focus' in client) {
           return client.focus();
@@ -120,10 +160,10 @@ self.addEventListener('notificationclick', (event) => {
 
 });
 
-// 4. CICLO DE VIDA: INSTALACIÓN
-self.addEventListener('install', event => {
+// 4. INSTALACIÓN
+self.addEventListener('install', (event) => {
 
-  console.log('[Gestia SW] Instalando nueva antena de radio...');
+  console.log('[Gestia SW] Instalando...');
 
   self.skipWaiting();
 
@@ -131,7 +171,7 @@ self.addEventListener('install', event => {
 
     caches.open(CACHE_NAME).then(cache => {
 
-      console.log('[Gestia SW] Asegurando archivos críticos en caché...');
+      console.log('[Gestia SW] Cacheando archivos críticos');
 
       return cache.addAll(urlsToCache);
 
@@ -141,10 +181,10 @@ self.addEventListener('install', event => {
 
 });
 
-// 5. CICLO DE VIDA: ACTIVACIÓN
-self.addEventListener('activate', event => {
+// 5. ACTIVACIÓN
+self.addEventListener('activate', (event) => {
 
-  console.log('[Gestia SW] Antena Activa. Limpiando frecuencias antiguas...');
+  console.log('[Gestia SW] Activado');
 
   event.waitUntil(
 
@@ -155,11 +195,7 @@ self.addEventListener('activate', event => {
         cacheNames.map(name => {
 
           if (name !== CACHE_NAME) {
-
-            console.log('[Gestia SW] Eliminando caché obsoleta:', name);
-
             return caches.delete(name);
-
           }
 
         })
@@ -175,7 +211,7 @@ self.addEventListener('activate', event => {
 });
 
 /**
- * ACTUALIZACIÓN FORZADA DEL SW
+ * UPDATE FORZADO
  */
 
 self.addEventListener('message', (event) => {
@@ -187,14 +223,13 @@ self.addEventListener('message', (event) => {
 });
 
 /**
- * ESTRATEGIA DE RED: FETCH OPTIMIZADO
+ * FETCH
  */
 
-self.addEventListener('fetch', event => {
+self.addEventListener('fetch', (event) => {
 
   const url = event.request.url;
 
-  // Ignorar Firebase / Google
   if (
     url.includes('gstatic.com') ||
     url.includes('googleapis.com')
@@ -205,21 +240,24 @@ self.addEventListener('fetch', event => {
   event.respondWith(
 
     fetch(event.request)
-.then(response => {
 
-  // Solo cachear requests GET válidos
-  if (event.request.method === 'GET' && response.status === 200) {
+      .then(response => {
 
-    const clone = response.clone();
+        if (
+          event.request.method === 'GET' &&
+          response.status === 200
+        ) {
 
-    caches.open(CACHE_NAME)
-      .then(cache => cache.put(event.request, clone));
+          const clone = response.clone();
 
-  }
+          caches.open(CACHE_NAME)
+            .then(cache => cache.put(event.request, clone));
 
-  return response;
+        }
 
-})
+        return response;
+
+      })
 
       .catch(() => {
 
@@ -227,11 +265,8 @@ self.addEventListener('fetch', event => {
           .then(response => {
 
             return response || new Response(
-              'Gestia: Modo Offline - Señal no disponible',
-              {
-                status: 404,
-                statusText: 'Not Found'
-              }
+              'Gestia: Modo Offline',
+              { status: 404 }
             );
 
           });
