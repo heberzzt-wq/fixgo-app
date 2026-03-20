@@ -34,16 +34,16 @@ import {
 import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";/**
  
 /* =====================================================
-    REGISTRO DE SERVICE WORKER (CON CONEXIÓN A RADIO)
+    REGISTRO DE SERVICE WORKER (LA ANTENA B2B)
    ===================================================== */
-let swRegistration = null; // Guardamos la licencia globalmente
+let swRegistration = null; 
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
             .then(reg => {
                 console.log('👷 Velador (SW) registrado con éxito:', reg.scope);
-                swRegistration = reg; // Guardamos la licencia aquí
+                swRegistration = reg; // Guardamos la licencia para el radio
             })
             .catch(err => console.error('❌ Error registrando el velador:', err));
     });
