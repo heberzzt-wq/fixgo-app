@@ -28,6 +28,45 @@ import {
 let adminContext = null;
 
 /* =====================================================
+    UTILIDADES DE INTERFAZ (UI)
+   ===================================================== */
+/**
+ * Implementación de feedback visual para evitar ReferenceError
+ */
+function showToast(mensaje, esError = false) {
+    console.log(`[Toast] ${esError ? '❌' : '✅'} ${mensaje}`);
+    
+    // Crear el elemento si no existe en el DOM
+    let toastContainer = document.getElementById("toast-container");
+    if (!toastContainer) {
+        toastContainer = document.createElement("div");
+        toastContainer.id = "toast-container";
+        toastContainer.className = "fixed bottom-5 right-5 z-[1000] space-y-2";
+        document.body.appendChild(toastContainer);
+    }
+
+    const toast = document.createElement("div");
+    toast.className = `px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl border transition-all duration-500 transform translate-y-10 opacity-0 ${
+        esError 
+        ? "bg-red-500 text-white border-red-400" 
+        : "bg-emerald-500 text-black border-emerald-400"
+    }`;
+    toast.innerText = mensaje;
+
+    toastContainer.appendChild(toast);
+
+    // Animación de entrada
+    setTimeout(() => {
+        toast.classList.remove("translate-y-10", "opacity-0");
+    }, 100);
+
+    // Auto-destrucción
+    setTimeout(() => {
+        toast.classList.add("translate-y-10", "opacity-0");
+        setTimeout(() => toast.remove(), 500);
+    }, 4000);
+}
+/* =====================================================
     MÓDULO: DESPACHO TÁCTICO B2B (PUSH CENTRALIZADO)
     ===================================================== */
 
