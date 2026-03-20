@@ -656,12 +656,15 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
 });
 
 /* =====================================================
-   DESPACHO DE ORDENES (OT) - V5.23 OPTIMIZADO
+    DESPACHO DE ORDENES (OT) - V5.28 PUSH INTEGRADO
+    Arquitectura: GestiaPremium B2B
+    Lead Architect: Heberto Mendoza
    ===================================================== */
+
 document.getElementById("formTicketB2B").addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    // Verificación de Contexto de Seguridad
+    // 1. Verificación de Contexto de Seguridad
     if (typeof adminContext === 'undefined' || !adminContext || !adminContext.edificioId) {
         alert("🚨 Error: Contexto de Administrador no cargado.");
         return;
@@ -669,8 +672,9 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
 
     const btn = document.getElementById("btnCrearTicket");
     const tSelect = document.getElementById("tickAsignado");
+    const prioridad = document.getElementById("tickPrioridad").value;
 
-    // Validación de Selección de Técnico
+    // 2. Validación de Selección de Técnico
     if (!tSelect.value) {
         alert("⚠️ Por favor, selecciona un especialista.");
         return;
@@ -679,28 +683,38 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
     // Feedback Visual (Loading State)
     btn.disabled = true;
     const originalHTML = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-bolt fa-spin"></i> PROCESANDO DESPACHO...';
+    btn.innerHTML = '<i class="fas fa-bolt fa-spin"></i> DESPACHANDO SEÑAL...';
 
     try {
-        // 1. Extracción Limpia del Nombre del Técnico
+        // 3. Extracción Limpia del Nombre del Técnico
         const selectedOption = tSelect.options[tSelect.selectedIndex];
         const rawText = selectedOption.text || "";
         const tName = rawText.split('[')[0].trim();
 
-        // 2. NORMALIZACIÓN CRÍTICA (El ID debe coincidir con el Query del Técnico)
-        // Convertimos "UXMAL 39" a "uxmal39" para evitar el bloqueo de consulta
+        // 4. NORMALIZACIÓN CRÍTICA (Match con el Nodo del Técnico)
         const edificioIdNormalizado = adminContext.edificioId.toLowerCase().trim().replace(/\s+/g, '');
 
-        // 3. Construcción del Objeto de Datos (Payload)
+        // 5. BÚSQUEDA DEL "RADIO" (FCM TOKEN) DE JONATHAN
+        // Buscamos al técnico en la base de datos para ver si tiene radio encendido
+        const techRef = doc(db, "users", tSelect.value);
+        const techSnap = await getDoc(techRef);
+        let fcmTokenJonathan = null;
+
+        if (techSnap.exists()) {
+            fcmTokenJonathan = techSnap.data().fcmToken;
+            console.log("📡 Señal de radio localizada para:", tName);
+        }
+
+        // 6. Construcción del Objeto de Datos (Payload)
         const ticketData = {
             edificioId: edificioIdNormalizado,
             edificioNombre: adminContext.edificioNombre,
             ubicacion_especifica: document.getElementById("tickPunto").value.trim(),
             descripcion: document.getElementById("tickDesc").value.trim(),
-            prioridad: document.getElementById("tickPrioridad").value,
+            prioridad: prioridad,
             tecnicoId: tSelect.value,
             tecnico_nombre: tName,
-            status: "programado",
+            status: "pendiente", // Cambiado a 'pendiente' para que entre directo al snapshot
             fecha_programada: new Date().toISOString().split('T')[0],
             equipo: "Mantenimiento General",
             tipo: "mantenimiento",
@@ -708,18 +722,33 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
             creado_por: auth.currentUser.uid
         };
 
-        // 4. Inserción en Firebase
-        await addDoc(collection(db, "servicios_b2b"), ticketData);
+        // 7. Inserción en Firebase (El Libro de Actas)
+        const docRef = await addDoc(collection(db, "servicios_b2b"), ticketData);
+        const nuevaOtId = docRef.id;
 
-        // 5. Éxito y Limpieza
-        alert("🚀 ORDEN DESPACHADA: Jonathan recibirá la notificación en breve.");
-        
-        // Reset manual para asegurar que los campos queden limpios
+        // 8. DISPARO DEL MEGÁFONO (PUSH NOTIFICATION)
+        // Solo si encontramos el token y es prioridad alta o media
+        if (fcmTokenJonathan && (prioridad === "alta" || prioridad === "media")) {
+            
+            console.log("🚀 Disparando Push al bolsillo de Jonathan...");
+            
+            /**
+             * NOTA: Aquí llamamos a la función bridge que ya usas en On-Demand.
+             * Si no la tienes definida globalmente, esta es la estructura que 
+             * viaja hacia Google FCM.
+             */
+            await enviarPushEmergenciaB2B(
+                fcmTokenJonathan, 
+                `🚨 NUEVA OT: ${ticketData.equipo}`,
+                `${ticketData.edificioNombre} - ${ticketData.ubicacion_especifica}`
+            );
+        }
+
+        // 9. Éxito y Limpieza
+        showToast("🚀 ORDEN DESPACHADA CORRECTAMENTE");
         document.getElementById("formTicketB2B").reset();
         
-        // El error "Failed to convert value to Response" suele ocurrir por redirects
-        // automáticos o llamadas a fetch vacías. Aquí cortamos el flujo para prevenirlo.
-        console.log("✅ Sync B2B exitoso para:", edificioIdNormalizado);
+        console.log("✅ Sync B2B exitoso. ID de Orden:", nuevaOtId);
 
     } catch (err) {
         console.error("❌ Error en Despacho B2B:", err);
@@ -730,3 +759,39 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
         btn.innerHTML = originalHTML;
     }
 });
+
+/**
+ * Función Auxiliar: El Megáfono de Gestia
+ * Envía el mensaje de empuje a través de Firebase Cloud Messaging
+ */
+async function enviarPushEmergenciaB2B(token, titulo, mensaje) {
+    // Usamos el mismo motor que ya tienes en On-Demand
+    try {
+        // Si tienes una Cloud Function para esto, la llamas aquí.
+        // Si lo haces directo vía fetch (Legacy), sería así:
+        const response = await fetch('https://fcm.googleapis.com/fcm/send', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'key=TU_SERVER_KEY_DE_FIREBASE' // Esta llave está en tu consola
+            },
+            body: JSON.stringify({
+                to: token,
+                notification: {
+                    title: titulo,
+                    body: mensaje,
+                    icon: "favicon.png",
+                    click_action: "index.html",
+                    sound: "default"
+                },
+                priority: "high"
+            })
+        });
+        
+        const data = await response.json();
+        console.log("📲 Respuesta de Google FCM:", data);
+        
+    } catch (e) {
+        console.error("⚠️ Falló el envío del Push:", e);
+    }
+}
