@@ -37,12 +37,17 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 
 /* =====================================================
-    REGISTRO DE SERVICE WORKER (LA ANTENA)
+    REGISTRO DE SERVICE WORKER (CON CONEXIÓN A RADIO)
    ===================================================== */
+let swRegistration = null; // Guardamos la licencia globalmente
+
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('👷 Velador (SW) registrado con éxito:', reg.scope))
+            .then(reg => {
+                console.log('👷 Velador (SW) registrado con éxito:', reg.scope);
+                swRegistration = reg; // Guardamos la licencia aquí
+            })
             .catch(err => console.error('❌ Error registrando el velador:', err));
     });
 }
