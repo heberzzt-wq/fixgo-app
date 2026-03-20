@@ -1909,41 +1909,54 @@ window.subirFotoPerfil = async (input) => {
     }
 };
 /* =====================================================
-   NUEVAS FUNCIONES: MOTOR DE PUSH & ALERTAS (V5.28)
+   NUEVAS FUNCIONES: MOTOR DE PUSH & ALERTAS (V5.29)
    ===================================================== */
 
 /**
- * Registra el ID del radio del técnico en la central.
+ * Registra el ID del radio del técnico en la central con Debug Logs.
  * @param {string} userId - El UID del técnico Jonathan.
  */
 async function activarNotificacionesBolsillo(userId) {
+    console.log("🛰️ PROTOCOLO PUSH: Iniciando para user:", userId);
+    
     try {
         const messaging = getMessaging();
         
-        // 1. Pedimos permiso al navegador
+        // 1. Pedimos permiso (Aparece el cuadro de Chrome/Android)
+        console.log("🔔 Pidiendo permiso de notificación...");
         const permission = await Notification.requestPermission();
-        
+        console.log("🔔 Resultado del permiso:", permission);
+
         if (permission === 'granted') {
-            // 2. Obtenemos el Token (ID único de radio)
-            // REEMPLAZA EL STRING VACÍO CON TU CLAVE VAPID DE FIREBASE
-            const token = await getToken(messaging, { 
-                vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ' // <--- TU VAPID AQUÍ
+            // 2. Obtenemos el Token
+            console.log("🎫 Solicitando Token a Google (FCM)...");
+            
+            const currentToken = await getToken(messaging, { 
+                vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ' 
             });
 
-            if (token) {
-                console.log("🎫 ID de Radio obtenido:", token);
+            if (currentToken) {
+                console.log("✅ TOKEN RECIBIDO:", currentToken);
                 
                 // 3. Lo guardamos en su perfil de Firestore
-                await updateDoc(doc(db, "users", userId), {
-                    fcmToken: token,
+                const userRef = doc(db, "users", userId);
+                await updateDoc(userRef, {
+                    fcmToken: currentToken,
                     ultimaSincronizacionPush: serverTimestamp()
                 });
                 
-                console.log("✅ Jonathan está conectado a la central de radio.");
+                console.log("💾 BASE DE DATOS: Token guardado en el perfil de Jonathan.");
+                showToast("Radio B2B Sintonizado");
+            } else {
+                console.warn("⚠️ Google no generó Token. ¿El archivo sw.js está en la raíz?");
             }
+        } else {
+            console.error("🚫 Permiso denegado por el usuario.");
+            showToast("Sin permiso de notificaciones", true);
         }
     } catch (error) {
-        console.error("❌ Error al activar radio:", error);
+        console.error("❌ ERROR CRÍTICO EN RADIO:", error);
+        // Si sale error de 'messaging/registration-token-not-found', es el sw.js
     }
 }
 
@@ -1952,9 +1965,8 @@ async function activarNotificacionesBolsillo(userId) {
  */
 function sonarAlerta() {
     try {
-        // Sonido táctico de emergencia
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-        audio.play().catch(e => console.log("Audio en espera de interacción."));
+        audio.play().catch(e => console.log("Audio bloqueado por el navegador."));
     } catch (e) {
         console.error("No se pudo reproducir la alerta sonora.");
     }
@@ -1972,7 +1984,7 @@ function lanzarNotificacionPush(titulo, mensaje) {
             icon: "favicon.png",
             badge: "favicon.png",
             vibrate: [300, 100, 300, 100, 300],
-            requireInteraction: true, // Se queda en pantalla hasta que Jonathan la vea
+            requireInteraction: true, 
             data: { url: window.location.href }
         });
     });
