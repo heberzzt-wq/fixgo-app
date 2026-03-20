@@ -582,7 +582,9 @@ window.validarPaseCaseta=validarPaseCaseta;
 
 
 /* =====================================================
-   INIT AUTH - V5.24 (CORRECCIÓN SINTAXIS Y FLUJO ÚNICO)
+    INIT AUTH - V5.28 (CORRECCIÓN SINTAXIS Y FLUJO ÚNICO)
+    Arquitectura: GestiaPremium B2B
+    Lead Architect: Heberto Mendoza
    ===================================================== */
 
 auth.onAuthStateChanged(async (user) => {
@@ -621,6 +623,12 @@ auth.onAuthStateChanged(async (user) => {
         
         console.log("🛠️ Nodo Operativo Conectado:", edificioIdGlobal);
         // -----------------------------------------------------
+
+
+        // 🔥 DISPARO DE SEÑAL DE RADIO (FCM TOKEN)
+        // Insertamos aquí el registro para que Jonathan tenga radio en el bolsillo
+        activarNotificacionesBolsillo(user.uid);
+
 
         // 3. Inyección en Cabecera (UI Premium)
         const txtEdificio = document.getElementById("txtEdificio");
