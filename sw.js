@@ -1,15 +1,17 @@
 /**
  * ======================================================
- * FIXGO CORE - SERVICE WORKER v1.3 (FCM PUSH ENGINE + CORS FIX)
+ * GESTIA PREMIUM - SERVICE WORKER v1.4 (FCM + FIX RESPONSE)
+ * Proyecto: fixgo-44e4d
+ * Lead Architect: Heberto Mendoza
  * ======================================================
  */
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'fixgo-premium-cache-v2';
+const CACHE_NAME = 'gestia-premium-cache-v3';
 const urlsToCache = ['/', '/manifest.json'];
 
-// INICIALIZAR FIREBASE EN SEGUNDO PLANO (Credenciales FixGo Oficiales)
+// INICIALIZAR FIREBASE (Credenciales Oficiales Gestia/FixGo)
 firebase.initializeApp({
   apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0", 
   authDomain: "fixgo-44e4d.firebaseapp.com",
@@ -23,14 +25,14 @@ const messaging = firebase.messaging();
 
 // 1. RECEPTOR DE NOTIFICACIONES EN SEGUNDO PLANO
 messaging.onBackgroundMessage((payload) => {
-  console.log('[FixGo SW] Recibido Push en Segundo Plano:', payload);
+  console.log('[Gestia SW] Recibido Push:', payload);
   
-  const notificationTitle = payload.notification.title || '¡NUEVA SOLICITUD FIXGO!';
+  const notificationTitle = payload.notification.title || '¡ALERTA GESTIA PREMIUM!';
   const notificationOptions = {
     body: payload.notification.body || 'Tienes un nuevo servicio pendiente.',
     icon: '/icono-192.png',
     badge: '/icono-192.png',
-    vibrate: [200, 100, 200, 100, 200], // Patrón táctico
+    vibrate: [300, 100, 300, 100, 300], // Patrón de emergencia
     requireInteraction: true,
     data: payload.data 
   };
@@ -47,11 +49,11 @@ self.addEventListener('notificationclick', (event) => {
       for (var i = 0; i < windowClients.length; i++) {
         var client = windowClients[i];
         if (client.url.includes('/') && 'focus' in client) {
-          return client.focus(); // Trae la app al frente
+          return client.focus();
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow('/'); // Abre la app si estaba cerrada
+        return clients.openWindow('/');
       }
     })
   );
@@ -72,14 +74,27 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// 🔥 CORRECCIÓN VITAL: Solo interceptar recursos locales (Evita errores CORS de Maps/Stripe)
+/**
+ * 🔥 CORRECCIÓN CRÍTICA (V1.4):
+ * Evita el error "Failed to convert value to 'Response'".
+ * Si el recurso no está en red ni en caché, devolvemos un objeto Response válido.
+ */
 self.addEventListener('fetch', event => {
-  // Si la petición va hacia Google, Stripe o Firebase, el SW no se mete.
+  // Solo interceptar recursos de nuestro propio dominio
   if (!event.request.url.startsWith(self.location.origin)) {
     return; 
   }
   
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request).catch(() => {
+      return caches.match(event.request).then(response => {
+        // Si hay respuesta en caché, la damos. 
+        // Si no, devolvemos una respuesta vacía pero VÁLIDA para el navegador.
+        return response || new Response('Sin conexión y sin caché', {
+          status: 404,
+          statusText: 'Not Found'
+        });
+      });
+    })
   );
 });
