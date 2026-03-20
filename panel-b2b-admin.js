@@ -1,16 +1,31 @@
 /**
  * =====================================================
  * GESTIA PREMIUM - NOC B2B CABINA DE MANDO
- * VERSION: 5.27 (Data Structure Map Fix)
+ * VERSION: 5.30 (Push & Messaging Enabled)
  * Lead Architect: Heberto Mendoza
  * =====================================================
  */
 
-import { auth, db, doc, getDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, serverTimestamp, query, where, orderBy, limit, setDoc, app } from "./firebase.js";
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { 
+    auth, db, doc, getDoc, onSnapshot, collection, 
+    addDoc, updateDoc, deleteDoc, serverTimestamp, 
+    query, where, orderBy, limit, setDoc, app 
+} from "./firebase.js";
 
-let adminContext = null; 
+import { 
+    initializeApp 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+
+import { 
+    getAuth, createUserWithEmailAndPassword, signOut 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+// 🔥 CABLE DEL MEGÁFONO: Importamos mensajería para el Admin
+import { 
+    getMessaging 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
+
+let adminContext = null;
 
 /* =====================================================
    ESTADO GLOBAL & RED
