@@ -1,7 +1,7 @@
 /**
  * =====================================================
  * GESTIA PREMIUM
- * B2B ENGINE V5.29
+ * B2B ENGINE V5.30
  * Arquitectura Optimizada Offline + Cache
  * Lead Architect: Heberto Mendoza
  * =====================================================
@@ -10,32 +10,29 @@
 import { auth, db, storage, signOut } from "./firebase.js";
 
 import {
-doc,
-getDoc,
-getDocs,
-updateDoc,
-serverTimestamp,
-collection,
-query,
-where,
-onSnapshot,
-addDoc,
-orderBy,
-limit
+    doc,
+    getDoc,
+    getDocs,
+    updateDoc,
+    serverTimestamp,
+    collection,
+    query,
+    where,
+    onSnapshot,
+    addDoc,
+    orderBy,
+    limit
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 import {
-ref,
-uploadBytes,
-getDownloadURL
+    ref,
+    uploadBytes,
+    getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-// 🔥 CABLE DE RADIO CONECTADO: Importación del motor de mensajería
-import { 
-    getMessaging, 
-    getToken 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
-
+// Importación del motor de mensajería (El Radio)
+import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";/**
+ 
 /* =====================================================
     REGISTRO DE SERVICE WORKER (CON CONEXIÓN A RADIO)
    ===================================================== */
