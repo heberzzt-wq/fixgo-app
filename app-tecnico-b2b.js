@@ -1917,12 +1917,11 @@ window.subirFotoPerfil = async (input) => {
     }
 };
 /* =====================================================
-    NUEVAS FUNCIONES: MOTOR DE PUSH & ALERTAS (V5.30)
+    4. MOTOR DE PUSH & ALERTAS (V5.30)
    ===================================================== */
 
 /**
  * Registra el ID del radio del técnico en la central.
- * @param {string} userId - El UID del técnico Jonathan.
  */
 async function activarNotificacionesBolsillo(userId) {
     console.log("🛰️ PROTOCOLO PUSH: Iniciando para user:", userId);
@@ -1930,39 +1929,39 @@ async function activarNotificacionesBolsillo(userId) {
     try {
         const messaging = getMessaging();
         
-        // 1. Pedimos permiso
+        // 1. Pedimos permiso al navegador
         const permission = await Notification.requestPermission();
         console.log("🔔 Resultado del permiso:", permission);
 
         if (permission === 'granted') {
             console.log("🎫 Solicitando Token a Google (FCM)...");
             
-            // 🔥 SOLUCIÓN AL 404: 
-            // Esperamos a que el Service Worker esté listo antes de pedir el token
+            // 🔥 SOLUCIÓN AL 404: Esperamos a que el velador esté listo
             const registration = await navigator.serviceWorker.ready;
 
+            // Pedimos el Token usando el registro explícito del SW
             const currentToken = await getToken(messaging, { 
                 vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ',
-                serviceWorkerRegistration: registration // <-- Esto mata el error 404
+                serviceWorkerRegistration: registration 
             });
 
             if (currentToken) {
                 console.log("✅ TOKEN RECIBIDO:", currentToken);
                 
+                // 3. Guardamos el ID en el perfil de Firestore
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, {
                     fcmToken: currentToken,
                     ultimaSincronizacionPush: serverTimestamp()
                 });
                 
-                console.log("💾 BASE DE DATOS: Token guardado en el perfil de Jonathan.");
-                showToast("Radio B2B Sintonizado");
+                console.log("💾 BASE DE DATOS: Token guardado en Firestore.");
+                if (typeof showToast === 'function') showToast("Radio B2B Sintonizado");
             } else {
                 console.warn("⚠️ Google no generó Token.");
             }
         } else {
-            console.error("🚫 Permiso denegado por el usuario.");
-            showToast("Sin permiso de notificaciones", true);
+            console.error("🚫 Permiso de notificaciones denegado.");
         }
     } catch (error) {
         console.error("❌ ERROR CRÍTICO EN RADIO:", error);
@@ -1975,14 +1974,14 @@ async function activarNotificacionesBolsillo(userId) {
 function sonarAlerta() {
     try {
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-        audio.play().catch(e => console.log("Audio bloqueado por el navegador."));
+        audio.play().catch(e => console.log("Audio bloqueado. Esperando interacción."));
     } catch (e) {
         console.error("No se pudo reproducir la alerta sonora.");
     }
 }
 
 /**
- * Envía la orden de notificación al velador (Service Worker).
+ * Envía la notificación local al Service Worker.
  */
 function lanzarNotificacionPush(titulo, mensaje) {
     if (!('serviceWorker' in navigator)) return;
