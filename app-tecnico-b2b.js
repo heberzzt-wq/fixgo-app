@@ -34,19 +34,51 @@ import {
 import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";/**
  
 /* =====================================================
-    REGISTRO DE SERVICE WORKER (LA ANTENA B2B)
-   ===================================================== */
+    REGISTRO DE SERVICE WORKER (LA ANTENA B2B) - V5.31
+    ===================================================== */
 let swRegistration = null; 
 
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then(reg => {
-                console.log('👷 Velador (SW) registrado con éxito:', reg.scope);
-                swRegistration = reg; // Guardamos la licencia para el radio
-            })
-            .catch(err => console.error('❌ Error registrando el velador:', err));
-    });
+    // Usamos una función asíncrona para asegurar que el velador esté listo
+    const iniciarVelador = async () => {
+        try {
+            // Registramos el sw.js (V1.5 con el fix de importScripts)
+            const registration = await navigator.serviceWorker.register('/sw.js', {
+                scope: '/'
+            });
+            
+            console.log('👷 Velador (SW) registrado con éxito:', registration.scope);
+            
+            // Esperamos a que el SW esté activo para evitar errores de "evaluación fallida"
+            await navigator.serviceWorker.ready;
+            swRegistration = registration; 
+            
+            // Si el velador se actualizó, notificamos para sincronizar
+            registration.onupdatefound = () => {
+                const installingWorker = registration.installing;
+                installingWorker.onstatechange = () => {
+                    if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        console.log('🔄 Nueva versión de Gestia detectada. Sincronizando...');
+                        if (typeof showToast === 'function') showToast("Actualizando sistema...");
+                    }
+                };
+            };
+
+        } catch (err) {
+            console.error('❌ Error crítico registrando el velador:', err);
+            // Si falla el registro, intentamos recuperar el registro existente (si hay uno)
+            navigator.serviceWorker.getRegistration().then(reg => {
+                if (reg) swRegistration = reg;
+            });
+        }
+    };
+
+    // Disparamos el registro
+    if (document.readyState === 'complete') {
+        iniciarVelador();
+    } else {
+        window.addEventListener('load', iniciarVelador);
+    }
 }
 
 /* =====================================================
