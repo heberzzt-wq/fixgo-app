@@ -1,7 +1,7 @@
 /**
  * =====================================================
  * GESTIA PREMIUM - NOC B2B CABINA DE MANDO
- * VERSION: 5.30 (Push & Messaging Enabled)
+ * VERSION: 5.30 (Push Centralizado & Secure)
  * Lead Architect: Heberto Mendoza
  * =====================================================
  */
@@ -28,23 +28,34 @@ import {
 let adminContext = null;
 
 /* =====================================================
-    MÓDULO: DESPACHO TÁCTICO B2B (FIX CORS)
-   ===================================================== */
-async function enviarPushEmergenciaB2B(tokenDestino, equipo, descripcion) {
-    console.log("📡 Disparando señal de radio al bolsillo...");
+    MÓDULO: DESPACHO TÁCTICO B2B (PUSH CENTRALIZADO)
+    ===================================================== */
 
-    // NOTA CRÍTICA: No usamos fetch a fcm.googleapis.com (CORS LOCK)
-    // En su lugar, registramos la orden en la colección 'notificaciones_pendientes'
-    // para que el backend la procese, o usamos el trigger de Firestore.
-    
+/**
+ * Función Centralizada para envío de señales Push.
+ * Incorpora validación de seguridad de token y ruta de auditoría.
+ */
+async function enviarPushEmergenciaB2B(tokenDestino, equipo, descripcion) {
+    console.log("📡 Preparando señal de radio para despacho...");
+
+    // 🛡️ VALIDACIÓN DE SEGURIDAD
+    // Evitamos escrituras basura en Firestore si el técnico no tiene el radio (token) encendido
+    if (!tokenDestino || tokenDestino.length < 10) {
+        console.warn("⚠️ Abortando Push: Token de destino inexistente o inválido.");
+        return false;
+    }
+
     try {
+        // Registramos en la colección 'notificaciones_pendientes' para procesamiento en Backend
         await addDoc(collection(db, "notificaciones_pendientes"), {
             token: tokenDestino,
             titulo: "🚨 NUEVA ORDEN: " + equipo,
             mensaje: descripcion,
             prioridad: "alta",
             timestamp: serverTimestamp(),
-            status: "ready"
+            status: "ready",
+            origen: "NOC_B2B_CABINA",
+            audit_user: auth.currentUser?.uid || "sistema"
         });
 
         showToast("Señal enviada al radio del técnico");
@@ -55,8 +66,9 @@ async function enviarPushEmergenciaB2B(tokenDestino, equipo, descripcion) {
         return false;
     }
 }
+
 /* =====================================================
-   ESTADO GLOBAL & RED (V5.18 - Refactored)
+    ESTADO GLOBAL & RED (V5.18 - Refactored)
    ===================================================== */
 
 // 1. Inicialización de estado basada en la realidad del navegador
@@ -96,7 +108,7 @@ window.addEventListener("offline", () => actualizarInterfazRed(false));
 actualizarInterfazRed(navigator.onLine);
 
 /* =====================================================
-   INDEXED DB CACHE ENGINE
+    INDEXED DB CACHE ENGINE
    ===================================================== */
 const DB_NAME = "gestia_cache";
 const DB_VERSION = 2; 
@@ -192,7 +204,6 @@ function escucharPlantillaRealTime(edificioId) {
 
         tabla.innerHTML = "";
         
-        // Reiniciamos el select de asignación en la creación de tickets
         if(select) {
             select.innerHTML = '<option value="">-- Seleccionar Especialista --</option>';
         }
@@ -203,10 +214,8 @@ function escucharPlantillaRealTime(edificioId) {
             const emp = docSnap.data();
             const empId = docSnap.id;
 
-            // Filtro de Seguridad: Solo personal operativo en el Radar
             if(emp.rol === "admin_b2b" || emp.rol === "ceo" || emp.rol === "admin") return;
 
-            // Actualizar Select de Asignación (Solo técnicos activos)
             if (emp.rol === "tecnico" && emp.estado === "activo") {
                 tecnicosActivos++;
                 if(select) {
@@ -217,11 +226,9 @@ function escucharPlantillaRealTime(edificioId) {
                 }
             }
 
-            // Construcción de la Fila con Identidad Visual
             const row = document.createElement("tr");
             row.className = "hover:bg-white/[0.02] transition-all text-xs border-b border-white/5";
             
-            // Lógica de Avatar: Foto Real vs Astronauta Placeholder
             const avatarHTML = emp.foto_perfil 
                 ? `<img src="${emp.foto_perfil}" class="w-full h-full object-cover">`
                 : `<div class="w-full h-full flex items-center justify-center bg-zinc-800 text-zinc-600">
@@ -265,11 +272,9 @@ function escucharPlantillaRealTime(edificioId) {
             tabla.appendChild(row);
         });
 
-        // Actualización de contadores en el Dashboard
         const countLabel = document.getElementById("countTecnicosActivos");
         if (countLabel) {
             countLabel.innerText = tecnicosActivos;
-            // Animación sutil de actualización
             countLabel.classList.add("text-emerald-400");
             setTimeout(() => countLabel.classList.remove("text-emerald-400"), 1000);
         }
@@ -324,11 +329,6 @@ async function sincronizarHistorialConFirestore(edificioId) {
             const data = docSnap.data();
             const id = docSnap.id;
             
-            /**
-             * REGLA DE INTEGRIDAD: 
-             * Solo procesamos si existe fecha_cierre.
-             * Quitamos la validación estricta de técnico/equipo_nombre porque en rutinas puede no venir.
-             */
             if(!data.fecha_cierre) {
                 console.warn("⚠️ Filtrando OT sin fecha de cierre:", id);
                 continue;
@@ -355,7 +355,6 @@ async function renderizarHistorialDesdeCache() {
 
     feed.innerHTML = "";
 
-    // Filtramos solo para asegurar que tengan la fecha, que es lo único 100% seguro en el cierre
     const itemsValidos = items.filter(i => i.fecha_para_ordenar);
 
     if (itemsValidos.length === 0) {
@@ -367,14 +366,12 @@ async function renderizarHistorialDesdeCache() {
         return;
     }
 
-    // Ordenamos: Lo más nuevo arriba
     itemsValidos.sort((a, b) => new Date(b.fecha_para_ordenar) - new Date(a.fecha_para_ordenar));
 
     itemsValidos.forEach(log => {
         const d = new Date(log.fecha_para_ordenar);
         const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
-        // MAPEAMOS DIRECTAMENTE A TUS VARIABLES (equipo)
         const nombreEquipoDisplay = log.equipo || log.descripcion || "Mantenimiento General";
         const nombreTecnicoDisplay = log.tecnico_nombre || "TÉCNICO DE CAMPO";
 
@@ -395,7 +392,7 @@ async function renderizarHistorialDesdeCache() {
 }
 
 /* =====================================================
-   VISUALIZACIÓN DE REPORTE PROFESIONAL (MAPEADO EXACTO)
+    VISUALIZACIÓN DE REPORTE PROFESIONAL (MAPEADO EXACTO)
    ===================================================== */
 window.verDetalleBitacora = async (servicioId) => {
     if (!servicioId) return;
@@ -410,7 +407,6 @@ window.verDetalleBitacora = async (servicioId) => {
             data = docSnap.data();
         }
 
-        // Render de Materiales (Tu array materiales_utilizados)
         let materialesHTML = '<p class="text-zinc-600 italic text-xs">No se registraron materiales en esta intervención.</p>';
         if (data.materiales_utilizados && data.materiales_utilizados.length > 0) {
             materialesHTML = `<div class="space-y-1">
@@ -425,7 +421,6 @@ window.verDetalleBitacora = async (servicioId) => {
 
         const fechaDisplay = data.fecha_cierre?.toDate ? data.fecha_cierre.toDate().toLocaleString('es-MX') : 'Finalizado recientemente';
         
-        // MAPEAMOS DIRECTAMENTE A TUS VARIABLES (equipo)
         const equipoPrincipal = data.equipo || data.descripcion || "Mantenimiento General";
         const tecnicoResponsable = data.tecnico_nombre || "Técnico de Campo";
         const diagInicial = data.diagnostico_inicial || "Sin comentarios iniciales registrados.";
@@ -662,7 +657,7 @@ auth.onAuthStateChanged(async (userAuth) => {
 });
 
 /* =====================================================
-   REGISTRO DE TÉCNICOS B2B
+    REGISTRO DE TÉCNICOS B2B
    ===================================================== */
 document.getElementById("formAltaPersonal").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -715,15 +710,14 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
 });
 
 /* =====================================================
-    DESPACHO DE ORDENES (OT) - V5.28 PUSH INTEGRADO
-    Arquitectura: GestiaPremium B2B
-    Lead Architect: Heberto Mendoza
-   ===================================================== */
+     DESPACHO DE ORDENES (OT) - V5.30 PUSH INTEGRADO
+     Arquitectura: GestiaPremium B2B
+     Lead Architect: Heberto Mendoza
+    ===================================================== */
 
 document.getElementById("formTicketB2B").addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    // 1. Verificación de Contexto de Seguridad
     if (typeof adminContext === 'undefined' || !adminContext || !adminContext.edificioId) {
         alert("🚨 Error: Contexto de Administrador no cargado.");
         return;
@@ -733,28 +727,22 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
     const tSelect = document.getElementById("tickAsignado");
     const prioridad = document.getElementById("tickPrioridad").value;
 
-    // 2. Validación de Selección de Técnico
     if (!tSelect.value) {
         alert("⚠️ Por favor, selecciona un especialista.");
         return;
     }
 
-    // Feedback Visual (Loading State)
     btn.disabled = true;
     const originalHTML = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-bolt fa-spin"></i> DESPACHANDO SEÑAL...';
 
     try {
-        // 3. Extracción Limpia del Nombre del Técnico
         const selectedOption = tSelect.options[tSelect.selectedIndex];
         const rawText = selectedOption.text || "";
         const tName = rawText.split('[')[0].trim();
 
-        // 4. NORMALIZACIÓN CRÍTICA (Match con el Nodo del Técnico)
         const edificioIdNormalizado = adminContext.edificioId.toLowerCase().trim().replace(/\s+/g, '');
 
-        // 5. BÚSQUEDA DEL "RADIO" (FCM TOKEN) DE JONATHAN
-        // Buscamos al técnico en la base de datos para ver si tiene radio encendido
         const techRef = doc(db, "users", tSelect.value);
         const techSnap = await getDoc(techRef);
         let fcmTokenJonathan = null;
@@ -764,7 +752,6 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
             console.log("📡 Señal de radio localizada para:", tName);
         }
 
-        // 6. Construcción del Objeto de Datos (Payload)
         const ticketData = {
             edificioId: edificioIdNormalizado,
             edificioNombre: adminContext.edificioNombre,
@@ -773,7 +760,7 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
             prioridad: prioridad,
             tecnicoId: tSelect.value,
             tecnico_nombre: tName,
-            status: "pendiente", // Cambiado a 'pendiente' para que entre directo al snapshot
+            status: "pendiente",
             fecha_programada: new Date().toISOString().split('T')[0],
             equipo: "Mantenimiento General",
             tipo: "mantenimiento",
@@ -781,21 +768,11 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
             creado_por: auth.currentUser.uid
         };
 
-        // 7. Inserción en Firebase (El Libro de Actas)
         const docRef = await addDoc(collection(db, "servicios_b2b"), ticketData);
         const nuevaOtId = docRef.id;
 
-        // 8. DISPARO DEL MEGÁFONO (PUSH NOTIFICATION)
-        // Solo si encontramos el token y es prioridad alta o media
-        if (fcmTokenJonathan && (prioridad === "alta" || prioridad === "media")) {
-            
-            console.log("🚀 Disparando Push al bolsillo de Jonathan...");
-            
-            /**
-             * NOTA: Aquí llamamos a la función bridge que ya usas en On-Demand.
-             * Si no la tienes definida globalmente, esta es la estructura que 
-             * viaja hacia Google FCM.
-             */
+        // DISPARO DEL MEGÁFONO CENTRALIZADO
+        if (prioridad === "alta" || prioridad === "media") {
             await enviarPushEmergenciaB2B(
                 fcmTokenJonathan, 
                 `🚨 NUEVA OT: ${ticketData.equipo}`,
@@ -803,7 +780,6 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
             );
         }
 
-        // 9. Éxito y Limpieza
         showToast("🚀 ORDEN DESPACHADA CORRECTAMENTE");
         document.getElementById("formTicketB2B").reset();
         
@@ -813,44 +789,7 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
         console.error("❌ Error en Despacho B2B:", err);
         alert("❌ Error crítico al despachar: " + err.message);
     } finally {
-        // Restauración del Botón
         btn.disabled = false;
         btn.innerHTML = originalHTML;
     }
 });
-
-/**
- * Función Auxiliar: El Megáfono de Gestia
- * Envía el mensaje de empuje a través de Firebase Cloud Messaging
- */
-async function enviarPushEmergenciaB2B(token, titulo, mensaje) {
-    // Usamos el mismo motor que ya tienes en On-Demand
-    try {
-        // Si tienes una Cloud Function para esto, la llamas aquí.
-        // Si lo haces directo vía fetch (Legacy), sería así:
-        const response = await fetch('https://fcm.googleapis.com/fcm/send', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'key=TU_SERVER_KEY_DE_FIREBASE' // Esta llave está en tu consola
-            },
-            body: JSON.stringify({
-                to: token,
-                notification: {
-                    title: titulo,
-                    body: mensaje,
-                    icon: "favicon.png",
-                    click_action: "index.html",
-                    sound: "default"
-                },
-                priority: "high"
-            })
-        });
-        
-        const data = await response.json();
-        console.log("📲 Respuesta de Google FCM:", data);
-        
-    } catch (e) {
-        console.error("⚠️ Falló el envío del Push:", e);
-    }
-}
