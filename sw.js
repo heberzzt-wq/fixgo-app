@@ -1,6 +1,6 @@
 /**
  * ======================================================
- * GESTIA PREMIUM - SERVICE WORKER v1.4 (FCM + FIX RESPONSE)
+ * GESTIA PREMIUM - SERVICE WORKER v1.4.1 (ASSETS FIX)
  * Proyecto: fixgo-44e4d
  * Lead Architect: Heberto Mendoza
  * ======================================================
@@ -8,8 +8,10 @@
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'gestia-premium-cache-v3';
-const urlsToCache = ['/', '/manifest.json'];
+// 🔥 Cambio: Versión actualizada para limpiar caché vieja
+const CACHE_NAME = 'gestia-premium-cache-v3.1';
+// 🔥 Cambio: Añadimos el icono en assets a la lista de cacheo
+const urlsToCache = ['/', '/manifest.json', '/assets/icono-192.png'];
 
 // INICIALIZAR FIREBASE (Credenciales Oficiales Gestia/FixGo)
 firebase.initializeApp({
@@ -30,8 +32,9 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification.title || '¡ALERTA GESTIA PREMIUM!';
   const notificationOptions = {
     body: payload.notification.body || 'Tienes un nuevo servicio pendiente.',
-    icon: '/icono-192.png',
-    badge: '/icono-192.png',
+    // 🔥 Cambio: Apuntamos a la carpeta assets
+    icon: '/assets/icono-192.png',
+    badge: '/assets/icono-192.png',
     vibrate: [300, 100, 300, 100, 300], // Patrón de emergencia
     requireInteraction: true,
     data: payload.data 
@@ -77,10 +80,8 @@ self.addEventListener('activate', event => {
 /**
  * 🔥 CORRECCIÓN CRÍTICA (V1.4):
  * Evita el error "Failed to convert value to 'Response'".
- * Si el recurso no está en red ni en caché, devolvemos un objeto Response válido.
  */
 self.addEventListener('fetch', event => {
-  // Solo interceptar recursos de nuestro propio dominio
   if (!event.request.url.startsWith(self.location.origin)) {
     return; 
   }
@@ -88,8 +89,6 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     fetch(event.request).catch(() => {
       return caches.match(event.request).then(response => {
-        // Si hay respuesta en caché, la damos. 
-        // Si no, devolvemos una respuesta vacía pero VÁLIDA para el navegador.
         return response || new Response('Sin conexión y sin caché', {
           status: 404,
           statusText: 'Not Found'
