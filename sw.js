@@ -205,18 +205,21 @@ self.addEventListener('fetch', event => {
   event.respondWith(
 
     fetch(event.request)
+.then(response => {
 
-      .then(response => {
+  // Solo cachear requests GET válidos
+  if (event.request.method === 'GET' && response.status === 200) {
 
-        // Guardar en caché dinámicamente
-        const clone = response.clone();
+    const clone = response.clone();
 
-        caches.open(CACHE_NAME)
-          .then(cache => cache.put(event.request, clone));
+    caches.open(CACHE_NAME)
+      .then(cache => cache.put(event.request, clone));
 
-        return response;
+  }
 
-      })
+  return response;
+
+})
 
       .catch(() => {
 
