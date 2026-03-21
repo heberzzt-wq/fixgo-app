@@ -38,7 +38,10 @@ if (firebase.messaging.isSupported()) {
 }
 
 /**
- * RECEPTOR FCM BACKGROUND
+ * ======================================================
+ * FCM BACKGROUND ENGINE (V5.35 HARDENED)
+ * Manejo robusto para payload notification + data
+ * ======================================================
  */
 
 if (messaging) {
@@ -47,11 +50,37 @@ if (messaging) {
 
     console.log('[Gestia SW] Push FCM recibido:', payload);
 
-    const title = payload.notification?.title || "🚨 NUEVA ORDEN GESTIA";
+    /**
+     * Firebase puede enviar payload en dos formatos:
+     * 
+     * 1️⃣ notification (Firebase Console)
+     * 2️⃣ data (Admin SDK / Cloud Functions)
+     */
+
+    const notificationPayload = payload.notification || payload.data || {};
+
+    const title =
+      notificationPayload.title ||
+      "🚨 NUEVA ORDEN GESTIA";
+
+    const body =
+      notificationPayload.body ||
+      notificationPayload.mensaje ||
+      "Tienes una nueva orden asignada";
+
+    const orderId =
+      payload.data?.orderId ||
+      notificationPayload.orderId ||
+      null;
+
+    const targetUrl =
+      payload.data?.url ||
+      notificationPayload.url ||
+      '/';
 
     const options = {
 
-      body: payload.notification?.body || "Tienes una nueva orden asignada",
+      body: body,
 
       icon: '/assets/icono-192.png',
       badge: '/assets/icono-192.png',
@@ -61,21 +90,22 @@ if (messaging) {
       requireInteraction: true,
       renotify: true,
 
-      tag: payload.data?.orderId || "gestia-alert",
+      tag: orderId || "gestia-alert",
 
       data: {
-        url: payload.data?.url || '/',
-        orderId: payload.data?.orderId || null
+        url: targetUrl,
+        orderId: orderId
       }
 
     };
+
+    console.log('[Gestia SW] Mostrando notificación:', title);
 
     return self.registration.showNotification(title, options);
 
   });
 
 }
-
 /**
  * CAPTURA UNIVERSAL DE PUSH
  * (para pruebas de Firebase Console)
