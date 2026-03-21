@@ -90,7 +90,7 @@ if (messaging) {
       requireInteraction: true,
       renotify: true,
 
-      tag: orderId || "gestia-alert",
+      tag: orderId || `gestia-${Date.now()}`,
 
       data: {
         url: targetUrl,
