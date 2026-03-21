@@ -1,0 +1,39 @@
+{
+  "activos_nuevos": [
+    {
+      "id_activo": "ELEV-UX39-001",
+      "tipo": "Elevador / Cuarto de máquinas",
+      "ubicacion": "Todos los pisos / Cuarto de máquinas",
+      "criticidad": "alta",
+      "especificaciones_tecnicas": {}
+    },
+    {
+      "id_activo": "ELEC-UX39-001",
+      "tipo": "Tableros eléctricos y luminarias",
+      "ubicacion": "Todos los pisos",
+      "criticidad": "alta",
+      "especificaciones_tecnicas": {}
+    },
+    {
+      "id_activo": "CIV-UX39-001",
+      "tipo": "Obra Civil / Columnas y rejas sótano",
+      "ubicacion": "Sótano",
+      "criticidad": "media",
+      "especificaciones_tecnicas": {}
+    },
+    {
+      "id_activo": "CLN-UX39-001",
+      "tipo": "Áreas comunes / Instalaciones generales",
+      "ubicacion": "Todos los pisos",
+      "criticidad": "baja",
+      "especificaciones_tecnicas": {}
+    },
+    {
+      "id_activo": "SITE-UX39-001",
+      "tipo": "SITE / Servidores / DVR / UPS",
+      "ubicacion": "Pisos 3-4",
+      "criticidad": "critica",
+      "especificaciones_tecnicas": {}
+    }
+  ]
+}
