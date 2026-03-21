@@ -748,139 +748,164 @@ auth.onAuthStateChanged(async (user) => {
 
 });
 /* =====================================================
-CARGA DE TAREAS PROGRAMADAS (V5.27 - AUDIO & NOTIFICACIONES)
+CARGA DE TAREAS PROGRAMADAS (V5.31 - PUSH SAFE ENGINE)
+Arquitectura: Snapshot Sync + Push Worker
 ===================================================== */
 
 async function cargarTareasProgramadas(){
 
 const contenedor=document.getElementById("contenedor-tareas-diarias");
 
-// Protección de entrada: Si no hay contenedor o ID de edificio, abortamos.
 if(!contenedor || !edificioIdGlobal){
-    console.warn("⚠️ Abortando carga: Contenedor o edificioIdGlobal ausentes.");
-    return;
-}
-
-// SOLICITUD DE PERMISOS (Para que aparezca el banner de "Permitir notificaciones")
-if (Notification.permission !== "granted" && Notification.permission !== "denied") {
-    Notification.requestPermission();
+console.warn("⚠️ Abortando carga: Contenedor o edificioIdGlobal ausentes.");
+return;
 }
 
 console.log("🔍 Buscando OTs para el nodo operativo:", edificioIdGlobal);
 
 /* ----------------------------------
-1️⃣ CARGAR DESDE CACHE PRIMERO
+1️⃣ CARGAR CACHE LOCAL
 ---------------------------------- */
 
-try {
-    const cacheTareas = await cacheLeerTodos("tareas");
-    if(cacheTareas.length > 0){
-        console.log("📦 Datos locales encontrados:", cacheTareas.length);
-        renderizarTareas(cacheTareas);
-    }
-} catch (err) {
-    console.error("Error al leer cache inicial:", err);
+try{
+
+const cacheTareas=await cacheLeerTodos("tareas");
+
+if(cacheTareas.length>0){
+
+console.log("📦 Datos locales encontrados:", cacheTareas.length);
+
+renderizarTareas(cacheTareas);
+
 }
 
+}catch(err){
+
+console.error("Error cache:",err);
+
+}
 
 /* ----------------------------------
-2️⃣ SI OFFLINE → SALIR
+2️⃣ OFFLINE EXIT
 ---------------------------------- */
 
 if(!isOnline){
-    console.log("📡 Modo offline activo: Se mantiene vista de cache.");
-    return;
+
+console.log("📡 Modo offline activo");
+
+return;
+
 }
+
+/* ----------------------------------
+3️⃣ FIRESTORE REALTIME
+---------------------------------- */
+
+const q=query(
+
+collection(db,"servicios_b2b"),
+
+where("edificioId","==",edificioIdGlobal),
+
+where("status","in",["pendiente","programado","en_proceso"])
+
+);
 
 
 /* ----------------------------------
-3️⃣ CONSULTA FIRESTORE (Real-Time con Alerta Sonora)
+CONTROL DE ALERTAS
 ---------------------------------- */
 
-const q = query(
-    collection(db, "servicios_b2b"),
-    where("edificioId", "==", edificioIdGlobal),
-    where("status", "in", ["pendiente", "programado", "en_proceso"])
-);
+let primeraCarga=true;
 
-// Flag para no alertar tareas viejas al cargar la app por primera vez
-let cargaInicialFinalizada = false;
 
-onSnapshot(q, async (snapshot) => {
-    
-    console.log("📥 Snapshot recibido. Documentos en nube:", snapshot.size);
+onSnapshot(q, async(snapshot)=>{
 
-    // --- LÓGICA DE ALERTA PARA JONATHAN ---
-    if (cargaInicialFinalizada) {
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                const nuevaTarea = change.doc.data();
-                
-                // Si la tarea es Prioridad Alta, lanzamos toda la artillería
-                if (nuevaTarea.prioridad === "alta") {
-                    
-                    // 1. Sonido de Alerta (Audio)
-                    // Puedes cambiar esta URL por un archivo local como 'assets/alert.mp3'
-                    const alertaSonido = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-                    alertaSonido.play().catch(e => console.log("Audio bloqueado por el navegador hasta interacción del usuario."));
+console.log("📥 Snapshot recibido. Documentos:",snapshot.size);
 
-                    // 2. Notificación Nativa de Windows/Android (Funciona incluso con la pestaña en segundo plano)
-                    if (Notification.permission === "granted") {
-                        new Notification("🚨 NUEVA EMERGENCIA", {
-                            body: `Equipo: ${nuevaTarea.equipo || 'No especificado'}\n${nuevaTarea.descripcion || ''}`,
-                            icon: "favicon.png" // O el logo de Gestia
-                        });
-                    }
+contenedor.innerHTML="";
 
-                    // 3. Vibración (Solo dispositivos móviles)
-                    if (navigator.vibrate) {
-                        navigator.vibrate([300, 100, 300, 100, 300]);
-                    }
+window.tareasDiariasGlobal={};
 
-                    showToast(`🚨 EMERGENCIA DETECTADA: ${nuevaTarea.equipo}`, true);
-                }
-            }
-        });
-    }
+if(snapshot.empty){
 
-    // Limpieza de UI y Cache (Tu lógica base)
-    contenedor.innerHTML = "";
-    window.tareasDiariasGlobal = {};
+contenedor.innerHTML=`<div class="p-8 text-center text-zinc-600 text-xs">Sin tareas activas hoy</div>`;
 
-    if(snapshot.empty){
-        console.warn("⚠️ No se encontraron OTs para:", edificioIdGlobal);
-        contenedor.innerHTML = `<div class="p-8 text-center text-zinc-600 text-xs">Sin tareas activas hoy</div>`;
-        await sincronizarRutinasMaestras();
-        cargaInicialFinalizada = true;
-        return;
-    }
+await sincronizarRutinasMaestras();
 
-    await cacheLimpiar("tareas");
+primeraCarga=false;
 
-    const tareasParaRender = [];
+return;
 
-    for(const docSnap of snapshot.docs){
-        try {
-            const tarea = docSnap.data();
-            const id = docSnap.id;
-            const data = { id, ...tarea };
+}
 
-            await cacheGuardar("tareas", data);
-            window.tareasDiariasGlobal[id] = tarea;
-            tareasParaRender.push(data);
-        } catch (docErr) {
-            console.error("Error procesando documento:", docSnap.id, docErr);
-        }
-    }
+await cacheLimpiar("tareas");
 
-    renderizarTareas(tareasParaRender);
-    
-    // Marcamos que la primera carga terminó para que las siguientes sí suenen
-    cargaInicialFinalizada = true;
+const tareasParaRender=[];
 
-}, (error) => {
-    console.error("❌ Error en el listener de Firestore:", error);
-    showToast("Error de sincronización con el NOC", true);
+snapshot.forEach(docSnap=>{
+
+const tarea=docSnap.data();
+
+const id=docSnap.id;
+
+const data={id,...tarea};
+
+window.tareasDiariasGlobal[id]=tarea;
+
+tareasParaRender.push(data);
+
+});
+
+
+/* ----------------------------------
+ALERTA LOCAL SOLO SI APP ACTIVA
+---------------------------------- */
+
+if(!primeraCarga){
+
+snapshot.docChanges().forEach(change=>{
+
+if(change.type==="added"){
+
+const nuevaTarea=change.doc.data();
+
+if(nuevaTarea.prioridad==="alta"){
+
+console.log("🚨 OT PRIORIDAD ALTA DETECTADA");
+
+sonarAlerta();
+
+showToast(`🚨 NUEVA EMERGENCIA: ${nuevaTarea.equipo}`,true);
+
+}
+
+}
+
+});
+
+}
+
+
+for(const tarea of tareasParaRender){
+
+await cacheGuardar("tareas",tarea);
+
+}
+
+
+renderizarTareas(tareasParaRender);
+
+primeraCarga=false;
+
+},
+
+(error)=>{
+
+console.error("❌ Error Firestore listener:",error);
+
+showToast("Error sincronizando con NOC",true);
+
 });
 
 }
