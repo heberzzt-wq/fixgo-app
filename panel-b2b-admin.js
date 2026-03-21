@@ -67,45 +67,116 @@ function showToast(mensaje, esError = false) {
     }, 4000);
 }
 /* =====================================================
-    MÓDULO: DESPACHO TÁCTICO B2B (PUSH CENTRALIZADO)
+    MÓDULO: DESPACHO TÁCTICO B2B (PUSH CENTRALIZADO REAL)
+    REWRITE v5.31
+    Arquitectura: FCM Direct Push + Cola de Auditoría
     ===================================================== */
 
-/**
- * Función Centralizada para envío de señales Push.
- * Incorpora validación de seguridad de token y ruta de auditoría.
- */
 async function enviarPushEmergenciaB2B(tokenDestino, equipo, descripcion) {
+
     console.log("📡 Preparando señal de radio para despacho...");
 
-    // 🛡️ VALIDACIÓN DE SEGURIDAD
-    // Evitamos escrituras basura en Firestore si el técnico no tiene el radio (token) encendido
-    if (!tokenDestino || tokenDestino.length < 10) {
+    /* =====================================================
+       VALIDACIÓN DE SEGURIDAD
+       ===================================================== */
+
+    if (!tokenDestino || tokenDestino.length < 20) {
         console.warn("⚠️ Abortando Push: Token de destino inexistente o inválido.");
         return false;
     }
 
     try {
-        // Registramos en la colección 'notificaciones_pendientes' para procesamiento en Backend
-        await addDoc(collection(db, "notificaciones_pendientes"), {
+
+        /* =====================================================
+           1. REGISTRO DE AUDITORÍA (FIRESTORE)
+           ===================================================== */
+
+        const notificacionPayload = {
             token: tokenDestino,
-            titulo: "🚨 NUEVA ORDEN: " + equipo,
+            titulo: equipo,
             mensaje: descripcion,
             prioridad: "alta",
-            timestamp: serverTimestamp(),
-            status: "ready",
             origen: "NOC_B2B_CABINA",
+            status: "ready",
+            timestamp: serverTimestamp(),
             audit_user: auth.currentUser?.uid || "sistema"
-        });
+        };
+
+        await addDoc(
+            collection(db, "notificaciones_pendientes"),
+            notificacionPayload
+        );
+
+        /* =====================================================
+           2. PUSH DIRECTO VIA FIREBASE CLOUD MESSAGING
+           ===================================================== */
+
+        const pushBody = {
+            message: {
+                token: tokenDestino,
+                notification: {
+                    title: equipo,
+                    body: descripcion
+                },
+                data: {
+                    tipo: "orden_trabajo",
+                    prioridad: "alta",
+                    origen: "gestia_noc"
+                },
+                webpush: {
+                    notification: {
+                        icon: "/assets/icono-192.png",
+                        badge: "/assets/icono-72.png",
+                        vibrate: [200,100,200],
+                        requireInteraction: true
+                    }
+                }
+            }
+        };
+
+        /* =====================================================
+           3. ENVÍO A LA API HTTP V1 DE FCM
+           ===================================================== */
+
+        const response = await fetch(
+            "https://fcm.googleapis.com/v1/projects/fixgo-44e4d/messages:send",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    // Este token debe generarse en backend seguro
+                    // aquí solo se mantiene compatibilidad
+                    "Authorization": "Bearer " + (window.GESTIA_FCM_SERVER_KEY || "")
+                },
+                body: JSON.stringify(pushBody)
+            }
+        );
+
+        if (!response.ok) {
+
+            const errorText = await response.text();
+            console.error("❌ Error FCM:", errorText);
+
+            showToast("Push en cola, esperando backend", true);
+
+            return false;
+        }
+
+        console.log("📡 Push enviado correctamente vía FCM");
 
         showToast("Señal enviada al radio del técnico");
+
         return true;
+
     } catch (error) {
-        console.error("Error en Despacho B2B:", error);
+
+        console.error("❌ Error en Despacho B2B:", error);
+
         showToast("Falla en la antena de despacho", true);
+
         return false;
     }
 }
-
 /* =====================================================
     ESTADO GLOBAL & RED (V5.18 - Refactored)
    ===================================================== */
