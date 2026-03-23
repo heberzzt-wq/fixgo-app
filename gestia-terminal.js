@@ -19,12 +19,12 @@ onAuthStateChanged(auth, async (user) => {
             
             if (userSnap.exists()) {
                 const userData = userSnap.data();
-                // Validamos que el usuario tenga los permisos de arquitectura
+                // Validamos que el usuario tenga los permisos de arquitectura (incluido admin)
                 if (userData.rol !== 'super_admin' && userData.rol !== 'ceo' && userData.rol !== 'admin') {
                     console.warn("Acceso denegado: Nivel de privilegios insuficiente.");
                     window.location.href = 'login.html';
                 } else {
-                    console.log("Terminal Heberto: Acceso autorizado. Nivel Arquitecto.");
+                    console.log("Terminal Heberto: Acceso autorizado. Nivel Arquitecto conectado a IA.");
                 }
             } else {
                 window.location.href = 'login.html';
@@ -58,11 +58,8 @@ form.addEventListener('submit', async (e) => {
     const idCarga = mostrarCargando();
 
     try {
-        // 3. Procesar la idea (Motor Lógico)
-        const jsonEstructura = motorGeneradorEstructura(textoIdea);
-
-        // Simulamos un pequeño retraso para efecto visual de "IA pensando"
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // 3. Procesar la idea (CONEXIÓN REAL A LA IA)
+        const jsonEstructura = await motorGeneradorEstructura(textoIdea);
 
         // 4. Guardar el Molde en Firestore V2.0
         const moduloId = jsonEstructura.modulo_id || `modulo_${Date.now()}`;
@@ -72,7 +69,7 @@ form.addEventListener('submit', async (e) => {
             ...jsonEstructura,
             creado_por: auth.currentUser.uid,
             fecha_creacion: serverTimestamp(),
-            version_motor: "1.0"
+            version_motor: "2.0_AI_Powered"
         });
 
         // 5. Actualizar Interfaz con el resultado
@@ -92,56 +89,70 @@ form.addEventListener('submit', async (e) => {
 });
 
 // ==========================================
-// 3. MOTOR GENERADOR (EL CEREBRO NO-CODE)
+// 3. CEREBRO IA (NÚCLEO GENERATIVO V2.0)
 // ==========================================
-function motorGeneradorEstructura(prompt) {
-    // Aquí es donde en el futuro harás el fetch a tu API de IA.
-    // Por ahora, procesamos la instrucción clave para devolver la estructura exacta.
-    const promptLower = prompt.toLowerCase();
+async function motorGeneradorEstructura(promptUsuario) {
+    // ⚠️ HEBERTO: PEGA TU LLAVE EXACTA AQUÍ (LA QUE TERMINA EN D6OU)
+    const API_KEY = "AIzaSyAoeWKuRt-44d2WCSz7SyBVI8ghKyoD6OU"; 
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+
+    const promptMaestro = `
+    Eres el motor No-Code del sistema GestiaPremium. Tu objetivo es convertir la idea del usuario en una estructura JSON estricta para crear módulos dinámicos.
     
-    if (promptLower.includes("seguridad") || promptLower.includes("accesos")) {
-        return {
-            "modulo_id": "seguridad_accesos_b2b",
-            "nombre_display": "Control de Accesos B2B",
-            "descripcion": "Gestión de entradas, salidas y escaneo de QR para visitantes y contratistas externos.",
-            "icono": "shield-check",
-            "seguridad_roles": ["super_admin", "guardia_b2b"], 
-            "esquema_base_datos": {
-                "coleccion_destino": "b2b_registro_accesos",
-                "campos": [
-                    { "id": "tipo_movimiento", "etiqueta": "Tipo de Movimiento", "tipo": "selector", "opciones": ["Entrada", "Salida", "Ronda de Vigilancia"], "obligatorio": true },
-                    { "id": "codigo_qr", "etiqueta": "Código QR Escaneado", "tipo": "texto_qr", "obligatorio": false },
-                    { "id": "tipo_persona", "etiqueta": "Perfil", "tipo": "selector", "opciones": ["Visitante", "Trabajador Externo", "Residente"], "obligatorio": true },
-                    { "id": "timestamp_registro", "etiqueta": "Fecha y Hora", "tipo": "fecha_hora_automatica", "obligatorio": true }
-                ]
-            },
-            "esquema_interfaz": {
-                "tipo_vista_principal": "tabla_datos_en_vivo",
-                "acciones_permitidas": ["crear", "leer", "escanear_qr"]
-            },
-            "estado_modulo": "activo"
-        };
-    } else {
-        // Estructura genérica de respaldo si pides otra cosa
-        const timeStamp = Date.now();
-        return {
-            "modulo_id": `modulo_generico_${timeStamp}`,
-            "nombre_display": "Nuevo Módulo Generado",
-            "descripcion": "Estructura generada automáticamente basada en tu instrucción.",
-            "icono": "box",
-            "seguridad_roles": ["super_admin"],
-            "esquema_base_datos": {
-                "coleccion_destino": `coleccion_dinamica_${timeStamp}`,
-                "campos": [
-                    { "id": "campo_principal", "etiqueta": "Dato Principal", "tipo": "texto", "obligatorio": true }
-                ]
-            },
-            "esquema_interfaz": {
-                "tipo_vista_principal": "lista_simple",
-                "acciones_permitidas": ["crear", "leer"]
-            },
-            "estado_modulo": "borrador"
-        };
+    REGLA DE ORO: Devuelve ÚNICAMENTE un JSON válido. Cero texto adicional. Cero formato markdown (no uses \`\`\`json).
+    
+    ESTRUCTURA EXACTA QUE DEBES DEVOLVER:
+    {
+        "modulo_id": "nombre_unico_sin_espacios_ni_mayusculas",
+        "nombre_display": "Nombre Elegante del Módulo",
+        "descripcion": "Una descripción clara de lo que hace.",
+        "icono": "box", 
+        "seguridad_roles": ["super_admin", "admin"],
+        "esquema_base_datos": {
+            "coleccion_destino": "nombre_coleccion_bd",
+            "campos": [
+                { "id": "campo_1", "etiqueta": "Nombre del Campo", "tipo": "texto", "obligatorio": true }
+            ]
+        },
+        "esquema_interfaz": {
+            "tipo_vista_principal": "tabla_datos_en_vivo",
+            "acciones_permitidas": ["crear", "leer"]
+        },
+        "estado_modulo": "activo"
+    }
+
+    TIPOS DE CAMPO PERMITIDOS: "texto", "selector", "texto_qr", "fecha_hora_automatica".
+    (Si el tipo es "selector", debes incluir la propiedad "opciones" con un arreglo de strings).
+    Usa iconos de fontawesome lógicos (ej. shield-check, car, users, wrench, calendar).
+
+    IDEA DEL USUARIO: "${promptUsuario}"
+    `;
+
+    const payload = {
+        contents: [{ parts: [{ text: promptMaestro }] }],
+        generationConfig: {
+            temperature: 0.2, // Baja temperatura para que sea analítico y no invente cosas raras
+            responseMimeType: "application/json" // Obliga a la IA a contestar puro JSON
+        }
+    };
+
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        throw new Error(`Fallo en la API de Inteligencia Artificial: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const textoRespuesta = data.candidates[0].content.parts[0].text;
+    
+    try {
+        return JSON.parse(textoRespuesta);
+    } catch (e) {
+        throw new Error("La IA no devolvió un JSON válido. Intenta con otra instrucción.");
     }
 }
 
@@ -177,7 +188,7 @@ function mostrarCargando() {
                 <div class="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 0.1s"></div>
                 <div class="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 0.2s"></div>
             </div>
-            <span class="text-sm text-slate-400 font-mono">Construyendo arquitectura en Firestore...</span>
+            <span class="text-sm text-slate-400 font-mono">El Cerebro IA está diseñando la arquitectura...</span>
         </div>
     `;
     output.appendChild(div);
@@ -189,7 +200,6 @@ function agregarBurbujaSistema(jsonObj, docId) {
     const div = document.createElement('div');
     div.className = 'flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-4';
     
-    // Convertimos el JSON a un string formateado para mostrarlo en pantalla
     const jsonString = JSON.stringify(jsonObj, null, 2);
     
     div.innerHTML = `
@@ -199,7 +209,7 @@ function agregarBurbujaSistema(jsonObj, docId) {
         <div class="bg-gestia-panel border border-gestia-primary/50 p-5 rounded-2xl rounded-tl-none shadow-[0_0_15px_rgba(59,130,246,0.15)] flex-1 overflow-hidden">
             <div class="flex justify-between items-center mb-3">
                 <h3 class="font-bold text-gestia-accent text-lg flex items-center gap-2">
-                    <i class="fa-solid fa-database"></i> Estructura Creada y Guardada
+                    <i class="fa-solid fa-database"></i> Arquitectura IA Generada y Guardada
                 </h3>
                 <span class="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded font-mono border border-slate-700">ID: ${docId}</span>
             </div>
@@ -207,7 +217,7 @@ function agregarBurbujaSistema(jsonObj, docId) {
             
             <div class="bg-[#0d1117] rounded-lg border border-slate-700 overflow-hidden">
                 <div class="bg-slate-800/50 px-4 py-2 border-b border-slate-700 flex justify-between items-center">
-                    <span class="text-xs font-mono text-slate-400">esquema_base.json</span>
+                    <span class="text-xs font-mono text-slate-400">esquema_generado_por_ia.json</span>
                     <button class="text-slate-400 hover:text-white transition-colors" onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.innerText); this.innerHTML='<i class=\\'fa-solid fa-check\\'></i> Copiado'; setTimeout(()=>this.innerHTML='<i class=\\'fa-regular fa-copy\\'></i> Copiar', 2000);">
                         <i class="fa-regular fa-copy"></i> Copiar
                     </button>
@@ -228,7 +238,7 @@ function agregarBurbujaError(mensaje) {
             <i class="fa-solid fa-triangle-exclamation text-white text-sm"></i>
         </div>
         <div class="bg-gestia-panel border border-red-500/50 p-4 rounded-2xl rounded-tl-none shadow-md flex-1">
-            <h3 class="font-semibold text-red-400 mb-1">Error de Compilación</h3>
+            <h3 class="font-semibold text-red-400 mb-1">Error en el Cerebro IA</h3>
             <p class="text-slate-300 text-sm">${mensaje}</p>
         </div>
     `;
