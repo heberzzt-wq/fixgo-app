@@ -95,8 +95,7 @@ async function motorGeneradorEstructura(promptUsuario) {
 
 const API_KEY = "AIzaSyD2TI1VhfzAC9OuxcaN9jOEmzKRq-H4M-s";
 
-const url =
-"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent?key=" + API_KEY;
+const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + API_KEY;
 
 const promptMaestro = `
 Eres el motor No-Code del sistema GestiaPremium. Convierte la idea en JSON estricto.
