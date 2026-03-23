@@ -3,7 +3,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/fi
 import { collection, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // ==========================================
-// 1. INICIALIZACIÓN Y SEGURIDAD V5.18
+// 1. INICIALIZACIÓN Y SEGURIDAD V5.19
 // ==========================================
 const form = document.getElementById('terminal-form');
 const input = document.getElementById('terminal-input');
@@ -14,27 +14,47 @@ const btnGenerate = document.getElementById('btn-generate');
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         try {
+
             const userRef = doc(db, "users", user.uid);
             const userSnap = await getDoc(userRef);
-            
+
             if (userSnap.exists()) {
+
                 const userData = userSnap.data();
-                // Validamos que el usuario tenga los permisos de arquitectura (incluido admin)
-                if (userData.rol !== 'super_admin' && userData.rol !== 'ceo' && userData.rol !== 'admin') {
+
+                // Validamos que el usuario tenga los permisos de arquitectura
+                if (
+                    userData.rol !== 'super_admin' &&
+                    userData.rol !== 'ceo' &&
+                    userData.rol !== 'admin'
+                ) {
+
                     console.warn("Acceso denegado: Nivel de privilegios insuficiente.");
                     window.location.href = 'login.html';
+
                 } else {
-                    console.log("Terminal Heberto: Acceso autorizado. Nivel Arquitecto conectado a IA.");
+
+                    console.log("Terminal Heberto: Acceso autorizado. Nivel Arquitecto conectado al motor IA.");
+
                 }
+
             } else {
+
                 window.location.href = 'login.html';
+
             }
+
         } catch (error) {
+
             console.error("Error validando seguridad de la terminal:", error);
             window.location.href = 'login.html';
+
         }
+
     } else {
+
         window.location.href = 'login.html';
+
     }
 });
 
@@ -42,8 +62,11 @@ onAuthStateChanged(auth, async (user) => {
 // 2. LÓGICA DE INTERACCIÓN DE LA TERMINAL
 // ==========================================
 form.addEventListener('submit', async (e) => {
+
     e.preventDefault();
+
     const textoIdea = input.value.trim();
+
     if (!textoIdea) return;
 
     // Bloquear UI mientras procesa
@@ -58,18 +81,25 @@ form.addEventListener('submit', async (e) => {
     const idCarga = mostrarCargando();
 
     try {
-        // 3. Procesar la idea (CONEXIÓN REAL A LA IA)
+
+        // 3. Procesar la idea usando el motor IA del backend
         const jsonEstructura = await motorGeneradorEstructura(textoIdea);
 
-        // 4. Guardar el Molde en Firestore V2.0
+        // 4. Guardar el Molde en Firestore
         const moduloId = jsonEstructura.modulo_id || `modulo_${Date.now()}`;
-        const moduloRef = doc(collection(db, "gestia_system_modules"), moduloId);
-        
+
+        const moduloRef = doc(
+            collection(db, "gestia_system_modules"),
+            moduloId
+        );
+
         await setDoc(moduloRef, {
+
             ...jsonEstructura,
             creado_por: auth.currentUser.uid,
             fecha_creacion: serverTimestamp(),
-            version_motor: "2.0_AI_Powered"
+            version_motor: "2.0_AI_Powered_Backend"
+
         });
 
         // 5. Actualizar Interfaz con el resultado
@@ -77,74 +107,131 @@ form.addEventListener('submit', async (e) => {
         agregarBurbujaSistema(jsonEstructura, moduloId);
 
     } catch (error) {
+
         console.error("Error en la generación del módulo:", error);
+
         document.getElementById(idCarga).remove();
         agregarBurbujaError(error.message);
+
     } finally {
+
         // Desbloquear UI
         btnGenerate.disabled = false;
         input.focus();
         hacerScrollAbajo();
+
     }
+
 });
 
 // ==========================================
-// 3. CEREBRO IA (NÚCLEO GENERATIVO V2.0)
+// 3. CEREBRO IA (NÚCLEO GENERATIVO V2.1)
 // ==========================================
 async function motorGeneradorEstructura(promptUsuario) {
 
-const API_KEY = "AIzaSyD2TI1VhfzAC9OuxcaN9jOEmzKRq-H4M-s";
+    const promptMaestro = `
+Eres el motor No-Code del sistema GestiaPremium.
 
-const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + API_KEY;
+Tu tarea es convertir una idea de módulo en una arquitectura JSON estricta.
 
-const promptMaestro = `
-Eres el motor No-Code del sistema GestiaPremium. Convierte la idea en JSON estricto.
-Devuelve SOLO JSON.
+REGLAS:
+- Devuelve solamente JSON.
+- No uses markdown.
+- No agregues explicaciones.
 
-IDEA: "${promptUsuario}"
+ESTRUCTURA ESPERADA:
+
+{
+  "modulo_id": "id_unico",
+  "nombre_display": "Nombre del módulo",
+  "descripcion": "Descripción",
+  "icono": "box",
+  "seguridad_roles": ["admin"],
+  "esquema_base_datos": {
+    "coleccion_destino": "coleccion_bd",
+    "campos": [
+      {
+        "id": "campo_1",
+        "etiqueta": "Etiqueta",
+        "tipo": "texto",
+        "obligatorio": true
+      }
+    ]
+  },
+  "esquema_interfaz": {
+    "tipo_vista_principal": "tabla_datos_en_vivo",
+    "acciones_permitidas": ["crear","leer"]
+  },
+  "estado_modulo": "activo"
+}
+
+IDEA DEL ARQUITECTO:
+"${promptUsuario}"
 `;
 
-const payload = {
-  contents: [
-    {
-      role: "user",
-      parts: [{ text: promptMaestro }]
+    const payload = {
+
+        prompt: promptMaestro
+
+    };
+
+    const response = await fetch("/api/generar-modulo", {
+
+        method: "POST",
+
+        headers: {
+            "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify(payload)
+
+    });
+
+    if (!response.ok) {
+
+        const errorText = await response.text();
+
+        throw new Error(`Fallo en IA ${response.status}: ${errorText}`);
+
     }
-  ],
-  generationConfig: {
-    temperature: 0.2,
-    maxOutputTokens: 2048
-  }
-};
 
-const response = await fetch(url, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(payload)
-});
+    const data = await response.json();
 
-if (!response.ok) {
-  const errorText = await response.text();
-  throw new Error(`Fallo en IA ${response.status}: ${errorText}`);
+    if (!data || !data.texto) {
+
+        throw new Error("La respuesta del motor IA no tiene el formato esperado.");
+
+    }
+
+    const textoRespuesta = data.texto;
+
+    const limpio = textoRespuesta
+        .replace(/```json/g, "")
+        .replace(/```/g, "")
+        .trim();
+
+    try {
+
+        return JSON.parse(limpio);
+
+    } catch (error) {
+
+        console.error("JSON inválido recibido:", limpio);
+        throw new Error("La IA devolvió una estructura JSON inválida.");
+
+    }
+
 }
 
-const data = await response.json();
-
-const textoRespuesta = data.candidates[0].content.parts[0].text;
-
-const limpio = textoRespuesta
-.replace(/```json/g, "")
-.replace(/```/g, "")
-.trim();
-
-return JSON.parse(limpio);
-}
 // ==========================================
 // 4. FUNCIONES DE INTERFAZ (UI BUILDERS)
 // ==========================================
 function agregarBurbujaUsuario(texto) {
+
     const div = document.createElement('div');
+
     div.className = 'flex gap-4 animate-fade-in max-w-4xl mx-auto w-full justify-end mt-4';
+
     div.innerHTML = `
         <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl rounded-tr-none shadow-md max-w-[80%]">
             <p class="text-slate-200 text-sm leading-relaxed">${texto}</p>
@@ -153,14 +240,21 @@ function agregarBurbujaUsuario(texto) {
             <i class="fa-solid fa-user-tie text-slate-300 text-sm"></i>
         </div>
     `;
+
     output.appendChild(div);
+
 }
 
 function mostrarCargando() {
+
     const id = `carga_${Date.now()}`;
+
     const div = document.createElement('div');
+
     div.id = id;
+
     div.className = 'flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-4';
+
     div.innerHTML = `
         <div class="w-10 h-10 rounded-full bg-gestia-primary flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/30">
             <i class="fa-solid fa-microchip text-white text-sm animate-pulse"></i>
@@ -174,17 +268,23 @@ function mostrarCargando() {
             <span class="text-sm text-slate-400 font-mono">El Cerebro IA está diseñando la arquitectura...</span>
         </div>
     `;
+
     output.appendChild(div);
+
     hacerScrollAbajo();
+
     return id;
+
 }
 
 function agregarBurbujaSistema(jsonObj, docId) {
+
     const div = document.createElement('div');
+
     div.className = 'flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-4';
-    
+
     const jsonString = JSON.stringify(jsonObj, null, 2);
-    
+
     div.innerHTML = `
         <div class="w-10 h-10 rounded-full bg-gestia-primary flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/30">
             <i class="fa-solid fa-check-double text-white text-sm"></i>
@@ -201,21 +301,24 @@ function agregarBurbujaSistema(jsonObj, docId) {
             <div class="bg-[#0d1117] rounded-lg border border-slate-700 overflow-hidden">
                 <div class="bg-slate-800/50 px-4 py-2 border-b border-slate-700 flex justify-between items-center">
                     <span class="text-xs font-mono text-slate-400">esquema_generado_por_ia.json</span>
-                    <button class="text-slate-400 hover:text-white transition-colors" onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.innerText); this.innerHTML='<i class=\\'fa-solid fa-check\\'></i> Copiado'; setTimeout(()=>this.innerHTML='<i class=\\'fa-regular fa-copy\\'></i> Copiar', 2000);">
-                        <i class="fa-regular fa-copy"></i> Copiar
-                    </button>
                 </div>
                 <pre class="p-4 overflow-x-auto text-xs font-mono text-emerald-400"><code>${jsonString}</code></pre>
             </div>
         </div>
     `;
+
     output.appendChild(div);
+
     hacerScrollAbajo();
+
 }
 
 function agregarBurbujaError(mensaje) {
+
     const div = document.createElement('div');
+
     div.className = 'flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-4';
+
     div.innerHTML = `
         <div class="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center shrink-0 shadow-lg shadow-red-500/30">
             <i class="fa-solid fa-triangle-exclamation text-white text-sm"></i>
@@ -225,10 +328,15 @@ function agregarBurbujaError(mensaje) {
             <p class="text-slate-300 text-sm">${mensaje}</p>
         </div>
     `;
+
     output.appendChild(div);
+
     hacerScrollAbajo();
+
 }
 
 function hacerScrollAbajo() {
+
     output.scrollTop = output.scrollHeight;
+
 }
