@@ -94,7 +94,7 @@ form.addEventListener('submit', async (e) => {
 async function motorGeneradorEstructura(promptUsuario) {
     // ⚠️ HEBERTO: PEGA TU LLAVE EXACTA AQUÍ (LA QUE TERMINA EN D6OU)
     const API_KEY = "AIzaSyAoeWKuRt-44d2WCSz7SyBVI8ghKyoD6OU"; 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + API_KEY;
 
     const promptMaestro = `
     Eres el motor No-Code del sistema GestiaPremium. Tu objetivo es convertir la idea del usuario en una estructura JSON estricta para crear módulos dinámicos.
