@@ -92,52 +92,41 @@ form.addEventListener('submit', async (e) => {
 // 3. CEREBRO IA (NÚCLEO GENERATIVO V2.0)
 // ==========================================
 async function motorGeneradorEstructura(promptUsuario) {
-    // ⚠️ HEBERTO: PEGA TU LLAVE EXACTA AQUÍ (LA QUE TERMINA EN D6OU)
-   // ⚠️ Asegúrate de que tu llave esté entre comillas y no tenga espacios en blanco al final
-    const API_KEY = "AIzaSyAoeWKuRt-44d2WCSz7SyBVI8ghKyoD6OU"; 
+    // ⚠️ Asegúrate de que esta sea tu llave REAL sin espacios
+    const API_KEY = "TU_LLAVE_AQUI_LA_QUE_TERMINA_EN_D6OU"; 
     
-    // Armamos la URL con una suma normal, usando el modelo más estable (gemini-1.5-pro)
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=" + API_KEY;
+    // EL FIX DEL 404: 
+    // Usamos el endpoint v1beta y el modelo 'gemini-1.5-flash' que es el más rápido y estable.
+    // IMPORTANTE: Asegúrate de que la URL no tenga espacios accidentales.
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + API_KEY;
 
     const promptMaestro = `
-    Eres el motor No-Code del sistema GestiaPremium. Tu objetivo es convertir la idea del usuario en una estructura JSON estricta para crear módulos dinámicos.
+    Eres el motor No-Code del sistema GestiaPremium. Convierte la idea en JSON estricto.
+    REGLA: Devuelve SOLO el JSON. Sin markdown, sin texto.
     
-    REGLA DE ORO: Devuelve ÚNICAMENTE un JSON válido. Cero texto adicional. Cero formato markdown (no uses \`\`\`json).
-    
-    ESTRUCTURA EXACTA QUE DEBES DEVOLVER:
+    ESTRUCTURA:
     {
-        "modulo_id": "nombre_unico_sin_espacios_ni_mayusculas",
-        "nombre_display": "Nombre Elegante del Módulo",
-        "descripcion": "Una descripción clara de lo que hace.",
-        "icono": "box", 
-        "seguridad_roles": ["super_admin", "admin"],
+        "modulo_id": "id_unico",
+        "nombre_display": "Nombre",
+        "descripcion": "Texto",
+        "icono": "box",
+        "seguridad_roles": ["admin"],
         "esquema_base_datos": {
-            "coleccion_destino": "nombre_coleccion_bd",
+            "coleccion_destino": "coleccion_bd",
             "campos": [
-                { "id": "campo_1", "etiqueta": "Nombre del Campo", "tipo": "texto", "obligatorio": true }
+                { "id": "f1", "etiqueta": "Etiq", "tipo": "texto", "obligatorio": true }
             ]
         },
-        "esquema_interfaz": {
-            "tipo_vista_principal": "tabla_datos_en_vivo",
-            "acciones_permitidas": ["crear", "leer"]
-        },
+        "esquema_interfaz": { "tipo_vista_principal": "tabla_datos_en_vivo", "acciones_permitidas": ["crear", "leer"] },
         "estado_modulo": "activo"
     }
-
-    TIPOS DE CAMPO PERMITIDOS: "texto", "selector", "texto_qr", "fecha_hora_automatica".
-    (Si el tipo es "selector", debes incluir la propiedad "opciones" con un arreglo de strings).
-    Usa iconos de fontawesome lógicos (ej. shield-check, car, users, wrench, calendar).
-
-    IDEA DEL USUARIO: "${promptUsuario}"
-    `;
+    IDEA: "${promptUsuario}"`;
 
     const payload = {
-        contents: [{ parts: [{ text: promptMaestro }] }],
-        generationConfig: {
-            temperature: 0.2, // Baja temperatura para que sea analítico y no invente cosas raras
-            responseMimeType: "application/json" // Obliga a la IA a contestar puro JSON
-        }
+        contents: [{ parts: [{ text: promptMaestro }] }]
     };
+
+    console.log("Iniciando petición a:", url);
 
     const response = await fetch(url, {
         method: "POST",
@@ -145,20 +134,29 @@ async function motorGeneradorEstructura(promptUsuario) {
         body: JSON.stringify(payload)
     });
 
+    // 🕵️‍♂️ AQUÍ CAZAMOS EL 404 REAL
     if (!response.ok) {
-        throw new Error(`Fallo en la API de Inteligencia Artificial: ${response.status}`);
+        const errorText = await response.text();
+        console.error("Respuesta detallada de Google:", errorText);
+        throw new Error(`Fallo en la API de Inteligencia Artificial: ${response.status}. Detalle: ${errorText}`);
     }
 
     const data = await response.json();
+    
+    // Extraer el texto de la respuesta de Gemini
+    if (!data.candidates || !data.candidates[0].content.parts[0].text) {
+        throw new Error("La IA respondió pero el formato es inesperado.");
+    }
+    
     const textoRespuesta = data.candidates[0].content.parts[0].text;
     
     try {
         return JSON.parse(textoRespuesta);
     } catch (e) {
-        throw new Error("La IA no devolvió un JSON válido. Intenta con otra instrucción.");
+        console.error("JSON Mal formado recibido:", textoRespuesta);
+        throw new Error("La IA no devolvió un JSON válido.");
     }
 }
-
 // ==========================================
 // 4. FUNCIONES DE INTERFAZ (UI BUILDERS)
 // ==========================================
