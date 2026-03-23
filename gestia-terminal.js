@@ -93,7 +93,7 @@ form.addEventListener('submit', async (e) => {
 // ==========================================
 async function motorGeneradorEstructura(promptUsuario) {
     // ⚠️ Asegúrate de que esta sea tu llave REAL sin espacios
-    const API_KEY = "TU_LLAVE_AQUI_LA_QUE_TERMINA_EN_D6OU"; 
+    const API_KEY = "AIzaSyAoeWKuRt-44d2WCSz7SyBVI8ghKyoD6OU"; 
     
     // EL FIX DEL 404: 
     // Usamos el endpoint v1beta y el modelo 'gemini-1.5-flash' que es el más rápido y estable.
