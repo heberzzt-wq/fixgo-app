@@ -98,7 +98,7 @@ async function motorGeneradorEstructura(promptUsuario) {
     // EL FIX DEL 404: 
     // Usamos el endpoint v1beta y el modelo 'gemini-1.5-flash' que es el más rápido y estable.
     // IMPORTANTE: Asegúrate de que la URL no tenga espacios accidentales.
-    const url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + API_KEY;
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + API_KEY;
 
     const promptMaestro = `
     Eres el motor No-Code del sistema GestiaPremium. Convierte la idea en JSON estricto.
