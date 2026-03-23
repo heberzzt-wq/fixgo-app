@@ -93,7 +93,7 @@ form.addEventListener('submit', async (e) => {
 // ==========================================
 async function motorGeneradorEstructura(promptUsuario) {
 
-const API_KEY = "AIzaSyAoeWKuRt-44d2WCSz7SyBVI8ghKyoD6OU";
+const API_KEY = "AIzaSyD2TI1VhfzAC9OuxcaN9jOEmzKRq-H4M-s";
 
 const url =
 "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent?key=" + API_KEY;
