@@ -47,7 +47,7 @@ export async function initGestiaRender(moduloId, containerId) {
             const userSnap = await getDoc(userRef);
             const userRol = userSnap.exists() ? userSnap.data().rol : null;
 
-            if (userRol !== 'super_admin' && userRol !== 'ceo' && (!esquemaModulo.seguridad_roles || !esquemaModulo.seguridad_roles.includes(userRol))) {
+            if (userRol !== 'super_admin' && userRol !== 'ceo' && userRol !== 'admin' && (!esquemaModulo.seguridad_roles || !esquemaModulo.seguridad_roles.includes(userRol))) {
                 container.innerHTML = `<div class="p-5 text-orange-400 bg-orange-900/20 rounded-lg border border-orange-800 shadow-lg">
                     <i class="fa-solid fa-lock mr-2"></i> Acceso denegado: Tu rol (${userRol}) no tiene permisos para abrir este módulo.
                 </div>`;
