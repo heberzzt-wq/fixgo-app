@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Módulo | GestiaPremium</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        gestia: {
+                            dark: '#0f172a',
+                            primary: '#3b82f6'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gestia-dark h-screen w-screen p-2 md:p-6 flex flex-col font-sans overflow-hidden">
+    
+    <div id="contenedor-magico" class="w-full max-w-7xl mx-auto h-full"></div>
+
+    <script type="module">
+        // Importamos la función maestra que creaste en el paso anterior
+        import { initGestiaRender } from './gestia-render.js';
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Le ordenamos al motor: 
+            // 1. Busca en Firebase el molde de "seguridad_accesos_b2b"
+            // 2. Dibújalo todo adentro del div "contenedor-magico"
+            initGestiaRender('seguridad_accesos_b2b', 'contenedor-magico');
+        });
+    </script>
+</body>
+</html>
