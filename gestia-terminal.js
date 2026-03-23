@@ -129,53 +129,16 @@ form.addEventListener('submit', async (e) => {
 // ==========================================
 async function motorGeneradorEstructura(promptUsuario) {
 
+    const url = "https://us-central1-fixgo-app-main.cloudfunctions.net/generarModulo";
+
     const promptMaestro = `
-Eres el motor No-Code del sistema GestiaPremium.
+Eres el motor No-Code del sistema GestiaPremium. Convierte la idea en JSON estricto.
+Devuelve SOLO JSON.
 
-Tu tarea es convertir una idea de módulo en una arquitectura JSON estricta.
-
-REGLAS:
-- Devuelve solamente JSON.
-- No uses markdown.
-- No agregues explicaciones.
-
-ESTRUCTURA ESPERADA:
-
-{
-  "modulo_id": "id_unico",
-  "nombre_display": "Nombre del módulo",
-  "descripcion": "Descripción",
-  "icono": "box",
-  "seguridad_roles": ["admin"],
-  "esquema_base_datos": {
-    "coleccion_destino": "coleccion_bd",
-    "campos": [
-      {
-        "id": "campo_1",
-        "etiqueta": "Etiqueta",
-        "tipo": "texto",
-        "obligatorio": true
-      }
-    ]
-  },
-  "esquema_interfaz": {
-    "tipo_vista_principal": "tabla_datos_en_vivo",
-    "acciones_permitidas": ["crear","leer"]
-  },
-  "estado_modulo": "activo"
-}
-
-IDEA DEL ARQUITECTO:
-"${promptUsuario}"
+IDEA: "${promptUsuario}"
 `;
 
-    const payload = {
-
-        prompt: promptMaestro
-
-    };
-
-    const response = await fetch("/api/generar-modulo", {
+    const response = await fetch(url, {
 
         method: "POST",
 
@@ -183,46 +146,31 @@ IDEA DEL ARQUITECTO:
             "Content-Type": "application/json"
         },
 
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+            prompt: promptMaestro
+        })
 
     });
 
     if (!response.ok) {
-
         const errorText = await response.text();
-
-        throw new Error(`Fallo en IA ${response.status}: ${errorText}`);
-
+        throw new Error(`Fallo en backend IA: ${response.status} ${errorText}`);
     }
 
     const data = await response.json();
 
-    if (!data || !data.texto) {
-
-        throw new Error("La respuesta del motor IA no tiene el formato esperado.");
-
-    }
-
-    const textoRespuesta = data.texto;
-
-    const limpio = textoRespuesta
+    const limpio = data.texto
         .replace(/```json/g, "")
         .replace(/```/g, "")
         .trim();
 
     try {
-
         return JSON.parse(limpio);
-
-    } catch (error) {
-
-        console.error("JSON inválido recibido:", limpio);
-        throw new Error("La IA devolvió una estructura JSON inválida.");
-
+    } catch (e) {
+        console.error("Respuesta IA inválida:", limpio);
+        throw new Error("La IA no devolvió JSON válido.");
     }
-
 }
-
 // ==========================================
 // 4. FUNCIONES DE INTERFAZ (UI BUILDERS)
 // ==========================================
