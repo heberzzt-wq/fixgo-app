@@ -20,7 +20,7 @@ onAuthStateChanged(auth, async (user) => {
             if (userSnap.exists()) {
                 const userData = userSnap.data();
                 // Validamos que el usuario tenga los permisos de arquitectura
-                if (userData.rol !== 'super_admin' && userData.rol !== 'ceo') {
+                if (userData.rol !== 'super_admin' && userData.rol !== 'ceo' && userData.rol !== 'admin') {
                     console.warn("Acceso denegado: Nivel de privilegios insuficiente.");
                     window.location.href = 'login.html';
                 } else {
