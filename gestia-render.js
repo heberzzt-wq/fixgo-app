@@ -215,7 +215,7 @@ function cerrarModal() {
 async function guardarNuevoRegistro(e, esquema) {
     e.preventDefault();
     const form = e.target;
-    const btnSubmit = form.querySelector('button[type="submit"]');
+    const btnSubmit = document.querySelector('button[form="formulario-dinamico"]');
     
     // UI de carga
     btnSubmit.disabled = true;
