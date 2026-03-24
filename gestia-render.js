@@ -482,7 +482,6 @@ function conectarDatosEnVivo(esquema) {
     const tbody = document.getElementById('tabla-cuerpo');
     const estadoVacio = document.getElementById('estado-vacio');
     
-    // Query optimizada por fecha de creación descendente
     const registrosRef = collection(db, "gestia_dynamic_data", esquema.modulo_id, "registros");
     const q = query(registrosRef, orderBy("creado_en", "desc"));
 
@@ -501,7 +500,6 @@ function conectarDatosEnVivo(esquema) {
             const tr = document.createElement('tr');
             
             // --- DETECTOR DE PRIORIDAD POSIQ V5.19 (ULTRA-SENSIBLE) ---
-            // Buscamos "POSIQ" en cualquier parte del string de Empresa o Recurso
             const txtEmpresa = (data.empresa_area || "").toUpperCase();
             const txtRecurso = (data.recurso || "").toUpperCase();
             const txtMotivo = (data.motivo || "").toUpperCase();
@@ -510,7 +508,6 @@ function conectarDatosEnVivo(esquema) {
                            txtRecurso.includes("ESTUDIO") || 
                            data.prioridad_alta === true;
             
-            // Aplicamos el estilo visual de ALERTA si es POSIQ
             if (esPOSIQ) {
                 tr.className = "bg-red-900/20 border-l-4 border-l-red-600 hover:bg-red-900/30 transition-all duration-200 group border-b border-slate-800/50";
             } else {
@@ -525,13 +522,9 @@ function conectarDatosEnVivo(esquema) {
                     if (campo.tipo === 'fecha_hora_automatica' || campo.id === 'fecha_hora') {
                         const dateObj = data[campo.id].toDate ? data[campo.id].toDate() : new Date();
                         valorFinal = new Intl.DateTimeFormat('es-MX', { 
-                            day: '2-digit', 
-                            month: 'short', 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
+                            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' 
                         }).format(dateObj);
                     } else if (campo.tipo === 'selector') {
-                        // Estilo de etiqueta dinámico (Rojo para POSIQ, Azul para el resto)
                         const colorTag = esPOSIQ ? 'bg-red-600 text-white' : 'bg-blue-900/30 text-blue-400';
                         valorFinal = `<span class="${colorTag} border border-slate-700/50 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider shadow-inner">${data[campo.id]}</span>`;
                     } else if (campo.tipo === 'texto_qr') {
@@ -540,7 +533,6 @@ function conectarDatosEnVivo(esquema) {
                         valorFinal = data[campo.id];
                     }
                 }
-                
                 tr.innerHTML += `<td class="px-4 py-3 text-slate-300 whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]">${valorFinal}</td>`;
             });
 
@@ -552,30 +544,47 @@ function conectarDatosEnVivo(esquema) {
             btnVer.className = "text-slate-500 hover:text-blue-400 p-2 bg-slate-800 rounded-lg shadow-md border border-slate-700 transition-all active:scale-95 group/btn";
             btnVer.innerHTML = `<i class="fa-solid fa-eye text-xs group-hover/btn:scale-110"></i>`;
             
-            // Función de detalle expandido al hacer clic
+            // Usamos la función de formateo auxiliar para el detalle
             btnVer.onclick = () => {
-                console.log("🔍 Explorando registro:", docSnap.id);
-                const infoFormateada = Object.entries(data)
-                    .filter(([key]) => !['creado_por', 'creado_en', 'modulo_origen'].includes(key))
-                    .map(([key, val]) => {
-                        const label = key.replace(/_/g, ' ').toUpperCase();
-                        return `🔹 ${label}: ${val}`;
-                    }).join('\n');
-
+                const infoFormateada = formatearDetalleParaGuardia(data);
                 alert(`📋 DETALLE DEL ACCESO [Uxmal 39]\n----------------------------------\n${infoFormateada}\n----------------------------------\nID: ${docSnap.id}`);
             };
 
             tdAcciones.appendChild(btnVer);
             tr.appendChild(tdAcciones);
-
-            // Inyección final en el DOM
             tbody.appendChild(tr);
         });
+
+        console.log(`📊 Renderizado completo: ${snapshot.size} registros procesados.`);
+    }, (error) => {
+        console.error("❌ Error en la suscripción de datos:", error);
+        tbody.innerHTML = `<tr><td colspan="10" class="p-10 text-center"><p class="text-red-500">Error: ${error.message}</p></td></tr>`;
     });
 }
 
 /**
- * FIN DEL MOTOR GESTIA-RENDER V5.19
- * "Software is a conversation between the architect and the user."
- * Heberto, con este código superamos las 515 líneas y activamos la Fase 2 completa.
+ * Función Auxiliar: Formateo de Datos para el Detalle (Ojito)
+ * @param {Object} data - Objeto crudo de Firestore
  */
+function formatearDetalleParaGuardia(data) {
+    return Object.entries(data)
+        .filter(([key]) => !['creado_por', 'creado_en', 'modulo_origen', 'prioridad_alta', 'color_alerta'].includes(key))
+        .map(([key, val]) => {
+            const label = key.replace(/_/g, ' ').toUpperCase();
+            let valorAMostrar = val;
+
+            if (val && typeof val === 'object' && val.seconds) {
+                const d = val.toDate();
+                valorAMostrar = d.toLocaleString('es-MX', { 
+                    day: '2-digit', month: 'long', year: 'numeric', 
+                    hour: '2-digit', minute: '2-digit', second: '2-digit' 
+                });
+            }
+            return `🔹 ${label}: ${valorAMostrar}`;
+        }).join('\n');
+}
+
+// ==========================================
+// FIN DEL MOTOR GESTIA-RENDER V5.19
+// ==========================================
+console.info("🚀 GestiaRender V5.19: Despliegue Finalizado con éxito.");
