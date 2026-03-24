@@ -200,10 +200,10 @@ function renderizarUIBase(esquema, container) {
     }
 }
 // ==========================================
-// 3. INYECCIÓN DE COMPONENTES DE SEGURIDAD (FASE 1)
+// 3. INYECCIÓN DE COMPONENTES DE SEGURIDAD (V5.22 - Inventario de Paquetes)
 // ==========================================
 function inyectarWidgetsSeguridad(esquema) {
-    // 1. Botón de Pánico Profesional
+    // 1. Botón de Pánico (Se mantiene igual)
     const panicContainer = document.getElementById('contenedor-panico-flotante');
     panicContainer.innerHTML = `
         <button id="btn-panico-pro" class="fixed bottom-6 right-6 p-6 bg-red-700 text-white rounded-full shadow-[0_0_30px_rgba(185,28,28,0.5)] hover:bg-red-600 active:scale-90 transition-all z-[60] border-4 border-red-900/40 group overflow-hidden">
@@ -213,75 +213,107 @@ function inyectarWidgetsSeguridad(esquema) {
     `;
 
     document.getElementById('btn-panico-pro').onclick = async () => {
-        const confirmacion = confirm("🚨 ¿Deseas disparar una ALERTA DE PÁNICO inmediata al NOC?");
-        if (!confirmacion) return;
-
+        if (!confirm("🚨 ¿Deseas disparar una ALERTA DE PÁNICO inmediata al NOC?")) return;
         try {
             await addDoc(collection(db, "panicAlerts"), {
-                timestamp: serverTimestamp(),
-                status: "active",
-                notified: false,
-                ubicacion: "Caseta de Vigilancia",
-                creado_por: auth.currentUser.uid,
-                condominioId: "UXMAL39"
+                timestamp: serverTimestamp(), status: "active", notified: false,
+                ubicacion: "Caseta de Vigilancia", creado_por: auth.currentUser.uid, condominioId: "UXMAL39"
             });
-            alert("ALERTA ENVIADA. El equipo de seguridad ha sido notificado.");
-        } catch (e) {
-            console.error("Error pánico:", e);
-        }
+            alert("ALERTA ENVIADA.");
+        } catch (e) { console.error(e); }
     };
 
-    // 2. Formulario de Paquetería Lateral
+    // 2. Gestión de Paquetería con Inventario en Vivo
     const pkgFormContainer = document.getElementById('form-paqueteria-container');
     pkgFormContainer.innerHTML = `
         <div class="space-y-4">
-            <div class="flex flex-col gap-1">
-                <label class="text-[10px] text-slate-500 font-bold uppercase">Unidad / Depto</label>
-                <input id="pkg-unit" type="text" placeholder="Ej: 402" class="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm text-white focus:border-blue-500 outline-none">
+            <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700">
+                <div class="flex flex-col gap-3">
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[10px] text-slate-500 font-bold uppercase">Unidad / Depto</label>
+                        <input id="pkg-unit" type="text" placeholder="Ej: 402" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white outline-none focus:border-blue-500">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[10px] text-slate-500 font-bold uppercase">Mensajería</label>
+                        <select id="pkg-courier" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white outline-none focus:border-blue-500">
+                            <option>Amazon</option><option>Mercado Libre</option><option>DHL / FedEx</option><option>Uber Eats / Rappi</option>
+                        </select>
+                    </div>
+                    <button id="btn-save-pkg" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-lg text-[10px] transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-paper-plane"></i> REGISTRAR Y NOTIFICAR
+                    </button>
+                </div>
             </div>
-            <div class="flex flex-col gap-1">
-                <label class="text-[10px] text-slate-500 font-bold uppercase">Mensajería</label>
-                <select id="pkg-courier" class="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm text-white focus:border-blue-500 outline-none">
-                    <option>Amazon</option>
-                    <option>Mercado Libre</option>
-                    <option>DHL / FedEx</option>
-                    <option>Uber Eats / Rappi</option>
-                </select>
-            </div>
-            <button id="btn-save-pkg" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-xs transition-all shadow-lg flex items-center justify-center gap-2">
-                <i class="fa-solid fa-paper-plane"></i> NOTIFICAR RESIDENTE
-            </button>
-            <div class="p-3 bg-blue-500/5 border border-blue-500/10 rounded-lg">
-                <p class="text-[9px] text-slate-500 leading-tight italic">
-                    Al guardar, se enviará una notificación push automática al residente vinculado a la unidad.
-                </p>
+
+            <div class="space-y-2">
+                <div class="flex justify-between items-center px-1">
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Paquetes en Caseta</span>
+                    <span id="pkg-count" class="bg-blue-500/20 text-blue-400 text-[10px] px-2 py-0.5 rounded-full border border-blue-500/30">0</span>
+                </div>
+                <div id="pkg-list-container" class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                    </div>
             </div>
         </div>
     `;
 
+    // Lógica de Guardado
     document.getElementById('btn-save-pkg').onclick = async () => {
         const unitId = document.getElementById('pkg-unit').value;
         const courier = document.getElementById('pkg-courier').value;
-
-        if(!unitId) return alert("Por favor, ingresa el número de unidad.");
+        if(!unitId) return alert("Ingresa la unidad.");
 
         try {
             await addDoc(collection(db, "packages"), {
-                unitId,
-                courier,
-                status: "recibido",
-                timestamp: serverTimestamp(),
-                notified: false,
-                condominioId: "UXMAL39"
+                unitId, courier, status: "recibido", timestamp: serverTimestamp(),
+                notified: false, condominioId: "UXMAL39"
             });
-            alert("✅ Registro exitoso. Residente notificado.");
             document.getElementById('pkg-unit').value = "";
-        } catch (e) {
-            alert("Error al registrar paquete.");
-        }
+        } catch (e) { alert("Error al registrar."); }
     };
+
+    // Sincronización del Inventario (Paquetes no entregados)
+    const pkgList = document.getElementById('pkg-list-container');
+    const q = query(collection(db, "packages"), orderBy("timestamp", "desc"));
+    
+    onSnapshot(q, (snap) => {
+        pkgList.innerHTML = '';
+        let count = 0;
+        snap.forEach(docSnap => {
+            const pkg = docSnap.data();
+            if (pkg.status === 'recibido') {
+                count++;
+                const div = document.createElement('div');
+                div.className = "bg-slate-800 border border-slate-700 p-3 rounded-lg flex justify-between items-center animate-fade-in";
+                div.innerHTML = `
+                    <div>
+                        <div class="text-white font-bold text-xs">Depto ${pkg.unitId}</div>
+                        <div class="text-[10px] text-slate-400">${pkg.courier}</div>
+                    </div>
+                    <button onclick="entregarPaqueteBD('${docSnap.id}')" class="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white border border-emerald-500/30 p-2 rounded-lg transition-all" title="Marcar como entregado">
+                        <i class="fa-solid fa-check text-xs"></i>
+                    </button>
+                `;
+                pkgList.appendChild(div);
+            }
+        });
+        document.getElementById('pkg-count').innerText = count;
+        if(count === 0) pkgList.innerHTML = '<p class="text-[10px] text-slate-600 italic text-center py-4">Caseta vacía</p>';
+    });
 }
 
+/**
+ * --- Función Global para Entrega de Paquetes ---
+ */
+window.entregarPaqueteBD = async function(id) {
+    try {
+        const docRef = doc(db, "packages", id);
+        await updateDoc(docRef, { 
+            status: "entregado", 
+            fecha_entrega: serverTimestamp() 
+        });
+        console.log("📦 Paquete entregado y retirado de inventario.");
+    } catch (e) { console.error("Error al entregar:", e); }
+};
 // ==========================================
 // 4. CONSTRUCTOR DINÁMICO DE FORMULARIOS MULTI-FLUJO (NUEVO V5.19.1)
 // ==========================================
