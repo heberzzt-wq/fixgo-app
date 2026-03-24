@@ -108,16 +108,15 @@ export async function initGestiaRender(moduloId, containerId) {
 }
 
 // ==========================================
-// 2. CONSTRUCTOR DE INTERFAZ (UI BUILDER) - V5.20 (Responsive)
+// 2. CONSTRUCTOR DE INTERFAZ (UI BUILDER) - V5.23 (Buscador Integrado)
 // ==========================================
 function renderizarUIBase(esquema, container) {
     const tieneBotonCrear = esquema.esquema_interfaz?.acciones_permitidas?.includes("crear");
     
-    // Inyectamos Tailwind responsive (flex-col lg:flex-row, overflow-auto, sm:w-auto, etc.)
     container.innerHTML = `
         <div class="bg-slate-900 rounded-xl border border-slate-700 shadow-xl overflow-hidden flex flex-col h-full w-full relative">
             
-            <div class="bg-slate-800 border-b border-slate-700 p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 z-10 shadow-md shrink-0">
+            <div class="bg-slate-800 border-b border-slate-700 p-4 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 z-10 shadow-md shrink-0">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30 shrink-0">
                         <i class="fa-solid fa-${esquema.icono || 'cube'} text-blue-400 text-lg"></i>
@@ -127,15 +126,22 @@ function renderizarUIBase(esquema, container) {
                         <p class="text-xs text-slate-400">${esquema.descripcion}</p>
                     </div>
                 </div>
-                ${tieneBotonCrear ? `
-                <button id="btn-crear-registro" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 shrink-0">
-                    <i class="fa-solid fa-plus"></i> Nuevo Registro
-                </button>
-                ` : ''}
+
+                <div class="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+                    <div class="relative w-full sm:w-64">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                        <input type="text" id="buscador-trazabilidad" placeholder="Buscar visitante, depto o empresa..." 
+                            class="w-full bg-slate-900/50 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 outline-none focus:border-blue-500/50 transition-all">
+                    </div>
+                    ${tieneBotonCrear ? `
+                    <button id="btn-crear-registro" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 shrink-0">
+                        <i class="fa-solid fa-plus text-[10px]"></i> NUEVO REGISTRO
+                    </button>
+                    ` : ''}
+                </div>
             </div>
 
             <div class="flex-1 flex flex-col lg:flex-row overflow-hidden bg-[#0d1117] relative">
-                
                 <div class="flex-1 overflow-auto custom-scrollbar relative">
                     <table class="w-full text-left border-collapse min-w-max">
                         <thead class="bg-slate-800/90 sticky top-0 backdrop-blur-sm z-10 border-b border-slate-700">
@@ -143,10 +149,9 @@ function renderizarUIBase(esquema, container) {
                         </thead>
                         <tbody id="tabla-cuerpo" class="divide-y divide-slate-800/60 text-sm"></tbody>
                     </table>
-                    
                     <div id="estado-vacio" class="hidden absolute inset-0 flex flex-col items-center justify-center text-slate-500 pointer-events-none">
                         <i class="fa-solid fa-folder-open text-4xl mb-3 opacity-30"></i>
-                        <p class="font-mono text-sm uppercase tracking-widest text-center px-4">Sin registros en la unidad</p>
+                        <p class="font-mono text-sm uppercase tracking-widest text-center px-4">Sin registros coincidentes</p>
                     </div>
                 </div>
 
@@ -160,43 +165,38 @@ function renderizarUIBase(esquema, container) {
 
             <div id="contenedor-panico-flotante"></div>
 
-            <div id="modal-dinamico" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 transition-opacity">
-                <div class="bg-slate-800 border border-slate-600 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-fade-in">
-                    <div class="p-4 sm:p-5 border-b border-slate-700 flex justify-between items-center bg-slate-800/80 rounded-t-2xl shrink-0">
-                        <h3 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-bolt text-blue-400"></i> Control de Acceso
-                        </h3>
-                        <button id="btn-cerrar-modal" class="text-slate-400 hover:text-white transition-colors p-2 -mr-2">
-                            <i class="fa-solid fa-xmark text-xl"></i>
-                        </button>
+            <div id="modal-dinamico" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+                <div class="bg-slate-800 border border-slate-600 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh] animate-fade-in">
+                    <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
+                        <h3 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-bolt text-blue-400"></i> Registro de Acceso</h3>
+                        <button id="btn-cerrar-modal" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
                     </div>
-                    <div class="p-4 sm:p-5 overflow-y-auto custom-scrollbar">
+                    <div class="p-4 overflow-y-auto custom-scrollbar">
                         <form id="formulario-dinamico" class="flex flex-col gap-4"></form>
                     </div>
-                    <div class="p-4 sm:p-5 border-t border-slate-700 flex flex-col sm:flex-row justify-end gap-3 bg-slate-900/50 rounded-b-2xl shrink-0">
-                        <button type="button" id="btn-cancelar-modal" class="w-full sm:w-auto px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-300 hover:bg-slate-700 transition-colors border border-slate-600 sm:border-transparent">Cancelar</button>
-                        <button type="submit" form="formulario-dinamico" class="w-full sm:w-auto px-5 py-2.5 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors shadow-lg flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-floppy-disk"></i> Guardar en BD
-                        </button>
+                    <div class="p-4 border-t border-slate-700 flex flex-col sm:flex-row justify-end gap-3 bg-slate-900/50 rounded-b-2xl">
+                        <button type="button" id="btn-cancelar-modal" class="px-4 py-2 text-sm font-semibold text-slate-300">Cancelar</button>
+                        <button type="submit" form="formulario-dinamico" class="bg-blue-600 px-5 py-2 rounded-lg text-sm font-semibold text-white">Guardar en BD</button>
                     </div>
                 </div>
             </div>
         </div>
     `;
 
-    // 1. Renderizar Cabeceras Originales
+    // Listeners del Buscador
+    document.getElementById('buscador-trazabilidad').addEventListener('input', (e) => filtrarTablaEnVivo(e.target.value));
+
     const trCabeceras = document.getElementById('tabla-cabeceras');
     esquema.esquema_base_datos.campos.forEach(campo => {
-        trCabeceras.innerHTML += `<th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">${campo.etiqueta}</th>`;
+        trCabeceras.innerHTML += `<th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">${campo.etiqueta}</th>`;
     });
-    trCabeceras.innerHTML += `<th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right font-mono">Acciones</th>`;
+    trCabeceras.innerHTML += `<th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right font-mono">Acciones</th>`;
 
-    // 2. Event Listeners Originales
     if (tieneBotonCrear) {
-        document.getElementById('btn-crear-registro').addEventListener('click', () => abrirModalFormulario(esquema));
-        document.getElementById('btn-cerrar-modal').addEventListener('click', cerrarModal);
-        document.getElementById('btn-cancelar-modal').addEventListener('click', cerrarModal);
-        document.getElementById('formulario-dinamico').addEventListener('submit', (e) => guardarNuevoRegistro(e, esquema));
+        document.getElementById('btn-crear-registro').onclick = () => abrirModalFormulario(esquema);
+        document.getElementById('btn-cerrar-modal').onclick = cerrarModal;
+        document.getElementById('btn-cancelar-modal').onclick = cerrarModal;
+        document.getElementById('formulario-dinamico').onsubmit = (e) => guardarNuevoRegistro(e, esquema);
     }
 }
 // ==========================================
