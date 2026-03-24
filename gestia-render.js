@@ -558,6 +558,9 @@ function conectarDatosEnVivo(esquema) {
             const data = docSnap.data();
             const tr = document.createElement('tr');
             
+            // --- NUEVO: Extraemos el tipo de flujo ---
+            const tipoFlujo = data.tipo_flujo || 'b2b';
+
             // --- DETECTOR DE PRIORIDAD POSIQ V5.19 (ULTRA-SENSIBLE) ---
             const txtEmpresa = (data.empresa_area || "").toUpperCase();
             const txtRecurso = (data.recurso || "").toUpperCase();
@@ -567,13 +570,21 @@ function conectarDatosEnVivo(esquema) {
                            txtRecurso.includes("ESTUDIO") || 
                            data.prioridad_alta === true;
             
+            // --- NUEVO: Lógica de colores del borde de fila según el flujo ---
             if (esPOSIQ) {
                 tr.className = "bg-red-900/20 border-l-4 border-l-red-600 hover:bg-red-900/30 transition-all duration-200 group border-b border-slate-800/50";
             } else {
-                tr.className = "hover:bg-slate-800/50 transition-colors group border-b border-slate-800/50";
+                let borderFlujo = "border-l-transparent"; // B2B Normal por defecto
+                if (tipoFlujo === 'residencial') borderFlujo = "border-l-emerald-500/50";
+                if (tipoFlujo === 'delivery') borderFlujo = "border-l-amber-500/50";
+                if (tipoFlujo === 'proveedor') borderFlujo = "border-l-purple-500/50";
+                
+                tr.className = `hover:bg-slate-800/50 transition-colors group border-b border-slate-800/50 border-l-4 ${borderFlujo}`;
             }
 
             // Renderizado Dinámico de Columnas
+            let isFirstColumn = true; // --- NUEVO: Bandera para el ícono ---
+
             esquema.esquema_base_datos.campos.forEach(campo => {
                 let valorFinal = "—";
                 
@@ -592,6 +603,18 @@ function conectarDatosEnVivo(esquema) {
                         valorFinal = data[campo.id];
                     }
                 }
+
+                // --- NUEVO: Inyectar el icono indicador del flujo solo en la primera columna ---
+                if (isFirstColumn) {
+                    let iconHTML = '<i class="fa-solid fa-building text-blue-400 mr-2" title="B2B / Corporativo"></i>';
+                    if (tipoFlujo === 'residencial') iconHTML = '<i class="fa-solid fa-house text-emerald-400 mr-2" title="Residencial"></i>';
+                    if (tipoFlujo === 'delivery') iconHTML = '<i class="fa-solid fa-burger text-amber-400 mr-2" title="Delivery"></i>';
+                    if (tipoFlujo === 'proveedor') iconHTML = '<i class="fa-solid fa-helmet-safety text-purple-400 mr-2" title="Proveedor"></i>';
+                    
+                    valorFinal = `<div class="flex items-center">${iconHTML} <span class="truncate">${valorFinal}</span></div>`;
+                    isFirstColumn = false;
+                }
+
                 tr.innerHTML += `<td class="px-4 py-3 text-slate-300 whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]">${valorFinal}</td>`;
             });
 
@@ -605,6 +628,7 @@ function conectarDatosEnVivo(esquema) {
             
             btnVer.onclick = () => {
                 const infoFormateada = formatearDetalleParaGuardia(data);
+                // --- NUEVO: Mostrar el flujo en el alert del ojito ---
                 alert(`📋 DETALLE DEL ACCESO [Uxmal 39]\n----------------------------------\nFlujo: ${data.tipo_flujo ? data.tipo_flujo.toUpperCase() : 'B2B'}\n${infoFormateada}\n----------------------------------\nID: ${docSnap.id}`);
             };
 
@@ -625,7 +649,7 @@ function conectarDatosEnVivo(esquema) {
  */
 function formatearDetalleParaGuardia(data) {
     return Object.entries(data)
-        .filter(([key]) => !['creado_por', 'creado_en', 'modulo_origen', 'prioridad_alta', 'color_alerta', 'tipo_flujo'].includes(key))
+        .filter(([key]) => !['creado_por', 'creado_en', 'modulo_origen', 'prioridad_alta', 'color_alerta', 'tipo_flujo'].includes(key)) // --- NUEVO: ocultar tipo_flujo del map ---
         .map(([key, val]) => {
             const label = key.replace(/_/g, ' ').toUpperCase();
             let valorAMostrar = val;
@@ -642,6 +666,6 @@ function formatearDetalleParaGuardia(data) {
 }
 
 // ==========================================
-// FIN DEL MOTOR GESTIA-RENDER V5.19.1
+// FIN DEL MOTOR GESTIA-RENDER V5.19.2
 // ==========================================
-console.info("🚀 GestiaRender V5.19.1: Despliegue Multi-Flujo Finalizado con éxito.");
+console.info("🚀 GestiaRender V5.19.2: Despliegue Multi-Flujo Finalizado con éxito.");
