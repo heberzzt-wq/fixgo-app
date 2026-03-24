@@ -59,7 +59,7 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // ==========================================
-// 2. LÓGICA DE INTERACCIÓN DE LA TERMINAL
+// 2. LÓGICA DE INTERACCIÓN DE LA TERMINAL (Check-and-Merge)
 // ==========================================
 form.addEventListener('submit', async (e) => {
 
@@ -85,24 +85,42 @@ form.addEventListener('submit', async (e) => {
         // 3. Procesar la idea usando el motor IA del backend
         const jsonEstructura = await motorGeneradorEstructura(textoIdea);
 
-        // 4. Guardar el Molde en Firestore
+        // 4. Determinar ID de módulo
         const moduloId = jsonEstructura.modulo_id || `modulo_${Date.now()}`;
 
-        const moduloRef = doc(
-            collection(db, "gestia_system_modules"),
-            moduloId
-        );
+        const moduloRef = doc(db, "gestia_system_modules", moduloId);
 
-        await setDoc(moduloRef, {
+        // 5. Check-and-Merge: revisamos si ya existe
+        const moduloSnap = await getDoc(moduloRef);
 
-            ...jsonEstructura,
-            creado_por: auth.currentUser.uid,
-            fecha_creacion: serverTimestamp(),
-            version_motor: "2.0_AI_Powered_Backend"
+        if (moduloSnap.exists()) {
 
-        });
+            // Existe -> hacemos un merge para actualizar campos
+            await setDoc(moduloRef, {
+                ...moduloSnap.data(), // conservamos lo existente
+                ...jsonEstructura,    // actualizamos con lo nuevo
+                actualizado_por: auth.currentUser.uid,
+                fecha_actualizacion: serverTimestamp(),
+                version_motor: "2.0_AI_Powered_Backend"
+            }, { merge: true });
 
-        // 5. Actualizar Interfaz con el resultado
+            console.log(`Módulo existente actualizado: ${moduloId}`);
+
+        } else {
+
+            // No existe -> creamos uno nuevo
+            await setDoc(moduloRef, {
+                ...jsonEstructura,
+                creado_por: auth.currentUser.uid,
+                fecha_creacion: serverTimestamp(),
+                version_motor: "2.0_AI_Powered_Backend"
+            });
+
+            console.log(`Módulo nuevo creado: ${moduloId}`);
+
+        }
+
+        // 6. Actualizar Interfaz con el resultado
         document.getElementById(idCarga).remove();
         agregarBurbujaSistema(jsonEstructura, moduloId);
 
@@ -123,7 +141,6 @@ form.addEventListener('submit', async (e) => {
     }
 
 });
-
 // ==========================================
 // 3. CEREBRO IA (NÚCLEO GENERATIVO V2.1) - MÓDULO ACTUALIZADO
 // ==========================================
