@@ -37,7 +37,7 @@ export async function initGestiaRender(moduloId, containerId) {
     container.innerHTML = `
         <div class="flex flex-col items-center justify-center p-10 h-full">
             <i class="fa-solid fa-circle-notch fa-spin text-4xl text-gestia-primary mb-4"></i>
-            <p class="text-slate-400 font-mono text-sm animate-pulse">Sincronizando Módulos de Seguridad V5.18...</p>
+            <p class="text-slate-400 font-mono text-sm animate-pulse">Sincronizando Módulos de Seguridad V5.19.1...</p>
         </div>
     `;
 
@@ -67,7 +67,6 @@ export async function initGestiaRender(moduloId, containerId) {
             const esquemaModulo = moduloSnap.data();
 
             // 2. Cargar Lista Negra del Condominio (UXMAL39 por defecto en Fase 1)
-            // Esto permite que el escáner reaccione sin consultar la BD en cada frame
             const condoRef = doc(db, "condominios", "UXMAL39"); 
             onSnapshot(condoRef, (snap) => {
                 if(snap.exists()) {
@@ -97,7 +96,7 @@ export async function initGestiaRender(moduloId, containerId) {
             renderizarUIBase(esquemaModulo, container);
             conectarDatosEnVivo(esquemaModulo);
             
-            // 5. Inyección de Módulos Pro de Fase 1 (No estaban en tu código original)
+            // 5. Inyección de Módulos Pro de Fase 1
             inyectarWidgetsSeguridad(esquemaModulo);
 
         } catch (error) {
@@ -162,19 +161,19 @@ function renderizarUIBase(esquema, container) {
 
             <div id="modal-dinamico" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity">
                 <div class="bg-slate-800 border border-slate-600 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] animate-fade-in">
-                    <div class="p-5 border-b border-slate-700 flex justify-between items-center">
+                    <div class="p-5 border-b border-slate-700 flex justify-between items-center bg-slate-800/80 rounded-t-2xl">
                         <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-bolt text-blue-400"></i> Formulario de Registro
+                            <i class="fa-solid fa-bolt text-blue-400"></i> Control de Acceso
                         </h3>
                         <button id="btn-cerrar-modal" class="text-slate-400 hover:text-white transition-colors">
                             <i class="fa-solid fa-xmark text-xl"></i>
                         </button>
                     </div>
-                    <div class="p-5 overflow-y-auto">
+                    <div class="p-5 overflow-y-auto custom-scrollbar">
                         <form id="formulario-dinamico" class="flex flex-col gap-4"></form>
                     </div>
-                    <div class="p-5 border-t border-slate-700 flex justify-end gap-3 bg-slate-800/50 rounded-b-2xl">
-                        <button type="button" id="btn-cancelar-modal" class="px-4 py-2 rounded-lg text-sm font-semibold text-slate-300 hover:bg-slate-700">Cancelar</button>
+                    <div class="p-5 border-t border-slate-700 flex justify-end gap-3 bg-slate-900/50 rounded-b-2xl">
+                        <button type="button" id="btn-cancelar-modal" class="px-4 py-2 rounded-lg text-sm font-semibold text-slate-300 hover:bg-slate-700 transition-colors">Cancelar</button>
                         <button type="submit" form="formulario-dinamico" class="px-5 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors shadow-lg flex items-center gap-2">
                             <i class="fa-solid fa-floppy-disk"></i> Guardar en BD
                         </button>
@@ -284,56 +283,112 @@ function inyectarWidgetsSeguridad(esquema) {
 }
 
 // ==========================================
-// 4. CONSTRUCTOR DE FORMULARIOS Y CÁMARA (Original Completo)
+// 4. CONSTRUCTOR DINÁMICO DE FORMULARIOS MULTI-FLUJO (NUEVO V5.19.1)
 // ==========================================
 function abrirModalFormulario(esquema) {
     const form = document.getElementById('formulario-dinamico');
     form.innerHTML = ''; 
     const camposConQR = []; 
 
-    esquema.esquema_base_datos.campos.forEach(campo => {
-        if (campo.tipo === 'fecha_hora_automatica') return;
+    // 1. INYECTAMOS EL SELECTOR MAESTRO DE FLUJO AL TOPE DEL FORMULARIO
+    form.innerHTML += `
+        <div class="mb-2 pb-5 border-b border-slate-700/60">
+            <label class="block text-sm font-bold text-blue-400 mb-2"><i class="fa-solid fa-route mr-2"></i>Clasificación del Acceso</label>
+            <select id="selector-tipo-flujo" name="tipo_flujo" class="w-full bg-slate-900 border border-blue-500/50 rounded-lg px-3 py-3 text-white font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)] transition-all cursor-pointer">
+                <option value="" disabled selected>Selecciona el tipo de flujo...</option>
+                <option value="b2b">🏢 Corporativo / B2B (Salas y POSIQ)</option>
+                <option value="residencial">🏠 Visita Residencial Regular</option>
+                <option value="delivery">🍔 Delivery / Plataformas de Entrega</option>
+                <option value="proveedor">🛠️ Contratista / Proveedor Externo</option>
+            </select>
+        </div>
+        <div id="contenedor-campos-dinamicos" class="flex flex-col gap-4 hidden animate-fade-in pt-2"></div>
+    `;
 
-        let inputHtml = '';
-        const req = campo.obligatorio ? 'required' : '';
-        const baseClass = "w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2.5 text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 mt-1 text-sm shadow-inner transition-all";
+    const contenedorCampos = document.getElementById('contenedor-campos-dinamicos');
+    const selectorFlujo = document.getElementById('selector-tipo-flujo');
 
-        switch (campo.tipo) {
-            case 'texto':
-                inputHtml = `<input type="text" id="campo_${campo.id}" name="${campo.id}" class="${baseClass}" ${req}>`;
-                break;
-            case 'selector':
-                let opts = campo.opciones.map(op => `<option value="${op}">${op}</option>`).join('');
-                inputHtml = `<select id="campo_${campo.id}" name="${campo.id}" class="${baseClass} appearance-none" ${req}><option value="" disabled selected>Selecciona una opción...</option>${opts}</select>`;
-                break;
-            case 'texto_qr':
-                camposConQR.push(campo.id);
-                inputHtml = `
-                    <div class="relative">
-                        <input type="text" id="campo_${campo.id}" name="${campo.id}" class="${baseClass} pr-10 font-mono text-blue-300" placeholder="Escanear o teclear..." ${req}>
-                        <button type="button" id="btn_scan_${campo.id}" class="absolute right-2 top-[12px] text-slate-400 hover:text-blue-400 p-1 bg-slate-800 rounded border border-slate-600 shadow-md transition-colors" title="Abrir Escáner">
-                            <i class="fa-solid fa-qrcode text-lg"></i>
-                        </button>
-                    </div>
-                    <div id="reader_${campo.id}" class="hidden w-full mt-3 rounded-xl overflow-hidden border-2 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)] bg-black"></div>
-                `;
-                break;
-            default:
-                inputHtml = `<input type="text" id="campo_${campo.id}" name="${campo.id}" class="${baseClass}" ${req}>`;
-        }
+    // 2. ESCUCHADOR DINÁMICO: Cuando el guardia cambia de B2B a Delivery, por ejemplo.
+    selectorFlujo.addEventListener('change', (e) => {
+        const flujoSeleccionado = e.target.value;
+        contenedorCampos.innerHTML = ''; // Limpiamos campos previos
+        contenedorCampos.classList.remove('hidden');
+        camposConQR.length = 0; // Vaciamos el buffer de QRs
 
-        form.innerHTML += `<div><label class="block text-sm font-medium text-slate-300">${campo.etiqueta} ${campo.obligatorio ? '<span class="text-red-400">*</span>' : ''}</label>${inputHtml}</div>`;
-    });
+        // 3. RECORRIDO DEL ESQUEMA ORIGINAL MUTANDO SEGÚN EL FLUJO
+        esquema.esquema_base_datos.campos.forEach(campo => {
+            if (campo.tipo === 'fecha_hora_automatica') return;
 
-    camposConQR.forEach(id => {
-        document.getElementById(`btn_scan_${id}`).addEventListener('click', () => toggleEscanerQR(id));
+            let mostrarCampo = true;
+            let etiquetaPersonalizada = campo.etiqueta;
+            let esObligatorio = campo.obligatorio;
+
+            // ---- LÓGICA DE MUTACIÓN BIZ-RULES ----
+            if (flujoSeleccionado === 'delivery') {
+                if (campo.id === 'recurso') { mostrarCampo = false; } // No aplican salas a Ubers
+                if (campo.id === 'empresa_area') { etiquetaPersonalizada = 'Plataforma (Uber, Rappi, etc)'; }
+                if (campo.id === 'motivo') { mostrarCampo = false; } // Asumimos que el motivo es "Entrega"
+            } 
+            else if (flujoSeleccionado === 'residencial') {
+                if (campo.id === 'recurso') { etiquetaPersonalizada = 'Unidad / Departamento Destino'; }
+                if (campo.id === 'empresa_area') { mostrarCampo = false; } // Las visitas de amigos no traen empresa
+            } 
+            else if (flujoSeleccionado === 'proveedor') {
+                if (campo.id === 'recurso') { etiquetaPersonalizada = 'Área de Trabajo / Unidad'; }
+                if (campo.id === 'empresa_area') { etiquetaPersonalizada = 'Empresa Contratista'; }
+            }
+            // Si es 'b2b', pasa tal cual viene de la base de datos sin mutar.
+
+            // Si la regla de negocio dice que se oculte, saltamos la renderización de este input
+            if (!mostrarCampo) return; 
+
+            // ---- RENDERIZADO DEL INPUT HTML ----
+            let inputHtml = '';
+            const req = esObligatorio ? 'required' : '';
+            const baseClass = "w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2.5 text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 mt-1 text-sm shadow-inner transition-all";
+
+            switch (campo.tipo) {
+                case 'texto':
+                    inputHtml = `<input type="text" id="campo_${campo.id}" name="${campo.id}" class="${baseClass}" ${req}>`;
+                    break;
+                case 'selector':
+                    let opts = campo.opciones.map(op => `<option value="${op}">${op}</option>`).join('');
+                    inputHtml = `<select id="campo_${campo.id}" name="${campo.id}" class="${baseClass} appearance-none" ${req}><option value="" disabled selected>Selecciona una opción...</option>${opts}</select>`;
+                    break;
+                case 'texto_qr':
+                    camposConQR.push(campo.id);
+                    inputHtml = `
+                        <div class="relative">
+                            <input type="text" id="campo_${campo.id}" name="${campo.id}" class="${baseClass} pr-10 font-mono text-blue-300" placeholder="Escanear o teclear..." ${req}>
+                            <button type="button" id="btn_scan_${campo.id}" class="absolute right-2 top-[12px] text-slate-400 hover:text-blue-400 p-1 bg-slate-800 rounded border border-slate-600 shadow-md transition-colors" title="Abrir Escáner">
+                                <i class="fa-solid fa-qrcode text-lg"></i>
+                            </button>
+                        </div>
+                        <div id="reader_${campo.id}" class="hidden w-full mt-3 rounded-xl overflow-hidden border-2 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)] bg-black"></div>
+                    `;
+                    break;
+                default:
+                    inputHtml = `<input type="text" id="campo_${campo.id}" name="${campo.id}" class="${baseClass}" ${req}>`;
+            }
+
+            contenedorCampos.innerHTML += `
+                <div class="animate-fade-in">
+                    <label class="block text-sm font-medium text-slate-300">${etiquetaPersonalizada} ${esObligatorio ? '<span class="text-red-500">*</span>' : ''}</label>
+                    ${inputHtml}
+                </div>`;
+        });
+
+        // 4. Reactivar listeners de escáner QR para los campos que sí sobrevivieron al filtro
+        camposConQR.forEach(id => {
+            document.getElementById(`btn_scan_${id}`).addEventListener('click', () => toggleEscanerQR(id));
+        });
     });
 
     document.getElementById('modal-dinamico').classList.remove('hidden');
 }
 
 // ==========================================
-// 5. CEREBRO DE VISIÓN ARTIFICIAL (Mantengo tu lógica original)
+// 5. CEREBRO DE VISIÓN ARTIFICIAL
 // ==========================================
 function toggleEscanerQR(campoId) {
     if (!window.Html5Qrcode) {
@@ -368,13 +423,11 @@ function toggleEscanerQR(campoId) {
         (textoDecodificado) => {
             
             // --- INYECCIÓN DE SEGURIDAD V5.18 ---
-            // Validación contra Lista Negra Global antes de inyectar al input
             if (blockedUsersGlobal.includes(textoDecodificado.trim())) {
                 const audioAlerta = new Audio('https://www.soundjay.com/buttons/button-10.mp3');
                 audioAlerta.play();
                 alert("🚫 ALERTA: Este usuario se encuentra en la LISTA NEGRA. Acceso Denegado.");
                 
-                // Registro automático de incidencia silenciosa
                 addDoc(collection(db, "condominios/UXMAL39/logs_seguridad"), {
                     tipo: "acceso_denegado",
                     timestamp: serverTimestamp(),
@@ -420,12 +473,18 @@ function cerrarModal() {
  * ==========================================
  * 5. LÓGICA DE BASE DE DATOS Y CONECTIVIDAD (FASE 2)
  * ==========================================
- * Esta sección controla la persistencia y la sincronización en tiempo real.
  */
 async function guardarNuevoRegistro(e, esquema) {
     e.preventDefault();
     const btnSubmit = document.querySelector('button[form="formulario-dinamico"]');
     
+    // Validación: obligar a elegir un flujo primero
+    const selectorFlujo = document.getElementById('selector-tipo-flujo');
+    if (selectorFlujo && !selectorFlujo.value) {
+        alert("Por favor, selecciona primero la Clasificación del Acceso en la parte superior.");
+        return;
+    }
+
     // Bloqueo de re-envío
     btnSubmit.disabled = true;
     btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> PROCESANDO...';
@@ -435,10 +494,11 @@ async function guardarNuevoRegistro(e, esquema) {
         const dataToSave = {
             creado_por: auth.currentUser.uid,
             creado_en: serverTimestamp(),
-            modulo_origen: esquema.modulo_id
+            modulo_origen: esquema.modulo_id,
+            tipo_flujo: selectorFlujo.value // Guardamos el tipo de flujo en la BD
         };
 
-        // Mapeo dinámico de campos según el esquema inyectado
+        // Mapeo dinámico: Si el campo no existía en el DOM (porque se ocultó por el flujo), formData.get devuelve null, y le asignamos "—"
         esquema.esquema_base_datos.campos.forEach(campo => {
             if (campo.tipo === 'fecha_hora_automatica' || campo.id === 'fecha_hora') {
                 dataToSave[campo.id] = serverTimestamp(); 
@@ -448,7 +508,6 @@ async function guardarNuevoRegistro(e, esquema) {
         });
 
         // REGLA DE PRIORIDAD POSIQ (Pre-procesamiento)
-        // Si detectamos que es POSIQ, añadimos una marca de agua de prioridad en la data
         const empresaArea = (dataToSave.empresa_area || "").toLowerCase();
         if (empresaArea.includes("posiq")) {
             dataToSave.prioridad_alta = true;
@@ -458,7 +517,7 @@ async function guardarNuevoRegistro(e, esquema) {
         const coleccionDestino = collection(db, "gestia_dynamic_data", esquema.modulo_id, "registros");
         await addDoc(coleccionDestino, dataToSave);
 
-        console.log("✅ Registro Guardado con éxito en Firestore");
+        console.log("✅ Registro Guardado con éxito en Firestore bajo flujo: " + selectorFlujo.value);
         cerrarModal();
         e.target.reset();
 
@@ -518,7 +577,7 @@ function conectarDatosEnVivo(esquema) {
             esquema.esquema_base_datos.campos.forEach(campo => {
                 let valorFinal = "—";
                 
-                if (data[campo.id]) {
+                if (data[campo.id] && data[campo.id] !== "—") {
                     if (campo.tipo === 'fecha_hora_automatica' || campo.id === 'fecha_hora') {
                         const dateObj = data[campo.id].toDate ? data[campo.id].toDate() : new Date();
                         valorFinal = new Intl.DateTimeFormat('es-MX', { 
@@ -544,10 +603,9 @@ function conectarDatosEnVivo(esquema) {
             btnVer.className = "text-slate-500 hover:text-blue-400 p-2 bg-slate-800 rounded-lg shadow-md border border-slate-700 transition-all active:scale-95 group/btn";
             btnVer.innerHTML = `<i class="fa-solid fa-eye text-xs group-hover/btn:scale-110"></i>`;
             
-            // Usamos la función de formateo auxiliar para el detalle
             btnVer.onclick = () => {
                 const infoFormateada = formatearDetalleParaGuardia(data);
-                alert(`📋 DETALLE DEL ACCESO [Uxmal 39]\n----------------------------------\n${infoFormateada}\n----------------------------------\nID: ${docSnap.id}`);
+                alert(`📋 DETALLE DEL ACCESO [Uxmal 39]\n----------------------------------\nFlujo: ${data.tipo_flujo ? data.tipo_flujo.toUpperCase() : 'B2B'}\n${infoFormateada}\n----------------------------------\nID: ${docSnap.id}`);
             };
 
             tdAcciones.appendChild(btnVer);
@@ -564,11 +622,10 @@ function conectarDatosEnVivo(esquema) {
 
 /**
  * Función Auxiliar: Formateo de Datos para el Detalle (Ojito)
- * @param {Object} data - Objeto crudo de Firestore
  */
 function formatearDetalleParaGuardia(data) {
     return Object.entries(data)
-        .filter(([key]) => !['creado_por', 'creado_en', 'modulo_origen', 'prioridad_alta', 'color_alerta'].includes(key))
+        .filter(([key]) => !['creado_por', 'creado_en', 'modulo_origen', 'prioridad_alta', 'color_alerta', 'tipo_flujo'].includes(key))
         .map(([key, val]) => {
             const label = key.replace(/_/g, ' ').toUpperCase();
             let valorAMostrar = val;
@@ -585,6 +642,6 @@ function formatearDetalleParaGuardia(data) {
 }
 
 // ==========================================
-// FIN DEL MOTOR GESTIA-RENDER V5.19
+// FIN DEL MOTOR GESTIA-RENDER V5.19.1
 // ==========================================
-console.info("🚀 GestiaRender V5.19: Despliegue Finalizado con éxito.");
+console.info("🚀 GestiaRender V5.19.1: Despliegue Multi-Flujo Finalizado con éxito.");
