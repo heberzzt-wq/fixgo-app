@@ -314,6 +314,34 @@ window.entregarPaqueteBD = async function(id) {
         console.log("📦 Paquete entregado y retirado de inventario.");
     } catch (e) { console.error("Error al entregar:", e); }
 };
+/**
+ * --- Función de Filtrado en Tiempo Real (Trazabilidad) ---
+ * Filtra las filas de la tabla principal según el texto ingresado.
+ */
+function filtrarTablaEnVivo(termino) {
+    const query = termino.toLowerCase();
+    const filas = document.querySelectorAll('#tabla-cuerpo tr');
+    let encontrados = 0;
+
+    filas.forEach(fila => {
+        const contenido = fila.textContent.toLowerCase();
+        if (contenido.includes(query)) {
+            fila.style.display = "";
+            encontrados++;
+        } else {
+            fila.style.display = "none";
+        }
+    });
+
+    const estadoVacio = document.getElementById('estado-vacio');
+    if (estadoVacio) {
+        if (encontrados === 0 && query !== "") {
+            estadoVacio.classList.remove('hidden');
+        } else {
+            estadoVacio.classList.add('hidden');
+        }
+    }
+}
 // ==========================================
 // 4. CONSTRUCTOR DINÁMICO DE FORMULARIOS MULTI-FLUJO (NUEVO V5.19.1)
 // ==========================================
