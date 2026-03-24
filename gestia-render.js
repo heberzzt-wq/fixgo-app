@@ -531,7 +531,7 @@ async function guardarNuevoRegistro(e, esquema) {
 
 /**
  * ==========================================
- * 6. SINCRONIZACIÓN EN VIVO Y RENDERIZADO DE TABLA
+ * 6. SINCRONIZACIÓN EN VIVO Y RENDERIZADO DE TABLA (V5.21 - Check-out Loop)
  * ==========================================
  */
 function conectarDatosEnVivo(esquema) {
@@ -557,23 +557,25 @@ function conectarDatosEnVivo(esquema) {
             const data = docSnap.data();
             const tr = document.createElement('tr');
             
-            // --- NUEVO: Extraemos el tipo de flujo ---
+            // Extraemos el tipo de flujo
             const tipoFlujo = data.tipo_flujo || 'b2b';
+            
+            // --- NUEVO: ¿Este registro ya tiene salida marcada? ---
+            const yaSalio = data.fecha_salida ? true : false;
 
-            // --- DETECTOR DE PRIORIDAD POSIQ V5.19 (ULTRA-SENSIBLE) ---
+            // --- DETECTOR DE PRIORIDAD POSIQ ---
             const txtEmpresa = (data.empresa_area || "").toUpperCase();
             const txtRecurso = (data.recurso || "").toUpperCase();
-            const txtMotivo = (data.motivo || "").toUpperCase();
             
             const esPOSIQ = txtEmpresa.includes("POSIQ") || 
                            txtRecurso.includes("ESTUDIO") || 
                            data.prioridad_alta === true;
             
-            // --- NUEVO: Lógica de colores del borde de fila según el flujo ---
+            // Lógica de colores del borde de fila según el flujo
             if (esPOSIQ) {
                 tr.className = "bg-red-900/20 border-l-4 border-l-red-600 hover:bg-red-900/30 transition-all duration-200 group border-b border-slate-800/50";
             } else {
-                let borderFlujo = "border-l-transparent"; // B2B Normal por defecto
+                let borderFlujo = "border-l-transparent"; 
                 if (tipoFlujo === 'residencial') borderFlujo = "border-l-emerald-500/50";
                 if (tipoFlujo === 'delivery') borderFlujo = "border-l-amber-500/50";
                 if (tipoFlujo === 'proveedor') borderFlujo = "border-l-purple-500/50";
@@ -581,8 +583,13 @@ function conectarDatosEnVivo(esquema) {
                 tr.className = `hover:bg-slate-800/50 transition-colors group border-b border-slate-800/50 border-l-4 ${borderFlujo}`;
             }
 
+            // --- NUEVO EFECTO VISUAL: Si ya salió, opacamos la fila para limpiar la vista del guardia ---
+            if (yaSalio) {
+                tr.classList.add('opacity-40', 'bg-slate-900/50');
+            }
+
             // Renderizado Dinámico de Columnas
-            let isFirstColumn = true; // --- NUEVO: Bandera para el ícono ---
+            let isFirstColumn = true; 
 
             esquema.esquema_base_datos.campos.forEach(campo => {
                 let valorFinal = "—";
@@ -595,7 +602,14 @@ function conectarDatosEnVivo(esquema) {
                         }).format(dateObj);
                     } else if (campo.tipo === 'selector') {
                         const colorTag = esPOSIQ ? 'bg-red-600 text-white' : 'bg-blue-900/30 text-blue-400';
-                        valorFinal = `<span class="${colorTag} border border-slate-700/50 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider shadow-inner">${data[campo.id]}</span>`;
+                        // Si ya salió, cambiamos el badge a gris para no distraer
+                        const tagClass = yaSalio ? 'bg-slate-700 text-slate-400' : colorTag;
+                        
+                        // Si este campo es "tipo_movimiento" y ya salió, forzamos el texto a SALIDA
+                        let textoBadge = data[campo.id];
+                        if (campo.id === 'tipo_movimiento' && yaSalio) textoBadge = 'SALIDA';
+
+                        valorFinal = `<span class="${tagClass} border border-slate-700/50 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider shadow-inner">${textoBadge}</span>`;
                     } else if (campo.tipo === 'texto_qr') {
                         valorFinal = `<span class="font-mono text-xs ${esPOSIQ ? 'text-red-400' : 'text-emerald-400'} font-bold truncate block max-w-[120px]"><i class="fa-solid fa-qrcode mr-1"></i>${data[campo.id]}</span>`;
                     } else {
@@ -603,7 +617,7 @@ function conectarDatosEnVivo(esquema) {
                     }
                 }
 
-                // --- NUEVO: Inyectar el icono indicador del flujo solo en la primera columna ---
+                // Inyectar el icono indicador del flujo
                 if (isFirstColumn) {
                     let iconHTML = '<i class="fa-solid fa-building text-blue-400 mr-2" title="B2B / Corporativo"></i>';
                     if (tipoFlujo === 'residencial') iconHTML = '<i class="fa-solid fa-house text-emerald-400 mr-2" title="Residencial"></i>';
@@ -617,21 +631,38 @@ function conectarDatosEnVivo(esquema) {
                 tr.innerHTML += `<td class="px-4 py-3 text-slate-300 whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]">${valorFinal}</td>`;
             });
 
-            // --- ACCIONES: EL OJITO CON VIDA (V5.19) ---
+            // --- ACCIONES: OJITO + BOTÓN DE SALIDA ---
             const tdAcciones = document.createElement('td');
-            tdAcciones.className = "px-4 py-3 text-right";
+            // Usamos flex y gap para alinear los botones bonitos
+            tdAcciones.className = "px-4 py-3 flex justify-end gap-2 items-center";
             
+            // 1. Botón del Ojito (Ver Detalles)
             const btnVer = document.createElement('button');
             btnVer.className = "text-slate-500 hover:text-blue-400 p-2 bg-slate-800 rounded-lg shadow-md border border-slate-700 transition-all active:scale-95 group/btn";
             btnVer.innerHTML = `<i class="fa-solid fa-eye text-xs group-hover/btn:scale-110"></i>`;
-            
             btnVer.onclick = () => {
                 const infoFormateada = formatearDetalleParaGuardia(data);
-                // --- NUEVO: Mostrar el flujo en el alert del ojito ---
                 alert(`📋 DETALLE DEL ACCESO [Uxmal 39]\n----------------------------------\nFlujo: ${data.tipo_flujo ? data.tipo_flujo.toUpperCase() : 'B2B'}\n${infoFormateada}\n----------------------------------\nID: ${docSnap.id}`);
             };
-
             tdAcciones.appendChild(btnVer);
+
+            // 2. Botón de Dar Salida (Solo aparece si NO ha salido)
+            if (!yaSalio) {
+                const btnSalida = document.createElement('button');
+                btnSalida.className = "text-amber-500 hover:text-amber-400 p-2 bg-slate-800 rounded-lg shadow-md border border-slate-700 transition-all active:scale-95 group/btn";
+                btnSalida.title = "Registrar Salida del Edificio";
+                btnSalida.innerHTML = `<i class="fa-solid fa-right-from-bracket text-xs group-hover/btn:scale-110"></i>`;
+                
+                btnSalida.onclick = async () => {
+                    const confirmar = confirm(`🚪 ¿Confirmar SALIDA de este registro?`);
+                    if (confirmar) {
+                        btnSalida.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i>`;
+                        await registrarSalidaBD(docSnap.id, esquema.modulo_id);
+                    }
+                };
+                tdAcciones.appendChild(btnSalida);
+            }
+
             tr.appendChild(tdAcciones);
             tbody.appendChild(tr);
         });
@@ -644,11 +675,28 @@ function conectarDatosEnVivo(esquema) {
 }
 
 /**
+ * --- NUEVO: Función para actualizar el documento en Firestore ---
+ */
+async function registrarSalidaBD(documentId, moduloId) {
+    try {
+        const docRef = doc(db, "gestia_dynamic_data", moduloId, "registros", documentId);
+        await updateDoc(docRef, {
+            fecha_salida: serverTimestamp(),
+            estatus_acceso: "completado"
+        });
+        console.log(`✅ Salida registrada con éxito para ID: ${documentId}`);
+    } catch (error) {
+        console.error("❌ Error al registrar salida:", error);
+        alert("Ocurrió un error al registrar la salida. Revisa la consola.");
+    }
+}
+
+/**
  * Función Auxiliar: Formateo de Datos para el Detalle (Ojito)
  */
 function formatearDetalleParaGuardia(data) {
     return Object.entries(data)
-        .filter(([key]) => !['creado_por', 'creado_en', 'modulo_origen', 'prioridad_alta', 'color_alerta', 'tipo_flujo'].includes(key)) // --- NUEVO: ocultar tipo_flujo del map ---
+        .filter(([key]) => !['creado_por', 'creado_en', 'modulo_origen', 'prioridad_alta', 'color_alerta', 'tipo_flujo', 'estatus_acceso'].includes(key)) 
         .map(([key, val]) => {
             const label = key.replace(/_/g, ' ').toUpperCase();
             let valorAMostrar = val;
@@ -656,7 +704,7 @@ function formatearDetalleParaGuardia(data) {
             if (val && typeof val === 'object' && val.seconds) {
                 const d = val.toDate();
                 valorAMostrar = d.toLocaleString('es-MX', { 
-                    day: '2-digit', month: 'long', year: 'numeric', 
+                    day: '2-digit', month: 'short', year: 'numeric', 
                     hour: '2-digit', minute: '2-digit', second: '2-digit' 
                 });
             }
@@ -665,6 +713,6 @@ function formatearDetalleParaGuardia(data) {
 }
 
 // ==========================================
-// FIN DEL MOTOR GESTIA-RENDER V5.19.2
+// FIN DEL MOTOR GESTIA-RENDER V5.21
 // ==========================================
-console.info("🚀 GestiaRender V5.19.2: Despliegue Multi-Flujo Finalizado con éxito.");
+console.info("🚀 GestiaRender V5.21: Arquitectura de Salidas (Check-out) Finalizada con éxito.");
