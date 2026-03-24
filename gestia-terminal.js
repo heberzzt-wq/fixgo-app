@@ -125,11 +125,12 @@ form.addEventListener('submit', async (e) => {
 });
 
 // ==========================================
-// 3. CEREBRO IA (NÚCLEO GENERATIVO V2.1)
+// 3. CEREBRO IA (NÚCLEO GENERATIVO V2.1) - MÓDULO ACTUALIZADO
 // ==========================================
 async function motorGeneradorEstructura(promptUsuario) {
 
-    const url = "https://us-central1-fixgo-app-main.cloudfunctions.net/generarModulo";
+    // URL CORREGIDA: Apuntando al proyecto activo fixgo-44e4d
+    const url = "https://us-central1-fixgo-44e4d.cloudfunctions.net/generarModulo";
 
     const promptMaestro = `
 Eres el motor No-Code del sistema GestiaPremium. Convierte la idea en JSON estricto.
