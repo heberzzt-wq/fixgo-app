@@ -107,35 +107,35 @@ export async function initGestiaRender(moduloId, containerId) {
 }
 
 // ==========================================
-// 2. CONSTRUCTOR DE INTERFAZ (UI BUILDER)
+// 2. CONSTRUCTOR DE INTERFAZ (UI BUILDER) - V5.20 (Responsive)
 // ==========================================
 function renderizarUIBase(esquema, container) {
     const tieneBotonCrear = esquema.esquema_interfaz?.acciones_permitidas?.includes("crear");
     
-    // Mantenemos tu estructura de tabla completa y profesional
+    // Inyectamos Tailwind responsive (flex-col lg:flex-row, overflow-auto, sm:w-auto, etc.)
     container.innerHTML = `
         <div class="bg-slate-900 rounded-xl border border-slate-700 shadow-xl overflow-hidden flex flex-col h-full w-full relative">
             
-            <div class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center z-10 shadow-md">
+            <div class="bg-slate-800 border-b border-slate-700 p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 z-10 shadow-md shrink-0">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
+                    <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30 shrink-0">
                         <i class="fa-solid fa-${esquema.icono || 'cube'} text-blue-400 text-lg"></i>
                     </div>
                     <div>
-                        <h2 class="text-lg font-bold text-white uppercase tracking-wide">${esquema.nombre_display}</h2>
+                        <h2 class="text-lg font-bold text-white uppercase tracking-wide leading-tight">${esquema.nombre_display}</h2>
                         <p class="text-xs text-slate-400">${esquema.descripcion}</p>
                     </div>
                 </div>
                 ${tieneBotonCrear ? `
-                <button id="btn-crear-registro" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-lg shadow-blue-500/20">
+                <button id="btn-crear-registro" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 shrink-0">
                     <i class="fa-solid fa-plus"></i> Nuevo Registro
                 </button>
                 ` : ''}
             </div>
 
-            <div class="flex-1 flex overflow-hidden bg-[#0d1117] relative">
+            <div class="flex-1 flex flex-col lg:flex-row overflow-hidden bg-[#0d1117] relative">
                 
-                <div class="flex-1 overflow-auto custom-scrollbar">
+                <div class="flex-1 overflow-auto custom-scrollbar relative">
                     <table class="w-full text-left border-collapse min-w-max">
                         <thead class="bg-slate-800/90 sticky top-0 backdrop-blur-sm z-10 border-b border-slate-700">
                             <tr id="tabla-cabeceras"></tr>
@@ -145,36 +145,36 @@ function renderizarUIBase(esquema, container) {
                     
                     <div id="estado-vacio" class="hidden absolute inset-0 flex flex-col items-center justify-center text-slate-500 pointer-events-none">
                         <i class="fa-solid fa-folder-open text-4xl mb-3 opacity-30"></i>
-                        <p class="font-mono text-sm uppercase tracking-widest">Sin registros en la unidad</p>
+                        <p class="font-mono text-sm uppercase tracking-widest text-center px-4">Sin registros en la unidad</p>
                     </div>
                 </div>
 
-                <div id="panel-derecho-pro" class="hidden lg:flex w-80 bg-slate-900 border-l border-slate-700 flex-col p-4 space-y-4 shadow-2xl z-20 overflow-y-auto">
-                    <div class="flex items-center gap-2 text-blue-400 font-bold text-sm border-b border-slate-700 pb-2">
+                <div id="panel-derecho-pro" class="w-full lg:w-80 flex-shrink-0 bg-slate-900 border-t lg:border-t-0 lg:border-l border-slate-700 flex flex-col p-4 space-y-4 shadow-2xl z-20 overflow-y-auto max-h-[45%] lg:max-h-full">
+                    <div class="flex items-center gap-2 text-blue-400 font-bold text-sm border-b border-slate-700 pb-2 shrink-0">
                         <i class="fa-solid fa-box-archive"></i> GESTIÓN DE PAQUETES
                     </div>
-                    <div id="form-paqueteria-container"></div>
+                    <div id="form-paqueteria-container" class="pb-4 lg:pb-0"></div>
                 </div>
             </div>
 
             <div id="contenedor-panico-flotante"></div>
 
-            <div id="modal-dinamico" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity">
-                <div class="bg-slate-800 border border-slate-600 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] animate-fade-in">
-                    <div class="p-5 border-b border-slate-700 flex justify-between items-center bg-slate-800/80 rounded-t-2xl">
-                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <div id="modal-dinamico" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 transition-opacity">
+                <div class="bg-slate-800 border border-slate-600 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-fade-in">
+                    <div class="p-4 sm:p-5 border-b border-slate-700 flex justify-between items-center bg-slate-800/80 rounded-t-2xl shrink-0">
+                        <h3 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                             <i class="fa-solid fa-bolt text-blue-400"></i> Control de Acceso
                         </h3>
-                        <button id="btn-cerrar-modal" class="text-slate-400 hover:text-white transition-colors">
+                        <button id="btn-cerrar-modal" class="text-slate-400 hover:text-white transition-colors p-2 -mr-2">
                             <i class="fa-solid fa-xmark text-xl"></i>
                         </button>
                     </div>
-                    <div class="p-5 overflow-y-auto custom-scrollbar">
+                    <div class="p-4 sm:p-5 overflow-y-auto custom-scrollbar">
                         <form id="formulario-dinamico" class="flex flex-col gap-4"></form>
                     </div>
-                    <div class="p-5 border-t border-slate-700 flex justify-end gap-3 bg-slate-900/50 rounded-b-2xl">
-                        <button type="button" id="btn-cancelar-modal" class="px-4 py-2 rounded-lg text-sm font-semibold text-slate-300 hover:bg-slate-700 transition-colors">Cancelar</button>
-                        <button type="submit" form="formulario-dinamico" class="px-5 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors shadow-lg flex items-center gap-2">
+                    <div class="p-4 sm:p-5 border-t border-slate-700 flex flex-col sm:flex-row justify-end gap-3 bg-slate-900/50 rounded-b-2xl shrink-0">
+                        <button type="button" id="btn-cancelar-modal" class="w-full sm:w-auto px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-300 hover:bg-slate-700 transition-colors border border-slate-600 sm:border-transparent">Cancelar</button>
+                        <button type="submit" form="formulario-dinamico" class="w-full sm:w-auto px-5 py-2.5 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors shadow-lg flex items-center justify-center gap-2">
                             <i class="fa-solid fa-floppy-disk"></i> Guardar en BD
                         </button>
                     </div>
@@ -198,7 +198,6 @@ function renderizarUIBase(esquema, container) {
         document.getElementById('formulario-dinamico').addEventListener('submit', (e) => guardarNuevoRegistro(e, esquema));
     }
 }
-
 // ==========================================
 // 3. INYECCIÓN DE COMPONENTES DE SEGURIDAD (FASE 1)
 // ==========================================
