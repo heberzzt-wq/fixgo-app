@@ -617,23 +617,28 @@ async function guardarNuevoRegistro(e, esquema) {
 
 /**
  * ==========================================
- * 6. SINCRONIZACIÓN EN VIVO Y RENDERIZADO DE TABLA (V5.21 - Check-out Loop)
+ * 6. SINCRONIZACIÓN EN VIVO Y RENDERIZADO DE TABLA (V5.24 - NOC Intelligence Full)
  * ==========================================
+ * Esta sección controla la persistencia, la sincronización en tiempo real y la inteligencia visual.
  */
 function conectarDatosEnVivo(esquema) {
     if (unsubscribeSnapshot) unsubscribeSnapshot();
 
     const tbody = document.getElementById('tabla-cuerpo');
     const estadoVacio = document.getElementById('estado-vacio');
+    const countActivosLabel = document.getElementById('count-activos');
     
     const registrosRef = collection(db, "gestia_dynamic_data", esquema.modulo_id, "registros");
     const q = query(registrosRef, orderBy("creado_en", "desc"));
 
     unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
         tbody.innerHTML = ''; 
+        let activosEnEdificio = 0;
+        const ahora = new Date();
         
         if (snapshot.empty) {
             estadoVacio.classList.remove('hidden');
+            if(countActivosLabel) countActivosLabel.innerText = "0";
             return;
         }
 
@@ -643,40 +648,59 @@ function conectarDatosEnVivo(esquema) {
             const data = docSnap.data();
             const tr = document.createElement('tr');
             
-            // Extraemos el tipo de flujo
+            // --- VARIABLES DE ESTADO ---
             const tipoFlujo = data.tipo_flujo || 'b2b';
-            
-            // --- NUEVO: ¿Este registro ya tiene salida marcada? ---
             const yaSalio = data.fecha_salida ? true : false;
 
-            // --- DETECTOR DE PRIORIDAD POSIQ ---
+            // --- LÓGICA DE CONTADOR ---
+            if (!yaSalio) activosEnEdificio++;
+
+            // --- LÓGICA DE ALERTA DE PERMANENCIA (OVERSTAY) ---
+            let alertaOverstay = false;
+            if (!yaSalio && data.creado_en) {
+                const entrada = data.creado_en.toDate();
+                const minutosTranscurridos = (ahora - entrada) / (1000 * 60);
+                
+                // Reglas de negocio GestiaPremium para alertas visuales
+                if (tipoFlujo === 'delivery' && minutosTranscurridos > 60) alertaOverstay = true;
+                if (tipoFlujo === 'residencial' && minutosTranscurridos > 120) alertaOverstay = true;
+                if (tipoFlujo === 'proveedor' && minutosTranscurridos > 240) alertaOverstay = true;
+            }
+
+            // --- DETECTOR DE PRIORIDAD POSIQ V5.19 (ULTRA-SENSIBLE) ---
             const txtEmpresa = (data.empresa_area || "").toUpperCase();
             const txtRecurso = (data.recurso || "").toUpperCase();
-            
             const esPOSIQ = txtEmpresa.includes("POSIQ") || 
                            txtRecurso.includes("ESTUDIO") || 
                            data.prioridad_alta === true;
             
-            // Lógica de colores del borde de fila según el flujo
+            // --- CONSTRUCCIÓN DE CLASES DE FILA (ESTILOS NOC) ---
+            let clasesFila = "hover:bg-slate-800/50 transition-all duration-200 group border-b border-slate-800/50 border-l-4 ";
+            
             if (esPOSIQ) {
-                tr.className = "bg-red-900/20 border-l-4 border-l-red-600 hover:bg-red-900/30 transition-all duration-200 group border-b border-slate-800/50";
+                clasesFila += "bg-red-900/20 border-l-red-600 ";
+            } else if (alertaOverstay) {
+                clasesFila += "bg-amber-900/10 border-l-amber-500 animate-pulse-slow ";
             } else {
                 let borderFlujo = "border-l-transparent"; 
                 if (tipoFlujo === 'residencial') borderFlujo = "border-l-emerald-500/50";
                 if (tipoFlujo === 'delivery') borderFlujo = "border-l-amber-500/50";
                 if (tipoFlujo === 'proveedor') borderFlujo = "border-l-purple-500/50";
-                
-                tr.className = `hover:bg-slate-800/50 transition-colors group border-b border-slate-800/50 border-l-4 ${borderFlujo}`;
+                clasesFila += borderFlujo;
             }
 
-            // --- NUEVO EFECTO VISUAL: Si ya salió, opacamos la fila para limpiar la vista del guardia ---
+            // Atributos para el filtrado dinámico de la Terminal
             if (yaSalio) {
-                tr.classList.add('opacity-40', 'bg-slate-900/50');
+                clasesFila += " opacity-40 grayscale-[0.5] ";
+                tr.setAttribute('data-salida', 'true');
+            } else {
+                tr.setAttribute('data-salida', 'false');
             }
 
-            // Renderizado Dinámico de Columnas
-            let isFirstColumn = true; 
+            tr.className = clasesFila;
 
+            // --- RENDERIZADO DINÁMICO DE COLUMNAS (REGLA 1: SIN RECORTES) ---
+            let isFirstColumn = true; 
             esquema.esquema_base_datos.campos.forEach(campo => {
                 let valorFinal = "—";
                 
@@ -688,11 +712,10 @@ function conectarDatosEnVivo(esquema) {
                         }).format(dateObj);
                     } else if (campo.tipo === 'selector') {
                         const colorTag = esPOSIQ ? 'bg-red-600 text-white' : 'bg-blue-900/30 text-blue-400';
-                        // Si ya salió, cambiamos el badge a gris para no distraer
                         const tagClass = yaSalio ? 'bg-slate-700 text-slate-400' : colorTag;
                         
-                        // Si este campo es "tipo_movimiento" y ya salió, forzamos el texto a SALIDA
                         let textoBadge = data[campo.id];
+                        // Forzamos etiqueta de salida si el campo es de tipo movimiento
                         if (campo.id === 'tipo_movimiento' && yaSalio) textoBadge = 'SALIDA';
 
                         valorFinal = `<span class="${tagClass} border border-slate-700/50 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider shadow-inner">${textoBadge}</span>`;
@@ -703,12 +726,12 @@ function conectarDatosEnVivo(esquema) {
                     }
                 }
 
-                // Inyectar el icono indicador del flujo
+                // Inyección de ícono descriptivo en la primera celda
                 if (isFirstColumn) {
-                    let iconHTML = '<i class="fa-solid fa-building text-blue-400 mr-2" title="B2B / Corporativo"></i>';
-                    if (tipoFlujo === 'residencial') iconHTML = '<i class="fa-solid fa-house text-emerald-400 mr-2" title="Residencial"></i>';
-                    if (tipoFlujo === 'delivery') iconHTML = '<i class="fa-solid fa-burger text-amber-400 mr-2" title="Delivery"></i>';
-                    if (tipoFlujo === 'proveedor') iconHTML = '<i class="fa-solid fa-helmet-safety text-purple-400 mr-2" title="Proveedor"></i>';
+                    let iconHTML = '<i class="fa-solid fa-building text-blue-400 mr-2"></i>';
+                    if (tipoFlujo === 'residencial') iconHTML = '<i class="fa-solid fa-house text-emerald-400 mr-2"></i>';
+                    if (tipoFlujo === 'delivery') iconHTML = '<i class="fa-solid fa-burger text-amber-400 mr-2"></i>';
+                    if (tipoFlujo === 'proveedor') iconHTML = '<i class="fa-solid fa-helmet-safety text-purple-400 mr-2"></i>';
                     
                     valorFinal = `<div class="flex items-center">${iconHTML} <span class="truncate">${valorFinal}</span></div>`;
                     isFirstColumn = false;
@@ -717,12 +740,11 @@ function conectarDatosEnVivo(esquema) {
                 tr.innerHTML += `<td class="px-4 py-3 text-slate-300 whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]">${valorFinal}</td>`;
             });
 
-            // --- ACCIONES: OJITO + BOTÓN DE SALIDA ---
+            // --- ACCIONES: OJITO + SALIDA ---
             const tdAcciones = document.createElement('td');
-            // Usamos flex y gap para alinear los botones bonitos
             tdAcciones.className = "px-4 py-3 flex justify-end gap-2 items-center";
             
-            // 1. Botón del Ojito (Ver Detalles)
+            // Botón Ver Detalle
             const btnVer = document.createElement('button');
             btnVer.className = "text-slate-500 hover:text-blue-400 p-2 bg-slate-800 rounded-lg shadow-md border border-slate-700 transition-all active:scale-95 group/btn";
             btnVer.innerHTML = `<i class="fa-solid fa-eye text-xs group-hover/btn:scale-110"></i>`;
@@ -732,16 +754,14 @@ function conectarDatosEnVivo(esquema) {
             };
             tdAcciones.appendChild(btnVer);
 
-            // 2. Botón de Dar Salida (Solo aparece si NO ha salido)
+            // Botón Registrar Salida (Si aún está activo)
             if (!yaSalio) {
                 const btnSalida = document.createElement('button');
                 btnSalida.className = "text-amber-500 hover:text-amber-400 p-2 bg-slate-800 rounded-lg shadow-md border border-slate-700 transition-all active:scale-95 group/btn";
-                btnSalida.title = "Registrar Salida del Edificio";
+                btnSalida.title = "Registrar Salida";
                 btnSalida.innerHTML = `<i class="fa-solid fa-right-from-bracket text-xs group-hover/btn:scale-110"></i>`;
-                
                 btnSalida.onclick = async () => {
-                    const confirmar = confirm(`🚪 ¿Confirmar SALIDA de este registro?`);
-                    if (confirmar) {
+                    if (confirm(`🚪 ¿Confirmar SALIDA de este registro?`)) {
                         btnSalida.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i>`;
                         await registrarSalidaBD(docSnap.id, esquema.modulo_id);
                     }
@@ -753,7 +773,10 @@ function conectarDatosEnVivo(esquema) {
             tbody.appendChild(tr);
         });
 
-        console.log(`📊 Renderizado completo: ${snapshot.size} registros procesados.`);
+        // Actualización de contadores del Dashboard
+        if(countActivosLabel) countActivosLabel.innerText = activosEnEdificio;
+        console.log(`📊 NOC Update: ${snapshot.size} registros, ${activosEnEdificio} activos.`);
+
     }, (error) => {
         console.error("❌ Error en la suscripción de datos:", error);
         tbody.innerHTML = `<tr><td colspan="10" class="p-10 text-center"><p class="text-red-500">Error: ${error.message}</p></td></tr>`;
@@ -761,24 +784,26 @@ function conectarDatosEnVivo(esquema) {
 }
 
 /**
- * --- NUEVO: Función para actualizar el documento en Firestore ---
+ * --- Función de Filtrado de Activos ---
  */
-async function registrarSalidaBD(documentId, moduloId) {
-    try {
-        const docRef = doc(db, "gestia_dynamic_data", moduloId, "registros", documentId);
-        await updateDoc(docRef, {
-            fecha_salida: serverTimestamp(),
-            estatus_acceso: "completado"
-        });
-        console.log(`✅ Salida registrada con éxito para ID: ${documentId}`);
-    } catch (error) {
-        console.error("❌ Error al registrar salida:", error);
-        alert("Ocurrió un error al registrar la salida. Revisa la consola.");
-    }
+function filtrarActivos(soloActivos) {
+    const filas = document.querySelectorAll('#tabla-cuerpo tr');
+    filas.forEach(fila => {
+        const yaSalio = fila.getAttribute('data-salida') === 'true';
+        if (soloActivos && yaSalio) {
+            fila.style.display = "none";
+        } else {
+            // Respeta el buscador de texto si hay algo escrito
+            const terminoBuscador = document.getElementById('buscador-trazabilidad').value.toLowerCase();
+            if (fila.textContent.toLowerCase().includes(terminoBuscador)) {
+                fila.style.display = "";
+            }
+        }
+    });
 }
 
 /**
- * Función Auxiliar: Formateo de Datos para el Detalle (Ojito)
+ * --- Función Auxiliar: Formateo de Datos para el Detalle ---
  */
 function formatearDetalleParaGuardia(data) {
     return Object.entries(data)
@@ -797,8 +822,3 @@ function formatearDetalleParaGuardia(data) {
             return `🔹 ${label}: ${valorAMostrar}`;
         }).join('\n');
 }
-
-// ==========================================
-// FIN DEL MOTOR GESTIA-RENDER V5.21
-// ==========================================
-console.info("🚀 GestiaRender V5.21: Arquitectura de Salidas (Check-out) Finalizada con éxito.");
