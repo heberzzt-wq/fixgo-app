@@ -82,53 +82,53 @@ form.addEventListener('submit', async (e) => {
 
     try {
 
-        // 3. Procesar la idea usando el motor IA del backend
-        const jsonEstructura = await motorGeneradorEstructura(textoIdea);
+        // 3. Procesar la idea usando el motor IA Inteligente (JSON o Código)
+        const respuestaIA = await motorGeneradorEstructura(textoIdea);
 
-        // 4. Determinar ID de módulo
-        const moduloId = jsonEstructura.modulo_id || `modulo_${Date.now()}`;
+        document.getElementById(idCarga).remove();
 
-        const moduloRef = doc(db, "gestia_system_modules", moduloId);
+        if (respuestaIA.esJSON) {
+            // ==========================================
+            // FLUJO A: ES UN MÓDULO NUEVO (JSON)
+            // ==========================================
+            const jsonEstructura = respuestaIA.data;
+            const moduloId = jsonEstructura.modulo_id || `modulo_${Date.now()}`;
+            const moduloRef = doc(db, "gestia_system_modules", moduloId);
+            const moduloSnap = await getDoc(moduloRef);
 
-        // 5. Check-and-Merge: revisamos si ya existe
-        const moduloSnap = await getDoc(moduloRef);
+            if (moduloSnap.exists()) {
+                await setDoc(moduloRef, {
+                    ...moduloSnap.data(),
+                    ...jsonEstructura,
+                    actualizado_por: auth.currentUser.uid,
+                    fecha_actualizacion: serverTimestamp(),
+                    version_motor: "2.0_AI_Powered_Backend"
+                }, { merge: true });
+                console.log(`Módulo existente actualizado: ${moduloId}`);
+            } else {
+                await setDoc(moduloRef, {
+                    ...jsonEstructura,
+                    creado_por: auth.currentUser.uid,
+                    fecha_creacion: serverTimestamp(),
+                    version_motor: "2.0_AI_Powered_Backend"
+                });
+                console.log(`Módulo nuevo creado: ${moduloId}`);
+            }
 
-        if (moduloSnap.exists()) {
-
-            // Existe -> hacemos un merge para actualizar campos
-            await setDoc(moduloRef, {
-                ...moduloSnap.data(), // conservamos lo existente
-                ...jsonEstructura,    // actualizamos con lo nuevo
-                actualizado_por: auth.currentUser.uid,
-                fecha_actualizacion: serverTimestamp(),
-                version_motor: "2.0_AI_Powered_Backend"
-            }, { merge: true });
-
-            console.log(`Módulo existente actualizado: ${moduloId}`);
+            agregarBurbujaSistema(jsonEstructura, moduloId);
 
         } else {
-
-            // No existe -> creamos uno nuevo
-            await setDoc(moduloRef, {
-                ...jsonEstructura,
-                creado_por: auth.currentUser.uid,
-                fecha_creacion: serverTimestamp(),
-                version_motor: "2.0_AI_Powered_Backend"
-            });
-
-            console.log(`Módulo nuevo creado: ${moduloId}`);
-
+            // ==========================================
+            // FLUJO B: ES UNA MODIFICACIÓN DE CÓDIGO (TEXTO PLANO)
+            // ==========================================
+            // No guardamos en Firestore, solo le mostramos el código reescrito al Arquitecto
+            agregarBurbujaCodigo(respuestaIA.data);
         }
-
-        // 6. Actualizar Interfaz con el resultado
-        document.getElementById(idCarga).remove();
-        agregarBurbujaSistema(jsonEstructura, moduloId);
 
     } catch (error) {
 
-        console.error("Error en la generación del módulo:", error);
-
-        document.getElementById(idCarga).remove();
+        console.error("Error en la terminal:", error);
+        document.getElementById(idCarga)?.remove();
         agregarBurbujaError(error.message);
 
     } finally {
@@ -141,19 +141,25 @@ form.addEventListener('submit', async (e) => {
     }
 
 });
+
 // ==========================================
-// 3. CEREBRO IA (NÚCLEO GENERATIVO V2.1) - MÓDULO ACTUALIZADO
+// 3. CEREBRO IA (NÚCLEO GENERATIVO V2.2 - INTELIGENCIA DUAL)
 // ==========================================
 async function motorGeneradorEstructura(promptUsuario) {
 
-    // URL CORREGIDA: Apuntando al proyecto activo fixgo-44e4d
     const url = "https://us-central1-fixgo-44e4d.cloudfunctions.net/generarModulo";
 
     const promptMaestro = `
-Eres el motor No-Code del sistema GestiaPremium. Convierte la idea en JSON estricto.
-Devuelve SOLO JSON.
+Eres la Terminal Heberto, el motor de arquitectura de GestiaPremium V5.18.
+Analiza la petición del Arquitecto.
 
-IDEA: "${promptUsuario}"
+REGLAS DE ORO (ESTRICTAS):
+1. Regla "No placeholders": NUNCA cortes código, no lo compactes, no uses "// ... resto del código". Si te dan 2000 líneas para editar, debes devolver TODAS las líneas con la modificación incluida.
+2. Si la petición implica CREAR UN MÓDULO NUEVO desde cero, devuelve ÚNICAMENTE un formato JSON estricto con la estructura de base de datos e interfaz.
+3. Si la petición implica ANALIZAR, LEER o MODIFICAR CÓDIGO EXISTENTE que te han pegado, NO devuelvas JSON. Devuelve ÚNICAMENTE el código completo modificado en texto plano, listo para copiar y pegar.
+
+PETICIÓN:
+"${promptUsuario}"
 `;
 
     const response = await fetch(url, {
@@ -177,18 +183,18 @@ IDEA: "${promptUsuario}"
 
     const data = await response.json();
 
-    const limpio = data.texto
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
+    let limpio = data.texto.replace(/```json/g, "").replace(/```html/g, "").replace(/```javascript/g, "").replace(/```/g, "").trim();
 
+    // Intentamos ver si la IA nos mandó un JSON (Módulo) o Código Plano (Modificación)
     try {
-        return JSON.parse(limpio);
+        const parseado = JSON.parse(limpio);
+        return { esJSON: true, data: parseado };
     } catch (e) {
-        console.error("Respuesta IA inválida:", limpio);
-        throw new Error("La IA no devolvió JSON válido.");
+        // Si falla el parseo, asumimos que es Código Plano que nos pidió Heberto
+        return { esJSON: false, data: limpio };
     }
 }
+
 // ==========================================
 // 4. FUNCIONES DE INTERFAZ (UI BUILDERS)
 // ==========================================
@@ -198,9 +204,12 @@ function agregarBurbujaUsuario(texto) {
 
     div.className = 'flex gap-4 animate-fade-in max-w-4xl mx-auto w-full justify-end mt-4';
 
+    // Escapar texto para que no se rompa el HTML si pegas código
+    const textoEscapado = texto.replace(/</g, "&lt;").replace(/>/g, "&gt;").substring(0, 300) + (texto.length > 300 ? '... [Código adjunto]' : '');
+
     div.innerHTML = `
         <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl rounded-tr-none shadow-md max-w-[80%]">
-            <p class="text-slate-200 text-sm leading-relaxed">${texto}</p>
+            <p class="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">${textoEscapado}</p>
         </div>
         <div class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center shrink-0 shadow-lg border border-slate-600">
             <i class="fa-solid fa-user-tie text-slate-300 text-sm"></i>
@@ -231,7 +240,7 @@ function mostrarCargando() {
                 <div class="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 0.1s"></div>
                 <div class="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 0.2s"></div>
             </div>
-            <span class="text-sm text-slate-400 font-mono">El Cerebro IA está diseñando la arquitectura...</span>
+            <span class="text-sm text-slate-400 font-mono">Terminal analizando requerimientos y reglas...</span>
         </div>
     `;
 
@@ -262,13 +271,50 @@ function agregarBurbujaSistema(jsonObj, docId) {
                 </h3>
                 <span class="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded font-mono border border-slate-700">ID: ${docId}</span>
             </div>
-            <p class="text-slate-300 text-sm mb-4">El módulo <strong>${jsonObj.nombre_display}</strong> ha sido inyectado en <code class="bg-slate-900 px-1 py-0.5 rounded text-blue-400">gestia_system_modules</code>. El motor de renderizado ya puede consumirlo.</p>
+            <p class="text-slate-300 text-sm mb-4">El módulo <strong>${jsonObj.nombre_display || 'Generado'}</strong> ha sido inyectado en <code class="bg-slate-900 px-1 py-0.5 rounded text-blue-400">gestia_system_modules</code>. El motor de renderizado ya puede consumirlo.</p>
             
             <div class="bg-[#0d1117] rounded-lg border border-slate-700 overflow-hidden">
                 <div class="bg-slate-800/50 px-4 py-2 border-b border-slate-700 flex justify-between items-center">
                     <span class="text-xs font-mono text-slate-400">esquema_generado_por_ia.json</span>
                 </div>
                 <pre class="p-4 overflow-x-auto text-xs font-mono text-emerald-400"><code>${jsonString}</code></pre>
+            </div>
+        </div>
+    `;
+
+    output.appendChild(div);
+
+    hacerScrollAbajo();
+
+}
+
+// NUEVA FUNCIÓN: Para mostrar el código modificado completo sin guardarlo como módulo JSON
+function agregarBurbujaCodigo(codigoPlano) {
+
+    const div = document.createElement('div');
+
+    div.className = 'flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-4';
+    
+    // Escapamos el código para que se muestre como texto
+    const codigoEscapado = codigoPlano.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    div.innerHTML = `
+        <div class="w-10 h-10 rounded-full bg-gestia-accent flex items-center justify-center shrink-0 shadow-lg shadow-green-500/30">
+            <i class="fa-solid fa-code text-white text-sm"></i>
+        </div>
+        <div class="bg-gestia-panel border border-gestia-accent/50 p-5 rounded-2xl rounded-tl-none shadow-[0_0_15px_rgba(16,185,129,0.15)] flex-1 overflow-hidden">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="font-bold text-gestia-accent text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-file-code"></i> Código Analizado y Reescribido
+                </h3>
+            </div>
+            <p class="text-slate-300 text-sm mb-4">Regla 1 aplicada: Código 100% completo, sin recortes. Listo para copiar y pegar.</p>
+            <div class="bg-[#0d1117] rounded-lg border border-slate-700 overflow-hidden relative">
+                <div class="bg-slate-800/50 px-4 py-2 border-b border-slate-700 flex justify-between items-center sticky top-0">
+                    <span class="text-xs font-mono text-slate-400">codigo_modificado</span>
+                    <button onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.innerText); this.innerHTML='¡Copiado!'; setTimeout(() => this.innerHTML='Copiar Código', 2000);" class="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded transition shadow-sm border border-slate-600 cursor-pointer">Copiar Código</button>
+                </div>
+                <pre class="p-4 overflow-x-auto text-xs font-mono text-blue-300 max-h-[600px] overflow-y-auto"><code style="white-space: pre-wrap; word-break: break-all;">${codigoEscapado}</code></pre>
             </div>
         </div>
     `;
