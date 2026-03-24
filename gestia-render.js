@@ -108,10 +108,11 @@ export async function initGestiaRender(moduloId, containerId) {
 }
 
 // ==========================================
-// 2. CONSTRUCTOR DE INTERFAZ (UI BUILDER) - V5.24 (NOC Control Center)
+// 2. CONSTRUCTOR DE INTERFAZ (UI BUILDER) - V5.24.1 (Botón Restaurado)
 // ==========================================
 function renderizarUIBase(esquema, container) {
-    const tieneBotonCrear = esquema.esquema_base_datos?.acciones_permitidas?.includes("crear");
+    // CORRECCIÓN: Volvemos a la ruta correcta 'esquema_interfaz' para los permisos
+    const tieneBotonCrear = esquema.esquema_interfaz?.acciones_permitidas?.includes("crear");
     
     container.innerHTML = `
         <div class="bg-slate-900 rounded-xl border border-slate-700 shadow-xl overflow-hidden flex flex-col h-full w-full relative">
@@ -198,7 +199,7 @@ function renderizarUIBase(esquema, container) {
         </div>
     `;
 
-    // Listeners del Nuevo Header
+    // Listeners del Header
     document.getElementById('buscador-trazabilidad').addEventListener('input', (e) => filtrarTablaEnVivo(e.target.value));
     
     document.getElementById('toggle-solo-activos').addEventListener('click', function() {
@@ -210,7 +211,6 @@ function renderizarUIBase(esquema, container) {
         filtrarActivos(!isActive);
     });
 
-    // Dibujar Cabeceras
     const trCabeceras = document.getElementById('tabla-cabeceras');
     esquema.esquema_base_datos.campos.forEach(campo => {
         trCabeceras.innerHTML += `<th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">${campo.etiqueta}</th>`;
