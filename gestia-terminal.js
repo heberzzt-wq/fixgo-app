@@ -143,37 +143,37 @@ form.addEventListener('submit', async (e) => {
 });
 
 // ==========================================
-// 3. CEREBRO IA (NÚCLEO GENERATIVO V2.2 - INTELIGENCIA DUAL)
+// 3. CEREBRO IA (NÚCLEO NO-CODE AUTOMATIZADO)
 // ==========================================
 async function motorGeneradorEstructura(promptUsuario) {
 
     const url = "https://us-central1-fixgo-44e4d.cloudfunctions.net/generarModulo";
 
     const promptMaestro = `
-Eres la Terminal Heberto, el motor de arquitectura de GestiaPremium V5.18.
-Analiza la petición del Arquitecto.
+Eres el motor No-Code automatizado de GestiaPremium V5.18.
+El CEO (Arquitecto) te dará instrucciones en lenguaje natural. Tu trabajo es devolver SIEMPRE un JSON estricto que el sistema guardará automáticamente en la base de datos.
 
-REGLAS DE ORO (ESTRICTAS):
-1. Regla "No placeholders": NUNCA cortes código, no lo compactes, no uses "// ... resto del código". Si te dan 2000 líneas para editar, debes devolver TODAS las líneas con la modificación incluida.
-2. Si la petición implica CREAR UN MÓDULO NUEVO desde cero, devuelve ÚNICAMENTE un formato JSON estricto con la estructura de base de datos e interfaz.
-3. Si la petición implica ANALIZAR, LEER o MODIFICAR CÓDIGO EXISTENTE que te han pegado, NO devuelvas JSON. Devuelve ÚNICAMENTE el código completo modificado en texto plano, listo para copiar y pegar.
+REGLAS DE ORO:
+1. ACTUALIZAR (Reescribir): Si el Arquitecto te pide modificar un módulo existente, debes devolver el JSON manteniendo el MISMO 'modulo_id' original. Reescribe el código en el JSON aplicando los cambios solicitados.
+2. CREAR (Nuevo): Si pide un módulo nuevo, genera un 'modulo_id' único (ej. modulo_visitas_123) y crea la estructura desde cero.
+3. CÓDIGO COMPLETO: No cortes código, no lo compactes, no uses "// ... resto del código". Entrega las líneas completas dentro de tu JSON.
 
-PETICIÓN:
+SIEMPRE debes devolver esta estructura JSON estricta:
+{
+  "modulo_id": "ID_DEL_MODULO_A_ACTUALIZAR_O_CREAR",
+  "nombre_display": "Nombre del Módulo",
+  "html": "código html completo aquí...",
+  "javascript": "código js completo aquí..."
+}
+
+PETICIÓN DEL ARQUITECTO:
 "${promptUsuario}"
 `;
 
     const response = await fetch(url, {
-
         method: "POST",
-
-        headers: {
-            "Content-Type": "application/json"
-        },
-
-        body: JSON.stringify({
-            prompt: promptMaestro
-        })
-
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: promptMaestro })
     });
 
     if (!response.ok) {
@@ -182,19 +182,16 @@ PETICIÓN:
     }
 
     const data = await response.json();
+    const limpio = data.texto.replace(/```json/g, "").replace(/```/g, "").trim();
 
-    let limpio = data.texto.replace(/```json/g, "").replace(/```html/g, "").replace(/```javascript/g, "").replace(/```/g, "").trim();
-
-    // Intentamos ver si la IA nos mandó un JSON (Módulo) o Código Plano (Modificación)
     try {
-        const parseado = JSON.parse(limpio);
-        return { esJSON: true, data: parseado };
+        // Devolvemos el JSON para que la terminal lo guarde directo en Firestore
+        return JSON.parse(limpio); 
     } catch (e) {
-        // Si falla el parseo, asumimos que es Código Plano que nos pidió Heberto
-        return { esJSON: false, data: limpio };
+        console.error("Respuesta IA inválida:", limpio);
+        throw new Error("La IA no devolvió un JSON válido para el auto-guardado.");
     }
 }
-
 // ==========================================
 // 4. FUNCIONES DE INTERFAZ (UI BUILDERS)
 // ==========================================
