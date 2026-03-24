@@ -108,34 +108,49 @@ export async function initGestiaRender(moduloId, containerId) {
 }
 
 // ==========================================
-// 2. CONSTRUCTOR DE INTERFAZ (UI BUILDER) - V5.23 (Buscador Integrado)
+// 2. CONSTRUCTOR DE INTERFAZ (UI BUILDER) - V5.24 (NOC Control Center)
 // ==========================================
 function renderizarUIBase(esquema, container) {
-    const tieneBotonCrear = esquema.esquema_interfaz?.acciones_permitidas?.includes("crear");
+    const tieneBotonCrear = esquema.esquema_base_datos?.acciones_permitidas?.includes("crear");
     
     container.innerHTML = `
         <div class="bg-slate-900 rounded-xl border border-slate-700 shadow-xl overflow-hidden flex flex-col h-full w-full relative">
             
-            <div class="bg-slate-800 border-b border-slate-700 p-4 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 z-10 shadow-md shrink-0">
-                <div class="flex items-center gap-3">
+            <div class="bg-slate-800 border-b border-slate-700 p-4 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 z-10 shadow-md shrink-0">
+                
+                <div class="flex items-center gap-4 w-full xl:w-auto">
                     <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30 shrink-0">
                         <i class="fa-solid fa-${esquema.icono || 'cube'} text-blue-400 text-lg"></i>
                     </div>
                     <div>
-                        <h2 class="text-lg font-bold text-white uppercase tracking-wide leading-tight">${esquema.nombre_display}</h2>
-                        <p class="text-xs text-slate-400">${esquema.descripcion}</p>
+                        <h2 class="text-base font-bold text-white uppercase tracking-wide leading-tight">${esquema.nombre_display}</h2>
+                        <div class="flex items-center gap-3 mt-1">
+                            <div class="flex items-center gap-1.5" title="Personas actualmente dentro">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span class="text-[10px] text-slate-400 font-mono uppercase">En Edificio: <b id="count-activos" class="text-emerald-400">0</b></span>
+                            </div>
+                            <div class="flex items-center gap-1.5 border-l border-slate-700 pl-3">
+                                <i class="fa-solid fa-box text-[10px] text-blue-400"></i>
+                                <span class="text-[10px] text-slate-400 font-mono uppercase">Paquetes: <b id="count-paquetes-header" class="text-blue-400">0</b></span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+                <div class="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+                    <button id="toggle-solo-activos" class="w-full sm:w-auto px-3 py-2 rounded-lg border border-slate-700 text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-2 hover:bg-slate-700 text-slate-400" data-active="false">
+                        <i class="fa-solid fa-eye-slash"></i> Ocultar Salidas
+                    </button>
+
                     <div class="relative w-full sm:w-64">
                         <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
-                        <input type="text" id="buscador-trazabilidad" placeholder="Buscar visitante, depto o empresa..." 
-                            class="w-full bg-slate-900/50 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 outline-none focus:border-blue-500/50 transition-all">
+                        <input type="text" id="buscador-trazabilidad" placeholder="Buscar..." 
+                            class="w-full bg-slate-900/50 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 outline-none focus:border-blue-500/50">
                     </div>
+
                     ${tieneBotonCrear ? `
-                    <button id="btn-crear-registro" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 shrink-0">
-                        <i class="fa-solid fa-plus text-[10px]"></i> NUEVO REGISTRO
+                    <button id="btn-crear-registro" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
+                        <i class="fa-solid fa-plus"></i> NUEVO REGISTRO
                     </button>
                     ` : ''}
                 </div>
@@ -151,15 +166,15 @@ function renderizarUIBase(esquema, container) {
                     </table>
                     <div id="estado-vacio" class="hidden absolute inset-0 flex flex-col items-center justify-center text-slate-500 pointer-events-none">
                         <i class="fa-solid fa-folder-open text-4xl mb-3 opacity-30"></i>
-                        <p class="font-mono text-sm uppercase tracking-widest text-center px-4">Sin registros coincidentes</p>
+                        <p class="font-mono text-[10px] uppercase tracking-widest text-center">Sin resultados operativos</p>
                     </div>
                 </div>
 
                 <div id="panel-derecho-pro" class="w-full lg:w-80 flex-shrink-0 bg-slate-900 border-t lg:border-t-0 lg:border-l border-slate-700 flex flex-col p-4 space-y-4 shadow-2xl z-20 overflow-y-auto max-h-[45%] lg:max-h-full">
-                    <div class="flex items-center gap-2 text-blue-400 font-bold text-sm border-b border-slate-700 pb-2 shrink-0">
+                    <div class="flex items-center gap-2 text-blue-400 font-bold text-[10px] uppercase tracking-tighter border-b border-slate-700 pb-2">
                         <i class="fa-solid fa-box-archive"></i> GESTIÓN DE PAQUETES
                     </div>
-                    <div id="form-paqueteria-container" class="pb-4 lg:pb-0"></div>
+                    <div id="form-paqueteria-container"></div>
                 </div>
             </div>
 
@@ -176,16 +191,26 @@ function renderizarUIBase(esquema, container) {
                     </div>
                     <div class="p-4 border-t border-slate-700 flex flex-col sm:flex-row justify-end gap-3 bg-slate-900/50 rounded-b-2xl">
                         <button type="button" id="btn-cancelar-modal" class="px-4 py-2 text-sm font-semibold text-slate-300">Cancelar</button>
-                        <button type="submit" form="formulario-dinamico" class="bg-blue-600 px-5 py-2 rounded-lg text-sm font-semibold text-white">Guardar en BD</button>
+                        <button type="submit" form="formulario-dinamico" class="bg-blue-600 px-5 py-2 rounded-lg text-sm font-semibold text-white transition-all">Guardar en BD</button>
                     </div>
                 </div>
             </div>
         </div>
     `;
 
-    // Listeners del Buscador
+    // Listeners del Nuevo Header
     document.getElementById('buscador-trazabilidad').addEventListener('input', (e) => filtrarTablaEnVivo(e.target.value));
+    
+    document.getElementById('toggle-solo-activos').addEventListener('click', function() {
+        const isActive = this.getAttribute('data-active') === 'true';
+        this.setAttribute('data-active', !isActive);
+        this.classList.toggle('bg-blue-600/20', !isActive);
+        this.classList.toggle('text-blue-400', !isActive);
+        this.classList.toggle('border-blue-500/50', !isActive);
+        filtrarActivos(!isActive);
+    });
 
+    // Dibujar Cabeceras
     const trCabeceras = document.getElementById('tabla-cabeceras');
     esquema.esquema_base_datos.campos.forEach(campo => {
         trCabeceras.innerHTML += `<th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">${campo.etiqueta}</th>`;
