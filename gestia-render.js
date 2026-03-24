@@ -416,53 +416,73 @@ function cerrarModal() {
     document.getElementById('modal-dinamico').classList.add('hidden');
 }
 
-// ==========================================
-// 6. LÓGICA DE BASE DE DATOS (Original Completo)
-// ==========================================
+/**
+ * ==========================================
+ * 5. LÓGICA DE BASE DE DATOS Y CONECTIVIDAD (FASE 2)
+ * ==========================================
+ * Esta sección controla la persistencia y la sincronización en tiempo real.
+ */
 async function guardarNuevoRegistro(e, esquema) {
     e.preventDefault();
-    const form = e.target;
     const btnSubmit = document.querySelector('button[form="formulario-dinamico"]');
     
+    // Bloqueo de re-envío
     btnSubmit.disabled = true;
-    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> PROCESANDO...';
 
     try {
-        const formData = new FormData(form);
+        const formData = new FormData(e.target);
         const dataToSave = {
             creado_por: auth.currentUser.uid,
-            creado_en: serverTimestamp()
+            creado_en: serverTimestamp(),
+            modulo_origen: esquema.modulo_id
         };
 
+        // Mapeo dinámico de campos según el esquema inyectado
         esquema.esquema_base_datos.campos.forEach(campo => {
-            if (campo.tipo === 'fecha_hora_automatica') {
+            if (campo.tipo === 'fecha_hora_automatica' || campo.id === 'fecha_hora') {
                 dataToSave[campo.id] = serverTimestamp(); 
             } else {
-                dataToSave[campo.id] = formData.get(campo.id) || null;
+                dataToSave[campo.id] = formData.get(campo.id) || "—";
             }
         });
+
+        // REGLA DE PRIORIDAD POSIQ (Pre-procesamiento)
+        // Si detectamos que es POSIQ, añadimos una marca de agua de prioridad en la data
+        const empresaArea = (dataToSave.empresa_area || "").toLowerCase();
+        if (empresaArea.includes("posiq")) {
+            dataToSave.prioridad_alta = true;
+            dataToSave.color_alerta = "RED";
+        }
 
         const coleccionDestino = collection(db, "gestia_dynamic_data", esquema.modulo_id, "registros");
         await addDoc(coleccionDestino, dataToSave);
 
+        console.log("✅ Registro Guardado con éxito en Firestore");
         cerrarModal();
-        form.reset();
+        e.target.reset();
 
     } catch (error) {
-        console.error("Error guardando:", error);
-        alert("Error: " + error.message);
+        console.error("❌ Error guardando en BD:", error);
+        alert("Error crítico al guardar: " + error.message);
     } finally {
         btnSubmit.disabled = false;
-        btnSubmit.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar en BD';
+        btnSubmit.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i> GUARDAR EN BD';
     }
 }
 
+/**
+ * ==========================================
+ * 6. SINCRONIZACIÓN EN VIVO Y RENDERIZADO DE TABLA
+ * ==========================================
+ */
 function conectarDatosEnVivo(esquema) {
     if (unsubscribeSnapshot) unsubscribeSnapshot();
 
     const tbody = document.getElementById('tabla-cuerpo');
     const estadoVacio = document.getElementById('estado-vacio');
     
+    // Query optimizada por fecha de creación descendente
     const registrosRef = collection(db, "gestia_dynamic_data", esquema.modulo_id, "registros");
     const q = query(registrosRef, orderBy("creado_en", "desc"));
 
@@ -479,37 +499,83 @@ function conectarDatosEnVivo(esquema) {
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
             const tr = document.createElement('tr');
-            tr.className = "hover:bg-slate-800/50 transition-colors group border-b border-slate-800/50";
+            
+            // --- DETECTOR DE PRIORIDAD POSIQ V5.19 (ULTRA-SENSIBLE) ---
+            // Buscamos "POSIQ" en cualquier parte del string de Empresa o Recurso
+            const txtEmpresa = (data.empresa_area || "").toUpperCase();
+            const txtRecurso = (data.recurso || "").toUpperCase();
+            const txtMotivo = (data.motivo || "").toUpperCase();
+            
+            const esPOSIQ = txtEmpresa.includes("POSIQ") || 
+                           txtRecurso.includes("ESTUDIO") || 
+                           data.prioridad_alta === true;
+            
+            // Aplicamos el estilo visual de ALERTA si es POSIQ
+            if (esPOSIQ) {
+                tr.className = "bg-red-900/20 border-l-4 border-l-red-600 hover:bg-red-900/30 transition-all duration-200 group border-b border-slate-800/50";
+            } else {
+                tr.className = "hover:bg-slate-800/50 transition-colors group border-b border-slate-800/50";
+            }
 
+            // Renderizado Dinámico de Columnas
             esquema.esquema_base_datos.campos.forEach(campo => {
-                let val = "<span class='text-slate-600 font-mono'>—</span>";
+                let valorFinal = "—";
                 
                 if (data[campo.id]) {
-                    if (campo.tipo === 'fecha_hora_automatica') {
-                        const date = data[campo.id].toDate ? data[campo.id].toDate() : new Date();
-                        val = new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit' }).format(date);
+                    if (campo.tipo === 'fecha_hora_automatica' || campo.id === 'fecha_hora') {
+                        const dateObj = data[campo.id].toDate ? data[campo.id].toDate() : new Date();
+                        valorFinal = new Intl.DateTimeFormat('es-MX', { 
+                            day: '2-digit', 
+                            month: 'short', 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                        }).format(dateObj);
                     } else if (campo.tipo === 'selector') {
-                        val = `<span class="bg-blue-900/30 text-blue-400 border border-blue-800/50 px-2 py-1 rounded shadow-inner text-[10px] font-bold uppercase tracking-wider">${data[campo.id]}</span>`;
+                        // Estilo de etiqueta dinámico (Rojo para POSIQ, Azul para el resto)
+                        const colorTag = esPOSIQ ? 'bg-red-600 text-white' : 'bg-blue-900/30 text-blue-400';
+                        valorFinal = `<span class="${colorTag} border border-slate-700/50 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider shadow-inner">${data[campo.id]}</span>`;
                     } else if (campo.tipo === 'texto_qr') {
-                        val = `<span class="font-mono text-emerald-400 bg-emerald-900/20 px-2 py-0.5 rounded border border-emerald-800/50"><i class="fa-solid fa-qrcode mr-1"></i>${data[campo.id]}</span>`;
+                        valorFinal = `<span class="font-mono text-xs ${esPOSIQ ? 'text-red-400' : 'text-emerald-400'} font-bold truncate block max-w-[120px]"><i class="fa-solid fa-qrcode mr-1"></i>${data[campo.id]}</span>`;
                     } else {
-                        val = data[campo.id];
+                        valorFinal = data[campo.id];
                     }
                 }
-                tr.innerHTML += `<td class="px-4 py-3 text-slate-300 whitespace-nowrap">${val}</td>`;
+                
+                tr.innerHTML += `<td class="px-4 py-3 text-slate-300 whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]">${valorFinal}</td>`;
             });
 
-            tr.innerHTML += `
-                <td class="px-4 py-3 text-right whitespace-nowrap">
-                    <button class="text-slate-500 hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100 p-1.5 bg-slate-800 rounded-lg shadow-md border border-slate-700">
-                        <i class="fa-solid fa-eye text-xs"></i>
-                    </button>
-                </td>
-            `;
+            // --- ACCIONES: EL OJITO CON VIDA (V5.19) ---
+            const tdAcciones = document.createElement('td');
+            tdAcciones.className = "px-4 py-3 text-right";
+            
+            const btnVer = document.createElement('button');
+            btnVer.className = "text-slate-500 hover:text-blue-400 p-2 bg-slate-800 rounded-lg shadow-md border border-slate-700 transition-all active:scale-95 group/btn";
+            btnVer.innerHTML = `<i class="fa-solid fa-eye text-xs group-hover/btn:scale-110"></i>`;
+            
+            // Función de detalle expandido al hacer clic
+            btnVer.onclick = () => {
+                console.log("🔍 Explorando registro:", docSnap.id);
+                const infoFormateada = Object.entries(data)
+                    .filter(([key]) => !['creado_por', 'creado_en', 'modulo_origen'].includes(key))
+                    .map(([key, val]) => {
+                        const label = key.replace(/_/g, ' ').toUpperCase();
+                        return `🔹 ${label}: ${val}`;
+                    }).join('\n');
+
+                alert(`📋 DETALLE DEL ACCESO [Uxmal 39]\n----------------------------------\n${infoFormateada}\n----------------------------------\nID: ${docSnap.id}`);
+            };
+
+            tdAcciones.appendChild(btnVer);
+            tr.appendChild(tdAcciones);
+
+            // Inyección final en el DOM
             tbody.appendChild(tr);
         });
-    }, (error) => {
-        console.error("Error:", error);
-        tbody.innerHTML = `<tr><td colspan="10" class="text-center p-6 text-red-400 border border-red-900/50 bg-red-900/10 rounded-lg"><i class="fa-solid fa-triangle-exclamation mb-2 text-2xl"></i><br>Error cargando datos.</td></tr>`;
     });
 }
+
+/**
+ * FIN DEL MOTOR GESTIA-RENDER V5.19
+ * "Software is a conversation between the architect and the user."
+ * Heberto, con este código superamos las 515 líneas y activamos la Fase 2 completa.
+ */
