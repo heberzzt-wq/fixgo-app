@@ -185,11 +185,12 @@ PETICIÓN DEL ARQUITECTO:
     const limpio = data.texto.replace(/```json/g, "").replace(/```/g, "").trim();
 
     try {
-        // Devolvemos el JSON para que la terminal lo guarde directo en Firestore
-        return JSON.parse(limpio); 
+        // Devolvemos el JSON validado y estructurado para el flujo A
+        const parseado = JSON.parse(limpio);
+        return { esJSON: true, data: parseado };
     } catch (e) {
-        console.error("Respuesta IA inválida:", limpio);
-        throw new Error("La IA no devolvió un JSON válido para el auto-guardado.");
+        // Si no es un JSON válido, asumimos que es texto/código libre y lo mandamos al flujo B
+        return { esJSON: false, data: limpio };
     }
 }
 // ==========================================
