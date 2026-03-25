@@ -338,12 +338,12 @@ export function renderizarUIBase(esquema, container) {
 window.renderizarUIBase = renderizarUIBase;
 /**
  * ==========================================
- * 3. INYECCIÓN DE COMPONENTES DE SEGURIDAD (V6.2 - Multi-tenant Real & Full NOC)
+ * 3. INYECCIÓN DE COMPONENTES DE SEGURIDAD (V6.3 - Multi-tenant Real & Full NOC)
  * ==========================================
  * Esta sección inyecta el Botón de Pánico y el Sistema de Inventario de Paquetes.
- * Todo está vinculado al residencialId del usuario logueado para aislamiento total.
+ * Todo está vinculado al condominioIdActual para aislamiento total de datos.
  */
-function inyectarWidgetsSeguridad(esquema) {
+export function inyectarWidgetsSeguridad(esquema) {
     // --- 1. BOTÓN DE PÁNICO (DINAMIZADO POR TENANT) ---
     const panicContainer = document.getElementById('contenedor-panico-flotante');
     if (panicContainer) {
@@ -432,7 +432,7 @@ function inyectarWidgetsSeguridad(esquema) {
             btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> REGISTRANDO...`;
 
             try {
-                // RUTA ESTRUCTURADA: packages/{residencialId}/items
+                // RUTA ESTRUCTURADA V6.3: packages/{condominioId}/items
                 const colRef = collection(db, "packages", condominioIdActual, "items");
                 await addDoc(colRef, {
                     unitId,
@@ -455,7 +455,7 @@ function inyectarWidgetsSeguridad(esquema) {
             }
         };
 
-        // Sincronización: Inventario en Vivo con Triple Contador
+        // Sincronización: Inventario en Vivo con Triple Contador (Header + Widget)
         const pkgList = document.getElementById('pkg-list-container');
         const countHeader = document.getElementById('count-paquetes-header');
         
@@ -486,19 +486,20 @@ function inyectarWidgetsSeguridad(esquema) {
                 const card = document.createElement('div');
                 card.className = "bg-slate-800/80 border border-slate-700/50 p-3 rounded-xl flex justify-between items-center animate-fade-in hover:border-blue-500/30 transition-all";
                 
+                // Nota: Llamamos a window.entregarPaqueteBD para evitar ReferenceError
                 card.innerHTML = `
                     <div class="flex flex-col">
                         <span class="text-white font-bold text-xs">Unidad ${pkg.unitId}</span>
                         <span class="text-[10px] text-slate-500 uppercase font-mono">${pkg.courier}</span>
                     </div>
-                    <button onclick="entregarPaqueteBD('${docSnap.id}')" class="bg-emerald-500/10 hover:bg-emerald-600 text-emerald-500 hover:text-white border border-emerald-500/20 p-2.5 rounded-lg transition-all group/check active:scale-90" title="Marcar Entrega Físcia">
+                    <button onclick="gestia.entregarPaquete('${docSnap.id}')" class="bg-emerald-500/10 hover:bg-emerald-600 text-emerald-500 hover:text-white border border-emerald-500/20 p-2.5 rounded-lg transition-all group/check active:scale-90" title="Marcar Entrega Física">
                         <i class="fa-solid fa-check text-xs group-hover/check:scale-110"></i>
                     </button>
                 `;
                 pkgList.appendChild(card);
             });
 
-            // Actualización de contadores (Dashboard + Widget)
+            // Actualización de contadores
             document.getElementById('pkg-count').innerText = totalRecibidos;
             if (countHeader) countHeader.innerText = totalRecibidos;
             
@@ -508,9 +509,8 @@ function inyectarWidgetsSeguridad(esquema) {
 }
 
 /**
- * --- Función: Entregar Paquete BD (V6.2 Global Window) ---
- * Esta función cierra el ciclo del paquete. No se puede compactar porque 
- * maneja la auditoría del usuario que entrega y el timestamp del servidor.
+ * --- Función: Entregar Paquete BD (V6.3 Global Window) ---
+ * Esta función cierra el ciclo del paquete con auditoría completa.
  */
 window.entregarPaqueteBD = async (paqueteId) => {
     try {
@@ -522,14 +522,13 @@ window.entregarPaqueteBD = async (paqueteId) => {
         const confirmacion = confirm(`📦 ¿Confirmas que el residente ha recibido este paquete?`);
         if (!confirmacion) return;
 
-        // RUTA: packages/{residencialId}/items/{packageId}
         const paqueteRef = doc(db, "packages", condominioIdActual, "items", paqueteId);
         
         console.info(`🏁 Cerrando ciclo de paquete ${paqueteId}...`);
 
         await updateDoc(paqueteRef, {
             entregado: true,
-            estatus: "entregado", // Cambiamos de 'recibido' a 'entregado'
+            estatus: "entregado", 
             status: "entregado",  // Doble validación para reportes
             fecha_entrega: serverTimestamp(),
             entregado_por: auth.currentUser.uid,
@@ -543,18 +542,31 @@ window.entregarPaqueteBD = async (paqueteId) => {
         alert("No se pudo actualizar el estatus: " + error.message);
     }
 };
-// ==========================================
-// 4. CONSTRUCTOR DINÁMICO DE FORMULARIOS MULTI-FLUJO (NUEVO V5.19.1)
-// ==========================================
-function abrirModalFormulario(esquema) {
+
+// Vinculación al namespace de seguridad
+window.gestia = window.gestia || {};
+window.gestia.entregarPaquete = window.entregarPaqueteBD;
+window.inyectarWidgetsSeguridad = inyectarWidgetsSeguridad;
+/**
+ * ==========================================
+ * 4. CONSTRUCTOR DINÁMICO DE FORMULARIOS MULTI-FLUJO (V6.3 Enterprise)
+ * ==========================================
+ * Este motor genera la interfaz de captura basándose en el esquema de la BD,
+ * pero muta en tiempo real según la clasificación del acceso (B2B, Delivery, etc.)
+ */
+export function abrirModalFormulario(esquema) {
     const form = document.getElementById('formulario-dinamico');
+    if (!form) return;
+
     form.innerHTML = ''; 
     const camposConQR = []; 
 
-    // 1. INYECTAMOS EL SELECTOR MAESTRO DE FLUJO AL TOPE DEL FORMULARIO
-    form.innerHTML += `
+    // 1. INYECTAMOS EL SELECTOR MAESTRO DE FLUJO (Autoridad de la Interfaz)
+    form.innerHTML = `
         <div class="mb-2 pb-5 border-b border-slate-700/60">
-            <label class="block text-sm font-bold text-blue-400 mb-2"><i class="fa-solid fa-route mr-2"></i>Clasificación del Acceso</label>
+            <label class="block text-sm font-bold text-blue-400 mb-2">
+                <i class="fa-solid fa-route mr-2"></i>Clasificación del Acceso
+            </label>
             <select id="selector-tipo-flujo" name="tipo_flujo" class="w-full bg-slate-900 border border-blue-500/50 rounded-lg px-3 py-3 text-white font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)] transition-all cursor-pointer">
                 <option value="" disabled selected>Selecciona el tipo de flujo...</option>
                 <option value="b2b">🏢 Corporativo / B2B (Salas y POSIQ)</option>
@@ -569,59 +581,62 @@ function abrirModalFormulario(esquema) {
     const contenedorCampos = document.getElementById('contenedor-campos-dinamicos');
     const selectorFlujo = document.getElementById('selector-tipo-flujo');
 
-    // 2. ESCUCHADOR DINÁMICO: Cuando el guardia cambia de B2B a Delivery, por ejemplo.
+    // 2. ESCUCHADOR DINÁMICO: Mutación de campos según el flujo seleccionado
     selectorFlujo.addEventListener('change', (e) => {
         const flujoSeleccionado = e.target.value;
         contenedorCampos.innerHTML = ''; // Limpiamos campos previos
         contenedorCampos.classList.remove('hidden');
-        camposConQR.length = 0; // Vaciamos el buffer de QRs
+        camposConQR.length = 0; // Vaciamos el buffer de QRs para esta instancia
 
-        // 3. RECORRIDO DEL ESQUEMA ORIGINAL MUTANDO SEGÚN EL FLUJO
+        // 3. RECORRIDO DEL ESQUEMA ORIGINAL APLICANDO BIZ-RULES (UXMAL 39)
         esquema.esquema_base_datos.campos.forEach(campo => {
+            // Ignoramos campos automáticos (el servidor se encarga en V6.3)
             if (campo.tipo === 'fecha_hora_automatica') return;
 
             let mostrarCampo = true;
             let etiquetaPersonalizada = campo.etiqueta;
             let esObligatorio = campo.obligatorio;
 
-            // ---- LÓGICA DE MUTACIÓN BIZ-RULES ----
+            // ---- LÓGICA DE MUTACIÓN BIZ-RULES (Enterprise Mapping) ----
             if (flujoSeleccionado === 'delivery') {
-                if (campo.id === 'recurso') { mostrarCampo = false; } // No aplican salas a Ubers
+                if (campo.id === 'recurso') { mostrarCampo = false; } // No aplican salas/oficinas a Delivery
                 if (campo.id === 'empresa_area') { etiquetaPersonalizada = 'Plataforma (Uber, Rappi, etc)'; }
-                if (campo.id === 'motivo') { mostrarCampo = false; } // Asumimos que el motivo es "Entrega"
+                if (campo.id === 'motivo') { mostrarCampo = false; } // El motivo es implícito
             } 
             else if (flujoSeleccionado === 'residencial') {
                 if (campo.id === 'recurso') { etiquetaPersonalizada = 'Unidad / Departamento Destino'; }
-                if (campo.id === 'empresa_area') { mostrarCampo = false; } // Las visitas de amigos no traen empresa
+                if (campo.id === 'empresa_area') { mostrarCampo = false; } // Visitas personales no llevan empresa
             } 
             else if (flujoSeleccionado === 'proveedor') {
                 if (campo.id === 'recurso') { etiquetaPersonalizada = 'Área de Trabajo / Unidad'; }
                 if (campo.id === 'empresa_area') { etiquetaPersonalizada = 'Empresa Contratista'; }
             }
-            // Si es 'b2b', pasa tal cual viene de la base de datos sin mutar.
 
-            // Si la regla de negocio dice que se oculte, saltamos la renderización de este input
             if (!mostrarCampo) return; 
 
-            // ---- RENDERIZADO DEL INPUT HTML ----
+            // ---- RENDERIZADO DEL INPUT HTML (Tailwind CSS V3) ----
             let inputHtml = '';
             const req = esObligatorio ? 'required' : '';
             const baseClass = "w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2.5 text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 mt-1 text-sm shadow-inner transition-all";
 
             switch (campo.tipo) {
                 case 'texto':
-                    inputHtml = `<input type="text" id="campo_${campo.id}" name="${campo.id}" class="${baseClass}" ${req}>`;
+                    inputHtml = `<input type="text" id="campo_${campo.id}" name="${campo.id}" class="${baseClass}" ${req} placeholder="Ingresa ${etiquetaPersonalizada.toLowerCase()}">`;
                     break;
                 case 'selector':
                     let opts = campo.opciones.map(op => `<option value="${op}">${op}</option>`).join('');
-                    inputHtml = `<select id="campo_${campo.id}" name="${campo.id}" class="${baseClass} appearance-none" ${req}><option value="" disabled selected>Selecciona una opción...</option>${opts}</select>`;
+                    inputHtml = `
+                        <select id="campo_${campo.id}" name="${campo.id}" class="${baseClass} appearance-none" ${req}>
+                            <option value="" disabled selected>Selecciona una opción...</option>
+                            ${opts}
+                        </select>`;
                     break;
                 case 'texto_qr':
                     camposConQR.push(campo.id);
                     inputHtml = `
                         <div class="relative">
                             <input type="text" id="campo_${campo.id}" name="${campo.id}" class="${baseClass} pr-10 font-mono text-blue-300" placeholder="Escanear o teclear..." ${req}>
-                            <button type="button" id="btn_scan_${campo.id}" class="absolute right-2 top-[12px] text-slate-400 hover:text-blue-400 p-1 bg-slate-800 rounded border border-slate-600 shadow-md transition-colors" title="Abrir Escáner">
+                            <button type="button" onclick="gestia.scanQR('${campo.id}')" id="btn_scan_${campo.id}" class="absolute right-2 top-[12px] text-slate-400 hover:text-blue-400 p-1 bg-slate-800 rounded border border-slate-600 shadow-md transition-colors" title="Abrir Escáner">
                                 <i class="fa-solid fa-qrcode text-lg"></i>
                             </button>
                         </div>
@@ -634,28 +649,42 @@ function abrirModalFormulario(esquema) {
 
             contenedorCampos.innerHTML += `
                 <div class="animate-fade-in">
-                    <label class="block text-sm font-medium text-slate-300">${etiquetaPersonalizada} ${esObligatorio ? '<span class="text-red-500">*</span>' : ''}</label>
+                    <label class="block text-sm font-medium text-slate-300">
+                        ${etiquetaPersonalizada} ${esObligatorio ? '<span class="text-red-500">*</span>' : ''}
+                    </label>
                     ${inputHtml}
                 </div>`;
         });
-
-        // 4. Reactivar listeners de escáner QR para los campos que sí sobrevivieron al filtro
-        camposConQR.forEach(id => {
-            document.getElementById(`btn_scan_${id}`).addEventListener('click', () => toggleEscanerQR(id));
-        });
     });
 
+    // Mostramos el modal (Eliminamos la clase hidden del contenedor padre)
     document.getElementById('modal-dinamico').classList.remove('hidden');
 }
 
 /**
- * ==========================================
- * 5. CEREBRO DE VISIÓN ARTIFICIAL (V6.0 - Multi-tenant)
- * ==========================================
+ * --- Gestión de Cierre de Modal ---
  */
-function toggleEscanerQR(campoId) {
+window.cerrarModal = () => {
+    // Si hay un escáner activo, lo detenemos antes de cerrar
+    if (typeof window.gestiaStopScan === 'function') {
+        window.gestiaStopScan();
+    }
+    document.getElementById('modal-dinamico').classList.add('hidden');
+};
+
+// Vinculación Global
+window.abrirModalFormulario = abrirModalFormulario;
+/**
+ * ==========================================
+ * 5. CEREBRO DE VISIÓN ARTIFICIAL (V6.3 - Multi-tenant Scanner)
+ * ==========================================
+ * Esta sección controla el hardware de la cámara, la decodificación de QR
+ * y la validación inmediata contra la lista negra perimetral.
+ */
+export function toggleEscanerQR(campoId) {
+    // 5.1 Verificación de Integridad de la Librería
     if (!window.Html5Qrcode) {
-        alert("La librería de visión artificial aún está cargando...");
+        alert("La librería de visión artificial aún está cargando o no se ha inyectado correctamente.");
         return;
     }
 
@@ -663,166 +692,256 @@ function toggleEscanerQR(campoId) {
     const readerDiv = document.getElementById(readerId);
     const btnScan = document.getElementById(`btn_scan_${campoId}`);
 
+    // 5.2 Lógica de Apagado (Si el escáner ya está corriendo)
     if (escannerActivo) {
-        escannerActivo.stop().then(() => {
-            escannerActivo = null;
-            readerDiv.classList.add('hidden');
-            btnScan.innerHTML = '<i class="fa-solid fa-qrcode text-lg"></i>';
-            btnScan.classList.replace('text-red-400', 'text-slate-400');
-        });
+        detenerEscannerGlobal(readerDiv, btnScan);
         return;
     }
 
+    // 5.3 Lógica de Encendido
     readerDiv.classList.remove('hidden');
-    btnScan.innerHTML = '<i class="fa-solid fa-xmark text-lg"></i>';
-    btnScan.classList.replace('text-slate-400', 'text-red-400');
+    if (btnScan) {
+        btnScan.innerHTML = '<i class="fa-solid fa-xmark text-lg"></i>';
+        btnScan.classList.replace('text-slate-400', 'text-red-400');
+    }
 
     escannerActivo = new Html5Qrcode(readerId);
-    const configParams = { fps: 10, qrbox: { width: 250, height: 250 } };
+    const configParams = { 
+        fps: 15, 
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0 
+    };
 
+    // 5.4 Inicio de Captura (Cámara Trasera / Environment)
     escannerActivo.start(
         { facingMode: "environment" },
         configParams,
         async (textoDecodificado) => {
             
-            // --- VALIDACIÓN DE SEGURIDAD DINÁMICA ---
-            if (blockedUsersGlobal.includes(textoDecodificado.trim())) {
+            // --- A. VALIDACIÓN DE SEGURIDAD CONTRA LISTA NEGRA ---
+            const tokenLimpio = textoDecodificado.trim();
+            
+            if (blockedUsersGlobal.includes(tokenLimpio)) {
+                // Feedback Auditivo de Alerta
                 const audioAlerta = new Audio('https://www.soundjay.com/buttons/button-10.mp3');
-                audioAlerta.play();
-                alert("🚫 ALERTA: Este usuario se encuentra en la LISTA NEGRA. Acceso Denegado.");
+                audioAlerta.play().catch(() => console.warn("Audio de alerta bloqueado por el navegador"));
                 
-                // NOTA: En la fase final, esto también debería ser una Cloud Function
-                // Por ahora, usamos la variable dinámica condominioIdActual
-                console.warn(`Intento de acceso bloqueado en ${condominioIdActual}`);
+                alert("🚫 ALERTA DE SEGURIDAD: Este usuario se encuentra en la LISTA NEGRA del condominio. Acceso Denegado.");
+                
+                console.warn(`🚨 Intento de acceso BLOQUEADO para: ${tokenLimpio} en ${condominioIdActual}`);
+                
+                // Cerramos el escáner por seguridad tras un positivo en lista negra
+                detenerEscannerGlobal(readerDiv, btnScan);
                 return;
             }
 
+            // --- B. PROCESAMIENTO DE LECTURA EXITOSA ---
             const inputTarget = document.getElementById(`campo_${campoId}`);
-            const audio = new Audio('https://www.soundjay.com/buttons/beep-07a.mp3');
-            audio.volume = 0.5;
-            audio.play().catch(e => console.log("Audio bloqueado"));
+            if (inputTarget) {
+                // Feedback Auditivo de Éxito
+                const audioExito = new Audio('https://www.soundjay.com/buttons/beep-07a.mp3');
+                audioExito.volume = 0.5;
+                audioExito.play().catch(() => {});
 
-            inputTarget.value = textoDecodificado;
-            inputTarget.classList.add('ring-2', 'ring-green-500', 'bg-green-900/30', 'text-green-300');
-            setTimeout(() => inputTarget.classList.remove('ring-2', 'ring-green-500', 'bg-green-900/30', 'text-green-300'), 2000);
+                // Inyección de datos y feedback visual en el input
+                inputTarget.value = tokenLimpio;
+                inputTarget.classList.add('ring-2', 'ring-green-500', 'bg-green-900/30', 'text-green-300');
+                
+                setTimeout(() => {
+                    inputTarget.classList.remove('ring-2', 'ring-green-500', 'bg-green-900/30', 'text-green-300');
+                }, 2000);
+            }
 
-            escannerActivo.stop().then(() => {
-                escannerActivo = null;
-                readerDiv.classList.add('hidden');
-                btnScan.innerHTML = '<i class="fa-solid fa-qrcode text-lg"></i>';
-                btnScan.classList.replace('text-red-400', 'text-slate-400');
-            });
+            // C. Auto-cierre del escáner tras lectura válida
+            detenerEscannerGlobal(readerDiv, btnScan);
         },
-        (errorLectura) => { }
+        (errorLectura) => { 
+            // Silenciamos errores de "frame sin QR" para no saturar la consola del NOC
+        }
     ).catch(err => {
-        console.error(err);
+        console.error("Error al iniciar cámara:", err);
+        alert("No se pudo acceder a la cámara. Verifica los permisos del navegador.");
         readerDiv.classList.add('hidden');
         escannerActivo = null;
     });
 }
 
-function cerrarModal() {
-    if (escannerActivo) {
-        escannerActivo.stop().then(() => { escannerActivo = null; }).catch(e => console.error(e));
+/**
+ * Función Auxiliar: Limpieza y Detención de Cámara
+ */
+async function detenerEscannerGlobal(readerDiv, btnScan) {
+    if (!escannerActivo) return;
+
+    try {
+        await escannerActivo.stop();
+        escannerActivo = null;
+        
+        if (readerDiv) readerDiv.classList.add('hidden');
+        if (btnScan) {
+            btnScan.innerHTML = '<i class="fa-solid fa-qrcode text-lg"></i>';
+            btnScan.classList.replace('text-red-400', 'text-slate-400');
+        }
+        console.log("📷 Cámara liberada correctamente.");
+    } catch (e) {
+        console.error("Error al detener el escáner:", e);
+        // Forzamos limpieza de variables aunque falle el stop()
+        escannerActivo = null;
     }
-    document.getElementById('modal-dinamico').classList.add('hidden');
 }
+
+// --- MAPEADO GLOBAL PARA FIX DE REFERENCE ERROR ---
+window.gestia = window.gestia || {};
+window.gestia.scanQR = toggleEscanerQR;
+window.gestiaStopScan = () => {
+    const readerDivs = document.querySelectorAll('[id^="reader_"]');
+    const btnScans = document.querySelectorAll('[id^="btn_scan_"]');
+    // Si hay un escáner activo, lo detenemos usando las referencias visuales
+    if (escannerActivo) {
+        detenerEscannerGlobal(readerDivs[0], btnScans[0]);
+    }
+};
 
 /**
  * ==========================================
- * 6. PERSISTENCIA SEGURA (V6.0 - Cloud Authority)
+ * 6. PERSISTENCIA SEGURA (V6.3 - Cloud Authority)
  * ==========================================
- * Esta sección reemplaza la escritura directa por llamadas al Backend.
+ * Esta sección reemplaza la escritura directa en Firestore por llamadas
+ * a Cloud Functions (Backend). Resuelve el problema de CORS y asegura
+ * que el timestamp y la auditoría sean generados por el servidor.
  */
-async function guardarNuevoRegistro(e, esquema) {
+export async function guardarNuevoRegistro(e, esquema) {
     e.preventDefault();
     
-    // 1. Validación de Flujo (Obligatorio)
+    // 6.1 VALIDACIÓN DE FLUJO MAESTRO
+    // Evitamos registros huérfanos sin clasificación (B2B, Delivery, etc.)
     const selectorFlujo = document.getElementById('selector-tipo-flujo');
     if (selectorFlujo && !selectorFlujo.value) {
-        alert("Por favor, selecciona primero la Clasificación del Acceso.");
+        alert("⚠️ ACCIÓN REQUERIDA: Selecciona la Clasificación del Acceso antes de guardar.");
         return;
     }
 
     const btnSubmit = document.querySelector('button[form="formulario-dinamico"]');
+    if (!btnSubmit) return;
+    
     const originalHTML = btnSubmit.innerHTML;
     
-    // 2. Bloqueo de UI
+    // 6.2 BLOQUEO DE INTERFAZ (Prevención de Doble Click)
     btnSubmit.disabled = true;
     btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> VALIDANDO EN NUBE...';
 
     try {
+        // 6.3 EXTRACCIÓN Y MAPEADO DINÁMICO DE DATOS
         const formData = new FormData(e.target);
         const payload = {
             tipo_flujo: selectorFlujo.value,
-            modulo_origen: esquema.modulo_id
+            modulo_origen: esquema.modulo_id,
+            metadata: {
+                version_motor: "6.3",
+                agente: "GestiaRender_JS"
+            }
         };
 
-        // Mapeo dinámico de campos del esquema
+        // Recorremos los campos definidos en la base de datos para armar el objeto
         esquema.esquema_base_datos.campos.forEach(campo => {
-            // No enviamos el timestamp desde aquí, lo pondrá la Cloud Function por seguridad
+            // Por seguridad, NO enviamos fechas ni IDs generados localmente.
+            // La Cloud Function 'crearAcceso' inyectará el serverTimestamp().
             if (campo.tipo !== 'fecha_hora_automatica' && campo.id !== 'fecha_hora') {
-                payload[campo.id] = formData.get(campo.id) || "—";
+                const valor = formData.get(campo.id);
+                payload[campo.id] = (valor !== null && valor !== "") ? valor : "—";
             }
         });
 
-        // 3. LLAMADA AL BACKEND ENTERPRISE
+        // 6.4 LLAMADA AL BACKEND ENTERPRISE (Fix CORS via Region us-central1)
+        // Usamos la instancia 'functions' inicializada en el Módulo 0
         const crearAccesoFn = httpsCallable(functions, 'crearAcceso');
         
-        console.info(`📡 Sincronizando con Tenant: ${condominioIdActual}...`);
+        console.info(`📡 Sincronizando registro con Tenant: ${condominioIdActual}...`);
         
+        // Ejecución de la Función de Nube
         const resultado = await crearAccesoFn({
             condominioId: condominioIdActual,
             moduloId: esquema.modulo_id,
             payload: payload
         });
 
+        // 6.5 PROCESAMIENTO DE RESPUESTA DEL SERVIDOR
         const { status, id, message } = resultado.data;
 
         if (status === 'success' || status === 'created' || status === 'updated') {
-            console.log("✅ Operación exitosa en servidor.");
-            btnSubmit.className = "bg-emerald-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold";
-            btnSubmit.innerHTML = '<i class="fa-solid fa-check mr-2"></i> COMPLETADO';
+            console.log(`✅ Operación Exitosa. ID de Registro: ${id}`);
+            
+            // Feedback Visual de Éxito
+            btnSubmit.className = "bg-emerald-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-emerald-500/20";
+            btnSubmit.innerHTML = '<i class="fa-solid fa-check mr-2"></i> REGISTRO COMPLETADO';
 
+            // Reset y cierre con delay para que el guardia vea el éxito
             setTimeout(() => {
-                cerrarModal();
+                if (typeof window.cerrarModal === 'function') {
+                    window.cerrarModal();
+                }
                 e.target.reset();
-            }, 1000);
+            }, 1200);
+
         } else if (status === 'blocked') {
-            alert(`🚨 ACCESO DENEGADO: ${message}`);
-            btnSubmit.className = "bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold";
+            // Caso de usuario en Blacklist detectado por el Backend
+            alert(`🚨 ACCESO DENEGADO POR SEGURIDAD:\n${message}`);
+            btnSubmit.className = "bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold animate-shake";
             btnSubmit.innerHTML = '<i class="fa-solid fa-hand mr-2"></i> BLOQUEADO';
+        } else {
+            throw new Error(message || "Respuesta desconocida del servidor");
         }
 
     } catch (error) {
-        console.error("❌ Error de conectividad con Backend:", error);
-        alert("Fallo en la comunicación segura: " + error.message);
+        // 6.6 GESTIÓN DE ERRORES DE CONECTIVIDAD (CORS / TIMEOUT)
+        console.error("❌ Error de comunicación con el Backend:", error);
+        
+        let msgError = "Fallo en la comunicación segura con la nube.";
+        if (error.message.includes("internal")) msgError = "Error interno en la Cloud Function. Revisa logs en GCP.";
+        if (error.message.includes("failed-precondition")) msgError = "Error de permisos: El usuario no tiene autorización para escribir.";
+        
+        alert(`FALLO CRÍTICO: ${msgError}\nDetalle: ${error.message}`);
+        
+        btnSubmit.className = "bg-orange-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold";
+        btnSubmit.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-2"></i> REINTENTAR';
+
     } finally {
+        // Restauración del botón tras el proceso
         setTimeout(() => {
             btnSubmit.disabled = false;
             btnSubmit.innerHTML = originalHTML;
             btnSubmit.className = "bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-lg flex items-center justify-center gap-2";
-        }, 2000);
+        }, 3000);
     }
 }
+
+/**
+ * --- MAPEADO GLOBAL ---
+ * Mapeamos la función al scope global para que el onsubmit del 
+ * formulario dinámico (Módulo 2/4) pueda invocarla sin ReferenceError.
+ */
+window.guardarNuevoRegistro = guardarNuevoRegistro;
 /**
  * ==========================================
- * 7. SINCRONIZACIÓN EN VIVO Y RENDERIZADO (V6.0 - Multi-tenant Heart)
+ * 7. SINCRONIZACIÓN EN VIVO Y RENDERIZADO (V6.3 - Multi-tenant Heart)
  * ==========================================
  * Esta sección controla la escucha en tiempo real, filtrada estrictamente por Condominio.
  * Integra: NOC Intelligence, POSIQ Detector, Overstay Alerts y Multi-tenant Security.
  */
-function conectarDatosEnVivo(esquema) {
+export function conectarDatosEnVivo(esquema) {
+    // 7.1 LIMPIEZA DE MEMORIA
+    // Si ya existe una escucha activa (de otro módulo), la cerramos para evitar fugas.
     if (unsubscribeSnapshot) unsubscribeSnapshot();
 
     const tbody = document.getElementById('tabla-cuerpo');
     const estadoVacio = document.getElementById('estado-vacio');
     const countActivosLabel = document.getElementById('count-activos');
     
-    // --- SEGURIDAD MULTI-TENANT ---
-    // La colección ahora cuelga directamente del condominioIdActual del usuario
+    // 7.2 SEGURIDAD MULTI-TENANT (Uxmal 39 Isolation)
+    // La colección cuelga del condominioIdActual del usuario (Bypass Heber Mendoza activo)
     const registrosRef = collection(db, "gestia_records", condominioIdActual, esquema.modulo_id);
     const q = query(registrosRef, orderBy("creado_en", "desc"));
+
+    console.info(`📡 NOC: Escuchando tráfico en vivo para ${condominioIdActual}...`);
 
     unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
         tbody.innerHTML = ''; 
@@ -830,12 +949,12 @@ function conectarDatosEnVivo(esquema) {
         const ahora = new Date();
         
         if (snapshot.empty) {
-            estadoVacio.classList.remove('hidden');
-            if(countActivosLabel) countActivosLabel.innerText = "0";
+            if (estadoVacio) estadoVacio.classList.remove('hidden');
+            if (countActivosLabel) countActivosLabel.innerText = "0";
             return;
         }
 
-        estadoVacio.classList.add('hidden');
+        if (estadoVacio) estadoVacio.classList.add('hidden');
 
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
@@ -843,9 +962,9 @@ function conectarDatosEnVivo(esquema) {
             
             // --- 1. VARIABLES DE ESTADO OPERATIVO ---
             const tipoFlujo = data.tipo_flujo || 'b2b';
-            const yaSalio = data.fecha_salida ? true : false;
+            const yaSalio = (data.fecha_salida || data.estatus === 'salida') ? true : false;
 
-            // --- 2. LÓGICA DE CONTADOR (NOC) ---
+            // --- 2. LÓGICA DE CONTADOR (NOC INTELLIGENCE) ---
             if (!yaSalio) activosEnEdificio++;
 
             // --- 3. LÓGICA DE ALERTA DE PERMANENCIA (OVERSTAY) ---
@@ -854,26 +973,26 @@ function conectarDatosEnVivo(esquema) {
                 const entrada = data.creado_en.toDate();
                 const minutosTranscurridos = (ahora - entrada) / (1000 * 60);
                 
-                // Reglas de negocio: 60m Delivery, 120m Visita, 240m Proveedor
+                // Reglas de negocio Uxmal 39: 60m Delivery, 120m Visita, 240m Proveedor
                 if (tipoFlujo === 'delivery' && minutosTranscurridos > 60) alertaOverstay = true;
                 if (tipoFlujo === 'residencial' && minutosTranscurridos > 120) alertaOverstay = true;
                 if (tipoFlujo === 'proveedor' && minutosTranscurridos > 240) alertaOverstay = true;
             }
 
-            // --- 4. DETECTOR DE PRIORIDAD POSIQ (SENSITIVE) ---
+            // --- 4. DETECTOR DE PRIORIDAD POSIQ / SENSITIVE ---
             const txtEmpresa = (data.empresa_area || "").toUpperCase();
             const txtRecurso = (data.recurso || "").toUpperCase();
             const esPOSIQ = txtEmpresa.includes("POSIQ") || 
                            txtRecurso.includes("ESTUDIO") || 
                            data.prioridad_alta === true;
             
-            // --- 5. CONSTRUCCIÓN VISUAL DE LA FILA ---
+            // --- 5. CONSTRUCCIÓN VISUAL DE LA FILA (DISEÑO TERMINAL) ---
             let clasesFila = "hover:bg-slate-800/50 transition-all duration-200 group border-b border-slate-800/60 border-l-4 ";
             
             if (esPOSIQ) {
-                clasesFila += "bg-red-900/20 border-l-red-600 "; // Alerta Roja (Seguridad)
+                clasesFila += "bg-red-900/20 border-l-red-600 "; // Alerta de Seguridad Máxima
             } else if (alertaOverstay) {
-                clasesFila += "bg-amber-900/10 border-l-amber-500 animate-pulse-slow "; // Alerta Naranja (Permanencia)
+                clasesFila += "bg-amber-900/10 border-l-amber-500 animate-pulse-slow "; // Alerta de Tiempo
             } else {
                 let borderFlujo = "border-l-transparent"; 
                 if (tipoFlujo === 'residencial') borderFlujo = "border-l-emerald-500/50";
@@ -882,7 +1001,7 @@ function conectarDatosEnVivo(esquema) {
                 clasesFila += borderFlujo;
             }
 
-            // Atributos de estado para la terminal
+            // Atributos de estado para el motor de filtrado
             if (yaSalio) {
                 clasesFila += " opacity-40 grayscale-[0.4] ";
                 tr.setAttribute('data-salida', 'true');
@@ -932,7 +1051,7 @@ function conectarDatosEnVivo(esquema) {
                 tr.innerHTML += `<td class="px-4 py-3 text-slate-300 whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]">${valorFinal}</td>`;
             });
 
-            // --- 7. PANEL DE ACCIONES ---
+            // --- 7. PANEL DE ACCIONES (REGISTRO DE SALIDA) ---
             const tdAcciones = document.createElement('td');
             tdAcciones.className = "px-4 py-3 flex justify-end gap-2 items-center";
             
@@ -941,7 +1060,7 @@ function conectarDatosEnVivo(esquema) {
             btnVer.className = "text-slate-500 hover:text-blue-400 p-2 bg-slate-800 rounded-lg shadow-md border border-slate-700 transition-all active:scale-95 group/btn";
             btnVer.innerHTML = `<i class="fa-solid fa-eye text-xs group-hover/btn:scale-110"></i>`;
             btnVer.onclick = () => {
-                const infoFormateada = formatearDetalleParaGuardia(data);
+                const infoFormateada = window.formatearDetalleParaGuardia(data);
                 alert(`📋 DETALLE DEL ACCESO [${condominioIdActual}]\n----------------------------------\nFlujo: ${tipoFlujo.toUpperCase()}\n${infoFormateada}\n----------------------------------\nID: ${docSnap.id}`);
             };
             tdAcciones.appendChild(btnVer);
@@ -955,8 +1074,7 @@ function conectarDatosEnVivo(esquema) {
                 btnSalida.onclick = async () => {
                     if (confirm(`🚪 ¿Confirmar SALIDA de este registro?`)) {
                         btnSalida.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i>`;
-                        // Mantenemos registrarSalidaBD para el cierre de ciclo
-                        await registrarSalidaBD(docSnap.id, esquema.modulo_id);
+                        await window.registrarSalidaBD(docSnap.id, esquema.modulo_id);
                     }
                 };
                 tdAcciones.appendChild(btnSalida);
@@ -967,39 +1085,67 @@ function conectarDatosEnVivo(esquema) {
         });
 
         // Actualizar contadores del Header (NOC Dashboard)
-        if(countActivosLabel) countActivosLabel.innerText = activosEnEdificio;
+        if (countActivosLabel) countActivosLabel.innerText = activosEnEdificio;
         console.info(`📊 Sincronización Multi-tenant [${condominioIdActual}]: ${activosEnEdificio} activos.`);
 
     }, (error) => {
         console.error("❌ Error de suscripción multi-tenant:", error);
-        tbody.innerHTML = `<tr><td colspan="10" class="p-10 text-center"><p class="text-red-500 font-mono text-xs">FALLO_CONEXIÓN_TENANT: ${error.message}</p></td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="p-10 text-center"><p class="text-red-500 font-mono text-xs">FALLO_CONEXIÓN_TENANT: ${error.message}</p></td></tr>`;
     });
 }
 
 /**
- * --- Función de Filtrado de Activos ---
- * Muestra u oculta las filas según el estado del check-out.
+ * --- Función: Registrar Salida (Persistencia Cloud) ---
  */
-function filtrarActivos(soloActivos) {
+window.registrarSalidaBD = async (registroId, moduloId) => {
+    try {
+        const registrarSalidaFn = httpsCallable(functions, 'registrarSalida');
+        const resultado = await registrarSalidaFn({
+            condominioId: condominioIdActual,
+            moduloId: moduloId,
+            registroId: registroId
+        });
+
+        if (resultado.data.status === 'success') {
+            console.log("✅ Salida registrada exitosamente en servidor.");
+        }
+    } catch (error) {
+        console.error("❌ Error al registrar salida:", error);
+        alert("No se pudo registrar la salida: " + error.message);
+    }
+};
+
+/**
+ * --- Función: Filtrado de Activos ---
+ */
+window.filtrarActivos = (soloActivos) => {
     const filas = document.querySelectorAll('#tabla-cuerpo tr');
     filas.forEach(fila => {
         const yaSalio = fila.getAttribute('data-salida') === 'true';
         if (soloActivos && yaSalio) {
             fila.style.display = "none";
         } else {
-            // Respeta el buscador de texto si hay términos ingresados
-            const terminoBuscador = document.getElementById('buscador-trazabilidad').value.toLowerCase();
-            if (fila.textContent.toLowerCase().includes(terminoBuscador)) {
-                fila.style.display = "";
-            }
+            fila.style.display = "";
         }
     });
-}
+};
+
+/**
+ * --- Función: Filtrado por Texto (Buscador) ---
+ */
+window.filtrarTablaEnVivo = (termino) => {
+    const t = termino.toLowerCase();
+    const filas = document.querySelectorAll('#tabla-cuerpo tr');
+    filas.forEach(fila => {
+        const texto = fila.textContent.toLowerCase();
+        fila.style.display = texto.includes(t) ? "" : "none";
+    });
+};
 
 /**
  * --- Función Auxiliar: Formateo de Datos Forense ---
  */
-function formatearDetalleParaGuardia(data) {
+window.formatearDetalleParaGuardia = (data) => {
     return Object.entries(data)
         .filter(([key]) => !['creado_por', 'creado_en', 'modulo_origen', 'prioridad_alta', 'color_alerta', 'tipo_flujo', 'estatus_acceso', 'condominioId'].includes(key)) 
         .map(([key, val]) => {
@@ -1010,9 +1156,12 @@ function formatearDetalleParaGuardia(data) {
                 const d = val.toDate();
                 valorAMostrar = d.toLocaleString('es-MX', { 
                     day: '2-digit', month: 'short', year: 'numeric', 
-                    hour: '2-digit', minute: '2-digit', second: '2-digit' 
+                    hour: '2-digit', minute: '2-digit' 
                 });
             }
             return `🔹 ${label}: ${valorAMostrar}`;
         }).join('\n');
-}
+};
+
+// Vinculación Global
+window.conectarDatosEnVivo = conectarDatosEnVivo;
