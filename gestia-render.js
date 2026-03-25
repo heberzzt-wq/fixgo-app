@@ -28,9 +28,9 @@ let blockedUsersGlobal = [];
 
 /**
  * ==========================================
- * 1. INICIALIZADOR DEL MOTOR DE RENDERIZADO (V6.1 - CEO Bypass & Multi-tenant)
+ * 1. INICIALIZADOR DEL MOTOR DE RENDERIZADO (V6.1 - Ajustado a ResidencialId)
  * ==========================================
- * Esta sección valida la identidad del usuario, extrae su condominioId y
+ * Esta sección valida la identidad del usuario, extrae su residencialId y
  * permite que los roles CEO/SUPER_ADMIN operen incluso sin ID vinculado.
  */
 export async function initGestiaRender(moduloId, containerId) {
@@ -76,21 +76,23 @@ export async function initGestiaRender(moduloId, containerId) {
 
             const userData = userSnap.data();
             rolUsuarioActual = userData.rol;
-            condominioIdActual = userData.condominioId;
+            
+            // AJUSTE CLAVE: Cambiamos condominioId por residencialId (tu campo real)
+            condominioIdActual = userData.residencialId; 
 
             // --- REGLA DE BYPASS PARA HEBER MENDOZA (CEO) ---
             const esSuperUser = ['super_admin', 'ceo'].includes(rolUsuarioActual);
 
             if (!condominioIdActual) {
                 if (esSuperUser) {
-                    // Si el CEO no tiene condominioId, le asignamos UXMAL39 para pruebas
-                    condominioIdActual = "UXMAL39"; 
-                    console.info("⚡ MODO ARQUITECTO: Acceso global activado en UXMAL39.");
+                    // Si el CEO no tiene residencialId, le asignamos uno por defecto para pruebas
+                    condominioIdActual = "res_puerto_001"; 
+                    console.info("⚡ MODO ARQUITECTO: Acceso global activado en Puerto Cancún.");
                 } else {
                     container.innerHTML = `
                         <div class="p-10 text-center text-slate-500 font-mono text-xs uppercase">
                             <i class="fa-solid fa-building-circle-exclamation text-2xl mb-4 text-orange-500/50"></i><br>
-                            Error: Usuario sin condominio vinculado.
+                            Error: Usuario sin residencial vinculado.
                         </div>`;
                     return;
                 }
