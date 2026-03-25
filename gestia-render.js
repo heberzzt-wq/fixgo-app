@@ -1425,7 +1425,9 @@ window.guardarNuevoRegistro = guardarNuevoRegistro;
  */
 
 // --- REGISTRO GLOBAL DE LISTENERS (ANTI MEMORY LEAK) ---
-let unsubscribeSnapshot = null;
+// FIX: Se remueve la re-declaración "let" porque ya fue declarada en el Global Scope al inicio del archivo.
+// Solo la asignamos a null para mantener la consistencia sin provocar el SyntaxError.
+unsubscribeSnapshot = null;
 
 // --- CACHE EN MEMORIA (Mini Store tipo Redux) ---
 const gestiaStore = {
