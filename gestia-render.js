@@ -7,7 +7,10 @@ import {
     onSnapshot, 
     query, 
     orderBy,
-    where // Añadimos where para el filtrado por condominio
+    where,
+    addDoc,            // <--- Inyectado para nuevos registros
+    updateDoc,         // <--- Inyectado para entregas/salidas
+    serverTimestamp    // <--- Inyectado para marcas de tiempo reales
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // --- NUEVA IMPORTACIÓN ENTERPRISE ---
