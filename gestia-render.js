@@ -28,14 +28,16 @@ let blockedUsersGlobal = [];
 
 /**
  * ==========================================
- * 1. INICIALIZADOR DEL MOTOR DE RENDERIZADO
+ * 1. INICIALIZADOR DEL MOTOR DE RENDERIZADO (V6.1 - CEO Bypass & Multi-tenant)
  * ==========================================
+ * Esta sección valida la identidad del usuario, extrae su condominioId y
+ * permite que los roles CEO/SUPER_ADMIN operen incluso sin ID vinculado.
  */
 export async function initGestiaRender(moduloId, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // Inyección de librería QR (Fondo)
+    // Inyectar librería de escáner QR silenciosamente
     if (!document.getElementById('html5-qr-script')) {
         const script = document.createElement('script');
         script.id = 'html5-qr-script';
@@ -43,84 +45,111 @@ export async function initGestiaRender(moduloId, containerId) {
         document.head.appendChild(script);
     }
 
+    // Pantalla de carga profesional estilo NOC
     container.innerHTML = `
         <div class="flex flex-col items-center justify-center p-10 h-full">
             <i class="fa-solid fa-shield-halved fa-spin text-4xl text-gestia-primary mb-4"></i>
-            <p class="text-slate-400 font-mono text-xs animate-pulse">ESTABLECIENDO CONEXIÓN SEGURA CON EL BACKEND...</p>
+            <p class="text-slate-400 font-mono text-[10px] animate-pulse uppercase tracking-[0.2em]">AUTENTICANDO ACCESO NIVEL ARQUITECTO...</p>
         </div>
     `;
 
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
+            console.warn("Sesión no detectada. Redirigiendo a login...");
             window.location.href = 'login.html';
             return;
         }
 
         try {
-            // --- PASO CLAVE ENTERPRISE: IDENTIFICAR EL TENANT ---
+            // 1. Obtener perfil de usuario desde la colección unificada
             const userRef = doc(db, "users", user.uid);
             const userSnap = await getDoc(userRef);
 
             if (!userSnap.exists()) {
-                container.innerHTML = `<div class="p-5 text-red-400">Error: Perfil de usuario no encontrado en la arquitectura.</div>`;
+                container.innerHTML = `
+                    <div class="p-10 text-center text-slate-500 font-mono text-xs uppercase">
+                        <i class="fa-solid fa-user-xmark text-2xl mb-4 text-red-500/50"></i><br>
+                        Error: Usuario no registrado en la base de datos central.
+                    </div>`;
                 return;
             }
 
             const userData = userSnap.data();
-            condominioIdActual = userData.condominioId; // Adios al hardcode "UXMAL39"
             rolUsuarioActual = userData.rol;
+            condominioIdActual = userData.condominioId;
+
+            // --- REGLA DE BYPASS PARA HEBER MENDOZA (CEO) ---
+            const esSuperUser = ['super_admin', 'ceo'].includes(rolUsuarioActual);
 
             if (!condominioIdActual) {
-                container.innerHTML = `<div class="p-5 text-orange-400">Error: Usuario no vinculado a ningún condominio activo.</div>`;
-                return;
+                if (esSuperUser) {
+                    // Si el CEO no tiene condominioId, le asignamos UXMAL39 para pruebas
+                    condominioIdActual = "UXMAL39"; 
+                    console.info("⚡ MODO ARQUITECTO: Acceso global activado en UXMAL39.");
+                } else {
+                    container.innerHTML = `
+                        <div class="p-10 text-center text-slate-500 font-mono text-xs uppercase">
+                            <i class="fa-solid fa-building-circle-exclamation text-2xl mb-4 text-orange-500/50"></i><br>
+                            Error: Usuario sin condominio vinculado.
+                        </div>`;
+                    return;
+                }
             }
 
-            // 1. Obtener el Molde de la Arquitectura del Módulo
+            // 2. Cargar el Esquema Dinámico del Módulo solicitado
             const moduloRef = doc(db, "gestia_system_modules", moduloId);
             const moduloSnap = await getDoc(moduloRef);
 
             if (!moduloSnap.exists()) {
-                container.innerHTML = `<div class="p-5 text-red-400 text-sm italic">Módulo de sistema [${moduloId}] no inyectado.</div>`;
+                container.innerHTML = `
+                    <div class="p-10 text-center text-slate-500 font-mono text-xs uppercase">
+                        <i class="fa-solid fa-code-branch text-2xl mb-4 text-blue-500/50"></i><br>
+                        Error: El módulo [${moduloId}] no ha sido inyectado vía Terminal.
+                    </div>`;
                 return;
             }
 
             const esquemaModulo = moduloSnap.data();
 
-            // 2. Sincronización de Lista Negra del Tenat (Condominio)
+            // 3. Sincronización en vivo de la Lista Negra del Tenat
             const condoRef = doc(db, "condominios", condominioIdActual); 
             onSnapshot(condoRef, (snap) => {
                 if(snap.exists()) {
                     blockedUsersGlobal = snap.data().blockedUsers || [];
-                    console.info(`🛡️ Seguridad: Lista negra de ${condominioIdActual} actualizada.`);
+                    console.log(`🛡️ NOC: Lista negra sincronizada para [${condominioIdActual}].`);
                 }
             });
 
-            // 3. Validación de Roles del Esquema
+            // 4. Validación de Roles según el Esquema del Módulo
             const rolesAutorizados = esquemaModulo.seguridad_roles || [];
-            const esAdmin = ['super_admin', 'ceo', 'admin'].includes(rolUsuarioActual);
+            const esAdminGlobal = ['super_admin', 'ceo', 'admin'].includes(rolUsuarioActual);
 
-            if (!esAdmin && !rolesAutorizados.includes(rolUsuarioActual)) {
-                container.innerHTML = `<div class="p-10 text-center text-slate-500 font-mono text-xs uppercase tracking-widest">
-                    <i class="fa-solid fa-lock text-2xl mb-4 block text-red-500/50"></i>
-                    Acceso Insuficiente: Nivel ${rolUsuarioActual} denegado.
-                </div>`;
+            if (!esAdminGlobal && !rolesAutorizados.includes(rolUsuarioActual)) {
+                container.innerHTML = `
+                    <div class="p-10 text-center text-slate-500 font-mono text-xs uppercase tracking-widest">
+                        <i class="fa-solid fa-ban text-2xl mb-4 text-red-600/40"></i><br>
+                        Privilegios Insuficientes: Rol ${rolUsuarioActual} denegado.
+                    </div>`;
                 return;
             }
 
-            // 4. Renderizado de Capas
+            // 5. Orquestación de Capas (Renderizado Final)
             renderizarUIBase(esquemaModulo, container);
             conectarDatosEnVivo(esquemaModulo);
             inyectarWidgetsSeguridad(esquemaModulo);
 
-            console.log(`🚀 Motor V6.0 Inicializado: Tenant [${condominioIdActual}] / Modulo [${moduloId}]`);
+            console.info(`✅ GestiaReady: Módulo ${esquemaModulo.nombre_display} activo en ${condominioIdActual}`);
 
         } catch (error) {
-            console.error("Fallo crítico en inicialización SaaS:", error);
-            container.innerHTML = `<div class="p-5 text-red-500 font-mono text-xs">ERR_INIT_FAILURE: ${error.message}</div>`;
+            console.error("Fallo crítico en el arranque del motor:", error);
+            container.innerHTML = `
+                <div class="p-10 text-center text-red-500 font-mono text-xs uppercase">
+                    <i class="fa-solid fa-triangle-exclamation text-2xl mb-4 animate-pulse"></i><br>
+                    INIT_FATAL_ERROR: ${error.message}
+                </div>`;
         }
     });
 }
-
 // ==========================================
 // 2. CONSTRUCTOR DE INTERFAZ (UI BUILDER) - V5.24.1 (Botón Restaurado)
 // ==========================================
