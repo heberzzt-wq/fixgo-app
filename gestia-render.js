@@ -645,9 +645,10 @@ async function guardarNuevoRegistro(e, esquema) {
 }
 /**
  * ==========================================
- * 7. SINCRONIZACIÓN EN VIVO Y RENDERIZADO DE TABLA (V5.24 - NOC Intelligence Full)
+ * 7. SINCRONIZACIÓN EN VIVO Y RENDERIZADO (V6.0 - Multi-tenant Heart)
  * ==========================================
- * Esta sección controla la persistencia, la sincronización en tiempo real y la inteligencia visual.
+ * Esta sección controla la escucha en tiempo real, filtrada estrictamente por Condominio.
+ * Integra: NOC Intelligence, POSIQ Detector, Overstay Alerts y Multi-tenant Security.
  */
 function conectarDatosEnVivo(esquema) {
     if (unsubscribeSnapshot) unsubscribeSnapshot();
@@ -656,7 +657,9 @@ function conectarDatosEnVivo(esquema) {
     const estadoVacio = document.getElementById('estado-vacio');
     const countActivosLabel = document.getElementById('count-activos');
     
-    const registrosRef = collection(db, "gestia_dynamic_data", esquema.modulo_id, "registros");
+    // --- SEGURIDAD MULTI-TENANT ---
+    // La colección ahora cuelga directamente del condominioIdActual del usuario
+    const registrosRef = collection(db, "gestia_records", condominioIdActual, esquema.modulo_id);
     const q = query(registrosRef, orderBy("creado_en", "desc"));
 
     unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
@@ -676,39 +679,39 @@ function conectarDatosEnVivo(esquema) {
             const data = docSnap.data();
             const tr = document.createElement('tr');
             
-            // --- VARIABLES DE ESTADO ---
+            // --- 1. VARIABLES DE ESTADO OPERATIVO ---
             const tipoFlujo = data.tipo_flujo || 'b2b';
             const yaSalio = data.fecha_salida ? true : false;
 
-            // --- LÓGICA DE CONTADOR ---
+            // --- 2. LÓGICA DE CONTADOR (NOC) ---
             if (!yaSalio) activosEnEdificio++;
 
-            // --- LÓGICA DE ALERTA DE PERMANENCIA (OVERSTAY) ---
+            // --- 3. LÓGICA DE ALERTA DE PERMANENCIA (OVERSTAY) ---
             let alertaOverstay = false;
             if (!yaSalio && data.creado_en) {
                 const entrada = data.creado_en.toDate();
                 const minutosTranscurridos = (ahora - entrada) / (1000 * 60);
                 
-                // Reglas de negocio GestiaPremium para alertas visuales
+                // Reglas de negocio: 60m Delivery, 120m Visita, 240m Proveedor
                 if (tipoFlujo === 'delivery' && minutosTranscurridos > 60) alertaOverstay = true;
                 if (tipoFlujo === 'residencial' && minutosTranscurridos > 120) alertaOverstay = true;
                 if (tipoFlujo === 'proveedor' && minutosTranscurridos > 240) alertaOverstay = true;
             }
 
-            // --- DETECTOR DE PRIORIDAD POSIQ V5.19 (ULTRA-SENSIBLE) ---
+            // --- 4. DETECTOR DE PRIORIDAD POSIQ (SENSITIVE) ---
             const txtEmpresa = (data.empresa_area || "").toUpperCase();
             const txtRecurso = (data.recurso || "").toUpperCase();
             const esPOSIQ = txtEmpresa.includes("POSIQ") || 
                            txtRecurso.includes("ESTUDIO") || 
                            data.prioridad_alta === true;
             
-            // --- CONSTRUCCIÓN DE CLASES DE FILA (ESTILOS NOC) ---
-            let clasesFila = "hover:bg-slate-800/50 transition-all duration-200 group border-b border-slate-800/50 border-l-4 ";
+            // --- 5. CONSTRUCCIÓN VISUAL DE LA FILA ---
+            let clasesFila = "hover:bg-slate-800/50 transition-all duration-200 group border-b border-slate-800/60 border-l-4 ";
             
             if (esPOSIQ) {
-                clasesFila += "bg-red-900/20 border-l-red-600 ";
+                clasesFila += "bg-red-900/20 border-l-red-600 "; // Alerta Roja (Seguridad)
             } else if (alertaOverstay) {
-                clasesFila += "bg-amber-900/10 border-l-amber-500 animate-pulse-slow ";
+                clasesFila += "bg-amber-900/10 border-l-amber-500 animate-pulse-slow "; // Alerta Naranja (Permanencia)
             } else {
                 let borderFlujo = "border-l-transparent"; 
                 if (tipoFlujo === 'residencial') borderFlujo = "border-l-emerald-500/50";
@@ -717,9 +720,9 @@ function conectarDatosEnVivo(esquema) {
                 clasesFila += borderFlujo;
             }
 
-            // Atributos para el filtrado dinámico de la Terminal
+            // Atributos de estado para la terminal
             if (yaSalio) {
-                clasesFila += " opacity-40 grayscale-[0.5] ";
+                clasesFila += " opacity-40 grayscale-[0.4] ";
                 tr.setAttribute('data-salida', 'true');
             } else {
                 tr.setAttribute('data-salida', 'false');
@@ -727,7 +730,7 @@ function conectarDatosEnVivo(esquema) {
 
             tr.className = clasesFila;
 
-            // --- RENDERIZADO DINÁMICO DE COLUMNAS (REGLA 1: SIN RECORTES) ---
+            // --- 6. RENDERIZADO DINÁMICO DE COLUMNAS (REGLA 1: COMPLETO) ---
             let isFirstColumn = true; 
             esquema.esquema_base_datos.campos.forEach(campo => {
                 let valorFinal = "—";
@@ -743,7 +746,6 @@ function conectarDatosEnVivo(esquema) {
                         const tagClass = yaSalio ? 'bg-slate-700 text-slate-400' : colorTag;
                         
                         let textoBadge = data[campo.id];
-                        // Forzamos etiqueta de salida si el campo es de tipo movimiento
                         if (campo.id === 'tipo_movimiento' && yaSalio) textoBadge = 'SALIDA';
 
                         valorFinal = `<span class="${tagClass} border border-slate-700/50 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider shadow-inner">${textoBadge}</span>`;
@@ -754,7 +756,7 @@ function conectarDatosEnVivo(esquema) {
                     }
                 }
 
-                // Inyección de ícono descriptivo en la primera celda
+                // Inyectar ícono del flujo en la primera celda
                 if (isFirstColumn) {
                     let iconHTML = '<i class="fa-solid fa-building text-blue-400 mr-2"></i>';
                     if (tipoFlujo === 'residencial') iconHTML = '<i class="fa-solid fa-house text-emerald-400 mr-2"></i>';
@@ -768,29 +770,30 @@ function conectarDatosEnVivo(esquema) {
                 tr.innerHTML += `<td class="px-4 py-3 text-slate-300 whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]">${valorFinal}</td>`;
             });
 
-            // --- ACCIONES: OJITO + SALIDA ---
+            // --- 7. PANEL DE ACCIONES ---
             const tdAcciones = document.createElement('td');
             tdAcciones.className = "px-4 py-3 flex justify-end gap-2 items-center";
             
-            // Botón Ver Detalle
+            // Botón Ver Detalle (Audit ready)
             const btnVer = document.createElement('button');
             btnVer.className = "text-slate-500 hover:text-blue-400 p-2 bg-slate-800 rounded-lg shadow-md border border-slate-700 transition-all active:scale-95 group/btn";
             btnVer.innerHTML = `<i class="fa-solid fa-eye text-xs group-hover/btn:scale-110"></i>`;
             btnVer.onclick = () => {
                 const infoFormateada = formatearDetalleParaGuardia(data);
-                alert(`📋 DETALLE DEL ACCESO [Uxmal 39]\n----------------------------------\nFlujo: ${data.tipo_flujo ? data.tipo_flujo.toUpperCase() : 'B2B'}\n${infoFormateada}\n----------------------------------\nID: ${docSnap.id}`);
+                alert(`📋 DETALLE DEL ACCESO [${condominioIdActual}]\n----------------------------------\nFlujo: ${tipoFlujo.toUpperCase()}\n${infoFormateada}\n----------------------------------\nID: ${docSnap.id}`);
             };
             tdAcciones.appendChild(btnVer);
 
-            // Botón Registrar Salida (Si aún está activo)
+            // Botón Registrar Salida (Loop de cierre)
             if (!yaSalio) {
                 const btnSalida = document.createElement('button');
                 btnSalida.className = "text-amber-500 hover:text-amber-400 p-2 bg-slate-800 rounded-lg shadow-md border border-slate-700 transition-all active:scale-95 group/btn";
-                btnSalida.title = "Registrar Salida";
+                btnSalida.title = "Registrar Salida Definitiva";
                 btnSalida.innerHTML = `<i class="fa-solid fa-right-from-bracket text-xs group-hover/btn:scale-110"></i>`;
                 btnSalida.onclick = async () => {
                     if (confirm(`🚪 ¿Confirmar SALIDA de este registro?`)) {
                         btnSalida.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i>`;
+                        // Mantenemos registrarSalidaBD para el cierre de ciclo
                         await registrarSalidaBD(docSnap.id, esquema.modulo_id);
                     }
                 };
@@ -801,18 +804,19 @@ function conectarDatosEnVivo(esquema) {
             tbody.appendChild(tr);
         });
 
-        // Actualización de contadores del Dashboard
+        // Actualizar contadores del Header (NOC Dashboard)
         if(countActivosLabel) countActivosLabel.innerText = activosEnEdificio;
-        console.log(`📊 NOC Update: ${snapshot.size} registros, ${activosEnEdificio} activos.`);
+        console.info(`📊 Sincronización Multi-tenant [${condominioIdActual}]: ${activosEnEdificio} activos.`);
 
     }, (error) => {
-        console.error("❌ Error en la suscripción de datos:", error);
-        tbody.innerHTML = `<tr><td colspan="10" class="p-10 text-center"><p class="text-red-500">Error: ${error.message}</p></td></tr>`;
+        console.error("❌ Error de suscripción multi-tenant:", error);
+        tbody.innerHTML = `<tr><td colspan="10" class="p-10 text-center"><p class="text-red-500 font-mono text-xs">FALLO_CONEXIÓN_TENANT: ${error.message}</p></td></tr>`;
     });
 }
 
 /**
  * --- Función de Filtrado de Activos ---
+ * Muestra u oculta las filas según el estado del check-out.
  */
 function filtrarActivos(soloActivos) {
     const filas = document.querySelectorAll('#tabla-cuerpo tr');
@@ -821,7 +825,7 @@ function filtrarActivos(soloActivos) {
         if (soloActivos && yaSalio) {
             fila.style.display = "none";
         } else {
-            // Respeta el buscador de texto si hay algo escrito
+            // Respeta el buscador de texto si hay términos ingresados
             const terminoBuscador = document.getElementById('buscador-trazabilidad').value.toLowerCase();
             if (fila.textContent.toLowerCase().includes(terminoBuscador)) {
                 fila.style.display = "";
@@ -831,11 +835,11 @@ function filtrarActivos(soloActivos) {
 }
 
 /**
- * --- Función Auxiliar: Formateo de Datos para el Detalle ---
+ * --- Función Auxiliar: Formateo de Datos Forense ---
  */
 function formatearDetalleParaGuardia(data) {
     return Object.entries(data)
-        .filter(([key]) => !['creado_por', 'creado_en', 'modulo_origen', 'prioridad_alta', 'color_alerta', 'tipo_flujo', 'estatus_acceso'].includes(key)) 
+        .filter(([key]) => !['creado_por', 'creado_en', 'modulo_origen', 'prioridad_alta', 'color_alerta', 'tipo_flujo', 'estatus_acceso', 'condominioId'].includes(key)) 
         .map(([key, val]) => {
             const label = key.replace(/_/g, ' ').toUpperCase();
             let valorAMostrar = val;
