@@ -4,29 +4,38 @@ import {
     collection, 
     doc, 
     getDoc, 
-    addDoc, 
-    updateDoc, 
     onSnapshot, 
-    serverTimestamp, 
     query, 
-    orderBy 
+    orderBy,
+    where // Añadimos where para el filtrado por condominio
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// ==========================================
-// VARIABLES GLOBALES DEL MOTOR
-// ==========================================
-let unsubscribeSnapshot = null;
-let escannerActivo = null; 
-let blockedUsersGlobal = []; // Buffer de seguridad para validación instantánea
+// --- NUEVA IMPORTACIÓN ENTERPRISE ---
+import { 
+    getFunctions, 
+    httpsCallable 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
 // ==========================================
-// 1. INICIALIZADOR DEL MOTOR DE RENDERIZADO
+// VARIABLES GLOBALES DEL MOTOR (V6.0 - SaaS Ready)
 // ==========================================
+const functions = getFunctions();
+let unsubscribeSnapshot = null;
+let escannerActivo = null; 
+let condominioIdActual = null; // Se llena dinámicamente al loguear
+let rolUsuarioActual = null;
+let blockedUsersGlobal = []; 
+
+/**
+ * ==========================================
+ * 1. INICIALIZADOR DEL MOTOR DE RENDERIZADO
+ * ==========================================
+ */
 export async function initGestiaRender(moduloId, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // Inyectar librería de escáner QR silenciosamente en el fondo
+    // Inyección de librería QR (Fondo)
     if (!document.getElementById('html5-qr-script')) {
         const script = document.createElement('script');
         script.id = 'html5-qr-script';
@@ -34,75 +43,80 @@ export async function initGestiaRender(moduloId, containerId) {
         document.head.appendChild(script);
     }
 
-    // Pantalla de carga profesional
     container.innerHTML = `
         <div class="flex flex-col items-center justify-center p-10 h-full">
-            <i class="fa-solid fa-circle-notch fa-spin text-4xl text-gestia-primary mb-4"></i>
-            <p class="text-slate-400 font-mono text-sm animate-pulse">Sincronizando Módulos de Seguridad V5.19.1...</p>
+            <i class="fa-solid fa-shield-halved fa-spin text-4xl text-gestia-primary mb-4"></i>
+            <p class="text-slate-400 font-mono text-xs animate-pulse">ESTABLECIENDO CONEXIÓN SEGURA CON EL BACKEND...</p>
         </div>
     `;
 
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
-            container.innerHTML = `
-                <div class="p-5 text-red-400 bg-red-900/20 rounded-lg border border-red-800 shadow-2xl">
-                    <i class="fa-solid fa-user-slash mr-2"></i> Error: Sesión no válida o expirada.
-                </div>`;
+            window.location.href = 'login.html';
             return;
         }
 
         try {
-            // 1. Obtener el Molde de la Arquitectura
+            // --- PASO CLAVE ENTERPRISE: IDENTIFICAR EL TENANT ---
+            const userRef = doc(db, "users", user.uid);
+            const userSnap = await getDoc(userRef);
+
+            if (!userSnap.exists()) {
+                container.innerHTML = `<div class="p-5 text-red-400">Error: Perfil de usuario no encontrado en la arquitectura.</div>`;
+                return;
+            }
+
+            const userData = userSnap.data();
+            condominioIdActual = userData.condominioId; // Adios al hardcode "UXMAL39"
+            rolUsuarioActual = userData.rol;
+
+            if (!condominioIdActual) {
+                container.innerHTML = `<div class="p-5 text-orange-400">Error: Usuario no vinculado a ningún condominio activo.</div>`;
+                return;
+            }
+
+            // 1. Obtener el Molde de la Arquitectura del Módulo
             const moduloRef = doc(db, "gestia_system_modules", moduloId);
             const moduloSnap = await getDoc(moduloRef);
 
             if (!moduloSnap.exists()) {
-                container.innerHTML = `
-                    <div class="p-5 text-red-400 bg-red-900/20 rounded-lg border border-red-800">
-                        <i class="fa-solid fa-triangle-exclamation mr-2"></i> Error: El módulo '${moduloId}' no existe. 
-                        Verifica la inyección en la Terminal Heberto.
-                    </div>`;
+                container.innerHTML = `<div class="p-5 text-red-400 text-sm italic">Módulo de sistema [${moduloId}] no inyectado.</div>`;
                 return;
             }
 
             const esquemaModulo = moduloSnap.data();
 
-            // 2. Cargar Lista Negra del Condominio (UXMAL39 por defecto en Fase 1)
-            const condoRef = doc(db, "condominios", "UXMAL39"); 
+            // 2. Sincronización de Lista Negra del Tenat (Condominio)
+            const condoRef = doc(db, "condominios", condominioIdActual); 
             onSnapshot(condoRef, (snap) => {
                 if(snap.exists()) {
                     blockedUsersGlobal = snap.data().blockedUsers || [];
-                    console.log("🛡️ Lista Negra Sincronizada: ", blockedUsersGlobal.length, " registros.");
+                    console.info(`🛡️ Seguridad: Lista negra de ${condominioIdActual} actualizada.`);
                 }
             });
 
-            // 3. Obtener Datos del Usuario (Seguridad de Roles Original)
-            const userRef = doc(db, "users", user.uid);
-            const userSnap = await getDoc(userRef);
-            const userRol = userSnap.exists() ? userSnap.data().rol : null;
-
-            // EL CADENERO CON TU VIP (Mantengo tu lógica original de roles)
+            // 3. Validación de Roles del Esquema
             const rolesAutorizados = esquemaModulo.seguridad_roles || [];
-            const esAdmin = ['super_admin', 'ceo', 'admin'].includes(userRol);
+            const esAdmin = ['super_admin', 'ceo', 'admin'].includes(rolUsuarioActual);
 
-            if (!esAdmin && !rolesAutorizados.includes(userRol)) {
-                container.innerHTML = `
-                    <div class="p-5 text-orange-400 bg-orange-900/20 rounded-lg border border-orange-800 shadow-lg">
-                        <i class="fa-solid fa-lock mr-2"></i> Acceso denegado: Tu rol (${userRol}) no tiene permisos.
-                    </div>`;
+            if (!esAdmin && !rolesAutorizados.includes(rolUsuarioActual)) {
+                container.innerHTML = `<div class="p-10 text-center text-slate-500 font-mono text-xs uppercase tracking-widest">
+                    <i class="fa-solid fa-lock text-2xl mb-4 block text-red-500/50"></i>
+                    Acceso Insuficiente: Nivel ${rolUsuarioActual} denegado.
+                </div>`;
                 return;
             }
 
             // 4. Renderizado de Capas
             renderizarUIBase(esquemaModulo, container);
             conectarDatosEnVivo(esquemaModulo);
-            
-            // 5. Inyección de Módulos Pro de Fase 1
             inyectarWidgetsSeguridad(esquemaModulo);
 
+            console.log(`🚀 Motor V6.0 Inicializado: Tenant [${condominioIdActual}] / Modulo [${moduloId}]`);
+
         } catch (error) {
-            console.error("Error inicializando GestiaRender:", error);
-            container.innerHTML = `<div class="p-5 text-red-400 bg-red-900/20 rounded-lg border border-red-800">Error crítico: ${error.message}</div>`;
+            console.error("Fallo crítico en inicialización SaaS:", error);
+            container.innerHTML = `<div class="p-5 text-red-500 font-mono text-xs">ERR_INIT_FAILURE: ${error.message}</div>`;
         }
     });
 }
