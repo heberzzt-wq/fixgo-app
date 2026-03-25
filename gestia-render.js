@@ -20,9 +20,10 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
 // ==========================================
-// VARIABLES GLOBALES DEL MOTOR (V6.2 - NOC Architecture)
+// VARIABLES GLOBALES DEL MOTOR (V6.3 - NOC Architecture)
 // ==========================================
-const functions = getFunctions();
+// Ajuste de Región para evitar errores de CORS en Cloud Functions
+const functions = getFunctions(undefined, 'us-central1'); 
 let unsubscribeSnapshot = null;
 let escannerActivo = null; 
 let condominioIdActual = null; // Identificador del Tenant (Edificio/Residencial)
@@ -30,17 +31,36 @@ let rolUsuarioActual = null;   // Nivel de privilegio del operador
 let blockedUsersGlobal = [];   // Buffer de seguridad (Lista Negra)
 
 /**
+ * FIX: EXPOSICIÓN GLOBAL (ReferenceError Protection)
+ * Mapeamos las variables de estado al objeto window para que 
+ * los módulos de UI puedan consultarlas sin perder el scope.
+ */
+window.gestiaConfig = {
+    version: "6.3 Enterprise",
+    get condoId() { return condominioIdActual; },
+    get rol() { return rolUsuarioActual; }
+};
+
+// Exponemos funciones de Firebase necesarias para los botones en el HTML (onclick)
+window.functionsAuthority = {
+    httpsCallable,
+    functions
+};
+
+console.log("🚀 Módulo 0: Infraestructura cargada. CORS configurado en us-central1.");
+
+/**
  * ==========================================
- * 1. INICIALIZADOR DEL MOTOR DE RENDERIZADO (V6.2 - Edificio Uxmal 39)
+ * 1. INICIALIZADOR DEL MOTOR DE RENDERIZADO (V6.3 - Edificio Uxmal 39)
  * ==========================================
  * Esta sección valida la identidad del usuario, extrae su residencialId y
- * permite que los roles CEO/SUPER_ADMIN operen con acceso global en Uxmal 39.
+ * permite que los roles CEO/SUPER_ADMIN operen con acceso global en UXMAL 39.
  */
 export async function initGestiaRender(moduloId, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // Inyección de librería de visión artificial para QR
+    // Inyección de librería de visión artificial para QR (Solo si no existe)
     if (!document.getElementById('html5-qr-script')) {
         const script = document.createElement('script');
         script.id = 'html5-qr-script';
@@ -48,11 +68,13 @@ export async function initGestiaRender(moduloId, containerId) {
         document.head.appendChild(script);
     }
 
-    // Interfaz de carga estilo Terminal NOC
+    // Interfaz de carga estilo Terminal NOC (Diseño Minimalista Enterprise)
     container.innerHTML = `
         <div class="flex flex-col items-center justify-center p-10 h-full">
             <i class="fa-solid fa-building-shield fa-spin text-4xl text-blue-500 mb-4"></i>
-            <p class="text-slate-400 font-mono text-[10px] animate-pulse uppercase tracking-[0.2em]">SISTEMA GESTIAPREMIUM: ACCESO NIVEL ARQUITECTO...</p>
+            <p class="text-slate-400 font-mono text-[10px] animate-pulse uppercase tracking-[0.2em]">
+                SISTEMA GESTIAPREMIUM: ACCESO NIVEL ARQUITECTO...
+            </p>
         </div>
     `;
 
@@ -136,7 +158,7 @@ export async function initGestiaRender(moduloId, containerId) {
                 return;
             }
 
-            // 5. Orquestación de Capas y Widgets
+            // 5. Orquestación de Capas y Widgets (Llamadas a módulos siguientes)
             renderizarUIBase(esquemaModulo, container);
             conectarDatosEnVivo(esquemaModulo);
             inyectarWidgetsSeguridad(esquemaModulo);
@@ -153,13 +175,21 @@ export async function initGestiaRender(moduloId, containerId) {
         }
     });
 }
+
+/**
+ * FIX: EXPOSICIÓN AL SCOPE GLOBAL
+ * Necesario para que el index.html pueda invocar initGestiaRender 
+ * sin errores de tipo "is not defined".
+ */
+window.initGestiaRender = initGestiaRender;
 // ==========================================
-// 2. CONSTRUCTOR DE INTERFAZ (UI BUILDER) - V5.24.1 (Botón Restaurado)
+// 2. CONSTRUCTOR DE INTERFAZ (UI BUILDER) - V6.3 (NOC Layout & Real-time Counters)
 // ==========================================
-function renderizarUIBase(esquema, container) {
-    // CORRECCIÓN: Volvemos a la ruta correcta 'esquema_interfaz' para los permisos
+export function renderizarUIBase(esquema, container) {
+    // CORRECCIÓN: Validación de permisos basada en el esquema dinámico de la base de datos
     const tieneBotonCrear = esquema.esquema_interfaz?.acciones_permitidas?.includes("crear");
     
+    // Inyección del Layout Principal (Arquitectura de 3 capas: Header, Body/Table, Panel Derecho)
     container.innerHTML = `
         <div class="bg-slate-900 rounded-xl border border-slate-700 shadow-xl overflow-hidden flex flex-col h-full w-full relative">
             
@@ -172,7 +202,7 @@ function renderizarUIBase(esquema, container) {
                     <div>
                         <h2 class="text-base font-bold text-white uppercase tracking-wide leading-tight">${esquema.nombre_display}</h2>
                         <div class="flex items-center gap-3 mt-1">
-                            <div class="flex items-center gap-1.5" title="Personas actualmente dentro">
+                            <div class="flex items-center gap-1.5" title="Personas actualmente dentro del edificio">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                 <span class="text-[10px] text-slate-400 font-mono uppercase">En Edificio: <b id="count-activos" class="text-emerald-400">0</b></span>
                             </div>
@@ -191,7 +221,7 @@ function renderizarUIBase(esquema, container) {
 
                     <div class="relative w-full sm:w-64">
                         <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
-                        <input type="text" id="buscador-trazabilidad" placeholder="Buscar..." 
+                        <input type="text" id="buscador-trazabilidad" placeholder="Buscar registro..." 
                             class="w-full bg-slate-900/50 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 outline-none focus:border-blue-500/50">
                     </div>
 
@@ -204,6 +234,7 @@ function renderizarUIBase(esquema, container) {
             </div>
 
             <div class="flex-1 flex flex-col lg:flex-row overflow-hidden bg-[#0d1117] relative">
+                
                 <div class="flex-1 overflow-auto custom-scrollbar relative">
                     <table class="w-full text-left border-collapse min-w-max">
                         <thead class="bg-slate-800/90 sticky top-0 backdrop-blur-sm z-10 border-b border-slate-700">
@@ -211,9 +242,10 @@ function renderizarUIBase(esquema, container) {
                         </thead>
                         <tbody id="tabla-cuerpo" class="divide-y divide-slate-800/60 text-sm"></tbody>
                     </table>
+                    
                     <div id="estado-vacio" class="hidden absolute inset-0 flex flex-col items-center justify-center text-slate-500 pointer-events-none">
                         <i class="fa-solid fa-folder-open text-4xl mb-3 opacity-30"></i>
-                        <p class="font-mono text-[10px] uppercase tracking-widest text-center">Sin resultados operativos</p>
+                        <p class="font-mono text-[10px] uppercase tracking-widest text-center">Sin resultados operativos para este tenant</p>
                     </div>
                 </div>
 
@@ -245,31 +277,65 @@ function renderizarUIBase(esquema, container) {
         </div>
     `;
 
-    // Listeners del Header
-    document.getElementById('buscador-trazabilidad').addEventListener('input', (e) => filtrarTablaEnVivo(e.target.value));
+    // --- ASIGNACIÓN DE LISTENERS (V6.3 Global Mapping) ---
     
+    // 1. Buscador de Trazabilidad
+    document.getElementById('buscador-trazabilidad').addEventListener('input', (e) => {
+        if (typeof window.filtrarTablaEnVivo === 'function') {
+            window.filtrarTablaEnVivo(e.target.value);
+        } else {
+            console.warn("Módulo de Trazabilidad no cargado aún.");
+        }
+    });
+    
+    // 2. Toggle de Registros Activos (Filtro NOC)
     document.getElementById('toggle-solo-activos').addEventListener('click', function() {
         const isActive = this.getAttribute('data-active') === 'true';
         this.setAttribute('data-active', !isActive);
         this.classList.toggle('bg-blue-600/20', !isActive);
         this.classList.toggle('text-blue-400', !isActive);
         this.classList.toggle('border-blue-500/50', !isActive);
-        filtrarActivos(!isActive);
+        
+        if (typeof window.filtrarActivos === 'function') {
+            window.filtrarActivos(!isActive);
+        }
     });
 
+    // 3. Generación Dinámica de Cabeceras de Tabla
     const trCabeceras = document.getElementById('tabla-cabeceras');
-    esquema.esquema_base_datos.campos.forEach(campo => {
-        trCabeceras.innerHTML += `<th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">${campo.etiqueta}</th>`;
-    });
-    trCabeceras.innerHTML += `<th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right font-mono">Acciones</th>`;
+    if (esquema.esquema_base_datos?.campos) {
+        esquema.esquema_base_datos.campos.forEach(campo => {
+            trCabeceras.innerHTML += `
+                <th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">
+                    ${campo.etiqueta}
+                </th>`;
+        });
+        // Columna de control final
+        trCabeceras.innerHTML += `
+            <th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right font-mono">
+                Acciones
+            </th>`;
+    }
 
+    // 4. Activación de Modal de Creación
     if (tieneBotonCrear) {
-        document.getElementById('btn-crear-registro').onclick = () => abrirModalFormulario(esquema);
-        document.getElementById('btn-cerrar-modal').onclick = cerrarModal;
-        document.getElementById('btn-cancelar-modal').onclick = cerrarModal;
-        document.getElementById('formulario-dinamico').onsubmit = (e) => guardarNuevoRegistro(e, esquema);
+        document.getElementById('btn-crear-registro').onclick = () => {
+            if (typeof window.abrirModalFormulario === 'function') {
+                window.abrirModalFormulario(esquema);
+            }
+        };
+        document.getElementById('btn-cerrar-modal').onclick = () => window.cerrarModal();
+        document.getElementById('btn-cancelar-modal').onclick = () => window.cerrarModal();
+        document.getElementById('formulario-dinamico').onsubmit = (e) => {
+            if (typeof window.guardarNuevoRegistro === 'function') {
+                window.guardarNuevoRegistro(e, esquema);
+            }
+        };
     }
 }
+
+// Vinculación al scope global para evitar ReferenceError en callbacks de otros módulos
+window.renderizarUIBase = renderizarUIBase;
 /**
  * ==========================================
  * 3. INYECCIÓN DE COMPONENTES DE SEGURIDAD (V6.2 - Multi-tenant Real & Full NOC)
