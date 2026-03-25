@@ -8,39 +8,39 @@ import {
     query, 
     orderBy,
     where,
-    addDoc,            // <--- Inyectado para nuevos registros
-    updateDoc,         // <--- Inyectado para entregas/salidas
-    serverTimestamp    // <--- Inyectado para marcas de tiempo reales
+    addDoc,
+    updateDoc,
+    serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// --- NUEVA IMPORTACIÓN ENTERPRISE ---
+// --- INFRAESTRUCTURA DE BACKEND (CLOUDFUNCTIONS) ---
 import { 
     getFunctions, 
     httpsCallable 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
 // ==========================================
-// VARIABLES GLOBALES DEL MOTOR (V6.0 - SaaS Ready)
+// VARIABLES GLOBALES DEL MOTOR (V6.2 - NOC Architecture)
 // ==========================================
 const functions = getFunctions();
 let unsubscribeSnapshot = null;
 let escannerActivo = null; 
-let condominioIdActual = null; // Se llena dinámicamente al loguear
-let rolUsuarioActual = null;
-let blockedUsersGlobal = []; 
+let condominioIdActual = null; // Identificador del Tenant (Edificio/Residencial)
+let rolUsuarioActual = null;   // Nivel de privilegio del operador
+let blockedUsersGlobal = [];   // Buffer de seguridad (Lista Negra)
 
 /**
  * ==========================================
- * 1. INICIALIZADOR DEL MOTOR DE RENDERIZADO (V6.1 - Ajustado a ResidencialId)
+ * 1. INICIALIZADOR DEL MOTOR DE RENDERIZADO (V6.2 - Edificio Uxmal 39)
  * ==========================================
  * Esta sección valida la identidad del usuario, extrae su residencialId y
- * permite que los roles CEO/SUPER_ADMIN operen incluso sin ID vinculado.
+ * permite que los roles CEO/SUPER_ADMIN operen con acceso global en Uxmal 39.
  */
 export async function initGestiaRender(moduloId, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // Inyectar librería de escáner QR silenciosamente
+    // Inyección de librería de visión artificial para QR
     if (!document.getElementById('html5-qr-script')) {
         const script = document.createElement('script');
         script.id = 'html5-qr-script';
@@ -48,11 +48,11 @@ export async function initGestiaRender(moduloId, containerId) {
         document.head.appendChild(script);
     }
 
-    // Pantalla de carga profesional estilo NOC
+    // Interfaz de carga estilo Terminal NOC
     container.innerHTML = `
         <div class="flex flex-col items-center justify-center p-10 h-full">
-            <i class="fa-solid fa-shield-halved fa-spin text-4xl text-gestia-primary mb-4"></i>
-            <p class="text-slate-400 font-mono text-[10px] animate-pulse uppercase tracking-[0.2em]">AUTENTICANDO ACCESO NIVEL ARQUITECTO...</p>
+            <i class="fa-solid fa-building-shield fa-spin text-4xl text-blue-500 mb-4"></i>
+            <p class="text-slate-400 font-mono text-[10px] animate-pulse uppercase tracking-[0.2em]">SISTEMA GESTIAPREMIUM: ACCESO NIVEL ARQUITECTO...</p>
         </div>
     `;
 
@@ -80,28 +80,26 @@ export async function initGestiaRender(moduloId, containerId) {
             const userData = userSnap.data();
             rolUsuarioActual = userData.rol;
             
-            // AJUSTE CLAVE: Cambiamos condominioId por residencialId (tu campo real)
-            condominioIdActual = userData.residencialId; 
+            // Mapeo dinámico: Soporta residencialId (V5) y condominioId (V6)
+            condominioIdActual = userData.residencialId || userData.condominioId; 
 
             // --- REGLA DE BYPASS PARA HEBER MENDOZA (CEO) ---
             const esSuperUser = ['super_admin', 'ceo'].includes(rolUsuarioActual);
 
-            if (!condominioIdActual) {
-                if (esSuperUser) {
-                    // Si el CEO no tiene residencialId, le asignamos uno por defecto para pruebas
-                    condominioIdActual = "res_puerto_001"; 
-                    console.info("⚡ MODO ARQUITECTO: Acceso global activado en Puerto Cancún.");
-                } else {
-                    container.innerHTML = `
-                        <div class="p-10 text-center text-slate-500 font-mono text-xs uppercase">
-                            <i class="fa-solid fa-building-circle-exclamation text-2xl mb-4 text-orange-500/50"></i><br>
-                            Error: Usuario sin residencial vinculado.
-                        </div>`;
-                    return;
-                }
+            if (esSuperUser) {
+                // Forzamos el ID de Uxmal 39 para que el CEO vea Oficinas/Notaría/POSIQ
+                condominioIdActual = "UXMAL39"; 
+                console.info("⚡ MODO ARQUITECTO: Acceso global activado en Edificio Uxmal 39.");
+            } else if (!condominioIdActual) {
+                container.innerHTML = `
+                    <div class="p-10 text-center text-slate-500 font-mono text-xs uppercase">
+                        <i class="fa-solid fa-building-circle-exclamation text-2xl mb-4 text-orange-500/50"></i><br>
+                        Error: Usuario sin Edificio/Residencial vinculado.
+                    </div>`;
+                return;
             }
 
-            // 2. Cargar el Esquema Dinámico del Módulo solicitado
+            // 2. Cargar el Esquema Dinámico del Módulo solicitado (Ej: seguridad_accesos)
             const moduloRef = doc(db, "gestia_system_modules", moduloId);
             const moduloSnap = await getDoc(moduloRef);
 
@@ -109,23 +107,23 @@ export async function initGestiaRender(moduloId, containerId) {
                 container.innerHTML = `
                     <div class="p-10 text-center text-slate-500 font-mono text-xs uppercase">
                         <i class="fa-solid fa-code-branch text-2xl mb-4 text-blue-500/50"></i><br>
-                        Error: El módulo [${moduloId}] no ha sido inyectado vía Terminal.
+                        Error: El módulo [${moduloId}] no ha sido inyectado en el sistema central.
                     </div>`;
                 return;
             }
 
             const esquemaModulo = moduloSnap.data();
 
-            // 3. Sincronización en vivo de la Lista Negra del Tenat
+            // 3. Sincronización en vivo de la Lista Negra del Edificio (Seguridad Perimetral)
             const condoRef = doc(db, "condominios", condominioIdActual); 
             onSnapshot(condoRef, (snap) => {
                 if(snap.exists()) {
                     blockedUsersGlobal = snap.data().blockedUsers || [];
-                    console.log(`🛡️ NOC: Lista negra sincronizada para [${condominioIdActual}].`);
+                    console.log(`🛡️ NOC: Lista negra sincronizada para ${condominioIdActual}.`);
                 }
             });
 
-            // 4. Validación de Roles según el Esquema del Módulo
+            // 4. Validación de Privilegios según el Esquema (Oficinas/Notaría)
             const rolesAutorizados = esquemaModulo.seguridad_roles || [];
             const esAdminGlobal = ['super_admin', 'ceo', 'admin'].includes(rolUsuarioActual);
 
@@ -133,17 +131,17 @@ export async function initGestiaRender(moduloId, containerId) {
                 container.innerHTML = `
                     <div class="p-10 text-center text-slate-500 font-mono text-xs uppercase tracking-widest">
                         <i class="fa-solid fa-ban text-2xl mb-4 text-red-600/40"></i><br>
-                        Privilegios Insuficientes: Rol ${rolUsuarioActual} denegado.
+                        Privilegios Insuficientes: El rol ${rolUsuarioActual} no tiene acceso a este módulo.
                     </div>`;
                 return;
             }
 
-            // 5. Orquestación de Capas (Renderizado Final)
+            // 5. Orquestación de Capas y Widgets
             renderizarUIBase(esquemaModulo, container);
             conectarDatosEnVivo(esquemaModulo);
             inyectarWidgetsSeguridad(esquemaModulo);
 
-            console.info(`✅ GestiaReady: Módulo ${esquemaModulo.nombre_display} activo en ${condominioIdActual}`);
+            console.info(`✅ GestiaReady: Panel de ${esquemaModulo.nombre_display} operativo en ${condominioIdActual}`);
 
         } catch (error) {
             console.error("Fallo crítico en el arranque del motor:", error);
