@@ -486,9 +486,11 @@ function abrirModalFormulario(esquema) {
     document.getElementById('modal-dinamico').classList.remove('hidden');
 }
 
-// ==========================================
-// 5. CEREBRO DE VISIÓN ARTIFICIAL
-// ==========================================
+/**
+ * ==========================================
+ * 5. CEREBRO DE VISIÓN ARTIFICIAL (V6.0 - Multi-tenant)
+ * ==========================================
+ */
 function toggleEscanerQR(campoId) {
     if (!window.Html5Qrcode) {
         alert("La librería de visión artificial aún está cargando...");
@@ -519,23 +521,19 @@ function toggleEscanerQR(campoId) {
     escannerActivo.start(
         { facingMode: "environment" },
         configParams,
-        (textoDecodificado) => {
+        async (textoDecodificado) => {
             
-            // --- INYECCIÓN DE SEGURIDAD V5.18 ---
+            // --- VALIDACIÓN DE SEGURIDAD DINÁMICA ---
             if (blockedUsersGlobal.includes(textoDecodificado.trim())) {
                 const audioAlerta = new Audio('https://www.soundjay.com/buttons/button-10.mp3');
                 audioAlerta.play();
                 alert("🚫 ALERTA: Este usuario se encuentra en la LISTA NEGRA. Acceso Denegado.");
                 
-                addDoc(collection(db, "condominios/UXMAL39/logs_seguridad"), {
-                    tipo: "acceso_denegado",
-                    timestamp: serverTimestamp(),
-                    description: `Intento de acceso de ID bloqueado: ${textoDecodificado}`,
-                    reportedBy: auth.currentUser.uid
-                });
+                // NOTA: En la fase final, esto también debería ser una Cloud Function
+                // Por ahora, usamos la variable dinámica condominioIdActual
+                console.warn(`Intento de acceso bloqueado en ${condominioIdActual}`);
                 return;
             }
-            // ------------------------------------
 
             const inputTarget = document.getElementById(`campo_${campoId}`);
             const audio = new Audio('https://www.soundjay.com/buttons/beep-07a.mp3');
@@ -570,68 +568,84 @@ function cerrarModal() {
 
 /**
  * ==========================================
- * 5. LÓGICA DE BASE DE DATOS Y CONECTIVIDAD (FASE 2)
+ * 6. PERSISTENCIA SEGURA (V6.0 - Cloud Authority)
  * ==========================================
+ * Esta sección reemplaza la escritura directa por llamadas al Backend.
  */
 async function guardarNuevoRegistro(e, esquema) {
     e.preventDefault();
-    const btnSubmit = document.querySelector('button[form="formulario-dinamico"]');
     
-    // Validación: obligar a elegir un flujo primero
+    // 1. Validación de Flujo (Obligatorio)
     const selectorFlujo = document.getElementById('selector-tipo-flujo');
     if (selectorFlujo && !selectorFlujo.value) {
-        alert("Por favor, selecciona primero la Clasificación del Acceso en la parte superior.");
+        alert("Por favor, selecciona primero la Clasificación del Acceso.");
         return;
     }
 
-    // Bloqueo de re-envío
+    const btnSubmit = document.querySelector('button[form="formulario-dinamico"]');
+    const originalHTML = btnSubmit.innerHTML;
+    
+    // 2. Bloqueo de UI
     btnSubmit.disabled = true;
-    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> PROCESANDO...';
+    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> VALIDANDO EN NUBE...';
 
     try {
         const formData = new FormData(e.target);
-        const dataToSave = {
-            creado_por: auth.currentUser.uid,
-            creado_en: serverTimestamp(),
-            modulo_origen: esquema.modulo_id,
-            tipo_flujo: selectorFlujo.value // Guardamos el tipo de flujo en la BD
+        const payload = {
+            tipo_flujo: selectorFlujo.value,
+            modulo_origen: esquema.modulo_id
         };
 
-        // Mapeo dinámico: Si el campo no existía en el DOM (porque se ocultó por el flujo), formData.get devuelve null, y le asignamos "—"
+        // Mapeo dinámico de campos del esquema
         esquema.esquema_base_datos.campos.forEach(campo => {
-            if (campo.tipo === 'fecha_hora_automatica' || campo.id === 'fecha_hora') {
-                dataToSave[campo.id] = serverTimestamp(); 
-            } else {
-                dataToSave[campo.id] = formData.get(campo.id) || "—";
+            // No enviamos el timestamp desde aquí, lo pondrá la Cloud Function por seguridad
+            if (campo.tipo !== 'fecha_hora_automatica' && campo.id !== 'fecha_hora') {
+                payload[campo.id] = formData.get(campo.id) || "—";
             }
         });
 
-        // REGLA DE PRIORIDAD POSIQ (Pre-procesamiento)
-        const empresaArea = (dataToSave.empresa_area || "").toLowerCase();
-        if (empresaArea.includes("posiq")) {
-            dataToSave.prioridad_alta = true;
-            dataToSave.color_alerta = "RED";
+        // 3. LLAMADA AL BACKEND ENTERPRISE
+        const crearAccesoFn = httpsCallable(functions, 'crearAcceso');
+        
+        console.info(`📡 Sincronizando con Tenant: ${condominioIdActual}...`);
+        
+        const resultado = await crearAccesoFn({
+            condominioId: condominioIdActual,
+            moduloId: esquema.modulo_id,
+            payload: payload
+        });
+
+        const { status, id, message } = resultado.data;
+
+        if (status === 'success' || status === 'created' || status === 'updated') {
+            console.log("✅ Operación exitosa en servidor.");
+            btnSubmit.className = "bg-emerald-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold";
+            btnSubmit.innerHTML = '<i class="fa-solid fa-check mr-2"></i> COMPLETADO';
+
+            setTimeout(() => {
+                cerrarModal();
+                e.target.reset();
+            }, 1000);
+        } else if (status === 'blocked') {
+            alert(`🚨 ACCESO DENEGADO: ${message}`);
+            btnSubmit.className = "bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold";
+            btnSubmit.innerHTML = '<i class="fa-solid fa-hand mr-2"></i> BLOQUEADO';
         }
 
-        const coleccionDestino = collection(db, "gestia_dynamic_data", esquema.modulo_id, "registros");
-        await addDoc(coleccionDestino, dataToSave);
-
-        console.log("✅ Registro Guardado con éxito en Firestore bajo flujo: " + selectorFlujo.value);
-        cerrarModal();
-        e.target.reset();
-
     } catch (error) {
-        console.error("❌ Error guardando en BD:", error);
-        alert("Error crítico al guardar: " + error.message);
+        console.error("❌ Error de conectividad con Backend:", error);
+        alert("Fallo en la comunicación segura: " + error.message);
     } finally {
-        btnSubmit.disabled = false;
-        btnSubmit.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i> GUARDAR EN BD';
+        setTimeout(() => {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = originalHTML;
+            btnSubmit.className = "bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-lg flex items-center justify-center gap-2";
+        }, 2000);
     }
 }
-
 /**
  * ==========================================
- * 6. SINCRONIZACIÓN EN VIVO Y RENDERIZADO DE TABLA (V5.24 - NOC Intelligence Full)
+ * 7. SINCRONIZACIÓN EN VIVO Y RENDERIZADO DE TABLA (V5.24 - NOC Intelligence Full)
  * ==========================================
  * Esta sección controla la persistencia, la sincronización en tiempo real y la inteligencia visual.
  */
