@@ -36,6 +36,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { resolveTenantContext } from './gestia-core/core_auth_tenant_v1.js';
 import { verificarIdempotencia, registrarOperacion } from './gestia-core/operations.engine.js';
+import { existeEnHistorial } from './gestia-core/history.engine.js';
 // ==========================================
 // 2. CONFIGURACIÓN OMNIPOTENTE V5.26 (PATCHED)
 // ==========================================
@@ -117,11 +118,6 @@ function normalizarEstructura(obj) {
  * Busca si el hash del código generado ya existió alguna vez.
  * Evita la duplicidad de lógica en el búnker.
  */
-async function existeEnHistorial(hash) {
-    const q = query(collection(db, "gestia_module_versions_global"), where("hash_snapshot", "==", hash), limit(1));
-    const snap = await getDocs(q);
-    return !snap.empty;
-}
 
 // ==========================================
 // 6. AUTORIDAD CENTRALIZADA (CORE SESSION)
