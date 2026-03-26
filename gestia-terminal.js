@@ -37,6 +37,7 @@ import {
 import { resolveTenantContext } from './gestia-core/core_auth_tenant_v1.js';
 import { verificarIdempotencia, registrarOperacion } from './gestia-core/operations.engine.js';
 import { existeEnHistorial } from './gestia-core/history.engine.js';
+import { optimizarImagen, procesarDocumento } from './gestia-core/media.engine.js';
 // ==========================================
 // 2. CONFIGURACIÓN OMNIPOTENTE V5.26 (PATCHED)
 // ==========================================
@@ -163,113 +164,82 @@ async function inicializarAutoridadBunker() {
 // 🚀 DISPARO INMEDIATO: El sistema se autoprotege al cargar
 inicializarAutoridadBunker();
 // ==========================================
-// 7. MULTIMODALIDAD PRO (FILTRADO DE ADN)
+// 7. MULTIMODALIDAD PRO (ORQUESTACIÓN DE UI)
 // ==========================================
 
 /**
- * OPTIMIZACIÓN WEBP CRUDA:
- * Convierte imágenes pesadas en bites ligeros. 
- * Mantenemos la resolución para que la IA "vea" bien, pero bajamos el peso un 90%.
- */
-async function optimizarImagenParaIA(file) {
-    const logger = crearLogger();
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (e) => {
-            const img = new Image();
-            img.src = e.target.result;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const MAX_W = 1280; // Resolución optimizada para modelos de visión (Gemini/GPT)
-                const scale = MAX_W / img.width;
-                
-                canvas.width = MAX_W;
-                canvas.height = img.height * scale;
-
-                const ctx = canvas.getContext('2d');
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                
-                // Exportación en WebP 0.5 (El punto dulce del Modo Tacaño)
-                const dataUrl = canvas.toDataURL('image/webp', 0.5);
-                logger.log(`📸 Imagen [${file.name}] procesada. Resolución: ${canvas.width}x${canvas.height}`);
-                resolve(dataUrl);
-            };
-        };
-        reader.onerror = () => reject(new Error("ERROR_LECTURA_FILESYSTEM"));
-    });
-}
-
-/**
  * CARGA MULTIMODAL AL BUCHE:
- * Administra la memoria volátil antes de enviarla a la Cloud Function.
+ * Administra la memoria volátil y la UI antes de la gran explosión en la Nube.
+ * Delegamos el procesamiento pesado a media.engine.js.
  */
 async function cargarArchivoAlBuche(file) {
     const logger = crearLogger();
     try {
-        if (contextoMultimodal.length >= CONFIG.MAX_FILES) {
-            throw new Error(`LIMITE_ALCANZADO: Solo puedes subir ${CONFIG.MAX_FILES} archivos por operación.`);
+        // 1. Validaciones de Grado Búnker
+        if (contextoMultimodal.length >= GESTIA_CONFIG.MODO_TACANO.MAX_READS_FIRESTORE) {
+            throw new Error(`LIMITE_ALCANZADO: El búnker solo soporta ${GESTIA_CONFIG.MODO_TACANO.MAX_READS_FIRESTORE} elementos por vez.`);
         }
         
-        if (file.size > CONFIG.MAX_FILE_SIZE_MB * 1024 * 1024) {
-            throw new Error(`ARCHIVO_MUY_GRANDE: ${file.name} excede el límite de 5MB.`);
+        if (file.size > 5 * 1024 * 1024) { 
+            throw new Error(`ARCHIVO_MUY_GRANDE: ${file.name} excede los 5MB de seguridad.`);
         }
 
         const adjunto = { nombre: file.name, mime: file.type, payload: "" };
 
+        // 2. Ejecución Delegada al Core (Media Engine)
         if (file.type.startsWith('image/')) {
-            adjunto.payload = await optimizarImagenParaIA(file);
-        } else if (file.type === 'application/pdf') {
-            adjunto.payload = await new Promise((res) => {
-                const r = new FileReader();
-                r.onload = e => res(e.target.result);
-                r.readAsDataURL(file);
-            });
-            logger.log(`📄 PDF [${file.name}] codificado en Base64.`);
+            // Ya no manipulamos el canvas aquí, llamamos al motor especializado
+            adjunto.payload = await optimizarImagen(file); 
+            logger.log(`📸 Imagen [${file.name}] optimizada a WebP.`);
         } else {
-            // Lectura de código fuente (JS, HTML, CSS, TXT)
-            adjunto.payload = await file.text();
-            logger.log(`📜 Código fuente [${file.name}] absorbido.`);
+            // PDFs y Código se procesan fuera para no ensuciar la Terminal
+            adjunto.payload = await procesarDocumento(file);
+            logger.log(`📄 Documento [${file.name}] absorbido exitosamente.`);
         }
 
-        // Validación de saturación de contexto
+        // 3. Verificación de saturación de ADN (Memoria Local)
         const pesoTotal = JSON.stringify([...contextoMultimodal, adjunto]).length;
-        if (pesoTotal > CONFIG.MAX_CONTEXT_BYTES) {
-            throw new Error("CONTEXTO_DEMASIADO_PESADO: Elimina algunos archivos para continuar.");
+        if (pesoTotal > 10 * 1024 * 1024) { // 10MB de límite de contexto
+            throw new Error("CONTEXTO_SATURADO: Demasiada información para un solo prompt.");
         }
 
+        // 4. Inyección en Memoria y Feedback UI
         contextoMultimodal.push(adjunto);
         agregarBurbujaInfo(`Elemento [${file.name}] inyectado en el buche neuronal.`);
         hacerScrollAbajo();
 
     } catch (err) {
-        logger.error(err.message);
+        logger.error(`FALLO_MULTIMODAL: ${err.message}`);
         agregarBurbujaError(err.message);
     }
 }
 
-// Listeners de Arrastre (Drag & Drop)
-if (dropZone) {
+// ==========================================
+// LISTENERS DE INTERACCIÓN (DRAG & DROP)
+// ==========================================
+if (typeof dropZone !== 'undefined') {
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        dropZone.classList.add('bg-blue-600/10', 'border-blue-400');
+        dropZone.classList.add('bg-blue-600/10', 'border-blue-400', 'scale-[1.02]');
     });
+
     dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('bg-blue-600/10', 'border-blue-400');
+        dropZone.classList.remove('bg-blue-600/10', 'border-blue-400', 'scale-[1.02]');
     });
+
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
-        dropZone.classList.remove('bg-blue-600/10', 'border-blue-400');
+        dropZone.classList.remove('bg-blue-600/10', 'border-blue-400', 'scale-[1.02]');
         Array.from(e.dataTransfer.files).forEach(f => cargarArchivoAlBuche(f));
     });
 }
 
-fileInput?.addEventListener('change', (e) => {
-    Array.from(e.target.files).forEach(f => cargarArchivoAlBuche(f));
-});
-
+if (typeof fileInput !== 'undefined') {
+    fileInput.addEventListener('change', (e) => {
+        Array.from(e.target.files).forEach(f => cargarArchivoAlBuche(f));
+        e.target.value = ''; // Reset para permitir subir el mismo archivo si se borra
+    });
+}
 // ==========================================
 // 8. CORRAL SEMÁNTICO (INTELIGENCIA DE CONTEXTO)
 // ==========================================
