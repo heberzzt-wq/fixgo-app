@@ -38,6 +38,7 @@ import { resolveTenantContext } from './gestia-core/core_auth_tenant_v1.js';
 import { verificarIdempotencia, registrarOperacion } from './gestia-core/operations.engine.js';
 import { existeEnHistorial } from './gestia-core/history.engine.js';
 import { optimizarImagen, procesarDocumento } from './gestia-core/media.engine.js';
+import { sincronizarCorralSemantico } from './gestia-core/semantic.engine.js';
 // ==========================================
 // 2. CONFIGURACIÓN OMNIPOTENTE V5.26 (PATCHED)
 // ==========================================
@@ -241,56 +242,9 @@ if (typeof fileInput !== 'undefined') {
     });
 }
 // ==========================================
-// 8. CORRAL SEMÁNTICO (INTELIGENCIA DE CONTEXTO)
+// 8. CORRAL SEMÁNTICO (CONTROLADO POR EL CORE)
 // ==========================================
-
-function extraerKeywords(input) {
-    return input
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, "")
-        .split(/\s+/)
-        .filter(w => w.length > 3)
-        .slice(-7); // Tomamos las palabras con más carga semántica
-}
-
-async function inyectarContextoInteligente(inputCEO = "") {
-    const logger = crearLogger();
-    try {
-        const q = query(
-            collection(db, "gestia_system_modules"),
-            orderBy("fecha_actualizacion", "desc"),
-            limit(35)
-        );
-
-        const snap = await getDocs(q);
-        let modulos = [];
-        const keywords = extraerKeywords(inputCEO);
-
-        snap.forEach(docu => {
-            const m = docu.data();
-            modulos.push({ 
-                id: docu.id, 
-                nombre: m.nombre_display,
-                v: m.version_core || "legacy"
-            });
-        });
-
-        // Algoritmo de Priorización Semántica
-        if (keywords.length > 0) {
-            modulos.sort((a, b) => {
-                const matchA = keywords.some(k => a.nombre.toLowerCase().includes(k) || a.id.includes(k));
-                const matchB = keywords.some(k => b.nombre.toLowerCase().includes(k) || b.id.includes(k));
-                return (matchB ? 1 : 0) - (matchA ? 1 : 0);
-            });
-        }
-
-        esquemaCorral = `CORRAL_V5.26_SEMANTIC_CONTEXT:\n${JSON.stringify(modulos.slice(0, 20))}`;
-        logger.log("🏗️ Corral Semántico reconstruido por relevancia.");
-    } catch (e) {
-        logger.error(`Fallo en Sincronización de Corral: ${e.message}`);
-        esquemaCorral = "CORRAL_OFFLINE_SAFETY_MODE";
-    }
-}
+// [Lógica movida a semantic.engine.js]
 
 // ==========================================
 // 9. PIPELINE DE AUDITORÍA DIOS (V5.26)
@@ -531,17 +485,20 @@ async function invocarArquitectoIA(prompt, adjuntos, opId) {
 // ==========================================
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    // 🛡️ CANDADO DE AUTORIDAD: Si el core no ha validado la sesión, abortamos.
+
+    // 🛡️ 1. CANDADO DE AUTORIDAD: Bloqueo inmediato si no hay sesión validada por el Core.
     if (!SESSION || !SESSION.authorized) {
         agregarBurbujaError("🚨 Bloqueo de Seguridad: Esperando autoridad del sistema. Reintenta en 3 segundos.");
         return;
     }
+
     const logger = crearLogger();
     const instruccion = input.value.trim();
 
+    // Validar que haya carnita para procesar
     if (!instruccion && contextoMultimodal.length === 0) return;
 
-    // A. Bloqueo de UI y Preparación
+    // ⚡ 2. BLOQUEO DE UI Y PREPARACIÓN
     btnGenerate.disabled = true;
     input.value = '';
     input.style.height = '60px';
@@ -550,30 +507,30 @@ form.addEventListener('submit', async (e) => {
     const idCarga = mostrarCargando();
 
     try {
-        // B. Verificación de Idempotencia Real (Backend-First)
-        // B. Verificación de Idempotencia Multi-tenant
-        // Incluimos el tenantId en el hash para que las operaciones sean únicas por empresa
+        // 🔑 3. IDEMPOTENCIA MULTI-TENANT (Core: Operations Engine)
+        // Generamos el opId con el ADN del Tenant para evitar colisiones
         const opId = await generarHashSHA256(instruccion + Date.now() + SESSION.uid + SESSION.tenantId);
         const yaExiste = await verificarIdempotencia(opId);
-        
+
         if (yaExiste) {
             throw new Error("OPERACION_DUPLICADA: Esta orden ya está siendo procesada.");
         }
 
-        // C. Registro de Operación y Sincronización de Corral
-        // C. Registro de Operación en el Core (Multi-tenant)
+        // 📝 4. REGISTRO DE OPERACIÓN Y CONTEXTO SEMÁNTICO (Core: Semantic Engine)
         const pHash = await generarHashSHA256(instruccion);
-        await registrarOperacion({ 
-            opId, 
-            promptHash: pHash, 
-            userId: SESSION.uid, 
-            tenantId: SESSION.tenantId, 
-            version: GESTIA_CONFIG.VERSION 
+        await registrarOperacion({
+            opId,
+            promptHash: pHash,
+            userId: SESSION.uid,
+            tenantId: SESSION.tenantId,
+            version: GESTIA_CONFIG.VERSION
         });
-        const keys = extraerKeywords(instruccion);
-        await inyectarContextoInteligente(keys.join(" "));
 
-        // D. Invocación al Cerebro IA
+        // El Core filtra y nos entrega el Corral listo para el prompt de la IA
+        esquemaCorral = await sincronizarCorralSemantico(instruccion);
+        logger.log("🏗️ Contexto semántico inyectado desde el Core.");
+
+        // 🧠 5. INVOCACIÓN AL CEREBRO IA (Handshake con Cloud Function)
         const brainRes = await invocarArquitectoIA(
             `ORDEN_GOD_V5.26: ${instruccion}\n\n${esquemaCorral}`,
             contextoMultimodal,
@@ -583,28 +540,31 @@ form.addEventListener('submit', async (e) => {
         const rawTexto = brainRes.modulo_generado || "";
         const limpio = limpiarRespuestaIA(rawTexto);
 
-        // E. Digestión de Resultados
+        // 🧹 6. LIMPIEZA DE CONTEXTO Y DESCARGA DE UI
         contextoMultimodal = []; 
         document.getElementById(idCarga).remove();
 
         try {
-            // Flujo A: Módulo Estructurado (JSON)
+            // FLUJO A: Módulo Estructurado (JSON)
             let dataIA = JSON.parse(limpio);
 
-            // F. Auditoría de Grado Militar
+            // 🛡️ 7. AUDITORÍA DE GRADO MILITAR
             const auditoria = await pipelineAuditoriaV526(dataIA, versionLocalSnapshot);
 
-            // G. Persistencia Transaccional (El Búnker Final)
+            // 🏛️ 8. PERSISTENCIA TRANSACCIONAL (Hard Locking Multi-tenant)
             await persistenciaDiosV526(auditoria.data.modulo_id, auditoria.data, auditoria.hash);
 
-            // H. Renderizado Seguro
+            // 🚀 9. RENDERIZADO SEGURO
             renderModuloSeguro(auditoria.data);
-            
-            // I. Actualización de Status de Operación
-            await updateDoc(doc(db, "gestia_operations", opId), { status: "completed", hash_final: auditoria.hash });
+
+            // 🏁 10. CIERRE DE OPERACIÓN EN DB
+            await updateDoc(doc(db, "gestia_operations", opId), {
+                status: "completed",
+                hash_final: auditoria.hash
+            });
 
         } catch (eJson) {
-            // Flujo B: Código Plano
+            // FLUJO B: Código Plano (Fallback para reescrituras libres)
             logger.log("Detectado flujo de código plano. Renderizando reescritura...");
             agregarBurbujaCodigo(limpio);
             await updateDoc(doc(db, "gestia_operations", opId), { status: "completed_code" });
@@ -615,12 +575,12 @@ form.addEventListener('submit', async (e) => {
         if (document.getElementById(idCarga)) document.getElementById(idCarga).remove();
         agregarBurbujaError(err.message);
     } finally {
+        // Restaurar estado de la terminal
         btnGenerate.disabled = false;
         input.focus();
         hacerScrollAbajo();
     }
 });
-
 // ==========================================
 // 14. UI BUILDERS (GRADO INDUSTRIAL)
 // ==========================================
