@@ -577,6 +577,11 @@ async function invocarArquitectoIA(prompt, adjuntos, opId) {
 // ==========================================
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    // 🛡️ CANDADO DE AUTORIDAD: Si el core no ha validado la sesión, abortamos.
+    if (!SESSION || !SESSION.authorized) {
+        agregarBurbujaError("🚨 Bloqueo de Seguridad: Esperando autoridad del sistema. Reintenta en 3 segundos.");
+        return;
+    }
     const logger = crearLogger();
     const instruccion = input.value.trim();
 
@@ -592,7 +597,9 @@ form.addEventListener('submit', async (e) => {
 
     try {
         // B. Verificación de Idempotencia Real (Backend-First)
-        const opId = await generarHashSHA256(instruccion + Date.now() + auth.currentUser.uid);
+        // B. Verificación de Idempotencia Multi-tenant
+        // Incluimos el tenantId en el hash para que las operaciones sean únicas por empresa
+        const opId = await generarHashSHA256(instruccion + Date.now() + SESSION.uid + SESSION.tenantId);
         const yaExiste = await verificarIdempotencia(opId);
         
         if (yaExiste) {
