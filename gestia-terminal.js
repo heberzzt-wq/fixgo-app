@@ -57,8 +57,11 @@ const GESTIA_CONFIG = {
     }
 };
 
-// Variables de Estado Global Pro
-let CURRENT_TENANT_ID = null; // Llave maestra
+// ==========================================
+// VARIABLES DE ESTADO GLOBAL PRO (V5.26-MT)
+// ==========================================
+let SESSION = null;           // 🛡️ El ADN de la autoridad (NUEVO)
+let CURRENT_TENANT_ID = null; // Llave maestra heredada
 let CURRENT_USER_ROLE = null;
 let GESTIA_USAGE_COUNTER = 0; // Para el Rate Limit local
 // ==========================================
@@ -133,59 +136,48 @@ async function existeEnHistorial(hash) {
 }
 
 // ==========================================
-// 6. SEGURIDAD Y HANDSHAKE (MULTI-TENANT)
+// 6. AUTORIDAD CENTRALIZADA (CORE SESSION)
 // ==========================================
-async function validarAutoridadSaaS() {
-    return new Promise((resolve, reject) => {
-        auth.onAuthStateChanged(async (user) => {
-            if (!user) {
-                console.error("❌ ACCESO DENEGADO: No hay sesión activa.");
-                window.location.href = "/login";
-                return reject("NO_AUTH");
-            }
+/**
+ * INICIALIZADOR DE BÚNKER:
+ * Invoca al core para resolver quién es el usuario y a qué Tenant pertenece.
+ * Sin este paso, la Terminal Heberto no dispara ni un solo bit.
+ */
+async function inicializarAutoridadBunker() {
+    const logger = crearLogger(); // Usamos tu logger forense
+    
+    try {
+        logger.log("🛡️ Solicitando resolución de autoridad al Core...");
 
-            try {
-                // Buscamos el perfil del usuario en la colección global de usuarios
-                // Cada usuario debe tener asignado un tenant_id
-                const userRef = doc(db, "gestia_users", user.uid);
-                const userSnap = await getDoc(userRef);
+        // 🧠 Invocamos al portero que creamos en el Paso 1
+        SESSION = await resolveTenantContext();
 
-                if (!userSnap.exists()) {
-                    throw new Error("USUARIO_NO_REGISTRADO");
-                }
+        if (!SESSION.authorized) {
+            throw new Error("FALLO_DE_IDENTIDAD_SaaS");
+        }
 
-                const userData = userSnap.data();
-                
-                // INYECCIÓN DE AUTORIDAD
-                CURRENT_TENANT_ID = userData.tenantId; // El ID de la empresa
-                CURRENT_USER_ROLE = userData.rol;      // super_admin, ceo, etc.
+        // 🔗 PUENTE DE COMPATIBILIDAD: 
+        // Inyectamos los datos en tus variables viejas para no romper el resto del script
+        CURRENT_TENANT_ID = SESSION.tenantId;
+        CURRENT_USER_ROLE = SESSION.role;
 
-                if (!CURRENT_TENANT_ID) {
-                    throw new Error("USUARIO_SIN_TENANT");
-                }
+        console.log(`%c✅ [AUTORIDAD] Búnker abierto para: ${CURRENT_TENANT_ID}`, "color: #10b981; font-weight: bold;");
+        console.log(`%c👤 [ROL] Nivel de acceso: ${CURRENT_USER_ROLE}`, "color: #3b82f6;");
 
-                // VALIDACIÓN DE ROLES NIVEL DIOS
-                const rolesPermitidos = ['super_admin', 'ceo', 'admin'];
-                if (!rolesPermitidos.includes(CURRENT_USER_ROLE)) {
-                    alert("🚫 ACCESO RESTRINGIDO: No tienes permisos de arquitectura.");
-                    return reject("INVALID_ROLE");
-                }
+        if (GESTIA_CONFIG.MODO_TACANO.ACTIVO) {
+            logger.warn("💰 MODO TACAÑO: Sesión optimizada con caché de 5min.");
+        }
 
-                console.log(`✅ HANDSHAKE EXITOSO: [Tenant: ${CURRENT_TENANT_ID}] [Rol: ${CURRENT_USER_ROLE}]`);
-                
-                // MODO TACAÑO: Notificación inicial
-                if (GESTIA_CONFIG.MODO_TACANO.ACTIVO) {
-                    console.warn("💰 MODO TACAÑO ACTIVO: Optimizando costos de IA y Firestore.");
-                }
-
-                resolve(true);
-            } catch (error) {
-                console.error("❌ ERROR EN HANDSHAKE:", error);
-                reject(error);
-            }
-        });
-    });
+    } catch (error) {
+        logger.error(`BLOQUEO_DE_SEGURIDAD: ${error.message}`);
+        // Si no hay autoridad, sacamos al intruso
+        alert("🚫 Acceso Denegado: No se pudo validar tu autoridad en este Tenant.");
+        window.location.href = "/login.html"; 
+    }
 }
+
+// 🚀 DISPARO INMEDIATO: El sistema se autoprotege al cargar
+inicializarAutoridadBunker();
 // ==========================================
 // 7. MULTIMODALIDAD PRO (FILTRADO DE ADN)
 // ==========================================
