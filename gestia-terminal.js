@@ -40,6 +40,7 @@ import { existeEnHistorial } from './gestia-core/history.engine.js';
 import { optimizarImagen, procesarDocumento } from './gestia-core/media.engine.js';
 import { sincronizarCorralSemantico } from './gestia-core/semantic.engine.js';
 import { ejecutarAuditoriaCore } from './gestia-core/audit.engine.js';
+import { ejecutarPersistenciaCore } from './gestia-core/persistence.engine.js';
 // ==========================================
 // 2. CONFIGURACIÓN OMNIPOTENTE V5.26 (PATCHED)
 // ==========================================
@@ -304,84 +305,9 @@ function crearSandboxSeguro(html, js, css = "") {
     return iframe;
 }
 // ==========================================
-// 11. PERSISTENCIA TRANSACCIONAL (HARD LOCKING)
+// 11. PERSISTENCIA DIOS (CONTROLADO POR EL CORE)
 // ==========================================
-/**
- * EL CORAZÓN DEL SISTEMA: Reemplaza el Batch por una Transacción Real.
- * 1. Lee el documento y verifica el HASH (Concurrencia).
- * 2. Verifica el LOCK (Mutex) dentro del mismo ciclo atómico.
- * 3. Escribe el Módulo, el Historial y libera el Lock en un solo paso.
- */
-async function persistenciaDiosV526(moduloId, nuevoData, nuevoHash) {
-    const logger = crearLogger();
-    const modRef = doc(db, "gestia_system_modules", moduloId);
-    const versionId = `V526_${Date.now()}_${auth.currentUser.uid.substring(0, 5)}`;
-    const histRef = doc(db, "gestia_module_versions", moduloId, "historial", versionId);
-    const globalHistRef = doc(db, "gestia_module_versions_global", nuevoHash);
-
-    try {
-        await runTransaction(db, async (transaction) => {
-            const sfDoc = await transaction.get(modRef);
-            const ahora = serverTimestamp();
-            const tsAhora = Date.now();
-
-            if (sfDoc.exists()) {
-                const dataBD = sfDoc.data();
-                
-                // A. VALIDACIÓN DE CONCURRENCIA (HASH)
-                const hashBD = dataBD.hash_contenido || dataBD.version_doc || null;
-                if (versionLocalSnapshot && hashBD && versionLocalSnapshot !== hashBD) {
-                    throw new Error("CONFLICTO_CONCURRENCIA: Alguien actualizó este módulo mientras el Arquitecto trabajaba.");
-                }
-
-                // B. VALIDACIÓN DE MUTEX (LOCK)
-                if (dataBD.locked_by && dataBD.locked_by !== auth.currentUser.uid) {
-                    const vence = (dataBD.locked_at?.toMillis() || 0) + CONFIG.MUTEX_TTL_MS;
-                    if (tsAhora < vence) {
-                        throw new Error(`BLOQUEO_ACTIVO: El Arquitecto [${dataBD.locked_by_nombre}] tiene el control del búnker.`);
-                    }
-                }
-            }
-
-            // C. ESCRITURA DEL MÓDULO MAESTRO
-            transaction.set(modRef, {
-                ...nuevoData,
-                hash_contenido: nuevoHash,
-                version_doc: nuevoHash,
-                actualizado_por: auth.currentUser.uid,
-                nombre_autor: auth.currentUser.displayName || "Heberto_GOD",
-                fecha_actualizacion: ahora,
-                version_sistema: CONFIG.VERSION_CORE,
-                locked_by: null, // Liberación automática post-escritura
-                locked_at: null,
-                locked_by_nombre: null
-            }, { merge: false });
-
-            // D. SNAPSHOT LOCAL (HISTORIAL DEL MÓDULO)
-            transaction.set(histRef, {
-                snapshot: nuevoData,
-                hash: nuevoHash,
-                autor: auth.currentUser.uid,
-                fecha: ahora,
-                id_version: versionId
-            });
-
-            // E. REGISTRO GLOBAL DE ADN (ANTI-DUPLICADO HISTÓRICO)
-            transaction.set(globalHistRef, {
-                hash_snapshot: nuevoHash,
-                modulo_origen: moduloId,
-                fecha_registro: ahora
-            });
-        });
-
-        logger.log(`>> Transacción Omnipotente completada para [${moduloId}].`);
-        versionLocalSnapshot = nuevoHash;
-
-    } catch (e) {
-        logger.error(`Fallo Transaccional: ${e.message}`);
-        throw e;
-    }
-}
+// [Lógica movida a persistence.engine.js para asegurar atomicidad multi-tenant]
 
 // ==========================================
 // 12. ENLACE NEURONAL (IA FETCH + IDEMPOTENCIA)
@@ -500,8 +426,18 @@ form.addEventListener('submit', async (e) => {
                 normalizar: normalizarEstructura
             });
 
-            // 🏛️ 8. PERSISTENCIA TRANSACCIONAL (Hard Locking Multi-tenant)
-            await persistenciaDiosV526(auditoria.data.modulo_id, auditoria.data, auditoria.hash);
+            // 🏛️ G. Persistencia Transaccional (Core: Persistence Engine)
+            // Ejecutamos la transacción triple con bloqueo Multi-tenant
+            await ejecutarPersistenciaCore(
+                auditoria.data.modulo_id, 
+                auditoria.data, 
+                auditoria.hash, 
+                SESSION.tenantId
+            );
+            
+            // Actualizamos el snapshot local para la siguiente iteración
+            versionLocalSnapshot = auditoria.hash;
+            logger.log("🏛️ ADN Inmortalizado en el Búnker mediante Transacción Atómica.");
 
             // 🚀 9. RENDERIZADO SEGURO
             renderModuloSeguro(auditoria.data);
