@@ -153,6 +153,13 @@ async function inicializarAutoridadBunker() {
         logger.log("🛡️ Solicitando resolución de autoridad al Core...");
         SESSION = await resolveTenantContext();
 
+        // 🔑 BYPASS DE EMERGENCIA: Acceso directo para el Arquitecto
+        if (SESSION.uid === "TU_UID_DE_FIREBASE_AQUI") { 
+            SESSION.authorized = true;
+            SESSION.tenantId = "ADMIN_BUNKER";
+            SESSION.role = "GOD_MODE";
+            logger.warn("🔓 MODO DIOS ACTIVADO: Bypass de seguridad detectado.");
+        }
         if (!SESSION.authorized) {
             throw new Error("FALLO_DE_IDENTIDAD_SaaS");
         }
