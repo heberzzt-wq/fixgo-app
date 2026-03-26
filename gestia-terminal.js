@@ -35,6 +35,7 @@ import {
     runTransaction 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { resolveTenantContext } from './gestia-core/core_auth_tenant_v1.js';
+import { verificarIdempotencia, registrarOperacion } from './gestia-core/operations.engine.js';
 // ==========================================
 // 2. CONFIGURACIÓN OMNIPOTENTE V5.26 (PATCHED)
 // ==========================================
@@ -81,13 +82,21 @@ function crearLogger() {
 // 4. CRIPTOGRAFÍA Y NORMALIZACIÓN (DETERMINISMO)
 // ==========================================
 
+/**
+ * Genera un hash único para el contenido.
+ * Se mantiene aquí para que la Terminal firme sus propias peticiones.
+ */
 async function generarHashSHA256(texto) {
     const encoder = new TextEncoder();
     const data = encoder.encode(texto);
-    const buffer = await crypto.subtle.digest(CONFIG.HASH_ALGO, data);
+    const buffer = await crypto.subtle.digest("SHA-256", data);
     return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * Limpia y ordena los objetos para que el hash sea siempre el mismo
+ * si el contenido es igual (Determinismo).
+ */
 function normalizarEstructura(obj) {
     if (typeof obj !== 'object' || obj === null) return obj;
     return Object.keys(obj).sort().reduce((acc, key) => {
@@ -98,29 +107,8 @@ function normalizarEstructura(obj) {
     }, {});
 }
 
-/**
- * IDEMPOTENCIA REAL:
- * Verifica en la colección 'gestia_operations' si este operation_id ya fue procesado.
- */
-async function verificarIdempotencia(opId) {
-    const ref = doc(db, "gestia_operations", opId);
-    const snap = await getDoc(ref);
-    return snap.exists();
-}
-
-/**
- * REGISTRO DE OPERACIÓN:
- * Inmortaliza la intención del CEO en la base de datos.
- */
-async function registrarOperacion(opId, prompt) {
-    await setDoc(doc(db, "gestia_operations", opId), {
-        prompt_hash: await generarHashSHA256(prompt),
-        ejecutado_por: auth.currentUser.uid,
-        fecha: serverTimestamp(),
-        status: "processing",
-        version_core: CONFIG.VERSION_CORE
-    });
-}
+// 🛡️ [LIMPIEZA]: Las funciones 'verificarIdempotencia' y 'registrarOperacion' 
+// han sido movidas al CORE (operations.engine.js) para mayor seguridad.
 
 // ==========================================
 // 5. COMPROBACIÓN DE HASH HISTÓRICO
@@ -607,7 +595,15 @@ form.addEventListener('submit', async (e) => {
         }
 
         // C. Registro de Operación y Sincronización de Corral
-        await registrarOperacion(opId, instruccion);
+        // C. Registro de Operación en el Core (Multi-tenant)
+        const pHash = await generarHashSHA256(instruccion);
+        await registrarOperacion({ 
+            opId, 
+            promptHash: pHash, 
+            userId: SESSION.uid, 
+            tenantId: SESSION.tenantId, 
+            version: GESTIA_CONFIG.VERSION 
+        });
         const keys = extraerKeywords(instruccion);
         await inyectarContextoInteligente(keys.join(" "));
 
