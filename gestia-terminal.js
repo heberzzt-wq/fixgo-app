@@ -39,6 +39,7 @@ import { verificarIdempotencia, registrarOperacion } from './gestia-core/operati
 import { existeEnHistorial } from './gestia-core/history.engine.js';
 import { optimizarImagen, procesarDocumento } from './gestia-core/media.engine.js';
 import { sincronizarCorralSemantico } from './gestia-core/semantic.engine.js';
+import { ejecutarAuditoriaCore } from './gestia-core/audit.engine.js';
 // ==========================================
 // 2. CONFIGURACIÓN OMNIPOTENTE V5.26 (PATCHED)
 // ==========================================
@@ -250,63 +251,6 @@ if (typeof fileInput !== 'undefined') {
 // 9. PIPELINE DE AUDITORÍA DIOS (V5.26)
 // ==========================================
 
-function validarHTMLSeguro(html) {
-    const lower = html.toLowerCase();
-    for (let rule of CONFIG.BLACKLIST) {
-        if (lower.includes(rule)) {
-            throw new Error(`SEGURIDAD_CRITICA: El código generado contiene una secuencia prohibida: [${rule}]`);
-        }
-    }
-    return true;
-}
-
-function validarPesoCampos(json) {
-    Object.keys(CONFIG.LIMITS).forEach(key => {
-        if (json[key] && json[key].length > CONFIG.LIMITS[key]) {
-            throw new Error(`BLOAT_DETECTADO: El campo [${key}] excede el límite físico de Gestia.`);
-        }
-    });
-}
-
-/**
- * PIPELINE MAESTRO:
- * Procesa el JSON de la IA antes de que se intente cualquier transacción.
- */
-async function pipelineAuditoriaV526(data, hashLocalAnterior) {
-    const logger = crearLogger();
-    logger.log("Iniciando Pipeline de Auditoría de Grado Militar...");
-
-    // 1. Whitelist de campos (Anti-Inyección)
-    const dataLimpia = filtrarWhitelistCampos(data);
-
-    // 2. Validación de Identidad (ID Snake Case)
-    if (!dataLimpia.modulo_id || !/^[a-z0-9_-]+$/.test(dataLimpia.modulo_id)) {
-        throw new Error("ID_CORRUPTO: El modulo_id debe ser puramente alfanumérico con guiones bajos.");
-    }
-
-    // 3. Control de Bloat
-    validarPesoCampos(dataLimpia);
-
-    // 4. Seguridad Activa (Anti-XSS / Anti-Fetch)
-    validarHTMLSeguro(dataLimpia.html || "");
-
-    // 5. Normalización Determinista
-    const normalizado = normalizarEstructura(dataLimpia);
-    const hashADN = await generarHashSHA256(JSON.stringify(normalizado));
-
-    // 6. Check de Identidad (Anti-Duplicado)
-    if (hashLocalAnterior === hashADN) {
-        throw new Error("OPERACION_REDUNDANTE: El código generado ya es idéntico al que tienes en el búnker.");
-    }
-
-    // 7. Check Histórico Global (Nivel Dios)
-    if (await existeEnHistorial(hashADN)) {
-        logger.warn("El hash ya existió en el pasado. Se detectó una reversión de lógica.");
-    }
-
-    logger.log("Auditoría superada con éxito. ADN validado.");
-    return { data: dataLimpia, hash: hashADN };
-}
 
 // ==========================================
 // 10. SANDBOX ENGINE (IFRAME BLINDADO)
@@ -549,7 +493,12 @@ form.addEventListener('submit', async (e) => {
             let dataIA = JSON.parse(limpio);
 
             // 🛡️ 7. AUDITORÍA DE GRADO MILITAR
-            const auditoria = await pipelineAuditoriaV526(dataIA, versionLocalSnapshot);
+            // 🛡️ F. Auditoría de Grado Militar (Core: Audit Engine)
+            // Le pasamos los datos y las utilidades locales para que el Core haga su magia
+            const auditoria = await ejecutarAuditoriaCore(dataIA, versionLocalSnapshot, {
+                generarHash: generarHashSHA256,
+                normalizar: normalizarEstructura
+            });
 
             // 🏛️ 8. PERSISTENCIA TRANSACCIONAL (Hard Locking Multi-tenant)
             await persistenciaDiosV526(auditoria.data.modulo_id, auditoria.data, auditoria.hash);
