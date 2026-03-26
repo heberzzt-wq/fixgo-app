@@ -36,43 +36,31 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // ==========================================
-// 2. CONFIGURACIÓN OMNIPOTENTE V5.26
+// 2. CONFIGURACIÓN OMNIPOTENTE V5.26 (PATCHED)
 // ==========================================
-const CONFIG = {
-    MAX_FILES: 5,
-    MAX_FILE_SIZE_MB: 5,
-    MAX_CONTEXT_BYTES: 950000, 
-    FETCH_TIMEOUT_MS: 30000,        
-    RETRY_LIMIT: 3,              
-    VERSION_CORE: "V5.26_GOD_AUTHORITY",
-    HASH_ALGO: "SHA-256",
-    MUTEX_TTL_MS: 45000, // 45 segundos de bloqueo estricto
-    LIMITS: {
-        html: 350000,       
-        javascript: 350000, 
-        css: 150000         
+const GESTIA_CONFIG = {
+    VERSION: "5.26-MT",
+    MODO_DIOS: true,
+    MODO_TACANO: {
+        ACTIVO: true,
+        MAX_TOKENS_IA: 1500,        // Limita el costo por mensaje
+        MAX_READS_FIRESTORE: 15,    // Evita lecturas masivas en el corral
+        MAX_CONTEXTO_HISTORY: 3,    // Solo envía las últimas 3 versiones a la IA
+        CACHE_CORRAL_TTL: 300000    // 5 min de cache local para no leer DB
     },
-    BLACKLIST: [
-        "<script", "javascript:", "onerror=", "onload=", 
-        "<iframe", "<embed", "<object", "document.cookie", 
-        "eval(", "localStorage", "sessionStorage", "fetch("
-    ]
+    COLECCIONES: {
+        ROOT: "tenants",            // Nueva raíz multi-tenant
+        MODULES: "gestia_system_modules",
+        OPERATIONS: "gestia_operations",
+        HISTORY: "gestia_history",
+        LOGS: "gestia_logs"
+    }
 };
 
-// Selectores UI
-const form = document.getElementById('terminal-form');
-const input = document.getElementById('terminal-input');
-const output = document.getElementById('terminal-output');
-const btnGenerate = document.getElementById('btn-generate');
-const fileInput = document.getElementById('terminal-file-input');
-const dropZone = document.getElementById('terminal-drop-zone');
-
-// Estado de Memoria (Buche Neuronal)
-let contextoMultimodal = [];
-let esquemaCorral = ""; 
-let versionLocalSnapshot = ""; 
-let traceIdActual = "";
-
+// Variables de Estado Global Pro
+let CURRENT_TENANT_ID = null; // Llave maestra
+let CURRENT_USER_ROLE = null;
+let GESTIA_USAGE_COUNTER = 0; // Para el Rate Limit local
 // ==========================================
 // 3. LOGGER DE AUDITORÍA FORENSE
 // ==========================================
@@ -145,27 +133,59 @@ async function existeEnHistorial(hash) {
 }
 
 // ==========================================
-// 6. SEGURIDAD Y HANDSHAKE (SSOT)
+// 6. SEGURIDAD Y HANDSHAKE (MULTI-TENANT)
 // ==========================================
-onAuthStateChanged(auth, async (user) => {
-    if (!user) return window.location.href = 'login.html';
+async function validarAutoridadSaaS() {
+    return new Promise((resolve, reject) => {
+        auth.onAuthStateChanged(async (user) => {
+            if (!user) {
+                console.error("❌ ACCESO DENEGADO: No hay sesión activa.");
+                window.location.href = "/login";
+                return reject("NO_AUTH");
+            }
 
-    try {
-        const snap = await getDoc(doc(db, "users", user.uid));
-        if (!snap.exists()) throw new Error("PERFIL_INEXISTENTE");
+            try {
+                // Buscamos el perfil del usuario en la colección global de usuarios
+                // Cada usuario debe tener asignado un tenant_id
+                const userRef = doc(db, "gestia_users", user.uid);
+                const userSnap = await getDoc(userRef);
 
-        const data = snap.data();
-        if (!['super_admin', 'ceo', 'admin'].includes(data.rol)) {
-            window.location.href = 'login.html';
-        } else {
-            console.log(`👑 GOD-AUTHORITY V5.26: Conexión establecida con ${data.nombre}.`);
-            await inyectarContextoInteligente();
-        }
-    } catch (e) {
-        console.error("Fallo de Handshake:", e.message);
-        window.location.href = 'login.html';
-    }
-});
+                if (!userSnap.exists()) {
+                    throw new Error("USUARIO_NO_REGISTRADO");
+                }
+
+                const userData = userSnap.data();
+                
+                // INYECCIÓN DE AUTORIDAD
+                CURRENT_TENANT_ID = userData.tenantId; // El ID de la empresa
+                CURRENT_USER_ROLE = userData.rol;      // super_admin, ceo, etc.
+
+                if (!CURRENT_TENANT_ID) {
+                    throw new Error("USUARIO_SIN_TENANT");
+                }
+
+                // VALIDACIÓN DE ROLES NIVEL DIOS
+                const rolesPermitidos = ['super_admin', 'ceo', 'admin'];
+                if (!rolesPermitidos.includes(CURRENT_USER_ROLE)) {
+                    alert("🚫 ACCESO RESTRINGIDO: No tienes permisos de arquitectura.");
+                    return reject("INVALID_ROLE");
+                }
+
+                console.log(`✅ HANDSHAKE EXITOSO: [Tenant: ${CURRENT_TENANT_ID}] [Rol: ${CURRENT_USER_ROLE}]`);
+                
+                // MODO TACAÑO: Notificación inicial
+                if (GESTIA_CONFIG.MODO_TACANO.ACTIVO) {
+                    console.warn("💰 MODO TACAÑO ACTIVO: Optimizando costos de IA y Firestore.");
+                }
+
+                resolve(true);
+            } catch (error) {
+                console.error("❌ ERROR EN HANDSHAKE:", error);
+                reject(error);
+            }
+        });
+    });
+}
 // ==========================================
 // 7. MULTIMODALIDAD PRO (FILTRADO DE ADN)
 // ==========================================
