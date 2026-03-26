@@ -34,7 +34,7 @@ import {
 import { 
     runTransaction 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
+import { resolveTenantContext } from './gestia-core/core_auth_tenant_v1.js';
 // ==========================================
 // 2. CONFIGURACIÓN OMNIPOTENTE V5.26 (PATCHED)
 // ==========================================
