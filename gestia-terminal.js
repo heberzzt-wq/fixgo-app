@@ -66,10 +66,24 @@ const GESTIA_CONFIG = {
 // ==========================================
 // VARIABLES DE ESTADO GLOBAL PRO (V5.26-MT)
 // ==========================================
-let SESSION = null;           // 🛡️ El ADN de la autoridad (NUEVO)
-let CURRENT_TENANT_ID = null; // Llave maestra heredada
-let CURRENT_USER_ROLE = null;
-let GESTIA_USAGE_COUNTER = 0; // Para el Rate Limit local
+
+// 🛡️ SESSION: Inicializada como objeto para evitar errores de lectura antes del Handshake.
+let SESSION = { 
+    authorized: false, 
+    uid: null, 
+    tenantId: null, 
+    role: null 
+}; 
+
+// 📦 MEMORIA VOLÁTIL: Necesaria para el Media Engine y el Semantic Engine.
+let contextoMultimodal = [];  // Aquí se guardan los archivos optimizados
+let esquemaCorral = "";       // Aquí se guarda el mapa de módulos para la IA
+
+// 🔒 CONTROL DE CONCURRENCIA: Vital para el Persistence Engine.
+let versionLocalSnapshot = null; // El hash del módulo que tienes abierto actualmente
+
+// ⚖️ LIMITADORES: Para el control de tráfico local.
+let GESTIA_USAGE_COUNTER = 0;
 // ==========================================
 // 3. LOGGER DE AUDITORÍA FORENSE
 // ==========================================
