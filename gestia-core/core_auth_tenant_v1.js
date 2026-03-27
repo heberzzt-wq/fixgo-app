@@ -35,6 +35,25 @@ export async function resolveTenantContext() {
             }
 
             try {
+                // 🛡️ BYPASS SUPREMO: Nivel Dios para el Arquitecto
+                if (user.email === "hebertoh-m@hotmail.com") {
+                    console.log("🚀 [GOD MODE] Identidad Maestra detectada. Derribando compuertas...");
+                    const GOD_SESSION = {
+                        authorized: true,
+                        uid: user.uid,
+                        tenantId: "CORE_SYSTEM", // Acceso global omnipotente
+                        role: "arquitecto_supremo",
+                        limits: {
+                            maxReads: 99999,
+                            maxTokens: 99999
+                        },
+                        timestamp: now
+                    };
+                    SESSION_CACHE = GOD_SESSION;
+                    CACHE_TIME = now;
+                    return resolve(GOD_SESSION);
+                }
+
                 // Buscamos el perfil del usuario para saber a qué Tenant pertenece
                 const userRef = doc(db, "gestia_users", user.uid);
                 const userSnap = await getDoc(userRef);
