@@ -10,6 +10,7 @@
  * 3. HISTORICAL HASH CHECK: El búnker recuerda cada hash generado en la historia.
  * 4. BACKEND-FIRST VALIDATION: Preparación de headers para Cloud Function Authority.
  * 5. TRACE_ID PERPETUO: Auditoría ligada al registro de operación.
+ * 6. FIREWALL FRONTEND LIGERO: Control de UX y Rate Limit Local inyectado.
  * ======================================================================================
  */
 
@@ -37,6 +38,9 @@ import {
 
 import { resolveTenantContext } from './gestia-core/core_auth_tenant_v1.js';
 import { verificarIdempotencia, registrarOperacion } from './gestia-core/operations.engine.js';
+// 🛡️ IMPORTACIÓN DEL FIREWALL FRONTEND (Capa 1)
+import { ejecutarFirewallGlobal, registrarErrorFirewall } from './gestia-core/firewall.engine.js';
+
 import { existeEnHistorial } from './gestia-core/history.engine.js';
 import { optimizarImagen, procesarDocumento } from './gestia-core/media.engine.js';
 import { sincronizarCorralSemantico } from './gestia-core/semantic.engine.js';
@@ -245,7 +249,7 @@ function limpiarRespuestaIA(texto) {
     return texto.replace(/```json|```html|```javascript|```css|```/g, "").trim();
 }
 
-// Mapeo de Elementos del DOM (Asegúrate de que estos IDs existan en tu HTML)
+// Mapeo de Elementos del DOM
 const form = document.getElementById('gestia-form');
 const input = document.getElementById('gestia-input');
 const output = document.getElementById('gestia-output');
@@ -299,7 +303,7 @@ function crearSandboxSeguro(html, js, css = "") {
         <html lang="es">
         <head>
             <meta charset="UTF-8">
-            <script src="https://cdn.tailwindcss.com"></script>
+            <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
             <style>
                 body { background: #0f172a; color: #e2e8f0; font-family: ui-sans-serif, system-ui; padding: 2.5rem; margin: 0; }
                 ${css}
@@ -354,15 +358,28 @@ if (form) {
 
         if (!instruccion && contextoMultimodal.length === 0) return;
 
-        // ⚡ 2. BLOQUEO DE UI Y PREPARACIÓN
+        // ⚡ 2. BLOQUEO DE UI VISUAL (MODO ESPERA ACTIVO)
+        // Deshabilitamos el input y el botón, y agregamos estilo de carga
         btnGenerate.disabled = true;
+        btnGenerate.classList.add('opacity-50', 'cursor-not-allowed');
+        input.disabled = true; 
+        input.classList.add('opacity-50', 'bg-slate-900');
         input.value = '';
         input.style.height = '60px';
 
         agregarBurbujaUsuario(instruccion);
-        const idCarga = mostrarCargando();
+        const idCarga = mostrarCargando(); // Levanta el spinner "Auditando Autoridad..."
 
         try {
+            // 🔥 2.5. FIREWALL ENGINE (CAPA 1: UX RATE LIMITER)
+            // Detiene peticiones abusivas antes de procesarlas
+            logger.log("🛡️ Evaluando reglas de Firewall UX...");
+            await ejecutarFirewallGlobal({
+                userId: SESSION.uid,
+                tenantId: SESSION.tenantId,
+                input: instruccion || "multimodal_payload"
+            });
+
             // 🔑 3. IDEMPOTENCIA Y REGISTRO (Operations Engine)
             const opId = await generarHashSHA256(instruccion + Date.now() + SESSION.uid + SESSION.tenantId);
             const yaExiste = await verificarIdempotencia(opId);
@@ -437,12 +454,21 @@ if (form) {
             }
 
         } catch (err) {
+            // 🚨 CATCH CRÍTICO: Registramos error de Firewall si fue un bloqueo por abuso
+            if (err.message.includes("FIREWALL") || err.message.includes("RATE_LIMIT")) {
+                await registrarErrorFirewall(SESSION.uid, SESSION.tenantId);
+            }
             logger.error(`FALLO_SISTEMICO: ${err.message}`);
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
             agregarBurbujaError(err.message);
         } finally {
+            // ⚡ DESBLOQUEO DE UI VISUAL (FIN DEL MODO ESPERA)
+            // Restauramos el input y el botón independientemente de si hubo éxito o error
             btnGenerate.disabled = false;
+            btnGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
+            input.disabled = false;
+            input.classList.remove('opacity-50', 'bg-slate-900');
             input.focus();
             hacerScrollAbajo();
         }
@@ -641,4 +667,3 @@ console.log("%c>> Authority: Centralized (DB Idempotency + Transactional Hard Lo
  * STATUS: MODULARIZADO, BLINDADO Y MULTI-TENANT.
  * ======================================================================================
  */
-
