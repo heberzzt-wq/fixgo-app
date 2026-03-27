@@ -169,8 +169,4 @@ async function firewallV4(req) {
   }
 }
 
-<<<<<<< HEAD
 module.exports = { firewallV4 };
-=======
-module.exports = { firewallV4 };
->>>>>>> 57504e9377303bf60ff33664820a9cd6b9c2d49f
