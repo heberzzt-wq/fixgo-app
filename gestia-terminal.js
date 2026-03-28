@@ -536,7 +536,8 @@ function mostrarCargando() {
 function renderModuloSeguro(json) {
     if (!output) return;
     const div = document.createElement('div');
-    div.className = 'flex gap-5 animate-fade-in max-w-7xl mx-auto w-full mt-12';
+    // 🛡️ ACTUALIZACIÓN: Se añade 'gestia-bunker-container' para control de JS
+    div.className = 'gestia-bunker-container flex gap-5 animate-fade-in max-w-7xl mx-auto w-full mt-12';
     
     div.innerHTML = `
         <div class="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(16,185,129,0.4)]">
@@ -549,7 +550,10 @@ function renderModuloSeguro(json) {
                     <p class="text-[11px] text-slate-500 font-mono mt-2 uppercase font-bold tracking-widest">Hash_ADN: ${escaparHTML(json.hash_contenido || 'SSOT_V526')}</p>
                 </div>
                 <div class="flex gap-3">
-                    <button onclick="this.closest('.bg-[#0f172a]').querySelector('.json-box').classList.toggle('hidden')" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-5 py-2 rounded-xl border border-slate-700 transition-all font-bold">INSIDER JSON</button>
+                    <button onclick="this.closest('.gestia-bunker-container').querySelector('.json-box').classList.toggle('hidden')" 
+                            class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-5 py-2 rounded-xl border border-slate-700 transition-all font-bold">
+                        INSIDER JSON
+                    </button>
                 </div>
             </div>
             
@@ -573,7 +577,6 @@ function renderModuloSeguro(json) {
     output.appendChild(div);
     hacerScrollAbajo();
 }
-
 /**
  * Muestra el código reescrito (Flujo B) aplicando la Regla de Oro 1.
  */
