@@ -480,22 +480,69 @@ if (form) {
 // ==========================================
 
 /**
+ * Clipboard híbrido blindado (estándar SaaS real)
+ */
+async function copiarADNSeguro(texto, boton) {
+    if (!texto || texto.trim() === "") {
+        boton.innerText = "VACÍO";
+        setTimeout(() => boton.innerText = "COPIAR ADN", 2000);
+        return;
+    }
+
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(texto);
+        } else {
+            throw new Error("Clipboard API no disponible");
+        }
+        boton.innerText = "¡COPIADO!";
+    } catch (errorClipboard) {
+        try {
+            const textarea = document.createElement("textarea");
+            textarea.value = texto;
+            textarea.style.position = "fixed";
+            textarea.style.opacity = "0";
+            textarea.style.pointerEvents = "none";
+
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+
+            document.execCommand("copy");
+            document.body.removeChild(textarea);
+
+            boton.innerText = "¡COPIADO!";
+        } catch (errorFallback) {
+            console.error("Error total al copiar:", errorFallback);
+            boton.innerText = "ERROR";
+        }
+    }
+
+    setTimeout(() => {
+        boton.innerText = "COPIAR ADN";
+    }, 2000);
+}
+
+/**
  * Renderiza la burbuja del CEO con el ADN del prompt.
  */
 function agregarBurbujaUsuario(texto) {
     if (!output) return;
-    const div = document.createElement('div');
-    div.className = 'flex gap-5 animate-fade-in max-w-4xl mx-auto w-full justify-end mt-12 relative z-10';
-    const msg = escaparHTML(texto || "[Instrucción Multimodal Absorbida]");
+
+    const div = document.createElement("div");
+    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full justify-end mt-12 relative z-10";
+
+    const mensajeSeguro = escaparHTML(texto || "[Instrucción Multimodal Absorbida]");
 
     div.innerHTML = `
         <div class="bg-slate-800/80 backdrop-blur-md border border-slate-700 p-6 rounded-3xl rounded-tr-none shadow-[0_20px_50px_rgba(0,0,0,0.3)] max-w-[85%] border-b-blue-500/50 border-b-2 relative z-20">
-            <p class="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap font-sans font-medium">${msg}</p>
+            <p class="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap font-sans font-medium">${mensajeSeguro}</p>
         </div>
         <div class="w-14 h-14 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shrink-0 border border-slate-600 shadow-2xl relative z-20">
             <i class="fa-solid fa-user-gear text-blue-400 text-xl"></i>
         </div>
     `;
+
     output.appendChild(div);
     hacerScrollAbajo();
 }
@@ -505,10 +552,13 @@ function agregarBurbujaUsuario(texto) {
  */
 function mostrarCargando() {
     if (!output) return null;
-    const id = `load_${Date.now()}`;
-    const div = document.createElement('div');
+
+    const id = "load_" + Date.now();
+    const div = document.createElement("div");
+
     div.id = id;
-    div.className = 'flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10';
+    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10";
+
     div.innerHTML = `
         <div class="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(37,99,235,0.5)] animate-pulse relative z-20">
             <i class="fa-solid fa-microchip text-white text-xl"></i>
@@ -525,8 +575,10 @@ function mostrarCargando() {
             </div>
         </div>
     `;
+
     output.appendChild(div);
     hacerScrollAbajo();
+
     return id;
 }
 
@@ -535,80 +587,137 @@ function mostrarCargando() {
  */
 function renderModuloSeguro(json) {
     if (!output) return;
-    const div = document.createElement('div');
-    // 🛡️ FIX CAPAS: relative z-10 para aislar el módulo del fondo
-    div.className = 'gestia-bunker-container flex gap-5 animate-fade-in max-w-7xl mx-auto w-full mt-12 relative z-10';
-    
+
+    const div = document.createElement("div");
+    div.className = "gestia-bunker-container flex gap-5 animate-fade-in max-w-7xl mx-auto w-full mt-12 relative z-10";
+
+    const hashSeguro = escaparHTML(json.hash_contenido || "SSOT_V526");
+
     div.innerHTML = `
         <div class="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(16,185,129,0.4)] relative z-20">
             <i class="fa-solid fa-shield-check text-white text-xl animate-spin-slow"></i>
         </div>
+
         <div class="bg-[#0f172a] border border-emerald-500/30 p-10 rounded-[2.5rem] rounded-tl-none shadow-[0_40px_100px_rgba(0,0,0,0.7)] flex-1 overflow-hidden relative z-10">
-            
-            <div class="flex justify-between items-center mb-8 border-b border-emerald-500/10 pb-6 relative z-30 h-auto">
+
+            <div class="flex justify-between items-center mb-8 border-b border-emerald-500/10 pb-6 relative z-30">
                 <div>
-                    <h3 class="font-black text-emerald-400 text-sm tracking-[0.4em] uppercase">Sincronización Atómica God-Authority</h3>
-                    <p class="text-[11px] text-slate-500 font-mono mt-2 uppercase font-bold tracking-widest">Hash_ADN: ${escaparHTML(json.hash_contenido || 'SSOT_V526')}</p>
+                    <h3 class="font-black text-emerald-400 text-sm tracking-[0.4em] uppercase">
+                        Sincronización Atómica God-Authority
+                    </h3>
+                    <p class="text-[11px] text-slate-500 font-mono mt-2 uppercase font-bold tracking-widest">
+                        Hash_ADN: ${hashSeguro}
+                    </p>
                 </div>
+
                 <div class="flex gap-3">
-                    <button onclick="this.closest('.gestia-bunker-container').querySelector('.json-box').classList.toggle('hidden')" 
-                            class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-5 py-2 rounded-xl border border-slate-700 transition-all font-bold">
+                    <button class="btn-toggle-json text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-5 py-2 rounded-xl border border-slate-700 font-bold">
                         INSIDER JSON
                     </button>
                 </div>
             </div>
-            
+
             <div class="sandbox-wrapper relative z-20"></div>
-            
+
             <div class="json-box hidden mt-6 relative z-20">
-                <pre class="p-8 bg-black/80 rounded-2xl text-[11px] font-mono text-emerald-400 overflow-x-auto border border-slate-800 custom-scrollbar"><code>${escaparHTML(JSON.stringify(json, null, 2))}</code></pre>
+                <pre class="p-8 bg-black/80 rounded-2xl text-[11px] font-mono text-emerald-400 overflow-x-auto border border-slate-800">
+<code>${escaparHTML(JSON.stringify(json, null, 2))}</code>
+                </pre>
             </div>
-            
+
             <div class="mt-8 pt-6 border-t border-slate-800/50 flex justify-between items-center relative z-20">
-                <span class="text-[10px] text-slate-500 font-mono italic">"Código verificado y persistido por la autoridad central."</span>
-                <button onclick="window.open('preview.html?id=${json.modulo_id}', '_blank')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-8 py-3 rounded-2xl shadow-xl transition-all uppercase tracking-widest">Desplegar Full App</button>
+                <span class="text-[10px] text-slate-500 font-mono italic">
+                    "Código verificado y persistido por la autoridad central."
+                </span>
+
+                <button class="btn-open-preview bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-8 py-3 rounded-2xl shadow-xl uppercase tracking-widest">
+                    Desplegar Full App
+                </button>
             </div>
         </div>
     `;
 
     const sandbox = crearSandboxSeguro(json.html, json.javascript, json.css || "");
-    div.querySelector('.sandbox-wrapper').appendChild(sandbox);
+    div.querySelector(".sandbox-wrapper").appendChild(sandbox);
+
+    const btnToggle = div.querySelector(".btn-toggle-json");
+    const jsonBox = div.querySelector(".json-box");
+
+    btnToggle.addEventListener("click", () => {
+        jsonBox.classList.toggle("hidden");
+    });
+
+    const btnPreview = div.querySelector(".btn-open-preview");
+    btnPreview.addEventListener("click", () => {
+        window.open("preview.html?id=" + json.modulo_id, "_blank");
+    });
 
     output.appendChild(div);
     hacerScrollAbajo();
 }
 
 /**
- * Muestra el código reescrito (Flujo B) aplicando la Regla de Oro 1.
+ * Muestra el código reescrito con auditoría + copia segura
  */
 function agregarBurbujaCodigo(codigo) {
     if (!output) return;
-    const div = document.createElement('div');
-    // 🛡️ FIX CAPAS: relative z-10 en el contenedor padre
-    div.className = 'gestia-bunker-container flex gap-5 animate-fade-in max-w-5xl mx-auto w-full mt-12 relative z-10';
-    const escaped = escaparHTML(codigo);
+
+    const div = document.createElement("div");
+    div.className = "gestia-bunker-container flex gap-5 animate-fade-in max-w-5xl mx-auto w-full mt-12 relative z-10";
+
+    let contenidoSeguro = "";
+
+    if (typeof codigo === "string") {
+        contenidoSeguro = codigo;
+    } else if (typeof codigo === "object") {
+        contenidoSeguro = JSON.stringify(codigo, null, 2);
+    } else {
+        contenidoSeguro = "[Contenido no interpretable]";
+    }
+
+    if (!contenidoSeguro.trim()) {
+        contenidoSeguro = "[⚠️ Código vacío recibido desde IA]";
+    }
+
+    const escaped = escaparHTML(contenidoSeguro);
 
     div.innerHTML = `
         <div class="w-14 h-14 rounded-full bg-indigo-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(79,70,229,0.4)] relative z-20">
             <i class="fa-solid fa-code-merge text-white text-xl"></i>
         </div>
+
         <div class="bg-[#0f172a] border border-indigo-500/30 p-10 rounded-[2.5rem] rounded-tl-none shadow-[0_30px_80px_rgba(0,0,0,0.6)] flex-1 overflow-hidden relative z-10">
-            
-            <div class="flex justify-between items-center mb-8 border-b border-indigo-500/10 pb-6 relative z-30 h-auto">
-                <h3 class="font-black text-indigo-400 text-sm uppercase tracking-[0.4em]">Arquitectura Libre Reescrita</h3>
-                <button onclick="const adn = this.closest('.gestia-bunker-container').querySelector('code').textContent; navigator.clipboard.writeText(adn); this.innerText='¡COPIADO!'; setTimeout(()=>this.innerText='COPIAR ADN', 2000)" 
-                        class="text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-2xl shadow-2xl transition-all font-black uppercase tracking-widest">
+
+            <div class="flex justify-between items-center mb-8 border-b border-indigo-500/10 pb-6 relative z-30">
+                <h3 class="font-black text-indigo-400 text-sm uppercase tracking-[0.4em]">
+                    Arquitectura Libre Reescrita
+                </h3>
+
+                <button class="btn-copy-adn text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-2xl shadow-2xl font-black uppercase tracking-widest">
                     COPIAR ADN
                 </button>
             </div>
-            
-            <p class="text-slate-400 text-xs mb-6 italic leading-relaxed relative z-20">Instrucción procesada sin compactación. Integridad V5.26 garantizada.</p>
-            
+
+            <p class="text-slate-400 text-xs mb-6 italic leading-relaxed relative z-20">
+                Instrucción procesada sin compactación. Integridad V5.26 garantizada.
+            </p>
+
             <div class="bg-black/70 rounded-3xl border border-slate-800 relative z-20 shadow-inner">
-                <pre class="p-8 overflow-x-auto text-[12px] font-mono text-blue-300 max-h-[750px] overflow-y-auto custom-scrollbar"><code style="white-space: pre-wrap; word-break: break-all;">${escaped}</code></pre>
+                <pre class="p-8 overflow-x-auto text-[12px] font-mono text-blue-300 max-h-[750px] overflow-y-auto">
+<code style="white-space: pre-wrap; word-break: break-all;">${escaped}</code>
+                </pre>
             </div>
         </div>
     `;
+
+    const boton = div.querySelector(".btn-copy-adn");
+    const codeElement = div.querySelector("code");
+
+    boton.addEventListener("click", () => {
+        const adn = codeElement ? codeElement.textContent : "";
+        copiarADNSeguro(adn, boton);
+    });
+
     output.appendChild(div);
     hacerScrollAbajo();
 }
@@ -618,17 +727,25 @@ function agregarBurbujaCodigo(codigo) {
  */
 function agregarBurbujaError(msg) {
     if (!output) return;
-    const div = document.createElement('div');
-    div.className = 'flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10';
+
+    const div = document.createElement("div");
+    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10";
+
     div.innerHTML = `
         <div class="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(220,38,38,0.4)] relative z-20">
             <i class="fa-solid fa-skull-crossbones text-white text-xl"></i>
         </div>
+
         <div class="bg-red-950/20 border border-red-500/30 p-8 rounded-[2.5rem] rounded-tl-none flex-1 shadow-2xl backdrop-blur-md relative z-10">
-            <h3 class="text-red-400 text-[11px] font-black uppercase tracking-[0.3em] mb-3 relative z-20">Intervención de Autoridad V5.26</h3>
-            <p class="text-slate-200 text-sm leading-relaxed font-mono font-medium relative z-20">${escaparHTML(msg)}</p>
+            <h3 class="text-red-400 text-[11px] font-black uppercase tracking-[0.3em] mb-3">
+                Intervención de Autoridad V5.26
+            </h3>
+            <p class="text-slate-200 text-sm leading-relaxed font-mono font-medium">
+                ${escaparHTML(msg)}
+            </p>
         </div>
     `;
+
     output.appendChild(div);
     hacerScrollAbajo();
 }
@@ -638,16 +755,22 @@ function agregarBurbujaError(msg) {
  */
 function agregarBurbujaInfo(msg) {
     if (!output) return;
-    const div = document.createElement('div');
-    div.className = 'flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-5 opacity-70 relative z-10';
+
+    const div = document.createElement("div");
+    div.className = "flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-5 opacity-70 relative z-10";
+
     div.innerHTML = `
         <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border border-slate-700 shadow-lg relative z-20">
             <i class="fa-solid fa-fingerprint text-slate-500 text-sm"></i>
         </div>
+
         <div class="bg-slate-800/30 border border-slate-700 p-4 rounded-2xl flex-1 backdrop-blur-sm relative z-10">
-            <p class="text-slate-400 text-[11px] font-mono font-bold tracking-tight relative z-20">${escaparHTML(msg)}</p>
+            <p class="text-slate-400 text-[11px] font-mono font-bold tracking-tight">
+                ${escaparHTML(msg)}
+            </p>
         </div>
     `;
+
     output.appendChild(div);
     hacerScrollAbajo();
 }
@@ -657,7 +780,10 @@ function agregarBurbujaInfo(msg) {
  */
 function hacerScrollAbajo() {
     if (output) {
-        output.scrollTo({ top: output.scrollHeight, behavior: 'smooth' });
+        output.scrollTo({
+            top: output.scrollHeight,
+            behavior: "smooth"
+        });
     }
 }
 // ==========================================
