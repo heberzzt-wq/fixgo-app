@@ -476,78 +476,80 @@ if (form) {
 }
 
 // ==========================================
-// 14. UI BUILDERS (GRADO INDUSTRIAL)
+// 14. UI BUILDERS (GRADO INDUSTRIAL V5.27)
 // ==========================================
 
-/**
- * Clipboard híbrido blindado (estándar SaaS real)
- * Integra Clipboard API (Moderno) + execCommand (Legacy Fallback)
- */
-async function copiarADNSeguro(texto, boton) {
-    if (!texto || texto.trim() === "") {
-        boton.innerText = "VACÍO";
-        setTimeout(() => boton.innerText = "COPIAR ADN", 2000);
-        return;
-    }
-
+// ==========================================
+// 🔐 COPY ENGINE HÍBRIDO (BLINDADO)
+// ==========================================
+async function copiarAlPortapapelesSeguro(texto) {
     try {
-        // Intento 1: API Moderna (Requiere HTTPS o Localhost)
+        if (!texto || texto.trim() === "") {
+            throw new Error("COPY_FAIL_EMPTY");
+        }
+
+        // Método moderno
         if (navigator.clipboard && window.isSecureContext) {
             await navigator.clipboard.writeText(texto);
-            boton.innerText = "¡COPIADO!";
-        } else {
-            throw new Error("Clipboard API no disponible o contexto inseguro");
+            return true;
         }
-    } catch (errorClipboard) {
-        // Intento 2: El "Tanque" (Legacy Fallback para entornos restringidos)
-        try {
-            const textarea = document.createElement("textarea");
-            textarea.value = texto;
-            // Bloqueo de renderizado para evitar saltos visuales
-            textarea.style.position = "fixed";
-            textarea.style.left = "-9999px";
-            textarea.style.top = "0";
-            textarea.style.opacity = "0";
-            textarea.style.pointerEvents = "none";
 
-            document.body.appendChild(textarea);
-            textarea.focus();
-            textarea.select();
+        // Fallback legacy (tanque)
+        const textarea = document.createElement("textarea");
+        textarea.value = texto;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        textarea.style.pointerEvents = "none";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
 
-            const exito = document.execCommand("copy");
-            document.body.removeChild(textarea);
+        const success = document.execCommand("copy");
+        document.body.removeChild(textarea);
 
-            if (exito) {
-                boton.innerText = "¡COPIADO!";
-            } else {
-                throw new Error("execCommand falló");
-            }
-        } catch (errorFallback) {
-            console.error("❌ Fallo crítico en el portapapeles:", errorFallback);
-            boton.innerText = "ERROR";
-        }
+        if (!success) throw new Error("COPY_FAIL_EXEC");
+
+        return true;
+
+    } catch (err) {
+        console.error("❌ ERROR COPY:", err.message);
+        return false;
     }
-
-    // Restauración del estado original del botón
-    setTimeout(() => {
-        boton.innerText = "COPIAR ADN";
-    }, 2000);
 }
 
-/**
- * Renderiza la burbuja del CEO con el ADN del prompt.
- */
+// ==========================================
+// 🧠 NORMALIZADOR DE CÓDIGO IA
+// ==========================================
+function obtenerCodigoValido(codigo) {
+    if (!codigo) return null;
+
+    if (typeof codigo === "string" && codigo.trim() !== "") {
+        return codigo.trim();
+    }
+
+    if (typeof codigo === "object") {
+        if (codigo.javascript) return codigo.javascript;
+        if (codigo.html) return codigo.html;
+        if (codigo.code) return codigo.code;
+    }
+
+    return null;
+}
+
+// ==========================================
+// 👤 BURBUJA USUARIO
+// ==========================================
 function agregarBurbujaUsuario(texto) {
     if (!output) return;
 
-    const div = document.createElement("div");
-    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full justify-end mt-12 relative z-10";
+    const div = document.createElement('div');
+    div.className = 'flex gap-5 animate-fade-in max-w-4xl mx-auto w-full justify-end mt-12 relative z-10';
 
-    const mensajeSeguro = escaparHTML(texto || "[Instrucción Multimodal Absorbida]");
+    const msg = escaparHTML(texto || "[Instrucción Multimodal Absorbida]");
 
     div.innerHTML = `
         <div class="bg-slate-800/80 backdrop-blur-md border border-slate-700 p-6 rounded-3xl rounded-tr-none shadow-[0_20px_50px_rgba(0,0,0,0.3)] max-w-[85%] border-b-blue-500/50 border-b-2 relative z-20">
-            <p class="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap font-sans font-medium">${mensajeSeguro}</p>
+            <p class="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap font-sans font-medium">${msg}</p>
         </div>
         <div class="w-14 h-14 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shrink-0 border border-slate-600 shadow-2xl relative z-20">
             <i class="fa-solid fa-user-gear text-blue-400 text-xl"></i>
@@ -558,17 +560,16 @@ function agregarBurbujaUsuario(texto) {
     hacerScrollAbajo();
 }
 
-/**
- * Genera el indicador de carga con la identidad del sistema.
- */
+// ==========================================
+// ⏳ LOADING
+// ==========================================
 function mostrarCargando() {
     if (!output) return null;
 
-    const id = "load_" + Date.now();
-    const div = document.createElement("div");
-
+    const id = `load_${Date.now()}`;
+    const div = document.createElement('div');
     div.id = id;
-    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10";
+    div.className = 'flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10';
 
     div.innerHTML = `
         <div class="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(37,99,235,0.5)] animate-pulse relative z-20">
@@ -581,7 +582,7 @@ function mostrarCargando() {
                 <div class="w-3 h-3 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
             </div>
             <div>
-                <span class="text-[13px] font-mono text-blue-400 uppercase tracking-[0.5em] block font-black">Heberto V5.26</span>
+                <span class="text-[13px] font-mono text-blue-400 uppercase tracking-[0.5em] block font-black">Heberto V5.27</span>
                 <span class="text-[10px] text-slate-500 font-mono uppercase font-bold">Auditando Autoridad Atómica...</span>
             </div>
         </div>
@@ -589,21 +590,17 @@ function mostrarCargando() {
 
     output.appendChild(div);
     hacerScrollAbajo();
-
     return id;
 }
 
-/**
- * Renderiza el módulo generado dentro de un Sandbox blindado.
- */
+// ==========================================
+// 🧩 RENDER MÓDULO
+// ==========================================
 function renderModuloSeguro(json) {
     if (!output) return;
 
-    const div = document.createElement("div");
-    // Control de capas: Contenedor en z-10
-    div.className = "gestia-bunker-container flex gap-5 animate-fade-in max-w-7xl mx-auto w-full mt-12 relative z-10";
-
-    const hashSeguro = escaparHTML(json.hash_contenido || "SSOT_V526");
+    const div = document.createElement('div');
+    div.className = 'gestia-bunker-container flex gap-5 animate-fade-in max-w-7xl mx-auto w-full mt-12 relative z-10';
 
     div.innerHTML = `
         <div class="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(16,185,129,0.4)] relative z-20">
@@ -614,82 +611,42 @@ function renderModuloSeguro(json) {
 
             <div class="flex justify-between items-center mb-8 border-b border-emerald-500/10 pb-6 relative z-30">
                 <div>
-                    <h3 class="font-black text-emerald-400 text-sm tracking-[0.4em] uppercase">
-                        Sincronización Atómica God-Authority
-                    </h3>
-                    <p class="text-[11px] text-slate-500 font-mono mt-2 uppercase font-bold tracking-widest">
-                        Hash_ADN: ${hashSeguro}
+                    <h3 class="font-black text-emerald-400 text-sm tracking-[0.4em] uppercase">Sincronización Atómica</h3>
+                    <p class="text-[11px] text-slate-500 font-mono mt-2 uppercase font-bold">
+                        Hash_ADN: ${escaparHTML(json.hash_contenido || 'SSOT')}
                     </p>
-                </div>
-
-                <div class="flex gap-3">
-                    <button class="btn-toggle-json text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-5 py-2 rounded-xl border border-slate-700 font-bold transition-all">
-                        INSIDER JSON
-                    </button>
                 </div>
             </div>
 
             <div class="sandbox-wrapper relative z-20"></div>
 
-            <div class="json-box hidden mt-6 relative z-20">
-                <pre class="p-8 bg-black/80 rounded-2xl text-[11px] font-mono text-emerald-400 overflow-x-auto border border-slate-800"><code>${escaparHTML(JSON.stringify(json, null, 2))}</code></pre>
-            </div>
-
-            <div class="mt-8 pt-6 border-t border-slate-800/50 flex justify-between items-center relative z-20">
-                <span class="text-[10px] text-slate-500 font-mono italic">
-                    "Código verificado y persistido por la autoridad central."
-                </span>
-
-                <button class="btn-open-preview bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-8 py-3 rounded-2xl shadow-xl uppercase tracking-widest transition-all">
-                    Desplegar Full App
-                </button>
-            </div>
         </div>
     `;
 
-    // Aislamiento de Sandbox
     const sandbox = crearSandboxSeguro(json.html, json.javascript, json.css || "");
-    div.querySelector(".sandbox-wrapper").appendChild(sandbox);
-
-    // Gestión de eventos atómicos
-    const btnToggle = div.querySelector(".btn-toggle-json");
-    const jsonBox = div.querySelector(".json-box");
-    btnToggle.addEventListener("click", () => jsonBox.classList.toggle("hidden"));
-
-    const btnPreview = div.querySelector(".btn-open-preview");
-    btnPreview.addEventListener("click", () => {
-        window.open("preview.html?id=" + json.modulo_id, "_blank");
-    });
+    div.querySelector('.sandbox-wrapper').appendChild(sandbox);
 
     output.appendChild(div);
     hacerScrollAbajo();
 }
 
-/**
- * Muestra el código reescrito con auditoría + copia segura (Flujo B)
- */
+// ==========================================
+// 💻 BURBUJA CÓDIGO (FIX DEFINITIVO)
+// ==========================================
 function agregarBurbujaCodigo(codigo) {
     if (!output) return;
 
-    const div = document.createElement("div");
-    div.className = "gestia-bunker-container flex gap-5 animate-fade-in max-w-5xl mx-auto w-full mt-12 relative z-10";
+    const codigoValido = obtenerCodigoValido(codigo);
 
-    // Normalización de contenido ADN
-    let contenidoSeguro = "";
-    if (typeof codigo === "string") {
-        contenidoSeguro = codigo;
-    } else if (typeof codigo === "object") {
-        contenidoSeguro = JSON.stringify(codigo, null, 2);
-    } else {
-        contenidoSeguro = "[Contenido no interpretable]";
-    }
+    const contenidoFinal = codigoValido 
+        ? escaparHTML(codigoValido)
+        : "⚠️ Código vacío recibido desde IA";
 
-    // Validación de integridad de la IA
-    if (!contenidoSeguro.trim()) {
-        contenidoSeguro = "[⚠️ Código vacío recibido desde IA]";
-    }
+    console.log("🧠 DEBUG IA RAW:", codigo);
+    console.log("🧠 DEBUG IA PROCESADO:", codigoValido);
 
-    const escaped = escaparHTML(contenidoSeguro);
+    const div = document.createElement('div');
+    div.className = 'gestia-bunker-container flex gap-5 animate-fade-in max-w-5xl mx-auto w-full mt-12 relative z-10';
 
     div.innerHTML = `
         <div class="w-14 h-14 rounded-full bg-indigo-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(79,70,229,0.4)] relative z-20">
@@ -699,59 +656,61 @@ function agregarBurbujaCodigo(codigo) {
         <div class="bg-[#0f172a] border border-indigo-500/30 p-10 rounded-[2.5rem] rounded-tl-none shadow-[0_30px_80px_rgba(0,0,0,0.6)] flex-1 overflow-hidden relative z-10">
 
             <div class="flex justify-between items-center mb-8 border-b border-indigo-500/10 pb-6 relative z-30">
-                <h3 class="font-black text-indigo-400 text-sm uppercase tracking-[0.4em]">
-                    Arquitectura Libre Reescrita
-                </h3>
+                <h3 class="font-black text-indigo-400 text-sm uppercase tracking-[0.4em]">Arquitectura Libre</h3>
 
-                <button class="btn-copy-adn text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-2xl shadow-2xl font-black uppercase tracking-widest transition-all">
+                <button class="copy-btn text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-2xl shadow-2xl font-black uppercase tracking-widest">
                     COPIAR ADN
                 </button>
             </div>
 
-            <p class="text-slate-400 text-xs mb-6 italic leading-relaxed relative z-20">
-                Instrucción procesada sin compactación. Integridad V5.26 garantizada.
-            </p>
-
-            <div class="bg-black/70 rounded-3xl border border-slate-800 relative z-20 shadow-inner">
-                <pre class="p-8 overflow-x-auto text-[12px] font-mono text-blue-300 max-h-[750px] overflow-y-auto custom-scrollbar"><code style="white-space: pre-wrap; word-break: break-all;">${escaped}</code></pre>
+            <div class="bg-black/70 rounded-3xl border border-slate-800 relative z-20">
+                <pre class="p-8 overflow-x-auto text-[12px] font-mono text-blue-300 max-h-[750px] overflow-y-auto">
+<code>${contenidoFinal}</code>
+                </pre>
             </div>
+
         </div>
     `;
 
-    // Vinculación al motor de copiado híbrido
-    const boton = div.querySelector(".btn-copy-adn");
-    const codeElement = div.querySelector("code");
+    // 🔥 EVENTO REAL (NO INLINE)
+    const btn = div.querySelector(".copy-btn");
 
-    boton.addEventListener("click", () => {
-        const adn = codeElement ? codeElement.textContent : "";
-        copiarADNSeguro(adn, boton);
+    btn.addEventListener("click", async () => {
+        const code = div.querySelector("code").textContent;
+
+        const ok = await copiarAlPortapapelesSeguro(code);
+
+        if (ok) {
+            btn.innerText = "¡COPIADO!";
+        } else {
+            btn.innerText = "ERROR";
+        }
+
+        setTimeout(() => {
+            btn.innerText = "COPIAR ADN";
+        }, 2000);
     });
 
     output.appendChild(div);
     hacerScrollAbajo();
 }
 
-/**
- * Notifica fallos sistémicos con estética forense.
- */
+// ==========================================
+// ❌ ERROR
+// ==========================================
 function agregarBurbujaError(msg) {
     if (!output) return;
 
-    const div = document.createElement("div");
-    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10";
+    const div = document.createElement('div');
+    div.className = 'flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10';
 
     div.innerHTML = `
-        <div class="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(220,38,38,0.4)] relative z-20">
+        <div class="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center shrink-0">
             <i class="fa-solid fa-skull-crossbones text-white text-xl"></i>
         </div>
 
-        <div class="bg-red-950/20 border border-red-500/30 p-8 rounded-[2.5rem] rounded-tl-none flex-1 shadow-2xl backdrop-blur-md relative z-10">
-            <h3 class="text-red-400 text-[11px] font-black uppercase tracking-[0.3em] mb-3">
-                Intervención de Autoridad V5.26
-            </h3>
-            <p class="text-slate-200 text-sm leading-relaxed font-mono font-medium">
-                ${escaparHTML(msg)}
-            </p>
+        <div class="bg-red-950/20 border border-red-500/30 p-8 rounded-[2.5rem] flex-1">
+            <p class="text-slate-200 font-mono">${escaparHTML(msg)}</p>
         </div>
     `;
 
@@ -759,39 +718,14 @@ function agregarBurbujaError(msg) {
     hacerScrollAbajo();
 }
 
-/**
- * Información de sistema (Logs silenciosos en UI).
- */
-function agregarBurbujaInfo(msg) {
-    if (!output) return;
-
-    const div = document.createElement("div");
-    div.className = "flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-5 opacity-70 relative z-10";
-
-    div.innerHTML = `
-        <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border border-slate-700 shadow-lg relative z-20">
-            <i class="fa-solid fa-fingerprint text-slate-500 text-sm"></i>
-        </div>
-
-        <div class="bg-slate-800/30 border border-slate-700 p-4 rounded-2xl flex-1 backdrop-blur-sm relative z-10">
-            <p class="text-slate-400 text-[11px] font-mono font-bold tracking-tight">
-                ${escaparHTML(msg)}
-            </p>
-        </div>
-    `;
-
-    output.appendChild(div);
-    hacerScrollAbajo();
-}
-
-/**
- * Control de scroll cinemático.
- */
+// ==========================================
+// 📜 SCROLL
+// ==========================================
 function hacerScrollAbajo() {
     if (output) {
         output.scrollTo({
             top: output.scrollHeight,
-            behavior: "smooth"
+            behavior: 'smooth'
         });
     }
 }
