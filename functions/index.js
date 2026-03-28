@@ -1034,7 +1034,7 @@ exports.gestiaArchitectV5 = functions
                     model: "gemini-2.5-flash",
                     generationConfig: {
                         temperature: 0.4,
-                        maxOutputTokens: 2048, 
+                        maxOutputTokens: 4096, // 🚀 AJUSTE V13: Subimos a 4096 para evitar cortes de texto plano
                         responseMimeType: "application/json" // 🛡️ INYECCIÓN V13: Fuerza JSON nativo
                     }
                 });
@@ -1104,6 +1104,7 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
     });
 
 exports.generarModuloIA = exports.gestiaArchitectV5;
+
 // ------------------------------------------------------------------
 // 7. GESTIÓN DE RESERVAS & ACCESOS (V5.19)
 // ------------------------------------------------------------------
