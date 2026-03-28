@@ -468,7 +468,6 @@ if (form) {
         if (!instruccion && contextoMultimodal.length === 0) return;
 
         // ⚡ 2. BLOQUEO DE UI VISUAL (MODO ESPERA ACTIVO)
-        // Deshabilitamos el input y el botón, y agregamos estilo de carga
         btnGenerate.disabled = true;
         btnGenerate.classList.add('opacity-50', 'cursor-not-allowed');
         input.disabled = true; 
@@ -481,7 +480,6 @@ if (form) {
 
         try {
             // 🔥 2.5. FIREWALL ENGINE (CAPA 1: UX RATE LIMITER)
-            // Detiene peticiones abusivas antes de procesarlas
             logger.log("🛡️ Evaluando reglas de Firewall UX...");
             await ejecutarFirewallGlobal({
                 userId: SESSION.uid,
@@ -512,54 +510,88 @@ if (form) {
 
             // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine)
             const brainRes = await invocarArquitectoIA(
-                `ORDEN_GOD_V5.26: ${instruccion}\n\n${esquemaCorral}`,
+                `ORDEN_GOD_V5.27: ${instruccion}\n\n${esquemaCorral}`,
                 contextoMultimodal,
                 opId
             );
 
-            const rawTexto = brainRes.modulo_generado || "";
-            const limpio = limpiarRespuestaIA(rawTexto); // Limpieza de backticks
+            // 🧹 6. NORMALIZACIÓN DE SALIDA (CIRCUITO CERRADO V5.27)
+            const resultadoIA = normalizarSalidaIA(brainRes);
 
-            // 🧹 6. LIMPIEZA DE CONTEXTO
+            // Limpieza de contexto volátil
             contextoMultimodal = []; 
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
 
-            try {
-                // FLUJO A: Módulo Estructurado (JSON)
-                let dataIA = JSON.parse(limpio);
+            // 🔀 7. SWITCH MAESTRO DE FLUJO
+            switch (resultadoIA.tipo) {
 
-                // 🛡️ 7. AUDITORÍA (Audit Engine)
-                const auditoria = await ejecutarAuditoriaCore(dataIA, versionLocalSnapshot, {
-                    generarHash: generarHashSHA256,
-                    normalizar: normalizarEstructura
-                });
+                case "json":
+                    try {
+                        logger.log("💎 Detectado Flujo A: Módulo Estructurado (JSON).");
+                        
+                        // 🛡️ AUDITORÍA (Audit Engine)
+                        const auditoria = await ejecutarAuditoriaCore(
+                            resultadoIA.json, 
+                            versionLocalSnapshot, 
+                            {
+                                generarHash: generarHashSHA256,
+                                normalizar: normalizarEstructura
+                            }
+                        );
 
-                // 🏛️ 8. PERSISTENCIA ATÓMICA (Persistence Engine)
-                await ejecutarPersistenciaCore(
-                    auditoria.data.modulo_id, 
-                    auditoria.data, 
-                    auditoria.hash, 
-                    SESSION.tenantId
-                );
-                
-                versionLocalSnapshot = auditoria.hash;
-                logger.log("🏛️ ADN Inmortalizado mediante Transacción Atómica.");
+                        // 🏛️ PERSISTENCIA ATÓMICA (Persistence Engine)
+                        await ejecutarPersistenciaCore(
+                            auditoria.data.modulo_id, 
+                            auditoria.data, 
+                            auditoria.hash, 
+                            SESSION.tenantId
+                        );
+                        
+                        versionLocalSnapshot = auditoria.hash;
+                        logger.log("🏛️ ADN Inmortalizado mediante Transacción Atómica.");
 
-                // 🚀 9. RENDERIZADO
-                renderModuloSeguro(auditoria.data);
+                        // 🚀 RENDERIZADO
+                        renderModuloSeguro(auditoria.data);
 
-                // 🏁 10. FINALIZACIÓN
-                await updateDoc(doc(db, "gestia_operations", opId), {
-                    status: "completed",
-                    hash_final: auditoria.hash
-                });
+                        // 🏁 FINALIZACIÓN DE OPERACIÓN
+                        await updateDoc(doc(db, "gestia_operations", opId), {
+                            status: "completed",
+                            hash_final: auditoria.hash
+                        });
 
-            } catch (eJson) {
-                // FLUJO B: Fallback de Código Plano
-                logger.log("Detectado flujo de código plano. Renderizando...");
-                agregarBurbujaCodigo(limpio);
-                await updateDoc(doc(db, "gestia_operations", opId), { status: "completed_code" });
+                    } catch (errJson) {
+                        logger.error(`FALLO_PROCESAMIENTO_JSON: ${errJson.message}`);
+                        agregarBurbujaError("ERROR_ESTRUCTURAL: El JSON de la IA no superó la auditoría core.");
+                    }
+                    break;
+
+                case "code":
+                    logger.log("💻 Detectado Flujo B: Código Plano / Arquitectura Libre.");
+                    agregarBurbujaCodigo(resultadoIA.codigo);
+                    
+                    await updateDoc(doc(db, "gestia_operations", opId), { 
+                        status: "completed_code" 
+                    });
+                    break;
+
+                case "empty":
+                    logger.warn("⚠️ IA respondió vacío o payload nulo.");
+                    agregarBurbujaError("FALLO_DE_RESPUESTA: La IA no devolvió ADN procesable. Reintenta la instrucción.");
+                    
+                    await updateDoc(doc(db, "gestia_operations", opId), { 
+                        status: "empty_response" 
+                    });
+                    break;
+
+                default:
+                    logger.log("⚠️ Detectado Flujo Desconocido. Intentando renderizado de emergencia.");
+                    agregarBurbujaCodigo(resultadoIA.codigo || "[Sin contenido extraíble]");
+                    
+                    await updateDoc(doc(db, "gestia_operations", opId), { 
+                        status: "fallback_unknown" 
+                    });
+                    break;
             }
 
         } catch (err) {
@@ -568,12 +600,179 @@ if (form) {
                 await registrarErrorFirewall(SESSION.uid, SESSION.tenantId);
             }
             logger.error(`FALLO_SISTEMICO: ${err.message}`);
+            
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
+            
             agregarBurbujaError(err.message);
         } finally {
-            // ⚡ DESBLOQUEO DE UI VISUAL (FIN DEL MODO ESPERA)
-            // Restauramos el input y el botón independientemente de si hubo éxito o error
+            // ⚡ DESBLOQUEO DE UI VISUAL
+            btnGenerate.disabled = false;
+            btnGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
+            input.disabled = false;
+            input.classList.remove('opacity-50', 'bg-slate-900');
+            input.focus();
+            hacerScrollAbajo();
+        }
+    });
+}// ==========================================
+// 13. EVENTO PRINCIPAL: SUBMIT (THE ORCHESTRATOR)
+// ==========================================
+if (form) {
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        // 🛡️ 1. CANDADO DE AUTORIDAD: Bloqueo inmediato sin sesión.
+        if (!SESSION || !SESSION.authorized) {
+            agregarBurbujaError("🚨 Bloqueo de Seguridad: Esperando autoridad del sistema. Reintenta en 3 segundos.");
+            return;
+        }
+
+        const logger = crearLogger();
+        const instruccion = input.value.trim();
+
+        if (!instruccion && contextoMultimodal.length === 0) return;
+
+        // ⚡ 2. BLOQUEO DE UI VISUAL (MODO ESPERA ACTIVO)
+        btnGenerate.disabled = true;
+        btnGenerate.classList.add('opacity-50', 'cursor-not-allowed');
+        input.disabled = true; 
+        input.classList.add('opacity-50', 'bg-slate-900');
+        input.value = '';
+        input.style.height = '60px';
+
+        agregarBurbujaUsuario(instruccion);
+        const idCarga = mostrarCargando(); // Levanta el spinner "Auditando Autoridad..."
+
+        try {
+            // 🔥 2.5. FIREWALL ENGINE (CAPA 1: UX RATE LIMITER)
+            logger.log("🛡️ Evaluando reglas de Firewall UX...");
+            await ejecutarFirewallGlobal({
+                userId: SESSION.uid,
+                tenantId: SESSION.tenantId,
+                input: instruccion || "multimodal_payload"
+            });
+
+            // 🔑 3. IDEMPOTENCIA Y REGISTRO (Operations Engine)
+            const opId = await generarHashSHA256(instruccion + Date.now() + SESSION.uid + SESSION.tenantId);
+            const yaExiste = await verificarIdempotencia(opId);
+
+            if (yaExiste) {
+                throw new Error("OPERACION_DUPLICADA: Esta orden ya está siendo procesada.");
+            }
+
+            const pHash = await generarHashSHA256(instruccion);
+            await registrarOperacion({
+                opId,
+                promptHash: pHash,
+                userId: SESSION.uid,
+                tenantId: SESSION.tenantId,
+                version: GESTIA_CONFIG.VERSION
+            });
+
+            // 📝 4. CONTEXTO SEMÁNTICO (Semantic Engine)
+            esquemaCorral = await sincronizarCorralSemantico(instruccion);
+            logger.log("🏗️ Contexto semántico inyectado desde el Core.");
+
+            // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine)
+            const brainRes = await invocarArquitectoIA(
+                `ORDEN_GOD_V5.27: ${instruccion}\n\n${esquemaCorral}`,
+                contextoMultimodal,
+                opId
+            );
+
+            // 🧹 6. NORMALIZACIÓN DE SALIDA (CIRCUITO CERRADO V5.27)
+            const resultadoIA = normalizarSalidaIA(brainRes);
+
+            // Limpieza de contexto volátil
+            contextoMultimodal = []; 
+            const loadingElement = document.getElementById(idCarga);
+            if (loadingElement) loadingElement.remove();
+
+            // 🔀 7. SWITCH MAESTRO DE FLUJO
+            switch (resultadoIA.tipo) {
+
+                case "json":
+                    try {
+                        logger.log("💎 Detectado Flujo A: Módulo Estructurado (JSON).");
+                        
+                        // 🛡️ AUDITORÍA (Audit Engine)
+                        const auditoria = await ejecutarAuditoriaCore(
+                            resultadoIA.json, 
+                            versionLocalSnapshot, 
+                            {
+                                generarHash: generarHashSHA256,
+                                normalizar: normalizarEstructura
+                            }
+                        );
+
+                        // 🏛️ PERSISTENCIA ATÓMICA (Persistence Engine)
+                        await ejecutarPersistenciaCore(
+                            auditoria.data.modulo_id, 
+                            auditoria.data, 
+                            auditoria.hash, 
+                            SESSION.tenantId
+                        );
+                        
+                        versionLocalSnapshot = auditoria.hash;
+                        logger.log("🏛️ ADN Inmortalizado mediante Transacción Atómica.");
+
+                        // 🚀 RENDERIZADO
+                        renderModuloSeguro(auditoria.data);
+
+                        // 🏁 FINALIZACIÓN DE OPERACIÓN
+                        await updateDoc(doc(db, "gestia_operations", opId), {
+                            status: "completed",
+                            hash_final: auditoria.hash
+                        });
+
+                    } catch (errJson) {
+                        logger.error(`FALLO_PROCESAMIENTO_JSON: ${errJson.message}`);
+                        agregarBurbujaError("ERROR_ESTRUCTURAL: El JSON de la IA no superó la auditoría core.");
+                    }
+                    break;
+
+                case "code":
+                    logger.log("💻 Detectado Flujo B: Código Plano / Arquitectura Libre.");
+                    agregarBurbujaCodigo(resultadoIA.codigo);
+                    
+                    await updateDoc(doc(db, "gestia_operations", opId), { 
+                        status: "completed_code" 
+                    });
+                    break;
+
+                case "empty":
+                    logger.warn("⚠️ IA respondió vacío o payload nulo.");
+                    agregarBurbujaError("FALLO_DE_RESPUESTA: La IA no devolvió ADN procesable. Reintenta la instrucción.");
+                    
+                    await updateDoc(doc(db, "gestia_operations", opId), { 
+                        status: "empty_response" 
+                    });
+                    break;
+
+                default:
+                    logger.log("⚠️ Detectado Flujo Desconocido. Intentando renderizado de emergencia.");
+                    agregarBurbujaCodigo(resultadoIA.codigo || "[Sin contenido extraíble]");
+                    
+                    await updateDoc(doc(db, "gestia_operations", opId), { 
+                        status: "fallback_unknown" 
+                    });
+                    break;
+            }
+
+        } catch (err) {
+            // 🚨 CATCH CRÍTICO: Registramos error de Firewall si fue un bloqueo por abuso
+            if (err.message.includes("FIREWALL") || err.message.includes("RATE_LIMIT")) {
+                await registrarErrorFirewall(SESSION.uid, SESSION.tenantId);
+            }
+            logger.error(`FALLO_SISTEMICO: ${err.message}`);
+            
+            const loadingElement = document.getElementById(idCarga);
+            if (loadingElement) loadingElement.remove();
+            
+            agregarBurbujaError(err.message);
+        } finally {
+            // ⚡ DESBLOQUEO DE UI VISUAL
             btnGenerate.disabled = false;
             btnGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
             input.disabled = false;
@@ -583,82 +782,24 @@ if (form) {
         }
     });
 }
-
 // ==========================================
 // 14. UI BUILDERS (GRADO INDUSTRIAL V5.27)
 // ==========================================
 
-// ==========================================
-// 🔐 COPY ENGINE HÍBRIDO (BLINDADO)
-// ==========================================
-async function copiarAlPortapapelesSeguro(texto) {
-    try {
-        if (!texto || texto.trim() === "") {
-            throw new Error("COPY_FAIL_EMPTY");
-        }
-
-        // Método moderno
-        if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(texto);
-            return true;
-        }
-
-        // Fallback legacy (tanque)
-        const textarea = document.createElement("textarea");
-        textarea.value = texto;
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        textarea.style.pointerEvents = "none";
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-
-        const success = document.execCommand("copy");
-        document.body.removeChild(textarea);
-
-        if (!success) throw new Error("COPY_FAIL_EXEC");
-
-        return true;
-
-    } catch (err) {
-        console.error("❌ ERROR COPY:", err.message);
-        return false;
-    }
-}
-
-// ==========================================
-// 🧠 NORMALIZADOR DE CÓDIGO IA
-// ==========================================
-function obtenerCodigoValido(codigo) {
-    if (!codigo) return null;
-
-    if (typeof codigo === "string" && codigo.trim() !== "") {
-        return codigo.trim();
-    }
-
-    if (typeof codigo === "object") {
-        if (codigo.javascript) return codigo.javascript;
-        if (codigo.html) return codigo.html;
-        if (codigo.code) return codigo.code;
-    }
-
-    return null;
-}
-
-// ==========================================
-// 👤 BURBUJA USUARIO
-// ==========================================
+/**
+ * Renderiza la burbuja del CEO con el ADN del prompt.
+ */
 function agregarBurbujaUsuario(texto) {
     if (!output) return;
 
-    const div = document.createElement('div');
-    div.className = 'flex gap-5 animate-fade-in max-w-4xl mx-auto w-full justify-end mt-12 relative z-10';
+    const div = document.createElement("div");
+    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full justify-end mt-12 relative z-10";
 
-    const msg = escaparHTML(texto || "[Instrucción Multimodal Absorbida]");
+    const mensajeSeguro = escaparHTML(texto || "[Instrucción Multimodal Absorbida]");
 
     div.innerHTML = `
         <div class="bg-slate-800/80 backdrop-blur-md border border-slate-700 p-6 rounded-3xl rounded-tr-none shadow-[0_20px_50px_rgba(0,0,0,0.3)] max-w-[85%] border-b-blue-500/50 border-b-2 relative z-20">
-            <p class="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap font-sans font-medium">${msg}</p>
+            <p class="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap font-sans font-medium">${mensajeSeguro}</p>
         </div>
         <div class="w-14 h-14 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shrink-0 border border-slate-600 shadow-2xl relative z-20">
             <i class="fa-solid fa-user-gear text-blue-400 text-xl"></i>
@@ -669,16 +810,17 @@ function agregarBurbujaUsuario(texto) {
     hacerScrollAbajo();
 }
 
-// ==========================================
-// ⏳ LOADING
-// ==========================================
+/**
+ * Genera el indicador de carga con la identidad del sistema.
+ */
 function mostrarCargando() {
     if (!output) return null;
 
-    const id = `load_${Date.now()}`;
-    const div = document.createElement('div');
+    const id = "load_" + Date.now();
+    const div = document.createElement("div");
+
     div.id = id;
-    div.className = 'flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10';
+    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10";
 
     div.innerHTML = `
         <div class="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(37,99,235,0.5)] animate-pulse relative z-20">
@@ -702,14 +844,17 @@ function mostrarCargando() {
     return id;
 }
 
-// ==========================================
-// 🧩 RENDER MÓDULO
-// ==========================================
+/**
+ * Renderiza el módulo generado dentro de un Sandbox blindado (Flujo A).
+ */
 function renderModuloSeguro(json) {
     if (!output) return;
 
-    const div = document.createElement('div');
-    div.className = 'gestia-bunker-container flex gap-5 animate-fade-in max-w-7xl mx-auto w-full mt-12 relative z-10';
+    const div = document.createElement("div");
+    // 🛡️ AISLAMIENTO: relative z-10 para no ser bloqueado por fondos
+    div.className = "gestia-bunker-container flex gap-5 animate-fade-in max-w-7xl mx-auto w-full mt-12 relative z-10";
+
+    const hashSeguro = escaparHTML(json.hash_contenido || "SSOT_V527");
 
     div.innerHTML = `
         <div class="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(16,185,129,0.4)] relative z-20">
@@ -718,44 +863,61 @@ function renderModuloSeguro(json) {
 
         <div class="bg-[#0f172a] border border-emerald-500/30 p-10 rounded-[2.5rem] rounded-tl-none shadow-[0_40px_100px_rgba(0,0,0,0.7)] flex-1 overflow-hidden relative z-10">
 
-            <div class="flex justify-between items-center mb-8 border-b border-emerald-500/10 pb-6 relative z-30">
+            <div class="flex justify-between items-center mb-8 border-b border-emerald-500/10 pb-6 relative z-30 h-auto">
                 <div>
-                    <h3 class="font-black text-emerald-400 text-sm tracking-[0.4em] uppercase">Sincronización Atómica</h3>
-                    <p class="text-[11px] text-slate-500 font-mono mt-2 uppercase font-bold">
-                        Hash_ADN: ${escaparHTML(json.hash_contenido || 'SSOT')}
-                    </p>
+                    <h3 class="font-black text-emerald-400 text-sm tracking-[0.4em] uppercase">Sincronización Atómica God-Authority</h3>
+                    <p class="text-[11px] text-slate-500 font-mono mt-2 uppercase font-bold tracking-widest">Hash_ADN: ${hashSeguro}</p>
+                </div>
+                <div class="flex gap-3">
+                    <button class="btn-toggle-json text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-5 py-2 rounded-xl border border-slate-700 font-bold transition-all">
+                        INSIDER JSON
+                    </button>
                 </div>
             </div>
 
             <div class="sandbox-wrapper relative z-20"></div>
 
+            <div class="json-box hidden mt-6 relative z-20">
+                <pre class="p-8 bg-black/80 rounded-2xl text-[11px] font-mono text-emerald-400 overflow-x-auto border border-slate-800 custom-scrollbar"><code>${escaparHTML(JSON.stringify(json, null, 2))}</code></pre>
+            </div>
+
+            <div class="mt-8 pt-6 border-t border-slate-800/50 flex justify-between items-center relative z-20">
+                <span class="text-[10px] text-slate-500 font-mono italic">"Código verificado y persistido por la autoridad central."</span>
+                <button class="btn-open-preview bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-8 py-3 rounded-2xl shadow-xl transition-all uppercase tracking-widest">Desplegar Full App</button>
+            </div>
         </div>
     `;
 
+    // Inyección de Sandbox (Aislamiento de ejecución)
     const sandbox = crearSandboxSeguro(json.html, json.javascript, json.css || "");
-    div.querySelector('.sandbox-wrapper').appendChild(sandbox);
+    div.querySelector(".sandbox-wrapper").appendChild(sandbox);
+
+    // Eventos Atómicos
+    const btnToggle = div.querySelector(".btn-toggle-json");
+    const jsonBox = div.querySelector(".json-box");
+    btnToggle.addEventListener("click", () => jsonBox.classList.toggle("hidden"));
+
+    const btnPreview = div.querySelector(".btn-open-preview");
+    btnPreview.addEventListener("click", () => {
+        window.open("preview.html?id=" + json.modulo_id, "_blank");
+    });
 
     output.appendChild(div);
     hacerScrollAbajo();
 }
 
-// ==========================================
-// 💻 BURBUJA CÓDIGO (FIX DEFINITIVO)
-// ==========================================
+/**
+ * Muestra el código reescrito con auditoría + copia segura (Flujo B)
+ */
 function agregarBurbujaCodigo(codigo) {
     if (!output) return;
 
+    const div = document.createElement("div");
+    // 🛡️ FIX CAPAS: relative z-10 para asegurar clic directo
+    div.className = "gestia-bunker-container flex gap-5 animate-fade-in max-w-5xl mx-auto w-full mt-12 relative z-10";
+
     const codigoValido = obtenerCodigoValido(codigo);
-
-    const contenidoFinal = codigoValido 
-        ? escaparHTML(codigoValido)
-        : "⚠️ Código vacío recibido desde IA";
-
-    console.log("🧠 DEBUG IA RAW:", codigo);
-    console.log("🧠 DEBUG IA PROCESADO:", codigoValido);
-
-    const div = document.createElement('div');
-    div.className = 'gestia-bunker-container flex gap-5 animate-fade-in max-w-5xl mx-auto w-full mt-12 relative z-10';
+    const contenidoFinal = codigoValido ? escaparHTML(codigoValido) : "⚠️ Código vacío recibido desde IA";
 
     div.innerHTML = `
         <div class="w-14 h-14 rounded-full bg-indigo-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(79,70,229,0.4)] relative z-20">
@@ -764,39 +926,39 @@ function agregarBurbujaCodigo(codigo) {
 
         <div class="bg-[#0f172a] border border-indigo-500/30 p-10 rounded-[2.5rem] rounded-tl-none shadow-[0_30px_80px_rgba(0,0,0,0.6)] flex-1 overflow-hidden relative z-10">
 
-            <div class="flex justify-between items-center mb-8 border-b border-indigo-500/10 pb-6 relative z-30">
-                <h3 class="font-black text-indigo-400 text-sm uppercase tracking-[0.4em]">Arquitectura Libre</h3>
-
-                <button class="copy-btn text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-2xl shadow-2xl font-black uppercase tracking-widest">
+            <div class="flex justify-between items-center mb-8 border-b border-indigo-500/10 pb-6 relative z-30 h-auto">
+                <h3 class="font-black text-indigo-400 text-sm uppercase tracking-[0.4em]">Arquitectura Libre Reescrita</h3>
+                <button class="btn-copy-adn text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-2xl shadow-2xl font-black uppercase tracking-widest transition-all">
                     COPIAR ADN
                 </button>
             </div>
 
-            <div class="bg-black/70 rounded-3xl border border-slate-800 relative z-20">
-                <pre class="p-8 overflow-x-auto text-[12px] font-mono text-blue-300 max-h-[750px] overflow-y-auto">
-<code>${contenidoFinal}</code>
-                </pre>
-            </div>
+            <p class="text-slate-400 text-xs mb-6 italic leading-relaxed relative z-20">
+                Instrucción procesada sin compactación. Integridad V5.27 garantizada.
+            </p>
 
+            <div class="bg-black/70 rounded-3xl border border-slate-800 relative z-20 shadow-inner">
+                <pre class="p-8 overflow-x-auto text-[12px] font-mono text-blue-300 max-h-[750px] overflow-y-auto custom-scrollbar"><code style="white-space: pre-wrap; word-break: break-all;">${contenidoFinal}</code></pre>
+            </div>
         </div>
     `;
 
-    // 🔥 EVENTO REAL (NO INLINE)
-    const btn = div.querySelector(".copy-btn");
+    // Vinculación al motor de copiado híbrido (Paso 1)
+    const boton = div.querySelector(".btn-copy-adn");
+    const codeElement = div.querySelector("code");
 
-    btn.addEventListener("click", async () => {
-        const code = div.querySelector("code").textContent;
-
-        const ok = await copiarAlPortapapelesSeguro(code);
-
-        if (ok) {
-            btn.innerText = "¡COPIADO!";
+    boton.addEventListener("click", async () => {
+        const adn = codeElement ? codeElement.textContent : "";
+        const exito = await copiarAlPortapapelesSeguro(adn);
+        
+        if (exito) {
+            boton.innerText = "¡COPIADO!";
         } else {
-            btn.innerText = "ERROR";
+            boton.innerText = "ERROR";
         }
 
         setTimeout(() => {
-            btn.innerText = "COPIAR ADN";
+            boton.innerText = "COPIAR ADN";
         }, 2000);
     });
 
@@ -804,22 +966,25 @@ function agregarBurbujaCodigo(codigo) {
     hacerScrollAbajo();
 }
 
-// ==========================================
-// ❌ ERROR
-// ==========================================
+/**
+ * Notifica fallos sistémicos con estética forense.
+ */
 function agregarBurbujaError(msg) {
     if (!output) return;
 
-    const div = document.createElement('div');
-    div.className = 'flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10';
+    const div = document.createElement("div");
+    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10";
 
     div.innerHTML = `
-        <div class="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center shrink-0">
+        <div class="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(220,38,38,0.4)] relative z-20">
             <i class="fa-solid fa-skull-crossbones text-white text-xl"></i>
         </div>
 
-        <div class="bg-red-950/20 border border-red-500/30 p-8 rounded-[2.5rem] flex-1">
-            <p class="text-slate-200 font-mono">${escaparHTML(msg)}</p>
+        <div class="bg-red-950/20 border border-red-500/30 p-8 rounded-[2.5rem] rounded-tl-none flex-1 shadow-2xl backdrop-blur-md relative z-10">
+            <h3 class="text-red-400 text-[11px] font-black uppercase tracking-[0.3em] mb-3 relative z-20">Intervención de Autoridad V5.27</h3>
+            <p class="text-slate-200 text-sm leading-relaxed font-mono font-medium relative z-20">
+                ${escaparHTML(msg)}
+            </p>
         </div>
     `;
 
@@ -827,14 +992,39 @@ function agregarBurbujaError(msg) {
     hacerScrollAbajo();
 }
 
-// ==========================================
-// 📜 SCROLL
-// ==========================================
+/**
+ * Información de sistema (Logs silenciosos en UI).
+ */
+function agregarBurbujaInfo(msg) {
+    if (!output) return;
+
+    const div = document.createElement("div");
+    div.className = "flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-5 opacity-70 relative z-10";
+
+    div.innerHTML = `
+        <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border border-slate-700 shadow-lg relative z-20">
+            <i class="fa-solid fa-fingerprint text-slate-500 text-sm"></i>
+        </div>
+
+        <div class="bg-slate-800/30 border border-slate-700 p-4 rounded-2xl flex-1 backdrop-blur-sm relative z-10">
+            <p class="text-slate-400 text-[11px] font-mono font-bold tracking-tight relative z-20">
+                ${escaparHTML(msg)}
+            </p>
+        </div>
+    `;
+
+    output.appendChild(div);
+    hacerScrollAbajo();
+}
+
+/**
+ * Control de scroll cinemático.
+ */
 function hacerScrollAbajo() {
     if (output) {
         output.scrollTo({
             top: output.scrollHeight,
-            behavior: 'smooth'
+            behavior: "smooth"
         });
     }
 }
