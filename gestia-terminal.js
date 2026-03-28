@@ -577,8 +577,10 @@ function renderModuloSeguro(json) {
     output.appendChild(div);
     hacerScrollAbajo();
 }
+
 /**
  * Muestra el código reescrito (Flujo B) aplicando la Regla de Oro 1.
+ * ACTUALIZACIÓN V5.26: Fix de persistencia en portapapeles mediante textContent.
  */
 function agregarBurbujaCodigo(codigo) {
     if (!output) return;
@@ -594,7 +596,7 @@ function agregarBurbujaCodigo(codigo) {
         <div class="bg-[#0f172a] border border-indigo-500/30 p-10 rounded-[2.5rem] rounded-tl-none shadow-[0_30px_80px_rgba(0,0,0,0.6)] flex-1 overflow-hidden">
             <div class="flex justify-between items-center mb-8 border-b border-indigo-500/10 pb-6">
                 <h3 class="font-black text-indigo-400 text-sm uppercase tracking-[0.4em]">Arquitectura Libre Reescrita</h3>
-                <button onclick="navigator.clipboard.writeText(this.closest('.gestia-bunker-container').querySelector('code').innerText); this.innerText='¡COPIADO!'; setTimeout(()=>this.innerText='COPIAR ADN', 2000)" 
+                <button onclick="const adn = this.closest('.gestia-bunker-container').querySelector('code').textContent; navigator.clipboard.writeText(adn); this.innerText='¡COPIADO!'; setTimeout(()=>this.innerText='COPIAR ADN', 2000)" 
                         class="text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-2xl shadow-2xl transition-all font-black uppercase tracking-widest">
                     COPIAR ADN
                 </button>
@@ -656,7 +658,6 @@ function hacerScrollAbajo() {
         output.scrollTo({ top: output.scrollHeight, behavior: 'smooth' });
     }
 }
-
 // ==========================================
 // 15. CIERRE DE LA MATRIZ: DIOS DESARROLLADOR
 // ==========================================
