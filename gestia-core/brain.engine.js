@@ -36,7 +36,10 @@ export async function invocarArquitectoIA(prompt, contexto, operationId) {
                 prompt: prompt,
                 contexto: contexto,
                 opId: operationId,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                // 🛡️ INYECCIÓN DE AUTORIDAD PARA EL FIREWALL V4
+                moduleId: "terminal_heberto_v5", 
+                moduloId: "terminal_heberto_v5"  
             })
         });
 
