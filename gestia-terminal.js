@@ -250,7 +250,7 @@ function limpiarRespuestaIA(texto) {
 }
 
 /**
- * 🧠 NORMALIZADOR CENTRAL (CIRCUITO CERRADO V5.27)
+ * 🧠 NORMALIZADOR CENTRAL (CIRCUITO CERRADO V5.27 -> V13)
  * El adaptador único entre el Brain Engine y la UI del Búnker.
  */
 function normalizarSalidaIA(brainRes) {
@@ -281,6 +281,18 @@ function normalizarSalidaIA(brainRes) {
     // 1. Intento de Pipeline Estructurado (JSON)
     try {
         const parsed = JSON.parse(limpio);
+        
+        // 🚀 DETECCIÓN V13 SUPREMO: Conciencia + Ejecución
+        if (parsed && parsed.conciencia && parsed.ejecucion) {
+            return {
+                tipo: "v13_dual",
+                mensaje_ceo: parsed.conciencia.mensaje_ceo || "Arquitecto, módulo procesado.",
+                modulo_id: parsed.ejecucion.modulo_id || `mod_v13_${Date.now()}`,
+                json: parsed.ejecucion.payload, // El código puro HTML/JS/CSS
+                codigo: null
+            };
+        }
+
         if (parsed && typeof parsed === "object") {
             return {
                 tipo: "json",
@@ -526,7 +538,7 @@ if (form) {
                 opId
             );
 
-            // 🧹 6. NORMALIZACIÓN DE SALIDA (CIRCUITO CERRADO V5.27)
+            // 🧹 6. NORMALIZACIÓN DE SALIDA (CIRCUITO CERRADO V5.27 / V13)
             const resultadoIA = normalizarSalidaIA(brainRes);
 
             // Limpieza de contexto volátil
@@ -537,12 +549,16 @@ if (form) {
             // 🔀 7. SWITCH MAESTRO DE FLUJO
             switch (resultadoIA.tipo) {
 
-                case "json":
+                // 🚀 NUEVO FLUJO V13: LA IA PIENSA, TE HABLA, Y GUARDA EN SILENCIO
+                case "v13_dual":
                     try {
-                        logger.log("💎 Detectado Flujo A: Módulo Estructurado (JSON).");
+                        logger.log("🧠 Detectado Flujo V13 Supremo: Conciencia y Ejecución Silenciosa.");
                         
-                        // 🛡️ AUDITORÍA (Audit Engine)
-                        const auditoria = await ejecutarAuditoriaCore(
+                        // 🗣️ 1. HEBERTO HABLA CONTIGO (UI HUMANA)
+                        agregarBurbujaHeberto(resultadoIA.mensaje_ceo, resultadoIA.modulo_id);
+
+                        // 🛡️ 2. AUDITORÍA INVISIBLE (Audit Engine)
+                        const auditoriaV13 = await ejecutarAuditoriaCore(
                             resultadoIA.json, 
                             versionLocalSnapshot, 
                             {
@@ -551,157 +567,28 @@ if (form) {
                             }
                         );
 
-                        // 🏛️ PERSISTENCIA ATÓMICA (Persistence Engine)
+                        // 🏛️ 3. PERSISTENCIA SILENCIOSA EN BD (Persistence Engine)
                         await ejecutarPersistenciaCore(
-                            auditoria.data.modulo_id, 
-                            auditoria.data, 
-                            auditoria.hash, 
+                            resultadoIA.modulo_id, 
+                            auditoriaV13.data, 
+                            auditoriaV13.hash, 
                             SESSION.tenantId
                         );
                         
-                        versionLocalSnapshot = auditoria.hash;
-                        logger.log("🏛️ ADN Inmortalizado mediante Transacción Atómica.");
-
-                        // 🚀 RENDERIZADO
-                        renderModuloSeguro(auditoria.data);
+                        versionLocalSnapshot = auditoriaV13.hash;
+                        logger.log(`🏛️ ADN V13 [${resultadoIA.modulo_id}] Inmortalizado en BD.`);
 
                         // 🏁 FINALIZACIÓN DE OPERACIÓN
                         await updateDoc(doc(db, "gestia_operations", opId), {
-                            status: "completed",
-                            hash_final: auditoria.hash
+                            status: "completed_v13",
+                            hash_final: auditoriaV13.hash
                         });
 
-                    } catch (errJson) {
-                        logger.error(`FALLO_PROCESAMIENTO_JSON: ${errJson.message}`);
-                        agregarBurbujaError("ERROR_ESTRUCTURAL: El JSON de la IA no superó la auditoría core.");
+                    } catch (errV13) {
+                        logger.error(`FALLO_V13_DB: ${errV13.message}`);
+                        agregarBurbujaError("ERROR_ESTRUCTURAL_V13: La IA habló, pero el código no superó la auditoría de BD.");
                     }
                     break;
-
-                case "code":
-                    logger.log("💻 Detectado Flujo B: Código Plano / Arquitectura Libre.");
-                    agregarBurbujaCodigo(resultadoIA.codigo);
-                    
-                    await updateDoc(doc(db, "gestia_operations", opId), { 
-                        status: "completed_code" 
-                    });
-                    break;
-
-                case "empty":
-                    logger.warn("⚠️ IA respondió vacío o payload nulo.");
-                    agregarBurbujaError("FALLO_DE_RESPUESTA: La IA no devolvió ADN procesable. Reintenta la instrucción.");
-                    
-                    await updateDoc(doc(db, "gestia_operations", opId), { 
-                        status: "empty_response" 
-                    });
-                    break;
-
-                default:
-                    logger.log("⚠️ Detectado Flujo Desconocido. Intentando renderizado de emergencia.");
-                    agregarBurbujaCodigo(resultadoIA.codigo || "[Sin contenido extraíble]");
-                    
-                    await updateDoc(doc(db, "gestia_operations", opId), { 
-                        status: "fallback_unknown" 
-                    });
-                    break;
-            }
-
-        } catch (err) {
-            // 🚨 CATCH CRÍTICO: Registramos error de Firewall si fue un bloqueo por abuso
-            if (err.message.includes("FIREWALL") || err.message.includes("RATE_LIMIT")) {
-                await registrarErrorFirewall(SESSION.uid, SESSION.tenantId);
-            }
-            logger.error(`FALLO_SISTEMICO: ${err.message}`);
-            
-            const loadingElement = document.getElementById(idCarga);
-            if (loadingElement) loadingElement.remove();
-            
-            agregarBurbujaError(err.message);
-        } finally {
-            // ⚡ DESBLOQUEO DE UI VISUAL
-            btnGenerate.disabled = false;
-            btnGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
-            input.disabled = false;
-            input.classList.remove('opacity-50', 'bg-slate-900');
-            input.focus();
-            hacerScrollAbajo();
-        }
-    });
-}// ==========================================
-// 13. EVENTO PRINCIPAL: SUBMIT (THE ORCHESTRATOR)
-// ==========================================
-if (form) {
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        // 🛡️ 1. CANDADO DE AUTORIDAD: Bloqueo inmediato sin sesión.
-        if (!SESSION || !SESSION.authorized) {
-            agregarBurbujaError("🚨 Bloqueo de Seguridad: Esperando autoridad del sistema. Reintenta en 3 segundos.");
-            return;
-        }
-
-        const logger = crearLogger();
-        const instruccion = input.value.trim();
-
-        if (!instruccion && contextoMultimodal.length === 0) return;
-
-        // ⚡ 2. BLOQUEO DE UI VISUAL (MODO ESPERA ACTIVO)
-        btnGenerate.disabled = true;
-        btnGenerate.classList.add('opacity-50', 'cursor-not-allowed');
-        input.disabled = true; 
-        input.classList.add('opacity-50', 'bg-slate-900');
-        input.value = '';
-        input.style.height = '60px';
-
-        agregarBurbujaUsuario(instruccion);
-        const idCarga = mostrarCargando(); // Levanta el spinner "Auditando Autoridad..."
-
-        try {
-            // 🔥 2.5. FIREWALL ENGINE (CAPA 1: UX RATE LIMITER)
-            logger.log("🛡️ Evaluando reglas de Firewall UX...");
-            await ejecutarFirewallGlobal({
-                userId: SESSION.uid,
-                tenantId: SESSION.tenantId,
-                input: instruccion || "multimodal_payload"
-            });
-
-            // 🔑 3. IDEMPOTENCIA Y REGISTRO (Operations Engine)
-            const opId = await generarHashSHA256(instruccion + Date.now() + SESSION.uid + SESSION.tenantId);
-            const yaExiste = await verificarIdempotencia(opId);
-
-            if (yaExiste) {
-                throw new Error("OPERACION_DUPLICADA: Esta orden ya está siendo procesada.");
-            }
-
-            const pHash = await generarHashSHA256(instruccion);
-            await registrarOperacion({
-                opId,
-                promptHash: pHash,
-                userId: SESSION.uid,
-                tenantId: SESSION.tenantId,
-                version: GESTIA_CONFIG.VERSION
-            });
-
-            // 📝 4. CONTEXTO SEMÁNTICO (Semantic Engine)
-            esquemaCorral = await sincronizarCorralSemantico(instruccion);
-            logger.log("🏗️ Contexto semántico inyectado desde el Core.");
-
-            // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine)
-            const brainRes = await invocarArquitectoIA(
-                `ORDEN_GOD_V5.27: ${instruccion}\n\n${esquemaCorral}`,
-                contextoMultimodal,
-                opId
-            );
-
-            // 🧹 6. NORMALIZACIÓN DE SALIDA (CIRCUITO CERRADO V5.27)
-            const resultadoIA = normalizarSalidaIA(brainRes);
-
-            // Limpieza de contexto volátil
-            contextoMultimodal = []; 
-            const loadingElement = document.getElementById(idCarga);
-            if (loadingElement) loadingElement.remove();
-
-            // 🔀 7. SWITCH MAESTRO DE FLUJO
-            switch (resultadoIA.tipo) {
 
                 case "json":
                     try {
@@ -798,6 +685,52 @@ if (form) {
 // ==========================================
 
 /**
+ * 🚀 NUEVO EN V13: Renderiza la Conciencia de Heberto (Texto humano y Confirmación).
+ */
+function agregarBurbujaHeberto(msg, moduloId = null) {
+    if (!output) return;
+
+    const div = document.createElement("div");
+    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10";
+
+    const mensajeSeguro = escaparHTML(msg);
+
+    let botonHtml = "";
+    if (moduloId) {
+        botonHtml = `
+            <button onclick="window.open('preview.html?id=${moduloId}', '_blank')" class="mt-4 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-6 py-2.5 rounded-xl shadow-lg transition-all uppercase tracking-widest flex items-center gap-2">
+                🚀 Desplegar Módulo Configurado
+            </button>
+        `;
+    }
+
+    div.innerHTML = `
+        <div class="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(16,185,129,0.5)] border border-emerald-400/30 relative z-20">
+            <i class="fa-solid fa-brain text-white text-xl animate-pulse"></i>
+        </div>
+
+        <div class="bg-emerald-950/30 border border-emerald-500/40 p-8 rounded-[2.5rem] rounded-tl-none flex-1 shadow-2xl backdrop-blur-md relative z-10">
+            <h3 class="text-emerald-400 text-[11px] font-black uppercase tracking-[0.4em] mb-3 relative z-20">Gestia Premium V13</h3>
+            <p class="text-emerald-50 text-sm leading-relaxed font-medium relative z-20">
+                ${mensajeSeguro}
+            </p>
+            ${botonHtml}
+            <div class="mt-5 pt-4 border-t border-emerald-500/20 flex items-center gap-3">
+                <div class="flex gap-1">
+                    <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce"></div>
+                    <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style="animation-delay: 0.1s"></div>
+                    <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style="animation-delay: 0.2s"></div>
+                </div>
+                <span class="text-[10px] text-emerald-500/80 font-mono uppercase tracking-widest font-bold">Base de Datos Inyectada de Fondo</span>
+            </div>
+        </div>
+    `;
+
+    output.appendChild(div);
+    hacerScrollAbajo();
+}
+
+/**
  * Renderiza la burbuja del CEO con el ADN del prompt.
  */
 function agregarBurbujaUsuario(texto) {
@@ -844,7 +777,7 @@ function mostrarCargando() {
                 <div class="w-3 h-3 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
             </div>
             <div>
-                <span class="text-[13px] font-mono text-blue-400 uppercase tracking-[0.5em] block font-black">Heberto V5.27</span>
+                <span class="text-[13px] font-mono text-blue-400 uppercase tracking-[0.5em] block font-black">Heberto V13 Supremo</span>
                 <span class="text-[10px] text-slate-500 font-mono uppercase font-bold">Auditando Autoridad Atómica...</span>
             </div>
         </div>
@@ -992,7 +925,7 @@ function agregarBurbujaError(msg) {
         </div>
 
         <div class="bg-red-950/20 border border-red-500/30 p-8 rounded-[2.5rem] rounded-tl-none flex-1 shadow-2xl backdrop-blur-md relative z-10">
-            <h3 class="text-red-400 text-[11px] font-black uppercase tracking-[0.3em] mb-3 relative z-20">Intervención de Autoridad V5.27</h3>
+            <h3 class="text-red-400 text-[11px] font-black uppercase tracking-[0.3em] mb-3 relative z-20">Intervención de Autoridad V13</h3>
             <p class="text-slate-200 text-sm leading-relaxed font-mono font-medium relative z-20">
                 ${escaparHTML(msg)}
             </p>
@@ -1044,7 +977,7 @@ function hacerScrollAbajo() {
 // ==========================================
 if (input) input.focus();
 
-console.log("%c>> GESTIAPREMIUM V5.26: OMNIPOTENCIA DE BACKEND ACTIVADA %c🚀", "color: #3b82f6; font-weight: bold; font-size: 18px;", "font-size: 18px;");
+console.log("%c>> GESTIAPREMIUM V13: OMNIPOTENCIA DE BACKEND ACTIVADA %c🚀", "color: #3b82f6; font-weight: bold; font-size: 18px;", "font-size: 18px;");
 console.log("%c>> Authority: Centralized (DB Idempotency + Transactional Hard Locking)", "color: #94a3b8; font-style: italic; font-weight: bold;");
 
 /**
