@@ -481,6 +481,7 @@ if (form) {
 
 /**
  * Clipboard híbrido blindado (estándar SaaS real)
+ * Integra Clipboard API (Moderno) + execCommand (Legacy Fallback)
  */
 async function copiarADNSeguro(texto, boton) {
     if (!texto || texto.trim() === "") {
@@ -490,17 +491,22 @@ async function copiarADNSeguro(texto, boton) {
     }
 
     try {
+        // Intento 1: API Moderna (Requiere HTTPS o Localhost)
         if (navigator.clipboard && window.isSecureContext) {
             await navigator.clipboard.writeText(texto);
+            boton.innerText = "¡COPIADO!";
         } else {
-            throw new Error("Clipboard API no disponible");
+            throw new Error("Clipboard API no disponible o contexto inseguro");
         }
-        boton.innerText = "¡COPIADO!";
     } catch (errorClipboard) {
+        // Intento 2: El "Tanque" (Legacy Fallback para entornos restringidos)
         try {
             const textarea = document.createElement("textarea");
             textarea.value = texto;
+            // Bloqueo de renderizado para evitar saltos visuales
             textarea.style.position = "fixed";
+            textarea.style.left = "-9999px";
+            textarea.style.top = "0";
             textarea.style.opacity = "0";
             textarea.style.pointerEvents = "none";
 
@@ -508,16 +514,21 @@ async function copiarADNSeguro(texto, boton) {
             textarea.focus();
             textarea.select();
 
-            document.execCommand("copy");
+            const exito = document.execCommand("copy");
             document.body.removeChild(textarea);
 
-            boton.innerText = "¡COPIADO!";
+            if (exito) {
+                boton.innerText = "¡COPIADO!";
+            } else {
+                throw new Error("execCommand falló");
+            }
         } catch (errorFallback) {
-            console.error("Error total al copiar:", errorFallback);
+            console.error("❌ Fallo crítico en el portapapeles:", errorFallback);
             boton.innerText = "ERROR";
         }
     }
 
+    // Restauración del estado original del botón
     setTimeout(() => {
         boton.innerText = "COPIAR ADN";
     }, 2000);
@@ -589,6 +600,7 @@ function renderModuloSeguro(json) {
     if (!output) return;
 
     const div = document.createElement("div");
+    // Control de capas: Contenedor en z-10
     div.className = "gestia-bunker-container flex gap-5 animate-fade-in max-w-7xl mx-auto w-full mt-12 relative z-10";
 
     const hashSeguro = escaparHTML(json.hash_contenido || "SSOT_V526");
@@ -611,7 +623,7 @@ function renderModuloSeguro(json) {
                 </div>
 
                 <div class="flex gap-3">
-                    <button class="btn-toggle-json text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-5 py-2 rounded-xl border border-slate-700 font-bold">
+                    <button class="btn-toggle-json text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-5 py-2 rounded-xl border border-slate-700 font-bold transition-all">
                         INSIDER JSON
                     </button>
                 </div>
@@ -620,9 +632,7 @@ function renderModuloSeguro(json) {
             <div class="sandbox-wrapper relative z-20"></div>
 
             <div class="json-box hidden mt-6 relative z-20">
-                <pre class="p-8 bg-black/80 rounded-2xl text-[11px] font-mono text-emerald-400 overflow-x-auto border border-slate-800">
-<code>${escaparHTML(JSON.stringify(json, null, 2))}</code>
-                </pre>
+                <pre class="p-8 bg-black/80 rounded-2xl text-[11px] font-mono text-emerald-400 overflow-x-auto border border-slate-800"><code>${escaparHTML(JSON.stringify(json, null, 2))}</code></pre>
             </div>
 
             <div class="mt-8 pt-6 border-t border-slate-800/50 flex justify-between items-center relative z-20">
@@ -630,22 +640,21 @@ function renderModuloSeguro(json) {
                     "Código verificado y persistido por la autoridad central."
                 </span>
 
-                <button class="btn-open-preview bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-8 py-3 rounded-2xl shadow-xl uppercase tracking-widest">
+                <button class="btn-open-preview bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-8 py-3 rounded-2xl shadow-xl uppercase tracking-widest transition-all">
                     Desplegar Full App
                 </button>
             </div>
         </div>
     `;
 
+    // Aislamiento de Sandbox
     const sandbox = crearSandboxSeguro(json.html, json.javascript, json.css || "");
     div.querySelector(".sandbox-wrapper").appendChild(sandbox);
 
+    // Gestión de eventos atómicos
     const btnToggle = div.querySelector(".btn-toggle-json");
     const jsonBox = div.querySelector(".json-box");
-
-    btnToggle.addEventListener("click", () => {
-        jsonBox.classList.toggle("hidden");
-    });
+    btnToggle.addEventListener("click", () => jsonBox.classList.toggle("hidden"));
 
     const btnPreview = div.querySelector(".btn-open-preview");
     btnPreview.addEventListener("click", () => {
@@ -657,7 +666,7 @@ function renderModuloSeguro(json) {
 }
 
 /**
- * Muestra el código reescrito con auditoría + copia segura
+ * Muestra el código reescrito con auditoría + copia segura (Flujo B)
  */
 function agregarBurbujaCodigo(codigo) {
     if (!output) return;
@@ -665,8 +674,8 @@ function agregarBurbujaCodigo(codigo) {
     const div = document.createElement("div");
     div.className = "gestia-bunker-container flex gap-5 animate-fade-in max-w-5xl mx-auto w-full mt-12 relative z-10";
 
+    // Normalización de contenido ADN
     let contenidoSeguro = "";
-
     if (typeof codigo === "string") {
         contenidoSeguro = codigo;
     } else if (typeof codigo === "object") {
@@ -675,6 +684,7 @@ function agregarBurbujaCodigo(codigo) {
         contenidoSeguro = "[Contenido no interpretable]";
     }
 
+    // Validación de integridad de la IA
     if (!contenidoSeguro.trim()) {
         contenidoSeguro = "[⚠️ Código vacío recibido desde IA]";
     }
@@ -693,7 +703,7 @@ function agregarBurbujaCodigo(codigo) {
                     Arquitectura Libre Reescrita
                 </h3>
 
-                <button class="btn-copy-adn text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-2xl shadow-2xl font-black uppercase tracking-widest">
+                <button class="btn-copy-adn text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-2xl shadow-2xl font-black uppercase tracking-widest transition-all">
                     COPIAR ADN
                 </button>
             </div>
@@ -703,13 +713,12 @@ function agregarBurbujaCodigo(codigo) {
             </p>
 
             <div class="bg-black/70 rounded-3xl border border-slate-800 relative z-20 shadow-inner">
-                <pre class="p-8 overflow-x-auto text-[12px] font-mono text-blue-300 max-h-[750px] overflow-y-auto">
-<code style="white-space: pre-wrap; word-break: break-all;">${escaped}</code>
-                </pre>
+                <pre class="p-8 overflow-x-auto text-[12px] font-mono text-blue-300 max-h-[750px] overflow-y-auto custom-scrollbar"><code style="white-space: pre-wrap; word-break: break-all;">${escaped}</code></pre>
             </div>
         </div>
     `;
 
+    // Vinculación al motor de copiado híbrido
     const boton = div.querySelector(".btn-copy-adn");
     const codeElement = div.querySelector("code");
 
