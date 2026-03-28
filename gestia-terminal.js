@@ -254,7 +254,19 @@ function limpiarRespuestaIA(texto) {
  * El adaptador único entre el Brain Engine y la UI del Búnker.
  */
 function normalizarSalidaIA(brainRes) {
-    const raw = brainRes?.modulo_generated || brainRes?.respuesta || "";
+    // 🛡️ CORRECCIÓN V5.27: Soporte para el envoltorio 'data' de Firebase 
+    // y corrección ortográfica de 'modulo_generado' para hacer match perfecto con el backend.
+    let raw = "";
+    
+    if (brainRes?.data?.modulo_generado) {
+        raw = brainRes.data.modulo_generado;
+    } else if (brainRes?.modulo_generado) {
+        raw = brainRes.modulo_generado;
+    } else if (brainRes?.modulo_generated) {
+        raw = brainRes.modulo_generated;
+    } else if (brainRes?.respuesta) {
+        raw = brainRes.respuesta;
+    }
 
     if (!raw || raw.trim() === "") {
         return {
@@ -366,7 +378,6 @@ const output = document.getElementById('gestia-output');
 const btnGenerate = document.getElementById('btn-generate');
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
-
 // ==========================================
 // LISTENERS DE INTERACCIÓN (DRAG & DROP)
 // ==========================================
