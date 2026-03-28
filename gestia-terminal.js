@@ -249,6 +249,116 @@ function limpiarRespuestaIA(texto) {
     return texto.replace(/```json|```html|```javascript|```css|```/g, "").trim();
 }
 
+/**
+ * 🧠 NORMALIZADOR CENTRAL (CIRCUITO CERRADO V5.27)
+ * El adaptador único entre el Brain Engine y la UI del Búnker.
+ */
+function normalizarSalidaIA(brainRes) {
+    const raw = brainRes?.modulo_generated || brainRes?.respuesta || "";
+
+    if (!raw || raw.trim() === "") {
+        return {
+            tipo: "empty",
+            codigo: null,
+            json: null
+        };
+    }
+
+    const limpio = limpiarRespuestaIA(raw);
+
+    // 1. Intento de Pipeline Estructurado (JSON)
+    try {
+        const parsed = JSON.parse(limpio);
+        if (parsed && typeof parsed === "object") {
+            return {
+                tipo: "json",
+                json: parsed,
+                codigo: null
+            };
+        }
+    } catch (e) {
+        // No es JSON, fluye al siguiente nivel
+    }
+
+    // 2. Intento de Extracción de Código Válido
+    const codigoValido = obtenerCodigoValido(limpio);
+    if (codigoValido) {
+        return {
+            tipo: "code",
+            codigo: codigoValido,
+            json: null
+        };
+    }
+
+    // 3. Fallback absoluto (Unknown)
+    return {
+        tipo: "unknown",
+        codigo: limpio,
+        json: null
+    };
+}
+
+/**
+ * 🧠 NORMALIZADOR DE CÓDIGO IA
+ * Identifica si el contenido es código puro o una estructura de objeto.
+ */
+function obtenerCodigoValido(codigo) {
+    if (!codigo) return null;
+
+    if (typeof codigo === "string" && codigo.trim() !== "") {
+        return codigo.trim();
+    }
+
+    if (typeof codigo === "object") {
+        if (codigo.javascript) return codigo.javascript;
+        if (codigo.html) return codigo.html;
+        if (codigo.code) return codigo.code;
+    }
+
+    return null;
+}
+
+/**
+ * 🔐 COPY ENGINE HÍBRIDO (BLINDADO)
+ * Método dual: Clipboard API + Legacy Fallback (execCommand).
+ */
+async function copiarAlPortapapelesSeguro(texto) {
+    try {
+        if (!texto || texto.trim() === "") {
+            throw new Error("COPY_FAIL_EMPTY");
+        }
+
+        // Intento 1: API Moderna (Requiere contexto seguro)
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(texto);
+            return true;
+        }
+
+        // Intento 2: Fallback Legacy (El Tanque)
+        const textarea = document.createElement("textarea");
+        textarea.value = texto;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        textarea.style.top = "0";
+        textarea.style.opacity = "0";
+        textarea.style.pointerEvents = "none";
+        
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+
+        const success = document.execCommand("copy");
+        document.body.removeChild(textarea);
+
+        if (!success) throw new Error("COPY_FAIL_EXEC");
+        return true;
+
+    } catch (err) {
+        console.error("❌ ERROR COPY ENGINE:", err.message);
+        return false;
+    }
+}
+
 // Mapeo de Elementos del DOM
 const form = document.getElementById('gestia-form');
 const input = document.getElementById('gestia-input');
@@ -295,7 +405,7 @@ function crearSandboxSeguro(html, js, css = "") {
     
     // Hardening: Solo permitimos ejecución de scripts, nada de acceso al búnker principal.
     iframe.setAttribute("sandbox", "allow-scripts");
-    iframe.className = "w-full min-h-[550px] mt-8 rounded-3xl border border-slate-800 shadow-[0_35px_60px_-15px_rgba(0,0,0,0.6)] animate-fade-in";
+    iframe.className = "w-full min-h-[550px] mt-8 rounded-3xl border border-slate-800 shadow-[0_35px_60px_-15px_rgba(0,0,0,0.6)] animate-fade-in relative z-20";
     iframe.style.background = "#0f172a";
 
     const content = `
@@ -334,7 +444,6 @@ function crearSandboxSeguro(html, js, css = "") {
     iframe.srcdoc = content;
     return iframe;
 }
-
 // ==========================================
 // 11. PERSISTENCIA DIOS (CONTROLADO POR EL CORE)
 // ==========================================
