@@ -583,7 +583,8 @@ function renderModuloSeguro(json) {
 function agregarBurbujaCodigo(codigo) {
     if (!output) return;
     const div = document.createElement('div');
-    div.className = 'flex gap-5 animate-fade-in max-w-5xl mx-auto w-full mt-12';
+    // 🛡️ ACTUALIZACIÓN: Se añade 'gestia-bunker-container' para unificar el control de JS
+    div.className = 'gestia-bunker-container flex gap-5 animate-fade-in max-w-5xl mx-auto w-full mt-12';
     const escaped = escaparHTML(codigo);
 
     div.innerHTML = `
@@ -593,7 +594,7 @@ function agregarBurbujaCodigo(codigo) {
         <div class="bg-[#0f172a] border border-indigo-500/30 p-10 rounded-[2.5rem] rounded-tl-none shadow-[0_30px_80px_rgba(0,0,0,0.6)] flex-1 overflow-hidden">
             <div class="flex justify-between items-center mb-8 border-b border-indigo-500/10 pb-6">
                 <h3 class="font-black text-indigo-400 text-sm uppercase tracking-[0.4em]">Arquitectura Libre Reescrita</h3>
-                <button onclick="navigator.clipboard.writeText(this.closest('.bg-\\[\\#0f172a\\]').querySelector('code').innerText); this.innerText='¡COPIADO!'; setTimeout(()=>this.innerText='COPIAR ADN', 2000)" 
+                <button onclick="navigator.clipboard.writeText(this.closest('.gestia-bunker-container').querySelector('code').innerText); this.innerText='¡COPIADO!'; setTimeout(()=>this.innerText='COPIAR ADN', 2000)" 
                         class="text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-2xl shadow-2xl transition-all font-black uppercase tracking-widest">
                     COPIAR ADN
                 </button>
