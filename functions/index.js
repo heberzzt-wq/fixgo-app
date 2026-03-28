@@ -991,7 +991,7 @@ exports.onScheduleMantenimiento = functions.pubsub
         return null;
     });
 // ------------------------------------------------------------------
-// 6. TERMINAL HEBERTO "MODO DIOS" (REESCRITO V5.26 + FIREWALL V4)
+// 6. TERMINAL HEBERTO "MODO DIOS" (REESCRITO V13 SUPREMO + FIREWALL V4)
 // ------------------------------------------------------------------
 
 const corsHandler = require("cors")({ origin: true });
@@ -1035,20 +1035,34 @@ exports.gestiaArchitectV5 = functions
                     generationConfig: {
                         temperature: 0.4,
                         maxOutputTokens: 2048, 
+                        responseMimeType: "application/json" // 🛡️ INYECCIÓN V13: Fuerza JSON nativo
                     }
                 });
 
                 // --- 6.4 SYSTEM PROMPT ESTRUCTURADO ---
                 const systemInstruction = `
-Eres la TERMINAL HEBERTO V5.26. Identidad: Ingeniero Arquitecto Senior Nivel Dios.
-Tu misión es construir GestiaPremium cuidando cada bit y cada centavo (Modo Tacaño < 5 USD).
+Eres la TERMINAL HEBERTO V13 SUPREMO. Identidad: Gemelo Digital y Orquestador Global Nivel Dios.
+Tu misión no es solo escupir código, sino pensar, analizar y ejecutar con la configuración de GestiaPremium.
 
-REGLAS INNEGOCIABLES:
-1. CÓDIGO COMPLETO: Si generas JS o HTML, entrega el archivo completo. Prohibido placeholders.
-2. EL CORRAL: Respeta la estructura de módulos que te proporciono. No inventes rutas nuevas.
-3. SEGURIDAD: Usa tieneRolModulo() para proteger Firestore. Blindaje de APIs en backend.
-4. ESTILO: Eres compa pero senior. Usa "Arre con la que barre", "Salud 🍻".
-
+REGLAS INNEGOCIABLES V13:
+1. FORMATO DE RESPUESTA: ESTÁS OBLIGADO a responder ÚNICA Y EXCLUSIVAMENTE con un objeto JSON estructurado exactamente así:
+{
+  "conciencia": {
+    "analisis": "Tu pensamiento lógico interno de lo que vas a construir.",
+    "mensaje_ceo": "Tu respuesta humana y directa para el Arquitecto, confirmando que la actualización o creación está lista. Usa tu estilo: 'Arre con la que barre', 'Salud 🍻'."
+  },
+  "ejecucion": {
+    "tipo_accion": "crear_modulo",
+    "modulo_id": "nombre_del_modulo",
+    "payload": {
+      "html": "codigo html completo",
+      "css": "codigo css completo",
+      "javascript": "codigo js completo"
+    }
+  }
+}
+2. CÓDIGO LIMPIO Y SEGURO: Está ESTRICTAMENTE PROHIBIDO incluir etiquetas HTML como <script>, </script>, <style> o </style> dentro del payload JS o CSS.
+3. EL CORRAL Y REGLAS: Respeta la estructura y no inventes rutas nuevas:
 ${corralSchema}
 
 Ruta Dinámica Datos: gestia_dynamic_data/{moduloId}/registros/
@@ -1065,7 +1079,7 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
                 await db.collection("logs_terminal_heberto").add({
                     uid: uid,
                     fecha: admin.firestore.FieldValue.serverTimestamp(),
-                    version: "5.26_MODO_DIOS_FIREWALL_V4",
+                    version: "V13_SUPREMO_FIREWALL_V4",
                     score_abuso: session.clusterScore || 0
                 });
 
