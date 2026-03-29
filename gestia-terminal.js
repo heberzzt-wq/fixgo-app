@@ -250,76 +250,72 @@ function limpiarRespuestaIA(texto) {
 }
 
 /**
- * 🧠 NORMALIZADOR CENTRAL (CIRCUITO CERRADO V5.27 -> V13)
- * El adaptador único entre el Brain Engine y la UI del Búnker.
+ * 🧠 NORMALIZADOR HÍBRIDO V5.27 (PASO 1)
+ * Fusionado: Validación brutal + Detección de truncado estructural.
  */
 function normalizarSalidaIA(brainRes) {
-    // 🛡️ CORRECCIÓN V5.27: Soporte para el envoltorio 'data' de Firebase 
-    // y corrección ortográfica de 'modulo_generado' para hacer match perfecto con el backend.
-    let raw = "";
-    
-    if (brainRes?.data?.modulo_generado) {
-        raw = brainRes.data.modulo_generado;
-    } else if (brainRes?.modulo_generado) {
-        raw = brainRes.modulo_generado;
-    } else if (brainRes?.modulo_generated) {
-        raw = brainRes.modulo_generated;
-    } else if (brainRes?.respuesta) {
-        raw = brainRes.respuesta;
+    // 🛡️ HARDENING: Si la respuesta es nula o inválida, no dejamos que truene el sistema
+    if (!brainRes || typeof brainRes !== "object") {
+        return { tipo: "error", error: "BRAIN_NULL_OR_INVALID" };
     }
 
-    if (!raw || raw.trim() === "") {
-        return {
-            tipo: "empty",
-            codigo: null,
-            json: null
-        };
+    // 🔍 EXTRACCIÓN MULTI-LLAVE: Buscamos el contenido en todas las capas posibles
+    let raw = 
+        brainRes?.data?.modulo_generado ||
+        brainRes?.data?.payload ||
+        brainRes?.data?.result ||
+        brainRes?.modulo_generado ||
+        brainRes?.respuesta ||
+        "";
+
+    // 🧯 FALLBACK: Si de plano no hay texto, evitamos el "corte" visual
+    if (!raw || (typeof raw === "string" && raw.trim() === "")) {
+        return { tipo: "fallback", codigo: "// GESTIA_FALLBACK: IA_EMPTY_RESPONSE" };
     }
 
     const limpio = limpiarRespuestaIA(raw);
 
-    // 1. Intento de Pipeline Estructurado (JSON)
+    // 🛑 DETECCIÓN DE TRUNCADO: Aquí es donde evitamos que se "atore"
+    const openingBraces = (limpio.match(/\{/g) || []).length;
+    const closingBraces = (limpio.match(/\}/g) || []).length;
+
+    if (
+        limpio.length < 50 || 
+        limpio.endsWith("{") || 
+        (limpio.includes("{") && openingBraces !== closingBraces)
+    ) {
+        return { tipo: "truncated", codigo: limpio };
+    }
+
+    // 🔹 INTENTO JSON (Estructurado V13)
     try {
         const parsed = JSON.parse(limpio);
-        
-        // 🚀 DETECCIÓN V13 SUPREMO: Conciencia + Ejecución
-        if (parsed && parsed.conciencia && parsed.ejecucion) {
+        if (parsed?.conciencia && parsed?.ejecucion) {
             return {
                 tipo: "v13_dual",
-                mensaje_ceo: parsed.conciencia.mensaje_ceo || "Arquitecto, módulo procesado.",
-                modulo_id: parsed.ejecucion.modulo_id || `mod_v13_${Date.now()}`,
-                json: parsed.ejecucion.payload, // El código puro HTML/JS/CSS
-                codigo: null
+                mensaje_ceo: parsed.conciencia.mensaje_ceo,
+                modulo_id: parsed.ejecucion.modulo_id,
+                json: parsed.ejecucion.payload
             };
         }
-
         if (parsed && typeof parsed === "object") {
-            return {
-                tipo: "json",
-                json: parsed,
-                codigo: null
-            };
+            return { tipo: "json", json: parsed };
         }
     } catch (e) {
-        // No es JSON, fluye al siguiente nivel
+        // No es JSON válido, fluye al siguiente nivel (Código Plano)
     }
 
-    // 2. Intento de Extracción de Código Válido
-    const codigoValido = obtenerCodigoValido(limpio);
-    if (codigoValido) {
-        return {
-            tipo: "code",
-            codigo: codigoValido,
-            json: null
-        };
+    // 🔹 INTENTO CÓDIGO PLANO
+    if (
+        limpio.includes("<html") || 
+        limpio.includes("function") || 
+        limpio.includes("const ") || 
+        limpio.includes("=>")
+    ) {
+        return { tipo: "code", codigo: limpio };
     }
 
-    // 3. Fallback absoluto (Unknown)
-    return {
-        tipo: "unknown",
-        codigo: limpio,
-        json: null
-    };
+    return { tipo: "unknown", codigo: limpio };
 }
 
 /**
