@@ -250,8 +250,8 @@ function limpiarRespuestaIA(texto) {
 }
 
 /**
- * 🧠 NORMALIZADOR HÍBRIDO V5.27 (PASO 1)
- * Fusionado: Validación brutal + Detección de truncado estructural.
+ * 🧠 NORMALIZADOR HÍBRIDO V5.28 (PASO 1) - REESCRITURA
+ * Fusionado: Validación brutal + Detección de truncado estructural y conversacional.
  */
 function normalizarSalidaIA(brainRes) {
     // 🛡️ HARDENING: Si la respuesta es nula o inválida, no dejamos que truene el sistema
@@ -275,12 +275,12 @@ function normalizarSalidaIA(brainRes) {
 
     const limpio = limpiarRespuestaIA(raw);
 
-    // 🛑 DETECCIÓN DE TRUNCADO: Aquí es donde evitamos que se "atore"
+    // 🛑 DETECCIÓN DE TRUNCADO ESTRUCTURAL
     const openingBraces = (limpio.match(/\{/g) || []).length;
     const closingBraces = (limpio.match(/\}/g) || []).length;
 
     if (
-        limpio.length < 50 || 
+        (limpio.length < 50 && limpio.includes("{")) || 
         limpio.endsWith("{") || 
         (limpio.includes("{") && openingBraces !== closingBraces)
     ) {
@@ -302,7 +302,7 @@ function normalizarSalidaIA(brainRes) {
             return { tipo: "json", json: parsed };
         }
     } catch (e) {
-        // No es JSON válido, fluye al siguiente nivel (Código Plano)
+        // No es JSON válido, fluye al siguiente nivel
     }
 
     // 🔹 INTENTO CÓDIGO PLANO
@@ -313,6 +313,21 @@ function normalizarSalidaIA(brainRes) {
         limpio.includes("=>")
     ) {
         return { tipo: "code", codigo: limpio };
+    }
+
+    // 🔹 NUEVO: INTENTO TEXTO CONVERSACIONAL / HUMANO
+    if (limpio.length > 0) {
+        // Revisamos el último caracter para ver si terminó la oración/idea
+        const lastChar = limpio.trim().slice(-1);
+        const signosCierre = ['.', '!', '?', ':', ';', '"', "'", '}', ']', '>'];
+        
+        // Si no termina en un signo de cierre y es un texto medianamente largo, asumimos corte de red/tokens
+        if (!signosCierre.includes(lastChar) && limpio.length > 30) {
+            return { tipo: "truncated", codigo: limpio };
+        }
+        
+        // Es texto humano y llegó completo
+        return { tipo: "texto_plano", codigo: limpio };
     }
 
     return { tipo: "unknown", codigo: limpio };
