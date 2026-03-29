@@ -542,10 +542,47 @@ if (form) {
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
 
-            // 🔀 7. SWITCH MAESTRO DE FLUJO
+            // 🔀 7. SWITCH MAESTRO DE FLUJO (V5.27.1 SUPREMO)
+            // Integrando Detección de Truncado y Hardening sin romper la lógica V13.
             switch (resultadoIA.tipo) {
 
-                // 🚀 NUEVO FLUJO V13: LA IA PIENSA, TE HABLA, Y GUARDA EN SILENCIO
+                // 🚨 CASO ERROR: Fallo crítico de comunicación o formato
+                case "error":
+                    logger.error(`🚨 FALLO_CRÍTICO_IA: ${resultadoIA.error}`);
+                    agregarBurbujaError(`ERROR_BRAIN: ${resultadoIA.error}. Reintenta la instrucción.`);
+                    
+                    await updateDoc(doc(db, "gestia_operations", opId), { 
+                        status: "fatal_error",
+                        error_detail: resultadoIA.error
+                    });
+                    break;
+
+                // 🧯 CASO FALLBACK: La IA respondió pero el buche está vacío
+                case "fallback":
+                    logger.warn("🧯 Fallback activado: Respuesta vacía o nula.");
+                    agregarBurbujaInfo("La IA no devolvió ADN procesable. Intenta ser más específico en tu orden.");
+                    
+                    await updateDoc(doc(db, "gestia_operations", opId), { 
+                        status: "empty_fallback" 
+                    });
+                    break;
+
+                // ⚠️ CASO TRUNCATED: La señal se cortó (Falta de tokens o Lag de red)
+                case "truncated":
+                    logger.error("⚠️ RESPUESTA CORTADA DETECTADA");
+                    agregarBurbujaError("LA SEÑAL SE CORTÓ: El código llegó incompleto. Posible falta de tokens o micro-corte de red.");
+                    
+                    // Mostramos el ADN mocho para que el Ingeniero vea hasta dónde llegó
+                    if (resultadoIA.codigo) {
+                        agregarBurbujaCodigo(resultadoIA.codigo + "\n\n/* ❌ ERROR: CONTENIDO TRUNCADO POR EL SISTEMA --- REINTENTA --- */");
+                    }
+
+                    await updateDoc(doc(db, "gestia_operations", opId), { 
+                        status: "truncated_response" 
+                    });
+                    break;
+
+                // 🚀 FLUJO V13: LA IA PIENSA, TE HABLA, Y GUARDA EN SILENCIO
                 case "v13_dual":
                     try {
                         logger.log("🧠 Detectado Flujo V13 Supremo: Conciencia y Ejecución Silenciosa.");
@@ -653,29 +690,6 @@ if (form) {
                     });
                     break;
             }
-
-        } catch (err) {
-            // 🚨 CATCH CRÍTICO: Registramos error de Firewall si fue un bloqueo por abuso
-            if (err.message.includes("FIREWALL") || err.message.includes("RATE_LIMIT")) {
-                await registrarErrorFirewall(SESSION.uid, SESSION.tenantId);
-            }
-            logger.error(`FALLO_SISTEMICO: ${err.message}`);
-            
-            const loadingElement = document.getElementById(idCarga);
-            if (loadingElement) loadingElement.remove();
-            
-            agregarBurbujaError(err.message);
-        } finally {
-            // ⚡ DESBLOQUEO DE UI VISUAL
-            btnGenerate.disabled = false;
-            btnGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
-            input.disabled = false;
-            input.classList.remove('opacity-50', 'bg-slate-900');
-            input.focus();
-            hacerScrollAbajo();
-        }
-    });
-}
 // ==========================================
 // 14. UI BUILDERS (GRADO INDUSTRIAL V5.27)
 // ==========================================
