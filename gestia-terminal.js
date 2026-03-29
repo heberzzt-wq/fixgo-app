@@ -484,7 +484,7 @@ function crearSandboxSeguro(html, js, css = "") {
 // [Lógica movida a persistence.engine.js para asegurar atomicidad multi-tenant]
 
 // ==========================================
-// 13. EVENTO PRINCIPAL: SUBMIT (THE ORCHESTRATOR) - V5.28 BLINDADO CON RETRY
+// 13. EVENTO PRINCIPAL: SUBMIT (THE ORCHESTRATOR) - V5.28 FUERZA BRUTA (RETRY V2)
 // ==========================================
 if (form) {
     form.addEventListener('submit', async (e) => {
@@ -542,12 +542,12 @@ if (form) {
             esquemaCorral = await sincronizarCorralSemantico(instruccion);
             logger.log("🏗️ Contexto semántico inyectado desde el Core.");
 
-            // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine) - FASE 2: RETRY INTELIGENTE
+            // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine) - FASE 2: RETRY INTELIGENTE V2 (Fuerza Bruta)
             let textoAcumulado = "";
             let resultadoIA = null;
             let isTruncated = true;
             let currentRetry = 0;
-            const maxRetries = 2; // Permitimos 2 reintentos para armar el Frankenstein
+            const maxRetries = 5; // 🔥 MODO TANQUE: 5 Reintentos para armar reportes masivos
             
             let promptActual = `ORDEN_GOD_V5.28: ${instruccion}\n\n${esquemaCorral}`;
             
@@ -590,9 +590,9 @@ if (form) {
                 resultadoIA = normalizarSalidaIA({ respuesta: textoAcumulado });
 
                 if (resultadoIA.tipo === "truncated") {
-                    // SE CORTÓ: Preparamos el prompt del siguiente ciclo
-                    const ultimasPalabras = textoAcumulado.slice(-60).replace(/\n/g, " ");
-                    promptActual = `AUTO_RECOVERY_PROTOCOL: Tu respuesta anterior se cortó por límite de tokens. Continúa EXACTAMENTE desde donde te quedaste. Tus últimas palabras fueron: "${ultimasPalabras}". NO saludes, NO repitas el contexto, SOLO continúa el código o texto desde la siguiente letra.`;
+                    // SE CORTÓ: Preparamos el prompt militar del siguiente ciclo
+                    const ultimasPalabras = textoAcumulado.slice(-40).replace(/\n/g, " ");
+                    promptActual = `AUTO_RECOVERY_PROTOCOL: Corte de red detectado. Continúa EXACTAMENTE desde la letra o símbolo que sigue inmediatamente después de: "${ultimasPalabras}". REGLA ESTRICTA: NO repitas NINGUNA de esas últimas palabras en tu respuesta, NO saludes, NO abras bloques de código si ya estaban abiertos. Escribe ÚNICAMENTE el texto o código que falta por generar.`;
                     currentRetry++;
                 } else {
                     // SALIÓ ENTERITO
@@ -636,10 +636,10 @@ if (form) {
                     await updateDoc(doc(db, "gestia_operations", opId), { status: "empty_fallback" });
                     break;
 
-                // ⚠️ CASO TRUNCATED (Agotó los reintentos y no lo logró)
+                // ⚠️ CASO TRUNCATED (Agotó los 5 reintentos y no lo logró)
                 case "truncated":
                     logger.error("⚠️ RESPUESTA CORTADA IRRECUPERABLE");
-                    agregarBurbujaError("LA SEÑAL SE CORTÓ DEFINITIVAMENTE: El código llegó incompleto a pesar de los reintentos.");
+                    agregarBurbujaError(`LA SEÑAL SE CORTÓ DEFINITIVAMENTE: El código llegó incompleto a pesar de los ${maxRetries} reintentos.`);
                     if (resultadoIA.codigo) {
                         agregarBurbujaCodigo(resultadoIA.codigo + "\n\n/* ❌ ERROR: CONTENIDO TRUNCADO POR LA RED --- SISTEMA AGOTADO --- */");
                     }
