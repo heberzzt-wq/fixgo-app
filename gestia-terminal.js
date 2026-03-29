@@ -56,7 +56,7 @@ const GESTIA_CONFIG = {
     MODO_DIOS: true,
     MODO_TACANO: {
         ACTIVO: true,
-        MAX_TOKENS_IA: 1500,        // Limita el costo por mensaje
+        MAX_TOKENS_IA: 3200,        // Limita el costo por mensaje
         MAX_READS_FIRESTORE: 15,    // Evita lecturas masivas en el corral
         MAX_CONTEXTO_HISTORY: 3,    // Solo envía las últimas 3 versiones a la IA
         CACHE_CORRAL_TTL: 300000    // 5 min de cache local para no leer DB
