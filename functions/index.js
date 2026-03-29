@@ -991,7 +991,7 @@ exports.onScheduleMantenimiento = functions.pubsub
         return null;
     });
 // ------------------------------------------------------------------
-// 6. TERMINAL HEBERTO "MODO DIOS" (REESCRITO V13 SUPREMO + FIREWALL V4)
+// 6. TERMINAL HEBERTO "MODO DIOS" (REESCRITO V13 SUPREMO + BLINDAJE TOTAL)
 // ------------------------------------------------------------------
 
 const corsHandler = require("cors")({ origin: true });
@@ -999,47 +999,63 @@ const corsHandler = require("cors")({ origin: true });
 exports.gestiaArchitectV5 = functions
     .runWith({ 
         secrets: ["GEMINI_KEY"], 
-        timeoutSeconds: 300,
-        memory: "512MB"
+        timeoutSeconds: 540, 
+        memory: "1GB"        
     })
     .https.onRequest((req, res) => {
-        // 🛡️ EL SECRETO: 'return' asegura que la función espere el flujo completo
         return corsHandler(req, res, async () => {
+            console.log("🚀 [INICIO] Petición recibida en gestiaArchitectV5");
+
             try {
-                // 🚀 INICIALIZACIÓN DE IA (DENTRO DEL CONTEXTO DEL SECRETO)
+                // 🚀 1. INICIALIZACIÓN DE IA
                 const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
+                console.log("✅ [STEP 1] Gemini Key cargada");
 
-                // 🛡️ 2. PASO POR EL ESCUDO FISCAL (FIREWALL V4)
+                // 🛡️ 2. ESCUDO FISCAL (FIREWALL V4) BLINDADO
                 const session = await firewallV4(req);
+                if (!session || !session.uid) {
+                    throw new Error("Firewall rechazó la conexión o no devolvió sesión válida.");
+                }
+                console.log(`✅ [STEP 2] Firewall superado. UID activo: ${session.uid}`);
 
-                // 3. PARSEO DEL BODY (Soporte Multi-Protocolo)
-                const prompt = req.body.data?.prompt || req.body.prompt;
-                const uid = session.uid;
+                // 📦 3. PARSEO Y VALIDACIÓN ESTRICTA DEL PROMPT
+                const bodyData = req.body.data || req.body;
+                const prompt = bodyData.prompt || bodyData;
 
-                if (!prompt) {
-                    return res.status(400).json({ data: { error: 'Pásame el prompt, jefe.' } });
+                if (!prompt || typeof prompt !== "string" || prompt.trim() === "") {
+                    throw new Error("El prompt viene vacío o no es un string de texto válido.");
+                }
+                console.log(`✅ [STEP 3] Payload validado. Longitud: ${prompt.length}`);
+
+                // 🏗️ 4. CONSTRUCCIÓN DEL CORRAL (CON MANEJO DE ERRORES DB)
+                let corralSchema = "ESTRUCTURA_ACTUAL_DEL_SISTEMA:\n";
+                try {
+                    const modulesSnap = await db.collection("gestia_system_modules").get();
+                    modulesSnap.forEach(doc => {
+                        const m = doc.data();
+                        corralSchema += `- Módulo: ${doc.id} | Rol Requerido: ${m.rol_requerido || 'admin'}\n`;
+                    });
+                    console.log("✅ [STEP 4] Corral semántico construido desde Firestore");
+                } catch (dbError) {
+                    console.error("❌ Error cargando corral de Firestore:", dbError);
+                    throw new Error("Fallo crítico al conectar con Firestore para armar el Corral.");
                 }
 
-                // --- 6.2 INYECCIÓN DEL "CORRAL" ---
-                const modulesSnap = await db.collection("gestia_system_modules").get();
-                let corralSchema = "ESTRUCTURA_ACTUAL_DEL_SISTEMA:\n";
-                
-                modulesSnap.forEach(doc => {
-                    const m = doc.data();
-                    corralSchema += `- Módulo: ${doc.id} | Rol Requerido: ${m.rol_requerido || 'admin'}\n`;
-                });
+                // 🧠 5. CONFIGURACIÓN DEL MODELO
+                // Recibimos los tokens inyectados del frontend o capeamos a 3200 por seguridad (bajando de 4096)
+                const tokensIA = bodyData.tokens || 3200; 
 
-                // --- 6.3 CONFIGURACIÓN DEL MODELO ---
                 const model = genAI.getGenerativeModel({ 
                     model: "gemini-2.5-flash",
                     generationConfig: {
                         temperature: 0.4,
-                        maxOutputTokens: 4096, // 🚀 AJUSTE V13: Subimos a 4096 para evitar cortes de texto plano
-                        responseMimeType: "application/json" // 🛡️ INYECCIÓN V13: Fuerza JSON nativo
+                        maxOutputTokens: tokensIA,
+                        responseMimeType: "application/json" 
                     }
                 });
+                console.log("✅ [STEP 5] Modelo Gemini configurado con límite de tokens:", tokensIA);
 
-                // --- 6.4 SYSTEM PROMPT ESTRUCTURADO ---
+                // 📜 6. SYSTEM PROMPT
                 const systemInstruction = `
 Eres la TERMINAL HEBERTO V13 SUPREMO. Identidad: Gemelo Digital y Orquestador Global Nivel Dios.
 Tu misión no es solo escupir código, sino pensar, analizar y ejecutar con la configuración de GestiaPremium.
@@ -1071,32 +1087,59 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
 
                 const fullPrompt = `${systemInstruction}\n\nSOLICITUD DEL CEO (Heberto):\n${prompt}`;
 
+                // ⚡ 7. LLAMADA A LA IA
+                console.log("🧠 [STEP 6] Disparando solicitud a la IA...");
                 const result = await model.generateContent(fullPrompt);
-                const response = await result.response;
-                const respuestaFinal = response.text();
 
-                // LOG DE AUDITORÍA
+                // 🕵️ 8. VALIDACIÓN ABSOLUTA DE LA RESPUESTA Y LOG RAW
+                if (!result || !result.response) {
+                    console.error("📦 RAW IA ERROR RESULT:", JSON.stringify(result, null, 2));
+                    throw new Error("Respuesta inválida o cortada del modelo (result o response vacíos).");
+                }
+
+                const respuestaFinal = result.response.text();
+
+                if (!respuestaFinal || respuestaFinal.trim().length === 0) {
+                    throw new Error("La IA devolvió un texto completamente vacío.");
+                }
+
+                console.log(`✅ [STEP 7] Texto recibido. Longitud: ${respuestaFinal.length}`);
+
+                // 🧱 9. VALIDACIÓN ESTRICTA DEL JSON (EL FIX MAESTRO)
+                let jsonParsed;
+                try {
+                    jsonParsed = JSON.parse(respuestaFinal);
+                    console.log("✅ [STEP 8] Parseo JSON exitoso. La IA respetó la estructura.");
+                } catch (parseError) {
+                    console.error("❌ JSON inválido recibido. Primeros 500 chars:", respuestaFinal.substring(0, 500));
+                    throw new Error("La IA no devolvió un JSON válido y estructurado. Parseo fallido.");
+                }
+
+                // 📝 10. LOG DE AUDITORÍA
                 await db.collection("logs_terminal_heberto").add({
-                    uid: uid,
+                    uid: session.uid,
                     fecha: admin.firestore.FieldValue.serverTimestamp(),
-                    version: "V13_SUPREMO_FIREWALL_V4",
+                    version: "V13_SUPREMO_BLINDADO",
                     score_abuso: session.clusterScore || 0
                 });
 
-                // RETORNO COMPATIBLE CON FETCH Y SDK
+                console.log("🚀 [FIN] Enviando payload exitoso de regreso a la Terminal");
                 return res.status(200).json({
                     data: {
                         success: true,
+                        // Enviamos el string para que el normalizador del frontend siga operando su magia multimodal
                         modulo_generado: respuestaFinal,
                         status: "Arre con la que barre! 🍻"
                     }
                 });
 
             } catch (error) {
-                console.error("❌ Error en Terminal Heberto:", error);
+                console.error("🔥 [ERROR CRÍTICO EN CLOUD FUNCTION]:", error);
                 return res.status(500).json({ 
                     data: { 
-                        error: error.message || 'La terminal falló, pero el Arquitecto ya lo está checando.' 
+                        error: true,
+                        message: error.message || 'Error desconocido en el motor IA',
+                        stack: error.stack
                     } 
                 });
             }
@@ -1104,7 +1147,6 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
     });
 
 exports.generarModuloIA = exports.gestiaArchitectV5;
-
 // ------------------------------------------------------------------
 // 7. GESTIÓN DE RESERVAS & ACCESOS (V5.19)
 // ------------------------------------------------------------------
