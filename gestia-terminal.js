@@ -484,7 +484,7 @@ function crearSandboxSeguro(html, js, css = "") {
 // [Lógica movida a persistence.engine.js para asegurar atomicidad multi-tenant]
 
 // ==========================================
-// 13. EVENTO PRINCIPAL: SUBMIT (THE ORCHESTRATOR) - V5.27.1 BLINDADO
+// 13. EVENTO PRINCIPAL: SUBMIT (THE ORCHESTRATOR) - V5.28 BLINDADO CON RETRY
 // ==========================================
 if (form) {
     form.addEventListener('submit', async (e) => {
@@ -542,29 +542,70 @@ if (form) {
             esquemaCorral = await sincronizarCorralSemantico(instruccion);
             logger.log("🏗️ Contexto semántico inyectado desde el Core.");
 
-            // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine)
-            const brainRes = await invocarArquitectoIA(
-                `ORDEN_GOD_V5.27: ${instruccion}\n\n${esquemaCorral}`,
-                contextoMultimodal,
-                opId
-            );
+            // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine) - FASE 2: RETRY INTELIGENTE
+            let textoAcumulado = "";
+            let resultadoIA = null;
+            let isTruncated = true;
+            let currentRetry = 0;
+            const maxRetries = 2; // Permitimos 2 reintentos para armar el Frankenstein
+            
+            let promptActual = `ORDEN_GOD_V5.28: ${instruccion}\n\n${esquemaCorral}`;
+            
+            // 🔄 CICLO DE AUTORRECUPERACIÓN
+            while (isTruncated && currentRetry <= maxRetries) {
+                if (currentRetry > 0) {
+                    logger.warn(`🔄 [RETRY INTELIGENTE ${currentRetry}/${maxRetries}] Reconectando tejido neuronal...`);
+                    // Aviso sutil en UI
+                    agregarBurbujaInfo(`Detectado límite de red. Ensamblando fragmento ${currentRetry + 1}...`);
+                } else {
+                    logger.log(`🧠 [INTENTO 1] Disparando payload al Cerebro...`);
+                }
 
-            // 🧹 6. NORMALIZACIÓN DE SALIDA (CIRCUITO CERRADO V5.27.1)
-            // Aquí entra tu nuevo normalizador blindado.
-            const resultadoIA = normalizarSalidaIA(brainRes);
+                // Inyectamos los tokens (Asegúrate de que brain.engine.js reciba este 4to parámetro si es necesario)
+                const tokensPermitidos = GESTIA_CONFIG.MODO_TACANO.MAX_TOKENS_IA || 3200;
+                
+                const brainRes = await invocarArquitectoIA(
+                    promptActual,
+                    currentRetry === 0 ? contextoMultimodal : [], // Solo mandamos la imagen la 1ra vez para ahorrar recursos
+                    opId + (currentRetry > 0 ? `_r${currentRetry}` : ""), // Modificamos ID para evitar caché
+                    tokensPermitidos
+                );
 
-            // 🕵️ 6.5. LOGGER DE DIAGNÓSTICO (Nivel Senior)
-            // Para que veas en consola exactamente qué llegó de la IA.
-            console.log("%c🧠 [RAW BRAIN RESPONSE]:", "color: #f59e0b; font-weight: bold", brainRes);
+                // 🕵️ EXTRAEMOS LA CARNE CRUDA
+                console.log(`%c🧠 [RAW BRAIN RESPONSE - FRAGMENTO ${currentRetry + 1}]:`, "color: #f59e0b; font-weight: bold", brainRes);
+                
+                let currentRaw = 
+                    brainRes?.data?.modulo_generado ||
+                    brainRes?.data?.payload ||
+                    brainRes?.data?.result ||
+                    brainRes?.modulo_generado ||
+                    brainRes?.respuesta ||
+                    "";
+
+                // LO UNIMOS AL ACUMULADOR MAESTRO
+                textoAcumulado += currentRaw;
+
+                // 🧹 6. NORMALIZACIÓN DE SALIDA (Evaluamos el total acumulado)
+                // Usamos la estructura { respuesta: ... } para engañar positivamente al normalizador
+                resultadoIA = normalizarSalidaIA({ respuesta: textoAcumulado });
+
+                if (resultadoIA.tipo === "truncated") {
+                    // SE CORTÓ: Preparamos el prompt del siguiente ciclo
+                    const ultimasPalabras = textoAcumulado.slice(-60).replace(/\n/g, " ");
+                    promptActual = `AUTO_RECOVERY_PROTOCOL: Tu respuesta anterior se cortó por límite de tokens. Continúa EXACTAMENTE desde donde te quedaste. Tus últimas palabras fueron: "${ultimasPalabras}". NO saludes, NO repitas el contexto, SOLO continúa el código o texto desde la siguiente letra.`;
+                    currentRetry++;
+                } else {
+                    // SALIÓ ENTERITO
+                    isTruncated = false;
+                }
+            }
 
             // 🛡️ 6.6. FALLBACK GLOBAL (Anti-Corte Total)
-            // Si el normalizador falla, el sistema se detiene antes de chocar.
             if (!resultadoIA || !resultadoIA.tipo) {
                 logger.error("FALLO_TOTAL_NORMALIZADOR");
-                agregarBurbujaError("La IA devolvió un formato irreconocible o nulo.");
+                agregarBurbujaError("La IA devolvió un formato irreconocible o nulo tras los reintentos.");
                 await updateDoc(doc(db, "gestia_operations", opId), { status: "fatal_normalization_error" });
                 
-                // Limpieza manual necesaria antes del return
                 const loadingElement = document.getElementById(idCarga);
                 if (loadingElement) loadingElement.remove();
                 return; 
@@ -575,10 +616,10 @@ if (form) {
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
 
-            // 🔀 7. SWITCH MAESTRO DE FLUJO (V5.27.1 SUPREMO)
+            // 🔀 7. SWITCH MAESTRO DE FLUJO (V5.28 SUPREMO)
             switch (resultadoIA.tipo) {
 
-                // 🚨 CASO ERROR: Fallo crítico de comunicación (Fix GPT Hardening)
+                // 🚨 CASO ERROR
                 case "error":
                     logger.error(`🚨 FALLO_CRÍTICO_IA: ${resultadoIA.error}`);
                     agregarBurbujaError(`ERROR_BRAIN: ${resultadoIA.error}. Reintenta la instrucción.`);
@@ -588,24 +629,24 @@ if (form) {
                     });
                     break;
 
-                // 🧯 CASO FALLBACK: Respuesta vacía (Fix GPT Hardening)
+                // 🧯 CASO FALLBACK
                 case "fallback":
                     logger.warn("🧯 Fallback activado: Respuesta vacía o nula.");
                     agregarBurbujaInfo("La IA no devolvió ADN procesable. Intenta ser más específico.");
                     await updateDoc(doc(db, "gestia_operations", opId), { status: "empty_fallback" });
                     break;
 
-                // ⚠️ CASO TRUNCATED: La señal se cortó (Fix Detección Truncado Heberto)
+                // ⚠️ CASO TRUNCATED (Agotó los reintentos y no lo logró)
                 case "truncated":
-                    logger.error("⚠️ RESPUESTA CORTADA DETECTADA");
-                    agregarBurbujaError("LA SEÑAL SE CORTÓ: El código llegó incompleto (tokens/red).");
+                    logger.error("⚠️ RESPUESTA CORTADA IRRECUPERABLE");
+                    agregarBurbujaError("LA SEÑAL SE CORTÓ DEFINITIVAMENTE: El código llegó incompleto a pesar de los reintentos.");
                     if (resultadoIA.codigo) {
-                        agregarBurbujaCodigo(resultadoIA.codigo + "\n\n/* ❌ ERROR: CONTENIDO TRUNCADO POR LA RED --- REINTENTA --- */");
+                        agregarBurbujaCodigo(resultadoIA.codigo + "\n\n/* ❌ ERROR: CONTENIDO TRUNCADO POR LA RED --- SISTEMA AGOTADO --- */");
                     }
-                    await updateDoc(doc(db, "gestia_operations", opId), { status: "truncated_response" });
+                    await updateDoc(doc(db, "gestia_operations", opId), { status: "truncated_response_failed" });
                     break;
 
-                // 🚀 FLUJO V13: LA IA PIENSA, TE HABLA, Y GUARDA EN SILENCIO
+                // 🚀 FLUJO V13
                 case "v13_dual":
                     try {
                         logger.log("🧠 Detectado Flujo V13 Supremo: Conciencia y Ejecución Silenciosa.");
@@ -679,6 +720,13 @@ if (form) {
                     logger.log("💻 Detectado Flujo B: Código Plano.");
                     agregarBurbujaCodigo(resultadoIA.codigo);
                     await updateDoc(doc(db, "gestia_operations", opId), { status: "completed_code" });
+                    break;
+
+                // 💬 NUEVO CASO V5.28: TEXTO PLANO CONVERSACIONAL
+                case "texto_plano":
+                    logger.log("💬 Detectado Flujo Conversacional (Texto Humano).");
+                    agregarBurbujaHeberto(resultadoIA.codigo);
+                    await updateDoc(doc(db, "gestia_operations", opId), { status: "completed_text" });
                     break;
 
                 default:
