@@ -45,7 +45,7 @@ import { existeEnHistorial } from './gestia-core/history.engine.js';
 import { optimizarImagen, procesarDocumento } from './gestia-core/media.engine.js';
 import { sincronizarCorralSemantico } from './gestia-core/semantic.engine.js';
 import { ejecutarAuditoriaCore } from './gestia-core/audit.engine.js';
-import { ejecutarPersistenciaCore } from './gestia-core/persistence.engine.js';
+import { persistirEstructuraModulo, persistirDatoDinamico } from './persistence.engine.js';
 import { invocarArquitectoIA } from './gestia-core/brain.engine.js';
 
 // ==========================================
