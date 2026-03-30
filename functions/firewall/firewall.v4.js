@@ -1,14 +1,16 @@
 /**
  * ======================================================================================
- * GESTIA FIREWALL V4 (CORRELATION & ANTI-BOTNET ENGINE)
+ * GESTIA FIREWALL V4.1 (INFINITY CORE ALIGNMENT)
+ * ======================================================================================
  * Detección de ataques distribuidos, Fingerprinting (IP+UA) y God Mode.
+ * UPDATED 2026: Alineación de colecciones (users) y Bypass de Soberanía.
  * ======================================================================================
  */
 
 const admin = require("firebase-admin");
 const db = admin.firestore();
 
-// ⚙️ CONFIGURACIÓN V4 (AJUSTES DE SENSIBILIDAD)
+// ⚙️ CONFIGURACIÓN V4.1 (AJUSTES DE SENSIBILIDAD)
 const CONFIG = {
   BOTNET_THRESHOLD: 3,        // Mínimo de Tenants diferentes bajo ataque para saltar
   TIME_WINDOW_MS: 30000,      // Ventana de correlación (30 segundos)
@@ -36,13 +38,13 @@ async function firewallV4(req) {
     const ua = req.headers["user-agent"] || "na";
     const fingerprint = `${ip}_${ua.slice(0, 50)}`;
 
-    // 🚀 BYPASS SUPREMO: Inmunidad total para Heberto Mendoza Senior
+    // 🚀 BYPASS SUPREMO: Inmunidad total para Heber Mendoza (Arquitecto Senior)
     if (email === "hebertoh-m@hotmail.com") {
-        console.log(`🚀 [FIREWALL V4] Identidad Maestra: ${email}. Acceso irrestricto concedido.`);
+        console.log(`🚀 [V4.1] Identidad Maestra: ${email}. Acceso irrestricto concedido.`);
         return {
             ok: true,
             uid: uid,
-            tenantId: "CORE_SYSTEM",
+            tenantId: "UXMAL39", // Alineado con la soberanía actual
             clusterScore: 0,
             tenantsInvolved: 0,
             action: "ALLOW"
@@ -50,21 +52,25 @@ async function firewallV4(req) {
     }
 
     // =========================
-    // 2. USER / TENANT VALIDATION
+    // 2. USER / TENANT VALIDATION (FIX: ALINEACIÓN CON 'users')
     // =========================
-    const userSnap = await db.collection("gestia_users").doc(uid).get();
-    if (!userSnap.exists) throw new Error("USER_NOT_FOUND");
+    // IMPORTANTE: Se cambió de 'gestia_users' a 'users'
+    const userSnap = await db.collection("users").doc(uid).get(); 
+    if (!userSnap.exists) {
+        console.error(`❌ [V4.1] UID ${uid} no encontrado en la colección 'users'.`);
+        throw new Error("USER_NOT_FOUND_IN_CORE");
+    }
 
     const user = userSnap.data();
-    const tenantId = user.tenantId;
-    if (!tenantId) throw new Error("NO_TENANT_ASSIGNED");
+    // Prioridad: tenantId -> residencialId -> Default
+    const tenantId = user.tenantId || user.residencialId || "PENDING_ASSIGNMENT";
 
     // =========================
     // 3. GLOBAL BLACKLIST (EXILIO POR HUELLA)
     // =========================
     const black = await db.collection("gestia_global_blacklist").doc(fingerprint).get();
     if (black.exists) {
-        console.error(`🚨 [V4] Bloqueo por Blacklist de Huella: ${fingerprint}`);
+        console.error(`🚨 [V4.1] Bloqueo por Blacklist de Huella: ${fingerprint}`);
         throw new Error("BLACKLIST_FINGERPRINT");
     }
 
@@ -81,8 +87,6 @@ async function firewallV4(req) {
     };
 
     const now = Date.now();
-
-    // Limpieza de ventana temporal (Solo nos interesan los últimos 30 segundos)
     const recentTimes = (fpData.timestamps || []).filter(t => now - t < CONFIG.TIME_WINDOW_MS);
 
     // =========================
@@ -94,12 +98,11 @@ async function firewallV4(req) {
     const tenantsInvolved = tenantsSet.size;
     let clusterScore = fpData.score || 0;
 
-    // Si la misma IP/UA está pegándole a varios clientes diferentes... es una Botnet
     if (tenantsInvolved >= CONFIG.BOTNET_THRESHOLD) {
       clusterScore += (tenantsInvolved * 15) + (recentTimes.length * 5);
     }
 
-    // Aplicar Decay para no castigar eternamente si el comportamiento mejora
+    // Aplicar Decay
     clusterScore = Math.floor((fpData.score || 0) * CONFIG.DECAY + (clusterScore - (fpData.score || 0)));
 
     // =========================
@@ -114,9 +117,8 @@ async function firewallV4(req) {
     }
 
     if (action === "BLOCK_CLUSTER") {
-      // 🔥 ACCIÓN DE EXILIO: Blacklist automática por huella digital
       await db.collection("gestia_global_blacklist").doc(fingerprint).set({
-        reason: "BOTNET_PATTERN_V4",
+        reason: "BOTNET_PATTERN_V4.1",
         score: clusterScore,
         tenants_affected: Array.from(tenantsSet),
         createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -125,7 +127,7 @@ async function firewallV4(req) {
     }
 
     if (action === "THROTTLE_CLUSTER") {
-      console.warn(`⚠️ [V4] Ralentizando cluster sospechoso (2.5s). FP: ${fingerprint}`);
+      console.warn(`⚠️ [V4.1] Ralentizando cluster sospechoso (2.5s). FP: ${fingerprint}`);
       await new Promise(r => setTimeout(r, 2500));
     }
 
@@ -133,14 +135,14 @@ async function firewallV4(req) {
     // 7. ACTUALIZACIÓN DE ESTADO DE HUELLA
     // =========================
     await fpRef.set({
-      tenants: Array.from(tenantsSet).slice(-10), // Guardamos historial de los últimos 10 tenants
-      timestamps: [...recentTimes, now].slice(-30), // Máximo 30 marcas de tiempo
+      tenants: Array.from(tenantsSet).slice(-10),
+      timestamps: [...recentTimes, now].slice(-30),
       score: clusterScore,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
     // =========================
-    // 8. LOG DE AUDITORÍA
+    // 8. LOG DE AUDITORÍA (FIX: ALINEACIÓN CON 'gestia_logs')
     // =========================
     await db.collection("gestia_logs").add({
       uid,
@@ -150,7 +152,7 @@ async function firewallV4(req) {
       tenantsInvolved,
       action,
       latency: Date.now() - start,
-      version: "V4_ANTI_BOTNET",
+      version: "V4.1_CORE",
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
