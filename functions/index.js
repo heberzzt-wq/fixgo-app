@@ -991,10 +991,22 @@ exports.onScheduleMantenimiento = functions.pubsub
         return null;
     });
 // ------------------------------------------------------------------
-// 6. TERMINAL HEBERTO "MODO DIOS" (BRAIN SHIELD V4.1 - ENTERPRISE GRADE)
+// 6. TERMINAL HEBERTO "MODO DIOS" (BRAIN SHIELD V5.0 - ENTERPRISE GRADE)
 // ------------------------------------------------------------------
 
 const corsHandler = require("cors")({ origin: true });
+
+// 💡 UTILIDAD DEL ABUELO: CIRCUIT BREAKER (TIMEOUT PARA IA)
+function withTimeout(promise, ms) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error("TIMEOUT_IA: El modelo no respondió en el tiempo límite."));
+        }, ms);
+        promise
+            .then((res) => { clearTimeout(timer); resolve(res); })
+            .catch((err) => { clearTimeout(timer); reject(err); });
+    });
+}
 
 exports.gestiaArchitectV5 = functions
     .runWith({ 
@@ -1004,7 +1016,7 @@ exports.gestiaArchitectV5 = functions
     })
     .https.onRequest((req, res) => {
         return corsHandler(req, res, async () => {
-            console.log("🚀 [INICIO] Petición recibida en gestiaArchitectV5 (Brain Shield V4.1)");
+            console.log("🚀 [INICIO] Petición recibida en gestiaArchitectV5 (Brain Shield V5.0)");
 
             try {
                 // 🛡️ 1. INICIALIZACIÓN DE IA & BD (BLINDADA)
@@ -1119,14 +1131,16 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
 
                 const fullPrompt = `${systemInstruction}\n\nSOLICITUD DEL CEO (Heberto):\n${prompt}`;
 
-                // ⚡ 7. BUCLE BLINDADO DE LLAMADA A IA (FIX ABUELO 3)
+                // ⚡ 7. BUCLE BLINDADO DE LLAMADA A IA (FIX ABUELO 3 + TIMEOUT 25s)
                 let result;
                 let respuestaFinal = "";
+                let lastApiError = null;
 
                 for (let intento = 1; intento <= 2; intento++) {
                     try {
                         console.log(`🧠 [STEP 6] Disparando solicitud a la IA (Intento ${intento})...`);
-                        result = await model.generateContent(fullPrompt);
+                        // 🔥 APLICAMOS EL TIMEOUT DEL ABUELO (25000ms = 25 segundos)
+                        result = await withTimeout(model.generateContent(fullPrompt), 25000);
 
                         if (!result || !result.response) {
                             throw new Error("IA_RESPONSE_NULL");
@@ -1141,10 +1155,10 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
                         break; // Éxito: rompemos el bucle
 
                     } catch (apiError) {
-                        console.error(`❌ Error IA intento ${intento}:`, apiError.message);
-
+                        console.warn(`⚠️ [WARNING] Impacto falló (${apiError.message}). Recalibrando...`);
+                        lastApiError = apiError;
                         if (intento === 2) {
-                            throw new Error(`IA_TOTAL_FAILURE: ${apiError.message}`);
+                            throw new Error(`IA_TOTAL_FAILURE: ${lastApiError.message}`);
                         }
                     }
                 }
@@ -1158,7 +1172,7 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
                     throw new Error("Respuesta demasiado grande. Posible desbordamiento de memoria bloqueado.");
                 }
 
-                // Limpieza de Markdown si Gemini lo metió a pesar del prompt
+                // 🔥 Limpieza de Markdown si Gemini lo metió a pesar del prompt
                 cleaned = cleaned.replace(/^```json/i, '').replace(/```$/i, '').trim();
 
                 const firstBrace = cleaned.indexOf('{');
@@ -1197,7 +1211,7 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
                         uid: session.uid,
                         tenantId: currentTenantId,
                         fecha: admin.firestore.FieldValue.serverTimestamp(),
-                        version: "V13_SUPREMO_BRAIN_SHIELD_V4.1_ANTI500",
+                        version: "V13_SUPREMO_BRAIN_SHIELD_V5.0",
                         score_abuso: session.clusterScore || 0
                     });
                     console.log("✅ [STEP 10] Log de auditoría guardado.");
