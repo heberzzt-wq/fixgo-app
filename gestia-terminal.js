@@ -162,13 +162,14 @@ async function inicializarAutoridadBunker() {
         
         // 1. Resolvemos el contexto inicial del usuario autenticado
         // nNhwy3Mx4pTvc8TZVh1tyTMFwhC2 detectado en Firestore.
+        // 💡 El tenant YA VIENE LIMPIO Y EN MINÚSCULAS desde el Resolver V2
         SESSION = await resolveTenantContext();
 
         // 🔑 BYPASS DE SOBERANÍA: Acceso directo e incondicional para el Arquitecto
         // Si el UID es el tuyo, forzamos los permisos sin importar el estado de red.
         if (SESSION.uid === "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2") { 
             SESSION.authorized = true;
-            SESSION.tenantId = "UXMAL39"; // Vinculación forzada al búnker central
+            // 🔥 ELIMINADO: SESSION.tenantId = "UXMAL39"; (Respetamos la jerarquía del Core)
             SESSION.role = "arquitecto_supremo";
             logger.warn("🔓 MODO DIOS ACTIVADO: Soberanía de Heberto confirmada.");
         }
@@ -176,6 +177,11 @@ async function inicializarAutoridadBunker() {
         // 🛡️ VALIDACIÓN DE ENTRADA AL BÚNKER
         if (!SESSION.authorized) {
             throw new Error("FALLO_DE_IDENTIDAD_SaaS");
+        }
+
+        // 🧠 PROTECCIÓN EXTRA DEL ABUELO: El escudo definitivo anti-mayúsculas
+        if (SESSION.tenantId !== SESSION.tenantId.toLowerCase()) {
+            throw new Error(`TENANT_INVALIDO_CASE: ${SESSION.tenantId}`);
         }
 
         // 2. Inmortalizamos los valores de la sesión en el scope global de la terminal
@@ -195,9 +201,9 @@ async function inicializarAutoridadBunker() {
         // Reporte de Error Forense
         logger.error(`BLOQUEO_DE_SEGURIDAD: ${error.message}`);
         
-        // Si el fallo es crítico, cerramos el acceso para evitar fugas de bits
-        if (error.message === "FALLO_DE_IDENTIDAD_SaaS") {
-            alert("🚫 Acceso Denegado: No se pudo validar tu autoridad en este Tenant.");
+        // Si el fallo es crítico o de casing corrupto, cerramos el acceso para evitar fugas de bits
+        if (error.message === "FALLO_DE_IDENTIDAD_SaaS" || error.message.includes("TENANT_INVALIDO_CASE")) {
+            alert("🚫 Acceso Denegado: No se pudo validar tu autoridad o el Tenant es inválido.");
             window.location.href = "/login.html"; 
         }
     }
