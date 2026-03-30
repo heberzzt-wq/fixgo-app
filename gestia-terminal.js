@@ -71,7 +71,7 @@ const GESTIA_CONFIG = {
 };
 
 // ==========================================
-// VARIABLES DE ESTADO GLOBAL PRO (V5.26-MT)
+// VARIABLES DE ESTADO GLOBAL PRO (V5.28-MT)
 // ==========================================
 
 // 🛡️ SESSION: ADN de autoridad.
@@ -97,6 +97,24 @@ let versionLocalSnapshot = null;
 // ⚖️ LIMITADORES
 let GESTIA_USAGE_COUNTER = 0;
 
+// ==========================================
+// 🧹 HERRAMIENTAS DE SANITIZACIÓN (FRONTEND)
+// ==========================================
+
+/**
+ * Sanitiza el ID del módulo generado por la IA para asegurar
+ * compatibilidad estricta con Firestore (solo alfanuméricos y guiones bajos).
+ * Defensa en Profundidad (Capa Frontend).
+ */
+function sanitizeModuloId(id) {
+    if (!id) return "modulo_default";
+
+    return id
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, "_")  // solo letras, números y _
+        .replace(/_+/g, "_")          // evita ___
+        .replace(/^_+|_+$/g, "");     // quita _ al inicio/final
+}
 // ==========================================
 // 3. LOGGER DE AUDITORÍA FORENSE
 // ==========================================
