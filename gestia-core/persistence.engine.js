@@ -2,9 +2,9 @@
  * ======================================================================================
  * GESTIAPREMIUM 2026 - PERSISTENCE ENGINE V5.28 (INFINITY CORE)
  * ======================================================================================
- * Identidad: Fusión de Arquitectura (Código) y SaaS (Operación).
- * Funciones: Hard Locking (Mutex), Snapshots Globales y Persistencia Dinámica.
- * Regla 1: Código completo. Sin placeholders.
+ * Identidad: Fusión Total (Arquitectura + SaaS + Identidad Unificada).
+ * Funciones: Hard Locking (Mutex), Snapshots, Datos Dinámicos y Perfiles B2B/B2C.
+ * Regla 1: Código completo. Sin compactar. Sin placeholders.
  * ======================================================================================
  */
 
@@ -27,7 +27,7 @@ export async function persistirEstructuraModulo(moduloId, data, hash, tenantId, 
 
     try {
         await runTransaction(db, async (transaction) => {
-            // 1. Verificación de Bloqueo (Tu Mutex V1.0)
+            // 1. Verificación de Bloqueo (Mutex Original Heberto V1.0)
             const snap = await transaction.get(moduloRef);
             if (snap.exists() && snap.data().locked && snap.data().locked_by !== data.ejecutado_por) {
                 throw new Error("MODULO_BLOQUEADO: Otro ingeniero está trabajando en este ADN.");
@@ -39,11 +39,11 @@ export async function persistirEstructuraModulo(moduloId, data, hash, tenantId, 
                 tenantId: tenantId,
                 hash_snapshot: hash,
                 fecha_actualizacion: serverTimestamp(),
-                locked: false, // Liberamos el candado tras el éxito
+                locked: false, // Liberamos el candado tras éxito
                 ultima_op: opId
             }, { merge: true });
 
-            // 3. Registrar en Historial Local (Tu Historial V1.0)
+            // 3. Registrar en Historial Local del Módulo
             transaction.set(historyRef, {
                 hash_snapshot: hash,
                 data_backup: data,
@@ -67,7 +67,7 @@ export async function persistirEstructuraModulo(moduloId, data, hash, tenantId, 
             });
         });
 
-        console.log(`%c🏛️ [Persistence] ADN del Módulo ${moduloId} actualizado y cerrado.`, "color: #3b82f6; font-weight: bold;");
+        console.log(`%c🏛️ [Persistence] Estructura ${moduloId} sellada con Hash: ${hash}`, "color: #3b82f6; font-weight: bold;");
         return { success: true, hash };
 
     } catch (e) {
@@ -105,7 +105,7 @@ export async function persistirDatoDinamico(payload) {
                 actualizadoEn: serverTimestamp()
             };
 
-            // Guardamos el registro y cerramos la operación en un solo suspiro
+            // Ejecución Atómica
             transaction.set(regRef, registroFinal);
             transaction.update(opRef, {
                 status: "completed",
@@ -115,11 +115,84 @@ export async function persistirDatoDinamico(payload) {
             });
         });
 
-        console.log(`%c📦 [Persistence] Registro dinámico guardado con éxito.`, "color: #10b981; font-weight: bold;");
+        console.log(`%c📦 [Persistence] Dato guardado en ${moduloId} exitosamente.`, "color: #10b981; font-weight: bold;");
         return { success: true, registroId };
 
     } catch (e) {
         console.error("🚨 FALLO_TRANSACCIONAL_DATOS:", e);
+        throw e;
+    }
+}
+
+/**
+ * 👤 3. PERSISTIR PERFIL USUARIO (IDENTIDAD UNIFICADA - BLOQUE B)
+ * Fusiona perfiles en la colección única 'users' según el rol (B2B / B2C / PRO).
+ */
+export async function persistirPerfilUsuario(uid, payload, opId) {
+    const userRef = doc(db, "users", uid);
+    const opRef = doc(db, "gestia_operations", opId);
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const opSnap = await transaction.get(opRef);
+            if (!opSnap.exists()) throw new Error("OPERACION_AUTH_NO_REGISTRADA");
+
+            const { rol, datos } = payload;
+            
+            // ADN BASE UNIFICADO
+            let perfilFinal = {
+                uid: uid,
+                nombre: datos.nombre,
+                email: datos.email.toLowerCase(),
+                rol: rol,
+                telefono: datos.telefono,
+                estado: datos.estado || "activo",
+                status: datos.status || "activo",
+                creadoEn: serverTimestamp(),
+                actualizadoEn: serverTimestamp(),
+                _meta: { opId: opId, v: "5.28-CORE-IDENTITY" }
+            };
+
+            // RAMIFICACIÓN LÓGICA (B2B vs B2C vs SOCIO)
+            if (rol === "admin_b2b") {
+                perfilFinal.tipo_cuenta = "B2B";
+                perfilFinal.sub_type = "saas";
+                perfilFinal.edificioId = datos.edificioId;
+                perfilFinal.edificioNombre = datos.edificioNombre;
+            } 
+            else if (rol === "cliente") {
+                perfilFinal.tipo_cuenta = "B2C";
+                perfilFinal.sub_type = "marketplace";
+                perfilFinal.metodo_pago_default = datos.metodo_pago || null;
+            }
+            else if (rol === "tecnico") {
+                perfilFinal.tipo_cuenta = "SocioPro";
+                perfilFinal.sub_type = "marketplace";
+                perfilFinal.nivel = "BRONCE";
+                perfilFinal.reputacion = 5.0;
+                perfilFinal.documentos = datos.documentos || {};
+                perfilFinal.datos_bancarios = datos.datos_bancarios || {};
+                perfilFinal.vehiculo = datos.vehiculo || { tipo: "peaton" };
+                perfilFinal.skills = datos.skills || [];
+                // Unificación de campo de foto solicitada
+                perfilFinal.foto_perfil = datos.foto_perfil || datos.fotoPerfil || null;
+            }
+
+            // Escritura y cierre de operación en un solo suspiro
+            transaction.set(userRef, perfilFinal);
+            transaction.update(opRef, {
+                status: "completed",
+                userId: uid,
+                tipo_registro: rol,
+                finalizadoEn: serverTimestamp()
+            });
+        });
+
+        console.log(`%c👤 [Identidad] Perfil ${payload.rol} inmortalizado para ${uid}.`, "color: #8b5cf6; font-weight: bold;");
+        return { success: true };
+
+    } catch (e) {
+        console.error("🚨 FALLO_PERSISTENCIA_USUARIO:", e.message);
         throw e;
     }
 }
