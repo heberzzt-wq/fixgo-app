@@ -1049,7 +1049,7 @@ exports.gestiaArchitectV5 = functions
                 const currentTenantId = session.tenantId || "UXMAL39";
                 console.log(`✅ [STEP 2] Firewall superado. UID activo: ${session.uid} | Búnker: ${currentTenantId}`);
 
-                // 📦 3. PARSEO Y VALIDACIÓN EXTREMA DEL PROMPT (FIX ABUELO 1)
+                // 📦 3. PARSEO Y VALIDACIÓN EXTREMA DEL PROMPT
                 const bodyData = req.body.data || req.body;
                 let prompt = "";
 
@@ -1064,7 +1064,7 @@ exports.gestiaArchitectV5 = functions
                 }
                 console.log(`✅ [STEP 3] Payload validado (Anti-[object Object]). Longitud: ${prompt.length}`);
 
-                // 🏗️ 4. CONSTRUCCIÓN DEL CORRAL (CON MANEJO DE ERRORES DB)
+                // 🏗️ 4. CONSTRUCCIÓN DEL CORRAL
                 let corralSchema = "ESTRUCTURA_ACTUAL_DEL_SISTEMA:\n";
                 try {
                     const modulesSnap = await db.collection("gestia_system_modules").get();
@@ -1078,7 +1078,7 @@ exports.gestiaArchitectV5 = functions
                     corralSchema += "- Fallback activado: Se asumen módulos base.\n";
                 }
 
-                // 🧠 5. CONFIGURACIÓN DEL MODELO IA (FIX ABUELO 2: SIN MIME TYPE)
+                // 🧠 5. CONFIGURACIÓN DEL MODELO IA
                 let tokensIA = Number(bodyData.tokens) || 3200;
                 tokensIA = Math.min(Math.max(tokensIA, 500), 4096);
 
@@ -1089,7 +1089,6 @@ exports.gestiaArchitectV5 = functions
                         generationConfig: {
                             temperature: 0.4,
                             maxOutputTokens: tokensIA
-                            // 🔥 Eliminado responseMimeType: "application/json" para evitar crashes 500
                         }
                     });
                     console.log("✅ [STEP 5] Modelo Gemini configurado con límite seguro de tokens:", tokensIA);
@@ -1131,7 +1130,7 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
 
                 const fullPrompt = `${systemInstruction}\n\nSOLICITUD DEL CEO (Heberto):\n${prompt}`;
 
-                // ⚡ 7. BUCLE BLINDADO DE LLAMADA A IA (FIX ABUELO 3 + TIMEOUT 25s)
+                // ⚡ 7. BUCLE BLINDADO DE LLAMADA A IA
                 let result;
                 let respuestaFinal = "";
                 let lastApiError = null;
@@ -1139,7 +1138,6 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
                 for (let intento = 1; intento <= 2; intento++) {
                     try {
                         console.log(`🧠 [STEP 6] Disparando solicitud a la IA (Intento ${intento})...`);
-                        // 🔥 APLICAMOS EL TIMEOUT DEL ABUELO (25000ms = 25 segundos)
                         result = await withTimeout(model.generateContent(fullPrompt), 25000);
 
                         if (!result || !result.response) {
@@ -1152,7 +1150,7 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
                             throw new Error("IA_EMPTY_RESPONSE");
                         }
 
-                        break; // Éxito: rompemos el bucle
+                        break; 
 
                     } catch (apiError) {
                         console.warn(`⚠️ [WARNING] Impacto falló (${apiError.message}). Recalibrando...`);
@@ -1172,7 +1170,6 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
                     throw new Error("Respuesta demasiado grande. Posible desbordamiento de memoria bloqueado.");
                 }
 
-                // 🔥 Limpieza de Markdown si Gemini lo metió a pesar del prompt
                 cleaned = cleaned.replace(/^```json/i, '').replace(/```$/i, '').trim();
 
                 const firstBrace = cleaned.indexOf('{');
@@ -1185,7 +1182,7 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
 
                 cleaned = cleaned.substring(firstBrace, lastBrace + 1);
 
-                // 🔬 9. PARSEO Y VALIDACIÓN ESTRUCTURAL DEL JSON
+                // 🔬 9. PARSEO, VALIDACIÓN ESTRUCTURAL Y SANITIZACIÓN DEL ABUELO
                 let jsonParsed;
                 try {
                     jsonParsed = JSON.parse(cleaned);
@@ -1203,7 +1200,23 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
                     console.error("❌ ESTRUCTURA INVÁLIDA:", JSON.stringify(jsonParsed).substring(0, 500));
                     throw new Error("JSON válido en sintaxis, pero estructura incorrecta para el Orquestador.");
                 }
-                console.log("✅ [STEP 9] Estructura de ADN verificada (conciencia y ejecucion presentes).");
+
+                // 🔥 LA MAGIA DEL ABUELO: SANITIZAR EL MODULO_ID ANTES DE DEVOLVERLO
+                if (jsonParsed.ejecucion && jsonParsed.ejecucion.modulo_id) {
+                    const idOriginal = jsonParsed.ejecucion.modulo_id;
+                    jsonParsed.ejecucion.modulo_id = idOriginal
+                        .toLowerCase()
+                        .replace(/[^a-z0-9_]/g, "_")  // Solo letras, números y guiones bajos
+                        .replace(/_+/g, "_")          // Evita guiones múltiples "___"
+                        .replace(/^_+|_+$/g, "");     // Quita guiones al inicio o final
+                    
+                    console.log(`✅ [STEP 8.5] ID Sanitizado: '${idOriginal}' -> '${jsonParsed.ejecucion.modulo_id}'`);
+                }
+
+                // Volvemos a empaquetar el JSON ya limpio para mandarlo al frontend
+                cleaned = JSON.stringify(jsonParsed);
+
+                console.log("✅ [STEP 9] Estructura de ADN verificada y sanitizada.");
 
                 // 📝 10. LOG DE AUDITORÍA NO BLOQUEANTE
                 try {
@@ -1221,7 +1234,6 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
 
                 console.log("🚀 [FIN] Enviando payload exitoso de regreso a la Terminal");
                 
-                // 🛑 PROTECCIÓN DE DOBLE RESPUESTA
                 if (res.headersSent) {
                     console.warn("⚠️ Respuesta ya enviada, abortando duplicado (Flujo de Éxito).");
                     return;
@@ -1238,13 +1250,11 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
             } catch (error) {
                 console.error("🔥 [ERROR CRÍTICO EN CLOUD FUNCTION]:", error);
                 
-                // 🛑 PROTECCIÓN DE DOBLE RESPUESTA
                 if (res.headersSent) {
                     console.warn("⚠️ Respuesta ya enviada, abortando duplicado (Flujo de Error).");
                     return;
                 }
 
-                // 🧠 EL ÚLTIMO ESCUDO: FALLBACK ENRIQUECIDO (NUNCA ROMPE LA UI)
                 return res.status(200).json({
                     data: {
                         success: false,
