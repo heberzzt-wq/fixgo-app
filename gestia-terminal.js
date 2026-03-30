@@ -148,46 +148,63 @@ function escaparHTML(str) {
 }
 
 // ==========================================
-// 6. AUTORIDAD CENTRALIZADA (CORE SESSION)
+// 6. AUTORIDAD CENTRALIZADA (CORE SESSION) - V5.28
 // ==========================================
+/**
+ * REGLA DE ORO: No fragmentar. Código completo.
+ * Inyección de Identidad Maestra: Heber Mendoza (Arquitecto Supremo)
+ */
 async function inicializarAutoridadBunker() {
     const logger = crearLogger();
     
     try {
         logger.log("🛡️ Solicitando resolución de autoridad al Core...");
+        
+        // 1. Resolvemos el contexto inicial del usuario autenticado
+        // nNhwy3Mx4pTvc8TZVh1tyTMFwhC2 detectado en Firestore.
         SESSION = await resolveTenantContext();
 
-        // 🔑 BYPASS DE EMERGENCIA: Acceso directo para el Arquitecto
-        if (SESSION.uid === "TU_UID_DE_FIREBASE_AQUI") { 
+        // 🔑 BYPASS DE SOBERANÍA: Acceso directo e incondicional para el Arquitecto
+        // Si el UID es el tuyo, forzamos los permisos sin importar el estado de red.
+        if (SESSION.uid === "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2") { 
             SESSION.authorized = true;
-            SESSION.tenantId = "ADMIN_BUNKER";
-            SESSION.role = "GOD_MODE";
-            logger.warn("🔓 MODO DIOS ACTIVADO: Bypass de seguridad detectado.");
+            SESSION.tenantId = "UXMAL39"; // Vinculación forzada al búnker central
+            SESSION.role = "arquitecto_supremo";
+            logger.warn("🔓 MODO DIOS ACTIVADO: Soberanía de Heberto confirmada.");
         }
+
+        // 🛡️ VALIDACIÓN DE ENTRADA AL BÚNKER
         if (!SESSION.authorized) {
             throw new Error("FALLO_DE_IDENTIDAD_SaaS");
         }
 
+        // 2. Inmortalizamos los valores de la sesión en el scope global de la terminal
         CURRENT_TENANT_ID = SESSION.tenantId;
         CURRENT_USER_ROLE = SESSION.role;
 
+        // Logs de Éxito en Consola (Nivel Dios)
         console.log(`%c✅ [AUTORIDAD] Búnker abierto para: ${CURRENT_TENANT_ID}`, "color: #10b981; font-weight: bold;");
         console.log(`%c👤 [ROL] Nivel de acceso: ${CURRENT_USER_ROLE}`, "color: #3b82f6;");
 
-        if (GESTIA_CONFIG.MODO_TACANO.ACTIVO) {
+        // 💰 OPTIMIZACIÓN DE RECURSOS (MODO TACAÑO)
+        if (GESTIA_CONFIG.MODO_TACANO && GESTIA_CONFIG.MODO_TACANO.ACTIVO) {
             logger.warn("💰 MODO TACAÑO: Sesión optimizada con caché de 5min.");
         }
 
     } catch (error) {
+        // Reporte de Error Forense
         logger.error(`BLOQUEO_DE_SEGURIDAD: ${error.message}`);
-        alert("🚫 Acceso Denegado: No se pudo validar tu autoridad en este Tenant.");
-        window.location.href = "/login.html"; 
+        
+        // Si el fallo es crítico, cerramos el acceso para evitar fugas de bits
+        if (error.message === "FALLO_DE_IDENTIDAD_SaaS") {
+            alert("🚫 Acceso Denegado: No se pudo validar tu autoridad en este Tenant.");
+            window.location.href = "/login.html"; 
+        }
     }
 }
 
-// 🚀 DISPARO INMEDIATO
+// 🚀 DISPARO INMEDIATO DE AUTORIDAD
 inicializarAutoridadBunker();
-
 // ==========================================
 // 7. MULTIMODALIDAD PRO (ORQUESTACIÓN DE UI)
 // ==========================================
