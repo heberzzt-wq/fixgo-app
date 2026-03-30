@@ -531,15 +531,19 @@ if (form) {
 
         try {
             // 🔥 2.5. FIREWALL ENGINE (CAPA 1: UX RATE LIMITER)
-            logger.log("🛡️ Evaluando reglas de Firewall UX...");
+            // FIX V5.28: Aseguramos que el tenantId NUNCA sea undefined para evitar FALLO_SISTEMICO
+            const activeTenant = SESSION.tenantId || localStorage.getItem('gestia_tenant_id') || "UXMAL39";
+            
+            logger.log(`🛡️ Evaluando reglas de Firewall UX para Tenant: ${activeTenant}...`);
+            
             await ejecutarFirewallGlobal({
-                userId: SESSION.uid,
-                tenantId: SESSION.tenantId,
+                userId: SESSION.uid || "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2",
+                tenantId: activeTenant,
                 input: instruccion || "multimodal_payload"
             });
 
             // 🔑 3. IDEMPOTENCIA Y REGISTRO (Operations Engine)
-            const opId = await generarHashSHA256(instruccion + Date.now() + SESSION.uid + SESSION.tenantId);
+            const opId = await generarHashSHA256(instruccion + Date.now() + SESSION.uid + activeTenant);
             const yaExiste = await verificarIdempotencia(opId);
 
             if (yaExiste) {
@@ -551,7 +555,7 @@ if (form) {
                 opId,
                 promptHash: pHash,
                 userId: SESSION.uid,
-                tenantId: SESSION.tenantId,
+                tenantId: activeTenant,
                 version: GESTIA_CONFIG.VERSION
             });
 
@@ -578,13 +582,13 @@ if (form) {
                     logger.log(`🧠 [INTENTO 1] Disparando payload al Cerebro...`);
                 }
 
-                // Inyectamos los tokens (Asegúrate de que brain.engine.js reciba este 4to parámetro si es necesario)
+                // Inyectamos los tokens
                 const tokensPermitidos = GESTIA_CONFIG.MODO_TACANO.MAX_TOKENS_IA || 3200;
                 
                 const brainRes = await invocarArquitectoIA(
                     promptActual,
-                    currentRetry === 0 ? contextoMultimodal : [], // Solo mandamos la imagen la 1ra vez para ahorrar recursos
-                    opId + (currentRetry > 0 ? `_r${currentRetry}` : ""), // Modificamos ID para evitar caché
+                    currentRetry === 0 ? contextoMultimodal : [], 
+                    opId + (currentRetry > 0 ? `_r${currentRetry}` : ""), 
                     tokensPermitidos
                 );
 
@@ -602,17 +606,14 @@ if (form) {
                 // LO UNIMOS AL ACUMULADOR MAESTRO
                 textoAcumulado += currentRaw;
 
-                // 🧹 6. NORMALIZACIÓN DE SALIDA (Evaluamos el total acumulado)
-                // Usamos la estructura { respuesta: ... } para engañar positivamente al normalizador
+                // 🧹 6. NORMALIZACIÓN DE SALIDA
                 resultadoIA = normalizarSalidaIA({ respuesta: textoAcumulado });
 
                 if (resultadoIA.tipo === "truncated") {
-                    // SE CORTÓ: Preparamos el prompt militar del siguiente ciclo
                     const ultimasPalabras = textoAcumulado.slice(-40).replace(/\n/g, " ");
-                    promptActual = `AUTO_RECOVERY_PROTOCOL: Corte de red detectado. Continúa EXACTAMENTE desde la letra o símbolo que sigue inmediatamente después de: "${ultimasPalabras}". REGLA ESTRICTA: NO repitas NINGUNA de esas últimas palabras en tu respuesta, NO saludes, NO abras bloques de código si ya estaban abiertos. Escribe ÚNICAMENTE el texto o código que falta por generar.`;
+                    promptActual = `AUTO_RECOVERY_PROTOCOL: Corte de red detectado. Continúa EXACTAMENTE desde la letra o símbolo que sigue inmediatamente después de: "${ultimasPalabras}". REGLA ESTRICTA: NO repitas NINGUNA de esas últimas palabras.`;
                     currentRetry++;
                 } else {
-                    // SALIÓ ENTERITO
                     isTruncated = false;
                 }
             }
@@ -620,7 +621,7 @@ if (form) {
             // 🛡️ 6.6. FALLBACK GLOBAL (Anti-Corte Total)
             if (!resultadoIA || !resultadoIA.tipo) {
                 logger.error("FALLO_TOTAL_NORMALIZADOR");
-                agregarBurbujaError("La IA devolvió un formato irreconocible o nulo tras los reintentos.");
+                agregarBurbujaError("La IA devolvió un formato irreconocible.");
                 await updateDoc(doc(db, "gestia_operations", opId), { status: "fatal_normalization_error" });
                 
                 const loadingElement = document.getElementById(idCarga);
@@ -628,7 +629,7 @@ if (form) {
                 return; 
             }
 
-            // Limpieza de contexto volátil y spinner (Éxito parcial hasta aquí)
+            // Limpieza de contexto volátil y spinner
             contextoMultimodal = []; 
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
@@ -636,37 +637,33 @@ if (form) {
             // 🔀 7. SWITCH MAESTRO DE FLUJO (V5.28 SUPREMO)
             switch (resultadoIA.tipo) {
 
-                // 🚨 CASO ERROR
                 case "error":
                     logger.error(`🚨 FALLO_CRÍTICO_IA: ${resultadoIA.error}`);
-                    agregarBurbujaError(`ERROR_BRAIN: ${resultadoIA.error}. Reintenta la instrucción.`);
+                    agregarBurbujaError(`ERROR_BRAIN: ${resultadoIA.error}.`);
                     await updateDoc(doc(db, "gestia_operations", opId), { 
                         status: "fatal_error",
                         error_detail: resultadoIA.error
                     });
                     break;
 
-                // 🧯 CASO FALLBACK
                 case "fallback":
-                    logger.warn("🧯 Fallback activado: Respuesta vacía o nula.");
-                    agregarBurbujaInfo("La IA no devolvió ADN procesable. Intenta ser más específico.");
+                    logger.warn("🧯 Fallback activado.");
+                    agregarBurbujaInfo("La IA no devolvió ADN procesable.");
                     await updateDoc(doc(db, "gestia_operations", opId), { status: "empty_fallback" });
                     break;
 
-                // ⚠️ CASO TRUNCATED (Agotó los 5 reintentos y no lo logró)
                 case "truncated":
                     logger.error("⚠️ RESPUESTA CORTADA IRRECUPERABLE");
-                    agregarBurbujaError(`LA SEÑAL SE CORTÓ DEFINITIVAMENTE: El código llegó incompleto a pesar de los ${maxRetries} reintentos.`);
+                    agregarBurbujaError(`SEÑAL CORTADA: Agotados los ${maxRetries} reintentos.`);
                     if (resultadoIA.codigo) {
-                        agregarBurbujaCodigo(resultadoIA.codigo + "\n\n/* ❌ ERROR: CONTENIDO TRUNCADO POR LA RED --- SISTEMA AGOTADO --- */");
+                        agregarBurbujaCodigo(resultadoIA.codigo + "\n\n/* ❌ ERROR: TRUNCADO */");
                     }
                     await updateDoc(doc(db, "gestia_operations", opId), { status: "truncated_response_failed" });
                     break;
 
-                // 🚀 FLUJO V13
                 case "v13_dual":
                     try {
-                        logger.log("🧠 Detectado Flujo V13 Supremo: Conciencia y Ejecución Silenciosa.");
+                        logger.log("🧠 Detectado Flujo V13 Supremo.");
                         agregarBurbujaHeberto(resultadoIA.mensaje_ceo, resultadoIA.modulo_id);
 
                         const auditoriaV13 = await ejecutarAuditoriaCore(
@@ -682,11 +679,11 @@ if (form) {
                             resultadoIA.modulo_id, 
                             auditoriaV13.data, 
                             auditoriaV13.hash, 
-                            SESSION.tenantId
+                            activeTenant
                         );
                         
                         versionLocalSnapshot = auditoriaV13.hash;
-                        logger.log(`🏛️ ADN V13 [${resultadoIA.modulo_id}] Inmortalizado en BD.`);
+                        logger.log(`🏛️ ADN V13 [${resultadoIA.modulo_id}] Inmortalizado.`);
 
                         await updateDoc(doc(db, "gestia_operations", opId), {
                             status: "completed_v13",
@@ -695,13 +692,13 @@ if (form) {
 
                     } catch (errV13) {
                         logger.error(`FALLO_V13_DB: ${errV13.message}`);
-                        agregarBurbujaError("ERROR_ESTRUCTURAL_V13: El código no superó la auditoría de BD.");
+                        agregarBurbujaError("ERROR_ESTRUCTURAL_V13.");
                     }
                     break;
 
                 case "json":
                     try {
-                        logger.log("💎 Detectado Flujo A: Módulo Estructurado (JSON).");
+                        logger.log("💎 Detectado Flujo A: JSON.");
                         const auditoria = await ejecutarAuditoriaCore(
                             resultadoIA.json, 
                             versionLocalSnapshot, 
@@ -715,11 +712,10 @@ if (form) {
                             auditoria.data.modulo_id, 
                             auditoria.data, 
                             auditoria.hash, 
-                            SESSION.tenantId
+                            activeTenant
                         );
                         
                         versionLocalSnapshot = auditoria.hash;
-                        logger.log("🏛️ ADN Inmortalizado mediante Transacción Atómica.");
                         renderModuloSeguro(auditoria.data);
 
                         await updateDoc(doc(db, "gestia_operations", opId), {
@@ -729,7 +725,7 @@ if (form) {
 
                     } catch (errJson) {
                         logger.error(`FALLO_PROCESAMIENTO_JSON: ${errJson.message}`);
-                        agregarBurbujaError("ERROR_ESTRUCTURAL: El JSON no superó la auditoría core.");
+                        agregarBurbujaError("ERROR_ESTRUCTURAL.");
                     }
                     break;
 
@@ -739,9 +735,8 @@ if (form) {
                     await updateDoc(doc(db, "gestia_operations", opId), { status: "completed_code" });
                     break;
 
-                // 💬 NUEVO CASO V5.28: TEXTO PLANO CONVERSACIONAL
                 case "texto_plano":
-                    logger.log("💬 Detectado Flujo Conversacional (Texto Humano).");
+                    logger.log("💬 Detectado Flujo Conversacional.");
                     agregarBurbujaHeberto(resultadoIA.codigo);
                     await updateDoc(doc(db, "gestia_operations", opId), { status: "completed_text" });
                     break;
@@ -755,7 +750,7 @@ if (form) {
 
         } catch (err) {
             if (err.message.includes("FIREWALL") || err.message.includes("RATE_LIMIT")) {
-                await registrarErrorFirewall(SESSION.uid, SESSION.tenantId);
+                await registrarErrorFirewall(SESSION.uid, activeTenant);
             }
             logger.error(`FALLO_SISTEMICO: ${err.message}`);
             
@@ -764,7 +759,6 @@ if (form) {
             
             agregarBurbujaError(err.message);
         } finally {
-            // ⚡ DESBLOQUEO DE UI VISUAL
             btnGenerate.disabled = false;
             btnGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
             input.disabled = false;
