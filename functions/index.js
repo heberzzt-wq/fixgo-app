@@ -1011,12 +1011,17 @@ exports.gestiaArchitectV5 = functions
                 const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
                 console.log("✅ [STEP 1] Gemini Key cargada");
 
-                // 🛡️ 2. ESCUDO FISCAL (FIREWALL V4) BLINDADO
+                // 🛡️ 2. ESCUDO FISCAL (FIREWALL V4.1) BLINDADO
+                // Inyección de lógica de soberanía: Si el Firewall V4.1 detecta tu email, 
+                // devuelve 'ALLOW' y tenantId 'UXMAL39' automáticamente.
                 const session = await firewallV4(req);
-                if (!session || !session.uid) {
+                if (!session || (!session.uid && session.action !== "ALLOW")) {
                     throw new Error("Firewall rechazó la conexión o no devolvió sesión válida.");
                 }
-                console.log(`✅ [STEP 2] Firewall superado. UID activo: ${session.uid}`);
+                
+                // Definimos el Tenant de la sesión (Prioridad al búnker UXMAL39 si eres tú)
+                const currentTenantId = session.tenantId || "UXMAL39";
+                console.log(`✅ [STEP 2] Firewall superado. UID activo: ${session.uid} | Búnker: ${currentTenantId}`);
 
                 // 📦 3. PARSEO Y VALIDACIÓN ESTRICTA DEL PROMPT
                 const bodyData = req.body.data || req.body;
@@ -1059,6 +1064,8 @@ exports.gestiaArchitectV5 = functions
                 const systemInstruction = `
 Eres la TERMINAL HEBERTO V13 SUPREMO. Identidad: Gemelo Digital y Orquestador Global Nivel Dios.
 Tu misión no es solo escupir código, sino pensar, analizar y ejecutar con la configuración de GestiaPremium.
+
+SOBERANÍA ACTUAL: Operando bajo el Búnker ${currentTenantId}.
 
 REGLAS INNEGOCIABLES V13:
 1. FORMATO DE RESPUESTA: ESTÁS OBLIGADO a responder ÚNICA Y EXCLUSIVAMENTE con un objeto JSON estructurado exactamente así:
@@ -1157,6 +1164,7 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
                 try {
                     await db.collection("logs_terminal_heberto").add({
                         uid: session.uid,
+                        tenantId: currentTenantId,
                         fecha: admin.firestore.FieldValue.serverTimestamp(),
                         version: "V13_SUPREMO_BRAIN_SHIELD_V4.1",
                         score_abuso: session.clusterScore || 0
