@@ -4,6 +4,7 @@
  * ======================================================================================
  * Maneja la orquestación, idempotencia, registro de intención y el Escudo Fiscal multi-tenant.
  * REGLA 1: Código completo. Sin compactar.
+ * BLINDAJE ABUELO: Firestore SafeWriter + Fallbacks duros anti-undefined.
  * ======================================================================================
  */
 
@@ -17,6 +18,16 @@ import {
 
 // 🔴 1. IMPORTAMOS EL ESCUDO FISCAL (Capa 2 - Backend Firewall)
 import { ejecutarFirewallGlobal } from './firewall.engine.js';
+
+/**
+ * 🧹 FIRESTORE SAFEWRITER (El Filtro del Abuelo)
+ * Elimina cualquier llave que contenga 'undefined' para que Firestore no explote.
+ */
+function limpiarUndefined(obj) {
+    return Object.fromEntries(
+        Object.entries(obj).filter(([_, v]) => v !== undefined)
+    );
+}
 
 /**
  * ORQUESTADOR PRINCIPAL DE OPERACIONES (El Cadenero Supremo)
@@ -73,11 +84,13 @@ export async function verificarIdempotencia(opId) {
 
 /**
  * ⚖️ CÁLCULO INTERNO DE SPLIT BILLING
+ * Blindado para evitar NaN si el monto es inválido.
  */
 function calcularSplit(monto) {
+    const safeMonto = isNaN(monto) || monto === undefined ? 0 : monto;
     return {
-        dev: parseFloat((monto * 0.32).toFixed(4)), // 32% para la Infraestructura God
-        tenant: parseFloat((monto * 0.68).toFixed(4)) // 68% para la operación
+        dev: parseFloat((safeMonto * 0.32).toFixed(4)), // 32% para la Infraestructura God
+        tenant: parseFloat((safeMonto * 0.68).toFixed(4)) // 68% para la operación
     };
 }
 
@@ -90,37 +103,49 @@ export async function registrarOperacion({ opId, promptHash, userId, tenantId, v
     const opRef = doc(db, "gestia_operations", opId);
     const tenantRef = doc(db, "tenants", tenantId);
 
+    // 🛡️ PROTECCIÓN ANTI-UNDEFINED (Fallbacks Duros)
+    const safeCosto = costoSimulado ?? 0; // Si no mandan costo, asumimos 0 (operación gratuita/interna)
+    const safeVersion = version ?? "V5.28_AUTO"; 
+
     try {
         await runTransaction(db, async (transaction) => {
             // 1. Consultar estado del Tenant
             const tenantSnap = await transaction.get(tenantRef);
             if (!tenantSnap.exists()) throw new Error("TENANT_NO_ENCONTRADO");
 
-            const split = calcularSplit(costoSimulado);
+            const split = calcularSplit(safeCosto);
 
-            // 2. Escribir la operación (Equivalente a tu setDoc pero protegido)
-            transaction.set(opRef, {
+            // 2. Construir Payload Protegido
+            const payload = limpiarUndefined({
                 operation_id: opId,
                 prompt_hash: promptHash,
                 ejecutado_por: userId,
                 tenantId: tenantId,
                 fecha: serverTimestamp(),
                 status: "processing", 
-                version_core: version,
+                version_core: safeVersion,
                 billing: {
-                    total: costoSimulado,
+                    total: safeCosto,
                     split_32_dev: split.dev,
                     split_68_tenant: split.tenant,
                     currency: "USD"
                 }
             });
 
+            // Escribir la operación con el SafeWriter
+            transaction.set(opRef, payload);
+
             // 3. Actualizar la contabilidad del búnker en tiempo real
-            transaction.update(tenantRef, {
+            // Validamos que stats exista para no sumar sobre undefined
+            const currentTotalSpend = tenantSnap.data().stats?.total_spend || 0;
+            
+            const tenantUpdatePayload = limpiarUndefined({
                 "stats.last_op_id": opId,
-                "stats.total_spend": (tenantSnap.data().stats?.total_spend || 0) + costoSimulado,
+                "stats.total_spend": currentTotalSpend + safeCosto,
                 "updated_at": serverTimestamp()
             });
+
+            transaction.update(tenantRef, tenantUpdatePayload);
         });
     } catch (err) {
         throw new Error(`FALLO_TRANSACCION_REGISTRO: ${err.message}`);
