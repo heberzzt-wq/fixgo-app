@@ -991,7 +991,7 @@ exports.onScheduleMantenimiento = functions.pubsub
         return null;
     });
 // ------------------------------------------------------------------
-// 6. TERMINAL HEBERTO "MODO DIOS" (REESCRITO V13 SUPREMO + BLINDAJE TOTAL)
+// 6. TERMINAL HEBERTO "MODO DIOS" (BRAIN SHIELD V4.1 - ENTERPRISE GRADE)
 // ------------------------------------------------------------------
 
 const corsHandler = require("cors")({ origin: true });
@@ -1004,7 +1004,7 @@ exports.gestiaArchitectV5 = functions
     })
     .https.onRequest((req, res) => {
         return corsHandler(req, res, async () => {
-            console.log("🚀 [INICIO] Petición recibida en gestiaArchitectV5");
+            console.log("🚀 [INICIO] Petición recibida en gestiaArchitectV5 (Brain Shield V4.1)");
 
             try {
                 // 🚀 1. INICIALIZACIÓN DE IA
@@ -1041,9 +1041,9 @@ exports.gestiaArchitectV5 = functions
                     throw new Error("Fallo crítico al conectar con Firestore para armar el Corral.");
                 }
 
-                // 🧠 5. CONFIGURACIÓN DEL MODELO
-                // Recibimos los tokens inyectados del frontend o capeamos a 3200 por seguridad (bajando de 4096)
-                const tokensIA = bodyData.tokens || 3200; 
+                // 🧠 5. CLAMP DE TOKENS (SEGURIDAD DE MEMORIA)
+                let tokensIA = Number(bodyData.tokens) || 3200;
+                tokensIA = Math.min(Math.max(tokensIA, 500), 4096);
 
                 const model = genAI.getGenerativeModel({ 
                     model: "gemini-2.5-flash",
@@ -1053,7 +1053,7 @@ exports.gestiaArchitectV5 = functions
                         responseMimeType: "application/json" 
                     }
                 });
-                console.log("✅ [STEP 5] Modelo Gemini configurado con límite de tokens:", tokensIA);
+                console.log("✅ [STEP 5] Modelo Gemini configurado con límite seguro de tokens:", tokensIA);
 
                 // 📜 6. SYSTEM PROMPT
                 const systemInstruction = `
@@ -1087,60 +1087,135 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
 
                 const fullPrompt = `${systemInstruction}\n\nSOLICITUD DEL CEO (Heberto):\n${prompt}`;
 
-                // ⚡ 7. LLAMADA A LA IA
-                console.log("🧠 [STEP 6] Disparando solicitud a la IA...");
-                const result = await model.generateContent(fullPrompt);
+                // ⚡ 7. LLAMADA A LA IA CON RETRY INTERNO (El escudo invisible)
+                let result;
+                try {
+                    console.log("🧠 [STEP 6] Disparando solicitud a la IA (Intento 1)...");
+                    result = await model.generateContent(fullPrompt);
+                } catch (apiError) {
+                    console.warn(`⚠️ [WARNING] Primer impacto falló (${apiError.message}). Recalibrando y disparando Intento 2...`);
+                    result = await model.generateContent(fullPrompt);
+                }
 
-                // 🕵️ 8. VALIDACIÓN ABSOLUTA DE LA RESPUESTA Y LOG RAW
+                // 🕵️ 8. VALIDACIÓN ABSOLUTA Y EXTRACCIÓN SEGURA DEL TEXTO
                 if (!result || !result.response) {
                     console.error("📦 RAW IA ERROR RESULT:", JSON.stringify(result, null, 2));
                     throw new Error("Respuesta inválida o cortada del modelo (result o response vacíos).");
                 }
 
-                const respuestaFinal = result.response.text();
+                let respuestaFinal;
+                try {
+                    respuestaFinal = result.response.text();
+                } catch (textExtractError) {
+                    console.error("❌ Error extrayendo texto de la IA:", textExtractError);
+                    throw new Error("No se pudo extraer texto de la respuesta del modelo de IA.");
+                }
 
                 if (!respuestaFinal || respuestaFinal.trim().length === 0) {
                     throw new Error("La IA devolvió un texto completamente vacío.");
                 }
+                console.log(`✅ [STEP 7] Texto extraído. Longitud cruda: ${respuestaFinal.length}`);
 
-                console.log(`✅ [STEP 7] Texto recibido. Longitud: ${respuestaFinal.length}`);
-
-                // 🧱 9. VALIDACIÓN ESTRICTA DEL JSON (EL FIX MAESTRO)
-                let jsonParsed;
-                try {
-                    jsonParsed = JSON.parse(respuestaFinal);
-                    console.log("✅ [STEP 8] Parseo JSON exitoso. La IA respetó la estructura.");
-                } catch (parseError) {
-                    console.error("❌ JSON inválido recibido. Primeros 500 chars:", respuestaFinal.substring(0, 500));
-                    throw new Error("La IA no devolvió un JSON válido y estructurado. Parseo fallido.");
+                // 🧱 9. SANITIZACIÓN Y PROTECCIÓN DE MEMORIA
+                let cleaned = respuestaFinal.trim();
+                
+                if (cleaned.length > 100000) {
+                    throw new Error("Respuesta demasiado grande. Posible desbordamiento de memoria bloqueado.");
                 }
 
-                // 📝 10. LOG DE AUDITORÍA
-                await db.collection("logs_terminal_heberto").add({
-                    uid: session.uid,
-                    fecha: admin.firestore.FieldValue.serverTimestamp(),
-                    version: "V13_SUPREMO_BLINDADO",
-                    score_abuso: session.clusterScore || 0
-                });
+                const firstBrace = cleaned.indexOf('{');
+                const lastBrace = cleaned.lastIndexOf('}');
+
+                if (firstBrace === -1 || lastBrace === -1) {
+                    console.error("📦 RAW IA RESPONSE (SIN JSON):", cleaned.substring(0, 1000));
+                    throw new Error("No se encontró estructura JSON en la respuesta de la IA.");
+                }
+
+                cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+
+                // 🔬 10. PARSEO Y VALIDACIÓN ESTRUCTURAL DEL JSON
+                let jsonParsed;
+                try {
+                    jsonParsed = JSON.parse(cleaned);
+                    console.log("✅ [STEP 8] Parseo JSON exitoso tras sanitización.");
+                } catch (parseError) {
+                    console.error("❌ JSON corrupto después de limpieza:", cleaned.substring(0, 500));
+                    throw new Error("JSON inválido incluso después de sanitización de fragmentos.");
+                }
+
+                if (
+                    !jsonParsed.conciencia ||
+                    !jsonParsed.ejecucion ||
+                    !jsonParsed.ejecucion.payload
+                ) {
+                    console.error("❌ ESTRUCTURA INVÁLIDA:", JSON.stringify(jsonParsed).substring(0, 500));
+                    throw new Error("JSON válido en sintaxis, pero estructura incorrecta para el Orquestador.");
+                }
+                console.log("✅ [STEP 9] Estructura de ADN verificada (conciencia y ejecucion presentes).");
+
+                // 📝 11. LOG DE AUDITORÍA NO BLOQUEANTE
+                try {
+                    await db.collection("logs_terminal_heberto").add({
+                        uid: session.uid,
+                        fecha: admin.firestore.FieldValue.serverTimestamp(),
+                        version: "V13_SUPREMO_BRAIN_SHIELD_V4.1",
+                        score_abuso: session.clusterScore || 0
+                    });
+                    console.log("✅ [STEP 10] Log de auditoría guardado.");
+                } catch (logError) {
+                    console.warn("⚠️ [WARNING] Falló log de auditoría, pero no afecta respuesta:", logError.message);
+                }
 
                 console.log("🚀 [FIN] Enviando payload exitoso de regreso a la Terminal");
+                
+                // 🛑 PROTECCIÓN DE DOBLE RESPUESTA
+                if (res.headersSent) {
+                    console.warn("⚠️ Respuesta ya enviada, abortando duplicado (Flujo de Éxito).");
+                    return;
+                }
+
                 return res.status(200).json({
                     data: {
                         success: true,
-                        // Enviamos el string para que el normalizador del frontend siga operando su magia multimodal
-                        modulo_generado: respuestaFinal,
+                        modulo_generado: cleaned, 
                         status: "Arre con la que barre! 🍻"
                     }
                 });
 
             } catch (error) {
                 console.error("🔥 [ERROR CRÍTICO EN CLOUD FUNCTION]:", error);
-                return res.status(500).json({ 
-                    data: { 
-                        error: true,
-                        message: error.message || 'Error desconocido en el motor IA',
-                        stack: error.stack
-                    } 
+                
+                // 🛑 PROTECCIÓN DE DOBLE RESPUESTA
+                if (res.headersSent) {
+                    console.warn("⚠️ Respuesta ya enviada, abortando duplicado (Flujo de Error).");
+                    return;
+                }
+
+                // 🧠 EL ÚLTIMO ESCUDO: FALLBACK ENRIQUECIDO (NUNCA ROMPE LA UI)
+                return res.status(200).json({
+                    data: {
+                        success: false,
+                        fallback: {
+                            active: true,
+                            reason: error.message || 'Error desconocido en el motor IA',
+                            recoverable: true
+                        },
+                        modulo_generado: JSON.stringify({
+                            conciencia: {
+                                analisis: "Fallo controlado del motor IA detectado y absorbido.",
+                                mensaje_ceo: "Hubo una interferencia fuerte en el núcleo 🧠⚡ pero el búnker resistió. El sistema se auto-estabilizó. Lanza el prompt de nuevo, Arquitecto."
+                            },
+                            ejecucion: {
+                                tipo_accion: "fallback_recovery",
+                                modulo_id: "gestia_recovery_protocol",
+                                payload: {
+                                    html: "",
+                                    css: "/* Recovery */",
+                                    javascript: "console.log('Sistema Gestia estabilizado. Listo para nuevo input.');"
+                                }
+                            }
+                        })
+                    }
                 });
             }
         });
