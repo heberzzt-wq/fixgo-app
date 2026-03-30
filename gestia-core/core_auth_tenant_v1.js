@@ -1,10 +1,12 @@
 // ==========================================
-// 🔐 GESTIA CORE: AUTH & TENANT MANAGER V1.0
+// 🔐 GESTIA CORE: AUTH & TENANT MANAGER V2.0
 // ==========================================
 // Este módulo maneja la autoridad y el contexto multi-tenant.
+// Actualizado con el Motor Self-Healing (Tenant Resolver V2)
 
 import { auth, db } from '../firebase.js'; // Ajusta la ruta a tu archivo firebase.js
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { resolveTenantV2 } from './core_tenant_resolver_v2.js'; // 👈 INYECCIÓN DEL MOTOR DEL ABUELO
 
 let SESSION_CACHE = null;
 let CACHE_TIME = 0;
@@ -38,10 +40,15 @@ export async function resolveTenantContext() {
                 // 🛡️ BYPASS SUPREMO: Nivel Dios para el Arquitecto
                 if (user.email === "hebertoh-m@hotmail.com") {
                     console.log("🚀 [GOD MODE] Identidad Maestra detectada. Derribando compuertas...");
+                    
+                    // 💡 FIX ABUELO: Normalizamos tu tenant maestro a "uxmal39" en minúsculas.
+                    // allowCreate: true permite que el Auto-Sanador cree el documento si no existía.
+                    const tenantGod = await resolveTenantV2("uxmal39", { allowCreate: true });
+
                     const GOD_SESSION = {
                         authorized: true,
                         uid: user.uid,
-                        tenantId: "CORE_SYSTEM", // Acceso global omnipotente
+                        tenantId: tenantGod.id, // Ya normalizado en minúsculas estrictas
                         role: "arquitecto_supremo",
                         limits: {
                             maxReads: 99999,
@@ -49,8 +56,11 @@ export async function resolveTenantContext() {
                         },
                         timestamp: now
                     };
+                    
                     SESSION_CACHE = GOD_SESSION;
                     CACHE_TIME = now;
+                    window.CURRENT_TENANT_ID = tenantGod.id; // Puente global para que el Firewall no truene
+                    
                     return resolve(GOD_SESSION);
                 }
 
@@ -68,11 +78,14 @@ export async function resolveTenantContext() {
                     throw new Error("EL_USUARIO_NO_TIENE_TENANT_ASIGNADO");
                 }
 
+                // 💡 FIX ABUELO: Pasamos el Tenant "sucio" de la DB por el Auto-Sanador
+                const tenantResuelto = await resolveTenantV2(userData.tenantId, { allowCreate: false });
+
                 // CREAMOS EL OBJETO DE SESIÓN (La verdad del sistema)
                 const SESSION = {
                     authorized: true,
                     uid: user.uid,
-                    tenantId: userData.tenantId,
+                    tenantId: tenantResuelto.id, // El ID limpio, en minúsculas y verificado en BD
                     role: userData.rol || "user",
                     
                     // Límites base para el modo tacaño
@@ -87,11 +100,18 @@ export async function resolveTenantContext() {
                 // Guardamos en caché local
                 SESSION_CACHE = SESSION;
                 CACHE_TIME = now;
+                window.CURRENT_TENANT_ID = tenantResuelto.id; // Puente global
 
                 console.log(`🛡️ [Auth] Contexto cargado para Tenant: ${SESSION.tenantId}`);
                 resolve(SESSION);
 
             } catch (err) {
+                // 💥 DESTRUCCIÓN DE CACHÉ CORRUPTA
+                // Si el error tiene que ver con el Tenant, matamos la memoria fantasma
+                if (err.message.includes("TENANT")) {
+                    SESSION_CACHE = null;
+                }
+                
                 console.error("🚨 [Auth] Error resolviendo autoridad:", err.message);
                 reject({
                     authorized: false,
