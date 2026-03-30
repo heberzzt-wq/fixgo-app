@@ -1007,30 +1007,50 @@ exports.gestiaArchitectV5 = functions
             console.log("🚀 [INICIO] Petición recibida en gestiaArchitectV5 (Brain Shield V4.1)");
 
             try {
-                // 🚀 1. INICIALIZACIÓN DE IA
-                const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
-                console.log("✅ [STEP 1] Gemini Key cargada");
+                // 🛡️ 1. INICIALIZACIÓN DE IA & BD (BLINDADA)
+                let genAI;
+                try {
+                    genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
+                    console.log("✅ [STEP 1] Gemini Key cargada");
+                } catch (initErr) {
+                    console.error("🔥 Error iniciando SDK Gemini:", initErr);
+                    throw new Error("SDK_INIT_FAILED");
+                }
+
+                if (!db) {
+                    throw new Error("DB_NOT_INITIALIZED");
+                }
 
                 // 🛡️ 2. ESCUDO FISCAL (FIREWALL V4.1) BLINDADO
-                // Inyección de lógica de soberanía: Si el Firewall V4.1 detecta tu email, 
-                // devuelve 'ALLOW' y tenantId 'UXMAL39' automáticamente.
-                const session = await firewallV4(req);
+                let session;
+                try {
+                    session = await firewallV4(req);
+                } catch (fwError) {
+                    console.error("🔥 Firewall crash interno:", fwError);
+                    throw new Error("FIREWALL_CRASH");
+                }
+
                 if (!session || (!session.uid && session.action !== "ALLOW")) {
                     throw new Error("Firewall rechazó la conexión o no devolvió sesión válida.");
                 }
                 
-                // Definimos el Tenant de la sesión (Prioridad al búnker UXMAL39 si eres tú)
                 const currentTenantId = session.tenantId || "UXMAL39";
                 console.log(`✅ [STEP 2] Firewall superado. UID activo: ${session.uid} | Búnker: ${currentTenantId}`);
 
-                // 📦 3. PARSEO Y VALIDACIÓN ESTRICTA DEL PROMPT
+                // 📦 3. PARSEO Y VALIDACIÓN EXTREMA DEL PROMPT (FIX ABUELO 1)
                 const bodyData = req.body.data || req.body;
-                const prompt = bodyData.prompt || bodyData;
+                let prompt = "";
 
-                if (!prompt || typeof prompt !== "string" || prompt.trim() === "") {
-                    throw new Error("El prompt viene vacío o no es un string de texto válido.");
+                if (typeof bodyData === "string") {
+                    prompt = bodyData;
+                } else if (typeof bodyData?.prompt === "string") {
+                    prompt = bodyData.prompt;
                 }
-                console.log(`✅ [STEP 3] Payload validado. Longitud: ${prompt.length}`);
+
+                if (!prompt || prompt.trim() === "") {
+                    throw new Error("El prompt viene vacío, o es un objeto en lugar de un string de texto válido.");
+                }
+                console.log(`✅ [STEP 3] Payload validado (Anti-[object Object]). Longitud: ${prompt.length}`);
 
                 // 🏗️ 4. CONSTRUCCIÓN DEL CORRAL (CON MANEJO DE ERRORES DB)
                 let corralSchema = "ESTRUCTURA_ACTUAL_DEL_SISTEMA:\n";
@@ -1042,23 +1062,28 @@ exports.gestiaArchitectV5 = functions
                     });
                     console.log("✅ [STEP 4] Corral semántico construido desde Firestore");
                 } catch (dbError) {
-                    console.error("❌ Error cargando corral de Firestore:", dbError);
-                    throw new Error("Fallo crítico al conectar con Firestore para armar el Corral.");
+                    console.warn("⚠️ [WARNING] Fallo no crítico al cargar corral de Firestore. Usando fallback.", dbError);
+                    corralSchema += "- Fallback activado: Se asumen módulos base.\n";
                 }
 
-                // 🧠 5. CLAMP DE TOKENS (SEGURIDAD DE MEMORIA)
+                // 🧠 5. CONFIGURACIÓN DEL MODELO IA (FIX ABUELO 2: SIN MIME TYPE)
                 let tokensIA = Number(bodyData.tokens) || 3200;
                 tokensIA = Math.min(Math.max(tokensIA, 500), 4096);
 
-                const model = genAI.getGenerativeModel({ 
-                    model: "gemini-2.5-flash",
-                    generationConfig: {
-                        temperature: 0.4,
-                        maxOutputTokens: tokensIA,
-                        responseMimeType: "application/json" 
-                    }
-                });
-                console.log("✅ [STEP 5] Modelo Gemini configurado con límite seguro de tokens:", tokensIA);
+                let model;
+                try {
+                    model = genAI.getGenerativeModel({ 
+                        model: "gemini-2.5-flash",
+                        generationConfig: {
+                            temperature: 0.4,
+                            maxOutputTokens: tokensIA
+                            // 🔥 Eliminado responseMimeType: "application/json" para evitar crashes 500
+                        }
+                    });
+                    console.log("✅ [STEP 5] Modelo Gemini configurado con límite seguro de tokens:", tokensIA);
+                } catch (modelErr) {
+                     throw new Error("MODEL_CONFIG_FAILED");
+                }
 
                 // 📜 6. SYSTEM PROMPT
                 const systemInstruction = `
@@ -1094,41 +1119,47 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
 
                 const fullPrompt = `${systemInstruction}\n\nSOLICITUD DEL CEO (Heberto):\n${prompt}`;
 
-                // ⚡ 7. LLAMADA A LA IA CON RETRY INTERNO (El escudo invisible)
+                // ⚡ 7. BUCLE BLINDADO DE LLAMADA A IA (FIX ABUELO 3)
                 let result;
-                try {
-                    console.log("🧠 [STEP 6] Disparando solicitud a la IA (Intento 1)...");
-                    result = await model.generateContent(fullPrompt);
-                } catch (apiError) {
-                    console.warn(`⚠️ [WARNING] Primer impacto falló (${apiError.message}). Recalibrando y disparando Intento 2...`);
-                    result = await model.generateContent(fullPrompt);
-                }
+                let respuestaFinal = "";
 
-                // 🕵️ 8. VALIDACIÓN ABSOLUTA Y EXTRACCIÓN SEGURA DEL TEXTO
-                if (!result || !result.response) {
-                    console.error("📦 RAW IA ERROR RESULT:", JSON.stringify(result, null, 2));
-                    throw new Error("Respuesta inválida o cortada del modelo (result o response vacíos).");
-                }
+                for (let intento = 1; intento <= 2; intento++) {
+                    try {
+                        console.log(`🧠 [STEP 6] Disparando solicitud a la IA (Intento ${intento})...`);
+                        result = await model.generateContent(fullPrompt);
 
-                let respuestaFinal;
-                try {
-                    respuestaFinal = result.response.text();
-                } catch (textExtractError) {
-                    console.error("❌ Error extrayendo texto de la IA:", textExtractError);
-                    throw new Error("No se pudo extraer texto de la respuesta del modelo de IA.");
-                }
+                        if (!result || !result.response) {
+                            throw new Error("IA_RESPONSE_NULL");
+                        }
 
-                if (!respuestaFinal || respuestaFinal.trim().length === 0) {
-                    throw new Error("La IA devolvió un texto completamente vacío.");
-                }
-                console.log(`✅ [STEP 7] Texto extraído. Longitud cruda: ${respuestaFinal.length}`);
+                        respuestaFinal = result.response.text();
 
-                // 🧱 9. SANITIZACIÓN Y PROTECCIÓN DE MEMORIA
+                        if (!respuestaFinal || respuestaFinal.trim() === "") {
+                            throw new Error("IA_EMPTY_RESPONSE");
+                        }
+
+                        break; // Éxito: rompemos el bucle
+
+                    } catch (apiError) {
+                        console.error(`❌ Error IA intento ${intento}:`, apiError.message);
+
+                        if (intento === 2) {
+                            throw new Error(`IA_TOTAL_FAILURE: ${apiError.message}`);
+                        }
+                    }
+                }
+                
+                console.log(`✅ [STEP 7] Texto extraído exitosamente del modelo.`);
+
+                // 🧱 8. SANITIZACIÓN Y PROTECCIÓN DE MEMORIA
                 let cleaned = respuestaFinal.trim();
                 
                 if (cleaned.length > 100000) {
                     throw new Error("Respuesta demasiado grande. Posible desbordamiento de memoria bloqueado.");
                 }
+
+                // Limpieza de Markdown si Gemini lo metió a pesar del prompt
+                cleaned = cleaned.replace(/^```json/i, '').replace(/```$/i, '').trim();
 
                 const firstBrace = cleaned.indexOf('{');
                 const lastBrace = cleaned.lastIndexOf('}');
@@ -1140,7 +1171,7 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
 
                 cleaned = cleaned.substring(firstBrace, lastBrace + 1);
 
-                // 🔬 10. PARSEO Y VALIDACIÓN ESTRUCTURAL DEL JSON
+                // 🔬 9. PARSEO Y VALIDACIÓN ESTRUCTURAL DEL JSON
                 let jsonParsed;
                 try {
                     jsonParsed = JSON.parse(cleaned);
@@ -1160,13 +1191,13 @@ Lógica: Split Billing 32/68 obligatorio en transacciones On-Demand.
                 }
                 console.log("✅ [STEP 9] Estructura de ADN verificada (conciencia y ejecucion presentes).");
 
-                // 📝 11. LOG DE AUDITORÍA NO BLOQUEANTE
+                // 📝 10. LOG DE AUDITORÍA NO BLOQUEANTE
                 try {
                     await db.collection("logs_terminal_heberto").add({
                         uid: session.uid,
                         tenantId: currentTenantId,
                         fecha: admin.firestore.FieldValue.serverTimestamp(),
-                        version: "V13_SUPREMO_BRAIN_SHIELD_V4.1",
+                        version: "V13_SUPREMO_BRAIN_SHIELD_V4.1_ANTI500",
                         score_abuso: session.clusterScore || 0
                     });
                     console.log("✅ [STEP 10] Log de auditoría guardado.");
