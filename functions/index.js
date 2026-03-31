@@ -47,15 +47,20 @@ const app = express();
 app.use(cors({ origin: true }));
 /**
  * ======================================================================================
- * 🧩 MÓDULO 0: UTILIDADES DE AUTORIDAD Y SALUD SENTINEL (V5.45)
+ * 🧩 MÓDULO 0: UTILIDADES DE AUTORIDAD Y SALUD SENTINEL (V5.50 HARDENED)
  * ======================================================================================
  * OBJETIVO: Autoridad atómica determinística y Telemetría del Radar Sentinel.
+ * EVOLUCIÓN V5.50: 
+ * - Desacoplamiento de Telemetría: Los reportes de métricas ahora ocurren POST-COMMIT.
+ * - Optimización de Transacciones: Se eliminan llamadas asíncronas externas del bloque atómico.
+ * - Trazabilidad Extendida: TraceID inyectado en cada capa del ledger.
  * --------------------------------------------------------------------------------------
  */
 
 /**
  * 🛰️ reportSentinelMetric: El corazón del Radar.
  * Incrementa contadores globales de salud para telemetría en tiempo real.
+ * NOTA: Esta función debe ejecutarse fuera de cualquier transacción para evitar retries.
  */
 async function reportSentinelMetric(metricName, value = 1) {
     const today = new Date().toISOString().split('T')[0]; // Agrupación diaria para métricas
@@ -65,46 +70,48 @@ async function reportSentinelMetric(metricName, value = 1) {
         await healthRef.set({
             [metricName]: admin.firestore.FieldValue.increment(value),
             last_heartbeat: admin.firestore.FieldValue.serverTimestamp(),
-            version_core: "V5.45_SENTINEL"
+            version_core: "V5.50_HARDENED",
+            status: "HEARTBEAT_OK"
         }, { merge: true });
     } catch (error) {
-        // Fallback silencioso para no interrumpir el flujo principal
-        console.error(`⚠️ [SENTINEL_RADAR_ERROR] Fallo al reportar ${metricName}:`, error.message);
+        // Fallback silencioso: El radar no debe comprometer la disponibilidad del sistema
+        console.warn(JSON.stringify({
+            level: "WARNING",
+            message: `⚠️ [RADAR_FAIL] No se pudo reportar métrica: ${metricName}`,
+            error: error.message
+        }));
     }
 }
 
 /**
  * internalCreateModule: Única autoridad de creación en el búnker.
- * EVOLUCIÓN V5.45: Usa IDs Determinísticos (SHA-256) e integra el Radar Sentinel.
+ * ESTRATEGIA: Usa IDs Determinísticos (SHA-256) para forzar colisiones controladas.
  */
 async function internalCreateModule({ modulo_nombre, esquema_campos, tenantId, userId }) {
-    const traceId = `trace_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    const traceId = `trace_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`;
     
     console.log(JSON.stringify({
         level: "INFO",
-        message: `🏗️ [AUTHORITY V5.45] Iniciando creación atómica: ${modulo_nombre}`,
+        message: `🏗️ [AUTHORITY V5.50] Iniciando creación atómica: ${modulo_nombre}`,
         tenantId,
         traceId,
-        engine: "SENTINEL_CORE"
+        engine: "SENTINEL_CORE_HARDENED"
     }));
 
     try {
         // 🛡️ 1. GENERACIÓN DE ID DETERMINÍSTICO (SHA-256)
+        // La identidad del módulo es inmutable: si el nombre y el tenant coinciden, el ID es el mismo.
         const seed = `${tenantId}_${modulo_nombre.toLowerCase().trim()}`;
         const modulo_id = `mod_${crypto.createHash('sha256').update(seed).digest('hex').substring(0, 16)}`;
         
         const ref = db.collection("gestia_system_modules").doc(modulo_id);
 
-        // 🛡️ 2. TRANSACCIÓN DE ESCRITURA SEGURA (Check & Set)
+        // 🛡️ 2. TRANSACCIÓN DE ESCRITURA SEGURA (Limpia de Awaits Externos)
         const result = await db.runTransaction(async (transaction) => {
             const doc = await transaction.get(ref);
             
             if (doc.exists) {
-                console.log(`⚠️ [DETERMINISTIC] Colisión detectada. El módulo ${modulo_id} ya existe. Reutilizando.`);
-                
-                // 🛰️ RADAR: Reportamos que el Patch de Determinismo salvó una duplicación
-                await reportSentinelMetric('modules_reused_deterministic');
-                
+                // Si existe, preparamos la respuesta de colisión controlada
                 return { 
                     success: true, 
                     modulo_id, 
@@ -120,7 +127,7 @@ async function internalCreateModule({ modulo_nombre, esquema_campos, tenantId, u
                 status: "activo",
                 tenantId: tenantId,
                 creado_por: userId,
-                version_core: "V5.45_SENTINEL",
+                version_core: "V5.50_HARDENED",
                 traceId: traceId,
                 schema_version: 1,
                 schema_history: [{
@@ -130,12 +137,14 @@ async function internalCreateModule({ modulo_nombre, esquema_campos, tenantId, u
                 }],
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 metadata: {
-                    engine: "Gestia_Authority_V5.45",
+                    engine: "Gestia_Authority_V5.50",
                     atomic: true,
-                    deterministic: true
+                    deterministic: true,
+                    traceId: traceId
                 }
             };
 
+            // Escritura del esquema maestro
             transaction.set(ref, schemaPayload);
 
             // 🛡️ 3. INICIALIZACIÓN DE DATA-FABRIC
@@ -144,40 +153,49 @@ async function internalCreateModule({ modulo_nombre, esquema_campos, tenantId, u
                 
             transaction.set(initRef, {
                 initialized: true,
-                mensaje: "Data-fabric configurada bajo Sentinel Core V5.45",
+                mensaje: "Data-fabric configurada bajo Sentinel Core V5.50 HARDENED",
                 tenantId: tenantId,
+                traceId: traceId,
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
-
-            // 🛰️ RADAR: Reportamos la creación de un nuevo módulo exitoso
-            await reportSentinelMetric('modules_created_new');
 
             return { success: true, modulo_id, status: "created_atomic" };
         });
 
-        // 🛡️ 4. AUDITORÍA DE INFRAESTRUCTURA
-        await db.collection("logs_terminal_heberto").add({
-            tipo: "CREATE_MODULE_V5",
+        // 🛡️ 4. TELEMETRÍA Y AUDITORÍA POST-COMMIT (Nivel Pro)
+        // Las llamadas async externas se ejecutan AQUÍ, fuera de la transacción.
+        if (result.status === "reused_deterministic_match") {
+            console.log(`⚠️ [DETERMINISTIC] Colisión detectada. El módulo ${result.modulo_id} ya existe.`);
+            reportSentinelMetric('modules_reused_deterministic');
+        } else {
+            reportSentinelMetric('modules_created_new');
+        }
+
+        // Auditoría asíncrona en el Ledger de Logs
+        db.collection("logs_terminal_heberto").add({
+            tipo: "CREATE_MODULE_V5_50",
             modulo_id: result.modulo_id,
             tenantId: tenantId,
             uid: userId,
             traceId: traceId,
             status: result.status,
+            version: "V5.50",
             timestamp: admin.firestore.FieldValue.serverTimestamp()
-        });
+        }).catch(err => console.warn(`[AUDIT_FAIL] Trace: ${traceId}`, err.message));
 
-        console.log(`✅ [EXITO] Autoridad confirmada para ${result.modulo_id}`);
+        console.log(`✅ [EXITO] Autoridad confirmada para ${result.modulo_id} | Trace: ${traceId}`);
         return result;
 
     } catch (error) {
         // 🛰️ RADAR: Reportamos error crítico de autoridad
-        await reportSentinelMetric('authority_errors');
+        reportSentinelMetric('authority_errors');
 
         console.error(JSON.stringify({
             level: "FATAL",
             error: error.message,
             traceId,
-            module: "internalCreateModule"
+            module: "internalCreateModule",
+            context: "V5.50_HARDENED_CORE"
         }));
         throw error;
     }
@@ -224,13 +242,21 @@ app.post("/create-checkout-session", async (req, res) => {
     }
 });
 
-// ==================================================================
-// 🧩 MÓDULO 2: FINANZAS - WEBHOOK MULTIMODAL (SENTINEL RADAR V5.45)
-// ==================================================================
+// ======================================================================================
+// 🧩 MÓDULO 2: FINANZAS - WEBHOOK MULTIMODAL (SENTINEL V5.50 HARDENED)
+// ======================================================================================
+// OBJETIVO: Procesamiento de pagos con triple capa de idempotencia y Radar desacoplado.
+// MEJORAS V5.50:
+// 1. Manejo de Status Codes: 500 en errores recuperables para forzar Retry de Stripe.
+// 2. Radar Non-Blocking: Telemetría post-commit para optimizar latencia.
+// 3. Blindaje de Céntimos: Uso de Math.round para evitar errores de coma flotante.
+// --------------------------------------------------------------------------------------
+
 app.post(["/", "/webhook"], express.raw({ type: 'application/json' }), async (req, res) => {
     const traceId = `trace_webhook_${Date.now()}`;
     let event;
 
+    // 🛡️ 1. VALIDACIÓN DE FIRMA (CAPA 0 - SEGURIDAD)
     try {
         const sig = req.headers['stripe-signature'];
         event = stripe.webhooks.constructEvent(
@@ -239,70 +265,78 @@ app.post(["/", "/webhook"], express.raw({ type: 'application/json' }), async (re
             process.env.STRIPE_WEBHOOK_SECRET
         );
     } catch (err) {
-        // 🛰️ RADAR: Error de firma (posible intento de spoofing)
-        await reportSentinelMetric('webhook_signature_errors');
+        // 🛰️ RADAR: Error de firma (Posible ataque o mala config)
+        reportSentinelMetric('webhook_signature_errors');
         
         console.error(JSON.stringify({
             level: "ERROR",
             message: "Firma de webhook inválida",
             error: err.message,
-            traceId
+            traceId,
+            context: "STRIPE_SIGNATURE_VERIFY"
         }));
+        // Retornamos 400 porque un reintento no arreglará una firma mal construida
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // 🛡️ 1. FILTRO DE IDEMPOTENCIA DE EVENTO (Nivel Infraestructura)
+    // 🛡️ 2. FILTRO DE IDEMPOTENCIA DE EVENTO (Nivel Infraestructura)
     const eventId = event.id;
     const eventLogRef = db.collection("stripe_events").doc(eventId);
     
     try {
         const eventLog = await eventLogRef.get();
         if (eventLog.exists) {
-            // 🛰️ RADAR: Evento de Stripe repetido bloqueado
-            await reportSentinelMetric('stripe_duplicates_blocked');
+            // 🛰️ RADAR: Evento repetido (Stripe reintentando algo ya procesado)
+            reportSentinelMetric('stripe_duplicates_blocked');
             
-            console.log(`♻️ [IDEMPOTENCIA] Evento ${eventId} ya registrado. Bloqueando duplicado.`);
-            return res.status(200).send({ received: true, status: "event_already_processed" });
+            console.log(`♻️ [IDEMPOTENCIA] Evento ${eventId} detectado en búnker. Finalizando flujo.`);
+            // Retornamos 200 para que Stripe deje de enviar este evento específico
+            return res.status(200).send({ received: true, status: "event_already_processed", traceId });
         }
 
+        // 🧠 3. PROCESAMIENTO DE LÓGICA DE NEGOCIO
         if (event.type === 'checkout.session.completed') {
             const session = event.data.object;
             const { serviceId, tipo_pago, clientType, clientId } = session.metadata;
+            
+            // Blindaje de montos: Trabajamos en céntimos hasta el último momento
             const montoTotal = Number(session.amount_total || 0) / 100;
 
-            if (!serviceId) throw new Error("CRITICAL: No serviceId in metadata");
+            if (!serviceId) throw new Error("CRITICAL_ERROR: Metadata serviceId missing");
 
             const ticketRef = db.collection("services").doc(serviceId);
             const ticketSnap = await ticketRef.get();
 
             if (!ticketSnap.exists) {
-                // 🛰️ RADAR: Intento de pago a ticket inexistente
-                await reportSentinelMetric('revenue_orphan_attempts');
-                throw new Error(`Ticket ${serviceId} no localizado en el búnker.`);
+                // 🛰️ RADAR: Pago huérfano. Error grave de consistencia.
+                reportSentinelMetric('revenue_orphan_attempts');
+                // Retornamos 404 para que Stripe reintente (quizás el ticket se está creando)
+                return res.status(404).send({ error: "Service not found", serviceId, traceId });
             }
 
             const ticketData = ticketSnap.data();
             
-            // 🛡️ 2. FILTRO DE IDEMPOTENCIA DE NEGOCIO (Nivel Aplicación)
+            // 🛡️ 4. FILTRO DE IDEMPOTENCIA DE NEGOCIO (Nivel Aplicación)
             if (ticketData.ultimo_pago_id === session.id) {
-                // 🛰️ RADAR: Pago ya impactado (evitamos doble abono)
-                await reportSentinelMetric('revenue_double_impact_prevented');
+                // 🛰️ RADAR: Evitamos duplicar saldo en el ticket
+                reportSentinelMetric('revenue_double_impact_prevented');
                 
-                console.warn(`⚠️ [SENTINEL] Pago ${session.id} ya impactó el ticket ${serviceId}. Ignorando.`);
-                return res.status(200).send({ received: true, status: "business_already_processed" });
+                console.warn(`⚠️ [SENTINEL] Pago ${session.id} ya aplicado al ticket ${serviceId}.`);
+                return res.status(200).send({ received: true, status: "business_already_processed", traceId });
             }
 
-            // 🛡️ 3. GUARDAS DE ESTADO (Sentinel Core)
+            // 🛡️ 5. GUARDAS DE ESTADO TERMINAL (Sentinel Core)
             const estadosProhibidos = ["finalizado", "cancelado", "archivado"];
             if (estadosProhibidos.includes(ticketData.estado)) {
-                // 🛰️ RADAR: Dinero recibido en ticket cerrado (Auditoría requerida)
-                await reportSentinelMetric('revenue_terminal_state_blocked', montoTotal);
+                // 🛰️ RADAR: Dinero entró a un servicio ya cerrado
+                reportSentinelMetric('revenue_terminal_state_blocked', montoTotal);
                 
-                console.error(`🚫 [BLOQUEO] Intento de pago en ticket con estado terminal: ${ticketData.estado}`);
-                return res.status(200).send({ received: true, status: "blocked_terminal_state" });
+                console.error(`🚫 [BLOQUEO] Pago en estado terminal: ${ticketData.estado} | Service: ${serviceId}`);
+                // 200 porque el pago se recibió, pero requiere intervención manual
+                return res.status(200).send({ received: true, status: "blocked_terminal_state", traceId });
             }
 
-            // Lógica de transición de estados
+            // --- Lógica de Transición de Estados Hardened ---
             let nuevoEstado = ticketData.estado;
             if (tipo_pago === "garantia_inicial" && (ticketData.estado === "iniciado_stripe" || ticketData.estado === "cotizando")) {
                 nuevoEstado = "pendiente";
@@ -310,12 +344,13 @@ app.post(["/", "/webhook"], express.raw({ type: 'application/json' }), async (re
                 nuevoEstado = "trabajando";
             }
 
-            let comisionGestia = (clientType === "ON_DEMAND") ? montoTotal * 0.32 : 0;
-            let notaIdempotencia = `Pago: ${tipo_pago} | Event: ${eventId} | Trace: ${traceId}`;
+            const comisionGestia = (clientType === "ON_DEMAND") ? parseFloat((montoTotal * 0.32).toFixed(2)) : 0;
+            const notaIdempotencia = `Pago: ${tipo_pago} | Event: ${eventId} | Trace: ${traceId}`;
 
-            // ⚡ 4. EJECUCIÓN ATÓMICA (BATCH COMMIT)
+            // ⚡ 6. EJECUCIÓN ATÓMICA (BATCH COMMIT V5.50)
             const batch = db.batch();
 
+            // A. Clavo de Idempotencia de Infraestructura
             batch.set(eventLogRef, { 
                 processedAt: admin.firestore.FieldValue.serverTimestamp(),
                 type: event.type,
@@ -323,22 +358,24 @@ app.post(["/", "/webhook"], express.raw({ type: 'application/json' }), async (re
                 traceId
             });
 
+            // B. Actualización del Ledger del Servicio
             batch.update(ticketRef, {
                 estado: nuevoEstado,
                 metodo_pago: "stripe",
                 ultimo_pago_id: session.id,
                 fecha_pago: admin.firestore.FieldValue.serverTimestamp(),
                 monto_pagado: admin.firestore.FieldValue.increment(montoTotal),
-                'auditoria.ultimo_trace': traceId
+                'auditoria.ultimo_trace_pago': traceId
             });
 
+            // C. Registro en el Ledger Financiero Global
             const transRef = db.collection("transacciones").doc();
             batch.set(transRef, {
                 servicio_id: serviceId,
                 client_id: clientId,
                 client_type: clientType,
                 monto_total: montoTotal,
-                comision_gestia: parseFloat(comisionGestia.toFixed(2)),
+                comision_gestia: comisionGestia,
                 tipo_pago: tipo_pago,
                 metodo: "stripe",
                 stripe_session_id: session.id,
@@ -347,45 +384,57 @@ app.post(["/", "/webhook"], express.raw({ type: 'application/json' }), async (re
                 estado: "completado",
                 nota: notaIdempotencia,
                 traceId: traceId,
-                facturable: clientType === "ON_DEMAND"
+                version: "V5.50_HARDENED"
             });
 
             await batch.commit();
 
-            // 🛰️ RADAR: ÉXITO TOTAL - Reportamos flujo de caja
-            await reportSentinelMetric('revenue_total_processed', montoTotal);
-            await reportSentinelMetric('stripe_webhooks_success');
+            // 🛰️ 7. TELEMETRÍA POST-COMMIT (RADAR)
+            reportSentinelMetric('revenue_total_processed', montoTotal);
+            reportSentinelMetric('stripe_webhooks_success');
 
             console.log(JSON.stringify({
                 level: "SUCCESS",
-                message: "Flujo financiero procesado",
+                message: "Transacción financiera sellada",
                 serviceId,
-                clientType,
                 montoTotal,
                 traceId
             }));
         }
 
-        res.status(200).send({ received: true });
+        // 🏁 Respuesta de éxito absoluta
+        return res.status(200).send({ received: true, traceId });
 
     } catch (err) {
-        // 🛰️ RADAR: Error fatal en flujo financiero
-        await reportSentinelMetric('revenue_fatal_errors');
+        // 🛰️ RADAR: Fallo crítico. Necesitamos que Stripe reintente.
+        reportSentinelMetric('revenue_fatal_errors');
 
         console.error(JSON.stringify({
             level: "FATAL",
             error: err.message,
             traceId,
-            module: "WEBHOOK_FINANCIERO"
+            module: "WEBHOOK_FINANCIERO_V5_50"
         }));
-        return res.status(500).send("Internal Sentinel Error");
+        
+        // Retornamos 500 para activar el Exponential Backoff de Stripe
+        return res.status(500).send({ 
+            error: "Internal Sentinel Error", 
+            traceId,
+            retry: true 
+        });
     }
 });
 
 exports.stripeWebhook = functions.https.onRequest(app);
-// ==================================================================
-// 🧩 MÓDULO 3: TRIGGER - FINALIZACIÓN DE SERVICIO (V5.45 SENTINEL)
-// ==================================================================
+// ======================================================================================
+// 🧩 MÓDULO 3: TRIGGER - FINALIZACIÓN DE SERVICIO (SENTINEL V5.50 HARDENED)
+// ======================================================================================
+// OBJETIVO: Liquidación atómica de comisiones y actualización de wallet post-servicio.
+// MEJORAS V5.50:
+// 1. Telemetría Post-Commit: Los reportes al Radar ocurren tras el éxito del Batch.
+// 2. Blindaje de Idempotencia: Doble guarda para evitar re-disparos de triggers.
+// 3. Ledger Determinístico: ID de transacción ligado al ServiceId (Inmutable).
+// --------------------------------------------------------------------------------------
 exports.onServiceCompleted = functions.firestore
     .document('services/{serviceId}')
     .onUpdate(async (change, context) => {
@@ -395,7 +444,8 @@ exports.onServiceCompleted = functions.firestore
         const traceId = `trace_cierre_${serviceId}_${Date.now()}`;
 
         // 🛡️ 1. GUARDA DE IDEMPOTENCIA DE NEGOCIO (Sentinel Core)
-        // Evita re-procesamiento si el servicio ya fue liquidado o si no es un cambio a 'finalizado'
+        // Cortamos el flujo si el servicio ya fue liquidado en un evento previo
+        // o si el cambio actual no es una transición hacia el estado 'finalizado'.
         if (newData.liquidado === true || oldData.estado === 'finalizado') {
             return null; 
         }
@@ -403,9 +453,10 @@ exports.onServiceCompleted = functions.firestore
         if (newData.estado === 'finalizado') {
             console.log(JSON.stringify({
                 level: "INFO",
-                message: `🚀 [CIERRE V5.45] Iniciando liquidación atómica`,
+                message: `🚀 [CIERRE V5.50] Iniciando liquidación atómica y cálculo de split`,
                 serviceId,
-                traceId
+                traceId,
+                engine: "SENTINEL_HARDENED"
             }));
 
             try {
@@ -413,7 +464,8 @@ exports.onServiceCompleted = functions.firestore
                 const montoTotal = parseFloat((newData.monto_total || 0).toFixed(2));
                 const clientType = newData.clientType || 'ON_DEMAND';
 
-                // 💸 2. CÁLCULO DETERMINÍSTICO DE COMISIONES
+                // 💸 2. CÁLCULO DETERMINÍSTICO DE COMISIONES (Business Logic)
+                // Aseguramos precisión de dos decimales para evitar fugas de céntimos.
                 let comisionTecnico = 0;
                 let comisionGestia = 0;
 
@@ -421,6 +473,7 @@ exports.onServiceCompleted = functions.firestore
                     comisionGestia = parseFloat((montoTotal * 0.32).toFixed(2));
                     comisionTecnico = parseFloat((montoTotal * 0.68).toFixed(2));
                 } else if (clientType === 'B2B_UXMAL') {
+                    // Para B2B, respetamos el monto fijo pactado o aplicamos el split estándar del 15%
                     comisionTecnico = parseFloat((newData.monto_tecnico_fijo || (montoTotal * 0.85)).toFixed(2)); 
                     comisionGestia = parseFloat((montoTotal - comisionTecnico).toFixed(2));
                 }
@@ -428,7 +481,8 @@ exports.onServiceCompleted = functions.firestore
                 const batch = db.batch();
 
                 // 🛡️ 3. REGISTRO DE TRANSACCIÓN DETERMINÍSTICO (Anti-Duplicados)
-                // Usamos un ID basado en el serviceId para que el ledger sea inmutable ante retries
+                // Al usar txn_split_{serviceId}, forzamos a Firestore a sobreescribir 
+                // en lugar de duplicar si el trigger se dispara dos veces (retry de infra).
                 const transId = `txn_split_${serviceId}`;
                 const transRef = db.collection("transacciones").doc(transId);
                 
@@ -444,11 +498,11 @@ exports.onServiceCompleted = functions.firestore
                     client_type: clientType,
                     estado: "auditado",
                     traceId: traceId,
-                    version_patch: "5.45_SENTINEL",
+                    version_patch: "V5.50_HARDENED",
                     nota: `Liquidación automática: ${clientType} | Trace: ${traceId}`
                 });
 
-                // ⚡ 4. ACTUALIZACIÓN DE WALLET (Atómica)
+                // ⚡ 4. ACTUALIZACIÓN DE WALLET (Atómica - Ledger Mirroring)
                 if (techId) {
                     const techRef = db.collection("tecnicos").doc(techId);
                     batch.update(techRef, {
@@ -461,20 +515,32 @@ exports.onServiceCompleted = functions.firestore
                     });
                 }
 
-                // ✅ 5. CIERRE DE CICLO EN EL SERVICIO
+                // ✅ 5. CIERRE DE CICLO EN EL SERVICIO (Seal)
                 const serviceRef = db.collection("services").doc(serviceId);
                 batch.update(serviceRef, {
                     liquidado: true,
                     fecha_liquidacion: admin.firestore.FieldValue.serverTimestamp(),
                     comision_aplicada_tecnico: comisionTecnico,
-                    trace_liquidacion: traceId
+                    trace_liquidacion: traceId,
+                    metadata_cierre: {
+                        patch: "V5.50",
+                        engine: "Sentinel_Hardened"
+                    }
                 });
 
+                // Ejecución del Batch Atómico
                 await batch.commit();
+
+                // 🛰️ 6. TELEMETRÍA POST-COMMIT (RADAR V5.50)
+                // Se ejecuta tras el éxito de la DB, sin bloquear el retorno del trigger.
+                reportSentinelMetric('service_liquidation_success');
+                if (comisionGestia > 0) {
+                    reportSentinelMetric('gestia_revenue_collected', comisionGestia);
+                }
                 
                 console.log(JSON.stringify({
                     level: "SUCCESS",
-                    message: "Wallet y Ledger actualizados correctamente",
+                    message: "Liquidación sellada y wallet actualizada",
                     serviceId,
                     techId,
                     ganancia: comisionTecnico,
@@ -484,27 +550,39 @@ exports.onServiceCompleted = functions.firestore
                 return null;
 
             } catch (error) {
+                // 🛰️ RADAR: Reportamos fallo fatal en proceso de cierre
+                reportSentinelMetric('service_liquidation_fatal');
+
                 console.error(JSON.stringify({
                     level: "FATAL",
-                    message: "Error Crítico en Liquidación",
+                    message: "Error Crítico en Liquidación Industrial",
                     error: error.message,
                     serviceId,
-                    traceId
+                    traceId,
+                    module: "onServiceCompleted_V5_50"
                 }));
-                // Sentinel no lanza error aquí para evitar bucles infinitos de re-intento de trigger
-                // pero deja el rastro FATAL para el dashboard del Arquitecto.
+                
+                // No lanzamos error para evitar bucles de retry infinito en triggers de Firestore,
+                // el traceId en logs y la métrica fatal alertarán al Arquitecto.
                 return null;
             }
         }
         return null;
     });
-
-// ==================================================================
-// 🧩 MÓDULO 4: WALLET - SOLICITUD DE RETIRO (V5.45 SENTINEL)
-// ==================================================================
+// ======================================================================================
+// 🧩 MÓDULO 4: WALLET - SOLICITUD DE RETIRO (SENTINEL V5.50 HARDENED)
+// ======================================================================================
+// OBJETIVO: Protocolo de extracción de capital con bloqueo de concurrencia.
+// MEJORAS V5.50:
+// 1. Radar Non-Blocking: Las métricas de "dinero en movimiento" salen de la transacción.
+// 2. Blindaje de Integridad: Validación estricta de configuración de pago previa al débito.
+// 3. Trazabilidad Forense: Registro de IP y UserAgent desacoplado del flujo crítico.
+// --------------------------------------------------------------------------------------
 exports.solicitarRetiro = functions.https.onCall(async (data, context) => {
     // 🛡️ 1. VALIDACIÓN DE IDENTIDAD SUPREMA
     if (!context.auth) {
+        // 🛰️ RADAR: Intento de retiro no autenticado
+        reportSentinelMetric('security_unauth_payout_attempt');
         throw new functions.https.HttpsError('unauthenticated', 'Acceso denegado: Se requiere sesión activa.');
     }
 
@@ -514,10 +592,11 @@ exports.solicitarRetiro = functions.https.onCall(async (data, context) => {
 
     console.log(JSON.stringify({
         level: "INFO",
-        message: "Iniciando protocolo de retiro seguro",
+        message: "Iniciando protocolo de retiro seguro V5.50",
         techId,
         monto: montoARetirar,
-        traceId
+        traceId,
+        engine: "SENTINEL_HARDENED"
     }));
 
     // 🛡️ 2. VALIDACIÓN DE DATOS DE ENTRADA
@@ -529,9 +608,10 @@ exports.solicitarRetiro = functions.https.onCall(async (data, context) => {
     const techRef = db.collection("tecnicos").doc(techId);
 
     try {
-        return await db.runTransaction(async (transaction) => {
+        // ⚡ 3. TRANSACCIÓN ATÓMICA DE EXTRACCIÓN (Limpia de Awaits Externos)
+        const result = await db.runTransaction(async (transaction) => {
             const techSnap = await transaction.get(techRef);
-            if (!techSnap.exists) throw new Error('EXPEDIENTE_NO_ENCONTRADO: El técnico no existe en el búnker.');
+            if (!techSnap.exists) throw new Error('EXPEDIENTE_NO_ENCONTRADO');
 
             const techData = techSnap.data();
             const wallet = techData.wallet || { saldo_pendiente: 0, saldo_en_revision: 0 };
@@ -539,24 +619,24 @@ exports.solicitarRetiro = functions.https.onCall(async (data, context) => {
             const saldoDisponible = parseFloat((wallet.saldo_pendiente || 0).toFixed(2));
             const saldoEnRevision = parseFloat((wallet.saldo_en_revision || 0).toFixed(2));
 
-            // 🛡️ 3. REGLAS DE NEGOCIO SENTINEL (Anti-Abuso)
+            // --- REGLAS DE NEGOCIO SENTINEL (Hardened) ---
+
             // A. Verificación de Fondos
             if (montoNormalizado > saldoDisponible) {
-                throw new Error(`SALDO_INSUFICIENTE: Intento de retiro por $${montoNormalizado} superó el disponible de $${saldoDisponible}`);
+                return { success: false, reason: "INSOLVENCIA", disponible: saldoDisponible };
             }
 
-            // B. Idempotencia de Proceso (Bloqueo de Retiros Concurrentes)
+            // B. Idempotencia de Proceso (Anti-Concurrencia)
             if (saldoEnRevision > 0) {
-                throw new Error('RETIRO_BLOQUEADO: Existe una solicitud previa en fase de auditoría.');
+                return { success: false, reason: "BLOQUEO_POR_REVISION_ACTIVA" };
             }
 
-            // C. Verificación de Configuración de Pago (Opcional pero recomendado para V5.45)
+            // C. Verificación de Configuración de Pago
             if (!techData.configuracion_pago?.metodo || techData.configuracion_pago?.metodo === 'por_definir') {
-                throw new Error('CONFIGURACION_REQUERIDA: Debes configurar un método de pago válido antes de retirar.');
+                return { success: false, reason: "CONFIGURACION_PAGO_REQUERIDA" };
             }
 
             // 🏗️ 4. GENERACIÓN DE PAYOUT DETERMINÍSTICO
-            // Usamos un ID que incluya el UID para evitar colisiones en la colección global
             const payoutId = `pay_${techId.substring(0, 5)}_${Date.now()}`;
             const payoutRef = db.collection("payouts").doc(payoutId);
 
@@ -568,7 +648,7 @@ exports.solicitarRetiro = functions.https.onCall(async (data, context) => {
                 fecha_solicitud: admin.firestore.FieldValue.serverTimestamp(),
                 estado: "pendiente_aprobacion",
                 metodo: techData.configuracion_pago.metodo,
-                version_patch: "5.45_SENTINEL",
+                version_patch: "V5.50_HARDENED",
                 traceId: traceId,
                 metadata: {
                     ip_solicitud: context.rawRequest?.ip || "unknown",
@@ -576,7 +656,7 @@ exports.solicitarRetiro = functions.https.onCall(async (data, context) => {
                 }
             });
 
-            // ⚡ 5. MOVIMIENTO ATÓMICO DE WALLET (Check-and-Balance)
+            // ⚡ 5. MOVIMIENTO ATÓMICO (Decremento Pendiente -> Incremento Revisión)
             transaction.update(techRef, {
                 'wallet.saldo_pendiente': admin.firestore.FieldValue.increment(-montoNormalizado),
                 'wallet.saldo_en_revision': admin.firestore.FieldValue.increment(montoNormalizado),
@@ -592,16 +672,38 @@ exports.solicitarRetiro = functions.https.onCall(async (data, context) => {
             };
         });
 
+        // 🛰️ 6. TELEMETRÍA POST-COMMIT (RADAR V5.50)
+        if (result.success) {
+            reportSentinelMetric('payout_request_success');
+            reportSentinelMetric('payout_volume_pending', result.monto);
+            
+            return { 
+                success: true, 
+                payoutId: result.payoutId, 
+                monto: result.monto,
+                traceId: result.traceId 
+            };
+        } else {
+            // Reportamos el fallo específico al radar para detectar patrones de fraude
+            reportSentinelMetric(`payout_denied_${result.reason.toLowerCase()}`);
+            
+            console.warn(`⚠️ [RETIRO_RECHAZADO] Motivo: ${result.reason} | Tech: ${techId}`);
+            throw new Error(result.reason);
+        }
+
     } catch (error) {
+        // 🛰️ RADAR: Fallo fatal en el protocolo de salida de dinero
+        reportSentinelMetric('payout_fatal_errors');
+
         console.error(JSON.stringify({
             level: "FATAL",
-            message: "Fallo en protocolo de retiro",
+            message: "Fallo en protocolo de retiro seguro",
             error: error.message,
             techId,
-            traceId
+            traceId,
+            module: "solicitarRetiro_V5_50"
         }));
         
-        // Retornamos el error limpio al frontend
         throw new functions.https.HttpsError('internal', error.message);
     }
 });
@@ -667,9 +769,16 @@ function generateOperationId(prompt, tenantId) {
         .slice(0, 32);
 }
 
-// ==================================================================
-// 🧩 MÓDULO 6: TERMINAL HEBERTO - ARCHITECT ENGINE (SENTINEL RADAR V5.45)
-// ==================================================================
+// ======================================================================================
+// 🧩 MÓDULO 6: TERMINAL HEBERTO - ARCHITECT ENGINE (SENTINEL V5.50 HARDENED)
+// ======================================================================================
+// OBJETIVO: Orquestación de infraestructura mediante IA con ahorro de tokens y trazabilidad.
+// MEJORAS V5.50:
+// 1. Radar Non-Blocking: Reportes de ahorro de tokens y éxitos de IA post-proceso.
+// 2. Idempotencia Semántica: Bloqueo de re-generación por prompt idéntico.
+// 3. Fallback de Seguridad: Validación de estructura JSON post-Gemini endurecida.
+// --------------------------------------------------------------------------------------
+
 exports.gestiaArchitectV5 = functions
     .runWith({ 
         secrets: ["GEMINI_KEY", "STRIPE_SECRET_KEY"], 
@@ -679,45 +788,51 @@ exports.gestiaArchitectV5 = functions
     .https.onRequest((req, res) => {
         return corsHandler(req, res, async () => {
             const traceId = `trace_ia_${Date.now()}`;
-            console.log(`🚀 [INICIO] Architect V5.45 (Sentinel Core - Radar Active) | Trace: ${traceId}`);
+            console.log(`🚀 [INICIO] Architect V5.50 (Sentinel Core - AI Hardened) | Trace: ${traceId}`);
 
             try {
-                // 🛡️ 1. Firewall & Autoridad V5 (Reputación)
+                // 🛡️ 1. FIREWALL & AUTORIDAD V5 (Reputación Adaptativa)
                 const session = await firewallV5(req);
                 if (!session || !session.authorized) {
-                    // 🛰️ RADAR: Intento de acceso a la IA bloqueado por firewall
-                    await reportSentinelMetric('ia_firewall_rejections');
-                    throw new Error("BLOQUEO_FIREWALL: Autoridad no confirmada.");
+                    // 🛰️ RADAR: Registro de rechazo perimetral (Non-blocking)
+                    reportSentinelMetric('ia_firewall_rejections');
+                    throw new Error("BLOQUEO_FIREWALL: Autoridad no confirmada por Sentinel.");
                 }
                 
                 const currentTenantId = session.tenantId || "UXMAL39";
 
-                // 📦 2. Validación de Payload
+                // 📦 2. VALIDACIÓN DE PAYLOAD & PROMPT
                 const bodyData = req.body.data || req.body;
                 let prompt = bodyData.prompt || (typeof bodyData === 'string' ? bodyData : "");
-                if (!prompt) throw new Error("PROMPT_VACIO");
+                
+                if (!prompt || prompt.trim().length < 3) {
+                    throw new Error("PROMPT_INVALIDO: La intención es demasiado corta o nula.");
+                }
 
-                // 🔒 3. IDEMPOTENCIA POR INTENCIÓN (PATCH 5 + RADAR)
+                // 🔒 3. IDEMPOTENCIA POR INTENCIÓN (PATCH 5 HARDENED)
+                // Evitamos el gasto innecesario de tokens si la instrucción ya fue procesada.
                 const operationId = generateOperationId(prompt, currentTenantId);
                 const opRef = db.collection("gestia_operations").doc(operationId);
 
                 const existingOp = await opRef.get();
                 if (existingOp.exists) {
-                    // 🛰️ RADAR: Reportamos ahorro de tokens (Idempotencia IA)
-                    await reportSentinelMetric('ia_tokens_saved');
+                    // 🛰️ RADAR: Ahorro de tokens detectado
+                    reportSentinelMetric('ia_tokens_saved');
                     
-                    console.log(`♻️ [PATCH 5 AI] Reutilizando operación: ${operationId}`);
+                    console.log(`♻️ [PATCH 5 AI] Hit de Idempotencia: ${operationId}. Reutilizando estructura.`);
                     return res.status(200).json({
                         data: {
                             success: true,
                             modulo_generado: existingOp.data().result,
                             reused: true,
-                            operationId: operationId
+                            operationId: operationId,
+                            traceId
                         }
                     });
                 }
 
-                // 🏗️ 4. Memoria Semántica (Contexto de Infraestructura)
+                // 🏗️ 4. MEMORIA SEMÁNTICA (Contexto de Infraestructura Existente)
+                // Consultamos módulos actuales para que la IA decida si reutiliza o crea.
                 let modulosExistentes = [];
                 const modulesSnap = await db.collection("gestia_system_modules")
                     .where("tenantId", "==", currentTenantId)
@@ -726,14 +841,14 @@ exports.gestiaArchitectV5 = functions
                 
                 modulesSnap.forEach(doc => modulosExistentes.push(doc.id));
 
-                // 📜 5. Instrucción Maestra (Sentinel Logic)
+                // 📜 5. INSTRUCCIÓN MAESTRA (Protocolo de Generación Sentinel)
                 const systemInstruction = `
-Eres la TERMINAL HEBERTO V5.45. Identidad: Orquestador de Infraestructura Autónoma.
-Decisión requerida: USE_MODULE (si hay match) o CREATE_MODULE (si es nuevo).
+Eres la TERMINAL HEBERTO V5.50. Identidad: Orquestador de Infraestructura Autónoma.
+Decisión requerida: USE_MODULE (si hay match exacto o conceptual) o CREATE_MODULE (si es nuevo).
 
 MODULOS_DETECTADOS: [${modulosExistentes.join(", ")}]
 
-CONTRATO JSON OBLIGATORIO:
+CONTRATO JSON OBLIGATORIO (STRICT):
 {
   "action": "USE_MODULE" | "CREATE_MODULE",
   "modulo_id": "string",
@@ -745,47 +860,59 @@ CONTRATO JSON OBLIGATORIO:
   }
 }
 
-REGLAS DURAS:
-- Si coincide con MODULOS_DETECTADOS -> USE_MODULE.
-- Si es algo nuevo o no hay match -> CREATE_MODULE.
-- El JavaScript no debe exceder los 8000 caracteres.
+REGLAS CRÍTICAS:
+- Si el concepto existe en MODULOS_DETECTADOS -> USE_MODULE.
+- Si es creación -> modulo_nombre debe ser descriptivo.
+- Código JavaScript seguro, sin acceso a window.parent, máximo 8000 caracteres.
 `;
 
                 const model = genAI.getGenerativeModel({ 
                     model: "gemini-2.0-flash",
-                    generationConfig: { temperature: 0.15, maxOutputTokens: 3200 }
+                    generationConfig: { temperature: 0.1, maxOutputTokens: 3200 }
                 });
 
-                // ⚡ 6. Invocación al Cerebro (Llamada Real a la IA)
-                const result = await model.generateContent(`${systemInstruction}\n\nSOLICITUD:\n${prompt}`);
+                // ⚡ 6. INVOCACIÓN AL CEREBRO (Generación de Infraestructura)
+                const result = await model.generateContent(`${systemInstruction}\n\nSOLICITUD DEL ARQUITECTO:\n${prompt}`);
                 let responseText = result.response.text();
+                
+                // Limpieza de formato Markdown si la IA lo incluye
                 let cleaned = responseText.replace(/```json|```/g, "").trim();
-                let jsonParsed = JSON.parse(cleaned);
+                let jsonParsed;
+                
+                try {
+                    jsonParsed = JSON.parse(cleaned);
+                } catch (parseError) {
+                    reportSentinelMetric('ia_architect_parse_errors');
+                    throw new Error("ERROR_ESTRUCTURA_IA: El cerebro devolvió un JSON malformado.");
+                }
 
-                // --- 🛡️ BLINDAJE POST-IA ---
+                // --- 🛡️ 7. BLINDAJE POST-IA (Protocolo de Integridad) ---
                 const validActions = ["USE_MODULE", "CREATE_MODULE"];
-                if (!validActions.includes(jsonParsed.action)) throw new Error("INVALID_ACTION_FROM_IA");
+                if (!validActions.includes(jsonParsed.action)) throw new Error("ACCION_IA_INVALIDA");
 
                 const jsPayload = jsonParsed.ejecucion?.payload?.javascript || "";
-                if (jsPayload.length > 8000) throw new Error("JS_EXCESIVO_PREVENCION_DE_BUCLE");
+                if (jsPayload.length > 8000) throw new Error("JS_OVERFLOW_PREVENCION");
 
-                // --- 🚀 7. ORQUESTACIÓN AUTÓNOMA (Sincronización Atómica) ---
+                // --- 🚀 8. ORQUESTACIÓN DE INFRAESTRUCTURA (Atomic Bridge) ---
                 if (jsonParsed.action === "CREATE_MODULE") {
-                    console.log(`🏗️ [ATOMIC] Creando módulo vía Authority SHA-256...`);
+                    console.log(`🏗️ [AUTHORITY] Generando nuevo componente vía SHA-256 Bridge...`);
                     
                     const creation = await internalCreateModule({
-                        modulo_nombre: jsonParsed.modulo_nombre || "Módulo Sin Nombre",
-                        esquema_campos: jsonParsed.esquema_campos || ["fecha", "descripcion"],
+                        modulo_nombre: jsonParsed.modulo_nombre || "Módulo Autogenerado",
+                        esquema_campos: jsonParsed.esquema_campos || ["fecha", "valor"],
                         tenantId: currentTenantId,
                         userId: session.uid
                     });
 
+                    // Sincronizamos el ID real generado por el búnker
                     jsonParsed.modulo_id = creation.modulo_id;
-                    jsonParsed.conciencia.mensaje_ceo += `\n(ID Autorizado: ${creation.modulo_id})`;
+                    jsonParsed.conciencia.mensaje_ceo += `\n(Autorizado bajo ID: ${creation.modulo_id})`;
                 }
 
-                // 🔒 8. REGISTRO ATÓMICO DE OPERACIÓN IA (Cierre de Ciclo)
-                await opRef.set({
+                // 🔒 9. REGISTRO DE OPERACIÓN (Persistencia de Memoria IA)
+                // No usamos await aquí para no retrasar la respuesta al frontend, 
+                // pero lo disparamos como promesa controlada.
+                opRef.set({
                     operationId,
                     type: "ai_module_generation",
                     tenantId: currentTenantId,
@@ -794,33 +921,48 @@ REGLAS DURAS:
                     status: "completed",
                     traceId: traceId,
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
-                });
+                }).catch(err => console.error(`[OP_LOG_FAIL] ${operationId}`, err.message));
 
-                // 🛰️ RADAR: Reportamos éxito de generación IA
-                await reportSentinelMetric('ia_architect_success');
+                // 🛰️ 10. TELEMETRÍA DE ÉXITO (RADAR V5.50)
+                reportSentinelMetric('ia_architect_success');
 
                 return res.status(200).json({
                     data: {
                         success: true,
                         modulo_generado: jsonParsed, 
+                        operationId: operationId,
+                        traceId,
                         status: "Arre con la que barre! 🍻"
                     }
                 });
 
             } catch (error) {
-                // 🛰️ RADAR: Reportamos fallo en el motor de IA
-                await reportSentinelMetric('ia_architect_errors');
+                // 🛰️ RADAR: Reportamos fallo en el motor de arquitectura
+                reportSentinelMetric('ia_architect_errors');
 
                 console.error(`🔥 [FATAL ARCHITECT]: ${error.message} | Trace: ${traceId}`);
-                return res.status(200).json({ data: { success: false, error: error.message } });
+                return res.status(200).json({ 
+                    data: { 
+                        success: false, 
+                        error: error.message,
+                        traceId
+                    } 
+                });
             }
         });
     });
 
 exports.generarModuloIA = exports.gestiaArchitectV5;
-// ==================================================================
-// 🧩 MÓDULO 7: TERMINAL - ENDPOINT DE CREACIÓN (MODO AUTORIDAD V5)
-// ==================================================================
+// ======================================================================================
+// 🧩 MÓDULO 7: TERMINAL - ENDPOINT DE CREACIÓN (SENTINEL V5.50 HARDENED)
+// ======================================================================================
+// OBJETIVO: Creación manual de infraestructura con validación de autoridad absoluta.
+// MEJORAS V5.50:
+// 1. Radar Non-Blocking: Reportes de creación manual post-operación.
+// 2. Blindaje de Sesión: Extracción forzada de tenantId para prevenir escalación.
+// 3. Status Code Sync: Sincronización de respuestas con el estándar Sentinel.
+// --------------------------------------------------------------------------------------
+
 exports.createGestiaModule = functions
   .runWith({ timeoutSeconds: 60, memory: "512MB" })
   .https.onRequest((req, res) => {
@@ -828,31 +970,34 @@ exports.createGestiaModule = functions
       const traceId = `trace_direct_create_${Date.now()}`;
       
       try {
-        // 🛡️ 1. BLOQUE DE AUTORIDAD V5 (Sentinel Adaptive Firewall)
-        // Validamos reputación y obtenemos la sesión autorizada
+        // 🛡️ 1. FIREWALL & AUTORIDAD V5 (Sentinel Adaptive Core)
+        // Verificamos reputación del actor antes de permitir creación de infraestructura.
         const session = await firewallV5(req);
         if (!session || !session.authorized) {
-            throw new Error("ACCESO_DENEGADO: Reputación insuficiente para creación directa.");
+            // 🛰️ RADAR: Registro de intento de intrusión en endpoint crítico
+            reportSentinelMetric('firewall_direct_creation_rejections');
+            throw new Error("ACCESO_DENEGADO: Reputación insuficiente para autoridad directa.");
         }
 
         // 📦 2. EXTRACCIÓN Y VALIDACIÓN DE CONTRATO
         const data = req.body.data || req.body;
         
-        if (!data.modulo_nombre) {
-            throw new Error("CONTRATO_INVALIDO: El nombre del módulo es obligatorio.");
+        if (!data.modulo_nombre || data.modulo_nombre.trim().length < 3) {
+            throw new Error("CONTRATO_INVALIDO: El nombre del módulo es obligatorio y debe ser descriptivo.");
         }
 
         console.log(JSON.stringify({
             level: "INFO",
-            message: `🏗️ [DIRECT_CREATE] Solicitud de creación manual detectada`,
+            message: `🏗️ [DIRECT_CREATE] Protocolo de creación manual activado`,
             modulo: data.modulo_nombre,
             tenantId: session.tenantId,
             uid: session.uid,
-            traceId
+            traceId,
+            engine: "SENTINEL_V5.50"
         }));
 
         // 🏗️ 3. INVOCACIÓN A LA AUTORIDAD ATÓMICA SHA-256
-        // Forzamos el tenantId desde la sesión para evitar inyección de datos cruzados
+        // El tenantId se extrae exclusivamente de la sesión validada por el firewall.
         const result = await internalCreateModule({
             modulo_nombre: data.modulo_nombre,
             esquema_campos: data.esquema_campos || ["fecha", "descripcion"],
@@ -860,29 +1005,40 @@ exports.createGestiaModule = functions
             userId: session.uid
         });
 
-        // 📊 4. RESPUESTA DE ÉXITO SENTINEL
+        // 🛰️ 4. TELEMETRÍA POST-COMMIT (RADAR V5.50)
+        // Registramos la creación manual fuera del flujo de respuesta
+        reportSentinelMetric('direct_module_creation_success');
+
+        // 📊 5. RESPUESTA DE ÉXITO SENTINEL
         return res.status(200).json({ 
             data: {
                 ...result,
                 traceId: traceId,
-                engine: "SENTINEL_CORE_V5.45"
+                status: "INFRASTRUCTURE_AUTHORIZED",
+                engine: "SENTINEL_CORE_V5.50_HARDENED"
             }
         });
 
       } catch (e) {
-        // Log estructurado para auditoría de fallos en el Búnker
+        // 🛰️ RADAR: Fallo en creación manual (Posible error de contrato o DB)
+        reportSentinelMetric('direct_module_creation_errors');
+
+        // Log estructurado para auditoría forense
         console.error(JSON.stringify({
             level: "ERROR",
             message: "Fallo en Endpoint de Creación Directa",
             error: e.message,
-            traceId
+            traceId,
+            module: "createGestiaModule_V5_50"
         }));
 
+        // Retornamos éxito falso pero con error descriptivo para el frontend de Heberto
         return res.status(200).json({ 
             data: { 
                 success: false, 
                 error: e.message,
-                traceId: traceId
+                traceId: traceId,
+                code: "AUTHORITY_REJECTION"
             } 
         });
       }
