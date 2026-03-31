@@ -291,8 +291,9 @@ function limpiarRespuestaIA(texto) {
 }
 
 /**
- * 🧠 NORMALIZADOR HÍBRIDO V5.28 (PASO 1) - REESCRITURA
+ * 🧠 NORMALIZADOR HÍBRIDO V5.28 (PASO 1) - REESCRITURA BLINDADA
  * Fusionado: Validación brutal + Detección de truncado estructural y conversacional.
+ * Inyección V5.28: Sanitización automática de modulo_id para evitar FALLO_V13_DB.
  */
 function normalizarSalidaIA(brainRes) {
     // 🛡️ HARDENING: Si la respuesta es nula o inválida, no dejamos que truene el sistema
@@ -332,10 +333,16 @@ function normalizarSalidaIA(brainRes) {
     try {
         const parsed = JSON.parse(limpio);
         if (parsed?.conciencia && parsed?.ejecucion) {
+            
+            // 🔥 OPERACIÓN QUIRÚRGICA: Sanitizamos el ID antes de que toque cualquier otra capa
+            const idLimpio = sanitizeModuloId(parsed.ejecucion.modulo_id);
+            
+            console.log(`%c🧪 [BRAIN_SHIELD] ID Original: ${parsed.ejecucion.modulo_id} | ID Sanitizado: ${idLimpio}`, "color: #10b981; font-weight: bold;");
+
             return {
                 tipo: "v13_dual",
                 mensaje_ceo: parsed.conciencia.mensaje_ceo,
-                modulo_id: parsed.ejecucion.modulo_id,
+                modulo_id: idLimpio, // Exportamos seguridad pura
                 json: parsed.ejecucion.payload
             };
         }
@@ -442,6 +449,7 @@ const output = document.getElementById('gestia-output');
 const btnGenerate = document.getElementById('btn-generate');
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
+
 // ==========================================
 // LISTENERS DE INTERACCIÓN (DRAG & DROP)
 // ==========================================
@@ -468,7 +476,6 @@ if (fileInput) {
         e.target.value = ''; // Reset de seguridad
     });
 }
-
 // ==========================================
 // 10. SANDBOX ENGINE (IFRAME BLINDADO)
 // ==========================================
