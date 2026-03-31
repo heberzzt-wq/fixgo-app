@@ -1,17 +1,18 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - FIREWALL ENGINE V5 (SENTINEL RADAR V5.45)
+ * GESTIAPREMIUM 2026 - FIREWALL ENGINE V5.51 (SENTINEL RADAR V5.51 ANTIFRÁGIL)
  * ======================================================================================
  * DESARROLLADO POR: Gemini (Colaborador IA)
  * PARA: Heber Mendoza (Arquitecto Supremo)
- * * ESTRATEGIA: Reputación persistente, Detección de Botnets y Telemetría Radar.
+ * * ESTRATEGIA: Autenticación JWT, Reputación persistente y Detección de Botnets.
+ * ACTUALIZACIÓN V5.51: Zero-Trust. Extracción de TenantId vía sesión, cero fallbacks.
  * --------------------------------------------------------------------------------------
  */
 
 const admin = require("firebase-admin");
 const db = admin.firestore();
 
-// ⚙️ CONFIGURACIÓN DE SENSIBILIDAD V5 (Nivel Industrial)
+// ⚙️ CONFIGURACIÓN DE SENSIBILIDAD V5.51 (Nivel Industrial)
 const V5_CONFIG = {
     BOTNET_THRESHOLD: 3,      // Número de tenants distintos para marcar como Botnet
     TIME_WINDOW_MS: 30000,    // Ventana de 30 segundos para análisis de ráfagas
@@ -32,9 +33,10 @@ async function reportSentinelMetric(metricName, value = 1) {
     try {
         await healthRef.set({
             [metricName]: admin.firestore.FieldValue.increment(value),
-            last_heartbeat: admin.firestore.FieldValue.serverTimestamp()
+            last_heartbeat: admin.firestore.FieldValue.serverTimestamp(),
+            version_core: "V5.51_ANTIFRAGILE"
         }, { merge: true });
-    } catch (e) { /* Fallback silencioso */ }
+    } catch (e) { /* Fallback silencioso para no frenar la red en caso de fallo del radar */ }
 }
 
 /**
@@ -43,17 +45,52 @@ async function reportSentinelMetric(metricName, value = 1) {
 async function firewallV5(req) {
     const ip = req.ip || req.headers['x-forwarded-for'] || "0.0.0.0";
     const ua = req.headers['user-agent'] || "unknown_agent";
-    const tenantId = req.body?.data?.tenantId || req.query?.tenantId || "UXMAL39";
-    const uid = req.body?.data?.uid || "anonymous";
-
-    // 🧬 1. GENERACIÓN DE FINGERPRINT PERSISTENTE
-    const fingerprint = `fp_${Buffer.from(`${ip}_${ua.slice(0, 50)}`).toString('base64').substring(0, 20)}`;
+    
+    let uid = "anonymous";
+    let tenantId = null;
 
     try {
+        // 🛡️ 1. EXTRACCIÓN DE IDENTIDAD SUPREMA (V5.51 FIX)
+        // Ya no confiamos en req.body.tenantId ni usamos fallbacks silenciosos.
+        const authHeader = req.headers.authorization || req.headers.Authorization || "";
+        
+        if (authHeader.startsWith('Bearer ')) {
+            const idToken = authHeader.split('Bearer ')[1];
+            try {
+                // Validamos la firma del token criptográfico con Firebase Auth
+                const decodedToken = await admin.auth().verifyIdToken(idToken);
+                uid = decodedToken.uid;
+                
+                // Intentamos sacar el tenantId del Custom Claim del JWT
+                tenantId = decodedToken.tenantId;
+
+                // Si no tiene Custom Claim, consultamos la base de datos (Fuente de Verdad)
+                if (!tenantId) {
+                    const userRecord = await db.collection("users").doc(uid).get();
+                    if (userRecord.exists) {
+                        tenantId = userRecord.data().tenantId || userRecord.data().condominioId;
+                    }
+                }
+            } catch (tokenError) {
+                console.warn(`⚠️ [FIREWALL V5.51] Token rechazado o expirado: ${tokenError.message}`);
+                return { authorized: false, reason: "INVALID_AUTH_TOKEN", score: 100 };
+            }
+        }
+
+        // 🛡️ 2. GUARDA DE CONTEXTO (Zero-Trust Policy)
+        if (!tenantId || uid === "anonymous") {
+            await reportSentinelMetric('firewall_unauthenticated_drops');
+            console.warn(`🚨 [FIREWALL V5.51] Acceso denegado: Sin sesión JWT válida o sin TenantId. IP: ${ip}`);
+            return { authorized: false, reason: "MISSING_TENANT_CONTEXT_OR_AUTH", score: 100 };
+        }
+
+        // 🧬 3. GENERACIÓN DE FINGERPRINT PERSISTENTE
+        const fingerprint = `fp_${Buffer.from(`${ip}_${ua.slice(0, 50)}`).toString('base64').substring(0, 20)}`;
+
         // 🛰️ RADAR: Pulso de análisis iniciado
         await reportSentinelMetric('firewall_requests_analyzed');
 
-        // 🧠 2. RECUPERACIÓN DE MEMORIA (PERFIL DE REPUTACIÓN)
+        // 🧠 4. RECUPERACIÓN DE MEMORIA (PERFIL DE REPUTACIÓN)
         const reputationRef = db.collection("gestia_reputation").doc(fingerprint);
         const reputationSnap = await reputationRef.get();
 
@@ -67,7 +104,7 @@ async function firewallV5(req) {
 
         const now = Date.now();
 
-        // 🧬 3. MOTOR DE SCORING AVANZADO
+        // 🧬 5. MOTOR DE SCORING AVANZADO
         const recentTimes = (reputation.history || []).filter(t => now - t < V5_CONFIG.TIME_WINDOW_MS);
         const burstScore = recentTimes.length * 5;
 
@@ -87,7 +124,7 @@ async function firewallV5(req) {
         let instantScore = (clusterScore * V5_CONFIG.BURST_WEIGHT) + (burstScore * V5_CONFIG.REPUTATION_WEIGHT);
         let totalScore = Math.floor(((reputation.score || 0) * V5_CONFIG.DECAY) + instantScore);
 
-        // 🚦 4. ENGINE DE DECISIÓN V5
+        // 🚦 6. ENGINE DE DECISIÓN V5.51
         let action = "ALLOW";
 
         if (totalScore >= V5_CONFIG.SCORE_BLOCK) {
@@ -96,7 +133,7 @@ async function firewallV5(req) {
             action = "THROTTLE";
         }
 
-        // 🛡️ 5. RESPUESTA ACTIVA
+        // 🛡️ 7. RESPUESTA ACTIVA
         
         // Acción: BLOQUEO
         if (action === "BLOCK") {
@@ -104,7 +141,7 @@ async function firewallV5(req) {
             await reportSentinelMetric('firewall_blocks_total');
             
             await db.collection("gestia_global_blacklist").doc(fingerprint).set({
-                reason: "V5_ADAPTIVE_THREAT_DETECTION",
+                reason: "V5.51_ADAPTIVE_THREAT_DETECTION",
                 score: totalScore,
                 tenants: Array.from(tenantsSet),
                 lastIp: ip,
@@ -112,8 +149,8 @@ async function firewallV5(req) {
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
-            console.error(`🚨 [FIREWALL V5] BLOQUEO: ${fingerprint} | Score: ${totalScore}`);
-            return { authorized: false, reason: "SECURITY_BLOCK_V5", score: totalScore };
+            console.error(`🚨 [FIREWALL V5.51] BLOQUEO: ${fingerprint} | Score: ${totalScore}`);
+            return { authorized: false, reason: "SECURITY_BLOCK_V5.51", score: totalScore };
         }
 
         // Acción: THROTTLE
@@ -122,11 +159,11 @@ async function firewallV5(req) {
             await reportSentinelMetric('firewall_throttles_applied');
             
             const delay = Math.min(5000, totalScore * 20);
-            console.warn(`⚠️ [FIREWALL V5] Throttle: ${delay}ms a ${fingerprint}`);
+            console.warn(`⚠️ [FIREWALL V5.51] Throttle: ${delay}ms a ${fingerprint}`);
             await new Promise(r => setTimeout(r, delay));
         }
 
-        // 📝 6. ACTUALIZACIÓN DE REPUTACIÓN
+        // 📝 8. ACTUALIZACIÓN DE REPUTACIÓN
         await reputationRef.set({
             score: totalScore,
             trust: Math.max(0, 100 - totalScore),
@@ -136,7 +173,7 @@ async function firewallV5(req) {
             lastIp: ip
         }, { merge: true });
 
-        // 📊 7. LOG DE SEGURIDAD SENTINEL
+        // 📊 9. LOG DE SEGURIDAD SENTINEL
         await db.collection("gestia_security_logs").add({
             uid,
             tenantId,
@@ -144,7 +181,7 @@ async function firewallV5(req) {
             totalScore,
             tenantsInvolved,
             action,
-            engine: "FIREWALL_V5_SENTINEL",
+            engine: "FIREWALL_V5.51_ANTIFRAGILE",
             ip: ip,
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
@@ -152,6 +189,7 @@ async function firewallV5(req) {
         // 🛰️ RADAR: Petición autorizada con éxito
         await reportSentinelMetric('firewall_authorized_access');
 
+        // ✅ 10. CONTRATO DE AUTORIDAD DEVUELTO AL MOTOR PRINCIPAL
         return {
             authorized: true,
             fingerprint,
@@ -165,7 +203,7 @@ async function firewallV5(req) {
         // 🛰️ RADAR: Error fatal en el motor de seguridad
         await reportSentinelMetric('firewall_fatal_errors');
         
-        console.error("🔥 [FATAL FIREWALL V5]:", error.message);
+        console.error("🔥 [FATAL FIREWALL V5.51]:", error.message);
         return { authorized: false, reason: "FIREWALL_INTERNAL_ERROR" };
     }
 }
