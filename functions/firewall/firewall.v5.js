@@ -1,10 +1,10 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - FIREWALL ENGINE V5 (SENTINEL ADAPTIVE CORE)
+ * GESTIAPREMIUM 2026 - FIREWALL ENGINE V5 (SENTINEL RADAR V5.45)
  * ======================================================================================
  * DESARROLLADO POR: Gemini (Colaborador IA)
  * PARA: Heber Mendoza (Arquitecto Supremo)
- * * ESTRATEGIA: Reputación persistente, Detección de Botnets y Throttle Progresivo.
+ * * ESTRATEGIA: Reputación persistente, Detección de Botnets y Telemetría Radar.
  * --------------------------------------------------------------------------------------
  */
 
@@ -23,9 +23,22 @@ const V5_CONFIG = {
 };
 
 /**
+ * 🛰️ reportSentinelMetric: Helper interno para el Firewall.
+ * (Asegura que el Firewall pueda reportar al Radar incluso como módulo independiente)
+ */
+async function reportSentinelMetric(metricName, value = 1) {
+    const today = new Date().toISOString().split('T')[0];
+    const healthRef = db.collection("gestia_system_health").doc(today);
+    try {
+        await healthRef.set({
+            [metricName]: admin.firestore.FieldValue.increment(value),
+            last_heartbeat: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+    } catch (e) { /* Fallback silencioso */ }
+}
+
+/**
  * firewallV5: Motor de análisis de reputación y control de acceso.
- * @param {Object} req - Request de Express/Cloud Functions
- * @returns {Object} Session - Objeto de autorización y contexto del usuario
  */
 async function firewallV5(req) {
     const ip = req.ip || req.headers['x-forwarded-for'] || "0.0.0.0";
@@ -34,12 +47,12 @@ async function firewallV5(req) {
     const uid = req.body?.data?.uid || "anonymous";
 
     // 🧬 1. GENERACIÓN DE FINGERPRINT PERSISTENTE
-    // Combinamos IP y fragmento de User Agent para identificar al actor, no solo la conexión.
     const fingerprint = `fp_${Buffer.from(`${ip}_${ua.slice(0, 50)}`).toString('base64').substring(0, 20)}`;
 
-    console.log(`🛡️ [FIREWALL V5] Analizando actor: ${fingerprint} | Tenant: ${tenantId}`);
-
     try {
+        // 🛰️ RADAR: Pulso de análisis iniciado
+        await reportSentinelMetric('firewall_requests_analyzed');
+
         // 🧠 2. RECUPERACIÓN DE MEMORIA (PERFIL DE REPUTACIÓN)
         const reputationRef = db.collection("gestia_reputation").doc(fingerprint);
         const reputationSnap = await reputationRef.get();
@@ -55,27 +68,23 @@ async function firewallV5(req) {
         const now = Date.now();
 
         // 🧬 3. MOTOR DE SCORING AVANZADO
-        
-        // A. Análisis de Ráfagas (Burst activity)
-        // Filtramos marcas de tiempo dentro de nuestra ventana de tiempo (30s)
         const recentTimes = (reputation.history || []).filter(t => now - t < V5_CONFIG.TIME_WINDOW_MS);
         const burstScore = recentTimes.length * 5;
 
-        // B. Correlación Multi-tenant (Detección de Botnets/Scrapers)
+        // B. Correlación Multi-tenant (Detección de Botnets)
         const tenantsSet = new Set(reputation.tenants || []);
         tenantsSet.add(tenantId);
         const tenantsInvolved = tenantsSet.size;
 
         let clusterScore = 0;
         if (tenantsInvolved >= V5_CONFIG.BOTNET_THRESHOLD) {
-            clusterScore += tenantsInvolved * 25; // Penalización agresiva por saltar entre tenants
+            clusterScore += tenantsInvolved * 25;
+            // 🛰️ RADAR: Detectada posible red de bots
+            await reportSentinelMetric('firewall_botnet_signals');
         }
 
         // C. Cálculo de Score Híbrido con Decay
-        // El score actual se compone del peso de la ráfaga y el comportamiento de red (cluster)
         let instantScore = (clusterScore * V5_CONFIG.BURST_WEIGHT) + (burstScore * V5_CONFIG.REPUTATION_WEIGHT);
-        
-        // Aplicamos el "Decay": El score histórico se enfría, y sumamos la sospecha actual
         let totalScore = Math.floor(((reputation.score || 0) * V5_CONFIG.DECAY) + instantScore);
 
         // 🚦 4. ENGINE DE DECISIÓN V5
@@ -89,8 +98,11 @@ async function firewallV5(req) {
 
         // 🛡️ 5. RESPUESTA ACTIVA
         
-        // Acción: BLOQUEO (Inyectar en Blacklist Global)
+        // Acción: BLOQUEO
         if (action === "BLOCK") {
+            // 🛰️ RADAR: Bloqueo de seguridad ejecutado
+            await reportSentinelMetric('firewall_blocks_total');
+            
             await db.collection("gestia_global_blacklist").doc(fingerprint).set({
                 reason: "V5_ADAPTIVE_THREAT_DETECTION",
                 score: totalScore,
@@ -100,30 +112,31 @@ async function firewallV5(req) {
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
-            console.error(`🚨 [FIREWALL V5] BLOQUEO EJECUTADO: ${fingerprint} | Score: ${totalScore}`);
+            console.error(`🚨 [FIREWALL V5] BLOQUEO: ${fingerprint} | Score: ${totalScore}`);
             return { authorized: false, reason: "SECURITY_BLOCK_V5", score: totalScore };
         }
 
-        // Acción: THROTTLE (Degradación de experiencia)
+        // Acción: THROTTLE
         if (action === "THROTTLE") {
-            const delay = Math.min(5000, totalScore * 20); // Máximo 5 segundos de retraso
-            console.warn(`⚠️ [FIREWALL V5] Aplicando Throttle: ${delay}ms a ${fingerprint} | Score: ${totalScore}`);
+            // 🛰️ RADAR: Freno de mano aplicado (Degradación de velocidad)
+            await reportSentinelMetric('firewall_throttles_applied');
+            
+            const delay = Math.min(5000, totalScore * 20);
+            console.warn(`⚠️ [FIREWALL V5] Throttle: ${delay}ms a ${fingerprint}`);
             await new Promise(r => setTimeout(r, delay));
         }
 
-        // 📝 6. ACTUALIZACIÓN DE REPUTACIÓN (Memoria Evolutiva)
-        // Guardamos los cambios para que el sistema "recuerde" al usuario en la siguiente petición.
+        // 📝 6. ACTUALIZACIÓN DE REPUTACIÓN
         await reputationRef.set({
             score: totalScore,
             trust: Math.max(0, 100 - totalScore),
-            history: [...recentTimes, now].slice(-50), // Guardamos solo los últimos 50 eventos
+            history: [...recentTimes, now].slice(-50),
             tenants: Array.from(tenantsSet),
             lastSeen: admin.firestore.FieldValue.serverTimestamp(),
             lastIp: ip
         }, { merge: true });
 
         // 📊 7. LOG DE SEGURIDAD SENTINEL
-        // Registro estructurado para el dashboard de Heberto
         await db.collection("gestia_security_logs").add({
             uid,
             tenantId,
@@ -136,7 +149,9 @@ async function firewallV5(req) {
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        // Retorno de sesión exitosa
+        // 🛰️ RADAR: Petición autorizada con éxito
+        await reportSentinelMetric('firewall_authorized_access');
+
         return {
             authorized: true,
             fingerprint,
@@ -147,8 +162,10 @@ async function firewallV5(req) {
         };
 
     } catch (error) {
+        // 🛰️ RADAR: Error fatal en el motor de seguridad
+        await reportSentinelMetric('firewall_fatal_errors');
+        
         console.error("🔥 [FATAL FIREWALL V5]:", error.message);
-        // En caso de error crítico del firewall, por seguridad cerramos el acceso (Fail-Safe)
         return { authorized: false, reason: "FIREWALL_INTERNAL_ERROR" };
     }
 }
