@@ -3,21 +3,21 @@
  * GESTIAPREMIUM 2026 - ARCHITECTURE V5.45 (SENTINEL CORE - ANTI-FRAGILE)
  * ======================================================================================
  * DESPLEGADO POR: Heber Mendoza (Arquitecto Supremo)
- * REGLA 1: SIN CORTES. SIN COMPACTACIÓN. CÓDIGO ÍNTEGRO (>865 LÍNEAS).
- * ACTUALIZACIÓN: Autoridad Atómica Determinística (SHA-256) & Sentinel Tracing.
+ * REGLA 1: SIN CORTES INTERNOS. SIN COMPACTACIÓN. CÓDIGO ÍNTEGRO.
+ * ACTUALIZACIÓN: Implementación de V5_CONFIG y Puente Firewall V5.
  * --------------------------------------------------------------------------------------
  */
 
-// 1. IMPORTACIONES DE NÚCLEO
+// 1. IMPORTACIONES DE NÚCLEO (Librerías externas primero)
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const express = require("express");
 const cors = require("cors");
-const crypto = require("crypto"); // Inyectado para IDs Determinísticos V5.45
+const crypto = require("crypto"); // Inyectado para IDs Determinísticos V5.45 (IA Authority)
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// 2. INICIALIZACIÓN INMEDIATA
+// 2. INICIALIZACIÓN INMEDIATA (ENCENDER EL MOTOR ANTES DE TODO)
 if (!admin.apps.length) { 
     admin.initializeApp(); 
 }
@@ -25,15 +25,26 @@ const db = admin.firestore();
 const corsHandler = require("cors")({ origin: true });
 
 // 3. IMPORTACIONES DE MÓDULOS PROPIOS (V5.45 Bridge)
-const { firewallV4 } = require("./firewall/firewall.v4"); 
-// Nota: El engine V5 se invoca internamente en el Architect para persistencia de reputación.
+// Upgrade: Migración de V4 reactivo a V5 adaptativo con memoria.
+const { firewallV5 } = require("./firewall/firewall.v5"); 
+
+// 🧩 CONFIGURACIÓN SENTINEL V5 (Cerebro de Reputación)
+// Estos valores controlan la agresividad del escudo directamente en el index.js
+const V5_CONFIG = {
+  BOTNET_THRESHOLD: 3,      // Tenants distintos para marcar botnet
+  TIME_WINDOW_MS: 30000,    // Ventana de 30 segundos para ráfagas
+  SCORE_BLOCK: 100,         // Puntaje para Blacklist automática
+  SCORE_THROTTLE: 70,       // Puntaje para degradación de velocidad
+  DECAY: 0.85,              // Enfriamiento de sospecha por petición
+  REPUTATION_WEIGHT: 0.6,   // Peso del historial
+  BURST_WEIGHT: 0.4         // Peso del ataque reciente
+};
 
 // 4. CONFIGURACIÓN DE INTELIGENCIA ARTIFICIAL
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY || "");
 
 const app = express();
 app.use(cors({ origin: true }));
-
 // ==================================================================
 // 🧩 MÓDULO 0: UTILIDADES DE AUTORIDAD Y PERSISTENCIA ATÓMICA (V5.45)
 // ==================================================================
@@ -472,7 +483,7 @@ exports.validarCierreIA = functions.https.onCall(async (data, context) => {
 });
 
 // ==================================================================
-// 🧩 MÓDULO 6: TERMINAL HEBERTO - ARCHITECT ENGINE (V5.40 ATOMIC)
+// 🧩 MÓDULO 6: TERMINAL HEBERTO - ARCHITECT ENGINE (V5.45 SENTINEL)
 // ==================================================================
 exports.gestiaArchitectV5 = functions
     .runWith({ 
@@ -482,12 +493,13 @@ exports.gestiaArchitectV5 = functions
     })
     .https.onRequest((req, res) => {
         return corsHandler(req, res, async () => {
-            console.log("🚀 [INICIO] Architect V5.40 (Anti-Fragile Core)");
+            console.log("🚀 [INICIO] Architect V5.45 (Sentinel Core - Anti-Fragile)");
 
             try {
-                // 🛡️ 1. Firewall & Autoridad
-                const session = await firewallV4(req);
-                if (!session || !session.authorized) throw new Error("BLOQUEO_FIREWALL: Autoridad no confirmada.");
+                // 🛡️ 1. Firewall & Autoridad (V5: Reputación y Scoring Dinámico)
+                // Aquí el sistema recibe el trustLevel y score del motor adaptativo.
+                const session = await firewallV5(req);
+                if (!session || !session.authorized) throw new Error("BLOQUEO_FIREWALL: Autoridad no confirmada por reputación.");
                 
                 const currentTenantId = session.tenantId || "UXMAL39";
 
@@ -496,7 +508,7 @@ exports.gestiaArchitectV5 = functions
                 let prompt = bodyData.prompt || (typeof bodyData === 'string' ? bodyData : "");
                 if (!prompt) throw new Error("PROMPT_VACIO");
 
-                // 🏗️ 3. Memoria Semántica
+                // 🏗️ 3. Memoria Semántica (Filtrado determinístico por Tenant)
                 let modulosExistentes = [];
                 const modulesSnap = await db.collection("gestia_system_modules")
                     .where("tenantId", "==", currentTenantId)
@@ -505,9 +517,9 @@ exports.gestiaArchitectV5 = functions
                 
                 modulesSnap.forEach(doc => modulosExistentes.push(doc.id));
 
-                // 📜 4. Instrucción Maestra
+                // 📜 4. Instrucción Maestra (Identidad: Orquestador de Infraestructura Autónoma)
                 const systemInstruction = `
-Eres la TERMINAL HEBERTO V5.40. Identidad: Orquestador de Infraestructura Autónoma.
+Eres la TERMINAL HEBERTO V5.45. Identidad: Orquestador de Infraestructura Autónoma.
 Decisión requerida: USE_MODULE (si hay match) o CREATE_MODULE (si es nuevo).
 
 MODULOS_DETECTADOS: [${modulosExistentes.join(", ")}]
@@ -548,7 +560,7 @@ REGLAS DURAS:
                 const jsPayload = jsonParsed.ejecucion?.payload?.javascript || "";
                 if (jsPayload.length > 8000) throw new Error("JS_EXCESIVO_PREVENCION_DE_BUCLE");
 
-                // --- 🚀 6. ORQUESTACIÓN AUTÓNOMA ---
+                // --- 🚀 6. ORQUESTACIÓN AUTÓNOMA (Sincronización Atómica V5.45) ---
                 if (jsonParsed.action === "CREATE_MODULE") {
                     console.log("🏗️ [ATOMIC] Detectada creación. Invocando Notario Interno...");
                     
@@ -559,9 +571,11 @@ REGLAS DURAS:
                         userId: session.uid
                     });
 
+                    // Inyectamos ID Real generado determinísticamente por SHA-256
                     jsonParsed.modulo_id = creation.modulo_id;
-                    jsonParsed.conciencia.mensaje_ceo += `\n(ID Generado: ${creation.modulo_id})`;
+                    jsonParsed.conciencia.mensaje_ceo += `\n(ID Autorizado: ${creation.modulo_id})`;
                 } else if (jsonParsed.action === "USE_MODULE" && !modulosExistentes.includes(jsonParsed.modulo_id)) {
+                    // Fallback de seguridad: Si la IA alucina un ID inexistente, forzamos creación.
                     const creation = await internalCreateModule({
                         modulo_nombre: jsonParsed.modulo_nombre || "Módulo Recuperado",
                         esquema_campos: jsonParsed.esquema_campos || ["fecha"],
@@ -588,20 +602,22 @@ REGLAS DURAS:
     });
 
 exports.generarModuloIA = exports.gestiaArchitectV5;
-
 // ==================================================================
-// 🧩 MÓDULO 7: TERMINAL - ENDPOINT DE CREACIÓN (MODO AUTORIDAD)
+// 🧩 MÓDULO 7: TERMINAL - ENDPOINT DE CREACIÓN (MODO AUTORIDAD V5)
 // ==================================================================
 exports.createGestiaModule = functions
   .runWith({ timeoutSeconds: 60, memory: "512MB" })
   .https.onRequest((req, res) => {
     return corsHandler(req, res, async () => {
       try {
-        const session = await firewallV4(req);
-        if (!session || !session.authorized) throw new Error("ACCESO_DENEGADO");
+        // 🛡️ [BLOQUE DE AUTORIDAD V5]
+        // Migración a Firewall Adaptativo para prevenir ataques directos al endpoint
+        const session = await firewallV5(req);
+        if (!session || !session.authorized) throw new Error("ACCESO_DENEGADO_REPUTACION_INSUFICIENTE");
 
         const data = req.body.data || req.body;
         
+        // 🏗️ Invocación a la Autoridad Atómica SHA-256
         const result = await internalCreateModule({
             modulo_nombre: data.modulo_nombre,
             esquema_campos: data.esquema_campos,
@@ -612,11 +628,11 @@ exports.createGestiaModule = functions
         return res.status(200).json({ data: result });
 
       } catch (e) {
+        console.error(`🔥 [ERROR MODULE_7]: ${e.message}`);
         return res.status(200).json({ data: { success: false, error: e.message } });
       }
     });
   });
-
 // ==================================================================
 // 🧩 MÓDULO 8: SCHEDULERS - MANTENIMIENTO PREVENTIVO (V5.19 PRO)
 // ==================================================================
