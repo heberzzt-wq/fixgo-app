@@ -637,7 +637,7 @@ if (form) {
                 // LO UNIMOS AL ACUMULADOR MAESTRO
                 textoAcumulado += currentRaw;
 
-                // 🧹 6. NORMALIZACIÓN DE SALIDA
+                // 🧹 6. NORMALIZACIÓN DE SALIDA (Aquí es donde entra tu nuevo sanitizador)
                 resultadoIA = normalizarSalidaIA({ respuesta: textoAcumulado });
 
                 if (resultadoIA.tipo === "truncated") {
@@ -695,7 +695,11 @@ if (form) {
                 case "v13_dual":
                     try {
                         logger.log("🧠 Detectado Flujo V13 Supremo.");
-                        agregarBurbujaHeberto(resultadoIA.mensaje_ceo, resultadoIA.modulo_id);
+                        
+                        // 🛡️ DEFENSA EN PROFUNDIDAD: Sanitizamos el ID una última vez por si las moscas
+                        const idFinal = sanitizeModuloId(resultadoIA.modulo_id);
+                        
+                        agregarBurbujaHeberto(resultadoIA.mensaje_ceo, idFinal);
 
                         const auditoriaV13 = await ejecutarAuditoriaCore(
                             resultadoIA.json, 
@@ -706,15 +710,16 @@ if (form) {
                             }
                         );
 
+                        // 🏛️ INYECCIÓN EN BASE DE DATOS
                         await ejecutarPersistenciaCore(
-                            resultadoIA.modulo_id, 
+                            idFinal, 
                             auditoriaV13.data, 
                             auditoriaV13.hash, 
                             activeTenant
                         );
                         
                         versionLocalSnapshot = auditoriaV13.hash;
-                        logger.log(`🏛️ ADN V13 [${resultadoIA.modulo_id}] Inmortalizado.`);
+                        logger.log(`🏛️ ADN V13 [${idFinal}] Inmortalizado.`);
 
                         await updateDoc(doc(db, "gestia_operations", opId), {
                             status: "completed_v13",
@@ -723,7 +728,7 @@ if (form) {
 
                     } catch (errV13) {
                         logger.error(`FALLO_V13_DB: ${errV13.message}`);
-                        agregarBurbujaError("ERROR_ESTRUCTURAL_V13.");
+                        agregarBurbujaError(`ERROR_ESTRUCTURAL_V13: ${errV13.message}`);
                     }
                     break;
 
@@ -739,8 +744,11 @@ if (form) {
                             }
                         );
 
+                        // Sanitizamos el ID que viene dentro del JSON para la persistencia
+                        const idJsonLimpio = sanitizeModuloId(auditoria.data.modulo_id);
+
                         await ejecutarPersistenciaCore(
-                            auditoria.data.modulo_id, 
+                            idJsonLimpio, 
                             auditoria.data, 
                             auditoria.hash, 
                             activeTenant
