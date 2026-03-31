@@ -1,31 +1,32 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - ARCHITECTURE V5.40 (ANTI-FRAGILE CORE)
+ * GESTIAPREMIUM 2026 - ARCHITECTURE V5.45 (SENTINEL CORE - ANTI-FRAGILE)
  * ======================================================================================
  * DESPLEGADO POR: Heber Mendoza (Arquitecto Supremo)
- * REGLA 1: SIN CORTES. SIN COMPACTACIÓN. CÓDIGO ÍNTEGRO (>810 LÍNEAS).
- * ACTUALIZACIÓN: Idempotencia de Pagos, Autoridad Atómica y Blindaje de Secretos.
+ * REGLA 1: SIN CORTES. SIN COMPACTACIÓN. CÓDIGO ÍNTEGRO (>865 LÍNEAS).
+ * ACTUALIZACIÓN: Autoridad Atómica Determinística (SHA-256) & Sentinel Tracing.
  * --------------------------------------------------------------------------------------
  */
 
-// 1. IMPORTACIONES DE NÚCLEO (Librerías externas primero)
+// 1. IMPORTACIONES DE NÚCLEO
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const express = require("express");
 const cors = require("cors");
-// FIX V5.40: Se elimina Hardcode de Stripe. Uso de Variable de Entorno Segura.
+const crypto = require("crypto"); // Inyectado para IDs Determinísticos V5.45
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// 2. INICIALIZACIÓN INMEDIATA (ENCENDER EL MOTOR ANTES DE TODO)
+// 2. INICIALIZACIÓN INMEDIATA
 if (!admin.apps.length) { 
     admin.initializeApp(); 
 }
 const db = admin.firestore();
 const corsHandler = require("cors")({ origin: true });
 
-// 3. IMPORTACIONES DE MÓDULOS PROPIOS
-const { firewallV4 } = require("./firewall/firewall.v4");
+// 3. IMPORTACIONES DE MÓDULOS PROPIOS (V5.45 Bridge)
+const { firewallV4 } = require("./firewall/firewall.v4"); 
+// Nota: El engine V5 se invoca internamente en el Architect para persistencia de reputación.
 
 // 4. CONFIGURACIÓN DE INTELIGENCIA ARTIFICIAL
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY || "");
@@ -34,88 +35,106 @@ const app = express();
 app.use(cors({ origin: true }));
 
 // ==================================================================
-// 🧩 MÓDULO 0: UTILIDADES DE AUTORIDAD Y PERSISTENCIA ATÓMICA
+// 🧩 MÓDULO 0: UTILIDADES DE AUTORIDAD Y PERSISTENCIA ATÓMICA (V5.45)
 // ==================================================================
 
 /**
  * internalCreateModule: Única autoridad de creación en el búnker.
- * Integra validación semántica, versionado de esquemas y auditoría.
+ * EVOLUCIÓN V5.45: Usa IDs Determinísticos (SHA-256) para evitar duplicidad
+ * incluso si la IA falla en su lógica de búsqueda.
  */
 async function internalCreateModule({ modulo_nombre, esquema_campos, tenantId, userId }) {
-    console.log(`🏗️ [AUTHORITY] Evaluando creación semántica: ${modulo_nombre} | Tenant: ${tenantId}`);
+    const traceId = `trace_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    console.log(JSON.stringify({
+        level: "INFO",
+        message: `🏗️ [AUTHORITY V5.45] Iniciando creación atómica: ${modulo_nombre}`,
+        tenantId,
+        traceId,
+        engine: "SENTINEL_CORE"
+    }));
 
     try {
-        // 🛡️ 1. VALIDACIÓN DE DUPLICADO SEMÁNTICO (Fix Abuelo #2)
-        const existingByName = await db.collection("gestia_system_modules")
-            .where("tenantId", "==", tenantId)
-            .where("nombre_display", "==", modulo_nombre)
-            .limit(1)
-            .get();
-
-        if (!existingByName.empty) {
-            const existingDoc = existingByName.docs[0];
-            console.log(`⚠️ Match semántico hallado: ${existingDoc.id}. Reutilizando.`);
-            return { 
-                success: true, 
-                modulo_id: existingDoc.id, 
-                status: "reused_semantic_match",
-                data: existingDoc.data()
-            };
-        }
-
-        // 🛡️ 2. GENERACIÓN DE ID AUTORITARIO (Basado en Timestamp Inmutable)
-        const modulo_id = `modulo_${Date.now()}`;
+        // 🛡️ 1. GENERACIÓN DE ID DETERMINÍSTICO (SHA-256) - Blindaje Anti-Duplicados
+        // Si el nombre y el tenant son iguales, el ID DEBE ser igual.
+        const seed = `${tenantId}_${modulo_nombre.toLowerCase().trim()}`;
+        const modulo_id = `mod_${crypto.createHash('sha256').update(seed).digest('hex').substring(0, 16)}`;
+        
         const ref = db.collection("gestia_system_modules").doc(modulo_id);
 
-        // 🛡️ 3. ESCRITURA CON REGISTRO DE EVOLUCIÓN (Versionado de Esquema)
-        const schemaPayload = {
-            nombre_display: modulo_nombre,
-            esquema_campos: esquema_campos || ["fecha", "descripcion"],
-            status: "activo",
-            tenantId: tenantId,
-            creado_por: userId,
-            version_core: "V5.40",
-            schema_version: 1,
-            schema_history: [{
-                version: 1,
-                campos: esquema_campos || ["fecha", "descripcion"],
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            }],
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            metadata: {
-                engine: "Gestia_Authority_V1",
-                atomic: true
-            }
-        };
-
-        await ref.set(schemaPayload);
-
-        // 🛡️ 4. INICIALIZACIÓN DE ADN DINÁMICO (Sub-colección de registros)
-        const initRef = db.collection("gestia_dynamic_data").doc(modulo_id)
-            .collection("registros").doc("_init");
+        // 🛡️ 2. TRANSACCIÓN DE ESCRITURA SEGURA (Check & Set)
+        const result = await db.runTransaction(async (transaction) => {
+            const doc = await transaction.get(ref);
             
-        await initRef.set({
-            initialized: true,
-            mensaje: "Data-fabric configurada para el nuevo módulo.",
-            tenantId: tenantId,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
+            if (doc.exists) {
+                console.log(`⚠️ [DETERMINISTIC] Colisión detectada. El módulo ${modulo_id} ya existe. Reutilizando.`);
+                return { 
+                    success: true, 
+                    modulo_id, 
+                    status: "reused_deterministic_match",
+                    data: doc.data()
+                };
+            }
+
+            const schemaPayload = {
+                modulo_id: modulo_id,
+                nombre_display: modulo_nombre,
+                esquema_campos: esquema_campos || ["fecha", "descripcion"],
+                status: "activo",
+                tenantId: tenantId,
+                creado_por: userId,
+                version_core: "V5.45_SENTINEL",
+                traceId: traceId,
+                schema_version: 1,
+                schema_history: [{
+                    version: 1,
+                    campos: esquema_campos || ["fecha", "descripcion"],
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                }],
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                metadata: {
+                    engine: "Gestia_Authority_V5.45",
+                    atomic: true,
+                    deterministic: true
+                }
+            };
+
+            transaction.set(ref, schemaPayload);
+
+            // 🛡️ 3. INICIALIZACIÓN DE DATA-FABRIC
+            const initRef = db.collection("gestia_dynamic_data").doc(modulo_id)
+                .collection("registros").doc("_init");
+                
+            transaction.set(initRef, {
+                initialized: true,
+                mensaje: "Data-fabric configurada bajo Sentinel Core V5.45",
+                tenantId: tenantId,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            return { success: true, modulo_id, status: "created_atomic" };
         });
 
-        // 🛡️ 5. AUDITORÍA DE INFRAESTRUCTURA
+        // 🛡️ 4. AUDITORÍA DE INFRAESTRUCTURA (Fuera de la transacción para no bloquear)
         await db.collection("logs_terminal_heberto").add({
-            tipo: "CREATE_MODULE",
-            modulo_id: modulo_id,
+            tipo: "CREATE_MODULE_V5",
+            modulo_id: result.modulo_id,
             tenantId: tenantId,
             uid: userId,
-            action: "atomic_creation_success",
+            traceId: traceId,
+            status: result.status,
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        console.log(`✅ [EXITO] Módulo ${modulo_id} inyectado en el búnker.`);
-        return { success: true, modulo_id, status: "created" };
+        console.log(`✅ [EXITO] Autoridad confirmada para ${result.modulo_id}`);
+        return result;
 
     } catch (error) {
-        console.error("🔥 Error interno en internalCreateModule:", error);
+        console.error(JSON.stringify({
+            level: "FATAL",
+            error: error.message,
+            traceId,
+            module: "internalCreateModule"
+        }));
         throw error;
     }
 }
@@ -179,7 +198,7 @@ app.post(["/", "/webhook"], express.raw({ type: 'application/json' }), async (re
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // 🛡️ FILTRO DE IDEMPOTENCIA (Fix Abuelo #2)
+    // 🛡️ FILTRO DE IDEMPOTENCIA
     const eventId = event.id;
     const eventLogRef = db.collection("stripe_events").doc(eventId);
     
@@ -477,7 +496,7 @@ exports.gestiaArchitectV5 = functions
                 let prompt = bodyData.prompt || (typeof bodyData === 'string' ? bodyData : "");
                 if (!prompt) throw new Error("PROMPT_VACIO");
 
-                // 🏗️ 3. Memoria Semántica (Fix Abuelo #4: Filtrado por Tenant)
+                // 🏗️ 3. Memoria Semántica
                 let modulosExistentes = [];
                 const modulesSnap = await db.collection("gestia_system_modules")
                     .where("tenantId", "==", currentTenantId)
@@ -486,7 +505,7 @@ exports.gestiaArchitectV5 = functions
                 
                 modulesSnap.forEach(doc => modulosExistentes.push(doc.id));
 
-                // 📜 4. Instrucción Maestra (CONTRATO DE ACCIÓN SUPREMO)
+                // 📜 4. Instrucción Maestra
                 const systemInstruction = `
 Eres la TERMINAL HEBERTO V5.40. Identidad: Orquestador de Infraestructura Autónoma.
 Decisión requerida: USE_MODULE (si hay match) o CREATE_MODULE (si es nuevo).
@@ -512,7 +531,7 @@ REGLAS DURAS:
 `;
 
                 const model = genAI.getGenerativeModel({ 
-                    model: "gemini-2.5-flash",
+                    model: "gemini-2.0-flash",
                     generationConfig: { temperature: 0.15, maxOutputTokens: 3200 }
                 });
 
@@ -522,14 +541,14 @@ REGLAS DURAS:
                 let cleaned = responseText.replace(/```json|```/g, "").trim();
                 let jsonParsed = JSON.parse(cleaned);
 
-                // --- 🛡️ BLINDAJE POST-IA (Fix Abuelo #5) ---
+                // --- 🛡️ BLINDAJE POST-IA ---
                 const validActions = ["USE_MODULE", "CREATE_MODULE"];
                 if (!validActions.includes(jsonParsed.action)) throw new Error("INVALID_ACTION_FROM_IA");
 
                 const jsPayload = jsonParsed.ejecucion?.payload?.javascript || "";
                 if (jsPayload.length > 8000) throw new Error("JS_EXCESIVO_PREVENCION_DE_BUCLE");
 
-                // --- 🚀 6. ORQUESTACIÓN AUTÓNOMA (Sincronización Atómica) ---
+                // --- 🚀 6. ORQUESTACIÓN AUTÓNOMA ---
                 if (jsonParsed.action === "CREATE_MODULE") {
                     console.log("🏗️ [ATOMIC] Detectada creación. Invocando Notario Interno...");
                     
@@ -540,11 +559,9 @@ REGLAS DURAS:
                         userId: session.uid
                     });
 
-                    // Inyectamos ID Real generado por el servidor
                     jsonParsed.modulo_id = creation.modulo_id;
                     jsonParsed.conciencia.mensaje_ceo += `\n(ID Generado: ${creation.modulo_id})`;
                 } else if (jsonParsed.action === "USE_MODULE" && !modulosExistentes.includes(jsonParsed.modulo_id)) {
-                    // Fallback: Si la IA dice USE pero no existe en este tenant, lo creamos.
                     const creation = await internalCreateModule({
                         modulo_nombre: jsonParsed.modulo_nombre || "Módulo Recuperado",
                         esquema_campos: jsonParsed.esquema_campos || ["fecha"],
@@ -555,7 +572,6 @@ REGLAS DURAS:
                     jsonParsed.action = "CREATE_MODULE";
                 }
 
-                // 🚀 RETORNO: Objeto JSON Nativo
                 return res.status(200).json({
                     data: {
                         success: true,
@@ -667,11 +683,10 @@ exports.reservarCancha = functions.https.onCall(async (data, context) => {
     return await db.runTransaction(async (transaction) => {
         const reservasRef = db.collection("reservas");
         
-        // 🛡️ Búsqueda de traslape horario
         const traslapeSnap = await transaction.get(
             reservasRef.where("amenityId", "==", amenityId)
-                       .where("fecha", "==", fecha)
-                       .where("estado", "==", "confirmado")
+                        .where("fecha", "==", fecha)
+                        .where("estado", "==", "confirmado")
         );
 
         const hayTraslape = traslapeSnap.docs.some(doc => {
@@ -808,7 +823,6 @@ exports.registrarIncidenciaAcceso = functions.https.onCall(async (data, context)
     }
 });
 
-// Trigger de Notificación Push para Paquetes (FCM)
 exports.onPackageReceived = functions.firestore
     .document('packages/{condominioId}/items/{paqueteId}')
     .onCreate(async (snap, context) => {
@@ -862,4 +876,4 @@ exports.limpiarSesionesHuerfanas = functions.pubsub
         }
     });
 
-// FIN DEL NÚCLEO GESTIAPREMIUM V5.40 - SISTEMA ANTI-FRÁGIL
+// FIN DEL NÚCLEO GESTIAPREMIUM V5.45 (SENTINEL CORE)
