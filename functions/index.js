@@ -10,7 +10,7 @@
 
 // 0. CARGA DE VARIABLES DE ENTORNO (CRÍTICO: Debe ir antes de cualquier inicialización)
 require('dotenv').config();
-
+const FORCE_REDEPLOY_V5_51_2 = "2026-03-31_22:34"; // Purga de caché y sincronización de .env
 // 1. IMPORTACIONES DE NÚCLEO (Librerías externas primero)
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
