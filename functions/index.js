@@ -46,7 +46,10 @@ const V5_CONFIG = {
 
 // 4. CONFIGURACIÓN DE INTELIGENCIA ARTIFICIAL
 // 🛡️ V5.51: Ahora lee la llave directamente del .env cargado en el Paso 1
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY || "");
+// 🛡️ SONDA DE DIAGNÓSTICO V5.51
+const rawKey = process.env.GEMINI_KEY || "";
+console.log(`📡 [RADAR_KEY_CHECK] Llave detectada: ${rawKey.substring(0, 5)}...${rawKey.substring(rawKey.length - 4)}`);
+const genAI = new GoogleGenerativeAI(rawKey);
 
 const app = express();
 /**
