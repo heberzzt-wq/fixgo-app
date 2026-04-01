@@ -4,9 +4,12 @@
  * ======================================================================================
  * DESPLEGADO POR: Heber Mendoza (Arquitecto Supremo)
  * REGLA 1: SIN CORTES INTERNOS. SIN COMPACTACIÓN. CÓDIGO ÍNTEGRO.
- * ACTUALIZACIÓN: Parche V5.51 - Unificación de Handlers y Aislamiento de Middlewares.
+ * ACTUALIZACIÓN: Parche V5.51.1 - Integración de Dotenv para lectura de Secretos.
  * --------------------------------------------------------------------------------------
  */
+
+// 0. CARGA DE VARIABLES DE ENTORNO (CRÍTICO: Debe ir antes de cualquier inicialización)
+require('dotenv').config();
 
 // 1. IMPORTACIONES DE NÚCLEO (Librerías externas primero)
 const functions = require("firebase-functions/v1");
@@ -18,13 +21,13 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // 2. INICIALIZACIÓN INMEDIATA (ENCENDER EL MOTOR ANTES DE TODO)
-// 🛡️ UNIFICACIÓN DE SCOPE: Evita "Identifier admin has already been declared"
+// 🛡️ UNIFICACIÓN DE SCOPE: Evita "Identifier admin has already been declared" en re-deploys
 if (!admin.apps.length) { 
     admin.initializeApp(); 
 }
 const db = admin.firestore();
 
-// 🛡️ INSTANCIACIÓN DE HANDLERS GLOBALES (Fix V5.51 - Evita ReferenceError)
+// 🛡️ INSTANCIACIÓN DE HANDLERS GLOBALES (Fix V5.51 - Evita ReferenceError en Middlewares)
 const corsHandler = cors({ origin: true });
 
 // 3. IMPORTACIONES DE MÓDULOS PROPIOS (V5.50 Bridge)
@@ -38,14 +41,14 @@ const V5_CONFIG = {
   SCORE_THROTTLE: 70,       
   DECAY: 0.85,              
   REPUTATION_WEIGHT: 0.6,   
-  BURST_WEIGHT: 0.4        
+  BURST_WEIGHT: 0.4         
 };
 
 // 4. CONFIGURACIÓN DE INTELIGENCIA ARTIFICIAL
+// 🛡️ V5.51: Ahora lee la llave directamente del .env cargado en el Paso 1
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY || "");
 
 const app = express();
-
 /**
  * 🛡️ AISLAMIENTO DE MIDDLEWARES (Fix Crítico V5.51)
  * El Webhook de Stripe debe procesarse antes de que cualquier global interfiera con el Buffer.
@@ -910,13 +913,13 @@ exports.validarCierreIA = functions.https.onCall(async (data, context) => {
  * 🧩 MÓDULO 6: TERMINAL HEBERTO - ARCHITECT ENGINE (SENTINEL V5.51 ANTIFRÁGIL)
  * ======================================================================================
  * OBJETIVO: Orquestación de infraestructura mediante IA con ahorro de tokens y trazabilidad.
- * ACTUALIZACIÓN V5.51: Implementación de Sandbox Whitelist y Saneamiento de Ruteo.
+ * ACTUALIZACIÓN V5.51: Parche V5.51.1 - Migración de Secrets a Environment Variables (.env).
  * --------------------------------------------------------------------------------------
  */
 
 exports.gestiaArchitectV5 = functions
     .runWith({ 
-        secrets: ["GEMINI_KEY", "STRIPE_SECRET_KEY"], 
+        // 🛡️ FIX V5.51.1: Eliminamos 'secrets' para forzar el uso del archivo .env local cargado vía dotenv
         timeoutSeconds: 540, 
         memory: "1GB"        
     })
@@ -933,14 +936,14 @@ exports.gestiaArchitectV5 = functions
                     reportSentinelMetric('ia_firewall_rejections');
                     throw new Error("BLOQUEO_FIREWALL: Autoridad no confirmada por Sentinel.");
                 }
-                
+
                 const currentTenantId = session.tenantId; 
                 if (!currentTenantId) throw new Error("TENANT_ID_REQUIRED: No se puede orquestar sin contexto de inquilino.");
 
                 // 📦 2. VALIDACIÓN DE PAYLOAD & PROMPT
                 const bodyData = req.body.data || req.body;
                 let prompt = bodyData.prompt || (typeof bodyData === 'string' ? bodyData : "");
-                
+
                 if (!prompt || prompt.trim().length < 3) {
                     throw new Error("PROMPT_INVALIDO: La intención es demasiado corta o nula.");
                 }
@@ -971,7 +974,7 @@ exports.gestiaArchitectV5 = functions
                     .where("tenantId", "==", currentTenantId)
                     .limit(50) 
                     .get();
-                
+
                 modulesSnap.forEach(doc => modulosExistentes.push(doc.id));
 
                 // 📜 5. INSTRUCCIÓN MAESTRA (Protocolo de Generación Sentinel V5.51)
@@ -1007,10 +1010,10 @@ REGLAS CRÍTICAS DE SEGURIDAD (V5.51 WHITELIST):
                 // ⚡ 6. INVOCACIÓN AL CEREBRO
                 const result = await model.generateContent(`${systemInstruction}\n\nSOLICITUD DEL ARQUITECTO:\n${prompt}`);
                 let responseText = result.response.text();
-                
+
                 let cleaned = responseText.replace(/```json|```/g, "").trim();
                 let jsonParsed;
-                
+
                 try {
                     jsonParsed = JSON.parse(cleaned);
                 } catch (parseError) {
@@ -1023,13 +1026,13 @@ REGLAS CRÍTICAS DE SEGURIDAD (V5.51 WHITELIST):
                 if (!validActions.includes(jsonParsed.action)) throw new Error("ACCION_IA_INVALIDA");
 
                 const jsPayload = jsonParsed.ejecucion?.payload?.javascript || "";
-                
+
                 // 🛑 SANDBOX V5.51: WHITELIST POSITIVA
                 // Solo caracteres alfanuméricos, espacios, puntos, llaves, paréntesis y operadores básicos.
                 // Bloquea por construcción cualquier intento de obfuscar "eval" o "fetch".
                 const safeRegex = /^[a-zA-Z0-9\s\.\(\)\{\};,_\-+=<>!]*$/;
                 const isSafe = safeRegex.test(jsPayload);
-                
+
                 if (!isSafe) {
                     reportSentinelMetric('ia_security_violation_blocked');
                     console.error(`🚫 [ALERTA SECURITY] Caracteres no permitidos en JS generado. Trace: ${traceId}`);
@@ -1041,7 +1044,7 @@ REGLAS CRÍTICAS DE SEGURIDAD (V5.51 WHITELIST):
                 // --- 🚀 8. ORQUESTACIÓN DE INFRAESTRUCTURA (Atomic Bridge) ---
                 if (jsonParsed.action === "CREATE_MODULE") {
                     console.log(`🏗️ [AUTHORITY] Generando nuevo componente vía SHA-256 Bridge...`);
-                    
+
                     const creation = await internalCreateModule({
                         modulo_nombre: jsonParsed.modulo_nombre || "Módulo Autogenerado",
                         esquema_campos: jsonParsed.esquema_campos || ["fecha", "valor"],
@@ -1082,7 +1085,7 @@ REGLAS CRÍTICAS DE SEGURIDAD (V5.51 WHITELIST):
             } catch (error) {
                 reportSentinelMetric('ia_architect_errors');
                 console.error(`🔥 [FATAL ARCHITECT]: ${error.message} | Trace: ${traceId}`);
-                
+
                 return res.status(200).json({ 
                     data: { 
                         success: false, 
