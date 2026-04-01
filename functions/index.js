@@ -1,10 +1,10 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - ARCHITECTURE V5.51 (SENTINEL CORE - ANTIFRÁGIL)
+ * GESTIAPREMIUM 2026 - ARCHITECTURE V5.51.2 (SENTINEL CORE - ANTIFRÁGIL)
  * ======================================================================================
  * DESPLEGADO POR: Heber Mendoza (Arquitecto Supremo)
  * REGLA 1: SIN CORTES INTERNOS. SIN COMPACTACIÓN. CÓDIGO ÍNTEGRO.
- * ACTUALIZACIÓN: Parche V5.51.1 - Integración de Dotenv para lectura de Secretos.
+ * ACTUALIZACIÓN: Parche V5.51.2 - Integración de Dotenv para lectura de Secretos.
  * --------------------------------------------------------------------------------------
  */
 
