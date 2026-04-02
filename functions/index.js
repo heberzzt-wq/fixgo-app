@@ -1935,7 +1935,7 @@ exports.limpiarSesionesHuerfanas = functions.pubsub
         }
     });
 
-/**
+    /**
  * ======================================================================================
  * 🛰️ MÓDULO 13: SENTINEL HEALTH ENGINE (EL RADAR V5.55 FINAL CORE)
  * ======================================================================================
@@ -1944,32 +1944,8 @@ exports.limpiarSesionesHuerfanas = functions.pubsub
  * --------------------------------------------------------------------------------------
  */
 
-/**
- * startupHeartbeat: Notificación de despliegue exitoso al Radar.
- * Se ejecuta al instanciarse el contenedor de la función.
- */
-(async () => {
-    try {
-        // 🛡️ 0. DESPERTAR EL MOTOR EN EL ARRANQUE
-        initCore();
-
-        const startupTrace = `startup_${Date.now()}`;
-        
-        // Reportamos el reinicio de los motores al Radar de Salud
-        await reportSentinelMetric('system_restarts');
-        
-        console.log(JSON.stringify({
-            level: "SYSTEM",
-            message: "🛠️ [SENTINEL_CORE] Búnker GestiaPremium V5.55 FINAL READY.",
-            architect: "Heber Mendoza",
-            status: "READY",
-            engine: "V5.55_FINAL_CORE",
-            traceId: startupTrace
-        }));
-    } catch (e) {
-        console.warn("⚠️ [STARTUP_WARN] El Radar no pudo registrar el inicio, pero el motor está vivo.");
-    }
-})();
+// ⛔ BLOQUE AUTOEJECUTABLE ELIMINADO PARA EVITAR TIMEOUTS EN EL DEPLOY ⛔
+// Todo el sistema ahora despierta vía Lazy-Loading (initCore) dentro de cada endpoint.
 
 /**
  * ======================================================================================
