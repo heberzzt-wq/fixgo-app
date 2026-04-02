@@ -39,8 +39,15 @@ module.exports = ({
 
           const data = req.body?.data || req.body || {};
 
-          if (!data.modulo_nombre || data.modulo_nombre.trim().length < 3) {
-            throw new Error("CONTRATO_INVALIDO");
+          // 🛡️ INYECCIÓN V5.55: Exigimos el modulo_id desde el origen
+          if (
+              !data.modulo_id || 
+              typeof data.modulo_id !== "string" || 
+              !data.modulo_nombre || 
+              typeof data.modulo_nombre !== "string" || 
+              data.modulo_nombre.trim().length < 3
+          ) {
+            throw new Error("CONTRATO_INVALIDO: Faltan identificadores del módulo (modulo_id o modulo_nombre).");
           }
 
           const rateLimitRef = db
@@ -71,7 +78,9 @@ module.exports = ({
             await rateLimitRef.set({ count: 1, timestamp: now });
           }
 
+          // 🏗️ INYECCIÓN V5.55: Pasamos el modulo_id intacto al Helper
           const result = await internalCreateModule({
+            modulo_id: data.modulo_id.trim(),
             modulo_nombre: data.modulo_nombre.trim(),
             esquema_campos: data.esquema_campos || ["fecha", "descripcion"],
             tenantId: currentTenantId,
@@ -81,7 +90,12 @@ module.exports = ({
           await reportSentinelMetric('direct_module_creation_success');
 
           return res.status(200).json({
-            data: { ...result, traceId }
+            data: { 
+                ...result, 
+                traceId, 
+                status: "INFRASTRUCTURE_AUTHORIZED", 
+                engine: "SENTINEL_V5.55" 
+            }
           });
 
         } catch (e) {
@@ -92,7 +106,8 @@ module.exports = ({
             data: {
               success: false,
               error: e.message,
-              traceId
+              traceId,
+              code: "AUTHORITY_REJECTION"
             }
           });
         }
