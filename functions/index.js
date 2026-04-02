@@ -79,96 +79,23 @@ function initCore() {
 }
 
 // ======================================================================================
-// 5. HELPERS (UTILIDADES DE APOYO V5.55)
-// ======================================================================================
-
-/**
- * reportSentinelMetric: El corazón del Radar.
- * Evolución V5.55: Usa incrementos atómicos y documentos diarios para telemetría.
- */
-async function reportSentinelMetric(metricName, value = 1) {
-    try {
-        if (!db) return; 
-
-        const today = new Date().toISOString().split('T')[0]; 
-        const healthRef = db.collection("gestia_system_health").doc(today);
-
-        await healthRef.set({
-            [metricName]: admin.firestore.FieldValue.increment(value),
-            last_heartbeat: admin.firestore.FieldValue.serverTimestamp(),
-            version_core: "V5.55_HARDENED",
-            status: "HEARTBEAT_OK"
-        }, { merge: true });
-    } catch (error) {
-        console.warn(JSON.stringify({
-            level: "WARNING",
-            message: `⚠️ [RADAR_FAIL] No se pudo reportar métrica: ${metricName}`,
-            error: error.message
-        }));
-    }
-}
-
-/**
- * internalCreateModule: Única autoridad de creación en el búnker.
- * Evolución V5.55: IDs Determinísticos (SHA-256) y transacción atómica completa.
- */
-async function internalCreateModule({ modulo_nombre, esquema_campos, tenantId, userId }) {
-    const traceId = `trace_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`;
-    
-    // Normalización de nombre para ID
-    const normalizedName = modulo_nombre.toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]/g, "")
-        .trim();
-
-    try {
-        const seed = `${tenantId}_${normalizedName}`;
-        const modulo_id = `mod_${crypto.createHash('sha256').update(seed).digest('hex').substring(0, 16)}`;
-        
-        const ref = db.collection("gestia_system_modules").doc(modulo_id);
-
-        const result = await db.runTransaction(async (transaction) => {
-            const doc = await transaction.get(ref);
-            
-            if (doc.exists) {
-                return { 
-                    success: true, 
-                    modulo_id, 
-                    status: "reused_deterministic_match"
-                };
-            }
-
-            const now = new Date();
-
-            const schemaPayload = {
-                modulo_id: modulo_id,
-                nombre_display: modulo_nombre,
-                esquema_campos: esquema_campos || ["fecha", "descripcion"],
-                status: "activo",
-                tenantId: tenantId,
-                creado_por: userId,
-                version_core: "V5.55_STABLE",
-                traceId: traceId,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            };
-
-            transaction.set(ref, schemaPayload);
-
-            return { success: true, modulo_id, status: "created_atomic" };
-        });
-
-        await reportSentinelMetric(result.status === "created_atomic" ? "modules_created" : "modules_reused");
-        return result;
-
-    } catch (error) {
-        await reportSentinelMetric('authority_errors');
-        throw error;
-    }
-}
-// ======================================================================================
 // 5. HELPERS DE AUTORIDAD Y SALUD SENTINEL (V5.55 FINAL CORE)
 // ======================================================================================
+
+/**
+ * 🛡️ IS_VALID_ID: El Cadenero Estricto. (Inyección V5.55)
+ * No modifica nada, solo dictamina si el ID que envía la Terminal es legal.
+ */
+function isValidId(id) {
+    const regex = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
+    return (
+        typeof id === "string" &&
+        id.length >= 3 && 
+        id.length <= 50 &&
+        regex.test(id)
+    );
+}
+
 /**
  * 🛰️ reportSentinelMetric: El corazón del Radar.
  * Incrementa contadores globales de salud para telemetría en tiempo real.
@@ -198,45 +125,36 @@ async function reportSentinelMetric(metricName, value = 1) {
 
 /**
  * internalCreateModule: Única autoridad de creación en el búnker.
- * ESTRATEGIA: Usa IDs Determinísticos (SHA-256) para forzar colisiones controladas.
+ * ESTRATEGIA V5.55: El Backend NO inventa IDs. Exige 'modulo_id' legal y si hay colisión, aborta.
  * FIX V5.55: Mantiene la separación de Timestamp del servidor de la estructura del historial (array).
  */
-async function internalCreateModule({ modulo_nombre, esquema_campos, tenantId, userId }) {
+async function internalCreateModule({ modulo_id, modulo_nombre, esquema_campos, tenantId, userId }) {
     const traceId = `trace_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`;
     
-    // 🛡️ NORMALIZACIÓN FUERTE V5.55
-    const normalizedName = modulo_nombre.toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]/g, "")
-        .trim();
-
     console.log(JSON.stringify({
         level: "INFO",
-        message: `🏗️ [AUTHORITY V5.55] Creación atómica: ${modulo_nombre}`,
+        message: `🏗️ [AUTHORITY V5.55] Creación atómica solicitada: ${modulo_id}`,
         tenantId,
         traceId,
         engine: "SENTINEL_HARDENED_V5.55"
     }));
 
+    // 🛡️ 1. VALIDACIÓN SIN TRANSFORMACIÓN (El Búnker exige limpieza desde origen)
+    if (!isValidId(modulo_id)) {
+        console.error(`🚨 [ID_FLOW] RECHAZADO: ${modulo_id} no cumple el contrato V5.55`);
+        throw new Error(`FALLO_V5_55_DB: ID_CORRUPTO_RECHAZADO [${modulo_id}]`);
+    }
+
     try {
-        // 🛡️ 1. GENERACIÓN DE ID DETERMINÍSTICO (SHA-256)
-        const seed = `${tenantId}_${normalizedName}`;
-        const modulo_id = `mod_${crypto.createHash('sha256').update(seed).digest('hex').substring(0, 16)}`;
-        
         const ref = db.collection("gestia_system_modules").doc(modulo_id);
 
-        // 🛡️ 2. TRANSACCIÓN DE ESCRITURA SEGURA
+        // 🛡️ 2. TRANSACCIÓN DE ESCRITURA SEGURA Y POLÍTICA DE COLISIÓN
         const result = await db.runTransaction(async (transaction) => {
             const doc = await transaction.get(ref);
             
             if (doc.exists) {
-                return { 
-                    success: true, 
-                    modulo_id, 
-                    status: "reused_deterministic_match",
-                    data: doc.data()
-                };
+                console.warn(`⚠️ [ID_FLOW] COLISIÓN EXPLÍCITA: El módulo ${modulo_id} ya existe en el búnker.`);
+                throw new Error(`FALLO_V5_55_DB: EL_MODULO_YA_EXISTE [${modulo_id}]`);
             }
 
             // 🔥 FIX PERSISTENCIA: Capturamos el tiempo local para el array
@@ -285,16 +203,11 @@ async function internalCreateModule({ modulo_nombre, esquema_campos, tenantId, u
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
-            return { success: true, modulo_id, status: "created_atomic" };
+            return { success: true, modulo_id, status: "CREADO_CON_EXITO" };
         });
 
         // 🛡️ 4. TELEMETRÍA Y AUDITORÍA POST-COMMIT
-        if (result.status === "reused_deterministic_match") {
-            console.log(`⚠️ [DETERMINISTIC] Colisión detectada. El módulo ${result.modulo_id} ya existe.`);
-            await reportSentinelMetric('modules_reused_deterministic');
-        } else {
-            await reportSentinelMetric('modules_created_new');
-        }
+        try { await reportSentinelMetric('modules_created_new'); } catch(e) {}
 
         db.collection("logs_terminal_heberto").add({
             tipo: "CREATE_MODULE_V5_55",
@@ -308,10 +221,12 @@ async function internalCreateModule({ modulo_nombre, esquema_campos, tenantId, u
         }).catch(err => console.warn(`[AUDIT_FAIL] Trace: ${traceId}`, err.message));
 
         console.log(`✅ [EXITO] Autoridad confirmada para ${result.modulo_id} | Trace: ${traceId}`);
-        return result;
+        
+        // Se retorna el traceId para consistencia de auditoría End-to-End
+        return { ...result, traceId };
 
     } catch (error) {
-        await reportSentinelMetric('authority_errors');
+        try { await reportSentinelMetric('authority_creation_errors'); } catch(e) {}
 
         console.error(JSON.stringify({
             level: "FATAL",
@@ -1219,8 +1134,8 @@ exports.generarModuloIA = exports.gestiaArchitectV5;
  * ======================================================================================
  * 🧩 MÓDULO 7: TERMINAL - ENDPOINT DE CREACIÓN DIRECTA (SENTINEL V5.55 FINAL CORE)
  * ======================================================================================
- * OBJETIVO: Registro de infraestructura manual bajo protocolo de autoridad SHA-256.
- * ACTUALIZACIÓN V5.55: Sincronización con Authority Bridge V5.55 y Rate Limit Atómico.
+ * OBJETIVO: Registro de infraestructura manual bajo protocolo de autoridad estricta.
+ * ACTUALIZACIÓN V5.55: Exige ID legal pre-generado desde el frontend (Zero-Trust ID).
  * --------------------------------------------------------------------------------------
  */
 exports.createGestiaModule = functions
@@ -1260,15 +1175,18 @@ exports.createGestiaModule = functions
                     throw new Error("TENANT_REQUIRED: Contexto de inquilino faltante.");
                 }
 
-                // 📦 4. DATA SEGURA (Contrato de Payloads)
+                // 📦 4. DATA SEGURA (Contrato de Payloads V5.55)
                 const data = req.body?.data || req.body || {};
 
+                // 🛡️ INYECCIÓN V5.55: Exigimos el modulo_id desde el origen
                 if (
+                    !data.modulo_id ||
+                    typeof data.modulo_id !== "string" ||
                     !data.modulo_nombre ||
                     typeof data.modulo_nombre !== "string" ||
                     data.modulo_nombre.trim().length < 3
                 ) {
-                    throw new Error("CONTRATO_INVALIDO: El nombre del módulo es insuficiente.");
+                    throw new Error("CONTRATO_INVALIDO: Faltan identificadores del módulo (modulo_id o modulo_nombre).");
                 }
 
                 // 🛡️ 5. RATE LIMIT (V5.55 Atómico Hardened)
@@ -1309,6 +1227,7 @@ exports.createGestiaModule = functions
 
                 // 🏗️ 6. CREACIÓN VÍA AUTHORITY BRIDGE (Llamada al Helper atómico)
                 const result = await internalCreateModule({
+                    modulo_id: data.modulo_id.trim(), // 🛡️ INYECCIÓN V5.55: Pasamos el ID exacto
                     modulo_nombre: data.modulo_nombre.trim(),
                     esquema_campos: Array.isArray(data.esquema_campos)
                         ? data.esquema_campos

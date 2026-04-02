@@ -99,31 +99,54 @@ let versionLocalSnapshot = null;
 let GESTIA_USAGE_COUNTER = 0;
 
 // ==========================================
-// 🧹 HERRAMIENTAS DE SANITIZACIÓN (FRONTEND)
+// 🛡️ KIT DE IDENTIDAD GESTIA V5.55 (CONSTITUCIÓN)
 // ==========================================
 
 /**
- * Sanitiza el ID del módulo generado por la IA para asegurar
- * compatibilidad estricta con Firestore (solo alfanuméricos y guiones bajos).
- * Defensa en Profundidad (Capa Frontend).
+ * GENERATE_MODULE_ID: El único punto de transformación permitido.
+ * Convierte lenguaje natural en un ID legal para el Búnker.
  */
-function sanitizeModuloId(id) {
-    if (!id) return "modulo_default";
-
-    return id
+function generateModuleId(name) {
+    let cleaned = (name || "")
         .toLowerCase()
-        .replace(/[^a-z0-9_]/g, "_")  // solo letras, números y _
-        .replace(/_+/g, "_")          // evita ___
-        .replace(/^_+|_+$/g, "");     // quita _ al inicio/final
+        .trim()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Bye acentos
+        .replace(/\s+/g, "_")                            // Espacios -> _
+        .replace(/[^a-z0-9_]/g, "")                     // Solo alfanuméricos y _
+        .replace(/_+/g, "_")                            // No duplicar __
+        .replace(/^_+|_+$/g, "");                       // Quita _ extremos
+
+    // Fallback semántico con trazabilidad de error
+    if (!cleaned || cleaned.length < 3) {
+        const suffix = Date.now().toString(36);
+        return `mod_err_${suffix}`.substring(0, 50); 
+    }
+
+    return cleaned.substring(0, 50);
+}
+
+/**
+ * IS_VALID_ID: El Cadenero Estricto.
+ * No modifica nada, solo dice SI o NO.
+ */
+function isValidId(id) {
+    const regex = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
+    return (
+        typeof id === "string" &&
+        id.length >= 3 && 
+        id.length <= 50 &&
+        regex.test(id)
+    );
 }
 
 // ==========================================
-// 3. LOGGER DE AUDITORÍA FORENSE
+// 3. LOGGER DE AUDITORÍA FORENSE (ID_FLOW AWARE)
 // ==========================================
 function crearLogger() {
     const traceId = traceIdActual || `GOD_${Date.now()}`;
     return {
         log: (msg) => console.log(`%c[${traceId}]%c ${msg}`, "color: #3b82f6; font-weight: bold", "color: #cbd5e1"),
+        idFlow: (id) => console.log(`%c[ID_FLOW]%c ID_GENERADO: ${id}`, "color: #10b981; font-weight: bold", "color: #a7f3d0"),
         error: (msg) => console.error(`%c[${traceId}]%c ❌ ${msg}`, "color: #ef4444; font-weight: bold", "color: #fca5a5"),
         warn: (msg) => console.warn(`%c[${traceId}]%c ⚠️ ${msg}`, "color: #f59e0b; font-weight: bold", "color: #fde68a"),
         id: traceId
@@ -331,12 +354,21 @@ function normalizarSalidaIA(brainRes) {
     if (typeof raw === "object" && !Array.isArray(raw)) {
         // Verificamos si tiene la estructura V5.55 (conciencia + ejecucion)
         if (raw.ejecucion && raw.ejecucion.payload) {
-            const idLimpio = typeof sanitizeModuloId === 'function' ? sanitizeModuloId(raw.modulo_id) : (raw.modulo_id || "gen_mod");
+            
+            // 🛡️ KIT DE IDENTIDAD V5.55 INYECTADO AQUÍ
+            const idGenerado = generateModuleId(raw.modulo_id || raw.modulo_nombre || "gen_mod");
+            
+            if (!isValidId(idGenerado)) {
+                console.error(`🚨 [ID_FLOW] ERROR INTERNO: El ID generado no es válido -> ${idGenerado}`);
+                return { tipo: "error", error: `FALLO_V5_55_FRONTEND: ID_CORRUPTO_GENERADO [${idGenerado}]` };
+            }
             
             return {
                 tipo: "v13_dual",
                 mensaje_ceo: raw.conciencia?.mensaje_ceo || "Órale, aquí tienes los resultados.",
-                modulo_id: idLimpio,
+                modulo_id: idGenerado,
+                modulo_nombre: raw.modulo_nombre || "Módulo Autogenerado",
+                esquema_campos: raw.esquema_campos || ["fecha"],
                 json: raw.ejecucion.payload // Contiene html, css, js
             };
         }
@@ -364,12 +396,21 @@ function normalizarSalidaIA(brainRes) {
     try {
         const parsed = JSON.parse(limpio);
         if (parsed?.ejecucion?.payload) {
-            const idLimpio = typeof sanitizeModuloId === 'function' ? sanitizeModuloId(parsed.modulo_id) : (parsed.modulo_id || "gen_mod");
+            
+            // 🛡️ KIT DE IDENTIDAD V5.55 INYECTADO AQUÍ
+            const idGenerado = generateModuleId(parsed.modulo_id || parsed.modulo_nombre || "gen_mod");
+            
+            if (!isValidId(idGenerado)) {
+                console.error(`🚨 [ID_FLOW] ERROR INTERNO: El ID generado no es válido -> ${idGenerado}`);
+                return { tipo: "error", error: `FALLO_V5_55_FRONTEND: ID_CORRUPTO_GENERADO [${idGenerado}]` };
+            }
             
             return {
                 tipo: "v13_dual",
                 mensaje_ceo: parsed.conciencia?.mensaje_ceo || "Proceso terminado, jefe.",
-                modulo_id: idLimpio,
+                modulo_id: idGenerado,
+                modulo_nombre: parsed.modulo_nombre || "Módulo Autogenerado",
+                esquema_campos: parsed.esquema_campos || ["fecha"],
                 json: parsed.ejecucion.payload
             };
         }
@@ -523,7 +564,7 @@ function crearSandboxSeguro(html, js, css = "") {
         <html lang="es">
         <head>
             <meta charset="UTF-8">
-            <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+            <script src="https://cdn.tailwindcss.com"></script>
             <style>
                 body { background: #0f172a; color: #e2e8f0; font-family: ui-sans-serif, system-ui; padding: 2.5rem; margin: 0; }
                 ${css}
@@ -735,8 +776,9 @@ if (form) {
                     try {
                         logger.log("🧠 Detectado Flujo Arquitecto Supremo (V5.51).");
                         
-                        // 🛡️ DEFENSA EN PROFUNDIDAD: Sanitizamos el ID
-                        const idFinal = sanitizeModuloId(resultadoIA.modulo_id);
+                        // 🛡️ INYECCIÓN V5.55: El ID ya viene sanitizado y validado del Normalizador
+                        const idFinal = resultadoIA.modulo_id;
+                        logger.idFlow(`Terminal Despachando -> ${idFinal}`);
                         
                         agregarBurbujaHeberto(resultadoIA.mensaje_ceo, idFinal);
 
@@ -783,8 +825,9 @@ if (form) {
                             }
                         );
 
-                        // Sanitizamos el ID que viene dentro del JSON para la persistencia
-                        const idJsonLimpio = sanitizeModuloId(auditoria.data.modulo_id);
+                        // 🛡️ INYECCIÓN V5.55: El ID ya viene sanitizado y validado del Normalizador
+                        const idJsonLimpio = resultadoIA.modulo_id || generateModuleId(auditoria.data.modulo_id);
+                        logger.idFlow(`Terminal Despachando -> ${idJsonLimpio}`);
 
                         await ejecutarPersistenciaCore(
                             idJsonLimpio, 
