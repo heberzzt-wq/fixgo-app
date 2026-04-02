@@ -1,4 +1,44 @@
+# ==========================================
+# GESTIAPREMIUM - SENTINEL E-SHIELD
+# ==========================================
+
+# 1. Dependencias (Pesado/Innecesario)
 node_modules/
-*.local
+bower_components/
+
+# 2. Seguridad Máxima (NUNCA SUBIR)
 .env
+.env.local
+.env.*.local
 serviceAccountKey.json
+gestia-core/serviceAccountKey.json
+auth_key.json
+firebase-key.json
+
+# 3. Firebase SDK & Tooling
+.firebase/
+firestore.indexes.json
+firestore.rules
+storage.rules
+*-debug.log
+firebase-debug.log*
+ui-debug.log*
+
+# 4. Sistema y Editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# 5. Compilación y Temporales
+dist/
+build/
+lib/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
