@@ -302,73 +302,74 @@ function limpiarRespuestaIA(texto) {
 }
 
 /**
- * 🧠 NORMALIZADOR HÍBRIDO V5.51 (PASO 1) - REESCRITURA BLINDADA
- * Fusionado: Validación brutal + Detección de truncado estructural y conversacional.
- * Inyección V5.51: Sanitización automática de modulo_id alineada con el backend.
+ * 🧠 NORMALIZADOR HÍBRIDO V5.55 (PASO 1) - REESCRITURA ESMERALDA
+ * Fusionado: Validación brutal + Detección de truncado estructural.
+ * Inyección V5.55: Sincronización total con Architect Engine.
  */
 function normalizarSalidaIA(brainRes) {
-    // 🛡️ HARDENING: Si la respuesta es nula o inválida, no dejamos que truene el sistema
+    // 🛡️ HARDENING: Si la respuesta es nula o inválida
     if (!brainRes || typeof brainRes !== "object") {
         return { tipo: "error", error: "BRAIN_NULL_OR_INVALID" };
     }
 
-    // 🔍 EXTRACCIÓN MULTI-LLAVE: Buscamos el contenido en todas las capas posibles
-    // Se añade compatibilidad directa con el contrato de la V5.51 de Architect (Módulo 6)
+    // 🔍 EXTRACCIÓN MULTI-LLAVE (SENTINEL V5.55)
+    // Buscamos el objeto core en cualquier nivel de la respuesta de Axios
     let raw = 
         brainRes?.data?.modulo_generado ||
-        brainRes?.data?.payload ||
-        brainRes?.data?.result ||
         brainRes?.modulo_generado ||
-        brainRes?.respuesta ||
-        "";
+        brainRes?.data?.payload ||
+        brainRes?.payload ||
+        brainRes?.data ||
+        brainRes;
 
-    // 🧯 FALLBACK: Si de plano no hay texto, evitamos el "corte" visual
-    if (!raw || (typeof raw === "string" && raw.trim() === "")) {
+    // 🧯 FALLBACK: Si no hay contenido procesable
+    if (!raw) {
         return { tipo: "fallback", codigo: "// GESTIA_FALLBACK: IA_EMPTY_RESPONSE" };
     }
 
-    // Si 'raw' ya es un objeto (JSON parseado por axios/fetch previamente), no limpiamos
-    if (typeof raw === "object") {
-        if (raw.action && raw.ejecucion) {
-            const idLimpio = sanitizeModuloId(raw.modulo_id);
+    // --- CASO A: Ya es un OBJETO (Parseado por el Middleware) ---
+    if (typeof raw === "object" && !Array.isArray(raw)) {
+        // Verificamos si tiene la estructura V5.55 (conciencia + ejecucion)
+        if (raw.ejecucion && raw.ejecucion.payload) {
+            const idLimpio = typeof sanitizeModuloId === 'function' ? sanitizeModuloId(raw.modulo_id) : (raw.modulo_id || "gen_mod");
+            
             return {
                 tipo: "v13_dual",
-                mensaje_ceo: raw.conciencia?.mensaje_ceo || "Operación completada.",
+                mensaje_ceo: raw.conciencia?.mensaje_ceo || "Órale, aquí tienes los resultados.",
                 modulo_id: idLimpio,
-                json: raw.ejecucion.payload
+                json: raw.ejecucion.payload // Contiene html, css, js
             };
         }
+        
+        // Si es un objeto pero no tiene el estándar, lo mandamos como JSON genérico
         return { tipo: "json", json: raw };
     }
 
-    const limpio = limpiarRespuestaIA(raw);
+    // --- CASO B: Es un STRING (Texto plano o JSON sin parsear) ---
+    const limpio = limpiarRespuestaIA(String(raw));
 
-    // 🛑 DETECCIÓN DE TRUNCADO ESTRUCTURAL
+    // 🛑 DETECCIÓN DE TRUNCADO
     const openingBraces = (limpio.match(/\{/g) || []).length;
     const closingBraces = (limpio.match(/\}/g) || []).length;
 
     if (
-        (limpio.length < 50 && limpio.includes("{")) || 
+        (limpio.length < 10 && limpio.includes("{")) || 
         limpio.endsWith("{") || 
         (limpio.includes("{") && openingBraces !== closingBraces)
     ) {
         return { tipo: "truncated", codigo: limpio };
     }
 
-    // 🔹 INTENTO JSON (Estructurado V5.51)
+    // 🔹 INTENTO JSON (Estructurado V5.55)
     try {
         const parsed = JSON.parse(limpio);
-        if (parsed?.conciencia && parsed?.ejecucion) {
+        if (parsed?.ejecucion?.payload) {
+            const idLimpio = typeof sanitizeModuloId === 'function' ? sanitizeModuloId(parsed.modulo_id) : (parsed.modulo_id || "gen_mod");
             
-            // 🔥 OPERACIÓN QUIRÚRGICA: Sanitizamos el ID antes de que toque cualquier otra capa
-            const idLimpio = sanitizeModuloId(parsed.modulo_id || parsed.ejecucion.modulo_id);
-            
-            console.log(`%c🧪 [BRAIN_SHIELD] ID Original: ${parsed.modulo_id} | ID Sanitizado: ${idLimpio}`, "color: #10b981; font-weight: bold;");
-
             return {
                 tipo: "v13_dual",
-                mensaje_ceo: parsed.conciencia.mensaje_ceo,
-                modulo_id: idLimpio, // Exportamos seguridad pura
+                mensaje_ceo: parsed.conciencia?.mensaje_ceo || "Proceso terminado, jefe.",
+                modulo_id: idLimpio,
                 json: parsed.ejecucion.payload
             };
         }
@@ -376,12 +377,13 @@ function normalizarSalidaIA(brainRes) {
             return { tipo: "json", json: parsed };
         }
     } catch (e) {
-        // No es JSON válido, fluye al siguiente nivel
+        // No es JSON, fluye a detección de código
     }
 
-    // 🔹 INTENTO CÓDIGO PLANO
+    // 🔹 INTENTO CÓDIGO PLANO (HTML/JS)
     if (
         limpio.includes("<html") || 
+        limpio.includes("<div") ||
         limpio.includes("function") || 
         limpio.includes("const ") || 
         limpio.includes("=>")
@@ -389,18 +391,14 @@ function normalizarSalidaIA(brainRes) {
         return { tipo: "code", codigo: limpio };
     }
 
-    // 🔹 NUEVO: INTENTO TEXTO CONVERSACIONAL / HUMANO
+    // 🔹 INTENTO TEXTO CONVERSACIONAL
     if (limpio.length > 0) {
-        // Revisamos el último caracter para ver si terminó la oración/idea
         const lastChar = limpio.trim().slice(-1);
         const signosCierre = ['.', '!', '?', ':', ';', '"', "'", '}', ']', '>'];
         
-        // Si no termina en un signo de cierre y es un texto medianamente largo, asumimos corte de red/tokens
-        if (!signosCierre.includes(lastChar) && limpio.length > 30) {
+        if (!signosCierre.includes(lastChar) && limpio.length > 50) {
             return { tipo: "truncated", codigo: limpio };
         }
-        
-        // Es texto humano y llegó completo
         return { tipo: "texto_plano", codigo: limpio };
     }
 
@@ -409,7 +407,6 @@ function normalizarSalidaIA(brainRes) {
 
 /**
  * 🧠 NORMALIZADOR DE CÓDIGO IA
- * Identifica si el contenido es código puro o una estructura de objeto.
  */
 function obtenerCodigoValido(codigo) {
     if (!codigo) return null;
@@ -429,7 +426,6 @@ function obtenerCodigoValido(codigo) {
 
 /**
  * 🔐 COPY ENGINE HÍBRIDO (BLINDADO)
- * Método dual: Clipboard API + Legacy Fallback (execCommand).
  */
 async function copiarAlPortapapelesSeguro(texto) {
     try {
@@ -437,13 +433,11 @@ async function copiarAlPortapapelesSeguro(texto) {
             throw new Error("COPY_FAIL_EMPTY");
         }
 
-        // Intento 1: API Moderna (Requiere contexto seguro)
         if (navigator.clipboard && window.isSecureContext) {
             await navigator.clipboard.writeText(texto);
             return true;
         }
 
-        // Intento 2: Fallback Legacy (El Tanque)
         const textarea = document.createElement("textarea");
         textarea.value = texto;
         textarea.style.position = "fixed";
@@ -492,17 +486,24 @@ if (dropZone) {
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropZone.classList.remove('bg-blue-600/10', 'border-blue-400', 'scale-[1.02]');
-        Array.from(e.dataTransfer.files).forEach(f => cargarArchivoAlBuche(f));
+        Array.from(e.dataTransfer.files).forEach(f => {
+            if (typeof cargarArchivoAlBuche === 'function') {
+                cargarArchivoAlBuche(f);
+            }
+        });
     });
 }
 
 if (fileInput) {
     fileInput.addEventListener('change', (e) => {
-        Array.from(e.target.files).forEach(f => cargarArchivoAlBuche(f));
-        e.target.value = ''; // Reset de seguridad
+        Array.from(e.target.files).forEach(f => {
+            if (typeof cargarArchivoAlBuche === 'function') {
+                cargarArchivoAlBuche(f);
+            }
+        });
+        e.target.value = ''; 
     });
 }
-
 // ==========================================
 // 10. SANDBOX ENGINE (IFRAME BLINDADO)
 // ==========================================
