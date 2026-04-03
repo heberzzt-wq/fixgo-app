@@ -1,6 +1,6 @@
 /**
  * ======================================================
- * FIXGO CORE - GESTIAPREMIUM v5.19 (TRAFFIC CONTROL)
+ * FIXGO CORE - GESTIAPREMIUM v5.20 (TRAFFIC CONTROL)
  * ======================================================
  * Integración: B2B SaaS + Marketplace + App Check
  * REPARACIÓN: Anti-Bucle de Redirección + Admin Bypass
@@ -47,7 +47,7 @@ import {
 
 const firebaseConfig = {
     apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0",
-    authDomain: "fixgo-44e4d.firebaseapp.com",
+    authDomain: "fixgo-44e4d.web.app", // ⚡ Sincronizado para el deploy de Hosting
     projectId: "fixgo-44e4d",
     storageBucket: "fixgo-44e4d.firebasestorage.app",
     messagingSenderId: "1005526685116",
@@ -63,9 +63,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 
-// 🛡️ DEBUG LOCAL APP CHECK (MODIFICADO: MODO BYPASS TOTAL)
-// Eliminamos la restricción de localhost para que genere el token forzosamente donde sea.
-self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+// 🛡️ DEBUG LOCAL APP CHECK (PARCHE V5.20 DINÁMICO)
+// Solo activamos el token de debug en local para no romper el login en producción (web.app).
+if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    console.warn("🛡️ App Check: Modo Debug activado (Localhost)");
+}
 
 
 const appCheck = initializeAppCheck(app, {
@@ -107,7 +110,7 @@ export function verificarYRedireccionar(user) {
         role = "admin";
     }
 
-    console.log(`🚦 ROUTER FIXGO v5.19 | rol=${role} | tipo=${subType} | page=${currentPage}`);
+    console.log(`🚦 ROUTER FIXGO v5.20 | rol=${role} | tipo=${subType} | page=${currentPage}`);
 
 
     // =========================
@@ -331,7 +334,7 @@ export async function validarClaveB2B(clave) {
 
 
 // ======================================================
-// 📝 REGISTRO BLINDADO (ATÓMICO V5.19)
+// 📝 REGISTRO BLINDADO (ATÓMICO V5.20)
 // ======================================================
 
 export async function registrarUsuario(
