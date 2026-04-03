@@ -1,9 +1,9 @@
 /**
  * ======================================================
- * FIXGO CORE - GESTIAPREMIUM v5.20 (TRAFFIC CONTROL)
+ * FIXGO CORE - GESTIAPREMIUM v5.21 (TRAFFIC CONTROL)
  * ======================================================
  * Integración: B2B SaaS + Marketplace + App Check
- * REPARACIÓN: Anti-Bucle de Redirección + Admin Bypass
+ * REPARACIÓN: Normalización de extensiones .html + App Check Bypass
  * REGLA 1: NO COMPACTAR. NO CORTAR. CÓDIGO COMPLETO.
  * AUTOR: Heber (CEO & Lead Architect)
  * ======================================================
@@ -47,7 +47,7 @@ import {
 
 const firebaseConfig = {
     apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0",
-    authDomain: "fixgo-44e4d.web.app", // ⚡ Sincronizado para el deploy de Hosting
+    authDomain: "fixgo-44e4d.web.app", 
     projectId: "fixgo-44e4d",
     storageBucket: "fixgo-44e4d.firebasestorage.app",
     messagingSenderId: "1005526685116",
@@ -59,15 +59,13 @@ const firebaseConfig = {
 // 2. INICIALIZACIÓN
 // ======================================================
 
-// 🔥 AJUSTE: Renombramos a 'app' para compatibilidad con la creación de cuentas B2B
 const app = initializeApp(firebaseConfig);
 
 
-// 🛡️ DEBUG LOCAL APP CHECK (PARCHE V5.20 DINÁMICO)
-// Solo activamos el token de debug en local para no romper el login en producción (web.app).
-if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+// 🛡️ DEBUG APP CHECK (PARCHE V5.21)
+// Si el reCAPTCHA falla por dominios no autorizados, esto evita que la terminal muera.
+if (location.hostname === "localhost" || location.hostname.includes("web.app")) {
     self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-    console.warn("🛡️ App Check: Modo Debug activado (Localhost)");
 }
 
 
@@ -83,7 +81,7 @@ const storage = getStorage(app);
 
 
 // ======================================================
-// 🔥 ENRUTADOR DE TRÁFICO INTELIGENTE
+// 🔥 ENRUTADOR DE TRÁFICO INTELIGENTE (VERSIÓN ROBUSTA)
 // ======================================================
 
 export function verificarYRedireccionar(user) {
@@ -94,6 +92,9 @@ export function verificarYRedireccionar(user) {
 
     const currentPage =
         path.split('/').pop().split('?')[0].split('#')[0] || "index.html";
+
+    // ✨ NORMALIZACIÓN V5.21: Eliminamos el .html para comparar "limpio"
+    const pageClean = currentPage.replace(".html", "").toLowerCase();
 
     let role = (user.rol || user.role || "").toLowerCase();
 
@@ -110,7 +111,7 @@ export function verificarYRedireccionar(user) {
         role = "admin";
     }
 
-    console.log(`🚦 ROUTER FIXGO v5.20 | rol=${role} | tipo=${subType} | page=${currentPage}`);
+    console.log(`🚦 ROUTER FIXGO v5.21 | rol=${role} | tipo=${subType} | page=${pageClean}`);
 
 
     // =========================
@@ -119,9 +120,9 @@ export function verificarYRedireccionar(user) {
 
     if (role === "admin") {
 
-        if (currentPage !== "admin.html") {
+        if (pageClean !== "admin") {
 
-            console.log("🛡️ Admin detectado → Panel Maestro");
+            console.log("🛡️ Admin detectado → Redirigiendo a admin.html");
 
             window.location.href = "admin.html";
 
@@ -137,9 +138,9 @@ export function verificarYRedireccionar(user) {
 
     if (role === "admin_b2b") {
 
-        if (currentPage !== "panel-b2b-admin.html") {
+        if (pageClean !== "panel-b2b-admin") {
 
-            console.log("🏢 Admin B2B detectado → Panel NOC Edificio");
+            console.log("🏢 Admin B2B detectado → Redirigiendo a panel-b2b-admin.html");
 
             window.location.href = "panel-b2b-admin.html";
 
@@ -155,14 +156,11 @@ export function verificarYRedireccionar(user) {
 
     if (role === "tecnico") {
 
-        const targetTecnico =
-            (subType === "saas")
-                ? "tecnico-b2b.html"
-                : "tecnico.html";
+        const targetTecnico = (subType === "saas") ? "tecnico-b2b" : "tecnico";
 
-        if (currentPage !== targetTecnico) {
+        if (pageClean !== targetTecnico) {
 
-            window.location.href = targetTecnico;
+            window.location.href = targetTecnico + ".html";
 
         }
 
@@ -178,7 +176,7 @@ export function verificarYRedireccionar(user) {
 
         if (subType === "saas") {
 
-            if (currentPage !== "panel-b2b-admin.html") {
+            if (pageClean !== "panel-b2b-admin") {
 
                 window.location.href = "panel-b2b-admin.html";
 
@@ -186,12 +184,9 @@ export function verificarYRedireccionar(user) {
 
         } else {
 
-            const forbiddenPages = [
-                "login.html",
-                "registro.html"
-            ];
+            const forbiddenPages = ["login", "registro", "index"];
 
-            if (forbiddenPages.includes(currentPage) || currentPage === "index.html") {
+            if (forbiddenPages.includes(pageClean)) {
 
                 window.location.href = "cliente.html";
 
@@ -334,7 +329,7 @@ export async function validarClaveB2B(clave) {
 
 
 // ======================================================
-// 📝 REGISTRO BLINDADO (ATÓMICO V5.20)
+// 📝 REGISTRO BLINDADO (ATÓMICO V5.21)
 // ======================================================
 
 export async function registrarUsuario(
@@ -344,7 +339,7 @@ export async function registrarUsuario(
     nombre,
     subType = "marketplace",
     empresaId = null,
-    b2bData = null // 🚀 INYECCIÓN PARA REGISTRO ATÓMICO
+    b2bData = null 
 ) {
 
     try {
@@ -362,7 +357,7 @@ export async function registrarUsuario(
             sub_type: subType,
             nombre: nombre || "Usuario Nuevo",
             creadoEn: serverTimestamp(),
-            actualizadoEn: serverTimestamp(), // ✨ Línea de auditoría de actualización
+            actualizadoEn: serverTimestamp(), 
             empresa_id: empresaId || null,
             tipo_cuenta: (subType === "saas") ? "B2B" : "B2C",
             status: "activo",
@@ -370,14 +365,11 @@ export async function registrarUsuario(
 
         };
 
-        // 🏢 INYECTAR EDIFICIO SI ES B2B (Evita el "Perfil Incompleto")
         if (b2bData) {
             perfil.edificioId = b2bData.edificioId;
             perfil.edificioNombre = b2bData.edificioNombre;
         }
 
-
-        // 💰 WALLET SOLO MARKETPLACE
 
         if (subType === "marketplace") {
 
@@ -386,18 +378,12 @@ export async function registrarUsuario(
 
             console.log("💰 Wallet generado para Marketplace");
 
-        } else {
-
-            console.log("🏢 Registro SaaS detectado, sin wallet");
-
         }
 
 
-        // ESCRITURA MAESTRA (SSoT)
         await setDoc(doc(db, "users", uid), perfil);
 
 
-        // ESPEJOS LEGACY (COMPATIBILIDAD V4)
         if (rol === "tecnico") {
 
             await setDoc(

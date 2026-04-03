@@ -9,15 +9,48 @@ import { auth } from '../firebase.js';
  * INVOCAR ARQUITECTO IA:
  * Envía el prompt, el contexto y los archivos al cerebro en la nube.
  * ACTUALIZACIÓN V5.55: Sincronización de Identidad Snake_Case y ID Dinámico.
+ * 🛡️ FIX ANTI-FRÁGIL: Blindaje total contra IDs corruptos o inexistentes.
  */
 export async function invocarArquitectoIA(prompt, contexto, operationId, maxTokens, authToken, targetModuloId) {
-    const logger = { log: console.log, error: console.error };
+    const logger = { 
+        log: console.log, 
+        warn: console.warn, 
+        error: console.error 
+    };
     
     // URL del Búnker Central (Sincronizado con Proyecto fixgo-44e4d)
     const ENDPOINT = 'https://us-central1-fixgo-44e4d.cloudfunctions.net/gestiaArchitectV5';
 
     try {
-        // 🛡️ 1. OBTENER EL GAFETE VIP (Token JWT Bearer)
+        // ==========================================
+        // 🛡️ 1. BLINDAJE DE IDENTIDAD (CRÍTICO V5.55)
+        // ==========================================
+        
+        // 🔒 1.1. Blindaje de operationId (opId)
+        let finalOpId = operationId;
+
+        if (!finalOpId || typeof finalOpId !== "string") {
+            logger.error("🚨 operationId inválido detectado en Brain Engine");
+            
+            // Generación de emergencia para no romper el contrato con el Backend
+            finalOpId = `BRAIN_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            
+            logger.warn(`⚠️ opId regenerado en Brain Engine: ${finalOpId}`);
+        }
+
+        // 🔒 1.2. Blindaje de targetModuloId (Identidad del Módulo)
+        let finalModuloId = targetModuloId;
+
+        if (!finalModuloId || typeof finalModuloId !== "string") {
+            logger.warn("⚠️ targetModuloId inválido, activando fallback de identidad");
+            finalModuloId = "modulo_fallback_v5";
+        }
+
+        // Logging de trazabilidad final antes del salto a la nube
+        console.log("🧬 [BRAIN_SHIELD] OP_ID FINAL:", finalOpId);
+        console.log("🧬 [BRAIN_SHIELD] MODULO_ID FINAL:", finalModuloId);
+
+        // 🛡️ 2. OBTENER EL GAFETE VIP (Token JWT Bearer)
         // Si la Terminal Heberto (V5.55) nos inyecta el token en la llamada, lo usamos.
         // Si no, usamos auth.currentUser como Fallback Atómico.
         let token = authToken;
@@ -30,7 +63,7 @@ export async function invocarArquitectoIA(prompt, contexto, operationId, maxToke
             token = await currentUser.getIdToken(true); 
         }
 
-        // 🚀 2. ENVIAR LA PETICIÓN CON EL FIREWALL PASS (ZERO-TRUST V5.55)
+        // 🚀 3. ENVIAR LA PETICIÓN CON EL FIREWALL PASS (ZERO-TRUST V5.55)
         const response = await fetch(ENDPOINT, {
             method: 'POST',
             headers: { 
@@ -41,18 +74,17 @@ export async function invocarArquitectoIA(prompt, contexto, operationId, maxToke
                 data: { // 📦 Empaquetado estándar para Cloud Functions
                     prompt: prompt,
                     contexto: contexto,
-                    opId: operationId,
+                    opId: finalOpId, // <--- 🆔 ID BLINDADO
                     maxTokens: maxTokens || 3200,
                     timestamp: Date.now(),
                     // 🛡️ LEY DE IDENTIDAD V5.55: Evitamos ID_CORRUPTO [undefined]
-                    // Mapeamos el ID dinámico que viene de la Terminal.
-                    modulo_id: targetModuloId || "terminal_anonima_v5", 
-                    modulo_nombre: targetModuloId || "Modulo_Sin_Nombre"  
+                    modulo_id: finalModuloId, // <--- 🆔 ID BLINDADO
+                    modulo_nombre: finalModuloId 
                 }
             })
         });
 
-        // 🧠 3. PARSEO Y MANEJO DE ERRORES DEL MUTEX/FIREWALL
+        // 🧠 4. PARSEO Y MANEJO DE ERRORES DEL MUTEX/FIREWALL
         let resultData;
         try {
             resultData = await response.json();
