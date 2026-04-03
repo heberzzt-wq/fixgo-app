@@ -1,0 +1,37 @@
+[debug] [2026-04-03T17:15:32.908Z] ----------------------------------------------------------------------
+[debug] [2026-04-03T17:15:32.915Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\heber\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only hosting
+[debug] [2026-04-03T17:15:32.916Z] CLI Version:   15.10.1
+[debug] [2026-04-03T17:15:32.916Z] Platform:      win32
+[debug] [2026-04-03T17:15:32.916Z] Node Version:  v24.13.0
+[debug] [2026-04-03T17:15:32.917Z] Time:          Fri Apr 03 2026 12:15:32 GMT-0500 (hora estándar oriental)
+[debug] [2026-04-03T17:15:32.917Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-04-03T17:17:15.768Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-03T17:17:15.769Z] > authorizing via signed-in user (heberzzt@gmail.com)
+[debug] [2026-04-03T17:17:15.769Z] [iam] checking project fixgo-44e4d for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-04-03T17:17:15.771Z] Checked if tokens are valid: false, expires at: 1775191180943
+[debug] [2026-04-03T17:17:15.771Z] Checked if tokens are valid: false, expires at: 1775191180943
+[debug] [2026-04-03T17:17:15.772Z] > refreshing access token with scopes: []
+[debug] [2026-04-03T17:17:15.776Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-04-03T17:17:15.776Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-04-03T17:17:47.802Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-04-03T17:17:47.803Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-04-03T17:17:48.284Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/fixgo-44e4d:testIamPermissions [none]
+[debug] [2026-04-03T17:17:48.284Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/fixgo-44e4d:testIamPermissions  x-goog-user-project=fixgo-44e4d
+[debug] [2026-04-03T17:17:48.285Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fixgo-44e4d:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-04-03T17:17:48.732Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/fixgo-44e4d:testIamPermissions 200
+[debug] [2026-04-03T17:17:48.732Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fixgo-44e4d:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-04-03T17:17:48.733Z] Checked if tokens are valid: true, expires at: 1775240266803
+[debug] [2026-04-03T17:17:48.733Z] Checked if tokens are valid: true, expires at: 1775240266803
+[debug] [2026-04-03T17:17:48.734Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/fixgo-44e4d [none]
+[debug] [2026-04-03T17:17:49.320Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/fixgo-44e4d 200
+[debug] [2026-04-03T17:17:49.321Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/fixgo-44e4d {"projectId":"fixgo-44e4d","projectNumber":"1005526685116","displayName":"FixGo","name":"projects/fixgo-44e4d","resources":{"hostingSite":"fixgo-44e4d"},"state":"ACTIVE","etag":"1_fccc4c9a-7ede-42ed-9f05-4f43c63a5ca4"}
+[info] 
+[info] === Deploying to 'fixgo-44e4d'...
+[info] 
+[info] i  deploying hosting 
+[debug] [2026-04-03T17:17:49.337Z] Checked if tokens are valid: true, expires at: 1775240266803
+[debug] [2026-04-03T17:17:49.337Z] Checked if tokens are valid: true, expires at: 1775240266803
+[debug] [2026-04-03T17:17:49.337Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/fixgo-44e4d/versions [none]
+[debug] [2026-04-03T17:17:49.338Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/fixgo-44e4d/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2026-04-03T17:17:51.114Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/fixgo-44e4d/versions 200
