@@ -38,6 +38,7 @@ import {
 
 import { resolveTenantContext } from './gestia-core/core_auth_tenant_v1.js';
 import { verificarIdempotencia, registrarOperacion } from './gestia-core/operations.engine.js';
+
 // 🛡️ IMPORTACIÓN DEL FIREWALL FRONTEND (Capa 1)
 import { ejecutarFirewallGlobal, registrarErrorFirewall } from './gestia-core/firewall.engine.js';
 
@@ -45,7 +46,16 @@ import { existeEnHistorial } from './gestia-core/history.engine.js';
 import { optimizarImagen, procesarDocumento } from './gestia-core/media.engine.js';
 import { sincronizarCorralSemantico } from './gestia-core/semantic.engine.js';
 import { ejecutarAuditoriaCore } from './gestia-core/audit.engine.js';
-import { persistirEstructuraModulo, persistirDatoDinamico } from './gestia-core/persistence.engine.js';
+
+/**
+ * 🏛️ ALINEACIÓN DE PERSISTENCIA V5.55
+ * Aquí usamos los nombres exactos que exporta tu 'persistence.engine.js'
+ */
+import { 
+    persistirEstructuraModulo, 
+    persistirDatoDinamico 
+} from './gestia-core/persistence.engine.js';
+
 import { invocarArquitectoIA } from './gestia-core/brain.engine.js';
 
 // ==========================================
@@ -822,7 +832,7 @@ if (form) {
 
                         /**
                          * 🛡️ FIX DE IDENTIDAD V5.55: payloadAuditable
-                         * Fusionamos identidad y contenido para el Auditor.
+                         * Pegamos el ID al objeto para que el Audit Engine no lo rechace.
                          */
                         const payloadAuditableV13 = {
                             modulo_id: idFinal,
@@ -838,19 +848,24 @@ if (form) {
                             }
                         );
 
-                        // 🏛️ INYECCIÓN EN BASE DE DATOS
-                        await ejecutarPersistenciaCore(
+                        /**
+                         * 🏛️ PERSISTENCIA V5.55 (FIX DE CONTRATO)
+                         * Usamos persistirEstructuraModulo con los 5 argumentos del engine.
+                         */
+                        await persistirEstructuraModulo(
                             idFinal, 
                             auditoriaV13.data, 
                             auditoriaV13.hash, 
-                            activeTenant
+                            activeTenant,
+                            opId // 🔥 Quinto elemento: Cierra la operación
                         );
                         
                         versionLocalSnapshot = auditoriaV13.hash;
                         logger.log(`🏛️ ADN V5.55 [${idFinal}] Inmortalizado en el Búnker.`);
 
+                        // El status 'completed' ya lo hace el engine, pero reforzamos status UX
                         await updateDoc(doc(db, "gestia_operations", opId), {
-                            status: "completed_v5_55",
+                            status: "completed_v5_55_ui",
                             hash_final: auditoriaV13.hash
                         });
 
@@ -866,9 +881,6 @@ if (form) {
                         const idJsonLimpio = resultadoIA.modulo_id || idPropuesto;
                         logger.idFlow(`Terminal Despachando -> ${idJsonLimpio}`);
 
-                        /**
-                         * 🛡️ FIX DE IDENTIDAD V5.55: payloadAuditable
-                         */
                         const payloadAuditableJSON = {
                             modulo_id: idJsonLimpio,
                             ...(resultadoIA.json || {})
@@ -883,24 +895,26 @@ if (form) {
                             }
                         );
 
-                        await ejecutarPersistenciaCore(
+                        // Persistencia transaccional con 5 argumentos
+                        await persistirEstructuraModulo(
                             idJsonLimpio, 
                             auditoria.data, 
                             auditoria.hash, 
-                            activeTenant
+                            activeTenant,
+                            opId
                         );
                         
                         versionLocalSnapshot = auditoria.hash;
                         renderModuloSeguro(auditoria.data);
 
                         await updateDoc(doc(db, "gestia_operations", opId), {
-                            status: "completed",
+                            status: "completed_ui",
                             hash_final: auditoria.hash
                         });
 
                     } catch (errJson) {
                         logger.error(`FALLO_PROCESAMIENTO_JSON: ${errJson.message}`);
-                        agregarBurbujaError("ERROR_ESTRUCTURAL.");
+                        agregarBurbujaError(`ERROR_ESTRUCTURAL: ${errJson.message}`);
                     }
                     break;
 
