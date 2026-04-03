@@ -861,12 +861,14 @@ if (form) {
                         agregarBurbujaHeberto(resultadoIA.mensaje_ceo, idFinal);
 
                         /**
-                         * 🛡️ FIX DEFINITIVO V5.55: ENSAMBLADO DE PAYLOAD AUDITABLE
-                         * Forzamos que el modulo_id sea parte del objeto que recibe el auditor.
+                         * 🛡️ FIX DE IDENTIDAD NIVEL DIOS (V5.55):
+                         * Ponemos el spread PRIMERO y la identidad DESPUÉS.
+                         * Así, aunque la IA mande un modulo_id: undefined, 
+                         * nuestra identidad local siempre gana la posición final.
                          */
                         const payloadAuditableV13 = {
-                            modulo_id: idFinal,         
-                            ...(resultadoIA.json || {}) 
+                            ...(resultadoIA.json || {}), 
+                            modulo_id: idFinal           
                         };
 
                         console.log("🧪 [AUDIT_PAYLOAD_READY]:", payloadAuditableV13);
@@ -880,7 +882,7 @@ if (form) {
                             }
                         );
 
-                        // 🏛️ INYECCIÓN EN BASE DE DATOS (5 Argumentos)
+                        // 🏛️ INYECCIÓN EN BASE DE DATOS (5 Argumentos exactos para Persistence Engine)
                         await persistirEstructuraModulo(
                             idFinal, 
                             auditoriaV13.data, 
@@ -910,9 +912,11 @@ if (form) {
                         logger.idFlow(`Terminal Despachando -> ${idJsonLimpio}`);
 
                         const payloadAuditableJSON = {
-                            modulo_id: idJsonLimpio,
-                            ...(resultadoIA.json || {})
+                            ...(resultadoIA.json || {}),
+                            modulo_id: idJsonLimpio
                         };
+
+                        console.log("🧪 [AUDIT_PAYLOAD_READY]:", payloadAuditableJSON);
 
                         const auditoria = await ejecutarAuditoriaCore(
                             payloadAuditableJSON, 
