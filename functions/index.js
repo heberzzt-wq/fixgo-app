@@ -83,13 +83,15 @@ function initCore() {
 // ======================================================================================
 
 /**
- * 🛡️ IS_VALID_ID: El Cadenero Estricto. (Inyección V5.55)
+ * 🛡️ IS_VALID_ID: El Cadenero Estricto. (V5.55 HARDENED)
  * No modifica nada, solo dictamina si el ID que envía la Terminal es legal.
+ * FIX V5.55: Bloqueo explícito del literal "modulo_id" para evitar fugas de identidad.
  */
 function isValidId(id) {
     const regex = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
     return (
         typeof id === "string" &&
+        id !== "modulo_id" && // 🛡️ ANTI-LITERAL: Rechaza el nombre de la propiedad como valor
         id.length >= 3 && 
         id.length <= 50 &&
         regex.test(id)
@@ -126,7 +128,7 @@ async function reportSentinelMetric(metricName, value = 1) {
 /**
  * internalCreateModule: Única autoridad de creación en el búnker.
  * ESTRATEGIA V5.55: El Backend NO inventa IDs. Exige 'modulo_id' legal y si hay colisión, aborta.
- * FIX V5.55: Mantiene la separación de Timestamp del servidor de la estructura del historial (array).
+ * FIX V5.55: Sincronización de prefijos con el Audit Engine (FALLO_V5_55_AUDIT).
  */
 async function internalCreateModule({ modulo_id, modulo_nombre, esquema_campos, tenantId, userId }) {
     const traceId = `trace_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`;
@@ -139,10 +141,11 @@ async function internalCreateModule({ modulo_id, modulo_nombre, esquema_campos, 
         engine: "SENTINEL_HARDENED_V5.55"
     }));
 
-    // 🛡️ 1. VALIDACIÓN SIN TRANSFORMACIÓN (El Búnker exige limpieza desde origen)
+    // 🛡️ 1. VALIDACIÓN SIN TRANSFORMACIÓN (Match con Audit Engine V5.55)
     if (!isValidId(modulo_id)) {
         console.error(`🚨 [ID_FLOW] RECHAZADO: ${modulo_id} no cumple el contrato V5.55`);
-        throw new Error(`FALLO_V5_55_DB: ID_CORRUPTO_RECHAZADO [${modulo_id}]`);
+        // 🔥 FIX: Prefijo cambiado a AUDIT para sincronización forense
+        throw new Error(`FALLO_V5_55_AUDIT: ID_CORRUPTO_RECHAZADO [${modulo_id}]`);
     }
 
     try {
@@ -154,7 +157,8 @@ async function internalCreateModule({ modulo_id, modulo_nombre, esquema_campos, 
             
             if (doc.exists) {
                 console.warn(`⚠️ [ID_FLOW] COLISIÓN EXPLÍCITA: El módulo ${modulo_id} ya existe en el búnker.`);
-                throw new Error(`FALLO_V5_55_DB: EL_MODULO_YA_EXISTE [${modulo_id}]`);
+                // 🔥 FIX: Prefijo cambiado a AUDIT
+                throw new Error(`FALLO_V5_55_AUDIT: EL_MODULO_YA_EXISTE [${modulo_id}]`);
             }
 
             // 🔥 FIX PERSISTENCIA: Capturamos el tiempo local para el array
@@ -222,7 +226,6 @@ async function internalCreateModule({ modulo_id, modulo_nombre, esquema_campos, 
 
         console.log(`✅ [EXITO] Autoridad confirmada para ${result.modulo_id} | Trace: ${traceId}`);
         
-        // Se retorna el traceId para consistencia de auditoría End-to-End
         return { ...result, traceId };
 
     } catch (error) {
@@ -941,7 +944,7 @@ exports.validarCierreIA = functions.https.onCall(async (data, context) => {
  * ======================================================================================
  * OBJETIVO: Orquestación de infraestructura mediante IA con seguridad y fallback robusto.
  * FIXES V5.55:
- * - 🛡️ FIX DE IDENTIDAD: Inyección de modulo_id en la llamada a internalCreateModule.
+ * - 🛡️ FIX DE IDENTIDAD: Resolución de modulo_id (Anti-Literal "modulo_id").
  * - Sandbox JS ampliado para evitar SECURITY_VIOLATION.
  * - Fallback seguro si IA falla.
  * - Normalización de caracteres ASCII.
@@ -1086,19 +1089,28 @@ Formato de Respuesta:
 
         // 🚀 9. Orquestación atómica (Persistencia de infraestructura)
         if (jsonParsed.action === "CREATE_MODULE") {
-          // 🛡️ CIRUGÍA AQUÍ: Inyectamos el modulo_id que viene de la IA o del body
-          // Si la IA no lo generó bien, usamos el propuesto por el frontend o un genérico.
-          const moduloIdFinal = jsonParsed.modulo_id || bodyData.modulo_id || "modulo_generico_v5";
+          
+          /**
+           * 🛡️ FIX DE IDENTIDAD V5.55 (CIRUGÍA DE PRECISIÓN)
+           * Resolvemos el ID evitando el literal "modulo_id" que rompe el flujo de Jonathan.
+           */
+          let moduloIdFinal = jsonParsed.modulo_id || bodyData.modulo_id;
+
+          // Si el ID es nulo, o es el string literal "modulo_id", activamos fallback determinístico
+          if (!moduloIdFinal || moduloIdFinal === "modulo_id") {
+              moduloIdFinal = "mod_" + Date.now();
+              console.log(`⚠️ [IDENTITY_FIX] ID inválido o literal detectado. Usando fallback: ${moduloIdFinal}`);
+          }
 
           const creation = await internalCreateModule({
-            modulo_id: moduloIdFinal, // 🔥 FIX: Ahora el Cadenero recibe el ID
+            modulo_id: moduloIdFinal, 
             modulo_nombre: jsonParsed.modulo_nombre || "Módulo Autogenerado",
             esquema_campos: jsonParsed.esquema_campos || ["fecha"],
             tenantId,
             userId: session.uid
           });
 
-          // Sincronizamos el objeto de respuesta con el ID real creado
+          // Sincronizamos el objeto de respuesta con el ID real creado bajo autoridad
           jsonParsed.modulo_id = creation.modulo_id;
           jsonParsed.conciencia.mensaje_ceo += ` (ID: ${creation.modulo_id})`;
         }
@@ -1143,6 +1155,7 @@ exports.generarModuloIA = exports.gestiaArchitectV5;
  * ======================================================================================
  * OBJETIVO: Registro de infraestructura manual bajo protocolo de autoridad estricta.
  * ACTUALIZACIÓN V5.55: Exige ID legal pre-generado desde el frontend (Zero-Trust ID).
+ * FIX V5.55: Saneamiento de Identidad (Anti-Literal "modulo_id").
  * --------------------------------------------------------------------------------------
  */
 exports.createGestiaModule = functions
@@ -1185,15 +1198,24 @@ exports.createGestiaModule = functions
                 // 📦 4. DATA SEGURA (Contrato de Payloads V5.55)
                 const data = req.body?.data || req.body || {};
 
-                // 🛡️ INYECCIÓN V5.55: Exigimos el modulo_id desde el origen
+                /**
+                 * 🛡️ FIX DE IDENTIDAD V5.55 (ANTI-LITERAL LEAK)
+                 * Si el ID es nulo o es el literal "modulo_id", aplicamos saneamiento preventivo.
+                 */
+                let moduloIdFinal = data.modulo_id;
+                if (!moduloIdFinal || moduloIdFinal === "modulo_id") {
+                    moduloIdFinal = `mod_direct_${Date.now()}`;
+                    console.log(`⚠️ [SENTINEL_FIX] Identidad corrupta en creación directa. Saneando a: ${moduloIdFinal}`);
+                }
+
+                // Validación de Contrato Saneado
                 if (
-                    !data.modulo_id ||
-                    typeof data.modulo_id !== "string" ||
+                    typeof moduloIdFinal !== "string" ||
                     !data.modulo_nombre ||
                     typeof data.modulo_nombre !== "string" ||
                     data.modulo_nombre.trim().length < 3
                 ) {
-                    throw new Error("CONTRATO_INVALIDO: Faltan identificadores del módulo (modulo_id o modulo_nombre).");
+                    throw new Error("CONTRATO_INVALIDO: Identificadores corruptos o nombre de módulo insuficiente.");
                 }
 
                 // 🛡️ 5. RATE LIMIT (V5.55 Atómico Hardened)
@@ -1234,7 +1256,7 @@ exports.createGestiaModule = functions
 
                 // 🏗️ 6. CREACIÓN VÍA AUTHORITY BRIDGE (Llamada al Helper atómico)
                 const result = await internalCreateModule({
-                    modulo_id: data.modulo_id.trim(), // 🛡️ INYECCIÓN V5.55: Pasamos el ID exacto
+                    modulo_id: moduloIdFinal.trim(), // 🛡️ INYECCIÓN V5.55: Pasamos el ID saneado
                     modulo_nombre: data.modulo_nombre.trim(),
                     esquema_campos: Array.isArray(data.esquema_campos)
                         ? data.esquema_campos
