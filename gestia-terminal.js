@@ -315,6 +315,7 @@ async function cargarArchivoAlBuche(file) {
 // ==========================================
 // [Lógica movida a audit.engine.js: Validación Anti-XSS y Control de Pesos]
 // ==========================================
+// ==========================================
 // 🛠️ UTILIDADES DE SOPORTE (GHOST HUNTER)
 // ==========================================
 
@@ -330,6 +331,7 @@ function limpiarRespuestaIA(texto) {
  * 🧠 NORMALIZADOR HÍBRIDO V5.55 (PASO 1) - REESCRITURA ESMERALDA
  * Fusionado: Validación brutal + Detección de truncado estructural.
  * Inyección V5.55: Sincronización total con Architect Engine.
+ * 🛡️ FIX: Identidad Anti-Frágil implementada para evitar ID_CORRUPTO.
  */
 function normalizarSalidaIA(brainRes) {
     // 🛡️ HARDENING: Si la respuesta es nula o inválida
@@ -357,13 +359,24 @@ function normalizarSalidaIA(brainRes) {
         // Verificamos si tiene la estructura V5.55 (conciencia + ejecucion)
         if (raw.ejecucion && raw.ejecucion.payload) {
             
-            // 🛡️ KIT DE IDENTIDAD V5.55 INYECTADO AQUÍ
-            const idGenerado = generateModuleId(raw.modulo_id || raw.modulo_nombre || "gen_mod");
-            
-            if (!isValidId(idGenerado)) {
-                console.error(`🚨 [ID_FLOW] ERROR INTERNO: El ID generado no es válido -> ${idGenerado}`);
-                return { tipo: "error", error: `FALLO_V5_55_FRONTEND: ID_CORRUPTO_GENERADO [${idGenerado}]` };
+            // ==========================================
+            // 🛡️ KIT DE IDENTIDAD V5.55 (PATCH ANTI-FRÁGIL)
+            // ==========================================
+            let idGenerado;
+
+            try {
+                idGenerado = generateModuleId(raw.modulo_id || raw.modulo_nombre || "gen_mod");
+            } catch (e) {
+                console.warn("⚠️ [ID_FLOW] generateModuleId falló, activando fallback");
             }
+
+            // 🛡️ FALLBACK QUIRÚRGICO: Si falla o el ID es inválido, regeneramos en caliente
+            if (!idGenerado || !isValidId(idGenerado)) {
+                idGenerado = `mod_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+                console.warn(`⚠️ [ID_FLOW] ID regenerado por fallback: ${idGenerado}`);
+            }
+
+            console.log("🧬 [ID_FLOW] MODULO_ID FINAL:", idGenerado);
             
             return {
                 tipo: "v13_dual",
@@ -399,13 +412,24 @@ function normalizarSalidaIA(brainRes) {
         const parsed = JSON.parse(limpio);
         if (parsed?.ejecucion?.payload) {
             
-            // 🛡️ KIT DE IDENTIDAD V5.55 INYECTADO AQUÍ
-            const idGenerado = generateModuleId(parsed.modulo_id || parsed.modulo_nombre || "gen_mod");
-            
-            if (!isValidId(idGenerado)) {
-                console.error(`🚨 [ID_FLOW] ERROR INTERNO: El ID generado no es válido -> ${idGenerado}`);
-                return { tipo: "error", error: `FALLO_V5_55_FRONTEND: ID_CORRUPTO_GENERADO [${idGenerado}]` };
+            // ==========================================
+            // 🛡️ KIT DE IDENTIDAD V5.55 (PATCH ANTI-FRÁGIL)
+            // ==========================================
+            let idGenerado;
+
+            try {
+                idGenerado = generateModuleId(parsed.modulo_id || parsed.modulo_nombre || "gen_mod");
+            } catch (e) {
+                console.warn("⚠️ [ID_FLOW] generateModuleId falló en bloque parseado, activando fallback");
             }
+
+            // 🛡️ FALLBACK QUIRÚRGICO
+            if (!idGenerado || !isValidId(idGenerado)) {
+                idGenerado = `mod_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+                console.warn(`⚠️ [ID_FLOW] ID regenerado por fallback (Parsed): ${idGenerado}`);
+            }
+
+            console.log("🧬 [ID_FLOW] MODULO_ID FINAL:", idGenerado);
             
             return {
                 tipo: "v13_dual",
@@ -618,6 +642,7 @@ if (form) {
         const logger = crearLogger();
         const instruccion = input.value.trim();
 
+        // Evitar disparos vacíos
         if (!instruccion && contextoMultimodal.length === 0) return;
 
         // ⚡ 2. BLOQUEO DE UI VISUAL (MODO ESPERA ACTIVO)
@@ -647,15 +672,40 @@ if (form) {
                 authToken: SESSION.token // <--- Llave maestra para el backend
             });
 
+            // ==========================================
+            // 🔑 FIX CRÍTICO: GENERACIÓN ROBUSTA DE opId
+            // ==========================================
+            let opId;
+            try {
+                opId = await generarHashSHA256(
+                    instruccion + Date.now() + SESSION.uid + activeTenant
+                );
+            } catch (errHash) {
+                logger.warn("⚠️ generarHashSHA256 falló, activando fallback");
+            }
+
+            // 🛡️ FALLBACK ANTI-FRÁGIL (Si el hash falla, Gestia no se detiene)
+            if (!opId || typeof opId !== "string") {
+                opId = `GOD_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+                logger.warn(`⚠️ opId generado por fallback: ${opId}`);
+            }
+
+            console.log("🧪 OP_ID FINAL:", opId);
+
             // 🔑 3. IDEMPOTENCIA Y REGISTRO (Operations Engine)
-            const opId = await generarHashSHA256(instruccion + Date.now() + SESSION.uid + activeTenant);
             const yaExiste = await verificarIdempotencia(opId);
 
             if (yaExiste) {
                 throw new Error("OPERACION_DUPLICADA: Esta orden ya está siendo procesada (Mutex Locking).");
             }
 
-            const pHash = await generarHashSHA256(instruccion);
+            let pHash;
+            try {
+                pHash = await generarHashSHA256(instruccion);
+            } catch {
+                pHash = "hash_fallback";
+            }
+
             await registrarOperacion({
                 opId,
                 promptHash: pHash,
@@ -668,8 +718,7 @@ if (form) {
             esquemaCorral = await sincronizarCorralSemantico(instruccion);
             logger.log("🏗️ Contexto semántico inyectado desde el Core.");
 
-            // 🛡️ EXTRACCIÓN DE IDENTIDAD PROPUESTA (Para evitar ID_CORRUPTO [undefined])
-            // Buscamos si el usuario especificó un nombre de módulo, si no, generamos uno genérico.
+            // 🛡️ EXTRACCIÓN DE IDENTIDAD PROPUESTA (Para evitar ID_CORRUPTO)
             const idPropuesto = (instruccion.toLowerCase().match(/modulo_[a-z0-9_]+/i) || ["modulo_generico_v5"])[0];
 
             // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine) - FASE 2: RETRY INTELIGENTE V5.55
@@ -690,17 +739,23 @@ if (form) {
                     logger.log(`🧠 [INTENTO 1] Disparando payload al Cerebro...`);
                 }
 
-                // Inyectamos los tokens permitidos
+                // Inyectamos los tokens permitidos configurados
                 const tokensPermitidos = GESTIA_CONFIG.MODO_TACANO.MAX_TOKENS_IA || 3200;
                 
-                // ⚡ INYECCIÓN V5.55: Pasamos Token JWT y el ID Propuesto para validación del Backend
+                // 🛡️ VALIDACIÓN FINAL ANTES DEL CEREBRO
+                if (!opId) throw new Error("FALLO_CRITICO: opId inexistente antes de invocar IA");
+                
+                // Generamos el ID de operación para este intento específico
+                const opIdIntento = opId + (currentRetry > 0 ? `_r${currentRetry}` : "");
+
+                // ⚡ INVOCACIÓN AL ARQUITECTO
                 const brainRes = await invocarArquitectoIA(
                     promptActual,
                     currentRetry === 0 ? contextoMultimodal : [], 
-                    opId + (currentRetry > 0 ? `_r${currentRetry}` : ""), 
+                    opIdIntento, 
                     tokensPermitidos,
                     SESSION.token,
-                    idPropuesto // <--- 🔑 SEXTO PASAJERO: Mátalos con Identidad
+                    idPropuesto // <--- 🔑 SEXTO PASAJERO: Identidad del módulo
                 );
 
                 // 🕵️ EXTRAEMOS LA CARNE CRUDA
@@ -714,7 +769,7 @@ if (form) {
                     brainRes?.respuesta ||
                     "";
 
-                // Si viene como objeto nativo desde la V5.55
+                // Si viene como objeto nativo (JSON ya parseado por el backend)
                 if (typeof currentRaw === "object") {
                     textoAcumulado = currentRaw; 
                     isTruncated = false;
@@ -723,10 +778,18 @@ if (form) {
                 }
 
                 // 🧹 6. NORMALIZACIÓN DE SALIDA
-                resultadoIA = normalizarSalidaIA(typeof textoAcumulado === "object" ? textoAcumulado : { respuesta: textoAcumulado });
+                resultadoIA = normalizarSalidaIA(
+                    typeof textoAcumulado === "object" 
+                        ? textoAcumulado 
+                        : { respuesta: textoAcumulado }
+                );
 
                 if (resultadoIA.tipo === "truncated") {
-                    const ultimasPalabras = typeof textoAcumulado === "string" ? textoAcumulado.slice(-40).replace(/\n/g, " ") : "";
+                    const ultimasPalabras = typeof textoAcumulado === "string" 
+                        ? textoAcumulado.slice(-40).replace(/\n/g, " ") 
+                        : "";
+                    
+                    // Protocolo de recuperación de texto
                     promptActual = `AUTO_RECOVERY_PROTOCOL: Corte de red detectado. Continúa EXACTAMENTE desde la letra o símbolo que sigue inmediatamente después de: "${ultimasPalabras}". REGLA ESTRICTA: NO repitas NINGUNA de esas últimas palabras.`;
                     currentRetry++;
                 } else {
@@ -745,7 +808,7 @@ if (form) {
                 return; 
             }
 
-            // Limpieza de contexto volátil y spinner
+            // Limpieza de contexto volátil y spinner tras éxito o agotamiento de retries
             contextoMultimodal = []; 
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
@@ -875,6 +938,7 @@ if (form) {
             }
 
         } catch (err) {
+            // Manejo de errores de Firewall o generales
             if (err.message.includes("FIREWALL") || err.message.includes("RATE_LIMIT")) {
                 await registrarErrorFirewall(SESSION.uid, activeTenant);
             }
@@ -885,6 +949,7 @@ if (form) {
             
             agregarBurbujaError(err.message);
         } finally {
+            // ⚡ RESTABLECIMIENTO DE UI
             btnGenerate.disabled = false;
             btnGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
             input.disabled = false;
