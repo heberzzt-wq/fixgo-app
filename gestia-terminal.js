@@ -191,11 +191,12 @@ function escaparHTML(str) {
 }
 
 // ==========================================
-// 6. AUTORIDAD CENTRALIZADA (CORE SESSION) - V5.51
+// 6. AUTORIDAD CENTRALIZADA (CORE SESSION) - V5.55
 // ==========================================
 /**
  * REGLA DE ORO: No fragmentar. Código completo.
  * Inyección de Identidad Maestra: Heber Mendoza (Arquitecto Supremo)
+ * ACTUALIZACIÓN V5.55: Sincronización de Gafete VIP para Firewall Zero-Trust.
  */
 async function inicializarAutoridadBunker() {
     const logger = crearLogger();
@@ -206,10 +207,11 @@ async function inicializarAutoridadBunker() {
         // 1. Resolvemos el contexto inicial del usuario autenticado
         SESSION = await resolveTenantContext();
 
-        // ⚡ OBTENCIÓN DE TOKEN JWT PARA EL FIREWALL V5.51
+        // ⚡ OBTENCIÓN DE TOKEN JWT PARA EL FIREWALL V5.55
         const currentUser = auth.currentUser;
         if (currentUser) {
-            SESSION.token = await currentUser.getIdToken(true); // Fuerza refresco para tener claims actuales
+            // Fuerza refresco para tener claims actuales y evitar desincronización
+            SESSION.token = await currentUser.getIdToken(true); 
         } else {
             throw new Error("FALLO_DE_IDENTIDAD_SaaS: Usuario no autenticado en Firebase.");
         }
@@ -218,7 +220,7 @@ async function inicializarAutoridadBunker() {
         if (SESSION.uid === "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2") { 
             SESSION.authorized = true;
             SESSION.role = "arquitecto_supremo";
-            logger.warn("🔓 MODO DIOS ACTIVADO: Soberanía de Heberto confirmada.");
+            logger.warn("🔓 MODO DIOS ACTIVADO: Soberanía de Heber Mendoza confirmada.");
         }
 
         // 🛡️ VALIDACIÓN DE ENTRADA AL BÚNKER
@@ -601,15 +603,15 @@ function crearSandboxSeguro(html, js, css = "") {
 // [Lógica movida a persistence.engine.js para asegurar atomicidad multi-tenant]
 
 // ==========================================
-// 13. EVENTO PRINCIPAL: SUBMIT (THE ORCHESTRATOR) - V5.51 ANTIFRÁGIL (ZERO-TRUST)
+// 13. EVENTO PRINCIPAL: SUBMIT (THE ORCHESTRATOR) - V5.55 (STRICT IDENTITY)
 // ==========================================
 if (form) {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        // 🛡️ 1. CANDADO DE AUTORIDAD V5.51: Bloqueo inmediato sin sesión o sin Token JWT.
+        // 🛡️ 1. CANDADO DE AUTORIDAD V5.55: Bloqueo inmediato sin sesión o sin Token JWT.
         if (!SESSION || !SESSION.authorized || !SESSION.token) {
-            agregarBurbujaError("🚨 Bloqueo de Seguridad V5.51: Esperando autoridad criptográfica del sistema. Reintenta en 3 segundos.");
+            agregarBurbujaError("🚨 Bloqueo de Seguridad V5.55: Esperando autoridad criptográfica del sistema. Reintenta en 3 segundos.");
             return;
         }
 
@@ -630,14 +632,14 @@ if (form) {
         const idCarga = mostrarCargando(); // Levanta el spinner "Auditando Autoridad..."
 
         try {
-            // 🔥 2.5. FIREWALL ENGINE (CAPA 1: UX RATE LIMITER V5.51)
+            // 🔥 2.5. FIREWALL ENGINE (CAPA 1: UX RATE LIMITER V5.55)
             const activeTenant = SESSION.tenantId || localStorage.getItem('gestia_tenant_id');
             
             if(!activeTenant) throw new Error("FALLO_SISTEMICO: TenantId desaparecido de la sesión autorizada.");
 
             logger.log(`🛡️ Evaluando reglas de Firewall UX para Tenant: ${activeTenant}...`);
             
-            // ⚡ INYECCIÓN V5.51: Pasamos el token JWT al motor del Firewall
+            // ⚡ INYECCIÓN V5.55: Pasamos el token JWT al motor del Firewall
             await ejecutarFirewallGlobal({
                 userId: SESSION.uid,
                 tenantId: activeTenant,
@@ -666,35 +668,39 @@ if (form) {
             esquemaCorral = await sincronizarCorralSemantico(instruccion);
             logger.log("🏗️ Contexto semántico inyectado desde el Core.");
 
-            // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine) - FASE 2: RETRY INTELIGENTE V2 (Fuerza Bruta)
+            // 🛡️ EXTRACCIÓN DE IDENTIDAD PROPUESTA (Para evitar ID_CORRUPTO [undefined])
+            // Buscamos si el usuario especificó un nombre de módulo, si no, generamos uno genérico.
+            const idPropuesto = (instruccion.toLowerCase().match(/modulo_[a-z0-9_]+/i) || ["modulo_generico_v5"])[0];
+
+            // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine) - FASE 2: RETRY INTELIGENTE V5.55
             let textoAcumulado = "";
             let resultadoIA = null;
             let isTruncated = true;
             let currentRetry = 0;
-            const maxRetries = 5; // 🔥 MODO TANQUE: 5 Reintentos para armar reportes masivos
+            const maxRetries = 5; 
             
-            let promptActual = `ORDEN_GOD_V5.51: ${instruccion}\n\n${esquemaCorral}`;
+            let promptActual = `ORDEN_GOD_V5.55: ${instruccion}\n\n${esquemaCorral}`;
             
             // 🔄 CICLO DE AUTORRECUPERACIÓN
             while (isTruncated && currentRetry <= maxRetries) {
                 if (currentRetry > 0) {
                     logger.warn(`🔄 [RETRY INTELIGENTE ${currentRetry}/${maxRetries}] Reconectando tejido neuronal...`);
-                    // Aviso sutil en UI
                     agregarBurbujaInfo(`Detectado límite de red. Ensamblando fragmento ${currentRetry + 1}...`);
                 } else {
                     logger.log(`🧠 [INTENTO 1] Disparando payload al Cerebro...`);
                 }
 
-                // Inyectamos los tokens
+                // Inyectamos los tokens permitidos
                 const tokensPermitidos = GESTIA_CONFIG.MODO_TACANO.MAX_TOKENS_IA || 3200;
                 
-                // ⚡ INYECCIÓN V5.51: Pasamos el Token JWT al Brain Engine
+                // ⚡ INYECCIÓN V5.55: Pasamos Token JWT y el ID Propuesto para validación del Backend
                 const brainRes = await invocarArquitectoIA(
                     promptActual,
                     currentRetry === 0 ? contextoMultimodal : [], 
                     opId + (currentRetry > 0 ? `_r${currentRetry}` : ""), 
                     tokensPermitidos,
-                    SESSION.token // <--- Llave maestra para gestiaArchitectV5
+                    SESSION.token,
+                    idPropuesto // <--- 🔑 SEXTO PASAJERO: Mátalos con Identidad
                 );
 
                 // 🕵️ EXTRAEMOS LA CARNE CRUDA
@@ -708,12 +714,11 @@ if (form) {
                     brainRes?.respuesta ||
                     "";
 
-                // Si viene como objeto nativo desde la V5.51
+                // Si viene como objeto nativo desde la V5.55
                 if (typeof currentRaw === "object") {
-                    textoAcumulado = currentRaw; // Evitamos concatenar [object Object]
+                    textoAcumulado = currentRaw; 
                     isTruncated = false;
                 } else {
-                    // LO UNIMOS AL ACUMULADOR MAESTRO (Texto plano)
                     textoAcumulado += currentRaw;
                 }
 
@@ -732,7 +737,7 @@ if (form) {
             // 🛡️ 6.6. FALLBACK GLOBAL (Anti-Corte Total)
             if (!resultadoIA || !resultadoIA.tipo) {
                 logger.error("FALLO_TOTAL_NORMALIZADOR");
-                agregarBurbujaError("La IA devolvió un formato irreconocible por la V5.51.");
+                agregarBurbujaError("La IA devolvió un formato irreconocible por la V5.55.");
                 await updateDoc(doc(db, "gestia_operations", opId), { status: "fatal_normalization_error" });
                 
                 const loadingElement = document.getElementById(idCarga);
@@ -745,7 +750,7 @@ if (form) {
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
 
-            // 🔀 7. SWITCH MAESTRO DE FLUJO (V5.51 SUPREMO)
+            // 🔀 7. SWITCH MAESTRO DE FLUJO (V5.55 SUPREMO)
             switch (resultadoIA.tipo) {
 
                 case "error":
@@ -774,7 +779,7 @@ if (form) {
 
                 case "v13_dual":
                     try {
-                        logger.log("🧠 Detectado Flujo Arquitecto Supremo (V5.51).");
+                        logger.log("🧠 Detectado Flujo Arquitecto Supremo (V5.55).");
                         
                         // 🛡️ INYECCIÓN V5.55: El ID ya viene sanitizado y validado del Normalizador
                         const idFinal = resultadoIA.modulo_id;
@@ -800,15 +805,15 @@ if (form) {
                         );
                         
                         versionLocalSnapshot = auditoriaV13.hash;
-                        logger.log(`🏛️ ADN V5.51 [${idFinal}] Inmortalizado en el Búnker.`);
+                        logger.log(`🏛️ ADN V5.55 [${idFinal}] Inmortalizado en el Búnker.`);
 
                         await updateDoc(doc(db, "gestia_operations", opId), {
-                            status: "completed_v5_51",
+                            status: "completed_v5_55",
                             hash_final: auditoriaV13.hash
                         });
 
                     } catch (errV13) {
-                        logger.error(`FALLO_V5_51_DB: ${errV13.message}`);
+                        logger.error(`FALLO_V5_55_DB: ${errV13.message}`);
                         agregarBurbujaError(`ERROR_ESTRUCTURAL: ${errV13.message}`);
                     }
                     break;
@@ -825,8 +830,8 @@ if (form) {
                             }
                         );
 
-                        // 🛡️ INYECCIÓN V5.55: El ID ya viene sanitizado y validado del Normalizador
-                        const idJsonLimpio = resultadoIA.modulo_id || generateModuleId(auditoria.data.modulo_id);
+                        // 🛡️ INYECCIÓN V5.55: El ID ya viene sanitizado
+                        const idJsonLimpio = resultadoIA.modulo_id || idPropuesto;
                         logger.idFlow(`Terminal Despachando -> ${idJsonLimpio}`);
 
                         await ejecutarPersistenciaCore(

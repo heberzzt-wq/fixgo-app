@@ -1,5 +1,5 @@
 // ==========================================
-// 🧠 GESTIA CORE: BRAIN ENGINE V5.51 ANTIFRÁGIL
+// 🧠 GESTIA CORE: BRAIN ENGINE V5.55 (STRICT IDENTITY)
 // ==========================================
 // Handshake con la Cloud Function del Arquitecto IA (Zero-Trust).
 
@@ -8,17 +8,17 @@ import { auth } from '../firebase.js';
 /**
  * INVOCAR ARQUITECTO IA:
  * Envía el prompt, el contexto y los archivos al cerebro en la nube.
- * ACTUALIZACIÓN V5.51: Soporte para inyección de Token JWT y Manejo de Errores Híbridos.
+ * ACTUALIZACIÓN V5.55: Sincronización de Identidad Snake_Case y ID Dinámico.
  */
-export async function invocarArquitectoIA(prompt, contexto, operationId, maxTokens, authToken) {
+export async function invocarArquitectoIA(prompt, contexto, operationId, maxTokens, authToken, targetModuloId) {
     const logger = { log: console.log, error: console.error };
     
-    // URL del Búnker Central (Asegúrate de que esta URL sea la correcta de tu proyecto GCP)
+    // URL del Búnker Central (Sincronizado con Proyecto fixgo-44e4d)
     const ENDPOINT = 'https://us-central1-fixgo-44e4d.cloudfunctions.net/gestiaArchitectV5';
 
     try {
         // 🛡️ 1. OBTENER EL GAFETE VIP (Token JWT Bearer)
-        // Si la Terminal Heberto (V5.51) nos inyecta el token en la llamada, lo usamos (ahorra latencia).
+        // Si la Terminal Heberto (V5.55) nos inyecta el token en la llamada, lo usamos.
         // Si no, usamos auth.currentUser como Fallback Atómico.
         let token = authToken;
         
@@ -30,12 +30,12 @@ export async function invocarArquitectoIA(prompt, contexto, operationId, maxToke
             token = await currentUser.getIdToken(true); 
         }
 
-        // 🚀 2. ENVIAR LA PETICIÓN CON EL FIREWALL PASS (ZERO-TRUST)
+        // 🚀 2. ENVIAR LA PETICIÓN CON EL FIREWALL PASS (ZERO-TRUST V5.55)
         const response = await fetch(ENDPOINT, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` // 🔑 EL PASE VIP INQUEBRANTABLE PARA EL FIREWALL V5.51
+                'Authorization': `Bearer ${token}` // 🔑 EL PASE VIP INQUEBRANTABLE
             },
             body: JSON.stringify({
                 data: { // 📦 Empaquetado estándar para Cloud Functions
@@ -44,9 +44,10 @@ export async function invocarArquitectoIA(prompt, contexto, operationId, maxToke
                     opId: operationId,
                     maxTokens: maxTokens || 3200,
                     timestamp: Date.now(),
-                    // 🛡️ Identificadores del módulo emisor para telemetría del Radar
-                    moduleId: "terminal_heberto_v5_51", 
-                    moduloId: "terminal_heberto_v5_51"  
+                    // 🛡️ LEY DE IDENTIDAD V5.55: Evitamos ID_CORRUPTO [undefined]
+                    // Mapeamos el ID dinámico que viene de la Terminal.
+                    modulo_id: targetModuloId || "terminal_anonima_v5", 
+                    modulo_nombre: targetModuloId || "Modulo_Sin_Nombre"  
                 }
             })
         });
@@ -65,8 +66,8 @@ export async function invocarArquitectoIA(prompt, contexto, operationId, maxToke
             throw new Error(errorMsg);
         }
 
-        // Si HTTP es 200 pero el Backend V5.51 reporta success: false 
-        // (Ej. Rate Limit excedido, Bloqueo de Firewall o Mutex de Concurrencia activado)
+        // Si HTTP es 200 pero el Backend V5.55 reporta success: false 
+        // (Ej. Rate Limit excedido, Bloqueo de Firewall o Rechazo de Audit Engine)
         if (resultData && resultData.data && resultData.data.success === false) {
             throw new Error(resultData.data.error || "Rechazo de Autoridad en Backend (Bloqueo Activo)");
         }
