@@ -85,13 +85,14 @@ function initCore() {
 /**
  * 🛡️ IS_VALID_ID: El Cadenero Estricto. (V5.55 HARDENED)
  * No modifica nada, solo dictamina si el ID que envía la Terminal es legal.
- * FIX V5.55: Bloqueo explícito del literal "modulo_id" para evitar fugas de identidad.
+ * FIX V5.55: Bloqueo explícito de literales corruptos y strings 'undefined'.
  */
 function isValidId(id) {
     const regex = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
     return (
         typeof id === "string" &&
-        id !== "modulo_id" && // 🛡️ ANTI-LITERAL: Rechaza el nombre de la propiedad como valor
+        id !== "modulo_id" && 
+        id !== "undefined" && // 🛡️ Evita que el rastro de un error anterior se vuelva ID
         id.length >= 3 && 
         id.length <= 50 &&
         regex.test(id)
@@ -101,7 +102,6 @@ function isValidId(id) {
 /**
  * 🛰️ reportSentinelMetric: El corazón del Radar.
  * Incrementa contadores globales de salud para telemetría en tiempo real.
- * ACTUALIZACIÓN V5.55: Sincronización con el flujo atómico del Architect Engine.
  */
 async function reportSentinelMetric(metricName, value = 1) {
     try {
@@ -127,24 +127,32 @@ async function reportSentinelMetric(metricName, value = 1) {
 
 /**
  * internalCreateModule: Única autoridad de creación en el búnker.
- * ESTRATEGIA V5.55: El Backend NO inventa IDs. Exige 'modulo_id' legal y si hay colisión, aborta.
- * FIX V5.55: Sincronización de prefijos con el Audit Engine (FALLO_V5_55_AUDIT).
+ * ESTRATEGIA V5.55: Búsqueda Multicapa de Identidad.
+ * FIX V5.55: Extrae el ID de cualquier llave del contrato para evitar el leak de [undefined].
  */
-async function internalCreateModule({ modulo_id, modulo_nombre, esquema_campos, tenantId, userId }) {
+async function internalCreateModule(params) {
     const traceId = `trace_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`;
     
+    /**
+     * 🛡️ DEEP-SEARCH ID V5.55
+     * Si el pipeline perdió la llave original, la rescatamos de los alias posibles.
+     */
+    const modulo_id = params.modulo_id || params.id || params.opId || params.documentId;
+    const modulo_nombre = params.modulo_nombre || params.nombre || modulo_id;
+    const { esquema_campos, tenantId, userId } = params;
+
     console.log(JSON.stringify({
         level: "INFO",
-        message: `🏗️ [AUTHORITY V5.55] Creación atómica solicitada: ${modulo_id}`,
+        message: `🏗️ [AUTHORITY V5.55] Validando Identidad Final: [${modulo_id}]`,
         tenantId,
         traceId,
         engine: "SENTINEL_HARDENED_V5.55"
     }));
 
-    // 🛡️ 1. VALIDACIÓN SIN TRANSFORMACIÓN (Match con Audit Engine V5.55)
+    // 🛡️ 1. VALIDACIÓN HARDENED (Sincronización con Audit Engine V5.55)
     if (!isValidId(modulo_id)) {
-        console.error(`🚨 [ID_FLOW] RECHAZADO: ${modulo_id} no cumple el contrato V5.55`);
-        // 🔥 FIX: Prefijo cambiado a AUDIT para sincronización forense
+        console.error(`🚨 [ID_FLOW] RECHAZADO: El campo ID llegó como [${modulo_id}]`);
+        // 🔥 FIX: Prefijo AUDIT para que el frontend lo procese como error de identidad
         throw new Error(`FALLO_V5_55_AUDIT: ID_CORRUPTO_RECHAZADO [${modulo_id}]`);
     }
 
@@ -156,12 +164,10 @@ async function internalCreateModule({ modulo_id, modulo_nombre, esquema_campos, 
             const doc = await transaction.get(ref);
             
             if (doc.exists) {
-                console.warn(`⚠️ [ID_FLOW] COLISIÓN EXPLÍCITA: El módulo ${modulo_id} ya existe en el búnker.`);
-                // 🔥 FIX: Prefijo cambiado a AUDIT
+                console.warn(`⚠️ [ID_FLOW] COLISIÓN: El módulo ${modulo_id} ya existe.`);
                 throw new Error(`FALLO_V5_55_AUDIT: EL_MODULO_YA_EXISTE [${modulo_id}]`);
             }
 
-            // 🔥 FIX PERSISTENCIA: Capturamos el tiempo local para el array
             const now = new Date();
 
             const schemaPayload = {
@@ -175,14 +181,12 @@ async function internalCreateModule({ modulo_id, modulo_nombre, esquema_campos, 
                 traceId: traceId,
                 schema_version: 1,
 
-                // ✅ ARRAY LIMPIO: Usamos el objeto Date real.
                 schema_history: [{
                     version: 1,
                     campos: esquema_campos || ["fecha", "descripcion"],
                     createdAt: now
                 }],
 
-                // ✅ TIMESTAMP OFICIAL: En la raíz permitimos la marca del servidor.
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
 
                 metadata: {
@@ -944,10 +948,10 @@ exports.validarCierreIA = functions.https.onCall(async (data, context) => {
  * ======================================================================================
  * OBJETIVO: Orquestación de infraestructura mediante IA con seguridad y fallback robusto.
  * FIXES V5.55:
- * - 🛡️ FIX DE IDENTIDAD: Resolución de modulo_id (Anti-Literal "modulo_id").
+ * - 🛡️ DEEP-ID SEARCH: Localización de modulo_id en cualquier capa del payload.
+ * - 🛡️ CONTRATO REDUNDANTE: Inyección de ID, modulo_id y opId para evitar [undefined].
  * - Sandbox JS ampliado para evitar SECURITY_VIOLATION.
  * - Fallback seguro si IA falla.
- * - Normalización de caracteres ASCII.
  * - Uso nativo de responseMimeType para JSON.
  * ======================================================================================
  */
@@ -998,7 +1002,7 @@ exports.gestiaArchitectV5 = functions
             });
         }
 
-        // 🧠 4. Memoria semántica (Contexto de módulos existentes)
+        // 🧠 4. Memoria semántica (Módulos existentes para contexto)
         const snap = await db.collection("gestia_system_modules")
           .where("tenantId", "==", tenantId)
           .limit(50)
@@ -1009,30 +1013,11 @@ exports.gestiaArchitectV5 = functions
         // 📜 5. System Instruction (Constitución Operativa de Jonathan)
         const systemInstruction = `
 Eres la TERMINAL HEBERTO V5.55. Responde SOLO JSON válido.
-
 Reglas:
 - JSON parseable con comillas dobles.
-- Sin texto fuera del JSON.
 - javascript = código puro DOM.
 - mensaje_ceo = texto simple estilo norteño.
-
 MODULOS ACTUALES: [${modulos.join(", ")}]
-
-Formato de Respuesta:
-{
- "action": "USE_MODULE" | "CREATE_MODULE",
- "modulo_id": "string",
- "modulo_nombre": "string",
- "esquema_campos": [],
- "conciencia": { "mensaje_ceo": "texto" },
- "ejecucion": {
-   "payload": {
-     "html": "",
-     "css": "",
-     "javascript": ""
-   }
- }
-}
 `;
 
         // 🧠 6. Invocación IA V5.55 (Gemini 2.5 Flash)
@@ -1057,65 +1042,67 @@ Formato de Respuesta:
             modulo_id: "fallback_mod_" + Date.now(),
             modulo_nombre: "Módulo Emergencia",
             esquema_campos: ["fecha", "nota"],
-            conciencia: {
-              mensaje_ceo: "Detalle técnico, búnker de repuesto. Arre!"
-            },
-            ejecucion: {
-              payload: {
-                html: "<div class='p-4 bg-orange-100 text-orange-800 rounded'>Módulo fallback activo por error de parseo.</div>",
-                css: "",
-                javascript: "console.log('Modo Fallback Activo');"
-              }
-            }
+            conciencia: { mensaje_ceo: "Detalle técnico, búnker de repuesto. Arre!" },
+            ejecucion: { payload: { html: "<div class='p-4 bg-orange-100 text-orange-800 rounded'>Módulo fallback activo.</div>", css: "", javascript: "" } }
           };
         }
 
-        // 🧹 7. Normalización defensiva (Sanitización de mensajes CEO)
+        // 🧹 7. Normalización defensiva (Sanitización)
         jsonParsed.conciencia = jsonParsed.conciencia || {};
         jsonParsed.conciencia.mensaje_ceo = (jsonParsed.conciencia.mensaje_ceo || "Órale, ahí quedó el jale.")
-          .replace(/[^\x20-\x7E\u00C0-\u00FF]/g, ''); // Permite ASCII + tildes/eñes
+          .replace(/[^\x20-\x7E\u00C0-\u00FF]/g, '');
 
-        // 🛡️ 8. Validación de seguridad de la acción
+        // 🛡️ 8. Seguridad de Acción
         if (!["USE_MODULE", "CREATE_MODULE"].includes(jsonParsed.action)) jsonParsed.action = "CREATE_MODULE";
         
         const js = jsonParsed?.ejecucion?.payload?.javascript || "";
-        
-        // ✅ Sandbox JS extendido V5.55 (Sanitización de caracteres no-ASCII en código)
         const safeRegex = /^[\x00-\x7F]*$/; 
         if (!safeRegex.test(js)) {
-             console.warn("⚠️ Caracteres no-ASCII detectados en JS, sanitizando para evitar inyección...");
              jsonParsed.ejecucion.payload.javascript = js.replace(/[^\x20-\x7E\n\r\t]/g, '');
         }
 
-        // 🚀 9. Orquestación atómica (Persistencia de infraestructura)
+        // 🚀 9. Orquestación Atómica (Persistencia de Infraestructura)
         if (jsonParsed.action === "CREATE_MODULE") {
           
           /**
-           * 🛡️ FIX DE IDENTIDAD V5.55 (CIRUGÍA DE PRECISIÓN)
-           * Resolvemos el ID evitando el literal "modulo_id" que rompe el flujo de Jonathan.
+           * 🛡️ DEEP-ID SEARCH V5.55
+           * Buscamos la identidad en la raíz del JSON, en el objeto 'data' de la IA,
+           * o en el body original del frontend.
            */
-          let moduloIdFinal = jsonParsed.modulo_id || bodyData.modulo_id;
+          const idExtraido = jsonParsed.modulo_id || 
+                             (jsonParsed.data && jsonParsed.data.modulo_id) || 
+                             bodyData.modulo_id || 
+                             bodyData.id || 
+                             bodyData.opId;
 
-          // Si el ID es nulo, o es el string literal "modulo_id", activamos fallback determinístico
-          if (!moduloIdFinal || moduloIdFinal === "modulo_id") {
+          // Saneamiento de literal "modulo_id"
+          let moduloIdFinal = idExtraido;
+          if (!moduloIdFinal || moduloIdFinal === "modulo_id" || moduloIdFinal === "undefined") {
               moduloIdFinal = "mod_" + Date.now();
-              console.log(`⚠️ [IDENTITY_FIX] ID inválido o literal detectado. Usando fallback: ${moduloIdFinal}`);
+              console.log(`⚠️ [IDENTITY_RESCUE] Usando ID determinístico: ${moduloIdFinal}`);
           }
 
+          /**
+           * ⚡ INVOCACIÓN AL NOTARIO (CONTRATO EXPANDIDO)
+           * Mandamos el ID por múltiples llaves para que internalCreateModule no vea [undefined].
+           */
           const creation = await internalCreateModule({
-            modulo_id: moduloIdFinal, 
+            id: moduloIdFinal,            // Redundancia 1
+            modulo_id: moduloIdFinal,     // Redundancia 2 (Principal)
+            opId: moduloIdFinal,          // Redundancia 3
+            documentId: moduloIdFinal,    // Redundancia 4
             modulo_nombre: jsonParsed.modulo_nombre || "Módulo Autogenerado",
             esquema_campos: jsonParsed.esquema_campos || ["fecha"],
             tenantId,
             userId: session.uid
           });
 
-          // Sincronizamos el objeto de respuesta con el ID real creado bajo autoridad
+          // Sincronizamos respuesta
           jsonParsed.modulo_id = creation.modulo_id;
           jsonParsed.conciencia.mensaje_ceo += ` (ID: ${creation.modulo_id})`;
         }
 
-        // 💾 10. Persistencia en Búnker (Cache de Operaciones)
+        // 💾 10. Persistencia en Búnker (Cache)
         await opRef.set({
           operationId,
           tenantId,
@@ -1140,6 +1127,7 @@ Formato de Respuesta:
         await reportSentinelMetric('ia_architect_errors');
         console.error(`🔥 ERROR V5.55 ARCHITECT: ${error.message} | Trace: ${traceId}`);
 
+        // 🛡️ Retornamos el error tal cual sale del Auditor (Sin doble prefijo DB)
         return res.status(200).json({
           data: { success: false, error: error.message, traceId }
         });
@@ -1147,7 +1135,6 @@ Formato de Respuesta:
     });
   });
 
-// Alias de compatibilidad para el ecosistema FixGo/Gestia
 exports.generarModuloIA = exports.gestiaArchitectV5;
 /**
  * ======================================================================================
