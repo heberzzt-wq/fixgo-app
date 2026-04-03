@@ -3,6 +3,7 @@
 // ==========================================
 // Handshake con la Cloud Function del Arquitecto IA (Zero-Trust).
 // FIX DEFINITIVO: Doble Capa de ID (Root + Data) para FirewallV5.
+// REGLA 1: CÓDIGO COMPLETO SIN RECORTES.
 
 import { auth } from '../firebase.js';
 
@@ -34,7 +35,10 @@ export async function invocarArquitectoIA(prompt, contexto, operationId, maxToke
         }
 
         // 🔒 1.2. Blindaje de targetModuloId (Identidad de Dominio)
-        let finalModuloId = targetModuloId || "modulo_fallback_v5";
+        // 🔥 FIX V5.55: Si targetModuloId es el literal "modulo_id", activamos fallback inmediato.
+        let finalModuloId = (targetModuloId && targetModuloId !== "modulo_id") 
+            ? targetModuloId 
+            : "modulo_fallback_v5";
 
         // ==========================================
         // 🧪 2. LOG DE AUDITORÍA FRONTEND (CIRUGÍA DE PAYLOAD)
