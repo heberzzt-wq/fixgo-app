@@ -941,6 +941,7 @@ exports.validarCierreIA = functions.https.onCall(async (data, context) => {
  * ======================================================================================
  * OBJETIVO: Orquestación de infraestructura mediante IA con seguridad y fallback robusto.
  * FIXES V5.55:
+ * - 🛡️ FIX DE IDENTIDAD: Inyección de modulo_id en la llamada a internalCreateModule.
  * - Sandbox JS ampliado para evitar SECURITY_VIOLATION.
  * - Fallback seguro si IA falla.
  * - Normalización de caracteres ASCII.
@@ -1085,13 +1086,19 @@ Formato de Respuesta:
 
         // 🚀 9. Orquestación atómica (Persistencia de infraestructura)
         if (jsonParsed.action === "CREATE_MODULE") {
+          // 🛡️ CIRUGÍA AQUÍ: Inyectamos el modulo_id que viene de la IA o del body
+          // Si la IA no lo generó bien, usamos el propuesto por el frontend o un genérico.
+          const moduloIdFinal = jsonParsed.modulo_id || bodyData.modulo_id || "modulo_generico_v5";
+
           const creation = await internalCreateModule({
+            modulo_id: moduloIdFinal, // 🔥 FIX: Ahora el Cadenero recibe el ID
             modulo_nombre: jsonParsed.modulo_nombre || "Módulo Autogenerado",
             esquema_campos: jsonParsed.esquema_campos || ["fecha"],
             tenantId,
             userId: session.uid
           });
 
+          // Sincronizamos el objeto de respuesta con el ID real creado
           jsonParsed.modulo_id = creation.modulo_id;
           jsonParsed.conciencia.mensaje_ceo += ` (ID: ${creation.modulo_id})`;
         }
