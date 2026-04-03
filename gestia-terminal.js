@@ -749,10 +749,13 @@ if (form) {
                     logger.log(`🧠 [INTENTO 1] Disparando payload al Cerebro...`);
                 }
 
+                // Inyectamos los tokens permitidos configurados
                 const tokensPermitidos = GESTIA_CONFIG.MODO_TACANO.MAX_TOKENS_IA || 3200;
                 
+                // 🛡️ VALIDACIÓN FINAL ANTES DEL CEREBRO
                 if (!opId) throw new Error("FALLO_CRITICO: opId inexistente antes de invocar IA");
                 
+                // Generamos el ID de operación para este intento específico
                 const opIdIntento = opId + (currentRetry > 0 ? `_r${currentRetry}` : "");
 
                 // ⚡ INVOCACIÓN AL ARQUITECTO
@@ -762,13 +765,21 @@ if (form) {
                     opIdIntento, 
                     tokensPermitidos,
                     SESSION.token,
-                    idPropuesto
+                    idPropuesto // <--- 🔑 SEXTO PASAJERO: Identidad del módulo
                 );
 
+                // 🕵️ EXTRAEMOS LA CARNE CRUDA
                 console.log(`%c🧠 [RAW BRAIN RESPONSE - FRAGMENTO ${currentRetry + 1}]:`, "color: #f59e0b; font-weight: bold", brainRes);
                 
-                let currentRaw = brainRes?.data?.modulo_generado || brainRes?.data?.payload || brainRes?.data?.result || brainRes?.modulo_generado || brainRes?.respuesta || "";
+                let currentRaw = 
+                    brainRes?.data?.modulo_generado ||
+                    brainRes?.data?.payload ||
+                    brainRes?.data?.result ||
+                    brainRes?.modulo_generado ||
+                    brainRes?.respuesta ||
+                    "";
 
+                // Si viene como objeto nativo (JSON ya parseado por el backend)
                 if (typeof currentRaw === "object") {
                     textoAcumulado = currentRaw; 
                     isTruncated = false;
@@ -776,10 +787,19 @@ if (form) {
                     textoAcumulado += currentRaw;
                 }
 
-                resultadoIA = normalizarSalidaIA(typeof textoAcumulado === "object" ? textoAcumulado : { respuesta: textoAcumulado });
+                // 🧹 6. NORMALIZACIÓN DE SALIDA
+                resultadoIA = normalizarSalidaIA(
+                    typeof textoAcumulado === "object" 
+                        ? textoAcumulado 
+                        : { respuesta: textoAcumulado }
+                );
 
                 if (resultadoIA.tipo === "truncated") {
-                    const ultimasPalabras = typeof textoAcumulado === "string" ? textoAcumulado.slice(-40).replace(/\n/g, " ") : "";
+                    const ultimasPalabras = typeof textoAcumulado === "string" 
+                        ? textoAcumulado.slice(-40).replace(/\n/g, " ") 
+                        : "";
+                    
+                    // Protocolo de recuperación de texto
                     promptActual = `AUTO_RECOVERY_PROTOCOL: Corte de red detectado. Continúa EXACTAMENTE desde la letra o símbolo que sigue inmediatamente después de: "${ultimasPalabras}". REGLA ESTRICTA: NO repitas NINGUNA de esas últimas palabras.`;
                     currentRetry++;
                 } else {
@@ -787,15 +807,18 @@ if (form) {
                 }
             }
 
+            // 🛡️ 6.6. FALLBACK GLOBAL (Anti-Corte Total)
             if (!resultadoIA || !resultadoIA.tipo) {
                 logger.error("FALLO_TOTAL_NORMALIZADOR");
                 agregarBurbujaError("La IA devolvió un formato irreconocible por la V5.55.");
                 await updateDoc(doc(db, "gestia_operations", opId), { status: "fatal_normalization_error" });
+                
                 const loadingElement = document.getElementById(idCarga);
                 if (loadingElement) loadingElement.remove();
                 return; 
             }
 
+            // Limpieza de contexto volátil y spinner tras éxito o agotamiento de retries
             contextoMultimodal = []; 
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
@@ -806,7 +829,10 @@ if (form) {
                 case "error":
                     logger.error(`🚨 FALLO_CRÍTICO_IA: ${resultadoIA.error}`);
                     agregarBurbujaError(`ERROR_BRAIN: ${resultadoIA.error}.`);
-                    await updateDoc(doc(db, "gestia_operations", opId), { status: "fatal_error", error_detail: resultadoIA.error });
+                    await updateDoc(doc(db, "gestia_operations", opId), { 
+                        status: "fatal_error",
+                        error_detail: resultadoIA.error
+                    });
                     break;
 
                 case "fallback":
@@ -818,26 +844,32 @@ if (form) {
                 case "truncated":
                     logger.error("⚠️ RESPUESTA CORTADA IRRECUPERABLE");
                     agregarBurbujaError(`SEÑAL CORTADA: Agotados los ${maxRetries} reintentos de red.`);
-                    if (resultadoIA.codigo) agregarBurbujaCodigo(resultadoIA.codigo + "\n\n/* ❌ ERROR: TRUNCADO */");
+                    if (resultadoIA.codigo) {
+                        agregarBurbujaCodigo(resultadoIA.codigo + "\n\n/* ❌ ERROR: TRUNCADO */");
+                    }
                     await updateDoc(doc(db, "gestia_operations", opId), { status: "truncated_response_failed" });
                     break;
 
                 case "v13_dual":
                     try {
                         logger.log("🧠 Detectado Flujo Arquitecto Supremo (V5.55).");
-                        const idFinal = resultadoIA.modulo_id;
+                        
+                        // 🛡️ INYECCIÓN V5.55: El ID ya viene sanitizado y validado del Normalizador
+                        const idFinal = resultadoIA.modulo_id || idPropuesto;
                         logger.idFlow(`Terminal Despachando -> ${idFinal}`);
                         
                         agregarBurbujaHeberto(resultadoIA.mensaje_ceo, idFinal);
 
                         /**
-                         * 🛡️ FIX DE IDENTIDAD V5.55: payloadAuditable
-                         * Pegamos el ID al objeto para que el Audit Engine no lo rechace.
+                         * 🛡️ FIX DEFINITIVO V5.55: ENSAMBLADO DE PAYLOAD AUDITABLE
+                         * Forzamos que el modulo_id sea parte del objeto que recibe el auditor.
                          */
                         const payloadAuditableV13 = {
-                            modulo_id: idFinal,
-                            ...(resultadoIA.json || {})
+                            modulo_id: idFinal,         
+                            ...(resultadoIA.json || {}) 
                         };
+
+                        console.log("🧪 [AUDIT_PAYLOAD_READY]:", payloadAuditableV13);
 
                         const auditoriaV13 = await ejecutarAuditoriaCore(
                             payloadAuditableV13, 
@@ -848,24 +880,20 @@ if (form) {
                             }
                         );
 
-                        /**
-                         * 🏛️ PERSISTENCIA V5.55 (FIX DE CONTRATO)
-                         * Usamos persistirEstructuraModulo con los 5 argumentos del engine.
-                         */
+                        // 🏛️ INYECCIÓN EN BASE DE DATOS (5 Argumentos)
                         await persistirEstructuraModulo(
                             idFinal, 
                             auditoriaV13.data, 
                             auditoriaV13.hash, 
                             activeTenant,
-                            opId // 🔥 Quinto elemento: Cierra la operación
+                            opId
                         );
                         
                         versionLocalSnapshot = auditoriaV13.hash;
                         logger.log(`🏛️ ADN V5.55 [${idFinal}] Inmortalizado en el Búnker.`);
 
-                        // El status 'completed' ya lo hace el engine, pero reforzamos status UX
                         await updateDoc(doc(db, "gestia_operations", opId), {
-                            status: "completed_v5_55_ui",
+                            status: "completed_v5_55",
                             hash_final: auditoriaV13.hash
                         });
 
@@ -895,7 +923,6 @@ if (form) {
                             }
                         );
 
-                        // Persistencia transaccional con 5 argumentos
                         await persistirEstructuraModulo(
                             idJsonLimpio, 
                             auditoria.data, 
@@ -908,13 +935,13 @@ if (form) {
                         renderModuloSeguro(auditoria.data);
 
                         await updateDoc(doc(db, "gestia_operations", opId), {
-                            status: "completed_ui",
+                            status: "completed",
                             hash_final: auditoria.hash
                         });
 
                     } catch (errJson) {
                         logger.error(`FALLO_PROCESAMIENTO_JSON: ${errJson.message}`);
-                        agregarBurbujaError(`ERROR_ESTRUCTURAL: ${errJson.message}`);
+                        agregarBurbujaError("ERROR_ESTRUCTURAL.");
                     }
                     break;
 
@@ -938,14 +965,18 @@ if (form) {
             }
 
         } catch (err) {
+            // Manejo de errores de Firewall o generales
             if (err.message.includes("FIREWALL") || err.message.includes("RATE_LIMIT")) {
                 await registrarErrorFirewall(SESSION.uid, activeTenant);
             }
             logger.error(`FALLO_SISTEMICO: ${err.message}`);
+            
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
+            
             agregarBurbujaError(err.message);
         } finally {
+            // ⚡ RESTABLECIMIENTO DE UI
             btnGenerate.disabled = false;
             btnGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
             input.disabled = false;
