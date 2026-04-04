@@ -641,7 +641,7 @@ function crearSandboxSeguro(html, js, css = "") {
 // [Lógica movida a persistence.engine.js para asegurar atomicidad multi-tenant]
 
 // ======================================================================================
-// 13. EVENTO PRINCIPAL: SUBMIT (THE ORCHESTRATOR) - V6.0 (STRICT IDENTITY + ENFORCER)
+// 13. EVENTO PRINCIPAL: SUBMIT (THE ORCHESTRATOR) - V6.5 (STRICT IDENTITY + VIP SCANNER)
 // ======================================================================================
 if (form) {
     form.addEventListener('submit', async (e) => {
@@ -734,6 +734,32 @@ if (form) {
 
             // 🛡️ EXTRACCIÓN DE IDENTIDAD PROPUESTA (Para evitar ID_CORRUPTO)
             const idPropuesto = (instruccion.toLowerCase().match(/modulo_[a-z0-9_]+/i) || ["modulo_generico_v5"])[0];
+
+            // ========================================================================
+            // 🔍 4.5. VIP FIRESTORE SCANNER (EL CIRUJANO ENTRA A LA DB - V6.5)
+            // ========================================================================
+            const instruccionVIP = instruccion.toLowerCase();
+            if ((instruccionVIP.includes("repara") || instruccionVIP.includes("analiza") || instruccionVIP.includes("audita") || instruccionVIP.includes("actualiza")) && idPropuesto && idPropuesto !== "modulo_generico_v5") {
+                logger.log(`🔍 [CIRUJANO VIP] Buscando expediente del paciente [${idPropuesto}] en Firestore...`);
+                try {
+                    // Acceso directo a la base de datos usando las credenciales de la Terminal
+                    const docRef = doc(db, GESTIA_CONFIG.COLECCIONES.MODULES, idPropuesto);
+                    const pacienteSnap = await getDoc(docRef);
+                    
+                    if (pacienteSnap.exists()) {
+                        const pacienteADN = pacienteSnap.data();
+                        logger.log(`📥 [EXITO] Paciente extraído de la camilla (Firestore). Inyectando al Cerebro...`);
+                        
+                        // Le inyectamos el ADN corrupto/viejo directamente en el prompt a la IA
+                        esquemaCorral += `\n\n=== 🚨 ADN ACTUAL DEL PACIENTE EN FIRESTORE (PARA REPARAR) 🚨 ===\n${JSON.stringify(pacienteADN, null, 2)}\n===============================================================\n`;
+                        agregarBurbujaInfo(`🩺 Paciente [${idPropuesto}] extraído de DB y listo en la mesa de operaciones.`);
+                    } else {
+                        logger.warn(`⚠️ [CIRUJANO VIP] El paciente [${idPropuesto}] no existe en Firestore. Será tratado como paciente nuevo.`);
+                    }
+                } catch (errorDb) {
+                    logger.error(`❌ [ERROR VIP SCANNER] No se pudo extraer al paciente: ${errorDb.message}`);
+                }
+            }
 
             // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine) - FASE 2: RETRY INTELIGENTE V5.55
             let textoAcumulado = "";
