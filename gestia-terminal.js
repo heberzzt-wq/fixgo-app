@@ -734,8 +734,8 @@ if (form) {
 
             // 🛡️ EXTRACCIÓN DE IDENTIDAD PROPUESTA (Para evitar ID_CORRUPTO)
             // 🛡️ EXTRACCIÓN VIP INTELIGENTE (V6.5 PATCH)
-const matchId = instruccion.toLowerCase().match(/modulo(?:_|\s+)([a-z0-9_]+)/i);
-const idPropuesto = matchId ? matchId[1] : "modulo_generico_v5";
+            const matchId = instruccion.toLowerCase().match(/modulo(?:_|\s+)([a-z0-9_]+)/i);
+            const idPropuesto = matchId ? matchId[1] : "modulo_generico_v5";
 
             // ========================================================================
             // 🔍 4.5. VIP FIRESTORE SCANNER (EL CIRUJANO ENTRA A LA DB - V6.5)
@@ -824,145 +824,73 @@ const idPropuesto = matchId ? matchId[1] : "modulo_generico_v5";
             switch (resultadoIA.tipo) {
 
                 case "v13_dual":
+                case "json":
                     try {
-                        logger.log("🧠 Detectado Flujo Arquitecto Supremo (V6.0).");
+                        logger.log("🧠 Procesando ADN Modular (V7 Autocuración Activa).");
                         
-                        // 🧬 FUENTE ÚNICA DE VERDAD DEL ID (FIX QUIRÚRGICO)
+                        // 🧬 FUENTE ÚNICA DE VERDAD DEL ID
                         const idFinalSeguro = resultadoIA.modulo_id || resultadoIA.json?.modulo_id || idPropuesto;
                         logger.idFlow(`Terminal Despachando -> ${idFinalSeguro}`);
                         
-                        /**
-                         * 🛡️ INYECCIÓN FORZADA DE IDENTIDAD (V5.55)
-                         * El ID local manda sobre cualquier basura que venga del JSON de la IA.
-                         */
-                        const payloadAuditableV13 = {
+                        const payloadAuditable = {
                             modulo_id: idFinalSeguro,
                             ...(resultadoIA.json || {})
                         };
 
-                        // 🛡️ INTERVENCIÓN DEL SENTINEL ANTES DE LA AUDITORÍA 🛡️
-                        const diagnosticoV13 = SelfRepairSentinel.diagnosticarPayloadFinal(payloadAuditableV13, idFinalSeguro, SESSION);
-                        let payloadFinalV13 = payloadAuditableV13;
-
-                        if (diagnosticoV13.tieneAnomalias) {
-                            logger.warn("⚠️ [SENTINEL] Anomalías detectadas. Congelando Búnker y solicitando autoridad...");
-                            
-                            // Detenemos el flujo hasta que el Arquitecto decida en la UI
-                            payloadFinalV13 = await new Promise((resolve, reject) => {
-                                mostrarPropuestaCorreccion(
-                                    diagnosticoV13,
-                                    (adnCorregido) => resolve(adnCorregido),
-                                    (diagError) => reject(new Error("INTERVENCION_ABORTADA: Reparación rechazada por el Arquitecto."))
-                                );
-                            });
-                        }
-
-                        // 🧪 DEBUG CRÍTICO DE ENSAMBLADO
-                        console.log("🧪 AUDIT PAYLOAD FINAL [v13_dual]:", payloadFinalV13);
-
-                        const auditoriaV13 = await ejecutarAuditoriaCore(
-                            payloadFinalV13, // Usamos el payload validado/reparado
-                            versionLocalSnapshot, 
-                            {
-                                generarHash: generarHashSHA256,
-                                normalizar: normalizarEstructura
+                        // 🔥 INTERVENCIÓN SENTINEL V7 (PUENTE DE AUTORIDAD) 🔥
+                        // Usamos el Orquestador V7 para pausar el flujo y esperar tu firma en la UI Lunar
+                        const revisionV7 = await GestiaOrchestratorV7.procesarRevisionMódulo(
+                            payloadAuditable,
+                            idFinalSeguro,
+                            SESSION,
+                            async (diagnostico) => {
+                                return new Promise((resolve) => {
+                                    // Invocamos la UI Lunar para mostrar la tarjeta de reparación
+                                    mostrarPropuestaCorreccionV7(
+                                        diagnostico,
+                                        (adnAprobado) => resolve(true),
+                                        (abortado) => resolve(false)
+                                    );
+                                });
                             }
                         );
 
-                        // 🛑 PASO 3: EL CADENERO (CONTRACT ENFORCER) V6.0 🛑
-                        ContractEnforcer.validarConstitucionModulo(auditoriaV13.data);
+                        if (!revisionV7.exito) {
+                            if (revisionV7.motivo === "RECHAZO_HEBER") {
+                                logger.warn("🛑 Veto del Architect. Operación cancelada.");
+                                agregarBurbujaError("Despliegue cancelado por el Arquitecto.");
+                            }
+                            break;
+                        }
 
-                        // 🟢 MOVIDO AQUÍ: Solo se mostrará si el Sentinel y la Auditoría dan luz verde
-                        agregarBurbujaHeberto(resultadoIA.mensaje_ceo, idFinalSeguro);
+                        const adnFinal = revisionV7.datos;
 
-                        // 🏛️ PERSISTENCIA TRANSACCIONAL (5 Argumentos)
+                        // ⚖️ CONTRACT ENFORCER V7 (LA CONSTITUCIÓN LUNAR)
+                        ContractEnforcerV7.validarLeyesModulares(adnFinal);
+
+                        // 🟢 NOTIFICACIÓN AL CEO
+                        agregarBurbujaHeberto(resultadoIA.mensaje_ceo || "ADN Verificado y Sellado.", idFinalSeguro);
+
+                        // 🏛️ PERSISTENCIA TRANSACCIONAL
                         await persistirEstructuraModulo(
                             idFinalSeguro, 
-                            auditoriaV13.data, 
-                            auditoriaV13.hash, 
+                            adnFinal, 
+                            "v7_secured_hash", 
                             activeTenant,
                             opId
                         );
                         
-                        versionLocalSnapshot = auditoriaV13.hash;
-                        logger.log(`🏛️ ADN V6.0 [${idFinalSeguro}] Inmortalizado.`);
+                        renderModuloSeguro(adnFinal);
+                        logger.log(`🏛️ ADN [${idFinalSeguro}] Inmortalizado en el Búnker.`);
 
                         await updateDoc(doc(db, "gestia_operations", opId), {
-                            status: "completed_v6_0",
-                            hash_final: auditoriaV13.hash
+                            status: "completed_v7_Lunar",
+                            updated_at: serverTimestamp()
                         });
 
                     } catch (errV13) {
-                        logger.error(`FALLO_V6_0_DB: ${errV13.message}`);
+                        logger.error(`FALLO_ADN: ${errV13.message}`);
                         agregarBurbujaError(`ERROR_DE_CONTRATO: ${errV13.message}`);
-                    }
-                    break;
-
-                case "json":
-                    try {
-                        logger.log("💎 Detectado Flujo A: JSON.");
-                        
-                        // 🧬 FUENTE ÚNICA DE VERDAD DEL ID
-                        const idJsonSeguro = resultadoIA.modulo_id || resultadoIA.json?.modulo_id || idPropuesto;
-                        logger.idFlow(`Terminal Despachando -> ${idJsonSeguro}`);
-
-                        // 🛡️ INYECCIÓN FORZADA DE IDENTIDAD
-                        const payloadAuditableJSON = {
-                            modulo_id: idJsonSeguro,
-                            ...(resultadoIA.json || {})
-                        };
-
-                        // 🛡️ INTERVENCIÓN DEL SENTINEL ANTES DE LA AUDITORÍA 🛡️
-                        const diagnosticoJSON = SelfRepairSentinel.diagnosticarPayloadFinal(payloadAuditableJSON, idJsonSeguro, SESSION);
-                        let payloadFinalJSON = payloadAuditableJSON;
-
-                        if (diagnosticoJSON.tieneAnomalias) {
-                            logger.warn("⚠️ [SENTINEL] Anomalías detectadas. Congelando Búnker y solicitando autoridad...");
-                            
-                            // Detenemos el flujo hasta que el Arquitecto decida en la UI
-                            payloadFinalJSON = await new Promise((resolve, reject) => {
-                                mostrarPropuestaCorreccion(
-                                    diagnosticoJSON,
-                                    (adnCorregido) => resolve(adnCorregido),
-                                    (diagError) => reject(new Error("INTERVENCION_ABORTADA: Reparación rechazada por el Arquitecto."))
-                                );
-                            });
-                        }
-
-                        // 🧪 DEBUG CRÍTICO
-                        console.log("🧪 AUDIT PAYLOAD FINAL [json]:", payloadFinalJSON);
-
-                        const auditoria = await ejecutarAuditoriaCore(
-                            payloadFinalJSON, // Usamos el payload validado/reparado
-                            versionLocalSnapshot, 
-                            {
-                                generarHash: generarHashSHA256,
-                                normalizar: normalizarEstructura
-                            }
-                        );
-
-                        // 🛑 PASO 3: EL CADENERO (CONTRACT ENFORCER) V6.0 🛑
-                        ContractEnforcer.validarConstitucionModulo(auditoria.data);
-
-                        await persistirEstructuraModulo(
-                            idJsonSeguro, 
-                            auditoria.data, 
-                            auditoria.hash, 
-                            activeTenant,
-                            opId
-                        );
-                        
-                        versionLocalSnapshot = auditoria.hash;
-                        renderModuloSeguro(auditoria.data);
-
-                        await updateDoc(doc(db, "gestia_operations", opId), {
-                            status: "completed",
-                            hash_final: auditoria.hash
-                        });
-
-                    } catch (errJson) {
-                        logger.error(`FALLO_PROCESAMIENTO_JSON: ${errJson.message}`);
-                        agregarBurbujaError(`ERROR_DE_CONTRATO: ${errJson.message}`);
                     }
                     break;
 
