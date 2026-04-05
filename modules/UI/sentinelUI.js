@@ -55,7 +55,8 @@ export function mostrarPropuestaCorreccionV7(diagnostico, onApprove, onReject) {
         btn: esCritico ? "bg-red-600 hover:bg-red-500" : "bg-emerald-600 hover:bg-emerald-500"
     };
 
-    card.className = `flex flex-col my-6 p-6 bg-[#0a0f18] border-l-4 ${theme.border} rounded-r-2xl shadow-2xl animate-in zoom-in-95 duration-500 relative overflow-hidden`;
+    // 🛡️ FIX APLICADO AQUÍ: Se agregó 'shrink-0' para evitar que Flexbox aplaste la tarjeta
+    card.className = `flex flex-col shrink-0 w-full my-6 p-6 bg-[#0a0f18] border-l-4 ${theme.border} rounded-r-2xl shadow-2xl animate-in zoom-in-95 duration-500 relative overflow-hidden`;
 
     // Decoración de fondo Nivel Lunar
     const bgDecoration = `
