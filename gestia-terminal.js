@@ -57,11 +57,21 @@ import {
 } from './gestia-core/persistence.engine.js';
 
 import { invocarArquitectoIA } from './gestia-core/brain.engine.js';
-// 1. El Cerebro que detecta el error y el Cadenero que valida el contrato:
-import { SelfRepairSentinel, ContractEnforcer } from './gestia-core/self-repair.engine.js';
 
-// 2. La Interfaz que te muestra la tarjeta para que autorices:
-import { mostrarPropuestaCorreccion } from './modules/UI/sentinelUI.js';
+// ============================================================================
+// 🛡️ IMPORTACIONES V7 (REPARADAS POR LA IA CULPABLE)
+// ============================================================================
+// 1. El Cerebro que detecta el error, el Orquestador y el Cadenero que valida el contrato:
+import { 
+    SelfRepairSentinelV7, 
+    GestiaOrchestratorV7, 
+    ContractEnforcerV7 
+} from './gestia-core/self-repair.engine.js';
+
+// 2. La Interfaz Nivel Lunar apuntando al archivo físico real:
+import { mostrarPropuestaCorreccionV7 } from './modules/UI/sentinelUI.js';
+// ============================================================================
+
 // ==========================================
 // 2. CONFIGURACIÓN OMNIPOTENTE V5.51 (PATCHED)
 // ==========================================
@@ -839,7 +849,8 @@ if (form) {
 
                         // 🔥 INTERVENCIÓN SENTINEL V7 (PUENTE DE AUTORIDAD) 🔥
                         // Usamos el Orquestador V7 para pausar el flujo y esperar tu firma en la UI Lunar
-                        const revisionV7 = await GestiaOrchestratorV7.procesarRevisionMódulo(
+                        // 🛠️ FIX APLICADO: Llamada al método correcto solicitarRevisionCEO
+                        const revisionV7 = await GestiaOrchestratorV7.solicitarRevisionCEO(
                             payloadAuditable,
                             idFinalSeguro,
                             SESSION,
@@ -866,7 +877,8 @@ if (form) {
                         const adnFinal = revisionV7.datos;
 
                         // ⚖️ CONTRACT ENFORCER V7 (LA CONSTITUCIÓN LUNAR)
-                        ContractEnforcerV7.validarLeyesModulares(adnFinal);
+                        // 🛠️ FIX APLICADO: Llamada al método correcto validarLeyesConstitucionales
+                        ContractEnforcerV7.validarLeyesConstitucionales(adnFinal);
 
                         // 🟢 NOTIFICACIÓN AL CEO
                         agregarBurbujaHeberto(resultadoIA.mensaje_ceo || "ADN Verificado y Sellado.", idFinalSeguro);
