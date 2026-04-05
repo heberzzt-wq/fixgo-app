@@ -2,7 +2,7 @@
  * ======================================================================================
  * GESTIAPREMIUM 2026 - UI SENTINEL V7 (NIVEL LUNAR - AUTHORITY INTERFACE)
  * ======================================================================================
- * Archivo: sentinel-ui-v7.js
+ * Archivo: sentinelUI.js
  * Objetivo: Interfaz de decisión humana para el Motor de Autocuración V7.
  * Lógica: Detección B2B/B2C -> Propuesta de Sellado -> Autorización de Heber.
  * --------------------------------------------------------------------------------------
