@@ -733,7 +733,9 @@ if (form) {
             logger.log("🏗️ Contexto semántico inyectado desde el Core.");
 
             // 🛡️ EXTRACCIÓN DE IDENTIDAD PROPUESTA (Para evitar ID_CORRUPTO)
-            const idPropuesto = (instruccion.toLowerCase().match(/modulo_[a-z0-9_]+/i) || ["modulo_generico_v5"])[0];
+            // 🛡️ EXTRACCIÓN VIP INTELIGENTE (V6.5 PATCH)
+const matchId = instruccion.toLowerCase().match(/modulo(?:_|\s+)([a-z0-9_]+)/i);
+const idPropuesto = matchId ? matchId[1] : "modulo_generico_v5";
 
             // ========================================================================
             // 🔍 4.5. VIP FIRESTORE SCANNER (EL CIRUJANO ENTRA A LA DB - V6.5)
