@@ -1528,8 +1528,10 @@ export function conectarDatosEnVivo(esquema) {
 
 /**
  * ==========================================
- * CONSTRUCTOR DE FILAS (OPTIMIZADO)
+ * CONSTRUCTOR DE FILAS (OPTIMIZADO V6.4.1)
  * ==========================================
+ * FIX: Se añaden clases de Tailwind para visibilidad del botón y alineación.
+ * REGLA 1: CÓDIGO ÍNTEGRO.
  */
 function construirFila(id, data, esquema, ahora) {
     const tr = document.createElement('tr');
@@ -1552,7 +1554,7 @@ function construirFila(id, data, esquema, ahora) {
     const txtRecurso = (data.recurso || "").toUpperCase();
     const esPOSIQ = txtEmpresa.includes("POSIQ") || txtRecurso.includes("ESTUDIO");
 
-    let clases = "border-b border-slate-800 border-l-4 ";
+    let clases = "border-b border-slate-800 border-l-4 transition-colors hover:bg-slate-800/30 ";
 
     if (esPOSIQ) clases += "border-l-red-600 bg-red-900/20 ";
     else if (alertaOverstay) clases += "border-l-amber-500 bg-amber-900/10 ";
@@ -1562,31 +1564,44 @@ function construirFila(id, data, esquema, ahora) {
 
     tr.className = clases;
 
-    // COLUMNAS
+    // 1. RENDER DE COLUMNAS DE DATOS
     esquema.esquema_base_datos.campos.forEach(campo => {
         const td = document.createElement('td');
-        td.className = "px-4 py-3 text-sm text-slate-300";
+        td.className = "px-4 py-3 text-[11px] font-mono text-slate-300 whitespace-nowrap";
 
         let valor = data[campo.id] || "—";
 
         if (campo.tipo === 'fecha_hora_automatica' && data[campo.id]) {
-            valor = data[campo.id].toDate().toLocaleString('es-MX');
+            // Formato de hora compacto para no desplazar la columna de acciones
+            const fechaObj = data[campo.id].toDate();
+            valor = fechaObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
         }
 
         td.innerHTML = valor;
         tr.appendChild(td);
     });
 
-    // ACCIONES
+    // 2. RENDER DE COLUMNA DE ACCIONES (SOMBRADO - FIXED)
     const tdAcciones = document.createElement('td');
+    tdAcciones.className = "px-4 py-3 text-right whitespace-nowrap";
 
-    const btnSalida = document.createElement('button');
-    btnSalida.innerText = "Salida";
-    btnSalida.onclick = async () => {
-        await window.registrarSalidaBD(id, esquema.modulo_id);
-    };
+    if (!yaSalio) {
+        const btnSalida = document.createElement('button');
+        // Estilos Enterprise para el botón "Salida"
+        btnSalida.className = "bg-blue-600/10 hover:bg-blue-600 border border-blue-500/50 text-blue-400 hover:text-white px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all shadow-sm";
+        btnSalida.innerHTML = '<i class="fa-solid fa-door-open mr-1"></i> Salida';
+        
+        btnSalida.onclick = async () => {
+            btnSalida.disabled = true;
+            btnSalida.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            await window.registrarSalidaBD(id, esquema.modulo_id);
+        };
+        tdAcciones.appendChild(btnSalida);
+    } else {
+        // Indicador visual de ciclo cerrado
+        tdAcciones.innerHTML = '<span class="text-[9px] text-slate-600 font-bold border border-slate-800 px-2 py-1 rounded italic uppercase tracking-tighter">Cerrado</span>';
+    }
 
-    tdAcciones.appendChild(btnSalida);
     tr.appendChild(tdAcciones);
 
     return tr;
