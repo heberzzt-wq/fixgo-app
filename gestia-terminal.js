@@ -750,8 +750,10 @@ if (form) {
             // ========================================================================
             // 🔍 4.5. VIP FIRESTORE SCANNER (EL CIRUJANO ENTRA A LA DB - V6.5)
             // ========================================================================
-            const instruccionVIP = instruccion.toLowerCase();
-            if ((instruccionVIP.includes("repara") || instruccionVIP.includes("analiza") || instruccionVIP.includes("audita") || instruccionVIP.includes("actualiza")) && idPropuesto && idPropuesto !== "modulo_generico_v5") {
+            const instruccionLower = instruccion.toLowerCase();
+            const esOperacionMantenimiento = instruccionLower.includes("repara") || instruccionLower.includes("analiza") || instruccionLower.includes("audita") || instruccionLower.includes("actualiza");
+            
+            if (esOperacionMantenimiento && idPropuesto && idPropuesto !== "modulo_generico_v5") {
                 logger.log(`🔍 [CIRUJANO VIP] Buscando expediente del paciente [${idPropuesto}] en Firestore...`);
                 try {
                     // Acceso directo a la base de datos usando las credenciales de la Terminal
@@ -770,6 +772,41 @@ if (form) {
                     }
                 } catch (errorDb) {
                     logger.error(`❌ [ERROR VIP SCANNER] No se pudo extraer al paciente: ${errorDb.message}`);
+                }
+            }
+
+            // ========================================================================
+            // 🌐 4.6. GLOBAL AUDIT SCANNER (EL OJO DE DIOS - V7.02)
+            // Se activa si Heber pide listas o reportes generales SIN un ID específico
+            // ========================================================================
+            const esAuditoriaGlobal = (instruccionLower.includes("enlista") || instruccionLower.includes("auditoria") || instruccionLower.includes("resumen") || instruccionLower.includes("estado actual")) && idPropuesto === "modulo_generico_v5";
+
+            if (esAuditoriaGlobal) {
+                logger.log(`🌐 [AUDITOR GLOBAL] Escaneando la totalidad del Búnker (Firestore)...`);
+                try {
+                    const querySnapshot = await getDocs(collection(db, GESTIA_CONFIG.COLECCIONES.MODULES));
+                    let matrizModulos = [];
+                    
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        // Extracción ligera (Tacaño Mode) para no saturar tokens
+                        matrizModulos.push({
+                            id_bunker: doc.id,
+                            nombre_oficial: data.modulo_nombre || "Módulo Sin Nombre",
+                            tenant: data.tenantId || "Desconocido",
+                            timestamp: data.updated_at ? "Registrado" : "Huérfano"
+                        });
+                    });
+
+                    logger.log(`📥 [EXITO GLOBAL] ${matrizModulos.length} módulos extraídos. Inyectando Matriz al Cerebro...`);
+                    
+                    // Inyección de Matriz Global y BLOQUEO DE CÓDIGO
+                    esquemaCorral += `\n\n=== 🌐 ESTADO ACTUAL DEL BÚNKER (MATRIZ DE FIRESTORE) 🌐 ===\n${JSON.stringify(matrizModulos, null, 2)}\n===============================================================\n`;
+                    esquemaCorral += `\n\n⚠️ ORDEN ESTRICTA DEL ARCHITECT: ESTO ES UNA AUDITORÍA GENERAL. RESPONDE ÚNICAMENTE CON TEXTO PLANO. TIENES ESTRICTAMENTE PROHIBIDO GENERAR CÓDIGO HTML, JS, CSS O JSON ESTRUCTURADO. NO ESTÁS CREANDO UN MÓDULO, ESTÁS DANDO UN REPORTE HUMANO.⚠️\n`;
+                    
+                    agregarBurbujaInfo(`🌐 Búnker escaneado: ${matrizModulos.length} módulos detectados. Preparando reporte...`);
+                } catch (errorGlobal) {
+                    logger.error(`❌ [ERROR AUDITOR GLOBAL] Falló el escaneo de la matriz: ${errorGlobal.message}`);
                 }
             }
 
