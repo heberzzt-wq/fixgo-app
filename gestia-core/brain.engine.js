@@ -11,8 +11,9 @@ import { auth } from '../firebase.js';
  * INVOCAR ARQUITECTO IA:
  * Envía el prompt, el contexto y los archivos al cerebro en la nube.
  * ACTUALIZACIÓN V5.55: Alineación de estructura para bypass de FirewallV5.
+ * ACTUALIZACIÓN V6.0: Inyección de modo_operacion para domar el JSON de salida.
  */
-export async function invocarArquitectoIA(prompt, contexto, operationId, maxTokens, authToken, targetModuloId) {
+export async function invocarArquitectoIA(prompt, contexto, operationId, maxTokens, authToken, targetModuloId, modo_operacion = "modulo") {
     const logger = { 
         log: console.log, 
         warn: console.warn, 
@@ -47,7 +48,8 @@ export async function invocarArquitectoIA(prompt, contexto, operationId, maxToke
             id_root: finalOpId,
             id_data: finalOpId,
             opId: finalOpId,
-            modulo_id: finalModuloId
+            modulo_id: finalModuloId,
+            modo: modo_operacion // Registro de intención de ruteo
         }, null, 2));
 
         // 🛡️ 3. OBTENER EL GAFETE VIP (Token JWT)
@@ -82,7 +84,9 @@ export async function invocarArquitectoIA(prompt, contexto, operationId, maxToke
                     maxTokens: maxTokens || 3200,
                     timestamp: Date.now(),
                     modulo_id: finalModuloId,
-                    modulo_nombre: finalModuloId 
+                    modulo_nombre: finalModuloId,
+                    // 🔥 INYECCIÓN ESTRATÉGICA PARA DOMAR A LA IA EN EL BACKEND
+                    modo_operacion: modo_operacion
                 }
             })
         });

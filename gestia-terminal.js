@@ -352,9 +352,9 @@ function limpiarRespuestaIA(texto) {
 }
 
 /**
- * 🧠 NORMALIZADOR HÍBRIDO V5.55 (PASO 1) - REESCRITURA ESMERALDA
+ * 🧠 NORMALIZADOR HÍBRIDO V6.0 (PASO 1) - REESCRITURA ESMERALDA
  * Fusionado: Validación brutal + Detección de truncado estructural.
- * Inyección V5.55: Sincronización total con Architect Engine.
+ * Inyección V6.0: Interceptor de Auditoría Global (Bypass Sentinel).
  * 🛡️ FIX: Identidad Anti-Frágil implementada para evitar ID_CORRUPTO.
  */
 function normalizarSalidaIA(brainRes) {
@@ -364,7 +364,6 @@ function normalizarSalidaIA(brainRes) {
     }
 
     // 🔍 EXTRACCIÓN MULTI-LLAVE (SENTINEL V5.55)
-    // Buscamos el objeto core en cualquier nivel de la respuesta de Axios
     let raw = 
         brainRes?.data?.modulo_generado ||
         brainRes?.modulo_generado ||
@@ -380,6 +379,16 @@ function normalizarSalidaIA(brainRes) {
 
     // --- CASO A: Ya es un OBJETO (Parseado por el Middleware) ---
     if (typeof raw === "object" && !Array.isArray(raw)) {
+        
+        // 🛡️ INTERCEPTOR DE AUDITORÍA: Si el cerebro mandó un reporte, lo desviamos al chat.
+        // Se activa por bandera modo_operacion o por el nombre técnico de auditoría.
+        if (raw.modo_operacion === "auditoria" || raw.data?.modo_operacion === "auditoria" || raw.modulo_nombre === "Auditoria_Global") {
+            return {
+                tipo: "texto_plano",
+                codigo: raw.conciencia?.mensaje_ceo || raw.mensaje_ceo || "Auditoría procesada con éxito."
+            };
+        }
+
         // Verificamos si tiene la estructura V5.55 (conciencia + ejecucion)
         if (raw.ejecucion && raw.ejecucion.payload) {
             
@@ -431,9 +440,18 @@ function normalizarSalidaIA(brainRes) {
         return { tipo: "truncated", codigo: limpio };
     }
 
-    // 🔹 INTENTO JSON (Estructurado V5.55)
+    // 🔹 INTENTO JSON (Estructurado V5.55 o Auditoría)
     try {
         const parsed = JSON.parse(limpio);
+
+        // 🛡️ INTERCEPTOR DE AUDITORÍA EN STRING: 
+        if (parsed.modo_operacion === "auditoria" || parsed.modulo_nombre === "Auditoria_Global") {
+            return {
+                tipo: "texto_plano",
+                codigo: parsed.conciencia?.mensaje_ceo || parsed.mensaje_ceo || "Reporte de auditoría listo."
+            };
+        }
+
         if (parsed?.ejecucion?.payload) {
             
             // ==========================================
@@ -651,7 +669,7 @@ function crearSandboxSeguro(html, js, css = "") {
 // [Lógica movida a persistence.engine.js para asegurar atomicidad multi-tenant]
 
 // ======================================================================================
-// 13. EVENTO PRINCIPAL: SUBMIT (THE ORCHESTRATOR) - V6.5 (STRICT IDENTITY + VIP SCANNER)
+// 13. EVENTO PRINCIPAL: SUBMIT (THE ORCHESTRATOR) - V6.6 (HARDENED + VIP SCANNER)
 // ======================================================================================
 if (form) {
     form.addEventListener('submit', async (e) => {
@@ -739,36 +757,36 @@ if (form) {
             });
 
             // 📝 4. CONTEXTO SEMÁNTICO (Semantic Engine)
+            // 🛠️ PARCHE 1: PURGA DE SEGURIDAD. Limpiamos rastro para evitar duplicidad en reintentos.
+            esquemaCorral = ""; 
             esquemaCorral = await sincronizarCorralSemantico(instruccion);
             logger.log("🏗️ Contexto semántico inyectado desde el Core.");
 
             // 🛡️ EXTRACCIÓN DE IDENTIDAD PROPUESTA (Para evitar ID_CORRUPTO)
-            // 🛡️ EXTRACCIÓN VIP INTELIGENTE (V6.5 PATCH)
             const matchId = instruccion.toLowerCase().match(/modulo(?:_|\s+)([a-z0-9_]+)/i);
             const idPropuesto = matchId ? matchId[1] : "modulo_generico_v5";
+            const instruccionLower = instruccion.toLowerCase();
 
             // ========================================================================
-            // 🔍 4.5. VIP FIRESTORE SCANNER (EL CIRUJANO ENTRA A LA DB - V6.5)
+            // 🔍 4.5. VIP FIRESTORE SCANNER (EL CIRUJANO ENTRA A LA DB - V6.6)
             // ========================================================================
-            const instruccionLower = instruccion.toLowerCase();
-            const esOperacionMantenimiento = instruccionLower.includes("repara") || instruccionLower.includes("analiza") || instruccionLower.includes("audita") || instruccionLower.includes("actualiza");
+            // 🛠️ PARCHE 2: SCANNER INTELIGENTE. Si el usuario mencionó un ID, Heberto lo busca 
+            // automáticamente sin depender de verbos como "repara" o "analiza".
+            const esMencionDirectaID = idPropuesto && idPropuesto !== "modulo_generico_v5";
             
-            if (esOperacionMantenimiento && idPropuesto && idPropuesto !== "modulo_generico_v5") {
+            if (esMencionDirectaID) {
                 logger.log(`🔍 [CIRUJANO VIP] Buscando expediente del paciente [${idPropuesto}] en Firestore...`);
                 try {
-                    // Acceso directo a la base de datos usando las credenciales de la Terminal
                     const docRef = doc(db, GESTIA_CONFIG.COLECCIONES.MODULES, idPropuesto);
                     const pacienteSnap = await getDoc(docRef);
                     
                     if (pacienteSnap.exists()) {
                         const pacienteADN = pacienteSnap.data();
                         logger.log(`📥 [EXITO] Paciente extraído de la camilla (Firestore). Inyectando al Cerebro...`);
-                        
-                        // Le inyectamos el ADN corrupto/viejo directamente en el prompt a la IA
                         esquemaCorral += `\n\n=== 🚨 ADN ACTUAL DEL PACIENTE EN FIRESTORE (PARA REPARAR) 🚨 ===\n${JSON.stringify(pacienteADN, null, 2)}\n===============================================================\n`;
-                        agregarBurbujaInfo(`🩺 Paciente [${idPropuesto}] extraído de DB y listo en la mesa de operaciones.`);
+                        agregarBurbujaInfo(`🩺 ADN de [${idPropuesto}] extraído de DB y listo en la mesa de operaciones.`);
                     } else {
-                        logger.warn(`⚠️ [CIRUJANO VIP] El paciente [${idPropuesto}] no existe en Firestore. Será tratado como paciente nuevo.`);
+                        logger.warn(`⚠️ [CIRUJANO VIP] El paciente [${idPropuesto}] no existe en Firestore.`);
                     }
                 } catch (errorDb) {
                     logger.error(`❌ [ERROR VIP SCANNER] No se pudo extraer al paciente: ${errorDb.message}`);
@@ -776,20 +794,20 @@ if (form) {
             }
 
             // ========================================================================
-            // 🌐 4.6. GLOBAL AUDIT SCANNER (EL OJO DE DIOS - V7.02)
-            // Se activa si Heber pide listas o reportes generales SIN un ID específico
+            // 🌐 4.6. GLOBAL AUDIT SCANNER (EL OJO DE DIOS - V7.05)
             // ========================================================================
-            const esAuditoriaGlobal = (instruccionLower.includes("enlista") || instruccionLower.includes("auditoria") || instruccionLower.includes("resumen") || instruccionLower.includes("estado actual")) && idPropuesto === "modulo_generico_v5";
+            const esAuditoriaGlobal = (instruccionLower.includes("enlista") || instruccionLower.includes("auditoria") || instruccionLower.includes("resumen") || instruccionLower.includes("estado actual")) && !esMencionDirectaID;
 
             if (esAuditoriaGlobal) {
-                logger.log(`🌐 [AUDITOR GLOBAL] Escaneando la totalidad del Búnker (Firestore)...`);
+                logger.log(`🌐 [AUDITOR GLOBAL] Escaneando Búnker (Límite de Seguridad: 50)...`);
                 try {
-                    const querySnapshot = await getDocs(collection(db, GESTIA_CONFIG.COLECCIONES.MODULES));
+                    // 🛠️ PARCHE 3: COTA DE MALLA. Limitamos a 50 módulos para proteger cuota de tokens.
+                    const qAudit = query(collection(db, GESTIA_CONFIG.COLECCIONES.MODULES), limit(50));
+                    const querySnapshot = await getDocs(qAudit);
                     let matrizModulos = [];
                     
                     querySnapshot.forEach((doc) => {
                         const data = doc.data();
-                        // Extracción ligera (Tacaño Mode) para no saturar tokens
                         matrizModulos.push({
                             id_bunker: doc.id,
                             nombre_oficial: data.modulo_nombre || "Módulo Sin Nombre",
@@ -799,18 +817,15 @@ if (form) {
                     });
 
                     logger.log(`📥 [EXITO GLOBAL] ${matrizModulos.length} módulos extraídos. Inyectando Matriz al Cerebro...`);
-                    
-                    // Inyección de Matriz Global y BLOQUEO DE CÓDIGO
-                    esquemaCorral += `\n\n=== 🌐 ESTADO ACTUAL DEL BÚNKER (MATRIZ DE FIRESTORE) 🌐 ===\n${JSON.stringify(matrizModulos, null, 2)}\n===============================================================\n`;
-                    esquemaCorral += `\n\n⚠️ ORDEN ESTRICTA DEL ARCHITECT: ESTO ES UNA AUDITORÍA GENERAL. RESPONDE ÚNICAMENTE CON TEXTO PLANO. TIENES ESTRICTAMENTE PROHIBIDO GENERAR CÓDIGO HTML, JS, CSS O JSON ESTRUCTURADO. NO ESTÁS CREANDO UN MÓDULO, ESTÁS DANDO UN REPORTE HUMANO.⚠️\n`;
-                    
+                    esquemaCorral += `\n\n=== 🌐 ESTADO ACTUAL DEL BÚNKER (MATRIZ DE FIRESTORE - TOP 50) 🌐 ===\n${JSON.stringify(matrizModulos, null, 2)}\n===============================================================\n`;
+                    esquemaCorral += `\n\n⚠️ ORDEN ESTRICTA DEL ARCHITECT: ESTO ES UNA AUDITORÍA GENERAL. RESPONDE ÚNICAMENTE CON TEXTO PLANO. TIENES ESTRICTAMENTE PROHIBIDO GENERAR CÓDIGO HTML, JS, CSS O JSON ESTRUCTURADO.⚠️\n`;
                     agregarBurbujaInfo(`🌐 Búnker escaneado: ${matrizModulos.length} módulos detectados. Preparando reporte...`);
                 } catch (errorGlobal) {
                     logger.error(`❌ [ERROR AUDITOR GLOBAL] Falló el escaneo de la matriz: ${errorGlobal.message}`);
                 }
             }
 
-            // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine) - FASE 2: RETRY INTELIGENTE V5.55
+            // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine)
             let textoAcumulado = "";
             let resultadoIA = null;
             let isTruncated = true;
@@ -819,28 +834,20 @@ if (form) {
             
             let promptActual = `ORDEN_GOD_V5.55: ${instruccion}\n\n${esquemaCorral}`;
             
-            // 🔄 CICLO DE AUTORRECUPERACIÓN
             while (isTruncated && currentRetry <= maxRetries) {
-                if (currentRetry > 0) {
-                    logger.warn(`🔄 [RETRY INTELIGENTE ${currentRetry}/${maxRetries}] Reconectando tejido neuronal...`);
-                } else {
-                    logger.log(`🧠 [INTENTO 1] Disparando payload al Cerebro...`);
-                }
-
                 const tokensPermitidos = GESTIA_CONFIG.MODO_TACANO.MAX_TOKENS_IA || 3200;
                 
-                // ⚡ INVOCACIÓN AL ARQUITECTO
+                // ⚡ PUNTO A: INVOCACIÓN CON MODO DE OPERACIÓN (V6.0)
                 const brainRes = await invocarArquitectoIA(
                     promptActual,
                     currentRetry === 0 ? contextoMultimodal : [], 
                     opId + (currentRetry > 0 ? `_r${currentRetry}` : ""), 
                     tokensPermitidos,
                     SESSION.token,
-                    idPropuesto
+                    idPropuesto,
+                    esAuditoriaGlobal ? "auditoria" : "modulo" 
                 );
 
-                console.log(`%c🧠 [RAW BRAIN RESPONSE - FRAGMENTO ${currentRetry + 1}]:`, "color: #f59e0b; font-weight: bold", brainRes);
-                
                 let currentRaw = brainRes?.data?.modulo_generado || brainRes?.data?.payload || brainRes?.data?.result || brainRes?.modulo_generado || brainRes?.respuesta || "";
 
                 if (typeof currentRaw === "object") {
@@ -872,28 +879,29 @@ if (form) {
 
                 case "v13_dual":
                 case "json":
+                    // ⚡ PUNTO B: INTERCEPTOR DE AUDITORÍA (BYPASS SENTINEL)
+                    if (esAuditoriaGlobal) {
+                        logger.log("💬 [BYPASS] Reporte de auditoría detectado. Entregando directo al CEO.");
+                        agregarBurbujaHeberto(resultadoIA.mensaje_ceo || "Auditoría completada exitosamente.");
+                        await updateDoc(doc(db, GESTIA_CONFIG.COLECCIONES.OPERATIONS, opId), { status: "completed_audit" });
+                        break;
+                    }
+
                     try {
                         logger.log("🧠 Procesando ADN Modular (V7 Autocuración Activa).");
-                        
-                        // 🧬 FUENTE ÚNICA DE VERDAD DEL ID
                         const idFinalSeguro = resultadoIA.modulo_id || resultadoIA.json?.modulo_id || idPropuesto;
-                        logger.idFlow(`Terminal Despachando -> ${idFinalSeguro}`);
                         
                         const payloadAuditable = {
                             modulo_id: idFinalSeguro,
                             ...(resultadoIA.json || {})
                         };
 
-                        // 🔥 INTERVENCIÓN SENTINEL V7 (PUENTE DE AUTORIDAD) 🔥
-                        // Usamos el Orquestador V7 para pausar el flujo y esperar tu firma en la UI Lunar
-                        // 🛠️ FIX APLICADO: Llamada al método correcto solicitarRevisionCEO
                         const revisionV7 = await GestiaOrchestratorV7.solicitarRevisionCEO(
                             payloadAuditable,
                             idFinalSeguro,
                             SESSION,
                             async (diagnostico) => {
                                 return new Promise((resolve) => {
-                                    // Invocamos la UI Lunar para mostrar la tarjeta de reparación
                                     mostrarPropuestaCorreccionV7(
                                         diagnostico,
                                         (adnAprobado) => resolve(true),
@@ -903,36 +911,16 @@ if (form) {
                             }
                         );
 
-                        if (!revisionV7.exito) {
-                            if (revisionV7.motivo === "RECHAZO_HEBER") {
-                                logger.warn("🛑 Veto del Architect. Operación cancelada.");
-                                agregarBurbujaError("Despliegue cancelado por el Arquitecto.");
-                            }
-                            break;
-                        }
+                        if (!revisionV7.exito) break;
 
                         const adnFinal = revisionV7.datos;
-
-                        // ⚖️ CONTRACT ENFORCER V7 (LA CONSTITUCIÓN LUNAR)
-                        // 🛠️ FIX APLICADO: Llamada al método correcto validarLeyesConstitucionales
                         ContractEnforcerV7.validarLeyesConstitucionales(adnFinal);
+                        agregarBurbujaHeberto(resultadoIA.mensaje_ceo || "ADN Verificado.", idFinalSeguro);
 
-                        // 🟢 NOTIFICACIÓN AL CEO
-                        agregarBurbujaHeberto(resultadoIA.mensaje_ceo || "ADN Verificado y Sellado.", idFinalSeguro);
-
-                        // 🏛️ PERSISTENCIA TRANSACCIONAL
-                        await persistirEstructuraModulo(
-                            idFinalSeguro, 
-                            adnFinal, 
-                            "v7_secured_hash", 
-                            activeTenant,
-                            opId
-                        );
-                        
+                        await persistirEstructuraModulo(idFinalSeguro, adnFinal, "v7_secured", activeTenant, opId);
                         renderModuloSeguro(adnFinal);
-                        logger.log(`🏛️ ADN [${idFinalSeguro}] Inmortalizado en el Búnker.`);
 
-                        await updateDoc(doc(db, "gestia_operations", opId), {
+                        await updateDoc(doc(db, GESTIA_CONFIG.COLECCIONES.OPERATIONS, opId), {
                             status: "completed_v7_Lunar",
                             updated_at: serverTimestamp()
                         });
@@ -944,26 +932,21 @@ if (form) {
                     break;
 
                 case "code":
-                    logger.log("💻 Detectado Flujo B: Código Plano.");
                     agregarBurbujaCodigo(resultadoIA.codigo);
-                    await updateDoc(doc(db, "gestia_operations", opId), { status: "completed_code" });
+                    await updateDoc(doc(db, GESTIA_CONFIG.COLECCIONES.OPERATIONS, opId), { status: "completed_code" });
                     break;
 
                 case "texto_plano":
-                    logger.log("💬 Detectado Flujo Conversacional.");
                     agregarBurbujaHeberto(resultadoIA.codigo);
-                    await updateDoc(doc(db, "gestia_operations", opId), { status: "completed_text" });
+                    await updateDoc(doc(db, GESTIA_CONFIG.COLECCIONES.OPERATIONS, opId), { status: "completed_text" });
                     break;
 
                 default:
-                    logger.log("⚠️ Flujo Desconocido.");
                     agregarBurbujaCodigo(resultadoIA.codigo || "[Sin ADN]");
-                    await updateDoc(doc(db, "gestia_operations", opId), { status: "fallback_unknown" });
                     break;
             }
 
         } catch (err) {
-            if (err.message.includes("FIREWALL")) await registrarErrorFirewall(SESSION.uid, activeTenant);
             logger.error(`FALLO_SISTEMICO: ${err.message}`);
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
