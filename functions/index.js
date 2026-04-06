@@ -1509,40 +1509,18 @@ exports.reservarCancha = functions.https.onCall(async (data, context) => {
  * 🧩 MÓDULO 10: CONTROL DE ACCESOS DINÁMICOS (SENTINEL V5.56 - HYBRID CORE)
  * ======================================================================================
  * OBJETIVO: Registro de entradas y salidas con trazabilidad de autoridad y saneamiento.
- * ACTUALIZACIÓN V5.56: Solución a Error 500 y Timeout de Despliegue.
+ * ACTUALIZACIÓN V5.56: Whitelist Híbrida para soporte dinámico de Uxmal 39.
+ * REGLA: Sin compactación. Preserva lógica de auditoría V5.55 y expande capacidad.
+ * STATUS: Cero duplicados de constantes (Listo para inyección en línea 1516).
  * --------------------------------------------------------------------------------------
  */
 
-const functions = require("firebase-functions");
-const admin = require("firebase-admin");
-
-// Inicializamos la aplicación si no está inicializada
-if (!admin.apps.length) {
-    admin.initializeApp();
-}
-
-const db = admin.firestore();
-
 /**
- * 🛡️ FUNCIONES DE APOYO (SOPORTE DEL SISTEMA)
- * Estas funciones son necesarias para que el código no truene al desplegar.
- */
-async function reportSentinelMetric(metricName) {
-    console.log(`[SENTINEL_METRIC]: ${metricName}`);
-    return;
-}
-
-function initCore() {
-    console.log("🛡️ Sentinel Engine V5.56: Motor inicializado correctamente.");
-}
-
-/**
- * ======================================================================================
  * 🚀 FUNCIÓN: crearAcceso
- * ======================================================================================
+ * ACTUALIZACIÓN V5.56: Implementación de Inyección Dinámica para Uxmal 39.
  */
 exports.crearAcceso = functions.https.onCall(async (data, context) => {
-    // 🛡️ 0. DESPERTAR EL MOTOR
+    // 🛡️ 0. DESPERTAR EL MOTOR (Lazy-Load Injection V5.56)
     initCore();
 
     // 🛡️ 1. VALIDACIÓN DE IDENTIDAD
@@ -1554,7 +1532,7 @@ exports.crearAcceso = functions.https.onCall(async (data, context) => {
     const { condominioId, moduloId, payload } = data;
     const traceId = `trace_acceso_${Date.now()}`;
 
-    // 🛡️ 2. VALIDACIÓN DE CONTEXTO
+    // 🛡️ 2. VALIDACIÓN DE CONTEXTO (Integridad de Búnker)
     if (!condominioId || !moduloId || !payload) {
         throw new functions.https.HttpsError('invalid-argument', 'Faltan parámetros críticos (condominio/modulo/payload).');
     }
@@ -1563,6 +1541,7 @@ exports.crearAcceso = functions.https.onCall(async (data, context) => {
         /**
          * 🛡️ 3. WHITELIST HÍBRIDA (V5.56 Hardened)
          * PASO A: Aseguramos los campos que tus otros módulos (B2B/B2C) ya usan.
+         * Esto garantiza que los reportes de técnicos y clientes no se rompan.
          */
         const safePayload = {
             nombre: payload.nombre || "Visitante",
@@ -1575,18 +1554,23 @@ exports.crearAcceso = functions.https.onCall(async (data, context) => {
         };
 
         /**
-         * PASO B: Inyección Dinámica (Solución Uxmal 39).
-         * Aquí aceptamos cualquier campo nuevo que hayas puesto en Firestore (recurso, tipo_acceso, etc.)
+         * PASO B: INYECCIÓN DINÁMICA V5.56 (Solución Uxmal 39)
+         * Recorremos el payload para rescatar campos nuevos (recurso, tipo_acceso, cajones, etc.)
+         * sin sobreescribir los básicos y sanitizando el contenido para evitar inyecciones.
          */
         Object.keys(payload).forEach(key => {
             if (!(key in safePayload)) {
                 const val = payload[key];
-                // Limpiamos el texto por seguridad
-                safePayload[key] = typeof val === 'string' ? val.substring(0, 500) : val;
+                // Sanitización estricta: strings limitados a 500 chars, otros tipos pasan directo.
+                if (typeof val === 'string') {
+                    safePayload[key] = val.substring(0, 500); 
+                } else {
+                    safePayload[key] = val;
+                }
             }
         });
 
-        // Generamos referencia en la sub-colección dinámica del módulo
+        // Generamos referencia en la sub-colección dinámica del módulo (gestia_records/{condo}/{modulo})
         const registroRef = db.collection("gestia_records")
                                 .doc(condominioId)
                                 .collection(moduloId)
@@ -1602,18 +1586,20 @@ exports.crearAcceso = functions.https.onCall(async (data, context) => {
             traceId: traceId,
             version_core: "V5.56_FINAL",
             metadata_autoridad: {
-                engine: "Sentinel_V5.56",
+                engine: "Sentinel_V5.56_Hybrid",
                 atomic: true,
                 traceId: traceId,
                 tenant_origin: condominioId
             }
         });
         
+        // 🛰️ Reporte al Radar Sentinel
         await reportSentinelMetric('access_entry_registered');
         
+        // 📜 Log de Auditoría Hardened
         console.log(JSON.stringify({
             level: "INFO",
-            message: "✅ [ACCESO V5.56] Entrada sellada en Búnker.",
+            message: `✅ [ACCESO V5.56] Entrada sellada en Búnker para ${moduloId}`,
             condominioId,
             moduloId,
             traceId
@@ -1634,12 +1620,11 @@ exports.crearAcceso = functions.https.onCall(async (data, context) => {
 });
 
 /**
- * ======================================================================================
  * 🚀 FUNCIÓN: registrarSalida
- * ======================================================================================
+ * Cierre de ciclo operativo con marca de tiempo del servidor.
  */
 exports.registrarSalida = functions.https.onCall(async (data, context) => {
-    // 🛡️ 0. DESPERTAR EL MOTOR
+    // 🛡️ 0. DESPERTAR EL MOTOR (Lazy-Load Injection)
     initCore();
 
     // 🛡️ 1. VALIDACIÓN DE IDENTIDAD
@@ -1648,6 +1633,7 @@ exports.registrarSalida = functions.https.onCall(async (data, context) => {
     const { condominioId, moduloId, registroId } = data;
     const traceId = `trace_salida_${Date.now()}`;
 
+    // 🛡️ 2. VALIDACIÓN DE PARÁMETROS
     if (!registroId || !condominioId || !moduloId) {
         throw new functions.https.HttpsError('invalid-argument', 'Parámetros insuficientes para registrar salida.');
     }
@@ -1658,6 +1644,7 @@ exports.registrarSalida = functions.https.onCall(async (data, context) => {
                                 
         /**
          * ⚡ ACTUALIZACIÓN DE SALIDA (Atómica V5.56)
+         * Se sella la salida y se vincula con el rastro del auditor.
          */
         await registroRef.update({
             status: "salida",
@@ -1686,7 +1673,7 @@ exports.registrarSalida = functions.https.onCall(async (data, context) => {
             error: error.message,
             traceId
         }));
-        throw new functions.https.HttpsError('internal', `Error Sentinel Salidas: ${error.message}`);
+        throw new functions.https.HttpsError('internal', `Error Sentinel Salidas V5.56: ${error.message}`);
     }
 });
 /**
