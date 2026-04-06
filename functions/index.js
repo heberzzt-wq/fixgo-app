@@ -1,10 +1,10 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - ARCHITECTURE V5.55 (FINAL CORE)
+ * GESTIAPREMIUM 2026 - ARCHITECTURE V5.56 (HYBRID CORE)
  * ======================================================================================
  * DESPLEGADO POR: Heber Mendoza (Arquitecto Supremo)
  * REGLA 1: SIN CORTES INTERNOS. SIN COMPACTACIÓN. CÓDIGO ÍNTEGRO.
- * ESTRATEGIA: Inicialización Lazy-Load y Factory Pattern para Firewall.
+ * ESTRATEGIA: Inicialización Global de Firebase y Lazy-Load para Singletons.
  * --------------------------------------------------------------------------------------
  */
 
@@ -23,6 +23,14 @@ const cors = require("cors");
 const crypto = require("crypto");
 const Stripe = require("stripe");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+/**
+ * 🛡️ SELLADO DE INFRAESTRUCTURA (GLOBAL SCOPE)
+ * Fix Crítico: initializeApp debe ocurrir al cargar el archivo para evitar 'app/no-app'.
+ */
+if (!admin.apps.length) {
+    admin.initializeApp();
+}
 
 // FACTORIES
 const firewallFactory = require("./firewall/firewall.v5");
@@ -46,7 +54,7 @@ app.use((req, res, next) => {
 // ======================================================================================
 // 3. SINGLETONS (CONTENEDORES DE ESTADO)
 // ======================================================================================
-let db;
+let db = admin.firestore(); // Sello inmediato de base de datos
 let stripe;
 let genAI;
 let firewallV5;
@@ -58,11 +66,7 @@ let initialized = false;
 function initCore() {
     if (initialized) return;
 
-    if (!admin.apps.length) {
-        admin.initializeApp();
-    }
-
-    db = admin.firestore();
+    // Firebase ya está inicializado arriba, solo poblamos singletons de servicios externos
     stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
 
     const rawKey = process.env.GEMINI_KEY || "";
@@ -76,6 +80,7 @@ function initCore() {
 
     firewallV5 = firewall.firewallV5;
     initialized = true;
+    console.log("🛡️ [MOTOR] Sentinel V5.56: IGNICIÓN_CONFIRMADA");
 }
 
 // ======================================================================================
@@ -1570,6 +1575,15 @@ exports.crearAcceso = functions.https.onCall(async (data, context) => {
             }
         });
 
+        /**
+         * 🛡️ GUARDA DE CONEXIÓN V5.56
+         * Si por alguna razón el motor no despertó a tiempo, lo forzamos aquí antes del registro.
+         */
+        if (!db) {
+             console.error("🚨 [DB_RESCUE] Re-inicializando motor de base de datos.");
+             db = admin.firestore();
+        }
+
         // Generamos referencia en la sub-colección dinámica del módulo (gestia_records/{condo}/{modulo})
         const registroRef = db.collection("gestia_records")
                                 .doc(condominioId)
@@ -1639,6 +1653,11 @@ exports.registrarSalida = functions.https.onCall(async (data, context) => {
     }
 
     try {
+        /**
+         * 🛡️ GUARDA DE CONEXIÓN V5.56
+         */
+        if (!db) db = admin.firestore();
+
         const registroRef = db.collection("gestia_records")
                                 .doc(condominioId).collection(moduloId).doc(registroId);
                                 
