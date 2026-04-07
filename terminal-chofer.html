@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestia | Terminal de Operaciones</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body { 
+            background-color: #050505; 
+            color: #e5e7eb; 
+            font-family: 'Inter', sans-serif; 
+            overscroll-behavior: none; /* Evita el rebote en iPhone */
+        }
+        .safe-area { padding-top: env(safe-area-inset-top); }
+        .btn-action {
+            background: #121212;
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 1.5rem;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-action:active {
+            transform: scale(0.95);
+            background: #1f1f1e;
+            border-color: #f59e0b;
+        }
+        .glass {
+            background: rgba(18, 18, 18, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <header class="glass sticky top-0 z-50 px-6 py-4 safe-area">
+        <div class="flex justify-between items-center">
+            <div>
+                <p id="lblFecha" class="text-[10px] font-black text-amber-500 uppercase tracking-widest">Martes, 07 Abril</p>
+                <h1 id="lblNombreChofer" class="text-xl font-black text-white italic uppercase tracking-tighter">HOLA, JONATHAN</h1>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-zinc-800 border-2 border-emerald-500 flex items-center justify-center overflow-hidden">
+                <i class="fas fa-user-astronaut text-xl text-emerald-500"></i>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 p-6 space-y-6">
+        
+        <section id="cardUnidad" class="btn-action p-6 border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-500/5 to-transparent">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <p class="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em]">Unidad Asignada</p>
+                    <h2 id="lblVehiculo" class="text-2xl font-black text-white uppercase tracking-tighter italic">NP300 ESTACAS</h2>
+                </div>
+                <span id="lblPlacas" class="bg-blue-500 text-black px-3 py-1 rounded-lg text-xs font-black">SZ-1234-A</span>
+            </div>
+            <div class="flex gap-4 text-[10px] font-bold text-zinc-400">
+                <span><i class="fas fa-gas-pump mr-1"></i> DIESEL</span>
+                <span><i class="fas fa-tachometer-alt mr-1"></i> 45,200 KM</span>
+            </div>
+        </section>
+
+        <div class="grid grid-cols-2 gap-4">
+            
+            <button onclick="abrirModal('gasolina')" class="btn-action p-6 flex flex-col items-center justify-center gap-3">
+                <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                    <i class="fas fa-gas-pump text-2xl text-emerald-500"></i>
+                </div>
+                <span class="text-[10px] font-black uppercase tracking-widest">Cargar Gasolina</span>
+            </button>
+
+            <button onclick="abrirModal('incidente')" class="btn-action p-6 flex flex-col items-center justify-center gap-3">
+                <div class="w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center">
+                    <i class="fas fa-car-crash text-2xl text-red-500"></i>
+                </div>
+                <span class="text-[10px] font-black uppercase tracking-widest">Reportar Falla</span>
+            </button>
+
+            <button onclick="window.location.href='panel-tecnico.html'" class="btn-action p-6 flex flex-col items-center justify-center gap-3">
+                <div class="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center">
+                    <i class="fas fa-tools text-2xl text-blue-500"></i>
+                </div>
+                <span class="text-[10px] font-black uppercase tracking-widest">Mis Tickets</span>
+            </button>
+
+            <button onclick="abrirModal('mantenimiento')" class="btn-action p-6 flex flex-col items-center justify-center gap-3">
+                <div class="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center">
+                    <i class="fas fa-wrench text-2xl text-amber-500"></i>
+                </div>
+                <span class="text-[10px] font-black uppercase tracking-widest">Info Mantenim.</span>
+            </button>
+
+        </div>
+
+        <section class="space-y-4">
+            <h3 class="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-2">Mis reportes de hoy</h3>
+            <div id="feedHoy" class="space-y-3">
+                <div class="p-4 rounded-2xl bg-zinc-900/50 border border-white/5 text-center py-10 text-zinc-700 text-xs font-bold uppercase italic">
+                    Sin actividad hoy
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <nav class="glass mt-auto p-4 pb-8 flex justify-around items-center">
+        <button class="text-emerald-500 text-xl"><i class="fas fa-home"></i></button>
+        <button onclick="window.location.reload()" class="text-zinc-500 text-xl"><i class="fas fa-sync"></i></button>
+        <button class="text-zinc-500 text-xl"><i class="fas fa-sign-out-alt"></i></button>
+    </nav>
+
+    <div id="modalReporte" class="hidden fixed inset-0 bg-black/95 z-[100] flex items-end justify-center">
+        <div class="bg-zinc-900 w-full rounded-t-[2.5rem] p-8 border-t border-white/10 animate-slide-up shadow-2xl">
+            <div class="w-12 h-1.5 bg-zinc-800 rounded-full mx-auto mb-8"></div>
+            
+            <header class="flex justify-between items-center mb-8">
+                <h3 id="modalTitle" class="text-2xl font-black text-white italic uppercase tracking-tighter">REPORTE</h3>
+                <button onclick="cerrarModal()" class="text-zinc-500"><i class="fas fa-times-circle text-2xl"></i></button>
+            </header>
+
+            <form id="formReporte" class="space-y-6">
+                <div id="camposDinamicos">
+                    </div>
+
+                <button type="submit" class="w-full bg-emerald-500 text-black font-black py-5 rounded-2xl uppercase tracking-widest shadow-xl shadow-emerald-500/20 active:scale-95 transition-all">
+                    Enviar al NOC
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script type="module" src="./firebase.js"></script>
+    </body>
+</html>
