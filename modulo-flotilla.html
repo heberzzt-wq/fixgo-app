@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GestiaPremium | NOC Flotilla v5.30</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body { 
+            background-color: #050505; 
+            color: #e5e7eb; 
+            font-family: 'Inter', sans-serif; 
+            background-image: radial-gradient(circle at 2px 2px, rgba(255,255,255,0.02) 1px, transparent 0);
+            background-size: 40px 40px;
+        }
+        .card { background-color: #121212; border: 1px solid rgba(255,255,255,0.05); border-radius: 1.5rem; padding: 1.5rem; transition: all 0.3s ease; }
+        .card:hover { border-color: rgba(245, 158, 11, 0.2); } /* Hover Ámbar para Flotillas */
+        .input-dark { background-color: #1f1f1e; border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 0.75rem; transition: all 0.3s; }
+        .input-dark:focus { outline: 2px solid #f59e0b; border-color: transparent; }
+        .btn-amber { background-color: #f59e0b; color: #000; font-weight: 900; border-radius: 0.75rem; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.05em; }
+        .btn-amber:hover { background-color: #d97706; transform: translateY(-2px); box-shadow: 0 10px 20px -10px rgba(245, 158, 11, 0.5); }
+        .btn-amber:active { transform: translateY(0); }
+        .btn-amber:disabled { background-color: #374151; cursor: not-allowed; opacity: 0.5; }
+        .table-dark th { border-bottom: 1px solid rgba(255,255,255,0.1); color: #6b7280; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #050505; }
+        ::-webkit-scrollbar-thumb { background: #1f1f1e; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #f59e0b; }
+    </style>
+</head>
+<body class="p-2 md:p-4 w-full min-h-screen flex flex-col">
+
+    <header class="flex justify-between items-start mb-8 border-b border-white/5 pb-6">
+        <div>
+            <div class="flex items-center gap-3 mb-2">
+                <button onclick="window.location.href='panel-b2b-admin.html'" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-2">
+                    <i class="fas fa-arrow-left"></i> Volver al NOC
+                </button>
+                <span class="text-[10px] text-amber-500 font-black uppercase tracking-widest bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">Módulo Fleet Management</span>
+            </div>
+            <h1 class="text-3xl md:text-4xl font-black tracking-tighter text-white italic uppercase mt-2">Control de Flotilla</h1>
+            <p class="text-zinc-500 text-xs font-medium mt-1">Gestión de Unidades Utilitarias, Mantenimientos y Seguros</p>
+        </div>
+        
+        <div class="flex flex-col items-end gap-3">
+            <div id="clock" class="text-xl font-mono bg-zinc-900 text-amber-400 px-4 py-2 rounded-xl border border-white/5 shadow-lg">00:00:00</div>
+        </div>
+    </header>
+
+    <section class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="card bg-gradient-to-br from-zinc-900 to-black border-l-4 border-l-blue-500">
+            <p class="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Total de Unidades</p>
+            <h2 id="kpiTotal" class="text-5xl font-black text-blue-500 mt-2 tracking-tighter italic">0</h2>
+        </div>
+        <div class="card bg-gradient-to-br from-zinc-900 to-black border-l-4 border-l-emerald-500">
+            <p class="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Operativas en Ruta</p>
+            <h2 id="kpiOperativas" class="text-5xl font-black text-emerald-500 mt-2 tracking-tighter italic">0</h2>
+        </div>
+        <div class="card bg-gradient-to-br from-zinc-900 to-black border-l-4 border-l-amber-500">
+            <p class="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Afinación Próxima</p>
+            <h2 id="kpiMantenimiento" class="text-5xl font-black text-amber-500 mt-2 tracking-tighter italic">0</h2>
+        </div>
+        <div class="card bg-gradient-to-br from-zinc-900 to-black border-l-4 border-l-red-500">
+            <p class="text-[10px] font-black text-zinc-500 uppercase tracking-widest">En Taller / Fuera</p>
+            <h2 id="kpiTaller" class="text-5xl font-black text-red-500 mt-2 tracking-tighter italic">0</h2>
+        </div>
+    </section>
+
+    <main class="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
+        
+        <div class="card lg:col-span-4 h-fit sticky top-8 border-t-2 border-t-amber-500/50">
+            <div class="flex items-center gap-2 mb-6">
+                <div class="w-1 h-6 bg-amber-500"></div>
+                <h3 class="text-lg font-black text-white italic uppercase tracking-tighter">Alta de Vehículo</h3>
+            </div>
+            
+            <form id="formAltaFlotilla" class="space-y-4">
+                
+                <div>
+                    <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Marca y Modelo</label>
+                    <input id="vehModelo" type="text" placeholder="Ej: Nissan NP300 Estacas" required class="input-dark w-full p-3 text-sm font-bold">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Año</label>
+                        <input id="vehAño" type="number" placeholder="2024" required class="input-dark w-full p-3 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Placas</label>
+                        <input id="vehPlacas" type="text" placeholder="SZ-1234-A" required class="input-dark w-full p-3 text-sm font-black uppercase text-amber-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Número de Serie (VIN)</label>
+                    <input id="vehVIN" type="text" placeholder="3N6C..." class="input-dark w-full p-3 text-xs uppercase font-mono">
+                </div>
+
+                <div class="border-t border-white/5 pt-4 mt-2">
+                    <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Operador Asignado (Opcional)</label>
+                    <input id="vehOperador" type="text" placeholder="Ej: Jonathan Técnico" class="input-dark w-full p-3 text-sm">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Kilometraje Actual</label>
+                        <input id="vehKm" type="number" placeholder="45000" required class="input-dark w-full p-3 text-sm font-mono text-blue-400">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Combustible</label>
+                        <select id="vehCombustible" required class="input-dark w-full p-3 text-xs font-black uppercase">
+                            <option value="gasolina">Gasolina</option>
+                            <option value="diesel">Diesel</option>
+                            <option value="hibrido">Híbrido</option>
+                            <option value="electrico">Eléctrico</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Especificación de Llantas y Rin</label>
+                    <input id="vehLlantas" type="text" placeholder="Ej: 205/70 R15 Carga" required class="input-dark w-full p-3 text-sm">
+                </div>
+
+                <div class="border-t border-white/5 pt-4 mt-2 grid grid-cols-2 gap-4">
+                    <div class="col-span-2">
+                        <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Aseguradora y Póliza</label>
+                        <input id="vehSeguro" type="text" placeholder="Quálitas - Pol: 99887766" required class="input-dark w-full p-3 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Vencimiento Seguro</label>
+                        <input id="vehVenceSeguro" type="date" required class="input-dark w-full p-3 text-xs text-red-400">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Último Mantenimiento</label>
+                        <input id="vehUltimoMtto" type="date" required class="input-dark w-full p-3 text-xs text-emerald-400">
+                    </div>
+                </div>
+
+                <div class="pt-4">
+                    <button id="btnGuardarVehiculo" type="submit" class="btn-amber w-full py-4 shadow-lg shadow-amber-500/10">
+                        <i class="fas fa-save mr-2"></i> Registrar Unidad a Flotilla
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="lg:col-span-8 space-y-6">
+            <div class="card overflow-hidden min-h-[600px] flex flex-col">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="flex items-center gap-2">
+                        <div class="w-1 h-6 bg-blue-500"></div>
+                        <h3 class="text-lg font-black text-white italic uppercase tracking-tighter">Radar de Flotilla Activa</h3>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="buscadorFlotilla" placeholder="Buscar placa, modelo..." class="input-dark px-4 py-2 text-xs w-48">
+                        <button class="bg-zinc-800 hover:bg-zinc-700 text-white px-3 rounded-lg"><i class="fas fa-filter"></i></button>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto flex-1">
+                    <table class="w-full text-left table-dark border-collapse">
+                        <thead>
+                            <tr>
+                                <th class="p-4 bg-zinc-900/30">Unidad / Placas</th>
+                                <th class="p-4 bg-zinc-900/30">Operador</th>
+                                <th class="p-4 bg-zinc-900/30">Kilometraje</th>
+                                <th class="p-4 bg-zinc-900/30 text-center">Estatus</th>
+                                <th class="p-4 bg-zinc-900/30 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaFlotilla" class="divide-y divide-white/5">
+                            <tr>
+                                <td colspan="5" class="py-20 text-center text-zinc-600">
+                                    <i class="fas fa-truck-loading text-4xl mb-4 opacity-20"></i>
+                                    <p class="text-xs font-black uppercase tracking-[0.2em]">Cargando unidades del servidor...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        setInterval(() => {
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString('es-MX');
+        }, 1000);
+    </script>
+    <script type="module" src="./modulo-flotilla.js"></script>
+    </body>
+</html>
