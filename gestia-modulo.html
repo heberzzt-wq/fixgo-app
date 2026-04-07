@@ -83,20 +83,26 @@
 
         // Función que se ejecuta cuando la cámara lee un QR exitosamente
         function onScanSuccess(decodedText, decodedResult) {
-            // Detenemos el escáner para no leer 100 veces el mismo código en un segundo
+            // Detenemos el escáner al leer
             html5QrcodeScanner.clear().then(() => {
                 modalScanner.classList.add('hidden');
                 
                 try {
-                    // Intentamos parsear el JSON que encriptamos en el panel admin
+                    // 1. Decodificar Payload
                     const datosQR = JSON.parse(decodedText);
-                    console.log("QR Detectado:", datosQR);
-                    alert(`✅ ACCESO DETECTADO\n\nTipo: ${datosQR.tipo_pase}\nNombre: ${datosQR.identificador}\nVigencia: ${datosQR.vigencia}`);
+                    console.log("📡 QR Detectado y Decodificado:", datosQR);
                     
-                    // Aquí en el siguiente paso conectaremos la escritura a Firestore
+                    // 2. Enviar datos al Motor Fast-Pass (Módulo 8 en gestia-render.js)
+                    if (window.procesarAccesoQR) {
+                        window.procesarAccesoQR(datosQR);
+                    } else {
+                        console.error("⚠️ El Motor Fast-Pass no está conectado en window.");
+                        alert("El motor de base de datos no está listo para recibir la lectura.");
+                    }
+                    
                 } catch (e) {
-                    console.error("No es un formato JSON de GestiaPremium:", decodedText);
-                    alert(`⚠️ QR NO RECONOCIDO\n\nTexto: ${decodedText}`);
+                    console.error("❌ Formato QR No Reconocido:", decodedText);
+                    alert(`⚠️ QR INVÁLIDO O NO RECONOCIDO\n\nAsegúrese de usar un código emitido por GestiaPremium.`);
                 }
             });
         }
@@ -114,7 +120,7 @@
             // Inicializamos la cámara enfocando a la trasera (environment) para celulares
             html5QrcodeScanner = new Html5QrcodeScanner(
                 "reader",
-                { fps: 10, qrbox: {width: 250, height: 250} },
+                { fps: 15, qrbox: {width: 250, height: 250} },
                 /* verbose= */ false
             );
             html5QrcodeScanner.render(onScanSuccess, onScanFailure);
