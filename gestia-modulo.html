@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    
     <script>
         tailwind.config = {
             theme: {
@@ -22,20 +24,111 @@
             }
         }
     </script>
+    <style>
+        /* Ajustes para el escáner para que se vea premium */
+        #reader { border: none !important; border-radius: 1rem; overflow: hidden; }
+        #reader__dashboard_section_csr span { color: white !important; font-weight: bold; }
+        #reader__dashboard_section_swaplink { color: #3b82f6 !important; text-decoration: none; }
+        #reader button { 
+            background-color: #3b82f6; color: white; border: none; padding: 8px 16px; 
+            border-radius: 0.5rem; font-weight: bold; cursor: pointer; margin-top: 10px;
+        }
+    </style>
 </head>
 <body class="bg-gestia-dark h-screen w-screen p-2 md:p-4 flex flex-col font-sans overflow-hidden">
     
     <div id="contenedor-magico" class="w-full h-full"></div>
 
+    <button id="btnAbrirScanner" class="fixed bottom-6 right-6 w-16 h-16 bg-gestia-primary rounded-full shadow-[0_0_20px_rgba(59,130,246,0.5)] flex items-center justify-center text-white text-2xl hover:scale-110 transition-transform z-50 border-2 border-white/10">
+        <i class="fas fa-qrcode"></i>
+    </button>
+
+    <div id="modalScanner" class="hidden fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="bg-zinc-900 border border-blue-500/30 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="p-6 border-b border-white/5 flex justify-between items-center bg-black/50">
+                <div>
+                    <h3 class="text-xl font-black text-white italic uppercase tracking-tighter">Control de Acceso</h3>
+                    <p class="text-[9px] font-black text-blue-500 uppercase tracking-[0.3em] mt-1">Escáner Óptico Activo</p>
+                </div>
+                <button id="btnCerrarScanner" class="text-zinc-500 hover:text-white transition-transform hover:scale-110">
+                    <i class="fas fa-times-circle text-2xl"></i>
+                </button>
+            </div>
+            
+            <div class="p-4 bg-black">
+                <div id="reader" class="w-full"></div>
+            </div>
+
+            <div class="p-6 bg-zinc-900 flex flex-col items-center justify-center text-center">
+                <p id="resultadoScanner" class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Apunte la cámara al código QR del activo o visitante...</p>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
-        // Importamos la función maestra que creaste en el paso anterior
+        // Importamos tu motor de renderizado original
         import { initGestiaRender } from './gestia-render.js';
         
         document.addEventListener('DOMContentLoaded', () => {
-            // Le ordenamos al motor: 
-            // 1. Busca en Firebase el molde de "seguridad_accesos_b2b"
-            // 2. Dibújalo todo adentro del div "contenedor-magico"
+            // Renderizamos la app
             initGestiaRender('seguridad_accesos_b2b', 'contenedor-magico');
+        });
+
+        // =====================================================
+        // LÓGICA DEL MOTOR DE ESCANEO QR
+        // =====================================================
+        let html5QrcodeScanner = null;
+        const modalScanner = document.getElementById('modalScanner');
+        const resultadoDOM = document.getElementById('resultadoScanner');
+
+        // Función que se ejecuta cuando la cámara lee un QR exitosamente
+        function onScanSuccess(decodedText, decodedResult) {
+            // Detenemos el escáner para no leer 100 veces el mismo código en un segundo
+            html5QrcodeScanner.clear().then(() => {
+                modalScanner.classList.add('hidden');
+                
+                try {
+                    // Intentamos parsear el JSON que encriptamos en el panel admin
+                    const datosQR = JSON.parse(decodedText);
+                    console.log("QR Detectado:", datosQR);
+                    alert(`✅ ACCESO DETECTADO\n\nTipo: ${datosQR.tipo_pase}\nNombre: ${datosQR.identificador}\nVigencia: ${datosQR.vigencia}`);
+                    
+                    // Aquí en el siguiente paso conectaremos la escritura a Firestore
+                } catch (e) {
+                    console.error("No es un formato JSON de GestiaPremium:", decodedText);
+                    alert(`⚠️ QR NO RECONOCIDO\n\nTexto: ${decodedText}`);
+                }
+            });
+        }
+
+        function onScanFailure(error) {
+            // Se ejecuta constantemente mientras busca, no hacemos nada para no saturar
+        }
+
+        // Abrir Modal y encender cámara
+        document.getElementById('btnAbrirScanner').addEventListener('click', () => {
+            resultadoDOM.innerText = "Apunte la cámara al código QR...";
+            resultadoDOM.className = "text-xs font-bold text-zinc-400 uppercase tracking-widest";
+            modalScanner.classList.remove('hidden');
+            
+            // Inicializamos la cámara enfocando a la trasera (environment) para celulares
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader",
+                { fps: 10, qrbox: {width: 250, height: 250} },
+                /* verbose= */ false
+            );
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        });
+
+        // Cerrar Modal y apagar cámara
+        document.getElementById('btnCerrarScanner').addEventListener('click', () => {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.clear().then(() => {
+                    modalScanner.classList.add('hidden');
+                }).catch(err => console.error("Error al apagar cámara", err));
+            } else {
+                modalScanner.classList.add('hidden');
+            }
         });
     </script>
 </body>
