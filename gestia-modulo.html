@@ -39,7 +39,7 @@
     
     <div id="contenedor-magico" class="w-full h-full"></div>
 
-    <button id="btnAbrirScanner" class="fixed bottom-6 right-6 w-16 h-16 bg-gestia-primary rounded-full shadow-[0_0_20px_rgba(59,130,246,0.5)] flex items-center justify-center text-white text-2xl hover:scale-110 transition-transform z-50 border-2 border-white/10">
+    <button id="btnAbrirScanner" class="fixed bottom-28 right-6 w-16 h-16 bg-gestia-primary rounded-full shadow-[0_0_20px_rgba(59,130,246,0.5)] flex items-center justify-center text-white text-2xl hover:scale-110 transition-transform z-[70] border-2 border-white/10">
         <i class="fas fa-qrcode"></i>
     </button>
 
@@ -75,7 +75,7 @@
         });
 
         // =====================================================
-        // LÓGICA DEL MOTOR DE ESCANEO QR
+        // LÓGICA DEL MOTOR DE ESCANEO QR (TURBO ACTIVADO)
         // =====================================================
         let html5QrcodeScanner = null;
         const modalScanner = document.getElementById('modalScanner');
@@ -108,7 +108,7 @@
         }
 
         function onScanFailure(error) {
-            // Se ejecuta constantemente mientras busca, no hacemos nada para no saturar
+            // Se ejecuta constantemente mientras busca, no hacemos nada para no saturar la consola
         }
 
         // Abrir Modal y encender cámara
@@ -117,10 +117,15 @@
             resultadoDOM.className = "text-xs font-bold text-zinc-400 uppercase tracking-widest";
             modalScanner.classList.remove('hidden');
             
-            // Inicializamos la cámara enfocando a la trasera (environment) para celulares
+            // OPTIMIZACIÓN: Solo leer QR y subir FPS
             html5QrcodeScanner = new Html5QrcodeScanner(
                 "reader",
-                { fps: 15, qrbox: {width: 250, height: 250} },
+                { 
+                    fps: 24, // Más lecturas por segundo
+                    qrbox: {width: 250, height: 250},
+                    formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ], // IGNORA CÓDIGOS DE BARRAS, SOLO QR
+                    rememberLastUsedCamera: true
+                },
                 /* verbose= */ false
             );
             html5QrcodeScanner.render(onScanSuccess, onScanFailure);
