@@ -1,7 +1,7 @@
 /**
  * =====================================================
- * MÓDULO: FLEET MANAGEMENT (NOC FLOTILLAS) v5.35
- * Inteligencia: Expedientes, Timeline y Auto-Updates
+ * MÓDULO: FLEET MANAGEMENT (NOC FLOTILLAS) v5.40
+ * Inteligencia: Flotilla + Bitácora + Operadores
  * =====================================================
  */
 
@@ -22,10 +22,13 @@ import {
 // ==========================================
 const tenantId = "UXMAL39_NOC"; 
 const flotillaRef = collection(db, "flotilla_b2b", tenantId, "vehiculos");
-let unsubscribeBitacora = null; // Para limpiar el listener del modal al cambiar de auto
+const operadoresRef = collection(db, "flotilla_b2b", tenantId, "operadores");
+
+let unsubscribeBitacora = null;
+let unsubscribeOperadores = null;
 
 // ==========================================
-// 2. MOTOR DE INTELIGENCIA (REGLAS DE NEGOCIO)
+// 2. MOTOR DE INTELIGENCIA DE AUTOS
 // ==========================================
 function analizarSaludVehiculo(data) {
     const hoy = new Date();
@@ -72,7 +75,6 @@ function analizarSaludVehiculo(data) {
 // ==========================================
 document.getElementById("formAltaFlotilla").addEventListener("submit", async (e) => {
     e.preventDefault();
-    
     const btn = document.getElementById("btnGuardarVehiculo");
     const oldHtml = btn.innerHTML;
     btn.disabled = true;
@@ -95,14 +97,8 @@ document.getElementById("formAltaFlotilla").addEventListener("submit", async (e)
         };
 
         await addDoc(flotillaRef, payload);
-        
         document.getElementById("formAltaFlotilla").reset();
-        
-        const toast = document.createElement("div");
-        toast.className = "fixed bottom-5 right-5 bg-amber-500 text-black px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-[0_0_20px_rgba(245,158,11,0.3)] z-50 animate-bounce";
-        toast.innerHTML = `<i class="fas fa-check-double mr-2"></i> Unidad Añadida al NOC`;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
+        mostrarToast("Unidad Añadida al NOC", "amber");
 
     } catch (error) {
         console.error("Error guardando unidad:", error);
@@ -116,9 +112,7 @@ document.getElementById("formAltaFlotilla").addEventListener("submit", async (e)
 // ==========================================
 // 4. SINCRONIZACIÓN EN VIVO (TABLA PRINCIPAL)
 // ==========================================
-const qFlotilla = query(flotillaRef, orderBy("creado_en", "desc"));
-
-onSnapshot(qFlotilla, (snapshot) => {
+onSnapshot(query(flotillaRef, orderBy("creado_en", "desc")), (snapshot) => {
     const tbody = document.getElementById("tablaFlotilla");
     let kpiTot = 0, kpiOp = 0, kpiMtto = 0, kpiTal = 0;
 
@@ -143,7 +137,6 @@ onSnapshot(qFlotilla, (snapshot) => {
 
         const tr = document.createElement("tr");
         tr.className = "border-b border-white/5 hover:bg-white/5 transition-colors";
-        
         tr.innerHTML = `
             <td class="p-4">
                 <p class="text-sm font-black text-white tracking-tighter uppercase">${data.modelo} <span class="text-zinc-500 font-medium ml-1">(${data.ano})</span></p>
@@ -190,30 +183,22 @@ window.abrirExpediente = (id, modelo, placas) => {
     document.getElementById("modalBitacoraVehiculo").classList.remove("hidden");
     document.getElementById("bitVehiculoId").value = id;
     document.getElementById("lblModalVehiculo").innerText = `${modelo} | PLACAS: ${placas}`;
-    
-    // Setear la fecha de hoy por defecto en el form
     document.getElementById("bitFecha").valueAsDate = new Date();
 
-    // Limpiar listener anterior si existe para evitar duplicidad de datos
     if(unsubscribeBitacora) unsubscribeBitacora();
 
     const bitacoraRef = collection(db, "flotilla_b2b", tenantId, "vehiculos", id, "bitacora");
-    const qBitacora = query(bitacoraRef, orderBy("fecha", "desc"), orderBy("creado_en", "desc"));
-
-    unsubscribeBitacora = onSnapshot(qBitacora, (snapshot) => {
+    unsubscribeBitacora = onSnapshot(query(bitacoraRef, orderBy("fecha", "desc"), orderBy("creado_en", "desc")), (snapshot) => {
         const feed = document.getElementById("feedBitacoraVehiculo");
         
         if (snapshot.empty) {
             feed.innerHTML = `<div class="py-10 text-center text-zinc-600"><i class="fas fa-file-invoice text-3xl mb-3 opacity-20"></i><p class="text-[9px] font-black uppercase tracking-widest">Sin registros previos</p></div>`;
             return;
         }
-
         feed.innerHTML = "";
 
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
-            
-            // Configurar iconos y colores por tipo
             let icon = "fa-tools"; let color = "text-amber-500"; let bg = "bg-amber-500/10 border-amber-500/20";
             if(data.tipo === "combustible") { icon = "fa-gas-pump"; color = "text-blue-500"; bg = "bg-blue-500/10 border-blue-500/20"; }
             if(data.tipo === "incidente") { icon = "fa-car-crash"; color = "text-red-500"; bg = "bg-red-500/10 border-red-500/20"; }
@@ -239,12 +224,8 @@ window.abrirExpediente = (id, modelo, placas) => {
     });
 };
 
-// ==========================================
-// 6. GUARDAR NUEVO REGISTRO (CON AUTO-UPDATE)
-// ==========================================
 document.getElementById("formNuevaBitacora").addEventListener("submit", async (e) => {
     e.preventDefault();
-    
     const btn = document.getElementById("btnGuardarBitacora");
     const oldHtml = btn.innerHTML;
     btn.disabled = true;
@@ -255,7 +236,6 @@ document.getElementById("formNuevaBitacora").addEventListener("submit", async (e
     const fecha = document.getElementById("bitFecha").value;
     
     try {
-        // 1. Guardar en subcolección de bitácora
         const bitacoraRef = collection(db, "flotilla_b2b", tenantId, "vehiculos", vehiculoId, "bitacora");
         await addDoc(bitacoraRef, {
             tipo: tipo,
@@ -265,17 +245,14 @@ document.getElementById("formNuevaBitacora").addEventListener("submit", async (e
             creado_en: serverTimestamp()
         });
 
-        // 2. INTELIGENCIA "TESLA": Auto-Update del Vehículo Padre
         if (tipo === "mantenimiento") {
-            const vehiculoRef = doc(db, "flotilla_b2b", tenantId, "vehiculos", vehiculoId);
-            await updateDoc(vehiculoRef, {
-                ultimo_mtto: fecha // Actualiza la fecha para limpiar la alerta del NOC
-            });
+            await updateDoc(doc(db, "flotilla_b2b", tenantId, "vehiculos", vehiculoId), { ultimo_mtto: fecha });
         }
 
         document.getElementById("formNuevaBitacora").reset();
-        document.getElementById("bitVehiculoId").value = vehiculoId; // Recuperar el ID oculto
-        document.getElementById("bitFecha").valueAsDate = new Date(); // Re-setear hoy
+        document.getElementById("bitVehiculoId").value = vehiculoId; 
+        document.getElementById("bitFecha").valueAsDate = new Date(); 
+        mostrarToast("Registro guardado", "blue");
         
     } catch (error) {
         console.error("Error al guardar bitácora:", error);
@@ -285,3 +262,101 @@ document.getElementById("formNuevaBitacora").addEventListener("submit", async (e
         btn.disabled = false;
     }
 });
+
+// ==========================================
+// 7. MOTOR DE OPERADORES (OPCIÓN B)
+// ==========================================
+
+// Función para calcular salud de la licencia
+function analizarLicencia(fechaVence) {
+    const hoy = new Date();
+    const vence = new Date(fechaVence);
+    const dias = Math.ceil((vence - hoy) / (1000 * 60 * 60 * 24));
+
+    if (dias <= 0) return { texto: "VENCIDA", color: "bg-red-500/10 text-red-500 border-red-500/20", icon: "fa-times-circle" };
+    if (dias <= 30) return { texto: `VENCE EN ${dias} DÍAS`, color: "bg-amber-500/10 text-amber-500 border-amber-500/20", icon: "fa-exclamation-triangle" };
+    return { texto: "VIGENTE", color: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20", icon: "fa-check-circle" };
+}
+
+window.abrirModalOperadores = () => {
+    document.getElementById("modalDirectorioOperadores").classList.remove("hidden");
+    
+    if(unsubscribeOperadores) unsubscribeOperadores();
+
+    unsubscribeOperadores = onSnapshot(query(operadoresRef, orderBy("creado_en", "desc")), (snapshot) => {
+        const tbody = document.getElementById("tablaOperadores");
+        
+        if (snapshot.empty) {
+            tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-zinc-600"><p class="text-xs font-black uppercase tracking-widest">Sin Operadores Registrados</p></td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = "";
+
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const licencia = analizarLicencia(data.vence_licencia);
+
+            const tr = document.createElement("tr");
+            tr.className = "border-b border-white/5 hover:bg-white/5 transition-colors";
+            tr.innerHTML = `
+                <td class="p-4">
+                    <p class="text-sm font-black text-blue-400 uppercase">${data.nombre}</p>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="text-[9px] text-zinc-400 font-mono"><i class="fas fa-phone-alt mr-1"></i> ${data.telefono}</span>
+                        <span class="text-[10px] font-black text-red-400 bg-red-400/10 px-2 py-0.5 rounded border border-red-400/20">🩸 ${data.sangre}</span>
+                    </div>
+                </td>
+                <td class="p-4">
+                    <p class="text-xs font-black text-white uppercase tracking-widest">${data.licencia}</p>
+                </td>
+                <td class="p-4 text-center">
+                    <span class="px-3 py-1 rounded-full border ${licencia.color} text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 w-fit mx-auto">
+                        <i class="fas ${licencia.icon}"></i> ${licencia.texto}
+                    </span>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    });
+};
+
+document.getElementById("formNuevoOperador").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btnGuardarOperador");
+    const oldHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
+
+    try {
+        await addDoc(operadoresRef, {
+            nombre: document.getElementById("opNombre").value.trim().toUpperCase(),
+            telefono: document.getElementById("opTelefono").value.trim(),
+            sangre: document.getElementById("opSangre").value,
+            nss: document.getElementById("opNSS").value.trim() || "N/A",
+            licencia: document.getElementById("opLicencia").value.trim().toUpperCase(),
+            vence_licencia: document.getElementById("opVenceLicencia").value,
+            emergencia: document.getElementById("opEmergencia").value.trim().toUpperCase(),
+            creado_en: serverTimestamp()
+        });
+
+        document.getElementById("formNuevoOperador").reset();
+        mostrarToast("Operador Registrado", "blue");
+
+    } catch (error) {
+        console.error("Error guardando operador:", error);
+        alert("Fallo al conectar con el servidor.");
+    } finally {
+        btn.innerHTML = oldHtml;
+        btn.disabled = false;
+    }
+});
+
+// Función de utilidad para Toast Notifications
+function mostrarToast(mensaje, color = "amber") {
+    const toast = document.createElement("div");
+    toast.className = `fixed bottom-5 right-5 bg-${color}-500 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-[0_0_20px_rgba(0,0,0,0.5)] z-[999] animate-bounce`;
+    toast.innerHTML = `<i class="fas fa-info-circle mr-2"></i> ${mensaje}`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
