@@ -19,7 +19,7 @@
             background-size: 40px 40px;
         }
         .card { background-color: #121212; border: 1px solid rgba(255,255,255,0.05); border-radius: 1.5rem; padding: 1.5rem; transition: all 0.3s ease; }
-        .card:hover { border-color: rgba(245, 158, 11, 0.2); } /* Hover Ámbar para Flotillas */
+        .card:hover { border-color: rgba(245, 158, 11, 0.2); } 
         .input-dark { background-color: #1f1f1e; border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 0.75rem; transition: all 0.3s; }
         .input-dark:focus { outline: 2px solid #f59e0b; border-color: transparent; }
         .btn-amber { background-color: #f59e0b; color: #000; font-weight: 900; border-radius: 0.75rem; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -82,7 +82,6 @@
             </div>
             
             <form id="formAltaFlotilla" class="space-y-4">
-                
                 <div>
                     <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Marca y Modelo</label>
                     <input id="vehModelo" type="text" placeholder="Ej: Nissan NP300 Estacas" required class="input-dark w-full p-3 text-sm font-bold">
@@ -192,11 +191,86 @@
 
     </main>
 
+    <div id="modalBitacoraVehiculo" class="hidden fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-2 md:p-4 backdrop-blur-md">
+        <div class="card max-w-4xl w-full border-blue-500/30 shadow-2xl shadow-blue-500/10 max-h-[95vh] flex flex-col">
+            
+            <div class="flex justify-between items-start mb-6 border-b border-white/5 pb-4">
+                <div>
+                    <h3 class="text-2xl font-black text-white italic tracking-tighter uppercase leading-none">Expediente de Unidad</h3>
+                    <p id="lblModalVehiculo" class="text-xs font-black text-blue-500 uppercase tracking-[0.2em] mt-2 bg-blue-500/10 w-fit px-3 py-1 rounded">Cargando...</p>
+                </div>
+                <button onclick="document.getElementById('modalBitacoraVehiculo').classList.add('hidden')" class="text-zinc-500 hover:text-white transition-transform hover:scale-110">
+                    <i class="fas fa-times-circle text-3xl"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto pr-2 grid grid-cols-1 md:grid-cols-2 gap-8">
+                
+                <div>
+                    <div class="flex items-center gap-2 mb-4">
+                        <i class="fas fa-plus-circle text-zinc-500"></i>
+                        <h4 class="text-xs font-black text-zinc-400 uppercase tracking-widest">Nuevo Registro</h4>
+                    </div>
+                    <form id="formNuevaBitacora" class="space-y-4 bg-zinc-900/50 p-4 rounded-2xl border border-white/5">
+                        <input type="hidden" id="bitVehiculoId">
+                        
+                        <div>
+                            <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Tipo de Evento</label>
+                            <select id="bitTipo" required class="input-dark w-full p-3 text-xs font-black uppercase text-amber-500">
+                                <option value="mantenimiento">⚙️ Mantenimiento / Taller</option>
+                                <option value="combustible">⛽ Recarga de Combustible</option>
+                                <option value="incidente">🚨 Incidente / Siniestro</option>
+                                <option value="tramite">📄 Trámite / Renovación</option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Fecha</label>
+                                <input id="bitFecha" type="date" required class="input-dark w-full p-3 text-xs">
+                            </div>
+                            <div>
+                                <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Costo ($ MXN)</label>
+                                <input id="bitCosto" type="number" step="0.01" placeholder="0.00" required class="input-dark w-full p-3 text-sm text-emerald-400 font-mono">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-[9px] font-black text-zinc-600 uppercase ml-2 mb-1 block">Descripción / Detalles</label>
+                            <textarea id="bitDescripcion" rows="3" placeholder="Ej: Cambio de aceite y balatas delanteras. Taller Midas." required class="input-dark w-full p-3 text-sm"></textarea>
+                        </div>
+
+                        <button id="btnGuardarBitacora" type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-black w-full py-4 rounded-xl transition-all shadow-lg shadow-blue-500/20 uppercase tracking-widest text-xs">
+                            <i class="fas fa-save mr-2"></i> Añadir al Historial
+                        </button>
+                    </form>
+                </div>
+
+                <div class="flex flex-col h-full">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-history text-zinc-500"></i>
+                            <h4 class="text-xs font-black text-zinc-400 uppercase tracking-widest">Línea de Tiempo</h4>
+                        </div>
+                        <span class="text-[9px] text-emerald-500 font-bold uppercase"><i class="fas fa-sync fa-spin mr-1"></i> En vivo</span>
+                    </div>
+                    
+                    <div id="feedBitacoraVehiculo" class="flex-1 overflow-y-auto space-y-4 pr-2 pb-4">
+                        <div class="py-10 text-center text-zinc-600">
+                            <i class="fas fa-spinner fa-spin text-3xl mb-3 opacity-20"></i>
+                            <p class="text-[9px] font-black uppercase tracking-widest">Cargando bitácora...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         setInterval(() => {
             document.getElementById('clock').innerText = new Date().toLocaleTimeString('es-MX');
         }, 1000);
     </script>
     <script type="module" src="./modulo-flotilla.js"></script>
-    </body>
+</body>
 </html>
