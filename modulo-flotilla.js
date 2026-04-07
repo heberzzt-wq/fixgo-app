@@ -1,7 +1,7 @@
 /**
  * =====================================================
- * MÓDULO: FLEET MANAGEMENT (NOC FLOTILLAS) v5.30
- * Inteligencia: Cálculo de Mantenimientos y Seguros
+ * MÓDULO: FLEET MANAGEMENT (NOC FLOTILLAS) v5.35
+ * Inteligencia: Expedientes, Timeline y Auto-Updates
  * =====================================================
  */
 
@@ -12,16 +12,17 @@ import {
     onSnapshot, 
     query, 
     orderBy, 
-    serverTimestamp 
+    serverTimestamp,
+    doc,
+    updateDoc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // ==========================================
 // 1. CONFIGURACIÓN DEL MOTOR
 // ==========================================
-// NOTA: Asumimos que el adminContext viene de un auth state, 
-// para este módulo independiente usaremos el ID de tu Búnker B2B
 const tenantId = "UXMAL39_NOC"; 
 const flotillaRef = collection(db, "flotilla_b2b", tenantId, "vehiculos");
+let unsubscribeBitacora = null; // Para limpiar el listener del modal al cambiar de auto
 
 // ==========================================
 // 2. MOTOR DE INTELIGENCIA (REGLAS DE NEGOCIO)
@@ -31,10 +32,7 @@ function analizarSaludVehiculo(data) {
     const venceSeguro = new Date(data.vence_seguro);
     const ultimoMtto = new Date(data.ultimo_mtto);
     
-    // Cálculo de días para el seguro
     const diasSeguro = Math.ceil((venceSeguro - hoy) / (1000 * 60 * 60 * 24));
-    
-    // Cálculo de meses desde el último mantenimiento
     const mesesMtto = (hoy.getFullYear() - ultimoMtto.getFullYear()) * 12 + (hoy.getMonth() - ultimoMtto.getMonth());
 
     let estatus = "operativo";
@@ -42,14 +40,12 @@ function analizarSaludVehiculo(data) {
     let colorBadge = "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
     let iconStatus = '<i class="fas fa-check-circle"></i>';
 
-    // REGLA 1: Seguro vencido = CRÍTICO (No circula)
     if (diasSeguro <= 0) {
         estatus = "taller";
         alertas.push("SEGURO VENCIDO");
         colorBadge = "bg-red-500/10 text-red-500 border-red-500/20";
         iconStatus = '<i class="fas fa-ban"></i>';
     } 
-    // REGLA 2: Seguro próximo a vencer (15 días) = PREVENCIÓN
     else if (diasSeguro <= 15) {
         estatus = "mantenimiento";
         alertas.push(`Seguro vence en ${diasSeguro} días`);
@@ -57,7 +53,6 @@ function analizarSaludVehiculo(data) {
         iconStatus = '<i class="fas fa-exclamation-triangle"></i>';
     }
 
-    // REGLA 3: Mantenimiento mayor a 6 meses
     if (mesesMtto >= 6 && estatus !== "taller") {
         estatus = estatus === "operativo" ? "mantenimiento" : estatus;
         alertas.push("Requiere Afinación");
@@ -73,7 +68,7 @@ function analizarSaludVehiculo(data) {
 }
 
 // ==========================================
-// 3. REGISTRO Y ESCRITURA EN NUBE
+// 3. REGISTRO Y ESCRITURA EN NUBE (NUEVA UNIDAD)
 // ==========================================
 document.getElementById("formAltaFlotilla").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -103,7 +98,6 @@ document.getElementById("formAltaFlotilla").addEventListener("submit", async (e)
         
         document.getElementById("formAltaFlotilla").reset();
         
-        // Toast Notification Elegante
         const toast = document.createElement("div");
         toast.className = "fixed bottom-5 right-5 bg-amber-500 text-black px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-[0_0_20px_rgba(245,158,11,0.3)] z-50 animate-bounce";
         toast.innerHTML = `<i class="fas fa-check-double mr-2"></i> Unidad Añadida al NOC`;
@@ -120,24 +114,16 @@ document.getElementById("formAltaFlotilla").addEventListener("submit", async (e)
 });
 
 // ==========================================
-// 4. SINCRONIZACIÓN EN VIVO (REAL-TIME NOC)
+// 4. SINCRONIZACIÓN EN VIVO (TABLA PRINCIPAL)
 // ==========================================
-const q = query(flotillaRef, orderBy("creado_en", "desc"));
+const qFlotilla = query(flotillaRef, orderBy("creado_en", "desc"));
 
-onSnapshot(q, (snapshot) => {
+onSnapshot(qFlotilla, (snapshot) => {
     const tbody = document.getElementById("tablaFlotilla");
-    
-    // Contadores de KPI
     let kpiTot = 0, kpiOp = 0, kpiMtto = 0, kpiTal = 0;
 
     if (snapshot.empty) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="5" class="py-20 text-center text-zinc-600">
-                    <i class="fas fa-parking text-4xl mb-4 opacity-20"></i>
-                    <p class="text-xs font-black uppercase tracking-[0.2em]">Flotilla Vacía. Ingrese unidades.</p>
-                </td>
-            </tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="py-20 text-center text-zinc-600"><i class="fas fa-parking text-4xl mb-4 opacity-20"></i><p class="text-xs font-black uppercase tracking-[0.2em]">Flotilla Vacía</p></td></tr>`;
         actualizarKPIs(0,0,0,0);
         return;
     }
@@ -149,8 +135,6 @@ onSnapshot(q, (snapshot) => {
         const id = docSnap.id;
         
         kpiTot++;
-        
-        // Análisis IA Básico
         const analisis = analizarSaludVehiculo(data);
         
         if (analisis.estatus === "operativo") kpiOp++;
@@ -181,8 +165,8 @@ onSnapshot(q, (snapshot) => {
                 </span>
             </td>
             <td class="p-4 text-right">
-                <button class="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors w-8 h-8 rounded-lg" title="Historial del Vehículo">
-                    <i class="fas fa-folder-open text-xs"></i>
+                <button onclick="window.abrirExpediente('${id}', '${data.modelo}', '${data.placas}')" class="bg-blue-600/20 hover:bg-blue-500 border border-blue-500/30 text-blue-400 hover:text-white transition-all w-9 h-9 rounded-xl shadow-lg" title="Abrir Expediente">
+                    <i class="fas fa-folder-open text-sm"></i>
                 </button>
             </td>
         `;
@@ -198,3 +182,106 @@ function actualizarKPIs(total, op, mtto, taller) {
     document.getElementById("kpiMantenimiento").innerText = mtto;
     document.getElementById("kpiTaller").innerText = taller;
 }
+
+// ==========================================
+// 5. MOTOR DEL EXPEDIENTE (HISTORIAL / BITÁCORA)
+// ==========================================
+window.abrirExpediente = (id, modelo, placas) => {
+    document.getElementById("modalBitacoraVehiculo").classList.remove("hidden");
+    document.getElementById("bitVehiculoId").value = id;
+    document.getElementById("lblModalVehiculo").innerText = `${modelo} | PLACAS: ${placas}`;
+    
+    // Setear la fecha de hoy por defecto en el form
+    document.getElementById("bitFecha").valueAsDate = new Date();
+
+    // Limpiar listener anterior si existe para evitar duplicidad de datos
+    if(unsubscribeBitacora) unsubscribeBitacora();
+
+    const bitacoraRef = collection(db, "flotilla_b2b", tenantId, "vehiculos", id, "bitacora");
+    const qBitacora = query(bitacoraRef, orderBy("fecha", "desc"), orderBy("creado_en", "desc"));
+
+    unsubscribeBitacora = onSnapshot(qBitacora, (snapshot) => {
+        const feed = document.getElementById("feedBitacoraVehiculo");
+        
+        if (snapshot.empty) {
+            feed.innerHTML = `<div class="py-10 text-center text-zinc-600"><i class="fas fa-file-invoice text-3xl mb-3 opacity-20"></i><p class="text-[9px] font-black uppercase tracking-widest">Sin registros previos</p></div>`;
+            return;
+        }
+
+        feed.innerHTML = "";
+
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            
+            // Configurar iconos y colores por tipo
+            let icon = "fa-tools"; let color = "text-amber-500"; let bg = "bg-amber-500/10 border-amber-500/20";
+            if(data.tipo === "combustible") { icon = "fa-gas-pump"; color = "text-blue-500"; bg = "bg-blue-500/10 border-blue-500/20"; }
+            if(data.tipo === "incidente") { icon = "fa-car-crash"; color = "text-red-500"; bg = "bg-red-500/10 border-red-500/20"; }
+            if(data.tipo === "tramite") { icon = "fa-file-signature"; color = "text-zinc-300"; bg = "bg-zinc-500/10 border-zinc-500/20"; }
+
+            const div = document.createElement("div");
+            div.className = `p-4 rounded-xl border ${bg} flex gap-4 items-start`;
+            div.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-zinc-900 flex items-center justify-center shrink-0 border border-white/5 shadow-inner">
+                    <i class="fas ${icon} ${color} text-sm"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="flex justify-between items-start">
+                        <h5 class="text-xs font-black uppercase text-white tracking-wider">${data.tipo}</h5>
+                        <span class="text-[10px] font-mono text-emerald-400 font-bold">$${Number(data.costo).toLocaleString()}</span>
+                    </div>
+                    <p class="text-[10px] text-zinc-500 font-bold mt-1 uppercase"><i class="far fa-calendar-alt mr-1"></i> ${data.fecha}</p>
+                    <p class="text-xs text-zinc-300 mt-2 leading-relaxed bg-black/30 p-3 rounded-lg border border-white/5">${data.descripcion}</p>
+                </div>
+            `;
+            feed.appendChild(div);
+        });
+    });
+};
+
+// ==========================================
+// 6. GUARDAR NUEVO REGISTRO (CON AUTO-UPDATE)
+// ==========================================
+document.getElementById("formNuevaBitacora").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    
+    const btn = document.getElementById("btnGuardarBitacora");
+    const oldHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Guardando...';
+
+    const vehiculoId = document.getElementById("bitVehiculoId").value;
+    const tipo = document.getElementById("bitTipo").value;
+    const fecha = document.getElementById("bitFecha").value;
+    
+    try {
+        // 1. Guardar en subcolección de bitácora
+        const bitacoraRef = collection(db, "flotilla_b2b", tenantId, "vehiculos", vehiculoId, "bitacora");
+        await addDoc(bitacoraRef, {
+            tipo: tipo,
+            fecha: fecha,
+            costo: Number(document.getElementById("bitCosto").value) || 0,
+            descripcion: document.getElementById("bitDescripcion").value.trim(),
+            creado_en: serverTimestamp()
+        });
+
+        // 2. INTELIGENCIA "TESLA": Auto-Update del Vehículo Padre
+        if (tipo === "mantenimiento") {
+            const vehiculoRef = doc(db, "flotilla_b2b", tenantId, "vehiculos", vehiculoId);
+            await updateDoc(vehiculoRef, {
+                ultimo_mtto: fecha // Actualiza la fecha para limpiar la alerta del NOC
+            });
+        }
+
+        document.getElementById("formNuevaBitacora").reset();
+        document.getElementById("bitVehiculoId").value = vehiculoId; // Recuperar el ID oculto
+        document.getElementById("bitFecha").valueAsDate = new Date(); // Re-setear hoy
+        
+    } catch (error) {
+        console.error("Error al guardar bitácora:", error);
+        alert("Ocurrió un error al guardar el registro.");
+    } finally {
+        btn.innerHTML = oldHtml;
+        btn.disabled = false;
+    }
+});
