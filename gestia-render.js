@@ -264,7 +264,7 @@ export async function initGestiaRender(moduloId, containerId) {
 // ==========================================
 window.initGestiaRender = initGestiaRender;
 // ==========================================
-// 2. CONSTRUCTOR DE INTERFAZ (UI BUILDER) - V6.3 (NOC Layout & Real-time Counters)
+// 2. CONSTRUCTOR DE INTERFAZ (UI BUILDER) - V6.4 (ELASTIC NOC & SIDE-PANEL)
 // ==========================================
 
 export function renderizarUIBase(esquema, container) {
@@ -278,7 +278,7 @@ export function renderizarUIBase(esquema, container) {
     const tieneBotonCrear = esquema?.esquema_interfaz?.acciones_permitidas?.includes("crear");
 
     // ==========================================
-    // RENDER BASE
+    // RENDER BASE (ARQUITECTURA ELÁSTICA V6.4)
     // ==========================================
     container.innerHTML = `
         <div class="bg-slate-900 rounded-xl border border-slate-700 shadow-xl overflow-hidden flex flex-col h-full w-full relative">
@@ -333,7 +333,7 @@ export function renderizarUIBase(esquema, container) {
 
             <div class="flex-1 flex flex-col lg:flex-row overflow-hidden bg-[#0d1117] relative">
                 
-                <div class="flex-1 overflow-auto custom-scrollbar relative">
+                <div id="contenedor-tabla-principal" class="flex-1 overflow-auto custom-scrollbar relative transition-all duration-300">
                     <table class="w-full text-left border-collapse min-w-max">
                         <thead class="bg-slate-800/90 sticky top-0 backdrop-blur-sm z-10 border-b border-slate-700">
                             <tr id="tabla-cabeceras"></tr>
@@ -348,6 +348,23 @@ export function renderizarUIBase(esquema, container) {
                             Sin resultados operativos para este tenant
                         </p>
                     </div>
+                </div>
+
+                <div id="panel-detalle-desplegable" 
+                    class="fixed lg:absolute top-0 right-0 h-full w-full sm:w-[450px] bg-slate-900 border-l border-slate-700 z-[45] transform translate-x-full transition-transform duration-300 flex flex-col shadow-2xl">
+                    
+                    <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50 shrink-0">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-address-card text-blue-400"></i>
+                            <h3 class="text-[11px] font-bold text-white uppercase tracking-widest">Detalle del Registro</h3>
+                        </div>
+                        <button id="btn-cerrar-detalle" class="text-slate-500 hover:text-white transition-colors p-1">
+                            <i class="fa-solid fa-xmark text-xl"></i>
+                        </button>
+                    </div>
+                    
+                    <div id="detalle-contenido-dinamico" class="flex-1 overflow-y-auto p-5 custom-scrollbar bg-[#0d1117]">
+                        </div>
                 </div>
 
                 <div id="panel-derecho-pro"
@@ -415,6 +432,15 @@ export function renderizarUIBase(esquema, container) {
         });
     }
 
+    // EVENTO: CERRAR PANEL DE DETALLE
+    const btnCerrarDetalle = document.getElementById('btn-cerrar-detalle');
+    if (btnCerrarDetalle) {
+        btnCerrarDetalle.onclick = () => {
+            const panel = document.getElementById('panel-detalle-desplegable');
+            if (panel) panel.classList.add('translate-x-full');
+        };
+    }
+
     // ==========================================
     // CABECERAS (OPTIMIZADAS)
     // ==========================================
@@ -422,9 +448,7 @@ export function renderizarUIBase(esquema, container) {
     const trCabeceras = document.getElementById('tabla-cabeceras');
 
     if (trCabeceras && esquema?.esquema_base_datos?.campos) {
-
         let headersHTML = '';
-
         esquema.esquema_base_datos.campos.forEach(campo => {
             headersHTML += `
                 <th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">
@@ -445,7 +469,6 @@ export function renderizarUIBase(esquema, container) {
     // ==========================================
 
     if (tieneBotonCrear) {
-
         const btnCrear = document.getElementById('btn-crear-registro');
         const btnCerrar = document.getElementById('btn-cerrar-modal');
         const btnCancelar = document.getElementById('btn-cancelar-modal');
@@ -470,11 +493,6 @@ export function renderizarUIBase(esquema, container) {
         }
     }
 }
-
-// ==========================================
-// GLOBAL BIND
-// ==========================================
-window.renderizarUIBase = renderizarUIBase;
 /**
  * ==========================================
  * 3. INYECCIÓN DE COMPONENTES DE SEGURIDAD (V6.3 - Multi-tenant Real & Full NOC)
