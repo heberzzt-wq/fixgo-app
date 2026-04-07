@@ -905,26 +905,53 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
 });
 
 /* =====================================================
-   MÓDULO 12: MOTOR DE EMISIÓN QR (CONTROL DE ACCESOS)
-   Arquitectura: GestiaPremium B2B
+   MÓDULO 12: MOTOR DE EMISIÓN DE PASES DIGITALES (STORAGE + WA)
+   Arquitectura: GestiaPremium B2B Enterprise v5.30
    ===================================================== */
 
-// Variable global para controlar la instancia del QR y evitar duplicados visuales
+// Importación dinámica de Storage para no romper tus encabezados actuales
+let storageRef, uploadString, getDownloadURL, storageInstancia;
+
+import("https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js").then(module => {
+    storageRef = module.ref;
+    uploadString = module.uploadString;
+    getDownloadURL = module.getDownloadURL;
+});
+import("./firebase.js").then(module => {
+    storageInstancia = module.storage;
+});
+
 let qrInstancia = null;
 
-// Función anclada a window para que el HTML pueda llamarla directamente en el onclick
+// Inyectar el botón de WhatsApp dinámicamente en el HTML si no existe
+const inyectarBotonWhatsApp = () => {
+    const containerBotones = document.querySelector("#formGenerarQR .pt-4.flex.gap-2");
+    if(containerBotones && !document.getElementById("btnWhatsAppQR")) {
+        const btnWA = document.createElement("button");
+        btnWA.type = "button";
+        btnWA.id = "btnWhatsAppQR";
+        btnWA.className = "hidden bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 rounded-xl transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center";
+        btnWA.title = "Enviar por WhatsApp";
+        btnWA.innerHTML = '<i class="fab fa-whatsapp text-2xl"></i>';
+        containerBotones.appendChild(btnWA);
+    }
+};
+
 window.abrirModalQR = (tipo) => {
     const modal = document.getElementById("modalGenerarQR");
     const selectTipo = document.getElementById("qrTipo");
     
+    inyectarBotonWhatsApp(); 
+    
     if(modal && selectTipo) {
-        // Asignar el tipo (staff o visita) según el botón que se presionó
         selectTipo.value = tipo;
         
-        // Limpiar el estado visual anterior si existía
         document.getElementById("qrContenedorVisual").classList.add("hidden");
         document.getElementById("qrContenedorVisual").classList.remove("flex");
         document.getElementById("btnDescargarQR").classList.add("hidden");
+        
+        const btnWA = document.getElementById("btnWhatsAppQR");
+        if(btnWA) btnWA.classList.add("hidden");
         
         if(qrInstancia) {
             qrInstancia.clear();
@@ -932,20 +959,16 @@ window.abrirModalQR = (tipo) => {
             qrInstancia = null;
         }
         
-        // Resetear el formulario y volver a forzar el tipo
         document.getElementById("formGenerarQR").reset();
         selectTipo.value = tipo; 
         
-        // Mostrar modal
         modal.classList.remove("hidden");
     }
 };
 
-// Listener principal para el formulario de generación
 document.getElementById("formGenerarQR").addEventListener("submit", async (e) => {
     e.preventDefault();
     
-    // Captura de datos del DOM
     const tipo = document.getElementById("qrTipo").value;
     const nombre = document.getElementById("qrNombre").value.trim();
     const vigencia = document.getElementById("qrVigencia").value;
@@ -958,77 +981,192 @@ document.getElementById("formGenerarQR").addEventListener("submit", async (e) =>
     const btn = document.getElementById("btnCrearQR");
     const oldText = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GENERANDO CÓDIGO...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GENERANDO...';
+
+    // Obtener nombres amigables de la UI
+    const tipoLabel = document.querySelector(`#qrTipo option[value="${tipo}"]`)?.innerText || tipo;
+    const vigenciaLabel = document.querySelector(`#qrVigencia option[value="${vigencia}"]`)?.innerText || vigencia;
+    const edificioNombre = adminContext?.edificioNombre || "NOC B2B - UXMAL 39";
 
     try {
-        // 1. Construir el Payload (Datos encriptables o JSON que leerá la app de guardia)
-        const payload = JSON.stringify({
+        const payloadData = {
             app: "GestiaPremium_Access",
             edificioId: adminContext?.edificioId || "DESCONOCIDO",
             tipo_pase: tipo,
             identificador: nombre,
             vigencia: vigencia,
             emision_ts: Date.now()
-        });
+        };
+        const payloadStr = JSON.stringify(payloadData);
 
         const contenedorVisual = document.getElementById("qrContenedorVisual");
         const qrCanvas = document.getElementById("qrCanvas");
         const lblNombre = document.getElementById("qrLabelNombre");
         const btnDescargar = document.getElementById("btnDescargarQR");
+        const btnWA = document.getElementById("btnWhatsAppQR");
 
-        // 2. Limpieza de canvas de seguridad
         qrCanvas.innerHTML = "";
         
-        // 3. Renderizado del Código QR
         qrInstancia = new QRCode(qrCanvas, {
-            text: payload,
+            text: payloadStr,
             width: 220,
             height: 220,
-            colorDark : "#050505", // Negro oscuro
-            colorLight : "#ffffff", // Fondo blanco
-            correctLevel : QRCode.CorrectLevel.H // Alta corrección de errores (soporta suciedad o logos)
+            colorDark : "#050505",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
         });
 
-        // 4. Actualización de Interfaz
         lblNombre.innerText = `${tipo.toUpperCase()} - ${nombre}`;
         contenedorVisual.classList.remove("hidden");
         contenedorVisual.classList.add("flex");
         btnDescargar.classList.remove("hidden");
+        btnWA.classList.remove("hidden");
         
-        showToast(`QR de ${tipo} generado en pantalla`);
+        showToast(`QR Listo en pantalla`);
 
-        // 5. Motor de Descarga Local (Exportar a PNG)
+        // MOTOR: Descarga Local
         btnDescargar.onclick = () => {
-            // qrcode.js a veces dibuja en <img> y a veces en <canvas> dependiendo del navegador
-            const img = qrCanvas.querySelector("img");
             const canvas = qrCanvas.querySelector("canvas");
-            
-            let urlDescarga = "";
-            if (img && img.src) {
-                urlDescarga = img.src;
-            } else if (canvas) {
-                urlDescarga = canvas.toDataURL("image/png");
-            }
-
-            if (urlDescarga) {
+            if (canvas) {
                 const a = document.createElement("a");
-                a.href = urlDescarga;
-                // Nombre de archivo limpio: QR_STAFF_Juan_Perez.png
+                a.href = canvas.toDataURL("image/png");
                 a.download = `QR_${tipo.toUpperCase()}_${nombre.replace(/\s+/g, '_')}.png`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                showToast("Descargando archivo localmente...");
-            } else {
-                showToast("Falla técnica al exportar imagen", true);
+                showToast("Descargado correctamente");
+            }
+        };
+
+        // MOTOR: Generación de Pase Digital (HTML) y subida a Storage
+        btnWA.onclick = async () => {
+            if(!storageInstancia) {
+                showToast("Conectando con la nube, intenta de nuevo...", true);
+                return;
+            }
+
+            const oldWaText = btnWA.innerHTML;
+            btnWA.disabled = true;
+            btnWA.innerHTML = '<i class="fas fa-magic fa-bounce"></i>';
+            showToast("Generando Pase Digital Premium...");
+
+            try {
+                const canvas = qrCanvas.querySelector("canvas");
+                // Convertir QR a Base64 para incrustarlo directo en el HTML
+                const qrBase64 = canvas.toDataURL("image/png");
+
+                // ==========================================
+                // 🎨 ARQUITECTURA DEL PASE DIGITAL (HTML/CSS)
+                // Diseñado para verse perfecto en móviles.
+                // ==========================================
+                const htmlContent = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pase de Acceso - ${nombre}</title>
+    <style>
+        body { margin: 0; padding: 20px; background-color: #0d1117; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #e6edf3; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .pass-card { background: linear-gradient(145deg, #161b22 0%, #0d1117 100%); border: 1px solid #30363d; border-radius: 24px; width: 100%; max-width: 380px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); overflow: hidden; position: relative; }
+        .pass-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #1d4ed8 0%, #3b82f6 100%); }
+        
+        .header { padding: 25px 20px 15px 20px; border-b: 1px solid #21262d; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .brand-container { display: flex; items-center; gap: 8px; }
+        .brand-icon { width: 20px; height: 20px; background-color: #3b82f6; border-radius: 6px; }
+        .brand-name { font-size: 10px; font-weight: 900; color: #3b82f6; text-transform: uppercase; tracking-widest: 0.3em; margin: 0; font-style: italic; }
+        .edificio-name { font-size: 16px; font-weight: 800; color: white; text-transform: uppercase; margin: 0; tracking-tighter: -0.05em; }
+        
+        .data-section { padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .data-item { display: flex; flex-direction: column; }
+        .label { font-size: 10px; font-weight: bold; color: #8b949e; text-transform: uppercase; tracking-widest: 0.15em; margin-bottom: 2px; }
+        .value { font-size: 16px; font-weight: 600; color: white; margin: 0; }
+        .value.highlight { color: #4ade80; }
+        .value.tipo { font-weight: 800; text-transform: uppercase; color: #4299e1; }
+        
+        .qr-section { padding: 10px 20px 25px 20px; display: flex; justify-content: center; align-items: center; flex-direction: column; }
+        .qr-wrapper { background-color: white; padding: 15px; border-radius: 16px; display: flex; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .qr-image { width: 220px; height: 220px; }
+        .tap-instruction { font-size: 11px; font-weight: 600; color: #3b82f6; text-transform: uppercase; tracking-widest: 0.1em; margin-top: 15px; text-align: center; }
+
+        .footer { padding: 15px; background-color: rgba(0,0,0,0.2); border-t: 1px solid #21262d; text-align: center; font-size: 10px; color: #484f58; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="pass-card">
+        <div class="header">
+            <div class="brand-container">
+                <div class="brand-icon"></div>
+                <h1 class="brand-name">GestiaPremium Access</h1>
+            </div>
+            <h2 class="edificio-name">${edificioNombre}</h2>
+        </div>
+        
+        <div class="data-section">
+            <div class="data-item">
+                <span class="label">Identificador</span>
+                <p class="value">${nombre}</p>
+            </div>
+            <div class="row" style="display: flex; gap: 20px;">
+                <div class="data-item" style="flex: 1;">
+                    <span class="label">Tipo de Pase</span>
+                    <p class="value tipo">${tipoLabel}</p>
+                </div>
+                <div class="data-item" style="flex: 1;">
+                    <span class="label">Vigencia</span>
+                    <p class="value highlight">${vigenciaLabel}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="qr-section">
+            <div class="qr-wrapper">
+                <img src="${qrBase64}" alt="Código QR de Acceso" class="qr-image">
+            </div>
+            <p class="tap-instruction">Muestre este código en la terminal de caseta</p>
+        </div>
+
+        <div class="footer">
+            Pase generado por NOC-B2B | Id: ${payloadData.emision_ts}
+        </div>
+    </div>
+</body>
+</html>
+`;
+                // ==========================================
+
+                // Ruta: qrs_accesos / edificioId / archivo.html
+                const edificioSafe = adminContext?.edificioId || "NOC_GENERAL";
+                // Cambiamos la extensión a .html
+                const fileName = `pases_digitales/${edificioSafe}/${tipo}_${nombre.replace(/\s+/g, '_')}_${Date.now()}.html`;
+                
+                const fileRef = storageRef(storageInstancia, fileName);
+                
+                // IMPORTANTE: Subir como raw string con contentType text/html
+                await uploadString(fileRef, htmlContent, 'raw', { contentType: 'text/html' });
+                
+                const publicUrl = await getDownloadURL(fileRef);
+                
+                // Texto pre-armado para WhatsApp con el link al pase HTML
+                const mensajeRaw = `APPCCESS: Control de acceso residencial y empresarial con operación sin intermediarios.\n\n🎟️ Su Pase Digital de Acceso está listo aquí: ${publicUrl}`;
+                const linkWA = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensajeRaw)}`;
+                
+                showToast("Redirigiendo a WhatsApp...");
+                window.open(linkWA, '_blank');
+                
+            } catch (error) {
+                console.error("❌ Error generando pase digital:", error);
+                showToast("Falla técnica al generar pase", true);
+            } finally {
+                btnWA.innerHTML = oldWaText;
+                btnWA.disabled = false;
             }
         };
 
     } catch(error) {
-        console.error("❌ Error generando QR:", error);
-        showToast("Error en el renderizado del código", true);
+        console.error("❌ Error QR:", error);
+        showToast("Error en renderizado", true);
     } finally {
-        // Restaurar estado del botón
         btn.innerHTML = oldText;
         btn.disabled = false;
     }
