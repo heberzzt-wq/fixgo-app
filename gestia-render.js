@@ -1415,28 +1415,25 @@ function restaurarBoton(btn, originalHTML) {
 window.guardarNuevoRegistro = guardarNuevoRegistro;
 /**
  * ==========================================
- * 7. SINCRONIZACIÓN EN VIVO Y RENDERIZADO (V6.4 - COST OPTIMIZED ENGINE)
+ * 7. SINCRONIZACIÓN EN VIVO Y RENDERIZADO (V6.4.2 - LEGACY LOOK RESTORE)
  * ==========================================
  * Optimizado para:
  * - Minimizar lecturas Firestore ($)
- * - Evitar re-render completo
- * - Cache inteligente en memoria
- * - Virtualización básica (render parcial)
+ * - Estética V5.21: Colores vibrantes y botones con iconos.
+ * - Fix de Contraste: Eliminación de opacidad para evitar "líneas negras".
  */
 
 // --- REGISTRO GLOBAL DE LISTENERS (ANTI MEMORY LEAK) ---
-// FIX: Se remueve la re-declaración "let" porque ya fue declarada en el Global Scope al inicio del archivo.
-// Solo la asignamos a null para mantener la consistencia sin provocar el SyntaxError.
 unsubscribeSnapshot = null;
 
-// --- CACHE EN MEMORIA (Mini Store tipo Redux) ---
+// --- CACHE EN MEMORIA ---
 const gestiaStore = {
     registros: new Map(), // id -> data
     renderizados: new Set(), // ids ya en DOM
 };
 
 // --- CONFIGURACIÓN DE RENDIMIENTO ---
-const MAX_RENDER = 50; // 🔥 clave para costo y rendimiento
+const MAX_RENDER = 50; 
 
 export function conectarDatosEnVivo(esquema) {
     // 7.1 LIMPIEZA TOTAL
@@ -1454,16 +1451,14 @@ export function conectarDatosEnVivo(esquema) {
 
     if (!tbody) return;
 
-    // 🔥 QUERY OPTIMIZADA (LIMIT PARA COSTOS)
+    // 🔥 QUERY OPTIMIZADA
     const registrosRef = collection(db, "gestia_records", condominioIdActual, esquema.modulo_id);
     const q = query(
         registrosRef,
         orderBy("creado_en", "desc")
-        // 👉 aquí puedes agregar limit() si quieres bajar aún más costo
-        // limit(100)
     );
 
-    console.info(`📡 NOC V6.4: Escucha optimizada en ${condominioIdActual}`);
+    console.info(`📡 NOC V6.4.2: Restaurando estética V5.21 en ${condominioIdActual}`);
 
     unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
         let activosEnEdificio = 0;
@@ -1478,13 +1473,12 @@ export function conectarDatosEnVivo(esquema) {
 
         if (estadoVacio) estadoVacio.classList.add('hidden');
 
-        // 🔥 PROCESAMIENTO DIFERENCIAL (NO FULL REBUILD)
+        // 🔥 PROCESAMIENTO DIFERENCIAL
         snapshot.docChanges().forEach((change) => {
             const docSnap = change.doc;
             const id = docSnap.id;
             const data = docSnap.data();
 
-            // Guardar en cache
             gestiaStore.registros.set(id, data);
 
             if (change.type === "removed") {
@@ -1496,7 +1490,6 @@ export function conectarDatosEnVivo(esquema) {
 
             if (change.type === "added") {
                 if (gestiaStore.renderizados.size >= MAX_RENDER) return;
-
                 const tr = construirFila(id, data, esquema, ahora);
                 tbody.appendChild(tr);
                 gestiaStore.renderizados.add(id);
@@ -1511,15 +1504,13 @@ export function conectarDatosEnVivo(esquema) {
             }
         });
 
-        // 🔥 CONTADOR OPTIMIZADO (SIN RECORRER DOM)
+        // 🔥 CONTADOR OPTIMIZADO
         gestiaStore.registros.forEach((data) => {
             const yaSalio = data.fecha_salida || data.status === "salida";
             if (!yaSalio) activosEnEdificio++;
         });
 
         if (countActivosLabel) countActivosLabel.innerText = activosEnEdificio;
-
-        console.info(`📊 V6.4: ${activosEnEdificio} activos (cache size: ${gestiaStore.registros.size})`);
 
     }, (error) => {
         console.error("❌ Error snapshot optimizado:", error);
@@ -1528,10 +1519,8 @@ export function conectarDatosEnVivo(esquema) {
 
 /**
  * ==========================================
- * CONSTRUCTOR DE FILAS (OPTIMIZADO V6.4.1)
+ * CONSTRUCTOR DE FILAS (V6.4.2 - ESTILO V5.21)
  * ==========================================
- * FIX: Se añaden clases de Tailwind para visibilidad del botón y alineación.
- * REGLA 1: CÓDIGO ÍNTEGRO.
  */
 function construirFila(id, data, esquema, ahora) {
     const tr = document.createElement('tr');
@@ -1540,11 +1529,11 @@ function construirFila(id, data, esquema, ahora) {
     const tipoFlujo = data.tipo_flujo || 'b2b';
     const yaSalio = data.fecha_salida || data.status === "salida";
 
+    // --- LÓGICA DE ALERTAS ---
     let alertaOverstay = false;
     if (!yaSalio && data.creado_en) {
         const entrada = data.creado_en.toDate();
         const minutos = (ahora - entrada) / (1000 * 60);
-
         if (tipoFlujo === 'delivery' && minutos > 60) alertaOverstay = true;
         if (tipoFlujo === 'residencial' && minutos > 120) alertaOverstay = true;
         if (tipoFlujo === 'proveedor' && minutos > 240) alertaOverstay = true;
@@ -1554,25 +1543,33 @@ function construirFila(id, data, esquema, ahora) {
     const txtRecurso = (data.recurso || "").toUpperCase();
     const esPOSIQ = txtEmpresa.includes("POSIQ") || txtRecurso.includes("ESTUDIO");
 
-    let clases = "border-b border-slate-800 border-l-4 transition-colors hover:bg-slate-800/30 ";
+    // --- COLORES Y CONTRASTE (Recuperando el look de la Captura 2097) ---
+    let clases = "border-b border-slate-800/40 border-l-4 transition-all duration-200 ";
 
-    if (esPOSIQ) clases += "border-l-red-600 bg-red-900/20 ";
-    else if (alertaOverstay) clases += "border-l-amber-500 bg-amber-900/10 ";
-    else clases += "border-l-slate-700 ";
-
-    if (yaSalio) clases += "opacity-40 ";
+    if (yaSalio) {
+        // En lugar de opacity-40, usamos colores de texto apagados para mantener legibilidad
+        clases += "border-l-slate-700 bg-slate-900/30 ";
+    } else if (esPOSIQ) {
+        // Rojo vibrante estilo V5.21
+        clases += "border-l-red-500 bg-red-600/10 shadow-[inset_10px_0_15px_-10px_rgba(220,38,38,0.3)] ";
+    } else if (alertaOverstay) {
+        clases += "border-l-amber-500 bg-amber-500/5 ";
+    } else {
+        clases += "border-l-blue-600/50 bg-slate-800/20 ";
+    }
 
     tr.className = clases;
 
-    // 1. RENDER DE COLUMNAS DE DATOS
+    // 1. RENDER DE COLUMNAS (Uxmal 39 Ready)
     esquema.esquema_base_datos.campos.forEach(campo => {
         const td = document.createElement('td');
-        td.className = "px-4 py-3 text-[11px] font-mono text-slate-300 whitespace-nowrap";
+        // Texto brillante para activos, gris para cerrados
+        const textClass = yaSalio ? 'text-slate-500' : 'text-slate-200';
+        td.className = `px-4 py-3 text-[11px] font-mono whitespace-nowrap ${textClass}`;
 
         let valor = data[campo.id] || "—";
 
         if (campo.tipo === 'fecha_hora_automatica' && data[campo.id]) {
-            // Formato de hora compacto para no desplazar la columna de acciones
             const fechaObj = data[campo.id].toDate();
             valor = fechaObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
         }
@@ -1581,27 +1578,42 @@ function construirFila(id, data, esquema, ahora) {
         tr.appendChild(td);
     });
 
-    // 2. RENDER DE COLUMNA DE ACCIONES (SOMBRADO - FIXED)
+    // 2. COLUMNA DE ACCIONES (Botones Glass con Iconos V5.21)
     const tdAcciones = document.createElement('td');
-    tdAcciones.className = "px-4 py-3 text-right whitespace-nowrap";
+    tdAcciones.className = "px-4 py-3 text-right whitespace-nowrap min-w-[120px]";
+
+    const btnContainer = document.createElement('div');
+    btnContainer.className = "flex items-center justify-end gap-2";
 
     if (!yaSalio) {
+        // Botón Detalle (Ojo)
+        const btnVer = document.createElement('button');
+        btnVer.className = "w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-all";
+        btnVer.innerHTML = '<i class="fa-solid fa-eye text-xs"></i>';
+        btnVer.onclick = () => alert(window.formatearDetalleParaGuardia(data));
+        btnContainer.appendChild(btnVer);
+
+        // Botón Salida (Puerta)
         const btnSalida = document.createElement('button');
-        // Estilos Enterprise para el botón "Salida"
-        btnSalida.className = "bg-blue-600/10 hover:bg-blue-600 border border-blue-500/50 text-blue-400 hover:text-white px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all shadow-sm";
-        btnSalida.innerHTML = '<i class="fa-solid fa-door-open mr-1"></i> Salida';
+        btnSalida.className = "h-8 px-3 flex items-center gap-2 rounded-lg bg-blue-600/10 border border-blue-500/40 text-blue-400 hover:bg-blue-600 hover:text-white transition-all text-[10px] font-bold uppercase";
+        btnSalida.innerHTML = '<i class="fa-solid fa-door-open"></i> SALIDA';
         
         btnSalida.onclick = async () => {
             btnSalida.disabled = true;
             btnSalida.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
             await window.registrarSalidaBD(id, esquema.modulo_id);
         };
-        tdAcciones.appendChild(btnSalida);
+        btnContainer.appendChild(btnSalida);
     } else {
-        // Indicador visual de ciclo cerrado
-        tdAcciones.innerHTML = '<span class="text-[9px] text-slate-600 font-bold border border-slate-800 px-2 py-1 rounded italic uppercase tracking-tighter">Cerrado</span>';
+        // Sello de Cerrado Estilo Legacy
+        btnContainer.innerHTML = `
+            <span class="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/5 border border-emerald-500/20 text-emerald-500/60 text-[9px] font-bold uppercase italic">
+                <i class="fa-solid fa-check-double"></i> Finalizado
+            </span>
+        `;
     }
 
+    tdAcciones.appendChild(btnContainer);
     tr.appendChild(tdAcciones);
 
     return tr;
@@ -1609,21 +1621,18 @@ function construirFila(id, data, esquema, ahora) {
 
 /**
  * ==========================================
- * REGISTRO DE SALIDA (SIN CAMBIOS CRÍTICOS)
+ * REGISTRO DE SALIDA (SIN CAMBIOS)
  * ==========================================
  */
 window.registrarSalidaBD = async (registroId, moduloId) => {
     try {
         const registrarSalidaFn = httpsCallable(functions, 'registrarSalida');
-
         await registrarSalidaFn({
             condominioId: condominioIdActual,
             moduloId,
             registroId
         });
-
-        console.log("✅ Salida registrada");
-
+        console.log("✅ Salida registrada en Búnker");
     } catch (error) {
         console.error("❌ Error salida:", error);
     }
@@ -1631,43 +1640,34 @@ window.registrarSalidaBD = async (registroId, moduloId) => {
 
 /**
  * ==========================================
- * FILTROS (SOBRE CACHE, NO DOM)
+ * FILTROS Y FORMATEO
  * ==========================================
  */
 window.filtrarActivos = (soloActivos) => {
     gestiaStore.registros.forEach((data, id) => {
         const fila = document.getElementById(`row-${id}`);
         if (!fila) return;
-
         const yaSalio = data.fecha_salida || data.status === "salida";
-
-        if (soloActivos && yaSalio) fila.style.display = "none";
-        else fila.style.display = "";
+        fila.style.display = (soloActivos && yaSalio) ? "none" : "";
     });
 };
 
 window.filtrarTablaEnVivo = (termino) => {
     const t = termino.toLowerCase();
-
     gestiaStore.registros.forEach((data, id) => {
         const fila = document.getElementById(`row-${id}`);
         if (!fila) return;
-
         const texto = JSON.stringify(data).toLowerCase();
         fila.style.display = texto.includes(t) ? "" : "none";
     });
 };
 
-/**
- * ==========================================
- * FORMATTER (SIN CAMBIOS)
- * ==========================================
- */
 window.formatearDetalleParaGuardia = (data) => {
     return Object.entries(data)
-        .map(([k, v]) => `${k}: ${v}`)
+        .filter(([k]) => k !== 'metadata' && k !== 'creado_en')
+        .map(([k, v]) => `${k.toUpperCase()}: ${v}`)
         .join('\n');
 };
 
-// GLOBAL
+// GLOBAL BIND
 window.conectarDatosEnVivo = conectarDatosEnVivo;
