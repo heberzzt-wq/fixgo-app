@@ -1689,3 +1689,120 @@ window.formatearDetalleParaGuardia = (data) => {
 
 // GLOBAL BIND
 window.conectarDatosEnVivo = conectarDatosEnVivo;
+
+/**
+ * ==========================================
+ * 8. MOTOR FAST-PASS (PROCESAMIENTO QR GLOBAL)
+ * ==========================================
+ * Procesamiento instantáneo de lecturas QR desde el panel flotante.
+ * Conecta directo a Cloud Functions saltando el formulario manual.
+ */
+
+let fastPassInFlight = false; // Candado anti-spam para evitar dobles registros
+
+window.procesarAccesoQR = async (datosQR) => {
+    // --- 1. VALIDACIONES DE SEGURIDAD ---
+    if (fastPassInFlight) {
+        console.warn("⚠️ FAST_PASS: Escaneo bloqueado por request en vuelo.");
+        return;
+    }
+
+    if (!window.gestiaConfig.condoId) {
+        alert("🚨 Error Crítico: No hay un edificio/tenant activo en el sistema.");
+        return;
+    }
+
+    const { tipo_pase, identificador, vigencia } = datosQR;
+
+    if (!identificador || !tipo_pase) {
+        alert("⚠️ QR Inválido o corrupto. Faltan métricas de seguridad.");
+        return;
+    }
+
+    // --- 2. FEEDBACK VISUAL INMEDIATO ---
+    console.info(`⚡ INICIANDO FAST-PASS: ${identificador} [${tipo_pase}]`);
+    fastPassInFlight = true;
+
+    // Crear un Toast dinámico en el DOM
+    const toastId = "toast-fastpass-gestia";
+    let toastContainer = document.getElementById(toastId);
+    if (!toastContainer) {
+        toastContainer = document.createElement("div");
+        toastContainer.id = toastId;
+        toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest transition-all duration-300 transform scale-100 backdrop-blur-md";
+        document.body.appendChild(toastContainer);
+    }
+    
+    toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest backdrop-blur-md bg-blue-600/90 text-white border border-blue-400";
+    toastContainer.innerHTML = `<i class="fa-solid fa-qrcode fa-spin mr-3 text-lg"></i> Autorizando acceso para: <br><span class="text-blue-200 mt-1 block">${identificador}</span>`;
+    toastContainer.style.display = "block";
+
+    try {
+        // --- 3. CONSTRUCCIÓN DEL PAYLOAD (Mapeo a tu BD) ---
+        const payload = {
+            tipo_flujo: tipo_pase === 'staff' ? 'b2b' : 'proveedor',
+            modulo_origen: "seguridad_accesos_b2b",
+            nombre: identificador,
+            empresa_area: tipo_pase === 'staff' ? 'STAFF INTERNO B2B' : 'VISITANTE / PROVEEDOR',
+            recurso: `QR Code (Vigencia: ${vigencia || '24h'})`,
+            motivo: "Validación Biométrica/Óptica en Caseta",
+            metadata: {
+                version_motor: window.gestiaConfig.version || "6.4 FastPass",
+                agente: "Gestia_Scanner_Optico",
+                timestamp_cliente: Date.now()
+            }
+        };
+
+        // --- 4. DISPARO A CLOUD FUNCTIONS ---
+        // Usamos la autoridad de funciones que ya tenías exportada en el Módulo 0
+        const crearAccesoFn = window.functionsAuthority.httpsCallable(window.functionsAuthority.functions, 'crearAcceso');
+
+        const resultado = await crearAccesoFn({
+            condominioId: window.gestiaConfig.condoId,
+            moduloId: "seguridad_accesos_b2b",
+            payload
+        });
+
+        const data = resultado?.data || {};
+        const { status, id, message } = data;
+
+        // --- 5. RESPUESTA Y AUDITORÍA ---
+        if (['success', 'created', 'updated'].includes(status)) {
+            console.info("✅ FAST-PASS OK", { id });
+            
+            toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest backdrop-blur-md bg-emerald-600/90 text-white border border-emerald-400";
+            toastContainer.innerHTML = `<i class="fa-solid fa-check-double mr-3 text-lg"></i> ¡ACCESO CONCEDIDO!<br><span class="text-emerald-200 mt-1 block font-mono">${identificador}</span>`;
+            
+            // Audio de éxito
+            const audio = new Audio('https://www.soundjay.com/buttons/beep-07a.mp3');
+            audio.volume = 0.5;
+            audio.play().catch(()=>{});
+
+        } else {
+            console.warn("🚨 FAST-PASS BLOCKED", message);
+            
+            toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest backdrop-blur-md bg-red-600/90 text-white border border-red-400";
+            toastContainer.innerHTML = `<i class="fa-solid fa-ban mr-3 text-lg"></i> ACCESO DENEGADO<br><span class="text-red-200 mt-1 block font-mono">${message}</span>`;
+            
+            // Audio de error
+            const audio = new Audio('https://www.soundjay.com/buttons/button-10.mp3');
+            audio.play().catch(()=>{});
+        }
+
+    } catch (error) {
+        console.error("❌ FAST-PASS ERROR:", error);
+        
+        toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest backdrop-blur-md bg-orange-600/90 text-white border border-orange-400";
+        toastContainer.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-3 text-lg"></i> FALLA EN LA RED<br><span class="text-orange-200 mt-1 block font-mono">${error.message || 'Timeout del servidor'}</span>`;
+    } finally {
+        // --- 6. LIMPIEZA ---
+        setTimeout(() => {
+            toastContainer.style.opacity = "0";
+            setTimeout(() => {
+                toastContainer.style.display = "none";
+                toastContainer.style.opacity = "1";
+                fastPassInFlight = false;
+            }, 300);
+        }, 3500);
+    }
+};
