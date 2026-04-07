@@ -9,6 +9,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
     <style>
         body { 
             background-color: #050505; 
@@ -27,7 +30,7 @@
         .btn-primary:disabled { background-color: #374151; cursor: not-allowed; opacity: 0.5; }
         .table-dark th { border-bottom: 1px solid rgba(255,255,255,0.1); color: #6b7280; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; }
         
-        /* Badge de Red Estilo Jonathan */
+        /* Badge de Red */
         .badge-online { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); padding: 4px 12px; border-radius: 9999px; font-size: 10px; font-weight: 900; }
         .badge-offline { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); padding: 4px 12px; border-radius: 9999px; font-size: 10px; font-weight: 900; }
         
@@ -54,6 +57,22 @@
             <div class="flex flex-col items-end gap-3">
                 <div id="clock" class="text-xl font-mono bg-zinc-900 text-emerald-400 px-4 py-2 rounded-xl border border-white/5 shadow-lg">00:00:00</div>
                 <div class="flex items-center gap-2">
+                    
+                    <div class="relative group">
+                        <button class="bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white transition-all px-4 py-2 rounded-xl font-bold text-[10px] flex items-center gap-2 border border-blue-500/20 uppercase tracking-widest">
+                            <i class="fas fa-qrcode"></i> Crear QR <i class="fas fa-chevron-down ml-1 text-[8px]"></i>
+                        </button>
+                        
+                        <div class="absolute right-0 mt-2 w-48 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
+                            <button onclick="window.abrirModalQR('staff')" class="w-full text-left px-4 py-3 text-[10px] font-bold text-zinc-300 hover:bg-blue-500/20 hover:text-blue-400 border-b border-white/5 transition-colors uppercase tracking-widest">
+                                <i class="fas fa-id-badge mr-2"></i> QR Staff / Alta
+                            </button>
+                            <button onclick="window.abrirModalQR('visita')" class="w-full text-left px-4 py-3 text-[10px] font-bold text-zinc-300 hover:bg-emerald-500/20 hover:text-emerald-400 transition-colors uppercase tracking-widest">
+                                <i class="fas fa-user-clock mr-2"></i> QR Visita / Prov.
+                            </button>
+                        </div>
+                    </div>
+
                     <button onclick="document.getElementById('modalAltaPersonal').classList.remove('hidden')" 
                         class="bg-white/5 text-zinc-300 hover:bg-emerald-500 hover:text-black transition-all px-4 py-2 rounded-xl font-bold text-[10px] flex items-center gap-2 border border-white/10 uppercase tracking-widest">
                         <i class="fas fa-user-plus"></i> Alta de Activo
@@ -228,14 +247,69 @@
                 <div>
                     <label class="text-[9px] font-black text-zinc-500 uppercase ml-2 mb-1 block tracking-widest">Rol del Sistema</label>
                     <select id="regRol" required class="input-dark w-full p-4 text-xs font-black uppercase text-emerald-500">
-                        <option value="tecnico">Ingeniero Técnico de Campo</option>
                         <option value="admin_b2b">Co-Administrador NOC</option>
+                        <option value="supervisor">Supervisor de Área</option>
+                        <option value="tecnico">Ingeniero Técnico de Campo</option>
+                        <option value="guardia">Guardia de Seguridad</option>
+                        <option value="recepcion">Recepción / Front Desk</option>
                     </select>
                 </div>
 
                 <div class="pt-4">
                     <button id="btnGuardarPersonal" type="submit" class="btn-primary w-full py-5 shadow-xl shadow-emerald-500/10">
                         Dar de Alta en Red Oficial
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalGenerarQR" class="hidden fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="card max-w-md w-full border-blue-500/30 shadow-2xl shadow-blue-500/10">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h3 class="text-2xl font-black text-white italic tracking-tighter uppercase leading-none">Emisión de QR</h3>
+                    <p class="text-[9px] font-black text-blue-500 uppercase tracking-[0.3em] mt-1">Control de Acceso</p>
+                </div>
+                <button onclick="document.getElementById('modalGenerarQR').classList.add('hidden')" class="text-zinc-500 hover:text-white transition-transform hover:scale-110">
+                    <i class="fas fa-times-circle text-2xl"></i>
+                </button>
+            </div>
+            
+            <form id="formGenerarQR" class="space-y-5">
+                <div>
+                    <label class="text-[9px] font-black text-zinc-500 uppercase ml-2 mb-1 block tracking-widest">Tipo de Pase</label>
+                    <select id="qrTipo" required class="input-dark w-full p-4 text-xs font-black uppercase text-blue-500">
+                        <option value="staff">QR Staff / Alta Empleado</option>
+                        <option value="visita">QR Visita / Proveedor</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-[9px] font-black text-zinc-500 uppercase ml-2 mb-1 block tracking-widest">Nombre / Identificador</label>
+                    <input id="qrNombre" type="text" placeholder="Ej: Ing. Mantenimiento Elevadores" required class="input-dark w-full p-4 text-sm font-bold">
+                </div>
+                
+                <div>
+                    <label class="text-[9px] font-black text-zinc-500 uppercase ml-2 mb-1 block tracking-widest">Vigencia del Acceso</label>
+                    <select id="qrVigencia" required class="input-dark w-full p-4 text-xs font-black uppercase">
+                        <option value="24h">Válido por 24 Horas</option>
+                        <option value="7d">Válido por 7 Días</option>
+                        <option value="permanente">Acceso Permanente (Staff)</option>
+                    </select>
+                </div>
+
+                <div id="qrContenedorVisual" class="hidden flex-col items-center justify-center p-6 bg-white rounded-xl mt-4 border-4 border-blue-500">
+                    <div id="qrCanvas" class="bg-white p-2"></div>
+                    <p class="text-black text-xs font-black mt-4 uppercase tracking-widest text-center w-full border-t border-gray-200 pt-2" id="qrLabelNombre">...</p>
+                </div>
+
+                <div class="pt-4 flex gap-2">
+                    <button id="btnCrearQR" type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-black w-full py-5 rounded-xl transition-all shadow-xl shadow-blue-500/20 uppercase tracking-widest text-xs">
+                        <i class="fas fa-qrcode mr-2"></i> Generar Código
+                    </button>
+                    <button type="button" id="btnDescargarQR" class="hidden bg-zinc-800 hover:bg-zinc-700 text-white font-black px-6 rounded-xl transition-all border border-white/10 flex items-center justify-center" title="Descargar QR">
+                        <i class="fas fa-download"></i>
                     </button>
                 </div>
             </form>

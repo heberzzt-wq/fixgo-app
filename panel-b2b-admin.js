@@ -903,3 +903,133 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
         btn.innerHTML = originalHTML;
     }
 });
+
+/* =====================================================
+   MÓDULO 12: MOTOR DE EMISIÓN QR (CONTROL DE ACCESOS)
+   Arquitectura: GestiaPremium B2B
+   ===================================================== */
+
+// Variable global para controlar la instancia del QR y evitar duplicados visuales
+let qrInstancia = null;
+
+// Función anclada a window para que el HTML pueda llamarla directamente en el onclick
+window.abrirModalQR = (tipo) => {
+    const modal = document.getElementById("modalGenerarQR");
+    const selectTipo = document.getElementById("qrTipo");
+    
+    if(modal && selectTipo) {
+        // Asignar el tipo (staff o visita) según el botón que se presionó
+        selectTipo.value = tipo;
+        
+        // Limpiar el estado visual anterior si existía
+        document.getElementById("qrContenedorVisual").classList.add("hidden");
+        document.getElementById("qrContenedorVisual").classList.remove("flex");
+        document.getElementById("btnDescargarQR").classList.add("hidden");
+        
+        if(qrInstancia) {
+            qrInstancia.clear();
+            document.getElementById("qrCanvas").innerHTML = "";
+            qrInstancia = null;
+        }
+        
+        // Resetear el formulario y volver a forzar el tipo
+        document.getElementById("formGenerarQR").reset();
+        selectTipo.value = tipo; 
+        
+        // Mostrar modal
+        modal.classList.remove("hidden");
+    }
+};
+
+// Listener principal para el formulario de generación
+document.getElementById("formGenerarQR").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    
+    // Captura de datos del DOM
+    const tipo = document.getElementById("qrTipo").value;
+    const nombre = document.getElementById("qrNombre").value.trim();
+    const vigencia = document.getElementById("qrVigencia").value;
+    
+    if(!nombre) {
+        showToast("Error: Identificador vacío", true);
+        return;
+    }
+    
+    const btn = document.getElementById("btnCrearQR");
+    const oldText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GENERANDO CÓDIGO...';
+
+    try {
+        // 1. Construir el Payload (Datos encriptables o JSON que leerá la app de guardia)
+        const payload = JSON.stringify({
+            app: "GestiaPremium_Access",
+            edificioId: adminContext?.edificioId || "DESCONOCIDO",
+            tipo_pase: tipo,
+            identificador: nombre,
+            vigencia: vigencia,
+            emision_ts: Date.now()
+        });
+
+        const contenedorVisual = document.getElementById("qrContenedorVisual");
+        const qrCanvas = document.getElementById("qrCanvas");
+        const lblNombre = document.getElementById("qrLabelNombre");
+        const btnDescargar = document.getElementById("btnDescargarQR");
+
+        // 2. Limpieza de canvas de seguridad
+        qrCanvas.innerHTML = "";
+        
+        // 3. Renderizado del Código QR
+        qrInstancia = new QRCode(qrCanvas, {
+            text: payload,
+            width: 220,
+            height: 220,
+            colorDark : "#050505", // Negro oscuro
+            colorLight : "#ffffff", // Fondo blanco
+            correctLevel : QRCode.CorrectLevel.H // Alta corrección de errores (soporta suciedad o logos)
+        });
+
+        // 4. Actualización de Interfaz
+        lblNombre.innerText = `${tipo.toUpperCase()} - ${nombre}`;
+        contenedorVisual.classList.remove("hidden");
+        contenedorVisual.classList.add("flex");
+        btnDescargar.classList.remove("hidden");
+        
+        showToast(`QR de ${tipo} generado en pantalla`);
+
+        // 5. Motor de Descarga Local (Exportar a PNG)
+        btnDescargar.onclick = () => {
+            // qrcode.js a veces dibuja en <img> y a veces en <canvas> dependiendo del navegador
+            const img = qrCanvas.querySelector("img");
+            const canvas = qrCanvas.querySelector("canvas");
+            
+            let urlDescarga = "";
+            if (img && img.src) {
+                urlDescarga = img.src;
+            } else if (canvas) {
+                urlDescarga = canvas.toDataURL("image/png");
+            }
+
+            if (urlDescarga) {
+                const a = document.createElement("a");
+                a.href = urlDescarga;
+                // Nombre de archivo limpio: QR_STAFF_Juan_Perez.png
+                a.download = `QR_${tipo.toUpperCase()}_${nombre.replace(/\s+/g, '_')}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                showToast("Descargando archivo localmente...");
+            } else {
+                showToast("Falla técnica al exportar imagen", true);
+            }
+        };
+
+    } catch(error) {
+        console.error("❌ Error generando QR:", error);
+        showToast("Error en el renderizado del código", true);
+    } finally {
+        // Restaurar estado del botón
+        btn.innerHTML = oldText;
+        btn.disabled = false;
+    }
+});
