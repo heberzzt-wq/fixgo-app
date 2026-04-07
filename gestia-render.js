@@ -1692,38 +1692,37 @@ window.conectarDatosEnVivo = conectarDatosEnVivo;
 
 /**
  * ==========================================
- * 8. MOTOR FAST-PASS (PROCESAMIENTO QR GLOBAL)
+ * 8. MOTOR FAST-PASS v2.0 (ENTRADA/SALIDA INTELIGENTE)
  * ==========================================
- * Procesamiento instantáneo de lecturas QR desde el panel flotante.
- * Conecta directo a Cloud Functions saltando el formulario manual.
+ * Procesa lecturas QR detectando automáticamente si es Entrada o Salida.
+ * Arquitectura: Smart-Toggle B2B
  */
 
-let fastPassInFlight = false; // Candado anti-spam para evitar dobles registros
+let fastPassInFlight = false;
 
 window.procesarAccesoQR = async (datosQR) => {
     // --- 1. VALIDACIONES DE SEGURIDAD ---
     if (fastPassInFlight) {
-        console.warn("⚠️ FAST_PASS: Escaneo bloqueado por request en vuelo.");
+        console.warn("⚠️ FAST_PASS: Bloqueado por request en vuelo.");
         return;
     }
 
     if (!window.gestiaConfig.condoId) {
-        alert("🚨 Error Crítico: No hay un edificio/tenant activo en el sistema.");
+        alert("🚨 Error: No hay un edificio activo.");
         return;
     }
 
     const { tipo_pase, identificador, vigencia } = datosQR;
+    const moduloId = "seguridad_accesos_b2b";
 
     if (!identificador || !tipo_pase) {
-        alert("⚠️ QR Inválido o corrupto. Faltan métricas de seguridad.");
+        alert("⚠️ QR Inválido.");
         return;
     }
 
-    // --- 2. FEEDBACK VISUAL INMEDIATO ---
-    console.info(`⚡ INICIANDO FAST-PASS: ${identificador} [${tipo_pase}]`);
     fastPassInFlight = true;
 
-    // Crear un Toast dinámico en el DOM
+    // Preparar el Toast de Notificación
     const toastId = "toast-fastpass-gestia";
     let toastContainer = document.getElementById(toastId);
     if (!toastContainer) {
@@ -1732,75 +1731,90 @@ window.procesarAccesoQR = async (datosQR) => {
         toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest transition-all duration-300 transform scale-100 backdrop-blur-md";
         document.body.appendChild(toastContainer);
     }
-    
-    toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest backdrop-blur-md bg-blue-600/90 text-white border border-blue-400";
-    toastContainer.innerHTML = `<i class="fa-solid fa-qrcode fa-spin mr-3 text-lg"></i> Autorizando acceso para: <br><span class="text-blue-200 mt-1 block">${identificador}</span>`;
     toastContainer.style.display = "block";
+    toastContainer.style.opacity = "1";
 
     try {
-        // --- 3. CONSTRUCCIÓN DEL PAYLOAD (Mapeo a tu BD) ---
-        const payload = {
-            tipo_flujo: tipo_pase === 'staff' ? 'b2b' : 'proveedor',
-            modulo_origen: "seguridad_accesos_b2b",
-            nombre: identificador,
-            empresa_area: tipo_pase === 'staff' ? 'STAFF INTERNO B2B' : 'VISITANTE / PROVEEDOR',
-            recurso: `QR Code (Vigencia: ${vigencia || '24h'})`,
-            motivo: "Validación Biométrica/Óptica en Caseta",
-            metadata: {
-                version_motor: window.gestiaConfig.version || "6.4 FastPass",
-                agente: "Gestia_Scanner_Optico",
-                timestamp_cliente: Date.now()
+        // --- 2. LÓGICA DE DETECCIÓN (SMART-TOGGLE) ---
+        let registroActivoId = null;
+
+        // Buscamos en el Store si este identificador ya está "DENTRO"
+        for (let [id, data] of gestiaStore.registros) {
+            const yaSalio = data.fecha_salida || data.status === "salida";
+            if (data.nombre === identificador && !yaSalio) {
+                registroActivoId = id;
+                break;
             }
-        };
+        }
 
-        // --- 4. DISPARO A CLOUD FUNCTIONS ---
-        // Usamos la autoridad de funciones que ya tenías exportada en el Módulo 0
-        const crearAccesoFn = window.functionsAuthority.httpsCallable(window.functionsAuthority.functions, 'crearAcceso');
-
-        const resultado = await crearAccesoFn({
-            condominioId: window.gestiaConfig.condoId,
-            moduloId: "seguridad_accesos_b2b",
-            payload
-        });
-
-        const data = resultado?.data || {};
-        const { status, id, message } = data;
-
-        // --- 5. RESPUESTA Y AUDITORÍA ---
-        if (['success', 'created', 'updated'].includes(status)) {
-            console.info("✅ FAST-PASS OK", { id });
+        if (registroActivoId) {
+            // ==========================================
+            // FLUJO: REGISTRAR SALIDA (CHECK-OUT)
+            // ==========================================
+            console.info(`🚪 DETECTADA SALIDA: ${identificador}`);
             
-            toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest backdrop-blur-md bg-emerald-600/90 text-white border border-emerald-400";
-            toastContainer.innerHTML = `<i class="fa-solid fa-check-double mr-3 text-lg"></i> ¡ACCESO CONCEDIDO!<br><span class="text-emerald-200 mt-1 block font-mono">${identificador}</span>`;
+            toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest backdrop-blur-md bg-amber-600/90 text-white border border-amber-400";
+            toastContainer.innerHTML = `<i class="fa-solid fa-door-open fa-fade mr-3 text-lg"></i> REGISTRANDO SALIDA...<br><span class="text-amber-200 mt-1 block">${identificador}</span>`;
+
+            const registrarSalidaFn = window.functionsAuthority.httpsCallable(window.functionsAuthority.functions, 'registrarSalida');
             
-            // Audio de éxito
-            const audio = new Audio('https://www.soundjay.com/buttons/beep-07a.mp3');
-            audio.volume = 0.5;
-            audio.play().catch(()=>{});
+            await registrarSalidaFn({
+                condominioId: window.gestiaConfig.condoId,
+                moduloId: moduloId,
+                registroId: registroActivoId
+            });
+
+            toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest backdrop-blur-md bg-zinc-700 text-white border border-zinc-500";
+            toastContainer.innerHTML = `<i class="fa-solid fa-check-circle mr-3 text-lg"></i> CICLO CERRADO<br><span class="text-zinc-300 mt-1 block">Vuelva pronto, ${identificador}</span>`;
+            
+            new Audio('https://www.soundjay.com/buttons/beep-08b.mp3').play().catch(()=>{});
 
         } else {
-            console.warn("🚨 FAST-PASS BLOCKED", message);
+            // ==========================================
+            // FLUJO: REGISTRAR ENTRADA (CHECK-IN)
+            // ==========================================
+            console.info(`📥 DETECTADA ENTRADA: ${identificador}`);
+
+            toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest backdrop-blur-md bg-blue-600/90 text-white border border-blue-400";
+            toastContainer.innerHTML = `<i class="fa-solid fa-qrcode fa-spin mr-3 text-lg"></i> AUTORIZANDO ACCESO...<br><span class="text-blue-200 mt-1 block">${identificador}</span>`;
+
+            const payload = {
+                tipo_flujo: tipo_pase === 'staff' ? 'b2b' : 'proveedor',
+                modulo_origen: moduloId,
+                nombre: identificador,
+                empresa_area: tipo_pase === 'staff' ? 'STAFF INTERNO B2B' : 'VISITANTE / PROVEEDOR',
+                recurso: `QR Code (Vigencia: ${vigencia || '24h'})`,
+                motivo: "Validación Óptica en Caseta",
+                metadata: {
+                    version_motor: window.gestiaConfig.version,
+                    agente: "Gestia_Scanner_Optico",
+                    timestamp_cliente: Date.now()
+                }
+            };
+
+            const crearAccesoFn = window.functionsAuthority.httpsCallable(window.functionsAuthority.functions, 'crearAcceso');
+
+            await crearAccesoFn({
+                condominioId: window.gestiaConfig.condoId,
+                moduloId: moduloId,
+                payload
+            });
+
+            toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest backdrop-blur-md bg-emerald-600/90 text-white border border-emerald-400";
+            toastContainer.innerHTML = `<i class="fa-solid fa-check-double mr-3 text-lg"></i> ACCESO CONCEDIDO<br><span class="text-emerald-200 mt-1 block">${identificador}</span>`;
             
-            toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest backdrop-blur-md bg-red-600/90 text-white border border-red-400";
-            toastContainer.innerHTML = `<i class="fa-solid fa-ban mr-3 text-lg"></i> ACCESO DENEGADO<br><span class="text-red-200 mt-1 block font-mono">${message}</span>`;
-            
-            // Audio de error
-            const audio = new Audio('https://www.soundjay.com/buttons/button-10.mp3');
-            audio.play().catch(()=>{});
+            new Audio('https://www.soundjay.com/buttons/beep-07a.mp3').play().catch(()=>{});
         }
 
     } catch (error) {
         console.error("❌ FAST-PASS ERROR:", error);
-        
-        toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest backdrop-blur-md bg-orange-600/90 text-white border border-orange-400";
-        toastContainer.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-3 text-lg"></i> FALLA EN LA RED<br><span class="text-orange-200 mt-1 block font-mono">${error.message || 'Timeout del servidor'}</span>`;
+        toastContainer.className = "fixed top-5 right-5 px-6 py-4 rounded-2xl shadow-2xl z-[9999] font-black text-xs uppercase tracking-widest backdrop-blur-md bg-red-600 text-white border border-red-400";
+        toastContainer.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-3 text-lg"></i> ERROR DE NUBE<br><span class="text-red-200 mt-1 block">${error.message}</span>`;
     } finally {
-        // --- 6. LIMPIEZA ---
         setTimeout(() => {
             toastContainer.style.opacity = "0";
             setTimeout(() => {
                 toastContainer.style.display = "none";
-                toastContainer.style.opacity = "1";
                 fastPassInFlight = false;
             }, 300);
         }, 3500);
