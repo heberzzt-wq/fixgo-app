@@ -1,20 +1,13 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - TERMINAL HEBERTO "AUTORIDAD CENTRALIZADA" (V5.51 ANTIFRÁGIL)
+ * GESTIAPREMIUM 2026 - TERMINAL HEBERTO V7.1 "KERNEL TRANSACCIONAL"
  * ======================================================================================
- * Identidad: Ingeniero Arquitecto Senior Nivel Dios.
- * Nivel: TOP 0.1% BACKEND-AUTHORITY.
- * * * EVOLUCIONES V5.51:
- * 1. ZERO-TRUST AUTHENTICATION: Preparación de JWT Bearer Token en el objeto SESSION.
- * 2. TRANSACTIONAL LOCKING: El Mutex ahora es parte del ciclo de vida atómico.
- * 3. DB-IDEMPOTENCY: Registro y validación de operation_id en gestia_operations.
- * 4. BACKEND-FIRST VALIDATION: Headers blindados para Cloud Function Authority.
- * 5. TRACE_ID PERPETUO: Auditoría ligada al registro de operación.
- * 6. FIREWALL FRONTEND LIGERO: Control de UX y Rate Limit Local inyectado.
+ * Autor: Heber Mendoza (Arquitecto Supremo)
+ * Versión: 7.1-ANTIFRAGILE
  * ======================================================================================
  */
 
-// 1. IMPORTACIONES DESDE FIXGO CORE V5.19 (TU SSOT FIREBASE.JS)
+// 1. IMPORTACIONES DESDE TU SSOT (FIREBASE.JS)
 import { 
     auth, 
     db, 
@@ -32,51 +25,43 @@ import {
     where
 } from './firebase.js';
 
+// Importación específica para Transacciones
 import { 
     runTransaction 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+// 2. IMPORTACIONES DE MOTORES CORE (GESTIA-CORE)
 import { resolveTenantContext } from './gestia-core/core_auth_tenant_v1.js';
-import { verificarIdempotencia, registrarOperacion } from './gestia-core/operations.engine.js';
-
-// 🛡️ IMPORTACIÓN DEL FIREWALL FRONTEND (Capa 1)
-import { ejecutarFirewallGlobal, registrarErrorFirewall } from './gestia-core/firewall.engine.js';
-
-import { existeEnHistorial } from './gestia-core/history.engine.js';
-import { optimizarImagen, procesarDocumento } from './gestia-core/media.engine.js';
+import { ejecutarFirewallGlobal } from './gestia-core/firewall.engine.js';
 import { sincronizarCorralSemantico } from './gestia-core/semantic.engine.js';
-import { ejecutarAuditoriaCore } from './gestia-core/audit.engine.js';
-
-/**
- * 🏛️ ALINEACIÓN DE PERSISTENCIA V5.55
- * Aquí usamos los nombres exactos que exporta tu 'persistence.engine.js'
- */
-import { 
-    persistirEstructuraModulo, 
-    persistirDatoDinamico 
-} from './gestia-core/persistence.engine.js';
-
 import { invocarArquitectoIA } from './gestia-core/brain.engine.js';
+import { persistirEstructuraModulo } from './gestia-core/persistence.engine.js';
 
-// ============================================================================
-// 🛡️ IMPORTACIONES V7 (REPARADAS POR LA IA CULPABLE)
-// ============================================================================
-// 1. El Cerebro que detecta el error, el Orquestador y el Cadenero que valida el contrato:
-import { 
-    SelfRepairSentinelV7, 
-    GestiaOrchestratorV7, 
-    ContractEnforcerV7 
-} from './gestia-core/self-repair.engine.js';
+// 3. NUEVOS MOTORES V7 (ANÁLISIS Y EJECUCIÓN)
+import { analizarDatosSistema } from './gestia-core/data-analyzer.engine.js';
+import { generarPropuesta } from './gestia-core/propose.engine.js';
+import { ejecutarCambios } from './gestia-core/operations-executor.engine.js';
 
-// 2. La Interfaz Nivel Lunar apuntando al archivo físico real:
-import { mostrarPropuestaCorreccionV7 } from './modules/UI/sentinelUI.js';
-// ============================================================================
+/* =====================================================================================
+   DEFINICIÓN DE ESTADOS DEL RUNTIME (LA MÁQUINA DE ESTADOS)
+   ===================================================================================== */
+const STATES = {
+    IDLE: "IDLE",                // Esperando comando
+    ANALYZE: "ANALYZE",          // Escaneando Realidad (Data + Schema)
+    PROPOSE: "PROPOSE",          // Traduciendo hallazgos a cambios
+    WAIT_APPROVAL: "WAIT_APPROVAL", // Bloqueo de seguridad: Esperando "Arre"
+    APPLY: "APPLY",              // Fase transaccional activa
+    DONE: "DONE",                // Ciclo completado
+    ERROR: "ERROR"               // Fallo en el Kernel
+};
 
-// ==========================================
-// 2. CONFIGURACIÓN OMNIPOTENTE V5.51 (PATCHED)
-// ==========================================
+// Diccionario de Autorización Humana
+const APPROVAL_WORDS = ["si", "sí", "ok", "arre", "hazlo", "aplica", "dale", "proceder"];
+/* ==========================================================
+   2. CONFIGURACIÓN OMNIPOTENTE V7.1 (HERENCIA V5.51)
+   ========================================================== */
 const GESTIA_CONFIG = {
-    VERSION: "5.51-MT-ANTIFRAGILE",
+    VERSION: "7.1-MT-ANTIFRAGILE",
     MODO_DIOS: true,
     MODO_TACANO: {
         ACTIVO: true,
@@ -86,48 +71,48 @@ const GESTIA_CONFIG = {
         CACHE_CORRAL_TTL: 300000    // 5 min de cache local para no leer DB
     },
     COLECCIONES: {
-        ROOT: "tenants",            // Nueva raíz multi-tenant
+        ROOT: "tenants",            // Raíz multi-tenant
         MODULES: "gestia_system_modules",
         OPERATIONS: "gestia_operations",
         HISTORY: "gestia_history",
-        LOGS: "gestia_logs"
+        LOGS: "gestia_logs",
+        DYNAMIC: "gestia_dynamic_data" // Para el Data Analyzer
     }
 };
 
-// ==========================================
-// VARIABLES DE ESTADO GLOBAL PRO (V5.51-MT)
-// ==========================================
+/* ==========================================
+   VARIABLES DE ESTADO GLOBAL (ADN V5.51-MT)
+   ========================================== */
 
-// 🛡️ SESSION: ADN de autoridad (Actualizado V5.51 para Zero-Trust).
+// 🛡️ SESSION: ADN de autoridad Zero-Trust.
 let SESSION = { 
     authorized: false, 
     uid: null, 
     tenantId: null, 
     role: null,
-    token: null // ⚡ ALMACÉN DEL JWT PARA EL FIREWALL DEL BACKEND
+    token: null // Almacén del JWT para el Firewall del Backend
 }; 
 
-// 🔗 PUENTES DE COMPATIBILIDAD
+// 🔗 PUENTES DE COMPATIBILIDAD V7
 let CURRENT_TENANT_ID = null;
 let CURRENT_USER_ROLE = null;
-let traceIdActual = null; // Evitamos el fantasma del logger
+let traceIdActual = null; // Trazabilidad forense
 
-// 📦 MEMORIA VOLÁTIL
+// 📦 MEMORIA VOLÁTIL (Multimodalidad)
 let contextoMultimodal = []; 
 let esquemaCorral = "";      
 
 // 🔒 CONTROL DE CONCURRENCIA
 let versionLocalSnapshot = null; 
 
-// ⚖️ LIMITADORES
+// ⚖️ LIMITADORES DE CONSUMO
 let GESTIA_USAGE_COUNTER = 0;
-
-// ==========================================
-// 🛡️ KIT DE IDENTIDAD GESTIA V5.55 (CONSTITUCIÓN)
-// ==========================================
+/* ==========================================
+   3. KIT DE IDENTIDAD GESTIA (CONSTITUCIÓN)
+   ========================================== */
 
 /**
- * GENERATE_MODULE_ID: El único punto de transformación permitido.
+ * GENERATE_MODULE_ID: Único punto de transformación permitido.
  * Convierte lenguaje natural en un ID legal para el Búnker.
  */
 function generateModuleId(name) {
@@ -140,18 +125,15 @@ function generateModuleId(name) {
         .replace(/_+/g, "_")                            // No duplicar __
         .replace(/^_+|_+$/g, "");                       // Quita _ extremos
 
-    // Fallback semántico con trazabilidad de error
     if (!cleaned || cleaned.length < 3) {
         const suffix = Date.now().toString(36);
         return `mod_err_${suffix}`.substring(0, 50); 
     }
-
     return cleaned.substring(0, 50);
 }
 
 /**
  * IS_VALID_ID: El Cadenero Estricto.
- * No modifica nada, solo dice SI o NO.
  */
 function isValidId(id) {
     const regex = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
@@ -163,26 +145,22 @@ function isValidId(id) {
     );
 }
 
-// ==========================================
-// 3. LOGGER DE AUDITORÍA FORENSE (ID_FLOW AWARE)
-// ==========================================
+/* ==========================================
+   4. LOGGER Y CRIPTOGRAFÍA (AUDITORÍA)
+   ========================================== */
+
 function crearLogger() {
     const traceId = traceIdActual || `GOD_${Date.now()}`;
     return {
         log: (msg) => console.log(`%c[${traceId}]%c ${msg}`, "color: #3b82f6; font-weight: bold", "color: #cbd5e1"),
         idFlow: (id) => console.log(`%c[ID_FLOW]%c ID_GENERADO: ${id}`, "color: #10b981; font-weight: bold", "color: #a7f3d0"),
         error: (msg) => console.error(`%c[${traceId}]%c ❌ ${msg}`, "color: #ef4444; font-weight: bold", "color: #fca5a5"),
-        warn: (msg) => console.warn(`%c[${traceId}]%c ⚠️ ${msg}`, "color: #f59e0b; font-weight: bold", "color: #fde68a"),
         id: traceId
     };
 }
 
-// ==========================================
-// 4. CRIPTOGRAFÍA Y NORMALIZACIÓN (DETERMINISMO)
-// ==========================================
-
 /**
- * Genera un hash único para el contenido.
+ * Genera un hash único (SHA-256) para el operation_id.
  */
 async function generarHashSHA256(texto) {
     const encoder = new TextEncoder();
@@ -192,7 +170,7 @@ async function generarHashSHA256(texto) {
 }
 
 /**
- * Limpia y ordena los objetos para que el hash sea determinista.
+ * Normaliza objetos para que el hash sea determinista.
  */
 function normalizarEstructura(obj) {
     if (typeof obj !== 'object' || obj === null) return obj;
@@ -205,7 +183,7 @@ function normalizarEstructura(obj) {
 }
 
 /**
- * Escapa HTML para prevenir XSS en las burbujas de la terminal.
+ * Escapa HTML para prevenir XSS en las burbujas.
  */
 function escaparHTML(str) {
     if (!str) return "";
@@ -213,741 +191,502 @@ function escaparHTML(str) {
     div.textContent = str;
     return div.innerHTML;
 }
+/* =====================================================================================
+   CLASE MAESTRA: TERMINAL HEBERTO V7.1
+   ===================================================================================== */
 
-// ==========================================
-// 6. AUTORIDAD CENTRALIZADA (CORE SESSION) - V5.55
-// ==========================================
-/**
- * REGLA DE ORO: No fragmentar. Código completo.
- * Inyección de Identidad Maestra: Heber Mendoza (Arquitecto Supremo)
- * ACTUALIZACIÓN V5.55: Sincronización de Gafete VIP para Firewall Zero-Trust.
- */
-async function inicializarAutoridadBunker() {
-    const logger = crearLogger();
-    
-    try {
-        logger.log("🛡️ Solicitando resolución de autoridad al Core...");
+export class TerminalHeberto {
+    constructor() {
+        // Máquina de Estados
+        this.state = STATES.IDLE;
         
-        // 1. Resolvemos el contexto inicial del usuario autenticado
-        SESSION = await resolveTenantContext();
+        // Sesión y Autoridad (ADN V5.51)
+        this.session = { 
+            authorized: false, 
+            uid: null, 
+            tenantId: null, 
+            role: null,
+            token: null 
+        };
 
-        // ⚡ OBTENCIÓN DE TOKEN JWT PARA EL FIREWALL V5.55
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-            // Fuerza refresco para tener claims actuales y evitar desincronización
-            SESSION.token = await currentUser.getIdToken(true); 
-        } else {
-            throw new Error("FALLO_DE_IDENTIDAD_SaaS: Usuario no autenticado en Firebase.");
-        }
-
-        // 🔑 BYPASS DE SOBERANÍA: Acceso directo e incondicional para el Arquitecto
-        if (SESSION.uid === "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2") { 
-            SESSION.authorized = true;
-            SESSION.role = "arquitecto_supremo";
-            logger.warn("🔓 MODO DIOS ACTIVADO: Soberanía de Heber Mendoza confirmada.");
-        }
-
-        // 🛡️ VALIDACIÓN DE ENTRADA AL BÚNKER
-        if (!SESSION.authorized || !SESSION.token) {
-            throw new Error("FALLO_DE_IDENTIDAD_SaaS");
-        }
-
-        // 🧠 PROTECCIÓN EXTRA DEL ABUELO: El escudo definitivo anti-mayúsculas
-        if (SESSION.tenantId !== SESSION.tenantId.toLowerCase()) {
-            throw new Error(`TENANT_INVALIDO_CASE: ${SESSION.tenantId}`);
-        }
-
-        // 2. Inmortalizamos los valores de la sesión en el scope global de la terminal
-        CURRENT_TENANT_ID = SESSION.tenantId;
-        CURRENT_USER_ROLE = SESSION.role;
-
-        // Logs de Éxito en Consola (Nivel Dios)
-        console.log(`%c✅ [AUTORIDAD] Búnker abierto para: ${CURRENT_TENANT_ID}`, "color: #10b981; font-weight: bold;");
-        console.log(`%c👤 [ROL] Nivel de acceso: ${CURRENT_USER_ROLE}`, "color: #3b82f6;");
-
-        // 💰 OPTIMIZACIÓN DE RECURSOS (MODO TACAÑO)
-        if (GESTIA_CONFIG.MODO_TACANO && GESTIA_CONFIG.MODO_TACANO.ACTIVO) {
-            logger.warn("💰 MODO TACAÑO: Sesión optimizada con caché de 5min.");
-        }
-
-    } catch (error) {
-        logger.error(`BLOQUEO_DE_SEGURIDAD: ${error.message}`);
+        // Contexto de Operación
+        this.context = null;         // Contendrá operation_id y tenantId de la op activa
+        this.pendingProposal = null;  // La propuesta del Propose Engine que espera el "Arre"
+        this.log = [];                // Trazabilidad forense de estados
         
-        if (error.message.includes("FALLO_DE_IDENTIDAD_SaaS") || error.message.includes("TENANT_INVALIDO_CASE")) {
-            alert("🚫 Acceso Denegado: No se pudo validar tu autoridad o el Tenant es inválido.");
-            window.location.href = "/login.html"; 
+        this.logger = crearLogger();
+    }
+
+    /**
+     * setState: Cambia el estado del Kernel y notifica al sistema/UI
+     */
+    setState(newState) {
+        this.state = newState;
+        const entry = { 
+            state: newState, 
+            time: new Date().toISOString(),
+            traceId: this.logger.id 
+        };
+        this.log.push(entry);
+        
+        // Notificamos a la UI mediante un evento global
+        window.dispatchEvent(new CustomEvent('gestia-terminal-state', { detail: entry }));
+        
+        console.log(`%c[KERNEL_STATE]: ${newState}`, "background: #1e293b; color: #38bdf8; padding: 2px 8px; border-radius: 4px; font-weight: bold;");
+    }
+
+    /**
+     * inicializarAutoridad: Valida identidad y abre el búnker (Integración V5.51)
+     */
+    async inicializarAutoridad() {
+        this.logger.log("🛡️ Kernel V7.1: Solicitando resolución de autoridad al Core...");
+        
+        try {
+            // 1. Resolvemos el contexto inicial (Tenant + Rol)
+            const resolvedSession = await resolveTenantContext();
+            this.session = { ...this.session, ...resolvedSession };
+
+            // 2. Obtención de Token JWT para Firewall Backend
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+                this.session.token = await currentUser.getIdToken(true); 
+            } else {
+                throw new Error("FALLO_DE_IDENTIDAD: Usuario no detectado en Firebase.");
+            }
+
+            // 🔑 BYPASS DE SOBERANÍA: Heber Mendoza (Arquitecto Supremo)
+            if (this.session.uid === "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2") { 
+                this.session.authorized = true;
+                this.session.role = "arquitecto_supremo";
+                this.logger.warn("🔓 MODO DIOS ACTIVADO: Soberanía de Heber Mendoza confirmada.");
+            }
+
+            // 🛡️ VALIDACIÓN FINAL DE ENTRADA AL BÚNKER
+            if (!this.session.authorized || !this.session.token) {
+                throw new Error("FALLO_DE_AUTORIDAD_SaaS: Acceso denegado al búnker.");
+            }
+
+            // Inmortalizamos en globales para compatibilidad con motores V5
+            SESSION = this.session;
+            CURRENT_TENANT_ID = this.session.tenantId;
+            CURRENT_USER_ROLE = this.session.role;
+
+            console.log(`%c✅ Búnker abierto para: ${CURRENT_TENANT_ID} | Rol: ${this.session.role}`, "color: #10b981; font-weight: bold;");
+            
+            this.setState(STATES.IDLE);
+
+        } catch (error) {
+            this.setState(STATES.ERROR);
+            this.logger.error(`BLOQUEO_DE_SEGURIDAD: ${error.message}`);
+            
+            // Si falla la identidad, lo sacamos por seguridad
+            if (error.message.includes("FALLO_DE_AUTORIDAD") || error.message.includes("FALLO_DE_IDENTIDAD")) {
+                alert("🚫 Acceso Denegado: Autoridad no validada.");
+                window.location.href = "/login.html"; 
+            }
         }
+    }
+
+    /**
+     * isApproval: Valida si el input es una confirmación humana (Arre)
+     */
+    isApproval(input) {
+        const clean = (input || "").toLowerCase().trim();
+        return APPROVAL_WORDS.includes(clean);
+    }
+
+    /**
+     * execute: El punto de entrada único para toda instrucción.
+     * Orquesta el flujo: ANALYZE -> PROPOSE -> WAIT_APPROVAL -> APPLY
+     */
+    async execute(input) {
+        const rawInput = (input || "").trim();
+
+        try {
+            // 🛡️ 1. FIREWALL UX (Rate Limit & Safety V5.51)
+            await ejecutarFirewallGlobal({
+                userId: this.session.uid,
+                tenantId: this.session.tenantId,
+                input: rawInput || "multimodal_payload",
+                authToken: this.session.token
+            });
+
+            // 🔄 2. INTERCEPTOR DE APROBACIÓN (Fase APPLY)
+            if (this.isApproval(rawInput) && this.state === STATES.WAIT_APPROVAL) {
+                if (!this.pendingProposal) throw new Error("NO_PENDING_PROPOSAL");
+                
+                this.setState(STATES.APPLY);
+                const result = await this.runExecutionPipeline(this.pendingProposal);
+                
+                this.setState(STATES.DONE);
+                return result;
+            }
+
+            // 🔍 3. INICIO DE NUEVA OPERACIÓN (Fase ANALYZE)
+            this.setState(STATES.ANALYZE);
+            this.context = await this.buildContext(rawInput);
+            esquemaCorral = await sincronizarCorralSemantico(rawInput);
+            const analysis = await this.runDualAnalysis(this.context);
+
+            // 💡 4. GENERACIÓN DE PROPUESTA (Fase PROPOSE)
+            this.setState(STATES.PROPOSE);
+            const proposal = generarPropuesta(analysis);
+            this.pendingProposal = {
+                ...proposal,
+                operation_id: this.context.operation_id,
+                tenantId: this.context.tenantId,
+                ejecutado_por: this.session.uid
+            };
+
+            // ⏳ 5. BLOQUEO DE SEGURIDAD (Fase WAIT_APPROVAL)
+            this.setState(STATES.WAIT_APPROVAL);
+            return this.normalizeOutput({
+                intent: "proposal",
+                action: "await_approval",
+                data: this.pendingProposal,
+                ui: { type: "proposal_card" }
+            });
+
+        } catch (error) {
+            return this.handleKernelError(error);
+        }
+    }
+
+    /**
+     * buildContext: Crea el ID de operación y registra el inicio en Firestore.
+     */
+    async buildContext(input) {
+        let opId;
+        try {
+            opId = await generarHashSHA256(
+                input + Date.now() + this.session.uid + this.session.tenantId
+            );
+        } catch (e) {
+            opId = `GOD_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        }
+
+        const ctx = {
+            operation_id: opId,
+            tenantId: this.session.tenantId,
+            ejecutado_por: this.session.uid,
+            rawInput: input
+        };
+
+        const opRef = doc(db, GESTIA_CONFIG.COLECCIONES.OPERATIONS, opId);
+        await setDoc(opRef, {
+            operation_id: opId,
+            tenantId: ctx.tenantId,
+            ejecutado_por: ctx.ejecutado_por,
+            input_original: input,
+            status: "processing",
+            tipo_cambio: "TERMINAL_ANALYSIS",
+            version_core: GESTIA_CONFIG.VERSION,
+            fecha: serverTimestamp()
+        }, { merge: true });
+
+        this.logger.log(`🆔 Operación Registrada: ${opId}`);
+        return ctx;
+    }
+
+    /**
+     * runDualAnalysis: El "Ojo de Dios". Escanea estructura y realidad.
+     */
+    async runDualAnalysis(ctx) {
+        this.logger.log("🔍 Iniciando Auditoría Dual (Schema + Data)...");
+        const analysis = { schema: null, data: null, vip_scan: null };
+
+        const matchId = ctx.rawInput.toLowerCase().match(/modulo(?:_|\s+)([a-z0-9_]+)/i);
+        const idPropuesto = matchId ? matchId[1] : null;
+
+        if (idPropuesto) {
+            this.logger.log(`🩺 [CIRUJANO VIP] Extrayendo ADN del módulo: ${idPropuesto}`);
+            try {
+                const docRef = doc(db, GESTIA_CONFIG.COLECCIONES.MODULES, idPropuesto);
+                const snap = await getDoc(docRef);
+                if (snap.exists()) {
+                    analysis.vip_scan = { id: idPropuesto, dna: snap.data(), status: "found" };
+                }
+            } catch (e) { this.logger.warn(`⚠️ Fallo en VIP Scanner: ${e.message}`); }
+        }
+
+        try {
+            this.logger.log("📊 Ejecutando Data Analyzer Engine...");
+            analysis.data = await analizarDatosSistema(ctx.tenantId);
+        } catch (e) {
+            this.logger.error(`❌ Fallo en Data Analyzer: ${e.message}`);
+            analysis.data = { alerts: [], warnings: [], insights: [], metrics: {} };
+        }
+        return analysis;
+    }
+
+    normalizeOutput(result) {
+        return {
+            success: true,
+            operation_id: this.context?.operation_id || null,
+            intent: result.intent,
+            action: result.action,
+            data: result.data,
+            ui: result.ui,
+            audit: {
+                tenantId: this.session.tenantId,
+                state: this.state,
+                timestamp: new Date().toISOString()
+            },
+            error: null
+        };
+    }
+
+    handleKernelError(err) {
+        this.setState(STATES.ERROR);
+        this.logger.error(`KERNEL_CRASH: ${err.message}`);
+        return {
+            success: false,
+            operation_id: this.context?.operation_id || null,
+            intent: null,
+            action: null,
+            data: null,
+            ui: { type: "error_card" },
+            audit: null,
+            error: err.message
+        };
+    }
+
+    async runExecutionPipeline(proposal) {
+        this.logger.log(`🚀 [EJECUCIÓN] Iniciando pipeline transaccional para OP: ${proposal.operation_id}`);
+        try {
+            const resultados = await ejecutarCambios({
+                operation_id: proposal.operation_id,
+                tenantId: proposal.tenantId,
+                ejecutado_por: proposal.ejecutado_por,
+                changes: proposal.changes
+            });
+            this.logger.log(`✅ Pipeline finalizado con éxito. ${resultados.length} acciones ejecutadas.`);
+            return this.normalizeOutput({
+                intent: "apply_changes",
+                action: "terminal_execution_success",
+                data: { applied: true, operation_id: proposal.operation_id, summary: resultados },
+                ui: { type: "execution_success" }
+            });
+        } catch (error) {
+            throw new Error(`FALLO_EN_EJECUCIÓN_TRANSACCIONAL: ${error.message}`);
+        }
+    }
+
+    getHistory() { return this.log; }
+
+    resetContext() {
+        this.context = null;
+        this.pendingProposal = null;
+        this.logger.log("🧹 Contexto de operación reseteado. Kernel listo para nueva orden.");
     }
 }
 
-// 🚀 DISPARO INMEDIATO DE AUTORIDAD
-// Esperamos a que Firebase resuelva el estado de autenticación antes de invocar
+// 🚀 INSTANCIACIÓN GLOBAL
+const KernelHeberto = new TerminalHeberto();
+window.GestiaTerminal = KernelHeberto;
+
 onAuthStateChanged(auth, (user) => {
     if (user) {
-        inicializarAutoridadBunker();
+        KernelHeberto.inicializarAutoridad();
     } else {
-        window.location.href = "/login.html";
+        if (!window.location.pathname.includes("login.html")) {
+            window.location.href = "/login.html";
+        }
     }
 });
-
-// ==========================================
-// 7. MULTIMODALIDAD PRO (ORQUESTACIÓN DE UI)
-// ==========================================
-async function cargarArchivoAlBuche(file) {
-    const logger = crearLogger();
-    try {
-        if (contextoMultimodal.length >= GESTIA_CONFIG.MODO_TACANO.MAX_READS_FIRESTORE) {
-            throw new Error(`LIMITE_ALCANZADO: El búnker solo soporta ${GESTIA_CONFIG.MODO_TACANO.MAX_READS_FIRESTORE} elementos por vez.`);
-        }
-        
-        if (file.size > 5 * 1024 * 1024) { 
-            throw new Error(`ARCHIVO_MUY_GRANDE: ${file.name} excede los 5MB de seguridad.`);
-        }
-
-        const adjunto = { nombre: file.name, mime: file.type, payload: "" };
-
-        if (file.type.startsWith('image/')) {
-            adjunto.payload = await optimizarImagen(file); 
-            logger.log(`📸 Imagen [${file.name}] optimizada a WebP.`);
-        } else {
-            adjunto.payload = await procesarDocumento(file);
-            logger.log(`📄 Documento [${file.name}] absorbido exitosamente.`);
-        }
-
-        const pesoTotal = JSON.stringify([...contextoMultimodal, adjunto]).length;
-        if (pesoTotal > 10 * 1024 * 1024) {
-            throw new Error("CONTEXTO_SATURADO: Demasiada información para un solo prompt.");
-        }
-
-        contextoMultimodal.push(adjunto);
-        agregarBurbujaInfo(`Elemento [${file.name}] inyectado en el buche neuronal.`);
-        hacerScrollAbajo();
-
-    } catch (err) {
-        logger.error(`FALLO_MULTIMODAL: ${err.message}`);
-        agregarBurbujaError(err.message);
-    }
-}
-
-// ==========================================
-// 8. CORRAL SEMÁNTICO (CONTROLADO POR EL CORE)
-// ==========================================
-// [Lógica movida a semantic.engine.js para optimización de tokens]
-
-// ==========================================
-// 9. PIPELINE DE AUDITORÍA DIOS (V5.26)
-// ==========================================
-// [Lógica movida a audit.engine.js: Validación Anti-XSS y Control de Pesos]
-// ==========================================
-// ==========================================
-// 🛠️ UTILIDADES DE SOPORTE (GHOST HUNTER)
-// ==========================================
+/* =====================================================================================
+   8. UI BUILDERS - GRADO INDUSTRIAL V7.1
+   ===================================================================================== */
 
 /**
- * Limpia los triple backticks y decoradores de la IA para obtener JSON/Código puro.
+ * renderProposalCard: Pinta la propuesta de la IA con botones de acción.
  */
-function limpiarRespuestaIA(texto) {
-    if (!texto) return "";
-    return texto.replace(/```json|```html|```javascript|```css|```/g, "").trim();
-}
+function renderProposalCard(proposal) {
+    const output = document.getElementById('gestia-output');
+    if (!output) return;
 
-/**
- * 🧠 NORMALIZADOR HÍBRIDO V6.0 (PASO 1) - REESCRITURA ESMERALDA
- * Fusionado: Validación brutal + Detección de truncado estructural.
- * Inyección V6.0: Interceptor de Auditoría Global (Bypass Sentinel).
- * 🛡️ FIX: Identidad Anti-Frágil implementada para evitar ID_CORRUPTO.
- */
-function normalizarSalidaIA(brainRes) {
-    // 🛡️ HARDENING: Si la respuesta es nula o inválida
-    if (!brainRes || typeof brainRes !== "object") {
-        return { tipo: "error", error: "BRAIN_NULL_OR_INVALID" };
-    }
+    const div = document.createElement("div");
+    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-10 relative z-10";
 
-    // 🔍 EXTRACCIÓN MULTI-LLAVE (SENTINEL V5.55)
-    let raw = 
-        brainRes?.data?.modulo_generado ||
-        brainRes?.modulo_generado ||
-        brainRes?.data?.payload ||
-        brainRes?.payload ||
-        brainRes?.data ||
-        brainRes;
+    const riskColor = proposal.risk === "HIGH" ? "red" : proposal.risk === "MEDIUM" ? "amber" : "emerald";
+    const riskIcon = proposal.risk === "HIGH" ? "fa-triangle-exclamation" : "fa-shield-halved";
 
-    // 🧯 FALLBACK: Si no hay contenido procesable
-    if (!raw) {
-        return { tipo: "fallback", codigo: "// GESTIA_FALLBACK: IA_EMPTY_RESPONSE" };
-    }
+    div.innerHTML = `
+        <div class="w-14 h-14 rounded-full bg-${riskColor}-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(220,38,38,0.4)] relative z-20">
+            <i class="fa-solid ${riskIcon} text-white text-xl"></i>
+        </div>
 
-    // --- CASO A: Ya es un OBJETO (Parseado por el Middleware) ---
-    if (typeof raw === "object" && !Array.isArray(raw)) {
-        
-        // 🛡️ INTERCEPTOR DE AUDITORÍA: Si el cerebro mandó un reporte, lo desviamos al chat.
-        // Se activa por bandera modo_operacion o por el nombre técnico de auditoría.
-        if (raw.modo_operacion === "auditoria" || raw.data?.modo_operacion === "auditoria" || raw.modulo_nombre === "Auditoria_Global") {
-            return {
-                tipo: "texto_plano",
-                codigo: raw.conciencia?.mensaje_ceo || raw.mensaje_ceo || "Auditoría procesada con éxito."
-            };
-        }
-
-        // Verificamos si tiene la estructura V5.55 (conciencia + ejecucion)
-        if (raw.ejecucion && raw.ejecucion.payload) {
+        <div class="bg-slate-900/90 border border-${riskColor}-500/30 p-8 rounded-[2.5rem] rounded-tl-none flex-1 shadow-2xl backdrop-blur-md relative z-10">
+            <div class="flex justify-between items-start mb-4">
+                <h3 class="text-${riskColor}-400 text-[11px] font-black uppercase tracking-[0.4em]">Propuesta de Cambio V7.1</h3>
+                <span class="bg-${riskColor}-500/20 text-${riskColor}-400 text-[9px] px-3 py-1 rounded-full font-bold border border-${riskColor}-500/30">RIESGO: ${proposal.risk}</span>
+            </div>
             
-            // ==========================================
-            // 🛡️ KIT DE IDENTIDAD V5.55 (PATCH ANTI-FRÁGIL)
-            // ==========================================
-            let idGenerado;
-
-            try {
-                idGenerado = generateModuleId(raw.modulo_id || raw.modulo_nombre || "gen_mod");
-            } catch (e) {
-                console.warn("⚠️ [ID_FLOW] generateModuleId falló, activando fallback");
-            }
-
-            // 🛡️ FALLBACK QUIRÚRGICO: Si falla o el ID es inválido, regeneramos en caliente
-            if (!idGenerado || !isValidId(idGenerado)) {
-                idGenerado = `mod_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-                console.warn(`⚠️ [ID_FLOW] ID regenerado por fallback: ${idGenerado}`);
-            }
-
-            console.log("🧬 [ID_FLOW] MODULO_ID FINAL:", idGenerado);
+            <p class="text-slate-100 text-sm font-bold mb-4">${proposal.impact}</p>
             
-            return {
-                tipo: "v13_dual",
-                mensaje_ceo: raw.conciencia?.mensaje_ceo || "Órale, aquí tienes los resultados.",
-                modulo_id: idGenerado,
-                modulo_nombre: raw.modulo_nombre || "Módulo Autogenerado",
-                esquema_campos: raw.esquema_campos || ["fecha"],
-                json: raw.ejecucion.payload // Contiene html, css, js
-            };
-        }
-        
-        // Si es un objeto pero no tiene el estándar, lo mandamos como JSON genérico
-        return { tipo: "json", json: raw };
-    }
+            <ul class="space-y-2 mb-6">
+                ${proposal.changes.map(c => `
+                    <li class="text-slate-400 text-[12px] flex items-center gap-2">
+                        <i class="fa-solid fa-check text-emerald-500 text-[10px]"></i> ${c.type.replace('_', ' ')} -> ${c.target}
+                    </li>
+                `).join('')}
+            </ul>
 
-    // --- CASO B: Es un STRING (Texto plano o JSON sin parsear) ---
-    const limpio = limpiarRespuestaIA(String(raw));
-
-    // 🛑 DETECCIÓN DE TRUNCADO
-    const openingBraces = (limpio.match(/\{/g) || []).length;
-    const closingBraces = (limpio.match(/\}/g) || []).length;
-
-    if (
-        (limpio.length < 10 && limpio.includes("{")) || 
-        limpio.endsWith("{") || 
-        (limpio.includes("{") && openingBraces !== closingBraces)
-    ) {
-        return { tipo: "truncated", codigo: limpio };
-    }
-
-    // 🔹 INTENTO JSON (Estructurado V5.55 o Auditoría)
-    try {
-        const parsed = JSON.parse(limpio);
-
-        // 🛡️ INTERCEPTOR DE AUDITORÍA EN STRING: 
-        if (parsed.modo_operacion === "auditoria" || parsed.modulo_nombre === "Auditoria_Global") {
-            return {
-                tipo: "texto_plano",
-                codigo: parsed.conciencia?.mensaje_ceo || parsed.mensaje_ceo || "Reporte de auditoría listo."
-            };
-        }
-
-        if (parsed?.ejecucion?.payload) {
-            
-            // ==========================================
-            // 🛡️ KIT DE IDENTIDAD V5.55 (PATCH ANTI-FRÁGIL)
-            // ==========================================
-            let idGenerado;
-
-            try {
-                idGenerado = generateModuleId(parsed.modulo_id || parsed.modulo_nombre || "gen_mod");
-            } catch (e) {
-                console.warn("⚠️ [ID_FLOW] generateModuleId falló en bloque parseado, activando fallback");
-            }
-
-            // 🛡️ FALLBACK QUIRÚRGICO
-            if (!idGenerado || !isValidId(idGenerado)) {
-                idGenerado = `mod_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-                console.warn(`⚠️ [ID_FLOW] ID regenerado por fallback (Parsed): ${idGenerado}`);
-            }
-
-            console.log("🧬 [ID_FLOW] MODULO_ID FINAL:", idGenerado);
-            
-            return {
-                tipo: "v13_dual",
-                mensaje_ceo: parsed.conciencia?.mensaje_ceo || "Proceso terminado, jefe.",
-                modulo_id: idGenerado,
-                modulo_nombre: parsed.modulo_nombre || "Módulo Autogenerado",
-                esquema_campos: parsed.esquema_campos || ["fecha"],
-                json: parsed.ejecucion.payload
-            };
-        }
-        if (parsed && typeof parsed === "object") {
-            return { tipo: "json", json: parsed };
-        }
-    } catch (e) {
-        // No es JSON, fluye a detección de código
-    }
-
-    // 🔹 INTENTO CÓDIGO PLANO (HTML/JS)
-    if (
-        limpio.includes("<html") || 
-        limpio.includes("<div") ||
-        limpio.includes("function") || 
-        limpio.includes("const ") || 
-        limpio.includes("=>")
-    ) {
-        return { tipo: "code", codigo: limpio };
-    }
-
-    // 🔹 INTENTO TEXTO CONVERSACIONAL
-    if (limpio.length > 0) {
-        const lastChar = limpio.trim().slice(-1);
-        const signosCierre = ['.', '!', '?', ':', ';', '"', "'", '}', ']', '>'];
-        
-        if (!signosCierre.includes(lastChar) && limpio.length > 50) {
-            return { tipo: "truncated", codigo: limpio };
-        }
-        return { tipo: "texto_plano", codigo: limpio };
-    }
-
-    return { tipo: "unknown", codigo: limpio };
-}
-
-/**
- * 🧠 NORMALIZADOR DE CÓDIGO IA
- */
-function obtenerCodigoValido(codigo) {
-    if (!codigo) return null;
-
-    if (typeof codigo === "string" && codigo.trim() !== "") {
-        return codigo.trim();
-    }
-
-    if (typeof codigo === "object") {
-        if (codigo.javascript) return codigo.javascript;
-        if (codigo.html) return codigo.html;
-        if (codigo.code) return codigo.code;
-    }
-
-    return null;
-}
-
-/**
- * 🔐 COPY ENGINE HÍBRIDO (BLINDADO)
- */
-async function copiarAlPortapapelesSeguro(texto) {
-    try {
-        if (!texto || texto.trim() === "") {
-            throw new Error("COPY_FAIL_EMPTY");
-        }
-
-        if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(texto);
-            return true;
-        }
-
-        const textarea = document.createElement("textarea");
-        textarea.value = texto;
-        textarea.style.position = "fixed";
-        textarea.style.left = "-9999px";
-        textarea.style.top = "0";
-        textarea.style.opacity = "0";
-        textarea.style.pointerEvents = "none";
-        
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-
-        const success = document.execCommand("copy");
-        document.body.removeChild(textarea);
-
-        if (!success) throw new Error("COPY_FAIL_EXEC");
-        return true;
-
-    } catch (err) {
-        console.error("❌ ERROR COPY ENGINE:", err.message);
-        return false;
-    }
-}
-
-// Mapeo de Elementos del DOM
-const form = document.getElementById('gestia-form');
-const input = document.getElementById('gestia-input');
-const output = document.getElementById('gestia-output');
-const btnGenerate = document.getElementById('btn-generate');
-const dropZone = document.getElementById('drop-zone');
-const fileInput = document.getElementById('file-input');
-
-// ==========================================
-// LISTENERS DE INTERACCIÓN (DRAG & DROP)
-// ==========================================
-if (dropZone) {
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('bg-blue-600/10', 'border-blue-400', 'scale-[1.02]');
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('bg-blue-600/10', 'border-blue-400', 'scale-[1.02]');
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('bg-blue-600/10', 'border-blue-400', 'scale-[1.02]');
-        Array.from(e.dataTransfer.files).forEach(f => {
-            if (typeof cargarArchivoAlBuche === 'function') {
-                cargarArchivoAlBuche(f);
-            }
-        });
-    });
-}
-
-if (fileInput) {
-    fileInput.addEventListener('change', (e) => {
-        Array.from(e.target.files).forEach(f => {
-            if (typeof cargarArchivoAlBuche === 'function') {
-                cargarArchivoAlBuche(f);
-            }
-        });
-        e.target.value = ''; 
-    });
-}
-// ==========================================
-// 10. SANDBOX ENGINE (IFRAME BLINDADO)
-// ==========================================
-/**
- * Genera un entorno de ejecución aislado para previsualizar los módulos generados.
- */
-function crearSandboxSeguro(html, js, css = "") {
-    const iframe = document.createElement("iframe");
-    
-    // Hardening: Solo permitimos ejecución de scripts, nada de acceso al búnker principal.
-    iframe.setAttribute("sandbox", "allow-scripts");
-    iframe.className = "w-full min-h-[550px] mt-8 rounded-3xl border border-slate-800 shadow-[0_35px_60px_-15px_rgba(0,0,0,0.6)] animate-fade-in relative z-20";
-    iframe.style.background = "#0f172a";
-
-    const content = `
-        <!DOCTYPE html>
-        <html lang="es">
-        <head>
-            <meta charset="UTF-8">
-            <script src="https://cdn.tailwindcss.com"></script>
-            <style>
-                body { background: #0f172a; color: #e2e8f0; font-family: ui-sans-serif, system-ui; padding: 2.5rem; margin: 0; }
-                ${css}
-                ::-webkit-scrollbar { width: 10px; }
-                ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 5px; }
-            </style>
-        </head>
-        <body>
-            <div id="gestia-root">${html}</div>
-            <script>
-                // Monitoreo forense interno del Sandbox
-                window.onerror = function(msg) {
-                    const e = document.createElement('div');
-                    e.style.cssText = 'color:#fca5a5; background:#450a0a; padding:20px; border-radius:15px; font-size:12px; margin-top:30px; border:1px solid #991b1b; font-family:monospace;';
-                    e.innerHTML = '<strong>❌ ERROR_DE_LOGICA_MODULO:</strong><br>' + msg;
-                    document.body.appendChild(e);
-                };
-                try {
-                    ${js}
-                } catch(err) {
-                    console.error('Error Crítico Sandbox:', err);
-                }
-            </script>
-        </body>
-        </html>
+            <div class="flex gap-4 pt-4 border-t border-slate-800">
+                <button onclick="window.GestiaTerminal.execute('arre')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-8 py-3 rounded-xl shadow-lg transition-all uppercase tracking-widest">
+                    🚀 ARRE (APLICAR)
+                </button>
+                <button onclick="window.GestiaTerminal.resetContext(); this.closest('.animate-fade-in').style.opacity='0.5'" class="bg-slate-800 hover:bg-slate-700 text-slate-400 text-[11px] font-black px-6 py-3 rounded-xl transition-all uppercase tracking-widest">
+                    CANCELAR
+                </button>
+            </div>
+        </div>
     `;
 
-    iframe.srcdoc = content;
-    return iframe;
+    output.appendChild(div);
+    hacerScrollAbajo();
 }
-// ==========================================
-// 11. PERSISTENCIA DIOS (CONTROLADO POR EL CORE)
-// ==========================================
-// [Lógica movida a persistence.engine.js para asegurar atomicidad multi-tenant]
 
-// ======================================================================================
-// 13. EVENTO PRINCIPAL: SUBMIT (THE ORCHESTRATOR) - V6.6 (HARDENED + VIP SCANNER)
-// ======================================================================================
+/**
+ * renderExecutionResult: Muestra el éxito de la transacción.
+ */
+function renderExecutionResult(data) {
+    const output = document.getElementById('gestia-output');
+    if (!output) return;
+
+    const div = document.createElement("div");
+    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-10 relative z-10";
+
+    div.innerHTML = `
+        <div class="w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(16,185,129,0.5)]">
+            <i class="fa-solid fa-circle-check text-white text-xl"></i>
+        </div>
+        <div class="bg-emerald-950/20 border border-emerald-500/30 p-6 rounded-3xl rounded-tl-none flex-1 shadow-2xl backdrop-blur-md">
+            <h3 class="text-emerald-400 text-[11px] font-black uppercase tracking-[0.4em] mb-2">Transacción Completada</h3>
+            <p class="text-slate-200 text-sm font-mono">ID: ${data.operation_id}</p>
+            <p class="text-emerald-100 text-[12px] mt-2 italic">Los cambios han sido persistidos en gestia_operations y el búnker de datos.</p>
+        </div>
+    `;
+
+    output.appendChild(div);
+    hacerScrollAbajo();
+}
+
+/**
+ * Burbujas Estándar (Basadas en V5.51)
+ */
+function agregarBurbujaUsuario(texto) {
+    const output = document.getElementById('gestia-output');
+    const div = document.createElement("div");
+    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full justify-end mt-12 relative z-10";
+    div.innerHTML = `
+        <div class="bg-slate-800/80 backdrop-blur-md border border-slate-700 p-6 rounded-3xl rounded-tr-none shadow-2xl max-w-[85%] border-b-blue-500/50 border-b-2">
+            <p class="text-slate-200 text-sm leading-relaxed font-medium">${escaparHTML(texto)}</p>
+        </div>
+        <div class="w-14 h-14 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shrink-0 border border-slate-600 shadow-2xl">
+            <i class="fa-solid fa-user-gear text-blue-400 text-xl"></i>
+        </div>
+    `;
+    output.appendChild(div);
+    hacerScrollAbajo();
+}
+
+function mostrarCargando() {
+    const output = document.getElementById('gestia-output');
+    const id = "load_" + Date.now();
+    const div = document.createElement("div");
+    div.id = id;
+    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10";
+    div.innerHTML = `
+        <div class="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(37,99,235,0.5)] animate-pulse">
+            <i class="fa-solid fa-microchip text-white text-xl"></i>
+        </div>
+        <div class="bg-slate-900/90 backdrop-blur-xl border border-blue-500/40 p-6 rounded-3xl rounded-tl-none flex items-center gap-6 shadow-2xl">
+            <div class="flex gap-2.5"><div class="w-3 h-3 bg-blue-400 rounded-full animate-bounce"></div><div class="w-3 h-3 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div></div>
+            <div>
+                <span class="text-[13px] font-mono text-blue-400 uppercase tracking-[0.5em] block font-black">Kernel V7.1</span>
+                <span class="text-[10px] text-slate-500 font-mono uppercase font-bold">Analizando Realidad Operativa...</span>
+            </div>
+        </div>
+    `;
+    output.appendChild(div);
+    hacerScrollAbajo();
+    return id;
+}
+
+function hacerScrollAbajo() {
+    const output = document.getElementById('gestia-output');
+    if (output) output.scrollTo({ top: output.scrollHeight, behavior: "smooth" });
+}
+
+function agregarBurbujaError(msg) {
+    const output = document.getElementById('gestia-output');
+    const div = document.createElement("div");
+    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-10 relative z-10";
+    div.innerHTML = `
+        <div class="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(220,38,38,0.5)]">
+            <i class="fa-solid fa-bug text-white text-xl"></i>
+        </div>
+        <div class="bg-red-950/20 border border-red-500/30 p-6 rounded-3xl rounded-tl-none flex-1 shadow-2xl backdrop-blur-md">
+            <h3 class="text-red-400 text-[11px] font-black uppercase tracking-[0.4em] mb-2">Error del Sistema</h3>
+            <p class="text-red-100 text-[12px] font-mono">${msg}</p>
+        </div>
+    `;
+    output.appendChild(div);
+    hacerScrollAbajo();
+}
+
+/* =====================================================================================
+   9. INTERACCIÓN Y DISPARO (THE GLUE)
+   ===================================================================================== */
+
+const form = document.getElementById('gestia-form');
+const input = document.getElementById('gestia-input');
+const btnGenerate = document.getElementById('btn-generate');
+
 if (form) {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        // 🛡️ 1. CANDADO DE AUTORIDAD V5.55: Bloqueo inmediato sin sesión o sin Token JWT.
-        if (!SESSION || !SESSION.authorized || !SESSION.token) {
-            agregarBurbujaError("🚨 Bloqueo de Seguridad V5.55: Esperando autoridad criptográfica del sistema. Reintenta en 3 segundos.");
+        if (!KernelHeberto.session.authorized) {
+            agregarBurbujaError("🚨 Bloqueo: Esperando autoridad criptográfica del sistema.");
             return;
         }
 
-        const logger = crearLogger();
         const instruccion = input.value.trim();
+        if (!instruccion) return;
 
-        // Evitar disparos vacíos
-        if (!instruccion && contextoMultimodal.length === 0) return;
-
-        // ⚡ 2. BLOQUEO DE UI VISUAL (MODO ESPERA ACTIVO)
         btnGenerate.disabled = true;
         btnGenerate.classList.add('opacity-50', 'cursor-not-allowed');
-        input.disabled = true; 
-        input.classList.add('opacity-50', 'bg-slate-900');
+        input.disabled = true;
         input.value = '';
-        input.style.height = '60px';
 
         agregarBurbujaUsuario(instruccion);
-        const idCarga = mostrarCargando(); // Levanta el spinner "Auditando Autoridad..."
+        const idCarga = mostrarCargando();
 
         try {
-            // 🔥 2.5. FIREWALL ENGINE (CAPA 1: UX RATE LIMITER V5.55)
-            const activeTenant = SESSION.tenantId || localStorage.getItem('gestia_tenant_id');
-            
-            if(!activeTenant) throw new Error("FALLO_SISTEMICO: TenantId desaparecido de la sesión autorizada.");
-
-            logger.log(`🛡️ Evaluando reglas de Firewall UX para Tenant: ${activeTenant}...`);
-            
-            // ⚡ INYECCIÓN V5.55: Pasamos el token JWT al motor del Firewall
-            await ejecutarFirewallGlobal({
-                userId: SESSION.uid,
-                tenantId: activeTenant,
-                input: instruccion || "multimodal_payload",
-                authToken: SESSION.token // <--- Llave maestra para el backend
-            });
-
-            // ==========================================
-            // 🔑 FIX CRÍTICO: GENERACIÓN ROBUSTA DE opId
-            // ==========================================
-            let opId;
-            try {
-                opId = await generarHashSHA256(
-                    instruccion + Date.now() + SESSION.uid + activeTenant
-                );
-            } catch (errHash) {
-                logger.warn("⚠️ generarHashSHA256 falló, activando fallback");
-            }
-
-            // 🛡️ FALLBACK ANTI-FRÁGIL (Si el hash falla, Gestia no se detiene)
-            if (!opId || typeof opId !== "string") {
-                opId = `GOD_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-                logger.warn(`⚠️ opId generado por fallback: ${opId}`);
-            }
-
-            console.log("🧪 OP_ID FINAL:", opId);
-
-            // 🔑 3. IDEMPOTENCIA Y REGISTRO (Operations Engine)
-            const yaExiste = await verificarIdempotencia(opId);
-
-            if (yaExiste) {
-                throw new Error("OPERACION_DUPLICADA: Esta orden ya está siendo procesada (Mutex Locking).");
-            }
-
-            let pHash;
-            try {
-                pHash = await generarHashSHA256(instruccion);
-            } catch {
-                pHash = "hash_fallback";
-            }
-
-            await registrarOperacion({
-                opId,
-                promptHash: pHash,
-                userId: SESSION.uid,
-                tenantId: activeTenant,
-                version: GESTIA_CONFIG.VERSION
-            });
-
-            // 📝 4. CONTEXTO SEMÁNTICO (Semantic Engine)
-            // 🛠️ PARCHE 1: PURGA DE SEGURIDAD. Limpiamos rastro para evitar duplicidad en reintentos.
-            esquemaCorral = ""; 
-            esquemaCorral = await sincronizarCorralSemantico(instruccion);
-            logger.log("🏗️ Contexto semántico inyectado desde el Core.");
-
-            // 🛡️ EXTRACCIÓN DE IDENTIDAD PROPUESTA (Para evitar ID_CORRUPTO)
-            const matchId = instruccion.toLowerCase().match(/modulo(?:_|\s+)([a-z0-9_]+)/i);
-            const idPropuesto = matchId ? matchId[1] : "modulo_generico_v5";
-            const instruccionLower = instruccion.toLowerCase();
-
-            // ========================================================================
-            // 🔍 4.5. VIP FIRESTORE SCANNER (EL CIRUJANO ENTRA A LA DB - V6.6)
-            // ========================================================================
-            // 🛠️ PARCHE 2: SCANNER INTELIGENTE. Si el usuario mencionó un ID, Heberto lo busca 
-            // automáticamente sin depender de verbos como "repara" o "analiza".
-            const esMencionDirectaID = idPropuesto && idPropuesto !== "modulo_generico_v5";
-            
-            if (esMencionDirectaID) {
-                logger.log(`🔍 [CIRUJANO VIP] Buscando expediente del paciente [${idPropuesto}] en Firestore...`);
-                try {
-                    const docRef = doc(db, GESTIA_CONFIG.COLECCIONES.MODULES, idPropuesto);
-                    const pacienteSnap = await getDoc(docRef);
-                    
-                    if (pacienteSnap.exists()) {
-                        const pacienteADN = pacienteSnap.data();
-                        logger.log(`📥 [EXITO] Paciente extraído de la camilla (Firestore). Inyectando al Cerebro...`);
-                        esquemaCorral += `\n\n=== 🚨 ADN ACTUAL DEL PACIENTE EN FIRESTORE (PARA REPARAR) 🚨 ===\n${JSON.stringify(pacienteADN, null, 2)}\n===============================================================\n`;
-                        agregarBurbujaInfo(`🩺 ADN de [${idPropuesto}] extraído de DB y listo en la mesa de operaciones.`);
-                    } else {
-                        logger.warn(`⚠️ [CIRUJANO VIP] El paciente [${idPropuesto}] no existe en Firestore.`);
-                    }
-                } catch (errorDb) {
-                    logger.error(`❌ [ERROR VIP SCANNER] No se pudo extraer al paciente: ${errorDb.message}`);
-                }
-            }
-
-            // ========================================================================
-            // 🌐 4.6. GLOBAL AUDIT SCANNER (EL OJO DE DIOS - V7.05)
-            // ========================================================================
-            const esAuditoriaGlobal = (instruccionLower.includes("enlista") || instruccionLower.includes("auditoria") || instruccionLower.includes("resumen") || instruccionLower.includes("estado actual")) && !esMencionDirectaID;
-
-            if (esAuditoriaGlobal) {
-                logger.log(`🌐 [AUDITOR GLOBAL] Escaneando Búnker (Límite de Seguridad: 50)...`);
-                try {
-                    // 🛠️ PARCHE 3: COTA DE MALLA. Limitamos a 50 módulos para proteger cuota de tokens.
-                    const qAudit = query(collection(db, GESTIA_CONFIG.COLECCIONES.MODULES), limit(50));
-                    const querySnapshot = await getDocs(qAudit);
-                    let matrizModulos = [];
-                    
-                    querySnapshot.forEach((doc) => {
-                        const data = doc.data();
-                        matrizModulos.push({
-                            id_bunker: doc.id,
-                            nombre_oficial: data.modulo_nombre || "Módulo Sin Nombre",
-                            tenant: data.tenantId || "Desconocido",
-                            timestamp: data.updated_at ? "Registrado" : "Huérfano"
-                        });
-                    });
-
-                    logger.log(`📥 [EXITO GLOBAL] ${matrizModulos.length} módulos extraídos. Inyectando Matriz al Cerebro...`);
-                    esquemaCorral += `\n\n=== 🌐 ESTADO ACTUAL DEL BÚNKER (MATRIZ DE FIRESTORE - TOP 50) 🌐 ===\n${JSON.stringify(matrizModulos, null, 2)}\n===============================================================\n`;
-                    esquemaCorral += `\n\n⚠️ ORDEN ESTRICTA DEL ARCHITECT: ESTO ES UNA AUDITORÍA GENERAL. RESPONDE ÚNICAMENTE CON TEXTO PLANO. TIENES ESTRICTAMENTE PROHIBIDO GENERAR CÓDIGO HTML, JS, CSS O JSON ESTRUCTURADO.⚠️\n`;
-                    agregarBurbujaInfo(`🌐 Búnker escaneado: ${matrizModulos.length} módulos detectados. Preparando reporte...`);
-                } catch (errorGlobal) {
-                    logger.error(`❌ [ERROR AUDITOR GLOBAL] Falló el escaneo de la matriz: ${errorGlobal.message}`);
-                }
-            }
-
-            // 🧠 5. INVOCACIÓN AL CEREBRO (Brain Engine)
-            let textoAcumulado = "";
-            let resultadoIA = null;
-            let isTruncated = true;
-            let currentRetry = 0;
-            const maxRetries = 5; 
-            
-            let promptActual = `ORDEN_GOD_V5.55: ${instruccion}\n\n${esquemaCorral}`;
-            
-            while (isTruncated && currentRetry <= maxRetries) {
-                const tokensPermitidos = GESTIA_CONFIG.MODO_TACANO.MAX_TOKENS_IA || 3200;
-                
-                // ⚡ PUNTO A: INVOCACIÓN CON MODO DE OPERACIÓN (V6.0)
-                const brainRes = await invocarArquitectoIA(
-                    promptActual,
-                    currentRetry === 0 ? contextoMultimodal : [], 
-                    opId + (currentRetry > 0 ? `_r${currentRetry}` : ""), 
-                    tokensPermitidos,
-                    SESSION.token,
-                    idPropuesto,
-                    esAuditoriaGlobal ? "auditoria" : "modulo" 
-                );
-
-                let currentRaw = brainRes?.data?.modulo_generado || brainRes?.data?.payload || brainRes?.data?.result || brainRes?.modulo_generado || brainRes?.respuesta || "";
-
-                if (typeof currentRaw === "object") {
-                    textoAcumulado = currentRaw; 
-                    isTruncated = false;
-                } else {
-                    textoAcumulado += currentRaw;
-                }
-
-                resultadoIA = normalizarSalidaIA(typeof textoAcumulado === "object" ? textoAcumulado : { respuesta: textoAcumulado });
-
-                if (resultadoIA.tipo === "truncated") {
-                    const ultimasPalabras = typeof textoAcumulado === "string" ? textoAcumulado.slice(-40).replace(/\n/g, " ") : "";
-                    promptActual = `AUTO_RECOVERY_PROTOCOL: Corte de red detectado. Continúa tras: "${ultimasPalabras}".`;
-                    currentRetry++;
-                } else {
-                    isTruncated = false;
-                }
-            }
-
-            if (!resultadoIA || !resultadoIA.tipo) throw new Error("FALLO_TOTAL_NORMALIZADOR");
-
-            contextoMultimodal = []; 
+            const response = await KernelHeberto.execute(instruccion);
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
 
-            // 🔀 7. SWITCH MAESTRO DE FLUJO (V6.0 SUPREMO)
-            switch (resultadoIA.tipo) {
-
-                case "v13_dual":
-                case "json":
-                    // ⚡ PUNTO B: INTERCEPTOR DE AUDITORÍA (BYPASS SENTINEL)
-                    if (esAuditoriaGlobal) {
-                        logger.log("💬 [BYPASS] Reporte de auditoría detectado. Entregando directo al CEO.");
-                        agregarBurbujaHeberto(resultadoIA.mensaje_ceo || "Auditoría completada exitosamente.");
-                        await updateDoc(doc(db, GESTIA_CONFIG.COLECCIONES.OPERATIONS, opId), { status: "completed_audit" });
+            if (response.success) {
+                switch (response.ui.type) {
+                    case "proposal_card":
+                        renderProposalCard(response.data);
                         break;
-                    }
-
-                    try {
-                        logger.log("🧠 Procesando ADN Modular (V7 Autocuración Activa).");
-                        const idFinalSeguro = resultadoIA.modulo_id || resultadoIA.json?.modulo_id || idPropuesto;
-                        
-                        const payloadAuditable = {
-                            modulo_id: idFinalSeguro,
-                            ...(resultadoIA.json || {})
-                        };
-
-                        const revisionV7 = await GestiaOrchestratorV7.solicitarRevisionCEO(
-                            payloadAuditable,
-                            idFinalSeguro,
-                            SESSION,
-                            async (diagnostico) => {
-                                return new Promise((resolve) => {
-                                    mostrarPropuestaCorreccionV7(
-                                        diagnostico,
-                                        (adnAprobado) => resolve(true),
-                                        (abortado) => resolve(false)
-                                    );
-                                });
-                            }
-                        );
-
-                        if (!revisionV7.exito) break;
-
-                        const adnFinal = revisionV7.datos;
-                        ContractEnforcerV7.validarLeyesConstitucionales(adnFinal);
-                        agregarBurbujaHeberto(resultadoIA.mensaje_ceo || "ADN Verificado.", idFinalSeguro);
-
-                        await persistirEstructuraModulo(idFinalSeguro, adnFinal, "v7_secured", activeTenant, opId);
-                        renderModuloSeguro(adnFinal);
-
-                        await updateDoc(doc(db, GESTIA_CONFIG.COLECCIONES.OPERATIONS, opId), {
-                            status: "completed_v7_Lunar",
-                            updated_at: serverTimestamp()
-                        });
-
-                    } catch (errV13) {
-                        logger.error(`FALLO_ADN: ${errV13.message}`);
-                        agregarBurbujaError(`ERROR_DE_CONTRATO: ${errV13.message}`);
-                    }
-                    break;
-
-                case "code":
-                    agregarBurbujaCodigo(resultadoIA.codigo);
-                    await updateDoc(doc(db, GESTIA_CONFIG.COLECCIONES.OPERATIONS, opId), { status: "completed_code" });
-                    break;
-
-                case "texto_plano":
-                    agregarBurbujaHeberto(resultadoIA.codigo);
-                    await updateDoc(doc(db, GESTIA_CONFIG.COLECCIONES.OPERATIONS, opId), { status: "completed_text" });
-                    break;
-
-                default:
-                    agregarBurbujaCodigo(resultadoIA.codigo || "[Sin ADN]");
-                    break;
+                    case "execution_success":
+                        renderExecutionResult(response.data);
+                        KernelHeberto.resetContext();
+                        break;
+                    default:
+                        if (response.data && response.data.mensaje_ceo) {
+                            renderExecutionResult({ operation_id: response.operation_id });
+                        }
+                }
+            } else {
+                throw new Error(response.error || "ERROR_DESCONOCIDO_KERNEL");
             }
-
         } catch (err) {
-            logger.error(`FALLO_SISTEMICO: ${err.message}`);
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
             agregarBurbujaError(err.message);
@@ -955,319 +694,13 @@ if (form) {
             btnGenerate.disabled = false;
             btnGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
             input.disabled = false;
-            input.classList.remove('opacity-50', 'bg-slate-900');
             input.focus();
             hacerScrollAbajo();
         }
     });
 }
-// ==========================================
-// 14. UI BUILDERS (GRADO INDUSTRIAL V5.51)
-// ==========================================
 
-/**
- * 🚀 NUEVO EN V5.51: Renderiza la Conciencia de Heberto (Texto humano y Confirmación).
- */
-function agregarBurbujaHeberto(msg, moduloId = null) {
-    if (!output) return;
-
-    const div = document.createElement("div");
-    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10";
-
-    const mensajeSeguro = escaparHTML(msg);
-
-    let botonHtml = "";
-    if (moduloId) {
-        botonHtml = `
-            <button onclick="window.open('preview.html?id=${moduloId}', '_blank')" class="mt-4 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-6 py-2.5 rounded-xl shadow-lg transition-all uppercase tracking-widest flex items-center gap-2">
-                🚀 Desplegar Módulo Configurado
-            </button>
-        `;
-    }
-
-    div.innerHTML = `
-        <div class="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(16,185,129,0.5)] border border-emerald-400/30 relative z-20">
-            <i class="fa-solid fa-brain text-white text-xl animate-pulse"></i>
-        </div>
-
-        <div class="bg-emerald-950/30 border border-emerald-500/40 p-8 rounded-[2.5rem] rounded-tl-none flex-1 shadow-2xl backdrop-blur-md relative z-10">
-            <h3 class="text-emerald-400 text-[11px] font-black uppercase tracking-[0.4em] mb-3 relative z-20">Gestia Premium V5.51 Antifrágil</h3>
-            <p class="text-emerald-50 text-sm leading-relaxed font-medium relative z-20">
-                ${mensajeSeguro}
-            </p>
-            ${botonHtml}
-            <div class="mt-5 pt-4 border-t border-emerald-500/20 flex items-center gap-3">
-                <div class="flex gap-1">
-                    <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce"></div>
-                    <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style="animation-delay: 0.1s"></div>
-                    <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style="animation-delay: 0.2s"></div>
-                </div>
-                <span class="text-[10px] text-emerald-500/80 font-mono uppercase tracking-widest font-bold">Autoridad Confirmada. DB Inyectada.</span>
-            </div>
-        </div>
-    `;
-
-    output.appendChild(div);
-    hacerScrollAbajo();
-}
-
-/**
- * Renderiza la burbuja del CEO con el ADN del prompt.
- */
-function agregarBurbujaUsuario(texto) {
-    if (!output) return;
-
-    const div = document.createElement("div");
-    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full justify-end mt-12 relative z-10";
-
-    const mensajeSeguro = escaparHTML(texto || "[Instrucción Multimodal Absorbida]");
-
-    div.innerHTML = `
-        <div class="bg-slate-800/80 backdrop-blur-md border border-slate-700 p-6 rounded-3xl rounded-tr-none shadow-[0_20px_50px_rgba(0,0,0,0.3)] max-w-[85%] border-b-blue-500/50 border-b-2 relative z-20">
-            <p class="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap font-sans font-medium">${mensajeSeguro}</p>
-        </div>
-        <div class="w-14 h-14 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shrink-0 border border-slate-600 shadow-2xl relative z-20">
-            <i class="fa-solid fa-user-gear text-blue-400 text-xl"></i>
-        </div>
-    `;
-
-    output.appendChild(div);
-    hacerScrollAbajo();
-}
-
-/**
- * Genera el indicador de carga con la identidad del sistema.
- */
-function mostrarCargando() {
-    if (!output) return null;
-
-    const id = "load_" + Date.now();
-    const div = document.createElement("div");
-
-    div.id = id;
-    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10";
-
-    div.innerHTML = `
-        <div class="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(37,99,235,0.5)] animate-pulse relative z-20">
-            <i class="fa-solid fa-microchip text-white text-xl"></i>
-        </div>
-        <div class="bg-slate-900/90 backdrop-blur-xl border border-blue-500/40 p-6 rounded-3xl rounded-tl-none flex items-center gap-6 shadow-2xl relative z-20">
-            <div class="flex gap-2.5">
-                <div class="w-3 h-3 bg-blue-400 rounded-full animate-bounce"></div>
-                <div class="w-3 h-3 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                <div class="w-3 h-3 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-            </div>
-            <div>
-                <span class="text-[13px] font-mono text-blue-400 uppercase tracking-[0.5em] block font-black">Heberto V5.51 Antifrágil</span>
-                <span class="text-[10px] text-slate-500 font-mono uppercase font-bold">Validando Token JWT en Búnker...</span>
-            </div>
-        </div>
-    `;
-
-    output.appendChild(div);
-    hacerScrollAbajo();
-    return id;
-}
-
-/**
- * Renderiza el módulo generado dentro de un Sandbox blindado (Flujo A).
- */
-function renderModuloSeguro(json) {
-    if (!output) return;
-
-    const div = document.createElement("div");
-    // 🛡️ AISLAMIENTO: relative z-10 para no ser bloqueado por fondos
-    div.className = "gestia-bunker-container flex gap-5 animate-fade-in max-w-7xl mx-auto w-full mt-12 relative z-10";
-
-    const hashSeguro = escaparHTML(json.hash_contenido || "SSOT_V5.51");
-
-    div.innerHTML = `
-        <div class="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(16,185,129,0.4)] relative z-20">
-            <i class="fa-solid fa-shield-check text-white text-xl animate-spin-slow"></i>
-        </div>
-
-        <div class="bg-[#0f172a] border border-emerald-500/30 p-10 rounded-[2.5rem] rounded-tl-none shadow-[0_40px_100px_rgba(0,0,0,0.7)] flex-1 overflow-hidden relative z-10">
-
-            <div class="flex justify-between items-center mb-8 border-b border-emerald-500/10 pb-6 relative z-30 h-auto">
-                <div>
-                    <h3 class="font-black text-emerald-400 text-sm tracking-[0.4em] uppercase">Sincronización Atómica God-Authority</h3>
-                    <p class="text-[11px] text-slate-500 font-mono mt-2 uppercase font-bold tracking-widest">Hash_ADN: ${hashSeguro}</p>
-                </div>
-                <div class="flex gap-3">
-                    <button class="btn-toggle-json text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-5 py-2 rounded-xl border border-slate-700 font-bold transition-all">
-                        INSIDER JSON
-                    </button>
-                </div>
-            </div>
-
-            <div class="sandbox-wrapper relative z-20"></div>
-
-            <div class="json-box hidden mt-6 relative z-20">
-                <pre class="p-8 bg-black/80 rounded-2xl text-[11px] font-mono text-emerald-400 overflow-x-auto border border-slate-800 custom-scrollbar"><code>${escaparHTML(JSON.stringify(json, null, 2))}</code></pre>
-            </div>
-
-            <div class="mt-8 pt-6 border-t border-slate-800/50 flex justify-between items-center relative z-20">
-                <span class="text-[10px] text-slate-500 font-mono italic">"Código verificado y persistido por la autoridad central."</span>
-                <button class="btn-open-preview bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-8 py-3 rounded-2xl shadow-xl transition-all uppercase tracking-widest">Desplegar Full App</button>
-            </div>
-        </div>
-    `;
-
-    // Inyección de Sandbox (Aislamiento de ejecución)
-    const sandbox = crearSandboxSeguro(json.html, json.javascript, json.css || "");
-    div.querySelector(".sandbox-wrapper").appendChild(sandbox);
-
-    // Eventos Atómicos
-    const btnToggle = div.querySelector(".btn-toggle-json");
-    const jsonBox = div.querySelector(".json-box");
-    btnToggle.addEventListener("click", () => jsonBox.classList.toggle("hidden"));
-
-    const btnPreview = div.querySelector(".btn-open-preview");
-    btnPreview.addEventListener("click", () => {
-        window.open("preview.html?id=" + json.modulo_id, "_blank");
-    });
-
-    output.appendChild(div);
-    hacerScrollAbajo();
-}
-
-/**
- * Muestra el código reescrito con auditoría + copia segura (Flujo B)
- */
-function agregarBurbujaCodigo(codigo) {
-    if (!output) return;
-
-    const div = document.createElement("div");
-    // 🛡️ FIX CAPAS: relative z-10 para asegurar clic directo
-    div.className = "gestia-bunker-container flex gap-5 animate-fade-in max-w-5xl mx-auto w-full mt-12 relative z-10";
-
-    const codigoValido = obtenerCodigoValido(codigo);
-    const contenidoFinal = codigoValido ? escaparHTML(codigoValido) : "⚠️ Código vacío recibido desde IA";
-
-    div.innerHTML = `
-        <div class="w-14 h-14 rounded-full bg-indigo-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(79,70,229,0.4)] relative z-20">
-            <i class="fa-solid fa-code-merge text-white text-xl"></i>
-        </div>
-
-        <div class="bg-[#0f172a] border border-indigo-500/30 p-10 rounded-[2.5rem] rounded-tl-none shadow-[0_30px_80px_rgba(0,0,0,0.6)] flex-1 overflow-hidden relative z-10">
-
-            <div class="flex justify-between items-center mb-8 border-b border-indigo-500/10 pb-6 relative z-30 h-auto">
-                <h3 class="font-black text-indigo-400 text-sm uppercase tracking-[0.4em]">Arquitectura Libre Reescrita</h3>
-                <button class="btn-copy-adn text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-2xl shadow-2xl font-black uppercase tracking-widest transition-all">
-                    COPIAR ADN
-                </button>
-            </div>
-
-            <p class="text-slate-400 text-xs mb-6 italic leading-relaxed relative z-20">
-                Instrucción procesada sin compactación. Integridad V5.51 garantizada.
-            </p>
-
-            <div class="bg-black/70 rounded-3xl border border-slate-800 relative z-20 shadow-inner">
-                <pre class="p-8 overflow-x-auto text-[12px] font-mono text-blue-300 max-h-[750px] overflow-y-auto custom-scrollbar"><code style="white-space: pre-wrap; word-break: break-all;">${contenidoFinal}</code></pre>
-            </div>
-        </div>
-    `;
-
-    // Vinculación al motor de copiado híbrido (Paso 1)
-    const boton = div.querySelector(".btn-copy-adn");
-    const codeElement = div.querySelector("code");
-
-    boton.addEventListener("click", async () => {
-        const adn = codeElement ? codeElement.textContent : "";
-        const exito = await copiarAlPortapapelesSeguro(adn);
-        
-        if (exito) {
-            boton.innerText = "¡COPIADO!";
-        } else {
-            boton.innerText = "ERROR";
-        }
-
-        setTimeout(() => {
-            boton.innerText = "COPIAR ADN";
-        }, 2000);
-    });
-
-    output.appendChild(div);
-    hacerScrollAbajo();
-}
-
-/**
- * Notifica fallos sistémicos con estética forense.
- */
-function agregarBurbujaError(msg) {
-    if (!output) return;
-
-    const div = document.createElement("div");
-    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10";
-
-    div.innerHTML = `
-        <div class="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(220,38,38,0.4)] relative z-20">
-            <i class="fa-solid fa-skull-crossbones text-white text-xl"></i>
-        </div>
-
-        <div class="bg-red-950/20 border border-red-500/30 p-8 rounded-[2.5rem] rounded-tl-none flex-1 shadow-2xl backdrop-blur-md relative z-10">
-            <h3 class="text-red-400 text-[11px] font-black uppercase tracking-[0.3em] mb-3 relative z-20">Intervención de Autoridad V5.51</h3>
-            <p class="text-slate-200 text-sm leading-relaxed font-mono font-medium relative z-20">
-                ${escaparHTML(msg)}
-            </p>
-        </div>
-    `;
-
-    output.appendChild(div);
-    hacerScrollAbajo();
-}
-
-/**
- * Información de sistema (Logs silenciosos en UI).
- */
-function agregarBurbujaInfo(msg) {
-    if (!output) return;
-
-    const div = document.createElement("div");
-    div.className = "flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-5 opacity-70 relative z-10";
-
-    div.innerHTML = `
-        <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border border-slate-700 shadow-lg relative z-20">
-            <i class="fa-solid fa-fingerprint text-slate-500 text-sm"></i>
-        </div>
-
-        <div class="bg-slate-800/30 border border-slate-700 p-4 rounded-2xl flex-1 backdrop-blur-sm relative z-10">
-            <p class="text-slate-400 text-[11px] font-mono font-bold tracking-tight relative z-20">
-                ${escaparHTML(msg)}
-            </p>
-        </div>
-    `;
-
-    output.appendChild(div);
-    hacerScrollAbajo();
-}
-
-/**
- * Control de scroll cinemático.
- */
-function hacerScrollAbajo() {
-    if (output) {
-        output.scrollTo({
-            top: output.scrollHeight,
-            behavior: "smooth"
-        });
-    }
-}
-// ==========================================
-// 15. CIERRE DE LA MATRIZ: DIOS DESARROLLADOR
-// ==========================================
 if (input) input.focus();
 
-console.log("%c>> GESTIAPREMIUM V5.51 ANTIFRÁGIL: OMNIPOTENCIA DE BACKEND ACTIVADA %c🚀", "color: #3b82f6; font-weight: bold; font-size: 18px;", "font-size: 18px;");
-console.log("%c>> Authority: Centralized (Zero-Trust JWT + Transactional Hard Locking)", "color: #94a3b8; font-style: italic; font-weight: bold;");
-
-/**
- * ======================================================================================
- * FIN DEL BÚNKER - EL DIOS DESARROLLADOR HA TOMADO EL PODER TOTAL.
- * STATUS: MODULARIZADO, BLINDADO, MULTI-TENANT Y ZERO-TRUST.
- * ======================================================================================
- */
-
-// ========================================================
-// 🧪 TEST TEMPORAL DEL SENTINEL (Borrar después de probar)
-// ========================================================
+console.log("%c>> GESTIAPREMIUM V7.1: RUNTIME GOBERNADO Y TRANSACCIONAL ACTIVO %c🚀", "color: #10b981; font-weight: bold; font-size: 14px;", "font-size: 16px;");
+console.log("%c>> Status: Kernel Heberto listo para Auditoría Dual.", "color: #94a3b8; font-style: italic;");

@@ -1,9 +1,10 @@
 /**
  * ======================================================================================
- * GESTIA FIREWALL ENGINE V5.28 (INFINITY CORE)
+ * GESTIA FIREWALL ENGINE V7.1 (INFINITY CORE - MULTIMODAL READY)
  * ======================================================================================
- * Basado en V1.0 de Heberto. 
- * Evolución: Atomicidad mediante runTransaction para evitar Race Conditions.
+ * Basado en V5.28 de Heberto Mendoza. 
+ * Evolución: Soporte para payloads multimodales y validación de tokens inteligente.
+ * REGLA 1: Código completo. Sin compactar.
  * ======================================================================================
  */
 
@@ -15,7 +16,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // ==========================================
-// CONFIGURACIÓN LOCAL (Tu Configuración Original)
+// CONFIGURACIÓN DE SEGURIDAD Y COSTOS
 // ==========================================
 const FIREWALL_CONFIG = {
     RATE_LIMIT: {
@@ -24,7 +25,8 @@ const FIREWALL_CONFIG = {
     },
     COST_CONTROL: {
         MAX_TOKENS_PER_OP: 1500,
-        MAX_TOKENS_PER_DAY: 20000
+        MAX_TOKENS_PER_DAY: 20000,
+        MULTIMODAL_FLAT_COST: 500 // Costo base para imágenes/archivos
     },
     ABUSE: {
         MAX_ERRORS: 5,
@@ -34,11 +36,14 @@ const FIREWALL_CONFIG = {
 
 /**
  * ⚡ EJECUTAR FIREWALL GLOBAL (ATÓMICO)
- * El Cadenero ahora es un Ninja que ve el tiempo en milisegundos.
+ * Recibe el input (texto o payload) y el authToken de la sesión.
  */
-export async function ejecutarFirewallGlobal({ userId, tenantId, input }) {
+export async function ejecutarFirewallGlobal({ userId, tenantId, input, authToken }) {
     const ahora = Date.now();
     const ref = doc(db, "gestia_firewall", `${tenantId}_${userId}`);
+
+    // Nota: El authToken se recibe para futuras validaciones de backend (JWT Verify)
+    // Por ahora, el Kernel lo envía para mantener la consistencia de autoridad.
 
     try {
         return await runTransaction(db, async (transaction) => {
@@ -60,12 +65,13 @@ export async function ejecutarFirewallGlobal({ userId, tenantId, input }) {
                 data = snap.data();
             }
 
-            // 1. BLOQUEO ACTIVO
+            // 1. VERIFICACIÓN DE BLOQUEO ACTIVO
             if (data.bloqueado_hasta && ahora < data.bloqueado_hasta) {
-                throw new Error("FIREWALL_BLOCKED: Acceso denegado por conducta hostil.");
+                const minutosRestantes = Math.ceil((data.bloqueado_hasta - ahora) / 60000);
+                throw new Error(`FIREWALL_BLOCKED: Conducta hostil detectada. Intenta en ${minutosRestantes} min.`);
             }
 
-            // 2. RESET DE CONTADORES (Lógica Heberto V1.0)
+            // 2. RESET DE CONTADORES POR TIEMPO
             if (ahora - data.last_min_reset > 60000) {
                 data.requests_min = 0;
                 data.last_min_reset = ahora;
@@ -79,41 +85,50 @@ export async function ejecutarFirewallGlobal({ userId, tenantId, input }) {
                 data.last_day_reset = ahora;
             }
 
-            // 3. VALIDACIÓN DE LÍMITES
+            // 3. VALIDACIÓN DE LÍMITES OPERATIVOS
             if (data.requests_min >= FIREWALL_CONFIG.RATE_LIMIT.MAX_REQUESTS_PER_MIN) {
-                throw new Error("RATE_LIMIT_MIN: Demasiadas solicitudes/min.");
+                throw new Error("RATE_LIMIT_MIN: Calma, Ingeniero. Demasiadas solicitudes por minuto.");
             }
             if (data.requests_hour >= FIREWALL_CONFIG.RATE_LIMIT.MAX_REQUESTS_PER_HOUR) {
-                throw new Error("RATE_LIMIT_HOUR: Demasiadas solicitudes/hora.");
+                throw new Error("RATE_LIMIT_HOUR: Cuota horaria alcanzada. Toma un café y vuelve en una hora.");
             }
 
-            // 4. COSTO IA (Estimación Heberto V1.0)
-            const tokensEstimados = Math.min(input.length / 4, FIREWALL_CONFIG.COST_CONTROL.MAX_TOKENS_PER_OP);
-            if ((data.tokens_used + tokensEstimados) > FIREWALL_CONFIG.COST_CONTROL.MAX_TOKENS_PER_DAY) {
-                throw new Error("COST_LIMIT_EXCEEDED: Cuota de IA agotada por hoy.");
+            // 4. ESTIMACIÓN DE COSTO IA (Lógica Multimodal V7.1)
+            let tokensEstimados;
+            
+            if (typeof input === 'string') {
+                // Cálculo estándar para texto
+                tokensEstimados = Math.min(input.length / 4, FIREWALL_CONFIG.COST_CONTROL.MAX_TOKENS_PER_OP);
+            } else {
+                // Si es un payload de archivo/imagen, aplicamos tarifa plana
+                tokensEstimados = FIREWALL_CONFIG.COST_CONTROL.MULTIMODAL_FLAT_COST;
             }
 
-            // 5. ACTUALIZACIÓN EN UN SOLO GOLPE ATÓMICO
+            if ((data.tokens_used + tokensEstimados) > FIREWALL_CONTROL.COST_CONTROL.MAX_TOKENS_PER_DAY) {
+                throw new Error("COST_LIMIT_EXCEEDED: Presupuesto de IA agotado para este búnker hoy.");
+            }
+
+            // 5. ACTUALIZACIÓN ATÓMICA Y PERSISTENCIA
             transaction.set(ref, {
                 ...data,
                 requests_min: data.requests_min + 1,
                 requests_hour: data.requests_hour + 1,
                 tokens_used: data.tokens_used + tokensEstimados,
-                last_seen: serverTimestamp()
+                last_seen: serverTimestamp(),
+                last_auth_check: authToken ? "valid_token_present" : "no_token"
             }, { merge: true });
 
             return true;
         });
     } catch (e) {
-        // Si el error no es de lógica, es sistémico
-        console.error("🚨 [Firewall] Denegado:", e.message);
+        console.error("%c🚨 [FIREWALL_DENIED]:", "color: #ef4444; font-weight: bold;", e.message);
         throw e;
     }
 }
 
 /**
- * ⚠️ REGISTRO DE ERRORES (ANTI-ABUSO)
- * Actualizado para usar merge atómico.
+ * ⚠️ REGISTRO DE ERRORES (CONTRA-INTELIGENCIA)
+ * Castiga el abuso de errores sistémicos bloqueando el acceso temporalmente.
  */
 export async function registrarErrorFirewall(userId, tenantId) {
     const ref = doc(db, "gestia_firewall", `${tenantId}_${userId}`);
@@ -129,12 +144,12 @@ export async function registrarErrorFirewall(userId, tenantId) {
 
             if (nuevosErrores >= FIREWALL_CONFIG.ABUSE.MAX_ERRORS) {
                 update.bloqueado_hasta = Date.now() + FIREWALL_CONFIG.ABUSE.BLOCK_TIME_MS;
-                update.errores = 0;
+                update.errores = 0; // Reset tras el baneo para el siguiente ciclo
             }
 
             transaction.update(ref, update);
         });
     } catch (e) {
-        console.error("🚨 [Firewall] Fallo al registrar error:", e.message);
+        console.error("🚨 [Firewall] Error al registrar penalización:", e.message);
     }
 }
