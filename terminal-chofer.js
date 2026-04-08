@@ -25,7 +25,7 @@ import {
 // ==========================================
 // 1. ESTADO GLOBAL (CONFIGURACIÓN MAESTRA)
 // ==========================================
-const tenantIdBase = "UXMAL39_NOC"; // El búnker de flotilla
+const tenantIdBase = "uxmal39"; // El búnker de flotilla
 let usuarioActual = null;
 let vehiculoAsignado = null;
 
