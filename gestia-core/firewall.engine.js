@@ -104,9 +104,9 @@ export async function ejecutarFirewallGlobal({ userId, tenantId, input, authToke
                 tokensEstimados = FIREWALL_CONFIG.COST_CONTROL.MULTIMODAL_FLAT_COST;
             }
 
-            if ((data.tokens_used + tokensEstimados) > FIREWALL_CONTROL.COST_CONTROL.MAX_TOKENS_PER_DAY) {
-                throw new Error("COST_LIMIT_EXCEEDED: Presupuesto de IA agotado para este búnker hoy.");
-            }
+           if ((data.tokens_used + tokensEstimados) > FIREWALL_CONFIG.COST_CONTROL.MAX_TOKENS_PER_DAY) {
+    throw new Error("COST_LIMIT_EXCEEDED: Presupuesto de IA agotado para este búnker hoy.");
+}
 
             // 5. ACTUALIZACIÓN ATÓMICA Y PERSISTENCIA
             transaction.set(ref, {
