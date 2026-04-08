@@ -11,18 +11,15 @@
  * generarPropuesta: El cerebro estratégico.
  * @param {Object} analysis - Resultado del Data Analyzer.
  */
-export function generarPropuesta(analysis) {
-    console.log("%c[PROPOSE_ENGINE]: Generando estrategia de intervención...", "color: #8b5cf6; font-weight: bold;");
-
-    const proposal = {
-        risk: "LOW",           // HIGH, MEDIUM, LOW
-        impact: "",            // Resumen ejecutivo para el Arquitecto
-        changes: [],           // Lista de acciones para el Executor
-        metadata: {
-            analysis_id: analysis.timestamp,
-            score_salud: calcularScoreSimple(analysis)
-        }
-    };
+const proposal = {
+    risk: "LOW",
+    impact: "",
+    changes: [],
+    metadata: {
+        analysis_id: Date.now(),
+        score_salud: calcularScoreSimple(analysis || {})
+    }
+};
 
     // --- 1. LÓGICA DE REPARACIÓN AUTOMÁTICA (SELF-HEAL) ---
     
@@ -89,14 +86,13 @@ export function generarPropuesta(analysis) {
     console.log(`%c[PROPOSE_ENGINE]: Propuesta lista con ${proposal.changes.length} cambios. Riesgo: ${proposal.risk}`, "color: #10b981;");
     
     return proposal;
-}
 
 /**
  * calcularScoreSimple: Deducción rápida de salud del sistema
  */
 function calcularScoreSimple(analysis) {
-    let score = 100;
-    score -= (analysis.alerts.length * 25);
-    score -= (analysis.warnings.length * 10);
-    return Math.max(0, score);
+    const alerts = analysis?.data?.alerts || [];
+    const warnings = analysis?.data?.warnings || [];
+
+    return Math.max(0, 100 - (alerts.length * 10 + warnings.length * 5));
 }
