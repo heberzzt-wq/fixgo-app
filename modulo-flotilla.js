@@ -1,7 +1,8 @@
 /**
  * =====================================================
- * MÓDULO: FLEET MANAGEMENT (NOC FLOTILLAS) v5.40
+ * MÓDULO: FLEET MANAGEMENT (NOC FLOTILLAS) v5.50
  * Inteligencia: Flotilla + Bitácora + Operadores
+ * Funciones: Alta, Monitoreo y Baja (Delete)
  * =====================================================
  */
 
@@ -14,13 +15,14 @@ import {
     orderBy, 
     serverTimestamp,
     doc,
-    updateDoc
+    updateDoc,
+    deleteDoc // <--- Importado para la función de baja
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // ==========================================
 // 1. CONFIGURACIÓN DEL MOTOR
 // ==========================================
-const tenantId = "UXMAL39_NOC"; 
+const tenantId = "uxmal39"; 
 const flotillaRef = collection(db, "flotilla_b2b", tenantId, "vehiculos");
 const operadoresRef = collection(db, "flotilla_b2b", tenantId, "operadores");
 
@@ -264,7 +266,7 @@ document.getElementById("formNuevaBitacora").addEventListener("submit", async (e
 });
 
 // ==========================================
-// 7. MOTOR DE OPERADORES (OPCIÓN B)
+// 6. MOTOR DE OPERADORES (OPCIÓN B)
 // ==========================================
 
 // Función para calcular salud de la licencia
@@ -287,7 +289,7 @@ window.abrirModalOperadores = () => {
         const tbody = document.getElementById("tablaOperadores");
         
         if (snapshot.empty) {
-            tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-zinc-600"><p class="text-xs font-black uppercase tracking-widest">Sin Operadores Registrados</p></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="py-10 text-center text-zinc-600"><p class="text-xs font-black uppercase tracking-widest">Sin Operadores Registrados</p></td></tr>`;
             return;
         }
 
@@ -295,6 +297,7 @@ window.abrirModalOperadores = () => {
 
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
+            const id = docSnap.id; // Obtenemos el ID para la función de borrado
             const licencia = analizarLicencia(data.vence_licencia);
 
             const tr = document.createElement("tr");
@@ -315,10 +318,31 @@ window.abrirModalOperadores = () => {
                         <i class="fas ${licencia.icon}"></i> ${licencia.texto}
                     </span>
                 </td>
+                <td class="p-4 text-right">
+                    <button onclick="window.eliminarOperador('${id}', '${data.nombre}')" class="text-zinc-600 hover:text-red-500 transition-colors p-2">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </td>
             `;
             tbody.appendChild(tr);
         });
     });
+};
+
+// Función Maestra de Eliminación
+window.eliminarOperador = async (id, nombre) => {
+    const confirmar = confirm(`¿Estás seguro de eliminar a ${nombre}?\nEsta acción no se puede deshacer.`);
+    
+    if (confirmar) {
+        try {
+            const docRef = doc(db, "flotilla_b2b", tenantId, "operadores", id);
+            await deleteDoc(docRef);
+            mostrarToast("Operador eliminado", "red");
+        } catch (error) {
+            console.error("Error al borrar:", error);
+            alert("No se pudo eliminar el registro del servidor.");
+        }
+    }
 };
 
 document.getElementById("formNuevoOperador").addEventListener("submit", async (e) => {
