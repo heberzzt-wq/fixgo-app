@@ -574,59 +574,77 @@ if (form) {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
+        // 🛡️ 1. CANDADO DE AUTORIDAD V7.1
         if (!KernelHeberto.session.authorized) {
             window.agregarBurbujaError?.("🚨 Bloqueo: Esperando autoridad criptográfica del sistema.");
-return;
+            return;
         }
 
         const instruccion = input.value.trim();
         if (!instruccion) return;
 
+        // ⚡ 2. BLOQUEO DE UI (MANTENER FOCO)
         btnGenerate.disabled = true;
         btnGenerate.classList.add('opacity-50', 'cursor-not-allowed');
         input.disabled = true;
         input.value = '';
 
-    window.agregarBurbujaUsuario(instruccion);
-const idCarga = window.mostrarCargando();
+        window.agregarBurbujaUsuario?.(instruccion);
+        const idCarga = window.mostrarCargando?.();
 
         try {
+            // 🚀 3. INVOCACIÓN AL KERNEL
+            // El Kernel orquesta: ANALYZE -> PROPOSE
             const response = await KernelHeberto.execute(instruccion);
+
+            // Quitamos el spinner de carga
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
 
+            // 🔀 4. MANEJO DE RESPUESTA SEGÚN UI_TYPE
             if (response.success) {
+                
                 switch (response.ui.type) {
                     case "proposal_card":
-                        renderProposalCard(response.data);
+                        window.renderProposalCard?.(response.data);
                         break;
+                    
                     case "execution_success":
-                        renderExecutionResult(response.data);
+                        window.renderExecutionResult?.(response.data);
+                        // Si la ejecución fue un éxito total, reseteamos el Kernel para la siguiente op
                         KernelHeberto.resetContext();
                         break;
+                    
                     default:
+                        // Fallback para respuestas de texto simple o IA conversacional
                         if (response.data && response.data.mensaje_ceo) {
-                            renderExecutionResult({ operation_id: response.operation_id });
+                            window.renderExecutionResult?.({ operation_id: response.operation_id }); 
                         }
                 }
+
             } else {
                 throw new Error(response.error || "ERROR_DESCONOCIDO_KERNEL");
             }
+
         } catch (err) {
+            // Limpieza en caso de fallo
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
-            window.agregarBurbujaError(err.message);
+            
+            window.agregarBurbujaError?.(err.message);
         } finally {
+            // 🔓 5. LIBERACIÓN DE UI Y FOCO
             btnGenerate.disabled = false;
             btnGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
             input.disabled = false;
             input.focus();
-            hacerScrollAbajo();
+            
+            window.hacerScrollAbajo?.();
         }
     });
 }
 
+// ⌨️ ACCESO RÁPIDO: Foco automático al cargar la terminal
 if (input) input.focus();
 
-console.log("%c>> GESTIAPREMIUM V7.1: RUNTIME GOBERNADO Y TRANSACCIONAL ACTIVO %c🚀", "color: #10b981; font-weight: bold; font-size: 14px;", "font-size: 16px;");
-console.log("%c>> Status: Kernel Heberto listo para Auditoría Dual.", "color: #94a3b8; font-style: italic;");
+console.log("%c>> INTERCONEXIÓN DE UI BLINDADA (WINDOW SCOPE) ACTIVA %c🛡️", "color: #38bdf8; font-weight: bold;", "font-size: 14px;");
