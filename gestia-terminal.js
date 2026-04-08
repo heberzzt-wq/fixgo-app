@@ -575,8 +575,8 @@ if (form) {
         e.preventDefault();
 
         if (!KernelHeberto.session.authorized) {
-            agregarBurbujaError("🚨 Bloqueo: Esperando autoridad criptográfica del sistema.");
-            return;
+            window.agregarBurbujaError?.("🚨 Bloqueo: Esperando autoridad criptográfica del sistema.");
+return;
         }
 
         const instruccion = input.value.trim();
@@ -587,8 +587,8 @@ if (form) {
         input.disabled = true;
         input.value = '';
 
-        agregarBurbujaUsuario(instruccion);
-        const idCarga = mostrarCargando();
+    window.agregarBurbujaUsuario(instruccion);
+const idCarga = window.mostrarCargando();
 
         try {
             const response = await KernelHeberto.execute(instruccion);
@@ -615,7 +615,7 @@ if (form) {
         } catch (err) {
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
-            agregarBurbujaError(err.message);
+            window.agregarBurbujaError(err.message);
         } finally {
             btnGenerate.disabled = false;
             btnGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
