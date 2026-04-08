@@ -510,6 +510,14 @@ onAuthStateChanged(auth, (user) => {
  * renderProposalCard: Pinta la propuesta de la IA con botones de acción.
  */
 function renderProposalCard(proposal) {
+    // 🔒 NORMALIZACIÓN ANTIFRÁGIL
+    proposal = {
+        risk: "LOW",
+        impact: "Sin cambios detectados",
+        changes: [],
+        ...proposal
+    };
+
     const output = document.getElementById('gestia-output');
     if (!output) return;
 
@@ -533,9 +541,9 @@ function renderProposalCard(proposal) {
             <p class="text-slate-100 text-sm font-bold mb-4">${proposal.impact}</p>
             
             <ul class="space-y-2 mb-6">
-                ${proposal.changes.map(c => `
+                ${(proposal.changes || []).map(c => `
                     <li class="text-slate-400 text-[12px] flex items-center gap-2">
-                        <i class="fa-solid fa-check text-emerald-500 text-[10px]"></i> ${c.type.replace('_', ' ')} -> ${c.target}
+                        <i class="fa-solid fa-check text-emerald-500 text-[10px]"></i> ${(c?.type || "change").replace('_', ' ')} -> ${c?.target || "unknown"}
                     </li>
                 `).join('')}
             </ul>
@@ -554,96 +562,6 @@ function renderProposalCard(proposal) {
     output.appendChild(div);
     hacerScrollAbajo();
 }
-
-/**
- * renderExecutionResult: Muestra el éxito de la transacción.
- */
-function renderExecutionResult(data) {
-    const output = document.getElementById('gestia-output');
-    if (!output) return;
-
-    const div = document.createElement("div");
-    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-10 relative z-10";
-
-    div.innerHTML = `
-        <div class="w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(16,185,129,0.5)]">
-            <i class="fa-solid fa-circle-check text-white text-xl"></i>
-        </div>
-        <div class="bg-emerald-950/20 border border-emerald-500/30 p-6 rounded-3xl rounded-tl-none flex-1 shadow-2xl backdrop-blur-md">
-            <h3 class="text-emerald-400 text-[11px] font-black uppercase tracking-[0.4em] mb-2">Transacción Completada</h3>
-            <p class="text-slate-200 text-sm font-mono">ID: ${data.operation_id}</p>
-            <p class="text-emerald-100 text-[12px] mt-2 italic">Los cambios han sido persistidos en gestia_operations y el búnker de datos.</p>
-        </div>
-    `;
-
-    output.appendChild(div);
-    hacerScrollAbajo();
-}
-
-/**
- * Burbujas Estándar (Basadas en V5.51)
- */
-function agregarBurbujaUsuario(texto) {
-    const output = document.getElementById('gestia-output');
-    const div = document.createElement("div");
-    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full justify-end mt-12 relative z-10";
-    div.innerHTML = `
-        <div class="bg-slate-800/80 backdrop-blur-md border border-slate-700 p-6 rounded-3xl rounded-tr-none shadow-2xl max-w-[85%] border-b-blue-500/50 border-b-2">
-            <p class="text-slate-200 text-sm leading-relaxed font-medium">${escaparHTML(texto)}</p>
-        </div>
-        <div class="w-14 h-14 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shrink-0 border border-slate-600 shadow-2xl">
-            <i class="fa-solid fa-user-gear text-blue-400 text-xl"></i>
-        </div>
-    `;
-    output.appendChild(div);
-    hacerScrollAbajo();
-}
-
-function mostrarCargando() {
-    const output = document.getElementById('gestia-output');
-    const id = "load_" + Date.now();
-    const div = document.createElement("div");
-    div.id = id;
-    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-12 relative z-10";
-    div.innerHTML = `
-        <div class="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(37,99,235,0.5)] animate-pulse">
-            <i class="fa-solid fa-microchip text-white text-xl"></i>
-        </div>
-        <div class="bg-slate-900/90 backdrop-blur-xl border border-blue-500/40 p-6 rounded-3xl rounded-tl-none flex items-center gap-6 shadow-2xl">
-            <div class="flex gap-2.5"><div class="w-3 h-3 bg-blue-400 rounded-full animate-bounce"></div><div class="w-3 h-3 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div></div>
-            <div>
-                <span class="text-[13px] font-mono text-blue-400 uppercase tracking-[0.5em] block font-black">Kernel V7.1</span>
-                <span class="text-[10px] text-slate-500 font-mono uppercase font-bold">Analizando Realidad Operativa...</span>
-            </div>
-        </div>
-    `;
-    output.appendChild(div);
-    hacerScrollAbajo();
-    return id;
-}
-
-function hacerScrollAbajo() {
-    const output = document.getElementById('gestia-output');
-    if (output) output.scrollTo({ top: output.scrollHeight, behavior: "smooth" });
-}
-
-function agregarBurbujaError(msg) {
-    const output = document.getElementById('gestia-output');
-    const div = document.createElement("div");
-    div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-10 relative z-10";
-    div.innerHTML = `
-        <div class="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(220,38,38,0.5)]">
-            <i class="fa-solid fa-bug text-white text-xl"></i>
-        </div>
-        <div class="bg-red-950/20 border border-red-500/30 p-6 rounded-3xl rounded-tl-none flex-1 shadow-2xl backdrop-blur-md">
-            <h3 class="text-red-400 text-[11px] font-black uppercase tracking-[0.4em] mb-2">Error del Sistema</h3>
-            <p class="text-red-100 text-[12px] font-mono">${msg}</p>
-        </div>
-    `;
-    output.appendChild(div);
-    hacerScrollAbajo();
-}
-
 /* =====================================================================================
    9. INTERACCIÓN Y DISPARO (THE GLUE)
    ===================================================================================== */
