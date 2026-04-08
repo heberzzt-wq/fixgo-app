@@ -462,13 +462,19 @@ export class TerminalHeberto {
                 ejecutado_por: proposal.ejecutado_por,
                 changes: proposal.changes
             });
-            this.logger.log(`✅ Pipeline finalizado con éxito. ${resultados.length} acciones ejecutadas.`);
-            return this.normalizeOutput({
-                intent: "apply_changes",
-                action: "terminal_execution_success",
-                data: { applied: true, operation_id: proposal.operation_id, summary: resultados },
-                ui: { type: "execution_success" }
-            });
+           const total = Array.isArray(resultados) ? resultados.length : 0;
+this.logger.log(`✅ Pipeline finalizado con éxito. ${total} acciones ejecutadas.`);
+
+return this.normalizeOutput({
+    intent: "apply_changes",
+    action: "terminal_execution_success",
+    data: {
+        applied: true,
+        operation_id: proposal.operation_id,
+        summary: resultados || []
+    },
+    ui: { type: "execution_success" }
+});
         } catch (error) {
             throw new Error(`FALLO_EN_EJECUCIÓN_TRANSACCIONAL: ${error.message}`);
         }
