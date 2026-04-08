@@ -331,8 +331,25 @@ export class TerminalHeberto {
             const analysis = await this.runDualAnalysis(this.context);
 
             // 💡 4. GENERACIÓN DE PROPUESTA (Fase PROPOSE)
-            this.setState(STATES.PROPOSE);
+            // Generamos primero para evaluar si el sistema requiere intervención humana
             const proposal = generarPropuesta(analysis);
+
+            // 🛡️ CONTROL DE FLUJO ANTIFRAGILE (Fix V7.1)
+            // Si el búnker está limpio (0 cambios), cerramos el ciclo sin bloquear
+            if (!proposal.needs_approval) {
+                this.logger.log("✨ Búnker en orden nominal. No se requiere intervención.");
+                this.setState(STATES.DONE); // Saltamos directo a éxito
+                
+                return this.normalizeOutput({
+                    intent: "info",
+                    action: "no_changes_needed",
+                    data: proposal,
+                    ui: { type: "info_card" } 
+                });
+            }
+
+            // Si hay cambios (Riesgo HIGH/MEDIUM), procedemos al rito de aprobación
+            this.setState(STATES.PROPOSE);
             this.pendingProposal = {
                 ...proposal,
                 operation_id: this.context.operation_id,
@@ -341,7 +358,9 @@ export class TerminalHeberto {
             };
 
             // ⏳ 5. BLOQUEO DE SEGURIDAD (Fase WAIT_APPROVAL)
+            // Aquí es donde el Kernel se detiene y espera el "Arre"
             this.setState(STATES.WAIT_APPROVAL);
+
             return this.normalizeOutput({
                 intent: "proposal",
                 action: "await_approval",
