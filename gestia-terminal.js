@@ -513,93 +513,50 @@ export class TerminalHeberto {
 }
 
 /* =====================================================================================
-   8. UI BUILDERS - GRADO INDUSTRIAL V7.1 (STRICT TAILWIND)
+   7. INSTANCIACIÓN Y EXPOSICIÓN GLOBAL (EL NACIMIENTO)
    ===================================================================================== */
+// Movemos esto arriba de los listeners para evitar el ReferenceError
+const KernelHeberto = new TerminalHeberto();
+window.KernelHeberto = KernelHeberto; // Lo anclamos al búnker global
+window.GestiaTerminal = KernelHeberto; // Alias de compatibilidad
 
-/**
- * renderProposalCard: Pinta la propuesta de la IA con botones de acción.
- * REGLA DE ORO: Debe estar en el scope global (window) para que el Kernel la vea.
- */
+/* =====================================================================================
+   8. UI BUILDERS - GRADO INDUSTRIAL V7.1
+   ===================================================================================== */
 window.renderProposalCard = function(proposal) {
-    // 🔒 NORMALIZACIÓN ANTIFRÁGIL
-    const data = {
-        risk: "LOW",
-        impact: "Sin cambios detectados",
-        changes: [],
-        ...proposal
-    };
-
+    const data = { risk: "LOW", impact: "Sin cambios", changes: [], ...proposal };
     const output = document.getElementById('gestia-output');
     if (!output) return;
 
-    // 🎨 MAPEO DE CLASES (Tailwind JIT Safe)
-    // Esto garantiza que los estilos se carguen correctamente en producción.
     const themes = {
-        HIGH: {
-            bg: "bg-red-600",
-            border: "border-red-500/30",
-            text: "text-red-400",
-            shadow: "shadow-[0_0_30px_rgba(220,38,38,0.4)]",
-            icon: "fa-triangle-exclamation"
-        },
-        MEDIUM: {
-            bg: "bg-amber-600",
-            border: "border-amber-500/30",
-            text: "text-amber-400",
-            shadow: "shadow-[0_0_30px_rgba(245,158,11,0.4)]",
-            icon: "fa-shield-halved"
-        },
-        LOW: {
-            bg: "bg-emerald-600",
-            border: "border-emerald-500/30",
-            text: "text-emerald-400",
-            shadow: "shadow-[0_0_30px_rgba(16,185,129,0.4)]",
-            icon: "fa-shield-check"
-        }
+        HIGH: { bg: "bg-red-600", border: "border-red-500/30", text: "text-red-400", icon: "fa-triangle-exclamation" },
+        MEDIUM: { bg: "bg-amber-600", border: "border-amber-500/30", text: "text-amber-400", icon: "fa-shield-halved" },
+        LOW: { bg: "bg-emerald-600", border: "border-emerald-500/30", text: "text-emerald-400", icon: "fa-shield-check" }
     };
-
     const theme = themes[data.risk] || themes.LOW;
 
     const div = document.createElement("div");
     div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-10 relative z-10";
-
     div.innerHTML = `
-        <div class="w-14 h-14 rounded-full ${theme.bg} flex items-center justify-center shrink-0 ${theme.shadow} relative z-20">
+        <div class="w-14 h-14 rounded-full ${theme.bg} flex items-center justify-center shrink-0 shadow-lg relative z-20">
             <i class="fa-solid ${theme.icon} text-white text-xl"></i>
         </div>
-
         <div class="bg-slate-900/90 border ${theme.border} p-8 rounded-[2.5rem] rounded-tl-none flex-1 shadow-2xl backdrop-blur-md relative z-10">
             <div class="flex justify-between items-start mb-4">
-                <h3 class="${theme.text} text-[11px] font-black uppercase tracking-[0.4em]">Propuesta de Cambio V7.1</h3>
-                <span class="${theme.bg}/20 ${theme.text} text-[9px] px-3 py-1 rounded-full font-bold border ${theme.border}">RIESGO: ${data.risk}</span>
+                <h3 class="${theme.text} text-[11px] font-black uppercase tracking-[0.4em]">Propuesta V7.1</h3>
+                <span class="${theme.text} text-[9px] font-bold">RIESGO: ${data.risk}</span>
             </div>
-            
             <p class="text-slate-100 text-sm font-bold mb-4">${data.impact}</p>
-            
-            <ul class="space-y-2 mb-6">
-                ${(data.changes || []).map(c => `
-                    <li class="text-slate-400 text-[12px] flex items-center gap-2">
-                        <i class="fa-solid fa-circle-check text-emerald-500 text-[8px]"></i> 
-                        <span class="uppercase font-mono text-[10px] text-slate-500">${(c?.type || "change").replace(/_/g, ' ')}</span> 
-                        <i class="fa-solid fa-arrow-right text-[10px] opacity-30"></i> 
-                        <span class="text-slate-200">${c?.target || "unknown"}</span>
-                    </li>
-                `).join('')}
-            </ul>
-
             <div class="flex gap-4 pt-4 border-t border-slate-800">
-                <button onclick="this.disabled=true; this.opacity=0.5; window.KernelHeberto.execute('arre')" 
-                        class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-8 py-3 rounded-xl shadow-lg transition-all uppercase tracking-widest active:scale-95">
+                <button onclick="window.KernelHeberto.execute('arre')" class="bg-emerald-600 text-white text-[11px] font-black px-8 py-3 rounded-xl uppercase tracking-widest">
                     🚀 ARRE (APLICAR)
                 </button>
-                <button onclick="window.KernelHeberto.resetContext(); this.closest('.animate-fade-in').style.opacity='0.5'; this.disabled=true;" 
-                        class="bg-slate-800 hover:bg-slate-700 text-slate-400 text-[11px] font-black px-6 py-3 rounded-xl transition-all uppercase tracking-widest">
+                <button onclick="window.KernelHeberto.resetContext(); this.closest('.animate-fade-in').style.opacity='0.5'" class="bg-slate-800 text-slate-400 text-[11px] font-black px-6 py-3 rounded-xl uppercase tracking-widest">
                     CANCELAR
                 </button>
             </div>
         </div>
     `;
-
     output.appendChild(div);
     window.hacerScrollAbajo?.();
 };
@@ -607,30 +564,24 @@ window.renderProposalCard = function(proposal) {
 /* =====================================================================================
    9. INTERACCIÓN Y DISPARO (THE GLUE)
    ===================================================================================== */
-
 const form = document.getElementById('gestia-form');
 const input = document.getElementById('gestia-input');
 const btnGenerate = document.getElementById('btn-generate');
-
-// IMPORTANTE: Exponemos el Kernel globalmente para que los botones del Builder lo vean
-window.KernelHeberto = KernelHeberto;
 
 if (form) {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        // 🛡️ 1. CANDADO DE AUTORIDAD V7.1
+        // 🛡️ USAMOS LA REFERENCIA GLOBAL PARA EVITAR EL REFERENCE_ERROR
         if (!window.KernelHeberto.session.authorized) {
-            window.agregarBurbujaError?.("🚨 Bloqueo: Esperando autoridad criptográfica del sistema.");
+            window.agregarBurbujaError?.("🚨 Bloqueo: Esperando autoridad del sistema.");
             return;
         }
 
         const instruccion = input.value.trim();
         if (!instruccion) return;
 
-        // ⚡ 2. BLOQUEO DE UI (MANTENER FOCO)
         btnGenerate.disabled = true;
-        btnGenerate.classList.add('opacity-50', 'cursor-not-allowed');
         input.disabled = true;
         input.value = '';
 
@@ -638,61 +589,50 @@ if (form) {
         const idCarga = window.mostrarCargando?.();
 
         try {
-            // 🚀 3. INVOCACIÓN AL KERNEL
+            // 🚀 LLAMADA AL KERNEL GLOBAL
             const response = await window.KernelHeberto.execute(instruccion);
 
-            // Quitamos el spinner de carga
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
 
-            // 🔀 4. MANEJO DE RESPUESTA SEGÚN UI_TYPE
             if (response.success) {
-                
                 switch (response.ui?.type) {
                     case "proposal_card":
                         window.renderProposalCard?.(response.data);
                         break;
-                    
                     case "execution_success":
                         window.renderExecutionResult?.(response.data);
-                        // Reset para la siguiente operación
                         window.KernelHeberto.resetContext();
                         break;
-                    
-                    case "info_card":
-                        // Manejo para cuando el búnker está en orden (No requiere Arre)
-                        window.agregarBurbujaSistema?.(response.data.impact || "Operación completada sin cambios necesarios.");
-                        window.KernelHeberto.resetContext();
-                        break;
-                    
                     default:
                         if (response.data?.mensaje_ceo) {
                             window.agregarBurbujaSistema?.(response.data.mensaje_ceo);
                         }
                 }
-
             } else {
-                throw new Error(response.error || "ERROR_DESCONOCIDO_KERNEL");
+                throw new Error(response.error || "ERROR_KERNEL");
             }
-
         } catch (err) {
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
-            
             window.agregarBurbujaError?.(err.message);
         } finally {
-            // 🔓 5. LIBERACIÓN DE UI
             btnGenerate.disabled = false;
-            btnGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
             input.disabled = false;
             input.focus();
-            
             window.hacerScrollAbajo?.();
         }
     });
 }
 
-// Foco inicial
-if (input) input.focus();
-
-console.log("%c>> INTERCONEXIÓN DE UI BLINDADA V7.1 ACTIVA %c🛡️", "color: #38bdf8; font-weight: bold;", "font-size: 14px;");
+// 🔐 OBSERVADOR DE AUTENTICACIÓN
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        // El Kernel ya fue instanciado arriba, solo inicializamos autoridad
+        window.KernelHeberto.inicializarAutoridad();
+    } else {
+        if (!window.location.pathname.includes("login.html")) {
+            window.location.href = "/login.html";
+        }
+    }
+});
