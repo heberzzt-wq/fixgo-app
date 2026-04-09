@@ -19,7 +19,8 @@ import {
     addDoc, 
     serverTimestamp,
     updateDoc,
-    limit
+    limit,
+    orderBy // <--- SECCIÓN CORREGIDA: Importado con éxito
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // ==========================================
@@ -48,7 +49,7 @@ onAuthStateChanged(auth, async (user) => {
         usuarioActual = user;
         
         try {
-            // Buscamos tu documento directamente por UID (Más rápido y seguro)
+            // Buscamos tu documento directamente por UID
             const userRef = doc(db, "users", user.uid);
             const userSnap = await getDoc(userRef);
 
@@ -67,7 +68,7 @@ onAuthStateChanged(auth, async (user) => {
                 buscarVehiculo(nombreParaFlotilla);
 
             } else {
-                // Fallback si el usuario no está en la colección 'users'
+                // Fallback para el Jefe
                 lblNombre.innerText = "ACCESO INVITADO";
                 if (user.email === 'hebertoh-m@hotmail.com') {
                     lblNombre.innerText = "HOLA, JEFE HEBERTO";
@@ -120,7 +121,7 @@ const buscarVehiculo = (nombreCompleto) => {
 };
 
 // ==========================================
-// 4. LÓGICA DE REPORTES (SIN CAMBIOS)
+// 4. LÓGICA DE REPORTES
 // ==========================================
 window.abrirModal = (tipo) => {
     if (!vehiculoAsignado) {
@@ -233,7 +234,7 @@ const cargarHistorialDia = (vehId) => {
             const data = docSnap.data();
             let icon = data.tipo === 'combustible' ? 'fa-gas-pump text-emerald-500' : 'fa-car-crash text-red-500';
             const div = document.createElement("div");
-            div.className = "p-4 rounded-2xl bg-zinc-900/50 border border-white/5 flex items-center justify-between animate-pulse-once";
+            div.className = "p-4 rounded-2xl bg-zinc-900/50 border border-white/5 flex items-center justify-between";
             div.innerHTML = `
                 <div class="flex items-center gap-4">
                     <i class="fas ${icon} text-lg"></i>
