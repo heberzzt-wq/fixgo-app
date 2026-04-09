@@ -1171,3 +1171,40 @@ document.getElementById("formGenerarQR").addEventListener("submit", async (e) =>
         btn.disabled = false;
     }
 });
+/* =====================================================
+   PUENTE A TERMINAL HEBERTO - REPORTE FLOTILLA (B2B)
+   ===================================================== */
+window.reportarFallaVehiculo = async () => {
+    // Feedback visual en consola
+    console.log("📡 Conectando con NOC B2B..."); 
+    
+    // El prompt de fuego que el botón le inyectará a la IA
+    const comando = "Terminal Heberto, asume contexto de Operador B2B. Localiza mi vehículo asignado (UVZ343K) en flotilla_b2b y abre el módulo para reportar fallas mecánicas en uxmal39.";
+    
+    if (window.KernelHeberto) {
+        try {
+            // Pintamos la burbuja si existe la función
+            if (window.agregarBurbujaUsuario) {
+                window.agregarBurbujaUsuario(comando);
+            }
+            
+            // Disparamos el Kernel
+            const res = await window.KernelHeberto.execute(comando);
+            
+            // Si la IA nos devuelve una tarjeta UI, la dibujamos
+            if (res.success && res.ui?.type === "proposal_card") {
+                if (window.renderProposalCard) {
+                    window.renderProposalCard(res.data);
+                }
+            } else if (res.data?.mensaje_ceo && window.agregarBurbujaSistema) {
+                window.agregarBurbujaSistema(res.data.mensaje_ceo);
+            }
+            
+        } catch(e) {
+            console.error("❌ Fallo comunicando con Kernel B2B:", e);
+            alert("🚨 Error reportando falla en Flotilla. Revisa la consola F12.");
+        }
+    } else {
+        alert("🚨 Terminal Heberto offline. No se detectó la instancia del Kernel.");
+    }
+};
