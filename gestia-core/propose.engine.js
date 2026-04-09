@@ -1,181 +1,140 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V7.2.8 (RELATIONAL_RECOVERY_B2B)
+ * GESTIAPREMIUM 2026 - PROPOSE ENGINE V7.2.3 (CLEAN_STRICT_V2)
  * ======================================================================================
- * Función: El Brazo Mecánico con lógica autocurativa y salida temprana.
+ * Función: Traduce hallazgos del Analyzer en planes de acción transaccionales.
  * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
- * Actualización V7.2.8: Integración de NORMALIZE_VEHICLE_OPERATOR para Flotilla B2B.
+ * Actualización V7.2.3: Interceptación de input_original para romper loops de alertas.
  * Autor: Heber Mendoza (Arquitecto Supremo) & El Abuelo
  * ======================================================================================
  */
 
-// 1. SSOT LOCAL (Single Source of Truth)
-import { 
-    db, 
-    doc, 
-    collection, 
-    serverTimestamp 
-} from '../firebase.js';
-
-// 2. SDK OFICIAL (CDN)
-// Se añaden query, where y getDocs para soportar la normalización por placas.
-import { 
-    runTransaction,
-    query,
-    where,
-    getDocs
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-/**
- * limpiarPayload: Elimina undefined para evitar el crash de Firebase.
- * Es vital para que la transacción no aborte si faltan metadatos.
- */
-const limpiarPayload = (obj) => {
-    return Object.entries(obj).reduce((acc, [key, value]) => {
-        if (value !== undefined) acc[key] = value;
-        return acc;
-    }, {});
-};
-
-/**
- * ejecutarCambios: Ejecución atómica de la propuesta aprobada.
- */
-export async function ejecutarCambios(proposal) {
-    const { operation_id, tenantId, ejecutado_por, changes } = proposal;
+export function generarPropuesta(analysis) {
+    const userInput = analysis?.input_original || "";
     
-    // 🛡️ GUARDRAIL DEFENSIVO: Si no hay cambios, no molestamos a la base de datos.
-    const safeChanges = Array.isArray(changes) ? changes : [];
-    
-    if (safeChanges.length === 0) {
-        console.log("%c[EXECUTOR]: Sin cambios detectados. Abortando ejecución.", "color: #f59e0b;");
-        return [];
+    // 🛡️ NORMALIZACIÓN DE DATOS DE ENTRADA
+    const data = {
+        alerts: analysis?.data?.alerts || analysis?.alerts || [],
+        warnings: analysis?.data?.warnings || analysis?.warnings || []
+    };
+
+    const proposal = {
+        risk: "LOW",
+        impact: "",
+        changes: [],
+        needs_approval: false,
+        metadata: {
+            analysis_id: Date.now(),
+            score_salud: 100
+        }
+    };
+
+    // --- 🚀 INTERCEPTOR CRÍTICO: NORMALIZACIÓN DIRECTA ---
+    // Si el usuario ordena normalizar flotilla_b2b, ignoramos el ruido del Analyzer.
+    if (/flotilla_b2b/i.test(userInput) && /operador_uid/i.test(userInput)) {
+        proposal.risk = "MEDIUM";
+        proposal.needs_approval = true;
+        proposal.impact = "NORMALIZACIÓN FORZADA: Vinculación directa de operador en flotilla_b2b.";
+
+        proposal.changes = [{
+            type: "NORMALIZE_VEHICLE_OPERATOR",
+            target: "UVZ343K", 
+            action: "update_vehicle",
+            payload: {
+                collection: "flotilla_b2b",
+                field: "operador_uid",
+                uid: "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2" // UID de Jonathan
+            },
+            reason: "Orden manual de normalización de identidad relacional."
+        }];
+
+        console.log("%c[PROPOSE_ENGINE]: Override detectado. Priorizando comando manual.", "color: #f59e0b; font-weight: bold;");
+        return proposal; // ← Rompe el pipeline aquí para evitar alertas redundantes
     }
 
-    console.log(`%c[EXECUTOR]: Iniciando impacto transaccional para OP: ${operation_id}`, "color: #10b981; font-weight: bold;");
-    const results = [];
+    // --- 1. LÓGICA DE ALERTAS CRÍTICAS ---
+    if (data.alerts.length > 0) {
+        proposal.risk = "HIGH";
+        proposal.needs_approval = true;
+        proposal.impact = "BLOQUEO OPERATIVO: Se detectaron fallos críticos en el búnker.";
 
-    try {
-        // Iniciamos la transacción maestra de Firestore
-        await runTransaction(db, async (transaction) => {
-            
-            for (const change of safeChanges) {
-                const { type, target, payload, reason } = change;
-                let ref;
-
-                // --- 🛡️ PROTOCOLO DE AUDITORÍA (LEDGER) ---
-                // Cada acción deja una huella en el ledger del tenant para auditoría forense.
-                const ledgerRef = doc(collection(db, "tenants", tenantId, "gestia_ledger"));
-                
-                transaction.set(ledgerRef, {
-                    op_id: operation_id,
-                    type,
-                    target,
-                    ejecutado_por,
-                    timestamp: serverTimestamp(),
-                    reason: reason || "Ejecución por orden de la terminal"
+        data.alerts.forEach(alert => {
+            // Caso: Código desentrelazado
+            if (alert.type === "CODE_DETACHED") {
+                proposal.changes.push({
+                    type: "REPAIR_RUNTIME_LINK",
+                    target: alert.id, 
+                    reason: alert.msg,
+                    action: "rebind_global_scope",
+                    payload: { 
+                        component: alert.id,
+                        severity: "architectural"
+                    }
                 });
-
-                // --- ⚙️ LÓGICA DE IMPACTO SEGÚN TIPO ---
-                switch (type) {
-
-                    // 🚀 NUEVO: Normalización de Datos en Flotilla B2B
-                    case "NORMALIZE_VEHICLE_OPERATOR":
-                        // Localizamos el vehículo por placas (target) en la colección específica de B2B
-                        const vehiculosRef = collection(db, "flotilla_b2b", tenantId, "vehiculos");
-                        const q = query(vehiculosRef, where("placas", "==", target));
-                        const snap = await getDocs(q);
-
-                        snap.forEach(docSnap => {
-                            transaction.update(docSnap.ref, {
-                                operador_uid: payload.uid,
-                                normalized_at: serverTimestamp(),
-                                audit_op: operation_id,
-                                status_enlace: "verificado"
-                            });
-                        });
-                        
-                        results.push({ type, target, status: "vehiculo_normalizado" });
-                        break;
-
-                    case "REPAIR_RUNTIME_LINK":
-                        // Marcamos la operación como reparada para que el observador de la UI reaccione.
-                        ref = doc(db, "gestia_operations", operation_id);
-                        
-                        transaction.update(ref, limpiarPayload({
-                            runtime_repaired: true,
-                            repaired_component: target,
-                            repair_timestamp: serverTimestamp()
-                        }));
-                        
-                        results.push({ type, target, status: "runtime_link_repaired" });
-                        break;
-
-                    case "SYSTEM_RESTRICTION":
-                        // El Escudo de Heber: Bloqueo de seguridad si la arquitectura falla.
-                        ref = doc(db, "tenants", tenantId);
-                        
-                        transaction.update(ref, limpiarPayload({
-                            shield_level: payload?.severity === "CRITICAL" ? "READ_ONLY" : "WARNING",
-                            restriction_active: true,
-                            restriction_reason: reason || "Fallo arquitectónico detectado",
-                            restricted_at: serverTimestamp()
-                        }));
-                        
-                        results.push({ type, target, status: "system_restricted" });
-                        break;
-
-                    case "FORCE_MAINTENANCE_TASK":
-                        // Creación de la tarea para Jonathan (El Gol de Jonathan)
-                        const tasksCol = collection(db, "tenants", tenantId, "tasks");
-                        const newTaskRef = doc(tasksCol);
-                        
-                        transaction.set(newTaskRef, limpiarPayload({
-                            ...payload,
-                            created_by: ejecutado_por,
-                            source: "TERMINAL_HEBERTO",
-                            op_id: operation_id,
-                            timestamp: serverTimestamp(),
-                            status: "pending"
-                        }));
-                        
-                        results.push({ type, target, status: "urgent_task_created" });
-                        break;
-
-                    case "LOCK_TECHNICIAN":
-                        // Bloqueo de técnico por riesgos de seguridad detectados.
-                        ref = doc(db, "tenants", tenantId, "technicians", target);
-                        
-                        transaction.update(ref, limpiarPayload({
-                            ...payload,
-                            status: "safety_lock",
-                            lock_timestamp: serverTimestamp()
-                        }));
-                        
-                        results.push({ type, target, status: "technician_locked" });
-                        break;
-
-                    default:
-                        console.warn(`%c[EXECUTOR]: Tipo de cambio desconocido ignorado: ${type}`, "color: #f59e0b;");
-                }
             }
 
-            // --- ✅ CIERRE DE OPERACIÓN MAESTRA ---
-            // Actualizamos el estado final de la OP para confirmar que el pipeline terminó.
-            const finalOpRef = doc(db, "gestia_operations", operation_id);
-            
-            transaction.update(finalOpRef, {
-                status: "completed",
-                completed_at: serverTimestamp(),
-                affected_actions: results.length
-            });
-            
+            // Caso: Mantenimiento Crítico
+            if (alert.type === "VEHICLE_MAINTENANCE") {
+                proposal.changes.push({
+                    type: "FORCE_MAINTENANCE_TASK",
+                    target: alert.id, 
+                    reason: alert.msg,
+                    action: "create_urgent_task",
+                    payload: { 
+                        priority: "emergency", 
+                        category: "mantenimiento_correctivo",
+                        assigned_to: alert.metadata?.asignado_a || "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2",
+                        description: `AFINACIÓN URGENTE: ${alert.target}.`
+                    }
+                });
+            }
+
+            // Caso: Riesgo Humano
+            if (alert.type === "HUMAN_RISK") {
+                proposal.changes.push({
+                    type: "LOCK_TECHNICIAN",
+                    target: alert.id,
+                    reason: alert.msg,
+                    payload: { status: "blocked_by_safety", safety_lock: true }
+                });
+            }
         });
-
-        console.log(`%c[EXECUTOR]: Misión cumplida. Acciones persistidas: ${results.length}`, "color: #10b981; font-weight: bold;");
-        return results;
-
-    } catch (error) {
-        console.error("❌ CRASH_EN_EXECUTOR:", error);
-        throw error;
     }
+
+    // --- 2. LÓGICA DE ADVERTENCIAS ---
+    if (data.warnings.length > 0) {
+        if (proposal.risk !== "HIGH") {
+            proposal.risk = "MEDIUM";
+            proposal.needs_approval = true;
+            if (!proposal.impact) proposal.impact = "Optimización preventiva sugerida.";
+        }
+
+        data.warnings.forEach(warn => {
+            if (warn.type === "VEHICLE_MAINTENANCE") {
+                proposal.changes.push({
+                    type: "SCHEDULE_MAINTENANCE",
+                    target: warn.id,
+                    reason: warn.msg,
+                    payload: { 
+                        priority: "high", 
+                        category: "taller"
+                    }
+                });
+            }
+        });
+    }
+
+    // --- 3. CIERRE DE CICLO ---
+    if (proposal.changes.length === 0) {
+        proposal.impact = "El búnker opera dentro de los parámetros nominales.";
+        proposal.risk = "LOW";
+        proposal.needs_approval = false;
+    }
+
+    // Cálculo de salud del sistema
+    proposal.metadata.score_salud = Math.max(0, 100 - (data.alerts.length * 20 + data.warnings.length * 5));
+
+    console.log(`%c[PROPOSE_ENGINE]: Propuesta V7.2.3 generada con éxito.`, "color: #10b981; font-weight: bold;");
+    
+    return proposal;
 }
