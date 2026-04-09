@@ -1,6 +1,6 @@
 /**
  * ======================================================
- * GESTIA PREMIUM - SERVICE WORKER v5.34 (FCM HARDENED)
+ * GESTIA PREMIUM - SERVICE WORKER v6.0 (FCM HARDENED)
  * Proyecto: fixgo-44e4d
  * Lead Architect: Heberto Mendoza
  * ======================================================
@@ -11,13 +11,14 @@ importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
 // 🔥 Configuración de Caché
-const CACHE_NAME = 'gestia-premium-cache-v3.5';
+const CACHE_NAME = 'gestia-premium-cache-v6.0';
 
 const urlsToCache = [
-  '/',
-  '/manifest.json',
-  '/assets/icono-192.png',
-  '/assets/icono-512.png'
+  './',
+  './index.html',
+  './manifest.json',
+  './assets/icono-192.png',
+  './assets/icono-512.png'
 ];
 
 // 2. INICIALIZAR FIREBASE
@@ -52,8 +53,7 @@ if (messaging) {
 
     /**
      * Firebase puede enviar payload en dos formatos:
-     * 
-     * 1️⃣ notification (Firebase Console)
+     * * 1️⃣ notification (Firebase Console)
      * 2️⃣ data (Admin SDK / Cloud Functions)
      */
 
@@ -76,14 +76,14 @@ if (messaging) {
     const targetUrl =
       payload.data?.url ||
       notificationPayload.url ||
-      '/';
+      './';
 
     const options = {
 
       body: body,
 
-      icon: '/assets/icono-192.png',
-      badge: '/assets/icono-192.png',
+      icon: './assets/icono-192.png',
+      badge: './assets/icono-192.png',
 
       vibrate: [500,110,500,110,450,110],
 
@@ -106,6 +106,7 @@ if (messaging) {
   });
 
 }
+
 /**
  * CAPTURA UNIVERSAL DE PUSH
  * (para pruebas de Firebase Console)
@@ -135,8 +136,8 @@ self.addEventListener('push', (event) => {
       payload.data?.body ||
       "Tienes una nueva orden asignada",
 
-    icon: '/assets/icono-192.png',
-    badge: '/assets/icono-192.png',
+    icon: './assets/icono-192.png',
+    badge: './assets/icono-192.png',
 
     vibrate: [500,110,500,110,450,110],
 
@@ -146,7 +147,7 @@ self.addEventListener('push', (event) => {
     tag: payload.data?.orderId || "gestia-alert",
 
     data: {
-      url: payload.data?.url || '/',
+      url: payload.data?.url || './',
       orderId: payload.data?.orderId || null
     }
 
@@ -163,7 +164,7 @@ self.addEventListener('notificationclick', (event) => {
 
   event.notification.close();
 
-  const targetUrl = event.notification.data?.url || '/';
+  const targetUrl = event.notification.data?.url || './';
 
   event.waitUntil(
 
@@ -214,7 +215,7 @@ self.addEventListener('install', (event) => {
 // 5. ACTIVACIÓN
 self.addEventListener('activate', (event) => {
 
-  console.log('[Gestia SW] Activado');
+  console.log('[Gestia SW] Activado y purgando cachés viejos');
 
   event.waitUntil(
 
@@ -225,6 +226,7 @@ self.addEventListener('activate', (event) => {
         cacheNames.map(name => {
 
           if (name !== CACHE_NAME) {
+            console.log('[Gestia SW] Borrando:', name);
             return caches.delete(name);
           }
 
@@ -253,7 +255,7 @@ self.addEventListener('message', (event) => {
 });
 
 /**
- * FETCH
+ * FETCH (Network-First con Fallback)
  */
 
 self.addEventListener('fetch', (event) => {
@@ -262,7 +264,8 @@ self.addEventListener('fetch', (event) => {
 
   if (
     url.includes('gstatic.com') ||
-    url.includes('googleapis.com')
+    url.includes('googleapis.com') ||
+    url.includes('google-analytics')
   ) {
     return;
   }
@@ -295,8 +298,11 @@ self.addEventListener('fetch', (event) => {
           .then(response => {
 
             return response || new Response(
-              'Gestia: Modo Offline',
-              { status: 404 }
+              'Gestia: Modo Offline - Revisa tu conexión',
+              { 
+                status: 404,
+                headers: { 'Content-Type': 'text/plain' }
+              }
             );
 
           });
@@ -306,3 +312,10 @@ self.addEventListener('fetch', (event) => {
   );
 
 });
+
+/**
+ * ======================================================
+ * FIN DEL SERVICE WORKER
+ * Gestia Premium V6.0 - Listo para despliegue masivo
+ * ======================================================
+ */

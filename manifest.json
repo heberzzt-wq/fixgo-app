@@ -1,14 +1,15 @@
 {
-  "id": "/",
+  "id": "gestia-premium-tactic-v1",
   "name": "GestiaPremium Táctico",
   "short_name": "GestiaPremium",
   "description": "Plataforma premium de servicios y telemetría de unidades.",
-  "start_url": "/",
+  "start_url": "/index.html",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "minimal-ui"],
   "background_color": "#000000",
   "theme_color": "#06b6d4",
   "orientation": "portrait",
+  "scope": "/",
   "icons": [
     {
       "src": "/assets/icono-192.png",
@@ -54,7 +55,7 @@
   "protocol_handlers": [
     {
       "protocol": "web+gestia",
-      "url": "/?order=%s"
+      "url": "/index.html?order=%s"
     }
   ],
   "categories": ["business", "productivity"],
