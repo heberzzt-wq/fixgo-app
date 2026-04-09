@@ -1,10 +1,10 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - DATA ANALYZER ENGINE V7.3 (MANUAL OVERRIDE & UI-SYNC)
+ * GESTIAPREMIUM 2026 - DATA ANALYZER ENGINE V7.4 (HYBRID: DATA + CODE)
  * ======================================================================================
- * Función: El "Ojo de Dios". Escanea la realidad operativa para evitar alucinaciones.
+ * Función: El "Ojo de Dios" total. Escanea Firestore Y el Runtime del navegador.
  * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
- * Actualización V7.3: Capacidad de enlace forzado (Manual Context) para Jonathan/Gol.
+ * Actualización V7.4: Detección de desentrelazado de código (Ref. El Abuelo).
  * Autor: Heber Mendoza (Arquitecto Supremo)
  * ======================================================================================
  */
@@ -19,17 +19,44 @@ import {
 } from '../firebase.js';
 
 /**
- * analizarDatosSistema: Escaneo profundo del Tenant con capacidad de sobreescritura manual.
- * @param {string} tenantId - El ID del búnker a analizar.
- * @param {Object} manualContext - Contexto extraído del lenguaje natural (opcional).
+ * analizarCodigoRuntime: Escanea el objeto window buscando piezas desentrelazadas.
+ */
+function analizarCodigoRuntime() {
+    const codeAlerts = [];
+    
+    // ADN Vital de la Interfaz
+    const piezasRequeridas = [
+        'renderProposalCard',
+        'renderExecutionResult',
+        'agregarBurbujaUsuario',
+        'KernelHeberto'
+    ];
+
+    piezasRequeridas.forEach(pieza => {
+        if (!window[pieza]) {
+            codeAlerts.push({
+                type: "CODE_DETACHED",
+                id: `JS_${pieza.toUpperCase()}`,
+                target: "WINDOW_SCOPE",
+                msg: `DESENTRELAZADO DETECTADO: La pieza '${pieza}' no está vinculada al scope global.`,
+                severity: "CRITICAL"
+            });
+        }
+    });
+
+    return codeAlerts;
+}
+
+/**
+ * analizarDatosSistema: Escaneo híbrido del Tenant.
  */
 export async function analizarDatosSistema(tenantId, manualContext = null) {
-    console.log(`%c[DATA_ANALYZER]: Iniciando escaneo profundo para Tenant: ${tenantId}`, "color: #3b82f6; font-weight: bold;");
+    console.log(`%c[DATA_ANALYZER]: Iniciando Auditoría Híbrida para: ${tenantId}`, "color: #3b82f6; font-weight: bold;");
 
     const analysis = {
-        alerts: [],    // Bloqueos críticos (Seguros, Afinaciones urgentes, Impagos)
-        warnings: [],  // Preventivos (Mantenimientos próximos)
-        insights: [],  // Optimización
+        alerts: [],    // Aquí irán Alertas de Datos y de Código
+        warnings: [],
+        insights: [],
         metrics: {
             tecnicos_activos: 0,
             flota_operativa: 0,
@@ -38,122 +65,97 @@ export async function analizarDatosSistema(tenantId, manualContext = null) {
         timestamp: new Date().toISOString()
     };
 
+    // 🛡️ CAPA 1: ANÁLISIS DE CÓDIGO (EL ABUELO)
+    const codeAlerts = analizarCodigoRuntime();
+    analysis.alerts.push(...codeAlerts);
+
     try {
-        // --- 1. SCAN DE CAPITAL HUMANO (Técnicos) ---
+        // --- CAPA 2: SCAN DE CAPITAL HUMANO (Técnicos) ---
         const tecnicosRef = collection(db, "tenants", tenantId, "technicians");
-        const qTecnicos = query(tecnicosRef, limit(20)); 
-        const snapTecnicos = await getDocs(qTecnicos);
+        const snapTecnicos = await getDocs(query(tecnicosRef, limit(20)));
 
         snapTecnicos.forEach(doc => {
             const data = doc.data();
             const tecnicoId = doc.id;
             analysis.metrics.tecnicos_activos++;
 
-            // A) Lógica de Seguros (Vencimientos)
             if (data.seguro_vencimiento) {
-                const fechaVencimiento = new Date(data.seguro_vencimiento);
-                const hoy = new Date();
-                
-                if (fechaVencimiento < hoy) {
+                if (new Date(data.seguro_vencimiento) < new Date()) {
                     analysis.alerts.push({
                         type: "HUMAN_RISK",
                         id: tecnicoId,
-                        target: data.nombre || "Técnico sin nombre",
-                        msg: `SEGURO VENCIDO: El técnico opera fuera de norma legal desde ${data.seguro_vencimiento}.`,
+                        target: data.nombre || "Técnico",
+                        msg: `SEGURO VENCIDO: ${data.nombre} fuera de norma legal.`,
                         severity: "CRITICAL"
                     });
                     analysis.metrics.vencimientos_criticos++;
                 }
             }
 
-            // B) Inyección de Contexto Manual (Jonathan Match)
-            if (manualContext && manualContext.tecnico) {
-                const nombreLimpio = (data.nombre || "").toLowerCase();
-                if (nombreLimpio.includes(manualContext.tecnico.toLowerCase())) {
-                    console.log(`🎯 [Analyzer] Enlace manual detectado para técnico: ${data.nombre}`);
-                    manualContext.tecnicoId = tecnicoId; // Guardamos el ID real para el Propose Engine
-                }
+            // Match Manual (Jonathan)
+            if (manualContext?.tecnico && data.nombre?.toLowerCase().includes(manualContext.tecnico.toLowerCase())) {
+                manualContext.tecnicoId = tecnicoId;
             }
         });
 
-        // --- 2. SCAN DE FLOTA (Vehículos) ---
+        // --- CAPA 3: SCAN DE FLOTA (Vehículos) ---
         const flotaRef = collection(db, "tenants", tenantId, "vehicles");
-        const qFlota = query(flotaRef, limit(15));
-        const snapFlota = await getDocs(qFlota);
+        const snapFlota = await getDocs(query(flotaRef, limit(15)));
 
         snapFlota.forEach(doc => {
             const data = doc.data();
             const vehiculoId = doc.id;
             analysis.metrics.flota_operativa++;
 
-            // A) Detección por Flags de Interfaz (Lo que Heber ve en pantalla)
-            const uiRequiereAtencion = 
-                data.status_mantenimiento === "requiere_afinacion" || 
-                data.mantenimiento === "pendiente" ||
-                data.badge === "naranja";
-
-            // B) Detección por Kilometraje (Hard Logic)
+            const uiFlags = data.status_mantenimiento === "requiere_afinacion" || data.badge === "naranja";
             const umbralKm = data.proximo_servicio_km || (data.ultimo_servicio_km + 5000);
             const kmExcedido = data.km_actual >= umbralKm;
+            const esTargetManual = manualContext?.placa && (vehiculoId.includes(manualContext.placa) || data.placas?.includes(manualContext.placa));
 
-            // C) Match Manual por Placa o Modelo (El caso del Gol UVZ343K)
-            const esTargetManual = manualContext && manualContext.placa && 
-                                 (vehiculoId.includes(manualContext.placa) || (data.placas && data.placas.includes(manualContext.placa)));
-
-            if (uiRequiereAtencion || kmExcedido || esTargetManual) {
+            if (uiFlags || kmExcedido || esTargetManual) {
                 analysis.alerts.push({
                     type: "VEHICLE_MAINTENANCE",
                     id: vehiculoId,
                     target: data.placas || vehiculoId,
-                    msg: esTargetManual 
-                        ? `INTERVENCIÓN SOLICITADA: Sincronización forzada para ${data.modelo || 'Vehículo'} (${vehiculoId}).`
-                        : `AFINACIÓN REQUERIDA: Vehículo reporta estatus crítico a los ${data.km_actual} km.`,
+                    msg: esTargetManual ? `SINCRONIZACIÓN FORZADA: ${data.modelo || 'Auto'}` : `AFINACIÓN REQUERIDA.`,
                     severity: (kmExcedido || esTargetManual) ? "HIGH" : "MEDIUM",
                     metadata: {
-                        km_actual: data.km_actual,
-                        asignado_a: manualContext?.tecnicoId || data.asignado_a || "jonathan_uid",
-                        placa: data.placas || vehiculoId
+                        asignado_a: manualContext?.tecnicoId || data.asignado_a || "jonathan_uid"
                     }
                 });
                 analysis.metrics.vencimientos_criticos++;
             }
         });
 
-        // --- 3. SCAN FINANCIERO (Suscripción) ---
+        // --- CAPA 4: SCAN FINANCIERO ---
         const tenantRef = collection(db, "tenants");
-        const qTenant = query(tenantRef, where("tenantId", "==", tenantId), limit(1));
-        const snapTenant = await getDocs(qTenant);
+        const snapTenant = await getDocs(query(tenantRef, where("tenantId", "==", tenantId), limit(1)));
 
-        if (!snapTenant.empty) {
-            const tData = snapTenant.docs[0].data();
-            if (tData.status === "deudor") {
-                analysis.alerts.push({
-                    type: "BILLING_LOCK",
-                    id: tenantId,
-                    target: "SISTEMA",
-                    msg: "Módulo en modo lectura: Detectado impago en suscripción Gestia.",
-                    severity: "CRITICAL"
-                });
-            }
+        if (!snapTenant.empty && snapTenant.docs[0].data().status === "deudor") {
+            analysis.alerts.push({
+                type: "BILLING_LOCK",
+                id: tenantId,
+                target: "SISTEMA",
+                msg: "Mora detectada. Módulo restringido.",
+                severity: "CRITICAL"
+            });
         }
 
-        console.log(`%c[DATA_ANALYZER]: Escaneo completado. Hallazgos: ${analysis.alerts.length} Alertas | ${analysis.warnings.length} Advertencias`, "color: #10b981; font-weight: bold;");
+        console.log(`%c[DATA_ANALYZER]: Escaneo Híbrido OK. Alertas totales: ${analysis.alerts.length}`, "color: #10b981; font-weight: bold;");
         return analysis;
 
     } catch (error) {
         console.error("❌ ERROR_IN_DATA_ANALYZER:", error);
-        throw new Error(`ANALYZER_CRASH: ${error.message}`);
+        throw error;
     }
 }
 
 /**
- * generateHealthScore: Calcula el estado de salud del búnker
- * @param {Object} analysis - El resultado del escaneo.
+ * generateHealthScore: Salud del búnker.
  */
 export function generateHealthScore(analysis) {
     if (!analysis) return 0;
     let score = 100;
-    score -= (analysis.alerts.length * 20);
-    score -= (analysis.warnings.length * 5);
+    score -= (analysis.alerts.length * 15);
     return Math.max(0, score);
 }
