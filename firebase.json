@@ -23,8 +23,8 @@
       "package.json",
       "package-lock.json",
       "vercel.json",
-      "*.json",
-      "!manifest.json",
+      "activos_uxmal39.json",
+      "mantenimiento_edificio.json",
       "*.md"
     ],
     "cleanUrls": true,
@@ -55,6 +55,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, no-store, must-revalidate"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/manifest+json"
           }
         ]
       }
