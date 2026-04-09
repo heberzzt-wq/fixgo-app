@@ -237,7 +237,7 @@ export class TerminalHeberto {
         console.log(`%c[KERNEL_STATE]: ${newState}`, "background: #1e293b; color: #38bdf8; padding: 2px 8px; border-radius: 4px; font-weight: bold;");
     }
 
-    /**
+   /**
      * inicializarAutoridad: Valida identidad y abre el búnker (Integración V5.51)
      */
     async inicializarAutoridad() {
@@ -256,11 +256,19 @@ export class TerminalHeberto {
                 throw new Error("FALLO_DE_IDENTIDAD: Usuario no detectado en Firebase.");
             }
 
-            // 🔑 BYPASS DE SOBERANÍA: Heber Mendoza (Arquitecto Supremo)
-            if (this.session.uid === "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2") { 
+            // 🔑 MATRIZ DE SOBERANÍA Y TESTING B2B
+            const ADMIN_UID = "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2";    // Heber
+            const JONATHAN_UID = "qsBDeRBJs1MMGpE8OBsLvqT9K1l2"; // Jonathan
+            const JORGE_UID = "Wo6ySz9pVUPs4Zxg5vpKnSniWt92";    // Jorge
+
+            if (this.session.uid === ADMIN_UID) { 
                 this.session.authorized = true;
                 this.session.role = "arquitecto_supremo";
                 this.logger.warn("🔓 MODO DIOS ACTIVADO: Soberanía de Heber Mendoza confirmada.");
+            } else if (this.session.uid === JONATHAN_UID || this.session.uid === JORGE_UID) {
+                this.session.authorized = true;
+                this.logger.log(`✅ ACCESO B2B AUTORIZADO: Identidad confirmada para pruebas de flujo real.`);
+                // Se conserva intacto el this.session.role que traen de resolveTenantContext()
             }
 
             // 🛡️ VALIDACIÓN FINAL DE ENTRADA AL BÚNKER
