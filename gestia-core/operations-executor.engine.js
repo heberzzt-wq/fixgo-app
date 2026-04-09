@@ -1,116 +1,127 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V7.0
+ * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V7.2.5 (SHIELD EDITION)
  * ======================================================================================
- * Función: El Brazo Mecánico. Ejecuta los cambios físicos aprobados por el Arquitecto.
- * REGLA 1: Código completo. Sin placeholders.
- * Integra: Herencia V5.28 (SafeWriter) para limpieza de datos.
+ * Función: El Brazo Mecánico con Protocolo de Restricción Inteligente.
+ * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
  * ======================================================================================
  */
 
-import { db } from '../firebase.js';
 import { 
+    db, 
     doc, 
-    updateDoc, 
-    addDoc, 
     collection, 
     serverTimestamp,
     runTransaction 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from '../firebase.js';
 
 /**
- * 🧹 HERENCIA DEL ABUELO (SafeWriter)
- * Mantenemos la pureza de los datos antes de inyectar a Firestore.
+ * limpiarPayload: Elimina undefined para evitar el crash de Firebase en transacciones.
  */
-function limpiarUndefined(obj) {
-    return Object.fromEntries(
-        Object.entries(obj).filter(([_, v]) => v !== undefined)
-    );
-}
+const limpiarPayload = (obj) => {
+    return Object.entries(obj).reduce((acc, [key, value]) => {
+        if (value !== undefined) acc[key] = value;
+        return acc;
+    }, {});
+};
 
-/**
- * ejecutarCambios: Punto de entrada para el "Arre".
- * @param {Object} params - Datos de la operación y lista de cambios.
- */
-export async function ejecutarCambios({ operation_id, tenantId, ejecutado_por, changes }) {
-    console.log(`%c🚀 [EXECUTOR]: Iniciando ejecución física para OP: ${operation_id}`, "color: #10b981; font-weight: bold;");
+export async function ejecutarCambios(proposal) {
+    const { operation_id, tenantId, ejecutado_por, changes } = proposal;
+    const results = [];
 
-    const resultados = [];
+    console.log(`%c[EXECUTOR]: Iniciando protocolo de impacto para OP: ${operation_id}`, "color: #10b981; font-weight: bold;");
 
-    // Usamos una transacción para asegurar que o se aplica todo o nada (Atomicidad)
     try {
         await runTransaction(db, async (transaction) => {
-            
             for (const change of changes) {
-                const { type, target, payload, action } = change;
+                const { type, target, payload, reason } = change;
                 let ref;
 
-                // --- SWITCH DE ACCIONES DE CAMPO ---
+                // --- 🛡️ PROTOCOLO DE AUDITORÍA (LEDGER) ---
+                const ledgerRef = doc(collection(db, "tenants", tenantId, "gestia_ledger"));
+                transaction.set(ledgerRef, {
+                    op_id: operation_id,
+                    type,
+                    target,
+                    ejecutado_por,
+                    timestamp: serverTimestamp(),
+                    reason: reason || "Ejecución por orden de la terminal"
+                });
+
+                // --- ⚙️ LÓGICA DE EJECUCIÓN FÍSICA ---
                 switch (type) {
-                    
-                    case "LOCK_TECHNICIAN":
-                        // Bloqueo de seguridad (Ej: Caso Jonathan)
-                        ref = doc(db, "tenants", tenantId, "technicians", target);
-                        transaction.update(ref, limpiarUndefined({
-                            ...payload,
-                            last_lock_date: serverTimestamp(),
-                            updated_by: ejecutado_por
+
+                    case "REPAIR_RUNTIME_LINK":
+                        // Registramos la reparación en la OP para que el observador de la UI reaccione
+                        ref = doc(db, "gestia_operations", operation_id);
+                        transaction.update(ref, limpiarPayload({
+                            runtime_repaired: true,
+                            repaired_component: target,
+                            repair_timestamp: serverTimestamp()
                         }));
-                        resultados.push({ type, target, status: "updated_lock" });
+                        results.push({ type, target, status: "runtime_hook_fixed" });
                         break;
 
-                    case "SCHEDULE_MAINTENANCE":
-                        // Creación de Rutina Preventiva
-                        const rutinaRef = collection(db, "tenants", tenantId, "routines");
-                        // Nota: addDoc no funciona directo en transacción de esta forma, 
-                        // pero para V7 usamos el set en un doc generado
-                        const newRoutineRef = doc(rutinaRef);
-                        transaction.set(newRoutineRef, limpiarUndefined({
+                    case "SYSTEM_RESTRICTION":
+                        /**
+                         * 🛡️ EL ESCUDO DE HEBER:
+                         * No solo bloquea, marca el grado de integridad del búnker.
+                         */
+                        ref = doc(db, "tenants", tenantId);
+                        transaction.update(ref, limpiarPayload({
+                            shield_level: payload?.severity === "CRITICAL" ? "READ_ONLY" : "WARNING",
+                            restriction_active: true,
+                            restriction_reason: reason || "Fallo arquitectónico detectado",
+                            last_security_event: operation_id,
+                            restricted_at: serverTimestamp()
+                        }));
+                        results.push({ type, target, status: "shield_activated" });
+                        break;
+
+                    case "FORCE_MAINTENANCE_TASK":
+                        // Creación de la tarea para Jonathan
+                        const tasksCol = collection(db, "tenants", tenantId, "tasks");
+                        const newTaskRef = doc(tasksCol);
+                        transaction.set(newTaskRef, limpiarPayload({
                             ...payload,
-                            created_at: serverTimestamp(),
                             created_by: ejecutado_por,
-                            source_op: operation_id
+                            source: "TERMINAL_HEBERTO",
+                            op_id: operation_id,
+                            timestamp: serverTimestamp(),
+                            status: "pending"
                         }));
-                        resultados.push({ type, target, status: "routine_created" });
+                        results.push({ type, target, status: "urgent_task_created" });
                         break;
 
-                    case "RESTRICT_TENANT":
-                        // Bloqueo Administrativo del Búnker
-                        ref = doc(db, "tenants", target);
-                        transaction.update(ref, limpiarUndefined({
+                    case "LOCK_TECHNICIAN":
+                        ref = doc(db, "tenants", tenantId, "technicians", target);
+                        transaction.update(ref, limpiarPayload({
                             ...payload,
-                            restriction_date: serverTimestamp()
+                            status: "safety_lock",
+                            lock_timestamp: serverTimestamp()
                         }));
-                        resultados.push({ type, target, status: "tenant_restricted" });
+                        results.push({ type, target, status: "technician_locked" });
                         break;
 
                     default:
-                        console.warn(`⚠️ [EXECUTOR]: Tipo de cambio desconocido: ${type}`);
+                        console.warn(`%c[EXECUTOR]: Protocolo desconocido para el tipo: ${type}`, "color: #f59e0b;");
                 }
             }
 
-            // --- PASO FINAL: CIERRE DEL LEDGER (V5.28 Integration) ---
-            // Actualizamos el status en la colección gestia_operations que creó tu V5.28
-            const opRef = doc(db, "gestia_operations", operation_id);
-            transaction.update(opRef, {
+            // --- ✅ CIERRE DE OPERACIÓN MAESTRA ---
+            const finalOpRef = doc(db, "gestia_operations", operation_id);
+            transaction.update(finalOpRef, {
                 status: "completed",
-                finished_at: serverTimestamp(),
-                execution_log: resultados
+                completed_at: serverTimestamp(),
+                affected_actions: results.length
             });
         });
 
-        console.log("%c✅ [EXECUTOR]: Cambios persistidos y Ledger actualizado.", "color: #10b981; font-weight: bold;");
-        return resultados;
+        console.log(`%c[EXECUTOR]: Misión cumplida. Acciones ejecutadas: ${results.length}`, "color: #10b981; font-weight: bold;");
+        return results;
 
     } catch (error) {
-        console.error(`%c❌ [EXECUTOR]: Error fatal en la ejecución: ${error.message}`, "color: #ef4444; font-weight: bold;");
-        
-        // Intentamos marcar el fallo en el Ledger si es posible
-        try {
-            const opRef = doc(db, "gestia_operations", operation_id);
-            await updateDoc(opRef, { status: "failed", error: error.message });
-        } catch (e) { /* Silencio si el error es de conexión */ }
-        
+        console.error("❌ CRASH_EN_EXECUTOR:", error);
         throw error;
     }
 }
