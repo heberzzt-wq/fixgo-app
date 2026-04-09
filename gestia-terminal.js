@@ -373,7 +373,7 @@ export class TerminalHeberto {
         }
     }
 
-    /**
+   /**
      * buildContext: Crea el ID de operación y registra el inicio en Firestore.
      */
     async buildContext(input) {
@@ -383,6 +383,7 @@ export class TerminalHeberto {
                 input + Date.now() + this.session.uid + this.session.tenantId
             );
         } catch (e) {
+            // Fallback Antifragile si falla el Crypto
             opId = `GOD_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         }
 
@@ -393,6 +394,7 @@ export class TerminalHeberto {
             rawInput: input
         };
 
+        // Registro silencioso de la operación (Auditoría Forense)
         const opRef = doc(db, GESTIA_CONFIG.COLECCIONES.OPERATIONS, opId);
         await setDoc(opRef, {
             operation_id: opId,
@@ -411,33 +413,75 @@ export class TerminalHeberto {
 
     /**
      * runDualAnalysis: El "Ojo de Dios". Escanea estructura y realidad.
+     * ACTUALIZADO V7.3: Extracción de contexto manual para el Analyzer.
      */
     async runDualAnalysis(ctx) {
         this.logger.log("🔍 Iniciando Auditoría Dual (Schema + Data)...");
         const analysis = { schema: null, data: null, vip_scan: null };
+        const inputLower = ctx.rawInput.toLowerCase();
 
-        const matchId = ctx.rawInput.toLowerCase().match(/modulo(?:_|\s+)([a-z0-9_]+)/i);
-        const idPropuesto = matchId ? matchId[1] : null;
-
-        if (idPropuesto) {
-            this.logger.log(`🩺 [CIRUJANO VIP] Extrayendo ADN del módulo: ${idPropuesto}`);
+        // 1. [CIRUJANO VIP] Búsqueda de ADN de Módulo
+        const matchId = ctx.rawInput.match(/modulo(?:_|\s+)([a-z0-9_]+)/i);
+        if (matchId) {
+            const idPropuesto = matchId[1];
+            this.logger.log(`🩺 [VIP SCAN] Extrayendo ADN del módulo: ${idPropuesto}`);
             try {
                 const docRef = doc(db, GESTIA_CONFIG.COLECCIONES.MODULES, idPropuesto);
                 const snap = await getDoc(docRef);
                 if (snap.exists()) {
                     analysis.vip_scan = { id: idPropuesto, dna: snap.data(), status: "found" };
                 }
-            } catch (e) { this.logger.warn(`⚠️ Fallo en VIP Scanner: ${e.message}`); }
+            } catch (e) { this.logger.warn(`⚠️ VIP Scanner: ${e.message}`); }
         }
 
+        // 2. [MANUAL OVERRIDE] Extracción de contexto para el Analyzer
+        // Buscamos nombres (Jonathan) o placas (UVZ343K) en el prompt
+        const manualContext = {
+            tecnico: inputLower.includes("jonathan") ? "jonathan" : null,
+            placa: ctx.rawInput.match(/[A-Z]{3}[0-9]{3,4}[A-Z]?/i)?.[0] || null
+        };
+
         try {
-            this.logger.log("📊 Ejecutando Data Analyzer Engine...");
-            analysis.data = await analizarDatosSistema(ctx.tenantId);
+            this.logger.log("📊 Ejecutando Data Analyzer Engine V7.3...");
+            // 💡 Inyectamos el contexto manual para que el Analyzer "vea" lo que la UI reporta
+            analysis.data = await analizarDatosSistema(ctx.tenantId, manualContext);
         } catch (e) {
             this.logger.error(`❌ Fallo en Data Analyzer: ${e.message}`);
-            analysis.data = { alerts: [], warnings: [], insights: [], metrics: {} };
+            analysis.data = { alerts: [], warnings: [], metrics: {} };
         }
+
         return analysis;
+    }
+
+    /**
+     * runExecutionPipeline: El brazo mecánico (El ARRE).
+     */
+    async runExecutionPipeline(proposal) {
+        this.logger.log(`🚀 [EJECUCIÓN] Aplicando cambios para OP: ${proposal.operation_id}`);
+        try {
+            const resultados = await ejecutarCambios({
+                operation_id: proposal.operation_id,
+                tenantId: proposal.tenantId,
+                ejecutado_por: proposal.ejecutado_por,
+                changes: proposal.changes
+            });
+
+            const total = Array.isArray(resultados) ? resultados.length : 0;
+            this.logger.log(`✅ Pipeline finalizado. ${total} acciones impactadas.`);
+
+            return this.normalizeOutput({
+                intent: "apply_changes",
+                action: "terminal_execution_success",
+                data: {
+                    applied: true,
+                    operation_id: proposal.operation_id,
+                    summary: resultados || []
+                },
+                ui: { type: "execution_success" }
+            });
+        } catch (error) {
+            throw new Error(`FALLO_TRANSACCIONAL: ${error.message}`);
+        }
     }
 
     normalizeOutput(result) {
@@ -457,80 +501,22 @@ export class TerminalHeberto {
         };
     }
 
-    handleKernelError(err) {
-        this.setState(STATES.ERROR);
-        this.logger.error(`KERNEL_CRASH: ${err.message}`);
-        return {
-            success: false,
-            operation_id: this.context?.operation_id || null,
-            intent: null,
-            action: null,
-            data: null,
-            ui: { type: "error_card" },
-            audit: null,
-            error: err.message
-        };
-    }
-
-    async runExecutionPipeline(proposal) {
-        this.logger.log(`🚀 [EJECUCIÓN] Iniciando pipeline transaccional para OP: ${proposal.operation_id}`);
-        try {
-            const resultados = await ejecutarCambios({
-                operation_id: proposal.operation_id,
-                tenantId: proposal.tenantId,
-                ejecutado_por: proposal.ejecutado_por,
-                changes: proposal.changes
-            });
-           const total = Array.isArray(resultados) ? resultados.length : 0;
-this.logger.log(`✅ Pipeline finalizado con éxito. ${total} acciones ejecutadas.`);
-
-return this.normalizeOutput({
-    intent: "apply_changes",
-    action: "terminal_execution_success",
-    data: {
-        applied: true,
-        operation_id: proposal.operation_id,
-        summary: resultados || []
-    },
-    ui: { type: "execution_success" }
-});
-        } catch (error) {
-            throw new Error(`FALLO_EN_EJECUCIÓN_TRANSACCIONAL: ${error.message}`);
-        }
-    }
-
-    getHistory() { return this.log; }
-
     resetContext() {
         this.context = null;
         this.pendingProposal = null;
-        this.logger.log("🧹 Contexto de operación reseteado. Kernel listo para nueva orden.");
+        this.logger.log("🧹 Contexto liberado. Kernel IDLE.");
     }
-}
-
-// 🚀 INSTANCIACIÓN GLOBAL
-const KernelHeberto = new TerminalHeberto();
-window.GestiaTerminal = KernelHeberto;
-
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        KernelHeberto.inicializarAutoridad();
-    } else {
-        if (!window.location.pathname.includes("login.html")) {
-            window.location.href = "/login.html";
-        }
-    }
-});
 /* =====================================================================================
-   8. UI BUILDERS - GRADO INDUSTRIAL V7.1
+   8. UI BUILDERS - GRADO INDUSTRIAL V7.1 (STRICT TAILWIND)
    ===================================================================================== */
 
 /**
  * renderProposalCard: Pinta la propuesta de la IA con botones de acción.
+ * Optimizado para Tailwind JIT y persistencia de instancia.
  */
-function renderProposalCard(proposal) {
+window.renderProposalCard = function(proposal) {
     // 🔒 NORMALIZACIÓN ANTIFRÁGIL
-    proposal = {
+    const data = {
         risk: "LOW",
         impact: "Sin cambios detectados",
         changes: [],
@@ -540,38 +526,68 @@ function renderProposalCard(proposal) {
     const output = document.getElementById('gestia-output');
     if (!output) return;
 
+    // 🎨 MAPEO DE CLASES (Tailwind JIT Safe)
+    // Esto garantiza que los estilos se carguen correctamente en producción.
+    const themes = {
+        HIGH: {
+            bg: "bg-red-600",
+            border: "border-red-500/30",
+            text: "text-red-400",
+            shadow: "shadow-[0_0_30px_rgba(220,38,38,0.4)]",
+            icon: "fa-triangle-exclamation"
+        },
+        MEDIUM: {
+            bg: "bg-amber-600",
+            border: "border-amber-500/30",
+            text: "text-amber-400",
+            shadow: "shadow-[0_0_30px_rgba(245,158,11,0.4)]",
+            icon: "fa-shield-halved"
+        },
+        LOW: {
+            bg: "bg-emerald-600",
+            border: "border-emerald-500/30",
+            text: "text-emerald-400",
+            shadow: "shadow-[0_0_30px_rgba(16,185,129,0.4)]",
+            icon: "fa-shield-check"
+        }
+    };
+
+    const theme = themes[data.risk] || themes.LOW;
+
     const div = document.createElement("div");
     div.className = "flex gap-5 animate-fade-in max-w-4xl mx-auto w-full mt-10 relative z-10";
 
-    const riskColor = proposal.risk === "HIGH" ? "red" : proposal.risk === "MEDIUM" ? "amber" : "emerald";
-    const riskIcon = proposal.risk === "HIGH" ? "fa-triangle-exclamation" : "fa-shield-halved";
-
     div.innerHTML = `
-        <div class="w-14 h-14 rounded-full bg-${riskColor}-600 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(220,38,38,0.4)] relative z-20">
-            <i class="fa-solid ${riskIcon} text-white text-xl"></i>
+        <div class="w-14 h-14 rounded-full ${theme.bg} flex items-center justify-center shrink-0 ${theme.shadow} relative z-20">
+            <i class="fa-solid ${theme.icon} text-white text-xl"></i>
         </div>
 
-        <div class="bg-slate-900/90 border border-${riskColor}-500/30 p-8 rounded-[2.5rem] rounded-tl-none flex-1 shadow-2xl backdrop-blur-md relative z-10">
+        <div class="bg-slate-900/90 border ${theme.border} p-8 rounded-[2.5rem] rounded-tl-none flex-1 shadow-2xl backdrop-blur-md relative z-10">
             <div class="flex justify-between items-start mb-4">
-                <h3 class="text-${riskColor}-400 text-[11px] font-black uppercase tracking-[0.4em]">Propuesta de Cambio V7.1</h3>
-                <span class="bg-${riskColor}-500/20 text-${riskColor}-400 text-[9px] px-3 py-1 rounded-full font-bold border border-${riskColor}-500/30">RIESGO: ${proposal.risk}</span>
+                <h3 class="${theme.text} text-[11px] font-black uppercase tracking-[0.4em]">Propuesta de Cambio V7.1</h3>
+                <span class="${theme.bg}/20 ${theme.text} text-[9px] px-3 py-1 rounded-full font-bold border ${theme.border}">RIESGO: ${data.risk}</span>
             </div>
             
-            <p class="text-slate-100 text-sm font-bold mb-4">${proposal.impact}</p>
+            <p class="text-slate-100 text-sm font-bold mb-4">${data.impact}</p>
             
             <ul class="space-y-2 mb-6">
-                ${(proposal.changes || []).map(c => `
+                ${(data.changes || []).map(c => `
                     <li class="text-slate-400 text-[12px] flex items-center gap-2">
-                        <i class="fa-solid fa-check text-emerald-500 text-[10px]"></i> ${(c?.type || "change").replace('_', ' ')} -> ${c?.target || "unknown"}
+                        <i class="fa-solid fa-circle-check text-emerald-500 text-[8px]"></i> 
+                        <span class="uppercase font-mono text-[10px] text-slate-500">${(c?.type || "change").replace(/_/g, ' ')}</span> 
+                        <i class="fa-solid fa-arrow-right text-[10px] opacity-30"></i> 
+                        <span class="text-slate-200">${c?.target || "unknown"}</span>
                     </li>
                 `).join('')}
             </ul>
 
             <div class="flex gap-4 pt-4 border-t border-slate-800">
-                <button onclick="window.GestiaTerminal.execute('arre')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-8 py-3 rounded-xl shadow-lg transition-all uppercase tracking-widest">
+                <button onclick="this.disabled=true; this.opacity=0.5; window.KernelHeberto.execute('arre')" 
+                        class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-8 py-3 rounded-xl shadow-lg transition-all uppercase tracking-widest active:scale-95">
                     🚀 ARRE (APLICAR)
                 </button>
-                <button onclick="window.GestiaTerminal.resetContext(); this.closest('.animate-fade-in').style.opacity='0.5'" class="bg-slate-800 hover:bg-slate-700 text-slate-400 text-[11px] font-black px-6 py-3 rounded-xl transition-all uppercase tracking-widest">
+                <button onclick="window.KernelHeberto.resetContext(); this.closest('.animate-fade-in').style.opacity='0.5'; this.disabled=true;" 
+                        class="bg-slate-800 hover:bg-slate-700 text-slate-400 text-[11px] font-black px-6 py-3 rounded-xl transition-all uppercase tracking-widest">
                     CANCELAR
                 </button>
             </div>
@@ -579,8 +595,9 @@ function renderProposalCard(proposal) {
     `;
 
     output.appendChild(div);
-    hacerScrollAbajo();
-}
+    window.hacerScrollAbajo?.();
+};
+
 /* =====================================================================================
    9. INTERACCIÓN Y DISPARO (THE GLUE)
    ===================================================================================== */
@@ -589,12 +606,15 @@ const form = document.getElementById('gestia-form');
 const input = document.getElementById('gestia-input');
 const btnGenerate = document.getElementById('btn-generate');
 
+// IMPORTANTE: Exponemos el Kernel globalmente para que los botones del Builder lo vean
+window.KernelHeberto = KernelHeberto;
+
 if (form) {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         // 🛡️ 1. CANDADO DE AUTORIDAD V7.1
-        if (!KernelHeberto.session.authorized) {
+        if (!window.KernelHeberto.session.authorized) {
             window.agregarBurbujaError?.("🚨 Bloqueo: Esperando autoridad criptográfica del sistema.");
             return;
         }
@@ -613,8 +633,7 @@ if (form) {
 
         try {
             // 🚀 3. INVOCACIÓN AL KERNEL
-            // El Kernel orquesta: ANALYZE -> PROPOSE
-            const response = await KernelHeberto.execute(instruccion);
+            const response = await window.KernelHeberto.execute(instruccion);
 
             // Quitamos el spinner de carga
             const loadingElement = document.getElementById(idCarga);
@@ -623,21 +642,26 @@ if (form) {
             // 🔀 4. MANEJO DE RESPUESTA SEGÚN UI_TYPE
             if (response.success) {
                 
-                switch (response.ui.type) {
+                switch (response.ui?.type) {
                     case "proposal_card":
                         window.renderProposalCard?.(response.data);
                         break;
                     
                     case "execution_success":
                         window.renderExecutionResult?.(response.data);
-                        // Si la ejecución fue un éxito total, reseteamos el Kernel para la siguiente op
-                        KernelHeberto.resetContext();
+                        // Reset para la siguiente operación
+                        window.KernelHeberto.resetContext();
+                        break;
+                    
+                    case "info_card":
+                        // Manejo para cuando el búnker está en orden (No requiere Arre)
+                        window.agregarBurbujaSistema?.(response.data.impact || "Operación completada sin cambios necesarios.");
+                        window.KernelHeberto.resetContext();
                         break;
                     
                     default:
-                        // Fallback para respuestas de texto simple o IA conversacional
-                        if (response.data && response.data.mensaje_ceo) {
-                            window.renderExecutionResult?.({ operation_id: response.operation_id }); 
+                        if (response.data?.mensaje_ceo) {
+                            window.agregarBurbujaSistema?.(response.data.mensaje_ceo);
                         }
                 }
 
@@ -646,13 +670,12 @@ if (form) {
             }
 
         } catch (err) {
-            // Limpieza en caso de fallo
             const loadingElement = document.getElementById(idCarga);
             if (loadingElement) loadingElement.remove();
             
             window.agregarBurbujaError?.(err.message);
         } finally {
-            // 🔓 5. LIBERACIÓN DE UI Y FOCO
+            // 🔓 5. LIBERACIÓN DE UI
             btnGenerate.disabled = false;
             btnGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
             input.disabled = false;
@@ -663,7 +686,7 @@ if (form) {
     });
 }
 
-// ⌨️ ACCESO RÁPIDO: Foco automático al cargar la terminal
+// Foco inicial
 if (input) input.focus();
 
-console.log("%c>> INTERCONEXIÓN DE UI BLINDADA (WINDOW SCOPE) ACTIVA %c🛡️", "color: #38bdf8; font-weight: bold;", "font-size: 14px;");
+console.log("%c>> INTERCONEXIÓN DE UI BLINDADA V7.1 ACTIVA %c🛡️", "color: #38bdf8; font-weight: bold;", "font-size: 14px;");
