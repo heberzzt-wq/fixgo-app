@@ -424,6 +424,39 @@ Historial
 </main>
 
 
+<main id="seccion-operador" class="hidden p-4">
+    <h3 class="text-xs font-black uppercase text-zinc-500 mb-6 tracking-widest">
+        Mi Unidad Asignada
+    </h3>
+    
+    <div class="space-y-6">
+        <div class="glass-card p-6 rounded-3xl relative overflow-hidden border-blue-500/20">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+            <div class="relative z-10 flex justify-between items-start">
+                <div>
+                    <p class="text-[9px] font-black text-blue-500 uppercase tracking-widest mb-1">
+                        <i class="fas fa-car mr-1"></i> Vehículo Operativo
+                    </p>
+                    <h4 class="text-xl font-black italic uppercase text-white leading-none mt-2">
+                        VW GOL CL A
+                    </h4>
+                    <p class="text-[10px] font-bold text-zinc-400 mt-2 uppercase tracking-widest">
+                        Placas: <span class="text-white">UVZ343K</span>
+                    </p>
+                </div>
+                <div class="w-10 h-10 bg-blue-500/10 rounded-full flex items-center justify-center border border-blue-500/30">
+                    <i class="fas fa-gas-pump text-blue-500 text-sm"></i>
+                </div>
+            </div>
+        </div>
+
+        <button onclick="reportarFallaVehiculo()" 
+                class="w-full bg-red-600/10 border border-red-500/30 text-red-500 py-6 rounded-3xl font-black text-xs uppercase tracking-widest active:scale-95 transition-transform flex flex-col items-center justify-center gap-3 shadow-[0_0_20px_rgba(239,68,68,0.1)]">
+            <i class="fas fa-tools text-3xl"></i> 
+            Reportar Falla Mecánica
+        </button>
+    </div>
+</main>
 <main id="seccion-perfil" class="hidden text-center p-4">
 
 <h3 class="text-xs font-black uppercase text-zinc-500 mb-6 tracking-widest">
@@ -489,23 +522,27 @@ class="w-full bg-red-600/10 text-red-500 border border-red-500/20 py-4 rounded-2
 </main>
 
 
-<nav
-class="fixed bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur-xl border-t border-white/5 flex justify-around items-center">
+<nav class="fixed bottom-0 left-0 right-0 p-4 bg-black/90 backdrop-blur-xl border-t border-white/5 flex justify-around items-center z-50">
 
-<button onclick="cambiarSeccion('seccion-tareas')" class="flex flex-col items-center text-emerald-500">
-<i class="fas fa-tasks text-lg"></i>
-<span class="text-[8px] mt-1 uppercase">Tareas</span>
-</button>
+    <button onclick="cambiarSeccion('seccion-tareas')" class="nav-btn flex flex-col items-center text-emerald-500">
+        <i class="fas fa-tasks text-lg"></i>
+        <span class="text-[8px] mt-1 uppercase font-bold">Tareas</span>
+    </button>
 
-<button onclick="cambiarSeccion('seccion-historial')" class="flex flex-col items-center text-zinc-600">
-<i class="fas fa-history text-lg"></i>
-<span class="text-[8px] mt-1 uppercase">Historial</span>
-</button>
+    <button onclick="cambiarSeccion('seccion-historial')" class="nav-btn flex flex-col items-center text-zinc-600">
+        <i class="fas fa-history text-lg"></i>
+        <span class="text-[8px] mt-1 uppercase font-bold">Historial</span>
+    </button>
 
-<button onclick="cambiarSeccion('seccion-perfil')" class="flex flex-col items-center text-zinc-600">
-<i class="fas fa-user-circle text-lg"></i>
-<span class="text-[8px] mt-1 uppercase">Perfil</span>
-</button>
+    <button onclick="cambiarSeccion('seccion-operador')" class="nav-btn flex flex-col items-center text-zinc-600">
+        <i class="fas fa-car-side text-lg"></i>
+        <span class="text-[8px] mt-1 uppercase font-bold">Unidad</span>
+    </button>
+
+    <button onclick="cambiarSeccion('seccion-perfil')" class="nav-btn flex flex-col items-center text-zinc-600">
+        <i class="fas fa-user-circle text-lg"></i>
+        <span class="text-[8px] mt-1 uppercase font-bold">Perfil</span>
+    </button>
 
 </nav>
 
