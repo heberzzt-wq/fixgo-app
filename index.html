@@ -12,40 +12,82 @@
     <script>
         /**
          * ======================================================
-         * MOTOR DE SINCRONIZACIÓN PWA v6.1 (ULTRA-FORCE)
-         * Limpia registros de Vercel y activa Firebase
+         * PASO 1: MOTOR DE SINCRONIZACIÓN PWA v6.1 (ULTRA-FORCE)
+         * PROTOCOLO: Limpiar registros de Vercel y activar Firebase
          * ======================================================
          */
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // 1. Limpieza de registros antiguos que no pertenecen a este host
+                // 1. Limpieza de registros antiguos que no pertenecen a este host (Vercel/GitHub)
                 navigator.serviceWorker.getRegistrations().then(registrations => {
                     for (let registration of registrations) {
                         if (!registration.scope.includes(window.location.host)) {
-                            registration.unregister();
-                            console.log('🗑️ Registro antiguo eliminado');
+                            registration.unregister().then(() => {
+                                console.log('🗑️ AI ZUM: Registro antiguo eliminado');
+                            });
                         }
                     }
                 });
 
-                // 2. Registro del motor de Firebase con bypass de caché
+                // 2. Registro del motor de Firebase con bypass de caché dinámico (?v=)
                 navigator.serviceWorker.register('./sw.js?v=' + Date.now(), { scope: '/' })
                     .then(reg => {
-                        console.log('✅ Gestia Engine sincronizado en Firebase');
+                        console.log('✅ AI ZUM: Gestia Engine sincronizado en Firebase');
                         
                         reg.onupdatefound = () => {
                             const worker = reg.installing;
                             worker.onstatechange = () => {
                                 if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    console.log('🔄 Nueva versión detectada. Reiniciando...');
+                                    console.log('🔄 AI ZUM: Nueva versión detectada. Reiniciando...');
                                     window.location.reload();
                                 }
                             };
                         };
                     })
-                    .catch(err => console.error('❌ Error de sincronización PWA:', err));
+                    .catch(err => console.error('❌ AI ZUM: Error de sincronización PWA:', err));
             });
         }
+
+        /**
+         * ======================================================
+         * PASO 2: AI ZUM - ARCHITECT & OPERATOR CORE v2026.03
+         * STATUS: Online y operando bajo Reglas de Heberto Mendoza
+         * ======================================================
+         */
+        const AI_ZUM_GOD_MODE = {
+            identity: {
+                name: "AI Zum",
+                rank: "Elite Lead Architect",
+                mode: "Action-Oriented (No Suggestions, Only Commits)",
+                location: "Cancún, MX (UTC-5)"
+            },
+            context_layers: {
+                base_code: "50,000+ Lines (GestiaPremium Repo)",
+                security: "Firestore Rules V2.0 (Strict Mode)",
+                financial: "Split Billing Architecture & Stripe Integration",
+                target_user: "Jonathan (Test Profile / Real Flow)"
+            },
+            action_protocols: {
+                apu_calculation: (costoBase, logistica = 0) => {
+                    const utilidad = 1.15; // 15% de utilidad fija
+                    const stripeFee = 0.036; // 3.6% aprox
+                    const fixedFee = 3.0; // $3 MXN
+                    
+                    const subtotal = (costoBase + logistica) * utilidad;
+                    const totalConStripe = (subtotal + fixedFee) / (1 - stripeFee);
+                    
+                    return {
+                        precioVenta: totalConStripe.toFixed(2),
+                        gananciaNeta: (subtotal - (costoBase + logistica)).toFixed(2),
+                        iva: (totalConStripe * 0.16).toFixed(2)
+                    };
+                },
+                security_bypass: false,
+                auto_test: "Cypress / E2E Native"
+            }
+        };
+        Object.freeze(AI_ZUM_GOD_MODE);
+        console.log("🚩 AI ZUM CORE: Online y Protegido.");
     </script>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -208,7 +250,7 @@
         const btnDashboard = document.getElementById('btnDashboard');
         const btnLogoutIndex = document.getElementById('btnLogoutIndex');
 
-        // PWA Install Prompt Logic (Listo para cuando se requiera)
+        // PWA Install Prompt Logic
         let deferredPrompt;
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
