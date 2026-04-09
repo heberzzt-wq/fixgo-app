@@ -1,16 +1,21 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - PROPOSE ENGINE V7.2 (STRICT_EXECUTION)
+ * GESTIAPREMIUM 2026 - PROPOSE ENGINE V7.2.1 (MAX_ANTIFRAGILE)
  * ======================================================================================
  * Función: Traduce hallazgos del Analyzer en planes de acción transaccionales.
- * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR.
- * Actualización V7.2: Soporte para Alertas Críticas de Vehículos y Enlace Jonathan.
- * Autor: Heber Mendoza (Arquitecto Supremo)
+ * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
+ * Actualización V7.2.1: Normalización total de datos y soporte para CODE_DETACHED.
+ * Autor: Heber Mendoza (Arquitecto Supremo) & El Abuelo
  * ======================================================================================
  */
 
 export function generarPropuesta(analysis) {
-    const data = analysis?.data || analysis || { alerts: [], warnings: [] };
+    // 🛡️ NORMALIZACIÓN TOTAL (Recomendación del Abuelo)
+    // Eliminamos cualquier posibilidad de crash por propiedad inexistente.
+    const data = {
+        alerts: analysis?.data?.alerts || analysis?.alerts || [],
+        warnings: analysis?.data?.warnings || analysis?.warnings || []
+    };
 
     const proposal = {
         risk: "LOW",
@@ -24,13 +29,44 @@ export function generarPropuesta(analysis) {
     };
 
     // --- 1. LÓGICA DE ALERTAS CRÍTICAS (RIESGO ALTO) ---
-    if (data.alerts && data.alerts.length > 0) {
+    if (data.alerts.length > 0) {
         proposal.risk = "HIGH";
         proposal.needs_approval = true;
-        proposal.impact = "INTERVENCIÓN INMEDIATA REQUERIDA: Se han detectado bloqueos críticos o discrepancias de seguridad.";
+        proposal.impact = "BLOQUEO OPERATIVO: Se detectaron fallos críticos en datos o arquitectura de código.";
 
         data.alerts.forEach(alert => {
-            // Caso A: Riesgo Humano (Seguros)
+            // A) Caso: Desentrelazado de Código (Ref. El Abuelo)
+            if (alert.type === "CODE_DETACHED") {
+                proposal.changes.push({
+                    type: "REPAIR_RUNTIME_LINK",
+                    target: alert.id, 
+                    reason: alert.msg,
+                    action: "rebind_global_scope",
+                    payload: { 
+                        component: alert.id,
+                        severity: "architectural",
+                        suggestion: "Reiniciar Terminal o Re-inyectar Script Core"
+                    }
+                });
+            }
+
+            // B) Caso: Mantenimiento Crítico (El Gol de Jonathan)
+            if (alert.type === "VEHICLE_MAINTENANCE") {
+                proposal.changes.push({
+                    type: "FORCE_MAINTENANCE_TASK",
+                    target: alert.id, 
+                    reason: alert.msg,
+                    action: "create_urgent_task",
+                    payload: { 
+                        priority: "emergency", 
+                        category: "mantenimiento_correctivo",
+                        assigned_to: alert.metadata?.asignado_a || "jonathan_uid",
+                        description: `ORDEN MAESTRA: Afinación inmediata para ${alert.target}.`
+                    }
+                });
+            }
+
+            // C) Caso: Riesgo Humano (Seguros)
             if (alert.type === "HUMAN_RISK") {
                 proposal.changes.push({
                     type: "LOCK_TECHNICIAN",
@@ -40,39 +76,11 @@ export function generarPropuesta(analysis) {
                     payload: { status: "blocked_by_safety", safety_lock: true }
                 });
             }
-
-            // Caso B: Mantenimiento Crítico (El Gol de Jonathan)
-            // 💡 FIX V7.2: Ahora el Propose sabe qué hacer si el vehículo es una ALERT
-            if (alert.type === "VEHICLE_MAINTENANCE") {
-                proposal.changes.push({
-                    type: "FORCE_MAINTENANCE_TASK",
-                    target: alert.id, // Placa o ID del vehículo
-                    reason: alert.msg,
-                    action: "create_urgent_task",
-                    payload: { 
-                        priority: "emergency", 
-                        category: "mantenimiento_correctivo",
-                        assigned_to: alert.metadata?.asignado_a || "jonathan_uid",
-                        description: `ORDEN MAESTRA: Ejecutar afinación inmediata para ${alert.target}.`
-                    }
-                });
-            }
-
-            // Caso C: Bloqueo por Suscripción
-            if (alert.type === "BILLING_LOCK") {
-                proposal.changes.push({
-                    type: "RESTRICT_TENANT",
-                    target: alert.id,
-                    reason: "Mora en suscripción SaaS",
-                    action: "update",
-                    payload: { access_level: "read_only" }
-                });
-            }
         });
     }
 
     // --- 2. LÓGICA DE ADVERTENCIAS (RIESGO MEDIO) ---
-    if (data.warnings && data.warnings.length > 0) {
+    if (data.warnings.length > 0) {
         if (proposal.risk !== "HIGH") {
             proposal.risk = "MEDIUM";
             proposal.needs_approval = true;
@@ -96,17 +104,17 @@ export function generarPropuesta(analysis) {
         });
     }
 
-    // --- 3. LIMPIEZA Y CIERRE ---
+    // --- 3. CIERRE DE CICLO NOMINAL ---
     if (proposal.changes.length === 0) {
-        proposal.impact = "El búnker opera dentro de los parámetros nominales. Sin cambios requeridos.";
+        proposal.impact = "El búnker opera dentro de los parámetros nominales.";
         proposal.risk = "LOW";
         proposal.needs_approval = false;
     }
 
-    // Recalcular salud simple
-    proposal.metadata.score_salud = Math.max(0, 100 - (data.alerts?.length * 20 + data.warnings?.length * 5));
+    // Cálculo de Salud Blindado
+    proposal.metadata.score_salud = Math.max(0, 100 - (data.alerts.length * 20 + data.warnings.length * 5));
 
-    console.log(`%c[PROPOSE_ENGINE]: Traducción finalizada. Cambios: ${proposal.changes.length} | Riesgo: ${proposal.risk}`, "color: #10b981; font-weight: bold;");
+    console.log(`%c[PROPOSE_ENGINE]: Propuesta V7.2.1 generada. Cambios: ${proposal.changes.length} | Riesgo: ${proposal.risk}`, "color: #10b981; font-weight: bold;");
     
     return proposal;
 }
