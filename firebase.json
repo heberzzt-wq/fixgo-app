@@ -24,6 +24,7 @@
       "package-lock.json",
       "vercel.json",
       "*.json",
+      "!manifest.json",
       "*.md"
     ],
     "cleanUrls": true,
