@@ -461,7 +461,8 @@ window.cambiarSeccion=(id)=>{
 const secciones=[
 "seccion-tareas",
 "seccion-historial",
-"seccion-perfil"
+"seccion-perfil",
+"seccion-operador"
 ];
 
 secciones.forEach(sec=>{
@@ -480,6 +481,49 @@ if(id==="seccion-historial"){
 
 cargarHistorialUnificado();
 
+}
+
+// Lógica para encender el botón activo en verde
+const navButtons = document.querySelectorAll('nav button');
+navButtons.forEach(btn => {
+if (btn.getAttribute('onclick').includes(id)) {
+btn.classList.remove('text-zinc-600');
+btn.classList.add('text-emerald-500'); 
+} else {
+btn.classList.remove('text-emerald-500');
+btn.classList.add('text-zinc-600'); 
+}
+});
+
+};
+
+
+/* =====================================================
+PUENTE A TERMINAL HEBERTO - REPORTE FLOTILLA (B2B)
+===================================================== */
+
+window.reportarFallaVehiculo = async () => {
+
+if (typeof showToast === 'function') showToast("Conectando con Terminal..."); 
+
+const comando = "Terminal Heberto, asume contexto de Operador B2B. Localiza mi vehículo asignado (UVZ343K) en flotilla_b2b y abre el módulo para reportar fallas mecánicas en uxmal39.";
+
+if (window.KernelHeberto) {
+try {
+if (window.agregarBurbujaUsuario) window.agregarBurbujaUsuario(comando);
+
+const res = await window.KernelHeberto.execute(comando);
+
+if (res.success && res.ui?.type === "proposal_card") {
+if (window.renderProposalCard) window.renderProposalCard(res.data);
+} else if (res.data?.mensaje_ceo && window.agregarBurbujaSistema) {
+window.agregarBurbujaSistema(res.data.mensaje_ceo);
+}
+} catch(e) {
+console.error("Fallo comunicando con Kernel B2B:", e);
+}
+} else {
+alert("🚨 Terminal Heberto offline. No se pudo procesar el reporte.");
 }
 
 };
@@ -595,7 +639,6 @@ sheet.classList.add("hidden");
 },300);
 
 };
-
 
 /* =====================================================
 SEGURIDAD PASE CASETA
