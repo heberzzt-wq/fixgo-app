@@ -1,6 +1,6 @@
 /**
  * ======================================================
- * GESTIA PREMIUM - SERVICE WORKER v6.0 (FCM HARDENED)
+ * GESTIA PREMIUM - SERVICE WORKER v6.1 (ULTRA-FORCE)
  * Proyecto: fixgo-44e4d
  * Lead Architect: Heberto Mendoza
  * ======================================================
@@ -10,8 +10,8 @@
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
-// 🔥 Configuración de Caché
-const CACHE_NAME = 'gestia-premium-cache-v6.0';
+// 🔥 Configuración de Caché (Actualizado para forzar limpieza)
+const CACHE_NAME = 'gestia-premium-cache-v6.1-fire';
 
 const urlsToCache = [
   './',
@@ -53,7 +53,7 @@ if (messaging) {
 
     /**
      * Firebase puede enviar payload en dos formatos:
-     * * 1️⃣ notification (Firebase Console)
+     * 1️⃣ notification (Firebase Console)
      * 2️⃣ data (Admin SDK / Cloud Functions)
      */
 
@@ -191,12 +191,12 @@ self.addEventListener('notificationclick', (event) => {
 
 });
 
-// 4. INSTALACIÓN
+// 4. INSTALACIÓN (MUDANZA A FIREBASE)
 self.addEventListener('install', (event) => {
 
-  console.log('[Gestia SW] Instalando...');
+  console.log('[Gestia SW] Instalando nuevo motor Firebase...');
 
-  self.skipWaiting();
+  self.skipWaiting(); // Obliga al SW nuevo a tomar el mando
 
   event.waitUntil(
 
@@ -212,10 +212,10 @@ self.addEventListener('install', (event) => {
 
 });
 
-// 5. ACTIVACIÓN
+// 5. ACTIVACIÓN (EXTERMINIO DE VERCEL)
 self.addEventListener('activate', (event) => {
 
-  console.log('[Gestia SW] Activado y purgando cachés viejos');
+  console.log('[Gestia SW] Activado: Purgando todo el rastro de Vercel');
 
   event.waitUntil(
 
@@ -224,12 +224,11 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
 
         cacheNames.map(name => {
-
+          // Borra cualquier caché que no sea el actual de Firebase
           if (name !== CACHE_NAME) {
-            console.log('[Gestia SW] Borrando:', name);
+            console.log('[Gestia SW] Borrando caché antiguo:', name);
             return caches.delete(name);
           }
-
         })
 
       );
@@ -238,7 +237,7 @@ self.addEventListener('activate', (event) => {
 
   );
 
-  self.clients.claim();
+  self.clients.claim(); // Toma control de la PWA instalada inmediatamente
 
 });
 
@@ -255,13 +254,14 @@ self.addEventListener('message', (event) => {
 });
 
 /**
- * FETCH (Network-First con Fallback)
+ * FETCH (Estrategia: Network-First con Bypass de Vercel)
  */
 
 self.addEventListener('fetch', (event) => {
 
   const url = event.request.url;
 
+  // No intervenir en llamadas de sistema de Google
   if (
     url.includes('gstatic.com') ||
     url.includes('googleapis.com') ||
@@ -275,6 +275,12 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request)
 
       .then(response => {
+
+        // Si por alguna razón el navegador intenta ir a Vercel, entregamos el index de Firebase
+        if (response.url.includes('vercel.app')) {
+            console.log('[Gestia SW] Detectado rastro de Vercel, forzando Firebase');
+            return caches.match('./index.html');
+        }
 
         if (
           event.request.method === 'GET' &&
@@ -316,6 +322,6 @@ self.addEventListener('fetch', (event) => {
 /**
  * ======================================================
  * FIN DEL SERVICE WORKER
- * Gestia Premium V6.0 - Listo para despliegue masivo
+ * Gestia Premium V6.1 - Blindaje Firebase Activo
  * ======================================================
  */
