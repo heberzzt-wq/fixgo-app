@@ -27,34 +27,11 @@
             });
         }
 
-        // 2. MOTOR DE SINCRONIZACIÓN AGRESIVO
+        // 2. MOTOR DE SINCRONIZACIÓN TEMPORAL (Pase VIP para PWABuilder)
         if ('serviceWorker' in navigator) {
-            // Matamos cualquier Service Worker que no sea el actual
-            navigator.serviceWorker.getRegistrations().then(registrations => {
-                registrations.forEach(registration => {
-                    registration.unregister().then(() => {
-                        console.log('🗑️ AI ZUM: Registro antiguo aniquilado');
-                    });
-                });
-            });
-
-            // Registramos el nuevo con bandera de "Reemplazo Inmediato"
             navigator.serviceWorker.register('./sw.js', { scope: '/' })
                 .then(reg => {
-                    console.log('✅ AI ZUM: Gestia Engine activo en Firebase');
-                    
-                    // Forzamos que el nuevo SW tome el control de las pestañas abiertas
-                    reg.update();
-
-                    reg.onupdatefound = () => {
-                        const worker = reg.installing;
-                        worker.onstatechange = () => {
-                            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-                                // Hard reload para ignorar el index.html viejo de Vercel
-                                window.location.reload(true);
-                            }
-                        };
-                    };
+                    console.log('✅ AI ZUM: Gestia Engine activo (Modo Escáner PWABuilder)');
                 })
                 .catch(err => console.error('❌ Error de sincronización:', err));
         }
