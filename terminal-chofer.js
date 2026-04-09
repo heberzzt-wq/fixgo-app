@@ -249,3 +249,16 @@ const cargarHistorialDia = (vehId) => {
         });
     });
 };
+/* =====================================================
+   REGRESO AL DASHBOARD TÉCNICO (V5.35)
+   ===================================================== */
+window.volverAlDashboard = () => {
+    
+    // Feedback visual en consola
+    console.log("🔄 Sincronizando salida de terminal...");
+
+    // Redirección al dashboard principal
+    // Asegúrate de que la ruta coincida con tu archivo (tecnico-b2b.html o index.html)
+    window.location.href = "./tecnico-b2b.html"; 
+
+};
