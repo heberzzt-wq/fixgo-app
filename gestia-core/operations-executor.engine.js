@@ -1,10 +1,10 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V7.2.7 (MAX_RESILIENCE)
+ * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V7.2.8 (RELATIONAL_RECOVERY)
  * ======================================================================================
- * Función: El Brazo Mecánico con lógica autocurativa y salida temprana.
+ * Función: El Brazo Mecánico con soporte para normalización de colecciones B2B.
  * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
- * Actualización V7.2.7: Normalización de cambios y ahorro de transacciones.
+ * Actualización V7.2.8: Case NORMALIZE_VEHICLE_OPERATOR y búsqueda por placas.
  * Autor: Heber Mendoza (Arquitecto Supremo) & El Abuelo
  * ======================================================================================
  */
@@ -17,9 +17,12 @@ import {
     serverTimestamp 
 } from '../firebase.js';
 
-// 2. SDK OFICIAL (CDN)
+// 2. SDK OFICIAL (CDN) - Añadidos query, where y getDocs para búsquedas relacionales
 import { 
-    runTransaction 
+    runTransaction,
+    query,
+    where,
+    getDocs
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 /**
@@ -38,7 +41,7 @@ const limpiarPayload = (obj) => {
 export async function ejecutarCambios(proposal) {
     const { operation_id, tenantId, ejecutado_por, changes } = proposal;
     
-    // 🛡️ GUARDRAIL DEFENSIVO: Si no hay cambios, no molestamos a la base de datos.
+    // 🛡️ GUARDRAIL DEFENSIVO
     const safeChanges = Array.isArray(changes) ? changes : [];
     if (safeChanges.length === 0) {
         console.log("%c[EXECUTOR]: Sin cambios detectados. Abortando ejecución.", "color: #f59e0b;");
@@ -67,6 +70,22 @@ export async function ejecutarCambios(proposal) {
 
                 // --- ⚙️ LÓGICA DE IMPACTO ---
                 switch (type) {
+
+                    case "NORMALIZE_VEHICLE_OPERATOR":
+                        // Búsqueda del vehículo por placas (target) en la colección específica
+                        const vehiculosRef = collection(db, "flotilla_b2b", tenantId, "vehiculos");
+                        const q = query(vehiculosRef, where("placas", "==", target));
+                        const snap = await getDocs(q);
+
+                        snap.forEach(docSnap => {
+                            transaction.update(docSnap.ref, {
+                                operador_uid: payload.uid,
+                                normalized_at: serverTimestamp(),
+                                audit_op: operation_id
+                            });
+                        });
+                        results.push({ type, target, status: "vehiculo_normalizado" });
+                        break;
 
                     case "REPAIR_RUNTIME_LINK":
                         ref = doc(db, "gestia_operations", operation_id);
