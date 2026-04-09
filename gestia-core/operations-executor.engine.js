@@ -1,22 +1,29 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V7.2.5 (SHIELD EDITION)
+ * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V7.2.7 (MAX_RESILIENCE)
  * ======================================================================================
- * Función: El Brazo Mecánico con Protocolo de Restricción Inteligente.
+ * Función: El Brazo Mecánico con lógica autocurativa y salida temprana.
  * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
+ * Actualización V7.2.7: Normalización de cambios y ahorro de transacciones.
+ * Autor: Heber Mendoza (Arquitecto Supremo) & El Abuelo
  * ======================================================================================
  */
 
+// 1. SSOT LOCAL
 import { 
     db, 
     doc, 
     collection, 
-    serverTimestamp,
-    runTransaction 
+    serverTimestamp 
 } from '../firebase.js';
 
+// 2. SDK OFICIAL (CDN)
+import { 
+    runTransaction 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
 /**
- * limpiarPayload: Elimina undefined para evitar el crash de Firebase en transacciones.
+ * limpiarPayload: Elimina undefined para evitar el crash de Firebase.
  */
 const limpiarPayload = (obj) => {
     return Object.entries(obj).reduce((acc, [key, value]) => {
@@ -25,15 +32,25 @@ const limpiarPayload = (obj) => {
     }, {});
 };
 
+/**
+ * ejecutarCambios: Ejecución atómica de la propuesta aprobada.
+ */
 export async function ejecutarCambios(proposal) {
     const { operation_id, tenantId, ejecutado_por, changes } = proposal;
-    const results = [];
+    
+    // 🛡️ GUARDRAIL DEFENSIVO: Si no hay cambios, no molestamos a la base de datos.
+    const safeChanges = Array.isArray(changes) ? changes : [];
+    if (safeChanges.length === 0) {
+        console.log("%c[EXECUTOR]: Sin cambios detectados. Abortando ejecución.", "color: #f59e0b;");
+        return [];
+    }
 
-    console.log(`%c[EXECUTOR]: Iniciando protocolo de impacto para OP: ${operation_id}`, "color: #10b981; font-weight: bold;");
+    console.log(`%c[EXECUTOR]: Iniciando impacto transaccional para OP: ${operation_id}`, "color: #10b981; font-weight: bold;");
+    const results = [];
 
     try {
         await runTransaction(db, async (transaction) => {
-            for (const change of changes) {
+            for (const change of safeChanges) {
                 const { type, target, payload, reason } = change;
                 let ref;
 
@@ -48,38 +65,31 @@ export async function ejecutarCambios(proposal) {
                     reason: reason || "Ejecución por orden de la terminal"
                 });
 
-                // --- ⚙️ LÓGICA DE EJECUCIÓN FÍSICA ---
+                // --- ⚙️ LÓGICA DE IMPACTO ---
                 switch (type) {
 
                     case "REPAIR_RUNTIME_LINK":
-                        // Registramos la reparación en la OP para que el observador de la UI reaccione
                         ref = doc(db, "gestia_operations", operation_id);
                         transaction.update(ref, limpiarPayload({
                             runtime_repaired: true,
                             repaired_component: target,
                             repair_timestamp: serverTimestamp()
                         }));
-                        results.push({ type, target, status: "runtime_hook_fixed" });
+                        results.push({ type, target, status: "runtime_link_repaired" });
                         break;
 
                     case "SYSTEM_RESTRICTION":
-                        /**
-                         * 🛡️ EL ESCUDO DE HEBER:
-                         * No solo bloquea, marca el grado de integridad del búnker.
-                         */
                         ref = doc(db, "tenants", tenantId);
                         transaction.update(ref, limpiarPayload({
                             shield_level: payload?.severity === "CRITICAL" ? "READ_ONLY" : "WARNING",
                             restriction_active: true,
                             restriction_reason: reason || "Fallo arquitectónico detectado",
-                            last_security_event: operation_id,
                             restricted_at: serverTimestamp()
                         }));
-                        results.push({ type, target, status: "shield_activated" });
+                        results.push({ type, target, status: "system_restricted" });
                         break;
 
                     case "FORCE_MAINTENANCE_TASK":
-                        // Creación de la tarea para Jonathan
                         const tasksCol = collection(db, "tenants", tenantId, "tasks");
                         const newTaskRef = doc(tasksCol);
                         transaction.set(newTaskRef, limpiarPayload({
@@ -104,7 +114,7 @@ export async function ejecutarCambios(proposal) {
                         break;
 
                     default:
-                        console.warn(`%c[EXECUTOR]: Protocolo desconocido para el tipo: ${type}`, "color: #f59e0b;");
+                        console.warn(`%c[EXECUTOR]: Tipo de cambio desconocido ignorado: ${type}`, "color: #f59e0b;");
                 }
             }
 
@@ -117,7 +127,7 @@ export async function ejecutarCambios(proposal) {
             });
         });
 
-        console.log(`%c[EXECUTOR]: Misión cumplida. Acciones ejecutadas: ${results.length}`, "color: #10b981; font-weight: bold;");
+        console.log(`%c[EXECUTOR]: Misión cumplida. Acciones persistidas: ${results.length}`, "color: #10b981; font-weight: bold;");
         return results;
 
     } catch (error) {
