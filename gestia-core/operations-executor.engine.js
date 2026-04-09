@@ -1,15 +1,15 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V7.2.8 (RELATIONAL_RECOVERY)
+ * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V7.2.8 (UI_SYNCHRONIZATION)
  * ======================================================================================
- * Función: El Brazo Mecánico con soporte para normalización de colecciones B2B.
+ * Función: El Brazo Mecánico con lógica autocurativa y salida temprana.
  * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
- * Actualización V7.2.8: Case NORMALIZE_VEHICLE_OPERATOR y búsqueda por placas.
+ * Actualización V7.2.8: Mapeo de assigned_to para visibilidad de UI en Flotilla.
  * Autor: Heber Mendoza (Arquitecto Supremo) & El Abuelo
  * ======================================================================================
  */
 
-// 1. SSOT LOCAL
+// 1. SSOT LOCAL (Single Source of Truth)
 import { 
     db, 
     doc, 
@@ -17,7 +17,8 @@ import {
     serverTimestamp 
 } from '../firebase.js';
 
-// 2. SDK OFICIAL (CDN) - Añadidos query, where y getDocs para búsquedas relacionales
+// 2. SDK OFICIAL (CDN)
+// Se añaden query, where y getDocs para soportar la normalización por placas.
 import { 
     runTransaction,
     query,
@@ -27,6 +28,7 @@ import {
 
 /**
  * limpiarPayload: Elimina undefined para evitar el crash de Firebase.
+ * Es vital para que la transacción no aborte si faltan metadatos.
  */
 const limpiarPayload = (obj) => {
     return Object.entries(obj).reduce((acc, [key, value]) => {
@@ -41,8 +43,9 @@ const limpiarPayload = (obj) => {
 export async function ejecutarCambios(proposal) {
     const { operation_id, tenantId, ejecutado_por, changes } = proposal;
     
-    // 🛡️ GUARDRAIL DEFENSIVO
+    // 🛡️ GUARDRAIL DEFENSIVO: Si no hay cambios, no molestamos a la base de datos.
     const safeChanges = Array.isArray(changes) ? changes : [];
+    
     if (safeChanges.length === 0) {
         console.log("%c[EXECUTOR]: Sin cambios detectados. Abortando ejecución.", "color: #f59e0b;");
         return [];
@@ -52,13 +55,17 @@ export async function ejecutarCambios(proposal) {
     const results = [];
 
     try {
+        // Iniciamos la transacción maestra de Firestore
         await runTransaction(db, async (transaction) => {
+            
             for (const change of safeChanges) {
                 const { type, target, payload, reason } = change;
                 let ref;
 
                 // --- 🛡️ PROTOCOLO DE AUDITORÍA (LEDGER) ---
+                // Cada acción deja una huella en el ledger del tenant para auditoría forense.
                 const ledgerRef = doc(collection(db, "tenants", tenantId, "gestia_ledger"));
+                
                 transaction.set(ledgerRef, {
                     op_id: operation_id,
                     type,
@@ -68,49 +75,62 @@ export async function ejecutarCambios(proposal) {
                     reason: reason || "Ejecución por orden de la terminal"
                 });
 
-                // --- ⚙️ LÓGICA DE IMPACTO ---
+                // --- ⚙️ LÓGICA DE IMPACTO SEGÚN TIPO ---
                 switch (type) {
 
+                    // 🚀 NORMALIZACIÓN B2B: Vinculación Dual para visibilidad en UI
                     case "NORMALIZE_VEHICLE_OPERATOR":
-                        // Búsqueda del vehículo por placas (target) en la colección específica
+                        // Localizamos el vehículo por placas (target) en la colección de flotilla
                         const vehiculosRef = collection(db, "flotilla_b2b", tenantId, "vehiculos");
                         const q = query(vehiculosRef, where("placas", "==", target));
                         const snap = await getDocs(q);
 
                         snap.forEach(docSnap => {
+                            // Actualizamos el documento con el mapeo que la UI requiere
                             transaction.update(docSnap.ref, {
-                                operador_uid: payload.uid,
+                                operador_uid: payload.uid,   // Para lógica de datos
+                                assigned_to: payload.uid,    // Para el render de botones en UI
                                 normalized_at: serverTimestamp(),
+                                status_enlace: "verificado",
                                 audit_op: operation_id
                             });
                         });
-                        results.push({ type, target, status: "vehiculo_normalizado" });
+                        
+                        results.push({ type, target, status: "vehiculo_normalizado_con_render" });
                         break;
 
                     case "REPAIR_RUNTIME_LINK":
+                        // Marcamos la operación como reparada para que el observador de la UI reaccione.
                         ref = doc(db, "gestia_operations", operation_id);
+                        
                         transaction.update(ref, limpiarPayload({
                             runtime_repaired: true,
                             repaired_component: target,
                             repair_timestamp: serverTimestamp()
                         }));
+                        
                         results.push({ type, target, status: "runtime_link_repaired" });
                         break;
 
                     case "SYSTEM_RESTRICTION":
+                        // El Escudo de Heber: Bloqueo de seguridad si la arquitectura falla.
                         ref = doc(db, "tenants", tenantId);
+                        
                         transaction.update(ref, limpiarPayload({
                             shield_level: payload?.severity === "CRITICAL" ? "READ_ONLY" : "WARNING",
                             restriction_active: true,
                             restriction_reason: reason || "Fallo arquitectónico detectado",
                             restricted_at: serverTimestamp()
                         }));
+                        
                         results.push({ type, target, status: "system_restricted" });
                         break;
 
                     case "FORCE_MAINTENANCE_TASK":
+                        // Creación de la tarea de mantenimiento (El Gol de Jonathan)
                         const tasksCol = collection(db, "tenants", tenantId, "tasks");
                         const newTaskRef = doc(tasksCol);
+                        
                         transaction.set(newTaskRef, limpiarPayload({
                             ...payload,
                             created_by: ejecutado_por,
@@ -119,16 +139,20 @@ export async function ejecutarCambios(proposal) {
                             timestamp: serverTimestamp(),
                             status: "pending"
                         }));
+                        
                         results.push({ type, target, status: "urgent_task_created" });
                         break;
 
                     case "LOCK_TECHNICIAN":
+                        // Bloqueo de técnico por riesgos de seguridad detectados.
                         ref = doc(db, "tenants", tenantId, "technicians", target);
+                        
                         transaction.update(ref, limpiarPayload({
                             ...payload,
                             status: "safety_lock",
                             lock_timestamp: serverTimestamp()
                         }));
+                        
                         results.push({ type, target, status: "technician_locked" });
                         break;
 
@@ -138,12 +162,15 @@ export async function ejecutarCambios(proposal) {
             }
 
             // --- ✅ CIERRE DE OPERACIÓN MAESTRA ---
+            // Actualizamos el estado final de la OP para confirmar que el pipeline terminó.
             const finalOpRef = doc(db, "gestia_operations", operation_id);
+            
             transaction.update(finalOpRef, {
                 status: "completed",
                 completed_at: serverTimestamp(),
                 affected_actions: results.length
             });
+            
         });
 
         console.log(`%c[EXECUTOR]: Misión cumplida. Acciones persistidas: ${results.length}`, "color: #10b981; font-weight: bold;");
