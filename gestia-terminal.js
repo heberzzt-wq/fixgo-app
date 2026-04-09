@@ -504,15 +504,21 @@ export class TerminalHeberto {
     resetContext() {
         this.context = null;
         this.pendingProposal = null;
-        this.logger.log("🧹 Contexto liberado. Kernel IDLE.");
+        
+        // 🛡️ FIX V7.1: Si no reseteas el estado, el Kernel puede ignorar el próximo input.
+        this.setState(STATES.IDLE); 
+        
+        this.logger.log("🧹 Contexto liberado. Kernel IDLE y listo para nueva orden.");
     }
+}
+
 /* =====================================================================================
    8. UI BUILDERS - GRADO INDUSTRIAL V7.1 (STRICT TAILWIND)
    ===================================================================================== */
 
 /**
  * renderProposalCard: Pinta la propuesta de la IA con botones de acción.
- * Optimizado para Tailwind JIT y persistencia de instancia.
+ * REGLA DE ORO: Debe estar en el scope global (window) para que el Kernel la vea.
  */
 window.renderProposalCard = function(proposal) {
     // 🔒 NORMALIZACIÓN ANTIFRÁGIL
