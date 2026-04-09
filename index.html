@@ -16,7 +16,7 @@
          * PROTOCOLO: Limpiar registros de Vercel y activar Firebase
          * ======================================================
          */
-        if ('serviceWorker' in navigator) {
+      if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 // 1. Limpieza de registros antiguos que no pertenecen a este host (Vercel/GitHub)
                 navigator.serviceWorker.getRegistrations().then(registrations => {
@@ -34,12 +34,18 @@
                     .then(reg => {
                         console.log('✅ AI ZUM: Gestia Engine sincronizado en Firebase');
                         
+                        // SENSOR DE PWA INSTALADA: Fuerza actualización inmediata
+                        if (window.matchMedia('(display-mode: standalone)').matches) {
+                            reg.update(); 
+                        }
+
                         reg.onupdatefound = () => {
                             const worker = reg.installing;
                             worker.onstatechange = () => {
                                 if (worker.state === 'installed' && navigator.serviceWorker.controller) {
                                     console.log('🔄 AI ZUM: Nueva versión detectada. Reiniciando...');
-                                    window.location.reload();
+                                    // reload(true) para ignorar el cache del navegador del celular
+                                    window.location.reload(true);
                                 }
                             };
                         };
