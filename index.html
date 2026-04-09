@@ -12,23 +12,32 @@
     <script>
         /**
          * ======================================================
-         * MOTOR DE SINCRONIZACIÓN PWA v6.0 (ANTI-CACHE)
-         * Único cambio: Fuerza la mudanza de Vercel a Firebase
+         * MOTOR DE SINCRONIZACIÓN PWA v6.1 (ULTRA-FORCE)
+         * Limpia registros de Vercel y activa Firebase
          * ======================================================
          */
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // Usamos el timestamp para que el navegador detecte cambio de versión
-                navigator.serviceWorker.register('./sw.js?v=' + Date.now())
+                // 1. Limpieza de registros antiguos que no pertenecen a este host
+                navigator.serviceWorker.getRegistrations().then(registrations => {
+                    for (let registration of registrations) {
+                        if (!registration.scope.includes(window.location.host)) {
+                            registration.unregister();
+                            console.log('🗑️ Registro antiguo eliminado');
+                        }
+                    }
+                });
+
+                // 2. Registro del motor de Firebase con bypass de caché
+                navigator.serviceWorker.register('./sw.js?v=' + Date.now(), { scope: '/' })
                     .then(reg => {
-                        console.log('✅ Gestia Engine sincronizado');
+                        console.log('✅ Gestia Engine sincronizado en Firebase');
                         
-                        // Si encuentra el motor nuevo de Firebase, lo activa de inmediato
                         reg.onupdatefound = () => {
-                            const installingWorker = reg.installing;
-                            installingWorker.onstatechange = () => {
-                                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    console.log('🔄 Nueva versión detectada. Sincronizando...');
+                            const worker = reg.installing;
+                            worker.onstatechange = () => {
+                                if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    console.log('🔄 Nueva versión detectada. Reiniciando...');
                                     window.location.reload();
                                 }
                             };
@@ -205,20 +214,16 @@
             e.preventDefault();
             deferredPrompt = e;
             console.log('📱 PWA lista para instalar (Evento capturado)');
-            // Aquí podrías mostrar un botón de "Instalar App" en el futuro
         });
 
         // Observador de Firebase Authentication
         observarAuth((user) => {
-            // Oculta el spinner de carga
             loadingState.classList.add('hidden');
 
             if (user) {
-                // Usuario LOGUEADO
                 guestOptions.classList.add('hidden');
                 userOptions.classList.remove('hidden');
                 
-                // Extraer el primer nombre si es posible
                 let displayName = user.nombre || user.email;
                 if(displayName.includes(' ')) displayName = displayName.split(' ')[0];
                 userNameDisplay.textContent = displayName;
@@ -236,7 +241,6 @@
                         } else if (user.rol === 'admin' || user.rol === 'ADMIN') {
                             window.location.href = 'admin.html';
                         } else {
-                            // 🔥 CORRECCIÓN CRÍTICA: Asignación de rol nuevo en la colección 'users' (No 'usuarios')
                             const esTecnico = confirm("⚠️ Rol no definido en Base de Datos.\n\n¿Deseas registrarte como TÉCNICO (Socio Pro)?\n(Aceptar = Técnico / Cancelar = Cliente)");
                             const rolElegido = esTecnico ? 'tecnico' : 'cliente';
                             
@@ -245,7 +249,7 @@
                                 email: user.email, 
                                 rol: rolElegido, 
                                 nombre: user.displayName || "Usuario",
-                                estado: "pendiente", // Pasa a revisión si es técnico
+                                estado: "pendiente",
                                 fechaRegistro: new Date()
                             }, { merge: true });
                             
@@ -271,7 +275,6 @@
                 };
 
             } else {
-                // Usuario INVITADO (No logueado)
                 userOptions.classList.add('hidden');
                 guestOptions.classList.remove('hidden');
             }
