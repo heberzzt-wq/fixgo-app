@@ -10,11 +10,31 @@
     <link rel="apple-touch-icon" href="icono-192.png">
     
     <script>
+        /**
+         * ======================================================
+         * MOTOR DE SINCRONIZACIÓN PWA v6.0 (ANTI-CACHE)
+         * Único cambio: Fuerza la mudanza de Vercel a Firebase
+         * ======================================================
+         */
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
-                    .then(reg => console.log('✅ GestiaPremium PWA Engine activado en:', reg.scope))
-                    .catch(err => console.error('❌ Error al iniciar Motor PWA:', err));
+                // Usamos el timestamp para que el navegador detecte cambio de versión
+                navigator.serviceWorker.register('./sw.js?v=' + Date.now())
+                    .then(reg => {
+                        console.log('✅ Gestia Engine sincronizado');
+                        
+                        // Si encuentra el motor nuevo de Firebase, lo activa de inmediato
+                        reg.onupdatefound = () => {
+                            const installingWorker = reg.installing;
+                            installingWorker.onstatechange = () => {
+                                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    console.log('🔄 Nueva versión detectada. Sincronizando...');
+                                    window.location.reload();
+                                }
+                            };
+                        };
+                    })
+                    .catch(err => console.error('❌ Error de sincronización PWA:', err));
             });
         }
     </script>
@@ -109,7 +129,7 @@
             </div>
             <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
                 <p><strong>1. Relación Comercial:</strong> Al registrarse como Socio Pro, usted actúa como Contratista Independiente. No existe relación obrero-patronal, subordinación ni exclusividad con GestiaPremium. Usted provee sus propias herramientas, vehículos y horarios.</p>
-               <p><strong>2. Tarifa de Gestión Operativa:</strong> El método principal de cobro es automatizado a través de nuestra pasarela segura <strong>Stripe</strong>. Al finalizar un servicio, el sistema transfiere sus ganancias a su cuenta bancaria, descontando la 'Tarifa de Gestión Integral' del 32%. Esta tarifa garantiza la infraestructura tecnológica (servidores en la nube, facturación Split Billing) y la adquisición continua de clientes. <br><br> <strong class="text-emerald-500">Pagos en Efectivo (Exclusivo Nivel VIP):</strong> La habilitación para recibir pagos directos en efectivo está estrictamente reservada para Socios Pro que alcancen el estatus VIP. Solo en estos casos excepcionales, al recibir el 100% del pago en sitio, el 32% de la Tarifa de Gestión se reflejará como un 'Saldo Operativo' pendiente en su Billetera GestiaPremium, el cual deberá liquidarse periódicamente vía SPEI para mantener su cuenta activa.</p>
+                <p><strong>2. Tarifa de Gestión Operativa:</strong> El método principal de cobro es automatizado a través de nuestra pasarela segura <strong>Stripe</strong>. Al finalizar un servicio, el sistema transfiere sus ganancias a su cuenta bancaria, descontando la 'Tarifa de Gestión Integral' del 32%. Esta tarifa garantiza la infraestructura tecnológica (servidores en la nube, facturación Split Billing) y la adquisición continua de clientes. <br><br> <strong class="text-emerald-500">Pagos en Efectivo (Exclusivo Nivel VIP):</strong> La habilitación para recibir pagos directos en efectivo está estrictamente reservada para Socios Pro que alcancen el estatus VIP. Solo en estos casos excepcionales, al recibir el 100% del pago en sitio, el 32% de la Tarifa de Gestión se reflejará como un 'Saldo Operativo' pendiente en su Billetera GestiaPremium, el cual deberá liquidarse periódicamente vía SPEI para mantener su cuenta activa.</p>
                 <p><strong>3. Políticas Anti-Fraude:</strong> Cancelar servicios asignados injustificadamente después de 5 minutos de aceptación generará una penalización de $50 MXN. Es obligatorio el uso de GPS en sitio y subir fotografías reales de evidencia del servicio. La suplantación de identidad o perfiles falsos causará la baja definitiva e inmediata de la plataforma.</p>
                 <p><strong>4. Responsabilidad Civil:</strong> El Socio Pro es el único responsable legal por daños causados a la propiedad del cliente durante la ejecución del servicio.</p>
             </div>
