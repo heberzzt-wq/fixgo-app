@@ -1,43 +1,36 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - PROPOSE ENGINE V7.1 (STRICT_MODE)
+ * GESTIAPREMIUM 2026 - PROPOSE ENGINE V7.2 (STRICT_EXECUTION)
  * ======================================================================================
  * Función: Traduce hallazgos del Analyzer en planes de acción transaccionales.
  * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR.
+ * Actualización V7.2: Soporte para Alertas Críticas de Vehículos y Enlace Jonathan.
  * Autor: Heber Mendoza (Arquitecto Supremo)
  * ======================================================================================
  */
 
-/**
- * generarPropuesta: El cerebro estratégico.
- * Toma los datos de la auditoría dual y decide el nivel de riesgo y los cambios necesarios.
- * @param {Object} analysis - Resultado del Data Analyzer.
- */
 export function generarPropuesta(analysis) {
-    console.log("%c[PROPOSE_ENGINE]: Iniciando traducción de hallazgos...", "color: #8b5cf6; font-weight: bold;");
-
-    // 🛡️ ACCESO SEGURO (Antifragile): El Analyzer devuelve la data en la propiedad .data
-    const auditData = analysis?.data || { alerts: [], warnings: [], insights: [], metrics: {} };
+    const data = analysis?.data || analysis || { alerts: [], warnings: [] };
 
     const proposal = {
         risk: "LOW",
         impact: "",
         changes: [],
-        needs_approval: false, // Control de flujo para la Terminal
+        needs_approval: false,
         metadata: {
             analysis_id: Date.now(),
-            score_salud: calcularScoreSimple(analysis)
+            score_salud: 100
         }
     };
 
-    // --- 1. LÓGICA DE REPARACIÓN AUTOMÁTICA (SELF-HEAL) ---
-    // Ataca directamente los bloqueos legales o de seguridad (Caso Jonathan)
-    if (auditData.alerts && auditData.alerts.length > 0) {
+    // --- 1. LÓGICA DE ALERTAS CRÍTICAS (RIESGO ALTO) ---
+    if (data.alerts && data.alerts.length > 0) {
         proposal.risk = "HIGH";
-        proposal.impact = "SE REQUIERE INTERVENCIÓN INMEDIATA: Riesgo legal o de servicio detectado en el búnker.";
         proposal.needs_approval = true;
-        
-        auditData.alerts.forEach(alert => {
+        proposal.impact = "INTERVENCIÓN INMEDIATA REQUERIDA: Se han detectado bloqueos críticos o discrepancias de seguridad.";
+
+        data.alerts.forEach(alert => {
+            // Caso A: Riesgo Humano (Seguros)
             if (alert.type === "HUMAN_RISK") {
                 proposal.changes.push({
                     type: "LOCK_TECHNICIAN",
@@ -48,6 +41,24 @@ export function generarPropuesta(analysis) {
                 });
             }
 
+            // Caso B: Mantenimiento Crítico (El Gol de Jonathan)
+            // 💡 FIX V7.2: Ahora el Propose sabe qué hacer si el vehículo es una ALERT
+            if (alert.type === "VEHICLE_MAINTENANCE") {
+                proposal.changes.push({
+                    type: "FORCE_MAINTENANCE_TASK",
+                    target: alert.id, // Placa o ID del vehículo
+                    reason: alert.msg,
+                    action: "create_urgent_task",
+                    payload: { 
+                        priority: "emergency", 
+                        category: "mantenimiento_correctivo",
+                        assigned_to: alert.metadata?.asignado_a || "jonathan_uid",
+                        description: `ORDEN MAESTRA: Ejecutar afinación inmediata para ${alert.target}.`
+                    }
+                });
+            }
+
+            // Caso C: Bloqueo por Suscripción
             if (alert.type === "BILLING_LOCK") {
                 proposal.changes.push({
                     type: "RESTRICT_TENANT",
@@ -60,13 +71,15 @@ export function generarPropuesta(analysis) {
         });
     }
 
-    // --- 2. LÓGICA DE OPTIMIZACIÓN (PREVENTIVE) ---
-    // Gestiona alertas amarillas (Mantenimientos, renovaciones próximas)
-    if (auditData.warnings && auditData.warnings.length > 0) {
-        if (proposal.risk !== "HIGH") proposal.risk = "MEDIUM";
-        proposal.needs_approval = true;
-        
-        auditData.warnings.forEach(warn => {
+    // --- 2. LÓGICA DE ADVERTENCIAS (RIESGO MEDIO) ---
+    if (data.warnings && data.warnings.length > 0) {
+        if (proposal.risk !== "HIGH") {
+            proposal.risk = "MEDIUM";
+            proposal.needs_approval = true;
+            if (!proposal.impact) proposal.impact = "Optimización preventiva sugerida por el sistema.";
+        }
+
+        data.warnings.forEach(warn => {
             if (warn.type === "VEHICLE_MAINTENANCE") {
                 proposal.changes.push({
                     type: "SCHEDULE_MAINTENANCE",
@@ -76,37 +89,24 @@ export function generarPropuesta(analysis) {
                     payload: { 
                         priority: "high", 
                         category: "taller",
-                        description: `Mantenimiento preventivo auto-generado para placa ${warn.target}`
+                        description: `Rutina preventiva para placa ${warn.target}`
                     }
                 });
             }
         });
-
-        if (!proposal.impact) {
-            proposal.impact = "Optimización preventiva: El sistema propone rutinas de mantenimiento para asegurar la continuidad.";
-        }
     }
 
-    // --- 3. CASO: TODO EN ORDEN (IDLE/GREEN) ---
-    // Si no hay cambios, el Kernel no debe quedar bloqueado esperando aprobación.
+    // --- 3. LIMPIEZA Y CIERRE ---
     if (proposal.changes.length === 0) {
-        proposal.impact = "El búnker opera dentro de los parámetros nominales. No se requieren cambios estructurales.";
+        proposal.impact = "El búnker opera dentro de los parámetros nominales. Sin cambios requeridos.";
         proposal.risk = "LOW";
         proposal.needs_approval = false;
     }
 
-    console.log(`%c[PROPOSE_ENGINE]: Estrategia lista. Cambios: ${proposal.changes.length} | Riesgo: ${proposal.risk} | Requiere Arre: ${proposal.needs_approval}`, "color: #10b981; font-weight: bold;");
+    // Recalcular salud simple
+    proposal.metadata.score_salud = Math.max(0, 100 - (data.alerts?.length * 20 + data.warnings?.length * 5));
+
+    console.log(`%c[PROPOSE_ENGINE]: Traducción finalizada. Cambios: ${proposal.changes.length} | Riesgo: ${proposal.risk}`, "color: #10b981; font-weight: bold;");
     
     return proposal;
-}
-
-/**
- * calcularScoreSimple: Deducción rápida de salud del sistema
- * Algoritmo: Alerta (-10 pts), Warning (-5 pts).
- */
-function calcularScoreSimple(analysis) {
-    const alerts = analysis?.data?.alerts || [];
-    const warnings = analysis?.data?.warnings || [];
-
-    return Math.max(0, 100 - (alerts.length * 10 + warnings.length * 5));
 }
