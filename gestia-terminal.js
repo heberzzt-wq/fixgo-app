@@ -325,11 +325,16 @@ export class TerminalHeberto {
             }
 
             // 🔍 3. INICIO DE NUEVA OPERACIÓN (Fase ANALYZE)
-            this.setState(STATES.ANALYZE);
-            this.context = await this.buildContext(rawInput);
-            esquemaCorral = await sincronizarCorralSemantico(rawInput);
-            const analysis = await this.runDualAnalysis(this.context);
+this.setState(STATES.ANALYZE);
 
+this.context = await this.buildContext(rawInput);
+
+esquemaCorral = await sincronizarCorralSemantico(rawInput);
+
+const analysis = await this.runDualAnalysis(this.context);
+
+// 🧠 Inyectar instrucción original para el Propose Engine
+analysis.input_original = rawInput;
             // 💡 4. GENERACIÓN DE PROPUESTA (Fase PROPOSE)
             // Generamos primero para evaluar si el sistema requiere intervención humana
             const proposal = generarPropuesta(analysis);
