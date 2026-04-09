@@ -1,10 +1,10 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V7.2.8 (UI_SYNCHRONIZATION)
+ * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V7.3.0 (IDENTITY_RESOLVER)
  * ======================================================================================
- * Función: El Brazo Mecánico con lógica autocurativa y salida temprana.
+ * Función: El Brazo Mecánico con lógica autocurativa y resolución dinámica de UID.
  * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
- * Actualización V7.2.8: Mapeo de assigned_to para visibilidad de UI en Flotilla.
+ * Actualización V7.3.0: Corrección de raíz en el mapeo de operadores (B2B Logic).
  * Autor: Heber Mendoza (Arquitecto Supremo) & El Abuelo
  * ======================================================================================
  */
@@ -18,7 +18,6 @@ import {
 } from '../firebase.js';
 
 // 2. SDK OFICIAL (CDN)
-// Se añaden query, where y getDocs para soportar la normalización por placas.
 import { 
     runTransaction,
     query,
@@ -63,7 +62,6 @@ export async function ejecutarCambios(proposal) {
                 let ref;
 
                 // --- 🛡️ PROTOCOLO DE AUDITORÍA (LEDGER) ---
-                // Cada acción deja una huella en el ledger del tenant para auditoría forense.
                 const ledgerRef = doc(collection(db, "tenants", tenantId, "gestia_ledger"));
                 
                 transaction.set(ledgerRef, {
@@ -72,65 +70,80 @@ export async function ejecutarCambios(proposal) {
                     target,
                     ejecutado_por,
                     timestamp: serverTimestamp(),
-                    reason: reason || "Ejecución por orden de la terminal"
+                    reason: reason || "Ejecución por resolución de identidad de raíz"
                 });
 
                 // --- ⚙️ LÓGICA DE IMPACTO SEGÚN TIPO ---
                 switch (type) {
 
-                    // 🚀 NORMALIZACIÓN B2B: Vinculación Dual para visibilidad en UI
+                    // 🚀 NORMALIZACIÓN B2B: Resolución de UID y Vinculación Dual
                     case "NORMALIZE_VEHICLE_OPERATOR":
-                        // Localizamos el vehículo por placas (target) en la colección de flotilla
-                        const vehiculosRef = collection(db, "flotilla_b2b", tenantId, "vehiculos");
-                        const q = query(vehiculosRef, where("placas", "==", target));
-                        const snap = await getDocs(q);
+                        console.log(`%c[ENGINE]: Resolviendo identidad para operador: ${payload.nombre_operador}`, "color: #3b82f6;");
 
-                        snap.forEach(docSnap => {
-                            // Actualizamos el documento con el mapeo que la UI requiere
+                        // 1. Buscamos el UID real del operador en la colección de la flotilla
+                        const operadoresRef = collection(db, "flotilla_b2b", tenantId, "operadores");
+                        const qOp = query(operadoresRef, where("nombre", "==", payload.nombre_operador || "JONATHAN OPERADOR B2B"));
+                        const opSnap = await getDocs(qOp);
+
+                        let resolvedUid = null;
+                        opSnap.forEach(d => {
+                            resolvedUid = d.id; // El ID del documento es el UID de Auth
+                        });
+
+                        if (!resolvedUid) {
+                            console.error(`[ENGINE]: No se encontró UID para el operador ${payload.nombre_operador}. Usando fallback de payload si existe.`);
+                            resolvedUid = payload.uid; 
+                        }
+
+                        // 2. Localizamos el vehículo por placas (target)
+                        const vehiculosRef = collection(db, "flotilla_b2b", tenantId, "vehiculos");
+                        const qVeh = query(vehiculosRef, where("placas", "==", target));
+                        const vehSnap = await getDocs(qVeh);
+
+                        // 3. Aplicamos la actualización atómica
+                        vehSnap.forEach(docSnap => {
                             transaction.update(docSnap.ref, {
-                                operador_uid: payload.uid,   // Para lógica de datos
-                                assigned_to: payload.uid,    // Para el render de botones en UI
+                                operador_uid: resolvedUid,   // Vínculo lógico de datos
+                                assigned_to: resolvedUid,    // Vínculo de visibilidad UI (BOTÓN JONATHAN)
                                 normalized_at: serverTimestamp(),
                                 status_enlace: "verificado",
-                                audit_op: operation_id
+                                audit_op: operation_id,
+                                actualizador_root: true
                             });
                         });
                         
-                        results.push({ type, target, status: "vehiculo_normalizado_con_render" });
+                        results.push({ 
+                            type, 
+                            target, 
+                            status: "vehiculo_normalizado_con_render", 
+                            resolved_uid: resolvedUid 
+                        });
                         break;
 
                     case "REPAIR_RUNTIME_LINK":
-                        // Marcamos la operación como reparada para que el observador de la UI reaccione.
                         ref = doc(db, "gestia_operations", operation_id);
-                        
                         transaction.update(ref, limpiarPayload({
                             runtime_repaired: true,
                             repaired_component: target,
                             repair_timestamp: serverTimestamp()
                         }));
-                        
                         results.push({ type, target, status: "runtime_link_repaired" });
                         break;
 
                     case "SYSTEM_RESTRICTION":
-                        // El Escudo de Heber: Bloqueo de seguridad si la arquitectura falla.
                         ref = doc(db, "tenants", tenantId);
-                        
                         transaction.update(ref, limpiarPayload({
                             shield_level: payload?.severity === "CRITICAL" ? "READ_ONLY" : "WARNING",
                             restriction_active: true,
                             restriction_reason: reason || "Fallo arquitectónico detectado",
                             restricted_at: serverTimestamp()
                         }));
-                        
                         results.push({ type, target, status: "system_restricted" });
                         break;
 
                     case "FORCE_MAINTENANCE_TASK":
-                        // Creación de la tarea de mantenimiento (El Gol de Jonathan)
                         const tasksCol = collection(db, "tenants", tenantId, "tasks");
                         const newTaskRef = doc(tasksCol);
-                        
                         transaction.set(newTaskRef, limpiarPayload({
                             ...payload,
                             created_by: ejecutado_por,
@@ -139,20 +152,16 @@ export async function ejecutarCambios(proposal) {
                             timestamp: serverTimestamp(),
                             status: "pending"
                         }));
-                        
                         results.push({ type, target, status: "urgent_task_created" });
                         break;
 
                     case "LOCK_TECHNICIAN":
-                        // Bloqueo de técnico por riesgos de seguridad detectados.
                         ref = doc(db, "tenants", tenantId, "technicians", target);
-                        
                         transaction.update(ref, limpiarPayload({
                             ...payload,
                             status: "safety_lock",
                             lock_timestamp: serverTimestamp()
                         }));
-                        
                         results.push({ type, target, status: "technician_locked" });
                         break;
 
@@ -162,13 +171,12 @@ export async function ejecutarCambios(proposal) {
             }
 
             // --- ✅ CIERRE DE OPERACIÓN MAESTRA ---
-            // Actualizamos el estado final de la OP para confirmar que el pipeline terminó.
             const finalOpRef = doc(db, "gestia_operations", operation_id);
-            
             transaction.update(finalOpRef, {
                 status: "completed",
                 completed_at: serverTimestamp(),
-                affected_actions: results.length
+                affected_actions: results.length,
+                engine_version: "7.3.0"
             });
             
         });
