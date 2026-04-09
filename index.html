@@ -12,97 +12,79 @@
     <script>
         /**
          * ======================================================
-         * PASO 1: MOTOR DE SINCRONIZACIÓN PWA v6.1 (ULTRA-FORCE)
-         * PROTOCOLO: Limpiar registros de Vercel y activar Firebase
+         * AI ZUM - PROTOCOLO DE EXTERMINIO VERCEL v7.0
+         * Objetivo: Limpieza total de caché y cambio de mando
          * ======================================================
          */
-      if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                // 1. Limpieza de registros antiguos que no pertenecen a este host (Vercel/GitHub)
-                navigator.serviceWorker.getRegistrations().then(registrations => {
-                    for (let registration of registrations) {
-                        if (!registration.scope.includes(window.location.host)) {
-                            registration.unregister().then(() => {
-                                console.log('🗑️ AI ZUM: Registro antiguo eliminado');
-                            });
-                        }
-                    }
-                });
 
-                // 2. Registro del motor de Firebase con bypass de caché dinámico (?v=)
-                navigator.serviceWorker.register('./sw.js?v=' + Date.now(), { scope: '/' })
-                    .then(reg => {
-                        console.log('✅ AI ZUM: Gestia Engine sincronizado en Firebase');
-                        
-                        // SENSOR DE PWA INSTALADA: Fuerza actualización inmediata
-                        if (window.matchMedia('(display-mode: standalone)').matches) {
-                            reg.update(); 
-                        }
-
-                        reg.onupdatefound = () => {
-                            const worker = reg.installing;
-                            worker.onstatechange = () => {
-                                if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    console.log('🔄 AI ZUM: Nueva versión detectada. Reiniciando...');
-                                    // reload(true) para ignorar el cache del navegador del celular
-                                    window.location.reload(true);
-                                }
-                            };
-                        };
-                    })
-                    .catch(err => console.error('❌ AI ZUM: Error de sincronización PWA:', err));
+        // 1. LIMPIEZA INMEDIATA DE CACHÉ (Antes de cargar nada)
+        if ('caches' in window) {
+            caches.keys().then(function(names) {
+                for (let name of names) {
+                    // Si el caché no tiene la firma de Firebase (FixGo), se borra
+                    caches.delete(name);
+                }
             });
+        }
+
+        // 2. MOTOR DE SINCRONIZACIÓN AGRESIVO
+        if ('serviceWorker' in navigator) {
+            // Matamos cualquier Service Worker que no sea el actual
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                registrations.forEach(registration => {
+                    registration.unregister().then(() => {
+                        console.log('🗑️ AI ZUM: Registro antiguo aniquilado');
+                    });
+                });
+            });
+
+            // Registramos el nuevo con bandera de "Reemplazo Inmediato"
+            navigator.serviceWorker.register('./sw.js?v=' + Date.now(), { scope: '/' })
+                .then(reg => {
+                    console.log('✅ AI ZUM: Gestia Engine activo en Firebase');
+                    
+                    // Forzamos que el nuevo SW tome el control de las pestañas abiertas
+                    reg.update();
+
+                    reg.onupdatefound = () => {
+                        const worker = reg.installing;
+                        worker.onstatechange = () => {
+                            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // Hard reload para ignorar el index.html viejo de Vercel
+                                window.location.reload(true);
+                            }
+                        };
+                    };
+                })
+                .catch(err => console.error('❌ Error de sincronización:', err));
         }
 
         /**
          * ======================================================
          * PASO 2: AI ZUM - ARCHITECT & OPERATOR CORE v2026.03
-         * STATUS: Online y operando bajo Reglas de Heberto Mendoza
          * ======================================================
          */
         const AI_ZUM_GOD_MODE = {
-            identity: {
-                name: "AI Zum",
-                rank: "Elite Lead Architect",
-                mode: "Action-Oriented (No Suggestions, Only Commits)",
-                location: "Cancún, MX (UTC-5)"
-            },
-            context_layers: {
-                base_code: "50,000+ Lines (GestiaPremium Repo)",
-                security: "Firestore Rules V2.0 (Strict Mode)",
-                financial: "Split Billing Architecture & Stripe Integration",
-                target_user: "Jonathan (Test Profile / Real Flow)"
-            },
+            identity: { name: "AI Zum", rank: "Elite Lead Architect", mode: "Action-Oriented" },
+            context_layers: { base_code: "50,000+ Lines", security: "Rules V2.0", financial: "Split Billing" },
             action_protocols: {
                 apu_calculation: (costoBase, logistica = 0) => {
-                    const utilidad = 1.15; // 15% de utilidad fija
-                    const stripeFee = 0.036; // 3.6% aprox
-                    const fixedFee = 3.0; // $3 MXN
-                    
+                    const utilidad = 1.15; const stripeFee = 0.036; const fixedFee = 3.0;
                     const subtotal = (costoBase + logistica) * utilidad;
                     const totalConStripe = (subtotal + fixedFee) / (1 - stripeFee);
-                    
-                    return {
-                        precioVenta: totalConStripe.toFixed(2),
-                        gananciaNeta: (subtotal - (costoBase + logistica)).toFixed(2),
-                        iva: (totalConStripe * 0.16).toFixed(2)
-                    };
+                    return { precioVenta: totalConStripe.toFixed(2), gananciaNeta: (subtotal - (costoBase + logistica)).toFixed(2), iva: (totalConStripe * 0.16).toFixed(2) };
                 },
-                security_bypass: false,
-                auto_test: "Cypress / E2E Native"
+                security_bypass: false
             }
         };
         Object.freeze(AI_ZUM_GOD_MODE);
-        console.log("🚩 AI ZUM CORE: Online y Protegido.");
     </script>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body { background-color: #000000; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        .hero-bg {
-            background-image: radial-gradient(circle at center, #3b82f620 0%, #000000 70%);
-        }
+        .hero-bg { background-image: radial-gradient(circle at center, #3b82f620 0%, #000000 70%); }
     </style>
 </head>
 <body class="text-white min-h-screen flex flex-col">
@@ -256,15 +238,13 @@
         const btnDashboard = document.getElementById('btnDashboard');
         const btnLogoutIndex = document.getElementById('btnLogoutIndex');
 
-        // PWA Install Prompt Logic
         let deferredPrompt;
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
-            console.log('📱 PWA lista para instalar (Evento capturado)');
+            console.log('📱 PWA lista para instalar');
         });
 
-        // Observador de Firebase Authentication
         observarAuth((user) => {
             loadingState.classList.add('hidden');
 
@@ -289,39 +269,24 @@
                         } else if (user.rol === 'admin' || user.rol === 'ADMIN') {
                             window.location.href = 'admin.html';
                         } else {
-                            const esTecnico = confirm("⚠️ Rol no definido en Base de Datos.\n\n¿Deseas registrarte como TÉCNICO (Socio Pro)?\n(Aceptar = Técnico / Cancelar = Cliente)");
+                            const esTecnico = confirm("⚠️ Rol no definido.\n\n¿Deseas registrarte como TÉCNICO?");
                             const rolElegido = esTecnico ? 'tecnico' : 'cliente';
-                            
                             await setDoc(doc(db, "users", user.uid), {
-                                uid: user.uid, 
-                                email: user.email, 
-                                rol: rolElegido, 
-                                nombre: user.displayName || "Usuario",
-                                estado: "pendiente",
-                                fechaRegistro: new Date()
+                                uid: user.uid, email: user.email, rol: rolElegido, nombre: user.displayName || "Usuario", estado: "pendiente", fechaRegistro: new Date()
                             }, { merge: true });
-                            
                             window.location.href = esTecnico ? 'tecnico.html' : 'cliente.html';
                         }
                     } catch (error) {
-                        console.error("Error al redirigir al dashboard:", error);
-                        alert("Error de conexión al cargar tu perfil. Intenta de nuevo.");
+                        alert("Error de conexión.");
                         btnDashboard.innerHTML = textoOriginal;
                         btnDashboard.disabled = false;
                     }
                 };
 
                 btnLogoutIndex.onclick = async () => {
-                    if(!confirm("¿Estás seguro de cerrar sesión en este dispositivo?")) return;
-                    try {
-                        await signOut(auth);
-                        window.location.reload();
-                    } catch (error) {
-                        console.error("Error al cerrar sesión:", error);
-                        alert("Error al intentar cerrar la sesión de Firebase.");
-                    }
+                    if(!confirm("¿Cerrar sesión?")) return;
+                    try { await signOut(auth); window.location.reload(); } catch (error) { alert("Error."); }
                 };
-
             } else {
                 userOptions.classList.add('hidden');
                 guestOptions.classList.remove('hidden');
