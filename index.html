@@ -39,7 +39,7 @@
             });
 
             // Registramos el nuevo con bandera de "Reemplazo Inmediato"
-            navigator.serviceWorker.register('./sw.js?v=' + Date.now(), { scope: '/' })
+            navigator.serviceWorker.register('./sw.js', { scope: '/' })
                 .then(reg => {
                     console.log('✅ AI ZUM: Gestia Engine activo en Firebase');
                     
