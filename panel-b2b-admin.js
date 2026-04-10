@@ -392,7 +392,7 @@ function escucharPlantillaRealTime(edificioId) {
 }
 
 /* =====================================================
-    PERFIL DEL TÉCNICO (MODAL EJECUTIVO)
+    PERFIL DEL TÉCNICO (ID CARD EJECUTIVA B2B)
     Soluciona: ReferenceError verDetalleTecnico
    ===================================================== */
 window.verDetalleTecnico = async (tecnicoId) => {
@@ -408,58 +408,87 @@ window.verDetalleTecnico = async (tecnicoId) => {
 
         const data = docSnap.data();
         
-        // Si no tiene foto, generamos un avatar con sus iniciales estilo Gestia
+        // Avatar fallback
         const avatarUrl = data.foto_perfil || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nombre || 'Tech')}&background=10b981&color=000&bold=true`;
+
+        // Lógica de Flotilla (Vehículo y Placas)
+        const vehiculo = data.tecnico_vehiculo && data.tecnico_vehiculo !== "N/A" ? data.tecnico_vehiculo : "Asignación Pendiente";
+        const placas = data.tecnico_placas && data.tecnico_placas !== "N/A" ? data.tecnico_placas : "S/P";
+
+        // Lógica de Skills Profesionales
+        let skillsHTML = '';
+        const especialidadBase = (data.especialidad || 'General').toUpperCase();
+        
+        // Si es Todólogo, le armamos un portafolio de skills pro
+        if (especialidadBase === 'TDOLOGO' || especialidadBase === 'TODOLOGO') {
+            skillsHTML = `
+                <span class="px-2 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-md">⚡ ELÉCTRICO</span>
+                <span class="px-2 py-1 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-md">❄️ HVAC</span>
+                <span class="px-2 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-md">🔧 PLOMERÍA</span>
+                <span class="px-2 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-md">🏗️ CIVIL</span>
+            `;
+        } else {
+            // Si tiene una sola especialidad, la pintamos
+            skillsHTML = `<span class="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md">🛠️ ${especialidadBase}</span>`;
+        }
 
         const modalHTML = `
             <div id="modalPerfilTecnico" class="fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 backdrop-blur-md overflow-y-auto" onclick="this.remove()">
-                <div class="bg-zinc-950 border border-emerald-500/30 w-full max-w-sm rounded-[2rem] shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
-                    
-                    <div class="bg-emerald-500 p-6 flex justify-between items-start relative">
-                        <div class="flex gap-4 items-center">
-                            <div class="w-16 h-16 rounded-full border-2 border-zinc-900 overflow-hidden bg-black shadow-lg">
-                                <img src="${avatarUrl}" class="w-full h-full object-cover">
-                            </div>
-                            <div class="max-w-[180px]">
-                                <h2 class="text-xl font-black text-black italic uppercase leading-none truncate">${data.nombre || 'Sin Nombre'}</h2>
-                                <p class="text-[9px] font-black text-emerald-900 uppercase tracking-[0.2em] mt-1">${data.especialidad || 'Mantenimiento General'}</p>
-                            </div>
-                        </div>
-                        <button onclick="document.getElementById('modalPerfilTecnico').remove()" class="text-emerald-900 hover:scale-110 transition-transform">
-                            <i class="fas fa-times-circle text-2xl"></i>
+                <div class="bg-[#0a0a0a] border border-white/10 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden relative" onclick="event.stopPropagation()">
+
+                    <div class="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-3 bg-black rounded-full border border-white/10 shadow-inner z-10"></div>
+
+                    <div class="bg-gradient-to-b from-emerald-600 to-emerald-900 pt-8 pb-12 px-6 relative text-center border-b border-emerald-500/20">
+                        <button onclick="document.getElementById('modalPerfilTecnico').remove()" class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors">
+                            <i class="fas fa-times-circle text-xl"></i>
                         </button>
+                        <p class="text-[8px] font-black text-emerald-100 uppercase tracking-[0.4em] mb-4 opacity-80">Credencial Operativa B2B</p>
+
+                        <div class="w-28 h-28 mx-auto rounded-full border-4 border-[#0a0a0a] overflow-hidden bg-black shadow-2xl relative z-10">
+                            <img src="${avatarUrl}" class="w-full h-full object-cover">
+                        </div>
                     </div>
 
-                    <div class="p-6 space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="bg-zinc-900/50 p-3 rounded-xl border border-white/5">
-                                <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Contacto Directo</label>
-                                <p class="text-xs font-bold text-white">
-                                    <a href="tel:${data.telefono}" class="hover:text-emerald-400 transition-colors"><i class="fas fa-phone mr-1 opacity-50"></i> ${data.telefono || 'Sin registro'}</a>
-                                </p>
+                    <div class="px-6 pt-3 pb-6 -mt-8 relative z-20 text-center">
+                        <h2 class="text-2xl font-black text-white italic uppercase tracking-tighter leading-none">${data.nombre || 'Sin Nombre'}</h2>
+                        <p class="text-[10px] font-black text-emerald-500 uppercase tracking-widest mt-1">${data.rol === 'tecnico' ? 'Ingeniero de Campo' : data.rol}</p>
+
+                        <div class="flex flex-wrap justify-center gap-2 mt-4 text-[9px] font-black tracking-wider">
+                            ${skillsHTML}
+                        </div>
+                    </div>
+
+                    <div class="px-6 pb-6 space-y-3">
+                        <div class="bg-zinc-900/80 p-3 rounded-xl border border-white/5 flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-lg">
+                                <i class="fas fa-truck-pickup"></i>
                             </div>
-                            <div class="bg-zinc-900/50 p-3 rounded-xl border border-white/5">
-                                <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Estatus Operativo</label>
-                                <p class="text-xs font-black uppercase ${data.estado === 'activo' ? 'text-emerald-500' : 'text-red-500'}">
+                            <div class="flex-1">
+                                <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block">Unidad Asignada</label>
+                                <p class="text-xs font-bold text-white uppercase">${vehiculo}</p>
+                            </div>
+                            <div class="text-right">
+                                <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block">Placas</label>
+                                <p class="text-xs font-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">${placas}</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-zinc-900/80 p-3 rounded-xl border border-white/5">
+                                <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Contacto Radial</label>
+                                <p class="text-[11px] font-bold text-white"><i class="fas fa-phone text-zinc-600 mr-1"></i> ${data.telefono || 'S/N'}</p>
+                            </div>
+                            <div class="bg-zinc-900/80 p-3 rounded-xl border border-white/5">
+                                <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Estatus</label>
+                                <p class="text-[11px] font-black uppercase ${data.estado === 'activo' ? 'text-emerald-500' : 'text-red-500'}">
                                     <i class="fas fa-circle text-[8px] mr-1"></i> ${data.estado || 'Desconocido'}
                                 </p>
                             </div>
                         </div>
 
-                        <div class="bg-zinc-900/50 p-3 rounded-xl border border-white/5">
-                            <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Identidad Digital (Login)</label>
-                            <p class="text-xs font-bold text-white break-all"><i class="fas fa-envelope mr-1 opacity-50 text-zinc-500"></i> ${data.email || 'N/A'}</p>
-                        </div>
-                        
-                        <div class="bg-zinc-900/50 p-3 rounded-xl border border-white/5">
-                            <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Unidad de Asignación</label>
-                            <p class="text-xs font-bold text-white uppercase"><i class="fas fa-building mr-1 opacity-50 text-zinc-500"></i> ${data.edificioNombre || 'NOC Central'}</p>
-                        </div>
-
-                        <div class="flex justify-center pt-4 border-t border-white/5">
-                            <button class="text-[9px] font-black text-zinc-500 hover:text-white transition-colors uppercase tracking-[0.3em]" onclick="document.getElementById('modalPerfilTecnico').remove()">
-                                Cerrar Expediente
-                            </button>
+                        <div class="mt-4 flex flex-col items-center border-t border-white/5 pt-4">
+                            <i class="fas fa-barcode text-4xl text-zinc-600 opacity-50"></i>
+                            <p class="text-[8px] text-zinc-600 font-mono tracking-[0.3em] mt-1">${data.uid ? data.uid.substring(0, 16).toUpperCase() : 'NO-ID-DETECTED'}</p>
                         </div>
                     </div>
 
@@ -467,7 +496,6 @@ window.verDetalleTecnico = async (tecnicoId) => {
             </div>
         `;
 
-        // Insertar el modal al final del body
         document.body.insertAdjacentHTML('beforeend', modalHTML);
 
     } catch (error) {
@@ -475,7 +503,6 @@ window.verDetalleTecnico = async (tecnicoId) => {
         showToast("Error de conexión con la base de datos", true);
     }
 };
-
 // ======================================================
 // 5. CONTADORES DE DASHBOARD
 // ======================================================
