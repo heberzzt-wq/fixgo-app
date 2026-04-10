@@ -62,18 +62,16 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 
-// 🛡️ APP CHECK (NORMALIZADO V5.22 - NUEVA LLAVE)
-// Reset de Throttling mediante rotación de Site Key para Vercel/Hosting.
-const appCheck = initializeAppCheck(app, {
-    provider: new ReCaptchaV3Provider('6LcJ8rAsAAAAAE4wO4XQSXBSLsw9WUnc3_WdwDgq'),
-    isTokenAutoRefreshEnabled: true
-});
+// 🛡️ APP CHECK (DESACTIVADO TEMPORALMENTE - BYPASS 24H)
+// const appCheck = initializeAppCheck(app, {
+//     provider: new ReCaptchaV3Provider('6LcJ8rAsAAAAAE4wO4XQSXBSLsw9WUnc3_WdwDgq'),
+//     isTokenAutoRefreshEnabled: true
+// });
 
 
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
-
 
 // ======================================================
 // 🔥 ENRUTADOR DE TRÁFICO INTELIGENTE (VERSIÓN ROBUSTA)
