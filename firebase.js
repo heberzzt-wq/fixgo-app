@@ -62,10 +62,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 
-// 🛡️ APP CHECK (NORMALIZADO V5.22)
-// Eliminado el modo Debug forzado en producción para evitar Error 403 Forbidden.
+// 🛡️ APP CHECK (NORMALIZADO V5.22 - NUEVA LLAVE)
+// Reset de Throttling mediante rotación de Site Key para Vercel/Hosting.
 const appCheck = initializeAppCheck(app, {
-    provider: new ReCaptchaV3Provider('6LcEZG4sAAAAAKQQ60dgYGVzXO-Q-ZPPMB9gKNkh'),
+    provider: new ReCaptchaV3Provider('6LcJ8rAsAAAAAE4wO4XQSXBSLsw9WUnc3_WdwDgq'),
     isTokenAutoRefreshEnabled: true
 });
 
