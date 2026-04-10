@@ -1,0 +1,59 @@
+{
+  "packageId": "com.fixgo.gestiapremium",
+  "host": "fixgo-44e4d.web.app",
+  "name": "GestiaPremium Táctico",
+  "launcherName": "GestiaPrem",
+  "display": "standalone",
+  "themeColor": "#06B6D4",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#06B6D4",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://fixgo-44e4d.web.app/assets/icono-512.png",
+  "maskableIconUrl": "https://fixgo-44e4d.web.app/assets/icono-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "C:\\Users\\heber\\Desktop\\play-store-Gestia\\fixgo-app-main\\android.keystore",
+    "alias": "gestia_key"
+  },
+  "appVersionName": "1",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://fixgo-44e4d.web.app/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": {
+      "enabled": true
+    }
+  },
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://fixgo-44e4d.web.app/",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [
+    {
+      "protocol": "web+gestia",
+      "url": "https://fixgo-44e4d.web.app/index.html?order=%s"
+    }
+  ],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "focus-existing",
+  "displayOverride": [
+    "window-controls-overlay",
+    "minimal-ui"
+  ],
+  "appVersion": "1"
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.fixgo.app",
+      "sha256_cert_fingerprints": [
+        "BE:2A:DB:57:85:08:16:92:C6:BF:AA:34:19:F0:37:76:31:45:40:6A:14:B9:BF:0A:1E:85:6A:71:0B:11:8D:A0"
+      ]
+    }
+  }
+]
