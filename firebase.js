@@ -62,13 +62,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 
-// 🛡️ DEBUG APP CHECK (PARCHE V5.21)
-// Si el reCAPTCHA falla por dominios no autorizados, esto evita que la terminal muera.
-if (location.hostname === "localhost" || location.hostname.includes("web.app")) {
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-}
-
-
+// 🛡️ APP CHECK (NORMALIZADO V5.22)
+// Eliminado el modo Debug forzado en producción para evitar Error 403 Forbidden.
 const appCheck = initializeAppCheck(app, {
     provider: new ReCaptchaV3Provider('6LcEZG4sAAAAAKQQ60dgYGVzXO-Q-ZPPMB9gKNkh'),
     isTokenAutoRefreshEnabled: true
