@@ -785,7 +785,7 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
         const secondaryApp = initializeApp(app.options, "Secondary" + Date.now());
         const secondaryAuth = getAuth(secondaryApp);
         
-        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, "123456");
+        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, "Uxmal39*");
         const nuevoUid = userCredential.user.uid;
         await signOut(secondaryAuth);
 
