@@ -420,7 +420,7 @@ export {
     auth,
     db,
     storage,
-    appCheck,
+    //appCheck,
 
     signOut,
     signInWithEmailAndPassword,
