@@ -77,8 +77,8 @@ async function enviarPushEmergenciaB2B(tokenDestino, equipo, descripcion) {
     console.log("📡 Preparando señal de radio para despacho...");
 
     /* =====================================================
-       VALIDACIÓN DE SEGURIDAD
-       ===================================================== */
+        VALIDACIÓN DE SEGURIDAD
+        ===================================================== */
 
     if (!tokenDestino || tokenDestino.length < 20) {
         console.warn("⚠️ Abortando Push: Token de destino inexistente o inválido.");
@@ -88,8 +88,8 @@ async function enviarPushEmergenciaB2B(tokenDestino, equipo, descripcion) {
     try {
 
         /* =====================================================
-           1. REGISTRO DE AUDITORÍA (FIRESTORE)
-           ===================================================== */
+            1. REGISTRO DE AUDITORÍA (FIRESTORE)
+            ===================================================== */
 
         const notificacionPayload = {
             token: tokenDestino,
@@ -108,8 +108,8 @@ async function enviarPushEmergenciaB2B(tokenDestino, equipo, descripcion) {
         );
 
         /* =====================================================
-           2. PUSH DIRECTO VIA FIREBASE CLOUD MESSAGING
-           ===================================================== */
+            2. PUSH DIRECTO VIA FIREBASE CLOUD MESSAGING
+            ===================================================== */
 
         const pushBody = {
             message: {
@@ -135,8 +135,8 @@ async function enviarPushEmergenciaB2B(tokenDestino, equipo, descripcion) {
         };
 
         /* =====================================================
-           3. ENVÍO A LA API HTTP V1 DE FCM
-           ===================================================== */
+            3. ENVÍO A LA API HTTP V1 DE FCM
+            ===================================================== */
 
         const response = await fetch(
             "https://fcm.googleapis.com/v1/projects/fixgo-44e4d/messages:send",
@@ -374,7 +374,7 @@ function escucharPlantillaRealTime(edificioId) {
                 </td>
 
                 <td class="p-4 text-right">
-                    <button onclick="verDetalleTecnico('${empId}')" class="text-zinc-600 hover:text-white transition-colors">
+                    <button onclick="window.verDetalleTecnico('${empId}')" class="text-zinc-600 hover:text-white transition-colors">
                         <i class="fas fa-ellipsis-v"></i>
                     </button>
                 </td>
@@ -390,6 +390,92 @@ function escucharPlantillaRealTime(edificioId) {
         }
     });
 }
+
+/* =====================================================
+    PERFIL DEL TÉCNICO (MODAL EJECUTIVO)
+    Soluciona: ReferenceError verDetalleTecnico
+   ===================================================== */
+window.verDetalleTecnico = async (tecnicoId) => {
+    if (!tecnicoId) return;
+
+    try {
+        const docSnap = await getDoc(doc(db, "users", tecnicoId));
+        
+        if (!docSnap.exists()) {
+            showToast("El técnico no existe en la base de datos", true);
+            return;
+        }
+
+        const data = docSnap.data();
+        
+        // Si no tiene foto, generamos un avatar con sus iniciales estilo Gestia
+        const avatarUrl = data.foto_perfil || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nombre || 'Tech')}&background=10b981&color=000&bold=true`;
+
+        const modalHTML = `
+            <div id="modalPerfilTecnico" class="fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 backdrop-blur-md overflow-y-auto" onclick="this.remove()">
+                <div class="bg-zinc-950 border border-emerald-500/30 w-full max-w-sm rounded-[2rem] shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
+                    
+                    <div class="bg-emerald-500 p-6 flex justify-between items-start relative">
+                        <div class="flex gap-4 items-center">
+                            <div class="w-16 h-16 rounded-full border-2 border-zinc-900 overflow-hidden bg-black shadow-lg">
+                                <img src="${avatarUrl}" class="w-full h-full object-cover">
+                            </div>
+                            <div class="max-w-[180px]">
+                                <h2 class="text-xl font-black text-black italic uppercase leading-none truncate">${data.nombre || 'Sin Nombre'}</h2>
+                                <p class="text-[9px] font-black text-emerald-900 uppercase tracking-[0.2em] mt-1">${data.especialidad || 'Mantenimiento General'}</p>
+                            </div>
+                        </div>
+                        <button onclick="document.getElementById('modalPerfilTecnico').remove()" class="text-emerald-900 hover:scale-110 transition-transform">
+                            <i class="fas fa-times-circle text-2xl"></i>
+                        </button>
+                    </div>
+
+                    <div class="p-6 space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-zinc-900/50 p-3 rounded-xl border border-white/5">
+                                <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Contacto Directo</label>
+                                <p class="text-xs font-bold text-white">
+                                    <a href="tel:${data.telefono}" class="hover:text-emerald-400 transition-colors"><i class="fas fa-phone mr-1 opacity-50"></i> ${data.telefono || 'Sin registro'}</a>
+                                </p>
+                            </div>
+                            <div class="bg-zinc-900/50 p-3 rounded-xl border border-white/5">
+                                <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Estatus Operativo</label>
+                                <p class="text-xs font-black uppercase ${data.estado === 'activo' ? 'text-emerald-500' : 'text-red-500'}">
+                                    <i class="fas fa-circle text-[8px] mr-1"></i> ${data.estado || 'Desconocido'}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="bg-zinc-900/50 p-3 rounded-xl border border-white/5">
+                            <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Identidad Digital (Login)</label>
+                            <p class="text-xs font-bold text-white break-all"><i class="fas fa-envelope mr-1 opacity-50 text-zinc-500"></i> ${data.email || 'N/A'}</p>
+                        </div>
+                        
+                        <div class="bg-zinc-900/50 p-3 rounded-xl border border-white/5">
+                            <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Unidad de Asignación</label>
+                            <p class="text-xs font-bold text-white uppercase"><i class="fas fa-building mr-1 opacity-50 text-zinc-500"></i> ${data.edificioNombre || 'NOC Central'}</p>
+                        </div>
+
+                        <div class="flex justify-center pt-4 border-t border-white/5">
+                            <button class="text-[9px] font-black text-zinc-500 hover:text-white transition-colors uppercase tracking-[0.3em]" onclick="document.getElementById('modalPerfilTecnico').remove()">
+                                Cerrar Expediente
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        `;
+
+        // Insertar el modal al final del body
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    } catch (error) {
+        console.error("❌ Error al abrir detalle del técnico:", error);
+        showToast("Error de conexión con la base de datos", true);
+    }
+};
+
 // ======================================================
 // 5. CONTADORES DE DASHBOARD
 // ======================================================
@@ -785,6 +871,7 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
         const secondaryApp = initializeApp(app.options, "Secondary" + Date.now());
         const secondaryAuth = getAuth(secondaryApp);
         
+        // 🔥 CLAVE POR DEFECTO ACTUALIZADA A Uxmal39*
         const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, "Uxmal39*");
         const nuevoUid = userCredential.user.uid;
         await signOut(secondaryAuth);
