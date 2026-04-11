@@ -251,15 +251,26 @@
                 </div>
 
                 <div>
-                    <label class="text-[9px] font-black text-zinc-500 uppercase ml-2 mb-1 block tracking-widest">Rol del Sistema</label>
-                    <select id="regRol" required class="input-dark w-full p-4 text-xs font-black uppercase text-emerald-500">
-                        <option value="admin_b2b">Co-Administrador NOC</option>
-                        <option value="supervisor">Supervisor de Área</option>
-                        <option value="tecnico">Ingeniero Técnico de Campo</option>
-                        <option value="guardia">Guardia de Seguridad</option>
-                        <option value="recepcion">Recepción / Front Desk</option>
-                    </select>
-                </div>
+    <label class="text-[9px] font-black text-zinc-500 uppercase ml-2 mb-1 block tracking-widest">Nivel de Acceso y Perfil Operativo</label>
+    <select id="regRol" required class="input-dark w-full p-4 text-xs font-black uppercase text-emerald-500">
+        <option value="" disabled selected>-- SELECCIONA UN PERFIL --</option>
+        
+        <optgroup label="NIVEL 1: GERENCIA TÁCTICA" class="bg-black text-amber-500 font-black">
+            <option value="admin_b2b" class="text-white font-medium">Administrador Global (NOC)</option>
+            <option value="asistente_admin" class="text-white font-medium">Asistente de Presidencia</option>
+        </optgroup>
+        
+        <optgroup label="NIVEL 2: FUERZA OPERATIVA" class="bg-black text-emerald-500 font-black">
+            <option value="supervisor" class="text-white font-medium">Ingeniero Supervisor</option>
+            <option value="tecnico" class="text-white font-medium">Técnico de Campo</option>
+        </optgroup>
+        
+        <optgroup label="NIVEL 3: CLIENTES Y VIGILANCIA" class="bg-black text-blue-500 font-black">
+            <option value="seguridad_24_7" class="text-white font-medium">Caseta de Seguridad 24/7</option>
+            <option value="inquilino_b2b" class="text-white font-medium">Inquilino Corporativo (Notaría/Piso)</option>
+        </optgroup>
+    </select>
+</div>
 
                 <div class="pt-4">
                     <button id="btnGuardarPersonal" type="submit" class="btn-primary w-full py-5 shadow-xl shadow-emerald-500/10">
