@@ -392,28 +392,37 @@ function escucharPlantillaRealTime(edificioId) {
 }
 
 /* =====================================================
-    PERFIL DEL TÉCNICO (ID CARD + AUTO-CRUZE DE FLOTA)
-    V5.35 - Especial para Uxmal 39
+    PERFIL DEL TÉCNICO (ID CARD + AUTO-CRUCE DE FLOTA)
+    V5.40 - Cruce por Subcolecciones B2B
    ===================================================== */
 
 window.verDetalleTecnico = async (tecnicoId) => {
     if (!tecnicoId) return;
 
     try {
-        // 1. Obtener datos del Técnico (Colección: users)
+        // 1. Obtener datos del Técnico (Colección principal: users)
         const techSnap = await getDoc(doc(db, "users", tecnicoId));
         if (!techSnap.exists()) return;
         const data = techSnap.data();
+        const tenantId = "uxmal39"; // Ajustado a tu tenant
 
-        // 2. MOTOR DE CRUCE AUTOMÁTICO (Colección: flotilla_b2b)
-        // Buscamos en la flota quién tiene asignado este técnico (operador_uid)
+        // 2. MOTOR DE CRUCE: VEHÍCULOS (flotilla_b2b/uxmal39/vehiculos)
+        // Buscamos si algún vehículo tiene el UID del técnico o su nombre
         let datosVehiculo = { modelo: "SIN UNIDAD", placas: "S/P", icono: "fa-ban" };
+        const vehiculosRef = collection(db, "flotilla_b2b", tenantId, "vehiculos");
         
-        const qFlota = query(collection(db, "flotilla_b2b"), where("operador_uid", "==", tecnicoId));
-        const flotaSnap = await getDocs(qFlota); // Necesitas importar getDocs de firebase.js si no está
-        
-        if (!flotaSnap.empty) {
-            const vData = flotaSnap.docs[0].data();
+        // Primero intentamos buscar por UID (si lo actualizaste manual)
+        let qVehiculo = query(vehiculosRef, where("operador_uid", "==", tecnicoId));
+        let vehiculoSnap = await getDocs(qVehiculo);
+
+        // Si no lo encuentra por UID, buscamos por Nombre Exacto
+        if (vehiculoSnap.empty && data.nombre) {
+             qVehiculo = query(vehiculosRef, where("operador", "==", data.nombre.toUpperCase()));
+             vehiculoSnap = await getDocs(qVehiculo);
+        }
+
+        if (!vehiculoSnap.empty) {
+            const vData = vehiculoSnap.docs[0].data();
             datosVehiculo = {
                 modelo: vData.modelo || "V.W GOL",
                 placas: vData.placas || "S/P",
@@ -421,12 +430,26 @@ window.verDetalleTecnico = async (tecnicoId) => {
             };
         }
 
-        // 3. Preparación de Variables Médicas y de Seguridad
-        const avatarUrl = data.foto_perfil || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nombre || 'Tech')}&background=10b981&color=000&bold=true`;
-        const tipoSangre = data.sangre || "N/A";
-        const licVence = data.vence_licencia || "N/A";
+        // 3. MOTOR DE CRUCE: OPERADORES (flotilla_b2b/uxmal39/operadores)
+        // Buscamos los datos médicos y licencia usando el nombre
+        let tipoSangre = data.sangre || "N/A";
+        let licVence = data.vence_licencia || "N/A";
 
-        // Lógica de Skills (Todólogo)
+        if (data.nombre) {
+            const operadoresRef = collection(db, "flotilla_b2b", tenantId, "operadores");
+            const qOperador = query(operadoresRef, where("nombre", "==", data.nombre.toUpperCase()));
+            const operadorSnap = await getDocs(qOperador);
+
+            if (!operadorSnap.empty) {
+                const opData = operadorSnap.docs[0].data();
+                tipoSangre = opData.sangre || tipoSangre;
+                licVence = opData.vence_licencia || licVence;
+            }
+        }
+
+        // 4. Preparación de Interfaz
+        const avatarUrl = data.foto_perfil || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nombre || 'Tech')}&background=10b981&color=000&bold=true`;
+        
         let skillsHTML = `<span class="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md">🛠️ ${(data.especialidad || 'General').toUpperCase()}</span>`;
         if ((data.especialidad || '').toUpperCase() === 'TDOLOGO') {
             skillsHTML = `
