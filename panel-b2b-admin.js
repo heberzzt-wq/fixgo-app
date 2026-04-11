@@ -7,7 +7,7 @@
  */
 
 import { 
-    auth, db, doc, getDoc, onSnapshot, collection, 
+    auth, db, doc, getDoc,getDocs, onSnapshot, collection, 
     addDoc, updateDoc, deleteDoc, serverTimestamp, 
     query, where, orderBy, limit, setDoc, app 
 } from "./firebase.js";
