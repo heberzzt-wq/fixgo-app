@@ -392,9 +392,50 @@ function escucharPlantillaRealTime(edificioId) {
 }
 
 /* =====================================================
-    PERFIL DEL TÉCNICO (ID CARD EJECUTIVA B2B)
+    PERFIL DEL TÉCNICO (ID CARD EJECUTIVA B2B) + AUTO-DESCARGA
     Soluciona: ReferenceError verDetalleTecnico
    ===================================================== */
+
+window.descargarCredencial = async (nombreTecnico) => {
+    const credencial = document.getElementById('tarjetaCredencialB2B');
+    const btnCerrar = document.getElementById('btnCerrarCredencial');
+    const btnDescargar = document.getElementById('btnDescargarCredencial');
+
+    // Ocultar botones temporalmente para que no salgan en la foto del plástico
+    btnCerrar.style.display = 'none';
+    btnDescargar.style.display = 'none';
+
+    try {
+        if(typeof html2canvas === 'undefined') {
+            alert("Falta la librería html2canvas en el HTML.");
+            return;
+        }
+
+        // Tomar la foto en Alta Resolución (scale: 2) ideal para impresión PVC
+        const canvas = await html2canvas(credencial, {
+            backgroundColor: '#0a0a0a', 
+            scale: 2, 
+            useCORS: true // Permite capturar las fotos desde el Storage de Firebase
+        });
+
+        // Crear el link de descarga invisible
+        const link = document.createElement('a');
+        link.download = `Gafete_${nombreTecnico.replace(/\s+/g, '_')}_GestiaPremium.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+
+        console.log("✅ Gafete descargado para impresión en PVC");
+
+    } catch(e) {
+        console.error("❌ Error al generar imagen de Gafete:", e);
+        alert("Error al intentar generar el gafete para impresión.");
+    } finally {
+        // Restaurar botones a su estado original
+        btnCerrar.style.display = 'block';
+        btnDescargar.style.display = 'flex';
+    }
+};
+
 window.verDetalleTecnico = async (tecnicoId) => {
     if (!tecnicoId) return;
 
@@ -402,7 +443,7 @@ window.verDetalleTecnico = async (tecnicoId) => {
         const docSnap = await getDoc(doc(db, "users", tecnicoId));
         
         if (!docSnap.exists()) {
-            showToast("El técnico no existe en la base de datos", true);
+            console.log("[Toast] ❌ El técnico no existe en la base de datos");
             return;
         }
 
@@ -428,24 +469,25 @@ window.verDetalleTecnico = async (tecnicoId) => {
                 <span class="px-2 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-md">🏗️ CIVIL</span>
             `;
         } else {
-            // Si tiene una sola especialidad, la pintamos
+            // Si tiene una sola especialidad
             skillsHTML = `<span class="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md">🛠️ ${especialidadBase}</span>`;
         }
 
         const modalHTML = `
             <div id="modalPerfilTecnico" class="fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 backdrop-blur-md overflow-y-auto" onclick="this.remove()">
-                <div class="bg-[#0a0a0a] border border-white/10 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden relative" onclick="event.stopPropagation()">
+                
+                <div id="tarjetaCredencialB2B" class="bg-[#0a0a0a] border border-white/10 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden relative" onclick="event.stopPropagation()">
 
                     <div class="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-3 bg-black rounded-full border border-white/10 shadow-inner z-10"></div>
 
                     <div class="bg-gradient-to-b from-emerald-600 to-emerald-900 pt-8 pb-12 px-6 relative text-center border-b border-emerald-500/20">
-                        <button onclick="document.getElementById('modalPerfilTecnico').remove()" class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors">
+                        <button id="btnCerrarCredencial" onclick="document.getElementById('modalPerfilTecnico').remove()" class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors">
                             <i class="fas fa-times-circle text-xl"></i>
                         </button>
                         <p class="text-[8px] font-black text-emerald-100 uppercase tracking-[0.4em] mb-4 opacity-80">Credencial Operativa B2B</p>
 
                         <div class="w-28 h-28 mx-auto rounded-full border-4 border-[#0a0a0a] overflow-hidden bg-black shadow-2xl relative z-10">
-                            <img src="${avatarUrl}" class="w-full h-full object-cover">
+                            <img src="${avatarUrl}" crossorigin="anonymous" class="w-full h-full object-cover">
                         </div>
                     </div>
 
@@ -486,10 +528,14 @@ window.verDetalleTecnico = async (tecnicoId) => {
                             </div>
                         </div>
 
-                        <div class="mt-4 flex flex-col items-center border-t border-white/5 pt-4">
+                        <div class="mt-4 flex flex-col items-center border-t border-white/5 pt-4 mb-2">
                             <i class="fas fa-barcode text-4xl text-zinc-600 opacity-50"></i>
                             <p class="text-[8px] text-zinc-600 font-mono tracking-[0.3em] mt-1">${data.uid ? data.uid.substring(0, 16).toUpperCase() : 'NO-ID-DETECTED'}</p>
                         </div>
+
+                        <button id="btnDescargarCredencial" onclick="window.descargarCredencial('${data.nombre || 'Tecnico'}')" class="w-full bg-emerald-600/10 hover:bg-emerald-600 text-emerald-500 hover:text-white border border-emerald-500/30 transition-all rounded-xl py-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                            <i class="fas fa-print"></i> Imprimir Gafete Oficial
+                        </button>
                     </div>
 
                 </div>
@@ -500,7 +546,7 @@ window.verDetalleTecnico = async (tecnicoId) => {
 
     } catch (error) {
         console.error("❌ Error al abrir detalle del técnico:", error);
-        showToast("Error de conexión con la base de datos", true);
+        console.log("[Toast] ❌ Error de conexión con la base de datos");
     }
 };
 // ======================================================
