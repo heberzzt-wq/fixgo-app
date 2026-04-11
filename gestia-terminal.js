@@ -256,7 +256,7 @@ export class TerminalHeberto {
                 throw new Error("FALLO_DE_IDENTIDAD: Usuario no detectado en Firebase.");
             }
 
-            // 🔑 MATRIZ DE SOBERANÍA Y TESTING B2B
+            // 🔑 MATRIZ DE SOBERANÍA Y REDIRECCIÓN B2B
             const ADMIN_UID = "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2";    // Heber
             const JONATHAN_UID = "qsBDeRBJs1MMGpE8OBsLvqT9K1l2"; // Jonathan
             const JORGE_UID = "Wo6ySz9pVUPs4Zxg5vpKnSniWt92";    // Jorge
@@ -265,10 +265,17 @@ export class TerminalHeberto {
                 this.session.authorized = true;
                 this.session.role = "arquitecto_supremo";
                 this.logger.warn("🔓 MODO DIOS ACTIVADO: Soberanía de Heber Mendoza confirmada.");
-            } else if (this.session.uid === JONATHAN_UID || this.session.uid === JORGE_UID) {
+            } 
+            else if (this.session.role === "seguridad_24_7") {
+                // 🛡️ REGLA DE ORO: El guardia salta directo a su panel
+                this.session.authorized = true;
+                this.logger.log("🛡️ ACCESO VIGILANCIA: Redirigiendo a Búnker de Seguridad...");
+                window.location.href = "https://fixgo-44e4d.web.app/seguridad_accesos_b2b";
+                return; // Cortamos ejecución para evitar carga de terminal técnica
+            }
+            else if (this.session.uid === JONATHAN_UID || this.session.uid === JORGE_UID) {
                 this.session.authorized = true;
                 this.logger.log(`✅ ACCESO B2B AUTORIZADO: Identidad confirmada para pruebas de flujo real.`);
-                // Se conserva intacto el this.session.role que traen de resolveTenantContext()
             }
 
             // 🛡️ VALIDACIÓN FINAL DE ENTRADA AL BÚNKER
