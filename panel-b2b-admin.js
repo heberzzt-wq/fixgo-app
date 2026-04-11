@@ -392,84 +392,56 @@ function escucharPlantillaRealTime(edificioId) {
 }
 
 /* =====================================================
-    PERFIL DEL TÉCNICO (ID CARD EJECUTIVA B2B) + AUTO-DESCARGA
-    Soluciona: ReferenceError verDetalleTecnico
+    PERFIL DEL TÉCNICO (ID CARD + CRUCE DE FLOTA OFICIAL)
+    Arquitectura B2B: Relación Users <-> Flotilla
    ===================================================== */
-
-window.descargarCredencial = async (nombreTecnico) => {
-    const credencial = document.getElementById('tarjetaCredencialB2B');
-    const btnCerrar = document.getElementById('btnCerrarCredencial');
-    const btnDescargar = document.getElementById('btnDescargarCredencial');
-
-    // Ocultar botones temporalmente para que no salgan en la foto del plástico
-    btnCerrar.style.display = 'none';
-    btnDescargar.style.display = 'none';
-
-    try {
-        if(typeof html2canvas === 'undefined') {
-            alert("Falta la librería html2canvas en el HTML.");
-            return;
-        }
-
-        // Tomar la foto en Alta Resolución (scale: 2) ideal para impresión PVC
-        const canvas = await html2canvas(credencial, {
-            backgroundColor: '#0a0a0a', 
-            scale: 2, 
-            useCORS: true // Permite capturar las fotos desde el Storage de Firebase
-        });
-
-        // Crear el link de descarga invisible
-        const link = document.createElement('a');
-        link.download = `Gafete_${nombreTecnico.replace(/\s+/g, '_')}_GestiaPremium.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-
-        console.log("✅ Gafete descargado para impresión en PVC");
-
-    } catch(e) {
-        console.error("❌ Error al generar imagen de Gafete:", e);
-        alert("Error al intentar generar el gafete para impresión.");
-    } finally {
-        // Restaurar botones a su estado original
-        btnCerrar.style.display = 'block';
-        btnDescargar.style.display = 'flex';
-    }
-};
 
 window.verDetalleTecnico = async (tecnicoId) => {
     if (!tecnicoId) return;
 
     try {
-        const docSnap = await getDoc(doc(db, "users", tecnicoId));
-        
-        if (!docSnap.exists()) {
-            console.log("[Toast] ❌ El técnico no existe en la base de datos");
+        // 1. Jalamos los datos del Técnico
+        const techSnap = await getDoc(doc(db, "users", tecnicoId));
+        if (!techSnap.exists()) {
+            console.warn("❌ El técnico no existe.");
             return;
         }
+        const data = techSnap.data();
+        const uidOficial = techSnap.id; // Su ID oficial de Firebase
 
-        const data = docSnap.data();
-        
-        // Avatar fallback
+        // 2. BUSQUEDA DE CRUCE (Flota B2B)
+        // Buscamos si tiene un ID de vehículo vinculado
+        let datosVehiculo = {
+            modelo: "SIN UNIDAD ASIGNADA",
+            placas: "S/P",
+            icono: "fa-ban"
+        };
+
+        if (data.vehiculo_id) {
+            const vehiculoSnap = await getDoc(doc(db, "flotilla_b2b", data.vehiculo_id));
+            if (vehiculoSnap.exists()) {
+                const vData = vehiculoSnap.data();
+                datosVehiculo = {
+                    modelo: vData.modelo || vData.nombre || "Vehículo B2B",
+                    placas: vData.placas || data.vehiculo_id,
+                    icono: "fa-truck-pickup"
+                };
+            }
+        }
+
+        // 3. Preparación de Interfaz
         const avatarUrl = data.foto_perfil || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nombre || 'Tech')}&background=10b981&color=000&bold=true`;
-
-        // Lógica de Flotilla (Vehículo y Placas)
-        const vehiculo = data.tecnico_vehiculo && data.tecnico_vehiculo !== "N/A" ? data.tecnico_vehiculo : "Asignación Pendiente";
-        const placas = data.tecnico_placas && data.tecnico_placas !== "N/A" ? data.tecnico_placas : "S/P";
-
-        // Lógica de Skills Profesionales
+        
+        // Especialidades (Skills)
         let skillsHTML = '';
         const especialidadBase = (data.especialidad || 'General').toUpperCase();
-        
-        // Si es Todólogo, le armamos un portafolio de skills pro
         if (especialidadBase === 'TDOLOGO' || especialidadBase === 'TODOLOGO') {
             skillsHTML = `
                 <span class="px-2 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-md">⚡ ELÉCTRICO</span>
                 <span class="px-2 py-1 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-md">❄️ HVAC</span>
                 <span class="px-2 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-md">🔧 PLOMERÍA</span>
-                <span class="px-2 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-md">🏗️ CIVIL</span>
             `;
         } else {
-            // Si tiene una sola especialidad
             skillsHTML = `<span class="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md">🛠️ ${especialidadBase}</span>`;
         }
 
@@ -480,12 +452,11 @@ window.verDetalleTecnico = async (tecnicoId) => {
 
                     <div class="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-3 bg-black rounded-full border border-white/10 shadow-inner z-10"></div>
 
-                    <div class="bg-gradient-to-b from-emerald-600 to-emerald-900 pt-8 pb-12 px-6 relative text-center border-b border-emerald-500/20">
+                    <div class="bg-gradient-to-b from-emerald-600 to-emerald-900 pt-10 pb-12 px-6 relative text-center border-b border-emerald-500/20">
                         <button id="btnCerrarCredencial" onclick="document.getElementById('modalPerfilTecnico').remove()" class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors">
                             <i class="fas fa-times-circle text-xl"></i>
                         </button>
-                        <p class="text-[8px] font-black text-emerald-100 uppercase tracking-[0.4em] mb-4 opacity-80">Credencial Operativa B2B</p>
-
+                        
                         <div class="w-28 h-28 mx-auto rounded-full border-4 border-[#0a0a0a] overflow-hidden bg-black shadow-2xl relative z-10">
                             <img src="${avatarUrl}" crossorigin="anonymous" class="w-full h-full object-cover">
                         </div>
@@ -493,49 +464,42 @@ window.verDetalleTecnico = async (tecnicoId) => {
 
                     <div class="px-6 pt-3 pb-6 -mt-8 relative z-20 text-center">
                         <h2 class="text-2xl font-black text-white italic uppercase tracking-tighter leading-none">${data.nombre || 'Sin Nombre'}</h2>
-                        <p class="text-[10px] font-black text-emerald-500 uppercase tracking-widest mt-1">${data.rol === 'tecnico' ? 'Ingeniero de Campo' : data.rol}</p>
+                        <p class="text-[9px] font-black text-emerald-500 uppercase tracking-[0.3em] mt-2">Personal Operativo Certificado</p>
 
-                        <div class="flex flex-wrap justify-center gap-2 mt-4 text-[9px] font-black tracking-wider">
+                        <div class="flex flex-wrap justify-center gap-2 mt-5 text-[9px] font-black uppercase">
                             ${skillsHTML}
                         </div>
                     </div>
 
-                    <div class="px-6 pb-6 space-y-3">
-                        <div class="bg-zinc-900/80 p-3 rounded-xl border border-white/5 flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-lg">
-                                <i class="fas fa-truck-pickup"></i>
+                    <div class="px-6 pb-8 space-y-4">
+                        <div class="bg-zinc-900/80 p-4 rounded-2xl border border-white/5 flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-xl shadow-inner">
+                                <i class="fas ${datosVehiculo.icono}"></i>
                             </div>
                             <div class="flex-1">
-                                <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block">Unidad Asignada</label>
-                                <p class="text-xs font-bold text-white uppercase">${vehiculo}</p>
+                                <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block">Activo de Flotilla</label>
+                                <p class="text-[11px] font-bold text-white uppercase truncate">${datosVehiculo.modelo}</p>
                             </div>
                             <div class="text-right">
                                 <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block">Placas</label>
-                                <p class="text-xs font-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">${placas}</p>
+                                <p class="text-xs font-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-1 rounded border border-amber-400/20">${datosVehiculo.placas}</p>
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="bg-zinc-900/80 p-3 rounded-xl border border-white/5">
-                                <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Contacto Radial</label>
-                                <p class="text-[11px] font-bold text-white"><i class="fas fa-phone text-zinc-600 mr-1"></i> ${data.telefono || 'S/N'}</p>
-                            </div>
-                            <div class="bg-zinc-900/80 p-3 rounded-xl border border-white/5">
-                                <label class="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Estatus</label>
-                                <p class="text-[11px] font-black uppercase ${data.estado === 'activo' ? 'text-emerald-500' : 'text-red-500'}">
-                                    <i class="fas fa-circle text-[8px] mr-1"></i> ${data.estado || 'Desconocido'}
-                                </p>
-                            </div>
+                        <div class="bg-white p-4 rounded-xl flex flex-col items-center">
+                            <div class="text-black mb-1 font-black text-[10px] uppercase tracking-[0.2em] opacity-40 italic">System Authentication ID</div>
+                            <i class="fas fa-barcode text-5xl text-black opacity-80 mb-1"></i>
+                            <p class="text-[9px] text-black font-mono font-bold tracking-[0.2em]">${uidOficial.toUpperCase()}</p>
                         </div>
 
-                        <div class="mt-4 flex flex-col items-center border-t border-white/5 pt-4 mb-2">
-                            <i class="fas fa-barcode text-4xl text-zinc-600 opacity-50"></i>
-                            <p class="text-[8px] text-zinc-600 font-mono tracking-[0.3em] mt-1">${data.uid ? data.uid.substring(0, 16).toUpperCase() : 'NO-ID-DETECTED'}</p>
+                        <div class="flex gap-2 pt-2">
+                            <button id="btnDescargarCredencial" onclick="window.descargarCredencial('${data.nombre || 'Tecnico'}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-black font-black rounded-xl py-4 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all">
+                                <i class="fas fa-print"></i> Generar PVC
+                            </button>
+                            <a href="tel:${data.telefono}" class="w-14 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl flex items-center justify-center border border-white/10 transition-all">
+                                <i class="fas fa-phone-alt"></i>
+                            </a>
                         </div>
-
-                        <button id="btnDescargarCredencial" onclick="window.descargarCredencial('${data.nombre || 'Tecnico'}')" class="w-full bg-emerald-600/10 hover:bg-emerald-600 text-emerald-500 hover:text-white border border-emerald-500/30 transition-all rounded-xl py-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest">
-                            <i class="fas fa-print"></i> Imprimir Gafete Oficial
-                        </button>
                     </div>
 
                 </div>
@@ -545,8 +509,7 @@ window.verDetalleTecnico = async (tecnicoId) => {
         document.body.insertAdjacentHTML('beforeend', modalHTML);
 
     } catch (error) {
-        console.error("❌ Error al abrir detalle del técnico:", error);
-        console.log("[Toast] ❌ Error de conexión con la base de datos");
+        console.error("❌ Error en Cruce B2B:", error);
     }
 };
 // ======================================================
