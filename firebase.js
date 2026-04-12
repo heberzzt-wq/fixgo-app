@@ -1,6 +1,6 @@
 /**
  * ======================================================
- * FIXGO CORE - GESTIAPREMIUM v5.21 (TRAFFIC CONTROL)
+ * FIXGO CORE - GESTIAPREMIUM v5.30 (TRAFFIC CONTROL)
  * ======================================================
  * Integración: B2B SaaS + Marketplace + App Check
  * REPARACIÓN: Normalización de extensiones .html + App Check Bypass
@@ -64,8 +64,8 @@ const app = initializeApp(firebaseConfig);
 
 // 🛡️ APP CHECK (DESACTIVADO TEMPORALMENTE - BYPASS 24H)
 // const appCheck = initializeAppCheck(app, {
-//     provider: new ReCaptchaV3Provider('6LcJ8rAsAAAAAE4wO4XQSXBSLsw9WUnc3_WdwDgq'),
-//     isTokenAutoRefreshEnabled: true
+//     provider: new ReCaptchaV3Provider('6LcJ8rAsAAAAAE4wO4XQSXBSLsw9WUnc3_WdwDgq'),
+//     isTokenAutoRefreshEnabled: true
 // });
 
 
@@ -74,7 +74,7 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 
 // ======================================================
-// 🔥 ENRUTADOR DE TRÁFICO INTELIGENTE (VERSIÓN ROBUSTA)
+// 🔥 ENRUTADOR DE TRÁFICO INTELIGENTE (VERSIÓN ROBUSTA V5.30)
 // ======================================================
 
 export function verificarYRedireccionar(user) {
@@ -86,12 +86,12 @@ export function verificarYRedireccionar(user) {
     const currentPage =
         path.split('/').pop().split('?')[0].split('#')[0] || "index.html";
 
-    // ✨ NORMALIZACIÓN V5.21: Eliminamos el .html para comparar "limpio"
+    // ✨ NORMALIZACIÓN V5.30: Eliminamos el .html para comparar "limpio"
     const pageClean = currentPage.replace(".html", "").toLowerCase();
 
     let role = (user.rol || user.role || "").toLowerCase();
 
-    // 🔧 PARCHE B2B
+    // 🔧 PARCHE B2B / SaaS
     const subType = (
         user.sub_type ||
         user.subtype ||
@@ -104,12 +104,12 @@ export function verificarYRedireccionar(user) {
         role = "admin";
     }
 
-    console.log(`🚦 ROUTER FIXGO v5.21 | rol=${role} | tipo=${subType} | page=${pageClean}`);
+    console.log(`🚦 ROUTER GESTIA v5.30 | rol=${role} | tipo=${subType} | page=${pageClean}`);
 
 
-    // =========================
-    // 1. ADMIN MAESTRO (HEBERTO)
-    // =========================
+    // ======================================================
+    // 1. ADMIN MAESTRO (HEBERTO / JORGE GLOBAL)
+    // ======================================================
 
     if (role === "admin") {
 
@@ -125,15 +125,17 @@ export function verificarYRedireccionar(user) {
     }
 
 
-    // =========================
-    // 2. ADMIN B2B (JORGE / EDIFICIOS)
-    // =========================
+    // ======================================================
+    // 2. STAFF OPERATIVO B2B (JESSICA / HEBERTO B2B / SEGURIDAD)
+    // ======================================================
 
-    if (role === "admin_b2b") {
+    const staffRoles = ["admin_b2b", "asistente_admin", "seguridad_24_7"];
+
+    if (staffRoles.includes(role)) {
 
         if (pageClean !== "panel-b2b-admin") {
 
-            console.log("🏢 Admin B2B detectado → Redirigiendo a panel-b2b-admin.html");
+            console.log("🏢 Staff B2B detectado → Redirigiendo a panel-b2b-admin.html");
 
             window.location.href = "panel-b2b-admin.html";
 
@@ -143,15 +145,35 @@ export function verificarYRedireccionar(user) {
     }
 
 
-    // =========================
-    // 3. TECNICOS
-    // =========================
+    // ======================================================
+    // 3. INQUILINOS VIP (B2B EXCLUSIVO)
+    // ======================================================
+
+    if (role === "inquilino_b2b") {
+
+        if (pageClean !== "app-inquilino") {
+
+            console.log("🎟️ Inquilino B2B detectado → Redirigiendo a app-inquilino.html");
+
+            window.location.href = "app-inquilino.html";
+
+        }
+
+        return;
+    }
+
+
+    // ======================================================
+    // 4. TECNICOS (B2B vs B2C)
+    // ======================================================
 
     if (role === "tecnico") {
 
         const targetTecnico = (subType === "saas") ? "tecnico-b2b" : "tecnico";
 
         if (pageClean !== targetTecnico) {
+
+            console.log(`🔧 Técnico ${subType} detectado → Redirigiendo...`);
 
             window.location.href = targetTecnico + ".html";
 
@@ -161,18 +183,17 @@ export function verificarYRedireccionar(user) {
     }
 
 
-    // =========================
-    // 4. CLIENTES
-    // =========================
+    // ======================================================
+    // 5. CLIENTES B2C (MERCADO ABIERTO)
+    // ======================================================
 
     if (role === "cliente" || role === "client") {
 
+        // Si por error un inquilino cae aquí pero su subType es SaaS, lo corregimos
         if (subType === "saas") {
-
-            if (pageClean !== "panel-b2b-admin") {
-
-                window.location.href = "panel-b2b-admin.html";
-
+            
+            if (pageClean !== "app-inquilino") {
+                window.location.href = "app-inquilino.html";
             }
 
         } else {
@@ -195,7 +216,7 @@ export function verificarYRedireccionar(user) {
 
 
 // ======================================================
-// 🧠 OBSERVADOR DE SESIÓN
+// 🧠 OBSERVADOR DE SESIÓN (MANTENIENDO LÓGICA DE MIGRACIÓN)
 // ======================================================
 
 export function observarAuth(callback) {
@@ -214,8 +235,10 @@ export function observarAuth(callback) {
             let snap = await getDoc(doc(db, "users", user.uid));
 
 
-            // ♻️ MIGRACIÓN LEGACY (NO CORTAR)
+            // ♻️ MIGRACIÓN LEGACY (NO CORTAR - REGLA DE ORO)
             if (!snap.exists()) {
+
+                console.log("🔍 Buscando en colecciones legacy...");
 
                 let legacySnap = await getDoc(doc(db, "tecnicos", user.uid));
 
@@ -227,7 +250,7 @@ export function observarAuth(callback) {
 
                 if (legacySnap.exists()) {
 
-                    console.log("♻️ Migrando perfil Legacy...");
+                    console.log("♻️ Migrando perfil Legacy a Colección Centralizada...");
 
                     await setDoc(
                         doc(db, "users", user.uid),
@@ -267,7 +290,7 @@ export function observarAuth(callback) {
 
             } else {
 
-                console.warn("⚠️ Usuario autenticado sin documento.");
+                console.warn("⚠️ Usuario autenticado sin documento en Firestore.");
 
                 callback(user);
 
@@ -322,7 +345,7 @@ export async function validarClaveB2B(clave) {
 
 
 // ======================================================
-// 📝 REGISTRO BLINDADO (ATÓMICO V5.21)
+// 📝 REGISTRO BLINDADO (ATÓMICO V5.30 - NO CORTAR)
 // ======================================================
 
 export async function registrarUsuario(
@@ -336,6 +359,8 @@ export async function registrarUsuario(
 ) {
 
     try {
+
+        console.log("🚀 Iniciando registro atómico para:", email);
 
         const cred = await createUserWithEmailAndPassword(auth, email, password);
 
@@ -352,18 +377,22 @@ export async function registrarUsuario(
             creadoEn: serverTimestamp(),
             actualizadoEn: serverTimestamp(), 
             empresa_id: empresaId || null,
-            tipo_cuenta: (subType === "saas") ? "B2B" : "B2C",
+            tipo_cuenta: (subType === "saas" || b2bData) ? "B2B" : "B2C",
             status: "activo",
             estado: "activo"
 
         };
 
+
+        // Inyección de ADN B2B si aplica
         if (b2bData) {
             perfil.edificioId = b2bData.edificioId;
             perfil.edificioNombre = b2bData.edificioNombre;
+            console.log("🏢 Perfil vinculado a edificio:", b2bData.edificioNombre);
         }
 
 
+        // Configuración de Billetera para Marketplace
         if (subType === "marketplace") {
 
             perfil.wallet = 0;
@@ -374,9 +403,11 @@ export async function registrarUsuario(
         }
 
 
+        // Escritura en Colección Maestra
         await setDoc(doc(db, "users", uid), perfil);
 
 
+        // Duplicación en Colecciones Legacy para compatibilidad de módulos antiguos
         if (rol === "tecnico") {
 
             await setDoc(
@@ -394,14 +425,17 @@ export async function registrarUsuario(
         }
 
 
+        // Actualización de Perfil de Firebase Auth
         await updateProfile(cred.user, { displayName: nombre });
 
+
+        console.log("✅ Registro completado con éxito.");
 
         return cred.user;
 
     } catch (error) {
 
-        console.error("Error en Registro:", error);
+        console.error("❌ Error en Proceso de Registro:", error);
 
         throw error;
 
@@ -412,7 +446,7 @@ export async function registrarUsuario(
 
 
 // ======================================================
-// 📦 EXPORTS MAESTROS
+// 📦 EXPORTS MAESTROS (SIN MODIFICACIONES)
 // ======================================================
 
 export {
@@ -443,3 +477,7 @@ export {
     deleteDoc
 
 };
+
+// ======================================================
+// FIN DEL CORE GESTIAPREMIUM v5.30
+// ======================================================
