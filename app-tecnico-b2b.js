@@ -515,116 +515,130 @@ window.reportarFallaVehiculo = () => {
 };
 
 /* =====================================================
-BOTTOM SHEET OT
-===================================================== */
+    BOTTOM SHEET OT (DISEÑO B2B INQUILINO ADAPTATIVO)
+    REWRITE v5.32: Soporte para Unidades e Inquilinos
+   ===================================================== */
 
 function inicializarBottomSheet(){
 
-if(document.getElementById("ot-bottom-sheet")) return;
+    if(document.getElementById("ot-bottom-sheet")) return;
 
-const sheet=document.createElement("div");
+    const sheet=document.createElement("div");
 
-sheet.id="ot-bottom-sheet";
+    sheet.id="ot-bottom-sheet";
 
-sheet.className="fixed inset-0 z-[100] hidden";
+    sheet.className="fixed inset-0 z-[100] hidden";
 
-// HTML enriquecido para el Desplegable (Paso B)
-sheet.innerHTML=`
-<div class="absolute inset-0 bg-black/80 backdrop-blur-sm"
-onclick="cerrarHojaReporte()"></div>
+    // HTML Enriquecido: Agregamos id="ot-inquilino-tag" para identificar al cliente B2B
+    sheet.innerHTML=`
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm"
+    onclick="cerrarHojaReporte()"></div>
 
-<div id="ot-sheet-content"
-class="absolute bottom-0 left-0 right-0 bg-zinc-950 p-6 rounded-t-3xl transform translate-y-full transition-transform duration-300">
+    <div id="ot-sheet-content"
+    class="absolute bottom-0 left-0 right-0 bg-zinc-950 p-6 rounded-t-3xl transform translate-y-full transition-transform duration-300 border-t border-white/5">
 
-<div class="w-12 h-1.5 bg-zinc-800 rounded-full mx-auto mb-6"></div>
+    <div class="w-12 h-1.5 bg-zinc-800 rounded-full mx-auto mb-6"></div>
 
-<div class="flex items-start justify-between mb-4">
-    <h2 id="ot-equipo" class="text-xl font-black italic uppercase text-white w-3/4 leading-tight"></h2>
-    <span id="ot-prioridad-badge" class="text-[9px] px-2 py-1 rounded font-black tracking-widest uppercase mt-1"></span>
-</div>
-
-<div class="space-y-4 mb-8">
-    <div class="bg-black/50 p-3 rounded-xl border border-white/5">
-        <p class="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1"><i class="fas fa-map-marker-alt"></i> Ubicación Exacta</p>
-        <p id="ot-ubicacion" class="text-xs text-white font-bold uppercase"></p>
+    <div class="flex items-start justify-between mb-4">
+        <div class="w-3/4">
+            <h2 id="ot-equipo" class="text-xl font-black italic uppercase text-white leading-tight"></h2>
+            <p id="ot-inquilino-tag" class="text-[10px] text-blue-400 font-black uppercase tracking-widest mt-1 hidden italic"></p>
+        </div>
+        <span id="ot-prioridad-badge" class="text-[9px] px-2 py-1 rounded font-black tracking-widest uppercase mt-1"></span>
     </div>
 
-    <div class="bg-black/50 p-3 rounded-xl border border-white/5">
-        <p class="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1"><i class="fas fa-clipboard-list"></i> Instrucciones / Fallo</p>
-        <p id="ot-descripcion" class="text-xs text-zinc-300 leading-relaxed"></p>
+    <div class="space-y-4 mb-8">
+        <div class="bg-black/50 p-3 rounded-xl border border-white/5">
+            <p class="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1"><i class="fas fa-map-marker-alt"></i> Ubicación Exacta</p>
+            <p id="ot-ubicacion" class="text-xs text-white font-bold uppercase"></p>
+        </div>
+
+        <div class="bg-black/50 p-3 rounded-xl border border-white/5">
+            <p class="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1"><i class="fas fa-clipboard-list"></i> Instrucciones / Fallo</p>
+            <p id="ot-descripcion" class="text-xs text-zinc-300 leading-relaxed"></p>
+        </div>
     </div>
-</div>
 
-<button id="btn-iniciar-ot"
-class="w-full bg-emerald-500 text-black py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-transform">
-<i class="fas fa-play-circle mr-2"></i> INICIAR SERVICIO
-</button>
+    <button id="btn-iniciar-ot"
+    class="w-full bg-emerald-500 text-black py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-transform">
+    <i class="fas fa-play-circle mr-2"></i> INICIAR SERVICIO
+    </button>
 
-</div>
-`;
+    </div>
+    `;
 
-document.body.appendChild(sheet);
+    document.body.appendChild(sheet);
 
 }
 
 
 window.abrirHojaReporte=(id)=>{
 
-const tarea=window.tareasDiariasGlobal[id];
+    const tarea=window.tareasDiariasGlobal[id];
 
-if(!tarea) return;
+    if(!tarea) return;
 
-// Mapeo de datos al nuevo diseño
-document.getElementById("ot-equipo").innerText=tarea.equipo || "MANTENIMIENTO";
-document.getElementById("ot-descripcion").innerText=tarea.descripcion || "Sin instrucciones detalladas.";
-document.getElementById("ot-ubicacion").innerText=tarea.ubicacion_especifica || "Ubicación General";
+    // 1. Mapeo de Identidad Base
+    document.getElementById("ot-equipo").innerText=tarea.equipo || "MANTENIMIENTO";
+    document.getElementById("ot-descripcion").innerText=tarea.descripcion || "Sin instrucciones detalladas.";
 
-// Manejo visual de la Prioridad
-const badgePrioridad = document.getElementById("ot-prioridad-badge");
-if(tarea.prioridad === "alta") {
-    badgePrioridad.innerText = "🚨 ALTA";
-    badgePrioridad.className = "text-[9px] px-2 py-1 rounded font-black tracking-widest uppercase mt-1 bg-red-500/20 text-red-500 border border-red-500/20";
-} else if (tarea.prioridad === "media") {
-    badgePrioridad.innerText = "⚠️ MEDIA";
-    badgePrioridad.className = "text-[9px] px-2 py-1 rounded font-black tracking-widest uppercase mt-1 bg-amber-500/20 text-amber-500 border border-amber-500/20";
-} else {
-    badgePrioridad.innerText = "NORMAL";
-    badgePrioridad.className = "text-[9px] px-2 py-1 rounded font-black tracking-widest uppercase mt-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20";
-}
+    // 2. LÓGICA DE UBICACIÓN B2B: Priorizamos la unidad del inquilino si existe
+    const ubicacionFinal = tarea.unidad ? `OFICINA/DEPTO: ${tarea.unidad}` : (tarea.ubicacion_especifica || "Ubicación General");
+    document.getElementById("ot-ubicacion").innerText = ubicacionFinal;
 
-document.getElementById("btn-iniciar-ot").onclick=()=>{
+    // 3. TAG DE INQUILINO: Visibilidad para reportes directos
+    const inqTag = document.getElementById("ot-inquilino-tag");
+    if(tarea.inquilino_nombre){
+        inqTag.innerText = `Reportado por: ${tarea.inquilino_nombre}`;
+        inqTag.classList.remove("hidden");
+    } else {
+        inqTag.classList.add("hidden");
+    }
 
-cerrarHojaReporte();
-seleccionarTarea(id);
+    // 4. Manejo visual de la Prioridad
+    const badgePrioridad = document.getElementById("ot-prioridad-badge");
+    if(tarea.prioridad === "alta") {
+        badgePrioridad.innerText = "🚨 ALTA";
+        badgePrioridad.className = "text-[9px] px-2 py-1 rounded font-black tracking-widest uppercase mt-1 bg-red-500/20 text-red-500 border border-red-500/20";
+    } else if (tarea.prioridad === "media") {
+        badgePrioridad.innerText = "⚠️ MEDIA";
+        badgePrioridad.className = "text-[9px] px-2 py-1 rounded font-black tracking-widest uppercase mt-1 bg-amber-500/20 text-amber-500 border border-amber-500/20";
+    } else {
+        badgePrioridad.innerText = "NORMAL";
+        badgePrioridad.className = "text-[9px] px-2 py-1 rounded font-black tracking-widest uppercase mt-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20";
+    }
 
-};
+    // 5. Asignación de Acción
+    document.getElementById("btn-iniciar-ot").onclick=()=>{
+        cerrarHojaReporte();
+        seleccionarTarea(id);
+    };
 
-const sheet=document.getElementById("ot-bottom-sheet");
-const content=document.getElementById("ot-sheet-content");
+    const sheet=document.getElementById("ot-bottom-sheet");
+    const content=document.getElementById("ot-sheet-content");
 
-sheet.classList.remove("hidden");
+    sheet.classList.remove("hidden");
 
-// Pequeño delay para asegurar que el display:block se aplicó antes de animar
-setTimeout(()=>{
-content.classList.remove("translate-y-full");
-},10);
+    // Pequeño delay para asegurar que el display:block se aplicó antes de animar
+    setTimeout(()=>{
+        content.classList.remove("translate-y-full");
+    },10);
 
 };
 
 
 window.cerrarHojaReporte=()=>{
 
-const sheet=document.getElementById("ot-bottom-sheet");
-const content=document.getElementById("ot-sheet-content");
+    const sheet=document.getElementById("ot-bottom-sheet");
+    const content=document.getElementById("ot-sheet-content");
 
-content.classList.add("translate-y-full");
+    content.classList.add("translate-y-full");
 
-setTimeout(()=>{
-sheet.classList.add("hidden");
-},300);
+    setTimeout(()=>{
+        sheet.classList.add("hidden");
+    },300);
 
 };
-
 /* =====================================================
 SEGURIDAD PASE CASETA
 ===================================================== */
@@ -1037,7 +1051,9 @@ showToast("Rutinas sincronizadas");
 
 
 /* =====================================================
-   RENDER TARJETAS TAREAS (V5.26 - PRIORIDAD Y JERARQUÍA)
+    RENDER TARJETAS TAREAS (V5.32 - B2B TENANT UPGRADE)
+    Arquitectura: Prioridad + Identidad de Inquilino
+    Lead Architect: Heberto Mendoza
    ===================================================== */
 
 function renderizarTareas(tareas) {
@@ -1050,23 +1066,25 @@ function renderizarTareas(tareas) {
     contenedor.innerHTML = "";
 
     /**
-     * 2. LÓGICA DE ORDENAMIENTO (SORTING)
+     * 2. LÓGICA DE ORDENAMIENTO (SORTING V5.32)
      * Priorizamos: 
-     * 1ro: Tareas de prioridad "alta".
-     * 2do: Tareas manuales (Admin).
-     * 3ro: Rutinas del sistema.
+     * 1ro: Emergencias (Prioridad ALTA).
+     * 2do: Reportes de Inquilinos VIP.
+     * 3ro: Rutinas de Sistema.
      */
     const tareasOrdenadas = [...tareas].sort((a, b) => {
-        // Si 'a' es alta y 'b' no, 'a' sube (-1)
-        if (a.priority === "alta" || a.prioridad === "alta") {
-            if (b.priority !== "alta" && b.prioridad !== "alta") return -1;
-        }
-        // Si 'b' es alta y 'a' no, 'b' sube (1)
-        if (b.priority === "alta" || b.prioridad === "alta") {
-            if (a.priority !== "alta" && a.prioridad !== "alta") return 1;
-        }
+        // Prioridad ALTA manda sobre todo
+        const pA = (a.priority === "alta" || a.prioridad === "alta");
+        const pB = (b.priority === "alta" || b.prioridad === "alta");
         
-        // Si tienen la misma prioridad, ordenamos por fecha (más nuevas arriba)
+        if (pA && !pB) return -1;
+        if (pB && !pA) return 1;
+
+        // Si no son altas, priorizamos las que tienen Unidad (Inquilinos)
+        if (a.unidad && !b.unidad) return -1;
+        if (b.unidad && !a.unidad) return 1;
+        
+        // Finalmente por fecha (más nuevas arriba)
         const fechaA = a.fecha_creacion?.seconds || 0;
         const fechaB = b.fecha_creacion?.seconds || 0;
         return fechaB - fechaA;
@@ -1080,38 +1098,53 @@ function renderizarTareas(tareas) {
 
         const esAlta = (tarea.priority === "alta" || tarea.prioridad === "alta");
         const esManual = tarea.origen !== "sistema_rutinas";
+        const esInquilino = tarea.unidad ? true : false;
 
         const div = document.createElement("div");
 
         /**
-         * ESTILOS DINÁMICOS:
-         * Si es ALTA: Borde rojo y efecto sutil de pulso para llamar la atención.
-         * Si es NORMAL: Estilo glass-card original.
+         * ESTILOS DINÁMICOS V5.32:
+         * - ALTA: Rojo/Pulso.
+         * - INQUILINO: Borde azul y fondo sutil.
+         * - NORMAL: Glass-card zinc.
          */
-        div.className = `mb-3 p-4 rounded-2xl border transition-all active:scale-95 flex justify-between items-center cursor-pointer ${
-            esAlta 
-            ? 'bg-red-950/10 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.1)] animate-pulse' 
-            : 'glass-card border-zinc-800 bg-zinc-900/40'
-        }`;
+        let borderClass = 'border-zinc-800 bg-zinc-900/40';
+        if (esAlta) {
+            borderClass = 'bg-red-950/10 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.1)] animate-pulse';
+        } else if (esInquilino) {
+            borderClass = 'bg-blue-900/5 border-blue-500/50 shadow-[0_0_8px_rgba(59,130,246,0.05)]';
+        }
+
+        div.className = `mb-3 p-4 rounded-2xl border transition-all active:scale-95 flex justify-between items-center cursor-pointer ${borderClass}`;
 
         div.onclick = () => abrirHojaReporte(tarea.id);
 
-        // Badge de identificación: Reportado (Admin) vs Rutina (Sistema)
-        const badgeHTML = esManual 
+        // Badge de identificación: Reportado (B2C) vs Inquilino (B2B) vs Sistema
+        let badgeHTML = esManual 
             ? `<span class="bg-emerald-500 text-black text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter mb-1 inline-block">REPORTADO</span>`
             : `<span class="bg-zinc-800 text-zinc-500 text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter mb-1 inline-block">SISTEMA</span>`;
 
+        if (esInquilino) {
+            badgeHTML = `<span class="bg-blue-600 text-white text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter mb-1 inline-block">INQUILINO VIP</span>`;
+        }
+
+        // Color de la barra vertical indicadora
+        let barraColor = 'bg-zinc-700';
+        if (esAlta) barraColor = 'bg-red-500';
+        else if (esInquilino) barraColor = 'bg-blue-500';
+
         div.innerHTML = `
             <div class="flex items-center gap-4">
-                <div class="w-1 h-8 rounded-full ${esAlta ? 'bg-red-500' : 'bg-zinc-700'}"></div>
+                <div class="w-1 h-10 rounded-full ${barraColor}"></div>
                 
                 <div>
                     ${badgeHTML}
-                    <h4 class="text-base font-black italic uppercase leading-tight ${esAlta ? 'text-red-500' : 'text-zinc-100'}">
+                    <h4 class="text-base font-black italic uppercase leading-tight ${esAlta ? 'text-red-500' : (esInquilino ? 'text-blue-400' : 'text-zinc-100')}">
                         ${tarea.equipo || "MANTENIMIENTO"}
                     </h4>
-                    <p class="text-xs ${esAlta ? 'text-red-400 font-bold' : 'text-emerald-500'}">
-                        ${tarea.descripcion || "Revisión técnica solicitada"}
+                    <p class="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 ${esAlta ? 'text-red-400' : (esInquilino ? 'text-blue-300' : 'text-emerald-500')}">
+                        <i class="fas ${esInquilino ? 'fa-building' : 'fa-map-marker-alt'} text-[9px]"></i> 
+                        ${tarea.unidad ? `OFICINA: ${tarea.unidad}` : (tarea.ubicacion_especifica || 'General')}
                     </p>
                 </div>
             </div>
@@ -1125,9 +1158,8 @@ function renderizarTareas(tareas) {
         contenedor.appendChild(div);
     });
 
-    console.log(`🚀 Renderizado B2B: ${tareasOrdenadas.length} tareas procesadas.`);
+    console.log(`🚀 Renderizado B2B (Tenant Support): ${tareasOrdenadas.length} tareas procesadas.`);
 }
-
 
 /* =====================================================
 HISTORIAL UNIFICADO OPTIMIZADO

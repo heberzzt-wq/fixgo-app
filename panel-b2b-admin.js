@@ -583,6 +583,9 @@ async function sincronizarHistorialConFirestore(edificioId) {
                 id: id,
                 ...data,
                 tipo: "OT",
+                // Mantenemos tus campos y agregamos los del inquilino para el cache
+                inquilino_nombre: data.inquilino_nombre || "",
+                unidad: data.unidad || "",
                 fecha_para_ordenar: data.fecha_cierre?.toDate() || new Date()
             };
             
@@ -618,13 +621,17 @@ async function renderizarHistorialDesdeCache() {
         const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
         const nombreEquipoDisplay = log.equipo || log.descripcion || "Mantenimiento General";
-        const nombreTecnicoDisplay = log.tecnico_nombre || "TÉCNICO DE CAMPO";
+        
+        // 🚀 MEJORA B2B: Si viene de un inquilino, mostramos la unidad primero
+        const nombreTecnicoDisplay = log.unidad 
+            ? `[${log.unidad}] ${log.inquilino_nombre || 'INQUILINO'}` 
+            : (log.tecnico_nombre || "TÉCNICO DE CAMPO");
 
         const item = document.createElement("div");
         item.className = "bg-zinc-900 p-4 rounded-xl border border-white/5 mb-3 hover:border-emerald-500/30 transition-all";
         item.innerHTML = `
             <div class="flex justify-between items-start mb-1">
-                <p class="text-[11px] font-black text-white uppercase tracking-tighter">${nombreTecnicoDisplay}</p>
+                <p class="text-[11px] font-black text-white uppercase tracking-tighter truncate w-48">${nombreTecnicoDisplay}</p>
                 <span class="text-[10px] text-zinc-500 font-mono font-bold">${hora}</span>
             </div>
             <p class="text-[11px] text-zinc-400 mb-3">Servicio: <span class="text-zinc-200 font-bold uppercase">${nombreEquipoDisplay}</span></p>
@@ -638,6 +645,7 @@ async function renderizarHistorialDesdeCache() {
 
 /* =====================================================
     VISUALIZACIÓN DE REPORTE PROFESIONAL (MAPEADO EXACTO)
+    VERSIÓN: 5.31 (INTEGRACIÓN INQUILINO VIP)
    ===================================================== */
 window.verDetalleBitacora = async (servicioId) => {
     if (!servicioId) return;
@@ -651,6 +659,19 @@ window.verDetalleBitacora = async (servicioId) => {
             if (!docSnap.exists()) return alert("El reporte no existe en la nube.");
             data = docSnap.data();
         }
+
+        // 🛡️ BLOQUE INQUILINO B2B (SOLO SE MUESTRA SI EXISTE UNIDAD)
+        const headerB2B = data.unidad ? `
+            <div class="bg-blue-600/10 border border-blue-500/20 p-4 rounded-2xl mb-6 flex items-center gap-4">
+                <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-black">
+                    <i class="fas fa-building text-lg"></i>
+                </div>
+                <div>
+                    <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest">Reporte de Inquilino</p>
+                    <p class="text-sm font-black text-white uppercase italic">${data.inquilino_nombre || 'S/N'} - UNIDAD: ${data.unidad}</p>
+                </div>
+            </div>
+        ` : '';
 
         let materialesHTML = '<p class="text-zinc-600 italic text-xs">No se registraron materiales en esta intervención.</p>';
         if (data.materiales_utilizados && data.materiales_utilizados.length > 0) {
@@ -687,6 +708,8 @@ window.verDetalleBitacora = async (servicioId) => {
 
                     <div class="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
                         
+                        ${headerB2B}
+
                         <div class="grid grid-cols-2 gap-6 border-b border-white/5 pb-6">
                             <div>
                                 <label class="text-[9px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Especialista Asignado</label>
@@ -888,9 +911,17 @@ auth.onAuthStateChanged(async (userAuth) => {
 
         document.getElementById("panelAdminB2B").classList.remove("hidden");
 
-        const nombreEdificio = adminContext.edificioNombre || adminContext.nombre_edificio || "EDIFICIO";
+  const nombreEdificio = adminContext.edificioNombre || adminContext.nombre_edificio || "EDIFICIO";
         const lbl = document.getElementById("lblNombreEdificio");
         if (lbl) lbl.innerText = nombreEdificio.toUpperCase();
+
+        // 🎖️ RECONOCIMIENTO DE PERFIL: Identificación dinámica en cabecera
+        const lblSub = document.querySelector("header p.text-zinc-500");
+        if (lblSub && adminContext) {
+            lblSub.innerHTML = `<i class="fas fa-user-shield text-emerald-500 mr-1"></i> 
+                                OPERADOR: <span class="text-white font-black">${(adminContext.nombre || 'NOC').toUpperCase()}</span> 
+                                | ROL: <span class="text-blue-400 font-black">${(adminContext.rol || 'STAFF').toUpperCase()}</span>`;
+        }
 
         renderizarHistorialDesdeCache();
         escucharPlantillaRealTime(adminContext.edificioId);
@@ -900,7 +931,6 @@ auth.onAuthStateChanged(async (userAuth) => {
         escucharAvanceRutina(adminContext.edificioId);
     });
 });
-
 /* =====================================================
     REGISTRO DE TÉCNICOS B2B
    ===================================================== */
@@ -1305,6 +1335,70 @@ document.getElementById("formGenerarQR").addEventListener("submit", async (e) =>
     } finally {
         btn.innerHTML = oldText;
         btn.disabled = false;
+    }
+});
+/* =========================================================================
+    MÓDULO 16: CENTRAL DE COMUNICADOS (MEGÁFONO B2B)
+    REWRITE v5.32: Soporte para Presidencia y Seguridad
+    Lead Architect: Heberto Mendoza
+   ========================================================================= */
+
+window.abrirModalComunicado = () => {
+    const modal = document.getElementById("modalComunicado");
+    if(modal) modal.classList.remove("hidden");
+};
+
+window.cerrarModalComunicado = () => {
+    const modal = document.getElementById("modalComunicado");
+    if(modal) {
+        modal.classList.add("hidden");
+        document.getElementById("formComunicadoB2B").reset();
+    }
+};
+
+// Listener para el envío de anuncios a los inquilinos de Uxmal 39
+document.getElementById("formComunicadoB2B").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    if (!adminContext?.edificioId) {
+        showToast("🚨 Error: Contexto de edificio no cargado", true);
+        return;
+    }
+
+    const btn = document.getElementById("btnPublicarAnuncio");
+    const titulo = document.getElementById("comunTitulo").value.trim();
+    const mensaje = document.getElementById("comunMensaje").value.trim();
+
+    // Bloqueo de seguridad para evitar spam
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-satellite-dish fa-spin"></i> TRANSMITIENDO...';
+
+    try {
+        // Normalización para que la App del Inquilino lo pesque sin fallos
+        const edificioIdNormalizado = adminContext.edificioId.toLowerCase().trim().replace(/\s+/g, '');
+
+        // 📡 Publicación en la red oficial de anuncios
+        await addDoc(collection(db, "anuncios_b2b"), {
+            edificioId: edificioIdNormalizado,
+            titulo: titulo.toUpperCase(),
+            mensaje: mensaje,
+            autor_nombre: adminContext.nombre || "Administración",
+            autor_rol: adminContext.rol || "Staff",
+            fecha_publicacion: serverTimestamp(),
+            prioridad: "normal",
+            visto_por: [] 
+        });
+
+        showToast("📢 COMUNICADO TRANSMITIDO A TODOS LOS INQUILINOS");
+        window.cerrarModalComunicado();
+
+    } catch (error) {
+        console.error("❌ Error en Megáfono B2B:", error);
+        showToast("Falla en la antena de comunicación", true);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
     }
 });
 /* =====================================================

@@ -208,7 +208,7 @@
     </div>
 
     <script type="module">
-        import { auth, observarAuth, signOut, doc, setDoc, db } from './firebase.js';
+        import { auth, observarAuth, signOut, doc, setDoc, db, getDoc } from './firebase.js';
 
         const loadingState = document.getElementById('loadingState');
         const guestOptions = document.getElementById('guestOptions');
@@ -224,14 +224,18 @@
             console.log('📱 PWA lista para instalar');
         });
 
-        observarAuth((user) => {
+        observarAuth(async (user) => {
             loadingState.classList.add('hidden');
 
             if (user) {
+                // Obtenemos los datos actualizados del usuario para leer el rol real de Firestore
+                const docSnap = await getDoc(doc(db, "users", user.uid));
+                const userData = docSnap.exists() ? docSnap.data() : user;
+
                 guestOptions.classList.add('hidden');
                 userOptions.classList.remove('hidden');
                 
-                let displayName = user.nombre || user.email;
+                let displayName = userData.nombre || userData.email || "Usuario";
                 if(displayName.includes(' ')) displayName = displayName.split(' ')[0];
                 userNameDisplay.textContent = displayName;
 
@@ -241,13 +245,28 @@
                     btnDashboard.disabled = true;
 
                     try {
-                        if (user.rol === 'tecnico') {
+                        const rol = userData.rol;
+                        console.log("🛡️ GESTIAPREMIUM ROUTER: Acceso para rol ->", rol);
+
+                        // --- MOTOR DE REDIRECCIÓN LOGÍSTICA V7.6 (AISLAMIENTO B2B/B2C) ---
+                        if (rol === 'tecnico') {
                             window.location.href = 'tecnico.html';
-                        } else if (user.rol === 'cliente') {
-                            window.location.href = 'cliente.html';
-                        } else if (user.rol === 'admin' || user.rol === 'ADMIN') {
+                        } 
+                        else if (rol === 'admin' || rol === 'ADMIN') {
                             window.location.href = 'admin.html';
-                        } else {
+                        } 
+                        else if (rol === 'admin_b2b' || rol === 'asistente_admin' || rol === 'seguridad_24_7') {
+                            // Staff Operativo B2B va a la Cabina de Mando
+                            window.location.href = 'panel-b2b-admin.html';
+                        } 
+                        else if (rol === 'inquilino_b2b') {
+                            // Inquilinos VIP a su nuevo módulo exclusivo
+                            window.location.href = 'app-inquilino.html';
+                        }
+                        else if (rol === 'cliente') {
+                            window.location.href = 'cliente.html';
+                        } 
+                        else {
                             const esTecnico = confirm("⚠️ Rol no definido.\n\n¿Deseas registrarte como TÉCNICO?");
                             const rolElegido = esTecnico ? 'tecnico' : 'cliente';
                             await setDoc(doc(db, "users", user.uid), {
@@ -256,7 +275,8 @@
                             window.location.href = esTecnico ? 'tecnico.html' : 'cliente.html';
                         }
                     } catch (error) {
-                        alert("Error de conexión.");
+                        console.error("Error de ruteo:", error);
+                        alert("Error de conexión al validar perfil.");
                         btnDashboard.innerHTML = textoOriginal;
                         btnDashboard.disabled = false;
                     }
@@ -264,7 +284,7 @@
 
                 btnLogoutIndex.onclick = async () => {
                     if(!confirm("¿Cerrar sesión?")) return;
-                    try { await signOut(auth); window.location.reload(); } catch (error) { alert("Error."); }
+                    try { await signOut(auth); window.location.reload(); } catch (error) { alert("Error al cerrar sesión."); }
                 };
             } else {
                 userOptions.classList.add('hidden');
