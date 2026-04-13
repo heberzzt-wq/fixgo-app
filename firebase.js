@@ -83,8 +83,10 @@ export function verificarYRedireccionar(user) {
 
     const path = window.location.pathname;
 
-    const currentPage =
-        path.split('/').pop().split('?')[0].split('#')[0] || "index.html";
+    // Extraemos la página actual, pero ahora considerando query params para el motor No-Code
+    const rawPath = path.split('/').pop();
+    const currentPage = rawPath.split('?')[0].split('#')[0] || "index.html";
+    const currentQuery = window.location.search; // Capturamos el ?mod=...
 
     // ✨ NORMALIZACIÓN V5.30: Eliminamos el .html para comparar "limpio"
     const pageClean = currentPage.replace(".html", "").toLowerCase();
@@ -104,7 +106,7 @@ export function verificarYRedireccionar(user) {
         role = "admin";
     }
 
-    console.log(`🚦 ROUTER GESTIA v5.30 | rol=${role} | tipo=${subType} | page=${pageClean}`);
+    console.log(`🚦 ROUTER GESTIA v5.30 | rol=${role} | tipo=${subType} | page=${pageClean} | query=${currentQuery}`);
 
 
     // ======================================================
@@ -126,16 +128,39 @@ export function verificarYRedireccionar(user) {
 
 
     // ======================================================
-    // 2. STAFF OPERATIVO B2B (JESSICA / HEBERTO B2B / SEGURIDAD)
+    // 2.A STAFF OPERATIVO B2B (MÓDULOS NO-CODE)
     // ======================================================
+    // Roles que usan Gestia Terminal (Módulos Dinámicos)
 
-    const staffRoles = ["admin_b2b", "asistente_admin", "seguridad_24_7"];
+    if (role === "seguridad" || role === "recepcion" || role === "seguridad_24_7") {
+        
+        const targetModule = "gestia-modulo.html";
+        const targetQuery = "?mod=seguridad_accesos_b2b";
+        
+        // Verificamos si NO está en la página base O si los parámetros no coinciden
+        if (pageClean !== targetModule.replace(".html", "") || currentQuery !== targetQuery) {
+            
+            console.log(`🏢 Staff B2B (${role}) detectado → Redirigiendo a Módulo de Seguridad`);
+            
+            window.location.href = targetModule + targetQuery;
+            
+        }
+        
+        return;
+    }
 
-    if (staffRoles.includes(role)) {
+    // ======================================================
+    // 2.B STAFF ADMINISTRATIVO B2B (PANEL NOC TRADICIONAL)
+    // ======================================================
+    // Jessica y Administradores de Edificio
+    
+    const adminB2BRoles = ["admin_b2b", "asistente_admin"];
+
+    if (adminB2BRoles.includes(role)) {
 
         if (pageClean !== "panel-b2b-admin") {
 
-            console.log("🏢 Staff B2B detectado → Redirigiendo a panel-b2b-admin.html");
+            console.log("🏢 Admin B2B detectado → Redirigiendo a panel-b2b-admin.html");
 
             window.location.href = "panel-b2b-admin.html";
 
@@ -167,7 +192,7 @@ export function verificarYRedireccionar(user) {
     // 4. TECNICOS (B2B vs B2C)
     // ======================================================
 
-    if (role === "tecnico") {
+    if (role === "tecnico" || role === "tecnico_gp" || role === "tecnico_interno") {
 
         const targetTecnico = (subType === "saas") ? "tecnico-b2b" : "tecnico";
 
