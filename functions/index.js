@@ -2021,6 +2021,110 @@ exports.limpiarSesionesHuerfanas = functions.pubsub
 
 /**
  * ======================================================================================
+ * 🧩 MÓDULO 14: RADIO B2B - DESPACHO TÁCTICO (V5.56 HYBRID CORE)
+ * ======================================================================================
+ * OBJETIVO: Puente seguro para bypass de CORS y despacho de OTs con prioridad alta.
+ * REGLA: Uso de Firebase Admin Messaging para despertar dispositivos en reposo (PWA).
+ * REGLA 1: SIN CORTES. CÓDIGO ÍNTEGRO. SELLADO POR HEBER MENDOZA.
+ * --------------------------------------------------------------------------------------
+ */
+exports.despachoTaticoB2B = functions.https.onCall(async (data, context) => {
+    // 🛡️ 0. DESPERTAR EL MOTOR (Lazy-load Sentinel V5.56)
+    initCore();
+
+    // 🛡️ 1. VALIDACIÓN DE IDENTIDAD
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Acceso denegado: Se requiere sesión activa.');
+    }
+
+    const { uidDestino, titulo, mensaje, ordenId } = data;
+    const traceId = `trace_push_b2b_${Date.now()}`;
+
+    // Validación básica de carga
+    if (!uidDestino || !titulo || !mensaje) {
+        throw new functions.https.HttpsError('invalid-argument', 'Faltan parámetros (uidDestino/titulo/mensaje).');
+    }
+
+    try {
+        // 🛡️ 2. BÚSQUEDA DE RADIO (Token FCM)
+        const userSnap = await db.collection("users").doc(uidDestino).get();
+        
+        if (!userSnap.exists) {
+            throw new functions.https.HttpsError('not-found', 'Técnico no localizado en la base de datos.');
+        }
+
+        const token = userSnap.data()?.fcmToken;
+
+        if (!token) {
+            throw new functions.https.HttpsError('failed-precondition', 'El técnico no tiene radio activo (FCM Token ausente).');
+        }
+
+        // 🏗️ 3. PAYLOAD TÁCTICO (FCM V1 - WAKE DEVICE)
+        const payload = {
+            token: token,
+            notification: {
+                title: titulo.toUpperCase(),
+                body: mensaje
+            },
+            data: {
+                tipo: "orden_trabajo",
+                prioridad: "alta",
+                ordenId: ordenId || "",
+                click_action: "https://fixgo-44e4d.web.app/tecnico.html"
+            },
+            android: {
+                priority: "high", // 🔥 CRÍTICO: Despierta el cel en la bolsa (Doze Mode Bypass)
+                notification: {
+                    sound: "default",
+                    clickAction: "https://fixgo-44e4d.web.app/tecnico.html"
+                }
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: "default",
+                        badge: 1,
+                        contentAvailable: true
+                    }
+                }
+            }
+        };
+
+        // 🚀 4. DISPARO AL SATÉLITE
+        const response = await admin.messaging().send(payload);
+        
+        // 🛰️ Telemetría Radar
+        await reportSentinelMetric('b2b_push_dispatch_success');
+        
+        console.log(JSON.stringify({
+            level: "SUCCESS",
+            message: `✅ [RADIO_B2B] Despacho enviado a técnico: ${uidDestino}`,
+            messageId: response,
+            traceId
+        }));
+
+        return { 
+            success: true, 
+            messageId: response, 
+            traceId,
+            status: "SIGNAL_SENT" 
+        };
+
+    } catch (error) {
+        await reportSentinelMetric('b2b_push_dispatch_error');
+        console.error(JSON.stringify({
+            level: "FATAL",
+            message: "Fallo en la antena de despacho B2B",
+            error: error.message,
+            uid: uidDestino,
+            traceId
+        }));
+        throw new functions.https.HttpsError('internal', `Error Sentinel Radio: ${error.message}`);
+    }
+});
+
+/**
+ * ======================================================================================
  * FIN DEL NÚCLEO GESTIAPREMIUM V5.55 (SENTINEL CORE - FINAL)
  * ======================================================================================
  * REGLA 1: SIN CORTES. CÓDIGO ÍNTEGRO. 13 MÓDULOS SELLADOS POR HEBER MENDOZA.
