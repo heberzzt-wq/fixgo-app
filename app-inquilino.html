@@ -97,8 +97,10 @@
                         </select>
                     </div>
                     <div class="flex flex-col justify-end">
-                        <button type="button" class="w-full bg-zinc-800 h-[46px] rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-zinc-400">
-                            <i class="fas fa-camera"></i> Foto
+                        <input type="file" id="inputFotoIncidencia" accept="image/*" class="hidden">
+                        
+                        <button type="button" id="btnSeleccionarFoto" class="w-full bg-zinc-800 h-[46px] rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-zinc-400 transition-colors">
+                            <i class="fas fa-camera"></i> <span id="lblFotoBtn">Foto</span>
                         </button>
                     </div>
                 </div>

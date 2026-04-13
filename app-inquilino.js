@@ -11,6 +11,7 @@
 import { 
     auth, 
     db, 
+    storage, // 📦 Mandamos llamar al Storage que ya exportas desde tu core
     doc, 
     getDoc, 
     onSnapshot, 
@@ -22,6 +23,13 @@ import {
     orderBy, 
     limit 
 } from "./firebase.js";
+
+// 🚀 Importamos las funciones tácticas de subida directo del CDN (Versión 10.8.0)
+import { 
+    ref, 
+    uploadBytesResumable, 
+    getDownloadURL 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
 let inquilinoContext = null;
 
@@ -65,11 +73,14 @@ auth.onAuthStateChanged(async (user) => {
 function escucharAnunciosEdificio(edificioId) {
     const feed = document.getElementById("feedAnuncios");
     
-    // Filtramos por edificioId para cumplir con las Security Rules
+    // Normalización B2B (Misma sintonía que usa el Megáfono del Staff)
+    const edificioIdNormalizado = edificioId.toLowerCase().trim().replace(/\s+/g, '');
+    
+    // 📡 AJUSTE V5.32: Escuchar la colección correcta (anuncios_b2b) y ordenar por (fecha_publicacion)
     const q = query(
-        collection(db, "notificaciones_b2b"),
-        where("edificioId", "==", edificioId),
-        orderBy("fecha", "desc"),
+        collection(db, "anuncios_b2b"),
+        where("edificioId", "==", edificioIdNormalizado),
+        orderBy("fecha_publicacion", "desc"),
         limit(5)
     );
 
@@ -91,8 +102,9 @@ function escucharAnunciosEdificio(edificioId) {
             card.className = "glass-card p-4 rounded-2xl animate-feed mb-2 border-l-2 border-blue-500";
             
             let fecha = "Reciente";
-            if (aviso.fecha) {
-                fecha = new Date(aviso.fecha.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            // AJUSTE: Leer el campo de tiempo correcto que genera el Megáfono
+            if (aviso.fecha_publicacion) {
+                fecha = new Date(aviso.fecha_publicacion.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             }
 
             card.innerHTML = `
@@ -156,8 +168,35 @@ function escucharMisReportes(uid, edificioId) {
 }
 
 // ======================================================
-// 4. MOTOR DE ENVÍO DE INCIDENCIAS (B2B PURE)
+// 4. MOTOR DE ENVÍO DE INCIDENCIAS (B2B PURE) CON IMAGEN
 // ======================================================
+let archivoFotoSeleccionado = null;
+
+// Lógica para abrir la cámara/galería
+document.getElementById("btnSeleccionarFoto").addEventListener("click", () => {
+    document.getElementById("inputFotoIncidencia").click();
+});
+
+// Lógica para manejar el archivo seleccionado
+document.getElementById("inputFotoIncidencia").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    const lblBtn = document.getElementById("lblFotoBtn");
+    const btn = document.getElementById("btnSeleccionarFoto");
+
+    if (file) {
+        archivoFotoSeleccionado = file;
+        lblBtn.innerText = "Foto Lista";
+        btn.classList.remove("text-zinc-400", "bg-zinc-800");
+        btn.classList.add("text-blue-400", "bg-blue-900/30", "border", "border-blue-500/50");
+    } else {
+        archivoFotoSeleccionado = null;
+        lblBtn.innerText = "Foto";
+        btn.classList.add("text-zinc-400", "bg-zinc-800");
+        btn.classList.remove("text-blue-400", "bg-blue-900/30", "border", "border-blue-500/50");
+    }
+});
+
+
 window.abrirModalReporte = (tipo) => {
     document.getElementById("tipoReporte").value = tipo;
     document.getElementById("modalTitulo").innerText = tipo === 'mantenimiento' ? "REPORTAR FALLA" : "AVISO A CASETA";
@@ -167,6 +206,13 @@ window.abrirModalReporte = (tipo) => {
 window.cerrarModal = () => {
     document.getElementById("modalReporte").classList.add("hidden");
     document.getElementById("formReporteB2B").reset();
+    
+    // Resetear el estado de la foto al cerrar
+    archivoFotoSeleccionado = null;
+    const btn = document.getElementById("btnSeleccionarFoto");
+    document.getElementById("lblFotoBtn").innerText = "Foto";
+    btn.classList.add("text-zinc-400", "bg-zinc-800");
+    btn.classList.remove("text-blue-400", "bg-blue-900/30", "border", "border-blue-500/50");
 };
 
 document.getElementById("formReporteB2B").addEventListener("submit", async (e) => {
@@ -180,30 +226,52 @@ document.getElementById("formReporteB2B").addEventListener("submit", async (e) =
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> ENVIANDO...';
 
-    const payload = {
-        edificioId: inquilinoContext.edificioId,
-        edificioNombre: inquilinoContext.edificioNombre || "Uxmal 39",
-        unidad: inquilinoContext.unidad || "S/N",
-        creado_por: auth.currentUser.uid,
-        inquilino_nombre: inquilinoContext.nombre || "Inquilino VIP",
-        descripcion: document.getElementById("descIncidencia").value.trim(),
-        prioridad: document.getElementById("prioridadIncidencia").value,
-        tipo: document.getElementById("tipoReporte").value, // mantenimiento o seguridad
-        equipo: document.getElementById("tipoReporte").value === 'mantenimiento' ? "Mantenimiento General" : "Aviso de Seguridad",
-        status: "pendiente",
-        fecha_creacion: serverTimestamp(),
-        ubicacion_especifica: inquilinoContext.unidad || "Planta Local"
-    };
+    let urlFotoSubida = null;
 
     try {
-        // Inyectamos el reporte en la colección servicios_b2b que escucha el panel de Jessica
+        // 1. Si hay foto, la subimos primero a Firebase Storage
+        if (archivoFotoSeleccionado) {
+            btn.innerHTML = '<i class="fas fa-arrow-up fa-spin"></i> SUBIENDO FOTO...';
+            
+            // Creamos una ruta única: edificios/uxmal39/reportes/timestamp_nombrefile
+            const rutaStorage = `edificios/${inquilinoContext.edificioId}/reportes/${Date.now()}_${archivoFotoSeleccionado.name}`;
+            const storageRef = ref(storage, rutaStorage);
+            
+            // Subimos el archivo
+            const uploadTask = await uploadBytesResumable(storageRef, archivoFotoSeleccionado);
+            
+            // Obtenemos el link público
+            urlFotoSubida = await getDownloadURL(uploadTask.ref);
+        }
+
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> REGISTRANDO...';
+
+        // 2. Armamos el payload con la URL de la foto (si existe)
+        const payload = {
+            edificioId: inquilinoContext.edificioId,
+            edificioNombre: inquilinoContext.edificioNombre || "Uxmal 39",
+            unidad: inquilinoContext.unidad || "S/N",
+            creado_por: auth.currentUser.uid,
+            inquilino_nombre: inquilinoContext.nombre || "Inquilino VIP",
+            descripcion: document.getElementById("descIncidencia").value.trim(),
+            prioridad: document.getElementById("prioridadIncidencia").value,
+            tipo: document.getElementById("tipoReporte").value,
+            equipo: document.getElementById("tipoReporte").value === 'mantenimiento' ? "Mantenimiento General" : "Aviso de Seguridad",
+            status: "pendiente",
+            fecha_creacion: serverTimestamp(),
+            ubicacion_especifica: inquilinoContext.unidad || "Planta Local",
+            fotoUrl: urlFotoSubida // Inyectamos la URL aquí. Si no hay foto, será null.
+        };
+
+        // 3. Inyectamos el reporte en Firestore
         await addDoc(collection(db, "servicios_b2b"), payload);
         
         alert("✅ Reporte enviado al Staff. Jonathan o Jessica lo atenderán a la brevedad.");
         window.cerrarModal();
+
     } catch (error) {
         console.error("❌ Error Firebase:", error);
-        alert("Falla en el envío. Revisa tu conexión.");
+        alert("Falla en el envío. Revisa tu conexión o el tamaño de la foto.");
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
