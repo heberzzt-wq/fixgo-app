@@ -874,41 +874,39 @@ window.importarRutinaMaestra = async () => {
 
 /**
  * =====================================================
- * GESTIA PREMIUM - MÓDULO DE ESCUCHA (RADIO CONSOLIDADO)
- * VERSION: 5.57 (Uso de sw.js con Clave VAPID Real)
+ * GESTIA PREMIUM - MÓDULO DE ESCUCHA (NOC ADMIN)
+ * VERSION: 5.57 (Uso de sw.js de Flota)
  * Lead Architect: Heberto Mendoza
- * REGLA 1: CÓDIGO ÍNTEGRO. SIN PLACEHOLDERS.
  * =====================================================
  */
 
 async function activarOidoJessica(userUid) {
     
-    console.log("📡 Intentando sintonizar radio en sw.js existente...");
+    console.log("📡 Intentando sintonizar radio en sw.js de la flota...");
 
     try {
         const { getMessaging, getToken } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js");
         const messaging = getMessaging(app);
         
-        // 1. SOLICITAR PERMISOS AL NAVEGADOR
+        // 1. SOLICITAR PERMISOS
         const permission = await Notification.requestPermission();
         
         if (permission === 'granted') {
-            console.log("✅ Jessica autorizó notificaciones.");
-
-            // 2. RECUPERAR EL SERVICE WORKER QUE YA EXISTE (sw.js)
+            
+            // 2. ENLAZAR CON EL SW.JS QUE YA FUNCIONA
+            // Esto le dice al panel: "No busques el archivo por defecto, usa el de los técnicos"
             const registration = await navigator.serviceWorker.register('/sw.js');
 
-            // 3. OBTENER TOKEN USANDO TU CLAVE VAPID REAL (DE TU CAPTURA)
+            // 3. OBTENER TOKEN CON TU CLAVE VAPID REAL
             const currentToken = await getToken(messaging, { 
                 vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7lmx_shSMBfQLwQbzRTyNFCEs9n3b3OIEloJI4U4jXPx6CLsYQ',
                 serviceWorkerRegistration: registration 
             });
-        
 
             if (currentToken) {
-                console.log("🛰️ Radio ID localizado en sw.js:", currentToken);
+                console.log("🛰️ Radio de Cabina sintonizado:", currentToken);
 
-                // 4. REGISTRAR EN EL BÚNKER (COLECCIÓN USERS)
+                // 4. REGISTRAR EN FIRESTORE
                 const adminRef = doc(db, "users", userUid);
                 await updateDoc(adminRef, {
                     fcmToken: currentToken,
@@ -916,20 +914,13 @@ async function activarOidoJessica(userUid) {
                     ultima_sintonizacion_radio: serverTimestamp()
                 });
 
-                showToast("SISTEMA DE ESCUCHA (RADIO) ACTIVO");
-            } else {
-                console.warn("⚠️ No se generó Token. Revisa la configuración FCM.");
+                showToast("SISTEMA DE ESCUCHA ACTIVO");
             }
-        } else {
-            console.warn("⚠️ Jessica denegó permisos de notificación.");
-            showToast("RADIO INACTIVO: PERMISOS DENEGADOS", true);
         }
-
     } catch (error) {
-        console.error("❌ Error en la antena de Cabina (MIME Error Bypass):", error);
+        console.error("❌ Error en la antena de Cabina:", error);
     }
 }
-
 
 // ======================================================
 // LOGIN / LOGOUT & OBSERVADOR DE SESIÓN CENTRAL
