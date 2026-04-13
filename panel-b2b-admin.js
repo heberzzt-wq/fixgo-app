@@ -873,7 +873,56 @@ window.importarRutinaMaestra = async () => {
 };
 
 // ======================================================
-// LOGIN / LOGOUT
+// 🔐 MÓDULO DE ESCUCHA: SINTONIZADOR DE RADIO PARA JESSICA
+// ======================================================
+async function activarOidoJessica(userUid) {
+    
+    console.log("📡 Intentando activar receptor de radio en Cabina de Mando...");
+
+    try {
+        // Importación dinámica para asegurar que Messaging esté listo
+        const { getMessaging, getToken } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js");
+        const messaging = getMessaging(app);
+        
+        // 1. SOLICITAR PERMISOS AL NAVEGADOR
+        const permission = await Notification.requestPermission();
+        
+        if (permission === 'granted') {
+            console.log("✅ Jessica autorizó notificaciones en este equipo.");
+
+            // 2. OBTENER TOKEN (LA FRECUENCIA DEL RADIO)
+            // 🚨 ARQUI: Reemplaza 'TU_CLAVE_VAPID_AQUI' por la de tu consola Firebase
+            const currentToken = await getToken(messaging, { 
+                vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7lmx_shSMBfQLwQbzRTyNFCEs9n3b3OIEloJI4U4jXPx6CLsYQ' 
+            });
+
+            if (currentToken) {
+                console.log("🛰️ Radio ID localizado:", currentToken);
+
+                // 3. REGISTRAR FRECUENCIA EN LA FICHA DE JESSICA (users)
+                const adminRef = doc(db, "users", userUid);
+                await updateDoc(adminRef, {
+                    fcmToken: currentToken,
+                    monitor_activo: true,
+                    ultima_sintonizacion_radio: serverTimestamp()
+                });
+
+                showToast("SISTEMA DE ESCUCHA (RADIO) ACTIVO");
+            } else {
+                console.warn("⚠️ No se generó Token. Revisa la configuración FCM.");
+            }
+        } else {
+            console.warn("⚠️ Jessica denegó permisos de notificación.");
+            showToast("RADIO INACTIVO: PERMISOS DENEGADOS", true);
+        }
+
+    } catch (error) {
+        console.error("❌ Error en la antena de Cabina:", error);
+    }
+}
+
+// ======================================================
+// LOGIN / LOGOUT & OBSERVADOR DE SESIÓN CENTRAL
 // ======================================================
 window.logout = () => auth.signOut();
 
@@ -883,22 +932,31 @@ auth.onAuthStateChanged(async (userAuth) => {
         return;
     }
 
+    // Inicializamos motor local
     await initLocalDB();
 
+    // Suscripción al perfil en tiempo real
     onSnapshot(doc(db, "users", userAuth.uid), (docSnap) => {
         if (!docSnap.exists()) return;
 
         adminContext = docSnap.data();
 
+        // Validación de contexto de edificio
         if (!adminContext.edificioId) {
-            document.getElementById("panelAdminB2B").classList.add("hidden");
-            alert("Perfil sin edificioId.");
+            const panel = document.getElementById("panelAdminB2B");
+            if(panel) panel.classList.add("hidden");
+            alert("Perfil sin edificioId. Contacte al Lead Architect.");
             return;
         }
 
-        document.getElementById("panelAdminB2B").classList.remove("hidden");
+        const panel = document.getElementById("panelAdminB2B");
+        if(panel) panel.classList.remove("hidden");
 
-  const nombreEdificio = adminContext.edificioNombre || adminContext.nombre_edificio || "EDIFICIO";
+        // 🔥 GATILLO CRÍTICO: Sintonizamos el radio de Jessica al entrar
+        activarOidoJessica(userAuth.uid);
+
+        // Actualización de UI: Nombre del Edificio
+        const nombreEdificio = adminContext.edificioNombre || adminContext.nombre_edificio || "EDIFICIO";
         const lbl = document.getElementById("lblNombreEdificio");
         if (lbl) lbl.innerText = nombreEdificio.toUpperCase();
 
@@ -910,6 +968,7 @@ auth.onAuthStateChanged(async (userAuth) => {
                                 | ROL: <span class="text-blue-400 font-black">${(adminContext.rol || 'STAFF').toUpperCase()}</span>`;
         }
 
+        // Encendido de Motores de Datos
         renderizarHistorialDesdeCache();
         escucharPlantillaRealTime(adminContext.edificioId);
         conectarContadorTickets(adminContext.edificioId);
@@ -918,6 +977,7 @@ auth.onAuthStateChanged(async (userAuth) => {
         escucharAvanceRutina(adminContext.edificioId);
     });
 });
+
 /* =====================================================
     REGISTRO DE TÉCNICOS B2B
    ===================================================== */
