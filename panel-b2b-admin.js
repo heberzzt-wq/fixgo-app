@@ -903,6 +903,7 @@ async function activarOidoJessica(userUid) {
                 vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7lmx_shSMBfQLwQbzRTyNFCEs9n3b3OIEloJI4U4jXPx6CLsYQ',
                 serviceWorkerRegistration: registration 
             });
+        
 
             if (currentToken) {
                 console.log("🛰️ Radio ID localizado en sw.js:", currentToken);
