@@ -1,7 +1,7 @@
 /**
  * =====================================================
  * GESTIA PREMIUM
- * B2B ENGINE V5.30
+ * B2B ENGINE V5.32 (ULTRA-FORCE)
  * Arquitectura Optimizada Offline + Cache
  * Lead Architect: Heberto Mendoza
  * =====================================================
@@ -30,11 +30,11 @@ import {
     getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-// Importación del motor de mensajería (El Radio)
-import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";/**
- 
+// Importación del motor de mensajería (El Radio B2B)
+import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
+
 /* =====================================================
-    REGISTRO DE SERVICE WORKER (LA ANTENA B2B) - V5.31
+    REGISTRO DE SERVICE WORKER (LA ANTENA B2B) - V5.32
     ===================================================== */
 let swRegistration = null; 
 
@@ -42,12 +42,12 @@ if ('serviceWorker' in navigator) {
     // Usamos una función asíncrona para asegurar que el velador esté listo
     const iniciarVelador = async () => {
         try {
-            // Registramos el sw.js (V1.5 con el fix de importScripts)
+            // Registramos el sw.js (V6.1 con blindaje de caché y push)
             const registration = await navigator.serviceWorker.register('/sw.js', {
                 scope: '/'
             });
             
-            console.log('👷 Velador (SW) registrado con éxito:', registration.scope);
+            console.log('👷 Velador Táctico (SW) registrado con éxito:', registration.scope);
             
             // Esperamos a que el SW esté activo para evitar errores de "evaluación fallida"
             await navigator.serviceWorker.ready;
@@ -2034,11 +2034,14 @@ window.subirFotoPerfil = async (input) => {
     }
 };
 /* =====================================================
-    4. MOTOR DE PUSH & ALERTAS (V5.30)
+    4. MOTOR DE PUSH & ALERTAS (V5.32 - ULTRA-FORCE)
+    Arquitectura: Registro explícito de sw.js para Radio B2B
+    Lead Architect: Heberto Mendoza
    ===================================================== */
 
 /**
  * Registra el ID del radio del técnico en la central.
+ * Fuerza el registro del sw.js para evitar conflictos de segundo plano.
  */
 async function activarNotificacionesBolsillo(userId) {
     console.log("🛰️ PROTOCOLO PUSH: Iniciando para user:", userId);
@@ -2046,26 +2049,37 @@ async function activarNotificacionesBolsillo(userId) {
     try {
         const messaging = getMessaging();
         
-        // 1. Pedimos permiso al navegador
+        // 1. Pedimos permiso al navegador (Cámara y Notificaciones son ley)
         const permission = await Notification.requestPermission();
         console.log("🔔 Resultado del permiso:", permission);
 
         if (permission === 'granted') {
-            console.log("🎫 Solicitando Token a Google (FCM)...");
+            console.log("🎫 Sincronizando Antena con sw.js...");
             
-            // 🔥 SOLUCIÓN AL 404: Esperamos a que el velador esté listo
-            const registration = await navigator.serviceWorker.ready;
+            /**
+             * 🚨 FIX TÁCTICO: No esperamos a que el SW esté "ready" al azar.
+             * Registramos explícitamente el archivo que tiene el blindaje V6.1
+             * para que el Token de Google sepa quién va a manejar la vibración.
+             */
+            const registration = await navigator.serviceWorker.register('/sw.js', { 
+                scope: '/' 
+            });
 
-            // Pedimos el Token usando el registro explícito del SW
+            // Esperamos a que el velador tome posición
+            await navigator.serviceWorker.ready;
+
+            console.log("🎫 Solicitando Token a Google (FCM) vinculado al SW...");
+
+            // 2. Pedimos el Token usando el registro explícito del SW v6.1
             const currentToken = await getToken(messaging, { 
                 vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ',
                 serviceWorkerRegistration: registration 
             });
 
             if (currentToken) {
-                console.log("✅ TOKEN RECIBIDO:", currentToken);
+                console.log("✅ TOKEN RECIBIDO Y VINCULADO:", currentToken);
                 
-                // 3. Guardamos el ID en el perfil de Firestore
+                // 3. Guardamos el ID en el perfil de Firestore para el NOC
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, {
                     fcmToken: currentToken,
@@ -2075,10 +2089,11 @@ async function activarNotificacionesBolsillo(userId) {
                 console.log("💾 BASE DE DATOS: Token guardado en Firestore.");
                 if (typeof showToast === 'function') showToast("Radio B2B Sintonizado");
             } else {
-                console.warn("⚠️ Google no generó Token.");
+                console.warn("⚠️ Google no generó Token. Revisa la configuración en Consola.");
             }
         } else {
-            console.error("🚫 Permiso de notificaciones denegado.");
+            console.error("🚫 Permiso de notificaciones denegado por el usuario.");
+            if (typeof showToast === 'function') showToast("Sin radio: Permisos denegados", true);
         }
     } catch (error) {
         console.error("❌ ERROR CRÍTICO EN RADIO:", error);
@@ -2087,11 +2102,13 @@ async function activarNotificacionesBolsillo(userId) {
 
 /**
  * Dispara el sonido de alerta del sistema.
+ * Útil para avisos inmediatos cuando la app está en primer plano.
  */
 function sonarAlerta() {
     try {
+        // Sonido de alerta táctica
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-        audio.play().catch(e => console.log("Audio bloqueado. Esperando interacción."));
+        audio.play().catch(e => console.log("Audio bloqueado por el navegador. Esperando interacción."));
     } catch (e) {
         console.error("No se pudo reproducir la alerta sonora.");
     }
@@ -2099,6 +2116,7 @@ function sonarAlerta() {
 
 /**
  * Envía la notificación local al Service Worker.
+ * Se asegura de que el velador muestre el aviso con vibración.
  */
 function lanzarNotificacionPush(titulo, mensaje) {
     if (!('serviceWorker' in navigator)) return;
@@ -2106,15 +2124,15 @@ function lanzarNotificacionPush(titulo, mensaje) {
     navigator.serviceWorker.ready.then(registration => {
         registration.showNotification(titulo, {
             body: mensaje,
-            icon: "favicon.png",
-            badge: "favicon.png",
-            vibrate: [300, 100, 300, 100, 300],
+            icon: "./assets/icono-192.png",
+            badge: "./assets/icono-192.png",
+            vibrate: [500, 110, 500, 110, 450, 110], // Patrón ULTRA-FORCE
             requireInteraction: true, 
             data: { url: window.location.href }
         });
     });
 }
+
 /* =====================================================
-FIN ARCHIVO
-GESTIA PREMIUM V5.23
-===================================================== */
+    FIN DEL MÓDULO 4: GESTIA PREMIUM V5.32
+   ===================================================== */

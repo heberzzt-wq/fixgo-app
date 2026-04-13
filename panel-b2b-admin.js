@@ -1,13 +1,14 @@
 /**
  * =====================================================
  * GESTIA PREMIUM - NOC B2B CABINA DE MANDO
- * VERSION: 5.30 (Push Centralizado & Secure)
+ * VERSION: 5.56 (Relay Táctico & Secure)
  * Lead Architect: Heberto Mendoza
+ * REGLA 1: CÓDIGO ÍNTEGRO. SIN PLACEHOLDERS.
  * =====================================================
  */
 
 import { 
-    auth, db, doc, getDoc,getDocs, onSnapshot, collection, 
+    auth, db, doc, getDoc, getDocs, onSnapshot, collection, 
     addDoc, updateDoc, deleteDoc, serverTimestamp, 
     query, where, orderBy, limit, setDoc, app 
 } from "./firebase.js";
@@ -20,16 +21,25 @@ import {
     getAuth, createUserWithEmailAndPassword, signOut 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-// 🔥 CABLE DEL MEGÁFONO: Importamos mensajería para el Admin
+
+// 🔥 CABLE DEL MEGÁFONO: Importamos mensajería y funciones puente para el Admin
 import { 
     getMessaging 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 
+import { 
+    getFunctions, 
+    httpsCallable 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+
+
 let adminContext = null;
+
 
 /* =====================================================
     UTILIDADES DE INTERFAZ (UI)
    ===================================================== */
+
 /**
  * Implementación de feedback visual para evitar ReferenceError
  */
@@ -38,6 +48,7 @@ function showToast(mensaje, esError = false) {
     
     // Crear el elemento si no existe en el DOM
     let toastContainer = document.getElementById("toast-container");
+
     if (!toastContainer) {
         toastContainer = document.createElement("div");
         toastContainer.id = "toast-container";
@@ -46,11 +57,13 @@ function showToast(mensaje, esError = false) {
     }
 
     const toast = document.createElement("div");
+
     toast.className = `px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl border transition-all duration-500 transform translate-y-10 opacity-0 ${
         esError 
         ? "bg-red-500 text-white border-red-400" 
         : "bg-emerald-500 text-black border-emerald-400"
     }`;
+
     toast.innerText = mensaje;
 
     toastContainer.appendChild(toast);
@@ -66,38 +79,43 @@ function showToast(mensaje, esError = false) {
         setTimeout(() => toast.remove(), 500);
     }, 4000);
 }
+
+
 /* =====================================================
-    MÓDULO: DESPACHO TÁCTICO B2B (PUSH CENTRALIZADO REAL)
-    REWRITE v5.31
-    Arquitectura: FCM Direct Push + Cola de Auditoría
-    ===================================================== */
+    MÓDULO: DESPACHO TÁCTICO B2B (RELEVOS CLOUD V5.56)
+    Arquitectura: Relay a través de Cloud Function despachoTaticoB2B
+    Lead Architect: Heberto Mendoza
+   ===================================================== */
 
-async function enviarPushEmergenciaB2B(tokenDestino, equipo, descripcion) {
+async function enviarPushEmergenciaB2B(uidDestino, equipo, descripcion, ordenId = "") {
 
-    console.log("📡 Preparando señal de radio para despacho...");
+    console.log("📡 Preparando señal de radio para despacho táctico...");
 
     /* =====================================================
         VALIDACIÓN DE SEGURIDAD
-        ===================================================== */
+       ===================================================== */
 
-    if (!tokenDestino || tokenDestino.length < 20) {
-        console.warn("⚠️ Abortando Push: Token de destino inexistente o inválido.");
+    if (!uidDestino) {
+        console.warn("⚠️ Abortando Push: UID de destino inexistente.");
+        showToast("Falta identificador del técnico", true);
         return false;
     }
+
 
     try {
 
         /* =====================================================
             1. REGISTRO DE AUDITORÍA (FIRESTORE)
-            ===================================================== */
+           ===================================================== */
 
         const notificacionPayload = {
-            token: tokenDestino,
+            tecnicoId: uidDestino,
             titulo: equipo,
             mensaje: descripcion,
+            ordenId: ordenId,
             prioridad: "alta",
             origen: "NOC_B2B_CABINA",
-            status: "ready",
+            status: "sent_to_relay",
             timestamp: serverTimestamp(),
             audit_user: auth.currentUser?.uid || "sistema"
         };
@@ -107,82 +125,49 @@ async function enviarPushEmergenciaB2B(tokenDestino, equipo, descripcion) {
             notificacionPayload
         );
 
-        /* =====================================================
-            2. PUSH DIRECTO VIA FIREBASE CLOUD MESSAGING
-            ===================================================== */
-
-        const pushBody = {
-            message: {
-                token: tokenDestino,
-                notification: {
-                    title: equipo,
-                    body: descripcion
-                },
-                data: {
-                    tipo: "orden_trabajo",
-                    prioridad: "alta",
-                    origen: "gestia_noc"
-                },
-                webpush: {
-                    notification: {
-                        icon: "/assets/icono-192.png",
-                        badge: "/assets/icono-72.png",
-                        vibrate: [200,100,200],
-                        requireInteraction: true
-                    }
-                }
-            }
-        };
 
         /* =====================================================
-            3. ENVÍO A LA API HTTP V1 DE FCM
-            ===================================================== */
+            2. DISPARO VÍA CLOUD FUNCTION (BYPASS CORS/401)
+            Conexión directa con el Módulo 14 del Búnker Central
+           ===================================================== */
 
-        const response = await fetch(
-            "https://fcm.googleapis.com/v1/projects/fixgo-44e4d/messages:send",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    // Este token debe generarse en backend seguro
-                    // aquí solo se mantiene compatibilidad
-                    "Authorization": "Bearer " + (window.GESTIA_FCM_SERVER_KEY || "")
-                },
-                body: JSON.stringify(pushBody)
-            }
-        );
+        const functions = getFunctions(app);
+        const despachoB2B = httpsCallable(functions, 'despachoTaticoB2B');
 
-        if (!response.ok) {
+        const response = await despachoB2B({
+            uidDestino: uidDestino,
+            titulo: equipo,
+            mensaje: descripcion,
+            ordenId: ordenId
+        });
 
-            const errorText = await response.text();
-            console.error("❌ Error FCM:", errorText);
 
-            showToast("Push en cola, esperando backend", true);
-
+        if (response.data && response.data.success) {
+            console.log("📡 Señal de radio enviada con éxito via Satélite B2B");
+            showToast("Señal enviada al radio del técnico");
+            return true;
+        } else {
+            console.error("❌ Fallo en el relevo de la señal:", response.data);
+            showToast("Falla en la antena de despacho", true);
             return false;
         }
 
-        console.log("📡 Push enviado correctamente vía FCM");
-
-        showToast("Señal enviada al radio del técnico");
-
-        return true;
 
     } catch (error) {
-
-        console.error("❌ Error en Despacho B2B:", error);
-
-        showToast("Falla en la antena de despacho", true);
-
+        console.error("❌ Error Crítico en Despacho B2B:", error);
+        showToast("Error de conexión con el búnker", true);
         return false;
     }
 }
+
+
 /* =====================================================
     ESTADO GLOBAL & RED (V5.18 - Refactored)
    ===================================================== */
 
 // 1. Inicialización de estado basada en la realidad del navegador
 let isOnline = navigator.onLine;
+
 
 /**
  * Centraliza la actualización de la interfaz y la lógica de red
@@ -210,9 +195,11 @@ const actualizarInterfazRed = (onlineStatus) => {
     }
 };
 
+
 // 2. Listeners de eventos de red
 window.addEventListener("online", () => actualizarInterfazRed(true));
 window.addEventListener("offline", () => actualizarInterfazRed(false));
+
 
 // 3. Ejecución inmediata al cargar para asegurar que el badge sea correcto desde el inicio
 actualizarInterfazRed(navigator.onLine);
@@ -986,10 +973,11 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
 });
 
 /* =====================================================
-     DESPACHO DE ORDENES (OT) - V5.30 PUSH INTEGRADO
-     Arquitectura: GestiaPremium B2B
-     Lead Architect: Heberto Mendoza
-    ===================================================== */
+    DESPACHO DE ORDENES (OT) - V5.56 RELAY SATELITAL
+    Arquitectura: GestiaPremium B2B Enterprise
+    Lead Architect: Heberto Mendoza
+    REGLA 1: CÓDIGO ÍNTEGRO. SIN PLACEHOLDERS.
+   ===================================================== */
 
 document.getElementById("formTicketB2B").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1012,6 +1000,7 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
     const originalHTML = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-bolt fa-spin"></i> DESPACHANDO SEÑAL...';
 
+
     try {
         const selectedOption = tSelect.options[tSelect.selectedIndex];
         const rawText = selectedOption.text || "";
@@ -1019,14 +1008,9 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
 
         const edificioIdNormalizado = adminContext.edificioId.toLowerCase().trim().replace(/\s+/g, '');
 
-        const techRef = doc(db, "users", tSelect.value);
-        const techSnap = await getDoc(techRef);
-        let fcmTokenJonathan = null;
-
-        if (techSnap.exists()) {
-            fcmTokenJonathan = techSnap.data().fcmToken;
-            console.log("📡 Señal de radio localizada para:", tName);
-        }
+        /* =====================================================
+            1. PREPARACIÓN DE LA DATA DE SERVICIO
+           ===================================================== */
 
         const ticketData = {
             edificioId: edificioIdNormalizado,
@@ -1044,22 +1028,38 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
             creado_por: auth.currentUser.uid
         };
 
+
+        /* =====================================================
+            2. REGISTRO EN FIRESTORE (NUBE CENTRAL)
+           ===================================================== */
+
         const docRef = await addDoc(collection(db, "servicios_b2b"), ticketData);
         const nuevaOtId = docRef.id;
 
-        // DISPARO DEL MEGÁFONO CENTRALIZADO
+
+        /* =====================================================
+            3. DISPARO DEL MEGÁFONO CENTRALIZADO (V5.56)
+            Ya no buscamos el Token aquí, mandamos el UID directo
+           ===================================================== */
+
         if (prioridad === "alta" || prioridad === "media") {
+            
+            console.log("📡 Solicitando despacho satelital para UID:", tSelect.value);
+
             await enviarPushEmergenciaB2B(
-                fcmTokenJonathan, 
+                tSelect.value, 
                 `🚨 NUEVA OT: ${ticketData.equipo}`,
-                `${ticketData.edificioNombre} - ${ticketData.ubicacion_especifica}`
+                `${ticketData.edificioNombre} - ${ticketData.ubicacion_especifica}`,
+                nuevaOtId
             );
         }
+
 
         showToast("🚀 ORDEN DESPACHADA CORRECTAMENTE");
         document.getElementById("formTicketB2B").reset();
         
         console.log("✅ Sync B2B exitoso. ID de Orden:", nuevaOtId);
+
 
     } catch (err) {
         console.error("❌ Error en Despacho B2B:", err);
