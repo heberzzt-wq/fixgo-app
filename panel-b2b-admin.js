@@ -872,15 +872,20 @@ window.importarRutinaMaestra = async () => {
     }
 };
 
-// ======================================================
-// 🔐 MÓDULO DE ESCUCHA: SINTONIZADOR DE RADIO PARA JESSICA
-// ======================================================
+/**
+ * =====================================================
+ * GESTIA PREMIUM - MÓDULO DE ESCUCHA (RADIO CONSOLIDADO)
+ * VERSION: 5.57 (Uso de sw.js con Clave VAPID Real)
+ * Lead Architect: Heberto Mendoza
+ * REGLA 1: CÓDIGO ÍNTEGRO. SIN PLACEHOLDERS.
+ * =====================================================
+ */
+
 async function activarOidoJessica(userUid) {
     
-    console.log("📡 Intentando activar receptor de radio en Cabina de Mando...");
+    console.log("📡 Intentando sintonizar radio en sw.js existente...");
 
     try {
-        // Importación dinámica para asegurar que Messaging esté listo
         const { getMessaging, getToken } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js");
         const messaging = getMessaging(app);
         
@@ -888,18 +893,21 @@ async function activarOidoJessica(userUid) {
         const permission = await Notification.requestPermission();
         
         if (permission === 'granted') {
-            console.log("✅ Jessica autorizó notificaciones en este equipo.");
+            console.log("✅ Jessica autorizó notificaciones.");
 
-            // 2. OBTENER TOKEN (LA FRECUENCIA DEL RADIO)
-            // 🚨 ARQUI: Reemplaza 'TU_CLAVE_VAPID_AQUI' por la de tu consola Firebase
+            // 2. RECUPERAR EL SERVICE WORKER QUE YA EXISTE (sw.js)
+            const registration = await navigator.serviceWorker.register('/sw.js');
+
+            // 3. OBTENER TOKEN USANDO TU CLAVE VAPID REAL (DE TU CAPTURA)
             const currentToken = await getToken(messaging, { 
-                vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7lmx_shSMBfQLwQbzRTyNFCEs9n3b3OIEloJI4U4jXPx6CLsYQ' 
+                vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7lmx_shSMBfQLwQbzRTyNFCEs9n3b3OIEloJI4U4jXPx6CLsYQ',
+                serviceWorkerRegistration: registration 
             });
 
             if (currentToken) {
-                console.log("🛰️ Radio ID localizado:", currentToken);
+                console.log("🛰️ Radio ID localizado en sw.js:", currentToken);
 
-                // 3. REGISTRAR FRECUENCIA EN LA FICHA DE JESSICA (users)
+                // 4. REGISTRAR EN EL BÚNKER (COLECCIÓN USERS)
                 const adminRef = doc(db, "users", userUid);
                 await updateDoc(adminRef, {
                     fcmToken: currentToken,
@@ -917,9 +925,10 @@ async function activarOidoJessica(userUid) {
         }
 
     } catch (error) {
-        console.error("❌ Error en la antena de Cabina:", error);
+        console.error("❌ Error en la antena de Cabina (MIME Error Bypass):", error);
     }
 }
+
 
 // ======================================================
 // LOGIN / LOGOUT & OBSERVADOR DE SESIÓN CENTRAL
