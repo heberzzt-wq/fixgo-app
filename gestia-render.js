@@ -233,7 +233,7 @@ onAuthStateChanged(auth, async (user) => {
         try {
             renderizarUIBase?.(esquemaModulo, container);
           conectarDatosEnVivo(esquemaModulo, moduloId, condominioIdActual);
-            inyectarWidgetsSeguridad?.(esquemaModulo);
+            inyectarWidgetsSeguridad(esquemaModulo, moduloId, condominioIdActual);
         } catch (uiError) {
             console.error("Error en renderizado UI:", uiError);
             container.innerHTML = `
