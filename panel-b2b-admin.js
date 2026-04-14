@@ -940,7 +940,7 @@ async function activarOidoJessica(userUid) {
 
         // 4. GENERACIÓN DE TOKEN
         const currentToken = await getToken(messaging, { 
-            vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7lmx_shSMBfQLwQbzRTyNFCEs9n3b3OIEloJI4U4jXPx6CLsYQ',
+            vapidKey: 'BNOyPeWn7CVyc6uLzXurLbhBeVb523oA4MNzCTm1dILRVSBNHVyXxHMCl6jHJNdZz-6315Vfb0xgKrS6uZnqbHQ',
             serviceWorkerRegistration: registration 
         });
 
