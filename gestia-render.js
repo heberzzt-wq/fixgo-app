@@ -130,138 +130,131 @@ export async function initGestiaRender(moduloId, containerId) {
         </div>
     `;
 
-    // ==========================================
-    // AUTH LISTENER (CONTROLADO)
-    // ==========================================
-    onAuthStateChanged(auth, async (user) => {
+   // ==========================================
+// AUTH LISTENER (CONTROLADO + DEBUG)
+// ==========================================
+onAuthStateChanged(auth, async (user) => {
 
-        if (!user) {
-            console.warn("Sesión no detectada. Redirigiendo a login...");
-            window.location.href = 'login.html';
+    console.log("👤 AUTH STATE:", user);
+
+    if (!user) {
+        console.warn("❌ Sesión no detectada. Redirigiendo a login...");
+        window.location.href = 'login.html';
+        return;
+    }
+
+    console.log("✅ UID:", user.uid);
+    console.log("📧 EMAIL:", user.email);
+
+    try {
+        // ==========================================
+        // 1. PERFIL USUARIO
+        // ==========================================
+        const path = "users/" + user.uid;
+        console.log("📡 Intentando leer:", path);
+
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+
+        console.log("📦 DOC EXISTS:", userSnap.exists());
+
+        if (!userSnap.exists()) {
+            container.innerHTML = `ERROR: Usuario no registrado`;
             return;
         }
 
+        const userData = userSnap.data();
+        console.log("📦 USER DATA:", userData);
+
+        let rolUsuarioActual = userData.rol || null;
+
+        let condominioIdActual =
+            userData.edificioId ||
+            userData.condominioId ||
+            userData.residencialId ||
+            null;
+
+        console.log("🏢 TENANT:", condominioIdActual);
+
+        // ==========================================
+        // 2. BYPASS CEO
+        // ==========================================
+        const esSuperUser = ['super_admin', 'ceo', 'arquitecto_supremo'].includes(rolUsuarioActual);
+
+        if (esSuperUser) {
+            condominioIdActual = "UXMAL39";
+            console.info("⚡ MODO ARQUITECTO ACTIVADO");
+        }
+
+        if (!condominioIdActual) {
+            container.innerHTML = `ERROR: Usuario sin edificio`;
+            return;
+        }
+
+        // ==========================================
+        // 3. MÓDULO
+        // ==========================================
+        const moduloRef = doc(db, "gestia_system_modules", moduloId);
+        const moduloSnap = await getDoc(moduloRef);
+
+        if (!moduloSnap.exists()) {
+            container.innerHTML = `ERROR: Módulo no existe`;
+            return;
+        }
+
+        const esquemaModulo = moduloSnap.data();
+
+        // ==========================================
+        // 4. LISTA NEGRA
+        // ==========================================
+        const condoRef = doc(db, "condominios", condominioIdActual);
+
+        onSnapshot(condoRef, (snap) => {
+            console.log("🛡️ Lista negra OK");
+        }, (error) => {
+            console.error("🔥 Error lista negra:", error);
+        });
+
+        // ==========================================
+        // 5. ROLES
+        // ==========================================
+        const rolesAutorizados = esquemaModulo.seguridad_roles || [];
+
+        const esAdminGlobal = ['super_admin', 'ceo', 'admin', 'seguridad_24_7'].includes(rolUsuarioActual);
+
+        if (!esAdminGlobal && !rolesAutorizados.includes(rolUsuarioActual)) {
+            container.innerHTML = `SIN PERMISOS`;
+            return;
+        }
+
+        // ==========================================
+        // 6. ORQUESTACIÓN SEGURA
+        // ==========================================
         try {
-            // ==========================================
-            // 1. PERFIL USUARIO
-            // ==========================================
-            const userRef = doc(db, "users", user.uid);
-            const userSnap = await getDoc(userRef);
-
-            if (!userSnap.exists()) {
-                container.innerHTML = `
-                    <div class="p-10 text-center text-slate-500 font-mono text-xs uppercase">
-                        <i class="fa-solid fa-user-xmark text-2xl mb-4 text-red-500/50"></i><br>
-                        Error: Usuario no registrado en la base de datos central.
-                    </div>`;
-                return;
-            }
-
-            const userData = userSnap.data();
-
-            rolUsuarioActual = userData.rol || null;
-            
-            // 🔥 RESOLUCIÓN AUTOMÁTICA: Si tiene edificioId (Luis), condominioId o residencialId, el motor arranca.
-            condominioIdActual = userData.edificioId || userData.condominioId || userData.residencialId || null;
-
-            // ==========================================
-            // 2. BYPASS CEO
-            // ==========================================
-            const esSuperUser = ['super_admin', 'ceo', 'arquitecto_supremo'].includes(rolUsuarioActual);
-
-            if (esSuperUser) {
-                condominioIdActual = "UXMAL39";
-                console.info("⚡ MODO ARQUITECTO ACTIVADO (GLOBAL)");
-            }
-
-            if (!condominioIdActual) {
-                container.innerHTML = `
-                    <div class="p-10 text-center text-slate-500 font-mono text-xs uppercase">
-                        <i class="fa-solid fa-building-circle-exclamation text-2xl mb-4 text-orange-500/50"></i><br>
-                        Error: Usuario sin Edificio/Residencial vinculado.
-                    </div>`;
-                return;
-            }
-
-            // ==========================================
-            // 3. ESQUEMA DEL MÓDULO
-            // ==========================================
-            const moduloRef = doc(db, "gestia_system_modules", moduloId);
-            const moduloSnap = await getDoc(moduloRef);
-
-            if (!moduloSnap.exists()) {
-                container.innerHTML = `
-                    <div class="p-10 text-center text-slate-500 font-mono text-xs uppercase">
-                        <i class="fa-solid fa-code-branch text-2xl mb-4 text-blue-500/50"></i><br>
-                        Error: El módulo [${moduloId}] no ha sido inyectado en el sistema central.
-                    </div>`;
-                return;
-            }
-
-            const esquemaModulo = moduloSnap.data();
-
-            // ==========================================
-            // 4. LISTA NEGRA (CON CONTROL DE SUBSCRIPCIÓN)
-            // ==========================================
-            if (typeof unsubscribeCondo === "function") unsubscribeCondo();
-
-            const condoRef = doc(db, "condominios", condominioIdActual);
-
-            unsubscribeCondo = onSnapshot(condoRef, (snap) => {
-                if (snap.exists()) {
-                    blockedUsersGlobal = snap.data().blockedUsers || [];
-                    console.log(`🛡️ Lista negra sincronizada: ${condominioIdActual}`);
-                }
-            }, (error) => {
-                console.error("Error en lista negra:", error);
-            });
-
-            // ==========================================
-            // 5. VALIDACIÓN DE ROLES
-            // ==========================================
-            const rolesAutorizados = esquemaModulo.seguridad_roles || [];
-            
-            // 🛠️ INYECCIÓN DE ROL: Se autoriza 'seguridad_24_7' (Luis) para saltar la restricción.
-            const esAdminGlobal = ['super_admin', 'ceo', 'admin', 'seguridad_24_7'].includes(rolUsuarioActual);
-
-            if (!esAdminGlobal && !rolesAutorizados.includes(rolUsuarioActual)) {
-                container.innerHTML = `
-                    <div class="p-10 text-center text-slate-500 font-mono text-xs uppercase tracking-widest">
-                        <i class="fa-solid fa-ban text-2xl mb-4 text-red-600/40"></i><br>
-                        Privilegios Insuficientes: El rol ${rolUsuarioActual} no tiene acceso a este módulo.
-                    </div>`;
-                return;
-            }
-
-            // ==========================================
-            // 6. ORQUESTACIÓN SEGURA
-            // ==========================================
-            try {
-                renderizarUIBase?.(esquemaModulo, container);
-                conectarDatosEnVivo?.(esquemaModulo);
-                inyectarWidgetsSeguridad?.(esquemaModulo);
-            } catch (uiError) {
-                console.error("Error en renderizado UI:", uiError);
-                container.innerHTML = `
-                    <div class="p-10 text-center text-red-500 font-mono text-xs uppercase">
-                        ERROR_UI_RENDER: ${uiError.message}
-                    </div>`;
-                return;
-            }
-
-            console.info(`✅ GestiaReady: ${esquemaModulo.nombre_display} en ${condominioIdActual}`);
-
-        } catch (error) {
-            console.error("Fallo crítico en init:", error);
-
+            renderizarUIBase?.(esquemaModulo, container);
+            conectarDatosEnVivo?.(esquemaModulo);
+            inyectarWidgetsSeguridad?.(esquemaModulo);
+        } catch (uiError) {
+            console.error("Error en renderizado UI:", uiError);
             container.innerHTML = `
                 <div class="p-10 text-center text-red-500 font-mono text-xs uppercase">
-                    <i class="fa-solid fa-triangle-exclamation text-2xl mb-4 animate-pulse"></i><br>
-                    INIT_FATAL_ERROR: ${error.message}
+                    ERROR_UI_RENDER: ${uiError.message}
                 </div>`;
+            return;
         }
-    });
-}
+
+        console.info(`✅ GestiaReady: ${esquemaModulo.nombre_display} en ${condominioIdActual}`);
+
+    } catch (error) {
+        console.error("🔥 ERROR GENERAL:", error);
+
+        container.innerHTML = `
+            <div class="p-10 text-center text-red-500 font-mono text-xs uppercase">
+                <i class="fa-solid fa-triangle-exclamation text-2xl mb-4 animate-pulse"></i><br>
+                INIT_FATAL_ERROR: ${error.message}
+            </div>`;
+    }
+});
 
 // ==========================================
 // EXPOSICIÓN GLOBAL SEGURA
