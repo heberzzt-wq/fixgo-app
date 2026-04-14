@@ -875,13 +875,23 @@ window.importarRutinaMaestra = async () => {
 /**
  * =====================================================
  * GESTIA PREMIUM - MÓDULO DE ESCUCHA (NOC ADMIN)
- * VERSION: 5.70 (RADIO ESTABLE - CONTROL DE ESTADO)
+ * VERSION: 5.80 (AUTH + FCM SINCRONIZADO)
  * Lead Architect: Heberto Mendoza
  * =====================================================
  */
 
-// 🔑 CONTROL GLOBAL PARA EVITAR DUPLICACIONES
 let radioJessicaInicializado = false;
+
+async function esperarAuthLista() {
+    return new Promise(resolve => {
+        const unsubscribe = auth.onAuthStateChanged(user => {
+            if (user) {
+                unsubscribe();
+                resolve(user);
+            }
+        });
+    });
+}
 
 async function activarOidoJessica(userUid) {
     
@@ -892,46 +902,54 @@ async function activarOidoJessica(userUid) {
 
     radioJessicaInicializado = true;
 
-    console.log("📡 Inicializando radio de cabina (modo estable)...");
+    console.log("📡 Inicializando radio de cabina (AUTH SYNC MODE)...");
 
     try {
-        // 1. IMPORTACIÓN DINÁMICA
-        const { getMessaging, getToken } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js");
-        const messaging = getMessaging(app);
+        // 🔑 1. ESPERAR AUTH REAL (FIX DEFINITIVO)
+        const user = await esperarAuthLista();
 
-        // 🔑 ESPERA DE ESTABILIDAD DEL NAVEGADOR (CLAVE REAL)
-        await new Promise(resolve => setTimeout(resolve, 1200));
-
-        // 2. PERMISOS
-        const permission = await Notification.requestPermission();
-
-        if (permission !== 'granted') {
-            console.warn("❌ Permiso de notificaciones denegado.");
+        if (!user) {
+            console.error("❌ Auth no disponible");
+            radioJessicaInicializado = false;
             return;
         }
 
-        console.log("🔔 Permiso concedido.");
+        console.log("🔐 Auth verificada:", user.uid);
 
-        // 3. SERVICE WORKER
+        // 2. IMPORTACIÓN
+        const { getMessaging, getToken } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js");
+        const messaging = getMessaging(app);
+
+        // 3. PERMISOS
+        const permission = await Notification.requestPermission();
+
+        if (permission !== 'granted') {
+            console.warn("❌ Permiso denegado");
+            return;
+        }
+
+        console.log("🔔 Permiso concedido");
+
+        // 4. SERVICE WORKER
         await navigator.serviceWorker.register('/sw.js');
         const registration = await navigator.serviceWorker.ready;
 
-        console.log("👷 Service Worker listo y estable.");
+        console.log("👷 Service Worker listo");
 
-        // 4. TOKEN
+        // 5. TOKEN
         const currentToken = await getToken(messaging, { 
             vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7lmx_shSMBfQLwQbzRTyNFCEs9n3b3OIEloJI4U4jXPx6CLsYQ',
             serviceWorkerRegistration: registration 
         });
 
         if (!currentToken) {
-            console.warn("⚠️ Token no generado.");
+            console.warn("⚠️ Token vacío");
             return;
         }
 
         console.log("🛰️ TOKEN OK:", currentToken);
 
-        // 5. REGISTRO EN FIRESTORE
+        // 6. FIRESTORE
         const adminRef = doc(db, "users", userUid);
 
         await updateDoc(adminRef, {
@@ -941,20 +959,18 @@ async function activarOidoJessica(userUid) {
             ultima_sintonizacion_radio: serverTimestamp()
         });
 
-        if (typeof showToast === "function") {
-            showToast("SISTEMA DE ESCUCHA ACTIVO");
-        }
+        showToast?.("SISTEMA DE ESCUCHA ACTIVO");
 
     } catch (error) {
 
         console.error("❌ Error en radio Jessica:", error);
 
-        // 🔁 RETRY INTELIGENTE SOLO SI FALLA FCM
+        // 🔁 RETRY CONTROLADO
         if (
             error?.message?.includes("401") ||
             error?.code?.includes("messaging")
         ) {
-            console.log("🔁 Reintentando conexión en 3s...");
+            console.log("🔁 Reintentando en 3s...");
             setTimeout(() => {
                 radioJessicaInicializado = false;
                 activarOidoJessica(userUid);
@@ -964,7 +980,7 @@ async function activarOidoJessica(userUid) {
 }
 
 // ======================================================
-// LOGIN / LOGOUT & OBSERVADOR DE SESIÓN CENTRAL
+// LOGIN / SESIÓN
 // ======================================================
 
 window.logout = () => auth.signOut();
@@ -976,7 +992,6 @@ auth.onAuthStateChanged(async (userAuth) => {
         return;
     }
 
-    // Inicialización local
     await initLocalDB();
 
     onSnapshot(doc(db, "users", userAuth.uid), (docSnap) => {
@@ -985,25 +1000,21 @@ auth.onAuthStateChanged(async (userAuth) => {
 
         adminContext = docSnap.data();
 
-        // Validación
         if (!adminContext.edificioId) {
             const panel = document.getElementById("panelAdminB2B");
             if (panel) panel.classList.add("hidden");
-            alert("Perfil sin edificioId. Contacte al Lead Architect.");
+            alert("Perfil sin edificioId.");
             return;
         }
 
         const panel = document.getElementById("panelAdminB2B");
         if (panel) panel.classList.remove("hidden");
 
-        // 🔥 ACTIVACIÓN CONTROLADA DEL RADIO (FIX REAL)
+        // 🔥 ACTIVACIÓN CONTROLADA
         if (!radioJessicaInicializado) {
-            setTimeout(() => {
-                activarOidoJessica(userAuth.uid);
-            }, 1500);
+            activarOidoJessica(userAuth.uid);
         }
 
-        // UI
         const nombreEdificio = adminContext.edificioNombre || adminContext.nombre_edificio || "EDIFICIO";
         const lbl = document.getElementById("lblNombreEdificio");
         if (lbl) lbl.innerText = nombreEdificio.toUpperCase();
@@ -1017,7 +1028,6 @@ auth.onAuthStateChanged(async (userAuth) => {
             `;
         }
 
-        // Motores
         renderizarHistorialDesdeCache();
         escucharPlantillaRealTime(adminContext.edificioId);
         conectarContadorTickets(adminContext.edificioId);
@@ -1027,6 +1037,7 @@ auth.onAuthStateChanged(async (userAuth) => {
     });
 
 });
+
 /* =====================================================
     REGISTRO DE TÉCNICOS B2B
    ===================================================== */
