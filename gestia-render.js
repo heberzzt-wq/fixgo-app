@@ -1455,7 +1455,7 @@ const gestiaStore = {
 // --- CONFIGURACIÓN DE RENDIMIENTO ---
 const MAX_RENDER = 50; 
 
-export function conectarDatosEnVivo(esquema) {
+export function conectarDatosEnVivo(esquema, moduloId) {
     // 7.1 LIMPIEZA TOTAL
     if (unsubscribeSnapshot) {
         unsubscribeSnapshot();
