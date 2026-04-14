@@ -233,7 +233,7 @@ onAuthStateChanged(auth, async (user) => {
         try {
             renderizarUIBase?.(esquemaModulo, container);
           conectarDatosEnVivo(esquemaModulo, moduloId, condominioIdActual);
-            inyectarWidgetsSeguridad(esquemaModulo, moduloId, condominioIdActual);
+            inyectarWidgetsSeguridad(esquemaModulo, moduloId, condominioIdActual, rolUsuarioActual);
         } catch (uiError) {
             console.error("Error en renderizado UI:", uiError);
             container.innerHTML = `
@@ -498,7 +498,7 @@ export function renderizarUIBase(esquema, container) {
  * Esta sección inyecta el Botón de Pánico y el Sistema de Inventario de Paquetes.
  * Todo está vinculado al condominioIdActual para aislamiento total de datos.
  */
-export function inyectarWidgetsSeguridad(esquema) {
+export function inyectarWidgetsSeguridad(esquema, moduloId, condominioIdActual, rolUsuarioActual) {
     const panicContainer = document.getElementById('contenedor-panico-flotante');
 
     // ==========================================
