@@ -1472,7 +1472,7 @@ export function conectarDatosEnVivo(esquema) {
     if (!tbody) return;
 
     // 🔥 QUERY OPTIMIZADA
-    const registrosRef = collection(db, "gestia_records", condominioIdActual, esquema.modulo_id);
+    const registrosRef = collection(db, "gestia_records", condominioIdActual, moduloId);
     const q = query(
         registrosRef,
         orderBy("creado_en", "desc")
