@@ -875,10 +875,13 @@ window.importarRutinaMaestra = async () => {
 /**
  * =====================================================
  * GESTIA PREMIUM - MÓDULO DE ESCUCHA (NOC ADMIN)
- * VERSION: 5.80 (AUTH + FCM SINCRONIZADO)
+ * VERSION: 5.90 (FCM CONTEXTO UNIFICADO)
  * Lead Architect: Heberto Mendoza
  * =====================================================
  */
+
+// 🔴 IMPORT ESTÁTICO (FIX CRÍTICO)
+import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 
 let radioJessicaInicializado = false;
 
@@ -902,10 +905,10 @@ async function activarOidoJessica(userUid) {
 
     radioJessicaInicializado = true;
 
-    console.log("📡 Inicializando radio de cabina (AUTH SYNC MODE)...");
+    console.log("📡 Inicializando radio de cabina (FCM SYNC MODE)...");
 
     try {
-        // 🔑 1. ESPERAR AUTH REAL (FIX DEFINITIVO)
+        // 🔑 1. AUTH REAL
         const user = await esperarAuthLista();
 
         if (!user) {
@@ -916,11 +919,10 @@ async function activarOidoJessica(userUid) {
 
         console.log("🔐 Auth verificada:", user.uid);
 
-        // 2. IMPORTACIÓN
-        const { getMessaging, getToken } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js");
+        // 🔴 USAR MISMA INSTANCIA FIREBASE (FIX REAL)
         const messaging = getMessaging(app);
 
-        // 3. PERMISOS
+        // 2. PERMISOS
         const permission = await Notification.requestPermission();
 
         if (permission !== 'granted') {
@@ -930,13 +932,13 @@ async function activarOidoJessica(userUid) {
 
         console.log("🔔 Permiso concedido");
 
-        // 4. SERVICE WORKER
+        // 3. SERVICE WORKER
         await navigator.serviceWorker.register('/sw.js');
         const registration = await navigator.serviceWorker.ready;
 
         console.log("👷 Service Worker listo");
 
-        // 5. TOKEN
+        // 4. TOKEN
         const currentToken = await getToken(messaging, { 
             vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7lmx_shSMBfQLwQbzRTyNFCEs9n3b3OIEloJI4U4jXPx6CLsYQ',
             serviceWorkerRegistration: registration 
@@ -949,7 +951,7 @@ async function activarOidoJessica(userUid) {
 
         console.log("🛰️ TOKEN OK:", currentToken);
 
-        // 6. FIRESTORE
+        // 5. FIRESTORE
         const adminRef = doc(db, "users", userUid);
 
         await updateDoc(adminRef, {
