@@ -63,12 +63,12 @@
                         <i class="fas fa-truck-fast"></i> Flotilla
                     </button>
 
-                    <div class="relative group">
+                    <div class="relative group z-50">
                         <button class="bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white transition-all px-4 py-2 rounded-xl font-bold text-[10px] flex items-center gap-2 border border-blue-500/20 uppercase tracking-widest">
                             <i class="fas fa-qrcode"></i> Crear QR <i class="fas fa-chevron-down ml-1 text-[8px]"></i>
                         </button>
                         
-                        <div class="absolute right-0 mt-2 w-48 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
+                        <div class="absolute right-0 mt-2 w-48 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 overflow-hidden">
                             <button onclick="window.abrirModalQR('staff')" class="w-full text-left px-4 py-3 text-[10px] font-bold text-zinc-300 hover:bg-blue-500/20 hover:text-blue-400 border-b border-white/5 transition-colors uppercase tracking-widest">
                                 <i class="fas fa-id-badge mr-2"></i> QR Staff / Alta
                             </button>
@@ -83,7 +83,33 @@
                         <i class="fas fa-user-plus"></i> Alta de Activo
                     </button>
                     
-                    <button onclick="window.logout()" class="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors px-4 py-2 rounded-xl font-bold text-xs">
+                    <div class="relative group z-[200]">
+                        <button class="bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-all px-4 py-2 rounded-xl font-bold text-[14px] flex items-center justify-center border border-white/5 relative">
+                            <i class="fas fa-bell"></i>
+                            <span id="badgeAlertasNOC" class="hidden absolute -top-1 -right-1 bg-red-600 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#050505] shadow-[0_0_10px_rgba(220,38,38,0.5)]">0</span>
+                        </button>
+
+                        <div class="absolute right-0 mt-2 w-80 bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform origin-top-right scale-95 group-hover:scale-100 overflow-hidden">
+                            <div class="bg-gradient-to-b from-zinc-900 to-[#0a0a0a] p-4 border-b border-white/5 flex justify-between items-center">
+                                <h3 class="text-[10px] font-black uppercase tracking-widest text-emerald-500">
+                                    <i class="fas fa-radar text-emerald-500 mr-1"></i> Radar de Seguridad
+                                </h3>
+                                <span class="text-[8px] text-zinc-500 border border-zinc-700 px-2 py-0.5 rounded-full font-mono">SIA7 SYNC</span>
+                            </div>
+                            
+                            <div id="listaAlertasNOC" class="max-h-80 overflow-y-auto bg-black scrollbar-hide text-left">
+                                <div class="p-6 text-center text-zinc-500">
+                                    <i class="fas fa-spinner fa-spin text-2xl mb-2 opacity-50"></i>
+                                    <p class="text-[9px] uppercase tracking-widest font-black">Sintonizando radar...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="p-2 border-t border-white/5 bg-[#050505] text-center">
+                                <p class="text-[8px] text-zinc-600 font-mono tracking-[0.2em] uppercase">GestiaPremium NOC B2B</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="window.logout()" class="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors px-4 py-2 rounded-xl font-bold text-xs border border-red-500/20">
                         <i class="fas fa-sign-out-alt"></i>
                     </button>
                 </div>

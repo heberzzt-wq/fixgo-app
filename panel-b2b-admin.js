@@ -975,6 +975,102 @@ async function activarOidoJessica(userUid) {
         }
     }
 }
+/* =========================================================================
+   MÓDULO 17: CENTRO DE MANDO B2B (ALERTAS DE SEGURIDAD EN VIVO)
+   Arquitectura: Escucha activa en tiempo real para panel lateral / Dropdown
+   ========================================================================= */
+
+function escucharAlertasNOC(edificioId) {
+    console.log("🛡️ Iniciando radar de seguridad NOC para edificio:", edificioId);
+
+    const alertasRef = collection(db, "alertas_seguridad");
+    const q = query(
+        alertasRef, 
+        where("edificioId", "==", edificioId),
+        where("estado", "==", "activa"),
+        orderBy("fecha_emision", "desc")
+    );
+
+    onSnapshot(q, (snap) => {
+        const badge = document.getElementById("badgeAlertasNOC");
+        const contenedorLista = document.getElementById("listaAlertasNOC");
+        
+        let conteoActivas = snap.size;
+
+        // 1. Actualizar la Campanita Visual
+        if (badge) {
+            if (conteoActivas > 0) {
+                badge.innerText = conteoActivas;
+                badge.classList.remove("hidden");
+                badge.classList.add("animate-pulse"); 
+            } else {
+                badge.classList.add("hidden");
+                badge.classList.remove("animate-pulse");
+            }
+        }
+
+        // 2. Pintar la lista en el Panel
+        if (contenedorLista) {
+            contenedorLista.innerHTML = ""; 
+
+            if (conteoActivas === 0) {
+                contenedorLista.innerHTML = `
+                    <div class="p-6 text-center text-zinc-500">
+                        <i class="fas fa-shield-alt text-3xl mb-2 opacity-50"></i>
+                        <p class="text-[10px] uppercase tracking-widest font-black">Sin alertas de seguridad</p>
+                    </div>`;
+                return;
+            }
+
+            snap.forEach(docSnap => {
+                const alerta = docSnap.data();
+                const alertaId = docSnap.id;
+                
+                const d = alerta.fecha_emision?.toDate() || new Date();
+                const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+
+                const colorBorde = alerta.nivel === "critico" ? "border-red-500" : "border-amber-500";
+                const colorTexto = alerta.nivel === "critico" ? "text-red-400" : "text-amber-400";
+                const icono = alerta.nivel === "critico" ? "fa-exclamation-triangle" : "fa-info-circle";
+
+                const divAlerta = document.createElement("div");
+                divAlerta.className = `p-4 border-l-2 ${colorBorde} bg-black/40 hover:bg-black/60 transition-colors border-b border-white/5 relative group cursor-pointer`;
+                
+                divAlerta.innerHTML = `
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="text-[9px] font-black uppercase tracking-widest ${colorTexto}">
+                            <i class="fas ${icono} mr-1"></i> ${alerta.origen || 'SIA7 / RECEPCIÓN'}
+                        </span>
+                        <span class="text-[9px] text-zinc-500 font-mono">${hora}</span>
+                    </div>
+                    <p class="text-xs text-white font-bold mb-2 leading-tight">${alerta.mensaje || 'Alerta de seguridad registrada'}</p>
+                    
+                    <div class="flex justify-between items-center mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span class="text-[8px] text-zinc-500 uppercase tracking-widest">Unidad: ${alerta.unidad || 'N/A'}</span>
+                        <button onclick="window.marcarAlertaLeida('${alertaId}')" class="text-[9px] text-emerald-400 hover:text-emerald-300 uppercase tracking-widest font-black">
+                            <i class="fas fa-check-double"></i> Enterado
+                        </button>
+                    </div>
+                `;
+                contenedorLista.appendChild(divAlerta);
+            });
+        }
+    });
+}
+
+window.marcarAlertaLeida = async (alertaId) => {
+    try {
+        await updateDoc(doc(db, "alertas_seguridad", alertaId), {
+            estado: "resuelta",
+            resuelta_por: adminContext?.nombre || "NOC Admin",
+            fecha_resolucion: serverTimestamp()
+        });
+        if (typeof showToast === "function") showToast("Alerta marcada como enterada");
+    } catch (e) {
+        console.error("Error al marcar alerta:", e);
+    }
+};
+
 // ======================================================
 // LOGIN / SESIÓN
 // ======================================================
@@ -1024,12 +1120,13 @@ auth.onAuthStateChanged(async (userAuth) => {
             `;
         }
 
-        renderizarHistorialDesdeCache();
+       renderizarHistorialDesdeCache();
         escucharPlantillaRealTime(adminContext.edificioId);
         conectarContadorTickets(adminContext.edificioId);
         conectarContadorMantenimientosHoy(adminContext.edificioId);
         sincronizarHistorialConFirestore(adminContext.edificioId);
         escucharAvanceRutina(adminContext.edificioId);
+        escucharAlertasNOC(adminContext.edificioId);
     });
 
 });
