@@ -875,122 +875,149 @@ window.importarRutinaMaestra = async () => {
 /**
  * =====================================================
  * GESTIA PREMIUM - MÓDULO DE ESCUCHA (NOC ADMIN)
- * VERSION: 5.60 (RADIO BLINDADO - READY STATE)
+ * VERSION: 5.70 (RADIO ESTABLE - CONTROL DE ESTADO)
  * Lead Architect: Heberto Mendoza
- * REGLA 1: CÓDIGO COMPLETO - NO COMPACTAR
  * =====================================================
  */
 
+// 🔑 CONTROL GLOBAL PARA EVITAR DUPLICACIONES
+let radioJessicaInicializado = false;
+
 async function activarOidoJessica(userUid) {
     
-    console.log("📡 Intentando sintonizar radio en sw.js de la flota...");
+    if (radioJessicaInicializado) {
+        console.log("🧠 Radio ya inicializado, evitando duplicación...");
+        return;
+    }
+
+    radioJessicaInicializado = true;
+
+    console.log("📡 Inicializando radio de cabina (modo estable)...");
 
     try {
-        // 1. IMPORTACIÓN DINÁMICA DE MESSAGING
+        // 1. IMPORTACIÓN DINÁMICA
         const { getMessaging, getToken } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js");
         const messaging = getMessaging(app);
-        
-        // 2. SOLICITAR PERMISOS (Jessica debe autorizar en el navegador)
+
+        // 🔑 ESPERA DE ESTABILIDAD DEL NAVEGADOR (CLAVE REAL)
+        await new Promise(resolve => setTimeout(resolve, 1200));
+
+        // 2. PERMISOS
         const permission = await Notification.requestPermission();
-        
-        if (permission === 'granted') {
-            console.log("🔔 Permiso de notificaciones concedido.");
 
-            // 3. REGISTRO Y ESPERA ACTIVA (SOLUCIÓN AL ERROR 'no active Service Worker')
-            // Primero registramos el SW
-            await navigator.serviceWorker.register('/sw.js');
-            
-            // 🔑 LA CLAVE: Esperamos a que el SW esté realmente en estado 'READY'
-            // Esto garantiza que el PushManager tenga un trabajador activo.
-            const registration = await navigator.serviceWorker.ready;
-            console.log("👷 Service Worker verificado y en su puesto (Ready).");
-
-            // 4. OBTENER TOKEN CON TU CLAVE VAPID REAL
-            // Usamos el 'registration' que ya sabemos que está activo.
-            const currentToken = await getToken(messaging, { 
-                vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7lmx_shSMBfQLwQbzRTyNFCEs9n3b3OIEloJI4U4jXPx6CLsYQ',
-                serviceWorkerRegistration: registration 
-            });
-
-            if (currentToken) {
-                console.log("🛰️ Radio de Cabina sintonizado con éxito:", currentToken);
-
-                // 5. REGISTRAR EN FIRESTORE (BITÁCORA DE CONTROL)
-                const adminRef = doc(db, "users", userUid);
-                await updateDoc(adminRef, {
-                    fcmToken: currentToken,
-                    monitor_activo: true,
-                    fcm_device: "laptop_heberto_dev", // Para saber que eres tú probando
-                    ultima_sintonizacion_radio: serverTimestamp()
-                });
-
-                // Si tienes una función showToast definida, la usamos
-                if (typeof showToast === 'function') {
-                    showToast("SISTEMA DE ESCUCHA ACTIVO");
-                } else {
-                    console.log("🚀 [SISTEMA DE ESCUCHA ACTIVO]");
-                }
-
-            } else {
-                console.warn("⚠️ Google no entregó el Token. Revisa si las APIs en la consola están despiertas.");
-            }
-        } else {
-            console.error("❌ Permiso de notificaciones denegado por el usuario.");
+        if (permission !== 'granted') {
+            console.warn("❌ Permiso de notificaciones denegado.");
+            return;
         }
+
+        console.log("🔔 Permiso concedido.");
+
+        // 3. SERVICE WORKER
+        await navigator.serviceWorker.register('/sw.js');
+        const registration = await navigator.serviceWorker.ready;
+
+        console.log("👷 Service Worker listo y estable.");
+
+        // 4. TOKEN
+        const currentToken = await getToken(messaging, { 
+            vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7lmx_shSMBfQLwQbzRTyNFCEs9n3b3OIEloJI4U4jXPx6CLsYQ',
+            serviceWorkerRegistration: registration 
+        });
+
+        if (!currentToken) {
+            console.warn("⚠️ Token no generado.");
+            return;
+        }
+
+        console.log("🛰️ TOKEN OK:", currentToken);
+
+        // 5. REGISTRO EN FIRESTORE
+        const adminRef = doc(db, "users", userUid);
+
+        await updateDoc(adminRef, {
+            fcmToken: currentToken,
+            monitor_activo: true,
+            fcm_device: "panel_jessica",
+            ultima_sintonizacion_radio: serverTimestamp()
+        });
+
+        if (typeof showToast === "function") {
+            showToast("SISTEMA DE ESCUCHA ACTIVO");
+        }
+
     } catch (error) {
-        // Si el 401 persiste aquí, es 100% el bloqueo de Google Cloud que liberamos hace 10 min.
-        console.error("❌ Error en la antena de Cabina:", error);
+
+        console.error("❌ Error en radio Jessica:", error);
+
+        // 🔁 RETRY INTELIGENTE SOLO SI FALLA FCM
+        if (
+            error?.message?.includes("401") ||
+            error?.code?.includes("messaging")
+        ) {
+            console.log("🔁 Reintentando conexión en 3s...");
+            setTimeout(() => {
+                radioJessicaInicializado = false;
+                activarOidoJessica(userUid);
+            }, 3000);
+        }
     }
 }
 
 // ======================================================
 // LOGIN / LOGOUT & OBSERVADOR DE SESIÓN CENTRAL
 // ======================================================
+
 window.logout = () => auth.signOut();
 
 auth.onAuthStateChanged(async (userAuth) => {
+
     if (!userAuth) {
         window.location.href = "login.html";
         return;
     }
 
-    // Inicializamos motor local
+    // Inicialización local
     await initLocalDB();
 
-    // Suscripción al perfil en tiempo real
     onSnapshot(doc(db, "users", userAuth.uid), (docSnap) => {
+
         if (!docSnap.exists()) return;
 
         adminContext = docSnap.data();
 
-        // Validación de contexto de edificio
+        // Validación
         if (!adminContext.edificioId) {
             const panel = document.getElementById("panelAdminB2B");
-            if(panel) panel.classList.add("hidden");
+            if (panel) panel.classList.add("hidden");
             alert("Perfil sin edificioId. Contacte al Lead Architect.");
             return;
         }
 
         const panel = document.getElementById("panelAdminB2B");
-        if(panel) panel.classList.remove("hidden");
+        if (panel) panel.classList.remove("hidden");
 
-        // 🔥 GATILLO CRÍTICO: Sintonizamos el radio de Jessica al entrar
-        activarOidoJessica(userAuth.uid);
+        // 🔥 ACTIVACIÓN CONTROLADA DEL RADIO (FIX REAL)
+        if (!radioJessicaInicializado) {
+            setTimeout(() => {
+                activarOidoJessica(userAuth.uid);
+            }, 1500);
+        }
 
-        // Actualización de UI: Nombre del Edificio
+        // UI
         const nombreEdificio = adminContext.edificioNombre || adminContext.nombre_edificio || "EDIFICIO";
         const lbl = document.getElementById("lblNombreEdificio");
         if (lbl) lbl.innerText = nombreEdificio.toUpperCase();
 
-        // 🎖️ RECONOCIMIENTO DE PERFIL: Identificación dinámica en cabecera
         const lblSub = document.querySelector("header p.text-zinc-500");
         if (lblSub && adminContext) {
-            lblSub.innerHTML = `<i class="fas fa-user-shield text-emerald-500 mr-1"></i> 
-                                OPERADOR: <span class="text-white font-black">${(adminContext.nombre || 'NOC').toUpperCase()}</span> 
-                                | ROL: <span class="text-blue-400 font-black">${(adminContext.rol || 'STAFF').toUpperCase()}</span>`;
+            lblSub.innerHTML = `
+                <i class="fas fa-user-shield text-emerald-500 mr-1"></i> 
+                OPERADOR: <span class="text-white font-black">${(adminContext.nombre || 'NOC').toUpperCase()}</span> 
+                | ROL: <span class="text-blue-400 font-black">${(adminContext.rol || 'STAFF').toUpperCase()}</span>
+            `;
         }
 
-        // Encendido de Motores de Datos
+        // Motores
         renderizarHistorialDesdeCache();
         escucharPlantillaRealTime(adminContext.edificioId);
         conectarContadorTickets(adminContext.edificioId);
@@ -998,8 +1025,8 @@ auth.onAuthStateChanged(async (userAuth) => {
         sincronizarHistorialConFirestore(adminContext.edificioId);
         escucharAvanceRutina(adminContext.edificioId);
     });
-});
 
+});
 /* =====================================================
     REGISTRO DE TÉCNICOS B2B
    ===================================================== */
