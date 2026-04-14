@@ -161,13 +161,13 @@ export async function initGestiaRender(moduloId, containerId) {
 
             rolUsuarioActual = userData.rol || null;
             
-            // 🔥 AQUÍ ENSEÑAMOS AL MOTOR A LEER EL edificioId DE LA VERSIÓN B2B
-            condominioIdActual = userData.residencialId || userData.condominioId || userData.edificioId || null;
+            // 🔥 RESOLUCIÓN AUTOMÁTICA: Si tiene edificioId (Luis), condominioId o residencialId, el motor arranca.
+            condominioIdActual = userData.edificioId || userData.condominioId || userData.residencialId || null;
 
             // ==========================================
             // 2. BYPASS CEO
             // ==========================================
-            const esSuperUser = ['super_admin', 'ceo'].includes(rolUsuarioActual);
+            const esSuperUser = ['super_admin', 'ceo', 'arquitecto_supremo'].includes(rolUsuarioActual);
 
             if (esSuperUser) {
                 condominioIdActual = "UXMAL39";
@@ -220,7 +220,9 @@ export async function initGestiaRender(moduloId, containerId) {
             // 5. VALIDACIÓN DE ROLES
             // ==========================================
             const rolesAutorizados = esquemaModulo.seguridad_roles || [];
-            const esAdminGlobal = ['super_admin', 'ceo', 'admin'].includes(rolUsuarioActual);
+            
+            // 🛠️ INYECCIÓN DE ROL: Se autoriza 'seguridad_24_7' (Luis) para saltar la restricción.
+            const esAdminGlobal = ['super_admin', 'ceo', 'admin', 'seguridad_24_7'].includes(rolUsuarioActual);
 
             if (!esAdminGlobal && !rolesAutorizados.includes(rolUsuarioActual)) {
                 container.innerHTML = `
