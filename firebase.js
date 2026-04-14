@@ -1,15 +1,15 @@
 /**
  * ======================================================
- * FIXGO CORE - GESTIAPREMIUM v5.30 (TRAFFIC CONTROL)
+ * FIXGO CORE - GESTIAPREMIUM v5.66 (SINGLETON ARMOR)
  * ======================================================
  * Integración: B2B SaaS + Marketplace + App Check
- * REPARACIÓN: Normalización de extensiones .html + App Check Bypass
+ * REPARACIÓN: Singleton check para evitar Error 401 en FCM
  * REGLA 1: NO COMPACTAR. NO CORTAR. CÓDIGO COMPLETO.
  * AUTOR: Heber (CEO & Lead Architect)
  * ======================================================
  */
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
@@ -56,10 +56,12 @@ const firebaseConfig = {
 
 
 // ======================================================
-// 2. INICIALIZACIÓN
+// 2. INICIALIZACIÓN (MODO SINGLETON V5.66)
 // ======================================================
 
-const app = initializeApp(firebaseConfig);
+// 🛡️ REGLA: Si ya existe una app, úsala. Si no, inicialízala.
+// Esto evita que Jessica cree una "app paralela" y pierda sus credenciales de radio (401).
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 
 // 🛡️ APP CHECK (DESACTIVADO TEMPORALMENTE - BYPASS 24H)
@@ -106,7 +108,7 @@ export function verificarYRedireccionar(user) {
         role = "admin";
     }
 
-    console.log(`🚦 ROUTER GESTIA v5.30 | rol=${role} | tipo=${subType} | page=${pageClean} | query=${currentQuery}`);
+    console.log(`🚦 ROUTER GESTIA v5.66 | rol=${role} | tipo=${subType} | page=${pageClean} | query=${currentQuery}`);
 
 
     // ======================================================
@@ -504,5 +506,5 @@ export {
 };
 
 // ======================================================
-// FIN DEL CORE GESTIAPREMIUM v5.30
+// FIN DEL CORE GESTIAPREMIUM v5.66
 // ======================================================
