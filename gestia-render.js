@@ -160,7 +160,9 @@ export async function initGestiaRender(moduloId, containerId) {
             const userData = userSnap.data();
 
             rolUsuarioActual = userData.rol || null;
-            condominioIdActual = userData.residencialId || userData.condominioId || null;
+            
+            // 🔥 AQUÍ ENSEÑAMOS AL MOTOR A LEER EL edificioId DE LA VERSIÓN B2B
+            condominioIdActual = userData.residencialId || userData.condominioId || userData.edificioId || null;
 
             // ==========================================
             // 2. BYPASS CEO
@@ -504,7 +506,7 @@ export function inyectarWidgetsSeguridad(esquema) {
     const panicContainer = document.getElementById('contenedor-panico-flotante');
 
     // ==========================================
-    // 1. BOTÓN DE PÁNICO (HARDENED)
+    // 1. BOTÓN DE PÁNICO (HARDENED - CONECTADO A JESSICA)
     // ==========================================
     if (panicContainer) {
         panicContainer.innerHTML = `
@@ -524,21 +526,25 @@ export function inyectarWidgetsSeguridad(esquema) {
             if (!confirmacion) return;
 
             try {
-                const alertaRef = collection(db, "panicAlerts", condominioIdActual, "alertas");
+                // 📡 CONECTADO AL RADAR DE JESSICA (NOC B2B)
+                const alertaRef = collection(db, "alertas_seguridad");
 
                 await addDoc(alertaRef, {
-                    timestamp: serverTimestamp(),
-                    status: "active",
-                    notified: false,
-                    ubicacion: "Caseta de Vigilancia",
+                    edificioId: condominioIdActual, // Match exacto con el radar de Jessica
+                    estado: "activa",               // Match exacto para encender la campana
+                    nivel: "critico",
+                    origen: "CASETA DE VIGILANCIA",
+                    mensaje: "🚨 ¡PÁNICO! El guardia ha activado la alerta de emergencia.",
+                    fecha_emision: serverTimestamp(),
+                    unidad: "Acceso Principal",
+                    // Trazabilidad interna (No rompe el esquema)
                     creado_por: auth.currentUser.uid,
-                    residencialId: condominioIdActual,
                     rol_emisor: rolUsuarioActual
                 });
 
-                console.info("🚨 Alerta enviada correctamente");
+                console.info("🚨 Alerta enviada correctamente al Centro de Mando NOC");
             } catch (error) {
-                console.error("❌ Error alerta:", error);
+                console.error("❌ Error enviando alerta al NOC:", error);
             }
         };
     }
