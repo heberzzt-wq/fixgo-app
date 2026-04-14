@@ -232,7 +232,7 @@ onAuthStateChanged(auth, async (user) => {
         // ==========================================
         try {
             renderizarUIBase?.(esquemaModulo, container);
-          conectarDatosEnVivo?.(esquemaModulo, moduloId);
+          conectarDatosEnVivo(esquemaModulo, moduloId, condominioIdActual);
             inyectarWidgetsSeguridad?.(esquemaModulo);
         } catch (uiError) {
             console.error("Error en renderizado UI:", uiError);
@@ -1455,11 +1455,14 @@ const gestiaStore = {
 // --- CONFIGURACIÓN DE RENDIMIENTO ---
 const MAX_RENDER = 50; 
 
-export function conectarDatosEnVivo(esquema, moduloId) {
+export function conectarDatosEnVivo(esquema, moduloId, condominioIdActual) {
+
     console.log("🧪 DEBUG:", {
-  moduloId: moduloId,
-  esquema: esquema
-});
+        moduloId: moduloId,
+        esquema: esquema,
+        condominioIdActual: condominioIdActual
+    });
+
     // 7.1 LIMPIEZA TOTAL
     if (unsubscribeSnapshot) {
         unsubscribeSnapshot();
@@ -1476,17 +1479,22 @@ export function conectarDatosEnVivo(esquema, moduloId) {
     if (!tbody) return;
 
     // 🔥 QUERY OPTIMIZADA
-    const registrosRef = collection(db, "gestia_records", condominioIdActual, moduloId);
+    const registrosRef = collection(
+        db,
+        "gestia_records",
+        condominioIdActual,
+        moduloId
+    );
+
     const q = query(
         registrosRef,
         orderBy("creado_en", "desc")
     );
 
-    console.info(`📡 NOC V6.4.2: Restaurando estética V5.21 en ${condominioIdActual}`);
+    console.info(`📡 NOC V6.4.2 en ${condominioIdActual}`);
 
     unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
         let activosEnEdificio = 0;
-        const ahora = new Date();
 
         if (snapshot.empty) {
             tbody.innerHTML = "";
@@ -1497,11 +1505,9 @@ export function conectarDatosEnVivo(esquema, moduloId) {
 
         if (estadoVacio) estadoVacio.classList.add('hidden');
 
-        // 🔥 PROCESAMIENTO DIFERENCIAL
         snapshot.docChanges().forEach((change) => {
-            const docSnap = change.doc;
-            const id = docSnap.id;
-            const data = docSnap.data();
+            const id = change.doc.id;
+            const data = change.doc.data();
 
             gestiaStore.registros.set(id, data);
 
@@ -1514,7 +1520,7 @@ export function conectarDatosEnVivo(esquema, moduloId) {
 
             if (change.type === "added") {
                 if (gestiaStore.renderizados.size >= MAX_RENDER) return;
-                const tr = construirFila(id, data, esquema, ahora);
+                const tr = construirFila(id, data, esquema, new Date());
                 tbody.appendChild(tr);
                 gestiaStore.renderizados.add(id);
             }
@@ -1522,13 +1528,12 @@ export function conectarDatosEnVivo(esquema, moduloId) {
             if (change.type === "modified") {
                 const filaExistente = document.getElementById(`row-${id}`);
                 if (filaExistente) {
-                    const nuevaFila = construirFila(id, data, esquema, ahora);
+                    const nuevaFila = construirFila(id, data, esquema, new Date());
                     tbody.replaceChild(nuevaFila, filaExistente);
                 }
             }
         });
 
-        // 🔥 CONTADOR OPTIMIZADO
         gestiaStore.registros.forEach((data) => {
             const yaSalio = data.fecha_salida || data.status === "salida";
             if (!yaSalio) activosEnEdificio++;
@@ -1537,10 +1542,9 @@ export function conectarDatosEnVivo(esquema, moduloId) {
         if (countActivosLabel) countActivosLabel.innerText = activosEnEdificio;
 
     }, (error) => {
-        console.error("❌ Error snapshot optimizado:", error);
+        console.error("❌ Error snapshot:", error);
     });
 }
-
 /**
  * ==========================================
  * CONSTRUCTOR DE FILAS (V6.4.2 - ESTILO V5.21)
