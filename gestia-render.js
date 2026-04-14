@@ -255,6 +255,7 @@ onAuthStateChanged(auth, async (user) => {
             </div>`;
     }
 });
+}
 
 // ==========================================
 // EXPOSICIÓN GLOBAL SEGURA
