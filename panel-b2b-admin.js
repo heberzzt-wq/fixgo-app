@@ -875,8 +875,9 @@ window.importarRutinaMaestra = async () => {
 /**
  * =====================================================
  * GESTIA PREMIUM - MÓDULO DE ESCUCHA (NOC ADMIN)
- * VERSION: 5.57 (Uso de sw.js de Flota)
+ * VERSION: 5.60 (RADIO BLINDADO - READY STATE)
  * Lead Architect: Heberto Mendoza
+ * REGLA 1: CÓDIGO COMPLETO - NO COMPACTAR
  * =====================================================
  */
 
@@ -885,39 +886,59 @@ async function activarOidoJessica(userUid) {
     console.log("📡 Intentando sintonizar radio en sw.js de la flota...");
 
     try {
+        // 1. IMPORTACIÓN DINÁMICA DE MESSAGING
         const { getMessaging, getToken } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js");
         const messaging = getMessaging(app);
         
-        // 1. SOLICITAR PERMISOS
+        // 2. SOLICITAR PERMISOS (Jessica debe autorizar en el navegador)
         const permission = await Notification.requestPermission();
         
         if (permission === 'granted') {
-            
-            // 2. ENLAZAR CON EL SW.JS QUE YA FUNCIONA
-            // Esto le dice al panel: "No busques el archivo por defecto, usa el de los técnicos"
-            const registration = await navigator.serviceWorker.register('/sw.js');
+            console.log("🔔 Permiso de notificaciones concedido.");
 
-            // 3. OBTENER TOKEN CON TU CLAVE VAPID REAL
+            // 3. REGISTRO Y ESPERA ACTIVA (SOLUCIÓN AL ERROR 'no active Service Worker')
+            // Primero registramos el SW
+            await navigator.serviceWorker.register('/sw.js');
+            
+            // 🔑 LA CLAVE: Esperamos a que el SW esté realmente en estado 'READY'
+            // Esto garantiza que el PushManager tenga un trabajador activo.
+            const registration = await navigator.serviceWorker.ready;
+            console.log("👷 Service Worker verificado y en su puesto (Ready).");
+
+            // 4. OBTENER TOKEN CON TU CLAVE VAPID REAL
+            // Usamos el 'registration' que ya sabemos que está activo.
             const currentToken = await getToken(messaging, { 
                 vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7lmx_shSMBfQLwQbzRTyNFCEs9n3b3OIEloJI4U4jXPx6CLsYQ',
                 serviceWorkerRegistration: registration 
             });
 
             if (currentToken) {
-                console.log("🛰️ Radio de Cabina sintonizado:", currentToken);
+                console.log("🛰️ Radio de Cabina sintonizado con éxito:", currentToken);
 
-                // 4. REGISTRAR EN FIRESTORE
+                // 5. REGISTRAR EN FIRESTORE (BITÁCORA DE CONTROL)
                 const adminRef = doc(db, "users", userUid);
                 await updateDoc(adminRef, {
                     fcmToken: currentToken,
                     monitor_activo: true,
+                    fcm_device: "laptop_heberto_dev", // Para saber que eres tú probando
                     ultima_sintonizacion_radio: serverTimestamp()
                 });
 
-                showToast("SISTEMA DE ESCUCHA ACTIVO");
+                // Si tienes una función showToast definida, la usamos
+                if (typeof showToast === 'function') {
+                    showToast("SISTEMA DE ESCUCHA ACTIVO");
+                } else {
+                    console.log("🚀 [SISTEMA DE ESCUCHA ACTIVO]");
+                }
+
+            } else {
+                console.warn("⚠️ Google no entregó el Token. Revisa si las APIs en la consola están despiertas.");
             }
+        } else {
+            console.error("❌ Permiso de notificaciones denegado por el usuario.");
         }
     } catch (error) {
+        // Si el 401 persiste aquí, es 100% el bloqueo de Google Cloud que liberamos hace 10 min.
         console.error("❌ Error en la antena de Cabina:", error);
     }
 }
