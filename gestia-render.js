@@ -1480,6 +1480,9 @@ export function conectarDatosEnVivo(esquema, moduloId, condominioIdActual) {
     if (!tbody) return;
 
     // 🔥 QUERY OPTIMIZADA
+    console.log("🧪 QUERY PATH:", {
+  path: `gestia_records/${condominioIdActual}/${moduloId}`
+});
     const registrosRef = collection(
         db,
         "gestia_records",
