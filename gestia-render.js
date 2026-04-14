@@ -523,6 +523,11 @@ export function inyectarWidgetsSeguridad(esquema) {
 
             try {
                 // 📡 CONECTADO AL RADAR DE JESSICA (NOC B2B)
+                console.log("🧪 WIDGET DEBUG:", {
+  moduloId,
+  condominioIdActual,
+  esquema
+});
                 const alertaRef = collection(db, "alertas_seguridad");
 
                 await addDoc(alertaRef, {
