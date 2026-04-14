@@ -24,7 +24,7 @@ import {
 
 // 🔥 CABLE DEL MEGÁFONO: Importamos mensajería y funciones puente para el Admin
 import { 
-    getMessaging 
+    getMessaging, getToken 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 
 import { 
@@ -879,9 +879,6 @@ window.importarRutinaMaestra = async () => {
  * Lead Architect: Heberto Mendoza
  * =====================================================
  */
-
-// 🔴 IMPORT ESTÁTICO (FIX CRÍTICO)
-import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 
 let radioJessicaInicializado = false;
 
