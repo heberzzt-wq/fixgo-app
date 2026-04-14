@@ -875,39 +875,23 @@ window.importarRutinaMaestra = async () => {
 /**
  * =====================================================
  * GESTIA PREMIUM - MÓDULO DE ESCUCHA (NOC ADMIN)
- * VERSION: 5.90 (FCM CONTEXTO UNIFICADO)
+ * VERSION: 5.91 (FIX 401 & SW ALIGNMENT)
  * Lead Architect: Heberto Mendoza
  * =====================================================
  */
 
-let radioJessicaInicializado = false;
-
-async function esperarAuthLista() {
-    return new Promise(resolve => {
-        const unsubscribe = auth.onAuthStateChanged(user => {
-            if (user) {
-                unsubscribe();
-                resolve(user);
-            }
-        });
-    });
-}
-
 async function activarOidoJessica(userUid) {
-    
     if (radioJessicaInicializado) {
         console.log("🧠 Radio ya inicializado, evitando duplicación...");
         return;
     }
 
     radioJessicaInicializado = true;
-
     console.log("📡 Inicializando radio de cabina (FCM SYNC MODE)...");
 
     try {
         // 🔑 1. AUTH REAL
         const user = await esperarAuthLista();
-
         if (!user) {
             console.error("❌ Auth no disponible");
             radioJessicaInicializado = false;
@@ -916,39 +900,46 @@ async function activarOidoJessica(userUid) {
 
         console.log("🔐 Auth verificada:", user.uid);
 
-        // 🔴 USAR MISMA INSTANCIA FIREBASE (FIX REAL)
+        // 🔴 USAR INSTANCIA UNIFICADA
         const messaging = getMessaging(app);
 
         // 2. PERMISOS
         const permission = await Notification.requestPermission();
-
         if (permission !== 'granted') {
-            console.warn("❌ Permiso denegado");
+            console.warn("❌ Permiso de notificaciones denegado");
             return;
         }
 
         console.log("🔔 Permiso concedido");
 
-        // 3. SERVICE WORKER
-        await navigator.serviceWorker.register('/sw.js');
-        const registration = await navigator.serviceWorker.ready;
+      // 3. REGISTRO DEL SERVICE WORKER UNIFICADO (v6.2)
+// Usamos /sw.js porque es el General que contiene todo el blindaje
+const swName = '/sw.js'; 
+console.log(`👷 Registrando motor unificado: ${swName}`);
 
-        console.log("👷 Service Worker listo");
+try {
+    const registration = await navigator.serviceWorker.register(swName, {
+        scope: '/'
+    });
 
-        // 4. TOKEN
-        const currentToken = await getToken(messaging, { 
-            vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7lmx_shSMBfQLwQbzRTyNFCEs9n3b3OIEloJI4U4jXPx6CLsYQ',
-            serviceWorkerRegistration: registration 
-        });
+    await navigator.serviceWorker.ready;
+    console.log("👷 Service Worker (General) sintonizado y listo");
 
-        if (!currentToken) {
-            console.warn("⚠️ Token vacío");
-            return;
-        }
+    // 4. GENERACIÓN DE TOKEN
+    // Importante: Le pasamos explícitamente la registración de /sw.js
+    const currentToken = await getToken(messaging, { 
+        vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7lmx_shSMBfQLwQbzRTyNFCEs9n3b3OIEloJI4U4jXPx6CLsYQ',
+        serviceWorkerRegistration: registration 
+    });
 
+    if (currentToken) {
         console.log("🛰️ TOKEN OK:", currentToken);
-
-        // 5. FIRESTORE
+        // Aquí sigue tu lógica de guardado en Firestore...
+    }
+} catch (swError) {
+    console.error("❌ Error registrando el SW Unificado:", swError);
+}
+        // 5. FIRESTORE - Guardar para que Jessica pueda recibir órdenes
         const adminRef = doc(db, "users", userUid);
 
         await updateDoc(adminRef, {
@@ -958,22 +949,18 @@ async function activarOidoJessica(userUid) {
             ultima_sintonizacion_radio: serverTimestamp()
         });
 
-        showToast?.("SISTEMA DE ESCUCHA ACTIVO");
+        if (typeof showToast === "function") {
+            showToast("SISTEMA DE ESCUCHA ACTIVO");
+        }
 
     } catch (error) {
-
         console.error("❌ Error en radio Jessica:", error);
 
-        // 🔁 RETRY CONTROLADO
-        if (
-            error?.message?.includes("401") ||
-            error?.code?.includes("messaging")
-        ) {
-            console.log("🔁 Reintentando en 3s...");
-            setTimeout(() => {
-                radioJessicaInicializado = false;
-                activarOidoJessica(userUid);
-            }, 3000);
+        // Manejo de error 401 sin bucle infinito mortal
+        if (error.code === 'messaging/token-subscribe-failed' || error.message.includes("401")) {
+            console.error("🚨 ERROR DE AUTENTICACIÓN: El Service Worker no coincide con las llaves de Firebase o la VAPID Key es incorrecta.");
+            // No reintentamos automáticamente para evitar el lag, mejor avisamos.
+            radioJessicaInicializado = false; 
         }
     }
 }

@@ -1,8 +1,9 @@
 /**
  * ======================================================
- * GESTIA PREMIUM - SERVICE WORKER v6.1 (ULTRA-FORCE)
+ * GESTIA PREMIUM - SERVICE WORKER v6.2 (ULTRA-FORCE UNIFIED)
  * Proyecto: fixgo-44e4d
  * Lead Architect: Heberto Mendoza
+ * REGLA 1: CÓDIGO COMPLETO - NO PLACEHOLDERS
  * ======================================================
  */
 
@@ -22,6 +23,7 @@ const urlsToCache = [
 ];
 
 // 2. INICIALIZAR FIREBASE
+// Arqui, esta configuración dentro del SW es la que mata el error 401
 firebase.initializeApp({
   apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0",
   authDomain: "fixgo-44e4d.firebaseapp.com",
@@ -322,6 +324,7 @@ self.addEventListener('fetch', (event) => {
 /**
  * ======================================================
  * FIN DEL SERVICE WORKER
- * Gestia Premium V6.1 - Blindaje Firebase Activo
+ * Gestia Premium V6.2 - Blindaje Firebase Activo
+ * Lead Architect: Heberto Mendoza
  * ======================================================
  */
