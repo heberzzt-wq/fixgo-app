@@ -1456,6 +1456,10 @@ const gestiaStore = {
 const MAX_RENDER = 50; 
 
 export function conectarDatosEnVivo(esquema, moduloId) {
+    console.log("🧪 DEBUG:", {
+  moduloId: moduloId,
+  esquema: esquema
+});
     // 7.1 LIMPIEZA TOTAL
     if (unsubscribeSnapshot) {
         unsubscribeSnapshot();
