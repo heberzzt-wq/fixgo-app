@@ -880,6 +880,9 @@ window.importarRutinaMaestra = async () => {
  * =====================================================
  */
 
+// Variable de control global para que Jessica no sintonice dos veces
+let radioJessicaInicializado = false;
+
 async function activarOidoJessica(userUid) {
     if (radioJessicaInicializado) {
         console.log("🧠 Radio ya inicializado, evitando duplicación...");
