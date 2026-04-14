@@ -46,7 +46,7 @@ import {
 // ======================================================
 
 const firebaseConfig = {
-    apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0",
+    apiKey: "AIzaSyBNRbXNgLN57CQrrLIz9Jwlak1Dy-d6XWw",
     authDomain: "fixgo-44e4d.web.app", 
     projectId: "fixgo-44e4d",
     storageBucket: "fixgo-44e4d.firebasestorage.app",
