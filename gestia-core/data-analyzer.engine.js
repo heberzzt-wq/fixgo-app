@@ -1,10 +1,10 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - DATA ANALYZER ENGINE V7.5 (HYBRID: DATA + CODE)
+ * GESTIAPREMIUM 2026 - DATA ANALYZER ENGINE V7.4 (HYBRID: DATA + CODE)
  * ======================================================================================
  * Función: El "Ojo de Dios" total. Escanea Firestore Y el Runtime del navegador.
  * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
- * Actualización V7.5: Bypass de entrelazado para Perfil Arquitecto y Auto-Healing.
+ * Actualización V7.4: Detección de desentrelazado de código (Ref. El Abuelo).
  * Autor: Heber Mendoza (Arquitecto Supremo)
  * ======================================================================================
  */
@@ -20,7 +20,6 @@ import {
 
 /**
  * analizarCodigoRuntime: Escanea el objeto window buscando piezas desentrelazadas.
- * V7.5: Ahora detecta si estamos en modo desarrollo o si el Arquitecto está al mando.
  */
 function analizarCodigoRuntime() {
     const codeAlerts = [];
@@ -35,15 +34,12 @@ function analizarCodigoRuntime() {
 
     piezasRequeridas.forEach(pieza => {
         if (!window[pieza]) {
-            // AUTO-HEALING: Si no existe, creamos un placeholder funcional para no romper el bucle
-            window[pieza] = () => console.warn(`[AUTO-HEAL]: La pieza ${pieza} fue llamada pero no existe. Redirigiendo...`);
-            
             codeAlerts.push({
                 type: "CODE_DETACHED",
                 id: `JS_${pieza.toUpperCase()}`,
                 target: "WINDOW_SCOPE",
-                msg: `DESENTRELAZADO DETECTADO: La pieza '${pieza}' no estaba vinculada. Se aplicó Auto-Healing.`,
-                severity: "LOW" // Bajamos severidad de CRITICAL a LOW para romper el bloqueo
+                msg: `DESENTRELAZADO DETECTADO: La pieza '${pieza}' no está vinculada al scope global.`,
+                severity: "CRITICAL"
             });
         }
     });
@@ -133,8 +129,7 @@ export async function analizarDatosSistema(tenantId, manualContext = null) {
 
         // --- CAPA 4: SCAN FINANCIERO ---
         const tenantRef = collection(db, "tenants");
-        const qTenant = query(tenantRef, where("tenantId", "==", tenantId), limit(1));
-        const snapTenant = await getDocs(qTenant);
+        const snapTenant = await getDocs(query(tenantRef, where("tenantId", "==", tenantId), limit(1)));
 
         if (!snapTenant.empty && snapTenant.docs[0].data().status === "deudor") {
             analysis.alerts.push({
@@ -161,10 +156,6 @@ export async function analizarDatosSistema(tenantId, manualContext = null) {
 export function generateHealthScore(analysis) {
     if (!analysis) return 0;
     let score = 100;
-    
-    // Solo las alertas CRITICAL y HIGH bajan puntos drásticamente
-    const penalizables = analysis.alerts.filter(a => a.severity === "CRITICAL" || a.severity === "HIGH");
-    score -= (penalizables.length * 20);
-    
+    score -= (analysis.alerts.length * 15);
     return Math.max(0, score);
 }
