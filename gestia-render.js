@@ -381,7 +381,7 @@ export function renderizarUIBase(esquema, container) {
                 <div class="bg-slate-800 border border-slate-600 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh]">
                     <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
                         <h3 class="text-base font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-bolt text-blue-400"></i> Registro de Acceso
+                            <i class="fa-solid fa-bolt text-blue-400"></i> Registro Activo
                         </h3>
                         <button id="btn-cerrar-modal" class="text-slate-400 hover:text-white">
                             <i class="fa-solid fa-xmark text-xl"></i>
@@ -700,15 +700,16 @@ export function abrirModalFormulario(esquema) {
     form.innerHTML = `
         <div class="mb-2 pb-5 border-b border-slate-700/60">
             <label class="block text-sm font-bold text-blue-400 mb-2">
-                <i class="fa-solid fa-route mr-2"></i>Clasificación del Acceso
+                <i class="fa-solid fa-route mr-2"></i>Clasificación del Operación
             </label>
             <select id="selector-tipo-flujo" name="tipo_flujo"
                 class="w-full bg-slate-900 border border-blue-500/50 rounded-lg px-3 py-3 text-white font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)] transition-all cursor-pointer">
                 <option value="" disabled selected>Selecciona el tipo de flujo...</option>
-                <option value="b2b">🏢 Corporativo / B2B</option>
-                <option value="residencial">🏠 Residencial</option>
-                <option value="delivery">🍔 Delivery</option>
-                <option value="proveedor">🛠️ Proveedor</option>
+                <option value="b2b">🏢 Acceso: Corporativo / B2B</option>
+                <option value="residencial">🏠 Acceso: Residencial</option>
+                <option value="delivery">🍔 Acceso: Delivery</option>
+                <option value="proveedor">🛠️ Acceso: Proveedor</option>
+                <option value="reporte" class="text-amber-400">🚨 Reporte / Anuncio / Incidencia</option>
             </select>
         </div>
         <div id="contenedor-campos-dinamicos" class="flex flex-col gap-4 hidden animate-fade-in pt-2"></div>
@@ -735,7 +736,22 @@ export function abrirModalFormulario(esquema) {
             let etiqueta = campo.etiqueta;
             let obligatorio = campo.obligatorio;
 
-            // --- BIZ RULES ---
+            // --- BIZ RULES (ENTERPRISE ISOLATION) ---
+            const isReportField = campo.id.includes('reporte') || campo.id.includes('incidencia') || campo.id.includes('anuncio') || campo.id.includes('notificacion') || ['tipo_incidencia', 'nivel_urgencia', 'mensaje_anuncio', 'notificar_a'].includes(campo.id);
+
+            if (flujoActivo === 'reporte') {
+                // Si es un reporte, ocultamos campos tácticos de acceso
+                if (['recurso', 'empresa_area', 'motivo', 'identificacion'].includes(campo.id) && !isReportField) {
+                    mostrarCampo = false;
+                }
+                if (campo.id === 'nombre') etiqueta = 'Reporta / Emisor';
+            } else {
+                // Si es un acceso normal (b2b, delivery, etc.), ocultamos campos de reporte
+                if (isReportField) {
+                    mostrarCampo = false;
+                }
+            }
+
             if (flujoActivo === 'delivery') {
                 if (campo.id === 'recurso') mostrarCampo = false;
                 if (campo.id === 'empresa_area') etiqueta = 'Plataforma';
@@ -1192,7 +1208,7 @@ export async function guardarNuevoRegistro(e, esquema) {
     const selectorFlujo = document.getElementById('selector-tipo-flujo');
 
     if (!selectorFlujo || !selectorFlujo.value) {
-        alert("⚠️ Selecciona la Clasificación del Acceso.");
+        alert("⚠️ Selecciona la Clasificación del Acceso o Reporte.");
         return;
     }
 
@@ -1299,11 +1315,16 @@ function construirPayloadSeguro(formData, esquema, tipoFlujo) {
 
         if (campo.tipo === 'fecha_hora_automatica') return;
 
+        // BIZ RULE: Si el campo está oculto (ignorado por display none), no debe ser obligatorio validar
+        const el = document.getElementById(`campo_${campo.id}`);
+        if (!el || el.closest('.hidden')) return;
+
         let valor = formData.get(campo.id);
 
         valor = sanitizeInput(valor);
 
-        if (campo.obligatorio && !valor) {
+        // Ajuste: si el elemento no se renderizó o se ocultó por regla de negocio, lo omitimos
+        if (campo.obligatorio && !valor && el.offsetParent !== null) {
             errores.push(campo.etiqueta);
         }
 
@@ -1560,10 +1581,11 @@ function construirFila(id, data, esquema, ahora) {
 
     const tipoFlujo = data.tipo_flujo || 'b2b';
     const yaSalio = data.fecha_salida || data.status === "salida";
+    const esReporte = tipoFlujo === 'reporte';
 
     // --- LÓGICA DE ALERTAS ---
     let alertaOverstay = false;
-    if (!yaSalio && data.creado_en) {
+    if (!yaSalio && data.creado_en && !esReporte) {
         const entrada = data.creado_en.toDate();
         const minutos = (ahora - entrada) / (1000 * 60);
         if (tipoFlujo === 'delivery' && minutos > 60) alertaOverstay = true;
@@ -1578,7 +1600,9 @@ function construirFila(id, data, esquema, ahora) {
     // --- COLORES Y CONTRASTE (Recuperando el look de la Captura 2097) ---
     let clases = "border-b border-slate-800/40 border-l-4 transition-all duration-200 ";
 
-    if (yaSalio) {
+    if (esReporte) {
+        clases += "border-l-amber-500 bg-amber-900/20 ";
+    } else if (yaSalio) {
         // En lugar de opacity-40, usamos colores de texto apagados para mantener legibilidad
         clases += "border-l-slate-700 bg-slate-900/30 ";
     } else if (esPOSIQ) {
@@ -1617,14 +1641,14 @@ function construirFila(id, data, esquema, ahora) {
     const btnContainer = document.createElement('div');
     btnContainer.className = "flex items-center justify-end gap-2";
 
-    if (!yaSalio) {
-        // Botón Detalle (Ojo)
-        const btnVer = document.createElement('button');
-        btnVer.className = "w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-all";
-        btnVer.innerHTML = '<i class="fa-solid fa-eye text-xs"></i>';
-        btnVer.onclick = () => alert(window.formatearDetalleParaGuardia(data));
-        btnContainer.appendChild(btnVer);
+    // Botón Detalle (Ojo) - Siempre visible
+    const btnVer = document.createElement('button');
+    btnVer.className = "w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-all";
+    btnVer.innerHTML = '<i class="fa-solid fa-eye text-xs"></i>';
+    btnVer.onclick = () => alert(window.formatearDetalleParaGuardia(data));
+    btnContainer.appendChild(btnVer);
 
+    if (!yaSalio && !esReporte) {
         // Botón Salida (Puerta)
         const btnSalida = document.createElement('button');
         btnSalida.className = "h-8 px-3 flex items-center gap-2 rounded-lg bg-blue-600/10 border border-blue-500/40 text-blue-400 hover:bg-blue-600 hover:text-white transition-all text-[10px] font-bold uppercase";
@@ -1636,9 +1660,16 @@ function construirFila(id, data, esquema, ahora) {
             await window.registrarSalidaBD(id, esquema.modulo_id);
         };
         btnContainer.appendChild(btnSalida);
+    } else if (esReporte) {
+         // Sello de Reporte
+        btnContainer.innerHTML += `
+            <span class="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-amber-500 text-[9px] font-bold uppercase italic">
+                <i class="fa-solid fa-bullhorn"></i> Ticket
+            </span>
+        `;
     } else {
         // Sello de Cerrado Estilo Legacy
-        btnContainer.innerHTML = `
+        btnContainer.innerHTML += `
             <span class="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/5 border border-emerald-500/20 text-emerald-500/60 text-[9px] font-bold uppercase italic">
                 <i class="fa-solid fa-check-double"></i> Finalizado
             </span>
