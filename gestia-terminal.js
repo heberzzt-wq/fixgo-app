@@ -237,7 +237,7 @@ export class TerminalHeberto {
         console.log(`%c[KERNEL_STATE]: ${newState}`, "background: #1e293b; color: #38bdf8; padding: 2px 8px; border-radius: 4px; font-weight: bold;");
     }
 
-   /**
+ /**
      * inicializarAutoridad: Valida identidad y abre el búnker (Integración V5.51)
      */
     async inicializarAutoridad() {
@@ -294,16 +294,22 @@ export class TerminalHeberto {
 
         } catch (error) {
             this.setState(STATES.ERROR);
-            this.logger.error(`BLOQUEO_DE_SEGURIDAD: ${error.message}`);
             
-            // Si falla la identidad, lo sacamos por seguridad
-            if (error.message.includes("FALLO_DE_AUTORIDAD") || error.message.includes("FALLO_DE_IDENTIDAD")) {
-                alert("🚫 Acceso Denegado: Autoridad no validada.");
-                window.location.href = "/login.html"; 
+            // 🛡️ FIX: Extracción segura del error para que la Terminal no se desmaye
+            const errorMessage = (error && error.message) ? error.message : String(error);
+            
+            this.logger.error(`BLOQUEO_DE_SEGURIDAD: ${errorMessage}`);
+            
+            // Si falla la identidad o chocamos con las reglas de Firestore
+            if (errorMessage.includes("FALLO_DE_AUTORIDAD") || errorMessage.includes("FALLO_DE_IDENTIDAD") || errorMessage.includes("permission")) {
+                alert(`🚫 Bloqueo de Seguridad:\n${errorMessage}`);
+                
+                // ⚠️ OJO: Comenté esta línea temporalmente para que el sistema NO te patee a la pantalla de login.
+                // Así nos dará tiempo de leer exactamente qué regla te está bloqueando en la consola.
+                // window.location.href = "/login.html"; 
             }
         }
     }
-
     /**
      * isApproval: Valida si el input es una confirmación humana (Arre)
      */

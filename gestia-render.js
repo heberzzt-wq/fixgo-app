@@ -1863,5 +1863,6 @@ window.procesarAccesoQR = async (datosQR) => {
                 fastPassInFlight = false;
             }, 300);
         }, 3500);
+  
     }
 };
