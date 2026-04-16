@@ -270,49 +270,54 @@ export async function resolveTenantContext(options = { forceRefresh: false }) {
             return GOD_SESSION;
         }
 
-        // --- 🧬 PROTOCOLO ESTÁNDAR DE AUTORIDAD ---
-        emitSia7(OP_ID, "DB_FETCH", "Consultando búnker de perfiles en Firestore...", "INFO");
+        // --- 🧬 PROTOCOLO ESTÁNDAR DE AUTORIDAD (BÚNKER UXMAL39) ---
+        emitSia7(OP_ID, "DB_FETCH", "Buscando rango en búnker local...", "INFO");
         
-        const userRef = doc(db, "gestia_users", user.uid);
-        const userSnap = await getDoc(userRef);
+        const tenantIdBase = "uxmal39"; 
+        let userData = null;
+        let finalRole = "tecnico";
 
-        if (!userSnap.exists()) {
-            emitSia7(OP_ID, "DB_ERROR", "Identidad no registrada en gestia_users.", "ERROR");
-            throw { 
-                code: "USER_UNKNOWN", 
-                message: "Acceso denegado: El perfil no existe en el sistema." 
-            };
+        // 🛡️ BUSQUEDA EN EL BÚNKER DE ADMINS
+        const adminRef = doc(db, "tenants", tenantIdBase, "admins", user.uid);
+        const adminSnap = await getDoc(adminRef);
+
+        if (adminSnap.exists()) {
+            emitSia7(OP_ID, "AUTH_SUCCESS", "Autoridad confirmada en subcolección 'admins'.", "SUCCESS");
+            userData = adminSnap.data();
+            finalRole = userData.rol || "arquitecto_supremo";
+        } else {
+            // FALLBACK A TÉCNICOS
+            const techRef = doc(db, "tenants", tenantIdBase, "technicians", user.uid);
+            const techSnap = await getDoc(techRef);
+            
+            if (!techSnap.exists()) {
+                emitSia7(OP_ID, "DB_ERROR", "Identidad no encontrada en uxmal39.", "ERROR");
+                throw { code: "USER_UNKNOWN", message: "Perfil no existe en el búnker." };
+            }
+            userData = techSnap.data();
         }
 
-        const userData = userSnap.data();
-        
-        // --- 🧬 RESOLUCIÓN TENANT (AUTO-SANADOR V2) ---
-        emitSia7(OP_ID, "TENANT_RESOLVE", "Validando sanación de contexto multi-tenant...", "INFO");
-        
-        const tenantResuelto = await resolveTenantV2(
-            userData.tenantId || "default", 
-            { allowCreate: false }
-        );
+        // --- 🧬 RESOLUCIÓN TENANT ---
+        const tenantResuelto = await resolveTenantV2(tenantIdBase, { allowCreate: false });
 
-        // Generación de la firma criptográfica para la sesión estándar
         const sigStandard = await generateSecureSignature(
             user.uid, 
             tenantResuelto.id, 
-            userData.rol || "tecnico", 
+            finalRole, 
             claimsFingerprint
         );
 
-        // --- 🏗️ CONSTRUCCIÓN DE SESIÓN INMUTABLE ---
+        // --- 🏗️ SESIÓN INMUTABLE ACTUALIZADA ---
         const SESSION = Object.freeze({
             authorized: true,
             uid: user.uid,
             tenantId: tenantResuelto.id,
-            role: userData.rol || "tecnico",
+            role: finalRole,
             displayName: userData.nombre || "Operador Gestia",
             limits: {
-                maxReads: userData.maxReads || 25,
-                maxTokens: userData.maxTokens || 2500,
-                godMode: false
+                maxReads: finalRole === "arquitecto_supremo" ? 99999 : 50,
+                maxTokens: finalRole === "arquitecto_supremo" ? 99999 : 5000,
+                godMode: finalRole === "arquitecto_supremo"
             },
             timestamp: now,
             claimsFingerprint: claimsFingerprint,
