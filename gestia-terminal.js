@@ -4,7 +4,7 @@
  * ======================================================================================
  * Autor: Heber Mendoza (Arquitecto Supremo)
  * Versión: 9.0-PRO-ANTIFRAGILE
- * Capas: Dry Run, Rollback, Confidence Score, Safe Guard, Persistent Timeline.
+ * Capas: Dry Run, Rollback (Engine), Confidence Score, Safe Guard, Persistent Timeline.
  * ======================================================================================
  */
 
@@ -36,10 +36,10 @@ import { sincronizarCorralSemantico } from '/gestia-core/semantic.engine.js';
 import { invocarArquitectoIA } from '/gestia-core/brain.engine.js';
 import { persistirEstructuraModulo } from '/gestia-core/persistence.engine.js';
 
-// MOTORES V9
+// MOTORES V9 / V16
 import { analizarDatosSistema } from '/gestia-core/data-analyzer.engine.js';
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
-import { ejecutarCambios, procesarInstruccionSegura } from '/gestia-core/operations-executor.engine.js';
+import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 /* =====================================================================================
     DEFINICIÓN DE ESTADOS (PROTOCOLOS PRO)
@@ -52,7 +52,7 @@ const STATES = {
     AUTO_APPLY_SAFE: "AUTO_APPLY_SAFE",
     WAIT_APPROVAL: "WAIT_APPROVAL",
     APPLY: "APPLY",
-    ROLLBACK: "ROLLBACK",         // 🛡️ Fase de recuperación de desastres
+    ROLLBACK: "ROLLBACK",         // 🛡️ Fase delegada al Engine
     DONE: "DONE",
     ERROR: "ERROR"
 };
@@ -180,14 +180,14 @@ export class TerminalHeberto {
         const isArre = APPROVAL_WORDS.includes(rawInput.toLowerCase());
 
         try {
-            // 🔐 VALIDAR SESIÓN (Fix Crítico)
+            // 🔐 VALIDAR SESIÓN
             if (!this.session.uid || !this.session.tenantId) {
                 throw new Error("SESSION_NOT_READY");
             }
 
             await ejecutarFirewallGlobal({ userId: this.session.uid, tenantId: this.session.tenantId, input: rawInput, authToken: this.session.token });
 
-            // 🔄 INTERCEPTOR ARRE
+            // 🔄 INTERCEPTOR ARRE (SIA7 Unificado)
             if (isArre && this.state === STATES.WAIT_APPROVAL) {
                 if (!this.pendingProposal) throw new Error("NO_PENDING_PROPOSAL");
                 
@@ -240,79 +240,28 @@ export class TerminalHeberto {
     }
 
     /**
-     * runExecutionPipeline: Pipeline con Rollback y Safe Guard
+     * runExecutionPipeline: DELEGACIÓN SOBERANA (Fix V16.1)
+     * Centraliza toda la lógica de escritura, backup y rollback en el Engine.
      */
     async runExecutionPipeline(proposal) {
-        const ops = proposal.operations || proposal.changes || [];
-        const opId = proposal.operation_id || `op_${Date.now()}`;
-        const ejecutados = [];
+        const opId = proposal.operation_id || proposal.metadata?.analysis_id || `op_${Date.now()}`;
 
         window.dispatchEvent(new CustomEvent('gestia-execution-start', { detail: { opId } }));
 
         try {
-            for (const change of ops) {
-                const moduloId = change.payload?.collection || change.target || `auto_${Date.now()}`;
+            // El pipeline de ráfaga atómica del Executor gestiona la integridad
+            const result = await ejecutarCambios({
+                ...proposal,
+                tenantId: this.session.tenantId,
+                ejecutado_por: this.session.uid,
+                operation_id: opId
+            });
 
-                // 🔐 SAFE GUARD AJUSTADO (Fix Recomendado)
-                if (BLOQUEADOS.includes(moduloId) && proposal.risk === "HIGH") {
-                    throw new Error(`SAFE_GUARD_CRITICAL_BLOCK: Intento de escritura en ${moduloId}`);
-                }
-
-                // 🧬 BACKUP PRE-ESCRITURA
-                const modRef = doc(db, GESTIA_CONFIG.COLECCIONES.MODULES, moduloId);
-                const backupSnap = await getDoc(modRef);
-                const backupData = backupSnap.exists() ? backupSnap.data() : null;
-
-                await setDoc(doc(db, GESTIA_CONFIG.COLECCIONES.BACKUPS, opId, "mods", moduloId), {
-                    data: backupData,
-                    timestamp: new Date().toISOString()
-                });
-
-                ejecutados.push(moduloId);
-
-                // EJECUCIÓN REAL (Fix Hash Recomendado)
-                const payloadToHash = change.payload || change;
-                const hash = await generarHashSHA256(JSON.stringify(payloadToHash));
-                await persistirEstructuraModulo(moduloId, change.payload || {}, hash, this.session.tenantId, opId);
-
-                // VALIDACIÓN REAL (Fix Crítico - modRef)
-                const verify = await getDoc(modRef);
-                if (!verify.exists()) throw new Error(`WRITE_FAILED: ${moduloId}`);
-            }
-
-            return { ok: true, executed: ops.length };
+            return result;
 
         } catch (err) {
-            // 🛡️ ROLLBACK AUTOMÁTICO
-            await this.ejecutarRollback(opId, ejecutados);
-            throw new Error(`PIPELINE_ERROR: ${err.message}. Rollback exitoso.`);
-        }
-    }
-
-    async ejecutarRollback(opId, ejecutados) {
-        await this.setState(STATES.ROLLBACK, "falla_detectada_iniciando_reversion");
-        this.logger.error("🚨 INICIANDO ROLLBACK CRÍTICO");
-
-        for (const modId of ejecutados.reverse()) {
-            try {
-                const backupRef = doc(db, GESTIA_CONFIG.COLECCIONES.BACKUPS, opId, "mods", modId);
-                const backupSnap = await getDoc(backupRef);
-
-                if (backupSnap.exists()) {
-                    const dataOriginal = backupSnap.data().data;
-                    const modRef = doc(db, GESTIA_CONFIG.COLECCIONES.MODULES, modId);
-                    
-                    if (dataOriginal) {
-                        await setDoc(modRef, dataOriginal);
-                    } else {
-                        // Limpieza de creación fallida si no existía previamente
-                        // await deleteDoc(modRef); 
-                    }
-                    this.logger.warn(`↩️ Rollback aplicado en: ${modId}`);
-                }
-            } catch (e) {
-                this.logger.error(`Fallo restaurando backup de ${modId}: ${e.message}`);
-            }
+            // Si el motor falla, Jarvis entra en estado de error reportando el fallo del Ledger
+            throw new Error(`PIPELINE_ERROR: ${err.message}`);
         }
     }
 
@@ -324,7 +273,6 @@ export class TerminalHeberto {
     }
 
     async runDualAnalysis(ctx) {
-        // Fix Crítico: Retornar data directa
         const data = await analizarDatosSistema(ctx.tenantId);
         return data;
     }
