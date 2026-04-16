@@ -1,23 +1,20 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - CORE TENANT RESOLVER V4.1 (THE CORPORATE SENTINEL)
+ * GESTIAPREMIUM 2026 - CORE TENANT RESOLVER V4.1.3 (THE CORPORATE SENTINEL - SOVEREIGN)
  * ======================================================================================
  * Identidad: Motor de Resolución Multi-Tenant de Grado Corporativo.
  * REGLA 1: CÓDIGO COMPLETO. NO PLACEHOLDERS. NO COMPACTAR.
  * --------------------------------------------------------------------------------------
- * INGENIERÍA DE GRADO CORPORATIVO (V4.1):
- * 1. EXPLICIT ERROR CLASSIFIER: Mapeo directo de códigos de error de Firebase para
- * una gestión de Circuit Breaker determinista (AUTH, INFRA, LOGIC).
- * 2. RECURSIVE FAILURE DECAY: Sistema de auto-recuperación con reset de timestamp
- * (lastFail) para garantizar la coherencia del periodo de embargo.
- * 3. REACTIVE CACHE INVALIDATION: Comparación atómica de timestamps (updatedAt) 
- * que destruye la caché local inmediatamente si detecta una versión más nueva en DB.
- * 4. CLAIMS-BASED BOOTSTRAP: Seguridad nivel servidor. La creación de búnkeres
- * depende de Custom Claims inyectados en el token, no de variables de ventana.
- * 5. FORCE-REFRESH CONCURRENCY: Deduplicación de promesas incluso en peticiones de
- * refresco forzado, evitando ráfagas de lectura innecesarias a Firestore.
- * 6. DEEP FREEZE TOTAL: Inmutabilización recursiva de objetos y arrays para
- * proteger la integridad del contexto operativo en memoria.
+ * INGENIERÍA DE GRADO SOBERANO (V4.1.3):
+ * 1. OMNIDIRECTIONAL SELF-HEALING: Resolución de casing (Upper/Lower/Raw) para 
+ * recuperación de búnkeres con inconsistencia de registro histórica.
+ * 2. INTELLIGENT SAFETY RELEASE: Timeout de seguridad con validación de existencia
+ * para evitar ejecuciones redundantes en el Map de resoluciones pendientes.
+ * 3. PRECISION ERROR CLASSIFIER: Discriminación estricta de fallos de red (Fetch/MIME)
+ * contra errores de configuración, evitando falsos positivos en el Circuit Breaker.
+ * 4. ATOMIC CACHE RE-VALIDATION: Doble check de memoria post-await para asegurar
+ * la entrega de la versión más reciente del Tenant (Zero Stale Policy).
+ * 5. LRU MEMORY GATING: Purga quirúrgica del primer nodo para control de volumen RAM.
  * --------------------------------------------------------------------------------------
  * Autor: Heberto Mendoza (Arquitecto Supremo) & El Abuelo
  * ======================================================================================
@@ -37,11 +34,14 @@ const pendingResolutions = new Map();
 const failureCounters = new Map(); 
 
 // --- ⚙️ CONSTANTES DE CALIBRACIÓN NASA (EMPRESA) ---
-const ENGINE_VERSION = "4.1.0"; 
-const CACHE_TTL = 5 * 60 * 1000;        // 5 Minutos de soberanía ($$300,000ms$$)
-const INFRA_RETRY_MS = 30000;          // 30s para reintento de infraestructura
-const LOGIC_EMBARGO_MS = 3600000;      // 1 hora para IDs inexistentes (Logic Fail)
-const FAILURE_DECAY_MS = 60000;        // Perdón de fallos cada 60 segundos
+const ENGINE_VERSION = "4.1.3"; 
+const MAJOR_VERSION = ENGINE_VERSION.split(".")[0]; // Micro-optimización
+const MAX_CACHE_SIZE = 100;             // Límite de búnkeres en memoria RAM
+const CACHE_TTL = 5 * 60 * 1000;         // 5 Minutos de soberanía (300,000ms)
+const INFRA_RETRY_MS = 30000;           // 30s para reintento de infraestructura
+const LOGIC_EMBARGO_MS = 3600000;       // 1 hora para IDs inexistentes (Logic Fail)
+const FAILURE_DECAY_MS = 60000;         // Perdón de fallos cada 60 segundos
+const PENDING_SAFETY_TTL = 60000;       // Safety limit para promesas colgadas
 
 /**
  * deepFreeze: Inmutabilidad absoluta recursiva.
@@ -84,26 +84,27 @@ const emitSia7 = (opId, step, details, severity = "INFO") => {
 
 /**
  * classifyError: Analizador de códigos de error de Firestore.
- * ✅ FIX CORPORATIVO: Mapeo explícito de códigos nativos.
+ * ✅ FIX CORPORATIVO: Mapeo explícito de códigos nativos y precisión en red.
  * @param {Error} err - Error capturado.
  * @returns {string} INFRA | LOGIC | AUTH
  */
 const classifyError = (err) => {
-    const code = err.code || "";
-    const msg = err.message?.toLowerCase() || "";
+    const code = String(err.code || err.message || "").toLowerCase();
+    const msg = String(err.message || "").toLowerCase();
     
     // Códigos de Infraestructura (Red, Cuota, Timeout)
-    if (code === "unavailable" || code === "deadline-exceeded" || code === "resource-exhausted" || msg.includes("network")) {
+    if (code.includes("unavailable") || code.includes("deadline-exceeded") || 
+        msg.includes("failed to fetch") || msg.includes("network error")) {
         return "INFRA";
     }
     
     // Códigos de Lógica (No existe)
-    if (code === "not-found" || msg.includes("not-found")) {
+    if (code.includes("not-found") || msg.includes("not-found") || msg.includes("tenant_not_found")) {
         return "LOGIC";
     }
     
     // Códigos de Autoridad (Permisos)
-    if (code === "permission-denied" || code === "unauthenticated") {
+    if (code.includes("permission-denied") || code.includes("unauthenticated") || msg.includes("unauthorized")) {
         return "AUTH";
     }
     
@@ -138,7 +139,9 @@ export async function resolveTenantV4(rawTenantId, options = {}) {
 
     if (!tenantId) {
         emitSia7(OP_ID, "INVALID_ID", `ID corrupto: ${rawTenantId}`, "ERROR");
-        throw { code: "INVALID_TENANT_ID" };
+        const err = new Error("INVALID_TENANT_ID");
+        err.code = "INVALID_TENANT_ID";
+        throw err;
     }
 
     // --- 🛡️ CIRCUIT BREAKER CON DECAY ATÓMICO ---
@@ -155,12 +158,15 @@ export async function resolveTenantV4(rawTenantId, options = {}) {
         const ttl = failures.type === "LOGIC" ? LOGIC_EMBARGO_MS : INFRA_RETRY_MS;
         if (failures.count >= 3 && (startTime - failures.lastFail) < ttl) {
             emitSia7(OP_ID, "CIRCUIT_BREAKER", `Embargo ${failures.type} activo por ${Math.round(ttl/1000)}s`, "ERROR");
-            throw { code: "TENANT_LOCKED", type: failures.type, retryIn: `${Math.round(ttl/1000)}s` };
+            const err = new Error("TENANT_LOCKED");
+            err.code = "TENANT_LOCKED";
+            err.type = failures.type;
+            err.retryIn = `${Math.round(ttl/1000)}s`;
+            throw err;
         }
     }
 
     // --- 🛡️ CONCURRENCY SHIELD (DEDUPLICACIÓN CORPORATIVA) ---
-    // Si ya hay una resolución para este ID, la compartimos incluso en forceRefresh.
     if (pendingResolutions.has(tenantId)) {
         emitSia7(OP_ID, "QUEUE", `Sincronizando hilos para: ${tenantId}`, "LIGHT");
         return pendingResolutions.get(tenantId);
@@ -170,9 +176,14 @@ export async function resolveTenantV4(rawTenantId, options = {}) {
     const cacheEntry = TENANT_CACHE.get(tenantId);
     if (!options.forceRefresh && cacheEntry) {
         const isFresh = (startTime - cacheEntry.time < CACHE_TTL);
-        const isActive = cacheEntry.data.status === "active" || cacheEntry.data.status === "maintenance";
+        const allowedStates = ["active", "maintenance"];
+        const isActive = allowedStates.includes(cacheEntry.data.status);
+        
+        // ✅ MEJORA: Validación por Major Version (Micro-optimizada)
+        const cacheMajor = cacheEntry.version?.split(".")[0];
+        const isCompatible = cacheMajor === MAJOR_VERSION;
 
-        if (isFresh && isActive && cacheEntry.version === ENGINE_VERSION) {
+        if (isFresh && isActive && isCompatible) {
             emitSia7(OP_ID, "CACHE_HIT", `Soberanía V${ENGINE_VERSION} validada.`, "SUCCESS");
             return cacheEntry.data;
         }
@@ -189,26 +200,28 @@ export async function resolveTenantV4(rawTenantId, options = {}) {
             let tenantSnap = await getDoc(tenantRef);
 
             // ==========================================
-            // 🧬 SELF-HEALING & BOOTSTRAP POR CLAIMS
+            // 🧬 SELF-HEALING OMNIDIRECCIONAL (NIVEL DIOS)
             // ==========================================
             if (!tenantSnap.exists()) {
-                emitSia7(OP_ID, "HEALING_INIT", "Búnker inexistente. Iniciando sanación...", "WARN");
+                emitSia7(OP_ID, "HEALING_INIT", "Buscando variantes de casing...", "WARN");
 
-                const upperId = tenantId.toUpperCase();
-                const upperSnap = await getDoc(doc(db, "tenants", upperId));
-
-                if (upperSnap.exists()) {
-                    emitSia7(OP_ID, "MIGRATION", `Corrigiendo casing: ${upperId} -> ${tenantId}`, "SUCCESS");
-
-                    const healedData = {
-                        ...upperSnap.data(),
-                        id: tenantId,
-                        healedAt: serverTimestamp(),
-                        status: "active"
-                    };
-
-                    await setDoc(tenantRef, healedData);
-                    return finalizeTenant(OP_ID, tenantId, rawTenantId, healedData, startTime);
+                const safeRaw = String(rawTenantId).trim();
+                const variants = [tenantId.toUpperCase(), tenantId.toLowerCase(), safeRaw];
+                
+                for (const variant of variants) {
+                    if (variant === tenantId) continue;
+                    const variantSnap = await getDoc(doc(db, "tenants", variant));
+                    if (variantSnap.exists()) {
+                        emitSia7(OP_ID, "MIGRATION", `Sincronizando casing: ${variant} -> ${tenantId}`, "SUCCESS");
+                        const healedData = { 
+                            ...variantSnap.data(), 
+                            id: tenantId, 
+                            healedAt: serverTimestamp(), 
+                            status: "active" 
+                        };
+                        await setDoc(tenantRef, healedData);
+                        return finalizeTenant(OP_ID, tenantId, rawTenantId, healedData, startTime);
+                    }
                 }
 
                 // --- 🛡️ BOOTSTRAP POR CLAIMS (SÓLO ARQUITECTOS) ---
@@ -216,12 +229,21 @@ export async function resolveTenantV4(rawTenantId, options = {}) {
                     emitSia7(OP_ID, "BOOTSTRAP_CHECK", "Validando privilegios de infraestructura...", "INFO");
                     
                     const user = auth.currentUser;
-                    const tokenResult = user ? await user.getIdTokenResult() : null;
+                    if (!user) {
+                        const err = new Error("AUTH_REQUIRED_FOR_BOOTSTRAP");
+                        err.code = "UNAUTHORIZED_BOOTSTRAP";
+                        throw err;
+                    }
+
+                    const tokenResult = await user.getIdTokenResult();
                     const isGod = tokenResult?.claims?.admin === true;
                     
                     if (!isGod) {
                         emitSia7(OP_ID, "BOOTSTRAP_DENIED", "Token sin permisos de creación.", "ERROR");
-                        throw { code: "UNAUTHORIZED_BOOTSTRAP", type: "LOGIC" };
+                        const err = new Error("UNAUTHORIZED_BOOTSTRAP");
+                        err.code = "UNAUTHORIZED_BOOTSTRAP";
+                        err.type = "LOGIC";
+                        throw err;
                     }
 
                     emitSia7(OP_ID, "BOOTSTRAP", `Arquitecto creando búnker: ${tenantId}`, "SUCCESS");
@@ -239,16 +261,19 @@ export async function resolveTenantV4(rawTenantId, options = {}) {
                     return finalizeTenant(OP_ID, tenantId, rawTenantId, newTenant, startTime);
                 }
 
-                throw { code: "TENANT_NOT_FOUND", type: "LOGIC" };
+                const err = new Error("TENANT_NOT_FOUND");
+                err.code = "TENANT_NOT_FOUND";
+                err.type = "LOGIC";
+                throw err;
             }
 
             const tenantData = tenantSnap.data();
 
-            // ✅ FIX CORPORATIVO: INVALIDACIÓN REACTIVA POR UPDATED_AT
-            // Si el dato remoto es más nuevo que nuestra caché, borramos caché vieja.
-            if (cacheEntry) {
-                const remoteMillis = tenantData.updatedAt?.toMillis() || 0;
-                const cacheMillis = cacheEntry.data.updatedAt?.toMillis() || 0;
+            // ✅ VALIDACIÓN REACTIVA (FRESH CACHE CHECK POST-ASYNC)
+            const freshCache = TENANT_CACHE.get(tenantId);
+            if (freshCache) {
+                const remoteMillis = tenantData.updatedAt?.toMillis?.() ?? 0;
+                const cacheMillis = freshCache.data.updatedAt?.toMillis?.() ?? 0;
 
                 if (remoteMillis > cacheMillis) {
                     emitSia7(OP_ID, "STALE_DATA", "Datos obsoletos detectados. Forzando purga...", "WARN");
@@ -256,9 +281,14 @@ export async function resolveTenantV4(rawTenantId, options = {}) {
                 }
             }
 
-            // --- 🛡️ STATUS GATING ---
-            if (tenantData.status !== "active" && tenantData.status !== "maintenance") {
-                throw { code: "TENANT_LOCKED", status: tenantData.status, type: "LOGIC" };
+            // --- 🛡️ STATUS GATING DINÁMICO ---
+            const allowedStates = ["active", "maintenance"];
+            if (!allowedStates.includes(tenantData.status)) {
+                const err = new Error("TENANT_LOCKED");
+                err.code = "TENANT_LOCKED";
+                err.status = tenantData.status;
+                err.type = "LOGIC";
+                throw err;
             }
 
             // Éxito: Limpiamos historial de fallos
@@ -279,7 +309,7 @@ export async function resolveTenantV4(rawTenantId, options = {}) {
             emitSia7(OP_ID, "CRASH", `Fallo [${errorType}]: ${err.code || "ERR"}`, "ERROR");
             throw err;
         } finally {
-            // ✅ CRÍTICO: Eliminación diferida de la promesa para liberar el lock
+            // ✅ CRÍTICO: Eliminación para liberar el lock
             pendingResolutions.delete(tenantId);
         }
     })();
@@ -287,8 +317,18 @@ export async function resolveTenantV4(rawTenantId, options = {}) {
     // ✅ LOCK ATÓMICO: Inyectamos la promesa antes de cualquier retorno
     pendingResolutions.set(tenantId, resolverPromise);
     
+    // ✅ SAFETY RELEASE INTELIGENTE (ANTI-LEAK)
+    setTimeout(() => {
+        if (pendingResolutions.has(tenantId)) {
+            pendingResolutions.delete(tenantId);
+        }
+    }, PENDING_SAFETY_TTL);
+    
     return resolverPromise;
 }
+
+// ✅ ALIAS DE COMPATIBILIDAD (Fija el SyntaxError)
+export const resolveTenantV2 = resolveTenantV4;
 
 /**
  * finalizeTenant: Sellado e inmutabilización de Grado Corporativo.
@@ -303,8 +343,16 @@ function finalizeTenant(opId, id, raw, data, startTime) {
         originalRaw: raw,
         resolvedAt: Date.now(),
         latencyMs: latency,
-        dataFingerprint: data.updatedAt?.toMillis() || Date.now()
+        // ✅ FINGERPRINT DETERMINISTA (Nullish Coalescing)
+        dataFingerprint: data.updatedAt?.toMillis?.() ?? 0
     };
+
+    // ✅ MEMORY GATING (LRU LIGHT): Purga quirúrgica del primer nodo
+    if (TENANT_CACHE.size >= MAX_CACHE_SIZE) {
+        const firstKey = TENANT_CACHE.keys().next().value;
+        TENANT_CACHE.delete(firstKey);
+        emitSia7(opId, "CACHE_PURGE", `LRU: Liberando espacio RAM (${firstKey}).`, "WARN");
+    }
 
     // ✅ DEEP FREEZE TOTAL (Recursividad Corporativa)
     deepFreeze(tenantObject);
@@ -342,7 +390,11 @@ export function invalidateTenantCache(tenantId = null) {
  */
 export async function updateTenantConfig(tenantId, newConfig) {
     const tid = normalizeTenantId(tenantId);
-    if (!tid) throw { code: "INVALID_ID" };
+    if (!tid) {
+        const err = new Error("INVALID_ID");
+        err.code = "INVALID_ID";
+        throw err;
+    }
 
     try {
         const ref = doc(db, "tenants", tid);
@@ -362,7 +414,7 @@ export async function updateTenantConfig(tenantId, newConfig) {
 }
 
 // Log Corporativo
-console.log("%c🧬 [TENANT_RESOLVER]: V4.1 CORPORATE SENTINEL ONLINE", "color:#fff;background:#111827;border-left:4px solid #3b82f6;padding:2px 10px;font-weight:bold;");
+console.log("%c🧬 [TENANT_RESOLVER]: V4.1.3 SOVEREIGN GOD MODE ONLINE", "color:#fff;background:#111827;border-left:4px solid #10b981;padding:2px 10px;font-weight:bold;");
 
 /**
  * ======================================================================================

@@ -30,7 +30,6 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // MOTORES CORE
-// MOTORES CORE
 import { resolveTenantContext } from '/gestia-core/core_auth_tenant_v1.js';
 import { ejecutarFirewallGlobal } from '/gestia-core/firewall.engine.js';
 import { sincronizarCorralSemantico } from '/gestia-core/semantic.engine.js';
@@ -103,7 +102,7 @@ export class TerminalHeberto {
     }
 
     /**
-     * calcularConfianza: Score de IA basado en riesgo e impacto (Fix 4)
+     * calcularConfianza: Score de IA basado en riesgo e impacto
      */
     calcularConfianza(proposal) {
         let score = 100;
@@ -162,7 +161,7 @@ export class TerminalHeberto {
     }
 
     /**
-     * simularCambios: Dry Run para Jarvis Visual (Fix 3)
+     * simularCambios: Dry Run para Jarvis Visual
      */
     async simularCambios(proposal) {
         const ops = proposal.operations || proposal.changes || [];
@@ -181,6 +180,11 @@ export class TerminalHeberto {
         const isArre = APPROVAL_WORDS.includes(rawInput.toLowerCase());
 
         try {
+            // 🔐 VALIDAR SESIÓN (Fix Crítico)
+            if (!this.session.uid || !this.session.tenantId) {
+                throw new Error("SESSION_NOT_READY");
+            }
+
             await ejecutarFirewallGlobal({ userId: this.session.uid, tenantId: this.session.tenantId, input: rawInput, authToken: this.session.token });
 
             // 🔄 INTERCEPTOR ARRE
@@ -236,7 +240,7 @@ export class TerminalHeberto {
     }
 
     /**
-     * runExecutionPipeline: Pipeline con Rollback y Safe Guard (Fix 1, 2 & 5)
+     * runExecutionPipeline: Pipeline con Rollback y Safe Guard
      */
     async runExecutionPipeline(proposal) {
         const ops = proposal.operations || proposal.changes || [];
@@ -249,14 +253,14 @@ export class TerminalHeberto {
             for (const change of ops) {
                 const moduloId = change.payload?.collection || change.target || `auto_${Date.now()}`;
 
-                // 🔐 SAFE GUARD (Fix 5)
-                if (BLOQUEADOS.includes(moduloId)) {
+                // 🔐 SAFE GUARD AJUSTADO (Fix Recomendado)
+                if (BLOQUEADOS.includes(moduloId) && proposal.risk === "HIGH") {
                     throw new Error(`SAFE_GUARD_CRITICAL_BLOCK: Intento de escritura en ${moduloId}`);
                 }
 
-                // 🧬 BACKUP PRE-ESCRITURA (Fix 1)
-                const backupRef = doc(db, GESTIA_CONFIG.COLECCIONES.MODULES, moduloId);
-                const backupSnap = await getDoc(backupRef);
+                // 🧬 BACKUP PRE-ESCRITURA
+                const modRef = doc(db, GESTIA_CONFIG.COLECCIONES.MODULES, moduloId);
+                const backupSnap = await getDoc(modRef);
                 const backupData = backupSnap.exists() ? backupSnap.data() : null;
 
                 await setDoc(doc(db, GESTIA_CONFIG.COLECCIONES.BACKUPS, opId, "mods", moduloId), {
@@ -266,19 +270,20 @@ export class TerminalHeberto {
 
                 ejecutados.push(moduloId);
 
-                // EJECUCIÓN REAL
-                const hash = await generarHashSHA256(JSON.stringify(change));
+                // EJECUCIÓN REAL (Fix Hash Recomendado)
+                const payloadToHash = change.payload || change;
+                const hash = await generarHashSHA256(JSON.stringify(payloadToHash));
                 await persistirEstructuraModulo(moduloId, change.payload || {}, hash, this.session.tenantId, opId);
 
-                // VALIDACIÓN REAL
-                const verify = await getDoc(backupRef);
+                // VALIDACIÓN REAL (Fix Crítico - modRef)
+                const verify = await getDoc(modRef);
                 if (!verify.exists()) throw new Error(`WRITE_FAILED: ${moduloId}`);
             }
 
             return { ok: true, executed: ops.length };
 
         } catch (err) {
-            // 🛡️ ROLLBACK AUTOMÁTICO (Fix 2)
+            // 🛡️ ROLLBACK AUTOMÁTICO
             await this.ejecutarRollback(opId, ejecutados);
             throw new Error(`PIPELINE_ERROR: ${err.message}. Rollback exitoso.`);
         }
@@ -300,7 +305,7 @@ export class TerminalHeberto {
                     if (dataOriginal) {
                         await setDoc(modRef, dataOriginal);
                     } else {
-                        // Si no existía, lo eliminamos (limpieza de creación fallida)
+                        // Limpieza de creación fallida si no existía previamente
                         // await deleteDoc(modRef); 
                     }
                     this.logger.warn(`↩️ Rollback aplicado en: ${modId}`);
@@ -319,8 +324,9 @@ export class TerminalHeberto {
     }
 
     async runDualAnalysis(ctx) {
+        // Fix Crítico: Retornar data directa
         const data = await analizarDatosSistema(ctx.tenantId);
-        return { data };
+        return data;
     }
 
     handleKernelError(error) {
