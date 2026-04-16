@@ -175,6 +175,7 @@ export class TerminalHeberto {
     tenantId: this.session.tenantId || "uxmal39",
     path: `tenants/${this.session.tenantId || "uxmal39"}/admins/${user.uid}`
 });
+
     } catch (e) {
         console.error("💥 ERROR REAL INIT:", e);
         await this.setState(STATES.ERROR);
