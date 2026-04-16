@@ -26,7 +26,7 @@
  * ======================================================================================
  */
 
-import { auth, db } from './firebase.js';
+import { auth, db } from '/firebase.js';
 import { 
     doc, 
     runTransaction, 
@@ -36,8 +36,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Motores de lógica estratégica (Cerebro) y ejecución mecánica (Brazo)
-import { generarPropuesta } from './engines/propose.engine.js';
-import { ejecutarCambios } from './engines/executor.engine.js';
+import { generarPropuesta } from '/gestia-core/propose.engine.js';
+import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
 // 🛠️ SECCIÓN 0: SIA7 UTILS (DETERMINISMO, CRIPTOGRAFÍA Y MEMORIA)

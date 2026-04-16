@@ -7,7 +7,7 @@
  * ======================================================================================
  */
 
-import { existeEnHistorial } from './history.engine.js';
+import { existeEnHistorial } from '/gestia-core/history.engine.js';
 
 // 🛡️ REGLAS DE SEGURIDAD (Discriminación de Riesgo)
 const SECURITY_RULES = {

@@ -22,7 +22,7 @@
  * ======================================================================================
  */
 
-import { auth } from '../firebase.js';
+import { auth } from '/firebase.js';
 
 /**
  * --- 🧠 MEMORIA DE RED AISLADA (MULTI-TENANT CIRCUIT BREAKER) ---
