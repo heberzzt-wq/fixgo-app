@@ -170,7 +170,11 @@ export class TerminalHeberto {
         console.log("🔥 SESSION FINAL:", this.session);
 
         await this.setState(STATES.IDLE);
-
+    console.log("🔍 [DEBUG IDENTITY]:", {
+    uid: user.uid,
+    tenantId: this.session.tenantId || "uxmal39",
+    path: `tenants/${this.session.tenantId || "uxmal39"}/admins/${user.uid}`
+});
     } catch (e) {
         console.error("💥 ERROR REAL INIT:", e);
         await this.setState(STATES.ERROR);
