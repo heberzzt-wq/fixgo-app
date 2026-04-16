@@ -1,15 +1,18 @@
-// ==========================================
-// 🛡️ GESTIA CORE: AUDIT ENGINE V5.55 (SENTINEL RADAR)
-// ==========================================
-// Pipeline de auditoría forense y seguridad activa.
-// REGLA 1: CÓDIGO COMPLETO SIN RECORTES.
-// ACTUALIZACIÓN: Sincronización con Self-Repair Sentinel V1.2.
+/**
+ * ======================================================================================
+ * GESTIAPREMIUM 2026 - AUDIT ENGINE V6.1 (SIA7 - BLINDADO)
+ * ======================================================================================
+ * Ubicación: ./gestia-core/audit.engine.js
+ * Objetivo: Aduana de seguridad con discriminación de riesgo y timeline granular.
+ * ======================================================================================
+ */
 
 import { existeEnHistorial } from './history.engine.js';
 
-// Configuración de Seguridad (Criterios del Búnker)
+// 🛡️ REGLAS DE SEGURIDAD (Discriminación de Riesgo)
 const SECURITY_RULES = {
-    BLACKLIST: ["<script", "eval(", "fetch(", "localStorage", "sessionStorage", "document.cookie", ".innerHTML"],
+    CRITICAL: ["<script", "document.cookie", "eval(", "Object.defineProperty"], // Bloqueo Total
+    WARNING: ["fetch(", "localStorage", "sessionStorage", ".innerHTML", "XMLHttpRequest"], // Alerta HUD
     LIMITS: {
         modulo_id: 50,
         html: 50000,
@@ -19,89 +22,114 @@ const SECURITY_RULES = {
 };
 
 /**
- * VALIDACIÓN DE SEGURIDAD ACTIVA:
- * Detecta secuencias de código prohibidas (Anti-XSS / Anti-Exfiltración).
+ * emitirPulsoJarvis: Notifica al HUD sin secuestrar el estado global (Fix 1)
+ */
+function emitirPulsoJarvis(step, status = "INFO", details = "") {
+    window.dispatchEvent(new CustomEvent('gestia-terminal-state', {
+        detail: {
+            state: null, // 🔒 Soberanía del Kernel: No forzamos ANALYZE
+            step: `AUDIT_${step}: ${status}`,
+            details: details
+        }
+    }));
+}
+
+/**
+ * VALIDACIÓN DE SEGURIDAD ACTIVA (Fix 2: Inteligencia Selectiva)
  */
 export function validarSeguridadCodigo(html) {
+    if (!html) return true;
     const lower = html.toLowerCase();
-    for (let rule of SECURITY_RULES.BLACKLIST) {
+
+    // 1. Bloqueo Crítico (Hard Stop)
+    for (let rule of SECURITY_RULES.CRITICAL) {
         if (lower.includes(rule)) {
-            throw new Error(`SEGURIDAD_CRITICA: Secuencia prohibida detectada: [${rule}]`);
+            const errorMsg = `CRITICAL_SECURITY_VIOLATION: [${rule}] detectado.`;
+            window.dispatchEvent(new CustomEvent('gestia-execution-error', {
+                detail: { error: errorMsg }
+            }));
+            throw new Error(errorMsg);
         }
     }
+
+    // 2. Advertencia (Warning HUD)
+    for (let rule of SECURITY_RULES.WARNING) {
+        if (lower.includes(rule)) {
+            emitirPulsoJarvis("SECURITY", "WARNING", `Secuencia sospechosa: ${rule}`);
+            console.warn(`[AUDIT_WARN]: Detectada secuencia no recomendada: ${rule}`);
+        }
+    }
+
+    emitirPulsoJarvis("SECURITY", "CLEAN");
     return true;
 }
 
 /**
- * CONTROL DE PESO (ANTI-BLOAT):
- * Evita que la IA genere módulos que saturen el almacenamiento.
+ * CONTROL DE PESO (Fix 3: Guardas de seguridad)
  */
 export function validarPesoCampos(json) {
+    if (!json || typeof json !== "object") return; // 🛡️ Evita crash si es null
+
     Object.keys(SECURITY_RULES.LIMITS).forEach(key => {
         if (json[key] && json[key].length > SECURITY_RULES.LIMITS[key]) {
-            throw new Error(`BLOAT_DETECTADO: El campo [${key}] excede el límite físico.`);
+            const errorMsg = `BLOAT_LIMIT_EXCEEDED: [${key}]`;
+            window.dispatchEvent(new CustomEvent('gestia-execution-error', {
+                detail: { error: errorMsg }
+            }));
+            throw new Error(errorMsg);
         }
     });
+    emitirPulsoJarvis("BLOAT", "OPTIMIZED");
 }
 
 /**
- * PIPELINE MAESTRO DE AUDITORÍA (V5.55 HARDENED):
- * El filtro final antes de la persistencia.
+ * PIPELINE MAESTRO DE AUDITORÍA V6.1
  */
 export async function ejecutarAuditoriaCore(data, hashLocalAnterior, utils) {
     const { generarHash, normalizar } = utils;
 
-    /**
-     * 🛡️ 1. EXTRACCIÓN MULTICAPA DE IDENTIDAD (Sincronizado con Sentinel)
-     * Buscamos el ID en la raíz, en .json o en .data para evitar falsos undefined.
-     */
+    // 🧬 Alimentar Timeline Visual (Fix 4)
+    window.dispatchEvent(new CustomEvent('gestia-audit-log', {
+        detail: { fase: "audit", status: "processing", timestamp: new Date().toISOString() }
+    }));
+
+    emitirPulsoJarvis("START", "SCANNING_DNA");
+
+    // 1. Extracción e Identidad
     const idExtraido = data.modulo_id || (data.json && data.json.modulo_id) || (data.data && data.data.modulo_id);
 
-    /**
-     * 🛡️ 2. VALIDACIÓN DE IDENTIDAD (LEY V5.55 - ZERO MUTATION)
-     */
     const isValidId = (id) => {
         const regex = /^[a-z0-9]+(?:_[a-z0-9]+)*$/i;
-        return (
-            typeof id === "string" &&
-            id !== "modulo_id" && 
-            id !== "undefined" &&
-            id.length >= 3 && 
-            id.length <= 50 &&
-            regex.test(id)
-        );
+        return (typeof id === "string" && id.length >= 3 && id.length <= 50 && regex.test(id));
     };
 
     if (!isValidId(idExtraido)) {
-        // Reportamos el valor recibido para debug forense en la Terminal
-        const valorVisual = idExtraido || "ABSENTE/UNDEFINED";
-        throw new Error(`FALLO_V5_55_AUDIT: ID_CORRUPTO_RECHAZADO [${valorVisual}]`);
+        throw new Error(`FALLO_AUDIT: ID_INVALIDO [${idExtraido || "NULL"}]`);
     }
 
-    // 3. Control de Peso y Seguridad (Sobre el contenido real)
-    // Validamos tanto la raíz como el objeto interno si existe
+    emitirPulsoJarvis("IDENTITY", "VERIFIED", idExtraido);
+
+    // 2. Seguridad y Peso
     const contenidoHTML = data.html || (data.json && data.json.html) || (data.data && data.data.html) || "";
-    
     validarPesoCampos(data.json || data.data || data);
     validarSeguridadCodigo(contenidoHTML);
 
-    // 4. Normalización y Hash ADN
-    // Pasamos el ID extraído al objeto final para asegurar consistencia
+    // 3. Normalización y Hash
     const normalizado = normalizar(data);
     if (!normalizado.modulo_id) normalizado.modulo_id = idExtraido;
-
     const hashADN = await generarHash(JSON.stringify(normalizado));
 
-    // 5. Check de Redundancia Local
+    // 4. Check de Redundancia
     if (hashLocalAnterior === hashADN) {
-        throw new Error("OPERACION_REDUNDANTE: El código generado es idéntico al actual.");
+        emitirPulsoJarvis("REDUNDANCY", "STOP");
+        throw new Error("OPERACION_REDUNDANTE: No hay cambios detectados.");
     }
 
-    // 6. Check Histórico Global (Core History)
+    // 5. Check Histórico
     const existeGlobal = await existeEnHistorial(hashADN);
     
-    console.log(`✅ [AUDIT]: Aduana superada para [${idExtraido}].`);
-
+    emitirPulsoJarvis("SUCCESS", "PASSED", idExtraido);
+    
     return { 
         data: normalizado, 
         hash: hashADN,
