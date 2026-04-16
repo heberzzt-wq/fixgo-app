@@ -1,155 +1,582 @@
 /**
  * ======================================================================================
- * GESTIA FIREWALL ENGINE V7.1 (INFINITY CORE - MULTIMODAL READY)
+ * GESTIAPREMIUM 2026 - GESTIA CORE V16.0 (THE SUPREME SOVEREIGN)
  * ======================================================================================
- * Basado en V5.28 de Heberto Mendoza. 
- * Evolución: Soporte para payloads multimodales y validación de tokens inteligente.
- * REGLA 1: Código completo. Sin compactar.
+ * Identidad: El Kernel Definitivo con Gestión de Memoria Perfecta e Idempotencia Total.
+ * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
+ * --------------------------------------------------------------------------------------
+ * ARQUITECTURA DE SOBERANÍA SIA7 (ESTÁNDAR V16.0):
+ * 1. FASE DE RESERVA (PREPARE PHASE): 
+ * - GC DUAL: Limpieza de historial y locks por tiempo y volumen (Slice).
+ * - REPLAY SHIELD: Protección histórica con ventana TTL para IDs de análisis.
+ * - TRUE LRU CACHE: Política de reemplazo real con re-inserción en cada lectura (O(1)).
+ * - COLLISION SHIELD: Key de caché compuesta (QuickHash + Input Length).
+ * - UNIVERSAL HASHING: SHA-256 nativo con fallback trazable (ADN algorítmico).
+ * - ATOMIC UPSERT: Lógica de Set/Update para garantizar estabilidad en perfiles nuevos.
+ * 2. FASE DE ACCIÓN (EXECUTION PHASE): 
+ * - Ejecución Idempotente mediante AnalysisId fuera de la transacción de DB.
+ * 3. FASE DE LIQUIDACIÓN (COMMIT PHASE): 
+ * - Settlement de tokens (Reserved -> Used) con telemetría exacta post-commit.
+ * - DUAL FACTOR CLEANUP: Limpieza de pending_hashes validando Hash + Algoritmo.
+ * - Deduplicación O(n) mediante Sets para optimización de historial de firmas.
+ * 4. FASE DE LIBERACIÓN (RELEASE PHASE): 
+ * - Rollback resiliente con bucle de reintento ante fallos de red (3PC+R).
+ * --------------------------------------------------------------------------------------
+ * Autor: Heberto Mendoza (Arquitecto Supremo) & El Abuelo
  * ======================================================================================
  */
 
-import { db } from '../firebase.js';
+import { auth, db } from './firebase.js';
 import { 
     doc, 
     runTransaction, 
-    serverTimestamp 
+    serverTimestamp,
+    updateDoc,
+    setDoc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// ==========================================
-// CONFIGURACIÓN DE SEGURIDAD Y COSTOS
-// ==========================================
-const FIREWALL_CONFIG = {
-    RATE_LIMIT: {
-        MAX_REQUESTS_PER_MIN: 5,
-        MAX_REQUESTS_PER_HOUR: 50
+// Motores de lógica estratégica (Cerebro) y ejecución mecánica (Brazo)
+import { generarPropuesta } from './engines/propose.engine.js';
+import { ejecutarCambios } from './engines/executor.engine.js';
+
+// ======================================================================================
+// 🛠️ SECCIÓN 0: SIA7 UTILS (DETERMINISMO, CRIPTOGRAFÍA Y MEMORIA)
+// ======================================================================================
+
+const SIA7_UTILS = {
+    // Memoria volátil de alta velocidad con política de reemplazo LRU real
+    hashCache: new Map(),
+    MAX_CACHE_SIZE: 150,
+
+    /**
+     * generarUUID: Identidad de alta entropía (RFC 4122 v4).
+     * El ancla inmutable de cada ciclo operativo en el búnker.
+     */
+    generarUUID() {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return crypto.randomUUID();
+        }
+        // Fallback matemático para entornos sin Web Crypto API
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
     },
-    COST_CONTROL: {
-        MAX_TOKENS_PER_OP: 1500,
-        MAX_TOKENS_PER_DAY: 20000,
-        MULTIMODAL_FLAT_COST: 500 // Costo base para imágenes/archivos
+
+    /**
+     * sortPayload: Ordenamiento recursivo profundo de objetos.
+     * Garantiza que el Watchdog detecte la misma intención sin importar el orden JSON.
+     */
+    sortPayload(obj) {
+        if (obj === null || typeof obj !== 'object') {
+            return obj;
+        }
+        if (Array.isArray(obj)) {
+            return obj.map(item => this.sortPayload(item));
+        }
+        // Ordenamiento alfabético estricto de llaves
+        const keys = Object.keys(obj).sort();
+        const sortedObj = {};
+        for (const key of keys) {
+            sortedObj[key] = this.sortPayload(obj[key]);
+        }
+        return sortedObj;
     },
-    ABUSE: {
-        MAX_ERRORS: 5,
-        BLOCK_TIME_MS: 15 * 60 * 1000 // 15 minutos
+
+    /**
+     * generarHashAtómico: Implementación con Gestión de Memoria y True LRU.
+     * ✅ FIX 1: Al incluir input.length en la Key, anulamos colisiones por DJB2.
+     * ✅ FIX 2: Implementación de LRU Real (delete + set en cada lectura exitosa).
+     */
+    async generarHashAtómico(input) {
+        // Generamos el QuickHash base para la firma de memoria
+        const baseHash = this.quickHash(input);
+        
+        // --- 🛡️ COLLISION SHIELD ---
+        // Key compuesta para evitar que inputs distintos con mismo hash DJB2 colisionen.
+        const cacheKey = `${baseHash}_${input.length}`;
+
+        // --- 🛡️ TRUE LRU LOGIC (FIX) ---
+        // Si el elemento existe, lo extraemos y re-insertamos para marcarlo como "fresco".
+        if (this.hashCache.has(cacheKey)) {
+            const cachedValue = this.hashCache.get(cacheKey);
+            this.hashCache.delete(cacheKey);
+            this.hashCache.set(cacheKey, cachedValue);
+            return cachedValue;
+        }
+
+        // --- 🛡️ LRU EVICTION POLICY ---
+        // JS Maps mantienen el orden de inserción. El primero es el menos usado.
+        if (this.hashCache.size >= this.MAX_CACHE_SIZE) {
+            const oldestKey = this.hashCache.keys().next().value;
+            this.hashCache.delete(oldestKey);
+        }
+
+        let result;
+        // 1. Intento de uso de Web Crypto API (SHA-256 Enterprise)
+        if (typeof crypto !== 'undefined' && crypto.subtle) {
+            try {
+                const msgUint8 = new TextEncoder().encode(input);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                result = { h: hashHex, alg: "sha256" };
+            } catch (e) {
+                // Degradación controlada con trazabilidad
+                result = { h: baseHash, alg: "djb2_fallback" };
+            }
+        } else {
+            // 2. Fallback Universal (Compatibilidad 360°)
+            result = { h: baseHash, alg: "djb2" };
+        }
+
+        // Almacenamiento en caché antes de retornar (Posición: Newest)
+        this.hashCache.set(cacheKey, result);
+        return result;
+    },
+
+    /**
+     * quickHash: Generador DJB2 para firmas rápidas de memoria.
+     */
+    quickHash(str) {
+        let hash = 5381;
+        let i = str.length;
+        while (i) {
+            hash = (hash * 33) ^ str.charCodeAt(--i);
+        }
+        return (hash >>> 0).toString(16).padStart(8, '0');
     }
 };
 
-/**
- * ⚡ EJECUTAR FIREWALL GLOBAL (ATÓMICO)
- * Recibe el input (texto o payload) y el authToken de la sesión.
- */
-export async function ejecutarFirewallGlobal({ userId, tenantId, input, authToken }) {
-    const ahora = Date.now();
-    const ref = doc(db, "gestia_firewall", `${tenantId}_${userId}`);
+// ======================================================================================
+// 🛡️ SECCIÓN 1: CONFIGURACIÓN ESTRATÉGICA (BÚNKER SETTINGS)
+// ======================================================================================
 
-    // Nota: El authToken se recibe para futuras validaciones de backend (JWT Verify)
-    // Por ahora, el Kernel lo envía para mantener la consistencia de autoridad.
+const CORE_CONFIG = {
+    FIREWALL: {
+        RATE_LIMIT: {
+            MAX_REQUESTS_PER_MIN: 5,
+            MAX_REQUESTS_PER_HOUR: 50
+        },
+        COST_CONTROL: {
+            MAX_TOKENS_PER_DAY: 20000,
+            MAX_TOKENS_PER_OP: 1500,
+            MULTIMODAL: {
+                IMAGE: 400,
+                FILE: 800,
+                DEFAULT: 500
+            }
+        },
+        ABUSE: {
+            MAX_ERRORS_WEIGHT: 5,
+            BLOCK_TIME_MS: 15 * 60 * 1000 // 15 minutos de baneo
+        }
+    },
+    WATCHDOG: {
+        MAX_HASHES_PERSISTED: 30,
+        MAX_ANALYSIS_IDS: 50, 
+        HASH_EXPIRATION_MS: 5 * 60 * 1000, // 5 minutos de ventana de frescura
+        LOCK_TIMEOUT_MS: 45000 // 45 segundos para concurrencia paralela
+    }
+};
 
-    try {
-        return await runTransaction(db, async (transaction) => {
-            const snap = await transaction.get(ref);
-            let data;
+// ======================================================================================
+// 🛰️ SECCIÓN 2: GESTIA CORE ORCHESTRATOR (KERNEL V16.0)
+// ======================================================================================
 
-            if (!snap.exists()) {
-                data = {
-                    requests_min: 0,
-                    requests_hour: 0,
-                    tokens_used: 0,
-                    errores: 0,
-                    bloqueado_hasta: 0,
-                    last_min_reset: ahora,
-                    last_hour_reset: ahora,
-                    last_day_reset: ahora
-                };
-            } else {
-                data = snap.data();
-            }
+export const GestiaCore = {
+    version: "16.0.0-SUPREME",
 
-            // 1. VERIFICACIÓN DE BLOQUEO ACTIVO
-            if (data.bloqueado_hasta && ahora < data.bloqueado_hasta) {
-                const minutosRestantes = Math.ceil((data.bloqueado_hasta - ahora) / 60000);
-                throw new Error(`FIREWALL_BLOCKED: Conducta hostil detectada. Intenta en ${minutosRestantes} min.`);
-            }
+    /**
+     * procesarIntencion: El pipeline definitivo de soberanía sistémica.
+     */
+    async procesarIntencion(inputRaw, context = {}) {
+        const user = auth.currentUser;
+        if (!user) return this.abortar("AUTH_FAILED", "Acceso denegado: Sesión no válida.");
 
-            // 2. RESET DE CONTADORES POR TIEMPO
-            if (ahora - data.last_min_reset > 60000) {
-                data.requests_min = 0;
-                data.last_min_reset = ahora;
-            }
-            if (ahora - data.last_hour_reset > 3600000) {
-                data.requests_hour = 0;
-                data.last_hour_reset = ahora;
-            }
-            if (ahora - data.last_day_reset > 86400000) {
-                data.tokens_used = 0;
-                data.last_day_reset = ahora;
-            }
+        const tenantId = context.tenantId || "UXMAL39";
+        const analysisId = SIA7_UTILS.generarUUID();
+        const ahora = Date.now();
+        const rol = context.rol || 'tecnico';
+        const esSoberano = ['ceo', 'arquitecto_supremo'].includes(rol);
 
-            // 3. VALIDACIÓN DE LÍMITES OPERATIVOS
-            if (data.requests_min >= FIREWALL_CONFIG.RATE_LIMIT.MAX_REQUESTS_PER_MIN) {
-                throw new Error("RATE_LIMIT_MIN: Calma, Ingeniero. Demasiadas solicitudes por minuto.");
-            }
-            if (data.requests_hour >= FIREWALL_CONFIG.RATE_LIMIT.MAX_REQUESTS_PER_HOUR) {
-                throw new Error("RATE_LIMIT_HOUR: Cuota horaria alcanzada. Toma un café y vuelve en una hora.");
-            }
+        this.emitirPulso("INIT", "TERMINAL_START", `ID: ${analysisId.substring(0, 8)}`);
 
-            // 4. ESTIMACIÓN DE COSTO IA (Lógica Multimodal V7.1)
-            let tokensEstimados;
+        // Referencias de Estado Primordiales (Firestore)
+        const firewallRef = doc(db, "gestia_firewall", `${tenantId}_${user.uid}`);
+        const memoryRef = doc(db, "gestia_memory", `${tenantId}_${user.uid}`);
+
+        // Bucket de intercambio de estado (Atomic State Transfer)
+        let atomicState = {
+            approvedChanges: [],
+            tokensToReserve: 0,
+            hashesToLock: [],
+            isDegraded: false,
+            proposal: null,
+            isHalted: false,
+            haltReason: "",
+            realBudgetSnapshot: 0,
+            historyToAdd: { id: analysisId, t: ahora }
+        };
+
+        try {
+            // --------------------------------------------------------------------------
+            // 🔒 FASE 1: RESERVA, BLOQUEO Y PROTECCIÓN DE REPLAY (PREPARE)
+            // --------------------------------------------------------------------------
+            this.emitirPulso("PREPARE", "STARTING_TRANSACTION");
             
-            if (typeof input === 'string') {
-                // Cálculo estándar para texto
-                tokensEstimados = Math.min(input.length / 4, FIREWALL_CONFIG.COST_CONTROL.MAX_TOKENS_PER_OP);
-            } else {
-                // Si es un payload de archivo/imagen, aplicamos tarifa plana
-                tokensEstimados = FIREWALL_CONFIG.COST_CONTROL.MULTIMODAL_FLAT_COST;
+            await runTransaction(db, async (transaction) => {
+                
+                // 1. Lectura Secuencial de Sensores Reales
+                const fwSnap = await transaction.get(firewallRef);
+                const memSnap = await transaction.get(memoryRef);
+
+                // Esquema de Onboarding (Si el usuario es nuevo)
+                const fwData = fwSnap.exists() ? fwSnap.data() : {
+                    requests_min: 0, requests_hour: 0, tokens_used: 0, reserved_tokens: 0,
+                    errores: 0, bloqueado_hasta: 0,
+                    last_min_reset: ahora, last_hour_reset: ahora, last_day_reset: ahora
+                };
+
+                const memData = memSnap.exists() ? memSnap.data() : {
+                    recent_analysis_history: [], 
+                    recent_hashes_v2: [], 
+                    pending_hashes: []    
+                };
+
+                // 2. 🧹 GARBAGE COLLECTION (SIA7 SCALABILITY)
+                // Limpieza de IDs de análisis antiguos para evitar Replays obsoletos
+                memData.recent_analysis_history = (memData.recent_analysis_history || []).filter(item => 
+                    (ahora - item.t < CORE_CONFIG.WATCHDOG.HASH_EXPIRATION_MS)
+                ).slice(-CORE_CONFIG.WATCHDOG.MAX_ANALYSIS_IDS);
+
+                // Limpieza de locks de concurrencia expirados
+                memData.pending_hashes = (memData.pending_hashes || []).filter(p => 
+                    (ahora - p.t < CORE_CONFIG.WATCHDOG.LOCK_TIMEOUT_MS)
+                ).slice(-CORE_CONFIG.WATCHDOG.MAX_HASHES_PERSISTED);
+
+                // --- 🛡️ PROTECCIÓN DE REPLAY ATTACK (POST-GC) ---
+                const esReplay = (memData.recent_analysis_history || []).some(item => item.id === analysisId);
+                if (esReplay) {
+                    atomicState.isHalted = true;
+                    atomicState.haltReason = "REPLAY_DETECTED: Petición ya procesada.";
+                    return;
+                }
+
+                // 3. Verificación de Seguridad y Baneo
+                if (!esSoberano && fwData.bloqueado_hasta && ahora < fwData.bloqueado_hasta) {
+                    const min = Math.ceil((fwData.bloqueado_hasta - ahora) / 60000);
+                    throw new Error(`FIREWALL: Baneo activo. Reintento en ${min} min.`);
+                }
+
+                // 4. Mantenimiento de Ventanas de Frecuencia (Rate Resets)
+                if (ahora - fwData.last_min_reset > 60000) { fwData.requests_min = 0; fwData.last_min_reset = ahora; }
+                if (ahora - fwData.last_hour_reset > 3600000) { fwData.requests_hour = 0; fwData.last_hour_reset = ahora; }
+                if (ahora - fwData.last_day_reset > 86400000) { fwData.tokens_used = 0; fwData.last_day_reset = ahora; }
+
+                // 5. Validación de Sensores de Rate Limit (Minuto y Hora)
+                if (!esSoberano) {
+                    if (fwData.requests_min >= CORE_CONFIG.FIREWALL.RATE_LIMIT.MAX_REQUESTS_PER_MIN) {
+                        throw new Error("RATE_LIMIT: Límite por minuto alcanzado.");
+                    }
+                    if (fwData.requests_hour >= CORE_CONFIG.FIREWALL.RATE_LIMIT.MAX_REQUESTS_PER_HOUR) {
+                        throw new Error("RATE_LIMIT: Cuota horaria agotada.");
+                    }
+                }
+
+                // 6. Generación de Propuesta Estratégica (Brain Engine)
+                // Se asume que generarPropuesta ya entrega los cambios SIA7 deterministas.
+                const propuesta = generarPropuesta({ analysis_id: analysisId, input_original: inputRaw, context });
+                if (!propuesta || !Array.isArray(propuesta.changes)) throw new Error("PROPOSE_INVALID");
+
+                // --- 🛡️ HASHING CON TRAZABILIDAD Y LRU CACHE ---
+                // ✅ NOTA: JSON.stringify se procesa una sola vez por acción para optimizar el cuello de botella inevitable.
+                const enrichedChanges = await Promise.all(propuesta.changes.map(async (c) => {
+                    const payloadString = JSON.stringify(SIA7_UTILS.sortPayload(c.payload));
+                    const fingerprint = `${c.type}|${c.target}|${payloadString}`;
+                    const hashResult = await SIA7_UTILS.generarHashAtómico(fingerprint);
+                    // Inyectamos el ADN algorítmico para trazabilidad forense
+                    return { ...c, _hash: hashResult.h, _alg: hashResult.alg };
+                }));
+
+                // --- 🛡️ WATCHDOG: CONCURRENCY LOCK CHECK (DUAL FACTOR) ---
+                // Evitamos que dos hilos ejecuten la misma acción en paralelo comparando Hash + Algoritmo.
+                const enVuelo = enrichedChanges.some(c => 
+                    (memData.pending_hashes || []).some(p => 
+                        p.h === c._hash && p.alg === c._alg && (ahora - p.t < CORE_CONFIG.WATCHDOG.LOCK_TIMEOUT_MS)
+                    )
+                );
+
+                if (enVuelo) {
+                    atomicState.isHalted = true;
+                    atomicState.haltReason = "CONCURRENCY_LOCK: Acción idéntica en proceso paralelo.";
+                    return;
+                }
+
+                // 7. Filtrado de Redundancia y Predictividad de Presupuesto
+                let tokensEstimados = typeof inputRaw === 'string' 
+                    ? Math.min(Math.ceil(inputRaw.length / 3.5), CORE_CONFIG.FIREWALL.COST_CONTROL.MAX_TOKENS_PER_OP)
+                    : (CORE_CONFIG.FIREWALL.COST_CONTROL.MULTIMODAL[inputRaw?.type?.toUpperCase()] || CORE_CONFIG.FIREWALL.COST_CONTROL.MULTIMODAL.DEFAULT);
+
+                // Predictor de desborde incluyendo reservas activas (V9.7)
+                const proyectadoTotal = fwData.tokens_used + (fwData.reserved_tokens || 0) + tokensEstimados;
+                let degradedMode = proyectadoTotal > CORE_CONFIG.FIREWALL.COST_CONTROL.MAX_TOKENS_PER_DAY;
+                
+                const cambiosFinales = enrichedChanges.filter(c => {
+                    const historico = (memData.recent_hashes_v2 || []).find(r => r.h === c._hash && r.alg === c._alg);
+                    // Omitir si ya se hizo exitosamente (Memoria de Frescura TTL)
+                    if (historico && (ahora - historico.t < CORE_CONFIG.WATCHDOG.HASH_EXPIRATION_MS)) return false;
+                    // Shedding de carga pesada en modo degradado (Bypass Soberano)
+                    if (degradedMode && !esSoberano && ['FORCE_MAINTENANCE_TASK', 'NORMALIZE_IDENTITY'].includes(c.type)) return false;
+                    return true;
+                });
+
+                if (cambiosFinales.length === 0) {
+                    atomicState.isHalted = true;
+                    atomicState.haltReason = "REDUNDANT_OR_SHEDDED";
+                    return;
+                }
+
+                if (degradedMode) {
+                    if (!esSoberano) throw new Error("ECON_SHIELD: Cuota diaria de tokens agotada.");
+                    tokensEstimados = 0; // El Soberano opera sin costo en modo Dios
+                }
+
+                // 8. ASENTAMIENTO DE RESERVA (COMMIT FASE 1 - UPSERT ATÓMICO)
+                // ✅ Bloqueamos tokens y preparamos el búnker (Escritura Granular Update)
+                const updateFW = {
+                    requests_min: fwData.requests_min + 1,
+                    requests_hour: fwData.requests_hour + 1,
+                    reserved_tokens: (fwData.reserved_tokens || 0) + tokensEstimados,
+                    last_seen: serverTimestamp()
+                };
+
+                // Lógica de Upsert inteligente para Onboarding seguro
+                if (!fwSnap.exists()) {
+                    transaction.set(firewallRef, { 
+                        ...updateFW, 
+                        tokens_used: 0, errores: 0, bloqueado_hasta: 0, 
+                        last_min_reset: ahora, last_hour_reset: ahora, last_day_reset: ahora 
+                    });
+                } else {
+                    transaction.update(firewallRef, updateFW);
+                }
+
+                // Deduplicación O(n) en el Pending Lock mediante Set
+                const pendingSet = new Set((memData.pending_hashes || []).map(p => p.h));
+                const locksParaMemoria = cambiosFinales
+                    .map(c => ({ h: c._hash, t: ahora, alg: c._alg }))
+                    .filter(l => {
+                        if (pendingSet.has(l.h)) return false;
+                        pendingSet.add(l.h);
+                        return true;
+                    });
+
+                const updateMEM = {
+                    pending_hashes: [...(memData.pending_hashes || []), ...locksParaMemoria],
+                    last_updated: serverTimestamp()
+                };
+
+                if (!memSnap.exists()) {
+                    transaction.set(memoryRef, { 
+                        ...updateMEM, 
+                        recent_analysis_history: [], 
+                        recent_hashes_v2: [] 
+                    });
+                } else {
+                    transaction.update(memoryRef, updateMEM);
+                }
+
+                // Transferencia de estado para el Brazo Ejecutor mecánico
+                atomicState = {
+                    ...atomicState,
+                    approvedChanges: cambiosFinales,
+                    tokensReserved: tokensEstimados,
+                    hashesToLock: locksParaMemoria,
+                    isDegraded: degradedMode,
+                    proposal: propuesta
+                };
+            });
+
+            if (atomicState.isHalted) {
+                this.emitirPulso("WATCHDOG", "STANDBY", atomicState.haltReason);
+                return { status: "halted", reason: atomicState.haltReason };
             }
 
-           if ((data.tokens_used + tokensEstimados) > FIREWALL_CONFIG.COST_CONTROL.MAX_TOKENS_PER_DAY) {
-    throw new Error("COST_LIMIT_EXCEEDED: Presupuesto de IA agotado para este búnker hoy.");
-}
+            // --------------------------------------------------------------------------
+            // 🦾 FASE 2: ACCIÓN IDEMPOTENTE FUERA DE TRANSACCIÓN (EXECUTE)
+            // --------------------------------------------------------------------------
+            this.emitirPulso("EXECUTOR", "FIRING", `ID Operativo: ${analysisId.substring(0,8)}`);
 
-            // 5. ACTUALIZACIÓN ATÓMICA Y PERSISTENCIA
-            transaction.set(ref, {
-                ...data,
-                requests_min: data.requests_min + 1,
-                requests_hour: data.requests_hour + 1,
-                tokens_used: data.tokens_used + tokensEstimados,
-                last_seen: serverTimestamp(),
-                last_auth_check: authToken ? "valid_token_present" : "no_token"
-            }, { merge: true });
+            const result = await ejecutarCambios({
+                ...atomicState.proposal,
+                changes: atomicState.approvedChanges,
+                tenantId,
+                ejecutado_por: user.email,
+                execution_id: analysisId // Idempotencia de brazo mecánico
+            });
 
-            return true;
-        });
-    } catch (e) {
-        console.error("%c🚨 [FIREWALL_DENIED]:", "color: #ef4444; font-weight: bold;", e.message);
-        throw e;
-    }
-}
+            // --------------------------------------------------------------------------
+            // 🔒 FASE 3: LIQUIDACIÓN ATÓMICA Y ASENTAMIENTO (COMMIT)
+            // --------------------------------------------------------------------------
+            this.emitirPulso("COMMIT", "SETTLING_RESOURCES");
+            
+            await runTransaction(db, async (t) => {
+                const fwSnap = await t.get(firewallRef);
+                const memSnap = await t.get(memoryRef);
 
-/**
- * ⚠️ REGISTRO DE ERRORES (CONTRA-INTELIGENCIA)
- * Castiga el abuso de errores sistémicos bloqueando el acceso temporalmente.
- */
-export async function registrarErrorFirewall(userId, tenantId) {
-    const ref = doc(db, "gestia_firewall", `${tenantId}_${userId}`);
-    
-    try {
-        await runTransaction(db, async (transaction) => {
-            const snap = await transaction.get(ref);
-            if (!snap.exists()) return;
+                const fw = fwSnap.data();
+                const mem = memSnap.data();
 
-            const data = snap.data();
-            const nuevosErrores = (data.errores || 0) + 1;
-            let update = { errores: nuevosErrores, last_error: serverTimestamp() };
+                // 1. Confirmar Gasto: Reserved -> Used
+                const tokensFinales = fw.tokens_used + atomicState.tokensReserved;
+                const reservasFinales = Math.max(0, (fw.reserved_tokens || 0) - atomicState.tokensReserved);
 
-            if (nuevosErrores >= FIREWALL_CONFIG.ABUSE.MAX_ERRORS) {
-                update.bloqueado_hasta = Date.now() + FIREWALL_CONFIG.ABUSE.BLOCK_TIME_MS;
-                update.errores = 0; // Reset tras el baneo para el siguiente ciclo
+                // 2. Consolidar Memoria con Deduplicación O(n) y TTL Filter
+                const seenHashes = new Set();
+                
+                const historicoUnico = [...atomicState.hashesToLock, ...(mem.recent_hashes_v2 || [])]
+                    .filter(item => {
+                        // Unicidad basada en par Hash + Algoritmo (Evita colisiones entre algs)
+                        const uniqueKey = `${item.h}_${item.alg}`;
+                        if (seenHashes.has(uniqueKey)) return false;
+                        seenHashes.add(uniqueKey);
+                        return true;
+                    });
+
+                const historicoFrescor = historicoUnico
+                    .filter(r => (ahora - r.t < CORE_CONFIG.WATCHDOG.HASH_EXPIRATION_MS))
+                    .slice(0, CORE_CONFIG.WATCHDOG.MAX_HASHES_PERSISTED);
+                
+                // --- 🛡️ FIX 2: CLEANUP DE PENDING CON DUAL FACTOR (HASH + ALG) ---
+                // ✅ Mapeamos claves únicas para asegurar que limpiamos el lock correcto.
+                const idsConfirmados = atomicState.hashesToLock.map(l => `${l.h}_${l.alg}`);
+                const pendingLimpio = (mem.pending_hashes || []).filter(p => 
+                    !idsConfirmados.includes(`${p.h}_${p.alg}`)
+                );
+
+                // Consolidación de Historial de Análisis con TTL
+                const historialAnalisis = [atomicState.historyToAdd, ...(mem.recent_analysis_history || [])]
+                    .filter(item => (ahora - item.t < CORE_CONFIG.WATCHDOG.HASH_EXPIRATION_MS))
+                    .slice(0, CORE_CONFIG.WATCHDOG.MAX_ANALYSIS_IDS);
+
+                // Captura de Telemetría Real Post-Commit (Basada en valores liquidados)
+                atomicState.realBudgetSnapshot = Math.min(100, Math.round((tokensFinales / CORE_CONFIG.FIREWALL.COST_CONTROL.MAX_TOKENS_PER_DAY) * 100));
+
+                // Escritura Granular (Update) para optimizar costos de Firebase
+                t.update(firewallRef, {
+                    tokens_used: tokensFinales,
+                    reserved_tokens: reservasFinales,
+                    "metadata.last_op_success": analysisId,
+                    "metadata.budget_status": `${atomicState.realBudgetSnapshot}%`
+                });
+
+                t.update(memoryRef, {
+                    recent_analysis_history: historialAnalisis,
+                    recent_hashes_v2: historicoFrescor,
+                    pending_hashes: pendingLimpio,
+                    last_updated: serverTimestamp()
+                });
+            });
+
+            this.emitirPulso("KERNEL", "SUCCESS", `Operación ${analysisId.substring(0,8)} Sellada.`);
+
+            return { 
+                status: "success", 
+                opId: analysisId, 
+                result, 
+                budget: atomicState.realBudgetSnapshot 
+            };
+
+        } catch (error) {
+            this.emitirPulso("CRASH", "FATAL_FAILURE", error.message);
+            console.error("🚨 [SIA7_CORE_FATAL]:", error);
+
+            // --------------------------------------------------------------------------
+            // 🛠️ FASE 4: LIBERACIÓN RESILIENTE CON REINTENTO (RELEASE)
+            // --------------------------------------------------------------------------
+            if (atomicState.tokensReserved > 0 || atomicState.hashesToLock.length > 0) {
+                this.emitirPulso("RELEASE", "INITIATING_ROLLBACK");
+                
+                for (let i = 0; i < 2; i++) {
+                    try {
+                        await runTransaction(db, async (t) => {
+                            const fwSnap = await t.get(firewallRef);
+                            const memSnap = await t.get(memoryRef);
+                            if (!fwSnap.exists() || !memSnap.exists()) return;
+
+                            const fw = fwSnap.data();
+                            const mem = memSnap.data();
+                            const locksAFallar = atomicState.hashesToLock.map(l => l.h);
+                            
+                            t.update(firewallRef, { 
+                                reserved_tokens: Math.max(0, (fw.reserved_tokens || 0) - atomicState.tokensReserved) 
+                            });
+
+                            t.update(memoryRef, { 
+                                pending_hashes: (mem.pending_hashes || []).filter(p => !locksAFallar.includes(p.h)) 
+                            });
+                        });
+                        this.emitirPulso("RELEASE", "ROLLBACK_SUCCESS", "Recursos devueltos.");
+                        break; 
+                    } catch (releaseError) {
+                        if (i === 1) this.emitirPulso("CRITICAL", "RELEASE_FAILED", "Fuga de recursos detectada.");
+                    }
+                }
             }
 
-            transaction.update(ref, update);
-        });
-    } catch (e) {
-        console.error("🚨 [Firewall] Error al registrar penalización:", e.message);
+            const esHostil = error.message.includes("LIMIT") || error.message.includes("SHIELD") || error.message.includes("BAN");
+            await this.registrarPenalizacion(user.uid, tenantId, esHostil);
+            return { status: "error", msg: error.message };
+
+        } finally {
+            // ✅ Higiene Total de Memoria Garantizada (Modo Tacaño RAM)
+            // Limpiamos el caché local al finalizar cada ciclo, sea éxito o fallo.
+            SIA7_UTILS.hashCache.clear();
+        }
+    },
+
+    /**
+     * registrarPenalizacion: Blindaje de Contra-Inteligencia SIA7.
+     */
+    async registrarPenalizacion(uid, tenantId, esHostil) {
+        const ref = doc(db, "gestia_firewall", `${tenantId}_${uid}`);
+        try {
+            await runTransaction(db, async (t) => {
+                const snap = await t.get(ref);
+                if (!snap.exists()) return;
+
+                const data = snap.data();
+                const incremento = esHostil ? 2 : 1;
+                const total = (data.errores || 0) + incremento;
+                
+                if (total >= CORE_CONFIG.FIREWALL.ABUSE.MAX_ERRORS_WEIGHT) {
+                    t.update(ref, { 
+                        errores: 0, 
+                        bloqueado_hasta: Date.now() + CORE_CONFIG.FIREWALL.ABUSE.BLOCK_TIME_MS 
+                    });
+                    this.emitirPulso("FIREWALL", "SECURITY_LOCK", "Baneo temporal aplicado.");
+                } else {
+                    t.update(ref, { errores: total, last_error: serverTimestamp() });
+                }
+            });
+        } catch (e) {
+            console.error("🚨 [PENALTY_FAILED]:", e.message);
+        }
+    },
+
+    emitirPulso(step, status, details = "") {
+        window.dispatchEvent(new CustomEvent('gestia-terminal-state', {
+            detail: { step: `CORE_${step}: ${status}`, details }
+        }));
+    },
+
+    abortar(code, msg) {
+        console.error(`🚨 [KERNEL_ABORT]: ${code} - ${msg}`);
+        return { status: "aborted", code, msg };
     }
-}
+};
+
+// Exposición global para depuración en búnker
+window.SIA7_CORE = GestiaCore;

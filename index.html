@@ -23,7 +23,6 @@
         if ('caches' in window) {
             caches.keys().then(function(names) {
                 for (let name of names) {
-                    // Si el caché no tiene la firma de Firebase (FixGo), se borra
                     caches.delete(name);
                 }
             });
@@ -64,6 +63,22 @@
     <style>
         body { background-color: #000000; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
         .hero-bg { background-image: radial-gradient(circle at center, #3b82f620 0%, #000000 70%); }
+
+        /* ESTILOS SOPORTE JARVIS HUD */
+        #jarvis-hud .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+        #jarvis-hud .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        #jarvis-hud .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .animate-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
     </style>
 </head>
 <body class="text-white min-h-screen flex flex-col">
@@ -112,14 +127,14 @@
         </div>
     </main>
 
-  <footer class="text-center py-6 mt-10">
-    <div class="flex justify-center gap-6 text-xs text-gray-500 mb-2">
-        <a href="politicas.html" class="hover:text-white transition-colors">Términos de Servicio</a>
-        <a href="privacidad.html" class="hover:text-white transition-colors">Aviso de Privacidad</a>
-        <a href="eliminar-datos.html" class="hover:text-white transition-colors">Eliminar Datos</a>
-    </div>
-    <p class="text-[10px] text-zinc-700 font-bold uppercase tracking-widest">© 2026 GestiaPremium Corp. Todos los derechos reservados.</p>
-</footer>
+    <footer class="text-center py-6 mt-10">
+        <div class="flex justify-center gap-6 text-xs text-gray-500 mb-2">
+            <a href="politicas.html" class="hover:text-white transition-colors">Términos de Servicio</a>
+            <a href="privacidad.html" class="hover:text-white transition-colors">Aviso de Privacidad</a>
+            <a href="eliminar-datos.html" class="hover:text-white transition-colors">Eliminar Datos</a>
+        </div>
+        <p class="text-[10px] text-zinc-700 font-bold uppercase tracking-widest">© 2026 GestiaPremium Corp. Todos los derechos reservados.</p>
+    </footer>
 
     <div id="modalTerminosCliente" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 text-left animate-fade-in">
         <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-zinc-700 shadow-2xl flex flex-col max-h-[80vh]">
@@ -207,6 +222,60 @@
         </div>
     </div>
 
+    <div id="jarvis-hud" class="fixed top-6 right-6 w-96 z-[100] font-mono text-[10px] hidden animate-fade-in">
+        
+        <div class="bg-slate-950/90 border-b border-emerald-500/30 p-3 rounded-t-2xl backdrop-blur-xl flex items-center justify-between shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+            <div class="flex items-center gap-3">
+                <div id="hud-led" class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981] animate-pulse"></div>
+                <span class="text-emerald-500 font-black tracking-[0.2em] uppercase">Jarvis SIA7 / Kernel V9.0</span>
+            </div>
+            <div id="hud-confidence" class="text-slate-400 font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                CONF: --%
+            </div>
+        </div>
+
+        <div class="bg-slate-950/80 border-x border-slate-800 p-4 space-y-4 backdrop-blur-xl max-h-[70vh] overflow-y-auto custom-scrollbar">
+            
+            <div class="space-y-1">
+                <div class="text-slate-500 uppercase text-[9px] tracking-widest font-bold">Protocolo Activo</div>
+                <div id="hud-status" class="text-slate-200 text-xs font-bold italic">IDLE_WAITING_COMMAND</div>
+            </div>
+
+            <div id="hud-dryrun-container" class="hidden space-y-2 border-t border-slate-800 pt-3">
+                <div class="text-amber-500 uppercase text-[9px] tracking-widest font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-flask-vial"></i> Simulación de Impacto
+                </div>
+                <div id="hud-dryrun-list" class="space-y-1 bg-slate-900/50 p-2 rounded-lg border border-amber-500/20 text-slate-300">
+                    </div>
+            </div>
+
+            <div id="hud-decision-container" class="hidden space-y-3 border-t border-slate-800 pt-3">
+                <div id="hud-risk-badge" class="px-2 py-1 rounded text-center font-black uppercase tracking-tighter">
+                    RIESGO: CALCULANDO...
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="window.KernelHeberto.execute('arre')" class="flex-1 bg-emerald-600 hover:bg-emerald-400 text-white font-black py-2 rounded-xl transition-all active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                        🚀 ARRE (APLICAR)
+                    </button>
+                    <button onclick="window.KernelHeberto.resetContext()" class="px-4 bg-slate-800 hover:bg-slate-700 text-slate-400 font-bold py-2 rounded-xl transition-all">
+                        ✕
+                    </button>
+                </div>
+            </div>
+
+            <div id="hud-error-container" class="hidden bg-red-950/40 border border-red-500/30 p-3 rounded-xl animate-shake">
+                <div class="text-red-500 font-black uppercase text-[9px] mb-1">Critical Failure</div>
+                <div id="hud-error-msg" class="text-red-200 leading-tight text-[9px]">--</div>
+                <div id="hud-rollback-status" class="mt-2 text-[8px] text-red-400 italic">Iniciando recuperación de backups...</div>
+            </div>
+
+        </div>
+
+        <div id="hud-timeline" class="bg-slate-950 border border-slate-800 p-3 rounded-b-2xl h-32 overflow-y-auto text-[8px] space-y-1 custom-scrollbar shadow-2xl">
+            <div class="text-slate-600 italic">SIA7 Inicializado. Esperando señales del Kernel...</div>
+        </div>
+    </div>
+
     <script type="module">
         import { auth, observarAuth, signOut, doc, setDoc, db, getDoc } from './firebase.js';
 
@@ -228,7 +297,6 @@
             loadingState.classList.add('hidden');
 
             if (user) {
-                // Obtenemos los datos actualizados del usuario para leer el rol real de Firestore
                 const docSnap = await getDoc(doc(db, "users", user.uid));
                 const userData = docSnap.exists() ? docSnap.data() : user;
 
@@ -248,7 +316,6 @@
                         const rol = userData.rol;
                         console.log("🛡️ GESTIAPREMIUM ROUTER: Acceso para rol ->", rol);
 
-                        // --- MOTOR DE REDIRECCIÓN LOGÍSTICA V7.6 (AISLAMIENTO B2B/B2C) ---
                         if (rol === 'tecnico') {
                             window.location.href = 'tecnico.html';
                         } 
@@ -256,11 +323,9 @@
                             window.location.href = 'admin.html';
                         } 
                         else if (rol === 'admin_b2b' || rol === 'asistente_admin' || rol === 'seguridad_24_7') {
-                            // Staff Operativo B2B va a la Cabina de Mando
                             window.location.href = 'panel-b2b-admin.html';
                         } 
                         else if (rol === 'inquilino_b2b') {
-                            // Inquilinos VIP a su nuevo módulo exclusivo
                             window.location.href = 'app-inquilino.html';
                         }
                         else if (rol === 'cliente') {
