@@ -17,7 +17,7 @@
  * ======================================================================================
  */
 
-import { db } from '../firebase.js';
+import { db } from '/firebase.js';
 import { 
     doc, 
     runTransaction, 

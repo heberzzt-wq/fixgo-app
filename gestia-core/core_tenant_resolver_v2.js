@@ -24,7 +24,7 @@
  */
 
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { auth, db } from "../firebase.js";
+import { auth, db } from "/firebase.js";
 
 /**
  * --- 🧠 MEMORIA MULTI-TENANT (SISTEMA NERVIOSO CENTRAL) ---

@@ -22,18 +22,16 @@
  * ======================================================================================
  */
 
+import { db } from '/firebase.js';
+
 import { 
-    db, 
+    runTransaction,
     doc, 
     collection, 
     serverTimestamp,
     getDoc,
     writeBatch,
-    increment
-} from '../firebase.js';
-
-import { 
-    runTransaction,
+    increment,
     query,
     where,
     getDocs,

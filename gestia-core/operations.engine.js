@@ -20,7 +20,7 @@
  * ======================================================================================
  */
 
-import { db } from '../firebase.js';
+import { db } from '/firebase.js';
 import { 
     doc, 
     getDoc, 
@@ -31,7 +31,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // 🔴 IMPORTACIÓN DEL ESCUDO FISCAL (Capa 2 - Backend Firewall)
-import { ejecutarFirewallGlobal } from './firewall.engine.js';
+import { ejecutarFirewallGlobal } from '/gestia-core/firewall.engine.js';
 
 /**
  * --- 🧠 MEMORIA VOLÁTIL DE ORQUESTACIÓN (RAM LOCK) ---

@@ -9,7 +9,7 @@
  * ======================================================================================
  */
 
-import { auth, db } from './firebase.js';
+import { auth, db } from '/firebase.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { 
     collection, 
@@ -28,7 +28,6 @@ import {
     getFunctions, 
     httpsCallable 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
-
 // ==========================================
 // 🛡️ 0. GESTIÓN DE BLOQUEOS Y CICLO DE VIDA
 // ==========================================

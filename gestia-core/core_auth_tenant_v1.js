@@ -27,9 +27,9 @@
  * ======================================================================================
  */
 
-import { auth, db } from '../firebase.js'; 
+import { auth, db } from '/firebase.js'; 
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { resolveTenantV2 } from './core_tenant_resolver_v2.js';
+import { resolveTenantV2 } from '/gestia-core/core_tenant_resolver_v2.js';
 
 /**
  * --- 🧠 ESTADO PRIVADO DE SOBERANÍA (BÚNKER DE DATOS) ---
