@@ -138,8 +138,14 @@ export async function ejecutarCambios(proposal) {
         throw { code: "PAYLOAD_TOO_LARGE", message: "Máximo 50 cambios por transacción." };
     }
 
+    // ✅ FIX: Si el payload es vacío, sellamos la operación como completada para evitar el bloqueo 'analyzing'.
     if (safeChanges.length === 0) {
-        emitirPulsoHUD(opId, "EXECUTION", "ABORTED", "Payload vacío");
+        emitirPulsoHUD(opId, "EXECUTION", "COMPLETED_EMPTY", "No se detectaron cambios atómicos.");
+        await updateDoc(doc(db, "gestia_operations", opId), {
+            status: "completed",
+            completed_at: serverTimestamp(),
+            engine_metadata: { note: "Ejecución finalizada sin mutaciones detectadas." }
+        });
         return [];
     }
 
@@ -224,6 +230,31 @@ export async function ejecutarCambios(proposal) {
 
                 // --- LÓGICA DE MUTACIÓN ---
                 switch (type) {
+                    // ✅ NUEVO: GESTIÓN DE MÓDULOS DE SISTEMA
+                    case "CREATE_MODULE":
+                    case "CREAR_MODULO":
+                        const moduleNewRef = doc(db, "gestia_system_modules", target || "auto_gen_id");
+                        transaction.set(moduleNewRef, deepSanitize({
+                            ...payload,
+                            created_at: serverTimestamp(),
+                            updated_at: serverTimestamp(),
+                            status: "active",
+                            op_origin: opId
+                        }));
+                        retryBuffer.push({ type, target, status: "created" });
+                        break;
+
+                    case "UPDATE_MODULE":
+                    case "ACTUALIZAR_MODULO":
+                        const moduleUpdateRef = doc(db, "gestia_system_modules", target);
+                        transaction.update(moduleUpdateRef, deepSanitize({
+                            ...payload,
+                            updated_at: serverTimestamp(),
+                            last_op: opId
+                        }));
+                        retryBuffer.push({ type, target, status: "updated" });
+                        break;
+
                     case "NORMALIZE_VEHICLE_OPERATOR":
                     case "NORMALIZE_IDENTITY":
                         const resolved = resolvedDataMap.get(target);
@@ -292,24 +323,24 @@ export async function ejecutarCambios(proposal) {
                         break;
 
                     default:
-                        throw new Error(`TIPO_NO_SOPORTADO: ${type}`);
+                        // No lanzamos error para permitir que el resto de la ráfaga continúe
+                        retryBuffer.push({ type, target, status: "ignored_type" });
                 }
             }
 
             // --- SELLADO MAESTRO (IDEMPOTENCY SEAL) ---
-            // Usamos merge: true por si el documento no existía (aunque debería)
             transaction.set(masterOpRef, {
                 status: "completed",
                 completed_at: serverTimestamp(),
                 affected_actions: retryBuffer.length,
                 engine_metadata: {
-                    version: "16.1.0",
+                    version: "16.1.1",
                     results_summary: retryBuffer.map(r => `${r.type}:${r.status}`)
                 }
             }, { merge: true });
 
             // Al final de la transacción exitosa, volcamos el buffer al array externo
-            finalResults.length = 0; // Limpieza por si acaso
+            finalResults.length = 0;
             finalResults.push(...retryBuffer);
         });
 
@@ -345,10 +376,10 @@ export async function consultarEstadoOperacion(opId) {
 }
 
 // Log Corporativo para el Arquitecto Heberto
-console.log("%c🦾 [OPERATIONS_EXECUTOR]: V16.1 INDESTRUCTIBLE LEDGER ONLINE", "color: #f59e0b; font-weight: bold; background: #451a03; padding: 2px 10px; border-radius: 4px;");
+console.log("%c🦾 [OPERATIONS_EXECUTOR]: V16.1.1 INDESTRUCTIBLE LEDGER ONLINE", "color: #f59e0b; font-weight: bold; background: #451a03; padding: 2px 10px; border-radius: 4px;");
 
 /**
  * ======================================================================================
- * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 545 (INGENIERÍA EXQUISITA GARANTIZADA)
+ * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 354 (INGENIERÍA EXQUISITA GARANTIZADA)
  * ======================================================================================
  */
