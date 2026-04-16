@@ -151,37 +151,43 @@ export class TerminalHeberto {
 
    async inicializarAutoridad() {
     try {
-        console.log("🧠 INIT AUTH...");
+        console.log("🧠 INIT AUTH START...");
 
+        // 🛡️ PASO 1: EXTRAER USUARIO ANTES DE VALIDAR TENANT
+        const user = auth.currentUser;
+        
+        if (!user) {
+            console.warn("⚠️ [AUTH]: No hay usuario de Firebase detectado.");
+            throw new Error("NO_FIREBASE_USER");
+        }
+
+        // 🛡️ PASO 2: LOG DE IDENTIDAD PRE-VALIDACIÓN
+        // Esto se ejecutará SÍ O SÍ antes de que truene el resolver
+        console.log("🔍 [DEBUG IDENTITY PRE-CHECK]:", {
+            uid: user.uid,
+            tenantId_Actual: this.session.tenantId, // Ver si viene vacío
+            path_esperado: `tenants/${this.session.tenantId || "uxmal39"}/admins/${user.uid}`
+        });
+
+        // 🛡️ PASO 3: INTENTO DE RESOLUCIÓN
         const res = await resolveTenantContext();
+        
         console.log("✅ TENANT RES:", res);
 
         this.session = { ...this.session, ...res };
-
-        const user = auth.currentUser;
-        console.log("👤 USER:", user);
-
-        if (user) {
-            this.session.token = await user.getIdToken(true);
-        }
-
+        this.session.token = await user.getIdToken(true);
         SESSION = this.session;
 
         console.log("🔥 SESSION FINAL:", this.session);
 
         await this.setState(STATES.IDLE);
-    console.log("🔍 [DEBUG IDENTITY]:", {
-    uid: user.uid,
-    tenantId: this.session.tenantId || "uxmal39",
-    path: `tenants/${this.session.tenantId || "uxmal39"}/admins/${user.uid}`
-});
 
     } catch (e) {
         console.error("💥 ERROR REAL INIT:", e);
+        // Si el error es USER_UNKNOWN, el log de arriba nos dirá por qué
         await this.setState(STATES.ERROR);
     }
 }
-
     /**
      * simularCambios: Dry Run para Jarvis Visual
      */
