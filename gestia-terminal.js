@@ -73,7 +73,17 @@ const GESTIA_CONFIG = {
 /* ==========================================
     VARIABLES DE ESTADO GLOBAL
    ========================================== */
-let SESSION = { authorized: false, uid: null, tenantId: null, role: null, token: null }; 
+/**
+ * SESSION: Estado compartido de autoridad.
+ * ✅ FIX: Inicializamos tenantId con el búnker base para evitar fallos de resolución.
+ */
+let SESSION = { 
+    authorized: false, 
+    uid: null, 
+    tenantId: "uxmal39", // El ancla inmutable
+    role: null, 
+    token: null 
+}; 
 
 function crearLogger() {
     const traceId = `SIA7_PRO_${Date.now()}`;
@@ -95,7 +105,14 @@ async function generarHashSHA256(texto) {
 export class TerminalHeberto {
     constructor() {
         this.state = STATES.IDLE;
-        this.session = SESSION;
+        
+        /**
+         * Sincronización de Sesión:
+         * ✅ IMPORTANTE: Usamos la referencia a SESSION para que los cambios
+         * en inicializarAutoridad se reflejen en toda la instancia.
+         */
+        this.session = SESSION; 
+        
         this.context = null; 
         this.pendingProposal = null;
         this.logger = crearLogger();
