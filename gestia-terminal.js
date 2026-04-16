@@ -30,16 +30,17 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // MOTORES CORE
-import { resolveTenantContext } from './gestia-core/core_auth_tenant_v1.js';
-import { ejecutarFirewallGlobal } from './gestia-core/firewall.engine.js';
-import { sincronizarCorralSemantico } from './gestia-core/semantic.engine.js';
-import { invocarArquitectoIA } from './gestia-core/brain.engine.js';
-import { persistirEstructuraModulo } from './gestia-core/persistence.engine.js';
+// MOTORES CORE
+import { resolveTenantContext } from '/gestia-core/core_auth_tenant_v1.js';
+import { ejecutarFirewallGlobal } from '/gestia-core/firewall.engine.js';
+import { sincronizarCorralSemantico } from '/gestia-core/semantic.engine.js';
+import { invocarArquitectoIA } from '/gestia-core/brain.engine.js';
+import { persistirEstructuraModulo } from '/gestia-core/persistence.engine.js';
 
 // MOTORES V9
-import { analizarDatosSistema } from './gestia-core/data-analyzer.engine.js';
-import { generarPropuesta } from './gestia-core/propose.engine.js';
-import { ejecutarCambios, procesarInstruccionSegura } from './gestia-core/operations-executor.engine.js';
+import { analizarDatosSistema } from '/gestia-core/data-analyzer.engine.js';
+import { generarPropuesta } from '/gestia-core/propose.engine.js';
+import { ejecutarCambios, procesarInstruccionSegura } from '/gestia-core/operations-executor.engine.js';
 
 /* =====================================================================================
     DEFINICIÓN DE ESTADOS (PROTOCOLOS PRO)
