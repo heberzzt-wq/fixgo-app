@@ -33,10 +33,10 @@ export async function dispatch(command, ctx = {}, options = { simulate: true }) 
 
     // 🔥 LLAMADA AL CORE REAL
     const res = await window.KernelHeberto.execute(
-      command.raw,
-      null,
-      { simulate: options.simulate }
-    );
+  command.payload?.text || command.raw,
+  null,
+  { simulate: options.simulate }
+);
 
     // Respuesta estructurada
     return {
