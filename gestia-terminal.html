@@ -27,11 +27,13 @@
     </script>
     
     <style>
+        /* Scrollbar personalizado para mantener el look de terminal limpia */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
         
+        /* Animación suave para la aparición de mensajes */
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -128,26 +130,89 @@
         document.addEventListener('DOMContentLoaded', () => {
             const textarea = document.getElementById('gestia-input');
             const form = document.getElementById('gestia-form');
-            
+            const output = document.getElementById('gestia-output');
+
+            /**
+             * 🎨 RENDERER ENGINE:
+             * Inyecta burbujas de respuesta en el DOM respetando el estilo visual.
+             */
+            const renderJarvisResponse = (title, message, type = 'info') => {
+                const config = {
+                    info: { icon: 'fa-bolt', color: 'bg-gestia-primary', border: 'border-slate-700' },
+                    warning: { icon: 'fa-triangle-exclamation', color: 'bg-amber-500', border: 'border-amber-500/30' },
+                    success: { icon: 'fa-check', color: 'bg-gestia-accent', border: 'border-gestia-accent/30' },
+                    error: { icon: 'fa-xmark', color: 'bg-red-500', border: 'border-red-500/30' }
+                };
+
+                const current = config[type];
+                
+                const responseHtml = `
+                    <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
+                        <div class="w-10 h-10 rounded-full ${current.color} flex items-center justify-center shrink-0 shadow-lg">
+                            <i class="fa-solid ${current.icon} text-white text-sm"></i>
+                        </div>
+                        <div class="bg-gestia-panel border ${current.border} p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
+                            <h3 class="font-semibold text-white mb-2 text-lg">${title}</h3>
+                            <p class="text-slate-300 text-sm leading-relaxed">${message}</p>
+                        </div>
+                    </div>
+                `;
+                
+                output.insertAdjacentHTML('beforeend', responseHtml);
+                output.scrollTop = output.scrollHeight;
+            };
+
+            /**
+             * 🎧 SENSOR DE ESTADOS (SIA7 INTERFACE):
+             * Escucha los eventos emitidos por gestia-terminal.js y actualiza la UI.
+             */
+            window.addEventListener('gestia-terminal-state', (e) => {
+                const { state, opId, error, reason } = e.detail;
+
+                switch(state) {
+                    case 'ANALYZE':
+                        renderJarvisResponse("Análisis de Intención", "SIA7 está decodificando tu solicitud en el corral semántico...");
+                        break;
+                    case 'WAIT_APPROVAL':
+                        renderJarvisResponse(
+                            "Propuesta de Ráfaga", 
+                            `He preparado un plan de ejecución para la operación <b>${opId}</b>. El firewall ha validado la consistencia. ¿Deseas proceder? Escribe <b>'arre'</b> para confirmar.`,
+                            'warning'
+                        );
+                        break;
+                    case 'DONE':
+                        renderJarvisResponse(
+                            "Operación Exitosa", 
+                            `La ráfaga <b>${opId}</b> ha sido firmada y persistida en el Ledger de Grado Bancario. Sistema estable.`,
+                            'success'
+                        );
+                        break;
+                    case 'ERROR':
+                        renderJarvisResponse(
+                            "Fallo de Seguridad / Sistema", 
+                            `Error detectado: <b>${error || 'Ráfaga bloqueada'}</b>. El sistema ha revertido cualquier cambio parcial.`,
+                            'error'
+                        );
+                        break;
+                }
+            });
+
             /**
              * ✅ SOLDADURA FEDERAL:
-             * Interceptamos el envío para que el núcleo (KernelHeberto) 
-             * tome el control y mate el refresco.
+             * Interceptamos el envío para que el núcleo (KernelHeberto) tome el control.
              */
             form.addEventListener('submit', async (e) => {
                 const comando = textarea.value.trim();
                 
                 if (comando !== '' && window.KernelHeberto) {
-                    // Pasamos el evento 'e' para que KernelHeberto ejecute preventDefault()
+                    // Feedback visual inmediato (opcional: podrías pintar lo que el usuario escribió)
                     await window.KernelHeberto.execute(comando, e);
                     
-                    // Limpieza post-ejecución
                     textarea.value = '';
                     textarea.style.height = '58px';
                 } else if (!window.KernelHeberto) {
-                    // Si el núcleo no ha cargado, prevenimos refresco manualmente por seguridad
                     e.preventDefault();
-                    console.error("❌ SIA7: El Núcleo Federal (KernelHeberto) no ha inicializado todavía.");
+                    renderJarvisResponse("Error de Inicialización", "El núcleo federal aún no está en línea. Verifica la conexión con Firebase.", "error");
                 }
             });
 
@@ -163,7 +228,6 @@
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     if(this.value.trim() !== '') {
-                        // Disparamos el submit oficial para que pase por nuestro listener
                         form.requestSubmit(); 
                     }
                 }

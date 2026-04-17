@@ -281,11 +281,36 @@ export function interpretarIntenciones(comandos) {
             }
         }
 
-        // --- 🛡️ 6. VALIDACIÓN DE INTEGRIDAD ---
+// --- 🛡️ 6. VALIDACIÓN DE INTEGRIDAD Y NARRATIVA HUMANA ---
         const finalIntent = action && entity ? `${action}_${entity}` : "UNKNOWN_INTENT";
+        
+        let reporteSIA7 = "";
 
+        // ✅ FIX "FRIJOLITOS": En lugar de tronar violentamente, SIA7 dialoga.
         if (finalIntent === "UNKNOWN_INTENT") {
-            throw new Error(`INTENT_INVALID: Jarvis no puede determinar la voluntad en "${cmd.raw}"`);
+            const saludoMatch = /\b(hola|buenos|buenas|jarvis|sia7)\b/i.test(rawLower);
+            
+            if (saludoMatch) {
+                // Es un saludo o llamado, no un error crítico.
+                reporteSIA7 = `Arquitecto, recibo su señal en "${cmd.raw}". Sin embargo, no detecto una orden de infraestructura (crear, borrar, actualizar) ni un objetivo. El búnker está en espera de sus coordenadas.`;
+                // No lanzamos error, permitimos que pase como intención inofensiva.
+            } else {
+                throw new Error(`INTENT_INVALID: Jarvis no puede determinar la voluntad operativa en "${cmd.raw}". Especifique acción y entidad.`);
+            }
+        } else {
+            // Generación de narrativa para acciones válidas
+            const diccionarioAcciones = { "CREATE": "crear", "DELETE": "eliminar", "UPDATE": "actualizar", "REPAIR": "reparar", "ACTIVATE": "activar", "DEACTIVATE": "desactivar" };
+            const diccionarioEntidades = { "MODULE": "el módulo", "CORE": "el núcleo", "USER": "el usuario", "TASK": "la tarea", "SYSTEM": "el sistema" };
+            
+            const verbo = diccionarioAcciones[action] || action;
+            const sustantivo = diccionarioEntidades[entity] || entity;
+            const objTarget = target || "un recurso dinámico";
+            
+            reporteSIA7 = `He procesado la orden. Mi intención táctica es **${verbo} ${sustantivo} '${objTarget}'**.`;
+            
+            if (memoria._ambiguous) {
+                reporteSIA7 += ` Noté cierta tensión en el contexto, pero por su fluidez asumo que se refiere a lo último en lo que trabajamos.`;
+            }
         }
 
         // --- 🔍 7. CONFIANZA DINÁMICA (SMOOTHED SCORING) ---
@@ -303,23 +328,9 @@ export function interpretarIntenciones(comandos) {
         if (inferredEntity) confidence -= 0.1; 
         if (inherited) confidence -= 0.1; 
         
-        // 🔥 PENALIZACIÓN POR AMBIGÜEDAD (Ajustada a -0.2)
-        if (memoria._ambiguous) {
-            confidence -= 0.2;
-        }
-
-        // 🔥 FIX 2: CONFIDENCE SMOOTHING (Suavizado de Confianza)
-        // Si hay ambigüedad pero continuidad lógica, Jarvis se siente un poco más seguro.
-        if (memoria._ambiguous && inherited) {
-            confidence += 0.05;
-        }
-
-        // Bonificación por continuidad perfecta
-        if (target && memoria.lastTarget && target === memoria.lastTarget) {
-            confidence += 0.15;
-        }
-
-        // Penalizaciones por saltos lógicos bruscos
+        if (memoria._ambiguous) confidence -= 0.2;
+        if (memoria._ambiguous && inherited) confidence += 0.05;
+        if (target && memoria.lastTarget && target === memoria.lastTarget) confidence += 0.15;
         if (target && memoria.lastTarget && target !== memoria.lastTarget) confidence -= 0.15;
         if (entity && memoria.lastEntity && entity !== memoria.lastEntity) confidence -= 0.15;
 
@@ -338,11 +349,14 @@ export function interpretarIntenciones(comandos) {
                 source: inherited ? "MEMORY_BUFFER" : "DIRECT_INPUT",
                 confidence: confidence,
                 isAmbiguous: memoria._ambiguous
-            }
+            },
+            // ✅ NUEVA PROPIEDAD: La voz de Jarvis
+            summary: reporteSIA7 
         };
 
         // --- 🔥 8. ACTUALIZAR MEMORIA (FIFO 3 + GLOBAL 10) ---
-        if (target && entity) {
+        // (Solo actualizamos memoria si la intención fue válida y tiene target)
+        if (target && entity && finalIntent !== "UNKNOWN_INTENT") {
             memoria.lastTarget = target;
             memoria.lastEntity = entity;
 
