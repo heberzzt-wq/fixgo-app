@@ -263,8 +263,10 @@ export function interpretarIntenciones(comandos) {
             }
         }
 
-        // --- 🔥 5. INFERENCIA DE ENTIDAD (ZERO-GUESS CONTINUITY) ---
-        if (!entity && action !== "CREATE") {
+       // --- 🔥 5. INFERENCIA DE ENTIDAD (ZERO-GUESS CONTINUITY) ---
+        // ✅ NASA-GRADE SHIELD: Solo disparamos inferencia si existe una acción operativa real.
+        // Si la acción es 'null' (ej. un "hola" o diálogo), dejamos pasar la ráfaga al Paso 6.
+        if (!entity && action !== null && action !== "CREATE") {
             const possibleEntity = Object.keys(memoria.entityMemory).find(e =>
                 memoria.entityMemory[e]?.includes(target)
             );
@@ -276,8 +278,9 @@ export function interpretarIntenciones(comandos) {
                 // ✅ CONTINUIDAD FUERTE: Solo inferimos si el target es idéntico al último
                 entity = memoria.lastEntity;
                 inferredEntity = true;
-            } else {
-                throw new Error(`ENTITY_UNRESOLVED: El búnker bloqueó una inferencia riesgosa para '${target || 'n/a'}'`);
+            } else if (target) {
+                // 🛑 KILL SWITCH: Hay objetivo, hay acción, pero cero contexto seguro. Bloqueo duro.
+                throw new Error(`ENTITY_UNRESOLVED: El búnker bloqueó una inferencia riesgosa para el objetivo '${target}'. Se requiere especificar la entidad.`);
             }
         }
 
