@@ -356,11 +356,20 @@ export class GestiaTerminal {
                 authToken: this.session.token // 🔑 REQUERIDO POR VERCEL v7.0
             });
 
-            await this.setState(STATES.ANALYZE, opId);
+           await this.setState(STATES.ANALYZE, opId);
             const comandos = await sincronizarCorralSemantico(rawInput);
 
             await this.setState(STATES.RESOLVE, opId);
             const intents = interpretarIntenciones(comandos);
+            
+            // ✅ NUEVO SENSOR: El Interceptor de Diálogo (Frijolitos)
+            // Si la intención primaria es desconocida (ej. un "hola"), detenemos el tren de ataque.
+            if (intents[0] && intents[0].intent === "UNKNOWN_INTENT") {
+                await this.setState(STATES.DONE, opId, { 
+                    report: intents[0].summary 
+                });
+                return { opId: opId, status: "DIALOGUE_COMPLETED" };
+            }
 
             await this.setState(STATES.DECIDE, opId);
             const decision = this.evaluatePlan(intents);
@@ -371,7 +380,12 @@ export class GestiaTerminal {
                     decision: decision 
                 });
                 
-                await this.setState(STATES.WAIT_APPROVAL, opId);
+                // Extraemos el reporte para el HUD
+                const planSummary = intents[0]?.summary || "He trazado un plan táctico. Requiere su confirmación.";
+                
+                await this.setState(STATES.WAIT_APPROVAL, opId, {
+                    report: planSummary
+                });
                 
                 return { 
                     opId: opId, 
@@ -386,7 +400,7 @@ export class GestiaTerminal {
             this.handleError(error, opId);
         }
     }
-
+    
     /**
      * runPlan: Pipeline de Ejecución con Transacción Atómica.
      * ✅ CONSISTENCIA FUERTE: Transacción multi-documento blindada.
