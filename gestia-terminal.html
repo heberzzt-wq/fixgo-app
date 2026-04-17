@@ -167,8 +167,22 @@
              * Escucha los eventos emitidos por gestia-terminal.js y actualiza la UI.
              */
             window.addEventListener('gestia-terminal-state', (e) => {
-                const { state, opId, error, reason } = e.detail;
+                const { state, opId, error, reason, report } = e.detail;
 
+                // ✅ LA VOZ DE JARVIS: Si el JS manda un 'report' humano, lo pintamos y nos saltamos el texto genérico.
+                if (report) {
+                    let title = "Reporte SIA7";
+                    let type = "info";
+
+                    if (state === 'WAIT_APPROVAL') { title = "Propuesta de Misión"; type = "warning"; }
+                    else if (state === 'DONE') { title = "Respuesta del Sistema"; type = "success"; }
+                    else if (state === 'ERROR') { title = "Fallo Detectado"; type = "error"; }
+
+                    renderJarvisResponse(title, report, type);
+                    return; // Terminamos aquí para no pintar duplicados
+                }
+
+                // --- TEXTOS POR DEFECTO MANTENIDOS (Fallback) ---
                 switch(state) {
                     case 'ANALYZE':
                         renderJarvisResponse("Análisis de Intención", "SIA7 está decodificando tu solicitud en el corral semántico...");
