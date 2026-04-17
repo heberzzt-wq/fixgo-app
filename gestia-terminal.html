@@ -27,13 +27,11 @@
     </script>
     
     <style>
-        /* Scrollbar personalizado para mantener el look de terminal limpia */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
         
-        /* Animación suave para la aparición de mensajes */
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -124,30 +122,49 @@
     </footer>
 
     <script type="module" src="/firebase.js"></script>
-    
     <script type="module" src="/gestia-terminal.js"></script>
     
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // 🛠️ IDs CORREGIDOS TAMBIÉN EN EL SCRIPT INTERNO
             const textarea = document.getElementById('gestia-input');
             const form = document.getElementById('gestia-form');
             
-            // Auto-ajustar altura del textarea al escribir
-            textarea.addEventListener('input', function() {
-                this.style.height = '58px'; // Reset base
-                this.style.height = (this.scrollHeight) + 'px';
-                if (this.value === '') {
-                    this.style.height = '58px';
+            /**
+             * ✅ SOLDADURA FEDERAL:
+             * Interceptamos el envío para que el núcleo (KernelHeberto) 
+             * tome el control y mate el refresco.
+             */
+            form.addEventListener('submit', async (e) => {
+                const comando = textarea.value.trim();
+                
+                if (comando !== '' && window.KernelHeberto) {
+                    // Pasamos el evento 'e' para que KernelHeberto ejecute preventDefault()
+                    await window.KernelHeberto.execute(comando, e);
+                    
+                    // Limpieza post-ejecución
+                    textarea.value = '';
+                    textarea.style.height = '58px';
+                } else if (!window.KernelHeberto) {
+                    // Si el núcleo no ha cargado, prevenimos refresco manualmente por seguridad
+                    e.preventDefault();
+                    console.error("❌ SIA7: El Núcleo Federal (KernelHeberto) no ha inicializado todavía.");
                 }
             });
+
+            // --- LÓGICA DE INTERFAZ MANTENIDA ---
             
-            // Atajo: Enter envía el formulario, Shift+Enter hace salto de línea
+            textarea.addEventListener('input', function() {
+                this.style.height = '58px'; 
+                this.style.height = (this.scrollHeight) + 'px';
+                if (this.value === '') this.style.height = '58px';
+            });
+            
             textarea.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     if(this.value.trim() !== '') {
-                        form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                        // Disparamos el submit oficial para que pase por nuestro listener
+                        form.requestSubmit(); 
                     }
                 }
             });
