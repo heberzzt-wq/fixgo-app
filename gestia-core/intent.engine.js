@@ -289,31 +289,33 @@ export function interpretarIntenciones(comandos) {
         
         let reporteSIA7 = "";
 
-        // ✅ FIX "FRIJOLITOS": En lugar de tronar violentamente, SIA7 dialoga con fluidez.
+        // ✅ FIX "FRIJOLITOS": En lugar de tronar violentamente, SIA7 dialoga como compa.
         if (finalIntent === "UNKNOWN_INTENT") {
-            const isSaludo = /\b(hola|buenos|buenas|que tal|q tal|hey)\b/i.test(rawLower);
+            // Blindaje para palabras pegadas como "buenasnoches"
+            const isSaludo = /\b(hola|buenos|buenas|buenasnoches|buenosdias|que tal|q tal|hey|arre|que onda|q onda|carnita asada)\b/i.test(rawLower);
             const isLlamado = /\b(jarvis|sia7|computadora|sistema)\b/i.test(rawLower);
-            const isDespedida = /\b(adios|bye|hasta luego|nos vemos|chao)\b/i.test(rawLower);
+            const isDespedida = /\b(adios|bye|hasta luego|nos vemos|chao|camara|sobres)\b/i.test(rawLower);
             
             if (isSaludo || isLlamado || isDespedida) {
-                // 🧠 MATRIZ DE PERSONALIDAD SIA7 (Zero-Cost)
+                // 🧠 MATRIZ DE PERSONALIDAD SIA7 (Modo Compa / Carnita Asada)
                 const respuestasSaludo = [
-                    "Búnker en línea, Arquitecto Mendoza. ¿Qué construimos hoy?",
-                    "Sistemas al 100%. A sus órdenes, Arquitecto.",
-                    "Recibo su señal fuerte y clara. Esperando coordenadas tácticas.",
-                    "Terminal federal lista. Indique el siguiente movimiento en GestiaPremium."
+                    "¡Arre pá! Aquí andamos al 100. ¿Qué vamos a armar hoy en Gestia?",
+                    "¡Buenos días, Arquitecto! Ya me tomé el café, listo para tirar código.",
+                    "Sistemas al 1000%. Pídete una Tecate y dime qué vamos a romper hoy.",
+                    "¡Qué onda, Arquitecto! ¿Se va a armar la carnita asada o qué? Yo pongo el carbón.",
+                    "¡Epa! Listo para el jale. Tú nomás dime por dónde le damos."
                 ];
                 
                 const respuestasLlamado = [
-                    "SIA7 a la escucha. Indique el objetivo.",
-                    "Aquí estoy, Arquitecto. ¿Qué módulo vamos a intervenir hoy?",
-                    "Sistemas activos. Esperando instrucción de grado banco."
+                    "¿Qué pasó, pá? Aquí ando.",
+                    "Dímelo, Arquitecto. ¿Qué transa?",
+                    "SIA7 listo. Échale, soy todo oídos."
                 ];
                 
                 const respuestasDespedida = [
-                    "Sistemas en reposo. Quedo montando guardia en el búnker.",
-                    "Entendido. Cerrando canales de operación. Hasta pronto, Arquitecto.",
-                    "Modo de vigilancia activado. Buen turno."
+                    "Arre, nos vemos al rato. Yo cuido el changarro.",
+                    "Cámara, descansa. Aquí dejo los fierros seguros bajo llave.",
+                    "Sobres, me desconecto por una Tecate. Ahí nos vidrios."
                 ];
 
                 // Selección dinámica para evitar respuestas robóticas
@@ -325,10 +327,10 @@ export function interpretarIntenciones(comandos) {
                     reporteSIA7 = respuestasLlamado[Math.floor(Math.random() * respuestasLlamado.length)];
                 }
             } else {
-                throw new Error(`INTENT_INVALID: Jarvis no puede determinar la voluntad operativa en "${cmd.raw}". Especifique acción y entidad.`);
+                throw new Error(`INTENT_INVALID: Jarvis no le entiende a "${cmd.raw}". Tírala más clara, especifica acción y entidad.`);
             }
         } else {
-            // Generación de narrativa para acciones válidas
+            // Generación de narrativa para acciones válidas (Modo Relajado)
             const diccionarioAcciones = { "CREATE": "crear", "DELETE": "eliminar", "UPDATE": "actualizar", "REPAIR": "reparar", "ACTIVATE": "activar", "DEACTIVATE": "desactivar" };
             const diccionarioEntidades = { "MODULE": "el módulo", "CORE": "el núcleo", "USER": "el usuario", "TASK": "la tarea", "SYSTEM": "el sistema" };
             
@@ -336,10 +338,10 @@ export function interpretarIntenciones(comandos) {
             const sustantivo = diccionarioEntidades[entity] || entity;
             const objTarget = target || "un recurso dinámico";
             
-            reporteSIA7 = `He procesado la orden. Mi intención táctica es **${verbo} ${sustantivo} '${objTarget}'**.`;
+            reporteSIA7 = `Arre, ya lo capté. Mi misión ahorita es **${verbo} ${sustantivo} '${objTarget}'**.`;
             
             if (memoria._ambiguous) {
-                reporteSIA7 += ` Noté cierta tensión en el contexto, pero por su fluidez asumo que se refiere a lo último en lo que trabajamos.`;
+                reporteSIA7 += ` Sentí un poco de ruido en tu orden, pero por el flow asumo que le seguimos dando a lo último que tocamos.`;
             }
         }
         // --- 🔍 7. CONFIANZA DINÁMICA (SMOOTHED SCORING) ---
