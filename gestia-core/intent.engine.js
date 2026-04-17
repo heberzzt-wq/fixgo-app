@@ -1,6 +1,6 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - INTENT ENGINE V3.0 (THE ARCHITECT SOVEREIGN - 1000% FINAL)
+ * GESTIAPREMIUM 2026 - INTENT ENGINE V3.1 (THE ARCHITECT SOVEREIGN - PURGE ENABLED)
  * ======================================================================================
  * Identidad: El Córtex Prefrontal con Fluidez Humana, Discernimiento y Suavizado de Confianza.
  * Función: Interpretación determinista de ráfagas con razonamiento de tensión cognitiva.
@@ -22,6 +22,10 @@
  */
 
 const INTENT_MAP = {
+    "purgar": "PURGE",
+    "limpiar": "PURGE",
+    "purge": "PURGE",
+    "clear": "PURGE",
     "desactivar": "DEACTIVATE",
     "disable": "DEACTIVATE",
     "activar": "ACTIVATE",
@@ -43,6 +47,9 @@ const INTENT_MAP = {
 };
 
 const ENTITY_MAP = {
+    "huerfanas": "ORPHAN",
+    "basura": "ORPHAN",
+    "orphans": "ORPHAN",
     "modulo": "MODULE",
     "module": "MODULE",
     "mod": "MODULE",
@@ -183,7 +190,7 @@ function resolverReferencia(target, memoria, entidadExplicita) {
 export function interpretarIntenciones(comandos) {
     if (!Array.isArray(comandos)) return [];
 
-    console.log("%c🧠 [INTENT_ENGINE V3.0]: ARCHITECT SOVEREIGN 1000% FINAL", "color: #10b981; font-weight: bold;");
+    console.log("%c🧠 [INTENT_ENGINE V3.1]: ARCHITECT SOVEREIGN 1000% FINAL", "color: #10b981; font-weight: bold;");
 
     const sortedIntentKeys = Object.keys(INTENT_MAP).sort((a, b) => b.length - a.length);
     const sortedEntityKeys = Object.keys(ENTITY_MAP).sort((a, b) => b.length - a.length);
@@ -251,8 +258,8 @@ export function interpretarIntenciones(comandos) {
         // --- 🔥 4. CONTEXTO & HIERARCHICAL FALLBACK ---
         target = resolverReferencia(target, memoria, !!entity);
 
-        // Escalera de resolución robusta
-        if (!target && action !== "CREATE" && action !== null) {
+        // Escalera de resolución robusta (✅ FIX: PURGE no requiere target)
+        if (!target && action !== "CREATE" && action !== "PURGE" && action !== null) {
             const entityTargets = memoria.entityMemory[memoria.lastEntity];
             if (entityTargets && entityTargets.length > 0) {
                 target = entityTargets[entityTargets.length - 1];
@@ -263,10 +270,9 @@ export function interpretarIntenciones(comandos) {
             }
         }
 
-       // --- 🔥 5. INFERENCIA DE ENTIDAD (ZERO-GUESS CONTINUITY) ---
-        // ✅ NASA-GRADE SHIELD: Solo disparamos inferencia si existe una acción operativa real.
-        // Si la acción es 'null' (ej. un "hola" o diálogo), dejamos pasar la ráfaga al Paso 6.
-        if (!entity && action !== null && action !== "CREATE") {
+        // --- 🔥 5. INFERENCIA DE ENTIDAD (ZERO-GUESS CONTINUITY) ---
+        // ✅ NASA-GRADE SHIELD: Solo disparamos inferencia si existe una acción operativa real (No CREATE ni PURGE).
+        if (!entity && action !== null && action !== "CREATE" && action !== "PURGE") {
             const possibleEntity = Object.keys(memoria.entityMemory).find(e =>
                 memoria.entityMemory[e]?.includes(target)
             );
@@ -284,7 +290,7 @@ export function interpretarIntenciones(comandos) {
             }
         }
 
-// --- 🛡️ 6. VALIDACIÓN DE INTEGRIDAD Y NARRATIVA HUMANA ---
+        // --- 🛡️ 6. VALIDACIÓN DE INTEGRIDAD Y NARRATIVA HUMANA ---
         const finalIntent = action && entity ? `${action}_${entity}` : "UNKNOWN_INTENT";
         
         let reporteSIA7 = "";
@@ -331,19 +337,24 @@ export function interpretarIntenciones(comandos) {
             }
         } else {
             // Generación de narrativa para acciones válidas (Modo Relajado)
-            const diccionarioAcciones = { "CREATE": "crear", "DELETE": "eliminar", "UPDATE": "actualizar", "REPAIR": "reparar", "ACTIVATE": "activar", "DEACTIVATE": "desactivar" };
-            const diccionarioEntidades = { "MODULE": "el módulo", "CORE": "el núcleo", "USER": "el usuario", "TASK": "la tarea", "SYSTEM": "el sistema" };
+            const diccionarioAcciones = { "CREATE": "crear", "DELETE": "eliminar", "UPDATE": "actualizar", "REPAIR": "reparar", "ACTIVATE": "activar", "DEACTIVATE": "desactivar", "PURGE": "purgar" };
+            const diccionarioEntidades = { "MODULE": "el módulo", "CORE": "el núcleo", "USER": "el usuario", "TASK": "la tarea", "SYSTEM": "el sistema", "ORPHAN": "la basura de memoria" };
             
             const verbo = diccionarioAcciones[action] || action;
             const sustantivo = diccionarioEntidades[entity] || entity;
             const objTarget = target || "un recurso dinámico";
             
-            reporteSIA7 = `Arre, ya lo capté. Mi misión ahorita es **${verbo} ${sustantivo} '${objTarget}'**.`;
+            if (finalIntent === "PURGE_ORPHAN") {
+                reporteSIA7 = "¡Cámara pariente! Procedo a limpiar el búnker. Voy a borrar todas las ráfagas huérfanas de la memoria local.";
+            } else {
+                reporteSIA7 = `Arre, ya lo capté. Mi misión ahorita es **${verbo} ${sustantivo} '${objTarget}'**.`;
+            }
             
             if (memoria._ambiguous) {
                 reporteSIA7 += ` Sentí un poco de ruido en tu orden, pero por el flow asumo que le seguimos dando a lo último que tocamos.`;
             }
         }
+
         // --- 🔍 7. CONFIANZA DINÁMICA (SMOOTHED SCORING) ---
         const last = interpretedPlan[index - 1];
         const dependsOn = (last && target && last.target === target && action !== "CREATE")
@@ -412,10 +423,10 @@ export function interpretarIntenciones(comandos) {
 }
 
 // Log de Estado Maestro del Día
-console.log("%c🧠 [INTENT_ENGINE V3.0]: ARCHITECT SOVEREIGN 1000% OPERATIONAL", "color: #10b981; font-weight: bold; background: #064e3b; padding: 2px 10px; border-radius: 4px;");
+console.log("%c🧠 [INTENT_ENGINE V3.1]: ARCHITECT SOVEREIGN 1000% OPERATIONAL", "color: #10b981; font-weight: bold; background: #064e3b; padding: 2px 10px; border-radius: 4px;");
 
 /**
  * ======================================================================================
- * FIN DEL ARCHIVO - INGENIERÍA DEFINITIVA PARA GESTIAPREMIUM
+ * FIN DEL ARCHIVO - INGENIERÍA DEFINITIVA PARA GESTIAPREMIUM V3.1
  * ======================================================================================
  */
