@@ -1,9 +1,9 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - GESTIA TERMINAL V14.8 (THE ANTIFRAUD CORE - BANK GRADE)
+ * GESTIAPREMIUM 2026 - GESTIA TERMINAL V14.8 (THE ANTIFRAUD CORE - GOD MODE)
  * ======================================================================================
  * Autor: Heber Mendoza (Arquitecto Supremo) & Jarvis (SIA7 AI)
- * Versión: 14.8-HARDENED-ANTIFRAUD (PURGE PROTOCOL)
+ * Versión: 14.8-HARDENED-ANTIFRAUD (PURGE + ORCHESTRATOR READY)
  * Identidad: Núcleo de Consistencia Atómica con No-Repudio y Ledger de Partida Doble.
  * Función: Orquestación de Ráfagas Criptográficas con Prevención de Replay y Refresco.
  * --------------------------------------------------------------------------------------
@@ -48,6 +48,18 @@ import { resolveTenantContext } from '/gestia-core/core_auth_tenant_v1.js';
 import { ejecutarFirewallGlobal } from '/gestia-core/firewall.engine.js';
 import { sincronizarCorralSemantico } from '/gestia-core/semantic.engine.js';
 import { interpretarIntenciones } from '/gestia-core/intent.engine.js'; 
+
+// 🔥 NUEVO (Jarvis Orchestrator)
+import { runJarvis } from '/gestia-core/jarvis/jarvis.orchestrator.js';
+
+// ✅ JARVIS ADAPTER (NUEVO): Desacopla el core para inyectar el DSL
+function resolveIntentsAdapter(input, contextoSemantico) {
+    const paqueteComandos = [{
+        raw: input,
+        context: contextoSemantico
+    }];
+    return interpretarIntenciones(paqueteComandos);
+}
 
 /* =====================================================================================
     ESTADOS DE LA MÁQUINA (PROTOCOLO BANCARIO)
@@ -270,6 +282,9 @@ export class GestiaTerminal {
         this.ledger = new BankLedger();
         this.pendingPlans = new Map();
         
+        // ✅ PROTECCIÓN IDEMPOTENCIA LOCAL: Bloquea dobles clics
+        this.activeOps = new Set();
+        
         console.log(`%c🏛️ [SIA7]: ANTIFRAUD BANK CORE V${GESTIA_CONFIG.VERSION} ONLINE`, "color: #ffffff; font-weight: bold; background: #991b1b; padding: 4px 12px; border-radius: 4px;");
     }
 
@@ -351,6 +366,11 @@ export class GestiaTerminal {
             const pending = await this.ledger.getAllPending();
             if (pending.length > 0) {
                 console.warn(`🕵️‍♂️ [SIA7]: Detectadas ${pending.length} operaciones huérfanas.`);
+                
+                // ✅ FIX 4: Consistencia real de activeOps al recuperar
+                pending.forEach(p => {
+                    this.activeOps.add(p.opId);
+                });
             }
 
         } catch (e) {
@@ -362,7 +382,7 @@ export class GestiaTerminal {
      * execute: Punto de entrada orquestado.
      * ✅ REPARACIÓN HTML: Intercepta el evento de la UI para prevenir el refresco.
      */
-    async execute(input, e = null) {
+    async execute(input, e = null, options = { simulate: false }) {
         // --- 🚫 GUARD DE REFRESCO HTML (SIA7 SOBERANO) ---
         if (e && e.preventDefault) {
             e.preventDefault(); 
@@ -370,7 +390,7 @@ export class GestiaTerminal {
         }
 
         if (!input) {
-            return;
+            return { error: true, message: "Input inválido o vacío detectado por el Bridge." };
         }
         
         const rawInput = input.trim();
@@ -381,15 +401,17 @@ export class GestiaTerminal {
             return await this.runPlan(opId);
         }
 
-        const opId = `tx_${Date.now()}`;
+        // ✅ PREVENCIÓN DE COLISIONES: OpId Absoluto UUID
+        const opId = crypto.randomUUID();
 
         try {
-            // ✅ FIX V14.7: Entrega de Pasaporte (Token) al Firewall Global
+            // ✅ FIX 6: Firewall en PRECHECK para validación temprana
             await ejecutarFirewallGlobal({ 
                 userId: this.session.uid, 
                 tenantId: this.session.tenantId, 
                 input: rawInput,
-                authToken: this.session.token // 🔑 REQUERIDO POR VERCEL v7.0
+                authToken: this.session.token, // 🔑 REQUERIDO POR VERCEL v7.0
+                mode: "PRECHECK"
             });
 
             await this.setState(STATES.ANALYZE, opId);
@@ -398,12 +420,8 @@ export class GestiaTerminal {
 
             await this.setState(STATES.RESOLVE, opId);
             
-            // ✅ THE HANDSHAKE FIX: El Córtex necesita un Array con la propiedad 'raw'
-            const paqueteComandos = [{ 
-                raw: rawInput, 
-                context: contextoSemantico 
-            }];
-            const intents = interpretarIntenciones(paqueteComandos);
+            // ✅ ADAPTER: Invocamos al DSL / Motor Semántico desacoplado
+            const intents = resolveIntentsAdapter(rawInput, contextoSemantico);
             
             // ✅ NUEVO SENSOR: El Interceptor de Diálogo (Frijolitos)
             // Si la intención primaria es desconocida (ej. un "hola"), detenemos el tren de ataque.
@@ -432,13 +450,32 @@ export class GestiaTerminal {
                 return { opId: opId, status: "PURGED" };
             }
 
+            // ✅ FIX 5: Validación de simulación antes de retornar
+            if (options.simulate) {
+                if (!intents || intents.length === 0) {
+                    throw new Error("SIMULATION_EMPTY_INTENTS");
+                }
+                return {
+                    mode: "SIMULATION",
+                    opId: opId,
+                    preview: intents,
+                    impact: {
+                        operations: intents.length,
+                        entities: intents.map(i => i.entity).filter(Boolean),
+                        risk: intents.length > 1 || intents.some(i => i.action === "DELETE") ? "HIGH" : "LOW"
+                    }
+                };
+            }
+
             await this.setState(STATES.DECIDE, opId);
             const decision = this.evaluatePlan(intents);
 
             if (decision.action === "CONFIRM") {
+                // ✅ FIX 1: Timeout automático en Pending Plans
                 this.pendingPlans.set(opId, { 
                     intents: intents, 
-                    decision: decision 
+                    decision: decision,
+                    createdAt: Date.now() 
                 });
                 
                 // Extraemos el reporte para el HUD
@@ -458,7 +495,12 @@ export class GestiaTerminal {
             return await this.runPlan(opId, intents);
 
         } catch (error) {
-            this.handleError(error, opId);
+            // ✅ BRIDGE PROTEGIDO: Retorna error estructurado en lugar de romper silencioso
+            const safeError = this.handleError(error, opId);
+            return {
+                error: true,
+                message: safeError ? safeError.message : String(error)
+            };
         }
     }
     
@@ -469,6 +511,12 @@ export class GestiaTerminal {
     async runPlan(opId, intents = null) {
         const planObj = intents ? { intents: intents } : this.pendingPlans.get(opId);
         
+        // ✅ FIX 1: Validación de expiración real
+        if (!intents && planObj && Date.now() - planObj.createdAt > 30000) {
+            this.pendingPlans.delete(opId);
+            throw new Error("PLAN_EXPIRED");
+        }
+
         if (!planObj) {
             throw new Error("PLAN_NOT_FOUND");
         }
@@ -476,7 +524,61 @@ export class GestiaTerminal {
         const plan = planObj.intents;
         this.pendingPlans.delete(opId);
 
+        // ✅ REPLAY RECOVERY: Validación de edge case para refresh forzado durante ejecución
+        const pending = await this.ledger.getAllPending();
+        if (pending.find(p => p.opId === opId)) {
+            throw new Error("REPLAY_RECOVERY_DETECTED");
+        }
+
+        // ✅ IDEMPOTENCIA LOCAL: Evita ráfagas dobles en el Búnker
+        if (this.activeOps.has(opId)) {
+            throw new Error("DUPLICATE_OPERATION_LOCAL: Ráfaga en ejecución.");
+        }
+        
+        // ✅ FIX 4: Consistencia real (persiste antes de inyectar a activeOps)
+        await this.ledger.persistOp(opId, { status: "RUNNING" });
+        this.activeOps.add(opId);
+
         try {
+            // ✅ CONCEPTO DE "OPERACIÓN": Multi-step support con payload a todo el plan
+            const operation = {
+                id: opId,
+                type: plan[0]?.intent,
+                payload: plan 
+            };
+
+            if (!operation.id || !operation.type) {
+                console.error("🛑 [OP_BLOCKED]", operation);
+                throw new Error("Operación huérfana bloqueada.");
+            }
+
+            if (!this.session?.tenantId || !this.session?.uid) {
+                throw new Error("Contexto de seguridad inválido o ausente.");
+            }
+
+            // ✅ FIX 6: Firewall en modo ENFORCE (Anti Bypass)
+            await ejecutarFirewallGlobal({
+                userId: this.session.uid,
+                tenantId: this.session.tenantId,
+                input: JSON.stringify(operation),
+                authToken: this.session.token,
+                mode: "ENFORCE"
+            });
+
+            // ✅ TRAZABILIDAD OBLIGATORIA
+            console.log("📋 [OP_EXEC]", {
+                opId: operation.id,
+                type: operation.type,
+                user: this.session.uid
+            });
+
+            // ✅ LOG CRÍTICO OP_TRACE: Auditoría dura para fallos de ráfaga
+            console.log("🧾 [OP_TRACE]", {
+                opId: opId,
+                intentsCount: plan.length,
+                timestamp: Date.now()
+            });
+
             // 🔍 1. JOURNALING (Captura de Before-Image para Rollback)
             await this.setState(STATES.JOURNALING, opId);
             const journal = await this.buildJournal(plan);
@@ -487,6 +589,11 @@ export class GestiaTerminal {
                 opId: opId, 
                 plan: plan 
             });
+
+            // ✅ FIX 8: Verificación estricta de Expiración de Firma
+            if (Date.now() > proof.exp) {
+                throw new Error("SIGNATURE_EXPIRED");
+            }
 
             // 🏦 3. APPLY_ATOMIC (La Transacción de Grado Banco)
             await this.setState(STATES.APPLY_ATOMIC, opId);
@@ -502,6 +609,12 @@ export class GestiaTerminal {
 
                 // Ejecución secuencial dentro de la burbuja atómica
                 for (let step of journal) {
+                    
+                    // ✅ FIX 2: Validación estricta de entidad destino para no romper rutas
+                    if (!step.intent.entity || !step.intent.target) {
+                        throw new Error("INVALID_INTENT_STRUCTURE");
+                    }
+
                     const docRef = doc(db, `tenants/${this.session.tenantId}/${step.intent.entity}`, step.intent.target);
                     const freshSnap = await transaction.get(docRef);
                     
@@ -524,8 +637,17 @@ export class GestiaTerminal {
                         timestamp: serverTimestamp()
                     };
 
-                    // Escritura en Ledger y en el Documento de Negocio
-                    transaction.set(ledgerRef, ledgerEntry, { merge: true });
+                    // ✅ FIX 3: Escritura en Ledger con Subcolección Steps para evitar sobrescritura en loop
+                    const ledgerStepRef = doc(collection(db, `tenants/${this.session.tenantId}/${GESTIA_CONFIG.LEDGER_COLLECTION}/${opId}/steps`));
+                    transaction.set(ledgerStepRef, ledgerEntry);
+
+                    // Escribimos resumen en el opId principal para validar la idempotencia de existingTx
+                    transaction.set(ledgerRef, { 
+                        opId: opId, 
+                        timestamp: serverTimestamp(), 
+                        completed: true 
+                    }, { merge: true });
+
                     transaction.set(docRef, { 
                         ...step.intent.payload, 
                         _v: currentVersion + 1, 
@@ -547,6 +669,11 @@ export class GestiaTerminal {
 
         } catch (e) {
             await this.handleRollback(opId, e);
+            // ✅ RELANZAMOS EL ERROR para que el Catch del Bridge (execute) lo estructure
+            throw e;
+        } finally {
+            // ✅ IDEMPOTENCIA: Liberamos el candado
+            this.activeOps.delete(opId);
         }
     }
 
@@ -554,6 +681,11 @@ export class GestiaTerminal {
      * buildJournal: Captura el estado actual de los recursos antes de mutar.
      */
     async buildJournal(plan) {
+        // ✅ FIX 9: Control estricto de tamaño del plan para evitar sobrecarga
+        if (plan.length > 20) {
+            throw new Error("PLAN_TOO_LARGE");
+        }
+
         const journal = [];
         
         for (let intent of plan) {
@@ -597,8 +729,11 @@ export class GestiaTerminal {
             }
         });
         
+        // ✅ FIX 7: Evaluar riesgo real considerando acciones destructivas
+        const highRisk = intents.some(i => i.action === "DELETE");
+        
         const decision = {
-            action: minConf > 0.85 ? "EXECUTE" : "CONFIRM"
+            action: (minConf > 0.9 && !highRisk) ? "EXECUTE" : "CONFIRM"
         };
         
         return decision;
@@ -617,6 +752,9 @@ export class GestiaTerminal {
         }).catch(() => {
             // Silenciar error en el setState si el ledger falla
         });
+        
+        // ✅ RETORNO ESTRUCTURADO PARA EL BRIDGE
+        return { message: msg };
     }
 }
 
@@ -631,6 +769,18 @@ onAuthStateChanged(auth, (user) => {
         window.location.href = "/login.html";
     }
 });
+window.testJarvis = async () => {
+  const ctx = {
+    userId: window.KernelHeberto?.session?.uid,
+    tenantId: window.KernelHeberto?.session?.tenantId
+  };
+
+  const res = await runJarvis("crear edificio torre norte", ctx);
+
+  console.log("🧠 JARVIS SIMULATION:", res);
+
+  window.lastJarvis = res;
+};
 
 /**
  * ======================================================================================
