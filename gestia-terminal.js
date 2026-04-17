@@ -253,7 +253,7 @@ export class GestiaTerminal {
         console.log(`%c🏛️ [SIA7]: ANTIFRAUD BANK CORE V${GESTIA_CONFIG.VERSION} ONLINE`, "color: #ffffff; font-weight: bold; background: #991b1b; padding: 4px 12px; border-radius: 4px;");
     }
 
-    /**
+   /**
      * setState: Persistencia de estado en IndexedDB y telemetría HUD.
      */
     async setState(newState, opId, metadata = {}) {
@@ -280,7 +280,23 @@ export class GestiaTerminal {
             }
         }
 
-        console.log(`%c[BANK_STATE]: ${newState}`, "color: #ef4444; font-weight: bold");
+        // ✅ AESTHETIC FIX: Colores de Grado Consola para el Búnker
+        const logColors = {
+            IDLE: "color: #bae6fd; background: #082f49;",
+            ANALYZE: "color: #fde047; background: #854d0e;",
+            RESOLVE: "color: #c084fc; background: #581c87;",
+            DECIDE: "color: #67e8f9; background: #164e63;",
+            WAIT_APPROVAL: "color: #fca5a5; background: #7f1d1d;",
+            JOURNALING: "color: #f87171; background: #450a0a;",
+            SIGNING: "color: #fb923c; background: #7c2d12;",
+            APPLY_ATOMIC: "color: #34d399; background: #064e3b;",
+            VERIFY_LEDGER: "color: #818cf8; background: #312e81;",
+            DONE: "color: #10b981; background: #064e3b;",
+            ERROR: "color: #ffffff; background: #ef4444;"
+        };
+        
+        const style = `${logColors[newState] || "color: #ffffff; background: #374151;"} font-weight: bold; padding: 2px 10px; border-radius: 4px;`;
+        console.log(`%c[BANK_STATE]: ${newState}`, style);
     }
 
     /**
@@ -356,11 +372,18 @@ export class GestiaTerminal {
                 authToken: this.session.token // 🔑 REQUERIDO POR VERCEL v7.0
             });
 
-           await this.setState(STATES.ANALYZE, opId);
-            const comandos = await sincronizarCorralSemantico(rawInput);
+            await this.setState(STATES.ANALYZE, opId);
+            // ✅ THE HANDSHAKE FIX: El semantic prepara el contexto
+            const contextoSemantico = await sincronizarCorralSemantico(rawInput);
 
             await this.setState(STATES.RESOLVE, opId);
-            const intents = interpretarIntenciones(comandos);
+            
+            // ✅ THE HANDSHAKE FIX: El Córtex necesita un Array con la propiedad 'raw'
+            const paqueteComandos = [{ 
+                raw: rawInput, 
+                context: contextoSemantico 
+            }];
+            const intents = interpretarIntenciones(paqueteComandos);
             
             // ✅ NUEVO SENSOR: El Interceptor de Diálogo (Frijolitos)
             // Si la intención primaria es desconocida (ej. un "hola"), detenemos el tren de ataque.
