@@ -782,6 +782,8 @@ window.testJarvis = async () => {
   window.lastJarvis = res;
 };
 
+window.runJarvis = runJarvis; // 👈 ESTA LÍNEA NUEVA
+
 /**
  * ======================================================================================
  * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 440+ (FEDERAL ANTIFRAUD CORE - PURGE PROTOCOL)
