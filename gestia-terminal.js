@@ -1,9 +1,9 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - GESTIA TERMINAL V14.7 (THE ANTIFRAUD CORE - BANK GRADE)
+ * GESTIAPREMIUM 2026 - GESTIA TERMINAL V14.8 (THE ANTIFRAUD CORE - BANK GRADE)
  * ======================================================================================
  * Autor: Heber Mendoza (Arquitecto Supremo) & Jarvis (SIA7 AI)
- * Versión: 14.7-HARDENED-ANTIFRAUD (FIREWALL HANDSHAKE FIX)
+ * Versión: 14.8-HARDENED-ANTIFRAUD (PURGE PROTOCOL)
  * Identidad: Núcleo de Consistencia Atómica con No-Repudio y Ledger de Partida Doble.
  * Función: Orquestación de Ráfagas Criptográficas con Prevención de Replay y Refresco.
  * --------------------------------------------------------------------------------------
@@ -79,7 +79,7 @@ const APPROVAL_WORDS = [
 ];
 
 const GESTIA_CONFIG = {
-    VERSION: "14.7-BANK-SIA7",
+    VERSION: "14.8-BANK-SIA7",
     DB_NAME: "GestiaAntifraud_DB",
     DB_VERSION: 1,
     LEDGER_COLLECTION: "gestia_financial_ledger",
@@ -162,6 +162,26 @@ class BankLedger {
             };
         });
     }
+
+    // ✅ PROTOCOLO DE PURGA: Soplete para limpiar el caché de ráfagas caídas
+    async clearAllPending() {
+        if (!this.db) {
+            return;
+        }
+        
+        const tx = this.db.transaction("unconfirmed_ops", "readwrite");
+        const store = tx.objectStore("unconfirmed_ops");
+        
+        return new Promise((resolve, reject) => {
+            const req = store.clear();
+            req.onsuccess = () => {
+                resolve();
+            };
+            req.onerror = () => {
+                reject(req.error);
+            };
+        });
+    }
 }
 
 /* =====================================================================================
@@ -235,7 +255,7 @@ class CryptoEngine {
 }
 
 /* =====================================================================================
-    CLASE CENTRAL: GESTIA TERMINAL V14.7 (THE ANTIFRAUD CORE)
+    CLASE CENTRAL: GESTIA TERMINAL V14.8 (THE ANTIFRAUD CORE)
    ===================================================================================== */
 export class GestiaTerminal {
     constructor() {
@@ -253,7 +273,7 @@ export class GestiaTerminal {
         console.log(`%c🏛️ [SIA7]: ANTIFRAUD BANK CORE V${GESTIA_CONFIG.VERSION} ONLINE`, "color: #ffffff; font-weight: bold; background: #991b1b; padding: 4px 12px; border-radius: 4px;");
     }
 
-   /**
+    /**
      * setState: Persistencia de estado en IndexedDB y telemetría HUD.
      */
     async setState(newState, opId, metadata = {}) {
@@ -392,6 +412,24 @@ export class GestiaTerminal {
                     report: intents[0].summary 
                 });
                 return { opId: opId, status: "DIALOGUE_COMPLETED" };
+            }
+
+            // ✅ NUEVO SENSOR: Protocolo de Purga (Limpieza de IndexedDB)
+            // Ejecutamos la limpieza local sin tocar Firestore
+            if (intents[0] && intents[0].intent === "PURGE_ORPHAN") {
+                await this.setState(STATES.RESOLVE, opId);
+                try {
+                    await this.ledger.clearAllPending();
+                    await this.setState(STATES.DONE, opId, { 
+                        report: intents[0].summary 
+                    });
+                    console.log("🧹 [LEDGER]: Ráfagas huérfanas eliminadas. Búnker limpio.");
+                } catch (err) {
+                    await this.setState(STATES.ERROR, opId, { 
+                        error: "Fallo al purgar la memoria local." 
+                    });
+                }
+                return { opId: opId, status: "PURGED" };
             }
 
             await this.setState(STATES.DECIDE, opId);
@@ -596,6 +634,6 @@ onAuthStateChanged(auth, (user) => {
 
 /**
  * ======================================================================================
- * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 415 (FEDERAL ANTIFRAUD CORE - HANDSHAKE FIX)
+ * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 440+ (FEDERAL ANTIFRAUD CORE - PURGE PROTOCOL)
  * ======================================================================================
  */
