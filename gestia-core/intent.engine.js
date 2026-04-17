@@ -50,6 +50,7 @@ const ENTITY_MAP = {
     "huerfanas": "ORPHAN",
     "basura": "ORPHAN",
     "orphans": "ORPHAN",
+    "edificio": "BUILDING",
     "modulo": "MODULE",
     "module": "MODULE",
     "mod": "MODULE",
