@@ -1,16 +1,16 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - GESTIA TERMINAL V14.3 (THE ANTIFRAUD CORE - BANK GRADE)
+ * GESTIAPREMIUM 2026 - GESTIA TERMINAL V14.6 (THE ANTIFRAUD CORE - BANK GRADE)
  * ======================================================================================
  * Autor: Heber Mendoza (Arquitecto Supremo) & Jarvis (SIA7 AI)
- * Versión: 14.3-HARDENED-ANTIFRAUD-FIX (INTEGRITY RESTORED)
+ * Versión: 14.6-HARDENED-ANTIFRAUD (FULL INTEGRITY RESTORED)
  * Identidad: Núcleo de Consistencia Atómica con No-Repudio y Ledger de Partida Doble.
  * Función: Orquestación de Ráfagas Criptográficas con Prevención de Replay y Refresco.
  * --------------------------------------------------------------------------------------
  * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
  * --------------------------------------------------------------------------------------
  * ARQUITECTURA DE MISIÓN CRÍTICA (BANK GRADE):
- * 1. INTERNAL EVENT GUARD: El método execute ahora captura el evento de la UI y
+ * 1. INTERNAL EVENT GUARD: El método execute captura el evento de la UI y
  * previene el refresco del panel automáticamente (e.preventDefault).
  * 2. EPHEMERAL KEY DERIVATION: No hay secretos en el código. La clave de firma se
  * deriva de la sesión del usuario mediante PBKDF2 en tiempo real.
@@ -18,8 +18,8 @@
  * `runTransaction` de Firestore. Si un documento falla, NADA se escribe.
  * 4. REPLAY PROTECTION (NONCE): Cada operación incluye un identificador único y un
  * timestamp expiración (30s) para evitar ataques de repetición.
- * 5. REAL DOUBLE-ENTRY: Cada acción de mantenimiento genera un asiento contable
- * (Debit/Credit) en el Ledger de Operaciones para balance de recursos.
+ * 5. REAL DOUBLE-ENTRY: Cada acción genera un asiento contable (Debit/Credit) 
+ * en el Ledger de Operaciones para balance de recursos.
  * 6. FUNCTIONAL ROLLBACK: Implementación real de compensación mediante Journal
  * persistido en IndexedDB antes de la ejecución.
  * 7. TENANT ISOLATION: Aislamiento físico de rutas: `/tenants/{id}/ledger/{opId}`.
@@ -67,10 +67,19 @@ const STATES = {
     ERROR: "ERROR"
 };
 
-const APPROVAL_WORDS = ["si", "sí", "ok", "arre", "hazlo", "confirmar", "proceder", "dale"];
+const APPROVAL_WORDS = [
+    "si", 
+    "sí", 
+    "ok", 
+    "arre", 
+    "hazlo", 
+    "confirmar", 
+    "proceder", 
+    "dale"
+];
 
 const GESTIA_CONFIG = {
-    VERSION: "14.3-BANK-SIA7",
+    VERSION: "14.6-BANK-SIA7",
     DB_NAME: "GestiaAntifraud_DB",
     DB_VERSION: 1,
     LEDGER_COLLECTION: "gestia_financial_ledger",
@@ -89,14 +98,22 @@ class BankLedger {
     async init() {
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(GESTIA_CONFIG.DB_NAME, GESTIA_CONFIG.DB_VERSION);
+            
             request.onupgradeneeded = (e) => {
                 const db = e.target.result;
                 if (!db.objectStoreNames.contains("unconfirmed_ops")) {
                     db.createObjectStore("unconfirmed_ops", { keyPath: "opId" });
                 }
             };
-            request.onsuccess = (e) => { this.db = e.target.result; resolve(); };
-            request.onerror = (e) => reject(e.target.error);
+            
+            request.onsuccess = (e) => { 
+                this.db = e.target.result; 
+                resolve(); 
+            };
+            
+            request.onerror = (e) => {
+                reject(e.target.error);
+            };
         });
     }
 
@@ -105,29 +122,44 @@ class BankLedger {
             console.warn("⚠️ [LEDGER]: DB no inicializada. Reintentando...");
             return;
         }
+        
         const tx = this.db.transaction("unconfirmed_ops", "readwrite");
         const store = tx.objectStore("unconfirmed_ops");
+        
         return new Promise((resolve, reject) => {
             const req = store.put({ opId, ...data });
-            req.onsuccess = () => resolve();
-            req.onerror = () => reject(req.error);
+            req.onsuccess = () => {
+                resolve();
+            };
+            req.onerror = () => {
+                reject(req.error);
+            };
         });
     }
 
     async removeOp(opId) {
-        if (!this.db) return;
+        if (!this.db) {
+            return;
+        }
+        
         const tx = this.db.transaction("unconfirmed_ops", "readwrite");
         const store = tx.objectStore("unconfirmed_ops");
         store.delete(opId);
     }
 
     async getAllPending() {
-        if (!this.db) return [];
+        if (!this.db) {
+            return [];
+        }
+        
         const tx = this.db.transaction("unconfirmed_ops", "readonly");
         const store = tx.objectStore("unconfirmed_ops");
+        
         return new Promise((resolve) => {
             const req = store.getAll();
-            req.onsuccess = () => resolve(req.result);
+            req.onsuccess = () => {
+                resolve(req.result);
+            };
         });
     }
 }
@@ -146,6 +178,7 @@ class CryptoEngine {
      */
     async derivarClaveSesion(uid, token) {
         const encoder = new TextEncoder();
+        
         const baseKey = await window.crypto.subtle.importKey(
             "raw", 
             encoder.encode(token.slice(-32)), 
@@ -162,7 +195,11 @@ class CryptoEngine {
                 hash: "SHA-256"
             },
             baseKey,
-            { name: "HMAC", hash: "SHA-256", length: 256 },
+            { 
+                name: "HMAC", 
+                hash: "SHA-256", 
+                length: 256 
+            },
             false,
             ["sign", "verify"]
         );
@@ -176,7 +213,12 @@ class CryptoEngine {
         const nonce = window.crypto.getRandomValues(new Uint8Array(16)).join("");
         const exp = Date.now() + GESTIA_CONFIG.SIGNATURE_EXPIRY_MS;
         
-        const dataToSign = JSON.stringify({ ...payload, nonce, exp });
+        const dataToSign = JSON.stringify({ 
+            ...payload, 
+            nonce, 
+            exp 
+        });
+        
         const signature = await window.crypto.subtle.sign(
             "HMAC",
             this.sessionKey,
@@ -185,20 +227,25 @@ class CryptoEngine {
 
         return {
             signature: btoa(String.fromCharCode(...new Uint8Array(signature))),
-            nonce,
-            exp,
+            nonce: nonce,
+            exp: exp,
             raw: dataToSign
         };
     }
 }
 
 /* =====================================================================================
-    CLASE CENTRAL: GESTIA TERMINAL V14.3 (THE ANTIFRAUD CORE)
+    CLASE CENTRAL: GESTIA TERMINAL V14.6 (THE ANTIFRAUD CORE)
    ===================================================================================== */
 export class GestiaTerminal {
     constructor() {
         this.state = STATES.IDLE;
-        this.session = { authorized: false, uid: null, tenantId: "uxmal39", token: null };
+        this.session = { 
+            authorized: false, 
+            uid: null, 
+            tenantId: "uxmal39", 
+            token: null 
+        };
         this.crypto = new CryptoEngine();
         this.ledger = new BankLedger();
         this.pendingPlans = new Map();
@@ -211,15 +258,18 @@ export class GestiaTerminal {
      */
     async setState(newState, opId, metadata = {}) {
         this.state = newState;
+        
         const entry = { 
             state: newState, 
-            opId, 
+            opId: opId, 
             timestamp: new Date().toISOString(), 
             tenantId: this.session.tenantId,
             ...metadata 
         };
         
-        window.dispatchEvent(new CustomEvent('gestia-terminal-state', { detail: entry }));
+        window.dispatchEvent(new CustomEvent('gestia-terminal-state', { 
+            detail: entry 
+        }));
         
         // Persistencia de seguridad en IndexedDB para recuperación tras crash
         if (opId) {
@@ -234,15 +284,19 @@ export class GestiaTerminal {
     }
 
     /**
-     * inicializarAutoridad: Resolución de Búnker y Derivación de llaves.
+     * inicializarAutoridad: Resolución de Búnker e Intercambio de Llaves.
      */
     async inicializarAutoridad() {
         try {
             await this.ledger.init();
+            
             const user = auth.currentUser;
-            if (!user) throw new Error("AUTH_SESSION_MISSING");
+            if (!user) {
+                throw new Error("AUTH_SESSION_MISSING");
+            }
 
             const context = await resolveTenantContext();
+            
             this.session = {
                 authorized: true,
                 uid: user.uid,
@@ -252,7 +306,9 @@ export class GestiaTerminal {
 
             // Derivación de llaves de sesión criptográficas
             await this.crypto.derivarClaveSesion(this.session.uid, this.session.token);
+            
             await this.setState(STATES.IDLE);
+            
             console.log("🔒 [CRYPTO]: Llaves de sesión federales generadas.");
             
             // Verificación de recuperación
@@ -277,7 +333,10 @@ export class GestiaTerminal {
             console.log("🛡️ [JARVIS]: Refresco de página bloqueado por la Terminal Federal.");
         }
 
-        if (!input) return;
+        if (!input) {
+            return;
+        }
+        
         const rawInput = input.trim();
 
         // Manejo determinístico de aprobaciones
@@ -290,7 +349,11 @@ export class GestiaTerminal {
 
         try {
             // Firewall Global antes de cualquier procesamiento
-            await ejecutarFirewallGlobal({ userId: this.session.uid, tenantId: this.session.tenantId, input: rawInput });
+            await ejecutarFirewallGlobal({ 
+                userId: this.session.uid, 
+                tenantId: this.session.tenantId, 
+                input: rawInput 
+            });
 
             await this.setState(STATES.ANALYZE, opId);
             const comandos = await sincronizarCorralSemantico(rawInput);
@@ -302,9 +365,18 @@ export class GestiaTerminal {
             const decision = this.evaluatePlan(intents);
 
             if (decision.action === "CONFIRM") {
-                this.pendingPlans.set(opId, { intents, decision });
+                this.pendingPlans.set(opId, { 
+                    intents: intents, 
+                    decision: decision 
+                });
+                
                 await this.setState(STATES.WAIT_APPROVAL, opId);
-                return { opId, status: "WAITING", reason: "Requiere aprobación federal." };
+                
+                return { 
+                    opId: opId, 
+                    status: "WAITING", 
+                    reason: "Requiere aprobación federal." 
+                };
             }
 
             return await this.runPlan(opId, intents);
@@ -319,8 +391,11 @@ export class GestiaTerminal {
      * ✅ CONSISTENCIA FUERTE: Transacción multi-documento blindada.
      */
     async runPlan(opId, intents = null) {
-        const planObj = intents ? { intents } : this.pendingPlans.get(opId);
-        if (!planObj) throw new Error("PLAN_NOT_FOUND");
+        const planObj = intents ? { intents: intents } : this.pendingPlans.get(opId);
+        
+        if (!planObj) {
+            throw new Error("PLAN_NOT_FOUND");
+        }
         
         const plan = planObj.intents;
         this.pendingPlans.delete(opId);
@@ -332,7 +407,10 @@ export class GestiaTerminal {
 
             // 🔒 2. SIGNING (Firma Digital con Nonce de un solo uso)
             await this.setState(STATES.SIGNING, opId);
-            const proof = await this.crypto.firmarOperacion({ opId, plan });
+            const proof = await this.crypto.firmarOperacion({ 
+                opId: opId, 
+                plan: plan 
+            });
 
             // 🏦 3. APPLY_ATOMIC (La Transacción de Grado Banco)
             await this.setState(STATES.APPLY_ATOMIC, opId);
@@ -341,7 +419,10 @@ export class GestiaTerminal {
                 // Validación de No-Replay en el Ledger de ráfagas
                 const ledgerRef = doc(db, `tenants/${this.session.tenantId}/${GESTIA_CONFIG.LEDGER_COLLECTION}`, opId);
                 const existingTx = await transaction.get(ledgerRef);
-                if (existingTx.exists()) throw new Error("REPLAY_ATTEMPT_DETECTED: La ráfaga ya fue procesada.");
+                
+                if (existingTx.exists()) {
+                    throw new Error("REPLAY_ATTEMPT_DETECTED: La ráfaga ya fue procesada.");
+                }
 
                 // Ejecución secuencial dentro de la burbuja atómica
                 for (let step of journal) {
@@ -350,17 +431,18 @@ export class GestiaTerminal {
                     
                     // ✅ OPTIMISTIC LOCKING: Si el documento cambió durante la firma, abortamos.
                     const currentVersion = freshSnap.exists() ? (freshSnap.data()._v || 0) : 0;
+                    
                     if (currentVersion !== step.version) {
                         throw new Error(`CONCURRENCY_CONFLICT: El recurso ${step.intent.target} fue modificado externamente.`);
                     }
 
                     // Asiento de Contabilidad de Partida Doble
                     const ledgerEntry = {
-                        opId,
+                        opId: opId,
                         target: step.intent.target,
                         action: step.intent.action,
                         debit: step.intent.action === "DELETE" ? 1 : 0,
-                        credit: step.intent.action === "CREATE" || step.intent.action === "UPDATE" ? 1 : 0,
+                        credit: (step.intent.action === "CREATE" || step.intent.action === "UPDATE") ? 1 : 0,
                         v: currentVersion + 1,
                         proof: proof.signature,
                         timestamp: serverTimestamp()
@@ -368,15 +450,24 @@ export class GestiaTerminal {
 
                     // Escritura en Ledger y en el Documento de Negocio
                     transaction.set(ledgerRef, ledgerEntry, { merge: true });
-                    transaction.set(docRef, { ...step.intent.payload, _v: currentVersion + 1, _tx: opId }, { merge: true });
+                    transaction.set(docRef, { 
+                        ...step.intent.payload, 
+                        _v: currentVersion + 1, 
+                        _tx: opId 
+                    }, { merge: true });
                 }
             });
 
             // 🧬 4. FINALIZACIÓN Y LIMPIEZA
             await this.setState(STATES.DONE, opId);
             await this.ledger.removeOp(opId);
+            
             console.log(`✅ [SUCCESS]: Ráfaga ${opId} ejecutada y firmada.`);
-            return { success: true, opId };
+            
+            return { 
+                success: true, 
+                opId: opId 
+            };
 
         } catch (e) {
             await this.handleRollback(opId, e);
@@ -388,16 +479,19 @@ export class GestiaTerminal {
      */
     async buildJournal(plan) {
         const journal = [];
+        
         for (let intent of plan) {
             const docPath = `tenants/${this.session.tenantId}/${intent.entity}`;
             const docRef = doc(db, docPath, intent.target);
             const snap = await getDoc(docRef);
+            
             journal.push({ 
-                intent, 
+                intent: intent, 
                 before: snap.exists() ? snap.data() : null,
                 version: snap.exists() ? (snap.data()._v || 0) : 0
             });
         }
+        
         return journal;
     }
 
@@ -406,8 +500,12 @@ export class GestiaTerminal {
      */
     async handleRollback(opId, error) {
         console.error(`💥 [ROLLBACK TRIGGERED]: ${error.message}`);
+        
         // Nota: Firestore revierte la transacción automáticamente si falla dentro de runTransaction.
-        await this.setState(STATES.ERROR, opId, { error: error.message });
+        await this.setState(STATES.ERROR, opId, { 
+            error: error.message 
+        });
+        
         this.pendingPlans.delete(opId);
     }
 
@@ -416,14 +514,18 @@ export class GestiaTerminal {
      */
     evaluatePlan(intents) {
         let minConf = 1.0;
+        
         intents.forEach(i => { 
             if (i.contextRef && i.contextRef.confidence < minConf) {
                 minConf = i.contextRef.confidence;
             }
         });
         
-        if (minConf > 0.85) return { action: "EXECUTE" };
-        return { action: "CONFIRM" };
+        const decision = {
+            action: minConf > 0.85 ? "EXECUTE" : "CONFIRM"
+        };
+        
+        return decision;
     }
 
     /**
@@ -431,24 +533,31 @@ export class GestiaTerminal {
      */
     handleError(error, opId) {
         const msg = error.message || String(error);
+        
         console.error(`❌ [SYSTEM_FAIL]: ${msg}`);
-        this.setState(STATES.ERROR, opId, { error: msg }).catch(() => {});
+        
+        this.setState(STATES.ERROR, opId, { 
+            error: msg 
+        }).catch(() => {
+            // Silenciar error en el setState si el ledger falla
+        });
     }
 }
 
-// INSTANCIACIÓN SOBERANA
+// ✅ SOBERANÍA DE NOMBRE: Alineado con el llamado de autoridad del HTML
 const BankTerminal = new GestiaTerminal();
-window.KernelTerminal = BankTerminal;
+window.KernelHeberto = BankTerminal;
 
 onAuthStateChanged(auth, (user) => {
-    if (user) window.KernelTerminal.inicializarAutoridad();
-    else if (!window.location.pathname.includes("login.html")) {
+    if (user) {
+        window.KernelHeberto.inicializarAutoridad();
+    } else if (!window.location.pathname.includes("login.html")) {
         window.location.href = "/login.html";
     }
 });
 
 /**
  * ======================================================================================
- * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 415 (FEDERAL ANTIFRAUD CORE - FIXED)
+ * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 415 (FEDERAL ANTIFRAUD CORE - FULL INTEGRITY)
  * ======================================================================================
  */
