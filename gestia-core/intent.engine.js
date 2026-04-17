@@ -289,14 +289,41 @@ export function interpretarIntenciones(comandos) {
         
         let reporteSIA7 = "";
 
-        // ✅ FIX "FRIJOLITOS": En lugar de tronar violentamente, SIA7 dialoga.
+        // ✅ FIX "FRIJOLITOS": En lugar de tronar violentamente, SIA7 dialoga con fluidez.
         if (finalIntent === "UNKNOWN_INTENT") {
-            const saludoMatch = /\b(hola|buenos|buenas|jarvis|sia7)\b/i.test(rawLower);
+            const isSaludo = /\b(hola|buenos|buenas|que tal|q tal|hey)\b/i.test(rawLower);
+            const isLlamado = /\b(jarvis|sia7|computadora|sistema)\b/i.test(rawLower);
+            const isDespedida = /\b(adios|bye|hasta luego|nos vemos|chao)\b/i.test(rawLower);
             
-            if (saludoMatch) {
-                // Es un saludo o llamado, no un error crítico.
-                reporteSIA7 = `Arquitecto, recibo su señal en "${cmd.raw}". Sin embargo, no detecto una orden de infraestructura (crear, borrar, actualizar) ni un objetivo. El búnker está en espera de sus coordenadas.`;
-                // No lanzamos error, permitimos que pase como intención inofensiva.
+            if (isSaludo || isLlamado || isDespedida) {
+                // 🧠 MATRIZ DE PERSONALIDAD SIA7 (Zero-Cost)
+                const respuestasSaludo = [
+                    "Búnker en línea, Arquitecto Mendoza. ¿Qué construimos hoy?",
+                    "Sistemas al 100%. A sus órdenes, Arquitecto.",
+                    "Recibo su señal fuerte y clara. Esperando coordenadas tácticas.",
+                    "Terminal federal lista. Indique el siguiente movimiento en GestiaPremium."
+                ];
+                
+                const respuestasLlamado = [
+                    "SIA7 a la escucha. Indique el objetivo.",
+                    "Aquí estoy, Arquitecto. ¿Qué módulo vamos a intervenir hoy?",
+                    "Sistemas activos. Esperando instrucción de grado banco."
+                ];
+                
+                const respuestasDespedida = [
+                    "Sistemas en reposo. Quedo montando guardia en el búnker.",
+                    "Entendido. Cerrando canales de operación. Hasta pronto, Arquitecto.",
+                    "Modo de vigilancia activado. Buen turno."
+                ];
+
+                // Selección dinámica para evitar respuestas robóticas
+                if (isDespedida) {
+                    reporteSIA7 = respuestasDespedida[Math.floor(Math.random() * respuestasDespedida.length)];
+                } else if (isSaludo) {
+                    reporteSIA7 = respuestasSaludo[Math.floor(Math.random() * respuestasSaludo.length)];
+                } else if (isLlamado) {
+                    reporteSIA7 = respuestasLlamado[Math.floor(Math.random() * respuestasLlamado.length)];
+                }
             } else {
                 throw new Error(`INTENT_INVALID: Jarvis no puede determinar la voluntad operativa en "${cmd.raw}". Especifique acción y entidad.`);
             }
@@ -315,7 +342,6 @@ export function interpretarIntenciones(comandos) {
                 reporteSIA7 += ` Noté cierta tensión en el contexto, pero por su fluidez asumo que se refiere a lo último en lo que trabajamos.`;
             }
         }
-
         // --- 🔍 7. CONFIANZA DINÁMICA (SMOOTHED SCORING) ---
         const last = interpretedPlan[index - 1];
         const dependsOn = (last && target && last.target === target && action !== "CREATE")
