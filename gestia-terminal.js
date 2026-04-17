@@ -1,9 +1,9 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - GESTIA TERMINAL V14.0 (THE ANTIFRAUD CORE - BANK GRADE)
+ * GESTIAPREMIUM 2026 - GESTIA TERMINAL V14.1 (THE ANTIFRAUD CORE - BANK GRADE)
  * ======================================================================================
  * Autor: Heber Mendoza (Arquitecto Supremo) & Jarvis (SIA7 AI)
- * Versión: 14.0-HARDENED-ANTIFRAUD
+ * Versión: 14.1-HARDENED-ANTIFRAUD-FIX
  * Identidad: Núcleo de Consistencia Atómica con No-Repudio y Ledger de Partida Doble.
  * Función: Orquestación de Ráfagas Criptográficas con Prevención de Replay.
  * --------------------------------------------------------------------------------------
@@ -32,12 +32,14 @@ import {
     setDoc, 
     getDoc,
     serverTimestamp,
-    runTransaction,
     collection,
     query,
     where,
     getDocs
 } from './firebase.js';
+
+// ✅ FIX: Importación directa de runTransaction para evitar SyntaxError por export faltante en wrapper
+import { runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // MOTORES SOBERANOS - INTEGRACIÓN CORE V16.4
 import { resolveTenantContext } from '/gestia-core/core_auth_tenant_v1.js';
@@ -66,7 +68,7 @@ const STATES = {
 const APPROVAL_WORDS = ["si", "sí", "ok", "arre", "hazlo", "confirmar"];
 
 const GESTIA_CONFIG = {
-    VERSION: "14.0-BANK-SIA7",
+    VERSION: "14.1-BANK-SIA7",
     DB_NAME: "GestiaAntifraud_DB",
     DB_VERSION: 1,
     LEDGER_COLLECTION: "gestia_financial_ledger",
@@ -174,7 +176,7 @@ class CryptoEngine {
 }
 
 /* =====================================================================================
-    CLASE CENTRAL: GESTIA TERMINAL V14.0 (THE ANTIFRAUD CORE)
+    CLASE CENTRAL: GESTIA TERMINAL V14.1 (THE ANTIFRAUD CORE)
    ===================================================================================== */
 export class GestiaTerminal {
     constructor() {
@@ -365,15 +367,15 @@ export class GestiaTerminal {
 
 // INSTANCIACIÓN SOBERANA
 const BankTerminal = new GestiaTerminal();
-window.BankTerminal = BankTerminal;
+window.KernelTerminal = BankTerminal;
 
 onAuthStateChanged(auth, (user) => {
-    if (user) window.BankTerminal.inicializarAutoridad();
+    if (user) window.KernelTerminal.inicializarAutoridad();
     else if (!window.location.pathname.includes("login.html")) window.location.href = "/login.html";
 });
 
 /**
  * ======================================================================================
- * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 415 (FEDERAL ANTIFRAUD CORE)
+ * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 400+ (FEDERAL ANTIFRAUD CORE)
  * ======================================================================================
  */
