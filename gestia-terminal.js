@@ -1,9 +1,9 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - GESTIA TERMINAL V14.6 (THE ANTIFRAUD CORE - BANK GRADE)
+ * GESTIAPREMIUM 2026 - GESTIA TERMINAL V14.7 (THE ANTIFRAUD CORE - BANK GRADE)
  * ======================================================================================
  * Autor: Heber Mendoza (Arquitecto Supremo) & Jarvis (SIA7 AI)
- * Versión: 14.6-HARDENED-ANTIFRAUD (FULL INTEGRITY RESTORED)
+ * Versión: 14.7-HARDENED-ANTIFRAUD (FIREWALL HANDSHAKE FIX)
  * Identidad: Núcleo de Consistencia Atómica con No-Repudio y Ledger de Partida Doble.
  * Función: Orquestación de Ráfagas Criptográficas con Prevención de Replay y Refresco.
  * --------------------------------------------------------------------------------------
@@ -12,8 +12,8 @@
  * ARQUITECTURA DE MISIÓN CRÍTICA (BANK GRADE):
  * 1. INTERNAL EVENT GUARD: El método execute captura el evento de la UI y
  * previene el refresco del panel automáticamente (e.preventDefault).
- * 2. EPHEMERAL KEY DERIVATION: No hay secretos en el código. La clave de firma se
- * deriva de la sesión del usuario mediante PBKDF2 en tiempo real.
+ * 2. EPHEMERAL KEY DERIVATION: La clave de firma se deriva de la sesión del usuario 
+ * mediante PBKDF2 en tiempo real. No hay secretos en el código.
  * 3. MULTI-DOC ATOMIC TRANSACTION: Toda la ráfaga se ejecuta en una única 
  * `runTransaction` de Firestore. Si un documento falla, NADA se escribe.
  * 4. REPLAY PROTECTION (NONCE): Cada operación incluye un identificador único y un
@@ -79,7 +79,7 @@ const APPROVAL_WORDS = [
 ];
 
 const GESTIA_CONFIG = {
-    VERSION: "14.6-BANK-SIA7",
+    VERSION: "14.7-BANK-SIA7",
     DB_NAME: "GestiaAntifraud_DB",
     DB_VERSION: 1,
     LEDGER_COLLECTION: "gestia_financial_ledger",
@@ -215,8 +215,8 @@ class CryptoEngine {
         
         const dataToSign = JSON.stringify({ 
             ...payload, 
-            nonce, 
-            exp 
+            nonce: nonce, 
+            exp: exp 
         });
         
         const signature = await window.crypto.subtle.sign(
@@ -235,7 +235,7 @@ class CryptoEngine {
 }
 
 /* =====================================================================================
-    CLASE CENTRAL: GESTIA TERMINAL V14.6 (THE ANTIFRAUD CORE)
+    CLASE CENTRAL: GESTIA TERMINAL V14.7 (THE ANTIFRAUD CORE)
    ===================================================================================== */
 export class GestiaTerminal {
     constructor() {
@@ -348,11 +348,12 @@ export class GestiaTerminal {
         const opId = `tx_${Date.now()}`;
 
         try {
-            // Firewall Global antes de cualquier procesamiento
+            // ✅ FIX V14.7: Entrega de Pasaporte (Token) al Firewall Global
             await ejecutarFirewallGlobal({ 
                 userId: this.session.uid, 
                 tenantId: this.session.tenantId, 
-                input: rawInput 
+                input: rawInput,
+                authToken: this.session.token // 🔑 REQUERIDO POR VERCEL v7.0
             });
 
             await this.setState(STATES.ANALYZE, opId);
@@ -558,6 +559,6 @@ onAuthStateChanged(auth, (user) => {
 
 /**
  * ======================================================================================
- * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 415 (FEDERAL ANTIFRAUD CORE - FULL INTEGRITY)
+ * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 415 (FEDERAL ANTIFRAUD CORE - HANDSHAKE FIX)
  * ======================================================================================
  */
