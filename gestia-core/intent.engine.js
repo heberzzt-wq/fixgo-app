@@ -234,24 +234,28 @@ if (typeof rawLower === "string") {
     }
 
     if (rawLower === "analyze") {
+    console.log("🔥 [DSL HIT] ANALYZE detectado");
 
-        console.log("🔥 [DSL HIT] ANALYZE detectado");
+    const payload = extraerPayload(cmd.raw) || {}; // 🔥 nunca null
 
-        interpretedPlan.push({
-            intent: "ANALYZE",
-            entity: "SYSTEM",
-            target: null,
-            confidence: 1,
-            summary: "Análisis (DSL estructurado)"
-        });
+    interpretedPlan.push({
+        intent: "ANALYZE",
+        action: "ANALYZE", // 🔥 consistente con ledger
+        entity: "SYSTEM",
+        target: payload.target || "system", // 🔥 evita null
+        payload: payload,
+        confidence: 1,
+        summary: "Análisis (DSL estructurado)"
+    });
 
-        console.log("🧠 [STRUCTURED_INTENT]", {
-            intent: "ANALYZE",
-            entity: "SYSTEM"
-        });
+    console.log("🧠 [STRUCTURED_INTENT]", {
+        intent: "ANALYZE",
+        entity: "SYSTEM",
+        payload
+    });
 
-        return;
-    }
+    return;
+}
 
     if (rawLower === "repair") {
         interpretedPlan.push({
