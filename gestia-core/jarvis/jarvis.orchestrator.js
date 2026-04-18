@@ -1,6 +1,6 @@
 /**
  * ======================================================================================
- * JARVIS ORCHESTRATOR v2.1 - Multi Command + Batch Rollback
+ * JARVIS ORCHESTRATOR v2.2 - Multi Command + Batch Rollback + Forced Test
  * ======================================================================================
  */
 
@@ -20,7 +20,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
     // 🔥 MULTI COMANDO
     const commands = Array.isArray(input)
-      ? input.map(id => id)
+      ? input
       : input.split(";;").map(c => toCommand(c.trim()));
 
     // =====================================================
@@ -69,15 +69,39 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     const executed = [];
     const results = [];
 
-    for (const cmd of pending.commands) {
+    for (let i = 0; i < pending.commands.length; i++) {
+      const cmd = pending.commands[i];
+
+      // 🔥 ERROR FORZADO EN SEGUNDO COMANDO (solo para probar rollback)
+      if (i === 1) {
+        console.error("💥 [FORCED EXECUTION ERROR]");
+
+        console.warn("↩️ [ROLLBACK] Iniciando rollback lógico");
+
+        for (let j = executed.length - 1; j >= 0; j--) {
+          const doneCmd = executed[j];
+          console.warn("↩️ [ROLLBACK]", {
+            action: doneCmd.action,
+            id: doneCmd.id
+          });
+        }
+
+        pendingConfirmations.delete(key);
+
+        return {
+          error: true,
+          message: "FORCED_BATCH_FAILURE",
+          partialResults: results
+        };
+      }
+
       const exec = await dispatch(cmd, pending.ctx, { simulate: false });
 
       if (!exec.ok) {
         console.error("💥 [BATCH FAIL] Iniciando rollback lógico");
 
-        // 🔥 rollback lógico (orden inverso)
-        for (let i = executed.length - 1; i >= 0; i--) {
-          const doneCmd = executed[i];
+        for (let j = executed.length - 1; j >= 0; j--) {
+          const doneCmd = executed[j];
           console.warn("↩️ [ROLLBACK]", {
             action: doneCmd.action,
             id: doneCmd.id
