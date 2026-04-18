@@ -524,12 +524,6 @@ export class GestiaTerminal {
         const plan = planObj.intents;
         this.pendingPlans.delete(opId);
 
-        // ✅ REPLAY RECOVERY: Validación de edge case para refresh forzado durante ejecución
-        const pending = await this.ledger.getAllPending();
-        if (pending.find(p => p.opId === opId)) {
-            throw new Error("REPLAY_RECOVERY_DETECTED");
-        }
-
         // ✅ IDEMPOTENCIA LOCAL: Evita ráfagas dobles en el Búnker
         if (this.activeOps.has(opId)) {
             throw new Error("DUPLICATE_OPERATION_LOCAL: Ráfaga en ejecución.");
