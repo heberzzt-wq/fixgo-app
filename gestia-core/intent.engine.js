@@ -223,6 +223,7 @@ if (typeof rawLower === "string") {
 
         interpretedPlan.push({
             intent: "CREATE_BUILDING",
+            action: "CREATE", // 🔥 FIX CRÍTICO
             entity: "BUILDING",
             target: payload.name || "edificio_default",
             payload: payload,
