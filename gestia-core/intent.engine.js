@@ -271,17 +271,32 @@ if (typeof rawLower === "string") {
     }
 
     if (rawLower === "repair") {
-        interpretedPlan.push({
-            intent: "REPAIR",
-            action: "REPAIR",
-            entity: "SYSTEM",
-            target: "system",
-            payload: {},
-            confidence: 1,
-            summary: "Reparación (DSL estructurado)"
-        });
-        return;
+    console.log("🔥 [DSL HIT] REPAIR detectado");
+
+    const payload = extraerPayload(cmd.raw) || {};
+
+    // 🔥 VALIDACIÓN (provoca fallo si target inválido)
+    const target = payload.target || payload.name || null;
+
+    if (!target || typeof target !== "string" || !target.trim() || target === "invalid_target") {
+        console.error("❌ [VALIDATION] repair target inválido", { target, payload });
+        throw new Error("INVALID_REPAIR_TARGET");
     }
+
+    const cleanTarget = target.trim();
+
+    interpretedPlan.push({
+        intent: "REPAIR",
+        action: "REPAIR",
+        entity: "SYSTEM",
+        target: cleanTarget,
+        payload,
+        confidence: 1,
+        summary: `Reparación '${cleanTarget}'`
+    });
+
+    return;
+}
 
     if (rawLower === "update") {
         interpretedPlan.push({
