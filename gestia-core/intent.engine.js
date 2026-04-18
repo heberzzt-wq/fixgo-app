@@ -207,7 +207,7 @@ export function interpretarIntenciones(comandos) {
     // 🔥 separación robusta (soporta payload tipo {})
 const parts = cleanRaw.split("::");
 
-const structPart = parts[0] || "";
+const structPart = (parts[0] || "").trim();
 const payloadPart = parts[1] || ""; // ← listo para JSON después
 
 const rawLower = structPart.toLowerCase();
@@ -216,6 +216,7 @@ const rawLower = structPart.toLowerCase();
 if (typeof rawLower === "string") {
 
     if (rawLower === "create_building") {
+        console.log("🔥 [DSL HIT] CREATE_BUILDING detectado");
         interpretedPlan.push({
             intent: "CREATE_BUILDING",
             entity: "BUILDING",
