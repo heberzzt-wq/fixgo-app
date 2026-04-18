@@ -7,6 +7,21 @@ export function toCommand(input) {
 
   const clean = input.toLowerCase().trim();
 
+  // 🔥 DETECCIÓN DE PROTOCOLO (COMANDO PURO)
+  if (input.includes("::")) {
+    const actionPart = input.split("::")[0];
+
+    return {
+      id: crypto.randomUUID(),
+      action: actionPart.toUpperCase(),
+      raw: input,
+      payload: {
+        text: "" // ya no dependemos de texto
+      },
+      meta: { protocol: true }
+    };
+  }
+
   // 🔥 ACCIONES CORE
   const ACTION_MAP = {
     analizar: "ANALYZE",
@@ -101,18 +116,18 @@ export function toCommand(input) {
 
   // 🔥 ACCIONES GENERALES
   if (detectedAction) {
-  const entityText = detectedEntity ? detectedEntity.toLowerCase() : "";
+    const entityText = detectedEntity ? detectedEntity.toLowerCase() : "";
 
-  return {
-    id: crypto.randomUUID(),
-    action: detectedAction,
-    raw: input,
-    payload: {
-      text: `${clean} ${entityText}`.trim()
-    },
-    meta: { detected: true }
-  };
-}
+    return {
+      id: crypto.randomUUID(),
+      action: detectedAction,
+      raw: input,
+      payload: {
+        text: `${clean} ${entityText}`.trim()
+      },
+      meta: { detected: true }
+    };
+  }
 
   // fallback
   return {
