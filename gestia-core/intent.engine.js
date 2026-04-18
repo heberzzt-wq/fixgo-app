@@ -217,13 +217,16 @@ if (typeof rawLower === "string") {
 
     if (rawLower === "create_building") {
         console.log("🔥 [DSL HIT] CREATE_BUILDING detectado");
+        const payload = extraerPayload(cmd.raw);
+
         interpretedPlan.push({
             intent: "CREATE_BUILDING",
             entity: "BUILDING",
-            target: null,
+            target: payload.name || "edificio_default",
+            payload: payload,
             confidence: 1,
-            summary: "Creación de edificio (DSL estructurado)"
-        });
+            summary: `Creación de edificio '${payload.name || "default"}' (DSL + JSON)`
+});
         return;
     }
 
