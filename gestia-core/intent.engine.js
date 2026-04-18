@@ -204,9 +204,13 @@ export function interpretarIntenciones(comandos) {
     const cleanRaw = limpiarPayloadDelTexto(cmd.raw);
 
 // 🔥 separar acción estructural del texto humano
-    const [structPart, humanPart] = cleanRaw.split("::");
+    // 🔥 separación robusta (soporta payload tipo {})
+const parts = cleanRaw.split("::");
 
-    const rawLower = (structPart || "").toLowerCase();
+const structPart = parts[0] || "";
+const payloadPart = parts[1] || ""; // ← listo para JSON después
+
+const rawLower = structPart.toLowerCase();
        
 // 🔥 PRIORIDAD A ACCIÓN ESTRUCTURAL (determinista)
 if (typeof rawLower === "string") {
