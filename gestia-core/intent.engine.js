@@ -203,6 +203,53 @@ export function interpretarIntenciones(comandos) {
         memoria._ambiguous = false; // Reset de tensión por fragmento
         const cleanRaw = limpiarPayloadDelTexto(cmd.raw);
         const rawLower = cleanRaw.toLowerCase();
+        // 🔥 PRIORIDAD A ACCIÓN ESTRUCTURAL (desde Jarvis Bridge)
+if (cleanRaw && typeof cleanRaw === "string") {
+
+    if (cleanRaw.startsWith("CREATE_BUILDING")) {
+        interpretedPlan.push({
+            intent: "CREATE_BUILDING",
+            entity: "BUILDING",
+            target: null,
+            confidence: 1,
+            summary: "Creación de edificio (DSL estructurado)"
+        });
+        return;
+    }
+
+    if (cleanRaw.startsWith("ANALYZE")) {
+        interpretedPlan.push({
+            intent: "ANALYZE",
+            entity: "SYSTEM",
+            target: null,
+            confidence: 1,
+            summary: "Análisis (DSL estructurado)"
+        });
+        return;
+    }
+
+    if (cleanRaw.startsWith("REPAIR")) {
+        interpretedPlan.push({
+            intent: "REPAIR",
+            entity: "SYSTEM",
+            target: null,
+            confidence: 1,
+            summary: "Reparación (DSL estructurado)"
+        });
+        return;
+    }
+
+    if (cleanRaw.startsWith("UPDATE")) {
+        interpretedPlan.push({
+            intent: "UPDATE",
+            entity: "SYSTEM",
+            target: null,
+            confidence: 1,
+            summary: "Actualización (DSL estructurado)"
+        });
+        return;
+    }
+}
         const tokens = rawLower.split(/\s+/);
 
         let action = null;

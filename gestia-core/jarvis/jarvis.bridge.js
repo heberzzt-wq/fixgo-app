@@ -21,17 +21,19 @@ export async function dispatch(command, ctx = {}, options = { simulate: true }) 
 
     const inputText = command.payload?.text || command.raw;
 
+// 🔥 INYECCIÓN ESTRUCTURAL
+    const enrichedInput = `${command.action} ${inputText}`;
     console.log("🌉 [BRIDGE_DISPATCH]", {
       cmdId: command.id,
       action: command.action,
       simulate: options.simulate,
-      input: inputText
+      input: enrichedInput
     });
 
     // 🔹 SIMULACIÓN (no ejecuta, solo preview del core)
     if (options.simulate) {
       const res = await window.KernelHeberto.execute(
-        inputText,
+        enrichedInput,
         null,
         { simulate: true }
       );
@@ -46,7 +48,7 @@ export async function dispatch(command, ctx = {}, options = { simulate: true }) 
 
     // 🔥 EJECUCIÓN REAL (MISMO INPUT → consistencia total)
     const res = await window.KernelHeberto.execute(
-      inputText,
+      enrichedInput,
       null,
       { simulate: false }
     );
