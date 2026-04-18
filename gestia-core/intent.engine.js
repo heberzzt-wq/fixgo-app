@@ -203,10 +203,10 @@ export function interpretarIntenciones(comandos) {
         memoria._ambiguous = false; // Reset de tensión por fragmento
         const cleanRaw = limpiarPayloadDelTexto(cmd.raw);
         const rawLower = cleanRaw.toLowerCase();
-        // 🔥 PRIORIDAD A ACCIÓN ESTRUCTURAL (desde Jarvis Bridge)
-if (cleanRaw && typeof cleanRaw === "string") {
+       // 🔥 PRIORIDAD A ACCIÓN ESTRUCTURAL (desde Jarvis Bridge)
+if (rawLower && typeof rawLower === "string") {
 
-    if (cleanRaw.trim().startsWith("CREATE_BUILDING")) {
+    if (rawLower.startsWith("create_building")) {
         interpretedPlan.push({
             intent: "CREATE_BUILDING",
             entity: "BUILDING",
@@ -217,7 +217,7 @@ if (cleanRaw && typeof cleanRaw === "string") {
         return;
     }
 
-    if (cleanRaw.trim().startsWith("ANALYZE")) {
+    if (rawLower.startsWith("analyze")) {
         interpretedPlan.push({
             intent: "ANALYZE",
             entity: "SYSTEM",
@@ -228,7 +228,7 @@ if (cleanRaw && typeof cleanRaw === "string") {
         return;
     }
 
-    if (cleanRaw.trim().startsWith("REPAIR")) {
+    if (rawLower.startsWith("repair")) {
         interpretedPlan.push({
             intent: "REPAIR",
             entity: "SYSTEM",
@@ -239,7 +239,7 @@ if (cleanRaw && typeof cleanRaw === "string") {
         return;
     }
 
-    if (cleanRaw.trim().startsWith("UPDATE")) {
+    if (rawLower.startsWith("update")) {
         interpretedPlan.push({
             intent: "UPDATE",
             entity: "SYSTEM",
