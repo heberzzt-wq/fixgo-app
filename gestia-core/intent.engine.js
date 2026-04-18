@@ -206,7 +206,7 @@ export function interpretarIntenciones(comandos) {
         // 🔥 PRIORIDAD A ACCIÓN ESTRUCTURAL (desde Jarvis Bridge)
 if (cleanRaw && typeof cleanRaw === "string") {
 
-    if (cleanRaw.startsWith("CREATE_BUILDING")) {
+    if (cleanRaw.trim().startsWith("CREATE_BUILDING")) {
         interpretedPlan.push({
             intent: "CREATE_BUILDING",
             entity: "BUILDING",
@@ -217,7 +217,7 @@ if (cleanRaw && typeof cleanRaw === "string") {
         return;
     }
 
-    if (cleanRaw.startsWith("ANALYZE")) {
+    if (cleanRaw.trim().startsWith("ANALYZE")) {
         interpretedPlan.push({
             intent: "ANALYZE",
             entity: "SYSTEM",
@@ -228,7 +228,7 @@ if (cleanRaw && typeof cleanRaw === "string") {
         return;
     }
 
-    if (cleanRaw.startsWith("REPAIR")) {
+    if (cleanRaw.trim().startsWith("REPAIR")) {
         interpretedPlan.push({
             intent: "REPAIR",
             entity: "SYSTEM",
@@ -239,7 +239,7 @@ if (cleanRaw && typeof cleanRaw === "string") {
         return;
     }
 
-    if (cleanRaw.startsWith("UPDATE")) {
+    if (cleanRaw.trim().startsWith("UPDATE")) {
         interpretedPlan.push({
             intent: "UPDATE",
             entity: "SYSTEM",
