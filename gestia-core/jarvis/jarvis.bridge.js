@@ -22,7 +22,7 @@ export async function dispatch(command, ctx = {}, options = { simulate: true }) 
     const inputText = command.payload?.text || command.raw;
 
 // 🔥 INYECCIÓN ESTRUCTURAL
-    const enrichedInput = `${command.action} ${inputText}`;
+    const enrichedInput = `${command.action}::${inputText}`;
     console.log("🌉 [BRIDGE_DISPATCH]", {
       cmdId: command.id,
       action: command.action,
