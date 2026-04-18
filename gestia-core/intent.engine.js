@@ -229,6 +229,12 @@ if (rawLower && typeof rawLower === "string") {
         confidence: 1,
         summary: "Análisis (DSL estructurado)"
     });
+
+    console.log("🧠 [STRUCTURED_INTENT]", {
+        intent: "ANALYZE",
+        entity: "SYSTEM"
+    });
+
     return;
 }
 
