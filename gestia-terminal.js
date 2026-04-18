@@ -131,7 +131,7 @@ class BankLedger {
 
     async persistOp(opId, data) {
         if (!this.db) {
-            console.warn("⚠️ [LEDGER]: DB no inicializada. Reintentando...");
+            console.warn("⚠️ [LEDGER]: DB no inicializada.");
             return;
         }
         
@@ -139,59 +139,78 @@ class BankLedger {
         const store = tx.objectStore("unconfirmed_ops");
         
         return new Promise((resolve, reject) => {
-            const req = store.put({ opId, ...data });
-            req.onsuccess = () => {
-                resolve();
-            };
-            req.onerror = () => {
-                reject(req.error);
-            };
+            const req = store.put({
+                opId,
+                ...data,
+                timestamp: new Date().toISOString()
+            });
+
+            req.onsuccess = () => resolve();
+            req.onerror = () => reject(req.error);
         });
     }
 
     async removeOp(opId) {
-        if (!this.db) {
-            return;
-        }
+        if (!this.db) return;
         
         const tx = this.db.transaction("unconfirmed_ops", "readwrite");
         const store = tx.objectStore("unconfirmed_ops");
         store.delete(opId);
     }
 
-    async getAllPending() {
-        if (!this.db) {
-            return [];
-        }
+    /**
+     * 🔹 HISTORIAL COMPLETO (debug / auditoría)
+     */
+    async getAll() {
+        if (!this.db) return [];
         
         const tx = this.db.transaction("unconfirmed_ops", "readonly");
         const store = tx.objectStore("unconfirmed_ops");
         
         return new Promise((resolve) => {
             const req = store.getAll();
-            req.onsuccess = () => {
-                resolve(req.result);
-            };
+            req.onsuccess = () => resolve(req.result);
         });
     }
 
-    // ✅ PROTOCOLO DE PURGA: Soplete para limpiar el caché de ráfagas caídas
+    /**
+     * 🔥 SOLO OPERACIONES ACTIVAS (ESTA ES LA IMPORTANTE)
+     */
+    async getActiveOperations() {
+        const all = await this.getAll();
+
+        return all.filter(op =>
+            op.state === "RUNNING" ||
+            op.state === "PENDING"
+        );
+    }
+
+    /**
+     * ⚠️ LEGACY (mantener compatibilidad)
+     * ahora solo regresa activas
+     */
+    async getAllPending() {
+        return await this.getActiveOperations();
+    }
+
+    /**
+     * 🔥 PURGA REAL (solo activas, no historial)
+     */
     async clearAllPending() {
-        if (!this.db) {
-            return;
-        }
-        
+        if (!this.db) return;
+
+        const active = await this.getActiveOperations();
+
         const tx = this.db.transaction("unconfirmed_ops", "readwrite");
         const store = tx.objectStore("unconfirmed_ops");
-        
+
         return new Promise((resolve, reject) => {
-            const req = store.clear();
-            req.onsuccess = () => {
+            try {
+                active.forEach(op => store.delete(op.opId));
                 resolve();
-            };
-            req.onerror = () => {
-                reject(req.error);
-            };
+            } catch (err) {
+                reject(err);
+            }
         });
     }
 }
