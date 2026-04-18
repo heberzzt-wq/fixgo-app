@@ -10,6 +10,7 @@
  * ======================================================================================
  */
 
+import { saveMemory } from "./jarvis.memory.js";
 import { toCommand } from "./jarvis.dsl.js";
 import { dispatch } from "./jarvis.bridge.js";
 
@@ -68,6 +69,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     }
 
     const exec = await dispatch(pending.command, pending.ctx, { simulate: false });
+    saveMemory(pending.command, exec.response);
 
     pendingConfirmations.delete(input);
 
