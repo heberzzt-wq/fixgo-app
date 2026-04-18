@@ -1,13 +1,37 @@
+/**
+ * ======================================================================================
+ * JARVIS BRIDGE v2.0 - Stable Execution Bridge (Replay-Safe)
+ * ======================================================================================
+ * Función:
+ * - Conectar DSL → GestiaTerminal (KernelHeberto)
+ * - Mantener consistencia entre simulación y ejecución
+ * - Evitar dependencias de pendingPlans del core
+ * ======================================================================================
+ */
+
 export async function dispatch(command, ctx = {}, options = { simulate: true }) {
   try {
+    if (!command || (!command.raw && !command.payload?.text)) {
+      throw new Error("BRIDGE_INVALID_COMMAND");
+    }
+
     if (!window.KernelHeberto) {
       throw new Error("CORE_NOT_AVAILABLE");
     }
 
-    // 🔑 SIMULACIÓN: usa el texto normalizado (DSL)
+    const inputText = command.payload?.text || command.raw;
+
+    console.log("🌉 [BRIDGE_DISPATCH]", {
+      cmdId: command.id,
+      action: command.action,
+      simulate: options.simulate,
+      input: inputText
+    });
+
+    // 🔹 SIMULACIÓN (no ejecuta, solo preview del core)
     if (options.simulate) {
       const res = await window.KernelHeberto.execute(
-        command.payload?.text || command.raw,
+        inputText,
         null,
         { simulate: true }
       );
@@ -20,10 +44,9 @@ export async function dispatch(command, ctx = {}, options = { simulate: true }) 
       };
     }
 
-    // 🔥 CONFIRMACIÓN REAL:
-    // NO mandes el texto otra vez → manda una palabra de aprobación
+    // 🔥 EJECUCIÓN REAL (MISMO INPUT → consistencia total)
     const res = await window.KernelHeberto.execute(
-      "confirmar", // o "ok", "si"
+      inputText,
       null,
       { simulate: false }
     );
@@ -37,6 +60,7 @@ export async function dispatch(command, ctx = {}, options = { simulate: true }) 
 
   } catch (err) {
     console.error("❌ [BRIDGE_ERROR]", err);
+
     return {
       ok: false,
       error: true,
