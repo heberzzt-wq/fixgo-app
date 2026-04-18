@@ -218,6 +218,8 @@ if (typeof rawLower === "string") {
     if (rawLower === "create_building") {
         console.log("🔥 [DSL HIT] CREATE_BUILDING detectado");
         const payload = extraerPayload(cmd.raw);
+        
+        console.log("📦 [PAYLOAD]", payload);
 
         interpretedPlan.push({
             intent: "CREATE_BUILDING",
