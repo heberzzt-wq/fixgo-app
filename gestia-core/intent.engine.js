@@ -221,28 +221,34 @@ if (typeof rawLower === "string") {
         const payload = extraerPayload(cmd.raw) || {}; // 🔥 nunca null
         console.log("📦 [PAYLOAD]", payload);
 
-        // 🔥 VALIDACIÓN DE NEGOCIO (CLAVE PARA ROLLBACK)
-        if (!payload.name || typeof payload.name !== "string" || !payload.name.trim()) {
-            console.error("❌ [VALIDATION] name inválido", payload);
-            throw new Error("INVALID_BUILDING_NAME");
-        }
+       // 🔥 VALIDACIÓN DE NEGOCIO (CLAVE PARA ROLLBACK)
+if (!payload.name || typeof payload.name !== "string" || !payload.name.trim()) {
+    console.error("❌ [VALIDATION] name inválido", payload);
+    throw new Error("INVALID_BUILDING_NAME");
+}
 
-        const cleanName = payload.name.trim();
+// 🔥 ERROR FORZADO (SOLO PARA PRUEBA)
+if (payload.name === "force_error") {
+    console.error("💥 [FORCED ERROR]");
+    throw new Error("FORCED_EXECUTION_ERROR");
+}
 
-        interpretedPlan.push({
-            intent: "CREATE_BUILDING",
-            action: "CREATE_BUILDING", // 🔥 consistente con todo el flujo
-            entity: "BUILDING",
-            target: cleanName,
-            payload: {
-                ...payload,
-                name: cleanName
-            },
-            confidence: 1,
-            summary: `Creación de edificio '${cleanName}' (DSL + JSON)`
-        });
+const cleanName = payload.name.trim();
 
-        return;
+interpretedPlan.push({
+    intent: "CREATE_BUILDING",
+    action: "CREATE_BUILDING",
+    entity: "BUILDING",
+    target: cleanName,
+    payload: {
+        ...payload,
+        name: cleanName
+    },
+    confidence: 1,
+    summary: `Creación de edificio '${cleanName}' (DSL + JSON)`
+});
+
+return;
     }
 }
 
