@@ -233,7 +233,11 @@ if (payload.name === "force_error") {
     throw new Error("FORCED_EXECUTION_ERROR");
 }
 
-const cleanName = payload.name.trim();
+const cleanName = payload.name.trim();// 🔥 ERROR FORZADO SOLO EN EJECUCIÓN
+if (payload.name === "force_error" && cmd.mode === "EXECUTION") {
+    console.error("💥 [FORCED EXECUTION ERROR]");
+    throw new Error("FORCED_EXECUTION_ERROR");
+}
 
 interpretedPlan.push({
     intent: "CREATE_BUILDING",
