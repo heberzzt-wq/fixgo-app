@@ -219,15 +219,18 @@ if (rawLower && typeof rawLower === "string") {
     }
 
     if (rawLower.includes("analyze")) {
-        interpretedPlan.push({
-            intent: "ANALYZE",
-            entity: "SYSTEM",
-            target: null,
-            confidence: 1,
-            summary: "Análisis (DSL estructurado)"
-        });
-        return;
-    }
+
+    console.log("🔥 [DSL HIT] ANALYZE detectado");
+
+    interpretedPlan.push({
+        intent: "ANALYZE",
+        entity: "SYSTEM",
+        target: null,
+        confidence: 1,
+        summary: "Análisis (DSL estructurado)"
+    });
+    return;
+}
 
     if (rawLower.includes("repair")) {
         interpretedPlan.push({
