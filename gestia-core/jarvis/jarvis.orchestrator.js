@@ -1,6 +1,6 @@
 /**
  * ======================================================================================
- * JARVIS ORCHESTRATOR v2.0 - Multi Command Ready
+ * JARVIS ORCHESTRATOR v2.1 - Multi Command + Batch Rollback
  * ======================================================================================
  */
 
@@ -20,7 +20,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
     // 🔥 MULTI COMANDO
     const commands = Array.isArray(input)
-      ? input.map(id => id) // confirmación usa IDs
+      ? input.map(id => id)
       : input.split(";;").map(c => toCommand(c.trim()));
 
     // =====================================================
@@ -37,7 +37,6 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
       const commandIds = commands.map(c => c.id);
 
-      // 🔥 GUARDAR BATCH COMPLETO
       pendingConfirmations.set(JSON.stringify(commandIds), {
         commands,
         ctx,
@@ -53,7 +52,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     }
 
     // =====================================================
-    // 🚀 EJECUCIÓN
+    // 🚀 EJECUCIÓN (CON ROLLBACK)
     // =====================================================
     const key = JSON.stringify(input);
     const pending = pendingConfirmations.get(key);
@@ -67,13 +66,37 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
       throw new Error("CONFIRMATION_EXPIRED");
     }
 
+    const executed = [];
     const results = [];
 
     for (const cmd of pending.commands) {
       const exec = await dispatch(cmd, pending.ctx, { simulate: false });
-      if (!exec.ok) return exec;
+
+      if (!exec.ok) {
+        console.error("💥 [BATCH FAIL] Iniciando rollback lógico");
+
+        // 🔥 rollback lógico (orden inverso)
+        for (let i = executed.length - 1; i >= 0; i--) {
+          const doneCmd = executed[i];
+          console.warn("↩️ [ROLLBACK]", {
+            action: doneCmd.action,
+            id: doneCmd.id
+          });
+        }
+
+        pendingConfirmations.delete(key);
+
+        return {
+          error: true,
+          message: "BATCH_FAILED",
+          failedCommand: cmd,
+          partialResults: results
+        };
+      }
 
       saveMemory(cmd, exec.response);
+
+      executed.push(cmd);
       results.push(exec.response);
     }
 
