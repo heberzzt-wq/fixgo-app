@@ -201,8 +201,12 @@ export function interpretarIntenciones(comandos) {
 
     comandos.forEach((cmd, index) => {
         memoria._ambiguous = false; // Reset de tensión por fragmento
-        const cleanRaw = limpiarPayloadDelTexto(cmd.raw);
-        const rawLower = cleanRaw.toLowerCase();
+    const cleanRaw = limpiarPayloadDelTexto(cmd.raw);
+
+// 🔥 separar acción estructural del texto humano
+    const [structPart, humanPart] = cleanRaw.split("::");
+
+    const rawLower = (structPart || "").toLowerCase();
        
 // 🔥 PRIORIDAD A ACCIÓN ESTRUCTURAL (robusto)
 if (rawLower && typeof rawLower === "string") {
