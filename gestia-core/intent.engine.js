@@ -217,51 +217,66 @@ if (typeof rawLower === "string") {
 
     if (rawLower === "create_building") {
         console.log("🔥 [DSL HIT] CREATE_BUILDING detectado");
-        const payload = extraerPayload(cmd.raw);
-        
+
+        const payload = extraerPayload(cmd.raw) || {}; // 🔥 nunca null
         console.log("📦 [PAYLOAD]", payload);
+
+        // 🔥 VALIDACIÓN DE NEGOCIO (CLAVE PARA ROLLBACK)
+        if (!payload.name || typeof payload.name !== "string" || !payload.name.trim()) {
+            console.error("❌ [VALIDATION] name inválido", payload);
+            throw new Error("INVALID_BUILDING_NAME");
+        }
+
+        const cleanName = payload.name.trim();
 
         interpretedPlan.push({
             intent: "CREATE_BUILDING",
-            action: "CREATE", // 🔥 FIX CRÍTICO
+            action: "CREATE_BUILDING", // 🔥 consistente con todo el flujo
             entity: "BUILDING",
-            target: payload.name || "edificio_default",
-            payload: payload,
+            target: cleanName,
+            payload: {
+                ...payload,
+                name: cleanName
+            },
             confidence: 1,
-            summary: `Creación de edificio '${payload.name || "default"}' (DSL + JSON)`
-});
+            summary: `Creación de edificio '${cleanName}' (DSL + JSON)`
+        });
+
         return;
     }
+}
 
     if (rawLower === "analyze") {
-    console.log("🔥 [DSL HIT] ANALYZE detectado");
+        console.log("🔥 [DSL HIT] ANALYZE detectado");
 
-    const payload = extraerPayload(cmd.raw) || {}; // 🔥 nunca null
+        const payload = extraerPayload(cmd.raw) || {};
 
-    interpretedPlan.push({
-        intent: "ANALYZE",
-        action: "ANALYZE", // 🔥 consistente con ledger
-        entity: "SYSTEM",
-        target: payload.target || "system", // 🔥 evita null
-        payload: payload,
-        confidence: 1,
-        summary: "Análisis (DSL estructurado)"
-    });
+        interpretedPlan.push({
+            intent: "ANALYZE",
+            action: "ANALYZE",
+            entity: "SYSTEM",
+            target: payload.target || "system",
+            payload: payload,
+            confidence: 1,
+            summary: "Análisis (DSL estructurado)"
+        });
 
-    console.log("🧠 [STRUCTURED_INTENT]", {
-        intent: "ANALYZE",
-        entity: "SYSTEM",
-        payload
-    });
+        console.log("🧠 [STRUCTURED_INTENT]", {
+            intent: "ANALYZE",
+            entity: "SYSTEM",
+            payload
+        });
 
-    return;
-}
+        return;
+    }
 
     if (rawLower === "repair") {
         interpretedPlan.push({
             intent: "REPAIR",
+            action: "REPAIR",
             entity: "SYSTEM",
-            target: null,
+            target: "system",
+            payload: {},
             confidence: 1,
             summary: "Reparación (DSL estructurado)"
         });
@@ -271,14 +286,16 @@ if (typeof rawLower === "string") {
     if (rawLower === "update") {
         interpretedPlan.push({
             intent: "UPDATE",
+            action: "UPDATE",
             entity: "SYSTEM",
-            target: null,
+            target: "system",
+            payload: {},
             confidence: 1,
             summary: "Actualización (DSL estructurado)"
         });
         return;
     }
-}
+
 
 // 👇 ESTO YA NO DA ERROR
         const tokens = rawLower.split(/\s+/);
