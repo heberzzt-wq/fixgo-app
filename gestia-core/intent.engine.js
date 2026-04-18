@@ -208,10 +208,10 @@ export function interpretarIntenciones(comandos) {
 
     const rawLower = (structPart || "").toLowerCase();
        
-// 🔥 PRIORIDAD A ACCIÓN ESTRUCTURAL (robusto)
-if (rawLower && typeof rawLower === "string") {
+// 🔥 PRIORIDAD A ACCIÓN ESTRUCTURAL (determinista)
+if (typeof rawLower === "string") {
 
-    if (rawLower.includes("create_building")) {
+    if (rawLower === "create_building") {
         interpretedPlan.push({
             intent: "CREATE_BUILDING",
             entity: "BUILDING",
@@ -222,27 +222,27 @@ if (rawLower && typeof rawLower === "string") {
         return;
     }
 
-    if (rawLower.includes("analyze")) {
+    if (rawLower === "analyze") {
 
-    console.log("🔥 [DSL HIT] ANALYZE detectado");
+        console.log("🔥 [DSL HIT] ANALYZE detectado");
 
-    interpretedPlan.push({
-        intent: "ANALYZE",
-        entity: "SYSTEM",
-        target: null,
-        confidence: 1,
-        summary: "Análisis (DSL estructurado)"
-    });
+        interpretedPlan.push({
+            intent: "ANALYZE",
+            entity: "SYSTEM",
+            target: null,
+            confidence: 1,
+            summary: "Análisis (DSL estructurado)"
+        });
 
-    console.log("🧠 [STRUCTURED_INTENT]", {
-        intent: "ANALYZE",
-        entity: "SYSTEM"
-    });
+        console.log("🧠 [STRUCTURED_INTENT]", {
+            intent: "ANALYZE",
+            entity: "SYSTEM"
+        });
 
-    return;
-}
+        return;
+    }
 
-    if (rawLower.includes("repair")) {
+    if (rawLower === "repair") {
         interpretedPlan.push({
             intent: "REPAIR",
             entity: "SYSTEM",
@@ -253,7 +253,7 @@ if (rawLower && typeof rawLower === "string") {
         return;
     }
 
-    if (rawLower.includes("update")) {
+    if (rawLower === "update") {
         interpretedPlan.push({
             intent: "UPDATE",
             entity: "SYSTEM",
@@ -264,6 +264,8 @@ if (rawLower && typeof rawLower === "string") {
         return;
     }
 }
+
+// 👇 ESTO YA NO DA ERROR
         const tokens = rawLower.split(/\s+/);
 
         let action = null;
