@@ -1,6 +1,6 @@
 /**
  * ======================================================================================
- * JARVIS ORCHESTRATOR v2.2 - Multi Command + Batch Rollback + Forced Test
+ * JARVIS ORCHESTRATOR v3.0 - Multi Command + Real Rollback
  * ======================================================================================
  */
 
@@ -52,7 +52,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     }
 
     // =====================================================
-    // 🚀 EJECUCIÓN (CON ROLLBACK)
+    // 🚀 EJECUCIÓN (CON ROLLBACK REAL)
     // =====================================================
     const key = JSON.stringify(input);
     const pending = pendingConfirmations.get(key);
@@ -69,50 +69,40 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     const executed = [];
     const results = [];
 
-    for (let i = 0; i < pending.commands.length; i++) {
-      const cmd = pending.commands[i];
-
-      // 🔥 ERROR FORZADO EN SEGUNDO COMANDO (solo para probar rollback)
-      if (i === 1) {
-        console.error("💥 [FORCED EXECUTION ERROR]");
-
-        console.warn("↩️ [ROLLBACK] Iniciando rollback lógico");
-
-        for (let j = executed.length - 1; j >= 0; j--) {
-          const doneCmd = executed[j];
-          console.warn("↩️ [ROLLBACK]", {
-            action: doneCmd.action,
-            id: doneCmd.id
-          });
-        }
-
-        pendingConfirmations.delete(key);
-
-        return {
-          error: true,
-          message: "FORCED_BATCH_FAILURE",
-          partialResults: results
-        };
-      }
-
+    for (const cmd of pending.commands) {
       const exec = await dispatch(cmd, pending.ctx, { simulate: false });
 
       if (!exec.ok) {
-        console.error("💥 [BATCH FAIL] Iniciando rollback lógico");
+        console.error("💥 [BATCH FAIL] Iniciando rollback REAL");
 
-        for (let j = executed.length - 1; j >= 0; j--) {
-          const doneCmd = executed[j];
-          console.warn("↩️ [ROLLBACK]", {
+        // 🔥 ROLLBACK REAL
+        for (let i = executed.length - 1; i >= 0; i--) {
+          const doneCmd = executed[i];
+
+          console.warn("↩️ [ROLLBACK REAL]", {
             action: doneCmd.action,
             id: doneCmd.id
           });
+
+          try {
+            // 👉 solo implementado para CREATE_BUILDING
+            if (doneCmd.action === "CREATE_BUILDING") {
+              await window.KernelHeberto.execute(
+                `DELETE_BUILDING::{"id":"${doneCmd.id}"}`,
+                null,
+                { simulate: false }
+              );
+            }
+          } catch (rollbackErr) {
+            console.error("❌ [ROLLBACK FAIL]", rollbackErr);
+          }
         }
 
         pendingConfirmations.delete(key);
 
         return {
           error: true,
-          message: "BATCH_FAILED",
+          message: "BATCH_FAILED_WITH_ROLLBACK",
           failedCommand: cmd,
           partialResults: results
         };
