@@ -1,11 +1,11 @@
 /**
  * ======================================================================================
- * JARVIS BRIDGE v2.0 - Stable Execution Bridge (Replay-Safe)
+ * JARVIS BRIDGE v2.1 - Stable Execution Bridge (Protocol-Safe)
  * ======================================================================================
  * Función:
  * - Conectar DSL → GestiaTerminal (KernelHeberto)
- * - Mantener consistencia entre simulación y ejecución
- * - Evitar dependencias de pendingPlans del core
+ * - Soportar comandos humanos y protocolo (::)
+ * - Evitar duplicación de comandos
  * ======================================================================================
  */
 
@@ -21,8 +21,17 @@ export async function dispatch(command, ctx = {}, options = { simulate: true }) 
 
     const inputText = command.payload?.text || command.raw;
 
-// 🔥 INYECCIÓN ESTRUCTURAL
-    const enrichedInput = `${command.action}::${inputText}`;
+    // 🔥 INYECCIÓN INTELIGENTE (CLAVE DEL FIX)
+    let enrichedInput;
+
+    if (typeof inputText === "string" && inputText.includes("::")) {
+      // 👉 ya viene como protocolo → NO tocar
+      enrichedInput = inputText;
+    } else {
+      // 👉 viene como lenguaje humano → estructurar
+      enrichedInput = `${command.action}::${inputText}`;
+    }
+
     console.log("🌉 [BRIDGE_DISPATCH]", {
       cmdId: command.id,
       action: command.action,
@@ -30,7 +39,7 @@ export async function dispatch(command, ctx = {}, options = { simulate: true }) 
       input: enrichedInput
     });
 
-    // 🔹 SIMULACIÓN (no ejecuta, solo preview del core)
+    // 🔹 SIMULACIÓN
     if (options.simulate) {
       const res = await window.KernelHeberto.execute(
         enrichedInput,
@@ -46,7 +55,7 @@ export async function dispatch(command, ctx = {}, options = { simulate: true }) 
       };
     }
 
-    // 🔥 EJECUCIÓN REAL (MISMO INPUT → consistencia total)
+    // 🔥 EJECUCIÓN REAL
     const res = await window.KernelHeberto.execute(
       enrichedInput,
       null,
