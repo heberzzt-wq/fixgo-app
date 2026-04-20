@@ -1,6 +1,6 @@
 /**
  * ======================================================================================
- * JARVIS ORCHESTRATOR v3.4.1 - Production + Snapshot Rollback (Fixed Paths)
+ * JARVIS ORCHESTRATOR v3.5 - Production + Smart Snapshot Rollback FINAL
  * ======================================================================================
  */
 
@@ -22,9 +22,6 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
     console.log("🧠 [JARVIS_INPUT]", input);
 
-    // =====================================================
-    // 🔥 MULTI COMANDO
-    // =====================================================
     const commands = Array.isArray(input)
       ? input
       : input.split(";;").map(c => toCommand(c.trim()));
@@ -38,16 +35,14 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
       for (const cmd of commands) {
         const res = await dispatch(cmd, ctx, { simulate: true });
 
-        if (!res.ok) {
-          return res;
-        }
+        if (!res.ok) return res;
 
         sims.push(res);
       }
 
-      const commandIds = commands.map(c => c.id);
+      const ids = commands.map(c => c.id);
 
-      pendingConfirmations.set(JSON.stringify(commandIds), {
+      pendingConfirmations.set(JSON.stringify(ids), {
         commands,
         ctx,
         createdAt: Date.now()
@@ -55,14 +50,14 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
       return {
         mode: "SIMULATION",
-        commandId: commandIds,
-        preview: sims.map(s => s.response),
-        message: "Simulación múltiple lista. Requiere confirmación."
+        commandId: ids,
+        preview: sims.map(x => x.response),
+        message: "Simulación lista."
       };
     }
 
     // =====================================================
-    // 🚀 EJECUCIÓN
+    // 🚀 CONFIRMACIÓN
     // =====================================================
     const key = JSON.stringify(input);
     const pending = pendingConfirmations.get(key);
@@ -80,30 +75,34 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     const results = [];
 
     try {
-      for (let i = 0; i < pending.commands.length; i++) {
-        const cmd = pending.commands[i];
+      for (const cmd of pending.commands) {
 
-       // =================================================
-// 📸 SNAPSHOT PREVIO (solo UPDATE / REPAIR)
-// =================================================
-let snapshot = null;
+        // =================================================
+        // 📸 SNAPSHOT
+        // =================================================
+        let snapshot = null;
 
-if (
-  (cmd.action === "UPDATE" || cmd.action === "REPAIR") &&
-  cmd.target
-) {
-  const target = String(cmd.target).trim();
+        const target =
+          cmd.target ||
+          cmd.payload?.target ||
+          cmd.payload?.name ||
+          null;
 
-  const path =
-    `tenants/${pending.ctx.tenantId}/BUILDING/${target}`;
+        if (
+          (cmd.action === "UPDATE" || cmd.action === "REPAIR") &&
+          target
+        ) {
+          const cleanTarget = String(target).trim();
 
-  console.log("🧪 [SNAPSHOT TARGET]", target);
-  console.log("🧪 [SNAPSHOT PATH]", path);
+          const path =
+            `tenants/${pending.ctx.tenantId}/BUILDING/${cleanTarget}`;
 
-  snapshot = await createSnapshot(path);
+          console.log("🧪 [SNAPSHOT PATH]", path);
 
-  console.log("📸 [SNAPSHOT RESULT]", snapshot);
-}
+          snapshot = await createSnapshot(path);
+
+          console.log("📸 [SNAPSHOT]", snapshot);
+        }
 
         // =================================================
         // 🚀 EJECUCIÓN
@@ -120,7 +119,8 @@ if (
 
         executed.push({
           cmd,
-          snapshot
+          snapshot,
+          response: exec.response
         });
 
         results.push(exec.response);
@@ -135,54 +135,46 @@ if (
       };
 
     } catch (execErr) {
+
       console.error("💥 [EXECUTION FAIL]", execErr.message);
-      console.warn("↩️ [ROLLBACK ENGINE] Recovery iniciado");
 
       // =================================================
-      // ↩️ ROLLBACK INTELIGENTE
+      // ↩️ ROLLBACK
       // =================================================
       for (let i = executed.length - 1; i >= 0; i--) {
         const item = executed[i];
-        const doneCmd = item.cmd;
-
-        console.warn("↩️ [ROLLBACK STEP]", {
-          action: doneCmd.action,
-          id: doneCmd.id
-        });
+        const cmd = item.cmd;
 
         try {
 
-          // CREATE_BUILDING -> DELETE_BUILDING
-          if (doneCmd.action === "CREATE_BUILDING") {
-            await window.KernelHeberto.execute(
-              `DELETE_BUILDING::{"id":"${doneCmd.id}"}`,
-              null,
-              { simulate: false }
-            );
+          // CREATE_BUILDING
+          if (cmd.action === "CREATE_BUILDING") {
+
+            const createdId =
+              item.response?.id ||
+              cmd.target ||
+              cmd.payload?.name;
+
+            if (createdId) {
+              await window.KernelHeberto.execute(
+                `DELETE_BUILDING::{"id":"${createdId}"}`,
+                null,
+                { simulate: false }
+              );
+            }
           }
 
-          // UPDATE / REPAIR -> RESTORE SNAPSHOT
+          // UPDATE / REPAIR
           else if (
-            (doneCmd.action === "UPDATE" ||
-             doneCmd.action === "REPAIR") &&
+            (cmd.action === "UPDATE" ||
+             cmd.action === "REPAIR") &&
             item.snapshot?.ok
           ) {
-            console.warn("📸 [RESTORE SNAPSHOT]");
             await restoreSnapshot(item.snapshot);
           }
 
-          // ANALYZE
-          else if (doneCmd.action === "ANALYZE") {
-            console.warn("↩️ [ROLLBACK ANALYZE] Sin acción");
-          }
-
-          // DEFAULT
-          else {
-            console.warn("↩️ [ROLLBACK UNKNOWN]", doneCmd.action);
-          }
-
-        } catch (rollbackErr) {
-          console.error("❌ [ROLLBACK FAIL]", rollbackErr);
+        } catch (rbErr) {
+          console.error("❌ [ROLLBACK FAIL]", rbErr);
         }
       }
 
