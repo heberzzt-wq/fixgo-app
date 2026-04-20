@@ -82,28 +82,27 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
         // =================================================
         let snapshot = null;
 
-        const target =
-          cmd.target ||
-          cmd.payload?.target ||
-          cmd.payload?.name ||
-          null;
+let target = null;
 
-        if (
-          (cmd.action === "UPDATE" || cmd.action === "REPAIR") &&
-          target
-        ) {
-          const cleanTarget = String(target).trim();
+if (typeof cmd.target === "string" && cmd.target.trim()) {
+  target = cmd.target.trim();
+} else if (typeof cmd.raw === "string" && cmd.raw.includes("::")) {
+  target = cmd.raw.split("::")[1]?.trim();
+}
 
-          const path =
-            `tenants/${pending.ctx.tenantId}/BUILDING/${cleanTarget}`;
+if (
+  (cmd.action === "UPDATE" || cmd.action === "REPAIR") &&
+  target
+) {
+  const path =
+    `tenants/${pending.ctx.tenantId}/BUILDING/${target}`;
 
-          console.log("🧪 [SNAPSHOT PATH]", path);
+  console.log("🧪 [SNAPSHOT PATH]", path);
 
-          snapshot = await createSnapshot(path);
+  snapshot = await createSnapshot(path);
 
-          console.log("📸 [SNAPSHOT]", snapshot);
-        }
-
+  console.log("📸 [SNAPSHOT]", snapshot);
+}
         // =================================================
         // 🚀 EJECUCIÓN
         // =================================================
