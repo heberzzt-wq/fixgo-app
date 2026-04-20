@@ -14,6 +14,8 @@ export async function createSnapshot(path) {
       };
     }
 
+    console.log("📸 [SNAPSHOT CREATED]", path);
+
     return {
       ok: true,
       path,
@@ -21,6 +23,8 @@ export async function createSnapshot(path) {
     };
 
   } catch (err) {
+    console.error("❌ [SNAPSHOT FAIL]", err);
+
     return {
       ok: false,
       error: err.message
@@ -30,6 +34,15 @@ export async function createSnapshot(path) {
 
 export async function restoreSnapshot(snapshot) {
   try {
+    if (
+      !snapshot ||
+      !snapshot.ok ||
+      !snapshot.path ||
+      !snapshot.data
+    ) {
+      throw new Error("INVALID_SNAPSHOT");
+    }
+
     const ref = window.KernelHeberto.doc(
       window.KernelHeberto.db,
       snapshot.path
@@ -37,12 +50,19 @@ export async function restoreSnapshot(snapshot) {
 
     await window.KernelHeberto.setDoc(
       ref,
-      snapshot.data
+      snapshot.data,
+      { merge: false }
     );
 
-    return { ok: true };
+    console.log("♻️ [SNAPSHOT RESTORED]", snapshot.path);
+
+    return {
+      ok: true
+    };
 
   } catch (err) {
+    console.error("❌ [RESTORE FAIL]", err);
+
     return {
       ok: false,
       error: err.message
