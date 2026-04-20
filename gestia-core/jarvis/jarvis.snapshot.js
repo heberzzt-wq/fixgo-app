@@ -1,14 +1,25 @@
-export async function createSnapshot(entityId, path) {
+export async function createSnapshot(path) {
   try {
-    const data = await window.KernelHeberto.db.doc(path).get();
+    const ref = window.KernelHeberto.doc(
+      window.KernelHeberto.db,
+      path
+    );
+
+    const snap = await window.KernelHeberto.getDoc(ref);
+
+    if (!snap.exists()) {
+      return {
+        ok: false,
+        error: "DOC_NOT_FOUND"
+      };
+    }
 
     return {
       ok: true,
-      entityId,
       path,
-      data: data.exists ? data.data() : null,
-      createdAt: Date.now()
+      data: snap.data()
     };
+
   } catch (err) {
     return {
       ok: false,
@@ -19,13 +30,18 @@ export async function createSnapshot(entityId, path) {
 
 export async function restoreSnapshot(snapshot) {
   try {
-    if (!snapshot || !snapshot.path) {
-      throw new Error("INVALID_SNAPSHOT");
-    }
+    const ref = window.KernelHeberto.doc(
+      window.KernelHeberto.db,
+      snapshot.path
+    );
 
-    await window.KernelHeberto.db.doc(snapshot.path).set(snapshot.data || {});
+    await window.KernelHeberto.setDoc(
+      ref,
+      snapshot.data
+    );
 
     return { ok: true };
+
   } catch (err) {
     return {
       ok: false,
