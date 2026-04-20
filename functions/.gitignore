@@ -1,44 +1,108 @@
-# ==========================================
-# GESTIAPREMIUM - SENTINEL E-SHIELD
-# ==========================================
+# ==================================================
+# GESTIAPREMIUM / FIXGO - GITIGNORE GOD MODE
+# Optimizado para Web + Firebase + Android + VSCode
+# ==================================================
 
-# 1. Dependencias (Pesado/Innecesario)
+# --------------------------------------------------
+# 1. DEPENDENCIAS
+# --------------------------------------------------
 node_modules/
 bower_components/
 
-# 2. Seguridad Máxima (NUNCA SUBIR)
+# --------------------------------------------------
+# 2. SECRETOS / LLAVES / CREDENCIALES
+# --------------------------------------------------
 .env
 .env.local
 .env.*.local
+
 serviceAccountKey.json
 gestia-core/serviceAccountKey.json
-auth_key.json
 firebase-key.json
+auth_key.json
 
-# 3. Firebase SDK & Tooling
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+
+google-services.json
+GoogleService-Info.plist
+
+# --------------------------------------------------
+# 3. FIREBASE LOCAL / CACHE / DEBUG
+# --------------------------------------------------
 .firebase/
-firestore.indexes.json
-firestore.rules
-storage.rules
-*-debug.log
 firebase-debug.log*
 ui-debug.log*
+*-debug.log
 
-# 4. Sistema y Editores
-.DS_Store
-Thumbs.db
+# --------------------------------------------------
+# 4. ANDROID / GRADLE / BUILDS
+# --------------------------------------------------
+.gradle/
+local.properties
+
+app/build/
+build/
+captures/
+
+*.apk
+*.aab
+*.ap_
+*.idsig
+
+# --------------------------------------------------
+# 5. WEB BUILDS / TEMPORALES
+# --------------------------------------------------
+dist/
+coverage/
+.cache/
+.tmp/
+tmp/
+temp/
+lib/
+
+# --------------------------------------------------
+# 6. EDITORES / IDE
+# --------------------------------------------------
 .vscode/
 .idea/
+
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.swp
 
-# 5. Compilación y Temporales
-dist/
-build/
-lib/
+# --------------------------------------------------
+# 7. SISTEMA OPERATIVO
+# --------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --------------------------------------------------
+# 8. LOGS
+# --------------------------------------------------
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+
+# --------------------------------------------------
+# 9. TESTING
+# --------------------------------------------------
+coverage-final.json
+.nyc_output/
+
+# --------------------------------------------------
+# 10. MANTENER VERSIONADO (NO IGNORAR)
+# --------------------------------------------------
+# firestore.rules
+# storage.rules
+# firestore.indexes.json
+# firebase.json
+# manifest.json
+# sw.js
