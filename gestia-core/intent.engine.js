@@ -215,47 +215,73 @@ const rawLower = structPart.toLowerCase();
 // 🔥 PRIORIDAD A ACCIÓN ESTRUCTURAL (determinista)
 if (typeof rawLower === "string") {
 
+    // =====================================================
+    // CREATE_BUILDING
+    // =====================================================
     if (rawLower === "create_building") {
         console.log("🔥 [DSL HIT] CREATE_BUILDING detectado");
 
-        const payload = extraerPayload(cmd.raw) || {}; // 🔥 nunca null
+        const payload = extraerPayload(cmd.raw) || {};
         console.log("📦 [PAYLOAD]", payload);
 
-       // 🔥 VALIDACIÓN DE NEGOCIO (CLAVE PARA ROLLBACK)
-if (!payload.name || typeof payload.name !== "string" || !payload.name.trim()) {
-    console.error("❌ [VALIDATION] name inválido", payload);
-    throw new Error("INVALID_BUILDING_NAME");
-}
+        if (!payload.name || typeof payload.name !== "string" || !payload.name.trim()) {
+            console.error("❌ [VALIDATION] name inválido", payload);
+            throw new Error("INVALID_BUILDING_NAME");
+        }
 
-// 🔥 ERROR FORZADO (SOLO PARA PRUEBA)
-if (payload.name === "force_error") {
-    console.error("💥 [FORCED ERROR]");
-    throw new Error("FORCED_EXECUTION_ERROR");
-}
+        const cleanName = payload.name.trim();
 
-const cleanName = payload.name.trim();// 🔥 ERROR FORZADO SOLO EN EJECUCIÓN
-if (payload.name === "force_error" && cmd.mode === "EXECUTION") {
-    console.error("💥 [FORCED EXECUTION ERROR]");
-    throw new Error("FORCED_EXECUTION_ERROR");
-}
+        interpretedPlan.push({
+            intent: "CREATE_BUILDING",
+            action: "CREATE_BUILDING",
+            entity: "BUILDING",
+            target: cleanName,
+            payload: {
+                ...payload,
+                name: cleanName
+            },
+            confidence: 1,
+            summary: `Creación de edificio '${cleanName}'`
+        });
 
-interpretedPlan.push({
-    intent: "CREATE_BUILDING",
-    action: "CREATE_BUILDING",
-    entity: "BUILDING",
-    target: cleanName,
-    payload: {
-        ...payload,
-        name: cleanName
-    },
-    confidence: 1,
-    summary: `Creación de edificio '${cleanName}' (DSL + JSON)`
-});
-
-return;
+        return;
     }
-}
 
+    // =====================================================
+    // DELETE_BUILDING
+    // =====================================================
+    if (rawLower === "delete_building") {
+        console.log("🔥 [DSL HIT] DELETE_BUILDING detectado");
+
+        const payload = extraerPayload(cmd.raw) || {};
+        console.log("📦 [PAYLOAD]", payload);
+
+        if (!payload.id || typeof payload.id !== "string" || !payload.id.trim()) {
+            console.error("❌ [VALIDATION] id inválido", payload);
+            throw new Error("INVALID_BUILDING_ID");
+        }
+
+        const cleanId = payload.id.trim();
+
+        interpretedPlan.push({
+            intent: "DELETE_BUILDING",
+            action: "DELETE_BUILDING",
+            entity: "BUILDING",
+            target: cleanId,
+            payload: {
+                ...payload,
+                id: cleanId
+            },
+            confidence: 1,
+            summary: `Eliminación de edificio '${cleanId}'`
+        });
+
+        return;
+    }
+
+    // =====================================================
+    // ANALYZE
+    // =====================================================
     if (rawLower === "analyze") {
         console.log("🔥 [DSL HIT] ANALYZE detectado");
 
@@ -266,9 +292,9 @@ return;
             action: "ANALYZE",
             entity: "SYSTEM",
             target: payload.target || "system",
-            payload: payload,
+            payload,
             confidence: 1,
-            summary: "Análisis (DSL estructurado)"
+            summary: "Análisis del sistema"
         });
 
         console.log("🧠 [STRUCTURED_INTENT]", {
@@ -280,34 +306,39 @@ return;
         return;
     }
 
+    // =====================================================
+    // REPAIR
+    // =====================================================
     if (rawLower === "repair") {
-    console.log("🔥 [DSL HIT] REPAIR detectado");
+        console.log("🔥 [DSL HIT] REPAIR detectado");
 
-    const payload = extraerPayload(cmd.raw) || {};
+        const payload = extraerPayload(cmd.raw) || {};
 
-    // 🔥 VALIDACIÓN (provoca fallo si target inválido)
-    const target = payload.target || payload.name || null;
+        const target = payload.target || payload.name || payload.id || null;
 
-    if (!target || typeof target !== "string" || !target.trim() || target === "invalid_target") {
-        console.error("❌ [VALIDATION] repair target inválido", { target, payload });
-        throw new Error("INVALID_REPAIR_TARGET");
+        if (!target || typeof target !== "string" || !target.trim()) {
+            console.error("❌ [VALIDATION] repair target inválido", { target, payload });
+            throw new Error("INVALID_REPAIR_TARGET");
+        }
+
+        const cleanTarget = target.trim();
+
+        interpretedPlan.push({
+            intent: "REPAIR",
+            action: "REPAIR",
+            entity: "SYSTEM",
+            target: cleanTarget,
+            payload,
+            confidence: 1,
+            summary: `Reparación '${cleanTarget}'`
+        });
+
+        return;
     }
 
-    const cleanTarget = target.trim();
-
-    interpretedPlan.push({
-        intent: "REPAIR",
-        action: "REPAIR",
-        entity: "SYSTEM",
-        target: cleanTarget,
-        payload,
-        confidence: 1,
-        summary: `Reparación '${cleanTarget}'`
-    });
-
-    return;
-}
-
+    // =====================================================
+    // UPDATE
+    // =====================================================
     if (rawLower === "update") {
         interpretedPlan.push({
             intent: "UPDATE",
@@ -316,14 +347,15 @@ return;
             target: "system",
             payload: {},
             confidence: 1,
-            summary: "Actualización (DSL estructurado)"
+            summary: "Actualización del sistema"
         });
+
         return;
     }
+}
 
-
-// 👇 ESTO YA NO DA ERROR
-        const tokens = rawLower.split(/\s+/);
+// 👇 CONTINÚA TU CÓDIGO NORMAL
+const tokens = rawLower.split(/\s+/);
 
         let action = null;
         let entity = null;
