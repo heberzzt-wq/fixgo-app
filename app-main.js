@@ -2,341 +2,887 @@
  * ======================================================================================
  * GESTIAPREMIUM 2026 - MAIN CONTROLLER (ROUTER & GATEKEEPER)
  * Archivo: app-main.js
- * Versión: 6.0.0 (Gatekeeper Multi-Tenant: B2C, GP, B2B Admin, Técnico Interno)
- * Autor: Heber (CEO & Lead Architect)
+ * Versión: 7.0.0 Fortress AI Kernel
  * ======================================================================================
  */
 
-console.log("🚦 [app-main.js] Iniciando Gatekeeper Multi-Tenant v6.0.0...");
+console.log("🚦 [app-main.js] Fortress AI Kernel v7.0.0 ONLINE");
 
-// ⚠️ IMPORTANTE: Dividimos las importaciones. Las de Firebase CDN van separadas de tu firebase.js local.
-import { observarAuth, auth, signOut, db, getDoc, doc, addDoc, collection, updateDoc, serverTimestamp } from "./firebase.js";
-import { query, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// =====================================================
+// 🔥 IMPORTS
+// =====================================================
+import {
+  observarAuth,
+  auth,
+  signOut,
+  db,
+  getDoc,
+  doc,
+  addDoc,
+  collection,
+  updateDoc,
+  serverTimestamp
+} from "./firebase.js";
 
-import { iniciarPanelAdmin, iniciarPanelTecnico, iniciarPanelCliente } from "./app-panel.js";
+import {
+  query,
+  getDocs,
+  orderBy,
+  limit
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+import {
+  iniciarPanelAdmin,
+  iniciarPanelTecnico,
+  iniciarPanelCliente
+} from "./app-panel.js";
+
 import { iniciarMotorBI } from "./app-bi.js";
-document.body.style.display = 'none';
 
-const RUTAS = {
-    publicas: ["index.html", "login.html", "registro.html", "/"],
-    admin: "admin.html",
-    tecnico: "tecnico.html",
-    cliente: "cliente.html",
-    residencial: "residencial.html" // 🏢 NUEVA RUTA: Tenant Dashboard B2B
+import { runJarvis } from "./jarvis.orchestrator.js";
+import { analyzeIntent } from "./jarvis.vision.engine.js";
+
+// =====================================================
+// 🧠 FORTRESS KERNEL
+// =====================================================
+const V7 = {
+  version: "7.0.0",
+  start: performance.now(),
+  errors: [],
+  modules: [],
+  health: "BOOTING"
 };
 
-observarAuth(async (userAuth) => {
-    const pathActual = window.location.pathname;
-    const archivoActual = pathActual.substring(pathActual.lastIndexOf('/') + 1) || "index.html";
-    const esPublica = RUTAS.publicas.includes(archivoActual);
+// =====================================================
+// 🔥 CONSTANTES CORE
+// =====================================================
+const MASTER_EMAIL = "hebertoh-m@hotmail.com";
 
-    if (!userAuth) {
-        if (!esPublica) {
-            console.warn("⛔ Gatekeeper: Intruso detectado. Expulsando...");
-            window.location.replace("login.html");
-            return;
-        }
-        document.body.style.display = 'block'; 
-        return;
-    }
+const RUTAS = {
+  publicas: ["index.html", "login.html", "registro.html", "/"],
+  admin: "admin.html",
+  tecnico: "tecnico.html",
+  cliente: "cliente.html",
+  residencial: "residencial.html"
+};
 
-    let userRol = null;
-    let userData = {};
+// =====================================================
+// 🎬 LOADER PREMIUM
+// =====================================================
+function showLoader(msg = "INICIANDO SISTEMA...") {
+  const old = document.getElementById("fortressLoader");
+  if (old) old.remove();
 
-    // 👑 MODO DIOS: REGLA DE ORO INQUEBRANTABLE
-    if (userAuth.email && userAuth.email.toLowerCase() === "hebertoh-m@hotmail.com") {
-        userRol = "admin";
-        console.log("👑 Gatekeeper: Privilegios de CEO (Admin) FORZADOS por correo maestro.");
-    } else {
-        try {
-            // 🛡️ Búsqueda en la colección unificada de usuarios
-            const userDocRef = doc(db, "users", userAuth.uid);
-            const userSnap = await getDoc(userDocRef);
-            if (userSnap.exists()) {
-                userData = userSnap.data();
-                userRol = userData.rol || "cliente";
-            } else {
-                userRol = "cliente";
-            }
-        } catch (error) {
-            console.error("❌ Error leyendo perfil:", error);
-            userRol = "cliente";
-        }
-    }
+  const div = document.createElement("div");
+  div.id = "fortressLoader";
 
-    // 🏗️ NORMALIZACIÓN DE ROLES (Para soportar V5 y la nueva V6 B2B)
-    let rolEnrutamiento = userRol;
-    if (userRol === "b2c") rolEnrutamiento = "cliente";
-    if (userRol === "tecnico_gp" || userRol === "tecnico_interno") rolEnrutamiento = "tecnico";
-    
-    // Guardamos el rol real original para que los paneles sepan qué permisos activar
-    userAuth.rol_real = userRol; 
-    userAuth.rol = rolEnrutamiento;
-    userAuth.nombre = userData.nombre || userAuth.email;
-    userAuth.efectivo_autorizado = userData.efectivo_autorizado || false; 
+  div.innerHTML = `
+    <div style="
+      position:fixed;
+      inset:0;
+      background:#050505;
+      color:#00ffd0;
+      z-index:999999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex-direction:column;
+      font-family:Arial;
+      letter-spacing:2px;
+    ">
+      <h1>GESTIA V7</h1>
+      <p>${msg}</p>
+    </div>
+  `;
 
-    console.log(`✅ Usuario: ${userAuth.email} | Rol Base: ${userAuth.rol} | Rol Real: ${userAuth.rol_real}`);
-
-    // === NUEVO RUTEO FLEXIBLE DE 4 VÍAS PARA VERCEL ===
-    if (userAuth.rol === "admin" && !pathActual.includes("admin")) {
-        window.location.replace(RUTAS.admin); return;
-    }
-    if (userAuth.rol === "tecnico" && !pathActual.includes("tecnico")) {
-        window.location.replace(RUTAS.tecnico); return;
-    }
-    if (userAuth.rol === "cliente" && !pathActual.includes("cliente")) {
-        window.location.replace(RUTAS.cliente); return;
-    }
-    if (userAuth.rol_real === "b2b_admin" && !pathActual.includes("residencial")) {
-        window.location.replace(RUTAS.residencial); return;
-    }
-
-    document.body.style.display = 'block';
-
-    try {
-        if (userAuth.rol === "admin") {
-            await iniciarPanelAdmin(userAuth);
-            setTimeout(() => { iniciarMotorBI('dashboardAnalitico'); }, 500);
-        }
-        else if (userAuth.rol === "tecnico") {
-            // panel-tecnico.js ahora leerá 'userAuth.rol_real' para saber si es Interno o GP
-            await iniciarPanelTecnico(userAuth);
-        }
-        else if (userAuth.rol === "cliente") {
-            await iniciarPanelCliente(userAuth);
-            const contenedorEfectivo = document.getElementById('contenedorOpcionEfectivo');
-            if (userAuth.efectivo_autorizado && contenedorEfectivo) {
-                 contenedorEfectivo.classList.remove('hidden'); 
-            }
-        }
-        else if (userAuth.rol_real === "b2b_admin") {
-            // 🏢 IMPORTACIÓN DINÁMICA: No rompe el código si aún no existe app-panel.js
-            try {
-                const module = await import("./app-panel.js");
-                if (module.iniciarPanelResidencial) {
-                    await module.iniciarPanelResidencial(userAuth);
-                } else {
-                    console.warn("Fase 1 completada: Esperando creación de iniciarPanelResidencial()");
-                }
-            } catch (e) {
-                console.warn("El módulo de panel residencial aún está en construcción.");
-            }
-        }
-        
-        actualizarInterfazGlobal(userAuth);
-        iniciarEscuchaEventosDinamicos(); 
-    } catch (error) {
-        console.error("❌ Error crítico en el arranque del sistema:", error);
-    }
-});
-
-function iniciarEscuchaEventosDinamicos() {
-    const panelAcciones = document.getElementById("panelAcciones");
-    if (panelAcciones) {
-        const nuevoPanel = panelAcciones.cloneNode(true);
-        panelAcciones.parentNode.replaceChild(nuevoPanel, panelAcciones);
-        nuevoPanel.addEventListener("click", (e) => {
-            const btnCotizar = e.target.closest('button');
-            if (btnCotizar && btnCotizar.innerText.includes("CREAR COTIZACIÓN")) {
-                window.dispatchEvent(new CustomEvent("abrirMotorCotizacion"));
-            }
-        });
-    }
+  document.body.appendChild(div);
 }
 
-function actualizarInterfazGlobal(user) {
-    const userNameDisplay = document.getElementById("userName") || document.getElementById("userNameDisplay");
-    if (userNameDisplay) userNameDisplay.innerText = (user.nombre || user.email).toUpperCase();
+function hideLoader() {
+  const el = document.getElementById("fortressLoader");
+  if (el) el.remove();
+}
 
-    document.querySelectorAll("#btnLogout, #logoutBtn").forEach(btn => {
-        const newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.addEventListener("click", async (e) => {
-            e.preventDefault();
-            if (confirm("¿Cerrar sesión de GestiaPremium?")) {
-                try {
-                    await signOut(auth);
-                    document.body.style.display = 'none';
-                    window.location.replace("login.html");
-                } catch (error) {
-                    console.error("Error al cerrar sesión:", error);
-                }
-            }
-        });
+// =====================================================
+// 🔥 HELPERS
+// =====================================================
+function revealUI() {
+  document.body.style.display = "block";
+}
+
+function hideUI() {
+  document.body.style.display = "none";
+}
+
+function go(url) {
+  window.location.replace(url);
+}
+
+function isMaster(user) {
+  return (
+    user?.email &&
+    user.email.toLowerCase() === MASTER_EMAIL
+  );
+}
+
+// =====================================================
+// 🛡️ WATCHDOG GLOBAL
+// =====================================================
+window.addEventListener("error", (e) => {
+  console.error("💥 JS ERROR:", e.message);
+
+  V7.errors.push({
+    type: "error",
+    msg: e.message,
+    time: Date.now()
+  });
+});
+
+window.addEventListener("unhandledrejection", (e) => {
+  console.error("💥 PROMISE ERROR:", e.reason);
+
+  V7.errors.push({
+    type: "promise",
+    msg: String(e.reason),
+    time: Date.now()
+  });
+});
+
+// =====================================================
+// 🔍 AUDITORÍA AUTO
+// =====================================================
+function auditStartup() {
+  console.table({
+    online: navigator.onLine,
+    idioma: navigator.language,
+    memoria: navigator.deviceMemory || "N/A",
+    nucleos: navigator.hardwareConcurrency || "N/A",
+    screen: `${screen.width}x${screen.height}`
+  });
+}
+
+// =====================================================
+// ⚡ PRECARGA INTELIGENTE
+// =====================================================
+async function smartPreload() {
+  const mods = [
+    "./jarvis.orchestrator.js",
+    "./app-panel.js",
+    "./app-bi.js"
+  ];
+
+  for (const mod of mods) {
+    try {
+      await import(mod);
+      V7.modules.push(mod);
+    } catch (e) {
+      console.warn("⚠️ No cargó:", mod);
+    }
+  }
+}
+
+// =====================================================
+// 🚀 ANTI BLACK SCREEN
+// =====================================================
+hideUI();
+showLoader("VERIFICANDO SISTEMA...");
+
+setTimeout(() => {
+  if (document.body.style.display === "none") {
+    revealUI();
+    hideLoader();
+  }
+}, 5000);
+
+// =====================================================
+// 🚀 BOOT SEQUENCE
+// =====================================================
+(async () => {
+  auditStartup();
+
+  showLoader("PRECARGANDO MÓDULOS...");
+  await smartPreload();
+
+  showLoader("ACTIVANDO FORTRESS...");
+  await new Promise(r => setTimeout(r, 900));
+
+  V7.health = "ONLINE";
+
+  const total = Math.round(
+    performance.now() - V7.start
+  );
+
+  console.log(`🚀 Boot completado en ${total}ms`);
+})();
+
+// =====================================================
+// 🔥 AUTH CORE
+// =====================================================
+observarAuth(async (userAuth) => {
+  const pathActual = window.location.pathname;
+
+  const archivoActual =
+    pathActual.substring(
+      pathActual.lastIndexOf("/") + 1
+    ) || "index.html";
+
+  const esPublica =
+    RUTAS.publicas.includes(archivoActual);
+
+  if (!userAuth) {
+    if (!esPublica) {
+      console.warn("⛔ Intruso detectado.");
+      return go("login.html");
+    }
+
+    revealUI();
+    hideLoader();
+    return;
+  }
+
+  let userRol = "cliente";
+  let userData = {};
+
+  if (isMaster(userAuth)) {
+    userRol = "admin";
+    console.log("👑 MASTER MODE ACTIVE");
+  } else {
+    try {
+      const ref = doc(db, "users", userAuth.uid);
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        userData = snap.data();
+        userRol = userData.rol || "cliente";
+      }
+
+    } catch (err) {
+      console.error("❌ Perfil error:", err);
+    }
+  }
+
+  let rolBase = userRol;
+
+  if (userRol === "b2c")
+    rolBase = "cliente";
+
+  if (
+    userRol === "tecnico_gp" ||
+    userRol === "tecnico_interno"
+  ) rolBase = "tecnico";
+
+  userAuth.rol_real = userRol;
+  userAuth.rol = rolBase;
+  userAuth.nombre =
+    userData.nombre || userAuth.email;
+
+  userAuth.efectivo_autorizado =
+    userData.efectivo_autorizado || false;
+
+  console.log(
+    `✅ ${userAuth.email} | ${userAuth.rol}`
+  );
+
+  if (userAuth.rol === "admin") {
+    window.runJarvis = runJarvis;
+    window.analyzeIntent = analyzeIntent;
+  } else {
+    delete window.runJarvis;
+    delete window.analyzeIntent;
+  }
+
+  if (
+    userAuth.rol === "admin" &&
+    !pathActual.includes("admin")
+  ) return go(RUTAS.admin);
+
+  if (
+    userAuth.rol === "tecnico" &&
+    !pathActual.includes("tecnico")
+  ) return go(RUTAS.tecnico);
+
+  if (
+    userAuth.rol === "cliente" &&
+    !pathActual.includes("cliente")
+  ) return go(RUTAS.cliente);
+
+  if (
+    userAuth.rol_real === "b2b_admin" &&
+    !pathActual.includes("residencial")
+  ) return go(RUTAS.residencial);
+
+  revealUI();
+  hideLoader();
+
+  try {
+    if (userAuth.rol === "admin") {
+      await iniciarPanelAdmin(userAuth);
+
+      setTimeout(() => {
+        iniciarMotorBI("dashboardAnalitico");
+      }, 500);
+    }
+
+    else if (userAuth.rol === "tecnico") {
+      await iniciarPanelTecnico(userAuth);
+    }
+
+    else if (userAuth.rol === "cliente") {
+      await iniciarPanelCliente(userAuth);
+
+      const contenedor =
+        document.getElementById(
+          "contenedorOpcionEfectivo"
+        );
+
+      if (
+        userAuth.efectivo_autorizado &&
+        contenedor
+      ) {
+        contenedor.classList.remove("hidden");
+      }
+    }
+
+  } catch (error) {
+    console.error(
+      "❌ Error de arranque:",
+      error
+    );
+  }
+});
+
+// =====================================================
+// 🧠 EVENTOS DINÁMICOS V7
+// =====================================================
+function iniciarEscuchaEventosDinamicos() {
+  const panelAcciones =
+    document.getElementById("panelAcciones");
+
+  if (!panelAcciones) return;
+
+  const nuevoPanel =
+    panelAcciones.cloneNode(true);
+
+  panelAcciones.parentNode.replaceChild(
+    nuevoPanel,
+    panelAcciones
+  );
+
+  nuevoPanel.addEventListener(
+    "click",
+    (e) => {
+      const btn =
+        e.target.closest("button");
+
+      if (!btn) return;
+
+      const texto =
+        btn.innerText.trim();
+
+      if (
+        texto.includes(
+          "CREAR COTIZACIÓN"
+        )
+      ) {
+        console.log(
+          "📄 Motor Cotización lanzado"
+        );
+
+        window.dispatchEvent(
+          new CustomEvent(
+            "abrirMotorCotizacion"
+          )
+        );
+      }
+    }
+  );
+}
+
+// =====================================================
+// 🧠 UI GLOBAL V7
+// =====================================================
+function actualizarInterfazGlobal(user) {
+  const userNameDisplay =
+    document.getElementById("userName") ||
+    document.getElementById(
+      "userNameDisplay"
+    );
+
+  if (userNameDisplay) {
+    userNameDisplay.innerText =
+      (
+        user.nombre ||
+        user.email
+      ).toUpperCase();
+  }
+
+  document
+    .querySelectorAll(
+      "#btnLogout, #logoutBtn"
+    )
+    .forEach((btn) => {
+      const nuevo =
+        btn.cloneNode(true);
+
+      btn.parentNode.replaceChild(
+        nuevo,
+        btn
+      );
+
+      nuevo.addEventListener(
+        "click",
+        async (e) => {
+          e.preventDefault();
+
+          const ok = confirm(
+            "¿Cerrar sesión de GestiaPremium?"
+          );
+
+          if (!ok) return;
+
+          try {
+            showLoader(
+              "CERRANDO SESIÓN..."
+            );
+
+            await signOut(auth);
+
+            document.body.style.display =
+              "none";
+
+            window.location.replace(
+              "login.html"
+            );
+
+          } catch (error) {
+            console.error(
+              "Logout error:",
+              error
+            );
+
+          } finally {
+            hideLoader();
+          }
+        }
+      );
     });
 }
 
 // ======================================================================================
-// 🚨 SISTEMA DE DISPUTAS (SOCIO PRO)
+// 🚨 SISTEMA DE DISPUTAS V7
 // ======================================================================================
+window.abrirModalDisputa =
+function(serviceId, customerId) {
 
-window.abrirModalDisputa = function(serviceId, customerId) {
-    document.getElementById('disputaServiceId').value = serviceId;
-    document.getElementById('disputaCustomerId').value = customerId;
-    document.getElementById('disputaDescripcion').value = '';
-    const modal = document.getElementById('modalDisputaPago');
-    modal.classList.remove('hidden');
-    modal.style.display = 'flex';
+  document.getElementById(
+    "disputaServiceId"
+  ).value = serviceId;
+
+  document.getElementById(
+    "disputaCustomerId"
+  ).value = customerId;
+
+  document.getElementById(
+    "disputaDescripcion"
+  ).value = "";
+
+  const modal =
+    document.getElementById(
+      "modalDisputaPago"
+    );
+
+  modal.classList.remove("hidden");
+  modal.style.display = "flex";
 };
 
-window.cerrarModalDisputa = function() {
-    const modal = document.getElementById('modalDisputaPago');
-    modal.classList.add('hidden');
-    modal.style.display = 'none';
+window.cerrarModalDisputa =
+function() {
+  const modal =
+    document.getElementById(
+      "modalDisputaPago"
+    );
+
+  modal.classList.add("hidden");
+  modal.style.display = "none";
 };
 
-window.enviarReportePago = async function() {
-    const serviceId = document.getElementById('disputaServiceId').value;
-    const customerId = document.getElementById('disputaCustomerId').value;
-    const descripcion = document.getElementById('disputaDescripcion').value.trim();
-    const btnEnviar = document.getElementById('btnEnviarDisputa');
+window.enviarReportePago =
+async function() {
 
-    if (descripcion === '') {
-        alert("Por favor, describe el problema.");
-        return;
-    }
+  const serviceId =
+    document.getElementById(
+      "disputaServiceId"
+    ).value;
 
-    try {
-        btnEnviar.disabled = true;
-        btnEnviar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
-        const authUser = auth.currentUser;
-        if (!authUser) throw new Error("No hay usuario autenticado.");
+  const customerId =
+    document.getElementById(
+      "disputaCustomerId"
+    ).value;
 
-        const ticketRef = await addDoc(collection(db, "support_tickets"), {
-            serviceId: serviceId,
-            reportedBy: authUser.uid,
-            customerId: customerId,
-            proId: authUser.uid,
-            issueType: "payment_refusal",
-            status: "open",
-            createdAt: serverTimestamp(),
-            resolvedAt: null
-        });
+  const descripcion =
+    document.getElementById(
+      "disputaDescripcion"
+    ).value.trim();
 
-        await addDoc(collection(db, `support_tickets/${ticketRef.id}/messages`), {
-            senderId: authUser.uid,
-            message: descripcion,
-            timestamp: serverTimestamp()
-        });
+  const btn =
+    document.getElementById(
+      "btnEnviarDisputa"
+    );
 
-        await updateDoc(doc(db, "services", serviceId), {
-            status: "disputed",
-            disputeTicketId: ticketRef.id
-        });
+  if (!descripcion) {
+    alert(
+      "Por favor, describe el problema."
+    );
+    return;
+  }
 
-        alert("🚨 Reporte enviado a GestiaPremium. El servicio ha sido bloqueado por seguridad.");
-        window.cerrarModalDisputa();
-    } catch (error) {
-        console.error("❌ Error al crear la disputa:", error);
-    } finally {
-        btnEnviar.disabled = false;
-        btnEnviar.innerHTML = '<i class="fas fa-paper-plane"></i> ENVIAR REPORTE';
-    }
-};
+  try {
+    btn.disabled = true;
 
-// ======================================================================================
-// 🛡️ SISTEMA DE GARANTÍAS (CLIENTE)
-// ======================================================================================
+    btn.innerHTML =
+      '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
 
-window.abrirModalGarantia = function(serviceId, proId) {
-    document.getElementById('garantiaServiceId').value = serviceId;
-    document.getElementById('garantiaProId').value = proId;
-    document.getElementById('garantiaDescripcion').value = '';
-    const modal = document.getElementById('modalGarantiaCliente');
-    modal.classList.remove('hidden');
-    modal.style.display = 'flex';
-};
+    const authUser =
+      auth.currentUser;
 
-window.cerrarModalGarantia = function() {
-    const modal = document.getElementById('modalGarantiaCliente');
-    modal.classList.add('hidden');
-    modal.style.display = 'none';
-};
+    if (!authUser)
+      throw new Error(
+        "No autenticado"
+      );
 
-window.enviarReporteGarantia = async function() {
-    const serviceId = document.getElementById('garantiaServiceId').value;
-    const proId = document.getElementById('garantiaProId').value;
-    const descripcion = document.getElementById('garantiaDescripcion').value.trim();
-    const btnEnviar = document.getElementById('btnEnviarGarantia');
-
-    if (descripcion === '') {
-        alert("Por favor, describe el fallo.");
-        return;
-    }
-
-    try {
-        btnEnviar.disabled = true;
-        btnEnviar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
-        const authUser = auth.currentUser;
-        if (!authUser) throw new Error("No hay usuario autenticado.");
-
-        const ticketRef = await addDoc(collection(db, "support_tickets"), {
-            serviceId: serviceId,
-            reportedBy: authUser.uid,
-            customerId: authUser.uid,
-            proId: proId,
-            issueType: "warranty_claim",
-            status: "open",
-            createdAt: serverTimestamp(),
-            resolvedAt: null
-        });
-
-        await addDoc(collection(db, `support_tickets/${ticketRef.id}/messages`), {
-            senderId: authUser.uid,
-            message: descripcion,
-            timestamp: serverTimestamp()
-        });
-
-        await updateDoc(doc(db, "services", serviceId), {
-            estado: "warranty_requested", 
-            warrantyTicketId: ticketRef.id
-        });
-
-        alert("🛡️ Reporte enviado. GestiaPremium revisará el caso pronto.");
-        window.cerrarModalGarantia();
-    } catch (error) {
-        console.error("❌ Error al solicitar garantía:", error);
-    } finally {
-        btnEnviar.disabled = false;
-        btnEnviar.innerHTML = '<i class="fas fa-shield-alt"></i> EXIGIR GARANTÍA';
-    }
-};
-
-// ======================================================================================
-// ⚖️ MESA DE AYUDA (JUEZ ADMIN): RESOLUCIÓN DE GARANTÍAS
-// ======================================================================================
-
-window.resolverGarantia = async (serviceId, ticketId, aprobar) => {
-    if(!confirm(aprobar ? "¿Seguro que deseas APROBAR la garantía? El técnico deberá regresar." : "¿Rechazar garantía?")) return;
-    
-    try {
-        if (aprobar) {
-            // 1. Buscamos el reporte de falla real del cliente para dárselo al técnico
-            const qMessages = query(collection(db, `support_tickets/${ticketId}/messages`), orderBy("timestamp", "asc"), limit(1));
-            const msgSnap = await getDocs(qMessages);
-            const reporteFalla = !msgSnap.empty ? msgSnap.docs[0].data().message : "Falla reportada en el servicio anterior.";
-
-            // 2. Reabrimos el servicio: le inyectamos el flag y el motivo
-            await updateDoc(doc(db, "services", serviceId), { 
-                estado: "trabajando",
-                es_garantia: true,
-                motivo_garantia: reporteFalla 
-            }); 
-        } else {
-            await updateDoc(doc(db, "services", serviceId), { estado: "finalizado" });
+    const ticketRef =
+      await addDoc(
+        collection(
+          db,
+          "support_tickets"
+        ),
+        {
+          serviceId,
+          reportedBy:
+            authUser.uid,
+          customerId,
+          proId:
+            authUser.uid,
+          issueType:
+            "payment_refusal",
+          status: "open",
+          createdAt:
+            serverTimestamp(),
+          resolvedAt: null
         }
+      );
 
-        // 3. Cerramos el ticket de soporte
-        await updateDoc(doc(db, "support_tickets", ticketId), { 
-            status: "resolved", 
-            resolvedAt: serverTimestamp() 
-        });
-        
-        const modal = document.getElementById('modalJuezAdmin');
-        if(modal) modal.remove();
-        alert("✅ Sentencia aplicada. El técnico ha sido notificado del reporte.");
+    await addDoc(
+      collection(
+        db,
+        `support_tickets/${ticketRef.id}/messages`
+      ),
+      {
+        senderId:
+          authUser.uid,
+        message:
+          descripcion,
+        timestamp:
+          serverTimestamp()
+      }
+    );
 
-    } catch (e) {
-        console.error("Error en tribunal:", e);
-    }
+    await updateDoc(
+      doc(
+        db,
+        "services",
+        serviceId
+      ),
+      {
+        status:
+          "disputed",
+        disputeTicketId:
+          ticketRef.id
+      }
+    );
+
+    alert(
+      "🚨 Reporte enviado correctamente."
+    );
+
+    window.cerrarModalDisputa();
+
+  } catch (error) {
+    console.error(
+      "Disputa error:",
+      error
+    );
+
+  } finally {
+    btn.disabled = false;
+
+    btn.innerHTML =
+      '<i class="fas fa-paper-plane"></i> ENVIAR REPORTE';
+  }
 };
+
+// ======================================================================================
+// 🛡️ GARANTÍAS V7
+// ======================================================================================
+window.abrirModalGarantia =
+function(serviceId, proId) {
+
+  document.getElementById(
+    "garantiaServiceId"
+  ).value = serviceId;
+
+  document.getElementById(
+    "garantiaProId"
+  ).value = proId;
+
+  document.getElementById(
+    "garantiaDescripcion"
+  ).value = "";
+
+  const modal =
+    document.getElementById(
+      "modalGarantiaCliente"
+    );
+
+  modal.classList.remove("hidden");
+  modal.style.display = "flex";
+};
+
+window.cerrarModalGarantia =
+function() {
+
+  const modal =
+    document.getElementById(
+      "modalGarantiaCliente"
+    );
+
+  modal.classList.add("hidden");
+  modal.style.display = "none";
+};
+
+window.enviarReporteGarantia =
+async function() {
+
+  const serviceId =
+    document.getElementById(
+      "garantiaServiceId"
+    ).value;
+
+  const proId =
+    document.getElementById(
+      "garantiaProId"
+    ).value;
+
+  const descripcion =
+    document.getElementById(
+      "garantiaDescripcion"
+    ).value.trim();
+
+  const btn =
+    document.getElementById(
+      "btnEnviarGarantia"
+    );
+
+  if (!descripcion) {
+    alert(
+      "Por favor describe el fallo."
+    );
+    return;
+  }
+
+  try {
+    btn.disabled = true;
+
+    btn.innerHTML =
+      '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
+
+    const authUser =
+      auth.currentUser;
+
+    if (!authUser)
+      throw new Error(
+        "No autenticado"
+      );
+
+    const ticketRef =
+      await addDoc(
+        collection(
+          db,
+          "support_tickets"
+        ),
+        {
+          serviceId,
+          reportedBy:
+            authUser.uid,
+          customerId:
+            authUser.uid,
+          proId,
+          issueType:
+            "warranty_claim",
+          status: "open",
+          createdAt:
+            serverTimestamp(),
+          resolvedAt: null
+        }
+      );
+
+    await addDoc(
+      collection(
+        db,
+        `support_tickets/${ticketRef.id}/messages`
+      ),
+      {
+        senderId:
+          authUser.uid,
+        message:
+          descripcion,
+        timestamp:
+          serverTimestamp()
+      }
+    );
+
+    await updateDoc(
+      doc(
+        db,
+        "services",
+        serviceId
+      ),
+      {
+        estado:
+          "warranty_requested",
+        warrantyTicketId:
+          ticketRef.id
+      }
+    );
+
+    alert(
+      "🛡️ Garantía enviada."
+    );
+
+    window.cerrarModalGarantia();
+
+  } catch (error) {
+    console.error(
+      "Garantía error:",
+      error
+    );
+
+  } finally {
+    btn.disabled = false;
+
+    btn.innerHTML =
+      '<i class="fas fa-shield-alt"></i> EXIGIR GARANTÍA';
+  }
+};
+
+// ======================================================================================
+// ⚖️ TRIBUNAL ADMIN V7
+// ======================================================================================
+window.resolverGarantia =
+async (
+  serviceId,
+  ticketId,
+  aprobar
+) => {
+
+  const ok = confirm(
+    aprobar
+      ? "¿Aprobar garantía?"
+      : "¿Rechazar garantía?"
+  );
+
+  if (!ok) return;
+
+  try {
+
+    if (aprobar) {
+
+      const qMessages =
+        query(
+          collection(
+            db,
+            `support_tickets/${ticketId}/messages`
+          ),
+          orderBy(
+            "timestamp",
+            "asc"
+          ),
+          limit(1)
+        );
+
+      const msgSnap =
+        await getDocs(
+          qMessages
+        );
+
+      const reporteFalla =
+        !msgSnap.empty
+          ? msgSnap.docs[0]
+              .data()
+              .message
+          : "Falla reportada.";
+
+      await updateDoc(
+        doc(
+          db,
+          "services",
+          serviceId
+        ),
+        {
+          estado:
+            "trabajando",
+          es_garantia: true,
+          motivo_garantia:
+            reporteFalla
+        }
+      );
+
+    } else {
+
+      await updateDoc(
+        doc(
+          db,
+          "services",
+          serviceId
+        ),
+        {
+          estado:
+            "finalizado"
+        }
+      );
+    }
+
+    await updateDoc(
+      doc(
+        db,
+        "support_tickets",
+        ticketId
+      ),
+      {
+        status:
+          "resolved",
+        resolvedAt:
+          serverTimestamp()
+      }
+    );
+
+    const modal =
+      document.getElementById(
+        "modalJuezAdmin"
+      );
+
+    if (modal)
+      modal.remove();
+
+    alert(
+      "✅ Sentencia aplicada."
+    );
+
+  } catch (e) {
+    console.error(
+      "Tribunal error:",
+      e
+    );
+  }
+};
+
