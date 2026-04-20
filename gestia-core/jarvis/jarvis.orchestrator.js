@@ -1,12 +1,16 @@
 /**
  * ======================================================================================
- * JARVIS ORCHESTRATOR v3.3 - Production Ready + Intelligent Rollback
+ * JARVIS ORCHESTRATOR v3.4 - Production + Snapshot Rollback
  * ======================================================================================
  */
 
 import { saveMemory } from "./jarvis.memory.js";
 import { toCommand } from "./jarvis.dsl.js";
 import { dispatch } from "./jarvis.bridge.js";
+import {
+  createSnapshot,
+  restoreSnapshot
+} from "./jarvis.snapshot.js";
 
 const pendingConfirmations = new Map();
 
@@ -72,13 +76,30 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
       throw new Error("CONFIRMATION_EXPIRED");
     }
 
-    const executed = [];
+    const executed = []; // ← ahora guarda {cmd, snapshot}
     const results = [];
 
     try {
       for (let i = 0; i < pending.commands.length; i++) {
         const cmd = pending.commands[i];
 
+        // =================================================
+        // 🔥 SNAPSHOT PREVIO (solo UPDATE / REPAIR)
+        // =================================================
+        let snapshot = null;
+
+        if (cmd.action === "UPDATE" || cmd.action === "REPAIR") {
+          snapshot = await createSnapshot(
+            cmd.id,
+            `tenants/${pending.ctx.tenantId}/objects/${cmd.id}`
+          );
+
+          console.log("📸 [SNAPSHOT]", snapshot);
+        }
+
+        // =================================================
+        // 🚀 EJECUCIÓN
+        // =================================================
         const exec = await dispatch(cmd, pending.ctx, {
           simulate: false
         });
@@ -89,7 +110,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
         saveMemory(cmd, exec.response);
 
-        executed.push(cmd);
+        executed.push({ cmd, snapshot }); // 🔥 guardamos snapshot
         results.push(exec.response);
       }
 
@@ -106,10 +127,11 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
       console.warn("↩️ [ROLLBACK ENGINE] Recovery iniciado");
 
       // =================================================
-      // 🔥 ROLLBACK INTELIGENTE
+      // 🔥 ROLLBACK INTELIGENTE + SNAPSHOT
       // =================================================
       for (let i = executed.length - 1; i >= 0; i--) {
-        const doneCmd = executed[i];
+        const item = executed[i];
+        const doneCmd = item.cmd;
 
         console.warn("↩️ [ROLLBACK STEP]", {
           action: doneCmd.action,
@@ -118,7 +140,9 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
         try {
 
-          // CREATE_BUILDING -> DELETE_BUILDING
+          // ==========================================
+          // CREATE_BUILDING → DELETE_BUILDING
+          // ==========================================
           if (doneCmd.action === "CREATE_BUILDING") {
             await window.KernelHeberto.execute(
               `DELETE_BUILDING::{"id":"${doneCmd.id}"}`,
@@ -127,22 +151,28 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
             );
           }
 
-          // UPDATE
-          else if (doneCmd.action === "UPDATE") {
-            console.warn("↩️ [ROLLBACK UPDATE] Snapshot pendiente");
+          // ==========================================
+          // UPDATE / REPAIR → RESTORE SNAPSHOT
+          // ==========================================
+          else if (
+            (doneCmd.action === "UPDATE" ||
+             doneCmd.action === "REPAIR") &&
+            item.snapshot?.ok
+          ) {
+            console.warn("📸 [RESTORE SNAPSHOT]");
+            await restoreSnapshot(item.snapshot);
           }
 
-          // REPAIR
-          else if (doneCmd.action === "REPAIR") {
-            console.warn("↩️ [ROLLBACK REPAIR] Snapshot pendiente");
-          }
-
-          // ANALYZE
+          // ==========================================
+          // ANALYZE → no-op
+          // ==========================================
           else if (doneCmd.action === "ANALYZE") {
             console.warn("↩️ [ROLLBACK ANALYZE] Sin acción");
           }
 
+          // ==========================================
           // DEFAULT
+          // ==========================================
           else {
             console.warn("↩️ [ROLLBACK UNKNOWN]", doneCmd.action);
           }
