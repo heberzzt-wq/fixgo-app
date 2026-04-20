@@ -1,6 +1,6 @@
 /**
  * ======================================================================================
- * JARVIS ORCHESTRATOR v3.4 - Production + Snapshot Rollback
+ * JARVIS ORCHESTRATOR v3.4.1 - Production + Snapshot Rollback (Fixed Paths)
  * ======================================================================================
  */
 
@@ -76,7 +76,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
       throw new Error("CONFIRMATION_EXPIRED");
     }
 
-    const executed = []; // ← ahora guarda {cmd, snapshot}
+    const executed = [];
     const results = [];
 
     try {
@@ -84,15 +84,18 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
         const cmd = pending.commands[i];
 
         // =================================================
-        // 🔥 SNAPSHOT PREVIO (solo UPDATE / REPAIR)
+        // 📸 SNAPSHOT PREVIO (solo UPDATE / REPAIR)
         // =================================================
         let snapshot = null;
 
-        if (cmd.action === "UPDATE" || cmd.action === "REPAIR") {
-          snapshot = await createSnapshot(
-            cmd.id,
-            `tenants/${pending.ctx.tenantId}/objects/${cmd.id}`
-          );
+        if (
+          (cmd.action === "UPDATE" || cmd.action === "REPAIR") &&
+          cmd.target
+        ) {
+          const path =
+            `tenants/${pending.ctx.tenantId}/objects/${cmd.target}`;
+
+          snapshot = await createSnapshot(path);
 
           console.log("📸 [SNAPSHOT]", snapshot);
         }
@@ -110,7 +113,11 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
         saveMemory(cmd, exec.response);
 
-        executed.push({ cmd, snapshot }); // 🔥 guardamos snapshot
+        executed.push({
+          cmd,
+          snapshot
+        });
+
         results.push(exec.response);
       }
 
@@ -127,7 +134,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
       console.warn("↩️ [ROLLBACK ENGINE] Recovery iniciado");
 
       // =================================================
-      // 🔥 ROLLBACK INTELIGENTE + SNAPSHOT
+      // ↩️ ROLLBACK INTELIGENTE
       // =================================================
       for (let i = executed.length - 1; i >= 0; i--) {
         const item = executed[i];
@@ -140,9 +147,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
         try {
 
-          // ==========================================
-          // CREATE_BUILDING → DELETE_BUILDING
-          // ==========================================
+          // CREATE_BUILDING -> DELETE_BUILDING
           if (doneCmd.action === "CREATE_BUILDING") {
             await window.KernelHeberto.execute(
               `DELETE_BUILDING::{"id":"${doneCmd.id}"}`,
@@ -151,9 +156,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
             );
           }
 
-          // ==========================================
-          // UPDATE / REPAIR → RESTORE SNAPSHOT
-          // ==========================================
+          // UPDATE / REPAIR -> RESTORE SNAPSHOT
           else if (
             (doneCmd.action === "UPDATE" ||
              doneCmd.action === "REPAIR") &&
@@ -163,16 +166,12 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
             await restoreSnapshot(item.snapshot);
           }
 
-          // ==========================================
-          // ANALYZE → no-op
-          // ==========================================
+          // ANALYZE
           else if (doneCmd.action === "ANALYZE") {
             console.warn("↩️ [ROLLBACK ANALYZE] Sin acción");
           }
 
-          // ==========================================
           // DEFAULT
-          // ==========================================
           else {
             console.warn("↩️ [ROLLBACK UNKNOWN]", doneCmd.action);
           }
