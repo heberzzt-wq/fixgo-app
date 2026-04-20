@@ -1,6 +1,6 @@
 /**
  * ======================================================================================
- * JARVIS ORCHESTRATOR v3.2 - Multi Command + Intelligent Rollback
+ * JARVIS ORCHESTRATOR v3.3 - Production Ready + Intelligent Rollback
  * ======================================================================================
  */
 
@@ -91,11 +91,6 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
         executed.push(cmd);
         results.push(exec.response);
-
-        // 🔥 TEST CONTROLADO
-        if (i === 0 && pending.commands.length > 1) {
-          throw new Error("FORCED_POST_FIRST_EXECUTION_FAIL");
-        }
       }
 
       pendingConfirmations.delete(key);
@@ -108,7 +103,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
     } catch (execErr) {
       console.error("💥 [EXECUTION FAIL]", execErr.message);
-      console.warn("↩️ [ROLLBACK REAL] Iniciando reversa");
+      console.warn("↩️ [ROLLBACK ENGINE] Recovery iniciado");
 
       // =================================================
       // 🔥 ROLLBACK INTELIGENTE
