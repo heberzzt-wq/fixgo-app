@@ -1,6 +1,6 @@
 /**
  * ======================================================================================
- * JARVIS ORCHESTRATOR v3.5 - Production + Smart Snapshot Rollback FINAL
+ * JARVIS ORCHESTRATOR v3.6 - Production + Smart Snapshot Rollback TEST READY
  * ======================================================================================
  */
 
@@ -75,34 +75,39 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     const results = [];
 
     try {
-      for (const cmd of pending.commands) {
+      for (let index = 0; index < pending.commands.length; index++) {
+        const cmd = pending.commands[index];
 
         // =================================================
         // 📸 SNAPSHOT
         // =================================================
         let snapshot = null;
+        let target = null;
 
-let target = null;
+        if (typeof cmd.target === "string" && cmd.target.trim()) {
+          target = cmd.target.trim();
+        } else if (
+          typeof cmd.raw === "string" &&
+          cmd.raw.includes("::")
+        ) {
+          target = cmd.raw.split("::")[1]?.trim();
+        }
 
-if (typeof cmd.target === "string" && cmd.target.trim()) {
-  target = cmd.target.trim();
-} else if (typeof cmd.raw === "string" && cmd.raw.includes("::")) {
-  target = cmd.raw.split("::")[1]?.trim();
-}
+        if (
+          (cmd.action === "UPDATE" ||
+            cmd.action === "REPAIR") &&
+          target
+        ) {
+          const path =
+            `tenants/${pending.ctx.tenantId}/BUILDING/${target}`;
 
-if (
-  (cmd.action === "UPDATE" || cmd.action === "REPAIR") &&
-  target
-) {
-  const path =
-    `tenants/${pending.ctx.tenantId}/BUILDING/${target}`;
+          console.log("🧪 [SNAPSHOT PATH]", path);
 
-  console.log("🧪 [SNAPSHOT PATH]", path);
+          snapshot = await createSnapshot(path);
 
-  snapshot = await createSnapshot(path);
+          console.log("📸 [SNAPSHOT]", snapshot);
+        }
 
-  console.log("📸 [SNAPSHOT]", snapshot);
-}
         // =================================================
         // 🚀 EJECUCIÓN
         // =================================================
@@ -123,6 +128,14 @@ if (
         });
 
         results.push(exec.response);
+
+        // =================================================
+        // 💥 TEST CONTROLADO ROLLBACK
+        // Fuerza error al terminar comando #2
+        // =================================================
+        if (index === 1) {
+          throw new Error("FORCED_BATCH_FAIL");
+        }
       }
 
       pendingConfirmations.delete(key);
@@ -136,6 +149,7 @@ if (
     } catch (execErr) {
 
       console.error("💥 [EXECUTION FAIL]", execErr.message);
+      console.warn("↩️ [ROLLBACK ENGINE] Iniciando recuperación");
 
       // =================================================
       // ↩️ ROLLBACK
@@ -166,7 +180,7 @@ if (
           // UPDATE / REPAIR
           else if (
             (cmd.action === "UPDATE" ||
-             cmd.action === "REPAIR") &&
+              cmd.action === "REPAIR") &&
             item.snapshot?.ok
           ) {
             await restoreSnapshot(item.snapshot);
