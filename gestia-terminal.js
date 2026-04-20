@@ -773,8 +773,18 @@ export class GestiaTerminal {
 
 // ✅ SOBERANÍA DE NOMBRE: Alineado con el llamado de autoridad del HTML
 const BankTerminal = new GestiaTerminal();
+
+// 🔥 Exposición controlada para Snapshot / Rollback Engine
+BankTerminal.db = db;
+BankTerminal.doc = doc;
+BankTerminal.getDoc = getDoc;
+BankTerminal.setDoc = setDoc;
+
 window.KernelHeberto = BankTerminal;
 
+// =====================================================
+// 🔐 AUTH WATCHER
+// =====================================================
 onAuthStateChanged(auth, (user) => {
     if (user) {
         window.KernelHeberto.inicializarAutoridad();
@@ -782,21 +792,30 @@ onAuthStateChanged(auth, (user) => {
         window.location.href = "/login.html";
     }
 });
+
+// =====================================================
+// 🧠 TEST JARVIS
+// =====================================================
 window.testJarvis = async () => {
-  const ctx = {
-    userId: window.KernelHeberto?.session?.uid,
-    tenantId: window.KernelHeberto?.session?.tenantId
-  };
+    const ctx = {
+        userId: window.KernelHeberto?.session?.uid,
+        tenantId: window.KernelHeberto?.session?.tenantId
+    };
 
-  const res = await runJarvis("crear edificio torre norte", ctx);
+    const res = await runJarvis(
+        "crear edificio torre norte",
+        ctx
+    );
 
-  console.log("🧠 JARVIS SIMULATION:", res);
+    console.log("🧠 JARVIS SIMULATION:", res);
 
-  window.lastJarvis = res;
+    window.lastJarvis = res;
 };
 
-window.runJarvis = runJarvis; // 👈 ESTA LÍNEA NUEVA
-
+// =====================================================
+// 🚀 DEBUG GLOBAL
+// =====================================================
+window.runJarvis = runJarvis;
 /**
  * ======================================================================================
  * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 440+ (FEDERAL ANTIFRAUD CORE - PURGE PROTOCOL)
