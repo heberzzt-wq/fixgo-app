@@ -1,4 +1,5 @@
 import { getMemory } from "./jarvis.memory.js";
+import { analyzeIntent } from "./jarvis.vision.engine.js";
 
 export function toCommand(input) {
   if (!input || typeof input !== "string") {
@@ -9,7 +10,7 @@ export function toCommand(input) {
   const clean = raw.toLowerCase();
 
   // =====================================================
-  // 🔥 DETECCIÓN DE PROTOCOLO (COMANDO PURO)
+  // 🔥 PROTOCOLO DIRECTO
   // =====================================================
   if (raw.includes("::")) {
     const parts = raw.split("::");
@@ -37,10 +38,12 @@ export function toCommand(input) {
     analizar: "ANALYZE",
     revisa: "ANALYZE",
     revisar: "ANALYZE",
+    inspecciona: "ANALYZE",
 
     reparar: "REPAIR",
     arregla: "REPAIR",
     corrige: "REPAIR",
+    soluciona: "REPAIR",
 
     actualizar: "UPDATE",
     modifica: "UPDATE",
@@ -63,11 +66,15 @@ export function toCommand(input) {
 
     archivo: "FILE",
     main: "FILE",
-    proyecto: "PROJECT"
+    proyecto: "PROJECT",
+
+    pagos: "MODULE",
+    cobranza: "MODULE",
+    login: "MODULE"
   };
 
   // =====================================================
-  // 🔥 DETECTAR ACCIÓN
+  // 🔥 DETECCIÓN ACCIÓN
   // =====================================================
   let detectedAction = null;
 
@@ -79,7 +86,7 @@ export function toCommand(input) {
   }
 
   // =====================================================
-  // 🔥 DETECTAR ENTIDAD
+  // 🔥 DETECCIÓN ENTIDAD
   // =====================================================
   let detectedEntity = null;
 
@@ -93,71 +100,35 @@ export function toCommand(input) {
   const mem = getMemory();
 
   // =====================================================
-  // 🔥 MEMORIA: REPETIR
+  // 🔥 MEMORIA REPETIR
   // =====================================================
   if (
-  clean.includes("igual") ||
-  clean.includes("lo mismo") ||
-  clean.includes("repitelo") ||
-  clean.includes("repítelo")
-) {
-  if (mem.lastCommand) {
-    return {
-      ...mem.lastCommand,
-      id: crypto.randomUUID(),
-      meta: {
-        reused: true
-      }
-    };
-  }
-}
-    // =====================================================
-    // 🔥 MEMORIA: MODIFICAR
-    // =====================================================
-    if (
-      clean.includes("cambia") ||
-      clean.includes("otro") ||
-      clean.includes("nueva")
-    ) {
-      if (mem.lastCommand) {
-        let nombre = "edificio_modificado";
-
-        const words = clean.split(" ");
-        const index = words.findIndex(
-          w => w === "edificio" || w === "torre"
-        );
-
-        if (index !== -1 && words[index + 1]) {
-          nombre = words[index + 1];
+    clean.includes("igual") ||
+    clean.includes("lo mismo") ||
+    clean.includes("repitelo") ||
+    clean.includes("repítelo")
+  ) {
+    if (mem.lastCommand) {
+      return {
+        ...mem.lastCommand,
+        id: crypto.randomUUID(),
+        meta: {
+          reused: true
         }
-
-        return {
-          ...mem.lastCommand,
-          id: crypto.randomUUID(),
-          action: "CREATE_BUILDING",
-          raw,
-          target: nombre,
-          payload: {
-            text: `crear edificio nombre ${nombre} tipo residencial`
-          },
-          meta: {
-            modified: true
-          }
-        };
-      }
+      };
     }
+  }
 
-    // =====================================================
-    // 🔥 CREAR EDIFICIO (caso especial)
-    // =====================================================
-    if (
-      clean.includes("crear") &&
-      (
-        clean.includes("edificio") ||
-        clean.includes("torre")
-      )
-    ) {
-      let nombre = "edificio_default";
+  // =====================================================
+  // 🔥 MEMORIA MODIFICAR
+  // =====================================================
+  if (
+    clean.includes("cambia") ||
+    clean.includes("otro") ||
+    clean.includes("nueva")
+  ) {
+    if (mem.lastCommand) {
+      let nombre = "edificio_modificado";
 
       const words = clean.split(" ");
       const index = words.findIndex(
@@ -169,91 +140,157 @@ export function toCommand(input) {
       }
 
       return {
+        ...mem.lastCommand,
         id: crypto.randomUUID(),
         action: "CREATE_BUILDING",
         raw,
         target: nombre,
         payload: {
           name: nombre,
-          text: `crear edificio nombre ${nombre} tipo residencial`
+          text: `crear edificio nombre ${nombre}`
         },
         meta: {
-          detected: true
+          modified: true
         }
       };
     }
+  }
 
-    // =====================================================
-    // 🔥 ANALYZE MODULO / ARCHIVO / MAIN
-    // =====================================================
-    if (detectedAction === "ANALYZE") {
-      let target = "system";
+  // =====================================================
+  // 🔥 CREAR EDIFICIO
+  // =====================================================
+  if (
+    clean.includes("crear") &&
+    (
+      clean.includes("edificio") ||
+      clean.includes("torre")
+    )
+  ) {
+    let nombre = "edificio_default";
 
-      const words = clean.split(" ");
+    const words = clean.split(" ");
+    const index = words.findIndex(
+      w => w === "edificio" || w === "torre"
+    );
 
-      const triggers = [
-        "modulo",
-        "módulo",
-        "archivo",
-        "main",
-        "proyecto"
-      ];
+    if (index !== -1 && words[index + 1]) {
+      nombre = words[index + 1];
+    }
 
-      for (let i = 0; i < words.length; i++) {
-        if (triggers.includes(words[i]) && words[i + 1]) {
-          target = words[i + 1];
-          break;
-        }
+    return {
+      id: crypto.randomUUID(),
+      action: "CREATE_BUILDING",
+      raw,
+      target: nombre,
+      payload: {
+        name: nombre,
+        text: raw
+      },
+      meta: {
+        detected: true
       }
+    };
+  }
 
+  // =====================================================
+  // 🔥 ANALYZE NATURAL
+  // =====================================================
+  if (detectedAction === "ANALYZE") {
+    let target = "system";
+
+    const words = clean.split(" ");
+
+    const triggers = [
+      "modulo",
+      "módulo",
+      "archivo",
+      "main",
+      "proyecto"
+    ];
+
+    for (let i = 0; i < words.length; i++) {
+      if (triggers.includes(words[i]) && words[i + 1]) {
+        target = words[i + 1];
+        break;
+      }
+    }
+
+    return {
+      id: crypto.randomUUID(),
+      action: "ANALYZE",
+      raw,
+      target,
+      payload: {
+        target,
+        text: raw
+      },
+      meta: {
+        detected: true,
+        cognitive: false
+      }
+    };
+  }
+
+  // =====================================================
+  // 🔥 ACCIONES GENERALES
+  // =====================================================
+  if (detectedAction) {
+    const entityText = detectedEntity
+      ? detectedEntity.toLowerCase()
+      : "";
+
+    return {
+      id: crypto.randomUUID(),
+      action: detectedAction,
+      raw,
+      target: entityText || null,
+      payload: {
+        text: raw
+      },
+      meta: {
+        detected: true
+      }
+    };
+  }
+
+  // =====================================================
+  // 🧠 ACTIVACIÓN DEL CEREBRO IA
+  // =====================================================
+  try {
+    const ai = analyzeIntent(raw);
+
+    if (ai && ai.action) {
       return {
         id: crypto.randomUUID(),
-        action: "ANALYZE",
+        action: ai.action,
         raw,
-        target,
-        payload: {
-          target,
+        target: ai.target || null,
+        payload: ai.payload || {
           text: raw
         },
         meta: {
-          detected: true,
-          cognitive: true
+          cognitive: true,
+          ai: true
         }
       };
     }
+  } catch (err) {
+    console.warn("🧠 [VISION_FAIL]", err.message);
+  }
 
-    // =====================================================
-    // 🔥 ACCIONES GENERALES
-    // =====================================================
-    if (detectedAction) {
-      const entityText = detectedEntity
-        ? detectedEntity.toLowerCase()
-        : "";
-
-      return {
-        id: crypto.randomUUID(),
-        action: detectedAction,
-        raw,
-        target: entityText || null,
-        payload: {
-          text: `${clean} ${entityText}`.trim()
-        },
-        meta: {
-          detected: true
-        }
-      };
+  // =====================================================
+  // 🔥 FALLBACK FINAL
+  // =====================================================
+  return {
+    id: crypto.randomUUID(),
+    action: "RAW_INPUT",
+    raw,
+    target: null,
+    payload: {
+      text: raw
+    },
+    meta: {
+      fallback: true
     }
-
-    // =====================================================
-    // 🔥 FALLBACK
-    // =====================================================
-    return {
-      id: crypto.randomUUID(),
-      action: "RAW_INPUT",
-      raw,
-      target: null,
-      payload: {
-        text: raw
-      }
-    };
+  };
 }
