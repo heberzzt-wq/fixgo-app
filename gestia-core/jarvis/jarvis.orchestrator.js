@@ -1,6 +1,6 @@
 /**
  * ======================================================================================
- * JARVIS ORCHESTRATOR v3.0 - Multi Command + Real Rollback
+ * JARVIS ORCHESTRATOR v3.1 - Multi Command + Real Rollback + Controlled Test
  * ======================================================================================
  */
 
@@ -18,7 +18,9 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
     console.log("🧠 [JARVIS_INPUT]", input);
 
+    // =====================================================
     // 🔥 MULTI COMANDO
+    // =====================================================
     const commands = Array.isArray(input)
       ? input
       : input.split(";;").map(c => toCommand(c.trim()));
@@ -31,7 +33,11 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
       for (const cmd of commands) {
         const res = await dispatch(cmd, ctx, { simulate: true });
-        if (!res.ok) return res;
+
+        if (!res.ok) {
+          return res;
+        }
+
         sims.push(res);
       }
 
@@ -52,7 +58,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     }
 
     // =====================================================
-    // 🚀 EJECUCIÓN (CON ROLLBACK REAL)
+    // 🚀 EJECUCIÓN
     // =====================================================
     const key = JSON.stringify(input);
     const pending = pendingConfirmations.get(key);
@@ -69,58 +75,74 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     const executed = [];
     const results = [];
 
-    for (const cmd of pending.commands) {
-      const exec = await dispatch(cmd, pending.ctx, { simulate: false });
+    try {
+      for (let i = 0; i < pending.commands.length; i++) {
+        const cmd = pending.commands[i];
 
-      if (!exec.ok) {
-        console.error("💥 [BATCH FAIL] Iniciando rollback REAL");
+        const exec = await dispatch(cmd, pending.ctx, { simulate: false });
 
-        // 🔥 ROLLBACK REAL
-        for (let i = executed.length - 1; i >= 0; i--) {
-          const doneCmd = executed[i];
-
-          console.warn("↩️ [ROLLBACK REAL]", {
-            action: doneCmd.action,
-            id: doneCmd.id
-          });
-
-          try {
-            // 👉 solo implementado para CREATE_BUILDING
-            if (doneCmd.action === "CREATE_BUILDING") {
-              await window.KernelHeberto.execute(
-                `DELETE_BUILDING::{"id":"${doneCmd.id}"}`,
-                null,
-                { simulate: false }
-              );
-            }
-          } catch (rollbackErr) {
-            console.error("❌ [ROLLBACK FAIL]", rollbackErr);
-          }
+        if (!exec.ok) {
+          throw new Error("EXEC_FAILED");
         }
 
-        pendingConfirmations.delete(key);
+        saveMemory(cmd, exec.response);
 
-        return {
-          error: true,
-          message: "BATCH_FAILED_WITH_ROLLBACK",
-          failedCommand: cmd,
-          partialResults: results
-        };
+        executed.push(cmd);
+        results.push(exec.response);
+
+        // 🔥 TEST CONTROLADO:
+        // fuerza error después del primer comando cuando hay batch > 1
+        if (i === 0 && pending.commands.length > 1) {
+          throw new Error("FORCED_POST_FIRST_EXECUTION_FAIL");
+        }
       }
 
-      saveMemory(cmd, exec.response);
+      pendingConfirmations.delete(key);
 
-      executed.push(cmd);
-      results.push(exec.response);
+      return {
+        mode: "EXECUTION",
+        commandId: pending.commands.map(c => c.id),
+        result: results
+      };
+
+    } catch (execErr) {
+      console.error("💥 [EXECUTION FAIL]", execErr.message);
+      console.warn("↩️ [ROLLBACK REAL] Iniciando reversa");
+
+      // =================================================
+      // 🔥 ROLLBACK REAL (orden inverso)
+      // =================================================
+      for (let i = executed.length - 1; i >= 0; i--) {
+        const doneCmd = executed[i];
+
+        console.warn("↩️ [ROLLBACK STEP]", {
+          action: doneCmd.action,
+          id: doneCmd.id
+        });
+
+        try {
+          // 👉 CREATE_BUILDING => DELETE_BUILDING
+          if (doneCmd.action === "CREATE_BUILDING") {
+            await window.KernelHeberto.execute(
+              `DELETE_BUILDING::{"id":"${doneCmd.id}"}`,
+              null,
+              { simulate: false }
+            );
+          }
+
+        } catch (rollbackErr) {
+          console.error("❌ [ROLLBACK FAIL]", rollbackErr);
+        }
+      }
+
+      pendingConfirmations.delete(key);
+
+      return {
+        error: true,
+        message: execErr.message,
+        partialResults: results
+      };
     }
-
-    pendingConfirmations.delete(key);
-
-    return {
-      mode: "EXECUTION",
-      commandId: pending.commands.map(c => c.id),
-      result: results
-    };
 
   } catch (err) {
     console.error("❌ [JARVIS_ERROR]", err);
