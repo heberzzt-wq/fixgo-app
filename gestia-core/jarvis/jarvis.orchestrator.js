@@ -1,6 +1,6 @@
 /**
  * ======================================================================================
- * JARVIS ORCHESTRATOR v3.1 - Multi Command + Real Rollback + Controlled Test
+ * JARVIS ORCHESTRATOR v3.2 - Multi Command + Intelligent Rollback
  * ======================================================================================
  */
 
@@ -79,7 +79,9 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
       for (let i = 0; i < pending.commands.length; i++) {
         const cmd = pending.commands[i];
 
-        const exec = await dispatch(cmd, pending.ctx, { simulate: false });
+        const exec = await dispatch(cmd, pending.ctx, {
+          simulate: false
+        });
 
         if (!exec.ok) {
           throw new Error("EXEC_FAILED");
@@ -90,8 +92,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
         executed.push(cmd);
         results.push(exec.response);
 
-        // 🔥 TEST CONTROLADO:
-        // fuerza error después del primer comando cuando hay batch > 1
+        // 🔥 TEST CONTROLADO
         if (i === 0 && pending.commands.length > 1) {
           throw new Error("FORCED_POST_FIRST_EXECUTION_FAIL");
         }
@@ -110,7 +111,7 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
       console.warn("↩️ [ROLLBACK REAL] Iniciando reversa");
 
       // =================================================
-      // 🔥 ROLLBACK REAL (orden inverso)
+      // 🔥 ROLLBACK INTELIGENTE
       // =================================================
       for (let i = executed.length - 1; i >= 0; i--) {
         const doneCmd = executed[i];
@@ -121,13 +122,34 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
         });
 
         try {
-          // 👉 CREATE_BUILDING => DELETE_BUILDING
+
+          // CREATE_BUILDING -> DELETE_BUILDING
           if (doneCmd.action === "CREATE_BUILDING") {
             await window.KernelHeberto.execute(
               `DELETE_BUILDING::{"id":"${doneCmd.id}"}`,
               null,
               { simulate: false }
             );
+          }
+
+          // UPDATE
+          else if (doneCmd.action === "UPDATE") {
+            console.warn("↩️ [ROLLBACK UPDATE] Snapshot pendiente");
+          }
+
+          // REPAIR
+          else if (doneCmd.action === "REPAIR") {
+            console.warn("↩️ [ROLLBACK REPAIR] Snapshot pendiente");
+          }
+
+          // ANALYZE
+          else if (doneCmd.action === "ANALYZE") {
+            console.warn("↩️ [ROLLBACK ANALYZE] Sin acción");
+          }
+
+          // DEFAULT
+          else {
+            console.warn("↩️ [ROLLBACK UNKNOWN]", doneCmd.action);
           }
 
         } catch (rollbackErr) {
