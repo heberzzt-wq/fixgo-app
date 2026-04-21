@@ -160,9 +160,11 @@ console.log("🔊 JARVIS VOZ:", texto);
         speechSynthesis.speak(voz);
     };
 
+ speechSynthesis.onvoiceschanged = () => {
     setTimeout(() => {
         hablarJarvis("Bienvenido Arquitecto. Sistemas en línea.");
-    }, 1800);
+    }, 800);
+};
 
             /**
  * 🎨 RENDERER ENGINE PREMIUM:
