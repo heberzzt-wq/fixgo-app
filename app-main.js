@@ -39,8 +39,8 @@ import {
 
 import { iniciarMotorBI } from "./app-bi.js";
 
-import { runJarvis } from "./jarvis.orchestrator.js";
-import { analyzeIntent } from "./jarvis.vision.engine.js";
+import { runJarvis } from "./gestia-core/jarvis/jarvis.orchestrator.js";
+import { analyzeIntent } from "./gestia-core/jarvis/jarvis.vision.engine.js";
 
 // =====================================================
 // 🧠 FORTRESS KERNEL + AUTOHEAL V7.1
