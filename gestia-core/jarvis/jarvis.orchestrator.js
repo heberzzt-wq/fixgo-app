@@ -71,6 +71,13 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
     console.log("🧠 [JARVIS_INPUT]", input);
 
+    const biz =
+    runBusinessIntent(input);
+
+if (biz?.ok) {
+    return biz;
+}
+
     // ============================================================================
     // STEP 1: CONFIRM MODE
     // ============================================================================
