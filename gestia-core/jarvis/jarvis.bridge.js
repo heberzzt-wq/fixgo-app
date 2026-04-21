@@ -1,76 +1,154 @@
 /**
  * ======================================================================================
- * JARVIS BRIDGE v2.1 - Stable Execution Bridge (Protocol-Safe)
+ * JARVIS BRIDGE v3.0 - CONTEXT PRESERVATION PATCH
  * ======================================================================================
- * Función:
- * - Conectar DSL → GestiaTerminal (KernelHeberto)
- * - Soportar comandos humanos y protocolo (::)
- * - Evitar duplicación de comandos
+ * PROBLEMA RESUELTO:
+ * Antes convertía:
+ *   revisa pagos -> ANALYZE::revisa pagos
+ *
+ * Eso destruía contexto.
+ *
+ * Ahora convierte:
+ *   revisa pagos -> ANALYZE::payments
+ *   abre camaras -> OPEN::camaras
+ *   revisa login -> ANALYZE::auth
  * ======================================================================================
  */
 
-export async function dispatch(command, ctx = {}, options = { simulate: true }) {
+export async function dispatch(
+  command,
+  ctx = {},
+  options = { simulate: true }
+) {
   try {
-    if (!command || (!command.raw && !command.payload?.text)) {
-      throw new Error("BRIDGE_INVALID_COMMAND");
+
+    if (
+      !command ||
+      (!command.raw &&
+       !command.payload?.text)
+    ) {
+      throw new Error(
+        "BRIDGE_INVALID_COMMAND"
+      );
     }
 
     if (!window.KernelHeberto) {
-      throw new Error("CORE_NOT_AVAILABLE");
+      throw new Error(
+        "CORE_NOT_AVAILABLE"
+      );
     }
 
-    const inputText = command.payload?.text || command.raw;
+    const inputText =
+      command.payload?.text ||
+      command.raw ||
+      "";
 
-    // 🔥 INYECCIÓN INTELIGENTE (CLAVE DEL FIX)
+    /* =====================================================
+       ENTITY MAP
+    ===================================================== */
+
+    const moduleMap = {
+      pagos: "payments",
+      cobros: "payments",
+      payment: "payments",
+
+      login: "auth",
+      auth: "auth",
+      acceso: "auth",
+
+      camaras: "camaras",
+      cámara: "camaras",
+      camara: "camaras",
+      cctv: "camaras",
+
+      tenant: "tenant",
+      edificio: "tenant",
+
+      firewall: "security",
+      seguridad: "security",
+
+      ledger: "ledger",
+      memoria: "memory"
+    };
+
+    function detectEntity(text = "") {
+
+      const low =
+        String(text)
+          .toLowerCase();
+
+      for (const key in moduleMap) {
+        if (low.includes(key)) {
+          return moduleMap[key];
+        }
+      }
+
+      return "system";
+    }
+
+    /* =====================================================
+       INPUT BUILDER
+    ===================================================== */
+
     let enrichedInput;
 
-    if (typeof inputText === "string" && inputText.includes("::")) {
-      // 👉 ya viene como protocolo → NO tocar
+    // ya protocolo
+    if (
+      typeof inputText === "string" &&
+      inputText.includes("::")
+    ) {
+
       enrichedInput = inputText;
+
     } else {
-      // 👉 viene como lenguaje humano → estructurar
-      enrichedInput = `${command.action}::${inputText}`;
+
+      const entity =
+        detectEntity(inputText);
+
+      enrichedInput =
+        `${command.action}::${entity}`;
     }
 
-    console.log("🌉 [BRIDGE_DISPATCH]", {
-      cmdId: command.id,
-      action: command.action,
-      simulate: options.simulate,
-      input: enrichedInput
-    });
+    console.log(
+      "🌉 [BRIDGE_V3]",
+      {
+        cmdId: command.id,
+        action: command.action,
+        simulate: options.simulate,
+        input: enrichedInput
+      }
+    );
 
-    // 🔹 SIMULACIÓN
-    if (options.simulate) {
-      const res = await window.KernelHeberto.execute(
+    /* =====================================================
+       EXECUTOR
+    ===================================================== */
+
+    const res =
+      await window.KernelHeberto.execute(
         enrichedInput,
         null,
-        { simulate: true }
+        {
+          simulate:
+            options.simulate
+        }
       );
-
-      return {
-        ok: !res?.error,
-        mode: "SIMULATION",
-        command,
-        response: res
-      };
-    }
-
-    // 🔥 EJECUCIÓN REAL
-    const res = await window.KernelHeberto.execute(
-      enrichedInput,
-      null,
-      { simulate: false }
-    );
 
     return {
       ok: !res?.error,
-      mode: "EXECUTION",
+      mode:
+        options.simulate
+          ? "SIMULATION"
+          : "EXECUTION",
       command,
       response: res
     };
 
   } catch (err) {
-    console.error("❌ [BRIDGE_ERROR]", err);
+
+    console.error(
+      "❌ [BRIDGE_V3_ERROR]",
+      err
+    );
 
     return {
       ok: false,
