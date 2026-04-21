@@ -127,11 +127,41 @@
     <script type="module" src="/gestia-terminal.js"></script>
     
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const textarea = document.getElementById('gestia-input');
-            const form = document.getElementById('gestia-form');
-            const output = document.getElementById('gestia-output');
+      document.addEventListener('DOMContentLoaded', () => {
 
+    const textarea = document.getElementById('gestia-input');
+    const form = document.getElementById('gestia-form');
+    const output = document.getElementById('gestia-output');
+
+    const hablarJarvis = (texto) => {
+
+        if (!('speechSynthesis' in window)) return;
+
+        const voz = new SpeechSynthesisUtterance(texto);
+
+        voz.lang = 'es-MX';
+        voz.rate = 1;
+        voz.pitch = 1;
+        voz.volume = 1;
+
+        const voces = speechSynthesis.getVoices();
+        const seleccion =
+            voces.find(v => v.lang.includes('es-MX')) ||
+            voces.find(v => v.lang.includes('es')) ||
+            null;
+
+        if (seleccion) {
+            voz.voice = seleccion;
+        }
+
+        speechSynthesis.cancel();
+        speechSynthesis.speak(voz);
+    };
+
+    setTimeout(() => {
+        hablarJarvis("Bienvenido Arquitecto. Sistemas en línea.");
+    }, 1800);
+    
             /**
  * 🎨 RENDERER ENGINE PREMIUM:
  * Inyecta burbujas visuales en el DOM con formato ejecutivo.
