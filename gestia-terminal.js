@@ -290,32 +290,57 @@ class CryptoEngine {
    ===================================================================================== */
 export class GestiaTerminal {
     constructor() {
-    this.state = STATES.IDLE;
-    this.session = {
-        authorized: false,
-        uid: null,
-        tenantId: "uxmal39",
-        token: null
-    };
 
-    this.crypto = new CryptoEngine();
-    this.ledger = new BankLedger();
-    this.pendingPlans = new Map();
-    this.activeOps = new Set();
+        this.state = STATES.IDLE;
 
-    console.log(`%c🏛️ [SIA7]: ANTIFRAUD BANK CORE V${GESTIA_CONFIG.VERSION} ONLINE`,
-    "color:#ffffff; font-weight:bold; background:#991b1b; padding:4px 12px; border-radius:4px;");
+        this.session = {
+            authorized: false,
+            uid: null,
+            tenantId: "uxmal39",
+            token: null
+        };
 
-    setTimeout(() => {
-    console.log("%c🤖 [JARVIS]: Sistema consciente. Esperando órdenes, Arquitecto.",
-    "color:#67e8f9; font-weight:bold; background:#082f49; padding:4px 12px; border-radius:4px;");
-}, 1200);
+        this.crypto = new CryptoEngine();
+        this.ledger = new BankLedger();
+        this.pendingPlans = new Map();
+        this.activeOps = new Set();
 
-const hud = document.getElementById("jarvisState");
+        console.log(
+            `%c🏛️ [SIA7]: ANTIFRAUD BANK CORE V${GESTIA_CONFIG.VERSION} ONLINE`,
+            "color:#ffffff; font-weight:bold; background:#991b1b; padding:4px 12px; border-radius:4px;"
+        );
 
-if (hud) {
-    hud.textContent = "Núcleo bancario enlazado.";
-}
+        setTimeout(() => {
+            console.log(
+                "%c🤖 [JARVIS]: Sistema consciente. Esperando órdenes, Arquitecto.",
+                "color:#67e8f9; font-weight:bold; background:#082f49; padding:4px 12px; border-radius:4px;"
+            );
+        }, 1200);
+
+        const hud = document.getElementById("jarvisState");
+
+        if (hud) {
+            hud.textContent = "Núcleo bancario enlazado.";
+        }
+
+        setInterval(() => {
+
+            const hud = document.getElementById("jarvisState");
+            if (!hud) return;
+
+            if (!navigator.onLine) {
+                hud.textContent = "⚠️ Conexión perdida.";
+                return;
+            }
+
+            if (this.pendingPlans.size > 0) {
+                hud.textContent = "⚠️ Operaciones pendientes.";
+                return;
+            }
+
+            hud.textContent = "🟢 Vigilancia estable.";
+
+        }, 8000);
     }
 
     /**
