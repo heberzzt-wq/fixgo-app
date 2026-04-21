@@ -729,30 +729,80 @@ async execute(input, e = null, options = { simulate: false }) {
     }
 
     /* =====================================================
-       CONFIRMACIÓN NATURAL
-    ===================================================== */
+   CONFIRMACIÓN NATURAL (PATCH DEFINITIVO)
+===================================================== */
 
-    if (
-        this.pendingPlans.size > 0 &&
-        APPROVAL_WORDS.includes(cmd)
-    ) {
+if (
+    this.pendingPlans.size > 0 &&
+    APPROVAL_WORDS.includes(cmd)
+) {
 
-        const opId =
-            Array.from(
-                this.pendingPlans.keys()
-            )[0];
+    const opId =
+        Array.from(
+            this.pendingPlans.keys()
+        )[0];
+
+    const savedPlan =
+        this.pendingPlans.get(opId);
+
+    if (!savedPlan) {
 
         await this.setState(
-            STATES.APPLY_ATOMIC,
-            opId
+            STATES.ERROR,
+            opId,
+            {
+                error:
+                    "Plan no encontrado."
+            }
         );
 
-        return await this.runPlan(opId);
+        throw new Error(
+            "PLAN_NOT_FOUND"
+        );
     }
 
-    /* =====================================================
-       QUICK COMMANDS JARVIS
-    ===================================================== */
+    const intents =
+        savedPlan.intents || [];
+
+    if (
+        !Array.isArray(intents) ||
+        intents.length === 0
+    ) {
+
+        this.pendingPlans.delete(opId);
+
+        await this.setState(
+            STATES.ERROR,
+            opId,
+            {
+                error:
+                    "Plan vacío o corrupto."
+            }
+        );
+
+        throw new Error(
+            "PLAN_EMPTY"
+        );
+    }
+
+    await this.setState(
+        STATES.APPLY_ATOMIC,
+        opId,
+        {
+            report:
+                "Ejecutando plan autorizado..."
+        }
+    );
+
+    return await this.runPlan(
+        opId,
+        intents
+    );
+}
+
+/* =====================================================
+   QUICK COMMANDS JARVIS
+===================================================== */
 
     if (cmd.includes("jarvis")) {
 
