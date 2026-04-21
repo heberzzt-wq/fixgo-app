@@ -242,7 +242,7 @@
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     if(this.value.trim() !== '') {
-                        form.requestSubmit(); 
+                        form.dispatchEvent(new Event('submit', { cancelable:true, bubbles:true }));
                     }
                 }
             });
