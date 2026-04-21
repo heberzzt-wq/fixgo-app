@@ -226,7 +226,8 @@ function auditStartup() {
 // =====================================================
 async function smartPreload() {
   const mods = [
-    "./jarvis.orchestrator.js",
+    "./gestia-core/jarvis/jarvis.orchestrator.js",
+    "./gestia-core/jarvis/jarvis.vision.engine.js",
     "./app-panel.js",
     "./app-bi.js"
   ];
@@ -236,7 +237,7 @@ async function smartPreload() {
       await import(mod);
       V7.modules.push(mod);
     } catch (e) {
-      console.warn("⚠️ No cargó:", mod);
+      console.warn("⚠️ No cargó:", mod, e);
     }
   }
 }
