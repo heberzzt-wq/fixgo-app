@@ -864,16 +864,24 @@ Estado núcleo: ${this.state}`
         );
 
         /* =================================================
-           PRIORIDAD MÁXIMA: JARVIS ORCHESTRATOR
-        ================================================= */
+   PRIORIDAD MÁXIMA: JARVIS ORCHESTRATOR
+   SOLO SI NO ES COMANDO ESTRUCTURADO
+================================================= */
 
-        const jarvisRes =
-            await runJarvis(
-                rawInput,
-                ctx,
-                false
-            );
+const isStructured =
+    rawInput.includes("::");
 
+let jarvisRes = null;
+
+if (!isStructured) {
+
+    jarvisRes = await runJarvis(
+        rawInput,
+        ctx,
+        false
+    );
+
+}
         // -----------------------------------------------
         // SIMULATION MODE
         // -----------------------------------------------
