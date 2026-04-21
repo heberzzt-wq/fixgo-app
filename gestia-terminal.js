@@ -522,11 +522,20 @@ return {
         cmd.includes("movimientos") ||
         cmd.includes("pagos")
     ) {
-        return {
-            opId: "jarvis-ledger",
-            status: "DONE",
-            report: "Ledger operativo. Últimos movimientos verificados."
-        };
+       const now = new Date().toLocaleString('es-MX');
+
+return {
+    opId: "jarvis-ledger",
+    status: "DONE",
+    report:
+`Ledger operativo
+
+Última verificación: ${now}
+Movimientos pendientes: ${this.pendingPlans.size}
+Sesión autorizada: ${this.session.authorized ? "Sí" : "No"}
+Tenant activo: ${this.session.tenantId || "N/D"}
+Estado del núcleo: ${this.state}`
+};
     }
 
     return {
