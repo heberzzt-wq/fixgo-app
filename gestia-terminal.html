@@ -159,9 +159,9 @@
             }));
         };
 
-        reconocimiento.onerror = () => {
-            console.log("🎤 Micrófono no disponible.");
-        };
+        reconocimiento.onerror = (event) => {
+    console.log("🎤 ERROR MIC:", event.error);
+};
         document.addEventListener('keydown', (e) => {
 
     if (e.key === 'F2' && reconocimiento) {
