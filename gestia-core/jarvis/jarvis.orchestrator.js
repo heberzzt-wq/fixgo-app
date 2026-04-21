@@ -16,6 +16,8 @@ import { saveMemory } from "./jarvis.memory.js";
 import { toCommand } from "./jarvis.dsl.js";
 import { dispatch } from "./jarvis.bridge.js";
 import { understand } from "./jarvis-nlu-bridge.js";
+import { runBusinessIntent }
+from "./jarvis.business.engine.js";
 
 import {
   createSnapshot,
