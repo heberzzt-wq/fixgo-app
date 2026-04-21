@@ -1,17 +1,18 @@
 /**
  * ======================================================================================
- * JARVIS BRIDGE v3.0 - CONTEXT PRESERVATION PATCH
+ * JARVIS BRIDGE v3.1 - LEGACY COMPATIBILITY + CONTEXT PRESERVATION
  * ======================================================================================
- * PROBLEMA RESUELTO:
- * Antes convertía:
- *   revisa pagos -> ANALYZE::revisa pagos
+ * MEJORAS:
+ * ✅ Preserva contexto humano
+ * ✅ Traduce acciones nuevas -> verbos entendidos por core legacy
+ * ✅ Evita inspect::payments inválido
+ * ✅ Compatible con simulation / execution
  *
- * Eso destruía contexto.
- *
- * Ahora convierte:
- *   revisa pagos -> ANALYZE::payments
- *   abre camaras -> OPEN::camaras
- *   revisa login -> ANALYZE::auth
+ * EJEMPLOS:
+ * revisa pagos      -> ANALYZE::payments
+ * abre camaras      -> OPEN::camaras
+ * corrige login     -> REPAIR::auth
+ * actualiza tenant  -> UPDATE::tenant
  * ======================================================================================
  */
 
@@ -22,20 +23,20 @@ export async function dispatch(
 ) {
   try {
 
+    /* =====================================================
+       VALIDACIONES
+    ===================================================== */
+
     if (
       !command ||
       (!command.raw &&
        !command.payload?.text)
     ) {
-      throw new Error(
-        "BRIDGE_INVALID_COMMAND"
-      );
+      throw new Error("BRIDGE_INVALID_COMMAND");
     }
 
     if (!window.KernelHeberto) {
-      throw new Error(
-        "CORE_NOT_AVAILABLE"
-      );
+      throw new Error("CORE_NOT_AVAILABLE");
     }
 
     const inputText =
@@ -55,6 +56,7 @@ export async function dispatch(
       login: "auth",
       auth: "auth",
       acceso: "auth",
+      usuarios: "auth",
 
       camaras: "camaras",
       cámara: "camaras",
@@ -63,19 +65,22 @@ export async function dispatch(
 
       tenant: "tenant",
       edificio: "tenant",
+      torre: "tenant",
 
       firewall: "security",
       seguridad: "security",
 
       ledger: "ledger",
-      memoria: "memory"
+      historial: "ledger",
+
+      memoria: "memory",
+      backup: "memory"
     };
 
     function detectEntity(text = "") {
 
       const low =
-        String(text)
-          .toLowerCase();
+        String(text).toLowerCase();
 
       for (const key in moduleMap) {
         if (low.includes(key)) {
@@ -87,12 +92,48 @@ export async function dispatch(
     }
 
     /* =====================================================
+       ACTION MAP (FIX PRINCIPAL)
+    ===================================================== */
+
+    const actionMap = {
+      inspect: "ANALYZE",
+      analyze: "ANALYZE",
+      revisar: "ANALYZE",
+
+      fix: "REPAIR",
+      repair: "REPAIR",
+      corregir: "REPAIR",
+
+      patch: "UPDATE",
+      update: "UPDATE",
+      modificar: "UPDATE",
+
+      build: "CREATE",
+      create: "CREATE",
+
+      open: "OPEN",
+      abrir: "OPEN",
+
+      delete: "DELETE",
+      remove: "DELETE"
+    };
+
+    const rawAction =
+      String(command.action || "")
+        .toLowerCase()
+        .trim();
+
+    const normalizedAction =
+      actionMap[rawAction] ||
+      "ANALYZE";
+
+    /* =====================================================
        INPUT BUILDER
     ===================================================== */
 
     let enrichedInput;
 
-    // ya protocolo
+    // Si ya viene protocolo no tocar
     if (
       typeof inputText === "string" &&
       inputText.includes("::")
@@ -106,14 +147,15 @@ export async function dispatch(
         detectEntity(inputText);
 
       enrichedInput =
-        `${command.action}::${entity}`;
+        `${normalizedAction}::${entity}`;
     }
 
     console.log(
-      "🌉 [BRIDGE_V3]",
+      "🌉 [BRIDGE_V3.1]",
       {
         cmdId: command.id,
-        action: command.action,
+        rawAction,
+        normalizedAction,
         simulate: options.simulate,
         input: enrichedInput
       }
@@ -146,7 +188,7 @@ export async function dispatch(
   } catch (err) {
 
     console.error(
-      "❌ [BRIDGE_V3_ERROR]",
+      "❌ [BRIDGE_V3.1_ERROR]",
       err
     );
 
