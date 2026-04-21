@@ -279,29 +279,39 @@ if (typeof rawLower === "string") {
         return;
     }
 
-    // =====================================================
+       // =====================================================
     // ANALYZE
     // =====================================================
     if (rawLower === "analyze") {
+
         console.log("🔥 [DSL HIT] ANALYZE detectado");
 
-        const payload = extraerPayload(cmd.raw) || {};
+        const payload =
+            extraerPayload(cmd.raw) || {};
+
+        const entity =
+            (payloadPart || payload.entity || "system")
+            .trim()
+            .toLowerCase();
 
         interpretedPlan.push({
             intent: "ANALYZE",
             action: "ANALYZE",
-            entity: "SYSTEM",
-            target: payload.target || "system",
+            entity: entity,
+            target: payload.target || entity,
             payload,
             confidence: 1,
-            summary: "Análisis del sistema"
+            summary:
+                `Análisis de ${entity}`
         });
 
-        console.log("🧠 [STRUCTURED_INTENT]", {
-            intent: "ANALYZE",
-            entity: "SYSTEM",
-            payload
-        });
+        console.log(
+            "🧠 [STRUCTURED_INTENT]",
+            {
+                intent:"ANALYZE",
+                entity
+            }
+        );
 
         return;
     }
@@ -310,27 +320,30 @@ if (typeof rawLower === "string") {
     // REPAIR
     // =====================================================
     if (rawLower === "repair") {
+
         console.log("🔥 [DSL HIT] REPAIR detectado");
 
-        const payload = extraerPayload(cmd.raw) || {};
+        const payload =
+            extraerPayload(cmd.raw) || {};
 
-        const target = payload.target || payload.name || payload.id || null;
+        const entity =
+            (payloadPart || payload.entity || "system")
+            .trim()
+            .toLowerCase();
 
-        if (!target || typeof target !== "string" || !target.trim()) {
-            console.error("❌ [VALIDATION] repair target inválido", { target, payload });
-            throw new Error("INVALID_REPAIR_TARGET");
-        }
-
-        const cleanTarget = target.trim();
+        const target =
+            payload.target ||
+            entity;
 
         interpretedPlan.push({
             intent: "REPAIR",
             action: "REPAIR",
-            entity: "SYSTEM",
-            target: cleanTarget,
+            entity,
+            target,
             payload,
             confidence: 1,
-            summary: `Reparación '${cleanTarget}'`
+            summary:
+                `Reparación de ${entity}`
         });
 
         return;
@@ -340,14 +353,50 @@ if (typeof rawLower === "string") {
     // UPDATE
     // =====================================================
     if (rawLower === "update") {
+
+        const payload =
+            extraerPayload(cmd.raw) || {};
+
+        const entity =
+            (payloadPart || payload.entity || "system")
+            .trim()
+            .toLowerCase();
+
         interpretedPlan.push({
             intent: "UPDATE",
             action: "UPDATE",
-            entity: "SYSTEM",
-            target: "system",
+            entity,
+            target:
+                payload.target ||
+                entity,
+            payload,
+            confidence: 1,
+            summary:
+                `Actualización de ${entity}`
+        });
+
+        return;
+    }
+
+    // =====================================================
+    // OPEN
+    // =====================================================
+    if (rawLower === "open") {
+
+        const entity =
+            (payloadPart || "system")
+            .trim()
+            .toLowerCase();
+
+        interpretedPlan.push({
+            intent: "OPEN",
+            action: "OPEN",
+            entity,
+            target: entity,
             payload: {},
             confidence: 1,
-            summary: "Actualización del sistema"
+            summary:
+                `Apertura de ${entity}`
         });
 
         return;
