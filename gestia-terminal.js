@@ -695,7 +695,20 @@ async execute(input, e = null, options = { simulate: false }) {
 
     const rawInput = String(input).trim();
     const cmd = rawInput.toLowerCase();
+     /* =====================================================
+   BLOQUEO: APROBACIÓN SIN PLAN PENDIENTE
+===================================================== */
 
+if (
+    APPROVAL_WORDS.includes(cmd) &&
+    this.pendingPlans.size === 0
+) {
+    return {
+        ok: false,
+        message:
+            "No hay planes pendientes."
+    };
+}
     const ctx = {
         userId: this.session?.uid,
         tenantId: this.session?.tenantId || "uxmal39",
@@ -737,10 +750,19 @@ if (
     APPROVAL_WORDS.includes(cmd)
 ) {
 
-    const opId =
+    /* =====================================================
+       TOMAR EL PLAN MÁS RECIENTE
+    ===================================================== */
+
+    const keys =
         Array.from(
             this.pendingPlans.keys()
-        )[0];
+        );
+
+    const opId =
+        keys[
+            keys.length - 1
+        ];
 
     const savedPlan =
         this.pendingPlans.get(opId);
