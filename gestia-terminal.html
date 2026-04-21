@@ -296,9 +296,10 @@ form.addEventListener('submit', async (e) => {
 
         const res = await window.KernelHeberto.execute(comando, e);
 
-        if (res && res.report) {
-            renderJarvisResponse("Jarvis", res.report, "success");
-        }
+      if (res && res.report) {
+    renderJarvisResponse("Jarvis", res.report, "success");
+    hablarJarvis(res.report);
+}
 
         textarea.value = '';
         textarea.style.height = '58px';
