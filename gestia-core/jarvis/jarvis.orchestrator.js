@@ -284,3 +284,5 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     };
   }
 }
+window.runBusinessIntent =
+    runBusinessIntent;
