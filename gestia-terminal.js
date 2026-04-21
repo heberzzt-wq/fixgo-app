@@ -307,10 +307,16 @@ export class GestiaTerminal {
     "color:#ffffff; font-weight:bold; background:#991b1b; padding:4px 12px; border-radius:4px;");
 
     setTimeout(() => {
-        console.log("%c🤖 [JARVIS]: Sistema consciente. Esperando órdenes, Arquitecto.",
-        "color:#67e8f9; font-weight:bold; background:#082f49; padding:4px 12px; border-radius:4px;");
-    }, 1200);
+    console.log("%c🤖 [JARVIS]: Sistema consciente. Esperando órdenes, Arquitecto.",
+    "color:#67e8f9; font-weight:bold; background:#082f49; padding:4px 12px; border-radius:4px;");
+}, 1200);
+
+const hud = document.getElementById("jarvisState");
+
+if (hud) {
+    hud.textContent = "Núcleo bancario enlazado.";
 }
+    }
 
     /**
      * setState: Persistencia de estado en IndexedDB y telemetría HUD.
