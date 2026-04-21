@@ -290,22 +290,27 @@ class CryptoEngine {
    ===================================================================================== */
 export class GestiaTerminal {
     constructor() {
-        this.state = STATES.IDLE;
-        this.session = { 
-            authorized: false, 
-            uid: null, 
-            tenantId: "uxmal39", 
-            token: null 
-        };
-        this.crypto = new CryptoEngine();
-        this.ledger = new BankLedger();
-        this.pendingPlans = new Map();
-        
-        // ✅ PROTECCIÓN IDEMPOTENCIA LOCAL: Bloquea dobles clics
-        this.activeOps = new Set();
-        
-        console.log(`%c🏛️ [SIA7]: ANTIFRAUD BANK CORE V${GESTIA_CONFIG.VERSION} ONLINE`, "color: #ffffff; font-weight: bold; background: #991b1b; padding: 4px 12px; border-radius: 4px;");
-    }
+    this.state = STATES.IDLE;
+    this.session = {
+        authorized: false,
+        uid: null,
+        tenantId: "uxmal39",
+        token: null
+    };
+
+    this.crypto = new CryptoEngine();
+    this.ledger = new BankLedger();
+    this.pendingPlans = new Map();
+    this.activeOps = new Set();
+
+    console.log(`%c🏛️ [SIA7]: ANTIFRAUD BANK CORE V${GESTIA_CONFIG.VERSION} ONLINE`,
+    "color:#ffffff; font-weight:bold; background:#991b1b; padding:4px 12px; border-radius:4px;");
+
+    setTimeout(() => {
+        console.log("%c🤖 [JARVIS]: Sistema consciente. Esperando órdenes, Arquitecto.",
+        "color:#67e8f9; font-weight:bold; background:#082f49; padding:4px 12px; border-radius:4px;");
+    }, 1200);
+}
 
     /**
      * setState: Persistencia de estado en IndexedDB y telemetría HUD.
