@@ -471,11 +471,19 @@ Alertas críticas: 0`
         cmd.includes("hoy") ||
         cmd.includes("dashboard")
     ) {
-        return {
-            opId: "jarvis-summary",
-            status: "DONE",
-            report: "Resumen del día listo. Operaciones activas monitoreadas."
-        };
+       return {
+    opId: "jarvis-summary",
+    status: "DONE",
+    report:
+`Resumen operativo del día
+
+Hora local: ${new Date().toLocaleTimeString('es-MX')}
+Conexión: ${navigator.onLine ? "Activa" : "Sin red"}
+Servicios activos: 1
+Incidencias críticas: 0
+Monitoreo: Estable
+Estado general: Operativo`
+};
     }
 
     if (
