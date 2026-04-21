@@ -140,9 +140,11 @@
         const voz = new SpeechSynthesisUtterance(texto);
 
         voz.lang = 'es-MX';
-        voz.rate = 1;
-        voz.pitch = 1;
-        voz.volume = 1;
+voz.rate = 0.92;
+voz.pitch = 0.82;
+voz.volume = 1;
+
+console.log("🔊 JARVIS VOZ:", texto);
 
         const voces = speechSynthesis.getVoices();
         const seleccion =
@@ -161,7 +163,7 @@
     setTimeout(() => {
         hablarJarvis("Bienvenido Arquitecto. Sistemas en línea.");
     }, 1800);
-    
+
             /**
  * 🎨 RENDERER ENGINE PREMIUM:
  * Inyecta burbujas visuales en el DOM con formato ejecutivo.
