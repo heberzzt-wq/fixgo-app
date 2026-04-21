@@ -143,9 +143,10 @@
 
         reconocimiento = new SpeechRecognition();
 
-        reconocimiento.lang = 'es-MX';
+        reconocimiento.lang = 'es-ES';
         reconocimiento.continuous = false;
         reconocimiento.interimResults = false;
+        reconocimiento.maxAlternatives = 1;
 
         reconocimiento.onresult = (event) => {
 
