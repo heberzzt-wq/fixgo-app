@@ -492,11 +492,29 @@ Estado general: Operativo`
         cmd.includes("alerta") ||
         cmd.includes("riesgo")
     ) {
-        return {
-            opId: "jarvis-risk",
-            status: "DONE",
-            report: "Escaneo completo. No se detectan anomalías mayores."
-        };
+       const issues = [];
+
+if (!navigator.onLine) {
+    issues.push("Conectividad caída");
+}
+
+if ((navigator.deviceMemory || 8) <= 2) {
+    issues.push("Memoria RAM limitada");
+}
+
+if ((navigator.hardwareConcurrency || 4) <= 2) {
+    issues.push("Baja capacidad de CPU");
+}
+
+const report = issues.length
+    ? `Anomalías detectadas\n\n${issues.map(i => "• " + i).join("\n")}\n\nNivel de riesgo: Medio`
+    : `Escaneo completo\n\nSin anomalías mayores detectadas.\nNivel de riesgo: Bajo`;
+
+return {
+    opId: "jarvis-risk",
+    status: "DONE",
+    report
+};
     }
 
     if (
