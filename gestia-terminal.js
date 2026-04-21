@@ -362,6 +362,25 @@ if (hud) {
         
         const style = `${logColors[newState] || "color: #ffffff; background: #374151;"} font-weight: bold; padding: 2px 10px; border-radius: 4px;`;
         console.log(`%c[BANK_STATE]: ${newState}`, style);
+        const hud = document.getElementById("jarvisState");
+
+if (hud) {
+    const states = {
+        IDLE: "En espera táctica.",
+        ANALYZE: "Analizando solicitud...",
+        RESOLVE: "Trazando estrategia...",
+        DECIDE: "Calculando decisión...",
+        WAIT_APPROVAL: "Esperando autorización...",
+        JOURNALING: "Registrando movimiento...",
+        SIGNING: "Firmando operación...",
+        APPLY_ATOMIC: "Ejecutando acción...",
+        VERIFY_LEDGER: "Verificando ledger...",
+        DONE: "Operación completada.",
+        ERROR: "Incidente detectado."
+    };
+
+    hud.textContent = states[newState] || "Monitoreando...";
+}
     }
 
     /**
