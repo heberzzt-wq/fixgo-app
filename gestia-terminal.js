@@ -435,7 +435,7 @@ if (hud) {
         // --- 🚫 GUARD DE REFRESCO HTML (SIA7 SOBERANO) ---
         if (e && e.preventDefault) {
             e.preventDefault(); 
-            console.log("🛡️ [JARVIS]: Refresco de página bloqueado por la Terminal Federal.");
+            console.debug("🛡️ [JARVIS]: Submit HTML interceptado.");
         }
 
         if (!input) {
