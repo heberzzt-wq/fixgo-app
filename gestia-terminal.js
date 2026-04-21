@@ -1293,6 +1293,45 @@ const operation = {
         });
 
         /* ==========================================
+   READ ONLY BYPASS
+========================================== */
+
+const READ_TYPES = [
+    "ANALYZE",
+    "REPORT",
+    "STATUS",
+    "SEARCH",
+    "AUDIT"
+];
+
+if (
+    READ_TYPES.includes(
+        operation.type
+    )
+) {
+
+    await this.setState(
+        STATES.DONE,
+        opId,
+        {
+            report:
+                "Consulta completada."
+        }
+    );
+
+    await this.ledger.removeOp(
+        opId
+    );
+
+    return {
+        ok: true,
+        success: true,
+        opId,
+        message:
+            "Consulta completada."
+    };
+}
+        /* ==========================================
            JOURNAL
         ========================================== */
 
