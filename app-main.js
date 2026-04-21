@@ -43,14 +43,28 @@ import { runJarvis } from "./jarvis.orchestrator.js";
 import { analyzeIntent } from "./jarvis.vision.engine.js";
 
 // =====================================================
-// 🧠 FORTRESS KERNEL
+// 🧠 FORTRESS KERNEL + AUTOHEAL V7.1
 // =====================================================
 const V7 = {
-  version: "7.0.0",
+  version: "7.1.0",
   start: performance.now(),
   errors: [],
   modules: [],
-  health: "BOOTING"
+  health: "BOOTING",
+
+  autoheal: {
+    enabled: true,
+    retries: 0,
+    maxRetries: 3,
+    repaired: []
+  },
+
+  monitor: {
+    firebase: false,
+    auth: false,
+    ui: false,
+    network: navigator.onLine
+  }
 };
 
 // =====================================================
@@ -126,7 +140,7 @@ function isMaster(user) {
 }
 
 // =====================================================
-// 🛡️ WATCHDOG GLOBAL
+// 🛡️ WATCHDOG GLOBAL + AUTOHEAL
 // =====================================================
 window.addEventListener("error", (e) => {
   console.error("💥 JS ERROR:", e.message);
@@ -136,6 +150,8 @@ window.addEventListener("error", (e) => {
     msg: e.message,
     time: Date.now()
   });
+
+  intentarAutoHeal("js_runtime");
 });
 
 window.addEventListener("unhandledrejection", (e) => {
@@ -146,7 +162,49 @@ window.addEventListener("unhandledrejection", (e) => {
     msg: String(e.reason),
     time: Date.now()
   });
+
+  intentarAutoHeal("promise_failure");
 });
+
+// =====================================================
+// ♻️ AUTOHEAL ENGINE
+// =====================================================
+function intentarAutoHeal(origen = "unknown") {
+  if (!V7.autoheal.enabled) return;
+
+  if (V7.autoheal.retries >= V7.autoheal.maxRetries) {
+    console.warn("🛑 AUTOHEAL LIMIT REACHED");
+    return;
+  }
+
+  V7.autoheal.retries++;
+
+  console.warn(
+    `♻️ AUTOHEAL ACTIVADO | causa=${origen} | intento=${V7.autoheal.retries}`
+  );
+
+  // Recuperación básica inmediata
+  if (typeof revealUI === "function") {
+    revealUI();
+  }
+
+  if (typeof hideLoader === "function") {
+    hideLoader();
+  }
+
+  V7.health = "RECOVERING";
+
+  setTimeout(() => {
+    V7.health = "ONLINE";
+
+    V7.autoheal.repaired.push({
+      source: origen,
+      repairedAt: Date.now()
+    });
+
+    console.log("✅ AUTOHEAL COMPLETADO");
+  }, 1200);
+}
 
 // =====================================================
 // 🔍 AUDITORÍA AUTO
@@ -195,13 +253,33 @@ setTimeout(() => {
 }, 5000);
 
 // =====================================================
-// 🚀 BOOT SEQUENCE
+// 🚀 BOOT SEQUENCE + HEALTH MONITOR
 // =====================================================
 (async () => {
   auditStartup();
 
   showLoader("PRECARGANDO MÓDULOS...");
   await smartPreload();
+
+  showLoader("VALIDANDO NÚCLEO...");
+  await new Promise(r => setTimeout(r, 600));
+
+  // Validaciones base
+  V7.monitor.firebase =
+    typeof db !== "undefined";
+
+  V7.monitor.auth =
+    typeof auth !== "undefined";
+
+  V7.monitor.ui =
+    typeof document !== "undefined";
+
+  if (
+    !V7.monitor.firebase ||
+    !V7.monitor.auth
+  ) {
+    intentarAutoHeal("boot_validation");
+  }
 
   showLoader("ACTIVANDO FORTRESS...");
   await new Promise(r => setTimeout(r, 900));
@@ -212,7 +290,25 @@ setTimeout(() => {
     performance.now() - V7.start
   );
 
-  console.log(`🚀 Boot completado en ${total}ms`);
+  console.log(
+    `🚀 Boot completado en ${total}ms`
+  );
+
+  // Heartbeat continuo
+  setInterval(() => {
+    V7.monitor.network =
+      navigator.onLine;
+
+    if (!navigator.onLine) {
+      V7.health = "OFFLINE";
+    } else if (
+      V7.health === "OFFLINE"
+    ) {
+      V7.health = "ONLINE";
+    }
+
+  }, 5000);
+
 })();
 
 // =====================================================
