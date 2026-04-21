@@ -886,30 +886,30 @@ if (!isStructured) {
         // SIMULATION MODE
         // -----------------------------------------------
 
-        if (
-            jarvisRes?.mode === "SIMULATION"
-        ) {
+        if (jarvisRes?.mode === "SIMULATION") {
 
-           this.pendingPlans.set(
-    jarvisRes.confirmKey || opId,
-    {
-        intents:
-            jarvisRes.preview || [],
-        createdAt:
-            Date.now(),
-        source:
-            "jarvis-v15"
-    }
-);
+    const localPreview =
+        jarvisRes?.response?.preview ||
+        jarvisRes?.preview ||
+        [];
 
-            const ops =
-                jarvisRes.preview?.length || 1;
+    this.pendingPlans.set(
+        jarvisRes.confirmKey || opId,
+        {
+            intents: localPreview,
+            createdAt: Date.now(),
+            source: "jarvis-v15"
+        }
+    );
 
-            await this.setState(
-                STATES.WAIT_APPROVAL,
-                opId,
-                {
-                    report:
+    const ops =
+        localPreview.length || 1;
+
+    await this.setState(
+        STATES.WAIT_APPROVAL,
+        opId,
+        {
+            report:
 `Plan táctico generado.
 
 Operaciones: ${ops}
@@ -918,11 +918,11 @@ Escribe:
 • arre
 • confirmar
 • cancelar`
-                }
-            );
-
-            return jarvisRes;
         }
+    );
+
+    return jarvisRes;
+}
 
         // -----------------------------------------------
         // DIRECT SUCCESS
