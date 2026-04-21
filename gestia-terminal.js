@@ -454,10 +454,16 @@ if (cmd.includes("jarvis")) {
         cmd.includes("cómo vamos")
     ) {
         return {
-            opId: "jarvis-status",
-            status: "DONE",
-            report: "Sistema estable. Núcleo SIA7 online. Sin alertas críticas."
-        };
+    opId: "jarvis-status",
+    status: "DONE",
+    report:
+`Sistema estable.
+Núcleo SIA7: ONLINE
+Conexión: ${navigator.onLine ? "Activa" : "Caída"}
+Memoria RAM estimada: ${navigator.deviceMemory || "N/D"} GB
+CPU núcleos: ${navigator.hardwareConcurrency || "N/D"}
+Alertas críticas: 0`
+};
     }
 
     if (
