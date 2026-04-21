@@ -890,13 +890,17 @@ if (!isStructured) {
             jarvisRes?.mode === "SIMULATION"
         ) {
 
-            this.pendingPlans.set(
-                jarvisRes.confirmKey || opId,
-                {
-                    createdAt: Date.now(),
-                    source: "jarvis-v15"
-                }
-            );
+           this.pendingPlans.set(
+    jarvisRes.confirmKey || opId,
+    {
+        intents:
+            jarvisRes.preview || [],
+        createdAt:
+            Date.now(),
+        source:
+            "jarvis-v15"
+    }
+);
 
             const ops =
                 jarvisRes.preview?.length || 1;
