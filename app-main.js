@@ -293,9 +293,16 @@ setTimeout(() => {
   );
 
   console.log(
-    `🚀 Boot completado en ${total}ms`
-  );
+  `🚀 Boot completado en ${total}ms`
+);
 
+if (typeof hideLoader === "function") {
+  hideLoader();
+}
+
+if (typeof revealUI === "function") {
+  revealUI();
+}
   // Heartbeat continuo
   setInterval(() => {
     V7.monitor.network =
