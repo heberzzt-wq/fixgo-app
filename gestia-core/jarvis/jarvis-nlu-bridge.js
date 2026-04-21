@@ -22,7 +22,7 @@
  * =====================================================================================
  */
 
-import { getMemory, saveMemory } from "./jarvis-memory.js";
+import { getMemory, saveMemory } from "./jarvis.memory.js";
 
 const NLU_VERSION = "1.0 GOD MODE";
 
