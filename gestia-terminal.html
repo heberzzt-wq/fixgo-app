@@ -212,23 +212,34 @@
             });
 
             /**
-             * ✅ SOLDADURA FEDERAL:
-             * Interceptamos el envío para que el núcleo (KernelHeberto) tome el control.
-             */
-            form.addEventListener('submit', async (e) => {
-                const comando = textarea.value.trim();
-                
-                if (comando !== '' && window.KernelHeberto) {
-                    // Feedback visual inmediato (opcional: podrías pintar lo que el usuario escribió)
-                    await window.KernelHeberto.execute(comando, e);
-                    
-                    textarea.value = '';
-                    textarea.style.height = '58px';
-                } else if (!window.KernelHeberto) {
-                    e.preventDefault();
-                    renderJarvisResponse("Error de Inicialización", "El núcleo federal aún no está en línea. Verifica la conexión con Firebase.", "error");
-                }
-            });
+ * ✅ SOLDADURA FEDERAL:
+ * Interceptamos el envío para que el núcleo (KernelHeberto) tome el control.
+ */
+form.addEventListener('submit', async (e) => {
+    const comando = textarea.value.trim();
+
+    if (comando !== '' && window.KernelHeberto) {
+
+        const res = await window.KernelHeberto.execute(comando, e);
+
+        if (res && res.report) {
+            renderJarvisResponse("Jarvis", res.report, "success");
+        }
+
+        textarea.value = '';
+        textarea.style.height = '58px';
+
+    } else if (!window.KernelHeberto) {
+
+        e.preventDefault();
+
+        renderJarvisResponse(
+            "Error de Inicialización",
+            "El núcleo federal aún no está en línea. Verifica la conexión con Firebase.",
+            "error"
+        );
+    }
+});
 
             // --- LÓGICA DE INTERFAZ MANTENIDA ---
             
