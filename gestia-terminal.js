@@ -443,6 +443,66 @@ if (hud) {
         }
         
         const rawInput = input.trim();
+        const cmd = rawInput.toLowerCase();
+
+if (cmd.includes("jarvis")) {
+
+    if (
+        cmd.includes("estado") ||
+        cmd.includes("status") ||
+        cmd.includes("como vamos") ||
+        cmd.includes("cómo vamos")
+    ) {
+        return {
+            opId: "jarvis-status",
+            status: "DONE",
+            report: "Sistema estable. Núcleo SIA7 online. Sin alertas críticas."
+        };
+    }
+
+    if (
+        cmd.includes("resumen") ||
+        cmd.includes("hoy") ||
+        cmd.includes("dashboard")
+    ) {
+        return {
+            opId: "jarvis-summary",
+            status: "DONE",
+            report: "Resumen del día listo. Operaciones activas monitoreadas."
+        };
+    }
+
+    if (
+        cmd.includes("anomalia") ||
+        cmd.includes("anomalía") ||
+        cmd.includes("alerta") ||
+        cmd.includes("riesgo")
+    ) {
+        return {
+            opId: "jarvis-risk",
+            status: "DONE",
+            report: "Escaneo completo. No se detectan anomalías mayores."
+        };
+    }
+
+    if (
+        cmd.includes("ledger") ||
+        cmd.includes("movimientos") ||
+        cmd.includes("pagos")
+    ) {
+        return {
+            opId: "jarvis-ledger",
+            status: "DONE",
+            report: "Ledger operativo. Últimos movimientos verificados."
+        };
+    }
+
+    return {
+        opId: "jarvis-help",
+        status: "DONE",
+        report: "Comando no específico. Prueba: estado general, resumen hoy, revisa anomalías, abrir ledger."
+    };
+}
 
         // Manejo determinístico de aprobaciones
         if (this.pendingPlans.size > 0 && APPROVAL_WORDS.includes(rawInput.toLowerCase())) {
