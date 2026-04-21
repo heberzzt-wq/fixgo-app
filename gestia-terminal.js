@@ -1357,15 +1357,35 @@ if (
            JOURNAL
         ========================================== */
 
-        await this.setState(
-            STATES.JOURNALING,
-            opId
-        );
+       await this.setState(
+    STATES.JOURNALING,
+    opId
+);
 
-        const journal =
-            await this.buildJournal(
-                plan
-            );
+/* ==========================================
+   FIX TARGET PARA UPDATE TENANT
+========================================== */
+
+if (
+    operation.type === "UPDATE" &&
+    plan?.[0]
+) {
+    if (!plan[0].target) {
+        plan[0].target =
+            this.session?.tenantId ||
+            "uxmal39";
+    }
+
+    if (!plan[0].entity) {
+        plan[0].entity =
+            "tenant";
+    }
+}
+
+const journal =
+    await this.buildJournal(
+        plan
+    );
 
         /* ==========================================
            SIGNATURE
