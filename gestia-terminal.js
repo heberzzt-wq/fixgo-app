@@ -1490,7 +1490,9 @@ const journal =
                     }
 
                     const action =
-                        step.intent.action;
+                            step.intent.action ||
+                            step.intent.intent ||
+                         "UPDATE";
 
                     const ledgerEntry = {
                         opId,
