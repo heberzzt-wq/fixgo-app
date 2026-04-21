@@ -162,6 +162,14 @@
         reconocimiento.onerror = () => {
             console.log("🎤 Micrófono no disponible.");
         };
+        document.addEventListener('keydown', (e) => {
+
+    if (e.key === 'F2' && reconocimiento) {
+        reconocimiento.start();
+        console.log("🎤 Jarvis escuchando...");
+    }
+
+});
     }
 
     const hablarJarvis = (texto) => {
