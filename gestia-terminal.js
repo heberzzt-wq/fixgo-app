@@ -1234,13 +1234,23 @@ if (this.activeOps.has(opId)) {
 
     try {
 
-        const operation = {
-            id: opId,
-            type:
-                plan[0]?.intent ||
-                plan[0]?.action,
-            payload: plan
-        };
+        const first =
+    plan[0] || {};
+
+const detectedType =
+    first.intent ||
+    first.action ||
+    first.type ||
+    first.response?.intent ||
+    first.response?.action ||
+    first.preview?.[0]?.intent ||
+    "ANALYZE";
+
+const operation = {
+    id: opId,
+    type: detectedType,
+    payload: plan
+};
 
         if (
             !operation.id ||
