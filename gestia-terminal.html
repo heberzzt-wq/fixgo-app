@@ -232,20 +232,17 @@
 
             // --- LÓGICA DE INTERFAZ MANTENIDA ---
             
-            textarea.addEventListener('input', function() {
-                this.style.height = '58px'; 
-                this.style.height = (this.scrollHeight) + 'px';
-                if (this.value === '') this.style.height = '58px';
-            });
-            
-            textarea.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if(this.value.trim() !== '') {
-                        form.dispatchEvent(new Event('submit', { cancelable:true, bubbles:true }));
-                    }
-                }
-            });
+           textarea.addEventListener('input', function() {
+    this.style.height = '58px';
+    this.style.height = (this.scrollHeight) + 'px';
+    if (this.value === '') this.style.height = '58px';
+});
+
+textarea.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+    }
+});
         });
     </script>
     <div id="jarvisHud" style="
