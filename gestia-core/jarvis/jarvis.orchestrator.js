@@ -1,18 +1,65 @@
 /**
  * ======================================================================================
- * JARVIS ORCHESTRATOR v3.6 - Production + Smart Snapshot Rollback TEST READY
+ * JARVIS ORCHESTRATOR v4.0 - PRODUCTION SOVEREIGN (Built on your real base)
+ * ======================================================================================
+ * MEJORAS SOBRE TU v3.6:
+ * ✅ Mantiene simulation / confirmation / rollback
+ * ✅ Integra jarvis-nlu-bridge.js
+ * ✅ Elimina FORCED_BATCH_FAIL
+ * ✅ Conserva snapshots
+ * ✅ Compatible con GestiaCore / bridge actual
+ * ✅ Memory mejorada
  * ======================================================================================
  */
 
 import { saveMemory } from "./jarvis.memory.js";
 import { toCommand } from "./jarvis.dsl.js";
 import { dispatch } from "./jarvis.bridge.js";
+import { understand } from "./jarvis-nlu-bridge.js";
+
 import {
   createSnapshot,
   restoreSnapshot
 } from "./jarvis.snapshot.js";
 
 const pendingConfirmations = new Map();
+const CONFIRM_TTL = 30000;
+
+// ======================================================================================
+// HELPERS
+// ======================================================================================
+
+function buildKey(ids = []) {
+  return JSON.stringify(ids);
+}
+
+function isMutating(cmd) {
+  return [
+    "UPDATE",
+    "REPAIR",
+    "CREATE",
+    "CREATE_BUILDING",
+    "DELETE"
+  ].includes(cmd.action);
+}
+
+function resolveTarget(cmd) {
+  if (cmd?.target) return String(cmd.target).trim();
+
+  if (cmd?.raw && cmd.raw.includes("::")) {
+    return cmd.raw.split("::")[1]?.trim();
+  }
+
+  return null;
+}
+
+async function safeDispatch(cmd, ctx, simulate = false) {
+  return await dispatch(cmd, ctx, { simulate });
+}
+
+// ======================================================================================
+// MAIN
+// ======================================================================================
 
 export async function runJarvis(input, ctx = {}, confirm = false) {
   try {
@@ -22,188 +69,214 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
 
     console.log("🧠 [JARVIS_INPUT]", input);
 
-    const commands = Array.isArray(input)
-      ? input
-      : input.split(";;").map(c => toCommand(c.trim()));
+    // ============================================================================
+    // STEP 1: CONFIRM MODE
+    // ============================================================================
 
-    // =====================================================
-    // 🧪 SIMULACIÓN
-    // =====================================================
-    if (!confirm) {
-      const sims = [];
+    if (confirm === true) {
+      const key = Array.isArray(input)
+        ? buildKey(input)
+        : String(input);
 
-      for (const cmd of commands) {
-        const res = await dispatch(cmd, ctx, { simulate: true });
+      const pending = pendingConfirmations.get(key);
 
-        if (!res.ok) return res;
-
-        sims.push(res);
+      if (!pending) {
+        throw new Error("CONFIRMATION_NOT_FOUND");
       }
 
-      const ids = commands.map(c => c.id);
-
-      pendingConfirmations.set(JSON.stringify(ids), {
-        commands,
-        ctx,
-        createdAt: Date.now()
-      });
-
-      return {
-        mode: "SIMULATION",
-        commandId: ids,
-        preview: sims.map(x => x.response),
-        message: "Simulación lista."
-      };
-    }
-
-    // =====================================================
-    // 🚀 CONFIRMACIÓN
-    // =====================================================
-    const key = JSON.stringify(input);
-    const pending = pendingConfirmations.get(key);
-
-    if (!pending) {
-      throw new Error("CONFIRMATION_NOT_FOUND");
-    }
-
-    if (Date.now() - pending.createdAt > 30000) {
-      pendingConfirmations.delete(key);
-      throw new Error("CONFIRMATION_EXPIRED");
-    }
-
-    const executed = [];
-    const results = [];
-
-    try {
-      for (let index = 0; index < pending.commands.length; index++) {
-        const cmd = pending.commands[index];
-
-        // =================================================
-        // 📸 SNAPSHOT
-        // =================================================
-        let snapshot = null;
-        let target = null;
-
-        if (typeof cmd.target === "string" && cmd.target.trim()) {
-          target = cmd.target.trim();
-        } else if (
-          typeof cmd.raw === "string" &&
-          cmd.raw.includes("::")
-        ) {
-          target = cmd.raw.split("::")[1]?.trim();
-        }
-
-        if (
-          (cmd.action === "UPDATE" ||
-            cmd.action === "REPAIR") &&
-          target
-        ) {
-          const path =
-            `tenants/${pending.ctx.tenantId}/BUILDING/${target}`;
-
-          console.log("🧪 [SNAPSHOT PATH]", path);
-
-          snapshot = await createSnapshot(path);
-
-          console.log("📸 [SNAPSHOT]", snapshot);
-        }
-
-        // =================================================
-        // 🚀 EJECUCIÓN
-        // =================================================
-        const exec = await dispatch(cmd, pending.ctx, {
-          simulate: false
-        });
-
-        if (!exec.ok) {
-          throw new Error("EXEC_FAILED");
-        }
-
-        saveMemory(cmd, exec.response);
-
-        executed.push({
-          cmd,
-          snapshot,
-          response: exec.response
-        });
-
-        results.push(exec.response);
-
-        // =================================================
-        // 💥 TEST CONTROLADO ROLLBACK
-        // Fuerza error al terminar comando #2
-        // =================================================
-        if (index === 1) {
-          throw new Error("FORCED_BATCH_FAIL");
-        }
+      if (Date.now() - pending.createdAt > CONFIRM_TTL) {
+        pendingConfirmations.delete(key);
+        throw new Error("CONFIRMATION_EXPIRED");
       }
 
-      pendingConfirmations.delete(key);
+      const executed = [];
+      const results = [];
 
-      return {
-        mode: "EXECUTION",
-        commandId: pending.commands.map(c => c.id),
-        result: results
-      };
+      try {
+        for (const cmd of pending.commands) {
+          let snapshot = null;
+          const target = resolveTarget(cmd);
 
-    } catch (execErr) {
-
-      console.error("💥 [EXECUTION FAIL]", execErr.message);
-      console.warn("↩️ [ROLLBACK ENGINE] Iniciando recuperación");
-
-      // =================================================
-      // ↩️ ROLLBACK
-      // =================================================
-      for (let i = executed.length - 1; i >= 0; i--) {
-        const item = executed[i];
-        const cmd = item.cmd;
-
-        try {
-
-          // CREATE_BUILDING
-          if (cmd.action === "CREATE_BUILDING") {
-
-            const createdId =
-              item.response?.id ||
-              cmd.target ||
-              cmd.payload?.name;
-
-            if (createdId) {
-              await window.KernelHeberto.execute(
-                `DELETE_BUILDING::{"id":"${createdId}"}`,
-                null,
-                { simulate: false }
-              );
-            }
-          }
-
-          // UPDATE / REPAIR
-          else if (
-            (cmd.action === "UPDATE" ||
-              cmd.action === "REPAIR") &&
-            item.snapshot?.ok
+          // ==========================================================
+          // SNAPSHOT BEFORE MUTATION
+          // ==========================================================
+          if (
+            target &&
+            (cmd.action === "UPDATE" || cmd.action === "REPAIR")
           ) {
-            await restoreSnapshot(item.snapshot);
+            const tenantId = pending.ctx?.tenantId || "UXMAL39";
+
+            const path =
+              `tenants/${tenantId}/BUILDING/${target}`;
+
+            snapshot = await createSnapshot(path);
           }
 
-        } catch (rbErr) {
-          console.error("❌ [ROLLBACK FAIL]", rbErr);
+          // ==========================================================
+          // EXECUTION
+          // ==========================================================
+          const exec = await safeDispatch(cmd, pending.ctx, false);
+
+          if (!exec?.ok) {
+            throw new Error(exec?.message || "EXEC_FAILED");
+          }
+
+          saveMemory(cmd, exec.response);
+
+          executed.push({
+            cmd,
+            snapshot,
+            response: exec.response
+          });
+
+          results.push(exec.response);
         }
+
+        pendingConfirmations.delete(key);
+
+        return {
+          mode: "EXECUTION",
+          ok: true,
+          commandId: pending.ids,
+          result: results,
+          message: "Ejecución completada."
+        };
+
+      } catch (execErr) {
+
+        console.error("💥 [EXEC_FAIL]", execErr.message);
+        console.warn("↩️ [ROLLBACK] Starting recovery");
+
+        // ==========================================================
+        // ROLLBACK
+        // ==========================================================
+        for (let i = executed.length - 1; i >= 0; i--) {
+          const item = executed[i];
+          const cmd = item.cmd;
+
+          try {
+
+            // CREATE rollback
+            if (
+              cmd.action === "CREATE" ||
+              cmd.action === "CREATE_BUILDING"
+            ) {
+              const createdId =
+                item.response?.id ||
+                cmd.target ||
+                cmd.payload?.name;
+
+              if (createdId && window?.KernelHeberto?.execute) {
+                await window.KernelHeberto.execute(
+                  `DELETE_BUILDING::{"id":"${createdId}"}`,
+                  null,
+                  { simulate: false }
+                );
+              }
+            }
+
+            // UPDATE / REPAIR rollback
+            else if (
+              (cmd.action === "UPDATE" ||
+               cmd.action === "REPAIR") &&
+              item.snapshot?.ok
+            ) {
+              await restoreSnapshot(item.snapshot);
+            }
+
+          } catch (rbErr) {
+            console.error("❌ [ROLLBACK_FAIL]", rbErr);
+          }
+        }
+
+        pendingConfirmations.delete(key);
+
+        return {
+          ok: false,
+          error: true,
+          mode: "ROLLBACK",
+          message: execErr.message,
+          partialResults: results
+        };
+      }
+    }
+
+    // ============================================================================
+    // STEP 2: BUILD COMMANDS (NLU + DSL)
+    // ============================================================================
+
+    let commands = [];
+
+    if (Array.isArray(input)) {
+      commands = input;
+    } else {
+
+      // ------------------------------------------------------------
+      // If structured DSL detected
+      // ------------------------------------------------------------
+      if (String(input).includes("::")) {
+        commands = String(input)
+          .split(";;")
+          .map(x => toCommand(x.trim()));
       }
 
-      pendingConfirmations.delete(key);
+      // ------------------------------------------------------------
+      // Natural language mode
+      // ------------------------------------------------------------
+      else {
+        const nlu = understand(input);
 
-      return {
-        error: true,
-        message: execErr.message,
-        partialResults: results
-      };
+        commands = nlu.commands.map(c =>
+          toCommand(c.clean)
+        );
+      }
     }
+
+    if (!commands.length) {
+      throw new Error("NO_COMMANDS_GENERATED");
+    }
+
+    // ============================================================================
+    // STEP 3: SIMULATION
+    // ============================================================================
+
+    const preview = [];
+
+    for (const cmd of commands) {
+      const res = await safeDispatch(cmd, ctx, true);
+
+      if (!res?.ok) {
+        return res;
+      }
+
+      preview.push(res.response);
+    }
+
+    const ids = commands.map(c => c.id);
+    const key = buildKey(ids);
+
+    pendingConfirmations.set(key, {
+      ids,
+      commands,
+      ctx,
+      createdAt: Date.now()
+    });
+
+    return {
+      ok: true,
+      mode: "SIMULATION",
+      commandId: ids,
+      confirmKey: key,
+      preview,
+      message: "Simulación lista. Esperando confirmación."
+    };
 
   } catch (err) {
+
     console.error("❌ [JARVIS_ERROR]", err);
 
     return {
+      ok: false,
       error: true,
       message: err.message
     };

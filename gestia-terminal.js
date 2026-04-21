@@ -1,240 +1,331 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - GESTIA TERMINAL V14.8 (THE ANTIFRAUD CORE - GOD MODE)
+ * GESTIAPREMIUM 2026 - GESTIA TERMINAL V15.0
+ * BLOQUE 1 REFACTORIZADO (HEADER + IMPORTS + CONFIG + LEDGER)
  * ======================================================================================
  * Autor: Heber Mendoza (Arquitecto Supremo) & Jarvis (SIA7 AI)
- * Versión: 14.8-HARDENED-ANTIFRAUD (PURGE + ORCHESTRATOR READY)
- * Identidad: Núcleo de Consistencia Atómica con No-Repudio y Ledger de Partida Doble.
- * Función: Orquestación de Ráfagas Criptográficas con Prevención de Replay y Refresco.
- * --------------------------------------------------------------------------------------
- * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
- * --------------------------------------------------------------------------------------
- * ARQUITECTURA DE MISIÓN CRÍTICA (BANK GRADE):
- * 1. INTERNAL EVENT GUARD: El método execute captura el evento de la UI y
- * previene el refresco del panel automáticamente (e.preventDefault).
- * 2. EPHEMERAL KEY DERIVATION: La clave de firma se deriva de la sesión del usuario 
- * mediante PBKDF2 en tiempo real. No hay secretos en el código.
- * 3. MULTI-DOC ATOMIC TRANSACTION: Toda la ráfaga se ejecuta en una única 
- * `runTransaction` de Firestore. Si un documento falla, NADA se escribe.
- * 4. REPLAY PROTECTION (NONCE): Cada operación incluye un identificador único y un
- * timestamp expiración (30s) para evitar ataques de repetición.
- * 5. REAL DOUBLE-ENTRY: Cada acción genera un asiento contable (Debit/Credit) 
- * en el Ledger de Operaciones para balance de recursos.
- * 6. FUNCTIONAL ROLLBACK: Implementación real de compensación mediante Journal
- * persistido en IndexedDB antes de la ejecución.
- * 7. TENANT ISOLATION: Aislamiento físico de rutas: `/tenants/{id}/ledger/{opId}`.
+ * Upgrade: ChatGPT Engineering Assist
+ *
+ * CAMBIOS V15:
+ * ✅ Limpieza de imports no usados
+ * ✅ Config centralizada
+ * ✅ Nombres consistentes
+ * ✅ Ledger más robusto
+ * ✅ Logs más limpios
+ * ✅ Preparado para Jarvis V4
  * ======================================================================================
  */
 
-import { 
-    auth, 
-    db, 
-    onAuthStateChanged, 
-    doc, 
-    setDoc, 
+import {
+    auth,
+    db,
+    onAuthStateChanged,
+    doc,
+    setDoc,
     getDoc,
     serverTimestamp,
-    collection,
-    query,
-    where,
-    getDocs
+    collection
 } from './firebase.js';
 
-// ✅ INTEGRIDAD DE IMPORTACIÓN: runTransaction directa desde el SDK oficial
-import { runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import {
+    runTransaction
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// MOTORES SOBERANOS - INTEGRACIÓN CORE V16.4
-import { resolveTenantContext } from '/gestia-core/core_auth_tenant_v1.js';
-import { ejecutarFirewallGlobal } from '/gestia-core/firewall.engine.js';
-import { sincronizarCorralSemantico } from '/gestia-core/semantic.engine.js';
-import { interpretarIntenciones } from '/gestia-core/intent.engine.js'; 
+// =====================================================
+// CORE ENGINES
+// =====================================================
 
-// 🔥 NUEVO (Jarvis Orchestrator)
-import { runJarvis } from '/gestia-core/jarvis/jarvis.orchestrator.js';
+import {
+    resolveTenantContext
+} from '/gestia-core/core_auth_tenant_v1.js';
 
-// ✅ JARVIS ADAPTER (NUEVO): Desacopla el core para inyectar el DSL
+import {
+    ejecutarFirewallGlobal
+} from '/gestia-core/firewall.engine.js';
+
+import {
+    sincronizarCorralSemantico
+} from '/gestia-core/semantic.engine.js';
+
+import {
+    interpretarIntenciones
+} from '/gestia-core/intent.engine.js';
+
+import {
+    runJarvis
+} from '/gestia-core/jarvis/jarvis.orchestrator.js';
+
+// =====================================================
+// ADAPTER LEGACY → CORE INTENT
+// =====================================================
+
 function resolveIntentsAdapter(input, contextoSemantico) {
-    const paqueteComandos = [{
-        raw: input,
-        context: contextoSemantico
-    }];
-    return interpretarIntenciones(paqueteComandos);
+    return interpretarIntenciones([
+        {
+            raw: input,
+            context: contextoSemantico
+        }
+    ]);
 }
 
 /* =====================================================================================
-    ESTADOS DE LA MÁQUINA (PROTOCOLO BANCARIO)
-   ===================================================================================== */
+   ESTADOS DEL SISTEMA
+===================================================================================== */
+
 const STATES = {
     IDLE: "IDLE",
-    KEY_DERIVATION: "KEY_DERIVATION", // Derivación de llaves criptográficas
+    KEY_DERIVATION: "KEY_DERIVATION",
     ANALYZE: "ANALYZE",
     RESOLVE: "RESOLVE",
     DECIDE: "DECIDE",
     WAIT_APPROVAL: "WAIT_APPROVAL",
-    JOURNALING: "JOURNALING",         // Captura de Before-Image
-    SIGNING: "SIGNING",               // Firma con Nonce y Expiración
-    APPLY_ATOMIC: "APPLY_ATOMIC",     // Transacción multi-doc
-    VERIFY_LEDGER: "VERIFY_LEDGER",   // Verificación de balance
+    JOURNALING: "JOURNALING",
+    SIGNING: "SIGNING",
+    APPLY_ATOMIC: "APPLY_ATOMIC",
+    VERIFY_LEDGER: "VERIFY_LEDGER",
     DONE: "DONE",
     ERROR: "ERROR"
 };
 
+/* =====================================================================================
+   FRASES DE APROBACIÓN
+===================================================================================== */
+
 const APPROVAL_WORDS = [
-    "si", 
-    "sí", 
-    "ok", 
-    "arre", 
-    "hazlo", 
-    "confirmar", 
-    "proceder", 
+    "si",
+    "sí",
+    "ok",
+    "arre",
+    "hazlo",
+    "confirmar",
+    "proceder",
     "dale"
 ];
 
+const CANCEL_WORDS = [
+    "no",
+    "cancelar",
+    "abortar",
+    "detener",
+    "olvidalo",
+    "olvídalo"
+];
+
+/* =====================================================================================
+   CONFIG
+===================================================================================== */
+
 const GESTIA_CONFIG = {
-    VERSION: "14.8-BANK-SIA7",
+    VERSION: "15.0-JARVIS-SOVEREIGN",
     DB_NAME: "GestiaAntifraud_DB",
     DB_VERSION: 1,
     LEDGER_COLLECTION: "gestia_financial_ledger",
     TIMEOUT_MS: 30000,
-    SIGNATURE_EXPIRY_MS: 30000 // 30 segundos de vida de firma
+    SIGNATURE_EXPIRY_MS: 30000,
+    PLAN_EXPIRY_MS: 30000,
+    MAX_PLAN_SIZE: 20
 };
 
 /* =====================================================================================
-    INFRAESTRUCTURA DE PERSISTENCIA DURA (INDEXED-DB)
-   ===================================================================================== */
+   LOGGER
+===================================================================================== */
+
+function logCore(label, data = "") {
+    console.log(`🧠 [${label}]`, data);
+}
+
+function warnCore(label, data = "") {
+    console.warn(`⚠️ [${label}]`, data);
+}
+
+function errorCore(label, data = "") {
+    console.error(`❌ [${label}]`, data);
+}
+
+/* =====================================================================================
+   INFRAESTRUCTURA DE PERSISTENCIA DURA (INDEXEDDB)
+===================================================================================== */
+
 class BankLedger {
+
     constructor() {
         this.db = null;
     }
 
     async init() {
+
         return new Promise((resolve, reject) => {
-            const request = indexedDB.open(GESTIA_CONFIG.DB_NAME, GESTIA_CONFIG.DB_VERSION);
-            
+
+            const request = indexedDB.open(
+                GESTIA_CONFIG.DB_NAME,
+                GESTIA_CONFIG.DB_VERSION
+            );
+
             request.onupgradeneeded = (e) => {
-                const db = e.target.result;
-                if (!db.objectStoreNames.contains("unconfirmed_ops")) {
-                    db.createObjectStore("unconfirmed_ops", { keyPath: "opId" });
+
+                const dbRef = e.target.result;
+
+                if (!dbRef.objectStoreNames.contains("unconfirmed_ops")) {
+                    dbRef.createObjectStore(
+                        "unconfirmed_ops",
+                        { keyPath: "opId" }
+                    );
                 }
             };
-            
-            request.onsuccess = (e) => { 
-                this.db = e.target.result; 
-                resolve(); 
+
+            request.onsuccess = (e) => {
+                this.db = e.target.result;
+                resolve();
             };
-            
+
             request.onerror = (e) => {
                 reject(e.target.error);
             };
         });
     }
 
-    async persistOp(opId, data) {
+    async persistOp(opId, data = {}) {
+
         if (!this.db) {
-            console.warn("⚠️ [LEDGER]: DB no inicializada.");
+            warnCore("LEDGER_DB_OFFLINE");
             return;
         }
-        
-        const tx = this.db.transaction("unconfirmed_ops", "readwrite");
+
+        const tx = this.db.transaction(
+            "unconfirmed_ops",
+            "readwrite"
+        );
+
         const store = tx.objectStore("unconfirmed_ops");
-        
+
         return new Promise((resolve, reject) => {
+
             const req = store.put({
                 opId,
                 ...data,
-                timestamp: new Date().toISOString()
+                updatedAt: new Date().toISOString()
             });
 
-            req.onsuccess = () => resolve();
+            req.onsuccess = () => resolve(true);
             req.onerror = () => reject(req.error);
         });
     }
 
     async removeOp(opId) {
+
         if (!this.db) return;
-        
-        const tx = this.db.transaction("unconfirmed_ops", "readwrite");
-        const store = tx.objectStore("unconfirmed_ops");
-        store.delete(opId);
+
+        const tx = this.db.transaction(
+            "unconfirmed_ops",
+            "readwrite"
+        );
+
+        tx.objectStore("unconfirmed_ops").delete(opId);
     }
 
-    /**
-     * 🔹 HISTORIAL COMPLETO (debug / auditoría)
-     */
     async getAll() {
+
         if (!this.db) return [];
-        
-        const tx = this.db.transaction("unconfirmed_ops", "readonly");
+
+        const tx = this.db.transaction(
+            "unconfirmed_ops",
+            "readonly"
+        );
+
         const store = tx.objectStore("unconfirmed_ops");
-        
+
         return new Promise((resolve) => {
+
             const req = store.getAll();
-            req.onsuccess = () => resolve(req.result);
+
+            req.onsuccess = () => resolve(req.result || []);
+            req.onerror = () => resolve([]);
         });
     }
 
-    /**
-     * 🔥 SOLO OPERACIONES ACTIVAS (ESTA ES LA IMPORTANTE)
-     */
     async getActiveOperations() {
-        const all = await this.getAll();
 
-        return all.filter(op =>
-            op.state === "RUNNING" ||
-            op.state === "PENDING"
+        const rows = await this.getAll();
+
+        return rows.filter(row =>
+            row.state === "RUNNING" ||
+            row.state === "PENDING" ||
+            row.state === STATES.WAIT_APPROVAL
         );
     }
 
-    /**
-     * ⚠️ LEGACY (mantener compatibilidad)
-     * ahora solo regresa activas
-     */
     async getAllPending() {
         return await this.getActiveOperations();
     }
 
-    /**
-     * 🔥 PURGA REAL (solo activas, no historial)
-     */
     async clearAllPending() {
+
         if (!this.db) return;
 
         const active = await this.getActiveOperations();
 
-        const tx = this.db.transaction("unconfirmed_ops", "readwrite");
+        const tx = this.db.transaction(
+            "unconfirmed_ops",
+            "readwrite"
+        );
+
         const store = tx.objectStore("unconfirmed_ops");
 
         return new Promise((resolve, reject) => {
+
             try {
-                active.forEach(op => store.delete(op.opId));
-                resolve();
+
+                active.forEach(item => {
+                    store.delete(item.opId);
+                });
+
+                resolve(true);
+
             } catch (err) {
+
                 reject(err);
             }
         });
     }
+
+    async countActive() {
+        const active = await this.getActiveOperations();
+        return active.length;
+    }
 }
 
+/**
+ * ======================================================================================
+ * FIN BLOQUE 1 V15
+ * SIGUIENTE BLOQUE:
+ * CryptoEngine + constructor + setState + inicializarAutoridad
+ * ======================================================================================
+ */
+
 /* =====================================================================================
-    ENGINE CRIPTOGRÁFICO (WEB-CRYPTO API)
-   ===================================================================================== */
+   ENGINE CRIPTOGRÁFICO (WEB CRYPTO API) - V15
+===================================================================================== */
+
 class CryptoEngine {
+
     constructor() {
         this.sessionKey = null;
     }
 
     /**
-     * derivarClaveSesion: ✅ SEGURIDAD FEDERAL - No hay secretos hardcodeados.
-     * Deriva una clave de 256 bits basada en el UID y el Token de sesión.
+     * Deriva llave efímera desde UID + token sesión.
      */
     async derivarClaveSesion(uid, token) {
+
         const encoder = new TextEncoder();
-        
+
+        const seed = String(token || "").slice(-32);
+
         const baseKey = await window.crypto.subtle.importKey(
-            "raw", 
-            encoder.encode(token.slice(-32)), 
-            "PBKDF2", 
-            false, 
+            "raw",
+            encoder.encode(seed),
+            "PBKDF2",
+            false,
             ["deriveKey"]
         );
 
@@ -246,49 +337,72 @@ class CryptoEngine {
                 hash: "SHA-256"
             },
             baseKey,
-            { 
-                name: "HMAC", 
-                hash: "SHA-256", 
-                length: 256 
+            {
+                name: "HMAC",
+                hash: "SHA-256",
+                length: 256
             },
             false,
             ["sign", "verify"]
         );
+
+        logCore("CRYPTO_KEY_READY");
     }
 
     /**
-     * firmarOperacion: ✅ PREVENCIÓN DE REPLAY - Nonce + Time-Bound.
+     * Firma payload con nonce + expiración.
      */
-    async firmarOperacion(payload) {
+    async firmarOperacion(payload = {}) {
+
+        if (!this.sessionKey) {
+            throw new Error("SESSION_KEY_NOT_READY");
+        }
+
         const encoder = new TextEncoder();
-        const nonce = window.crypto.getRandomValues(new Uint8Array(16)).join("");
-        const exp = Date.now() + GESTIA_CONFIG.SIGNATURE_EXPIRY_MS;
-        
-        const dataToSign = JSON.stringify({ 
-            ...payload, 
-            nonce: nonce, 
-            exp: exp 
+
+        const nonceBytes = window.crypto.getRandomValues(
+            new Uint8Array(16)
+        );
+
+        const nonce = Array.from(nonceBytes).join("");
+
+        const exp = Date.now() +
+            GESTIA_CONFIG.SIGNATURE_EXPIRY_MS;
+
+        const raw = JSON.stringify({
+            ...payload,
+            nonce,
+            exp
         });
-        
-        const signature = await window.crypto.subtle.sign(
-            "HMAC",
-            this.sessionKey,
-            encoder.encode(dataToSign)
+
+        const signatureBuffer =
+            await window.crypto.subtle.sign(
+                "HMAC",
+                this.sessionKey,
+                encoder.encode(raw)
+            );
+
+        const signature = btoa(
+            String.fromCharCode(
+                ...new Uint8Array(signatureBuffer)
+            )
         );
 
         return {
-            signature: btoa(String.fromCharCode(...new Uint8Array(signature))),
-            nonce: nonce,
-            exp: exp,
-            raw: dataToSign
+            signature,
+            nonce,
+            exp,
+            raw
         };
     }
 }
 
 /* =====================================================================================
-    CLASE CENTRAL: GESTIA TERMINAL V14.8 (THE ANTIFRAUD CORE)
-   ===================================================================================== */
+   CLASE CENTRAL - GESTIA TERMINAL V15
+===================================================================================== */
+
 export class GestiaTerminal {
+
     constructor() {
 
         this.state = STATES.IDLE;
@@ -302,678 +416,1248 @@ export class GestiaTerminal {
 
         this.crypto = new CryptoEngine();
         this.ledger = new BankLedger();
+
         this.pendingPlans = new Map();
         this.activeOps = new Set();
 
-        console.log(
-            `%c🏛️ [SIA7]: ANTIFRAUD BANK CORE V${GESTIA_CONFIG.VERSION} ONLINE`,
-            "color:#ffffff; font-weight:bold; background:#991b1b; padding:4px 12px; border-radius:4px;"
+        this.bootTime = Date.now();
+
+        logCore(
+            `BANK CORE V${GESTIA_CONFIG.VERSION} ONLINE`
         );
 
         setTimeout(() => {
-            console.log(
-                "%c🤖 [JARVIS]: Sistema consciente. Esperando órdenes, Arquitecto.",
-                "color:#67e8f9; font-weight:bold; background:#082f49; padding:4px 12px; border-radius:4px;"
+            logCore(
+                "JARVIS ONLINE - Esperando órdenes Arquitecto"
             );
         }, 1200);
 
-        const hud = document.getElementById("jarvisState");
+        this.initHUD();
+        this.initHeartbeat();
+    }
+
+    /* =====================================================
+       HUD BOOT
+    ===================================================== */
+
+    initHUD() {
+
+        const hud =
+            document.getElementById("jarvisState");
 
         if (hud) {
-            hud.textContent = "Núcleo bancario enlazado.";
+            hud.textContent =
+                "Núcleo soberano enlazado.";
         }
+    }
 
-        setInterval(() => {
+    /* =====================================================
+       HEARTBEAT
+    ===================================================== */
 
-            const hud = document.getElementById("jarvisState");
+    initHeartbeat() {
+
+        setInterval(async () => {
+
+            const hud =
+                document.getElementById("jarvisState");
+
             if (!hud) return;
 
             if (!navigator.onLine) {
-                hud.textContent = "⚠️ Conexión perdida.";
+                hud.textContent =
+                    "⚠️ Conectividad perdida.";
                 return;
             }
 
             if (this.pendingPlans.size > 0) {
-                hud.textContent = "⚠️ Operaciones pendientes.";
+                hud.textContent =
+                    "⚠️ Planes pendientes.";
                 return;
             }
 
-            hud.textContent = "🟢 Vigilancia estable.";
+            const active =
+                await this.ledger.countActive();
+
+            if (active > 0) {
+                hud.textContent =
+                    `🟡 ${active} operaciones activas.`;
+                return;
+            }
+
+            hud.textContent =
+                "🟢 Vigilancia estable.";
 
         }, 8000);
     }
 
-    /**
-     * setState: Persistencia de estado en IndexedDB y telemetría HUD.
-     */
-    async setState(newState, opId, metadata = {}) {
+    /* =====================================================
+       STATE ENGINE
+    ===================================================== */
+
+    async setState(newState, opId = null, metadata = {}) {
+
         this.state = newState;
-        
-        const entry = { 
-            state: newState, 
-            opId: opId, 
-            timestamp: new Date().toISOString(), 
-            tenantId: this.session.tenantId,
-            ...metadata 
+
+        const entry = {
+            state: newState,
+            opId,
+            timestamp: new Date().toISOString(),
+            tenantId: this.session?.tenantId,
+            ...metadata
         };
-        
-        window.dispatchEvent(new CustomEvent('gestia-terminal-state', { 
-            detail: entry 
-        }));
-        
-        // Persistencia de seguridad en IndexedDB para recuperación tras crash
+
+        window.dispatchEvent(
+            new CustomEvent(
+                "gestia-terminal-state",
+                { detail: entry }
+            )
+        );
+
         if (opId) {
             try {
-                await this.ledger.persistOp(opId, entry);
-            } catch (e) {
-                console.warn("⚠️ [LEDGER]: Error al persistir estado en IndexedDB.");
+                await this.ledger.persistOp(
+                    opId,
+                    entry
+                );
+            } catch (err) {
+                warnCore(
+                    "LEDGER_PERSIST_FAIL",
+                    err
+                );
             }
         }
 
-        // ✅ AESTHETIC FIX: Colores de Grado Consola para el Búnker
-        const logColors = {
-            IDLE: "color: #bae6fd; background: #082f49;",
-            ANALYZE: "color: #fde047; background: #854d0e;",
-            RESOLVE: "color: #c084fc; background: #581c87;",
-            DECIDE: "color: #67e8f9; background: #164e63;",
-            WAIT_APPROVAL: "color: #fca5a5; background: #7f1d1d;",
-            JOURNALING: "color: #f87171; background: #450a0a;",
-            SIGNING: "color: #fb923c; background: #7c2d12;",
-            APPLY_ATOMIC: "color: #34d399; background: #064e3b;",
-            VERIFY_LEDGER: "color: #818cf8; background: #312e81;",
-            DONE: "color: #10b981; background: #064e3b;",
-            ERROR: "color: #ffffff; background: #ef4444;"
+        const colors = {
+            IDLE: "#082f49",
+            ANALYZE: "#854d0e",
+            RESOLVE: "#581c87",
+            DECIDE: "#164e63",
+            WAIT_APPROVAL: "#7f1d1d",
+            JOURNALING: "#450a0a",
+            SIGNING: "#7c2d12",
+            APPLY_ATOMIC: "#064e3b",
+            VERIFY_LEDGER: "#312e81",
+            DONE: "#064e3b",
+            ERROR: "#991b1b"
         };
-        
-        const style = `${logColors[newState] || "color: #ffffff; background: #374151;"} font-weight: bold; padding: 2px 10px; border-radius: 4px;`;
-        console.log(`%c[BANK_STATE]: ${newState}`, style);
-        const hud = document.getElementById("jarvisState");
 
-if (hud) {
-    const states = {
-        IDLE: "En espera táctica.",
-        ANALYZE: "Analizando solicitud...",
-        RESOLVE: "Trazando estrategia...",
-        DECIDE: "Calculando decisión...",
-        WAIT_APPROVAL: "Esperando autorización...",
-        JOURNALING: "Registrando movimiento...",
-        SIGNING: "Firmando operación...",
-        APPLY_ATOMIC: "Ejecutando acción...",
-        VERIFY_LEDGER: "Verificando ledger...",
-        DONE: "Operación completada.",
-        ERROR: "Incidente detectado."
-    };
+        console.log(
+            `%c[BANK_STATE] ${newState}`,
+            `
+            color:#ffffff;
+            background:${colors[newState] || "#374151"};
+            font-weight:bold;
+            padding:2px 10px;
+            border-radius:4px;
+            `
+        );
 
-    hud.textContent = states[newState] || "Monitoreando...";
-}
+        const hud =
+            document.getElementById("jarvisState");
+
+        if (hud) {
+
+            const labels = {
+                IDLE: "En espera táctica.",
+                ANALYZE: "Analizando solicitud...",
+                RESOLVE: "Trazando estrategia...",
+                DECIDE: "Calculando decisión...",
+                WAIT_APPROVAL: "Esperando autorización...",
+                JOURNALING: "Registrando movimiento...",
+                SIGNING: "Firmando operación...",
+                APPLY_ATOMIC: "Ejecutando acción...",
+                VERIFY_LEDGER: "Verificando ledger...",
+                DONE: "Operación completada.",
+                ERROR: "Incidente detectado."
+            };
+
+            hud.textContent =
+                metadata.report ||
+                labels[newState] ||
+                "Monitoreando...";
+        }
     }
 
-    /**
-     * inicializarAutoridad: Resolución de Búnker e Intercambio de Llaves.
-     */
+    /* =====================================================
+       AUTH INIT
+    ===================================================== */
+
     async inicializarAutoridad() {
+
         try {
+
             await this.ledger.init();
-            
+
             const user = auth.currentUser;
+
             if (!user) {
-                throw new Error("AUTH_SESSION_MISSING");
+                throw new Error(
+                    "AUTH_SESSION_MISSING"
+                );
             }
 
-            const context = await resolveTenantContext();
-            
+            const context =
+                await resolveTenantContext();
+
             this.session = {
                 authorized: true,
                 uid: user.uid,
-                tenantId: context.tenantId || "uxmal39",
-                token: await user.getIdToken()
+                tenantId:
+                    context?.tenantId ||
+                    "uxmal39",
+                token:
+                    await user.getIdToken()
             };
 
-            // Derivación de llaves de sesión criptográficas
-            await this.crypto.derivarClaveSesion(this.session.uid, this.session.token);
-            
-            await this.setState(STATES.IDLE);
-            
-            console.log("🔒 [CRYPTO]: Llaves de sesión federales generadas.");
-            
-            // Verificación de recuperación
-            const pending = await this.ledger.getAllPending();
+            await this.setState(
+                STATES.KEY_DERIVATION
+            );
+
+            await this.crypto.derivarClaveSesion(
+                this.session.uid,
+                this.session.token
+            );
+
+            await this.setState(
+                STATES.IDLE
+            );
+
+            logCore(
+                "SECURE SESSION READY"
+            );
+
+            const pending =
+                await this.ledger.getAllPending();
+
             if (pending.length > 0) {
-                console.warn(`🕵️‍♂️ [SIA7]: Detectadas ${pending.length} operaciones huérfanas.`);
-                
-                // ✅ FIX 4: Consistencia real de activeOps al recuperar
-                pending.forEach(p => {
-                    this.activeOps.add(p.opId);
+
+                warnCore(
+                    `OPERACIONES HUERFANAS: ${pending.length}`
+                );
+
+                pending.forEach(item => {
+                    this.activeOps.add(item.opId);
                 });
             }
 
-        } catch (e) {
-            console.error("💥 [CORE]: Fallo de arranque bancario.", e);
-        }
-    }
+        } catch (err) {
 
-    /**
-     * execute: Punto de entrada orquestado.
-     * ✅ REPARACIÓN HTML: Intercepta el evento de la UI para prevenir el refresco.
-     */
-    async execute(input, e = null, options = { simulate: false }) {
-        // --- 🚫 GUARD DE REFRESCO HTML (SIA7 SOBERANO) ---
-        if (e && e.preventDefault) {
-            e.preventDefault(); 
-            console.debug("🛡️ [JARVIS]: Submit HTML interceptado.");
-        }
+            errorCore(
+                "CORE_BOOT_FAIL",
+                err
+            );
 
-        if (!input) {
-            return { error: true, message: "Input inválido o vacío detectado por el Bridge." };
-        }
-        
-        const rawInput = input.trim();
-        const cmd = rawInput.toLowerCase();
-
-if (cmd.includes("jarvis")) {
-
-    if (
-        cmd.includes("estado") ||
-        cmd.includes("status") ||
-        cmd.includes("como vamos") ||
-        cmd.includes("cómo vamos")
-    ) {
-        return {
-    opId: "jarvis-status",
-    status: "DONE",
-    report:
-`Sistema estable.
-Núcleo SIA7: ONLINE
-Conexión: ${navigator.onLine ? "Activa" : "Caída"}
-Memoria RAM estimada: ${navigator.deviceMemory || "N/D"} GB
-CPU núcleos: ${navigator.hardwareConcurrency || "N/D"}
-Alertas críticas: 0`
-};
-    }
-
-    if (
-        cmd.includes("resumen") ||
-        cmd.includes("hoy") ||
-        cmd.includes("dashboard")
-    ) {
-       return {
-    opId: "jarvis-summary",
-    status: "DONE",
-    report:
-`Resumen operativo del día
-
-Hora local: ${new Date().toLocaleTimeString('es-MX')}
-Conexión: ${navigator.onLine ? "Activa" : "Sin red"}
-Servicios activos: 1
-Incidencias críticas: 0
-Monitoreo: Estable
-Estado general: Operativo`
-};
-    }
-
-    if (
-        cmd.includes("anomalia") ||
-        cmd.includes("anomalía") ||
-        cmd.includes("alerta") ||
-        cmd.includes("riesgo")
-    ) {
-       const issues = [];
-
-if (!navigator.onLine) {
-    issues.push("Conectividad caída");
-}
-
-if ((navigator.deviceMemory || 8) <= 2) {
-    issues.push("Memoria RAM limitada");
-}
-
-if ((navigator.hardwareConcurrency || 4) <= 2) {
-    issues.push("Baja capacidad de CPU");
-}
-
-const report = issues.length
-    ? `Anomalías detectadas\n\n${issues.map(i => "• " + i).join("\n")}\n\nNivel de riesgo: Medio`
-    : `Escaneo completo\n\nSin anomalías mayores detectadas.\nNivel de riesgo: Bajo`;
-
-return {
-    opId: "jarvis-risk",
-    status: "DONE",
-    report
-};
-    }
-
-    if (
-        cmd.includes("ledger") ||
-        cmd.includes("movimientos") ||
-        cmd.includes("pagos")
-    ) {
-       const now = new Date().toLocaleString('es-MX');
-
-return {
-    opId: "jarvis-ledger",
-    status: "DONE",
-    report:
-`Ledger operativo
-
-Última verificación: ${now}
-Movimientos pendientes: ${this.pendingPlans.size}
-Sesión autorizada: ${this.session.authorized ? "Sí" : "No"}
-Tenant activo: ${this.session.tenantId || "N/D"}
-Estado del núcleo: ${this.state}`
-};
-    }
-
-    return {
-        opId: "jarvis-help",
-        status: "DONE",
-        report: "Comando no específico. Prueba: estado general, resumen hoy, revisa anomalías, abrir ledger."
-    };
-}
-
-        // Manejo determinístico de aprobaciones
-        if (this.pendingPlans.size > 0 && APPROVAL_WORDS.includes(rawInput.toLowerCase())) {
-            const opId = Array.from(this.pendingPlans.keys())[0];
-            return await this.runPlan(opId);
-        }
-
-        // ✅ PREVENCIÓN DE COLISIONES: OpId Absoluto UUID
-        const opId = crypto.randomUUID();
-
-        try {
-            // ✅ FIX 6: Firewall en PRECHECK para validación temprana
-            await ejecutarFirewallGlobal({ 
-                userId: this.session.uid, 
-                tenantId: this.session.tenantId, 
-                input: rawInput,
-                authToken: this.session.token, // 🔑 REQUERIDO POR VERCEL v7.0
-                mode: "PRECHECK"
-            });
-
-            await this.setState(STATES.ANALYZE, opId);
-            // ✅ THE HANDSHAKE FIX: El semantic prepara el contexto
-            const contextoSemantico = await sincronizarCorralSemantico(rawInput);
-
-            await this.setState(STATES.RESOLVE, opId);
-            
-            // ✅ ADAPTER: Invocamos al DSL / Motor Semántico desacoplado
-            const intents = resolveIntentsAdapter(rawInput, contextoSemantico);
-            
-            // ✅ NUEVO SENSOR: El Interceptor de Diálogo (Frijolitos)
-            // Si la intención primaria es desconocida (ej. un "hola"), detenemos el tren de ataque.
-            if (intents[0] && intents[0].intent === "UNKNOWN_INTENT") {
-                await this.setState(STATES.DONE, opId, { 
-                    report: intents[0].summary 
-                });
-                return { opId: opId, status: "DIALOGUE_COMPLETED" };
-            }
-
-            // ✅ NUEVO SENSOR: Protocolo de Purga (Limpieza de IndexedDB)
-            // Ejecutamos la limpieza local sin tocar Firestore
-            if (intents[0] && intents[0].intent === "PURGE_ORPHAN") {
-                await this.setState(STATES.RESOLVE, opId);
-                try {
-                    await this.ledger.clearAllPending();
-                    await this.setState(STATES.DONE, opId, { 
-                        report: intents[0].summary 
-                    });
-                    console.log("🧹 [LEDGER]: Ráfagas huérfanas eliminadas. Búnker limpio.");
-                } catch (err) {
-                    await this.setState(STATES.ERROR, opId, { 
-                        error: "Fallo al purgar la memoria local." 
-                    });
+            await this.setState(
+                STATES.ERROR,
+                "boot-fail",
+                {
+                    error: err.message
                 }
-                return { opId: opId, status: "PURGED" };
-            }
-
-            // ✅ FIX 5: Validación de simulación antes de retornar
-            if (options.simulate) {
-                if (!intents || intents.length === 0) {
-                    throw new Error("SIMULATION_EMPTY_INTENTS");
-                }
-                return {
-                    mode: "SIMULATION",
-                    opId: opId,
-                    preview: intents,
-                    impact: {
-                        operations: intents.length,
-                        entities: intents.map(i => i.entity).filter(Boolean),
-                        risk: intents.length > 1 || intents.some(i => i.action === "DELETE") ? "HIGH" : "LOW"
-                    }
-                };
-            }
-
-            await this.setState(STATES.DECIDE, opId);
-            const decision = this.evaluatePlan(intents);
-
-            if (decision.action === "CONFIRM") {
-                // ✅ FIX 1: Timeout automático en Pending Plans
-                this.pendingPlans.set(opId, { 
-                    intents: intents, 
-                    decision: decision,
-                    createdAt: Date.now() 
-                });
-                
-                // Extraemos el reporte para el HUD
-                const planSummary = intents[0]?.summary || "He trazado un plan táctico. Requiere su confirmación.";
-                
-                await this.setState(STATES.WAIT_APPROVAL, opId, {
-                    report: planSummary
-                });
-                
-                return { 
-                    opId: opId, 
-                    status: "WAITING", 
-                    reason: "Requiere aprobación federal." 
-                };
-            }
-
-            return await this.runPlan(opId, intents);
-
-        } catch (error) {
-            // ✅ BRIDGE PROTEGIDO: Retorna error estructurado en lugar de romper silencioso
-            const safeError = this.handleError(error, opId);
-            return {
-                error: true,
-                message: safeError ? safeError.message : String(error)
-            };
-        }
-    }
-    
-    /**
-     * runPlan: Pipeline de Ejecución con Transacción Atómica.
-     * ✅ CONSISTENCIA FUERTE: Transacción multi-documento blindada.
-     */
-    async runPlan(opId, intents = null) {
-        const planObj = intents ? { intents: intents } : this.pendingPlans.get(opId);
-        
-        // ✅ FIX 1: Validación de expiración real
-        if (!intents && planObj && Date.now() - planObj.createdAt > 30000) {
-            this.pendingPlans.delete(opId);
-            throw new Error("PLAN_EXPIRED");
-        }
-
-        if (!planObj) {
-            throw new Error("PLAN_NOT_FOUND");
-        }
-        
-        const plan = planObj.intents;
-        this.pendingPlans.delete(opId);
-
-        // ✅ IDEMPOTENCIA LOCAL: Evita ráfagas dobles en el Búnker
-        if (this.activeOps.has(opId)) {
-            throw new Error("DUPLICATE_OPERATION_LOCAL: Ráfaga en ejecución.");
-        }
-        
-        // ✅ FIX 4: Consistencia real (persiste antes de inyectar a activeOps)
-        await this.ledger.persistOp(opId, { status: "RUNNING" });
-        this.activeOps.add(opId);
-
-        try {
-            // ✅ CONCEPTO DE "OPERACIÓN": Multi-step support con payload a todo el plan
-            const operation = {
-                id: opId,
-                type: plan[0]?.intent,
-                payload: plan 
-            };
-
-            if (!operation.id || !operation.type) {
-                console.error("🛑 [OP_BLOCKED]", operation);
-                throw new Error("Operación huérfana bloqueada.");
-            }
-
-            if (!this.session?.tenantId || !this.session?.uid) {
-                throw new Error("Contexto de seguridad inválido o ausente.");
-            }
-
-            // ✅ FIX 6: Firewall en modo ENFORCE (Anti Bypass)
-            await ejecutarFirewallGlobal({
-                userId: this.session.uid,
-                tenantId: this.session.tenantId,
-                input: JSON.stringify(operation),
-                authToken: this.session.token,
-                mode: "ENFORCE"
-            });
-
-            // ✅ TRAZABILIDAD OBLIGATORIA
-            console.log("📋 [OP_EXEC]", {
-                opId: operation.id,
-                type: operation.type,
-                user: this.session.uid
-            });
-
-            // ✅ LOG CRÍTICO OP_TRACE: Auditoría dura para fallos de ráfaga
-            console.log("🧾 [OP_TRACE]", {
-                opId: opId,
-                intentsCount: plan.length,
-                timestamp: Date.now()
-            });
-
-            // 🔍 1. JOURNALING (Captura de Before-Image para Rollback)
-            await this.setState(STATES.JOURNALING, opId);
-            const journal = await this.buildJournal(plan);
-
-            // 🔒 2. SIGNING (Firma Digital con Nonce de un solo uso)
-            await this.setState(STATES.SIGNING, opId);
-            const proof = await this.crypto.firmarOperacion({ 
-                opId: opId, 
-                plan: plan 
-            });
-
-            // ✅ FIX 8: Verificación estricta de Expiración de Firma
-            if (Date.now() > proof.exp) {
-                throw new Error("SIGNATURE_EXPIRED");
-            }
-
-            // 🏦 3. APPLY_ATOMIC (La Transacción de Grado Banco)
-            await this.setState(STATES.APPLY_ATOMIC, opId);
-            
-            await runTransaction(db, async (transaction) => {
-                // Validación de No-Replay en el Ledger de ráfagas
-                const ledgerRef = doc(db, `tenants/${this.session.tenantId}/${GESTIA_CONFIG.LEDGER_COLLECTION}`, opId);
-                const existingTx = await transaction.get(ledgerRef);
-                
-                if (existingTx.exists()) {
-                    throw new Error("REPLAY_ATTEMPT_DETECTED: La ráfaga ya fue procesada.");
-                }
-
-                // Ejecución secuencial dentro de la burbuja atómica
-                for (let step of journal) {
-                    
-                    // ✅ FIX 2: Validación estricta de entidad destino para no romper rutas
-                    if (!step.intent.entity || !step.intent.target) {
-                        throw new Error("INVALID_INTENT_STRUCTURE");
-                    }
-
-                    const docRef = doc(db, `tenants/${this.session.tenantId}/${step.intent.entity}`, step.intent.target);
-                    const freshSnap = await transaction.get(docRef);
-                    
-                    // ✅ OPTIMISTIC LOCKING: Si el documento cambió durante la firma, abortamos.
-                    const currentVersion = freshSnap.exists() ? (freshSnap.data()._v || 0) : 0;
-                    
-                    if (currentVersion !== step.version) {
-                        throw new Error(`CONCURRENCY_CONFLICT: El recurso ${step.intent.target} fue modificado externamente.`);
-                    }
-
-                    // Asiento de Contabilidad de Partida Doble
-                    const ledgerEntry = {
-                        opId: opId,
-                        target: step.intent.target,
-                        action: step.intent.action,
-                        debit: step.intent.action === "DELETE" ? 1 : 0,
-                        credit: (step.intent.action === "CREATE" || step.intent.action === "UPDATE") ? 1 : 0,
-                        v: currentVersion + 1,
-                        proof: proof.signature,
-                        timestamp: serverTimestamp()
-                    };
-
-                    // ✅ FIX 3: Escritura en Ledger con Subcolección Steps para evitar sobrescritura en loop
-                    const ledgerStepRef = doc(collection(db, `tenants/${this.session.tenantId}/${GESTIA_CONFIG.LEDGER_COLLECTION}/${opId}/steps`));
-                    transaction.set(ledgerStepRef, ledgerEntry);
-
-                    // Escribimos resumen en el opId principal para validar la idempotencia de existingTx
-                    transaction.set(ledgerRef, { 
-                        opId: opId, 
-                        timestamp: serverTimestamp(), 
-                        completed: true 
-                    }, { merge: true });
-
-                    transaction.set(docRef, { 
-                        ...step.intent.payload, 
-                        _v: currentVersion + 1, 
-                        _tx: opId 
-                    }, { merge: true });
-                }
-            });
-
-            // 🧬 4. FINALIZACIÓN Y LIMPIEZA
-            await this.setState(STATES.DONE, opId);
-            await this.ledger.removeOp(opId);
-            
-            console.log(`✅ [SUCCESS]: Ráfaga ${opId} ejecutada y firmada.`);
-            
-            return { 
-                success: true, 
-                opId: opId 
-            };
-
-        } catch (e) {
-            await this.handleRollback(opId, e);
-            // ✅ RELANZAMOS EL ERROR para que el Catch del Bridge (execute) lo estructure
-            throw e;
-        } finally {
-            // ✅ IDEMPOTENCIA: Liberamos el candado
-            this.activeOps.delete(opId);
+            );
         }
     }
 
-    /**
-     * buildJournal: Captura el estado actual de los recursos antes de mutar.
-     */
-    async buildJournal(plan) {
-        // ✅ FIX 9: Control estricto de tamaño del plan para evitar sobrecarga
-        if (plan.length > 20) {
-            throw new Error("PLAN_TOO_LARGE");
-        }
-
-        const journal = [];
-        
-        for (let intent of plan) {
-            const docPath = `tenants/${this.session.tenantId}/${intent.entity}`;
-            const docRef = doc(db, docPath, intent.target);
-            const snap = await getDoc(docRef);
-            
-            journal.push({ 
-                intent: intent, 
-                before: snap.exists() ? snap.data() : null,
-                version: snap.exists() ? (snap.data()._v || 0) : 0
-            });
-        }
-        
-        return journal;
-    }
-
-    /**
-     * handleRollback: Gestión de fallos y limpieza de buffers.
-     */
-    async handleRollback(opId, error) {
-        console.error(`💥 [ROLLBACK TRIGGERED]: ${error.message}`);
-        
-        // Nota: Firestore revierte la transacción automáticamente si falla dentro de runTransaction.
-        await this.setState(STATES.ERROR, opId, { 
-            error: error.message 
-        });
-        
-        this.pendingPlans.delete(opId);
-    }
-
-    /**
-     * evaluatePlan: El Filtro de Confianza de la Terminal.
-     */
-    evaluatePlan(intents) {
-        let minConf = 1.0;
-        
-        intents.forEach(i => { 
-            if (i.contextRef && i.contextRef.confidence < minConf) {
-                minConf = i.contextRef.confidence;
-            }
-        });
-        
-        // ✅ FIX 7: Evaluar riesgo real considerando acciones destructivas
-        const highRisk = intents.some(i => i.action === "DELETE");
-        
-        const decision = {
-            action: (minConf > 0.9 && !highRisk) ? "EXECUTE" : "CONFIRM"
-        };
-        
-        return decision;
-    }
-
-    /**
-     * handleError: Reporte de fallos al HUD.
-     */
-    handleError(error, opId) {
-        const msg = error.message || String(error);
-        
-        console.error(`❌ [SYSTEM_FAIL]: ${msg}`);
-        
-        this.setState(STATES.ERROR, opId, { 
-            error: msg 
-        }).catch(() => {
-            // Silenciar error en el setState si el ledger falla
-        });
-        
-        // ✅ RETORNO ESTRUCTURADO PARA EL BRIDGE
-        return { message: msg };
-    }
-}
-
-// ✅ SOBERANÍA DE NOMBRE: Alineado con el llamado de autoridad del HTML
-const BankTerminal = new GestiaTerminal();
-
-// 🔥 Exposición controlada para Snapshot / Rollback Engine
-BankTerminal.db = db;
-BankTerminal.doc = doc;
-BankTerminal.getDoc = getDoc;
-BankTerminal.setDoc = setDoc;
-
-window.KernelHeberto = BankTerminal;
-
-// =====================================================
-// 🔐 AUTH WATCHER
-// =====================================================
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        window.KernelHeberto.inicializarAutoridad();
-    } else if (!window.location.pathname.includes("login.html")) {
-        window.location.href = "/login.html";
-    }
-});
-
-// =====================================================
-// 🧠 TEST JARVIS
-// =====================================================
-window.testJarvis = async () => {
-    const ctx = {
-        userId: window.KernelHeberto?.session?.uid,
-        tenantId: window.KernelHeberto?.session?.tenantId
-    };
-
-    const res = await runJarvis(
-        "crear edificio torre norte",
-        ctx
-    );
-
-    console.log("🧠 JARVIS SIMULATION:", res);
-
-    window.lastJarvis = res;
-};
-
-// =====================================================
-// 🚀 DEBUG GLOBAL
-// =====================================================
-window.runJarvis = runJarvis;
 /**
  * ======================================================================================
- * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 440+ (FEDERAL ANTIFRAUD CORE - PURGE PROTOCOL)
+ * FIN BLOQUE 2 V15
+ * SIGUIENTE BLOQUE:
+ * execute()  ← núcleo Jarvis + voz + confirmaciones
  * ======================================================================================
+ */
+
+   /**
+ * execute: Punto de entrada orquestado V15
+ * PRIORIDAD:
+ * 1. runJarvis (NLU + Orchestrator)
+ * 2. Confirmaciones naturales
+ * 3. Comandos rápidos Jarvis HUD
+ * 4. Legacy semantic fallback
+ */
+
+async execute(input, e = null, options = { simulate: false }) {
+
+    /* =====================================================
+       HTML GUARD
+    ===================================================== */
+
+    if (e?.preventDefault) {
+        e.preventDefault();
+        console.debug("🛡️ [JARVIS] Submit interceptado.");
+    }
+
+    if (!input || !String(input).trim()) {
+        return {
+            error: true,
+            message: "Entrada vacía."
+        };
+    }
+
+    const rawInput = String(input).trim();
+    const cmd = rawInput.toLowerCase();
+
+    const ctx = {
+        userId: this.session?.uid,
+        tenantId: this.session?.tenantId || "uxmal39",
+        authorized: this.session?.authorized === true,
+        source: "GESTIA_TERMINAL_V15"
+    };
+
+    /* =====================================================
+       CANCELACIÓN DE PLAN PENDIENTE
+    ===================================================== */
+
+    if (
+        this.pendingPlans.size > 0 &&
+        CANCEL_WORDS.includes(cmd)
+    ) {
+
+        this.pendingPlans.clear();
+
+        await this.setState(
+            STATES.IDLE,
+            "cancel-plan",
+            {
+                report: "Plan cancelado."
+            }
+        );
+
+        return {
+            ok: true,
+            cancelled: true
+        };
+    }
+
+    /* =====================================================
+       CONFIRMACIÓN NATURAL
+    ===================================================== */
+
+    if (
+        this.pendingPlans.size > 0 &&
+        APPROVAL_WORDS.includes(cmd)
+    ) {
+
+        const opId =
+            Array.from(
+                this.pendingPlans.keys()
+            )[0];
+
+        await this.setState(
+            STATES.APPLY_ATOMIC,
+            opId
+        );
+
+        return await this.runPlan(opId);
+    }
+
+    /* =====================================================
+       QUICK COMMANDS JARVIS
+    ===================================================== */
+
+    if (cmd.includes("jarvis")) {
+
+        if (
+            cmd.includes("estado") ||
+            cmd.includes("status") ||
+            cmd.includes("como vamos") ||
+            cmd.includes("cómo vamos")
+        ) {
+
+            return {
+                opId: "jarvis-status",
+                status: "DONE",
+                report:
+`Sistema estable.
+
+Núcleo SIA7: ONLINE
+Conexión: ${navigator.onLine ? "Activa" : "Caída"}
+RAM estimada: ${navigator.deviceMemory || "N/D"} GB
+CPU núcleos: ${navigator.hardwareConcurrency || "N/D"}
+Alertas críticas: 0`
+            };
+        }
+
+        if (
+            cmd.includes("resumen") ||
+            cmd.includes("dashboard") ||
+            cmd.includes("hoy")
+        ) {
+
+            return {
+                opId: "jarvis-summary",
+                status: "DONE",
+                report:
+`Resumen operativo
+
+Hora local: ${new Date().toLocaleTimeString("es-MX")}
+Conexión: ${navigator.onLine ? "Activa" : "Sin red"}
+Planes pendientes: ${this.pendingPlans.size}
+Estado núcleo: ${this.state}`
+            };
+        }
+
+        if (
+            cmd.includes("anomalia") ||
+            cmd.includes("anomalía") ||
+            cmd.includes("riesgo") ||
+            cmd.includes("alerta")
+        ) {
+
+            const issues = [];
+
+            if (!navigator.onLine) {
+                issues.push("Conectividad caída");
+            }
+
+            if (
+                (navigator.deviceMemory || 8) <= 2
+            ) {
+                issues.push("RAM limitada");
+            }
+
+            if (
+                (navigator.hardwareConcurrency || 4) <= 2
+            ) {
+                issues.push("CPU limitada");
+            }
+
+            return {
+                opId: "jarvis-risk",
+                status: "DONE",
+                report: issues.length
+                    ? `Anomalías detectadas\n\n${issues.map(x => "• " + x).join("\n")}`
+                    : "Sin anomalías mayores detectadas."
+            };
+        }
+
+        return {
+            opId: "jarvis-help",
+            status: "DONE",
+            report:
+                "Prueba: jarvis estado, jarvis resumen, jarvis anomalías."
+        };
+    }
+
+    /* =====================================================
+       OPID
+    ===================================================== */
+
+    const opId = crypto.randomUUID();
+
+    try {
+
+        /* =================================================
+           FIREWALL PRECHECK
+        ================================================= */
+
+        await ejecutarFirewallGlobal({
+            userId: this.session.uid,
+            tenantId: this.session.tenantId,
+            input: rawInput,
+            authToken: this.session.token,
+            mode: "PRECHECK"
+        });
+
+        await this.setState(
+            STATES.ANALYZE,
+            opId
+        );
+
+        /* =================================================
+           PRIORIDAD MÁXIMA: JARVIS ORCHESTRATOR
+        ================================================= */
+
+        const jarvisRes =
+            await runJarvis(
+                rawInput,
+                ctx,
+                false
+            );
+
+        // -----------------------------------------------
+        // SIMULATION MODE
+        // -----------------------------------------------
+
+        if (
+            jarvisRes?.mode === "SIMULATION"
+        ) {
+
+            this.pendingPlans.set(
+                jarvisRes.confirmKey || opId,
+                {
+                    createdAt: Date.now(),
+                    source: "jarvis-v15"
+                }
+            );
+
+            const ops =
+                jarvisRes.preview?.length || 1;
+
+            await this.setState(
+                STATES.WAIT_APPROVAL,
+                opId,
+                {
+                    report:
+`Plan táctico generado.
+
+Operaciones: ${ops}
+
+Escribe:
+• arre
+• confirmar
+• cancelar`
+                }
+            );
+
+            return jarvisRes;
+        }
+
+        // -----------------------------------------------
+        // DIRECT SUCCESS
+        // -----------------------------------------------
+
+        if (jarvisRes?.ok) {
+
+            await this.setState(
+                STATES.DONE,
+                opId,
+                {
+                    report:
+                        jarvisRes.message ||
+                        "Orden ejecutada."
+                }
+            );
+
+            return jarvisRes;
+        }
+
+        /* =================================================
+           FALLBACK LEGACY CORE
+        ================================================= */
+
+        await this.setState(
+            STATES.RESOLVE,
+            opId
+        );
+
+        const contextoSemantico =
+            await sincronizarCorralSemantico(
+                rawInput
+            );
+
+        const intents =
+            resolveIntentsAdapter(
+                rawInput,
+                contextoSemantico
+            );
+
+        if (
+            !intents ||
+            intents.length === 0
+        ) {
+            throw new Error(
+                "NO_INTENTS_DETECTED"
+            );
+        }
+
+        if (
+            intents[0]?.intent ===
+            "UNKNOWN_INTENT"
+        ) {
+
+            await this.setState(
+                STATES.DONE,
+                opId,
+                {
+                    report:
+                        intents[0].summary ||
+                        "No entendí la orden."
+                }
+            );
+
+            return {
+                opId,
+                status:
+                    "DIALOGUE_COMPLETED"
+            };
+        }
+
+        if (
+            intents[0]?.intent ===
+            "PURGE_ORPHAN"
+        ) {
+
+            await this.ledger.clearAllPending();
+
+            await this.setState(
+                STATES.DONE,
+                opId,
+                {
+                    report:
+                        "Memoria local purgada."
+                }
+            );
+
+            return {
+                opId,
+                status: "PURGED"
+            };
+        }
+
+        if (options.simulate) {
+
+            return {
+                mode: "SIMULATION",
+                opId,
+                preview: intents,
+                impact: {
+                    operations:
+                        intents.length,
+                    risk:
+                        intents.some(
+                            x =>
+                                x.action ===
+                                "DELETE"
+                        )
+                            ? "HIGH"
+                            : "LOW"
+                }
+            };
+        }
+
+        await this.setState(
+            STATES.DECIDE,
+            opId
+        );
+
+        const decision =
+            this.evaluatePlan(
+                intents
+            );
+
+        if (
+            decision.action ===
+            "CONFIRM"
+        ) {
+
+            this.pendingPlans.set(
+                opId,
+                {
+                    intents,
+                    decision,
+                    createdAt:
+                        Date.now()
+                }
+            );
+
+            await this.setState(
+                STATES.WAIT_APPROVAL,
+                opId,
+                {
+                    report:
+                        intents[0]?.summary ||
+                        "Plan requiere aprobación."
+                }
+            );
+
+            return {
+                opId,
+                status: "WAITING"
+            };
+        }
+
+        return await this.runPlan(
+            opId,
+            intents
+        );
+
+    } catch (error) {
+
+        const safe =
+            this.handleError(
+                error,
+                opId
+            );
+
+        return {
+            error: true,
+            message:
+                safe?.message ||
+                String(error)
+        };
+    }
+}
+    
+    /**
+ * runPlan: Ejecución atómica V15
+ * Mantiene tu antifraud core + limpieza + trazabilidad
+ */
+
+async runPlan(opId, intents = null) {
+
+    const planObj = intents
+        ? { intents }
+        : this.pendingPlans.get(opId);
+
+    if (
+        !intents &&
+        planObj?.createdAt &&
+        Date.now() - planObj.createdAt >
+        GESTIA_CONFIG.PLAN_EXPIRY_MS
+    ) {
+        this.pendingPlans.delete(opId);
+        throw new Error("PLAN_EXPIRED");
+    }
+
+    if (!planObj) {
+        throw new Error("PLAN_NOT_FOUND");
+    }
+
+    const plan = planObj.intents || [];
+
+    this.pendingPlans.delete(opId);
+
+    if (this.activeOps.has(opId)) {
+        throw new Error(
+            "DUPLICATE_OPERATION_LOCAL"
+        );
+    }
+
+    await this.ledger.persistOp(
+        opId,
+        {
+            state: "RUNNING"
+        }
+    );
+
+    this.activeOps.add(opId);
+
+    try {
+
+        const operation = {
+            id: opId,
+            type:
+                plan[0]?.intent ||
+                plan[0]?.action,
+            payload: plan
+        };
+
+        if (
+            !operation.id ||
+            !operation.type
+        ) {
+            throw new Error(
+                "INVALID_OPERATION"
+            );
+        }
+
+        if (
+            !this.session?.uid ||
+            !this.session?.tenantId
+        ) {
+            throw new Error(
+                "INVALID_SECURITY_CONTEXT"
+            );
+        }
+
+        /* ==========================================
+           FIREWALL ENFORCE
+        ========================================== */
+
+        await ejecutarFirewallGlobal({
+            userId: this.session.uid,
+            tenantId:
+                this.session.tenantId,
+            input: JSON.stringify(
+                operation
+            ),
+            authToken:
+                this.session.token,
+            mode: "ENFORCE"
+        });
+
+        logCore("OP_EXEC", {
+            opId,
+            type: operation.type,
+            steps: plan.length
+        });
+
+        /* ==========================================
+           JOURNAL
+        ========================================== */
+
+        await this.setState(
+            STATES.JOURNALING,
+            opId
+        );
+
+        const journal =
+            await this.buildJournal(
+                plan
+            );
+
+        /* ==========================================
+           SIGNATURE
+        ========================================== */
+
+        await this.setState(
+            STATES.SIGNING,
+            opId
+        );
+
+        const proof =
+            await this.crypto
+                .firmarOperacion({
+                    opId,
+                    plan
+                });
+
+        if (Date.now() > proof.exp) {
+            throw new Error(
+                "SIGNATURE_EXPIRED"
+            );
+        }
+
+        /* ==========================================
+           TRANSACTION
+        ========================================== */
+
+        await this.setState(
+            STATES.APPLY_ATOMIC,
+            opId
+        );
+
+        await runTransaction(
+            db,
+            async (
+                transaction
+            ) => {
+
+                const ledgerRef =
+                    doc(
+                        db,
+                        `tenants/${this.session.tenantId}/${GESTIA_CONFIG.LEDGER_COLLECTION}`,
+                        opId
+                    );
+
+                const existing =
+                    await transaction.get(
+                        ledgerRef
+                    );
+
+                if (
+                    existing.exists()
+                ) {
+                    throw new Error(
+                        "REPLAY_ATTEMPT_DETECTED"
+                    );
+                }
+
+                for (
+                    const step of journal
+                ) {
+
+                    if (
+                        !step.intent
+                            ?.entity ||
+                        !step.intent
+                            ?.target
+                    ) {
+                        throw new Error(
+                            "INVALID_INTENT_STRUCTURE"
+                        );
+                    }
+
+                    const docRef =
+                        doc(
+                            db,
+                            `tenants/${this.session.tenantId}/${step.intent.entity}`,
+                            step.intent.target
+                        );
+
+                    const snap =
+                        await transaction.get(
+                            docRef
+                        );
+
+                    const currentVersion =
+                        snap.exists()
+                            ? (
+                                  snap.data()
+                                      ._v ||
+                                  0
+                              )
+                            : 0;
+
+                    if (
+                        currentVersion !==
+                        step.version
+                    ) {
+                        throw new Error(
+                            `CONCURRENCY_CONFLICT:${step.intent.target}`
+                        );
+                    }
+
+                    const action =
+                        step.intent.action;
+
+                    const ledgerEntry = {
+                        opId,
+                        target:
+                            step.intent
+                                .target,
+                        action,
+                        debit:
+                            action ===
+                            "DELETE"
+                                ? 1
+                                : 0,
+                        credit:
+                            action ===
+                                "CREATE" ||
+                            action ===
+                                "UPDATE" ||
+                            action ===
+                                "REPAIR"
+                                ? 1
+                                : 0,
+                        v:
+                            currentVersion +
+                            1,
+                        proof:
+                            proof.signature,
+                        timestamp:
+                            serverTimestamp()
+                    };
+
+                    const ledgerStepRef =
+                        doc(
+                            collection(
+                                db,
+                                `tenants/${this.session.tenantId}/${GESTIA_CONFIG.LEDGER_COLLECTION}/${opId}/steps`
+                            )
+                        );
+
+                    transaction.set(
+                        ledgerStepRef,
+                        ledgerEntry
+                    );
+
+                    transaction.set(
+                        ledgerRef,
+                        {
+                            opId,
+                            completed: true,
+                            timestamp:
+                                serverTimestamp()
+                        },
+                        {
+                            merge: true
+                        }
+                    );
+
+                    transaction.set(
+                        docRef,
+                        {
+                            ...step.intent
+                                .payload,
+                            _v:
+                                currentVersion +
+                                1,
+                            _tx: opId
+                        },
+                        {
+                            merge: true
+                        }
+                    );
+                }
+            }
+        );
+
+        /* ==========================================
+           SUCCESS
+        ========================================== */
+
+        await this.setState(
+            STATES.DONE,
+            opId,
+            {
+                report:
+                    "Operación completada."
+            }
+        );
+
+        await this.ledger.removeOp(
+            opId
+        );
+
+        logCore(
+            "SUCCESS",
+            opId
+        );
+
+        return {
+            success: true,
+            ok: true,
+            opId,
+            message:
+                "Ráfaga ejecutada correctamente."
+        };
+
+    } catch (error) {
+
+        await this.handleRollback(
+            opId,
+            error
+        );
+
+        throw error;
+
+    } finally {
+
+        this.activeOps.delete(
+            opId
+        );
+    }
+}
+
+/* =====================================================
+   JOURNAL
+===================================================== */
+
+async buildJournal(plan = []) {
+
+    if (
+        plan.length >
+        GESTIA_CONFIG.MAX_PLAN_SIZE
+    ) {
+        throw new Error(
+            "PLAN_TOO_LARGE"
+        );
+    }
+
+    const journal = [];
+
+    for (const intent of plan) {
+
+        const path =
+            `tenants/${this.session.tenantId}/${intent.entity}`;
+
+        const docRef =
+            doc(
+                db,
+                path,
+                intent.target
+            );
+
+        const snap =
+            await getDoc(docRef);
+
+        journal.push({
+            intent,
+            before:
+                snap.exists()
+                    ? snap.data()
+                    : null,
+            version:
+                snap.exists()
+                    ? (
+                          snap.data()
+                              ._v || 0
+                      )
+                    : 0
+        });
+    }
+
+    return journal;
+}
+
+/* =====================================================
+   ROLLBACK
+===================================================== */
+
+async handleRollback(
+    opId,
+    error
+) {
+
+    errorCore(
+        "ROLLBACK_TRIGGERED",
+        error.message
+    );
+
+    await this.setState(
+        STATES.ERROR,
+        opId,
+        {
+            error:
+                error.message
+        }
+    );
+
+    this.pendingPlans.delete(
+        opId
+    );
+}
+
+/* =====================================================
+   PLAN FILTER
+===================================================== */
+
+evaluatePlan(
+    intents = []
+) {
+
+    let minConf = 1;
+
+    intents.forEach(
+        item => {
+
+            const conf =
+                item?.contextRef
+                    ?.confidence;
+
+            if (
+                typeof conf ===
+                    "number" &&
+                conf < minConf
+            ) {
+                minConf = conf;
+            }
+        }
+    );
+
+    const highRisk =
+        intents.some(
+            x =>
+                x.action ===
+                "DELETE"
+        );
+
+    return {
+        action:
+            minConf > 0.9 &&
+            !highRisk
+                ? "EXECUTE"
+                : "CONFIRM"
+    };
+}
+
+/* =====================================================
+   SAFE ERROR
+===================================================== */
+
+handleError(
+    error,
+    opId = "unknown"
+) {
+
+    const msg =
+        error?.message ||
+        String(error);
+
+    errorCore(
+        "SYSTEM_FAIL",
+        msg
+    );
+
+    this.setState(
+        STATES.ERROR,
+        opId,
+        {
+            error: msg
+        }
+    ).catch(() => {});
+
+    return {
+        message: msg
+    };
+}
+
+} // END CLASS
+
+/* =====================================================
+   INSTANCE
+===================================================== */
+
+const BankTerminal =
+    new GestiaTerminal();
+
+BankTerminal.db = db;
+BankTerminal.doc = doc;
+BankTerminal.getDoc =
+    getDoc;
+BankTerminal.setDoc =
+    setDoc;
+
+window.KernelHeberto =
+    BankTerminal;
+
+/* =====================================================
+   AUTH WATCHER
+===================================================== */
+
+onAuthStateChanged(
+    auth,
+    user => {
+
+        if (user) {
+            window.KernelHeberto
+                .inicializarAutoridad();
+            return;
+        }
+
+        if (
+            !window.location.pathname.includes(
+                "login.html"
+            )
+        ) {
+            window.location.href =
+                "/login.html";
+        }
+    }
+);
+
+/* =====================================================
+   DEBUG
+===================================================== */
+
+window.testJarvis =
+    async () => {
+
+        const ctx = {
+            userId:
+                window
+                    .KernelHeberto
+                    ?.session?.uid,
+            tenantId:
+                window
+                    .KernelHeberto
+                    ?.session
+                    ?.tenantId
+        };
+
+        const res =
+            await runJarvis(
+                "revisa pagos y luego abre camaras",
+                ctx
+            );
+
+        console.log(
+            "🧠 TEST",
+            res
+        );
+
+        window.lastJarvis =
+            res;
+    };
+
+window.runJarvis =
+    runJarvis;
+
+/**
+ * =====================================================
+ * FIN BLOQUE 4 V15
+ * Archivo prácticamente completo.
+ * =====================================================
  */
