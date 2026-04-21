@@ -1175,15 +1175,53 @@ async runPlan(opId, intents = null) {
         throw new Error("PLAN_NOT_FOUND");
     }
 
-    const plan = planObj.intents || [];
+    let plan =
+    planObj.intents || [];
 
-    this.pendingPlans.delete(opId);
+/* =====================================================
+   NORMALIZADOR DE PLAN V15.1
+===================================================== */
 
-    if (this.activeOps.has(opId)) {
-        throw new Error(
-            "DUPLICATE_OPERATION_LOCAL"
-        );
-    }
+// Caso: viene envuelto en response.preview
+if (plan?.response?.preview) {
+    plan =
+        plan.response.preview;
+}
+
+// Caso: objeto único
+if (
+    !Array.isArray(plan) &&
+    typeof plan === "object"
+) {
+    plan = [plan];
+}
+
+// Caso: array con wrapper interno
+if (
+    Array.isArray(plan) &&
+    plan[0]?.response?.preview
+) {
+    plan =
+        plan[0].response.preview;
+}
+
+// Validación final
+if (
+    !Array.isArray(plan) ||
+    plan.length === 0
+) {
+    throw new Error(
+        "PLAN_EMPTY"
+    );
+}
+
+this.pendingPlans.delete(opId);
+
+if (this.activeOps.has(opId)) {
+    throw new Error(
+        "DUPLICATE_OPERATION_LOCAL"
+    );
+}
 
     await this.ledger.persistOp(
         opId,
