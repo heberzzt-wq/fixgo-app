@@ -105,11 +105,10 @@ if (
   source.length > 0
 ) {
 
-    const report =
-      scanFile(
-        vision.targetFile,
-        source
-      );
+    const report = scanFile(
+  vision.targetFile,
+  String(source)
+);
 
     return {
       ok: true,
