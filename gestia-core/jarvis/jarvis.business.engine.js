@@ -287,34 +287,67 @@ if (intent === "GERARDO_STATUS") {
         target.name ||
         "Objetivo";
 
+
+        if (
+    intent === "PERSON_STATUS" ||
+    intent === "GERARDO_STATUS"
+) {
+
+    const status =
+        target.status ||
+        "ACTIVO";
+
+    const jobs =
+        target.todayJobs || 0;
+
+    const vehicle =
+        target.vehicle ||
+        "Sin unidad asignada";
+
+    return ok(
+        `${name} ${target.role || "colaborador"} ${status}. ${jobs} servicios hoy. Unidad ${vehicle}.`
+    );
+}
+
     /* =================================================
        PEOPLE
     ================================================= */
 
-    if (target.role) {
+   if (target.role) {
 
-        if (intent === "STATUS") {
-            return ok(
-                `${name} pertenece al área ${target.area}. Estado operativo sin incidencias.`
-            );
-        }
+    const status =
+        target.status ||
+        "ACTIVO";
 
-        if (intent === "REPORT") {
-            return ok(
-                `Resumen de ${name}: rol ${target.role}, área ${target.area}.`
-            );
-        }
+    const jobs =
+        target.todayJobs || 0;
 
-        if (intent === "LOCATE") {
-            return ok(
-                `${name} pertenece al área ${target.area}.`
-            );
-        }
+    const vehicle =
+        target.vehicle ||
+        "Sin unidad asignada";
 
+    if (intent === "STATUS") {
         return ok(
-            `${name} identificado como ${target.role}.`
+            `${name} ${target.role}. Estado ${status}. ${jobs} servicios hoy. Unidad ${vehicle}.`
         );
     }
+
+    if (intent === "REPORT") {
+        return ok(
+            `Resumen de ${name}: rol ${target.role}, área ${target.area}, estado ${status}, ${jobs} servicios hoy.`
+        );
+    }
+
+    if (intent === "LOCATE") {
+        return ok(
+            `${name} pertenece al área ${target.area}.`
+        );
+    }
+
+    return ok(
+        `${name} identificado como ${target.role}.`
+    );
+}
 
     /* =================================================
        TENANTS
