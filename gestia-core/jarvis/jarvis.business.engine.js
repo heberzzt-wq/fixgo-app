@@ -78,7 +78,7 @@ function detectIntent(text = "") {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
-    
+
     if (
        text.includes("buenos dias") ||
        text.includes("buen día") ||
@@ -114,6 +114,44 @@ function detectIntent(text = "") {
         
         return "STATUS_SOCIAL";
     }
+
+    if (
+    text.includes("que novedades") ||
+    text.includes("qué novedades") ||
+    text.includes("novedades hoy")
+) {
+    return "DAILY_STATUS";
+}
+
+if (
+    text.includes("todo bien") ||
+    text.includes("todo en orden")
+) {
+    return "ALL_GOOD";
+}
+
+if (
+    text.includes("como amanecimos") ||
+    text.includes("como amanecio") ||
+    text.includes("cómo amanecimos")
+) {
+    return "MORNING_STATUS";
+}
+
+if (
+    text.includes("estado flotilla") ||
+    text.includes("como esta la flotilla") ||
+    text.includes("cómo está la flotilla")
+) {
+    return "FLEET_STATUS";
+}
+
+if (
+    text.includes("como va gerardo") ||
+    text.includes("cómo va gerardo")
+) {
+    return "GERARDO_STATUS";
+}
 
     if (
         text.includes("como va") ||
@@ -203,6 +241,36 @@ if (intent === "THANKS") {
 if (intent === "STATUS_SOCIAL") {
     return ok(
         "Operando al cien por ciento."
+    );
+}
+
+    if (intent === "DAILY_STATUS") {
+    return ok(
+        "Sin novedades críticas. Sistemas operando con normalidad."
+    );
+}
+
+if (intent === "ALL_GOOD") {
+    return ok(
+        "Todo bajo control Arquitecto."
+    );
+}
+
+if (intent === "MORNING_STATUS") {
+    return ok(
+        "Amanecimos operativos y sin incidencias relevantes."
+    );
+}
+
+if (intent === "FLEET_STATUS") {
+    return ok(
+        "Flotilla disponible. Sin reportes críticos al momento."
+    );
+}
+
+if (intent === "GERARDO_STATUS") {
+    return ok(
+        "Gerardo pertenece al área OPERACIONES. Estado operativo sin incidencias."
     );
 }
 
