@@ -100,7 +100,10 @@ if (
   const source =
     sourceMap[vision.targetFile];
 
-  if (source) {
+  if (
+  source &&
+  source.length > 0
+) {
 
     const report =
       scanFile(
