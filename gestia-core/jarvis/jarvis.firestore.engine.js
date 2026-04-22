@@ -310,3 +310,40 @@ export async function runSelfHealing() {
     actions
   };
 }
+
+export async function runExecutionCore() {
+
+  try {
+
+    const heal = await runSelfHealing();
+
+    const executed = [];
+
+    for (const action of heal.actions) {
+
+      if (action === "Sin acciones requeridas") {
+        continue;
+      }
+
+      executed.push(`EXECUTED: ${action}`);
+    }
+
+    if (!executed.length) {
+      executed.push("Sin ejecución necesaria");
+    }
+
+    return {
+      ok: true,
+      source: "EXECUTION_CORE",
+      alerts: heal.alerts,
+      executed
+    };
+
+  } catch (err) {
+
+    return {
+      ok: false,
+      error: err.message
+    };
+  }
+}

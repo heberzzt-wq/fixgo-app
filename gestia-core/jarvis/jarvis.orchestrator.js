@@ -29,7 +29,8 @@ import {
   runCommandCenter,
   runSentinel,
   startWatchdog,
-  runSelfHealing
+  runSelfHealing,
+  runExecutionCore
 } from "./jarvis.firestore.engine.js";
 
 import {
@@ -83,6 +84,14 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     }
 
    console.log("🧠 [JARVIS_INPUT]", input);
+
+   if (
+  input.includes("execution core") ||
+  input.includes("ejecuta core") ||
+  input.includes("modo ejecucion")
+) {
+  return await runExecutionCore();
+}
 
    if (
   input.includes("self healing") ||
