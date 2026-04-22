@@ -28,7 +28,8 @@ import {
   runLiveQuery,
   runCommandCenter,
   runSentinel,
-  startWatchdog
+  startWatchdog,
+  runSelfHealing
 } from "./jarvis.firestore.engine.js";
 
 import {
@@ -82,6 +83,14 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     }
 
    console.log("🧠 [JARVIS_INPUT]", input);
+
+   if (
+  input.includes("self healing") ||
+  input.includes("autorreparacion") ||
+  input.includes("auto reparar")
+) {
+  return await runSelfHealing();
+}
 
    if (
   input.includes("watchdog") ||
