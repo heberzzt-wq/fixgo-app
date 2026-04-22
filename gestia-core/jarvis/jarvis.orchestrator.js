@@ -31,7 +31,8 @@ import {
   startWatchdog,
   runSelfHealing,
   runExecutionCore,
-  runRealActions
+  runRealActions,
+  runCommander
 } from "./jarvis.firestore.engine.js";
 
 import {
@@ -85,6 +86,14 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     }
 
    console.log("🧠 [JARVIS_INPUT]", input);
+
+   if (
+  input.includes("commander") ||
+  input.includes("modo comandante") ||
+  input.includes("prioridades")
+) {
+  return await runCommander();
+}
 
    if (
   input.includes("real actions") ||

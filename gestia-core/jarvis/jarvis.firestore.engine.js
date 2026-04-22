@@ -381,3 +381,58 @@ export async function runRealActions() {
     };
   }
 }
+
+export async function runCommander() {
+
+  try {
+
+    const sentinel = await runSentinel();
+
+    const priorities = [];
+
+    for (const alert of sentinel.alerts) {
+
+      if (alert.includes("Sin técnicos")) {
+        priorities.push({
+          level: "CRITICAL",
+          action: "Convocar soporte inmediato"
+        });
+      }
+
+      else if (alert.includes("Tickets elevados")) {
+        priorities.push({
+          level: "HIGH",
+          action: "Redistribuir carga operativa"
+        });
+      }
+
+      else if (alert.includes("health")) {
+        priorities.push({
+          level: "HIGH",
+          action: "Revisar monitoreo central"
+        });
+      }
+
+      else if (alert.includes("estable")) {
+        priorities.push({
+          level: "LOW",
+          action: "Mantener vigilancia"
+        });
+      }
+    }
+
+    return {
+      ok: true,
+      source: "COMMANDER_V2",
+      alerts: sentinel.alerts,
+      priorities
+    };
+
+  } catch (err) {
+
+    return {
+      ok: false,
+      error: err.message
+    };
+  }
+}
