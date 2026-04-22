@@ -27,7 +27,8 @@ import {
   runFirestoreScan,
   runLiveQuery,
   runCommandCenter,
-  runSentinel
+  runSentinel,
+  startWatchdog
 } from "./jarvis.firestore.engine.js";
 
 import {
@@ -81,6 +82,14 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     }
 
    console.log("🧠 [JARVIS_INPUT]", input);
+
+   if (
+  input.includes("watchdog") ||
+  input.includes("modo autonomo") ||
+  input.includes("vigilancia continua")
+) {
+  return startWatchdog();
+}
 
    if (
   input.includes("sentinel") ||
