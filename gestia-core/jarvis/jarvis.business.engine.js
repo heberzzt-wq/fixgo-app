@@ -74,6 +74,11 @@ function detectTarget(text = "") {
 
 function detectIntent(text = "") {
     
+    text = String(text)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+    
     if (
        text.includes("buenos dias") ||
        text.includes("buen día") ||
