@@ -128,6 +128,7 @@ if (
 );
 
 const autofix = buildAutoFix(report);
+const autopatch = buildAutoPatch(report);
 
     return {
   ok: true,
