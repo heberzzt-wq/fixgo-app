@@ -258,11 +258,55 @@ export function startWatchdog() {
       }
 
     },
-    60000
+    14400000
   );
 
   return {
     ok: true,
     message: "Watchdog iniciado"
+  };
+}
+
+export async function runSelfHealing() {
+
+  const res = await runSentinel();
+
+  if (!res?.ok) {
+    return {
+      ok: false,
+      message: "Sentinel no disponible"
+    };
+  }
+
+  const actions = [];
+
+  for (const alert of res.alerts) {
+
+    if (alert.includes("Tickets elevados")) {
+      actions.push("Escalar soporte");
+    }
+
+    if (alert.includes("Sin técnicos")) {
+      actions.push("Notificar guardia y operaciones");
+    }
+
+    if (alert.includes("logs")) {
+      actions.push("Revisar módulo ruidoso");
+    }
+
+    if (alert.includes("health")) {
+      actions.push("Reiniciar health-check lógico");
+    }
+  }
+
+  if (!actions.length) {
+    actions.push("Sin acciones requeridas");
+  }
+
+  return {
+    ok: true,
+    source: "SELF_HEALING",
+    alerts: res.alerts,
+    actions
   };
 }
