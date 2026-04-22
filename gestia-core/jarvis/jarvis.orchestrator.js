@@ -22,6 +22,7 @@ import { analyzeIntent } from "./jarvis.vision.engine.js";
 import { scanFile } from "./jarvis.scanner.engine.js";
 import { buildAutoFix } from "./jarvis.autofix.engine.js";
 import { buildAutoPatch } from "./jarvis.autopatch.engine.js";
+import { buildPatchDiff } from "./jarvis.patchdiff.engine.js";
 
 import {
   createSnapshot,
@@ -129,6 +130,7 @@ if (
 
 const autofix = buildAutoFix(report);
 const autopatch = buildAutoPatch(report);
+const patchdiff = buildPatchDiff(report);
 
     return {
   ok: true,
@@ -138,7 +140,8 @@ const autopatch = buildAutoPatch(report);
   vision,
   report,
   autofix,
-  autopatch
+  autopatch,
+  patchdiff
 };
 }
   return {
