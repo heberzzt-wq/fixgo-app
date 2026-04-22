@@ -337,9 +337,22 @@ form.addEventListener('submit', async (e) => {
 
         const res = await window.KernelHeberto.execute(comando, e);
 
-      if (res && res.report) {
-    renderJarvisResponse("Jarvis", res.report, "success");
-    hablarJarvis(res.report);
+      const output =
+    res?.report ||
+    res?.message ||
+    res?.response?.report ||
+    res?.response?.message ||
+    "Orden completada.";
+
+if (res && output) {
+
+    renderJarvisResponse(
+        "Jarvis",
+        output,
+        "success"
+    );
+
+    hablarJarvis(output);
 }
 
         textarea.value = '';
