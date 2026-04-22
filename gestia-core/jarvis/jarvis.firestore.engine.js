@@ -4,7 +4,7 @@ import {
   getDocs,
   query,
   limit
-} from "../firebase.js";
+} from "/firebase.js";
 
 export async function runFirestoreScan() {
 
