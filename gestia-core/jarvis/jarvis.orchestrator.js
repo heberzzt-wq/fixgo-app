@@ -20,6 +20,8 @@ import { runBusinessIntent }
 from "./jarvis.business.engine.js";
 import { analyzeIntent } from "./jarvis.vision.engine.js";
 import { scanFile } from "./jarvis.scanner.engine.js";
+import { buildAutoFix } from "./jarvis.autofix.engine.js";
+import { buildAutoFix } from "./jarvis.autofix.engine.js";
 
 import {
   createSnapshot,
@@ -125,17 +127,18 @@ if (
   String(source)
 );
 
-    return {
-      ok: true,
-      source: "SCANNER_CORE",
-      mode: "ANALYSIS",
-      message:
-        `Escaneo completado: ${vision.targetFile}`,
-      vision,
-      report
-    };
-  }
+const autofix = buildAutoFix(report);
 
+    return {
+  ok: true,
+  source: "SCANNER_CORE",
+  mode: "ANALYSIS",
+  message: `Escaneo completado: ${vision.targetFile}`,
+  vision,
+  report,
+  autofix
+};
+}
   return {
     ok: true,
     source: "SCANNER_CORE",
