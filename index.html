@@ -348,16 +348,31 @@
                 };
 
                 btnLogoutIndex.onclick = async () => {
-                    if(!confirm("¿Cerrar sesión?")) return;
-                    try { await signOut(auth); window.location.reload(); } catch (error) { alert("Error al cerrar sesión."); }
-                };
-            } else {
-                userOptions.classList.add('hidden');
-                guestOptions.classList.remove('hidden');
-            }
-        });
-        
-    </script>
-    <script src="app-main.js"></script>
+    if (!confirm("¿Cerrar sesión?")) return;
+
+    try {
+        await signOut(auth);
+        window.location.reload();
+    } catch (error) {
+        alert("Error al cerrar sesión.");
+    }
+};
+
+} else {
+    userOptions.classList.add('hidden');
+    guestOptions.classList.remove('hidden');
+}
+
+});
+</script>
+
+<script>
+window.__APP_MAIN_SOURCE__ = "APP_MAIN_READY";
+window.__INDEX_SOURCE__ = "";
+window.__GESTIA_TERMINAL_SOURCE__ = "";
+window.__APP_TECNICO_B2B_SOURCE__ = "";
+</script>
+
+<script src="app-main.js"></script>
 </body>
 </html>

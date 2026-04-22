@@ -82,6 +82,43 @@ if (
   vision.intent === "ANALYZE" &&
   vision.targetFile
 ) {
+
+  const sourceMap = {
+    "app-main.js":
+      window.__APP_MAIN_SOURCE__ || "",
+
+    "index.html":
+      window.__INDEX_SOURCE__ || "",
+
+    "gestia-terminal.js":
+      window.__GESTIA_TERMINAL_SOURCE__ || "",
+
+    "app-tecnico-b2b.js":
+      window.__APP_TECNICO_B2B_SOURCE__ || ""
+  };
+
+  const source =
+    sourceMap[vision.targetFile];
+
+  if (source) {
+
+    const report =
+      scanFile(
+        vision.targetFile,
+        source
+      );
+
+    return {
+      ok: true,
+      source: "SCANNER_CORE",
+      mode: "ANALYSIS",
+      message:
+        `Escaneo completado: ${vision.targetFile}`,
+      vision,
+      report
+    };
+  }
+
   return {
     ok: true,
     source: "SCANNER_CORE",
@@ -90,6 +127,16 @@ if (
       `Objetivo detectado: ${vision.targetFile}`,
     vision
   };
+}
+
+/* =====================================================
+   BUSINESS QUICK MODE
+===================================================== */
+const biz =
+  runBusinessIntent(input);
+
+if (biz?.ok) {
+  return biz;
 }
 
 /* =====================================================
