@@ -26,7 +26,8 @@ import { buildPatchDiff } from "./jarvis.patchdiff.engine.js";
 import {
   runFirestoreScan,
   runLiveQuery,
-  runCommandCenter
+  runCommandCenter,
+  runSentinel
 } from "./jarvis.firestore.engine.js";
 
 import {
@@ -80,6 +81,14 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     }
 
    console.log("🧠 [JARVIS_INPUT]", input);
+
+   if (
+  input.includes("sentinel") ||
+  input.includes("vigilancia") ||
+  input.includes("alertas")
+) {
+  return await runSentinel();
+}
 
    if (
   input.includes("command center") ||
