@@ -18,6 +18,8 @@ import { dispatch } from "./jarvis.bridge.js";
 import { understand } from "./jarvis-nlu-bridge.js";
 import { runBusinessIntent }
 from "./jarvis.business.engine.js";
+import { analyzeIntent } from "./jarvis.vision.engine.js";
+import { scanFile } from "./jarvis.scanner.engine.js";
 
 import {
   createSnapshot,
@@ -69,13 +71,35 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
       throw new Error("JARVIS_EMPTY_INPUT");
     }
 
-    console.log("🧠 [JARVIS_INPUT]", input);
+   console.log("🧠 [JARVIS_INPUT]", input);
 
-    const biz =
-    runBusinessIntent(input);
+/* =====================================================
+   SCANNER CORE PRIORIDAD #1
+===================================================== */
+const vision = analyzeIntent(input);
+
+if (
+  vision.intent === "ANALYZE" &&
+  vision.targetFile
+) {
+  return {
+    ok: true,
+    source: "SCANNER_CORE",
+    mode: "ANALYSIS",
+    message:
+      `Objetivo detectado: ${vision.targetFile}`,
+    vision
+  };
+}
+
+/* =====================================================
+   BUSINESS QUICK MODE
+===================================================== */
+const biz =
+  runBusinessIntent(input);
 
 if (biz?.ok) {
-    return biz;
+  return biz;
 }
 
     // ============================================================================
