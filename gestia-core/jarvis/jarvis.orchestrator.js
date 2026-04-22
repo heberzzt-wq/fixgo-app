@@ -23,6 +23,7 @@ import { scanFile } from "./jarvis.scanner.engine.js";
 import { buildAutoFix } from "./jarvis.autofix.engine.js";
 import { buildAutoPatch } from "./jarvis.autopatch.engine.js";
 import { buildPatchDiff } from "./jarvis.patchdiff.engine.js";
+
 import {
   runFirestoreScan,
   runLiveQuery,
@@ -86,6 +87,14 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     }
 
    console.log("🧠 [JARVIS_INPUT]", input);
+
+   if (
+  input.includes("predictor") ||
+  input.includes("prediccion") ||
+  input.includes("riesgo futuro")
+) {
+  return await runPredictor();
+}
 
    if (
   input.includes("commander") ||

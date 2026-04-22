@@ -436,3 +436,73 @@ export async function runCommander() {
     };
   }
 }
+
+export async function runPredictor() {
+
+  try {
+
+    const sentinel = await runSentinel();
+
+    const command = await runCommandCenter();
+
+    const text =
+      command.summary || "";
+
+    let risk = "LOW";
+    const forecasts = [];
+
+    if (
+      text.includes("Tickets: 0") === false &&
+      text.includes("Tickets: 1") === false &&
+      text.includes("Tickets: 2") === false &&
+      text.includes("Tickets: 3") === false
+    ) {
+      risk = "MEDIUM";
+      forecasts.push(
+        "Posible aumento de carga operativa"
+      );
+    }
+
+    if (
+      sentinel.alerts.some(a =>
+        a.includes("logs")
+      )
+    ) {
+      risk = "HIGH";
+      forecasts.push(
+        "Probable ruido sistémico próximo"
+      );
+    }
+
+    if (
+      sentinel.alerts.some(a =>
+        a.includes("health")
+      )
+    ) {
+      risk = "CRITICAL";
+      forecasts.push(
+        "Riesgo de degradación del sistema"
+      );
+    }
+
+    if (!forecasts.length) {
+      forecasts.push(
+        "Operación estable a corto plazo"
+      );
+    }
+
+    return {
+      ok: true,
+      source: "PREDICTOR_V1",
+      risk,
+      forecasts
+    };
+
+  } catch (err) {
+
+    return {
+      ok: false,
+      error: err.message
+    };
+  }
+}
