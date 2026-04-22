@@ -152,9 +152,14 @@ function reiniciarEscucha(ms = 900) {
 
             if (
                 jarvisActivo &&
-                reconocimiento
+                reconocimiento &&
+                !speechSynthesis.speaking
             ) {
                 reconocimiento.start();
+            } else if (
+                jarvisActivo
+            ) {
+                reiniciarEscucha(700);
             }
 
         } catch (err) {}
