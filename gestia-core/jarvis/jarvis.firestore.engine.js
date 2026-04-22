@@ -170,3 +170,65 @@ Health: ${health}`
     };
   }
 }
+
+export async function runSentinel() {
+
+  try {
+
+    const targets = [
+      "tickets",
+      "tecnicos",
+      "gestia_logs",
+      "gestia_system_health"
+    ];
+
+    const data = {};
+
+    for (const name of targets) {
+
+      const q = query(
+        collection(db, name),
+        limit(50)
+      );
+
+      const snap = await getDocs(q);
+
+      data[name] = snap.size;
+    }
+
+    const alerts = [];
+
+    if (data.tickets > 10) {
+      alerts.push("⚠️ Tickets elevados");
+    }
+
+    if (data.tecnicos === 0) {
+      alerts.push("⚠️ Sin técnicos activos");
+    }
+
+    if (data.gestia_logs > 40) {
+      alerts.push("⚠️ Alto volumen de logs");
+    }
+
+    if (data.gestia_system_health === 0) {
+      alerts.push("⚠️ Sin datos de health");
+    }
+
+    if (!alerts.length) {
+      alerts.push("✅ Sistema estable");
+    }
+
+    return {
+      ok: true,
+      source: "SENTINEL",
+      alerts
+    };
+
+  } catch (err) {
+
+    return {
+      ok: false,
+      error: err.message
+    };
+  }
+}
