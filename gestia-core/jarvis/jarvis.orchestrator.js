@@ -23,6 +23,7 @@ import { scanFile } from "./jarvis.scanner.engine.js";
 import { buildAutoFix } from "./jarvis.autofix.engine.js";
 import { buildAutoPatch } from "./jarvis.autopatch.engine.js";
 import { buildPatchDiff } from "./jarvis.patchdiff.engine.js";
+import { runFirestoreScan } from "./jarvis.firestore.engine.js";
 
 import {
   createSnapshot,
@@ -75,6 +76,13 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     }
 
    console.log("🧠 [JARVIS_INPUT]", input);
+   if (
+  input.includes("estado general") ||
+  input.includes("sistema vivo") ||
+  input.includes("firestore")
+) {
+  return await runFirestoreScan();
+}
 
 /* =====================================================
    SCANNER CORE PRIORIDAD #1
