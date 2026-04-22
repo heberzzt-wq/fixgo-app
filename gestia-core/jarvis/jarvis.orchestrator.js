@@ -33,7 +33,8 @@ import {
   runSelfHealing,
   runExecutionCore,
   runRealActions,
-  runCommander
+  runCommander,
+  runPredictor
 } from "./jarvis.firestore.engine.js";
 
 import {
