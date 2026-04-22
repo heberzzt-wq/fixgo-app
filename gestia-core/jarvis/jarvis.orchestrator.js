@@ -30,7 +30,8 @@ import {
   runSentinel,
   startWatchdog,
   runSelfHealing,
-  runExecutionCore
+  runExecutionCore,
+  runRealActions
 } from "./jarvis.firestore.engine.js";
 
 import {
@@ -84,6 +85,14 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     }
 
    console.log("🧠 [JARVIS_INPUT]", input);
+
+   if (
+  input.includes("real actions") ||
+  input.includes("acciones reales") ||
+  input.includes("registrar accion")
+) {
+  return await runRealActions();
+}
 
    if (
   input.includes("execution core") ||

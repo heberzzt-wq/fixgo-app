@@ -3,7 +3,9 @@ import {
   collection,
   getDocs,
   query,
-  limit
+  limit,
+  addDoc,
+  serverTimestamp
 } from "/firebase.js";
 
 export async function runFirestoreScan() {
@@ -337,6 +339,38 @@ export async function runExecutionCore() {
       source: "EXECUTION_CORE",
       alerts: heal.alerts,
       executed
+    };
+
+  } catch (err) {
+
+    return {
+      ok: false,
+      error: err.message
+    };
+  }
+}
+
+export async function runRealActions() {
+
+  try {
+
+    const heal = await runSelfHealing();
+
+    const ref = await addDoc(
+      collection(db, "gestia_logs"),
+      {
+        source: "JARVIS_REAL_ACTIONS",
+        alerts: heal.alerts,
+        actions: heal.actions,
+        createdAt: serverTimestamp()
+      }
+    );
+
+    return {
+      ok: true,
+      source: "REAL_ACTIONS",
+      docId: ref.id,
+      message: "Acción registrada en Firestore"
     };
 
   } catch (err) {
