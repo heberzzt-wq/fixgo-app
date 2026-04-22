@@ -34,10 +34,13 @@ export const COMPANY = {
         },
 
         jonathan: {
-            name: "Jonathan",
-            role: "TECNICO",
-            area: "OPERACIONES"
-        },
+    name: "Jonathan",
+    role: "TECNICO",
+    area: "OPERACIONES",
+    status: "ACTIVO",
+    todayJobs: 3,
+    vehicle: "Gol 2014"
+},
 
         roberto: {
             name: "Roberto",
