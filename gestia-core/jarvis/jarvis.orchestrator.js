@@ -137,7 +137,8 @@ const autopatch = buildAutoPatch(report);
   message: `Escaneo completado: ${vision.targetFile}`,
   vision,
   report,
-  autofix
+  autofix,
+  autopatch
 };
 }
   return {
