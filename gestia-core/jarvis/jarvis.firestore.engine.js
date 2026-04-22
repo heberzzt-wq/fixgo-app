@@ -232,3 +232,37 @@ export async function runSentinel() {
     };
   }
 }
+
+export function startWatchdog() {
+
+  if (window.__JARVIS_WATCHDOG__) {
+    return {
+      ok: true,
+      message: "Watchdog ya activo"
+    };
+  }
+
+  window.__JARVIS_WATCHDOG__ = setInterval(
+    async () => {
+
+      const res = await runSentinel();
+
+      if (
+        res?.alerts &&
+        !res.alerts.includes("✅ Sistema estable")
+      ) {
+        console.warn(
+          "🛡️ WATCHDOG ALERT",
+          res.alerts
+        );
+      }
+
+    },
+    60000
+  );
+
+  return {
+    ok: true,
+    message: "Watchdog iniciado"
+  };
+}
