@@ -73,6 +73,42 @@ function detectTarget(text = "") {
 ===================================================================================== */
 
 function detectIntent(text = "") {
+    
+    if (
+       text.includes("buenos dias") ||
+       text.includes("buen día") ||
+       text.includes("buen día")
+    ) {
+       return "GREETING_DAY";
+    }
+
+    if (
+       text.includes("buenas noches")
+    ) {
+       return "GREETING_NIGHT";
+    }
+
+    if (
+       text === "hola" ||
+       text.includes("hola jarvis")
+    ) {
+       return "GREETING_HELLO";
+    }
+
+    if (
+    text.includes("gracias")
+    ) {
+        return "THANKS";
+    }
+
+    if (
+        text.includes("como estas") ||
+        
+        text.includes("cómo estás")
+    ) {
+        
+        return "STATUS_SOCIAL";
+    }
 
     if (
         text.includes("como va") ||
@@ -134,6 +170,36 @@ function buildResponse(
     target,
     text
 ) {
+
+    if (intent === "GREETING_DAY") {
+    return ok(
+        "Buenos días Arquitecto. Sistemas estables y listos para operar."
+    );
+}
+
+if (intent === "GREETING_NIGHT") {
+    return ok(
+        "Buenas noches Arquitecto. Todo permanece bajo control."
+    );
+}
+
+if (intent === "GREETING_HELLO") {
+    return ok(
+        "Hola Arquitecto. Jarvis en línea."
+    );
+}
+
+if (intent === "THANKS") {
+    return ok(
+        "Siempre listo."
+    );
+}
+
+if (intent === "STATUS_SOCIAL") {
+    return ok(
+        "Operando al cien por ciento."
+    );
+}
 
     if (!target) {
         return {
