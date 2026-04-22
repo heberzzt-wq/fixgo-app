@@ -133,80 +133,205 @@
     const form = document.getElementById('gestia-form');
     const output = document.getElementById('gestia-output');
 
-    const SpeechRecognition =
-        window.SpeechRecognition ||
-        window.webkitSpeechRecognition;
+   const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
 
-    let reconocimiento = null;
+/* =====================================================
+   VOZ / MICRÓFONO V2
+===================================================== */
 
-    if (SpeechRecognition) {
+let reconocimiento = null;
+let jarvisActivo = false;
 
-        reconocimiento = new SpeechRecognition();
+function reiniciarEscucha(ms = 900) {
 
-        reconocimiento.lang = 'es-MX';
-        reconocimiento.continuous = false;
-        reconocimiento.interimResults = false;
-        reconocimiento.maxAlternatives = 1;
+    setTimeout(() => {
 
-        reconocimiento.onresult = (event) => {
+        try {
 
-            const texto = event.results[0][0].transcript;
+            if (
+                jarvisActivo &&
+                reconocimiento
+            ) {
+                reconocimiento.start();
+            }
 
-            textarea.value = texto;
+        } catch (err) {}
 
-            form.dispatchEvent(new Event('submit', {
-                cancelable: true,
-                bubbles: true
-            }));
-        };
+    }, ms);
+}
 
-        reconocimiento.onerror = (event) => {
-    console.log("🎤 ERROR MIC:", event.error);
-};
-        document.addEventListener('keydown', (e) => {
+if (SpeechRecognition) {
 
-    if (e.key === 'F2' && reconocimiento) {
-        reconocimiento.start();
-        console.log("🎤 Jarvis escuchando...");
-    }
+    reconocimiento =
+        new SpeechRecognition();
 
-});
-    }
+    reconocimiento.lang = "es-MX";
+    reconocimiento.continuous = false;
+    reconocimiento.interimResults = false;
+    reconocimiento.maxAlternatives = 1;
 
-    const hablarJarvis = (texto) => {
+    reconocimiento.onstart = () => {
 
-        if (!('speechSynthesis' in window)) return;
+        console.log(
+            "🎤 Jarvis escuchando..."
+        );
+    };
 
-        const voz = new SpeechSynthesisUtterance(texto);
+    reconocimiento.onresult = (event) => {
 
-        voz.lang = 'es-MX';
-        voz.rate = 0.92;
-        voz.pitch = 0.82;
-        voz.volume = 1;
+        const texto =
+            event.results[0][0]
+            .transcript;
 
-        console.log("🔊 JARVIS VOZ:", texto);
+        textarea.value = texto;
 
-        const voces = speechSynthesis.getVoices();
+        form.dispatchEvent(
+            new Event(
+                "submit",
+                {
+                    cancelable: true,
+                    bubbles: true
+                }
+            )
+        );
+    };
 
-        const seleccion =
-            voces.find(v => v.lang.includes('es-MX')) ||
-            voces.find(v => v.lang.includes('es')) ||
-            null;
+    reconocimiento.onerror =
+        (event) => {
 
-        if (seleccion) {
-            voz.voice = seleccion;
+        console.log(
+            "🎤 ERROR MIC:",
+            event.error
+        );
+
+        if (
+            jarvisActivo &&
+            event.error ===
+            "no-speech"
+        ) {
+            reiniciarEscucha(1200);
         }
-
-        speechSynthesis.cancel();
-        speechSynthesis.speak(voz);
     };
 
-    speechSynthesis.onvoiceschanged = () => {
-        setTimeout(() => {
-            hablarJarvis("Bienvenido Arquitecto. Sistemas en línea.");
-        }, 800);
+    reconocimiento.onend = () => {
+
+        if (jarvisActivo) {
+            reiniciarEscucha(900);
+        }
     };
 
+    document.addEventListener(
+        "keydown",
+        (e) => {
+
+        if (
+            e.key === "F2" &&
+            reconocimiento
+        ) {
+
+            jarvisActivo =
+                !jarvisActivo;
+
+            if (jarvisActivo) {
+
+                console.log(
+                    "🟢 MODO ESCUCHA ON"
+                );
+
+                hablarJarvis(
+                    "Modo escucha activado."
+                );
+
+                reiniciarEscucha(200);
+
+            } else {
+
+                console.log(
+                    "🔴 MODO ESCUCHA OFF"
+                );
+
+                hablarJarvis(
+                    "Modo escucha desactivado."
+                );
+
+                try {
+                    reconocimiento.stop();
+                } catch (err) {}
+            }
+        }
+    });
+}
+
+/* =====================================================
+   VOZ JARVIS
+===================================================== */
+
+const hablarJarvis = (texto) => {
+
+    if (
+        !(
+            "speechSynthesis"
+            in window
+        )
+    ) return;
+
+    const voz =
+        new SpeechSynthesisUtterance(
+            texto
+        );
+
+    voz.lang = "es-MX";
+    voz.rate = 0.92;
+    voz.pitch = 0.82;
+    voz.volume = 1;
+
+    console.log(
+        "🔊 JARVIS VOZ:",
+        texto
+    );
+
+    const voces =
+        speechSynthesis
+            .getVoices();
+
+    const seleccion =
+
+        voces.find(v =>
+            v.lang.includes(
+                "es-MX"
+            )
+        ) ||
+
+        voces.find(v =>
+            v.lang.includes(
+                "es"
+            )
+        ) ||
+
+        null;
+
+    if (seleccion) {
+        voz.voice =
+            seleccion;
+    }
+
+    speechSynthesis.cancel();
+    speechSynthesis.speak(voz);
+};
+
+speechSynthesis.onvoiceschanged =
+() => {
+
+    setTimeout(() => {
+
+        hablarJarvis(
+            "Bienvenido Arquitecto. Sistemas en línea."
+        );
+
+    }, 800);
+};
             /**
  * 🎨 RENDERER ENGINE PREMIUM:
  * Inyecta burbujas visuales en el DOM con formato ejecutivo.
