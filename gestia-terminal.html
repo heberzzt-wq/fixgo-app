@@ -322,8 +322,16 @@ const hablarJarvis = (texto) => {
             seleccion;
     }
 
-    speechSynthesis.cancel();
-    speechSynthesis.speak(voz);
+   speechSynthesis.cancel();
+
+voz.onend = () => {
+
+    if (jarvisActivo) {
+        beepJarvis();
+    }
+};
+
+speechSynthesis.speak(voz);
 };
 
 speechSynthesis.onvoiceschanged =
@@ -337,6 +345,40 @@ speechSynthesis.onvoiceschanged =
 
     }, 800);
 };
+
+function beepJarvis() {
+
+    try {
+
+        const ctx =
+            new (
+                window.AudioContext ||
+                window.webkitAudioContext
+            )();
+
+        const osc =
+            ctx.createOscillator();
+
+        const gain =
+            ctx.createGain();
+
+        osc.type = "sine";
+        osc.frequency.value = 880;
+
+        gain.gain.value = 0.03;
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start();
+
+        setTimeout(() => {
+            osc.stop();
+            ctx.close();
+        }, 120);
+
+    } catch (err) {}
+}
             /**
  * 🎨 RENDERER ENGINE PREMIUM:
  * Inyecta burbujas visuales en el DOM con formato ejecutivo.
