@@ -83,19 +83,34 @@ if (
   vision.targetFile
 ) {
 
-  const sourceMap = {
-    "app-main.js":
-      window.__APP_MAIN_SOURCE__ || "",
+ const sourceMap = {
+  "app-main.js":
+    window.__APP_MAIN_SOURCE__ || "",
 
-    "index.html":
-      window.__INDEX_SOURCE__ || "",
+  "index.html":
+    window.__INDEX_SOURCE__ || "",
 
-    "gestia-terminal.js":
-      window.__GESTIA_TERMINAL_SOURCE__ || "",
+  "gestia-terminal.js":
+    window.__GESTIA_TERMINAL_SOURCE__ || "",
 
-    "app-tecnico-b2b.js":
-      window.__APP_TECNICO_B2B_SOURCE__ || ""
-  };
+  "app-tecnico-b2b.js":
+    window.__APP_TECNICO_B2B_SOURCE__ || "",
+
+  "firewall.engine.js":
+    window.__FIREWALL_SOURCE__ || "",
+
+  "core_auth_tenant_v1.js":
+    window.__AUTH_SOURCE__ || "",
+
+  "jarvis.orchestrator.js":
+    window.__JARVIS_ORCH_SOURCE__ || "",
+
+  "jarvis.vision.engine.js":
+    window.__JARVIS_VISION_SOURCE__ || "",
+
+  "semantic.engine.js":
+    window.__SEMANTIC_SOURCE__ || ""
+};
 
   const source =
     sourceMap[vision.targetFile];
