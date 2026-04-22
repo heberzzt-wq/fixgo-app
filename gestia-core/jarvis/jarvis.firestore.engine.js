@@ -118,3 +118,55 @@ export async function runLiveQuery(input = "") {
     };
   }
 }
+export async function runCommandCenter() {
+
+  try {
+
+    const targets = [
+      "users",
+      "tickets",
+      "tecnicos",
+      "gestia_logs",
+      "gestia_system_health"
+    ];
+
+    const board = {};
+
+    for (const name of targets) {
+
+      const q = query(
+        collection(db, name),
+        limit(20)
+      );
+
+      const snap = await getDocs(q);
+
+      board[name] = snap.size;
+    }
+
+    const health =
+      board.gestia_system_health > 0
+        ? "ONLINE"
+        : "NO DATA";
+
+    return {
+      ok: true,
+      source: "COMMAND_CENTER",
+      summary:
+`🧠 COMMAND CENTER
+
+Usuarios: ${board.users}
+Tickets: ${board.tickets}
+Técnicos: ${board.tecnicos}
+Logs: ${board.gestia_logs}
+Health: ${health}`
+    };
+
+  } catch (err) {
+
+    return {
+      ok: false,
+      error: err.message
+    };
+  }
+}
