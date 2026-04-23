@@ -16,6 +16,16 @@
  * ======================================================================================
  */
 
+/**
+ * ======================================================================================
+ * GESTIAPREMIUM 2026 - TERMINAL CORE ENGINE (V5.18 - KERNEL V4 SYNC)
+ * ======================================================================================
+ * Identidad: Orquestador de Interfaz y Enlace con el Kernel Soberano.
+ * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR.
+ * ======================================================================================
+ */
+
+// 1. IMPORTS DE INFRAESTRUCTURA
 import {
     auth,
     db,
@@ -31,10 +41,10 @@ import {
     runTransaction
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// =====================================================
-// CORE ENGINES
-// =====================================================
+// 2. IMPORTS DE KERNEL Y MEMORIA (FIX: Conexión V4)
+import { JarvisMemory } from "./jarvis.memory.js";
 
+// 3. CORE ENGINES
 import {
     resolveTenantContext
 } from '/gestia-core/core_auth_tenant_v1.js';
@@ -55,6 +65,69 @@ import {
     runJarvis
 } from '/gestia-core/jarvis/jarvis.orchestrator.js';
 
+/**
+ * =====================================================
+ * 🧠 SINAPSIS VISUAL (KERNEL V4 -> HUD)
+ * Este bloque escucha al Kernel y actualiza la pantalla
+ * =====================================================
+ */
+JarvisMemory.subscribe((actionType, payload, currentState) => {
+    
+    // Sincronización del Micro-HUD (arriba a la derecha en tu HTML)
+    const jarvisState = document.getElementById('jarvisState');
+    if (jarvisState) {
+        jarvisState.innerText = `SIA7: ${actionType}`;
+        jarvisState.classList.add('text-gestia-accent');
+        setTimeout(() => jarvisState.classList.remove('text-gestia-accent'), 1500);
+    }
+
+    // Inyección de Logs en el historial de la Terminal
+    if (actionType === 'PUSH_HISTORY' && payload.role === 'assistant') {
+        let type = 'info';
+        let title = "SIA7 Terminal Log";
+
+        if (payload.message.includes('⚠️')) { type = 'warning'; title = "SIA7 Alerta"; }
+        if (payload.message.includes('🚨')) { type = 'error'; title = "SIA7 Bloqueo"; }
+        if (payload.message.includes('✅')) { type = 'success'; title = "SIA7 Confirmado"; }
+
+        // Llamamos a la función de renderizado que está en tu HTML
+        if (window.renderJarvisResponse) {
+            window.renderJarvisResponse(title, payload.message, type);
+        }
+    }
+
+    // Monitoreo de Técnicos (Jonathan/Luis)
+    if (actionType === 'TECH_UPDATE') {
+        const msg = `Técnico ${payload.techName} reporta estado: ${payload.statusData.status}`;
+        if (window.renderJarvisResponse) {
+            window.renderJarvisResponse("SIA7: Flotilla", msg, "info");
+        }
+    }
+});
+
+/**
+ * =====================================================
+ * 🔥 EXPOSICIÓN GLOBAL (MODO DIOS)
+ * Para que el HTML pueda ejecutar el Kernel
+ * =====================================================
+ */
+window.KernelHeberto = {
+    execute: async (input, event) => {
+        console.log("⚡ [KERNEL_EXECUTE]:", input);
+        
+        // Ejecutamos el orquestador real que ya tienes importado
+        return await runJarvis(input, { 
+            auth: auth.currentUser,
+            db: db 
+        });
+    },
+    
+    dispatch: (action) => JarvisMemory.dispatch(action),
+    getState: () => JarvisMemory.getState()
+};
+
+// Log de carga corporativo
+console.log("%c🧠 [GESTIA-TERMINAL]: V5.18 OPERATIONAL - KERNEL SYNC READY", "color: #3b82f6; font-weight: bold; background: #0f172a; border-left: 4px solid #3b82f6; padding: 2px 10px;");
 // =====================================================
 // ADAPTER LEGACY → CORE INTENT
 // =====================================================
