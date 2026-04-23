@@ -160,7 +160,9 @@ fetch("/gestia-terminal.js")
 ===================================================== */
 
 let reconocimiento = null;
-let jarvisActivo = false;
+let jarvisActivo = true;
+let jarvisWakeMode = true;
+let escuchandoAhora = false;
 
 function reiniciarEscucha(ms = 900) {
 
@@ -169,17 +171,20 @@ function reiniciarEscucha(ms = 900) {
         try {
 
             if (
-                jarvisActivo &&
-                reconocimiento &&
-                !speechSynthesis.speaking
-            ) {
-                reconocimiento.start();
-            } else if (
-                jarvisActivo
-            ) {
-                reiniciarEscucha(700);
-            }
+    jarvisActivo &&
+    reconocimiento &&
+    !speechSynthesis.speaking
+) {
 
+    if (!escuchandoAhora) {
+        reconocimiento.start();
+    }
+
+} else if (
+    jarvisActivo
+) {
+    reiniciarEscucha(700);
+}
         } catch (err) {}
 
     }, ms);
@@ -197,10 +202,12 @@ if (SpeechRecognition) {
 
     reconocimiento.onstart = () => {
 
-        console.log(
-            "🎤 Jarvis escuchando..."
-        );
-    };
+    escuchandoAhora = true;
+
+    console.log(
+        "🎤 Jarvis escuchando..."
+    );
+};
 
     reconocimiento.onresult = (event) => {
 
@@ -240,10 +247,12 @@ if (SpeechRecognition) {
 
     reconocimiento.onend = () => {
 
-        if (jarvisActivo) {
-            reiniciarEscucha(900);
-        }
-    };
+    escuchandoAhora = false;
+
+    if (jarvisActivo) {
+        reiniciarEscucha(900);
+    }
+};
 
     document.addEventListener(
         "keydown",
@@ -360,6 +369,8 @@ speechSynthesis.onvoiceschanged =
         hablarJarvis(
             "Bienvenido Arquitecto. Sistemas en línea."
         );
+
+        reiniciarEscucha(1800);
 
     }, 800);
 };
