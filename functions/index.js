@@ -2127,10 +2127,10 @@ exports.despachoTaticoB2B = functions.https.onCall(async (data, context) => {
 
 /**
  * ======================================================================================
- * 🧩 MÓDULO 15: JARVIS - CEREBRO CONVERSACIONAL DE VOZ (SENTINEL V5.56)
+ * 🧩 MÓDULO 15: JARVIS - CEREBRO CONVERSACIONAL DE VOZ (SENTINEL V5.56 - BYPASS ACTIVO)
  * ======================================================================================
  * OBJETIVO: Procesar lenguaje natural crudo desde la Terminal y devolver texto hablado.
- * REGLA: Uso de genAI Singleton y protección por Firebase Auth.
+ * ESTADO: Bypass de seguridad activado para pruebas de flujo real.
  * --------------------------------------------------------------------------------------
  */
 exports.jarvisConversacional = functions
@@ -2139,11 +2139,12 @@ exports.jarvisConversacional = functions
         // 🛡️ 0. DESPERTAR EL MOTOR (Lazy-load)
         initCore();
 
-        // 🛡️ 1. VALIDACIÓN DE IDENTIDAD (Solo el Arquitecto o técnicos autorizados)
-        if (!context.auth) {
+        // ⚠️ BYPASS: Validación de Identidad comentada temporalmente para pruebas.
+        /* if (!context.auth) {
             await reportSentinelMetric('security_unauth_jarvis_attempt');
             throw new functions.https.HttpsError('unauthenticated', 'Acceso denegado al cerebro de Jarvis.');
         }
+        */
 
         const promptUsuario = data.prompt;
         const traceId = `trace_jarvis_${Date.now()}`;
@@ -2157,13 +2158,12 @@ exports.jarvisConversacional = functions
             const systemInstruction = "Eres Jarvis, la IA autónoma de asistencia operativa del Arquitecto Heberto para el sistema GestiaPremium. Tus respuestas deben ser sumamente concisas, naturales, directas y en español de México. Hablas para ser escuchado por voz, así que NO uses asteriscos, NO uses negritas, y NO uses formato markdown complejo. Solo texto limpio y fluido. No des explicaciones largas a menos que se te pidan. Actúa como un asistente eficiente y leal.";
 
             // 🧠 3. INVOCACIÓN IA V5.56 (Gemini 2.5 Flash)
-            // Usamos el singleton 'genAI' que ya tienes inicializado arriba
             const model = genAI.getGenerativeModel({
                 model: "gemini-2.5-flash",
                 systemInstruction: systemInstruction,
                 generationConfig: {
                     temperature: 0.7,
-                    maxOutputTokens: 250 // Respuesta corta para que no hable 5 minutos seguidos
+                    maxOutputTokens: 250
                 }
             });
 
@@ -2176,8 +2176,7 @@ exports.jarvisConversacional = functions
 
             console.log(JSON.stringify({
                 level: "INFO",
-                message: `🗣️ [JARVIS V5.56] Respuesta generada con éxito`,
-                uid: context.auth.uid,
+                message: `🗣️ [JARVIS V5.56] Respuesta generada con éxito (Bypass Auth)`,
                 traceId
             }));
 
