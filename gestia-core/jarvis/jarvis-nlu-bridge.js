@@ -1,30 +1,16 @@
 /**
  * =====================================================================================
- * JARVIS NLU BRIDGE v1.0 GOD MODE
+ * JARVIS NLU BRIDGE v1.0 GOD MODE (V4 COMPATIBLE)
  * Natural Language Understanding Layer for Gestia / FixGo / Jarvis Sovereign Core
  * =====================================================================================
  * MISIÓN:
  * Traducir lenguaje humano real -> comandos limpios para Intent Engine V3.1
- *
- * FLUJO:
- * Usuario habla natural
- * ↓
- * NLU interpreta contexto / modismos / urgencia / intención
- * ↓
- * output limpio
- * ↓
- * interpretarIntenciones()
- *
- * Compatible con:
- * - intent.engine.js V3.x
- * - jarvis-memory.js
- * - vision.engine.js
- * =====================================================================================
+ * -------------------------------------------------------------------------------------
  */
 
-import { getMemory, saveMemory } from "./jarvis.memory.js";
+import { JarvisMemory } from "./jarvis.memory.js";
 
-const NLU_VERSION = "1.0 GOD MODE";
+const NLU_VERSION = "1.0 GOD MODE - KERNEL V4";
 
 // =====================================================================================
 // NORMALIZADOR
@@ -42,7 +28,7 @@ function normalize(text = "") {
 }
 
 // =====================================================================================
-// DICCIONARIOS HUMANOS
+// DICCIONARIOS HUMANOS (MODISMOS DE MÉXICO INCLUIDOS)
 // =====================================================================================
 
 const ACTION_MAP = {
@@ -105,18 +91,12 @@ const ENTITY_MAP = {
 };
 
 const URGENCY_MAP = [
-  "urge",
-  "urgente",
-  "rapido",
-  "rápido",
-  "ya",
-  "en chinga",
-  "ahorita",
-  "de inmediato"
+  "urge", "urgente", "rapido", "rápido", "ya",
+  "en chinga", "ahorita", "de inmediato"
 ];
 
 // =====================================================================================
-// HELPERS
+// DETECTORES TÁCTICOS
 // =====================================================================================
 
 function detectAction(text) {
@@ -143,48 +123,22 @@ function detectEntity(text) {
 
 function detectPriority(text) {
   for (const word of URGENCY_MAP) {
-    if (text.includes(normalize(word))) {
-      return "CRITICAL";
-    }
+    if (text.includes(normalize(word))) return "CRITICAL";
   }
   return "NORMAL";
 }
 
-function detectTemporal(text) {
-  if (text.includes("ayer")) return "YESTERDAY";
-  if (text.includes("hoy")) return "TODAY";
-  if (text.includes("semana")) return "THIS_WEEK";
-  if (text.includes("mes")) return "THIS_MONTH";
-  return null;
-}
-
 function buildCleanCommand(action, entity, text) {
   if (!action) return text;
-
   const map = {
-    ANALYZE: "analiza",
-    REPAIR: "repara",
-    UPDATE: "actualiza",
-    CREATE: "crea",
-    ACTIVATE: "activa",
-    DEACTIVATE: "desactiva",
-    PURGE: "limpia",
-    OPEN: "abre",
-    STATUS: "analiza"
+    ANALYZE: "analiza", REPAIR: "repara", UPDATE: "actualiza",
+    CREATE: "crea", ACTIVATE: "activa", DEACTIVATE: "desactiva",
+    PURGE: "limpia", OPEN: "abre", STATUS: "analiza"
   };
-
   let command = map[action] || "analiza";
-
-  if (entity) {
-    command += " " + entity;
-  }
-
+  if (entity) command += " " + entity;
   return command.trim();
 }
-
-// =====================================================================================
-// MULTI INTENT SPLITTER
-// =====================================================================================
 
 function splitCommands(text) {
   return text.split(/\s+y luego\s+|\s+y\s+|\s+despues\s+|\s+luego\s+/gi)
@@ -193,21 +147,19 @@ function splitCommands(text) {
 }
 
 // =====================================================================================
-// MAIN ENGINE
+// MAIN ENGINE (EXPORTADO PARA GESTIA)
 // =====================================================================================
 
 export function understand(rawInput = "") {
   const original = String(rawInput);
   const normalized = normalize(original);
-
   const chunks = splitCommands(normalized);
 
   const results = chunks.map(chunk => {
     const action = detectAction(chunk);
     const entity = detectEntity(chunk);
     const priority = detectPriority(chunk);
-    const temporal = detectTemporal(chunk);
-
+    
     const clean = buildCleanCommand(action, entity, chunk);
 
     return {
@@ -215,16 +167,20 @@ export function understand(rawInput = "") {
       action,
       entity,
       priority,
-      temporal,
       clean,
-      confidence:
-        action && entity ? 0.96 :
-        action ? 0.84 :
-        0.55
+      confidence: action && entity ? 0.96 : action ? 0.84 : 0.55
     };
   });
 
-  saveMemory(original, results);
+  // 🧠 PERSISTENCIA EN KERNEL V4 (TACAÑO MODE)
+  // Solo guardamos el input original para no saturar de logs el historial
+  JarvisMemory.dispatch({
+    type: 'PUSH_HISTORY',
+    payload: { 
+        role: 'user', 
+        message: original 
+    }
+  });
 
   return {
     engine: NLU_VERSION,
@@ -233,30 +189,5 @@ export function understand(rawInput = "") {
     commands: results
   };
 }
-
-/**
- * =====================================================================================
- * USO:
- * =====================================================================================
- *
- * const nlu = understand("Jarvis échale un ojo a pagos y luego abre cámaras");
- *
- * OUTPUT:
- *
- * {
- *   commands:[
- *     { clean:"analiza pagos" },
- *     { clean:"abre camaras" }
- *   ]
- * }
- *
- * Luego:
- *
- * interpretarIntenciones(
- *   nlu.commands.map(c => ({ raw:c.clean }))
- * );
- *
- * =====================================================================================
- */
 
 console.log("🧠 JARVIS NLU BRIDGE v1.0 GOD MODE ONLINE");
