@@ -42,8 +42,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // 2. IMPORTS DE KERNEL Y MEMORIA (FIX: Conexión V4)
-import { JarvisMemory } from "./jarvis.memory.js";
-
+import { 
+    JarvisMemory } from "/gestia-core/jarvis/jarvis.memory.js";
 // 3. CORE ENGINES
 import {
     resolveTenantContext
