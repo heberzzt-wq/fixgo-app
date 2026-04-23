@@ -29,7 +29,9 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
  * Fix Crítico: initializeApp debe ocurrir al cargar el archivo para evitar 'app/no-app'.
  */
 if (!admin.apps.length) {
-    admin.initializeApp();
+    admin.initializeApp({
+        projectId: "fixgo-44e4d"
+    });
 }
 
 // FACTORIES
