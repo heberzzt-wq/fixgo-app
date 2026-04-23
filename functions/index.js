@@ -2127,79 +2127,69 @@ exports.despachoTaticoB2B = functions.https.onCall(async (data, context) => {
 
 /**
  * ======================================================================================
- * 🧩 MÓDULO 15: JARVIS - CEREBRO CONVERSACIONAL DE VOZ (SENTINEL V5.56 - REST CORE)
+ * 🧩 MÓDULO 15: JARVIS - CEREBRO CONVERSACIONAL DE VOZ (SENTINEL V5.56 - ONCALL CORE)
  * ======================================================================================
- * OBJETIVO: Procesar lenguaje natural crudo desde la Terminal y devolver texto hablado.
- * ESTADO: Convertido a onRequest (REST) para bypass nativo de CORS y Auth estricto.
+ * OBJETIVO: Procesamiento de voz fluido, bypass de Auth y blindaje contra respuestas truncas.
  * --------------------------------------------------------------------------------------
  */
 exports.jarvisConversacional = functions
     .runWith({ timeoutSeconds: 30, memory: "256MB" })
-    .https.onRequest((req, res) => {
+    .https.onCall(async (data, context) => {
         // 🛡️ 0. DESPERTAR EL MOTOR
         initCore();
 
-        // 🛡️ 1. HABILITAR CORS (El puente seguro para el fetch del navegador)
-        return corsHandler(req, res, async () => {
+        const promptUsuario = data.prompt;
+        const traceId = `trace_jarvis_${Date.now()}`;
+
+        // 🛡️ FILTRO ANTI-RUIDO: Si el micro mandó un fragmento vacío o muy corto, lo ignoramos.
+        if (!promptUsuario || promptUsuario.trim().length < 3) {
+            return { success: true, respuesta: "Te escucho, Arquitecto. ¿Qué necesitas?", traceId };
+        }
+
+        try {
+            // 📜 CONSTITUCIÓN DE JARVIS (REGLAS ESTRICTAS DE DICCIÓN)
+            const systemInstruction = "Eres Jarvis, la IA autónoma de asistencia operativa del Arquitecto Heberto para GestiaPremium. Tus respuestas DEBEN ser completas, directas y sin cortarse. Usa máximo 2 o 3 oraciones. Hablas para ser escuchado por voz: NO uses asteriscos ni markdown. TERMINA SIEMPRE tus ideas con un punto final.";
+
+            // 🧠 INVOCACIÓN IA V5.56 (Gemini 2.5 Flash)
+            const model = genAI.getGenerativeModel({
+                model: "gemini-2.5-flash",
+                systemInstruction: systemInstruction,
+                generationConfig: {
+                    temperature: 0.6,
+                    maxOutputTokens: 300
+                }
+            });
+
+            // 🚀 DISPARO AL LLM
+            const result = await model.generateContent(promptUsuario);
+            const respuestaTexto = result.response.text().trim();
+
+            await reportSentinelMetric('jarvis_voice_interactions_success');
+
+            console.log(JSON.stringify({
+                level: "INFO",
+                message: `🗣️ [JARVIS V5.56] Respuesta generada: ${respuestaTexto.substring(0, 30)}...`,
+                traceId
+            }));
+
+            // ✅ RETORNO SEGURO
+            return { 
+                success: true, 
+                respuesta: respuestaTexto, 
+                traceId 
+            };
+
+        } catch (error) {
+            await reportSentinelMetric('jarvis_engine_fatal_error');
+            console.error(JSON.stringify({
+                level: "FATAL",
+                message: "Fallo en la corteza frontal de Jarvis",
+                error: error.message,
+                traceId
+            }));
             
-            // Extraemos el prompt (Soporta tanto peticiones directas como envueltas en "data")
-            const bodyData = req.body.data || req.body || {};
-            const promptUsuario = bodyData.prompt;
-            const traceId = `trace_jarvis_${Date.now()}`;
-
-            if (!promptUsuario) {
-                return res.status(400).json({ error: "El canal de audio está vacío." });
-            }
-
-            try {
-                // 📜 2. CONSTITUCIÓN DE JARVIS
-                const systemInstruction = "Eres Jarvis, la IA autónoma de asistencia operativa del Arquitecto Heberto para el sistema GestiaPremium. Tus respuestas deben ser sumamente concisas, naturales, directas y en español de México. Hablas para ser escuchado por voz, así que NO uses asteriscos, NO uses negritas, y NO uses formato markdown complejo. Solo texto limpio y fluido. No des explicaciones largas a menos que se te pidan. Actúa como un asistente eficiente y leal.";
-
-                // 🧠 3. INVOCACIÓN IA V5.56 (Gemini 2.5 Flash)
-                const model = genAI.getGenerativeModel({
-                    model: "gemini-2.5-flash",
-                    systemInstruction: systemInstruction,
-                    generationConfig: {
-                        temperature: 0.7,
-                        maxOutputTokens: 250
-                    }
-                });
-
-                // 🚀 4. DISPARO AL LLM
-                const result = await model.generateContent(promptUsuario);
-                const respuestaTexto = result.response.text().trim();
-
-                // 🛰️ 5. TELEMETRÍA
-                await reportSentinelMetric('jarvis_voice_interactions_success');
-
-                console.log(JSON.stringify({
-                    level: "INFO",
-                    message: `🗣️ [JARVIS V5.56 REST] Respuesta generada con éxito`,
-                    traceId
-                }));
-
-                // ✅ Retornamos el empaquetado exacto que espera tu frontend
-                return res.status(200).json({ 
-                    result: {
-                        success: true, 
-                        respuesta: respuestaTexto, 
-                        traceId 
-                    }
-                });
-
-            } catch (error) {
-                await reportSentinelMetric('jarvis_engine_fatal_error');
-                console.error(JSON.stringify({
-                    level: "FATAL",
-                    message: "Fallo en la corteza frontal de Jarvis",
-                    error: error.message,
-                    traceId,
-                    module: "jarvisConversacional_REST_V5.56"
-                }));
-                
-                return res.status(500).json({ error: 'Pérdida de conexión con el núcleo lógico de Jarvis.' });
-            }
-        });
+            throw new functions.https.HttpsError('internal', 'Pérdida de conexión con el núcleo lógico.');
+        }
     });
 /**
  * ======================================================================================
