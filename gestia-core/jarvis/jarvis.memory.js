@@ -6,7 +6,7 @@
  * API Pub/Sub nativa y Sellado Profundo.
  * --------------------------------------------------------------------------------------
  */
-const JarvisMemory = (function() {
+export const JarvisMemory = (function() {
     const now = Date.now();
     const MAX_HISTORY = 20; 
     const HISTORY_TTL_MS = 4 * 60 * 60 * 1000; // 4 horas de TTL
@@ -82,7 +82,13 @@ const JarvisMemory = (function() {
             context: { ...state.context },
             entities: { technicians: { ...state.entities.technicians } }
         };
-        listeners.forEach(listener => listener(actionType, payload, currentState));
+        listeners.forEach(listener => {
+            try {
+                listener(actionType, payload, currentState);
+            } catch (err) {
+                console.error("⚠️ [JARVIS KERNEL] Error en listener de suscripción:", err);
+            }
+        });
     }
 
     // ⏱️ 5. HOUSEKEEPING / TTL (FIX CRÍTICO 3)
