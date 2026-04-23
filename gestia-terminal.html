@@ -354,7 +354,11 @@ const hablarJarvis = (texto) => {
 voz.onend = () => {
 
     if (jarvisActivo) {
-        beepJarvis();
+
+        setTimeout(() => {
+            beepJarvis();
+            reiniciarEscucha(1200);
+        }, 900);
     }
 };
 
