@@ -530,60 +530,163 @@ window.addEventListener('gestia-terminal-state', (e) => {
  * ✅ SOLDADURA FEDERAL:
  * Intercepta el envío y entrega control al Kernel.
  */
-form.addEventListener('submit', async (e) => {
+function respuestaConversacional(texto = "") {
+
+    const t = texto.toLowerCase().trim();
+
+    if (
+        t.includes("hola") ||
+        t.includes("buenos dias") ||
+        t.includes("buenas tardes") ||
+        t.includes("buenas noches")
+    ) {
+        return "Saludos Arquitecto. Sistemas estables y listos para operar.";
+    }
+
+    if (
+        t.includes("como estas") ||
+        t.includes("como vas") ||
+        t.includes("que tal")
+    ) {
+        return "Operando al cien por ciento. Núcleo estable.";
+    }
+
+    if (t.includes("gracias")) {
+        return "Siempre a la orden Arquitecto.";
+    }
+
+    if (
+        t.includes("tecate") ||
+        t.includes("se me antoja")
+    ) {
+        return "Deseo detectado. Sugiero atenderlo con moderación.";
+    }
+
+    if (t.includes("carnita asada")) {
+        return "Plan aprobado. Sugiero carbón, tiempo libre y buena compañía.";
+    }
+
+    return null;
+}
+
+function pareceComando(texto = "") {
+
+    const t = texto.toLowerCase();
+
+    const comandos = [
+        "command center",
+        "centro de mando",
+        "commander",
+        "predictor",
+        "sentinel",
+        "watchdog",
+        "tickets",
+        "jonathan",
+        "estado general",
+        "acciones reales",
+        "self healing",
+        "execution core"
+    ];
+
+    return comandos.some(c => t.includes(c));
+}
+
+/* =====================================================
+   CONVERSATION CORE V1
+===================================================== */
+
+form.addEventListener("submit", async function (e) {
+
+    e.preventDefault();
 
     const comando = textarea.value.trim();
 
-    if (comando !== '' && window.KernelHeberto) {
+    if (comando === "") return;
 
-        const res = await window.KernelHeberto.execute(comando, e);
+    let output = "";
 
-      const output =
-    res?.report ||
-    res?.message ||
-    res?.response?.report ||
-    res?.response?.message ||
-    "Orden completada.";
+    try {
 
-if (res && output) {
+        if (!pareceComando(comando)) {
 
-    renderJarvisResponse(
-        "Jarvis",
-        output,
-        "success"
-    );
+            const charla =
+                respuestaConversacional(comando);
 
-    hablarJarvis(output);
-}
+            output =
+                charla ||
+                "Entendido Arquitecto. ¿Desea operación del sistema, resumen ejecutivo o conversación?";
 
-        textarea.value = '';
-        textarea.style.height = '58px';
+        } else if (window.KernelHeberto) {
 
-    } else if (!window.KernelHeberto) {
+            const res =
+                await window.KernelHeberto.execute(
+                    comando,
+                    e
+                );
 
-        e.preventDefault();
+            output =
+                res?.report ||
+                res?.message ||
+                res?.response?.report ||
+                res?.response?.message ||
+                "Orden completada.";
+
+        } else {
+
+            output =
+                "El núcleo federal aún no está en línea.";
+        }
 
         renderJarvisResponse(
-            "Error de Inicialización",
-            "El núcleo federal aún no está en línea.\nVerifica conexión con Firebase.",
+            "Jarvis",
+            output,
+            "success"
+        );
+
+        hablarJarvis(output);
+
+    } catch (error) {
+
+        renderJarvisResponse(
+            "Jarvis",
+            "Ocurrió una incidencia controlada.",
             "error"
         );
+
+        hablarJarvis(
+            "Ocurrió una incidencia controlada."
+        );
     }
-});
-            // --- LÓGICA DE INTERFAZ MANTENIDA ---
-            
-           textarea.addEventListener('input', function() {
-    this.style.height = '58px';
-    this.style.height = (this.scrollHeight) + 'px';
-    if (this.value === '') this.style.height = '58px';
+
+    textarea.value = "";
+    textarea.style.height = "58px";
 });
 
-textarea.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
+/* =====================================================
+   LÓGICA DE INTERFAZ
+===================================================== */
+
+textarea.addEventListener("input", function () {
+
+    this.style.height = "58px";
+    this.style.height =
+        this.scrollHeight + "px";
+
+    if (this.value === "") {
+        this.style.height = "58px";
+    }
+});
+
+textarea.addEventListener("keydown", function (e) {
+
+    if (
+        e.key === "Enter" &&
+        !e.shiftKey
+    ) {
         e.preventDefault();
     }
 });
-        });
+});
     </script>
     <div id="jarvisHud" style="
 position:fixed;
@@ -605,3 +708,4 @@ border:1px solid rgba(103,232,249,.25);
 </div>
 </body>
 </html>
+          
