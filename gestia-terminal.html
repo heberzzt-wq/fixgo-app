@@ -304,43 +304,41 @@ function beepJarvis() {
 
 async function consultarCerebroIA(mensajeUsuario) {
     try {
-        // ⚠️ ACCIÓN REQUERIDA: Reemplaza con tu Project ID de Firebase real (ej. fixgo-app-123)
         const PROJECT_ID = "fixgo-44e4d"; 
         const REGION = "us-central1"; 
         
-        // URL estructurada para funciones onCall de Firebase
         const functionUrl = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/jarvisConversacional`;
 
-        // Rescatamos el Token de Autenticación para pasar el Firewall del Backend
         let token = "";
         
-        // Intentamos obtenerlo dinámicamente si tienes el SDK Auth en el window
         if (window.firebase && window.firebase.auth && window.firebase.auth().currentUser) {
             token = await window.firebase.auth().currentUser.getIdToken();
-        } 
-        // Fallback genérico a LocalStorage (si guardas la sesión localmente en otra variable)
-        else {
+        } else {
             token = localStorage.getItem("gestia_auth_token") || ""; 
         }
 
         if (!token) {
-            console.warn("⚠️ [JARVIS_AUTH] No se detectó un token de sesión. El backend rechazará la petición si no iniciaste sesión como Arquitecto.");
+            console.warn("⚠️ [JARVIS_AUTH] Sin token. Entrando en modo Bypass Anónimo.");
         }
 
-        // Las funciones onCall de Firebase exigen que el body vaya envuelto en un objeto "data"
         const payload = {
             data: {
                 prompt: mensajeUsuario
             }
         };
 
+        // 🛡️ FIX: Solo armar la cabecera de Autorización si realmente existe un token
+        const requestHeaders = {
+            "Content-Type": "application/json"
+        };
+        
+        if (token !== "") {
+            requestHeaders["Authorization"] = `Bearer ${token}`;
+        }
+
         const response = await fetch(functionUrl, {
             method: "POST",
-            headers: { 
-                "Content-Type": "application/json",
-                // Inyección del Token de Seguridad
-                "Authorization": `Bearer ${token}`
-            },
+            headers: requestHeaders,
             body: JSON.stringify(payload)
         });
 
@@ -350,7 +348,6 @@ async function consultarCerebroIA(mensajeUsuario) {
 
         const jsonResponse = await response.json();
         
-        // Firebase onCall siempre devuelve la respuesta empaquetada dentro de "result"
         if (jsonResponse.result && jsonResponse.result.success) {
             return jsonResponse.result.respuesta;
         } else {
