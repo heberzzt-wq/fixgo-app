@@ -162,11 +162,9 @@ fetch("/gestia-terminal.js")
 let reconocimiento = null;
 let jarvisActivo = false;
 let escuchandoAhora = false;
-let jarvisHablando = false; // <-- FLAG DE SEGURIDAD PARA EVITAR AUTO-ESCUCHA
+let jarvisHablando = false; 
 
 function iniciarEscucha() {
-
-    // Validamos que Jarvis NO esté hablando antes de encender oídos
     if (
         !reconocimiento ||
         escuchandoAhora ||
@@ -181,8 +179,7 @@ function iniciarEscucha() {
 
 if (SpeechRecognition) {
 
-    reconocimiento =
-        new SpeechRecognition();
+    reconocimiento = new SpeechRecognition();
 
     reconocimiento.lang = "es-MX";
     reconocimiento.continuous = false;
@@ -190,21 +187,13 @@ if (SpeechRecognition) {
     reconocimiento.maxAlternatives = 1;
 
     reconocimiento.onstart = () => {
-
         escuchandoAhora = true;
-
-        console.log(
-            "🎤 Jarvis escuchando..."
-        );
+        console.log("🎤 Jarvis escuchando...");
     };
 
     reconocimiento.onresult = (event) => {
+        const texto = event.results[0][0].transcript;
 
-        const texto =
-            event.results[0][0]
-            .transcript;
-
-        // Apagamos micrófono inmediatamente para cortar ruido residual
         try { reconocimiento.abort(); } catch(e){}
 
         textarea.value = texto;
@@ -220,39 +209,21 @@ if (SpeechRecognition) {
         );
     };
 
-    reconocimiento.onerror =
-        (event) => {
-
-        console.log(
-            "🎤 ERROR MIC:",
-            event.error
-        );
+    reconocimiento.onerror = (event) => {
+        console.log("🎤 ERROR MIC:", event.error);
     };
 
     reconocimiento.onend = () => {
-
         escuchandoAhora = false;
-
-        console.log(
-            "🎤 Micrófono en espera"
-        );
+        console.log("🎤 Micrófono en espera");
     };
 
-    document.addEventListener(
-        "keydown",
-        (e) => {
-
-            if (
-                e.key === "F2" &&
-                reconocimiento
-            ) {
-
-                e.preventDefault();
-
-                iniciarEscucha();
-            }
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "F2" && reconocimiento) {
+            e.preventDefault();
+            iniciarEscucha();
         }
-    );
+    });
 }
 
 /* =====================================================
@@ -261,66 +232,37 @@ if (SpeechRecognition) {
 
 const hablarJarvis = (texto) => {
 
-    if (
-        !(
-            "speechSynthesis"
-            in window
-        )
-    ) return;
+    if (!("speechSynthesis" in window)) return;
 
-    // BLOQUEO: Le tapamos los oídos a Jarvis para que no se escuche a sí mismo
     jarvisHablando = true;
     if (reconocimiento && escuchandoAhora) {
         try { reconocimiento.abort(); } catch(e){}
     }
 
-    const voz =
-        new SpeechSynthesisUtterance(
-            texto
-        );
+    const voz = new SpeechSynthesisUtterance(texto);
 
     voz.lang = "es-MX";
     voz.rate = 0.92;
     voz.pitch = 0.82;
     voz.volume = 1;
 
-    console.log(
-        "🔊 JARVIS VOZ:",
-        texto
-    );
+    console.log("🔊 JARVIS VOZ:", texto);
 
-    const voces =
-        speechSynthesis
-            .getVoices();
+    const voces = speechSynthesis.getVoices();
 
     const seleccion =
-
-        voces.find(v =>
-            v.lang.includes(
-                "es-MX"
-            )
-        ) ||
-
-        voces.find(v =>
-            v.lang.includes(
-                "es"
-            )
-        ) ||
-
+        voces.find(v => v.lang.includes("es-MX")) ||
+        voces.find(v => v.lang.includes("es")) ||
         null;
 
     if (seleccion) {
-        voz.voice =
-            seleccion;
+        voz.voice = seleccion;
     }
 
     speechSynthesis.cancel();
 
     voz.onend = () => {
-
-        // DESBLOQUEO: Jarvis terminó de hablar, liberamos oídos
         jarvisHablando = false;
-
         setTimeout(() => {
             beepJarvis();
         }, 250);
@@ -329,54 +271,100 @@ const hablarJarvis = (texto) => {
     speechSynthesis.speak(voz);
 };
 
-speechSynthesis.onvoiceschanged =
-() => {
-
+speechSynthesis.onvoiceschanged = () => {
     setTimeout(() => {
-
-        hablarJarvis(
-            "Bienvenido Arquitecto. Sistemas en línea."
-        );
-
+        hablarJarvis("Bienvenido Arquitecto. Sistemas en línea y núcleo autónomo activado.");
     }, 800);
 };
 
 function beepJarvis() {
-
     try {
-
-        const ctx =
-            new (
-                window.AudioContext ||
-                window.webkitAudioContext
-            )();
-
-        const osc =
-            ctx.createOscillator();
-
-        const gain =
-            ctx.createGain();
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
 
         osc.type = "sine";
         osc.frequency.value = 880;
-
         gain.gain.value = 0.03;
 
         osc.connect(gain);
         gain.connect(ctx.destination);
-
         osc.start();
 
         setTimeout(() => {
             osc.stop();
             ctx.close();
         }, 120);
-
     } catch (err) {}
 }
-            /**
- * 🎨 RENDERER ENGINE PREMIUM:
- * Inyecta burbujas visuales en el DOM con formato ejecutivo.
+
+/* =====================================================
+   CEREBRO IA (FIREBASE CLOUD FUNCTION V5.56)
+===================================================== */
+
+async function consultarCerebroIA(mensajeUsuario) {
+    try {
+        // ⚠️ ACCIÓN REQUERIDA: Reemplaza con tu Project ID de Firebase real (ej. fixgo-app-123)
+        const PROJECT_ID = "fixgo-44e4d"; 
+        const REGION = "us-central1"; 
+        
+        // URL estructurada para funciones onCall de Firebase
+        const functionUrl = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/jarvisConversacional`;
+
+        // Rescatamos el Token de Autenticación para pasar el Firewall del Backend
+        let token = "";
+        
+        // Intentamos obtenerlo dinámicamente si tienes el SDK Auth en el window
+        if (window.firebase && window.firebase.auth && window.firebase.auth().currentUser) {
+            token = await window.firebase.auth().currentUser.getIdToken();
+        } 
+        // Fallback genérico a LocalStorage (si guardas la sesión localmente en otra variable)
+        else {
+            token = localStorage.getItem("gestia_auth_token") || ""; 
+        }
+
+        if (!token) {
+            console.warn("⚠️ [JARVIS_AUTH] No se detectó un token de sesión. El backend rechazará la petición si no iniciaste sesión como Arquitecto.");
+        }
+
+        // Las funciones onCall de Firebase exigen que el body vaya envuelto en un objeto "data"
+        const payload = {
+            data: {
+                prompt: mensajeUsuario
+            }
+        };
+
+        const response = await fetch(functionUrl, {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+                // Inyección del Token de Seguridad
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            return "Arquitecto, el firewall de GestiaPremium rechazó la conexión. Verifica tu sesión.";
+        }
+
+        const jsonResponse = await response.json();
+        
+        // Firebase onCall siempre devuelve la respuesta empaquetada dentro de "result"
+        if (jsonResponse.result && jsonResponse.result.success) {
+            return jsonResponse.result.respuesta;
+        } else {
+            return "Procesamiento fallido en la corteza frontal del Búnker.";
+        }
+
+    } catch (error) {
+        console.error("Error Jarvis Cloud Function:", error);
+        return "Arquitecto, perdí conexión con el núcleo de Firebase.";
+    }
+}
+
+/**
+ * 🎨 RENDERER ENGINE PREMIUM
  */
 const renderJarvisResponse = (title, message, type = 'info') => {
 
@@ -404,7 +392,6 @@ const renderJarvisResponse = (title, message, type = 'info') => {
     };
 
     const current = config[type] || config.info;
-
     const safeMessage = String(message).replace(/\n/g, '<br>');
 
     const responseHtml = `
@@ -428,8 +415,7 @@ const renderJarvisResponse = (title, message, type = 'info') => {
 };
 
 /**
- * 🎧 SENSOR DE ESTADOS (SIA7 INTERFACE):
- * Escucha eventos emitidos por gestia-terminal.js
+ * 🎧 SENSOR DE ESTADOS (SIA7 INTERFACE)
  */
 window.addEventListener('gestia-terminal-state', (e) => {
 
@@ -493,52 +479,10 @@ window.addEventListener('gestia-terminal-state', (e) => {
 });
 
 /**
- * ✅ SOLDADURA FEDERAL:
- * Intercepta el envío y entrega control al Kernel.
+ * ✅ SOLDADURA FEDERAL (Detección de comandos fijos)
  */
-function respuestaConversacional(texto = "") {
-
-    const t = texto.toLowerCase().trim();
-
-    if (
-        t.includes("hola") ||
-        t.includes("buenos dias") ||
-        t.includes("buenas tardes") ||
-        t.includes("buenas noches")
-    ) {
-        return "Saludos Arquitecto. Sistemas estables y listos para operar.";
-    }
-
-    if (
-        t.includes("como estas") ||
-        t.includes("como vas") ||
-        t.includes("que tal")
-    ) {
-        return "Operando al cien por ciento. Núcleo estable.";
-    }
-
-    if (t.includes("gracias")) {
-        return "Siempre a la orden Arquitecto.";
-    }
-
-    if (
-        t.includes("tecate") ||
-        t.includes("se me antoja")
-    ) {
-        return "Deseo detectado. Sugiero atenderlo con moderación.";
-    }
-
-    if (t.includes("carnita asada")) {
-        return "Plan aprobado. Sugiero carbón, tiempo libre y buena compañía.";
-    }
-
-    return null;
-}
-
 function pareceComando(texto = "") {
-
     const t = texto.toLowerCase();
-
     const comandos = [
         "command center",
         "centro de mando",
@@ -553,12 +497,11 @@ function pareceComando(texto = "") {
         "self healing",
         "execution core"
     ];
-
     return comandos.some(c => t.includes(c));
 }
 
 /* =====================================================
-   CONVERSATION CORE V1
+   CONVERSATION CORE V2 (LLM INTEGRADO AL BACKEND)
 ===================================================== */
 
 form.addEventListener("submit", async function (e) {
@@ -572,56 +515,37 @@ form.addEventListener("submit", async function (e) {
     let output = "";
 
     try {
+        if (pareceComando(comando) && window.KernelHeberto) {
+            
+            // Ejecución dura para comandos específicos
+            const res = await window.KernelHeberto.execute(comando, e);
 
-        if (!pareceComando(comando)) {
-
-            const charla =
-                respuestaConversacional(comando);
-
-            output =
-                charla ||
-                "Entendido Arquitecto. ¿Desea operación del sistema, resumen ejecutivo o conversación?";
-
-        } else if (window.KernelHeberto) {
-
-            const res =
-                await window.KernelHeberto.execute(
-                    comando,
-                    e
-                );
-
-            output =
-                res?.report ||
-                res?.message ||
-                res?.response?.report ||
-                res?.response?.message ||
-                "Orden completada.";
+            output = res?.report || res?.message || res?.response?.report || res?.response?.message || "Orden completada.";
 
         } else {
+            
+            // Renderizamos un mensaje de espera opcional en consola
+            const btnGenerate = document.getElementById("btn-generate");
+            btnGenerate.classList.add("animate-pulse");
 
-            output =
-                "El núcleo federal aún no está en línea.";
+            // Conversación fluida enrutada hacia la Cloud Function
+            output = await consultarCerebroIA(comando);
+            
+            btnGenerate.classList.remove("animate-pulse");
         }
 
-        renderJarvisResponse(
-            "Jarvis",
-            output,
-            "success"
-        );
-
+        renderJarvisResponse("Jarvis", output, "success");
         hablarJarvis(output);
 
     } catch (error) {
 
         renderJarvisResponse(
             "Jarvis",
-            "Ocurrió una incidencia controlada.",
+            "Ocurrió una incidencia controlada en la ruta de procesamiento.",
             "error"
         );
 
-        hablarJarvis(
-            "Ocurrió una incidencia controlada."
-        );
+        hablarJarvis("Ocurrió una incidencia controlada.");
     }
 
     textarea.value = "";
@@ -633,10 +557,8 @@ form.addEventListener("submit", async function (e) {
 ===================================================== */
 
 textarea.addEventListener("input", function () {
-
     this.style.height = "58px";
-    this.style.height =
-        this.scrollHeight + "px";
+    this.style.height = this.scrollHeight + "px";
 
     if (this.value === "") {
         this.style.height = "58px";
@@ -644,12 +566,10 @@ textarea.addEventListener("input", function () {
 });
 
 textarea.addEventListener("keydown", function (e) {
-
-    if (
-        e.key === "Enter" &&
-        !e.shiftKey
-    ) {
+    if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
+        // Disparar submit al presionar enter
+        form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
     }
 });
 });

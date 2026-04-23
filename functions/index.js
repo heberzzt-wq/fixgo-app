@@ -2125,6 +2125,82 @@ exports.despachoTaticoB2B = functions.https.onCall(async (data, context) => {
 
 /**
  * ======================================================================================
+ * 🧩 MÓDULO 15: JARVIS - CEREBRO CONVERSACIONAL DE VOZ (SENTINEL V5.56)
+ * ======================================================================================
+ * OBJETIVO: Procesar lenguaje natural crudo desde la Terminal y devolver texto hablado.
+ * REGLA: Uso de genAI Singleton y protección por Firebase Auth.
+ * --------------------------------------------------------------------------------------
+ */
+exports.jarvisConversacional = functions
+    .runWith({ timeoutSeconds: 30, memory: "256MB" })
+    .https.onCall(async (data, context) => {
+        // 🛡️ 0. DESPERTAR EL MOTOR (Lazy-load)
+        initCore();
+
+        // 🛡️ 1. VALIDACIÓN DE IDENTIDAD (Solo el Arquitecto o técnicos autorizados)
+        if (!context.auth) {
+            await reportSentinelMetric('security_unauth_jarvis_attempt');
+            throw new functions.https.HttpsError('unauthenticated', 'Acceso denegado al cerebro de Jarvis.');
+        }
+
+        const promptUsuario = data.prompt;
+        const traceId = `trace_jarvis_${Date.now()}`;
+
+        if (!promptUsuario) {
+            throw new functions.https.HttpsError('invalid-argument', 'El canal de audio está vacío.');
+        }
+
+        try {
+            // 📜 2. CONSTITUCIÓN DE JARVIS (System Prompt)
+            const systemInstruction = "Eres Jarvis, la IA autónoma de asistencia operativa del Arquitecto Heberto para el sistema GestiaPremium. Tus respuestas deben ser sumamente concisas, naturales, directas y en español de México. Hablas para ser escuchado por voz, así que NO uses asteriscos, NO uses negritas, y NO uses formato markdown complejo. Solo texto limpio y fluido. No des explicaciones largas a menos que se te pidan. Actúa como un asistente eficiente y leal.";
+
+            // 🧠 3. INVOCACIÓN IA V5.56 (Gemini 2.5 Flash)
+            // Usamos el singleton 'genAI' que ya tienes inicializado arriba
+            const model = genAI.getGenerativeModel({
+                model: "gemini-2.5-flash",
+                systemInstruction: systemInstruction,
+                generationConfig: {
+                    temperature: 0.7,
+                    maxOutputTokens: 250 // Respuesta corta para que no hable 5 minutos seguidos
+                }
+            });
+
+            // 🚀 4. DISPARO AL LLM
+            const result = await model.generateContent(promptUsuario);
+            const respuestaTexto = result.response.text().trim();
+
+            // 🛰️ 5. TELEMETRÍA (Radar V5.55)
+            await reportSentinelMetric('jarvis_voice_interactions_success');
+
+            console.log(JSON.stringify({
+                level: "INFO",
+                message: `🗣️ [JARVIS V5.56] Respuesta generada con éxito`,
+                uid: context.auth.uid,
+                traceId
+            }));
+
+            // ✅ Retornamos el texto limpio a la terminal
+            return { 
+                success: true, 
+                respuesta: respuestaTexto, 
+                traceId 
+            };
+
+        } catch (error) {
+            await reportSentinelMetric('jarvis_engine_fatal_error');
+            console.error(JSON.stringify({
+                level: "FATAL",
+                message: "Fallo en la corteza frontal de Jarvis",
+                error: error.message,
+                traceId,
+                module: "jarvisConversacional_V5.56"
+            }));
+            
+            throw new functions.https.HttpsError('internal', 'Pérdida de conexión con el núcleo lógico de Jarvis.');
+        }
+    });
+/**
+ * ======================================================================================
  * FIN DEL NÚCLEO GESTIAPREMIUM V5.55 (SENTINEL CORE - FINAL)
  * ======================================================================================
  * REGLA 1: SIN CORTES. CÓDIGO ÍNTEGRO. 13 MÓDULOS SELLADOS POR HEBER MENDOZA.
