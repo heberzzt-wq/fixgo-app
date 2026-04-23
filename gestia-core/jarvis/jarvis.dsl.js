@@ -1,4 +1,4 @@
-import { getMemory } from "./jarvis.memory.js";
+import { JarvisMemory } from "./jarvis.memory.js";
 import { analyzeIntent } from "./jarvis.vision.engine.js";
 
 export function toCommand(input) {
@@ -97,7 +97,11 @@ export function toCommand(input) {
     }
   }
 
-  const mem = getMemory();
+  // =====================================================
+  // 🧠 CONEXIÓN AL KERNEL V4
+  // =====================================================
+  const fullState = JarvisMemory.getState();
+  const lastCommand = fullState.execution.lastCommand;
 
   // =====================================================
   // 🔥 MEMORIA REPETIR
@@ -108,9 +112,9 @@ export function toCommand(input) {
     clean.includes("repitelo") ||
     clean.includes("repítelo")
   ) {
-    if (mem.lastCommand) {
+    if (lastCommand) {
       return {
-        ...mem.lastCommand,
+        ...lastCommand,
         id: crypto.randomUUID(),
         meta: {
           reused: true
@@ -127,7 +131,7 @@ export function toCommand(input) {
     clean.includes("otro") ||
     clean.includes("nueva")
   ) {
-    if (mem.lastCommand) {
+    if (lastCommand) {
       let nombre = "edificio_modificado";
 
       const words = clean.split(" ");
@@ -140,7 +144,7 @@ export function toCommand(input) {
       }
 
       return {
-        ...mem.lastCommand,
+        ...lastCommand,
         id: crypto.randomUUID(),
         action: "CREATE_BUILDING",
         raw,
