@@ -156,19 +156,22 @@ fetch("/gestia-terminal.js")
     window.webkitSpeechRecognition;
 
 /* =====================================================
-   VOZ / MICRÓFONO V2
+   VOZ / MICRÓFONO V2 (CORREGIDO LOOP)
 ===================================================== */
 
 let reconocimiento = null;
 let jarvisActivo = false;
 let escuchandoAhora = false;
+let jarvisHablando = false; // <-- FLAG DE SEGURIDAD PARA EVITAR AUTO-ESCUCHA
 
 function iniciarEscucha() {
 
+    // Validamos que Jarvis NO esté hablando antes de encender oídos
     if (
         !reconocimiento ||
         escuchandoAhora ||
-        speechSynthesis.speaking
+        speechSynthesis.speaking ||
+        jarvisHablando
     ) return;
 
     try {
@@ -200,6 +203,9 @@ if (SpeechRecognition) {
         const texto =
             event.results[0][0]
             .transcript;
+
+        // Apagamos micrófono inmediatamente para cortar ruido residual
+        try { reconocimiento.abort(); } catch(e){}
 
         textarea.value = texto;
 
@@ -262,6 +268,12 @@ const hablarJarvis = (texto) => {
         )
     ) return;
 
+    // BLOQUEO: Le tapamos los oídos a Jarvis para que no se escuche a sí mismo
+    jarvisHablando = true;
+    if (reconocimiento && escuchandoAhora) {
+        try { reconocimiento.abort(); } catch(e){}
+    }
+
     const voz =
         new SpeechSynthesisUtterance(
             texto
@@ -305,6 +317,9 @@ const hablarJarvis = (texto) => {
     speechSynthesis.cancel();
 
     voz.onend = () => {
+
+        // DESBLOQUEO: Jarvis terminó de hablar, liberamos oídos
+        jarvisHablando = false;
 
         setTimeout(() => {
             beepJarvis();
@@ -659,4 +674,3 @@ border:1px solid rgba(103,232,249,.25);
 </div>
 </body>
 </html>
-          
