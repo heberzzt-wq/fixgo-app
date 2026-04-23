@@ -1920,7 +1920,15 @@ window.testJarvis =
 
 window.runJarvis =
     runJarvis;
-
+// Fuerza la actualización del HUD azul cuando el Kernel hable
+JarvisMemory.subscribe((type, payload) => {
+    if (type === 'PUSH_HISTORY' && payload.role === 'assistant') {
+        const display = document.querySelector('.sia7-decoding-text') || document.querySelector('p.text-slate-300');
+        if (display) {
+            display.innerHTML = `<span class="text-gestia-accent animate-pulse">SIA7:</span> ${payload.message}`;
+        }
+    }
+});
 /**
  * =====================================================
  * FIN BLOQUE 4 V15
