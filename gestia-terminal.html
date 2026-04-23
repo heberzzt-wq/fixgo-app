@@ -160,34 +160,20 @@ fetch("/gestia-terminal.js")
 ===================================================== */
 
 let reconocimiento = null;
-let jarvisActivo = true;
-let jarvisWakeMode = true;
+let jarvisActivo = false;
 let escuchandoAhora = false;
 
-function reiniciarEscucha(ms = 900) {
+function iniciarEscucha() {
 
-    setTimeout(() => {
+    if (
+        !reconocimiento ||
+        escuchandoAhora ||
+        speechSynthesis.speaking
+    ) return;
 
-        try {
-
-            if (
-    jarvisActivo &&
-    reconocimiento &&
-    !speechSynthesis.speaking
-) {
-
-    if (!escuchandoAhora) {
+    try {
         reconocimiento.start();
-    }
-
-} else if (
-    jarvisActivo
-) {
-    reiniciarEscucha(700);
-}
-        } catch (err) {}
-
-    }, ms);
+    } catch (err) {}
 }
 
 if (SpeechRecognition) {
@@ -202,12 +188,12 @@ if (SpeechRecognition) {
 
     reconocimiento.onstart = () => {
 
-    escuchandoAhora = true;
+        escuchandoAhora = true;
 
-    console.log(
-        "🎤 Jarvis escuchando..."
-    );
-};
+        console.log(
+            "🎤 Jarvis escuchando..."
+        );
+    };
 
     reconocimiento.onresult = (event) => {
 
@@ -235,65 +221,32 @@ if (SpeechRecognition) {
             "🎤 ERROR MIC:",
             event.error
         );
-
-        if (
-            jarvisActivo &&
-            event.error ===
-            "no-speech"
-        ) {
-            reiniciarEscucha(1200);
-        }
     };
 
     reconocimiento.onend = () => {
 
-    escuchandoAhora = false;
+        escuchandoAhora = false;
 
-    if (jarvisActivo) {
-        reiniciarEscucha(900);
-    }
-};
+        console.log(
+            "🎤 Micrófono en espera"
+        );
+    };
 
     document.addEventListener(
         "keydown",
         (e) => {
 
-        if (
-            e.key === "F2" &&
-            reconocimiento
-        ) {
+            if (
+                e.key === "F2" &&
+                reconocimiento
+            ) {
 
-            jarvisActivo =
-                !jarvisActivo;
+                e.preventDefault();
 
-            if (jarvisActivo) {
-
-                console.log(
-                    "🟢 MODO ESCUCHA ON"
-                );
-
-                hablarJarvis(
-                    "Modo escucha activado."
-                );
-
-                reiniciarEscucha(200);
-
-            } else {
-
-                console.log(
-                    "🔴 MODO ESCUCHA OFF"
-                );
-
-                hablarJarvis(
-                    "Modo escucha desactivado."
-                );
-
-                try {
-                    reconocimiento.stop();
-                } catch (err) {}
+                iniciarEscucha();
             }
         }
-    });
+    );
 }
 
 /* =====================================================
@@ -349,20 +302,16 @@ const hablarJarvis = (texto) => {
             seleccion;
     }
 
-   speechSynthesis.cancel();
+    speechSynthesis.cancel();
 
-voz.onend = () => {
-
-    if (jarvisActivo) {
+    voz.onend = () => {
 
         setTimeout(() => {
             beepJarvis();
-            reiniciarEscucha(1200);
-        }, 900);
-    }
-};
+        }, 250);
+    };
 
-speechSynthesis.speak(voz);
+    speechSynthesis.speak(voz);
 };
 
 speechSynthesis.onvoiceschanged =
@@ -373,8 +322,6 @@ speechSynthesis.onvoiceschanged =
         hablarJarvis(
             "Bienvenido Arquitecto. Sistemas en línea."
         );
-
-        reiniciarEscucha(3200);
 
     }, 800);
 };
