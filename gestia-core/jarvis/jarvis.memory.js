@@ -290,6 +290,7 @@ export const JarvisMemory = (function() {
                     console.warn(`⚠️ [JARVIS KERNEL] Action Type desconocido: ${type}`);
                     return;
             }
+            
 
             if (stateChanged) {
                 syncToLocal();

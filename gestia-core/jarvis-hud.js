@@ -519,7 +519,7 @@ window.addEventListener('gestia-dry-run', (e) => {
             const icon = document.createElement('i');
             icon.className = "fas fa-microchip text-[7px] opacity-40 mr-1";
             const textContent = document.createTextNode(`${s.tipo} → `);
-            const boldTarget = document.createElement('b'); boldTarget.textContent = s.destino;
+            const boldTarget = document.createElement('bold'); boldTarget.textContent = s.destino;
             
             leftSide.appendChild(icon); leftSide.appendChild(textContent); leftSide.appendChild(boldTarget);
             
@@ -578,6 +578,6 @@ console.log("%c[JARVIS_HUD]: V10.0 SOVEREIGN ORACLE ONLINE.", "color: #a855f7; f
 
 /**
  * ======================================================================================
- * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 545 (MÉTRICA EXACTA ARQUITECTO)
+ * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 583 (MÉTRICA EXACTA ARQUITECTO)
  * ======================================================================================
  */

@@ -201,210 +201,210 @@ export function interpretarIntenciones(comandos) {
 
     comandos.forEach((cmd, index) => {
         memoria._ambiguous = false; // Reset de tensión por fragmento
-    const cleanRaw = limpiarPayloadDelTexto(cmd.raw);
+        const cleanRaw = limpiarPayloadDelTexto(cmd.raw);
 
-// 🔥 separar acción estructural del texto humano
-    // 🔥 separación robusta (soporta payload tipo {})
-const parts = cleanRaw.split("::");
+        // 🔥 separar acción estructural del texto humano
+        // 🔥 separación robusta (soporta payload tipo {})
+        const parts = cleanRaw.split("::");
 
-const structPart = (parts[0] || "").trim();
-const payloadPart = parts[1] || ""; // ← listo para JSON después
+        const structPart = (parts[0] || "").trim();
+        const payloadPart = parts[1] || ""; // ← listo para JSON después
 
-const rawLower = structPart.toLowerCase();
-       
-// 🔥 PRIORIDAD A ACCIÓN ESTRUCTURAL (determinista)
-if (typeof rawLower === "string") {
+        const rawLower = structPart.toLowerCase();
+               
+        // 🔥 PRIORIDAD A ACCIÓN ESTRUCTURAL (determinista)
+        if (typeof rawLower === "string") {
 
-    // =====================================================
-    // CREATE_BUILDING
-    // =====================================================
-    if (rawLower === "create_building") {
-        console.log("🔥 [DSL HIT] CREATE_BUILDING detectado");
+            // =====================================================
+            // CREATE_BUILDING
+            // =====================================================
+            if (rawLower === "create_building") {
+                console.log("🔥 [DSL HIT] CREATE_BUILDING detectado");
 
-        const payload = extraerPayload(cmd.raw) || {};
-        console.log("📦 [PAYLOAD]", payload);
+                const payload = extraerPayload(cmd.raw) || {};
+                console.log("📦 [PAYLOAD]", payload);
 
-        if (!payload.name || typeof payload.name !== "string" || !payload.name.trim()) {
-            console.error("❌ [VALIDATION] name inválido", payload);
-            throw new Error("INVALID_BUILDING_NAME");
-        }
+                if (!payload.name || typeof payload.name !== "string" || !payload.name.trim()) {
+                    console.error("❌ [VALIDATION] name inválido", payload);
+                    throw new Error("INVALID_BUILDING_NAME");
+                }
 
-        const cleanName = payload.name.trim();
+                const cleanName = payload.name.trim();
 
-        interpretedPlan.push({
-            intent: "CREATE_BUILDING",
-            action: "CREATE_BUILDING",
-            entity: "BUILDING",
-            target: cleanName,
-            payload: {
-                ...payload,
-                name: cleanName
-            },
-            confidence: 1,
-            summary: `Creación de edificio '${cleanName}'`
-        });
+                interpretedPlan.push({
+                    intent: "CREATE_BUILDING",
+                    action: "CREATE_BUILDING",
+                    entity: "BUILDING",
+                    target: cleanName,
+                    payload: {
+                        ...payload,
+                        name: cleanName
+                    },
+                    confidence: 1,
+                    summary: `Creación de edificio '${cleanName}'`
+                });
 
-        return;
-    }
-
-    // =====================================================
-    // DELETE_BUILDING
-    // =====================================================
-    if (rawLower === "delete_building") {
-        console.log("🔥 [DSL HIT] DELETE_BUILDING detectado");
-
-        const payload = extraerPayload(cmd.raw) || {};
-        console.log("📦 [PAYLOAD]", payload);
-
-        if (!payload.id || typeof payload.id !== "string" || !payload.id.trim()) {
-            console.error("❌ [VALIDATION] id inválido", payload);
-            throw new Error("INVALID_BUILDING_ID");
-        }
-
-        const cleanId = payload.id.trim();
-
-        interpretedPlan.push({
-            intent: "DELETE_BUILDING",
-            action: "DELETE_BUILDING",
-            entity: "BUILDING",
-            target: cleanId,
-            payload: {
-                ...payload,
-                id: cleanId
-            },
-            confidence: 1,
-            summary: `Eliminación de edificio '${cleanId}'`
-        });
-
-        return;
-    }
-
-       // =====================================================
-    // ANALYZE
-    // =====================================================
-    if (rawLower === "analyze") {
-
-        console.log("🔥 [DSL HIT] ANALYZE detectado");
-
-        const payload =
-            extraerPayload(cmd.raw) || {};
-
-        const entity =
-            (payloadPart || payload.entity || "system")
-            .trim()
-            .toLowerCase();
-
-        interpretedPlan.push({
-            intent: "ANALYZE",
-            action: "ANALYZE",
-            entity: entity,
-            target: payload.target || entity,
-            payload,
-            confidence: 1,
-            summary:
-                `Análisis de ${entity}`
-        });
-
-        console.log(
-            "🧠 [STRUCTURED_INTENT]",
-            {
-                intent:"ANALYZE",
-                entity
+                return;
             }
-        );
 
-        return;
-    }
+            // =====================================================
+            // DELETE_BUILDING
+            // =====================================================
+            if (rawLower === "delete_building") {
+                console.log("🔥 [DSL HIT] DELETE_BUILDING detectado");
 
-    // =====================================================
-    // REPAIR
-    // =====================================================
-    if (rawLower === "repair") {
+                const payload = extraerPayload(cmd.raw) || {};
+                console.log("📦 [PAYLOAD]", payload);
 
-        console.log("🔥 [DSL HIT] REPAIR detectado");
+                if (!payload.id || typeof payload.id !== "string" || !payload.id.trim()) {
+                    console.error("❌ [VALIDATION] id inválido", payload);
+                    throw new Error("INVALID_BUILDING_ID");
+                }
 
-        const payload =
-            extraerPayload(cmd.raw) || {};
+                const cleanId = payload.id.trim();
 
-        const entity =
-            (payloadPart || payload.entity || "system")
-            .trim()
-            .toLowerCase();
+                interpretedPlan.push({
+                    intent: "DELETE_BUILDING",
+                    action: "DELETE_BUILDING",
+                    entity: "BUILDING",
+                    target: cleanId,
+                    payload: {
+                        ...payload,
+                        id: cleanId
+                    },
+                    confidence: 1,
+                    summary: `Eliminación de edificio '${cleanId}'`
+                });
 
-        const target =
-            payload.target ||
-            entity;
+                return;
+            }
 
-        interpretedPlan.push({
-            intent: "REPAIR",
-            action: "REPAIR",
-            entity,
-            target,
-            payload,
-            confidence: 1,
-            summary:
-                `Reparación de ${entity}`
-        });
+               // =====================================================
+            // ANALYZE
+            // =====================================================
+            if (rawLower === "analyze") {
 
-        return;
-    }
+                console.log("🔥 [DSL HIT] ANALYZE detectado");
 
-    // =====================================================
-    // UPDATE
-    // =====================================================
-    if (rawLower === "update") {
+                const payload =
+                    extraerPayload(cmd.raw) || {};
 
-        const payload =
-            extraerPayload(cmd.raw) || {};
+                const entity =
+                    (payloadPart || payload.entity || "system")
+                    .trim()
+                    .toLowerCase();
 
-        const entity =
-            (payloadPart || payload.entity || "system")
-            .trim()
-            .toLowerCase();
+                interpretedPlan.push({
+                    intent: "ANALYZE",
+                    action: "ANALYZE",
+                    entity: entity,
+                    target: payload.target || entity,
+                    payload,
+                    confidence: 1,
+                    summary:
+                        `Análisis de ${entity}`
+                });
 
-        interpretedPlan.push({
-            intent: "UPDATE",
-            action: "UPDATE",
-            entity,
-            target:
-                payload.target ||
-                entity,
-            payload,
-            confidence: 1,
-            summary:
-                `Actualización de ${entity}`
-        });
+                console.log(
+                    "🧠 [STRUCTURED_INTENT]",
+                    {
+                        intent:"ANALYZE",
+                        entity
+                    }
+                );
 
-        return;
-    }
+                return;
+            }
 
-    // =====================================================
-    // OPEN
-    // =====================================================
-    if (rawLower === "open") {
+            // =====================================================
+            // REPAIR
+            // =====================================================
+            if (rawLower === "repair") {
 
-        const entity =
-            (payloadPart || "system")
-            .trim()
-            .toLowerCase();
+                console.log("🔥 [DSL HIT] REPAIR detectado");
 
-        interpretedPlan.push({
-            intent: "OPEN",
-            action: "OPEN",
-            entity,
-            target: entity,
-            payload: {},
-            confidence: 1,
-            summary:
-                `Apertura de ${entity}`
-        });
+                const payload =
+                    extraerPayload(cmd.raw) || {};
 
-        return;
-    }
-}
+                const entity =
+                    (payloadPart || payload.entity || "system")
+                    .trim()
+                    .toLowerCase();
 
-// 👇 CONTINÚA TU CÓDIGO NORMAL
-const tokens = rawLower.split(/\s+/);
+                const target =
+                    payload.target ||
+                    entity;
+
+                interpretedPlan.push({
+                    intent: "REPAIR",
+                    action: "REPAIR",
+                    entity,
+                    target,
+                    payload,
+                    confidence: 1,
+                    summary:
+                        `Reparación de ${entity}`
+                });
+
+                return;
+            }
+
+            // =====================================================
+            // UPDATE
+            // =====================================================
+            if (rawLower === "update") {
+
+                const payload =
+                    extraerPayload(cmd.raw) || {};
+
+                const entity =
+                    (payloadPart || payload.entity || "system")
+                    .trim()
+                    .toLowerCase();
+
+                interpretedPlan.push({
+                    intent: "UPDATE",
+                    action: "UPDATE",
+                    entity,
+                    target:
+                        payload.target ||
+                        entity,
+                    payload,
+                    confidence: 1,
+                    summary:
+                        `Actualización de ${entity}`
+                });
+
+                return;
+            }
+
+            // =====================================================
+            // OPEN
+            // =====================================================
+            if (rawLower === "open") {
+
+                const entity =
+                    (payloadPart || "system")
+                    .trim()
+                    .toLowerCase();
+
+                interpretedPlan.push({
+                    intent: "OPEN",
+                    action: "OPEN",
+                    entity,
+                    target: entity,
+                    payload: {},
+                    confidence: 1,
+                    summary:
+                        `Apertura de ${entity}`
+                });
+
+                return;
+            }
+        }
+
+        // 👇 CONTINÚA EL PROCESAMIENTO HUMANO/HÍBRIDO
+        const tokens = rawLower.split(/\s+/);
 
         let action = null;
         let entity = null;

@@ -34,13 +34,13 @@ export const COMPANY = {
         },
 
         jonathan: {
-    name: "Jonathan",
-    role: "TECNICO",
-    area: "OPERACIONES",
-    status: "ACTIVO",
-    todayJobs: 3,
-    vehicle: "Gol 2014"
-},
+            name: "Jonathan",
+            role: "TECNICO",
+            area: "OPERACIONES",
+            status: "ACTIVO",
+            todayJobs: 3,
+            vehicle: "Gol 2014"
+        },
 
         roberto: {
             name: "Roberto",
@@ -193,7 +193,7 @@ export const COMPANY = {
 };
 
 /* =====================================================================================
-   HELPERS
+    HELPERS
 ===================================================================================== */
 
 export function normalizeKey(text = "") {
