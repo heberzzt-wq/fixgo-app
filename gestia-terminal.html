@@ -299,26 +299,51 @@ function beepJarvis() {
 }
 
 /* =====================================================
-   CEREBRO IA (FIREBASE CLOUD FUNCTION V5.56)
+   CEREBRO IA (FIREBASE CLOUD FUNCTION V5.60 - STRICT)
 ===================================================== */
-
 async function consultarCerebroIA(mensajeUsuario) {
     try {
         const PROJECT_ID = "fixgo-44e4d"; 
         const REGION = "us-central1"; 
-        
         const functionUrl = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/jarvisConversacional`;
 
-        let token = "";
-        
-        if (window.firebase && window.firebase.auth && window.firebase.auth().currentUser) {
-            token = await window.firebase.auth().currentUser.getIdToken();
-        } else {
-            token = localStorage.getItem("gestia_auth_token") || ""; 
-        }
+        /**
+         * 🛡️ PROTOCOLO DE AUTORIDAD ASÍNCRONA (SIA7)
+         * No confiamos en el estado inmediato; esperamos a que el búnker confirme identidad.
+         */
+        const obtenerTokenValidado = () => {
+            return new Promise((resolve, reject) => {
+                // Si el usuario ya está caliente en el SDK
+                if (auth.currentUser) {
+                    return auth.currentUser.getIdToken().then(resolve).catch(reject);
+                }
+                
+                // Si no, escuchamos el cambio de estado (Race Condition Fix)
+                const unsubscribe = observarAuth(async (user) => {
+                    unsubscribe(); // Auto-destrucción del listener
+                    if (user) {
+                        try {
+                            const token = await user.getIdToken();
+                            resolve(token);
+                        } catch (e) { reject(e); }
+                    } else {
+                        reject("SESSION_NULL");
+                    }
+                });
 
-        if (!token) {
-            console.warn("⚠️ [JARVIS_AUTH] Sin token. Entrando en modo Bypass Anónimo.");
+                // Timeout de seguridad: 5 segundos
+                setTimeout(() => reject("AUTH_TIMEOUT"), 5000);
+            });
+        };
+
+        // Bloqueamos la ejecución hasta tener la firma del Arquitecto
+        let token;
+        try {
+            token = await obtenerTokenValidado();
+            console.log("🔐 [SIA7]: Autoridad confirmada. Token inyectado.");
+        } catch (authError) {
+            console.error("🚨 [SIA7]: Fallo crítico de autoridad:", authError);
+            return "Arquitecto, el búnker denegó el acceso al núcleo: No se detectó una firma de sesión válida. Por favor, re-inicia sesión.";
         }
 
         const payload = {
@@ -327,14 +352,11 @@ async function consultarCerebroIA(mensajeUsuario) {
             }
         };
 
-        // 🛡️ FIX: Solo armar la cabecera de Autorización si realmente existe un token
+        // 🛡️ HEADER DE SOBERANÍA: Ya no hay bypass. El token es OBLIGATORIO.
         const requestHeaders = {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
         };
-        
-        if (token !== "") {
-            requestHeaders["Authorization"] = `Bearer ${token}`;
-        }
 
         const response = await fetch(functionUrl, {
             method: "POST",
@@ -343,7 +365,11 @@ async function consultarCerebroIA(mensajeUsuario) {
         });
 
         if (!response.ok) {
-            return "Arquitecto, el firewall de GestiaPremium rechazó la conexión. Verifica tu sesión.";
+            const status = response.status;
+            if (status === 401 || status === 403) {
+                return "Arquitecto, el Firewall de Firebase ha revocado tu acceso. Firma expirada.";
+            }
+            return "Arquitecto, el firewall de GestiaPremium rechazó la conexión. Código: " + status;
         }
 
         const jsonResponse = await response.json();
@@ -351,15 +377,14 @@ async function consultarCerebroIA(mensajeUsuario) {
         if (jsonResponse.result && jsonResponse.result.success) {
             return jsonResponse.result.respuesta;
         } else {
-            return "Procesamiento fallido en la corteza frontal del Búnker.";
+            return "Procesamiento fallido en la corteza frontal: " + (jsonResponse.result?.error || "Error Desconocido");
         }
 
     } catch (error) {
         console.error("Error Jarvis Cloud Function:", error);
-        return "Arquitecto, perdí conexión con el núcleo de Firebase.";
+        return "Arquitecto, perdí conexión con el núcleo de Firebase o el búnker está en mantenimiento.";
     }
 }
-
 /**
  * 🎨 RENDERER ENGINE PREMIUM
  */
