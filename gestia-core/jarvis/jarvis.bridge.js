@@ -1,7 +1,7 @@
 /**
- * ======================================================================================
+ * =====================================================================================
  * JARVIS BRIDGE v3.1 - LEGACY COMPATIBILITY + CONTEXT PRESERVATION
- * ======================================================================================
+ * =====================================================================================
  * MEJORAS:
  * ✅ Preserva contexto humano
  * ✅ Traduce acciones nuevas -> verbos entendidos por core legacy
@@ -24,7 +24,7 @@ export async function dispatch(
   try {
 
     /* =====================================================
-       VALIDACIONES
+        VALIDACIONES
     ===================================================== */
 
     if (
@@ -45,7 +45,7 @@ export async function dispatch(
       "";
 
     /* =====================================================
-       ENTITY MAP
+        ENTITY MAP
     ===================================================== */
 
     const moduleMap = {
@@ -92,7 +92,7 @@ export async function dispatch(
     }
 
     /* =====================================================
-       ACTION MAP (FIX PRINCIPAL)
+        ACTION MAP (FIX PRINCIPAL)
     ===================================================== */
 
     const actionMap = {
@@ -128,7 +128,7 @@ export async function dispatch(
       "ANALYZE";
 
     /* =====================================================
-       INPUT BUILDER
+        INPUT BUILDER
     ===================================================== */
 
     let enrichedInput;
@@ -162,7 +162,7 @@ export async function dispatch(
     );
 
     /* =====================================================
-       EXECUTOR
+        EXECUTOR
     ===================================================== */
 
     const res =

@@ -83,6 +83,7 @@ const PROJECT_INDEX = [
   "panel-b2b-admin.html",
   "politicas.html",
   "rastreo.html",
+  "screenshot.html",
   "registro.html",
   "simulador.html",
   "tecnico-b2b.html",
@@ -114,7 +115,7 @@ export function analyzeIntent(rawInput = "") {
   if (!text) return result;
 
   /* =====================================================
-     PRIORIDAD
+      PRIORIDAD
   ===================================================== */
 
   if (
@@ -132,7 +133,7 @@ export function analyzeIntent(rawInput = "") {
   }
 
   /* =====================================================
-     INTENCIONES
+      INTENCIONES
   ===================================================== */
 
   if (has(text, ["analiza", "revisa", "audita", "checa"])) {
@@ -160,7 +161,7 @@ export function analyzeIntent(rawInput = "") {
   }
 
   /* =====================================================
-     SCANNER AUTÓNOMO DE ARCHIVOS
+      SCANNER AUTÓNOMO DE ARCHIVOS
   ===================================================== */
 
   const ranked = [];
@@ -188,7 +189,7 @@ export function analyzeIntent(rawInput = "") {
   }
 
   /* =====================================================
-     TAGS
+      TAGS
   ===================================================== */
 
   if (has(text, ["error", "bug", "falla"])) result.tags.push("error");
@@ -199,7 +200,7 @@ export function analyzeIntent(rawInput = "") {
   if (has(text, ["login", "auth", "permiso"])) result.tags.push("security");
 
   /* =====================================================
-     SUGERENCIAS
+      SUGERENCIAS
   ===================================================== */
 
   if (result.intent === "ANALYZE") {

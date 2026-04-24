@@ -14,7 +14,7 @@ import {
 } from "./jarvis.company.registry.js";
 
 /* =====================================================================================
-   MAIN
+    MAIN
 ===================================================================================== */
 
 export function runBusinessIntent(rawInput = "") {
@@ -46,7 +46,7 @@ export function runBusinessIntent(rawInput = "") {
 }
 
 /* =====================================================================================
-   DETECT TARGET
+    DETECT TARGET
 ===================================================================================== */
 
 function detectTarget(text = "") {
@@ -69,7 +69,7 @@ function detectTarget(text = "") {
 }
 
 /* =====================================================================================
-   DETECT INTENT
+    DETECT INTENT
 ===================================================================================== */
 
 function detectIntent(text = "") {
@@ -80,24 +80,24 @@ function detectIntent(text = "") {
     .replace(/[\u0300-\u036f]/g, "");
 
     if (
-       text.includes("buenos dias") ||
-       text.includes("buen día") ||
-       text.includes("buen día")
+        text.includes("buenos dias") ||
+        text.includes("buen día") ||
+        text.includes("buen día")
     ) {
-       return "GREETING_DAY";
+        return "GREETING_DAY";
     }
 
     if (
-       text.includes("buenas noches")
+        text.includes("buenas noches")
     ) {
-       return "GREETING_NIGHT";
+        return "GREETING_NIGHT";
     }
 
     if (
-       text === "hola" ||
-       text.includes("hola jarvis")
+        text === "hola" ||
+        text.includes("hola jarvis")
     ) {
-       return "GREETING_HELLO";
+        return "GREETING_HELLO";
     }
 
     if (
@@ -205,7 +205,7 @@ if (
 }
 
 /* =====================================================================================
-   RESPONSE ENGINE
+    RESPONSE ENGINE
 ===================================================================================== */
 
 function buildResponse(
@@ -310,7 +310,7 @@ if (intent === "GERARDO_STATUS") {
 }
 
     /* =================================================
-       PEOPLE
+        PEOPLE
     ================================================= */
 
    if (target.role) {
@@ -350,7 +350,7 @@ if (intent === "GERARDO_STATUS") {
 }
 
     /* =================================================
-       TENANTS
+        TENANTS
     ================================================= */
 
     if (target.location) {
@@ -376,7 +376,7 @@ if (intent === "GERARDO_STATUS") {
     }
 
     /* =================================================
-       VEHICLES
+        VEHICLES
     ================================================= */
 
     if (target.status) {
@@ -396,7 +396,7 @@ if (intent === "GERARDO_STATUS") {
     }
 
     /* =================================================
-       MODULES
+        MODULES
     ================================================= */
 
     if (target.file) {
@@ -430,7 +430,7 @@ if (intent === "GERARDO_STATUS") {
 }
 
 /* =====================================================================================
-   HELPERS
+    HELPERS
 ===================================================================================== */
 
 function ok(message = "") {
