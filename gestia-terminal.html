@@ -301,93 +301,69 @@ function beepJarvis() {
 }
 
 /* ======================================================================================
-   CEREBRO IA (VERSIÓN SOBERANA V5.65 - SECURE CORE)
+   CEREBRO IA (VERSIÓN SOBERANA V5.80 - SINGLETON AWARE)
    ====================================================================================== */
 async function consultarCerebroIA(mensajeUsuario) {
     try {
         const PROJECT_ID = "fixgo-44e4d"; 
-        const REGION = "us-central1"; 
-        const functionUrl = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/jarvisConversacional`;
+        const functionUrl = `https://us-central1-${PROJECT_ID}.cloudfunctions.net/jarvisConversacional`;
 
-        /**
-         * 🛡️ PROTOCOLO DE AUTORIDAD SIA7
-         * Extracción determinista del token desde el núcleo de Firebase.
-         */
         const obtenerTokenSia7 = () => {
             return new Promise((resolve, reject) => {
-                // Localización del objeto Auth en el Scope Global
-                const firebaseAuth = window.auth || (window.firebase ? window.firebase.auth() : null);
+                // 🛡️ Buscamos la autoridad inyectada por el Singleton Armor v5.66
+                const firebaseAuth = window.auth;
 
                 if (!firebaseAuth) {
-                    console.error("🚨 [SIA7]: No se detectó instancia de Firebase Auth.");
-                    return reject("AUTH_NOT_FOUND");
+                    console.error("🚨 [SIA7]: Error Crítico - Instancia Auth no detectada en window.");
+                    return reject("NUCLEO_AUTH_DESCONECTADO");
                 }
 
-                // Si la sesión ya está caliente, extraemos token de inmediato
+                // Si Heberto ya tiene sesión activa
                 if (firebaseAuth.currentUser) {
                     return firebaseAuth.currentUser.getIdToken().then(resolve).catch(reject);
                 }
 
-                // Handshake asíncrono para sesiones en proceso de carga
+                // Esperamos al observador del Singleton
                 const unsub = firebaseAuth.onAuthStateChanged(async (user) => {
                     unsub();
                     if (user) {
-                        try {
-                            const token = await user.getIdToken();
-                            resolve(token);
-                        } catch (e) { reject(e); }
+                        const token = await user.getIdToken();
+                        resolve(token);
                     } else {
-                        reject("NO_USER_LOGGED");
+                        reject("SESION_NO_DETECTADA");
                     }
                 });
 
-                // Límite de espera de seguridad
                 setTimeout(() => reject("TIMEOUT_BUNKER"), 5000);
             });
         };
 
-        // 🛡️ VALIDACIÓN DE FIRMA CRIPTOGRÁFICA
         let token;
         try {
             token = await obtenerTokenSia7();
-            console.log("🔐 [SIA7]: Firma confirmada. Token inyectado en ráfaga.");
+            console.log("🔐 [SIA7]: Firma de Heberto confirmada. Transmitiendo ráfaga...");
         } catch (err) {
-            console.error("🚨 [SIA7]: Error de identidad:", err);
-            return "Arquitecto, el búnker denegó la consulta por falta de identidad. Verifica tu sesión.";
+            console.error("🚨 [SIA7]: Fallo de identidad:", err);
+            return "Arquitecto, el búnker denegó la consulta. (Fallo: " + err + "). Asegúrate de estar logueado en GestiaPremium.";
         }
 
-        // 🚀 PREPARACIÓN DE PAYLOAD
-        const payload = {
-            data: {
-                prompt: mensajeUsuario
-            }
-        };
-
-        // 🚀 EJECUCIÓN HACIA CLOUD FUNCTIONS CON AUTORIDAD TOTAL
         const response = await fetch(functionUrl, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ data: { prompt: mensajeUsuario } })
         });
 
-        if (!response.ok) {
-            return `Arquitecto, el núcleo rechazó la conexión (Status: ${response.status})`;
-        }
+        if (!response.ok) return `Fallo de comunicación con el núcleo (Status: ${response.status})`;
 
         const jsonResponse = await response.json();
-        
-        if (jsonResponse.result && jsonResponse.result.success) {
-            return jsonResponse.result.respuesta;
-        } else {
-            return "El procesamiento en el búnker falló o la firma es inválida.";
-        }
+        return jsonResponse.result?.respuesta || "El núcleo procesó la ráfaga pero no devolvió datos.";
 
     } catch (error) {
-        console.error("🚨 [SIA7] CRITICAL_ERROR:", error);
-        return "Arquitecto, perdí conexión con el núcleo. Revisa la telemetría en consola.";
+        console.error("🚨 [SIA7]: Error crítico en ráfaga:", error);
+        return "Conexión interrumpida con el núcleo central.";
     }
 }
 
