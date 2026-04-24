@@ -299,7 +299,7 @@ function beepJarvis() {
 }
 
 /* =====================================================
-   CEREBRO IA (FIREBASE CLOUD FUNCTION V5.60 - STRICT)
+   CEREBRO IA (FIREBASE CLOUD FUNCTION V5.60 - SOBERANA)
 ===================================================== */
 async function consultarCerebroIA(mensajeUsuario) {
     try {
@@ -308,42 +308,42 @@ async function consultarCerebroIA(mensajeUsuario) {
         const functionUrl = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/jarvisConversacional`;
 
         /**
-         * 🛡️ PROTOCOLO DE AUTORIDAD ASÍNCRONA (SIA7)
-         * No confiamos en el estado inmediato; esperamos a que el búnker confirme identidad.
+         * 🛡️ PROTOCOLO DE AUTORIDAD ASÍNCRONA (NÚCLEO SIA7)
+         * Usamos la referencia 'auth' que ya importaste en la sección 1.
          */
         const obtenerTokenValidado = () => {
             return new Promise((resolve, reject) => {
-                // Si el usuario ya está caliente en el SDK
+                // 1. Check inmediato (Si el Arquitecto ya está logueado)
                 if (auth.currentUser) {
                     return auth.currentUser.getIdToken().then(resolve).catch(reject);
                 }
                 
-                // Si no, escuchamos el cambio de estado (Race Condition Fix)
-                const unsubscribe = observarAuth(async (user) => {
-                    unsubscribe(); // Auto-destrucción del listener
+                // 2. Escucha de estado (Por si la página acaba de cargar)
+                const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                    unsubscribe(); // Limpieza atómica
                     if (user) {
                         try {
                             const token = await user.getIdToken();
                             resolve(token);
                         } catch (e) { reject(e); }
                     } else {
-                        reject("SESSION_NULL");
+                        reject("USER_NOT_FOUND");
                     }
                 });
 
-                // Timeout de seguridad: 5 segundos
-                setTimeout(() => reject("AUTH_TIMEOUT"), 5000);
+                // 3. Timeout de seguridad (4 segundos)
+                setTimeout(() => reject("TIMEOUT_EXPIRED"), 4000);
             });
         };
 
-        // Bloqueamos la ejecución hasta tener la firma del Arquitecto
+        // Bloqueo de seguridad: No hay token = No hay ráfaga
         let token;
         try {
             token = await obtenerTokenValidado();
-            console.log("🔐 [SIA7]: Autoridad confirmada. Token inyectado.");
+            console.log("🔐 [SIA7]: Token de autoridad generado con éxito.");
         } catch (authError) {
-            console.error("🚨 [SIA7]: Fallo crítico de autoridad:", authError);
-            return "Arquitecto, el búnker denegó el acceso al núcleo: No se detectó una firma de sesión válida. Por favor, re-inicia sesión.";
+            console.error("🚨 [SIA7]: Error de identidad:", authError);
+            return "Arquitecto, el núcleo denegó la consulta. No se detectó tu firma de sesión en los imports de Firebase. Por favor, refresca la terminal.";
         }
 
         const payload = {
@@ -352,24 +352,19 @@ async function consultarCerebroIA(mensajeUsuario) {
             }
         };
 
-        // 🛡️ HEADER DE SOBERANÍA: Ya no hay bypass. El token es OBLIGATORIO.
-        const requestHeaders = {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-        };
-
+        // 🛡️ ENCABEZADO OBLIGATORIO: Sin bypass anónimo.
         const response = await fetch(functionUrl, {
             method: "POST",
-            headers: requestHeaders,
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
             body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
-            const status = response.status;
-            if (status === 401 || status === 403) {
-                return "Arquitecto, el Firewall de Firebase ha revocado tu acceso. Firma expirada.";
-            }
-            return "Arquitecto, el firewall de GestiaPremium rechazó la conexión. Código: " + status;
+            if (response.status === 401) return "Arquitecto, el búnker no reconoce tu token de acceso (401).";
+            return `Error de conexión con el Búnker (Status: ${response.status})`;
         }
 
         const jsonResponse = await response.json();
@@ -377,12 +372,12 @@ async function consultarCerebroIA(mensajeUsuario) {
         if (jsonResponse.result && jsonResponse.result.success) {
             return jsonResponse.result.respuesta;
         } else {
-            return "Procesamiento fallido en la corteza frontal: " + (jsonResponse.result?.error || "Error Desconocido");
+            return "El procesamiento en el núcleo falló: " + (jsonResponse.result?.error || "Desconocido");
         }
 
     } catch (error) {
         console.error("Error Jarvis Cloud Function:", error);
-        return "Arquitecto, perdí conexión con el núcleo de Firebase o el búnker está en mantenimiento.";
+        return "Arquitecto, se perdió la sincronía con la Cloud Function de Firebase.";
     }
 }
 /**
