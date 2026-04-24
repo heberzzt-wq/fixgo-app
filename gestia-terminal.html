@@ -299,7 +299,7 @@ function beepJarvis() {
 }
 
 /* =====================================================
-   CEREBRO IA (FIREBASE CLOUD FUNCTION V5.60 - SOBERANA)
+   CEREBRO IA (VERSIÓN HTML-DIRECTA V5.62 - SIN BYPASS)
 ===================================================== */
 async function consultarCerebroIA(mensajeUsuario) {
     try {
@@ -308,42 +308,47 @@ async function consultarCerebroIA(mensajeUsuario) {
         const functionUrl = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/jarvisConversacional`;
 
         /**
-         * 🛡️ PROTOCOLO DE AUTORIDAD ASÍNCRONA (NÚCLEO SIA7)
-         * Usamos la referencia 'auth' que ya importaste en la sección 1.
+         * 🛡️ PROTOCOLO DE AUTORIDAD (EXTRACCIÓN DESDE EL NÚCLEO)
+         * Buscamos el token directamente desde la instancia global.
          */
-        const obtenerTokenValidado = () => {
+        const obtenerTokenSia7 = () => {
             return new Promise((resolve, reject) => {
-                // 1. Check inmediato (Si el Arquitecto ya está logueado)
-                if (auth.currentUser) {
-                    return auth.currentUser.getIdToken().then(resolve).catch(reject);
+                // Buscamos la instancia de auth en el espacio global
+                const firebaseAuth = window.auth || (window.firebase ? window.firebase.auth() : null);
+
+                if (!firebaseAuth) {
+                    console.error("🚨 [ERROR]: No se encontró la instancia de Firebase Auth.");
+                    return reject("AUTH_NOT_FOUND");
                 }
-                
-                // 2. Escucha de estado (Por si la página acaba de cargar)
-                const unsubscribe = onAuthStateChanged(auth, async (user) => {
-                    unsubscribe(); // Limpieza atómica
+
+                // Si ya hay usuario, sacamos el token
+                if (firebaseAuth.currentUser) {
+                    return firebaseAuth.currentUser.getIdToken().then(resolve).catch(reject);
+                }
+
+                // Si no, esperamos a que Firebase despierte (Handshake)
+                const unsub = firebaseAuth.onAuthStateChanged(async (user) => {
+                    unsub();
                     if (user) {
-                        try {
-                            const token = await user.getIdToken();
-                            resolve(token);
-                        } catch (e) { reject(e); }
+                        const token = await user.getIdToken();
+                        resolve(token);
                     } else {
-                        reject("USER_NOT_FOUND");
+                        reject("NO_USER_LOGGED");
                     }
                 });
 
-                // 3. Timeout de seguridad (4 segundos)
-                setTimeout(() => reject("TIMEOUT_EXPIRED"), 4000);
+                setTimeout(() => reject("TIMEOUT"), 4000);
             });
         };
 
-        // Bloqueo de seguridad: No hay token = No hay ráfaga
+        // Bloqueo de seguridad: No hay firma = No hay ráfaga
         let token;
         try {
-            token = await obtenerTokenValidado();
-            console.log("🔐 [SIA7]: Token de autoridad generado con éxito.");
-        } catch (authError) {
-            console.error("🚨 [SIA7]: Error de identidad:", authError);
-            return "Arquitecto, el núcleo denegó la consulta. No se detectó tu firma de sesión en los imports de Firebase. Por favor, refresca la terminal.";
+            token = await obtenerTokenSia7();
+            console.log("🔐 [SIA7]: Firma confirmada. Token inyectado.");
+        } catch (err) {
+            console.error("🚨 [SIA7]: Error de identidad en el HTML:", err);
+            return "Arquitecto, el búnker denegó la consulta por falta de identidad. Asegúrate de que tu sesión de Firebase esté activa.";
         }
 
         const payload = {
@@ -352,7 +357,7 @@ async function consultarCerebroIA(mensajeUsuario) {
             }
         };
 
-        // 🛡️ ENCABEZADO OBLIGATORIO: Sin bypass anónimo.
+        // 🚀 EJECUCIÓN CON AUTORIDAD TOTAL
         const response = await fetch(functionUrl, {
             method: "POST",
             headers: {
@@ -363,8 +368,7 @@ async function consultarCerebroIA(mensajeUsuario) {
         });
 
         if (!response.ok) {
-            if (response.status === 401) return "Arquitecto, el búnker no reconoce tu token de acceso (401).";
-            return `Error de conexión con el Búnker (Status: ${response.status})`;
+            return `Arquitecto, el núcleo rechazó la ráfaga (Status: ${response.status})`;
         }
 
         const jsonResponse = await response.json();
@@ -372,12 +376,12 @@ async function consultarCerebroIA(mensajeUsuario) {
         if (jsonResponse.result && jsonResponse.result.success) {
             return jsonResponse.result.respuesta;
         } else {
-            return "El procesamiento en el núcleo falló: " + (jsonResponse.result?.error || "Desconocido");
+            return "El procesamiento en el búnker falló o el token es inválido.";
         }
 
     } catch (error) {
         console.error("Error Jarvis Cloud Function:", error);
-        return "Arquitecto, se perdió la sincronía con la Cloud Function de Firebase.";
+        return "Arquitecto, perdí conexión con el núcleo. Revisa la consola.";
     }
 }
 /**
