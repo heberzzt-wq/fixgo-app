@@ -294,13 +294,15 @@ function beepJarvis() {
         setTimeout(() => {
             osc.stop();
             ctx.close();
-        }, 120);
-    } catch (err) {}
+      }, 120);
+    } catch (err) {
+        console.error("AudioError:", err);
+    }
 }
 
-/* =====================================================
-   CEREBRO IA (VERSIÓN HTML-DIRECTA V5.62 - SIN BYPASS)
-===================================================== */
+/* ======================================================================================
+   CEREBRO IA (VERSIÓN SOBERANA V5.65 - SECURE CORE)
+   ====================================================================================== */
 async function consultarCerebroIA(mensajeUsuario) {
     try {
         const PROJECT_ID = "fixgo-44e4d"; 
@@ -308,56 +310,60 @@ async function consultarCerebroIA(mensajeUsuario) {
         const functionUrl = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/jarvisConversacional`;
 
         /**
-         * 🛡️ PROTOCOLO DE AUTORIDAD (EXTRACCIÓN DESDE EL NÚCLEO)
-         * Buscamos el token directamente desde la instancia global.
+         * 🛡️ PROTOCOLO DE AUTORIDAD SIA7
+         * Extracción determinista del token desde el núcleo de Firebase.
          */
         const obtenerTokenSia7 = () => {
             return new Promise((resolve, reject) => {
-                // Buscamos la instancia de auth en el espacio global
+                // Localización del objeto Auth en el Scope Global
                 const firebaseAuth = window.auth || (window.firebase ? window.firebase.auth() : null);
 
                 if (!firebaseAuth) {
-                    console.error("🚨 [ERROR]: No se encontró la instancia de Firebase Auth.");
+                    console.error("🚨 [SIA7]: No se detectó instancia de Firebase Auth.");
                     return reject("AUTH_NOT_FOUND");
                 }
 
-                // Si ya hay usuario, sacamos el token
+                // Si la sesión ya está caliente, extraemos token de inmediato
                 if (firebaseAuth.currentUser) {
                     return firebaseAuth.currentUser.getIdToken().then(resolve).catch(reject);
                 }
 
-                // Si no, esperamos a que Firebase despierte (Handshake)
+                // Handshake asíncrono para sesiones en proceso de carga
                 const unsub = firebaseAuth.onAuthStateChanged(async (user) => {
                     unsub();
                     if (user) {
-                        const token = await user.getIdToken();
-                        resolve(token);
+                        try {
+                            const token = await user.getIdToken();
+                            resolve(token);
+                        } catch (e) { reject(e); }
                     } else {
                         reject("NO_USER_LOGGED");
                     }
                 });
 
-                setTimeout(() => reject("TIMEOUT"), 4000);
+                // Límite de espera de seguridad
+                setTimeout(() => reject("TIMEOUT_BUNKER"), 5000);
             });
         };
 
-        // Bloqueo de seguridad: No hay firma = No hay ráfaga
+        // 🛡️ VALIDACIÓN DE FIRMA CRIPTOGRÁFICA
         let token;
         try {
             token = await obtenerTokenSia7();
-            console.log("🔐 [SIA7]: Firma confirmada. Token inyectado.");
+            console.log("🔐 [SIA7]: Firma confirmada. Token inyectado en ráfaga.");
         } catch (err) {
-            console.error("🚨 [SIA7]: Error de identidad en el HTML:", err);
-            return "Arquitecto, el búnker denegó la consulta por falta de identidad. Asegúrate de que tu sesión de Firebase esté activa.";
+            console.error("🚨 [SIA7]: Error de identidad:", err);
+            return "Arquitecto, el búnker denegó la consulta por falta de identidad. Verifica tu sesión.";
         }
 
+        // 🚀 PREPARACIÓN DE PAYLOAD
         const payload = {
             data: {
                 prompt: mensajeUsuario
             }
         };
 
-        // 🚀 EJECUCIÓN CON AUTORIDAD TOTAL
+        // 🚀 EJECUCIÓN HACIA CLOUD FUNCTIONS CON AUTORIDAD TOTAL
         const response = await fetch(functionUrl, {
             method: "POST",
             headers: {
@@ -368,7 +374,7 @@ async function consultarCerebroIA(mensajeUsuario) {
         });
 
         if (!response.ok) {
-            return `Arquitecto, el núcleo rechazó la ráfaga (Status: ${response.status})`;
+            return `Arquitecto, el núcleo rechazó la conexión (Status: ${response.status})`;
         }
 
         const jsonResponse = await response.json();
@@ -376,19 +382,19 @@ async function consultarCerebroIA(mensajeUsuario) {
         if (jsonResponse.result && jsonResponse.result.success) {
             return jsonResponse.result.respuesta;
         } else {
-            return "El procesamiento en el búnker falló o el token es inválido.";
+            return "El procesamiento en el búnker falló o la firma es inválida.";
         }
 
     } catch (error) {
-        console.error("Error Jarvis Cloud Function:", error);
-        return "Arquitecto, perdí conexión con el núcleo. Revisa la consola.";
+        console.error("🚨 [SIA7] CRITICAL_ERROR:", error);
+        return "Arquitecto, perdí conexión con el núcleo. Revisa la telemetría en consola.";
     }
 }
+
 /**
  * 🎨 RENDERER ENGINE PREMIUM
  */
 const renderJarvisResponse = (title, message, type = 'info') => {
-
     const config = {
         info: {
             icon: 'fa-bolt',
