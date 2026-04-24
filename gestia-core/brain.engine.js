@@ -146,3 +146,5 @@ export async function invocarArquitectoIA(prompt, contexto={}, operationId='SYS'
 }
 
 console.log('🧠 BRAIN_ENGINE v7.0 FULL CONTEXT ONLINE');
+
+window.invocarArquitectoIA = invocarArquitectoIA;
