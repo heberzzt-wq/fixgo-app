@@ -3,15 +3,17 @@
  * Reescritura enfocada en conectar Jarvis Cloud + contexto local Gestia.
  */
 
-import { auth } from '/firebase.js';
-import { JarvisMemory } from '/gestia-core/jarvis/jarvis.memory.js';
+import { auth } from "../firebase.js";
+
+import { JarvisMemory } from "./jarvis/jarvis.memory.js";
+
 import {
   runCommandCenter,
   runSentinel,
   runLiveQuery,
   runPredictor,
   runCommander
-} from '/gestia-core/jarvis/jarvis.firestore.engine.js';
+} from "./jarvis/jarvis.firestore.engine.js";
 
 const TENANT_BREAKERS = new Map();
 const ENDPOINT = 'https://us-central1-fixgo-44e4d.cloudfunctions.net/gestiaArchitectV5';
