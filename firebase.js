@@ -75,6 +75,11 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
+window.app = app;
+window.auth = auth;
+window.db = db;
+window.storage = storage;
+
 // ======================================================
 // 🔥 ENRUTADOR DE TRÁFICO INTELIGENTE (VERSIÓN ROBUSTA V5.30)
 // ======================================================
