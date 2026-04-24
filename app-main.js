@@ -41,6 +41,7 @@ import { iniciarMotorBI } from "./app-bi.js";
 
 import { runJarvis } from "./gestia-core/jarvis/jarvis.orchestrator.js";
 import { analyzeIntent } from "./gestia-core/jarvis/jarvis.vision.engine.js";
+import { invocarArquitectoIA } from "./gestia-core/brain.engine.js";
 
 // =====================================================
 // 🧠 FORTRESS KERNEL + AUTOHEAL V7.1
@@ -68,6 +69,10 @@ const V7 = {
 };
 
 window.V7 = V7;
+
+window.invocarArquitectoIA = invocarArquitectoIA;
+
+console.log("🧠 Brain Engine conectado a app-main");
 
 // =====================================================
 // 🔥 CONSTANTES CORE
