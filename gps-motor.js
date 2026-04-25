@@ -37,6 +37,7 @@ export function actualizarMapaGPS(mapReference, lat, lng) {
 
     if (!marcadorCacheExterno) {
         if (typeof google === "undefined") return;
+        
 
         marcadorCacheExterno = new google.maps.Marker({
             position: posicion,

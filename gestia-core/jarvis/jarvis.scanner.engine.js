@@ -199,3 +199,4 @@ function buildRecommendations(report) {
     );
   }
 }
+

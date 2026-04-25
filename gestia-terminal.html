@@ -144,8 +144,10 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 <script type="module" src="/gestia-terminal.js"></script>
-    <script>
-     document.addEventListener('DOMContentLoaded', () => {
+<script type="module" src="/gestia-core/jarvis/jarvis.bridge.v4.js"></script>
+
+<script defer>
+document.addEventListener('DOMContentLoaded', () => {
 
     const textarea = document.getElementById('gestia-input');
     const form = document.getElementById('gestia-form');
@@ -506,67 +508,144 @@ function pareceComando(texto = "") {
 }
 
 /* =====================================================
-   CONVERSATION CORE V2 (LLM INTEGRADO AL BACKEND)
+   EXPOSICIÓN GLOBAL PARA JARVIS BRIDGE V4
 ===================================================== */
+
+window.renderJarvisResponse = renderJarvisResponse;
+window.hablarJarvis = hablarJarvis;
+window.consultarCerebroIA = consultarCerebroIA;
+
+/* =====================================================================================
+   PARCHE EXACTO PARA gestia-terminal.html
+   form.addEventListener("submit", async function (e) { ... });
+   ===================================================================================== */
 
 form.addEventListener("submit", async function (e) {
 
     e.preventDefault();
 
-    const comando = textarea.value.trim();
+    const comando =
+        textarea.value.trim();
 
-    if (comando === "") return;
+    if (!comando) return;
 
-    let output = "";
+    const btnGenerate =
+        document.getElementById(
+            "btn-generate"
+        );
 
     try {
-        if (pareceComando(comando) && window.KernelHeberto) {
-            
-            // Ejecución dura para comandos específicos
-            const res = await window.KernelHeberto.execute(comando, e);
 
-            output = res?.report || res?.message || res?.response?.report || res?.response?.message || "Orden completada.";
+        btnGenerate.disabled = true;
+        btnGenerate.classList.add(
+            "animate-pulse"
+        );
+
+        /* =================================================
+           ROUTER SOBERANO V4
+        ================================================= */
+
+        if (
+            window.JarvisBridge &&
+            typeof window.JarvisBridge.dispatch ===
+                "function"
+        ) {
+
+            await window.JarvisBridge.dispatch(
+                comando
+            );
 
         } else {
-            
-            // Renderizamos un mensaje de espera opcional en consola
-            const btnGenerate = document.getElementById("btn-generate");
-            btnGenerate.classList.add("animate-pulse");
 
-            // Conversación fluida enrutada hacia la Cloud Function
-            output = await consultarCerebroIA(comando);
-            
-            btnGenerate.classList.remove("animate-pulse");
+            /* =============================================
+               FALLBACK LEGACY
+            ============================================= */
+
+            let output = "";
+
+            if (
+                window.KernelHeberto
+            ) {
+
+                const res =
+                    await window
+                        .KernelHeberto
+                        .execute(
+                            comando,
+                            e
+                        );
+
+                output =
+                    res?.report ||
+                    res?.message ||
+                    "Orden completada.";
+
+            } else {
+
+                output =
+                    "Kernel no disponible.";
+            }
+
+            if (
+                window.renderJarvisResponse
+            ) {
+                window.renderJarvisResponse(
+                    "Jarvis",
+                    output,
+                    "success"
+                );
+            }
+
+            if (
+                window.hablarJarvis
+            ) {
+                try {
+                    window.hablarJarvis(
+                        output
+                    );
+                } catch(err){}
+            }
         }
-
-        renderJarvisResponse("Jarvis", output, "success");
-        hablarJarvis(output);
 
     } catch (error) {
 
-        renderJarvisResponse(
-            "Jarvis",
-            "Ocurrió una incidencia controlada en la ruta de procesamiento.",
-            "error"
+        console.error(
+            "❌ SUBMIT_FAIL:",
+            error
         );
 
-        hablarJarvis("Ocurrió una incidencia controlada.");
-    }
+        if (
+            window.renderJarvisResponse
+        ) {
+            window.renderJarvisResponse(
+                "Jarvis",
+                "Ocurrió una incidencia controlada.",
+                "error"
+            );
+        }
 
-    textarea.value = "";
-    textarea.style.height = "58px";
-});
+        if (
+            window.hablarJarvis
+        ) {
+            try {
+                window.hablarJarvis(
+                    "Ocurrió una incidencia controlada."
+                );
+            } catch(err){}
+        }
 
-/* =====================================================
-   LÓGICA DE INTERFAZ
-===================================================== */
+    } finally {
 
-textarea.addEventListener("input", function () {
-    this.style.height = "58px";
-    this.style.height = this.scrollHeight + "px";
+        btnGenerate.disabled =
+            false;
 
-    if (this.value === "") {
-        this.style.height = "58px";
+        btnGenerate.classList.remove(
+            "animate-pulse"
+        );
+
+        textarea.value = "";
+        textarea.style.height =
+            "58px";
     }
 });
 

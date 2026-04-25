@@ -102,3 +102,4 @@ export function purgarCacheHistorial() {
 }
 
 console.log("%c📜 [HISTORY_ENGINE]: V2.1 KERNEL SYNC ONLINE", "color: #a78bfa; font-weight: bold; background: #2e1065; border-left: 4px solid #7c3aed; padding: 2px 10px;");
+

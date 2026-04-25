@@ -18,6 +18,7 @@ const db = admin.firestore();
 // Configuración Regional
 const TZ = "America/Mexico_City";
 
+
 // ======================================================
 // UTILIDADES DE FECHA
 // ======================================================
