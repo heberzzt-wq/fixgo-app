@@ -115,3 +115,4 @@ export async function ejecutarAuditoriaCore(data, hashLocalAnterior, utils) {
         modulo_id: idExtraido 
     };
 }
+

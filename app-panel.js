@@ -28,3 +28,4 @@ export {
     iniciarPanelTecnico,
     iniciarPanelCliente
 };
+

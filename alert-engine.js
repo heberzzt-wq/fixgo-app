@@ -35,6 +35,7 @@ export async function activarAlertas() {
     generarTono(0, 0.01, 'sine'); 
 }
 
+
 // 3. LA MAGIA: Generador de Tonos (Sin archivos MP3)
 function generarTono(frecuencia, duracion, tipo = 'square') {
     if (!audioContext) return;

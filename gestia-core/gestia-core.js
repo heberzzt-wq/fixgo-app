@@ -580,3 +580,4 @@ export const GestiaCore = {
 
 // Exposición global para depuración en búnker
 window.SIA7_CORE = GestiaCore;
+

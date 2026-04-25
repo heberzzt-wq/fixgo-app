@@ -53,3 +53,4 @@ export async function ejecutarFirewallGlobal(context) {
 
 // Log Corporativo de Inicialización
 console.log("%c🛡️ [FIREWALL_ENGINE]: V7.0 ETERNAL GUARDIAN ONLINE", "color:#fff;background:#b91c1c;border-left:4px solid #f87171;padding:2px 10px;font-weight:bold;");
+
