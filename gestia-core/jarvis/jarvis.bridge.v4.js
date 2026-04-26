@@ -453,28 +453,75 @@ async function resolveCommands(raw = "") {
 
     for (const part of parts) {
 
-        if (isNativeJarvis(part)) {
-            commands.push(part);
+        const cleanPart =
+            String(part || "").trim();
+
+        if (!cleanPart) {
             continue;
         }
+
+        /* ======================================
+           SOCIAL PART ROUTER
+        ====================================== */
+
+        if (
+            isSocialJarvis(cleanPart)
+        ) {
+            commands.push(
+                cleanPart
+            );
+            continue;
+        }
+
+        /* ======================================
+           NATIVE PART ROUTER
+        ====================================== */
+
+        if (
+            isNativeJarvis(cleanPart)
+        ) {
+            commands.push(
+                cleanPart
+            );
+            continue;
+        }
+
+        /* ======================================
+           LANGUAGE CORE
+        ====================================== */
 
         if (
             window.JarvisLanguageCore &&
             typeof window.JarvisLanguageCore.translate === "function"
         ) {
-            let translated =
-                await window.JarvisLanguageCore.translate(part);
 
-            if (!Array.isArray(translated)) {
-                translated = [translated];
+            let translated =
+                await window.JarvisLanguageCore.translate(
+                    cleanPart
+                );
+
+            if (
+                !Array.isArray(
+                    translated
+                )
+            ) {
+                translated = [
+                    translated
+                ];
             }
 
-            commands.push(...translated.filter(Boolean));
+            commands.push(
+                ...translated.filter(
+                    Boolean
+                )
+            );
 
         } else {
 
             commands.push(
-                fallbackTranslate(part)
+                fallbackTranslate(
+                    cleanPart
+                )
             );
         }
     }
@@ -483,7 +530,7 @@ async function resolveCommands(raw = "") {
 }
 
 /* =====================================================================================
-   EXECUTION CORE V6.0 SOCIAL POLISH
+   EXECUTION CORE V6.1 HYBRID SOCIAL
 ===================================================================================== */
 
 async function executeCommands(commands = []) {
@@ -497,9 +544,14 @@ async function executeCommands(commands = []) {
 
         try {
 
-            if (burstCache.has(cmd)) {
+            if (
+                burstCache.has(cmd)
+            ) {
 
-                safeLog("CACHE_HIT", cmd);
+                safeLog(
+                    "CACHE_HIT",
+                    cmd
+                );
 
                 outputs.push(
                     beautifyOutput(
@@ -513,33 +565,39 @@ async function executeCommands(commands = []) {
             }
 
             let res;
-            const t0 = performance.now();
+            const t0 =
+                performance.now();
 
-            /* ======================================
-               NATIVE + SOCIAL ROUTER
-            ====================================== */
+            /* ==================================
+               SOCIAL + NATIVE + CORE ROUTER
+            ================================== */
 
             if (
-                isNativeJarvis(cmd) ||
-                isSocialJarvis(cmd)
+                isSocialJarvis(cmd) ||
+                isNativeJarvis(cmd)
             ) {
 
-                res = await withTimeout(
-                    executeNativeJarvis(cmd),
-                    8000
-                );
+                res =
+                    await withTimeout(
+                        executeNativeJarvis(
+                            cmd
+                        ),
+                        8000
+                    );
 
             } else {
 
-                res = await withTimeout(
-                    runCore(cmd),
-                    8000
-                );
+                res =
+                    await withTimeout(
+                        runCore(cmd),
+                        8000
+                    );
             }
 
             const ms =
                 Math.round(
-                    performance.now() - t0
+                    performance.now() -
+                    t0
                 );
 
             const clean =
@@ -573,7 +631,10 @@ async function executeCommands(commands = []) {
 
             safeError(
                 "CMD_FAIL",
-                { cmd, error }
+                {
+                    cmd,
+                    error
+                }
             );
 
             outputs.push(
@@ -599,35 +660,50 @@ export const JarvisBridge = {
     async dispatch(input = "") {
 
         let raw =
-            String(input || "").trim();
+            String(
+                input || ""
+            ).trim();
 
         if (
             window.JarvisContextMemory &&
-            typeof window.JarvisContextMemory.resolveReferences === "function"
+            typeof window
+                .JarvisContextMemory
+                .resolveReferences ===
+                "function"
         ) {
             raw =
-                window.JarvisContextMemory.resolveReferences(raw);
+                window
+                .JarvisContextMemory
+                .resolveReferences(
+                    raw
+                );
         }
 
         if (!raw) {
             return {
                 ok: false,
-                message: "Entrada vacía."
+                message:
+                    "Entrada vacía."
             };
         }
 
-        safeLog("INPUT", raw);
+        safeLog(
+            "INPUT",
+            raw
+        );
 
-        /* ==========================================
-           SOCIAL PRIORITY ROUTER
-        ========================================== */
+        /* ==================================
+           PURE SOCIAL FAST PATH
+        ================================== */
 
         if (
             isSocialJarvis(raw)
         ) {
 
             const socialText =
-                await executeSocialJarvis(raw);
+                await executeSocialJarvis(
+                    raw
+                );
 
             render(
                 "Jarvis",
@@ -641,14 +717,17 @@ export const JarvisBridge = {
 
             return {
                 ok: true,
-                route: "SOCIAL_NATIVE",
+                route:
+                    "SOCIAL_NATIVE",
                 commands: [raw],
-                message: socialText
+                message:
+                    socialText
             };
         }
-        /* ==========================================
-           LOADER PREMIUM POLISH
-        ========================================== */
+
+        /* ==================================
+           PREMIUM LOADER
+        ================================== */
 
         const loaders = [
             "Analizando solicitud...",
@@ -668,29 +747,34 @@ export const JarvisBridge = {
         );
 
         const loaderTimer =
-            setInterval(() => {
+            setInterval(
+                () => {
 
-                loaderIndex++;
+                    loaderIndex++;
 
-                if (
-                    loaderIndex <
-                    loaders.length
-                ) {
-                    render(
-                        "Jarvis",
-                        loaders[
-                            loaderIndex
-                        ],
-                        "info"
-                    );
-                }
+                    if (
+                        loaderIndex <
+                        loaders.length
+                    ) {
+                        render(
+                            "Jarvis",
+                            loaders[
+                                loaderIndex
+                            ],
+                            "info"
+                        );
+                    }
 
-            }, 700);
+                },
+                700
+            );
 
         try {
 
             const commands =
-                await resolveCommands(raw);
+                await resolveCommands(
+                    raw
+                );
 
             safeLog(
                 "COMMANDS",
@@ -698,10 +782,14 @@ export const JarvisBridge = {
             );
 
             const outputs =
-                await executeCommands(commands);
+                await executeCommands(
+                    commands
+                );
 
             const finalText =
-                composeResponse(outputs);
+                composeResponse(
+                    outputs
+                );
 
             clearInterval(
                 loaderTimer
@@ -713,13 +801,17 @@ export const JarvisBridge = {
                 "success"
             );
 
-            speak(finalText);
+            speak(
+                finalText
+            );
 
             return {
                 ok: true,
-                route: "CORE_INTELLIGENT",
+                route:
+                    "CORE_INTELLIGENT",
                 commands,
-                message: finalText
+                message:
+                    finalText
             };
 
         } catch (error) {
@@ -742,7 +834,9 @@ export const JarvisBridge = {
                 );
 
                 const aiText =
-                    await runExternalAI(raw);
+                    await runExternalAI(
+                        raw
+                    );
 
                 render(
                     "Jarvis",
@@ -750,31 +844,46 @@ export const JarvisBridge = {
                     "success"
                 );
 
-                speak(aiText);
+                speak(
+                    aiText
+                );
 
                 return {
                     ok: true,
-                    route: "AI_FALLBACK",
-                    message: aiText
+                    route:
+                        "AI_FALLBACK",
+                    message:
+                        aiText
                 };
 
-            } catch (subError) {
+            } catch (
+                subError
+            ) {
 
                 return {
                     ok: false,
                     error: true,
-                    message: "Fallo total."
+                    message:
+                        "Fallo total."
                 };
             }
         }
     },
 
-    async ask(text = "") {
-        return await this.dispatch(text);
+    async ask(
+        text = ""
+    ) {
+        return await this.dispatch(
+            text
+        );
     },
 
-    async run(text = "") {
-        return await this.dispatch(text);
+    async run(
+        text = ""
+    ) {
+        return await this.dispatch(
+            text
+        );
     }
 };
 
@@ -783,5 +892,5 @@ window.JarvisBridge =
 
 safeLog(
     "ONLINE",
-    "V6.0 SOCIAL READY"
+    "V6.1 HYBRID READY"
 );
