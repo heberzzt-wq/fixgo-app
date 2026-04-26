@@ -1,321 +1,318 @@
 /**
  * =====================================================================================
- * JARVIS BRIDGE V4.0 - SOVEREIGN ORCHESTRATOR
+ * JARVIS BRIDGE V4.1 - SMART TRANSLATOR SOVEREIGN
+ * PATCH SOBRE V4.0
  * =====================================================================================
  * MISIÓN:
- * Unificar Terminal Heberto + Kernel Local + IA Externa + HUD + Voz
+ * Traducir lenguaje humano -> comandos que sí entiende el core.
  *
- * COMPATIBLE CON:
- * ✅ gestia-terminal.html actual
- * ✅ gestia-terminal.js actual
- * ✅ window.KernelHeberto
- * ✅ consultarCerebroIA() del HTML
- * ✅ renderJarvisResponse()
+ * SOLUCIONA:
+ * ❌ "Orden detectada. Falta objetivo específico."
  *
- * AUTOR:
- * Heberto Mendoza + Jarvis Engineering Division
+ * EJEMPLOS:
+ * revisa pagos           -> ANALYZE::payments
+ * abre cámaras           -> OPEN::camaras
+ * corrige login          -> REPAIR::auth
+ * revisa pagos y abre cámaras -> MULTI STEP
  * =====================================================================================
  */
 
 function safeLog(label, data = "") {
-    console.log(`🧠 [JARVIS_V4:${label}]`, data);
-}
-
-function safeError(label, err = "") {
-    console.error(`❌ [JARVIS_V4:${label}]`, err);
+    console.log(`🧠 [JARVIS_V4.1:${label}]`, data);
 }
 
 /* =====================================================================================
-   DETECTOR DE TIPO DE SOLICITUD
+   ENTITY MAP
 ===================================================================================== */
 
-function classifyIntent(text = "") {
+function detectEntity(text = "") {
 
     const t = String(text).toLowerCase();
 
-    const operationalWords = [
-        "pago", "pagos", "cobro", "ticket",
-        "cámara", "camara", "camaras",
-        "login", "usuario", "tenant",
-        "revisa", "abre", "corrige",
-        "actualiza", "bloquea", "estado",
-        "dashboard", "watchdog"
-    ];
+    const map = {
+        pagos: "payments",
+        cobros: "payments",
+        facturas: "payments",
 
-    const humanWords = [
-        "hola", "cómo estás", "como estas",
-        "qué opinas", "que opinas",
-        "ayúdame", "ayudame",
-        "explícame", "explicame",
-        "qué harías", "que harias"
-    ];
+        login: "auth",
+        acceso: "auth",
+        usuario: "auth",
+        usuarios: "auth",
 
-    const hasOperational =
-        operationalWords.some(x => t.includes(x));
+        cámara: "camaras",
+        camara: "camaras",
+        cámaras: "camaras",
+        camaras: "camaras",
+        cctv: "camaras",
 
-    const hasHuman =
-        humanWords.some(x => t.includes(x));
+        tenant: "tenant",
+        edificio: "tenant",
+        torre: "tenant",
 
-    if (hasOperational && hasHuman) {
-        return "HYBRID";
+        firewall: "security",
+        seguridad: "security",
+
+        ledger: "ledger",
+        historial: "ledger"
+    };
+
+    for (const key in map) {
+        if (t.includes(key)) {
+            return map[key];
+        }
     }
 
-    if (hasOperational) {
-        return "CORE";
-    }
-
-    return "AI";
+    return "system";
 }
 
 /* =====================================================================================
-   MULTI ACTION DETECTOR
+   ACTION MAP
 ===================================================================================== */
 
-function splitActions(text = "") {
+function detectAction(text = "") {
 
-    const parts = String(text)
-        .split(/\s+y luego\s+|\s+y\s+|\s+después\s+|\s+despues\s+/i)
-        .map(x => x.trim())
-        .filter(Boolean);
+    const t = String(text).toLowerCase();
 
-    return parts.length ? parts : [text];
+    if (
+        t.includes("revisa") ||
+        t.includes("analiza") ||
+        t.includes("consulta") ||
+        t.includes("verifica")
+    ) return "ANALYZE";
+
+    if (
+        t.includes("abre") ||
+        t.includes("abrir") ||
+        t.includes("mostrar")
+    ) return "OPEN";
+
+    if (
+        t.includes("corrige") ||
+        t.includes("repara") ||
+        t.includes("fix") ||
+        t.includes("arregla")
+    ) return "REPAIR";
+
+    if (
+        t.includes("actualiza") ||
+        t.includes("modifica") ||
+        t.includes("patch")
+    ) return "UPDATE";
+
+    if (
+        t.includes("crea") ||
+        t.includes("genera")
+    ) return "CREATE";
+
+    if (
+        t.includes("borra") ||
+        t.includes("elimina")
+    ) return "DELETE";
+
+    return "ANALYZE";
 }
 
 /* =====================================================================================
-   HUD / UI HELPERS
+   HUMAN -> CORE PROTOCOL
 ===================================================================================== */
 
-function render(title, msg, type = "info") {
+function translateToCore(text = "") {
 
-    if (window.renderJarvisResponse) {
-        window.renderJarvisResponse(title, msg, type);
-    }
-}
+    const entity =
+        detectEntity(text);
 
-function speak(msg) {
+    const action =
+        detectAction(text);
 
-    if (window.hablarJarvis) {
-        try { window.hablarJarvis(msg); } catch(e){}
-    }
+    return `${action}::${entity}`;
 }
 
 /* =====================================================================================
-   CORE EXECUTION
+   PATCH DIRECTO AL BRIDGE EXISTENTE
 ===================================================================================== */
 
-async function runCore(text) {
+if (
+    window.JarvisBridge &&
+    typeof window.JarvisBridge.dispatch ===
+        "function"
+) {
 
-    if (!window.KernelHeberto) {
-        throw new Error("CORE_NOT_READY");
-    }
+    const originalDispatch =
+        window.JarvisBridge.dispatch;
 
-    return await window.KernelHeberto.execute(text);
-}
+    window.JarvisBridge.dispatch =
+        async function(input = "") {
 
-/* =====================================================================================
-   EXTERNAL AI EXECUTION
-===================================================================================== */
+            const raw =
+                String(input).trim();
 
-async function runExternalAI(text) {
+            if (!raw) {
+                return await originalDispatch(raw);
+            }
 
-    if (window.consultarCerebroIA) {
-        return await window.consultarCerebroIA(text);
-    }
+            const lower =
+                raw.toLowerCase();
 
-    return "IA externa no disponible.";
-}
+            /* =============================================
+               NO TOCAR COMANDOS NATIVOS JARVIS
+            ============================================= */
 
-/* =====================================================================================
-   NORMALIZER
-===================================================================================== */
+            if (
+                lower.includes("jarvis estado") ||
+                lower.includes("jarvis resumen") ||
+                lower.includes("jarvis anomal")
+            ) {
+                return await originalDispatch(raw);
+            }
 
-function normalizeCoreResponse(res) {
+            /* =============================================
+               MULTI ACCIÓN
+            ============================================= */
 
-    if (!res) return "Sin respuesta.";
+            const parts = raw
+                .split(/\s+y luego\s+|\s+y\s+|\s+después\s+|\s+despues\s+/i)
+                .map(x => x.trim())
+                .filter(Boolean);
 
-    return (
-        res.report ||
-        res.message ||
-        res.response?.report ||
-        res.response?.message ||
-        "Orden completada."
+            const translated = parts.map(p =>
+                translateToCore(p)
+            );
+
+            safeLog(
+                "TRANSLATED",
+                translated
+            );
+
+            /* =============================================
+               EJECUTAR UNA POR UNA
+            ============================================= */
+
+            let results = [];
+
+            for (const cmd of translated) {
+
+                const res =
+                    await originalDispatch(cmd);
+
+                results.push(
+                    res?.message ||
+                    "OK"
+                );
+            }
+
+            return {
+                ok: true,
+                route: "SMART_TRANSLATOR",
+                message:
+                    results.join("\n\n")
+            };
+        };
+
+    safeLog(
+        "ONLINE",
+        "Smart Translator Activated"
     );
 }
 
 /* =====================================================================================
-   DISPATCH MASTER
+   PATCH FINAL PARA /gestia-core/jarvis/jarvis.bridge.v4.js
+   PEGA ESTE BLOQUE AL FINAL DEL ARCHIVO
+   =====================================================================================
+   MISIÓN:
+   Conectar Bridge actual (V4 + V4.1) con Language Core V5
 ===================================================================================== */
 
-export const JarvisBridge = {
+if (
+    window.JarvisBridge &&
+    window.JarvisLanguageCore
+) {
 
-    async dispatch(input = "") {
+    const oldDispatch =
+        window.JarvisBridge.dispatch;
 
-        const raw = String(input).trim();
+    window.JarvisBridge.dispatch =
+        async function(input = "") {
 
-        if (!raw) {
-            return {
-                ok: false,
-                message: "Entrada vacía."
-            };
-        }
+            const raw =
+                String(input).trim();
 
-        safeLog("INPUT", raw);
-
-        render(
-            "Jarvis",
-            "Procesando solicitud...",
-            "info"
-        );
-
-        try {
-
-            const mode =
-                classifyIntent(raw);
-
-            const actions =
-                splitActions(raw);
-
-            safeLog("MODE", mode);
-            safeLog("ACTIONS", actions);
-
-            /* =================================================
-               CORE ONLY
-            ================================================= */
-
-            if (mode === "CORE") {
-
-                const outputs = [];
-
-                for (const action of actions) {
-
-                    const res =
-                        await runCore(action);
-
-                    outputs.push(
-                        normalizeCoreResponse(res)
-                    );
-                }
-
-                const finalText =
-                    outputs.join("\n\n");
-
-                render(
-                    "Jarvis",
-                    finalText,
-                    "success"
-                );
-
-                speak(finalText);
-
-                return {
-                    ok: true,
-                    route: "CORE",
-                    message: finalText
-                };
+            if (!raw) {
+                return await oldDispatch(raw);
             }
 
-            /* =================================================
-               AI ONLY
-            ================================================= */
-
-            if (mode === "AI") {
-
-                const aiText =
-                    await runExternalAI(raw);
-
-                render(
-                    "Jarvis",
-                    aiText,
-                    "success"
-                );
-
-                speak(aiText);
-
-                return {
-                    ok: true,
-                    route: "AI",
-                    message: aiText
-                };
-            }
-
-            /* =================================================
-               HYBRID MODE
-            ================================================= */
-
-            const coreOutputs = [];
-
-            for (const action of actions) {
-
-                try {
-
-                    const res =
-                        await runCore(action);
-
-                    coreOutputs.push(
-                        normalizeCoreResponse(res)
-                    );
-
-                } catch (e) {}
-            }
-
-            const aiText =
-                await runExternalAI(raw);
-
-            const finalHybrid = `
-🔹 Operación interna:
-${coreOutputs.join("\n") || "Sin cambios."}
-
-🔹 Asistencia IA:
-${aiText}
-            `.trim();
-
-            render(
-                "Jarvis",
-                finalHybrid,
-                "success"
+            console.log(
+                "🧠 [BRIDGE_V5_INPUT]",
+                raw
             );
 
-            speak("Solicitud completada.");
+            /* =================================================
+               COMANDOS NATIVOS JARVIS
+            ================================================= */
+
+            const low =
+                raw.toLowerCase();
+
+            if (
+                low.includes("jarvis estado") ||
+                low.includes("jarvis resumen") ||
+                low.includes("jarvis anomal")
+            ) {
+                return await oldDispatch(raw);
+            }
+
+            /* =================================================
+               PARSEO NATURAL V5
+            ================================================= */
+
+            const parsed =
+                window
+                .JarvisLanguageCore
+                .parseHumanCommand(raw);
+
+            const commands =
+                window
+                .JarvisLanguageCore
+                .toLegacyCommands(parsed);
+
+            console.log(
+                "🧠 [BRIDGE_V5_PLAN]",
+                parsed
+            );
+
+            console.log(
+                "🧠 [BRIDGE_V5_CMDS]",
+                commands
+            );
+
+            /* =================================================
+               EJECUCIÓN UNA A UNA
+            ================================================= */
+
+            let outputs = [];
+
+            for (const cmd of commands) {
+
+                const res =
+                    await oldDispatch(cmd);
+
+                outputs.push(
+                    res?.message ||
+                    res?.report ||
+                    "OK"
+                );
+            }
 
             return {
                 ok: true,
-                route: "HYBRID",
-                message: finalHybrid
+                route: "LANGUAGE_CORE_V5",
+                commands,
+                message:
+                    outputs.join("\n\n")
             };
+        };
 
-        } catch (error) {
-
-            safeError(
-                "DISPATCH_FAIL",
-                error
-            );
-
-            render(
-                "Jarvis",
-                "Incidencia controlada en el núcleo.",
-                "error"
-            );
-
-            speak(
-                "Incidencia controlada."
-            );
-
-            return {
-                ok: false,
-                error: true,
-                message: error.message
-            };
-        }
-    }
-};
-
-/* =====================================================================================
-   GLOBAL EXPOSURE
-===================================================================================== */
-
-window.JarvisBridge = JarvisBridge;
-
-safeLog(
-    "ONLINE",
-    "V4 Sovereign Ready"
-);
+    console.log(
+        "%c🧠 [BRIDGE_V5]: LANGUAGE CORE ACOPLADO",
+        "color:#10b981;font-weight:bold;"
+    );
+}
