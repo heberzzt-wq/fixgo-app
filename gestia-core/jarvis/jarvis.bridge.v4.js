@@ -409,10 +409,14 @@ async function executeNativeJarvis(text = "") {
     /* ======================================
        SOCIAL PRIORITY
     ====================================== */
+if (
+    isSocialJarvis(t) &&
+    splitActions(t).length === 1
+) {
+    return await executeSocialJarvis(t);
+}
 
-    if (isSocialJarvis(t)) {
-        return await executeSocialJarvis(t);
-    }
+
 
     /* ======================================
        SYSTEM COMMANDS
