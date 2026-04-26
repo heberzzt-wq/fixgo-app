@@ -701,34 +701,34 @@ export const JarvisBridge = {
         ================================== */
 
         if (
-            isSocialJarvis(raw)
-        ) {
+    isSocialJarvis(raw) &&
+    splitActions(raw).length === 1
+) {
 
-            const socialText =
-                await executeSocialJarvis(
-                    raw
-                );
+    const socialText =
+        await executeSocialJarvis(
+            raw
+        );
 
-            render(
-                "Jarvis",
-                socialText,
-                "success"
-            );
+    render(
+        "Jarvis",
+        socialText,
+        "success"
+    );
 
-            speak(
-                socialText
-            );
+    speak(
+        socialText
+    );
 
-            return {
-                ok: true,
-                route:
-                    "SOCIAL_NATIVE",
-                commands: [raw],
-                message:
-                    socialText
-            };
-        }
-
+    return {
+        ok: true,
+        route:
+            "SOCIAL_NATIVE",
+        commands: [raw],
+        message:
+            socialText
+    };
+}
         /* ==================================
            PREMIUM LOADER
         ================================== */
