@@ -231,7 +231,7 @@ if (SpeechRecognition) {
 }
 
 /* =====================================================
-   VOZ JARVIS
+   VOZ JARVIS V5.9 POLISH + PROACTIVE STARTUP
 ===================================================== */
 
 const hablarJarvis = (texto) => {
@@ -239,68 +239,170 @@ const hablarJarvis = (texto) => {
     if (!("speechSynthesis" in window)) return;
 
     jarvisHablando = true;
-    if (reconocimiento && escuchandoAhora) {
-        try { reconocimiento.abort(); } catch(e){}
+
+    if (
+        reconocimiento &&
+        escuchandoAhora
+    ) {
+        try {
+            reconocimiento.abort();
+        } catch (e) {}
     }
 
-    const voz = new SpeechSynthesisUtterance(texto);
+    const voz =
+        new SpeechSynthesisUtterance(
+            texto
+        );
 
     voz.lang = "es-MX";
-    voz.rate = 0.92;
-    voz.pitch = 0.82;
+    voz.rate = 0.94;
+    voz.pitch = 0.84;
     voz.volume = 1;
 
-    console.log("🔊 JARVIS VOZ:", texto);
+    console.log(
+        "🔊 JARVIS VOZ:",
+        texto
+    );
 
-    const voces = speechSynthesis.getVoices();
+    const voces =
+        speechSynthesis.getVoices();
 
     const seleccion =
-        voces.find(v => v.lang.includes("es-MX")) ||
-        voces.find(v => v.lang.includes("es")) ||
+        voces.find(v =>
+            v.lang.includes("es-MX")
+        ) ||
+        voces.find(v =>
+            v.lang.includes("es")
+        ) ||
         null;
 
     if (seleccion) {
-        voz.voice = seleccion;
+        voz.voice =
+            seleccion;
     }
 
     speechSynthesis.cancel();
 
     voz.onend = () => {
+
         jarvisHablando = false;
+
         setTimeout(() => {
             beepJarvis();
-        }, 250);
+        }, 220);
     };
 
-    speechSynthesis.speak(voz);
+    speechSynthesis.speak(
+        voz
+    );
 };
 
+/* =====================================================
+   BRIEFING INICIAL PROACTIVO
+===================================================== */
+
 speechSynthesis.onvoiceschanged = () => {
+
     setTimeout(() => {
-        hablarJarvis("Bienvenido Arquitecto. Sistemas en línea y núcleo autónomo activado.");
+
+        const totalOps =
+            Array.isArray(
+                window.JarvisHistory
+            )
+                ? window.JarvisHistory.length
+                : 0;
+
+        const ram =
+            navigator.deviceMemory
+                ? `${navigator.deviceMemory} GB`
+                : "N/D";
+
+        const online =
+            navigator.onLine
+                ? "Activa"
+                : "Sin conexión";
+
+        const hora =
+            new Date()
+                .toLocaleTimeString(
+                    "es-MX",
+                    {
+                        hour: "2-digit",
+                        minute: "2-digit"
+                    }
+                );
+
+        const briefing =
+`Bienvenido Arquitecto.
+Sistemas en línea.
+Conexión ${online}.
+Memoria estimada ${ram}.
+Operaciones registradas ${totalOps}.
+Hora local ${hora}.
+Núcleo autónomo listo para recibir órdenes.`;
+
+        hablarJarvis(
+            briefing
+        );
+
+        if (
+            typeof renderJarvisResponse ===
+            "function"
+        ) {
+            renderJarvisResponse(
+                "Briefing Inicial",
+                briefing,
+                "success"
+            );
+        }
+
     }, 800);
 };
 
+/* =====================================================
+   SONIDO FIRMA JARVIS
+===================================================== */
+
 function beepJarvis() {
+
     try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
+
+        const ctx =
+            new (
+                window.AudioContext ||
+                window.webkitAudioContext
+            )();
+
+        const osc =
+            ctx.createOscillator();
+
+        const gain =
+            ctx.createGain();
 
         osc.type = "sine";
         osc.frequency.value = 880;
         gain.gain.value = 0.03;
 
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(
+            ctx.destination
+        );
+
         osc.start();
 
         setTimeout(() => {
+
             osc.stop();
             ctx.close();
-      }, 120);
+
+        }, 120);
+
     } catch (err) {
-        console.error("AudioError:", err);
+
+        console.error(
+            "AudioError:",
+            err
+        );
     }
 }
 
