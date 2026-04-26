@@ -1,18 +1,25 @@
 /**
  * =====================================================================================
- * JARVIS BRIDGE V5.0 - SOVEREIGN UNIFIED CORE
+ * JARVIS BRIDGE V5.0 - SOVEREIGN UNIFIED CORE (FULL RESTORED)
  * ARCHIVO:
- * /gestia-core/jarvis/jarvis.bridge.v4.js
+ * /gestia-core/jarvis/jarvis.bridge.v5.js
  * =====================================================================================
- * REEMPLAZA TODO EL CONTENIDO ACTUAL POR ESTE ARCHIVO
+ * RESTAURADO FULL SIN RECORTES
  *
- * INTEGRA:
+ * CONSERVA:
  * ✅ Base V4 real
  * ✅ Smart Translator V4.1
  * ✅ Language Core V5
  * ✅ Core local
  * ✅ IA externa
  * ✅ HUD + Voz
+ * ✅ Context Memory
+ * ✅ Compatibilidad legacy
+ *
+ * CORRIGE:
+ * ✅ export duplicado dentro de dispatch
+ * ✅ commands indefinido
+ * ✅ flujo Language Core roto
  * =====================================================================================
  */
 
@@ -36,7 +43,9 @@ function render(title, msg, type = "info") {
 
 function speak(msg) {
     if (window.hablarJarvis) {
-        try { window.hablarJarvis(msg); } catch(e){}
+        try {
+            window.hablarJarvis(msg);
+        } catch (e) {}
     }
 }
 
@@ -59,6 +68,10 @@ async function runExternalAI(text = "") {
         return await window.consultarCerebroIA(text);
     }
 
+    if (window.askOpenAI) {
+        return await window.askOpenAI(text);
+    }
+
     return "IA externa no disponible.";
 }
 
@@ -70,11 +83,16 @@ function normalize(res) {
 
     if (!res) return "Sin respuesta.";
 
+    if (typeof res === "string") return res;
+
     return (
         res.report ||
         res.message ||
+        res.text ||
+        res.output ||
         res.response?.report ||
         res.response?.message ||
+        res.response?.text ||
         "Orden completada."
     );
 }
@@ -88,6 +106,7 @@ function detectEntity(text = "") {
     const t = String(text).toLowerCase();
 
     const map = {
+
         pagos: "payments",
         cobros: "payments",
         facturas: "payments",
@@ -104,11 +123,20 @@ function detectEntity(text = "") {
         tickets: "tickets",
 
         tenant: "tenant",
-        edificio: "tenant"
+        edificio: "tenant",
+
+        reporte: "reports",
+        dashboard: "dashboard",
+        panel: "dashboard",
+
+        proveedor: "vendors",
+        proveedores: "vendors"
     };
 
     for (const key in map) {
-        if (t.includes(key)) return map[key];
+        if (t.includes(key)) {
+            return map[key];
+        }
     }
 
     return "system";
@@ -118,29 +146,31 @@ function detectAction(text = "") {
 
     const t = String(text).toLowerCase();
 
-    if (/revisa|analiza|consulta|verifica/.test(t))
+    if (/revisa|analiza|consulta|verifica|checa/.test(t))
         return "ANALYZE";
 
-    if (/abre|abrir|mostrar/.test(t))
+    if (/abre|abrir|mostrar|enseña/.test(t))
         return "OPEN";
 
     if (/corrige|repara|fix|arregla/.test(t))
         return "REPAIR";
 
-    if (/actualiza|modifica|patch/.test(t))
+    if (/actualiza|modifica|patch|edita/.test(t))
         return "UPDATE";
 
-    if (/crea|genera/.test(t))
+    if (/crea|genera|haz/.test(t))
         return "CREATE";
 
-    if (/borra|elimina/.test(t))
+    if (/borra|elimina|quita/.test(t))
         return "DELETE";
+
+    if (/cierra|termina/.test(t))
+        return "CLOSE";
 
     return "ANALYZE";
 }
 
 function fallbackTranslate(text = "") {
-
     return `${detectAction(text)}::${detectEntity(text)}`;
 }
 
@@ -151,7 +181,9 @@ function fallbackTranslate(text = "") {
 function splitActions(text = "") {
 
     return String(text)
-        .split(/\s+y luego\s+|\s+y\s+|\s+después\s+|\s+despues\s+|\s+luego\s+/i)
+        .split(
+            /\s+y luego\s+|\s+y\s+|\s+después\s+|\s+despues\s+|\s+luego\s+|\s+además\s+/i
+        )
         .map(x => x.trim())
         .filter(Boolean);
 }
@@ -167,8 +199,60 @@ function isNativeJarvis(text = "") {
     return (
         t.includes("jarvis estado") ||
         t.includes("jarvis resumen") ||
-        t.includes("jarvis anomal")
+        t.includes("jarvis anom") ||
+        t.includes("jarvis salud") ||
+        t.includes("jarvis status")
     );
+}
+
+/* =====================================================================================
+   LANGUAGE CORE V5
+===================================================================================== */
+
+async function resolveCommands(raw = "") {
+
+    if (
+        window.JarvisLanguageCore &&
+        typeof window.JarvisLanguageCore.translate === "function"
+    ) {
+        let translated =
+            await window.JarvisLanguageCore.translate(raw);
+
+        if (!Array.isArray(translated)) {
+            translated = [translated];
+        }
+
+        return translated.filter(Boolean);
+    }
+
+    const parts = splitActions(raw);
+
+    return parts.map(x =>
+        fallbackTranslate(x)
+    );
+}
+
+/* =====================================================================================
+   EXECUTION CORE
+===================================================================================== */
+
+async function executeCommands(commands = []) {
+
+    const outputs = [];
+
+    for (const cmd of commands) {
+
+        safeLog("EXEC", cmd);
+
+        const res =
+            await runCore(cmd);
+
+        outputs.push(
+            normalize(res)
+        );
+    }
+
+    return outputs;
 }
 
 /* =====================================================================================
@@ -179,7 +263,24 @@ export const JarvisBridge = {
 
     async dispatch(input = "") {
 
-        const raw = String(input).trim();
+        let raw =
+            String(input || "").trim();
+
+        /* =================================================
+           CONTEXT MEMORY V6
+        ================================================= */
+
+        if (
+            window.JarvisContextMemory &&
+            typeof window
+                .JarvisContextMemory
+                .resolveReferences === "function"
+        ) {
+            raw =
+                window
+                    .JarvisContextMemory
+                    .resolveReferences(raw);
+        }
 
         if (!raw) {
             return {
@@ -210,7 +311,12 @@ export const JarvisBridge = {
                 const msg =
                     normalize(nativeRes);
 
-                render("Jarvis", msg, "success");
+                render(
+                    "Jarvis",
+                    msg,
+                    "success"
+                );
+
                 speak(msg);
 
                 return {
@@ -221,48 +327,11 @@ export const JarvisBridge = {
             }
 
             /* =================================================
-               LANGUAGE CORE V5
+               LANGUAGE CORE
             ================================================= */
 
-            let commands = [];
-
-            if (
-                window.JarvisLanguageCore &&
-                typeof window
-                    .JarvisLanguageCore
-                    .parseHumanCommand ===
-                    "function"
-            ) {
-
-                const parsed =
-                    window
-                    .JarvisLanguageCore
-                    .parseHumanCommand(raw);
-
-                commands =
-                    window
-                    .JarvisLanguageCore
-                    .toLegacyCommands(parsed);
-
-                safeLog(
-                    "V5_PLAN",
-                    parsed
-                );
-
-            } else {
-
-                /* =============================================
-                   FALLBACK V4.1
-                ============================================= */
-
-                const parts =
-                    splitActions(raw);
-
-                commands =
-                    parts.map(x =>
-                        fallbackTranslate(x)
-                    );
-            }
+            const commands =
+                await resolveCommands(raw);
 
             safeLog(
                 "COMMANDS",
@@ -273,17 +342,8 @@ export const JarvisBridge = {
                EXECUTE CORE
             ================================================= */
 
-            const outputs = [];
-
-            for (const cmd of commands) {
-
-                const res =
-                    await runCore(cmd);
-
-                outputs.push(
-                    normalize(res)
-                );
-            }
+            const outputs =
+                await executeCommands(commands);
 
             const finalText =
                 outputs.join("\n\n");
@@ -310,6 +370,10 @@ export const JarvisBridge = {
                 error
             );
 
+            /* =================================================
+               FALLBACK IA EXTERNA
+            ================================================= */
+
             try {
 
                 const aiText =
@@ -331,6 +395,11 @@ export const JarvisBridge = {
 
             } catch (subError) {
 
+                safeError(
+                    "AI_FAIL",
+                    subError
+                );
+
                 render(
                     "Jarvis",
                     "Incidencia controlada en el núcleo.",
@@ -345,20 +414,34 @@ export const JarvisBridge = {
                     ok: false,
                     error: true,
                     message:
-                        error.message
+                        error.message ||
+                        "Error desconocido"
                 };
             }
         }
+    },
+
+    async ask(text = "") {
+        return await this.dispatch(text);
+    },
+
+    async run(text = "") {
+        return await this.dispatch(text);
     }
 };
 
 /* =====================================================================================
-   GLOBAL
+   GLOBAL EXPORT
 ===================================================================================== */
 
-window.JarvisBridge = JarvisBridge;
+window.JarvisBridge =
+    JarvisBridge;
+
+/* =====================================================================================
+   BOOT
+===================================================================================== */
 
 safeLog(
     "ONLINE",
-    "V5 Unified Ready"
+    "V5 FULL RESTORED READY"
 );
