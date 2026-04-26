@@ -306,12 +306,15 @@ function splitActions(text = "") {
 }
 
 /* =====================================================================================
-   NATIVE
+   NATIVE + SOCIAL LAYER
 ===================================================================================== */
 
 function isNativeJarvis(text = "") {
 
-    const t = String(text).toLowerCase();
+    const t =
+        String(text)
+        .toLowerCase()
+        .trim();
 
     return (
         t.includes("jarvis estado") ||
@@ -321,19 +324,116 @@ function isNativeJarvis(text = "") {
     );
 }
 
+function isSocialJarvis(text = "") {
+
+    const t =
+        String(text)
+        .toLowerCase()
+        .trim();
+
+    return (
+        t === "hola" ||
+        t.includes("buenos dias") ||
+        t.includes("buen día") ||
+        t.includes("buen dia") ||
+        t.includes("buenas tardes") ||
+        t.includes("buenas noches") ||
+        t.includes("como estas") ||
+        t.includes("cómo estás") ||
+        t === "gracias" ||
+        t.includes("muchas gracias") ||
+        t.includes("que tal") ||
+        t.includes("qué tal")
+    );
+}
+
+async function executeSocialJarvis(text = "") {
+
+    const t =
+        String(text)
+        .toLowerCase()
+        .trim();
+
+    if (
+        t === "hola" ||
+        t.includes("que tal") ||
+        t.includes("qué tal")
+    ) {
+        return "Hola Arquitecto. Núcleo operativo y atento.";
+    }
+
+    if (
+        t.includes("buenos dias") ||
+        t.includes("buen día") ||
+        t.includes("buen dia")
+    ) {
+        return "Buenos días Arquitecto. Sistemas estables y listos.";
+    }
+
+    if (
+        t.includes("buenas tardes")
+    ) {
+        return "Buenas tardes Arquitecto. Todo bajo control.";
+    }
+
+    if (
+        t.includes("buenas noches")
+    ) {
+        return "Buenas noches Arquitecto. Núcleo vigilante y operativo.";
+    }
+
+    if (
+        t.includes("como estas") ||
+        t.includes("cómo estás")
+    ) {
+        return "Operando al cien por ciento. Sin incidencias críticas.";
+    }
+
+    if (
+        t === "gracias" ||
+        t.includes("muchas gracias")
+    ) {
+        return "Siempre a la orden, Arquitecto.";
+    }
+
+    return "Presente, Arquitecto.";
+}
+
 async function executeNativeJarvis(text = "") {
 
-    const t = String(text).toLowerCase();
+    const t =
+        String(text)
+        .toLowerCase()
+        .trim();
 
-    if (t.includes("jarvis estado") || t.includes("jarvis status")) {
+    /* ======================================
+       SOCIAL PRIORITY
+    ====================================== */
+
+    if (isSocialJarvis(t)) {
+        return await executeSocialJarvis(t);
+    }
+
+    /* ======================================
+       SYSTEM COMMANDS
+    ====================================== */
+
+    if (
+        t.includes("jarvis estado") ||
+        t.includes("jarvis status")
+    ) {
         return await runCore("jarvis estado");
     }
 
-    if (t.includes("jarvis resumen")) {
+    if (
+        t.includes("jarvis resumen")
+    ) {
         return await runCore("jarvis resumen");
     }
 
-    if (t.includes("jarvis salud")) {
+    if (
+        t.includes("jarvis salud")
+    ) {
         return await runCore("jarvis salud");
     }
 
@@ -383,7 +483,7 @@ async function resolveCommands(raw = "") {
 }
 
 /* =====================================================================================
-   EXECUTION CORE V5.8
+   EXECUTION CORE V6.0 SOCIAL POLISH
 ===================================================================================== */
 
 async function executeCommands(commands = []) {
@@ -415,7 +515,14 @@ async function executeCommands(commands = []) {
             let res;
             const t0 = performance.now();
 
-            if (isNativeJarvis(cmd)) {
+            /* ======================================
+               NATIVE + SOCIAL ROUTER
+            ====================================== */
+
+            if (
+                isNativeJarvis(cmd) ||
+                isSocialJarvis(cmd)
+            ) {
 
                 res = await withTimeout(
                     executeNativeJarvis(cmd),
@@ -648,5 +755,5 @@ window.JarvisBridge =
 
 safeLog(
     "ONLINE",
-    "V5.9 POLISH READY"
+    "V6.0 SOCIAL READY"
 );
