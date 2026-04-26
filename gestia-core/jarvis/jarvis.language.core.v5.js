@@ -3,17 +3,14 @@
  * ARCHIVO:
  * /gestia-core/jarvis/jarvis.language.core.v5.js
  * =====================================================================================
- * JARVIS LANGUAGE CORE V5
- * Núcleo de comprensión natural soberano
+ * JARVIS LANGUAGE CORE V5.8 - NATIVE PROTECTED + SMART PARSER
  *
- * MISIÓN:
- * Convertir lenguaje humano libre en acciones ejecutables.
- *
- * COMPATIBLE CON:
- * ✅ Jarvis Bridge V4
- * ✅ runJarvis()
- * ✅ window.KernelHeberto
- * ✅ Gestia Terminal
+ * MEJORAS:
+ * ✅ Protección comandos nativos
+ * ✅ Split robusto
+ * ✅ translate() directo para Bridge
+ * ✅ Contexto y filtros mejorados
+ * ✅ Compatibilidad total legacy
  * =====================================================================================
  */
 
@@ -35,9 +32,28 @@ function clean(text = "") {
 
 function splitActions(text = "") {
     return String(text)
-        .split(/\s+y luego\s+|\s+y\s+|\s+despues\s+|\s+luego\s+/i)
+        .split(
+            /\s+y luego\s+|\s+y\s+|\s+despues\s+|\s+después\s+|\s+luego\s+|\s+ademas\s+|\s+además\s+/i
+        )
         .map(x => x.trim())
         .filter(Boolean);
+}
+
+/* =====================================================================================
+   NATIVE COMMANDS
+===================================================================================== */
+
+function isNativeJarvis(text = "") {
+
+    const t = clean(text);
+
+    return (
+        t.includes("jarvis estado") ||
+        t.includes("jarvis resumen") ||
+        t.includes("jarvis salud") ||
+        t.includes("jarvis status") ||
+        t.includes("jarvis anom")
+    );
 }
 
 /* =====================================================================================
@@ -77,6 +93,7 @@ function detectIntent(t = "") {
 function detectEntity(t = "") {
 
     const map = {
+
         pagos: "payments",
         cobros: "payments",
         facturas: "payments",
@@ -105,7 +122,10 @@ function detectEntity(t = "") {
 
         memoria: "memory",
         historial: "ledger",
-        ledger: "ledger"
+        ledger: "ledger",
+
+        sistema: "system",
+        jarvis: "system"
     };
 
     for (const key in map) {
@@ -118,7 +138,7 @@ function detectEntity(t = "") {
 }
 
 /* =====================================================================================
-   FILTROS / CONTEXTO
+   FILTROS
 ===================================================================================== */
 
 function detectFilters(t = "") {
@@ -152,7 +172,8 @@ function detectFilters(t = "") {
 
 export function parseHumanCommand(input = "") {
 
-    const raw = String(input).trim();
+    const raw =
+        String(input).trim();
 
     const actions =
         splitActions(raw);
@@ -161,8 +182,22 @@ export function parseHumanCommand(input = "") {
 
         const t = clean(item);
 
+        /* ======================================
+           PROTECCIÓN NATIVA
+        ====================================== */
+
+        if (isNativeJarvis(t)) {
+            return {
+                raw: item,
+                native: true,
+                command: item,
+                confidence: 1
+            };
+        }
+
         return {
             raw: item,
+            native: false,
             intent: detectIntent(t),
             entity: detectEntity(t),
             filters: detectFilters(t),
@@ -174,14 +209,14 @@ export function parseHumanCommand(input = "") {
 
     return {
         ok: true,
-        source: "LANGUAGE_CORE_V5",
+        source: "LANGUAGE_CORE_V5.8",
         raw,
         actions: plan
     };
 }
 
 /* =====================================================================================
-   PROTOCOLO LEGACY
+   LEGACY CONVERTER
 ===================================================================================== */
 
 export function toLegacyCommands(parsed) {
@@ -189,9 +224,26 @@ export function toLegacyCommands(parsed) {
     if (!parsed?.actions?.length)
         return [];
 
-    return parsed.actions.map(a =>
-        `${a.intent}::${a.entity}`
-    );
+    return parsed.actions.map(a => {
+
+        if (a.native) {
+            return a.command;
+        }
+
+        return `${a.intent}::${a.entity}`;
+    });
+}
+
+/* =====================================================================================
+   BRIDGE DIRECT MODE
+===================================================================================== */
+
+export async function translate(input = "") {
+
+    const parsed =
+        parseHumanCommand(input);
+
+    return toLegacyCommands(parsed);
 }
 
 /* =====================================================================================
@@ -200,10 +252,11 @@ export function toLegacyCommands(parsed) {
 
 window.JarvisLanguageCore = {
     parseHumanCommand,
-    toLegacyCommands
+    toLegacyCommands,
+    translate
 };
 
 logV5(
     "ONLINE",
-    "Language Core V5 Ready"
+    "Language Core V5.8 Ready"
 );

@@ -1,17 +1,15 @@
 /**
  * =====================================================================================
- * JARVIS BRIDGE V5.7 - OBSERVABILITY LAYER (FULL REWRITE)
+ * JARVIS BRIDGE V5.8 - OBSERVABILITY + NATIVE PROTECTION
  * ARCHIVO:
  * /gestia-core/jarvis/jarvis.bridge.v5.js
  * =====================================================================================
  * INCLUYE:
- * ✅ Todo V5.6
- * ✅ Timeout defensivo
- * ✅ Métricas por comando
- * ✅ Historial operativo
- * ✅ Burst Cache
- * ✅ Native Hybrid Commands
- * ✅ Response Composer
+ * ✅ Todo V5.7
+ * ✅ Protección comandos nativos por segmento
+ * ✅ Smart Response Composer
+ * ✅ Cache visible
+ * ✅ Mejor salida UX
  * =====================================================================================
  */
 
@@ -115,6 +113,33 @@ function normalize(res) {
         res.response?.text ||
         "Orden completada."
     );
+}
+
+function beautifyOutput(cmd = "", text = "", fromCache = false) {
+
+    const c = String(cmd);
+
+    if (fromCache) {
+        return "Resultado reciente reutilizado.";
+    }
+
+    if (c.includes("OPEN::tickets")) {
+        return "Tickets abiertos correctamente.";
+    }
+
+    if (c.includes("ANALYZE::payments")) {
+        return "Pagos revisados correctamente.";
+    }
+
+    if (c.includes("ANALYZE::tickets")) {
+        return "Tickets revisados correctamente.";
+    }
+
+    if (c.includes("jarvis estado")) {
+        return text;
+    }
+
+    return text;
 }
 
 function composeResponse(outputs = []) {
@@ -235,34 +260,49 @@ async function executeNativeJarvis(text = "") {
 }
 
 /* =====================================================================================
-   LANGUAGE CORE
+   LANGUAGE CORE + NATIVE PROTECTION
 ===================================================================================== */
 
 async function resolveCommands(raw = "") {
 
-    if (
-        window.JarvisLanguageCore &&
-        typeof window.JarvisLanguageCore.translate === "function"
-    ) {
-        let translated =
-            await window.JarvisLanguageCore.translate(raw);
+    const parts =
+        splitActions(raw);
 
-        if (!Array.isArray(translated)) {
-            translated = [translated];
+    const commands = [];
+
+    for (const part of parts) {
+
+        if (isNativeJarvis(part)) {
+            commands.push(part);
+            continue;
         }
 
-        return translated.filter(Boolean);
+        if (
+            window.JarvisLanguageCore &&
+            typeof window.JarvisLanguageCore.translate === "function"
+        ) {
+            let translated =
+                await window.JarvisLanguageCore.translate(part);
+
+            if (!Array.isArray(translated)) {
+                translated = [translated];
+            }
+
+            commands.push(...translated.filter(Boolean));
+
+        } else {
+
+            commands.push(
+                fallbackTranslate(part)
+            );
+        }
     }
 
-    const parts = splitActions(raw);
-
-    return parts.map(x =>
-        fallbackTranslate(x)
-    );
+    return commands;
 }
 
 /* =====================================================================================
-   EXECUTION CORE V5.7
+   EXECUTION CORE V5.8
 ===================================================================================== */
 
 async function executeCommands(commands = []) {
@@ -276,16 +316,16 @@ async function executeCommands(commands = []) {
 
         try {
 
-            /* ======================================
-               CACHE
-            ====================================== */
-
             if (burstCache.has(cmd)) {
 
                 safeLog("CACHE_HIT", cmd);
 
                 outputs.push(
-                    burstCache.get(cmd)
+                    beautifyOutput(
+                        cmd,
+                        burstCache.get(cmd),
+                        true
+                    )
                 );
 
                 continue;
@@ -293,10 +333,6 @@ async function executeCommands(commands = []) {
 
             let res;
             const t0 = performance.now();
-
-            /* ======================================
-               NATIVE
-            ====================================== */
 
             if (isNativeJarvis(cmd)) {
 
@@ -326,7 +362,13 @@ async function executeCommands(commands = []) {
                 clean
             );
 
-            outputs.push(clean);
+            outputs.push(
+                beautifyOutput(
+                    cmd,
+                    clean,
+                    false
+                )
+            );
 
             safeLog(
                 "METRIC",
@@ -471,13 +513,9 @@ export const JarvisBridge = {
     }
 };
 
-/* =====================================================================================
-   GLOBAL
-===================================================================================== */
-
 window.JarvisBridge = JarvisBridge;
 
 safeLog(
     "ONLINE",
-    "V5.7 OBSERVABILITY READY"
+    "V5.8 READY"
 );
