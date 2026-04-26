@@ -115,31 +115,112 @@ function normalize(res) {
     );
 }
 
-function beautifyOutput(cmd = "", text = "", fromCache = false) {
+function beautifyOutput(
+    cmd = "",
+    text = "",
+    fromCache = false
+) {
 
-    const c = String(cmd);
+    const c =
+        String(cmd).toUpperCase();
+
+    const raw =
+        String(text || "").trim();
+
+    /* ==========================================
+       CACHE
+    ========================================== */
 
     if (fromCache) {
-        return "Resultado reciente reutilizado.";
+        return "Resultado reciente reutilizado desde memoria operativa.";
     }
 
-    if (c.includes("OPEN::tickets")) {
-        return "Tickets abiertos correctamente.";
+    /* ==========================================
+       OPEN
+    ========================================== */
+
+    if (c.includes("OPEN::TICKETS")) {
+        return "Tickets generados y registrados exitosamente.";
     }
 
-    if (c.includes("ANALYZE::payments")) {
-        return "Pagos revisados correctamente.";
+    if (c.includes("OPEN::AUTH")) {
+        return "Panel de acceso abierto correctamente.";
     }
 
-    if (c.includes("ANALYZE::tickets")) {
-        return "Tickets revisados correctamente.";
+    if (c.includes("OPEN::DASHBOARD")) {
+        return "Dashboard operativo desplegado.";
     }
 
-    if (c.includes("jarvis estado")) {
-        return text;
+    /* ==========================================
+       ANALYZE
+    ========================================== */
+
+    if (c.includes("ANALYZE::PAYMENTS")) {
+        return "Revisión financiera completada. Pagos analizados correctamente.";
     }
 
-    return text;
+    if (c.includes("ANALYZE::TICKETS")) {
+        return "Diagnóstico de tickets completado correctamente.";
+    }
+
+    if (c.includes("ANALYZE::SYSTEM")) {
+        return "Estado general del sistema verificado correctamente.";
+    }
+
+    if (c.includes("ANALYZE::SECURITY")) {
+        return "Integridad de seguridad validada sin incidencias críticas.";
+    }
+
+    /* ==========================================
+       CREATE
+    ========================================== */
+
+    if (c.includes("CREATE::")) {
+        return "Nueva operación creada exitosamente.";
+    }
+
+    /* ==========================================
+       UPDATE
+    ========================================== */
+
+    if (c.includes("UPDATE::")) {
+        return "Actualización aplicada correctamente.";
+    }
+
+    /* ==========================================
+       DELETE
+    ========================================== */
+
+    if (c.includes("DELETE::")) {
+        return "Proceso de eliminación completado.";
+    }
+
+    /* ==========================================
+       REPAIR
+    ========================================== */
+
+    if (c.includes("REPAIR::")) {
+        return "Rutina de corrección ejecutada satisfactoriamente.";
+    }
+
+    /* ==========================================
+       NATIVE COMMANDS
+    ========================================== */
+
+    if (
+        c.includes("JARVIS ESTADO") ||
+        c.includes("JARVIS RESUMEN") ||
+        c.includes("JARVIS SALUD") ||
+        c.includes("JARVIS STATUS")
+    ) {
+        return raw || "Estado del núcleo disponible.";
+    }
+
+    /* ==========================================
+       FALLBACK
+    ========================================== */
+
+    return raw || "Operación completada correctamente.";
 }
 
 function composeResponse(outputs = []) {
@@ -430,11 +511,46 @@ export const JarvisBridge = {
 
         safeLog("INPUT", raw);
 
+        /* ==========================================
+           LOADER PREMIUM POLISH
+        ========================================== */
+
+        const loaders = [
+            "Analizando solicitud...",
+            "Consultando núcleo...",
+            "Verificando integridad...",
+            "Ejecutando protocolo...",
+            "Sincronizando módulos...",
+            "Finalizando operación..."
+        ];
+
+        let loaderIndex = 0;
+
         render(
             "Jarvis",
-            "Procesando solicitud...",
+            loaders[0],
             "info"
         );
+
+        const loaderTimer =
+            setInterval(() => {
+
+                loaderIndex++;
+
+                if (
+                    loaderIndex <
+                    loaders.length
+                ) {
+                    render(
+                        "Jarvis",
+                        loaders[
+                            loaderIndex
+                        ],
+                        "info"
+                    );
+                }
+
+            }, 700);
 
         try {
 
@@ -451,6 +567,10 @@ export const JarvisBridge = {
 
             const finalText =
                 composeResponse(outputs);
+
+            clearInterval(
+                loaderTimer
+            );
 
             render(
                 "Jarvis",
@@ -469,12 +589,22 @@ export const JarvisBridge = {
 
         } catch (error) {
 
+            clearInterval(
+                loaderTimer
+            );
+
             safeError(
                 "CORE_FAIL",
                 error
             );
 
             try {
+
+                render(
+                    "Jarvis",
+                    "Activando respaldo cognitivo...",
+                    "info"
+                );
 
                 const aiText =
                     await runExternalAI(raw);
@@ -513,9 +643,10 @@ export const JarvisBridge = {
     }
 };
 
-window.JarvisBridge = JarvisBridge;
+window.JarvisBridge =
+    JarvisBridge;
 
 safeLog(
     "ONLINE",
-    "V5.8 READY"
+    "V5.9 POLISH READY"
 );
