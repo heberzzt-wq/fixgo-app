@@ -619,6 +619,34 @@ export const JarvisBridge = {
         safeLog("INPUT", raw);
 
         /* ==========================================
+           SOCIAL PRIORITY ROUTER
+        ========================================== */
+
+        if (
+            isSocialJarvis(raw)
+        ) {
+
+            const socialText =
+                await executeSocialJarvis(raw);
+
+            render(
+                "Jarvis",
+                socialText,
+                "success"
+            );
+
+            speak(
+                socialText
+            );
+
+            return {
+                ok: true,
+                route: "SOCIAL_NATIVE",
+                commands: [raw],
+                message: socialText
+            };
+        }
+        /* ==========================================
            LOADER PREMIUM POLISH
         ========================================== */
 
