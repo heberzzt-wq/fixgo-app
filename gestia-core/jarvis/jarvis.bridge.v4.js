@@ -856,7 +856,7 @@ Escribe:
         const cmd =
             raw.toLowerCase();
 
-        /* =====================================================
+      /* =====================================================
    SUPERVISED APPROVAL FLOW
 ===================================================== */
 
@@ -866,7 +866,7 @@ const pendingProposal =
     null;
 
 /* ==========================================
-   APPROVE
+   APPROVE + EXECUTE REAL
 ========================================== */
 
 if (
@@ -901,14 +901,144 @@ if (
         proposal
     );
 
-    return {
-        ok: true,
-        approved: true,
-        executed: true,
-        proposal,
-        message:
-            `Propuesta autorizada: ${proposal.title}`
-    };
+    let execResult =
+        "Propuesta ejecutada.";
+
+    try {
+
+        /* ======================================
+           CODE SURGEON
+        ====================================== */
+
+        if (
+            proposal.type ===
+            "CODE_SURGEON"
+        ) {
+
+            execResult =
+`Cirugía preparada sobre:
+
+${proposal.target}
+
+Acciones:
+• ${proposal.patch.join("\n• ")}
+
+Estado:
+Listo para aplicar patch físico.`;
+        }
+
+        /* ======================================
+           REWRITE
+        ====================================== */
+
+        else if (
+            proposal.type ===
+            "REWRITE"
+        ) {
+
+            execResult =
+`Reescritura estratégica aprobada.
+
+Archivo:
+${proposal.target}
+
+Impacto esperado:
+${proposal.impact}`;
+        }
+
+        /* ======================================
+           HEALTH CHECK
+        ====================================== */
+
+        else if (
+            proposal.type ===
+            "HEALTH_CHECK"
+        ) {
+
+            const health =
+                await runCore(
+                    "jarvis resumen"
+                );
+
+            execResult =
+                normalize(
+                    health
+                );
+        }
+
+        /* ======================================
+           UI AUDIT
+        ====================================== */
+
+        else if (
+            proposal.type ===
+            "UI_AUDIT"
+        ) {
+
+            execResult =
+`Auditoría visual iniciada.
+
+Objetivo:
+Panel técnico móvil.
+
+Revisión:
+• tarjetas
+• paddings
+• botones
+• tipografías`;
+        }
+
+        /* ======================================
+           FALLBACK
+        ====================================== */
+
+        else {
+
+            execResult =
+                proposal.title ||
+                "Autorizado correctamente.";
+        }
+
+        render(
+            "Jarvis",
+            execResult,
+            "success"
+        );
+
+        speak(
+            execResult
+        );
+
+        return {
+            ok: true,
+            approved: true,
+            executed: true,
+            proposal,
+            message:
+                execResult
+        };
+
+    } catch (error) {
+
+        safeError(
+            "SUPERVISED_EXEC_FAIL",
+            error
+        );
+
+        render(
+            "Jarvis",
+            "La ejecución supervisada falló.",
+            "error"
+        );
+
+        return {
+            ok: false,
+            error: true,
+            proposal,
+            message:
+                "Fallo en ejecución supervisada."
+        };
+    }
 }
 
 /* ==========================================

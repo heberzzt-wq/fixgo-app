@@ -358,40 +358,236 @@ window.JarvisLanguageCore = {
         return "GENERAL";
     },
 
-    async interpretExecutive(text = "") {
+   async interpretExecutive(text = "") {
 
-        const base =
-            await translate(text);
+    const raw =
+        String(text || "").trim();
 
-        return {
-            raw: text,
-            commands: Array.isArray(base)
-                ? base
-                : [base],
-            mode:
-                this.detectMode(text),
-            priority:
-                this.detectPriority(text),
-            domain:
-                this.detectDomain(text),
-            supervised:
-                this.detectMode(text) ===
-                "SUPERVISED"
-        };
-    },
+    const low =
+        raw.toLowerCase();
 
-    async smartTranslate(text = "") {
+    let commands = [];
+    let mode = "SUPERVISED";
+    let priority = "NORMAL";
+    let domain = "system";
+    let proposal = null;
 
-        const intel =
-            await this.interpretExecutive(
-                text
-            );
+    const briefing =
+        window.JarvisMemory?.getBriefing?.() || {};
 
-        return intel;
+    const signals = {
+        online:
+            navigator.onLine === true,
+        hour:
+            new Date().getHours(),
+        alerts:
+            briefing.alerts || 0,
+        weakestScore:
+            briefing.weakestScore || 100,
+        pendingProposal:
+            !!window.__JARVIS_PENDING__
+    };
+
+    /* ==========================================
+       INPUT HUMANO DIRECTO (PRIORIDAD MÁXIMA)
+    ========================================== */
+
+    if (
+        low.includes("resumen") ||
+        low.includes("estado") ||
+        low.includes("como vamos") ||
+        low.includes("cómo vamos")
+    ) {
+
+        commands = ["jarvis resumen"];
+        mode = "STANDARD";
+        domain = "status";
     }
-};
 
-logV5(
-    "ONLINE",
-    "Language Core V5.8 Executive Ready"
-);
+    else if (
+        low.includes("prioridades") ||
+        low.includes("commander") ||
+        low.includes("modo comandante")
+    ) {
+
+        commands = ["commander"];
+        mode = "STANDARD";
+        priority = "HIGH";
+        domain = "ops";
+    }
+
+    else if (
+        low.includes("alertas") ||
+        low.includes("sentinel") ||
+        low.includes("riesgos")
+    ) {
+
+        commands = ["sentinel"];
+        mode = "STANDARD";
+        priority = "HIGH";
+        domain = "security";
+    }
+
+    else if (
+        low.includes("modo autonomo") ||
+        low.includes("modo autónomo") ||
+        low.includes("watchdog")
+    ) {
+
+        commands = ["watchdog"];
+        mode = "STANDARD";
+        priority = "HIGH";
+        domain = "autonomy";
+    }
+
+    else if (
+        low.includes("auto reparar") ||
+        low.includes("autorreparacion") ||
+        low.includes("autorreparación") ||
+        low.includes("self healing")
+    ) {
+
+        commands = ["self healing"];
+        mode = "STANDARD";
+        priority = "HIGH";
+        domain = "repair";
+    }
+
+    else if (
+        low.includes("auditoria automatica") ||
+        low.includes("auditoría automática")
+    ) {
+
+        commands = ["__AUTO_AUDIT_UI__"];
+        mode = "SUPERVISED";
+        priority = "HIGH";
+        domain = "ui";
+    }
+
+    else if (
+        low.includes("health check") ||
+        low.includes("diagnostico") ||
+        low.includes("diagnóstico")
+    ) {
+
+        commands = ["__AUTO_HEALTH_CHECK__"];
+        mode = "SUPERVISED";
+        priority = "HIGH";
+        domain = "health";
+    }
+
+    else if (
+        low.includes(".js") ||
+        low.includes("revisa archivo") ||
+        low.includes("analiza archivo")
+    ) {
+
+        commands = [raw];
+        mode = "SUPERVISED";
+        priority = "HIGH";
+        domain = "code";
+    }
+
+    /* ==========================================
+       AUTONOMÍA SUPERVISADA REAL
+    ========================================== */
+
+    else {
+
+        const proposals = [];
+
+        if (!signals.online) {
+            proposals.push({
+                action: "sentinel",
+                priority: 100,
+                domain: "network",
+                title: "Incidencia de conectividad"
+            });
+        }
+
+        if (signals.alerts > 0) {
+            proposals.push({
+                action: "__AUTO_HEALTH_CHECK__",
+                priority: 95,
+                domain: "health",
+                title: "Diagnóstico preventivo"
+            });
+        }
+
+        if (signals.weakestScore < 85) {
+            proposals.push({
+                action: "__AUTO_AUDIT_UI__",
+                priority: 90,
+                domain: "ui",
+                title: "Optimización responsive"
+            });
+        }
+
+        if (
+            signals.hour >= 8 &&
+            signals.hour <= 10
+        ) {
+            proposals.push({
+                action: "jarvis resumen",
+                priority: 60,
+                domain: "ops",
+                title: "Briefing ejecutivo matutino"
+            });
+        }
+
+        proposals.sort(
+            (a, b) =>
+                b.priority - a.priority
+        );
+
+        const best =
+            proposals[0];
+
+        if (best) {
+
+            commands = [best.action];
+            mode = "SUPERVISED";
+            priority = "HIGH";
+            domain = best.domain;
+            proposal = best;
+
+        } else {
+
+            const base =
+                await translate(raw);
+
+            commands =
+                Array.isArray(base)
+                    ? base
+                    : [base];
+
+            mode =
+                this.detectMode(raw);
+
+            priority =
+                this.detectPriority(raw);
+
+            domain =
+                this.detectDomain(raw);
+        }
+    }
+
+    return {
+        raw,
+        commands,
+        mode,
+        priority,
+        domain,
+        supervised:
+            mode === "SUPERVISED",
+        proposal
+    };
+},
+
+async smartTranslate(text = "") {
+
+    return await this.interpretExecutive(
+        text
+    );
+}
+}
