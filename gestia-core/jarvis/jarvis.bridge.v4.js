@@ -444,10 +444,6 @@ if (
     return await runCore(text);
 }
 
-/* =====================================================================================
-   LANGUAGE CORE + NATIVE PROTECTION
-===================================================================================== */
-
 async function resolveCommands(raw = "") {
 
     const cleanRaw =
@@ -455,16 +451,11 @@ async function resolveCommands(raw = "") {
 
     /* ======================================
        DIRECT DSL BYPASS
-       Respeta comandos estructurados:
-       REPAIR::admin
-       ANALYZE::system
-       UPDATE::tenant
     ====================================== */
 
     if (
         cleanRaw.includes("::")
     ) {
-
         return cleanRaw
             .split(";;")
             .map(x => x.trim())
@@ -514,119 +505,79 @@ async function resolveCommands(raw = "") {
             continue;
         }
 
-   /* ======================================
-   HARD REPAIR ROUTER
-   MODO SUPERVISADO
-====================================== */
+        /* ======================================
+           HARD REPAIR ROUTER
+           EJECUCIÓN REAL
+        ====================================== */
 
-if (
-    low.includes("logout") &&
-    low.includes("admin")
-) {
+        if (
+            low.includes("logout") &&
+            low.includes("admin")
+        ) {
+            commands.push(
+                "REPAIR::admin"
+            );
+            continue;
+        }
 
-    window.__JARVIS_PENDING__ = {
-        type: "REPAIR",
-        target: "admin",
-        command: "REPAIR::admin",
-        title:
-            "Corregir logout Admin"
-    };
+        if (
+            low.includes("cerrar sesion") &&
+            low.includes("admin")
+        ) {
+            commands.push(
+                "REPAIR::admin"
+            );
+            continue;
+        }
 
-    commands.push(
-        "__WAIT_APPROVAL__"
-    );
+        if (
+            low.includes("cerrar sesión") &&
+            low.includes("admin")
+        ) {
+            commands.push(
+                "REPAIR::admin"
+            );
+            continue;
+        }
 
-    continue;
-}
+        if (
+            low.includes("boton") &&
+            low.includes("admin") &&
+            low.includes("no funciona")
+        ) {
+            commands.push(
+                "REPAIR::admin"
+            );
+            continue;
+        }
 
-if (
-    low.includes("cerrar sesion") &&
-    low.includes("admin")
-) {
+        if (
+            low.includes("tecnico") &&
+            low.includes("login") &&
+            (
+                low.includes("falla") ||
+                low.includes("no funciona")
+            )
+        ) {
+            commands.push(
+                "REPAIR::tecnico"
+            );
+            continue;
+        }
 
-    window.__JARVIS_PENDING__ = {
-        type: "REPAIR",
-        target: "admin",
-        command: "REPAIR::admin",
-        title:
-            "Reparar cierre de sesión Admin"
-    };
-
-    commands.push(
-        "__WAIT_APPROVAL__"
-    );
-
-    continue;
-}
-
-if (
-    low.includes("boton") &&
-    low.includes("admin") &&
-    low.includes("no funciona")
-) {
-
-    window.__JARVIS_PENDING__ = {
-        type: "REPAIR",
-        target: "admin",
-        command: "REPAIR::admin",
-        title:
-            "Corregir botón Admin"
-    };
-
-    commands.push(
-        "__WAIT_APPROVAL__"
-    );
-
-    continue;
-}
-
-if (
-    low.includes("tecnico") &&
-    low.includes("login") &&
-    (
-        low.includes("falla") ||
-        low.includes("no funciona")
-    )
-) {
-
-    window.__JARVIS_PENDING__ = {
-        type: "REPAIR",
-        target: "tecnico",
-        command: "REPAIR::tecnico",
-        title:
-            "Corregir login Técnico"
-    };
-
-    commands.push(
-        "__WAIT_APPROVAL__"
-    );
-
-    continue;
-}
-
-if (
-    low.includes("cliente") &&
-    low.includes("panel") &&
-    (
-        low.includes("roto") ||
-        low.includes("falla")
-    )
-) {
-
-    window.__JARVIS_PENDING__ = {
-        type: "REPAIR",
-        target: "cliente",
-        command: "REPAIR::cliente",
-        title:
-            "Corregir panel Cliente"
-    };
-
-    commands.push(
-        "__WAIT_APPROVAL__"
-    );
-
-    continue;
-}
+        if (
+            low.includes("cliente") &&
+            low.includes("panel") &&
+            (
+                low.includes("roto") ||
+                low.includes("falla")
+            )
+        ) {
+            commands.push(
+                "REPAIR::cliente"
+            );
+            continue;
+        }
 
         /* ======================================
            PREMIUM INTERNAL ROUTER
@@ -995,15 +946,25 @@ Escribe:
         const cmd =
             raw.toLowerCase();
 
-      /* =====================================================
+     /* =====================================================
    SUPERVISED APPROVAL FLOW
+   SOLO PROPUESTAS REALES
 ===================================================== */
 
 const pendingProposal =
-    this.pendingProposal ||
-    window.__JARVIS_PENDING__ ||
-    null;
-
+(
+    this.pendingProposal &&
+    [
+        "CODE_SURGEON",
+        "REWRITE",
+        "HEALTH_CHECK",
+        "UI_AUDIT"
+    ].includes(
+        this.pendingProposal.type
+    )
+)
+    ? this.pendingProposal
+    : null;
 /* ==========================================
    APPROVE + EXECUTE REAL
 ========================================== */
