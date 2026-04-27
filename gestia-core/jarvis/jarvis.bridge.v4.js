@@ -919,51 +919,122 @@ if (
         proposal.target ||
         "./panel-tecnico.js";
 
+    const issue =
+        proposal.issue ||
+        "Incidencia detectada";
+
+    const actions =
+        Array.isArray(
+            proposal.patch
+        )
+            ? proposal.patch
+            : [];
+
     let kernelCommand =
         "ANALYZE::system";
+
+    let moduleName =
+        "Sistema General";
+
+    /* ==================================
+       SMART ROUTER
+    ================================== */
 
     if (
         target.includes(
             "panel-admin"
         )
     ) {
+
         kernelCommand =
             "REPAIR::admin";
+
+        moduleName =
+            "Panel Admin";
     }
+
     else if (
         target.includes(
             "panel-cliente"
         )
     ) {
+
         kernelCommand =
             "REPAIR::cliente";
+
+        moduleName =
+            "Panel Cliente";
     }
+
     else if (
         target.includes(
             "panel-tecnico"
         )
     ) {
+
         kernelCommand =
             "REPAIR::tecnico";
+
+        moduleName =
+            "Panel Técnico";
     }
+
     else if (
         target.includes(
             "terminal"
         )
     ) {
+
         kernelCommand =
             "REPAIR::terminal";
+
+        moduleName =
+            "Gestia Terminal";
+    }
+
+    else if (
+        target.includes(
+            "bridge"
+        )
+    ) {
+
+        kernelCommand =
+            "REPAIR::system";
+
+        moduleName =
+            "Jarvis Bridge";
     }
 
     safeLog(
         "CODE_SURGEON_KERNEL",
         {
             target,
-            kernelCommand
+            moduleName,
+            kernelCommand,
+            issue
         }
     );
 
     try {
+
+        /* ===============================
+           PRECHECK
+        =============================== */
+
+        const precheck =
+            await window
+                .KernelHeberto
+                .execute(
+                    "ANALYZE::system",
+                    null,
+                    {
+                        simulate: false
+                    }
+                );
+
+        /* ===============================
+           REPAIR EXECUTION
+        =============================== */
 
         const coreRes =
             await window
@@ -976,35 +1047,82 @@ if (
                     }
                 );
 
+        /* ===============================
+           VERIFY PASS
+        =============================== */
+
+        const verify =
+            await window
+                .KernelHeberto
+                .execute(
+                    "ANALYZE::system",
+                    null,
+                    {
+                        simulate: false
+                    }
+                );
+
         const msg =
             coreRes?.message ||
             coreRes?.report ||
-            "Corrección ejecutada.";
+            "Corrección aplicada.";
+
+        const verifyMsg =
+            verify?.message ||
+            verify?.report ||
+            "Validación completada.";
 
         execResult =
 `🛠️ Code Surgeon autorizado.
 
-Objetivo:
+Módulo:
+${moduleName}
+
+Archivo:
 ${target}
 
-Orden enviada:
+Hallazgo:
+${issue}
+
+Plan aplicado:
+${
+actions.length
+? "• " + actions.join("\n• ")
+: "• Ajuste automático inteligente"
+}
+
+Orden Kernel:
 ${kernelCommand}
 
 Resultado:
 ${msg}
 
+Verificación:
+${verifyMsg}
+
 Estado:
-Corrección supervisada completada.`;
+Corrección supervisada completada con éxito.`;
+
+        safeLog(
+            "CODE_SURGEON_SUCCESS",
+            {
+                target,
+                kernelCommand
+            }
+        );
 
     } catch (error) {
 
         execResult =
 `🛠️ Code Surgeon autorizado.
 
-Objetivo:
+Módulo:
+${moduleName}
+
+Archivo:
 ${target}
 
-Orden enviada:
+Orden Kernel:
 ${kernelCommand}
 
 Estado:

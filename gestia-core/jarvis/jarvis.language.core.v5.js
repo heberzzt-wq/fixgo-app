@@ -4,13 +4,7 @@
  * /gestia-core/jarvis/jarvis.language.core.v5.js
  * =====================================================================================
  * JARVIS LANGUAGE CORE V5.8 - NATIVE PROTECTED + SMART PARSER
- *
- * MEJORAS:
- * ✅ Protección comandos nativos
- * ✅ Split robusto
- * ✅ translate() directo para Bridge
- * ✅ Contexto y filtros mejorados
- * ✅ Compatibilidad total legacy
+ * FIX FINAL: Executive Layer estable + mapeo logout admin
  * =====================================================================================
  */
 
@@ -93,7 +87,6 @@ function detectIntent(t = "") {
 function detectEntity(t = "") {
 
     const map = {
-
         pagos: "payments",
         cobros: "payments",
         facturas: "payments",
@@ -172,19 +165,13 @@ function detectFilters(t = "") {
 
 export function parseHumanCommand(input = "") {
 
-    const raw =
-        String(input).trim();
+    const raw = String(input).trim();
 
-    const actions =
-        splitActions(raw);
+    const actions = splitActions(raw);
 
     const plan = actions.map(item => {
 
         const t = clean(item);
-
-        /* ======================================
-           PROTECCIÓN NATIVA
-        ====================================== */
 
         if (isNativeJarvis(t)) {
             return {
@@ -252,21 +239,18 @@ export async function translate(input = "") {
 
 window.JarvisLanguageCore = {
 
-    /* ===============================
-       LEGACY CORE
-    =============================== */
     parseHumanCommand,
     toLegacyCommands,
     translate,
 
-    /* ===============================
-       EXECUTIVE INTELLIGENCE LAYER
-    =============================== */
+    /* ======================================
+       EXECUTIVE LAYER
+    ====================================== */
 
     detectMode(text = "") {
 
         const t =
-            String(text)
+            String(text || "")
             .toLowerCase();
 
         if (
@@ -278,33 +262,26 @@ window.JarvisLanguageCore = {
         }
 
         if (
-            t.includes("con permiso") ||
-            t.includes("con autorización") ||
-            t.includes("autoriza primero") ||
-            t.includes("sin permiso no")
-        ) {
-            return "SUPERVISED";
-        }
-
-        if (
             t.includes("automatico") ||
             t.includes("automático")
         ) {
             return "AUTONOMOUS";
         }
 
-        return "STANDARD";
+        return "SUPERVISED";
     },
 
     detectPriority(text = "") {
 
         const t =
-            String(text)
+            String(text || "")
             .toLowerCase();
 
         if (
             t.includes("urgente") ||
-            t.includes("crítico")
+            t.includes("crítico") ||
+            t.includes("critico") ||
+            t.includes("ya")
         ) {
             return "HIGH";
         }
@@ -322,236 +299,149 @@ window.JarvisLanguageCore = {
     detectDomain(text = "") {
 
         const t =
-            String(text)
+            String(text || "")
             .toLowerCase();
 
         if (
-            t.includes("movil") ||
-            t.includes("móvil") ||
-            t.includes("android") ||
-            t.includes("iphone")
+            t.includes("admin") ||
+            t.includes("administrador") ||
+            t.includes("heberto")
         ) {
-            return "MOBILE_UI";
+            return "ADMIN_PANEL";
         }
 
         if (
-            t.includes("b2b") ||
             t.includes("tecnico") ||
-            t.includes("técnico")
+            t.includes("técnico") ||
+            t.includes("b2b")
         ) {
             return "B2B_PANEL";
         }
 
         if (
-            t.includes("seguridad")
+            t.includes("cliente") ||
+            t.includes("usuario")
         ) {
-            return "SECURITY";
+            return "CLIENT_PANEL";
         }
 
         if (
-            t.includes("base de datos") ||
-            t.includes("firestore")
+            t.includes("movil") ||
+            t.includes("móvil")
         ) {
-            return "DATABASE";
+            return "MOBILE_UI";
         }
 
         return "GENERAL";
     },
 
-   async interpretExecutive(text = "") {
+    async interpretExecutive(text = "") {
 
-    const raw =
-        String(text || "").trim();
+        const raw =
+            String(text || "").trim();
 
-    const low =
-        raw.toLowerCase();
+        const low =
+            raw.toLowerCase();
 
-    let commands = [];
-    let mode = "SUPERVISED";
-    let priority = "NORMAL";
-    let domain = "system";
-    let proposal = null;
+        let commands = [];
+        let proposal = null;
 
-    const briefing =
-        window.JarvisMemory?.getBriefing?.() || {};
+        let mode =
+            this.detectMode(raw);
 
-    const signals = {
-        online:
-            navigator.onLine === true,
-        hour:
-            new Date().getHours(),
-        alerts:
-            briefing.alerts || 0,
-        weakestScore:
-            briefing.weakestScore || 100,
-        pendingProposal:
-            !!window.__JARVIS_PENDING__
-    };
+        let priority =
+            this.detectPriority(raw);
 
-    /* ==========================================
-       INPUT HUMANO DIRECTO (PRIORIDAD MÁXIMA)
-    ========================================== */
+        let domain =
+            this.detectDomain(raw);
 
-    if (
-        low.includes("resumen") ||
-        low.includes("estado") ||
-        low.includes("como vamos") ||
-        low.includes("cómo vamos")
-    ) {
-
-        commands = ["jarvis resumen"];
-        mode = "STANDARD";
-        domain = "status";
-    }
-
-    else if (
-        low.includes("prioridades") ||
-        low.includes("commander") ||
-        low.includes("modo comandante")
-    ) {
-
-        commands = ["commander"];
-        mode = "STANDARD";
-        priority = "HIGH";
-        domain = "ops";
-    }
-
-    else if (
-        low.includes("alertas") ||
-        low.includes("sentinel") ||
-        low.includes("riesgos")
-    ) {
-
-        commands = ["sentinel"];
-        mode = "STANDARD";
-        priority = "HIGH";
-        domain = "security";
-    }
-
-    else if (
-        low.includes("modo autonomo") ||
-        low.includes("modo autónomo") ||
-        low.includes("watchdog")
-    ) {
-
-        commands = ["watchdog"];
-        mode = "STANDARD";
-        priority = "HIGH";
-        domain = "autonomy";
-    }
-
-    else if (
-        low.includes("auto reparar") ||
-        low.includes("autorreparacion") ||
-        low.includes("autorreparación") ||
-        low.includes("self healing")
-    ) {
-
-        commands = ["self healing"];
-        mode = "STANDARD";
-        priority = "HIGH";
-        domain = "repair";
-    }
-
-    else if (
-        low.includes("auditoria automatica") ||
-        low.includes("auditoría automática")
-    ) {
-
-        commands = ["__AUTO_AUDIT_UI__"];
-        mode = "SUPERVISED";
-        priority = "HIGH";
-        domain = "ui";
-    }
-
-    else if (
-        low.includes("health check") ||
-        low.includes("diagnostico") ||
-        low.includes("diagnóstico")
-    ) {
-
-        commands = ["__AUTO_HEALTH_CHECK__"];
-        mode = "SUPERVISED";
-        priority = "HIGH";
-        domain = "health";
-    }
-
-    else if (
-        low.includes(".js") ||
-        low.includes("revisa archivo") ||
-        low.includes("analiza archivo")
-    ) {
-
-        commands = [raw];
-        mode = "SUPERVISED";
-        priority = "HIGH";
-        domain = "code";
-    }
-
-    /* ==========================================
-       AUTONOMÍA SUPERVISADA REAL
-    ========================================== */
-
-    else {
-
-        const proposals = [];
-
-        if (!signals.online) {
-            proposals.push({
-                action: "sentinel",
-                priority: 100,
-                domain: "network",
-                title: "Incidencia de conectividad"
-            });
-        }
-
-        if (signals.alerts > 0) {
-            proposals.push({
-                action: "__AUTO_HEALTH_CHECK__",
-                priority: 95,
-                domain: "health",
-                title: "Diagnóstico preventivo"
-            });
-        }
-
-        if (signals.weakestScore < 85) {
-            proposals.push({
-                action: "__AUTO_AUDIT_UI__",
-                priority: 90,
-                domain: "ui",
-                title: "Optimización responsive"
-            });
-        }
+        /* ==================================
+           HARD MAPS IMPORTANTES
+        ================================== */
 
         if (
-            signals.hour >= 8 &&
-            signals.hour <= 10
+            low.includes("logout") &&
+            low.includes("admin")
         ) {
-            proposals.push({
-                action: "jarvis resumen",
-                priority: 60,
-                domain: "ops",
-                title: "Briefing ejecutivo matutino"
-            });
+
+            commands = [
+                "REPAIR::admin"
+            ];
+
+            priority = "HIGH";
+
+            proposal = {
+                type: "REPAIR",
+                title: "Corrección logout admin",
+                target: "./panel-admin.js",
+                risk: "LOW"
+            };
         }
 
-        proposals.sort(
-            (a, b) =>
-                b.priority - a.priority
-        );
+        else if (
+            low.includes("cerrar sesion") &&
+            low.includes("admin")
+        ) {
 
-        const best =
-            proposals[0];
+            commands = [
+                "REPAIR::admin"
+            ];
 
-        if (best) {
-
-            commands = [best.action];
-            mode = "SUPERVISED";
             priority = "HIGH";
-            domain = best.domain;
-            proposal = best;
+        }
 
-        } else {
+        else if (
+            low.includes("boton") &&
+            low.includes("admin") &&
+            low.includes("no funciona")
+        ) {
+
+            commands = [
+                "REPAIR::admin"
+            ];
+
+            priority = "HIGH";
+        }
+
+        else if (
+            low.includes("tecnico") &&
+            low.includes("login") &&
+            low.includes("falla")
+        ) {
+
+            commands = [
+                "REPAIR::tecnico"
+            ];
+
+            priority = "HIGH";
+        }
+
+        else if (
+            low.includes("cliente") &&
+            low.includes("panel") &&
+            low.includes("roto")
+        ) {
+
+            commands = [
+                "REPAIR::cliente"
+            ];
+
+            priority = "HIGH";
+        }
+
+        else if (
+            low.includes("resumen") ||
+            low.includes("estado")
+        ) {
+
+            commands = [
+                "jarvis resumen"
+            ];
+
+            mode = "STANDARD";
+        }
+
+        else {
 
             const base =
                 await translate(raw);
@@ -560,34 +450,29 @@ window.JarvisLanguageCore = {
                 Array.isArray(base)
                     ? base
                     : [base];
-
-            mode =
-                this.detectMode(raw);
-
-            priority =
-                this.detectPriority(raw);
-
-            domain =
-                this.detectDomain(raw);
         }
+
+        return {
+            raw,
+            commands,
+            mode,
+            priority,
+            domain,
+            supervised:
+                mode === "SUPERVISED",
+            proposal
+        };
+    },
+
+    async smartTranslate(text = "") {
+
+        return await this.interpretExecutive(
+            text
+        );
     }
+};
 
-    return {
-        raw,
-        commands,
-        mode,
-        priority,
-        domain,
-        supervised:
-            mode === "SUPERVISED",
-        proposal
-    };
-},
-
-async smartTranslate(text = "") {
-
-    return await this.interpretExecutive(
-        text
-    );
-}
-}
+logV5(
+    "ONLINE",
+    "Language Core V5.8 Executive Ready"
+);
