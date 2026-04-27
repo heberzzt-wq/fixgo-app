@@ -906,7 +906,7 @@ if (
 
     try {
 
-        /* ======================================
+  /* ======================================
    CODE SURGEON
 ====================================== */
 
@@ -917,63 +917,107 @@ if (
 
     const target =
         proposal.target ||
-        "archivo no definido";
+        "./panel-tecnico.js";
 
-    const actions =
-        Array.isArray(
-            proposal.patch
-        )
-            ? proposal.patch
-            : [];
-
-    let severity =
-        "MEDIA";
+    let kernelCommand =
+        "ANALYZE::system";
 
     if (
-        String(
-            proposal.issue || ""
-        ).toLowerCase().includes(
-            "móvil"
-        ) ||
-        String(
-            proposal.issue || ""
-        ).toLowerCase().includes(
-            "movil"
+        target.includes(
+            "panel-admin"
         )
     ) {
-        severity = "ALTA";
+        kernelCommand =
+            "REPAIR::admin";
+    }
+    else if (
+        target.includes(
+            "panel-cliente"
+        )
+    ) {
+        kernelCommand =
+            "REPAIR::cliente";
+    }
+    else if (
+        target.includes(
+            "panel-tecnico"
+        )
+    ) {
+        kernelCommand =
+            "REPAIR::tecnico";
+    }
+    else if (
+        target.includes(
+            "terminal"
+        )
+    ) {
+        kernelCommand =
+            "REPAIR::terminal";
     }
 
-    const autoPatch = [
-        "Aplicar clases responsive sm/md/lg",
-        "Reducir padding en mobile",
-        "Compactar tarjetas visuales",
-        "Escalar tipografías",
-        "Optimizar botones táctiles",
-        "Validar overflow horizontal"
-    ];
+    safeLog(
+        "CODE_SURGEON_KERNEL",
+        {
+            target,
+            kernelCommand
+        }
+    );
 
-    execResult =
+    try {
+
+        const coreRes =
+            await window
+                .KernelHeberto
+                .execute(
+                    kernelCommand,
+                    null,
+                    {
+                        simulate: false
+                    }
+                );
+
+        const msg =
+            coreRes?.message ||
+            coreRes?.report ||
+            "Corrección ejecutada.";
+
+        execResult =
 `🛠️ Code Surgeon autorizado.
 
 Objetivo:
 ${target}
 
-Hallazgo:
-${proposal.issue || "Mejora detectada"}
+Orden enviada:
+${kernelCommand}
 
-Severidad:
-${severity}
-
-Plan original:
-• ${actions.join("\n• ")}
-
-Patch táctico sugerido:
-• ${autoPatch.join("\n• ")}
+Resultado:
+${msg}
 
 Estado:
-Análisis completado.
-Módulo listo para reescritura supervisada.`;
+Corrección supervisada completada.`;
+
+    } catch (error) {
+
+        execResult =
+`🛠️ Code Surgeon autorizado.
+
+Objetivo:
+${target}
+
+Orden enviada:
+${kernelCommand}
+
+Estado:
+Falló la ejecución.
+
+Detalle:
+${error.message || error}`;
+
+        safeLog(
+            "CODE_SURGEON_FAIL",
+            error
+        );
+    }
 }
         /* ======================================
            REWRITE
