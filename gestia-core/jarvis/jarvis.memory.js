@@ -11,49 +11,181 @@
  */
 
 export const JarvisMemory = (function() {
+
     const now = Date.now();
-    const MAX_HISTORY = 20; 
-    const HISTORY_TTL_MS = 4 * 60 * 60 * 1000; // 4 horas de TTL
+
+    const MAX_HISTORY = 20;
+    const HISTORY_TTL_MS =
+        4 * 60 * 60 * 1000;
+
     const CORE_VERSION = 4;
 
-    // 1. ESTADO PRIVADO AISLADO (EL BÚNKER)
+    /* =====================================================
+       ESTADO PRIVADO AISLADO
+    ===================================================== */
+
     const state = {
+
         core: {
-            architectureLevel: 16, 
+            architectureLevel: 16,
             version: CORE_VERSION,
             status: "SOVEREIGN_ONLINE",
             bootTime: now,
-            sessionTraceId: `session_${now}_${Math.random().toString(36).substring(2, 9)}`
+            sessionTraceId:
+                `session_${now}_${Math.random()
+                    .toString(36)
+                    .substring(2, 9)}`
         },
+
         temporal: {
             shortTermHistory: [],
             longTermPointers: [],
             idleTime: 0
         },
+
         context: {
-            tenantId: "UXMAL_39_DEFAULT", 
-            activeUser: "Arquitecto_Heberto",
-            authClearance: "GOD_MODE",
-            currentModule: "STANDBY"
+            tenantId:
+                "UXMAL_39_DEFAULT",
+            activeUser:
+                "Arquitecto_Heberto",
+            authClearance:
+                "GOD_MODE",
+            currentModule:
+                "STANDBY"
         },
+
         entities: {
             technicians: {
-                jonathan: { status: "OFFLINE", lastSeen: 0, currentTask: null },
-                luis:     { status: "OFFLINE", lastSeen: 0, currentTask: null },
-                laura:    { status: "OFFLINE", lastSeen: 0, currentTask: null },
-                mari_jo:  { status: "OFFLINE", lastSeen: 0, currentTask: null }
+                jonathan: {
+                    status: "OFFLINE",
+                    lastSeen: 0,
+                    currentTask: null
+                },
+                luis: {
+                    status: "OFFLINE",
+                    lastSeen: 0,
+                    currentTask: null
+                },
+                laura: {
+                    status: "OFFLINE",
+                    lastSeen: 0,
+                    currentTask: null
+                },
+                mari_jo: {
+                    status: "OFFLINE",
+                    lastSeen: 0,
+                    currentTask: null
+                }
             },
             assets: {},
             activeWorkOrders: []
         },
+
         execution: {
             lastCommand: null,
             lastResult: null,
             pendingAcks: [],
             rollbackState: null
+        },
+
+        /* =====================================================
+           NUEVO: INTELIGENCIA OPERATIVA
+        ===================================================== */
+
+        intelligence: {
+
+            moduleScores: {
+                ui: 100,
+                b2b: 100,
+                memory: 100,
+                performance: 100,
+                security: 100
+            },
+
+            incidents: [],
+
+            successfulOps: 0,
+
+            failedOps: 0,
+
+            approvals: 0,
+
+            rejections: 0,
+
+            recommendations: [],
+
+            lastBriefing: 0
         }
     };
 
+    /* =====================================================
+       HELPERS INTERNOS
+    ===================================================== */
+
+    function pushIncident(
+        type = "GENERAL",
+        detail = ""
+    ) {
+
+        state.intelligence.incidents.unshift({
+            ts: Date.now(),
+            type,
+            detail
+        });
+
+        state.intelligence.incidents =
+            state.intelligence.incidents.slice(
+                0,
+                50
+            );
+    }
+
+    function affectScore(
+        module = "ui",
+        delta = -1
+    ) {
+
+        if (
+            typeof state.intelligence
+                .moduleScores[module] !==
+            "number"
+        ) {
+            return;
+        }
+
+        let next =
+            state.intelligence
+                .moduleScores[module] +
+            delta;
+
+        if (next > 100) next = 100;
+        if (next < 0) next = 0;
+
+        state.intelligence
+            .moduleScores[module] =
+            next;
+    }
+
+    function addRecommendation(
+        text = ""
+    ) {
+
+        if (!text) return;
+
+        state.intelligence
+            .recommendations.unshift({
+                ts: Date.now(),
+                text
+            });
+
+        state.intelligence
+            .recommendations =
+            state.intelligence
+                .recommendations.slice(
+                    0,
+                    20
+                );
+    }
     // 🛡️ 2. CONGELAMIENTO ESTRUCTURAL PROFUNDO (FIX CRÍTICO 1)
     // Protegemos la integridad del Kernel contra mutaciones accidentales externas
     Object.seal(state);
@@ -140,53 +272,232 @@ export const JarvisMemory = (function() {
         console.log(`📸 [SNAPSHOT] Punto de control creado. Index: ${currentSnapshotIndex}`);
     }
 
-    // ==========================================
+        // ==========================================
     // 🔐 7. API PÚBLICA ESTRICTA
     // ==========================================
     return {
+
         /**
-         * Inicializa el Kernel recuperando datos de la sesión anterior
+         * Inicializa Kernel
          */
         boot: function() {
-            const saved = localStorage.getItem('jarvis_cognitive_kernel_v4');
+
+            const saved =
+                localStorage.getItem(
+                    "jarvis_cognitive_kernel_v4"
+                );
+
             if (saved) {
+
                 try {
-                    const parsed = JSON.parse(saved);
-                    
-                    // Validación de integridad de versión
-                    if (!parsed.core || parsed.core.version !== CORE_VERSION) {
-                        console.warn("⚠️ [JARVIS KERNEL] Esquema V4 requerido. Purgando RAM obsoleta.");
-                        localStorage.removeItem('jarvis_cognitive_kernel_v4');
+
+                    const parsed =
+                        JSON.parse(saved);
+
+                    if (
+                        !parsed.core ||
+                        parsed.core.version !==
+                        CORE_VERSION
+                    ) {
+
+                        console.warn(
+                            "⚠️ Kernel obsoleto purgado."
+                        );
+
+                        localStorage.removeItem(
+                            "jarvis_cognitive_kernel_v4"
+                        );
+
                         saveSnapshot();
+
                         return this.getState();
                     }
 
-                    // Rehidratación de historial
-                    state.temporal.shortTermHistory = parsed.temporal.shortTermHistory || [];
-                    
-                    // Rehidratación de contexto
-                    Object.assign(state.context, parsed.context);
-                    
-                    // Asignación segura en cascada para objetos profundamente sellados (Técnicos)
-                    if (parsed.entities && parsed.entities.technicians) {
-                        for (const [key, data] of Object.entries(parsed.entities.technicians)) {
-                            if (state.entities.technicians[key]) {
-                                Object.assign(state.entities.technicians[key], data);
+                    state.temporal.shortTermHistory =
+                        parsed.temporal
+                            ?.shortTermHistory ||
+                        [];
+
+                    Object.assign(
+                        state.context,
+                        parsed.context || {}
+                    );
+
+                    if (
+                        parsed.entities &&
+                        parsed.entities
+                            .technicians
+                    ) {
+
+                        for (const [key, data]
+                            of Object.entries(
+                                parsed.entities
+                                    .technicians
+                            )) {
+
+                            if (
+                                state.entities
+                                    .technicians[
+                                    key
+                                ]
+                            ) {
+                                Object.assign(
+                                    state.entities
+                                        .technicians[
+                                        key
+                                    ],
+                                    data
+                                );
                             }
                         }
                     }
-                    
+
+                    /* ==========================
+                       REHIDRATAR INTELIGENCIA
+                    ========================== */
+
+                    if (
+                        parsed.intelligence
+                    ) {
+                        Object.assign(
+                            state.intelligence,
+                            parsed.intelligence
+                        );
+                    }
+
                     purgeStaleHistory();
+
                     saveSnapshot();
-                    console.log("%c🧠 [JARVIS KERNEL V4] REDUX TRANSACT ONLINE ($0 LECTURAS).", "color: #10b981; font-weight: bold;");
+
+                    console.log(
+                        "%c🧠 [JARVIS KERNEL V4] ONLINE",
+                        "color:#10b981;font-weight:bold;"
+                    );
+
                 } catch (error) {
-                    console.error("Error leyendo RAM fría, iniciando kernel limpio.");
+
+                    console.error(
+                        "Kernel limpio iniciado."
+                    );
+
                     saveSnapshot();
                 }
+
             } else {
+
                 saveSnapshot();
             }
+
             return this.getState();
+        },
+
+        /* ======================================
+           NUEVA TELEMETRÍA OPERATIVA
+        ====================================== */
+
+        registerSuccess: function(
+            module = "ui",
+            detail = ""
+        ) {
+
+            state.intelligence
+                .successfulOps++;
+
+            affectScore(
+                module,
+                +1
+            );
+
+            if (detail) {
+                addRecommendation(
+                    `Éxito detectado en ${module}: ${detail}`
+                );
+            }
+
+            saveSnapshot();
+
+            return true;
+        },
+
+        registerFailure: function(
+            module = "ui",
+            detail = ""
+        ) {
+
+            state.intelligence
+                .failedOps++;
+
+            affectScore(
+                module,
+                -5
+            );
+
+            pushIncident(
+                module,
+                detail ||
+                "Incidente detectado"
+            );
+
+            saveSnapshot();
+
+            return true;
+        },
+
+        registerApproval: function() {
+
+            state.intelligence
+                .approvals++;
+
+            saveSnapshot();
+
+            return true;
+        },
+
+        registerRejection: function() {
+
+            state.intelligence
+                .rejections++;
+
+            saveSnapshot();
+
+            return true;
+        },
+
+        getBriefing: function() {
+
+            const scores =
+                state.intelligence
+                    .moduleScores;
+
+            const weak =
+                Object.entries(scores)
+                    .sort(
+                        (a, b) =>
+                            a[1] - b[1]
+                    )[0];
+
+            return {
+                status:
+                    state.core.status,
+                successes:
+                    state.intelligence
+                        .successfulOps,
+                failures:
+                    state.intelligence
+                        .failedOps,
+                weakestModule:
+                    weak?.[0] ||
+                    "none",
+                weakestScore:
+                    weak?.[1] ||
+                    100,
+                approvals:
+                    state.intelligence
+                        .approvals,
+                rejections:
+                    state.intelligence
+                        .rejections
+            };
         },
 
         /**

@@ -264,15 +264,25 @@ setTimeout(() => {
 // 🚀 BOOT SEQUENCE + HEALTH MONITOR
 // =====================================================
 (async () => {
+
   auditStartup();
+
+  /* =====================================================
+     PRELOAD
+  ===================================================== */
 
   showLoader("PRECARGANDO MÓDULOS...");
   await smartPreload();
 
-  showLoader("VALIDANDO NÚCLEO...");
-  await new Promise(r => setTimeout(r, 600));
+  /* =====================================================
+     VALIDACIÓN NÚCLEO
+  ===================================================== */
 
-  // Validaciones base
+  showLoader("VALIDANDO NÚCLEO...");
+  await new Promise(r =>
+    setTimeout(r, 600)
+  );
+
   V7.monitor.firebase =
     typeof db !== "undefined";
 
@@ -286,11 +296,19 @@ setTimeout(() => {
     !V7.monitor.firebase ||
     !V7.monitor.auth
   ) {
-    intentarAutoHeal("boot_validation");
+    intentarAutoHeal(
+      "boot_validation"
+    );
   }
 
+  /* =====================================================
+     ACTIVACIÓN FORTRESS
+  ===================================================== */
+
   showLoader("ACTIVANDO FORTRESS...");
-  await new Promise(r => setTimeout(r, 900));
+  await new Promise(r =>
+    setTimeout(r, 900)
+  );
 
   V7.health = "ONLINE";
 
@@ -299,27 +317,179 @@ setTimeout(() => {
   );
 
   console.log(
-  `🚀 Boot completado en ${total}ms`
-);
+    `🚀 Boot completado en ${total}ms`
+  );
 
-if (typeof hideLoader === "function") {
-  hideLoader();
-}
+  if (
+    typeof hideLoader ===
+    "function"
+  ) {
+    hideLoader();
+  }
 
-if (typeof revealUI === "function") {
-  revealUI();
-}
-  // Heartbeat continuo
+  if (
+    typeof revealUI ===
+    "function"
+  ) {
+    revealUI();
+  }
+
+  /* =====================================================
+     JARVIS INTELLIGENT BRIEFING
+  ===================================================== */
+
+  setTimeout(() => {
+
+    try {
+
+      let briefing =
+`Sistema Fortress online.
+
+Boot: ${total}ms
+Red: ${navigator.onLine ? "Activa" : "Caída"}
+RAM: ${navigator.deviceMemory || "N/D"} GB`;
+
+      if (
+        window.JarvisMemory &&
+        typeof window
+          .JarvisMemory
+          .getBriefing ===
+          "function"
+      ) {
+
+        const intel =
+          window.JarvisMemory
+            .getBriefing();
+
+        briefing += `
+
+Módulo débil:
+${intel.weakestModule}
+
+Score:
+${intel.weakestScore}
+
+Éxitos:
+${intel.successes}
+
+Fallos:
+${intel.failures}`;
+      }
+
+      if (
+        window.renderJarvisResponse
+      ) {
+        window.renderJarvisResponse(
+          "Jarvis Briefing",
+          briefing,
+          "success"
+        );
+      }
+
+      if (
+        window.hablarJarvis
+      ) {
+        window.hablarJarvis(
+          "Buenos días Arquitecto. Núcleo estable. Briefing disponible."
+        );
+      }
+
+    } catch (err) {
+      console.warn(
+        "Briefing fail",
+        err
+      );
+    }
+
+  }, 1400);
+
+  /* =====================================================
+     SUPERVISED UI AUDIT
+  ===================================================== */
+
+  setTimeout(() => {
+
+    try {
+
+      const mobile =
+        window.innerWidth <= 768;
+
+      const header =
+        document.querySelector(
+          "header"
+        );
+
+      if (
+        mobile &&
+        header &&
+        header.offsetHeight >
+          95
+      ) {
+
+        const proposal =
+`Detecté saturación visual móvil en encabezado.
+
+Propongo:
+• Compactar header
+• Reducir iconos
+• Mejorar espacio útil
+
+Esperando autorización.`;
+
+        if (
+          window.renderJarvisResponse
+        ) {
+          window.renderJarvisResponse(
+            "Jarvis Auditor UI",
+            proposal,
+            "warning"
+          );
+        }
+
+        if (
+          window.JarvisContextMemory &&
+          typeof window
+            .JarvisContextMemory
+            .rememberIssue ===
+            "function"
+        ) {
+          window
+            .JarvisContextMemory
+            .rememberIssue({
+              type:
+                "MOBILE_UI",
+              detail:
+                "Header saturado detectado"
+            });
+        }
+      }
+
+    } catch (err) {}
+
+  }, 2600);
+
+  /* =====================================================
+     HEARTBEAT CONTINUO
+  ===================================================== */
+
   setInterval(() => {
+
     V7.monitor.network =
       navigator.onLine;
 
-    if (!navigator.onLine) {
-      V7.health = "OFFLINE";
-    } else if (
-      V7.health === "OFFLINE"
+    if (
+      !navigator.onLine
     ) {
-      V7.health = "ONLINE";
+      V7.health =
+        "OFFLINE";
+    }
+
+    else if (
+      V7.health ===
+      "OFFLINE"
+    ) {
+      V7.health =
+        "ONLINE";
     }
 
   }, 5000);

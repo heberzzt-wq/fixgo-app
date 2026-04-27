@@ -495,6 +495,25 @@ export class GestiaTerminal {
 
         this.bootTime = Date.now();
 
+        /* =====================================================
+           AUTONOMY SUPERVISED CORE
+        ===================================================== */
+
+        this.autonomy = {
+            enabled: true,
+            supervised: true,
+            intervalMs: 90000,
+            lastScan: 0,
+            pendingProposal: null,
+            issuesDetected: [],
+            modules: {
+                ui: true,
+                performance: true,
+                health: true,
+                layout: true
+            }
+        };
+
         logCore(
             `BANK CORE V${GESTIA_CONFIG.VERSION} ONLINE`
         );
@@ -507,6 +526,169 @@ export class GestiaTerminal {
 
         this.initHUD();
         this.initHeartbeat();
+
+        /* =====================================================
+           WATCHDOG AUTÓNOMO SUPERVISADO
+        ===================================================== */
+
+        this.initAutonomousSupervisor();
+    }
+
+    /* =====================================================
+       AUTONOMOUS SUPERVISOR
+    ===================================================== */
+
+    initAutonomousSupervisor() {
+
+        setInterval(async () => {
+
+            if (
+                !this.autonomy.enabled ||
+                this.autonomy.pendingProposal
+            ) {
+                return;
+            }
+
+            try {
+
+                const issues = [];
+
+                /* ===============================
+                   MOBILE UI DETECTION
+                =============================== */
+
+                if (
+                    window.innerWidth <= 768
+                ) {
+
+                    const hud =
+                        document.getElementById(
+                            "jarvisHud"
+                        );
+
+                    if (
+                        hud &&
+                        hud.offsetWidth >
+                        window.innerWidth * 0.45
+                    ) {
+                        issues.push({
+                            type: "UI_LAYOUT",
+                            severity: "LOW",
+                            title:
+                                "HUD móvil sobredimensionado"
+                        });
+                    }
+
+                    const header =
+                        document.querySelector(
+                            "header"
+                        );
+
+                    if (
+                        header &&
+                        header.offsetHeight > 95
+                    ) {
+                        issues.push({
+                            type: "UI_LAYOUT",
+                            severity: "MEDIUM",
+                            title:
+                                "Header saturado en móvil"
+                        });
+                    }
+                }
+
+                /* ===============================
+                   PERFORMANCE
+                =============================== */
+
+                if (
+                    this.pendingPlans.size > 3
+                ) {
+                    issues.push({
+                        type: "FLOW",
+                        severity: "MEDIUM",
+                        title:
+                            "Demasiados planes pendientes"
+                    });
+                }
+
+                if (!navigator.onLine) {
+                    issues.push({
+                        type: "NETWORK",
+                        severity: "HIGH",
+                        title:
+                            "Conectividad perdida"
+                    });
+                }
+
+                this.autonomy.lastScan =
+                    Date.now();
+
+                this.autonomy.issuesDetected =
+                    issues;
+
+                if (
+                    issues.length > 0 &&
+                    this.autonomy.supervised
+                ) {
+
+                    const top =
+                        issues[0];
+
+                    this.autonomy.pendingProposal = {
+                        id: crypto.randomUUID(),
+                        type:
+                            top.type,
+                        target:
+                            "Sistema Gestia",
+                        title:
+                            top.title,
+                        action:
+                            "Aplicar corrección automática supervisada",
+                        risk:
+                            top.severity
+                    };
+
+                    if (
+                        window.renderJarvisResponse
+                    ) {
+
+                        window.renderJarvisResponse(
+                            "Jarvis Supervisor",
+`Detecté una mejora necesaria.
+
+Problema:
+${top.title}
+
+Acción sugerida:
+Aplicar corrección automática.
+
+Riesgo:
+${top.severity}
+
+Escribe:
+• arre
+• aprobar
+• cancelar`,
+                            "warning"
+                        );
+                    }
+
+                    logCore(
+                        "AUTONOMOUS_PROPOSAL",
+                        this.autonomy.pendingProposal
+                    );
+                }
+
+            } catch (err) {
+
+                warnCore(
+                    "AUTONOMY_SCAN_FAIL",
+                    err
+                );
+            }
+
+        }, this.autonomy.intervalMs);
     }
 
     /* =====================================================

@@ -661,13 +661,136 @@ async function executeCommands(commands = []) {
 
 export const JarvisBridge = {
 
-    async dispatch(input = "") {
+   /* =====================================================
+   AUTONOMOUS SUPERVISED CORE STATE
+===================================================== */
+supervisedMode: true,
+pendingProposal: null,
+lastAuditAt: 0,
 
-        let raw =
-            String(
-                input || ""
-            ).trim();
+codeSurgeonMode: true,
 
+knownModules: {
+    tecnico: "./panel-tecnico.js",
+    tecnico_b2b: "./panel-tecnico.js",
+    admin: "./panel-admin.js",
+    cliente: "./panel-cliente.js",
+    bridge: "/gestia-core/jarvis/jarvis.bridge.v5.js",
+    terminal: "/gestia-core/gestia-terminal.js",
+    memory: "/gestia-core/jarvis/jarvis.memory.js",
+    ui: "./app-main.js"
+},
+
+async dispatch(input = "") {
+
+    let raw =
+        String(
+            input || ""
+        ).trim();
+
+    const rawLow =
+        raw.toLowerCase();
+
+    /* =====================================================
+       CODE SURGEON MODE
+    ===================================================== */
+
+    if (
+        this.codeSurgeonMode &&
+        (
+            rawLow.includes("revisa panel") ||
+            rawLow.includes("analiza panel") ||
+            rawLow.includes("revisa movil") ||
+            rawLow.includes("revisa móvil") ||
+            rawLow.includes("optimiza panel") ||
+            rawLow.includes("corrige panel")
+        )
+    ) {
+
+        let target =
+            this.knownModules.tecnico;
+
+        if (
+            rawLow.includes("admin")
+        ) {
+            target =
+                this.knownModules.admin;
+        }
+
+        if (
+            rawLow.includes("cliente")
+        ) {
+            target =
+                this.knownModules.cliente;
+        }
+
+        const proposal = {
+            id:
+                crypto.randomUUID(),
+            type:
+                "CODE_SURGEON",
+            title:
+                "Optimización responsive supervisada",
+            target,
+            issue:
+                rawLow.includes("movil") ||
+                rawLow.includes("móvil")
+                    ? "Sobredimensión móvil detectada"
+                    : "Densidad visual mejorable",
+            patch: [
+                "Reducir padding móvil",
+                "Compactar tarjetas",
+                "Escalar tipografías responsive",
+                "Optimizar botones táctiles"
+            ],
+            risk: "BAJO",
+            createdAt:
+                Date.now()
+        };
+
+        this.pendingProposal =
+            proposal;
+
+        const msg =
+`Detecté oportunidad de mejora visual.
+
+Archivo objetivo:
+${proposal.target}
+
+Problema:
+${proposal.issue}
+
+Propuesta:
+• ${proposal.patch.join("\n• ")}
+
+Riesgo:
+${proposal.risk}
+
+Escribe:
+• arre
+• aprobar
+• cancelar`;
+
+        render(
+            "Jarvis Code Surgeon",
+            msg,
+            "warning"
+        );
+
+        safeLog(
+            "CODE_SURGEON_PROPOSAL",
+            proposal
+        );
+
+        return {
+            ok: true,
+            waitingApproval: true,
+            proposal
+        };
+    }
+        /* =====================================================
+           CONTEXT MEMORY RESOLUTION
+        ===================================================== */
         if (
             window.JarvisContextMemory &&
             typeof window
@@ -683,6 +806,9 @@ export const JarvisBridge = {
                 );
         }
 
+        /* =====================================================
+           EMPTY INPUT GUARD
+        ===================================================== */
         if (!raw) {
             return {
                 ok: false,
@@ -695,6 +821,145 @@ export const JarvisBridge = {
             "INPUT",
             raw
         );
+
+        const cmd =
+            raw.toLowerCase();
+
+        /* =====================================================
+           SUPERVISED APPROVAL FLOW
+        ===================================================== */
+
+        if (
+            this.pendingProposal &&
+            [
+                "arre",
+                "aprobar",
+                "autorizar",
+                "confirmar",
+                "ok"
+            ].includes(cmd)
+        ) {
+
+            const proposal =
+                this.pendingProposal;
+
+            this.pendingProposal =
+                null;
+
+            render(
+                "Jarvis",
+                `Autorización confirmada.\nEjecutando propuesta: ${proposal.title}`,
+                "success"
+            );
+
+            safeLog(
+                "SUPERVISED_EXEC",
+                proposal
+            );
+
+            return {
+                ok: true,
+                approved: true,
+                proposal
+            };
+        }
+
+        if (
+            this.pendingProposal &&
+            [
+                "cancelar",
+                "rechazar",
+                "no"
+            ].includes(cmd)
+        ) {
+
+            const rejected =
+                this.pendingProposal;
+
+            this.pendingProposal =
+                null;
+
+            render(
+                "Jarvis",
+                `Propuesta cancelada: ${rejected.title}`,
+                "warning"
+            );
+
+            return {
+                ok: true,
+                cancelled: true
+            };
+        }
+
+        /* =====================================================
+           AUTONOMOUS SUPERVISED DETECTION
+        ===================================================== */
+
+        if (
+            this.supervisedMode &&
+            (
+                cmd.includes("revisa sistema") ||
+                cmd.includes("audita sistema") ||
+                cmd.includes("mejora sistema") ||
+                cmd.includes("jarvis autonomo") ||
+                cmd.includes("jarvis autónomo")
+            )
+        ) {
+
+            const proposal = {
+                id: crypto.randomUUID(),
+                type: "REWRITE",
+                title:
+                    "Optimizar router principal JarvisBridge",
+                target:
+                    "/gestia-core/jarvis/jarvis.bridge.v5.js",
+                impact:
+                    "Mayor autonomía supervisada, mejor respuesta y monitoreo.",
+                risk: "BAJO",
+                createdAt:
+                    Date.now()
+            };
+
+            this.pendingProposal =
+                proposal;
+
+            const msg =
+`He detectado una mejora viable.
+
+Objetivo:
+${proposal.title}
+
+Archivo:
+${proposal.target}
+
+Impacto:
+${proposal.impact}
+
+Riesgo:
+${proposal.risk}
+
+Escribe:
+• arre
+• aprobar
+• cancelar`;
+
+            render(
+                "Jarvis",
+                msg,
+                "warning"
+            );
+
+            safeLog(
+                "SUPERVISED_PROPOSAL",
+                proposal
+            );
+
+            return {
+                ok: true,
+                waitingApproval: true,
+                proposal
+            };
+        }
 
         /* ==================================
            PURE SOCIAL FAST PATH

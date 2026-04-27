@@ -251,12 +251,147 @@ export async function translate(input = "") {
 ===================================================================================== */
 
 window.JarvisLanguageCore = {
+
+    /* ===============================
+       LEGACY CORE
+    =============================== */
     parseHumanCommand,
     toLegacyCommands,
-    translate
+    translate,
+
+    /* ===============================
+       EXECUTIVE INTELLIGENCE LAYER
+    =============================== */
+
+    detectMode(text = "") {
+
+        const t =
+            String(text)
+            .toLowerCase();
+
+        if (
+            t.includes("no ejecutes") ||
+            t.includes("solo analiza") ||
+            t.includes("sin ejecutar")
+        ) {
+            return "ANALYSIS_ONLY";
+        }
+
+        if (
+            t.includes("con permiso") ||
+            t.includes("con autorización") ||
+            t.includes("autoriza primero") ||
+            t.includes("sin permiso no")
+        ) {
+            return "SUPERVISED";
+        }
+
+        if (
+            t.includes("automatico") ||
+            t.includes("automático")
+        ) {
+            return "AUTONOMOUS";
+        }
+
+        return "STANDARD";
+    },
+
+    detectPriority(text = "") {
+
+        const t =
+            String(text)
+            .toLowerCase();
+
+        if (
+            t.includes("urgente") ||
+            t.includes("crítico")
+        ) {
+            return "HIGH";
+        }
+
+        if (
+            t.includes("después") ||
+            t.includes("luego")
+        ) {
+            return "LOW";
+        }
+
+        return "NORMAL";
+    },
+
+    detectDomain(text = "") {
+
+        const t =
+            String(text)
+            .toLowerCase();
+
+        if (
+            t.includes("movil") ||
+            t.includes("móvil") ||
+            t.includes("android") ||
+            t.includes("iphone")
+        ) {
+            return "MOBILE_UI";
+        }
+
+        if (
+            t.includes("b2b") ||
+            t.includes("tecnico") ||
+            t.includes("técnico")
+        ) {
+            return "B2B_PANEL";
+        }
+
+        if (
+            t.includes("seguridad")
+        ) {
+            return "SECURITY";
+        }
+
+        if (
+            t.includes("base de datos") ||
+            t.includes("firestore")
+        ) {
+            return "DATABASE";
+        }
+
+        return "GENERAL";
+    },
+
+    async interpretExecutive(text = "") {
+
+        const base =
+            await translate(text);
+
+        return {
+            raw: text,
+            commands: Array.isArray(base)
+                ? base
+                : [base],
+            mode:
+                this.detectMode(text),
+            priority:
+                this.detectPriority(text),
+            domain:
+                this.detectDomain(text),
+            supervised:
+                this.detectMode(text) ===
+                "SUPERVISED"
+        };
+    },
+
+    async smartTranslate(text = "") {
+
+        const intel =
+            await this.interpretExecutive(
+                text
+            );
+
+        return intel;
+    }
 };
 
 logV5(
     "ONLINE",
-    "Language Core V5.8 Ready"
+    "Language Core V5.8 Executive Ready"
 );

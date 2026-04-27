@@ -80,90 +80,205 @@ async function safeDispatch(cmd, ctx, simulate = false) {
 
 export async function runJarvis(input, ctx = {}, confirm = false) {
   try {
+
     if (!input) {
       throw new Error("JARVIS_EMPTY_INPUT");
     }
 
-   console.log("🧠 [JARVIS_INPUT]", input);
+    console.log(
+      "🧠 [JARVIS_INPUT]",
+      input
+    );
 
-   if (
-  input.includes("predictor") ||
-  input.includes("prediccion") ||
-  input.includes("riesgo futuro")
-) {
-  return await runPredictor();
-}
+    const raw =
+      String(input || "").trim();
 
-   if (
-  input.includes("commander") ||
-  input.includes("modo comandante") ||
-  input.includes("prioridades")
-) {
-  return await runCommander();
-}
+    const low =
+      raw.toLowerCase();
 
-   if (
-  input.includes("real actions") ||
-  input.includes("acciones reales") ||
-  input.includes("registrar accion")
-) {
-  return await runRealActions();
-}
+    /* =====================================================
+       AUTONOMOUS POLICY GATE
+       EVENTOS INTERNOS + PROACTIVO SUPERVISADO
+    ===================================================== */
 
-   if (
-  input.includes("execution core") ||
-  input.includes("ejecuta core") ||
-  input.includes("modo ejecucion")
-) {
-  return await runExecutionCore();
-}
+    if (
+      raw === "__AUTO_AUDIT_UI__" ||
+      low.includes("auditoria automatica") ||
+      low.includes("auditoría automática")
+    ) {
 
-   if (
-  input.includes("self healing") ||
-  input.includes("autorreparacion") ||
-  input.includes("auto reparar")
-) {
-  return await runSelfHealing();
-}
+      const weakScore =
+        window.JarvisMemory
+          ?.getBriefing?.()
+          ?.weakestScore || 100;
 
-   if (
-  input.includes("watchdog") ||
-  input.includes("modo autonomo") ||
-  input.includes("vigilancia continua")
-) {
-  return startWatchdog();
-}
+      return {
+        ok: true,
+        source:
+          "AUTO_POLICY",
+        mode:
+          "SUPERVISED_PROPOSAL",
+        requiresApproval:
+          true,
+        title:
+          "Auditoría visual automática",
+        message:
+`Detecté oportunidad de mejora visual.
 
-   if (
-  input.includes("sentinel") ||
-  input.includes("vigilancia") ||
-  input.includes("alertas")
-) {
-  return await runSentinel();
-}
+Motivo:
+Score UI inferior al óptimo o revisión programada.
 
-   if (
-  input.includes("command center") ||
-  input.includes("centro de mando") ||
-  input.includes("panel ejecutivo")
-) {
-  return await runCommandCenter();
-}
+Acción sugerida:
+• Escanear panel técnico móvil
+• Detectar tarjetas grandes
+• Proponer compactación responsive
 
-   if (
-  input.includes("estado general") ||
-  input.includes("sistema vivo") ||
-  input.includes("firestore")
-) {
-  return await runFirestoreScan();
-}
+Riesgo:
+BAJO
 
-const live = await runLiveQuery(input);
+Escribe:
+• arre
+• aprobar
+• cancelar`,
+        priority:
+          weakScore < 80
+            ? "HIGH"
+            : "NORMAL"
+      };
+    }
 
-if (live?.ok) {
-  return live;
-}
+    if (
+      raw === "__AUTO_HEALTH_CHECK__"
+    ) {
 
+      return {
+        ok: true,
+        source:
+          "AUTO_POLICY",
+        mode:
+          "SUPERVISED_PROPOSAL",
+        requiresApproval:
+          true,
+        title:
+          "Diagnóstico autónomo del sistema",
+        message:
+`Propongo ejecutar revisión preventiva:
+
+• Firebase
+• Auth
+• Red
+• Memoria
+• Performance
+
+Escribe:
+• arre
+• aprobar
+• cancelar`,
+        priority:
+          "NORMAL"
+      };
+    }
+
+    /* =====================================================
+       AUTO PRIORITY ENGINE
+    ===================================================== */
+
+    if (
+      window.JarvisMemory &&
+      typeof window
+        .JarvisMemory
+        .registerSuccess ===
+        "function"
+    ) {
+      window.JarvisMemory
+        .registerSuccess(
+          "core",
+          "runJarvis invoked"
+        );
+    }
+
+    /* =====================================================
+       MOTORES EXISTENTES
+    ===================================================== */
+
+    if (
+      low.includes("predictor") ||
+      low.includes("prediccion") ||
+      low.includes("riesgo futuro")
+    ) {
+      return await runPredictor();
+    }
+
+    if (
+      low.includes("commander") ||
+      low.includes("modo comandante") ||
+      low.includes("prioridades")
+    ) {
+      return await runCommander();
+    }
+
+    if (
+      low.includes("real actions") ||
+      low.includes("acciones reales") ||
+      low.includes("registrar accion")
+    ) {
+      return await runRealActions();
+    }
+
+    if (
+      low.includes("execution core") ||
+      low.includes("ejecuta core") ||
+      low.includes("modo ejecucion")
+    ) {
+      return await runExecutionCore();
+    }
+
+    if (
+      low.includes("self healing") ||
+      low.includes("autorreparacion") ||
+      low.includes("auto reparar")
+    ) {
+      return await runSelfHealing();
+    }
+
+    if (
+      low.includes("watchdog") ||
+      low.includes("modo autonomo") ||
+      low.includes("vigilancia continua")
+    ) {
+      return startWatchdog();
+    }
+
+    if (
+      low.includes("sentinel") ||
+      low.includes("vigilancia") ||
+      low.includes("alertas")
+    ) {
+      return await runSentinel();
+    }
+
+    if (
+      low.includes("command center") ||
+      low.includes("centro de mando") ||
+      low.includes("panel ejecutivo")
+    ) {
+      return await runCommandCenter();
+    }
+
+    if (
+      low.includes("estado general") ||
+      low.includes("sistema vivo") ||
+      low.includes("firestore")
+    ) {
+      return await runFirestoreScan();
+    }
+
+    const live =
+      await runLiveQuery(raw);
+
+    if (live?.ok) {
+      return live;
+    }
 /* =====================================================
     SCANNER CORE PRIORIDAD #1
 ===================================================== */
