@@ -907,26 +907,74 @@ if (
     try {
 
         /* ======================================
-           CODE SURGEON
-        ====================================== */
+   CODE SURGEON
+====================================== */
 
-        if (
-            proposal.type ===
-            "CODE_SURGEON"
-        ) {
+if (
+    proposal.type ===
+    "CODE_SURGEON"
+) {
 
-            execResult =
-`Cirugía preparada sobre:
+    const target =
+        proposal.target ||
+        "archivo no definido";
 
-${proposal.target}
+    const actions =
+        Array.isArray(
+            proposal.patch
+        )
+            ? proposal.patch
+            : [];
 
-Acciones:
-• ${proposal.patch.join("\n• ")}
+    let severity =
+        "MEDIA";
+
+    if (
+        String(
+            proposal.issue || ""
+        ).toLowerCase().includes(
+            "móvil"
+        ) ||
+        String(
+            proposal.issue || ""
+        ).toLowerCase().includes(
+            "movil"
+        )
+    ) {
+        severity = "ALTA";
+    }
+
+    const autoPatch = [
+        "Aplicar clases responsive sm/md/lg",
+        "Reducir padding en mobile",
+        "Compactar tarjetas visuales",
+        "Escalar tipografías",
+        "Optimizar botones táctiles",
+        "Validar overflow horizontal"
+    ];
+
+    execResult =
+`🛠️ Code Surgeon autorizado.
+
+Objetivo:
+${target}
+
+Hallazgo:
+${proposal.issue || "Mejora detectada"}
+
+Severidad:
+${severity}
+
+Plan original:
+• ${actions.join("\n• ")}
+
+Patch táctico sugerido:
+• ${autoPatch.join("\n• ")}
 
 Estado:
-Listo para aplicar patch físico.`;
-        }
-
+Análisis completado.
+Módulo listo para reescritura supervisada.`;
+}
         /* ======================================
            REWRITE
         ====================================== */
