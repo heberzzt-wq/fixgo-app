@@ -96,11 +96,10 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     const low =
       raw.toLowerCase();
 
-    /* =====================================================
-       AUTONOMOUS POLICY GATE
-       EVENTOS INTERNOS + PROACTIVO SUPERVISADO
-    ===================================================== */
-
+ /* =====================================================
+   AUTONOMOUS EXECUTIVE CORE
+   VIDA OPERATIVA REAL + SUPERVISADO
+===================================================== */
 
 const memoryBriefing =
   window.JarvisMemory
@@ -121,8 +120,47 @@ const activeAlerts =
 const online =
   navigator.onLine === true;
 
+const now =
+  Date.now();
+
 const nowHour =
   new Date().getHours();
+
+const cooldownMs =
+  90000;
+
+const lastAuto =
+  Number(
+    window.__JARVIS_LAST_AUTO__ || 0
+  );
+
+const coolingDown =
+  now - lastAuto <
+  cooldownMs;
+
+const pendingProposal =
+  !!window.__JARVIS_PENDING__;
+
+const humanForcedAudit =
+  raw === "__AUTO_AUDIT_UI__";
+
+const humanForcedHealth =
+  raw === "__AUTO_HEALTH_CHECK__";
+
+/* ==========================================
+   SCORE ENGINE
+========================================== */
+
+const riskScore =
+  (
+    (online ? 0 : 45) +
+    (activeAlerts * 20) +
+    (
+      weakestScore < 90
+        ? (90 - weakestScore)
+        : 0
+    )
+  );
 
 const shouldAuditUI =
   weakestScore < 85;
@@ -136,62 +174,32 @@ const shouldMorningReport =
   nowHour <= 10 &&
   !window.__JARVIS_MORNING_DONE__;
 
-const humanForcedAudit =
-  raw === "__AUTO_AUDIT_UI__";
-
-const humanForcedHealth =
-  raw === "__AUTO_HEALTH_CHECK__";
+const shouldDeepAudit =
+  weakestScore < 75 ||
+  riskScore >= 60;
 
 /* ==========================================
-   PRIORIDAD #1 UI
+   EXECUTIVE LOCKS
 ========================================== */
 
 if (
-  humanForcedAudit ||
-  shouldAuditUI
+  pendingProposal
 ) {
-
-  window.__JARVIS_LAST_AUTO__ =
-    Date.now();
-
-  return {
-    ok: true,
-    source:
-      "AUTONOMY_ENGINE",
-    mode:
-      "SUPERVISED_PROPOSAL",
-    requiresApproval:
-      true,
-    title:
-      "Auditoría visual estratégica",
-    priority:
-      shouldAuditUI
-        ? "HIGH"
-        : "NORMAL",
-    message:
-`Detecté degradación potencial en experiencia visual.
-
-Motivo:
-• Score UI bajo
-• Necesidad de revisión preventiva
-
-Acción propuesta:
-• Escanear panel técnico móvil
-• Detectar tarjetas sobredimensionadas
-• Generar patch responsive
-
-Riesgo:
-BAJO
-
-Escribe:
-• arre
-• aprobar
-• cancelar`
-  };
+  // Espera decisión humana
 }
 
+else if (
+  coolingDown &&
+  !humanForcedAudit &&
+  !humanForcedHealth
+) {
+  // Anti spam autónomo
+}
+
+else {
+
 /* ==========================================
-   PRIORIDAD #2 HEALTH
+   PRIORIDAD #1 INCIDENTE CRÍTICO
 ========================================== */
 
 if (
@@ -200,7 +208,15 @@ if (
 ) {
 
   window.__JARVIS_LAST_AUTO__ =
-    Date.now();
+    now;
+
+  window.__JARVIS_PENDING__ = {
+    type: "HEALTH_CHECK",
+    command:
+      "__AUTO_HEALTH_CHECK__",
+    priority:
+      "HIGH"
+  };
 
   return {
     ok: true,
@@ -215,12 +231,16 @@ if (
     priority:
       "HIGH",
     message:
-`Detecté condiciones para revisión técnica.
+`Detecté condiciones críticas.
+
+Motivo:
+• Red inestable o caída
+• Alertas activas
+• Riesgo operativo
 
 Acción propuesta:
-• Revisar red
-• Firebase
-• Auth
+• Revisar conectividad
+• Firebase/Auth
 • Memoria
 • Performance
 
@@ -235,15 +255,84 @@ Escribe:
 }
 
 /* ==========================================
-   PRIORIDAD #3 REPORTE MATUTINO
+   PRIORIDAD #2 UI / EXPERIENCIA
+========================================== */
+
+if (
+  humanForcedAudit ||
+  shouldAuditUI
+) {
+
+  window.__JARVIS_LAST_AUTO__ =
+    now;
+
+  window.__JARVIS_PENDING__ = {
+    type: "UI_AUDIT",
+    command:
+      "__AUTO_AUDIT_UI__",
+    priority:
+      shouldDeepAudit
+        ? "HIGH"
+        : "NORMAL"
+  };
+
+  return {
+    ok: true,
+    source:
+      "AUTONOMY_ENGINE",
+    mode:
+      "SUPERVISED_PROPOSAL",
+    requiresApproval:
+      true,
+    title:
+      "Auditoría visual estratégica",
+    priority:
+      shouldDeepAudit
+        ? "HIGH"
+        : "NORMAL",
+    message:
+`Detecté degradación potencial visual.
+
+Motivo:
+• Score UI bajo
+• Riesgo UX creciente
+
+Acción propuesta:
+• Escanear paneles móviles
+• Detectar elementos saturados
+• Generar patch responsive
+
+Riesgo:
+BAJO
+
+Escribe:
+• arre
+• aprobar
+• cancelar`
+  };
+}
+
+/* ==========================================
+   PRIORIDAD #3 REPORTE EJECUTIVO
 ========================================== */
 
 if (
   shouldMorningReport
 ) {
 
+  window.__JARVIS_LAST_AUTO__ =
+    now;
+
   window.__JARVIS_MORNING_DONE__ =
     true;
+
+  window.__JARVIS_PENDING__ = {
+    type: "DAILY_REPORT",
+    command:
+      "jarvis resumen",
+    priority:
+      "NORMAL"
+  };
 
   return {
     ok: true,
@@ -258,7 +347,7 @@ if (
     priority:
       "NORMAL",
     message:
-`Propongo generar briefing matutino:
+`Propongo briefing operativo:
 
 • Estado sistema
 • Riesgos
@@ -272,152 +361,245 @@ Escribe:
 • cancelar`
   };
 }
+
+}
     /* =====================================================
-       AUTO PRIORITY ENGINE
-    ===================================================== */
-
-    if (
-      window.JarvisMemory &&
-      typeof window
-        .JarvisMemory
-        .registerSuccess ===
-        "function"
-    ) {
-      window.JarvisMemory
-        .registerSuccess(
-          "core",
-          "runJarvis invoked"
-        );
-    }
-
-    /* =====================================================
-       MOTORES EXISTENTES
-    ===================================================== */
-
-    if (
-      low.includes("predictor") ||
-      low.includes("prediccion") ||
-      low.includes("riesgo futuro")
-    ) {
-      return await runPredictor();
-    }
-
-    if (
-      low.includes("commander") ||
-      low.includes("modo comandante") ||
-      low.includes("prioridades")
-    ) {
-      return await runCommander();
-    }
-
-    if (
-      low.includes("real actions") ||
-      low.includes("acciones reales") ||
-      low.includes("registrar accion")
-    ) {
-      return await runRealActions();
-    }
-
-    if (
-      low.includes("execution core") ||
-      low.includes("ejecuta core") ||
-      low.includes("modo ejecucion")
-    ) {
-      return await runExecutionCore();
-    }
-
-    if (
-      low.includes("self healing") ||
-      low.includes("autorreparacion") ||
-      low.includes("auto reparar")
-    ) {
-      return await runSelfHealing();
-    }
-
-    if (
-      low.includes("watchdog") ||
-      low.includes("modo autonomo") ||
-      low.includes("vigilancia continua")
-    ) {
-      return startWatchdog();
-    }
-
-    if (
-      low.includes("sentinel") ||
-      low.includes("vigilancia") ||
-      low.includes("alertas")
-    ) {
-      return await runSentinel();
-    }
-
-    if (
-      low.includes("command center") ||
-      low.includes("centro de mando") ||
-      low.includes("panel ejecutivo")
-    ) {
-      return await runCommandCenter();
-    }
-
-    if (
-      low.includes("estado general") ||
-      low.includes("sistema vivo") ||
-      low.includes("firestore")
-    ) {
-      return await runFirestoreScan();
-    }
-
-    const live =
-      await runLiveQuery(raw);
-
-    if (live?.ok) {
-      return live;
-    }
-/* =====================================================
-   SCANNER CORE PRIORIDAD #1
+   AUTO PRIORITY ENGINE
+   DECISIÓN CENTRAL + MOTORES + SCANNER CORE
 ===================================================== */
-const vision = analyzeIntent(input);
 
 if (
-  vision.intent === "ANALYZE" &&
+  window.JarvisMemory &&
+  typeof window
+    .JarvisMemory
+    .registerSuccess ===
+    "function"
+) {
+
+  window.JarvisMemory
+    .registerSuccess(
+      "core",
+      "runJarvis invoked"
+    );
+}
+
+/* =====================================================
+   SMART EXECUTIVE ROUTER
+===================================================== */
+
+const routeMap = [
+
+  {
+    match: [
+      "predictor",
+      "prediccion",
+      "riesgo futuro"
+    ],
+    run: () =>
+      runPredictor()
+  },
+
+  {
+    match: [
+      "commander",
+      "modo comandante",
+      "prioridades"
+    ],
+    run: () =>
+      runCommander()
+  },
+
+  {
+    match: [
+      "real actions",
+      "acciones reales",
+      "registrar accion"
+    ],
+    run: () =>
+      runRealActions()
+  },
+
+  {
+    match: [
+      "execution core",
+      "ejecuta core",
+      "modo ejecucion"
+    ],
+    run: () =>
+      runExecutionCore()
+  },
+
+  {
+    match: [
+      "self healing",
+      "autorreparacion",
+      "auto reparar"
+    ],
+    run: () =>
+      runSelfHealing()
+  },
+
+  {
+    match: [
+      "watchdog",
+      "modo autonomo",
+      "vigilancia continua"
+    ],
+    run: () =>
+      startWatchdog()
+  },
+
+  {
+    match: [
+      "sentinel",
+      "vigilancia",
+      "alertas"
+    ],
+    run: () =>
+      runSentinel()
+  },
+
+  {
+    match: [
+      "command center",
+      "centro de mando",
+      "panel ejecutivo"
+    ],
+    run: () =>
+      runCommandCenter()
+  },
+
+  {
+    match: [
+      "estado general",
+      "sistema vivo",
+      "firestore"
+    ],
+    run: () =>
+      runFirestoreScan()
+  }
+
+];
+
+for (const item of routeMap) {
+
+  const hit =
+    item.match.some(
+      term =>
+        low.includes(term)
+    );
+
+  if (hit) {
+    return await item.run();
+  }
+}
+
+/* =====================================================
+   LIVE QUERY ENGINE
+===================================================== */
+
+const live =
+  await runLiveQuery(raw);
+
+if (live?.ok) {
+  return live;
+}
+
+/* =====================================================
+   SCANNER CORE PRIORIDAD #1
+   ANALIZA + PROPONE + APLICA PATCH SUPERVISADO
+===================================================== */
+
+const vision =
+  analyzeIntent(input);
+
+if (
+  vision.intent ===
+    "ANALYZE" &&
   vision.targetFile
 ) {
 
   const sourceMap = {
+
     "app-main.js": {
-      key: "__APP_MAIN_SOURCE__",
-      value: window.__APP_MAIN_SOURCE__ || ""
+      key:
+        "__APP_MAIN_SOURCE__",
+      value:
+        window
+          .__APP_MAIN_SOURCE__ ||
+        ""
     },
+
     "index.html": {
-      key: "__INDEX_SOURCE__",
-      value: window.__INDEX_SOURCE__ || ""
+      key:
+        "__INDEX_SOURCE__",
+      value:
+        window
+          .__INDEX_SOURCE__ ||
+        ""
     },
+
     "gestia-terminal.js": {
-      key: "__GESTIA_TERMINAL_SOURCE__",
-      value: window.__GESTIA_TERMINAL_SOURCE__ || ""
+      key:
+        "__GESTIA_TERMINAL_SOURCE__",
+      value:
+        window
+          .__GESTIA_TERMINAL_SOURCE__ ||
+        ""
     },
+
     "app-tecnico-b2b.js": {
-      key: "__APP_TECNICO_B2B_SOURCE__",
-      value: window.__APP_TECNICO_B2B_SOURCE__ || ""
+      key:
+        "__APP_TECNICO_B2B_SOURCE__",
+      value:
+        window
+          .__APP_TECNICO_B2B_SOURCE__ ||
+        ""
     },
+
     "firewall.engine.js": {
-      key: "__FIREWALL_SOURCE__",
-      value: window.__FIREWALL_SOURCE__ || ""
+      key:
+        "__FIREWALL_SOURCE__",
+      value:
+        window
+          .__FIREWALL_SOURCE__ ||
+        ""
     },
+
     "core_auth_tenant_v1.js": {
-      key: "__AUTH_SOURCE__",
-      value: window.__AUTH_SOURCE__ || ""
+      key:
+        "__AUTH_SOURCE__",
+      value:
+        window
+          .__AUTH_SOURCE__ ||
+        ""
     },
+
     "jarvis.orchestrator.js": {
-      key: "__JARVIS_ORCH_SOURCE__",
-      value: window.__JARVIS_ORCH_SOURCE__ || ""
+      key:
+        "__JARVIS_ORCH_SOURCE__",
+      value:
+        window
+          .__JARVIS_ORCH_SOURCE__ ||
+        ""
     },
+
     "jarvis.vision.engine.js": {
-      key: "__JARVIS_VISION_SOURCE__",
-      value: window.__JARVIS_VISION_SOURCE__ || ""
+      key:
+        "__JARVIS_VISION_SOURCE__",
+      value:
+        window
+          .__JARVIS_VISION_SOURCE__ ||
+        ""
     },
+
     "semantic.engine.js": {
-      key: "__SEMANTIC_SOURCE__",
-      value: window.__SEMANTIC_SOURCE__ || ""
+      key:
+        "__SEMANTIC_SOURCE__",
+      value:
+        window
+          .__SEMANTIC_SOURCE__ ||
+        ""
     }
   };
 
@@ -441,14 +623,172 @@ if (
       );
 
     const autofix =
-      buildAutoFix(report);
+      buildAutoFix(
+        report
+      );
 
     const autopatch =
-      buildAutoPatch(report);
+      buildAutoPatch(
+        report
+      );
 
     const patchdiff =
-      buildPatchDiff(report);
+      buildPatchDiff(
+        report
+      );
 
+    const wantsRepair =
+      low.includes(
+        "corrige"
+      ) ||
+      low.includes(
+        "repara"
+      ) ||
+      low.includes(
+        "arregla"
+      ) ||
+      low.includes(
+        "fix"
+      ) ||
+      low.includes(
+        "soluciona"
+      );
+
+    /* ==========================================
+       PATCH YA APROBADO
+    ========================================== */
+
+    if (
+      confirm === true &&
+      window.__JARVIS_PATCH_PENDING__ &&
+      window
+        .__JARVIS_PATCH_PENDING__
+        .file ===
+        vision.targetFile
+    ) {
+
+      if (
+        typeof autopatch ===
+          "string" &&
+        autopatch.length > 0
+      ) {
+
+        window[
+          sourceObj.key
+        ] = autopatch;
+
+        window.__JARVIS_PATCH_PENDING__ =
+          null;
+
+        return {
+          ok: true,
+          source:
+            "SCANNER_CORE",
+          mode:
+            "PATCH_APPLIED",
+          patched:
+            true,
+          file:
+            vision.targetFile,
+          memoryKey:
+            sourceObj.key,
+          message:
+`Corrección aplicada sobre ${vision.targetFile}`
+        };
+      }
+    }
+
+    /* ==========================================
+       PROPUESTA SUPERVISADA
+    ========================================== */
+
+    if (
+      wantsRepair &&
+      typeof autopatch ===
+        "string" &&
+      autopatch.length > 0
+    ) {
+
+      window.__JARVIS_PATCH_PENDING__ = {
+        file:
+          vision.targetFile,
+        key:
+          sourceObj.key,
+        createdAt:
+          Date.now()
+      };
+
+      window.__JARVIS_PENDING__ = {
+        type:
+          "PATCH_APPLY",
+        file:
+          vision.targetFile
+      };
+
+      return {
+        ok: true,
+        source:
+          "SCANNER_CORE",
+        mode:
+          "SUPERVISED_PROPOSAL",
+        requiresApproval:
+          true,
+        title:
+          "Patch automático listo",
+        file:
+          vision.targetFile,
+        report,
+        autofix,
+        patchdiff,
+        message:
+`Detecté una corrección lista para aplicar.
+
+Archivo:
+${vision.targetFile}
+
+Acción:
+Aplicar patch automático.
+
+Escribe:
+• arre
+• aprobar
+• cancelar`
+      };
+    }
+
+    /* ==========================================
+       SOLO ANÁLISIS
+    ========================================== */
+
+    return {
+      ok: true,
+      source:
+        "SCANNER_CORE",
+      mode:
+        "ANALYSIS",
+      file:
+        vision.targetFile,
+      report,
+      autofix,
+      autopatch,
+      patchdiff,
+      message:
+`Escaneo completado: ${vision.targetFile}`
+    };
+  }
+
+  return {
+    ok: true,
+    source:
+      "SCANNER_CORE",
+    mode:
+      "ANALYSIS",
+    file:
+      vision.targetFile,
+    message:
+`Objetivo detectado: ${vision.targetFile}`
+  };
+}
     /* ==========================================
        AUTO PATCH APPLY (SUPERVISED)
     ========================================== */
@@ -588,102 +928,352 @@ if (biz?.ok) {
   return biz;
 }
 
-    // ============================================================================
-    // STEP 1: CONFIRM MODE
-    // ============================================================================
+  // ============================================================================
+// STEP 1: CONFIRM MODE
+// SOBERANO UNIVERSAL + PENDING HUMAN APPROVAL
+// ============================================================================
 
-    if (confirm === true) {
-      const key = Array.isArray(input) ? buildKey(input) : String(input);
-      const pending = pendingConfirmations.get(key);
+if (confirm === true) {
 
-      if (!pending) throw new Error("CONFIRMATION_NOT_FOUND");
+  /* =====================================================
+     PRIORIDAD #1: AUTONOMOUS PENDING PROPOSAL
+  ===================================================== */
 
-      if (Date.now() - pending.createdAt > CONFIRM_TTL) {
-        pendingConfirmations.delete(key);
-        throw new Error("CONFIRMATION_EXPIRED");
+  if (window.__JARVIS_PENDING__) {
+
+    const proposal =
+      window.__JARVIS_PENDING__;
+
+    window.__JARVIS_PENDING__ =
+      null;
+
+    try {
+
+      /* ==============================================
+         AUTO HEALTH CHECK
+      ============================================== */
+
+      if (
+        proposal.type ===
+        "HEALTH_CHECK"
+      ) {
+
+        return await runJarvis(
+          "__AUTO_HEALTH_CHECK__",
+          ctx,
+          false,
+          false
+        );
       }
 
-      const executed = [];
-      const results = [];
+      /* ==============================================
+         AUTO UI AUDIT
+      ============================================== */
+
+      if (
+        proposal.type ===
+        "UI_AUDIT"
+      ) {
+
+        return await runJarvis(
+          "__AUTO_AUDIT_UI__",
+          ctx,
+          false,
+          false
+        );
+      }
+
+      /* ==============================================
+         DAILY REPORT
+      ============================================== */
+
+      if (
+        proposal.type ===
+        "DAILY_REPORT"
+      ) {
+
+        return await runJarvis(
+          "jarvis resumen",
+          ctx,
+          false,
+          false
+        );
+      }
+
+      /* ==============================================
+         DIRECT COMMAND EXECUTION
+      ============================================== */
+
+      if (
+        proposal.command
+      ) {
+
+        return await runJarvis(
+          proposal.command,
+          ctx,
+          false,
+          false
+        );
+      }
+
+      return {
+        ok: true,
+        mode: "CONFIRM_EXECUTED",
+        message:
+          "Propuesta ejecutada."
+      };
+
+    } catch (autoErr) {
+
+      return {
+        ok: false,
+        error: true,
+        mode: "CONFIRM_FAIL",
+        message:
+          autoErr.message ||
+          "AUTO_EXEC_FAIL"
+      };
+    }
+  }
+
+  /* =====================================================
+     PRIORIDAD #2: LEGACY PENDING CONFIRMATIONS
+  ===================================================== */
+
+  const key =
+    Array.isArray(input)
+      ? buildKey(input)
+      : String(input);
+
+  const pending =
+    pendingConfirmations.get(
+      key
+    );
+
+  if (!pending) {
+    throw new Error(
+      "CONFIRMATION_NOT_FOUND"
+    );
+  }
+
+  if (
+    Date.now() -
+      pending.createdAt >
+    CONFIRM_TTL
+  ) {
+
+    pendingConfirmations.delete(
+      key
+    );
+
+    throw new Error(
+      "CONFIRMATION_EXPIRED"
+    );
+  }
+
+  const executed =
+    [];
+
+  const results =
+    [];
+
+  try {
+
+    for (const cmd of pending.commands) {
+
+      let snapshot =
+        null;
+
+      const target =
+        resolveTarget(cmd);
+
+      /* ==========================================
+         SNAPSHOT BEFORE MUTATION
+      ========================================== */
+
+      if (
+        target &&
+        (
+          cmd.action ===
+            "UPDATE" ||
+          cmd.action ===
+            "REPAIR"
+        )
+      ) {
+
+        const tenantId =
+          pending.ctx
+            ?.tenantId ||
+          "UXMAL39";
+
+        const path =
+`tenants/${tenantId}/BUILDING/${target}`;
+
+        snapshot =
+          await createSnapshot(
+            path
+          );
+      }
+
+      /* ==========================================
+         EXECUTION
+      ========================================== */
+
+      const exec =
+        await safeDispatch(
+          cmd,
+          pending.ctx,
+          false
+        );
+
+      if (!exec?.ok) {
+        throw new Error(
+          exec?.message ||
+          "EXEC_FAILED"
+        );
+      }
+
+      JarvisMemory.dispatch({
+        type:
+          "PUSH_HISTORY",
+        payload: {
+          role:
+            "assistant",
+          message:
+`Ejecutado con éxito: ${cmd.action}`
+        }
+      });
+
+      executed.push({
+        cmd,
+        snapshot,
+        response:
+          exec.response
+      });
+
+      results.push(
+        exec.response
+      );
+    }
+
+    pendingConfirmations.delete(
+      key
+    );
+
+    return {
+      mode:
+        "EXECUTION",
+      ok: true,
+      commandId:
+        pending.ids,
+      result:
+        results,
+      message:
+        "Ejecución completada."
+    };
+
+  } catch (execErr) {
+
+    console.error(
+      "💥 [EXEC_FAIL]",
+      execErr.message
+    );
+
+    console.warn(
+      "↩️ [ROLLBACK] Starting recovery"
+    );
+
+    /* ==========================================
+       ROLLBACK
+    ========================================== */
+
+    for (
+      let i =
+        executed.length - 1;
+      i >= 0;
+      i--
+    ) {
+
+      const item =
+        executed[i];
+
+      const cmd =
+        item.cmd;
 
       try {
-        for (const cmd of pending.commands) {
-          let snapshot = null;
-          const target = resolveTarget(cmd);
 
-          // SNAPSHOT BEFORE MUTATION
-          if (target && (cmd.action === "UPDATE" || cmd.action === "REPAIR")) {
-            const tenantId = pending.ctx?.tenantId || "UXMAL39";
-            const path = `tenants/${tenantId}/BUILDING/${target}`;
-            snapshot = await createSnapshot(path);
-          }
+        if (
+          cmd.action ===
+            "CREATE" ||
+          cmd.action ===
+            "CREATE_BUILDING"
+        ) {
 
-          // EXECUTION
-          const exec = await safeDispatch(cmd, pending.ctx, false);
+          const createdId =
+            item.response?.id ||
+            cmd.target ||
+            cmd.payload?.name;
 
-          if (!exec?.ok) throw new Error(exec?.message || "EXEC_FAILED");
+          if (
+            createdId &&
+            window
+              ?.KernelHeberto
+              ?.execute
+          ) {
 
-          // 🔥 FIX: Reemplazado saveMemory por dispatch transaccional
-          JarvisMemory.dispatch({
-              type: 'PUSH_HISTORY',
-              payload: { role: 'assistant', message: `Ejecutado con éxito: ${cmd.action}` }
-          });
-
-          executed.push({
-            cmd,
-            snapshot,
-            response: exec.response
-          });
-
-          results.push(exec.response);
-        }
-
-        pendingConfirmations.delete(key);
-
-        return {
-          mode: "EXECUTION",
-          ok: true,
-          commandId: pending.ids,
-          result: results,
-          message: "Ejecución completada."
-        };
-
-      } catch (execErr) {
-        console.error("💥 [EXEC_FAIL]", execErr.message);
-        console.warn("↩️ [ROLLBACK] Starting recovery");
-
-        // ROLLBACK
-        for (let i = executed.length - 1; i >= 0; i--) {
-          const item = executed[i];
-          const cmd = item.cmd;
-
-          try {
-            if (cmd.action === "CREATE" || cmd.action === "CREATE_BUILDING") {
-              const createdId = item.response?.id || cmd.target || cmd.payload?.name;
-              if (createdId && window?.KernelHeberto?.execute) {
-                await window.KernelHeberto.execute(`DELETE_BUILDING::{"id":"${createdId}"}`, null, { simulate: false });
-              }
-            }
-            else if ((cmd.action === "UPDATE" || cmd.action === "REPAIR") && item.snapshot?.ok) {
-              await restoreSnapshot(item.snapshot);
-            }
-          } catch (rbErr) {
-            console.error("❌ [ROLLBACK_FAIL]", rbErr);
+            await window
+              .KernelHeberto
+              .execute(
+`DELETE_BUILDING::{"id":"${createdId}"}`,
+                null,
+                {
+                  simulate:
+                    false
+                }
+              );
           }
         }
 
-        pendingConfirmations.delete(key);
+        else if (
+          (
+            cmd.action ===
+              "UPDATE" ||
+            cmd.action ===
+              "REPAIR"
+          ) &&
+          item.snapshot?.ok
+        ) {
 
-        return {
-          ok: false,
-          error: true,
-          mode: "ROLLBACK",
-          message: execErr.message,
-          partialResults: results
-        };
+          await restoreSnapshot(
+            item.snapshot
+          );
+        }
+
+      } catch (rbErr) {
+
+        console.error(
+          "❌ [ROLLBACK_FAIL]",
+          rbErr
+        );
       }
     }
 
+    pendingConfirmations.delete(
+      key
+    );
+
+    return {
+      ok: false,
+      error: true,
+      mode:
+        "ROLLBACK",
+      message:
+        execErr.message,
+      partialResults:
+        results
+    };
+  }
+}
     // ============================================================================
     // STEP 2: BUILD COMMANDS (NLU + DSL)
     // ============================================================================

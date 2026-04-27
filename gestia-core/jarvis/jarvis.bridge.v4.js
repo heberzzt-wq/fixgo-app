@@ -514,68 +514,119 @@ async function resolveCommands(raw = "") {
             continue;
         }
 
-        /* ======================================
-           HARD REPAIR ROUTER
-        ====================================== */
+   /* ======================================
+   HARD REPAIR ROUTER
+   MODO SUPERVISADO
+====================================== */
 
-        if (
-            low.includes("logout") &&
-            low.includes("admin")
-        ) {
-            commands.push(
-                "REPAIR::admin"
-            );
-            continue;
-        }
+if (
+    low.includes("logout") &&
+    low.includes("admin")
+) {
 
-        if (
-            low.includes("cerrar sesion") &&
-            low.includes("admin")
-        ) {
-            commands.push(
-                "REPAIR::admin"
-            );
-            continue;
-        }
+    window.__JARVIS_PENDING__ = {
+        type: "REPAIR",
+        target: "admin",
+        command: "REPAIR::admin",
+        title:
+            "Corregir logout Admin"
+    };
 
-        if (
-            low.includes("boton") &&
-            low.includes("admin") &&
-            low.includes("no funciona")
-        ) {
-            commands.push(
-                "REPAIR::admin"
-            );
-            continue;
-        }
+    commands.push(
+        "__WAIT_APPROVAL__"
+    );
 
-        if (
-            low.includes("tecnico") &&
-            low.includes("login") &&
-            (
-                low.includes("falla") ||
-                low.includes("no funciona")
-            )
-        ) {
-            commands.push(
-                "REPAIR::tecnico"
-            );
-            continue;
-        }
+    continue;
+}
 
-        if (
-            low.includes("cliente") &&
-            low.includes("panel") &&
-            (
-                low.includes("roto") ||
-                low.includes("falla")
-            )
-        ) {
-            commands.push(
-                "REPAIR::cliente"
-            );
-            continue;
-        }
+if (
+    low.includes("cerrar sesion") &&
+    low.includes("admin")
+) {
+
+    window.__JARVIS_PENDING__ = {
+        type: "REPAIR",
+        target: "admin",
+        command: "REPAIR::admin",
+        title:
+            "Reparar cierre de sesión Admin"
+    };
+
+    commands.push(
+        "__WAIT_APPROVAL__"
+    );
+
+    continue;
+}
+
+if (
+    low.includes("boton") &&
+    low.includes("admin") &&
+    low.includes("no funciona")
+) {
+
+    window.__JARVIS_PENDING__ = {
+        type: "REPAIR",
+        target: "admin",
+        command: "REPAIR::admin",
+        title:
+            "Corregir botón Admin"
+    };
+
+    commands.push(
+        "__WAIT_APPROVAL__"
+    );
+
+    continue;
+}
+
+if (
+    low.includes("tecnico") &&
+    low.includes("login") &&
+    (
+        low.includes("falla") ||
+        low.includes("no funciona")
+    )
+) {
+
+    window.__JARVIS_PENDING__ = {
+        type: "REPAIR",
+        target: "tecnico",
+        command: "REPAIR::tecnico",
+        title:
+            "Corregir login Técnico"
+    };
+
+    commands.push(
+        "__WAIT_APPROVAL__"
+    );
+
+    continue;
+}
+
+if (
+    low.includes("cliente") &&
+    low.includes("panel") &&
+    (
+        low.includes("roto") ||
+        low.includes("falla")
+    )
+) {
+
+    window.__JARVIS_PENDING__ = {
+        type: "REPAIR",
+        target: "cliente",
+        command: "REPAIR::cliente",
+        title:
+            "Corregir panel Cliente"
+    };
+
+    commands.push(
+        "__WAIT_APPROVAL__"
+    );
+
+    continue;
+}
 
         /* ======================================
            PREMIUM INTERNAL ROUTER
