@@ -490,6 +490,37 @@ async function resolveCommands(raw = "") {
             continue;
         }
 
+
+        /* ======================================
+   PREMIUM INTERNAL ROUTER
+====================================== */
+
+if (
+    cleanPart
+        .toLowerCase()
+        .includes(
+            "auditoria automatica"
+        ) ||
+    cleanPart ===
+        "__AUTO_AUDIT_UI__"
+) {
+    commands.push(
+        "__AUTO_AUDIT_UI__"
+    );
+    continue;
+}
+
+if (
+    cleanPart ===
+    "__AUTO_HEALTH_CHECK__"
+) {
+    commands.push(
+        "__AUTO_HEALTH_CHECK__"
+    );
+    continue;
+}
+
+
         /* ======================================
            LANGUAGE CORE
         ====================================== */
