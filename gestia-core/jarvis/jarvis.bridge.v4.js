@@ -857,71 +857,100 @@ Escribe:
             raw.toLowerCase();
 
         /* =====================================================
-           SUPERVISED APPROVAL FLOW
-        ===================================================== */
+   SUPERVISED APPROVAL FLOW
+===================================================== */
 
-        if (
-            this.pendingProposal &&
-            [
-                "arre",
-                "aprobar",
-                "autorizar",
-                "confirmar",
-                "ok"
-            ].includes(cmd)
-        ) {
+const pendingProposal =
+    this.pendingProposal ||
+    window.__JARVIS_PENDING__ ||
+    null;
 
-            const proposal =
-                this.pendingProposal;
+/* ==========================================
+   APPROVE
+========================================== */
 
-            this.pendingProposal =
-                null;
+if (
+    pendingProposal &&
+    [
+        "arre",
+        "aprobar",
+        "autorizar",
+        "confirmar",
+        "ok",
+        "dale"
+    ].includes(cmd)
+) {
 
-            render(
-                "Jarvis",
-                `Autorización confirmada.\nEjecutando propuesta: ${proposal.title}`,
-                "success"
-            );
+    const proposal =
+        pendingProposal;
 
-            safeLog(
-                "SUPERVISED_EXEC",
-                proposal
-            );
+    this.pendingProposal =
+        null;
 
-            return {
-                ok: true,
-                approved: true,
-                proposal
-            };
-        }
+    window.__JARVIS_PENDING__ =
+        null;
 
-        if (
-            this.pendingProposal &&
-            [
-                "cancelar",
-                "rechazar",
-                "no"
-            ].includes(cmd)
-        ) {
+    render(
+        "Jarvis",
+        `Autorización confirmada.\nEjecutando propuesta: ${proposal.title}`,
+        "success"
+    );
 
-            const rejected =
-                this.pendingProposal;
+    safeLog(
+        "SUPERVISED_EXEC",
+        proposal
+    );
 
-            this.pendingProposal =
-                null;
+    return {
+        ok: true,
+        approved: true,
+        executed: true,
+        proposal,
+        message:
+            `Propuesta autorizada: ${proposal.title}`
+    };
+}
 
-            render(
-                "Jarvis",
-                `Propuesta cancelada: ${rejected.title}`,
-                "warning"
-            );
+/* ==========================================
+   REJECT
+========================================== */
 
-            return {
-                ok: true,
-                cancelled: true
-            };
-        }
+if (
+    pendingProposal &&
+    [
+        "cancelar",
+        "rechazar",
+        "no",
+        "abortar"
+    ].includes(cmd)
+) {
 
+    const rejected =
+        pendingProposal;
+
+    this.pendingProposal =
+        null;
+
+    window.__JARVIS_PENDING__ =
+        null;
+
+    render(
+        "Jarvis",
+        `Propuesta cancelada: ${rejected.title}`,
+        "warning"
+    );
+
+    safeLog(
+        "SUPERVISED_CANCEL",
+        rejected
+    );
+
+    return {
+        ok: true,
+        cancelled: true,
+        proposal: rejected
+    };
+}
         /* =====================================================
            AUTONOMOUS SUPERVISED DETECTION
         ===================================================== */

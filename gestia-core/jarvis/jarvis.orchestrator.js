@@ -101,37 +101,84 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
        EVENTOS INTERNOS + PROACTIVO SUPERVISADO
     ===================================================== */
 
-    if (
-      raw === "__AUTO_AUDIT_UI__" ||
-      low.includes("auditoria automatica") ||
-      low.includes("auditoría automática")
-    ) {
 
-      const weakScore =
-        window.JarvisMemory
-          ?.getBriefing?.()
-          ?.weakestScore || 100;
+const memoryBriefing =
+  window.JarvisMemory
+    ?.getBriefing?.() || {};
 
-      return {
-        ok: true,
-        source:
-          "AUTO_POLICY",
-        mode:
-          "SUPERVISED_PROPOSAL",
-        requiresApproval:
-          true,
-        title:
-          "Auditoría visual automática",
-        message:
-`Detecté oportunidad de mejora visual.
+const weakestScore =
+  Number(
+    memoryBriefing
+      ?.weakestScore || 100
+  );
+
+const activeAlerts =
+  Number(
+    memoryBriefing
+      ?.alerts || 0
+  );
+
+const online =
+  navigator.onLine === true;
+
+const nowHour =
+  new Date().getHours();
+
+const shouldAuditUI =
+  weakestScore < 85;
+
+const shouldHealthCheck =
+  !online ||
+  activeAlerts > 0;
+
+const shouldMorningReport =
+  nowHour >= 8 &&
+  nowHour <= 10 &&
+  !window.__JARVIS_MORNING_DONE__;
+
+const humanForcedAudit =
+  raw === "__AUTO_AUDIT_UI__";
+
+const humanForcedHealth =
+  raw === "__AUTO_HEALTH_CHECK__";
+
+/* ==========================================
+   PRIORIDAD #1 UI
+========================================== */
+
+if (
+  humanForcedAudit ||
+  shouldAuditUI
+) {
+
+  window.__JARVIS_LAST_AUTO__ =
+    Date.now();
+
+  return {
+    ok: true,
+    source:
+      "AUTONOMY_ENGINE",
+    mode:
+      "SUPERVISED_PROPOSAL",
+    requiresApproval:
+      true,
+    title:
+      "Auditoría visual estratégica",
+    priority:
+      shouldAuditUI
+        ? "HIGH"
+        : "NORMAL",
+    message:
+`Detecté degradación potencial en experiencia visual.
 
 Motivo:
-Score UI inferior al óptimo o revisión programada.
+• Score UI bajo
+• Necesidad de revisión preventiva
 
-Acción sugerida:
+Acción propuesta:
 • Escanear panel técnico móvil
-• Detectar tarjetas grandes
-• Proponer compactación responsive
+• Detectar tarjetas sobredimensionadas
+• Generar patch responsive
 
 Riesgo:
 BAJO
@@ -139,46 +186,92 @@ BAJO
 Escribe:
 • arre
 • aprobar
-• cancelar`,
-        priority:
-          weakScore < 80
-            ? "HIGH"
-            : "NORMAL"
-      };
-    }
+• cancelar`
+  };
+}
 
-    if (
-      raw === "__AUTO_HEALTH_CHECK__"
-    ) {
+/* ==========================================
+   PRIORIDAD #2 HEALTH
+========================================== */
 
-      return {
-        ok: true,
-        source:
-          "AUTO_POLICY",
-        mode:
-          "SUPERVISED_PROPOSAL",
-        requiresApproval:
-          true,
-        title:
-          "Diagnóstico autónomo del sistema",
-        message:
-`Propongo ejecutar revisión preventiva:
+if (
+  humanForcedHealth ||
+  shouldHealthCheck
+) {
 
+  window.__JARVIS_LAST_AUTO__ =
+    Date.now();
+
+  return {
+    ok: true,
+    source:
+      "AUTONOMY_ENGINE",
+    mode:
+      "SUPERVISED_PROPOSAL",
+    requiresApproval:
+      true,
+    title:
+      "Diagnóstico preventivo",
+    priority:
+      "HIGH",
+    message:
+`Detecté condiciones para revisión técnica.
+
+Acción propuesta:
+• Revisar red
 • Firebase
 • Auth
-• Red
 • Memoria
 • Performance
+
+Riesgo:
+BAJO
 
 Escribe:
 • arre
 • aprobar
-• cancelar`,
-        priority:
-          "NORMAL"
-      };
-    }
+• cancelar`
+  };
+}
 
+/* ==========================================
+   PRIORIDAD #3 REPORTE MATUTINO
+========================================== */
+
+if (
+  shouldMorningReport
+) {
+
+  window.__JARVIS_MORNING_DONE__ =
+    true;
+
+  return {
+    ok: true,
+    source:
+      "AUTONOMY_ENGINE",
+    mode:
+      "SUPERVISED_PROPOSAL",
+    requiresApproval:
+      true,
+    title:
+      "Reporte ejecutivo matutino",
+    priority:
+      "NORMAL",
+    message:
+`Propongo generar briefing matutino:
+
+• Estado sistema
+• Riesgos
+• Técnicos
+• Alertas
+• Prioridades del día
+
+Escribe:
+• arre
+• aprobar
+• cancelar`
+  };
+}
     /* =====================================================
        AUTO PRIORITY ENGINE
     ===================================================== */
