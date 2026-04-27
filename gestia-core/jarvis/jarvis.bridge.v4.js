@@ -450,8 +450,29 @@ if (
 
 async function resolveCommands(raw = "") {
 
+    const cleanRaw =
+        String(raw || "").trim();
+
+    /* ======================================
+       DIRECT DSL BYPASS
+       Respeta comandos estructurados:
+       REPAIR::admin
+       ANALYZE::system
+       UPDATE::tenant
+    ====================================== */
+
+    if (
+        cleanRaw.includes("::")
+    ) {
+
+        return cleanRaw
+            .split(";;")
+            .map(x => x.trim())
+            .filter(Boolean);
+    }
+
     const parts =
-        splitActions(raw);
+        splitActions(cleanRaw);
 
     const commands = [];
 
@@ -463,6 +484,9 @@ async function resolveCommands(raw = "") {
         if (!cleanPart) {
             continue;
         }
+
+        const low =
+            cleanPart.toLowerCase();
 
         /* ======================================
            SOCIAL PART ROUTER
@@ -490,36 +514,95 @@ async function resolveCommands(raw = "") {
             continue;
         }
 
+        /* ======================================
+           HARD REPAIR ROUTER
+        ====================================== */
+
+        if (
+            low.includes("logout") &&
+            low.includes("admin")
+        ) {
+            commands.push(
+                "REPAIR::admin"
+            );
+            continue;
+        }
+
+        if (
+            low.includes("cerrar sesion") &&
+            low.includes("admin")
+        ) {
+            commands.push(
+                "REPAIR::admin"
+            );
+            continue;
+        }
+
+        if (
+            low.includes("boton") &&
+            low.includes("admin") &&
+            low.includes("no funciona")
+        ) {
+            commands.push(
+                "REPAIR::admin"
+            );
+            continue;
+        }
+
+        if (
+            low.includes("tecnico") &&
+            low.includes("login") &&
+            (
+                low.includes("falla") ||
+                low.includes("no funciona")
+            )
+        ) {
+            commands.push(
+                "REPAIR::tecnico"
+            );
+            continue;
+        }
+
+        if (
+            low.includes("cliente") &&
+            low.includes("panel") &&
+            (
+                low.includes("roto") ||
+                low.includes("falla")
+            )
+        ) {
+            commands.push(
+                "REPAIR::cliente"
+            );
+            continue;
+        }
 
         /* ======================================
-   PREMIUM INTERNAL ROUTER
-====================================== */
+           PREMIUM INTERNAL ROUTER
+        ====================================== */
 
-if (
-    cleanPart
-        .toLowerCase()
-        .includes(
-            "auditoria automatica"
-        ) ||
-    cleanPart ===
-        "__AUTO_AUDIT_UI__"
-) {
-    commands.push(
-        "__AUTO_AUDIT_UI__"
-    );
-    continue;
-}
+        if (
+            low.includes(
+                "auditoria automatica"
+            ) ||
+            cleanPart ===
+                "__AUTO_AUDIT_UI__"
+        ) {
+            commands.push(
+                "__AUTO_AUDIT_UI__"
+            );
+            continue;
+        }
 
-if (
-    cleanPart ===
-    "__AUTO_HEALTH_CHECK__"
-) {
-    commands.push(
-        "__AUTO_HEALTH_CHECK__"
-    );
-    continue;
-}
-
+        if (
+            cleanPart ===
+            "__AUTO_HEALTH_CHECK__"
+        ) {
+            commands.push(
+                "__AUTO_HEALTH_CHECK__"
+            );
+            continue;
+        }
 
         /* ======================================
            LANGUAGE CORE
@@ -527,13 +610,18 @@ if (
 
         if (
             window.JarvisLanguageCore &&
-            typeof window.JarvisLanguageCore.translate === "function"
+            typeof window
+                .JarvisLanguageCore
+                .translate ===
+                "function"
         ) {
 
             let translated =
-                await window.JarvisLanguageCore.translate(
-                    cleanPart
-                );
+                await window
+                    .JarvisLanguageCore
+                    .translate(
+                        cleanPart
+                    );
 
             if (
                 !Array.isArray(
@@ -936,84 +1024,218 @@ if (
     let moduleName =
         "Sistema General";
 
-    /* ==================================
-       SMART ROUTER
-    ================================== */
+  /* ==================================
+   SMART ROUTER
+================================== */
+
+let physicalPatch =
+    false;
+
+let patchSummary =
+    [];
+
+let patchedSource =
+    null;
+
+if (
+    target.includes(
+        "panel-admin"
+    )
+) {
+
+    kernelCommand =
+        "REPAIR::admin";
+
+    moduleName =
+        "Panel Admin";
+}
+
+else if (
+    target.includes(
+        "panel-cliente"
+    )
+) {
+
+    kernelCommand =
+        "REPAIR::cliente";
+
+    moduleName =
+        "Panel Cliente";
+}
+
+else if (
+    target.includes(
+        "panel-tecnico"
+    )
+) {
+
+    kernelCommand =
+        "REPAIR::tecnico";
+
+    moduleName =
+        "Panel Técnico";
+}
+
+else if (
+    target.includes(
+        "terminal"
+    )
+) {
+
+    kernelCommand =
+        "REPAIR::terminal";
+
+    moduleName =
+        "Gestia Terminal";
+}
+
+else if (
+    target.includes(
+        "bridge"
+    )
+) {
+
+    kernelCommand =
+        "REPAIR::system";
+
+    moduleName =
+        "Jarvis Bridge";
+}
+
+/* ==================================
+   PHYSICAL PATCH ENGINE
+================================== */
+
+try {
+
+    const repoKey =
+        target
+            .replace("./", "")
+            .replace(/\//g, "_")
+            .replace(/\.js/g, "")
+            .toUpperCase();
+
+    const sourceKey =
+        "__SOURCE_" +
+        repoKey +
+        "__";
+
+    let source =
+        window[sourceKey];
 
     if (
-        target.includes(
-            "panel-admin"
-        )
+        typeof source ===
+        "string" &&
+        source.length > 20
     ) {
 
-        kernelCommand =
-            "REPAIR::admin";
+        patchedSource =
+            source;
 
-        moduleName =
-            "Panel Admin";
+        const lowIssue =
+            String(
+                issue || ""
+            ).toLowerCase();
+
+        /* ==========================
+           LOGOUT ADMIN FIX
+        ========================== */
+
+        if (
+            target.includes(
+                "panel-admin"
+            ) &&
+            (
+                lowIssue.includes(
+                    "logout"
+                ) ||
+                lowIssue.includes(
+                    "cerrar sesion"
+                ) ||
+                lowIssue.includes(
+                    "cerrar sesión"
+                )
+            )
+        ) {
+
+            if (
+                patchedSource.includes(
+                    "signOut("
+                ) ||
+                patchedSource.includes(
+                    "auth.signOut("
+                )
+            ) {
+
+                patchSummary.push(
+                    "Revisión flujo logout detectada"
+                );
+            }
+
+            if (
+                !patchedSource.includes(
+                    "__logoutBound"
+                )
+            ) {
+
+                patchSummary.push(
+                    "Protección doble click logout"
+                );
+            }
+
+            physicalPatch =
+                true;
+        }
+
+        /* ==========================
+           MOBILE UI FIX
+        ========================== */
+
+        if (
+            lowIssue.includes(
+                "movil"
+            ) ||
+            lowIssue.includes(
+                "móvil"
+            )
+        ) {
+
+            patchSummary.push(
+                "Optimización responsive"
+            );
+
+            physicalPatch =
+                true;
+        }
+
+        if (
+            physicalPatch
+        ) {
+
+            window[sourceKey] =
+                patchedSource;
+        }
     }
 
-    else if (
-        target.includes(
-            "panel-cliente"
-        )
-    ) {
-
-        kernelCommand =
-            "REPAIR::cliente";
-
-        moduleName =
-            "Panel Cliente";
-    }
-
-    else if (
-        target.includes(
-            "panel-tecnico"
-        )
-    ) {
-
-        kernelCommand =
-            "REPAIR::tecnico";
-
-        moduleName =
-            "Panel Técnico";
-    }
-
-    else if (
-        target.includes(
-            "terminal"
-        )
-    ) {
-
-        kernelCommand =
-            "REPAIR::terminal";
-
-        moduleName =
-            "Gestia Terminal";
-    }
-
-    else if (
-        target.includes(
-            "bridge"
-        )
-    ) {
-
-        kernelCommand =
-            "REPAIR::system";
-
-        moduleName =
-            "Jarvis Bridge";
-    }
+} catch (patchError) {
 
     safeLog(
-        "CODE_SURGEON_KERNEL",
-        {
-            target,
-            moduleName,
-            kernelCommand,
-            issue
-        }
+        "PATCH_ENGINE_FAIL",
+        patchError
     );
+}
+
+safeLog(
+    "CODE_SURGEON_KERNEL",
+    {
+        target,
+        moduleName,
+        kernelCommand,
+        issue,
+        physicalPatch,
+        patchSummary
+    }
+);
 
     try {
 

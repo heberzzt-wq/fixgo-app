@@ -373,7 +373,7 @@ Escribe:
       return live;
     }
 /* =====================================================
-    SCANNER CORE PRIORIDAD #1
+   SCANNER CORE PRIORIDAD #1
 ===================================================== */
 const vision = analyzeIntent(input);
 
@@ -382,51 +382,207 @@ if (
   vision.targetFile
 ) {
 
- const sourceMap = {
-  "app-main.js": window.__APP_MAIN_SOURCE__ || "",
-  "index.html": window.__INDEX_SOURCE__ || "",
-  "gestia-terminal.js": window.__GESTIA_TERMINAL_SOURCE__ || "",
-  "app-tecnico-b2b.js": window.__APP_TECNICO_B2B_SOURCE__ || "",
-  "firewall.engine.js": window.__FIREWALL_SOURCE__ || "",
-  "core_auth_tenant_v1.js": window.__AUTH_SOURCE__ || "",
-  "jarvis.orchestrator.js": window.__JARVIS_ORCH_SOURCE__ || "",
-  "jarvis.vision.engine.js": window.__JARVIS_VISION_SOURCE__ || "",
-  "semantic.engine.js": window.__SEMANTIC_SOURCE__ || ""
-};
+  const sourceMap = {
+    "app-main.js": {
+      key: "__APP_MAIN_SOURCE__",
+      value: window.__APP_MAIN_SOURCE__ || ""
+    },
+    "index.html": {
+      key: "__INDEX_SOURCE__",
+      value: window.__INDEX_SOURCE__ || ""
+    },
+    "gestia-terminal.js": {
+      key: "__GESTIA_TERMINAL_SOURCE__",
+      value: window.__GESTIA_TERMINAL_SOURCE__ || ""
+    },
+    "app-tecnico-b2b.js": {
+      key: "__APP_TECNICO_B2B_SOURCE__",
+      value: window.__APP_TECNICO_B2B_SOURCE__ || ""
+    },
+    "firewall.engine.js": {
+      key: "__FIREWALL_SOURCE__",
+      value: window.__FIREWALL_SOURCE__ || ""
+    },
+    "core_auth_tenant_v1.js": {
+      key: "__AUTH_SOURCE__",
+      value: window.__AUTH_SOURCE__ || ""
+    },
+    "jarvis.orchestrator.js": {
+      key: "__JARVIS_ORCH_SOURCE__",
+      value: window.__JARVIS_ORCH_SOURCE__ || ""
+    },
+    "jarvis.vision.engine.js": {
+      key: "__JARVIS_VISION_SOURCE__",
+      value: window.__JARVIS_VISION_SOURCE__ || ""
+    },
+    "semantic.engine.js": {
+      key: "__SEMANTIC_SOURCE__",
+      value: window.__SEMANTIC_SOURCE__ || ""
+    }
+  };
 
-  const source = sourceMap[vision.targetFile];
+  const sourceObj =
+    sourceMap[
+      vision.targetFile
+    ];
 
-  if (source && source.length > 0) {
-    const report = scanFile(vision.targetFile, String(source));
-    const autofix = buildAutoFix(report);
-    const autopatch = buildAutoPatch(report);
-    const patchdiff = buildPatchDiff(report);
+  const source =
+    sourceObj?.value || "";
+
+  if (
+    source &&
+    source.length > 0
+  ) {
+
+    const report =
+      scanFile(
+        vision.targetFile,
+        String(source)
+      );
+
+    const autofix =
+      buildAutoFix(report);
+
+    const autopatch =
+      buildAutoPatch(report);
+
+    const patchdiff =
+      buildPatchDiff(report);
+
+    /* ==========================================
+       AUTO PATCH APPLY (SUPERVISED)
+    ========================================== */
+
+    const wantsRepair =
+      low.includes("corrige") ||
+      low.includes("repara") ||
+      low.includes("soluciona") ||
+      low.includes("arregla") ||
+      low.includes("fix");
+
+    const approved =
+      confirm === true ||
+      low === "arre" ||
+      low === "aprobar";
+
+    let patched =
+      false;
+
+    let patchedSource =
+      String(source);
+
+    if (
+      wantsRepair &&
+      autopatch &&
+      typeof autopatch ===
+        "string"
+    ) {
+
+      if (
+        approved
+      ) {
+
+        patchedSource =
+          autopatch;
+
+        window[
+          sourceObj.key
+        ] =
+          patchedSource;
+
+        patched =
+          true;
+
+        return {
+          ok: true,
+          source:
+            "SCANNER_CORE",
+          mode:
+            "PATCH_APPLIED",
+          message:
+            `Corrección aplicada: ${vision.targetFile}`,
+          vision,
+          report,
+          autofix,
+          patchdiff,
+          patched: true,
+          memoryKey:
+            sourceObj.key
+        };
+      }
+
+      return {
+        ok: true,
+        source:
+          "SCANNER_CORE",
+        mode:
+          "SUPERVISED_PROPOSAL",
+        requiresApproval:
+          true,
+        title:
+          "Patch automático detectado",
+        message:
+`Detecté una corrección lista para aplicar.
+
+Archivo:
+${vision.targetFile}
+
+Acción:
+Aplicar patch generado automáticamente.
+
+Escribe:
+• arre
+• aprobar
+• cancelar`,
+        vision,
+        report,
+        autofix,
+        patchdiff,
+        pendingPatch: {
+          file:
+            vision.targetFile,
+          memoryKey:
+            sourceObj.key
+        }
+      };
+    }
 
     return {
       ok: true,
-      source: "SCANNER_CORE",
-      mode: "ANALYSIS",
-      message: `Escaneo completado: ${vision.targetFile}`,
+      source:
+        "SCANNER_CORE",
+      mode:
+        "ANALYSIS",
+      message:
+        `Escaneo completado: ${vision.targetFile}`,
       vision,
       report,
       autofix,
       autopatch,
-      patchdiff
+      patchdiff,
+      patched
     };
   }
+
   return {
     ok: true,
-    source: "SCANNER_CORE",
-    mode: "ANALYSIS",
-    message: `Objetivo detectado: ${vision.targetFile}`,
+    source:
+      "SCANNER_CORE",
+    mode:
+      "ANALYSIS",
+    message:
+      `Objetivo detectado: ${vision.targetFile}`,
     vision
   };
 }
 
 /* =====================================================
-    BUSINESS QUICK MODE
+   BUSINESS QUICK MODE
 ===================================================== */
-const biz = runBusinessIntent(input);
+const biz =
+  runBusinessIntent(
+    input
+  );
 
 if (biz?.ok) {
   return biz;
