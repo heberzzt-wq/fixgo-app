@@ -317,37 +317,81 @@ export function interpretarIntenciones(comandos) {
             }
 
             // =====================================================
-            // REPAIR
-            // =====================================================
-            if (rawLower === "repair") {
+// REPAIR
+// =====================================================
+if (rawLower === "repair") {
 
-                console.log("🔥 [DSL HIT] REPAIR detectado");
+    console.log(
+        "🔥 [DSL HIT] REPAIR detectado"
+    );
 
-                const payload =
-                    extraerPayload(cmd.raw) || {};
+    const payload =
+        extraerPayload(cmd.raw) || {};
 
-                const entity =
-                    (payloadPart || payload.entity || "system")
-                    .trim()
-                    .toLowerCase();
+    const entity =
+        (
+            payloadPart ||
+            payload.entity ||
+            "system"
+        )
+        .trim()
+        .toLowerCase();
 
-                const target =
-                    payload.target ||
-                    entity;
+    let target =
+        payload.target ||
+        entity;
 
-                interpretedPlan.push({
-                    intent: "REPAIR",
-                    action: "REPAIR",
-                    entity,
-                    target,
-                    payload,
-                    confidence: 1,
-                    summary:
-                        `Reparación de ${entity}`
-                });
+    let sourceFile =
+        null;
 
-                return;
-            }
+    let repairProfile =
+        "GENERIC";
+
+    if (entity === "admin") {
+        target = "panel-admin";
+        sourceFile =
+            "panel-admin.js";
+        repairProfile =
+            "ADMIN_UI";
+    }
+
+    else if (
+        entity === "tecnico"
+    ) {
+        target =
+            "panel-tecnico";
+        sourceFile =
+            "panel-tecnico.js";
+        repairProfile =
+            "TECH_UI";
+    }
+
+    else if (
+        entity === "cliente"
+    ) {
+        target =
+            "panel-cliente";
+        sourceFile =
+            "panel-cliente.js";
+        repairProfile =
+            "CLIENT_UI";
+    }
+
+    interpretedPlan.push({
+        intent: "REPAIR",
+        action: "REPAIR",
+        entity,
+        target,
+        sourceFile,
+        repairProfile,
+        payload,
+        confidence: 1,
+        summary:
+            `Reparación inteligente de ${entity}`
+    });
+
+    return;
+}
 
             // =====================================================
             // UPDATE

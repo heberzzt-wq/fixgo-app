@@ -24,7 +24,6 @@
  * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR.
  * ======================================================================================
  */
-
 // 1. IMPORTS DE INFRAESTRUCTURA
 import {
     auth,
@@ -35,35 +34,45 @@ import {
     getDoc,
     serverTimestamp,
     collection
-} from './firebase.js';
+} from "./firebase.js";
 
 import {
     runTransaction
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// 2. IMPORTS DE KERNEL Y MEMORIA (FIX: Conexión V4)
-import { 
-    JarvisMemory } from "/gestia-core/jarvis/jarvis.memory.js";
+// 2. IMPORTS DE KERNEL Y MEMORIA
+import {
+    JarvisMemory
+} from "/gestia-core/jarvis/jarvis.memory.js";
+
 // 3. CORE ENGINES
 import {
     resolveTenantContext
-} from '/gestia-core/core_auth_tenant_v1.js';
+} from "/gestia-core/core_auth_tenant_v1.js";
 
 import {
     ejecutarFirewallGlobal
-} from '/gestia-core/firewall.engine.js';
+} from "/gestia-core/firewall.engine.js";
 
 import {
     sincronizarCorralSemantico
-} from '/gestia-core/semantic.engine.js';
+} from "/gestia-core/semantic.engine.js";
 
 import {
     interpretarIntenciones
-} from '/gestia-core/intent.engine.js';
+} from "/gestia-core/intent.engine.js";
 
 import {
     runJarvis
-} from '/gestia-core/jarvis/jarvis.orchestrator.js';
+} from "/gestia-core/jarvis/jarvis.orchestrator.js";
+
+/* =====================================================
+   SELF REPAIR CORE
+===================================================== */
+
+import {
+    SelfRepairSentinelV10
+} from "/gestia-core/self-repair.engine.js";
 
 /**
  * =====================================================
@@ -1456,7 +1465,8 @@ async runPlan(opId, intents = null) {
     planObj.intents || [];
 
 /* =====================================================
-   NORMALIZADOR DE PLAN V15.1
+   NORMALIZADOR DE PLAN V15.2
+   + SELF REPAIR BRIDGE
 ===================================================== */
 
 // Caso: viene envuelto en response.preview
@@ -1468,7 +1478,8 @@ if (plan?.response?.preview) {
 // Caso: objeto único
 if (
     !Array.isArray(plan) &&
-    typeof plan === "object"
+    typeof plan ===
+        "object"
 ) {
     plan = [plan];
 }
@@ -1476,10 +1487,12 @@ if (
 // Caso: array con wrapper interno
 if (
     Array.isArray(plan) &&
-    plan[0]?.response?.preview
+    plan[0]?.response
+        ?.preview
 ) {
     plan =
-        plan[0].response.preview;
+        plan[0].response
+            .preview;
 }
 
 // Validación final
@@ -1492,122 +1505,278 @@ if (
     );
 }
 
-this.pendingPlans.delete(opId);
+this.pendingPlans.delete(
+    opId
+);
 
-if (this.activeOps.has(opId)) {
+if (
+    this.activeOps.has(
+        opId
+    )
+) {
     throw new Error(
         "DUPLICATE_OPERATION_LOCAL"
     );
 }
 
-    await this.ledger.persistOp(
-        opId,
-        {
-            state: "RUNNING"
-        }
-    );
+await this.ledger.persistOp(
+    opId,
+    {
+        state: "RUNNING"
+    }
+);
 
-    this.activeOps.add(opId);
+this.activeOps.add(
+    opId
+);
 
-    try {
+try {
 
-        const first =
-    plan[0] || {};
+    const first =
+        plan[0] || {};
 
-const detectedType =
-    first.intent ||
-    first.action ||
-    first.type ||
-    first.response?.intent ||
-    first.response?.action ||
-    first.preview?.[0]?.intent ||
-    "ANALYZE";
+    const detectedType =
+        first.intent ||
+        first.action ||
+        first.type ||
+        first.response
+            ?.intent ||
+        first.response
+            ?.action ||
+        first.preview?.[0]
+            ?.intent ||
+        "ANALYZE";
 
-const operation = {
-    id: opId,
-    type: detectedType,
-    payload: plan
-};
-
-        if (
-            !operation.id ||
-            !operation.type
-        ) {
-            throw new Error(
-                "INVALID_OPERATION"
-            );
-        }
-
-        if (
-            !this.session?.uid ||
-            !this.session?.tenantId
-        ) {
-            throw new Error(
-                "INVALID_SECURITY_CONTEXT"
-            );
-        }
-
-        /* ==========================================
-           FIREWALL ENFORCE
-        ========================================== */
-
-        await ejecutarFirewallGlobal({
-            userId: this.session.uid,
-            tenantId:
-                this.session.tenantId,
-            input: JSON.stringify(
-                operation
-            ),
-            authToken:
-                this.session.token,
-            mode: "ENFORCE"
-        });
-
-        logCore("OP_EXEC", {
-            opId,
-            type: operation.type,
-            steps: plan.length
-        });
-
-        /* ==========================================
-   READ ONLY BYPASS
-========================================== */
-
-const READ_TYPES = [
-    "ANALYZE",
-    "REPORT",
-    "STATUS",
-    "SEARCH",
-    "AUDIT"
-];
-
-if (
-    READ_TYPES.includes(
-        operation.type
-    )
-) {
-
-    await this.setState(
-        STATES.DONE,
-        opId,
-        {
-            report:
-                "Consulta completada."
-        }
-    );
-
-    await this.ledger.removeOp(
-        opId
-    );
-
-    return {
-        ok: true,
-        success: true,
-        opId,
-        message:
-            "Consulta completada."
+    const operation = {
+        id: opId,
+        type:
+            detectedType,
+        payload: plan
     };
-}
+
+    if (
+        !operation.id ||
+        !operation.type
+    ) {
+        throw new Error(
+            "INVALID_OPERATION"
+        );
+    }
+
+    if (
+        !this.session?.uid ||
+        !this.session
+            ?.tenantId
+    ) {
+        throw new Error(
+            "INVALID_SECURITY_CONTEXT"
+        );
+    }
+
+    /* ==========================================
+       FIREWALL ENFORCE
+    ========================================== */
+
+    await ejecutarFirewallGlobal(
+        {
+            userId:
+                this.session
+                    .uid,
+            tenantId:
+                this.session
+                    .tenantId,
+            input:
+                JSON.stringify(
+                    operation
+                ),
+            authToken:
+                this.session
+                    .token,
+            mode:
+                "ENFORCE"
+        }
+    );
+
+    logCore(
+        "OP_EXEC",
+        {
+            opId,
+            type:
+                operation.type,
+            steps:
+                plan.length
+        }
+    );
+
+    /* ==========================================
+       SELF REPAIR BRIDGE
+    ========================================== */
+
+    if (
+        operation.type ===
+        "REPAIR"
+    ) {
+
+        const target =
+            first.target ||
+            first.entity ||
+            "system";
+
+        const sourceMap = {
+            "admin":
+                window
+                    .__PANEL_ADMIN_SOURCE__ ||
+                "",
+            "panel-admin":
+                window
+                    .__PANEL_ADMIN_SOURCE__ ||
+                "",
+
+            "tecnico":
+                window
+                    .__PANEL_TECNICO_SOURCE__ ||
+                "",
+            "panel-tecnico":
+                window
+                    .__PANEL_TECNICO_SOURCE__ ||
+                "",
+
+            "cliente":
+                window
+                    .__PANEL_CLIENTE_SOURCE__ ||
+                "",
+            "panel-cliente":
+                window
+                    .__PANEL_CLIENTE_SOURCE__ ||
+                ""
+        };
+
+        const rawSource =
+            sourceMap[
+                target
+            ] || "";
+
+        const diagnostic =
+            SelfRepairSentinelV10
+            .diagnosticarPayloadFinal(
+                {
+                    id:
+                        target,
+                    json: {
+                        javascript:
+                            rawSource
+                    },
+                    tenantId:
+                        this.session
+                            .tenantId
+                },
+                opId,
+                this.session
+            );
+
+        const repaired =
+            diagnostic
+                ?.payloadCorregido
+                ?.json
+                ?.javascript ||
+            "";
+
+        if (
+            repaired
+        ) {
+
+            if (
+                target ===
+                    "admin" ||
+                target ===
+                    "panel-admin"
+            ) {
+                window.__PANEL_ADMIN_SOURCE__ =
+                    repaired;
+            }
+
+            if (
+                target ===
+                    "tecnico" ||
+                target ===
+                    "panel-tecnico"
+            ) {
+                window.__PANEL_TECNICO_SOURCE__ =
+                    repaired;
+            }
+
+            if (
+                target ===
+                    "cliente" ||
+                target ===
+                    "panel-cliente"
+            ) {
+                window.__PANEL_CLIENTE_SOURCE__ =
+                    repaired;
+            }
+        }
+
+        await this.setState(
+            STATES.DONE,
+            opId,
+            {
+                report:
+                    "Autorreparación aplicada."
+            }
+        );
+
+        await this.ledger.removeOp(
+            opId
+        );
+
+        return {
+            ok: true,
+            success: true,
+            opId,
+            message:
+                "Repair ejecutado por Sentinel."
+        };
+    }
+
+    /* ==========================================
+       READ ONLY BYPASS
+    ========================================== */
+
+    const READ_TYPES = [
+        "ANALYZE",
+        "REPORT",
+        "STATUS",
+        "SEARCH",
+        "AUDIT"
+    ];
+
+    if (
+        READ_TYPES.includes(
+            operation.type
+        )
+    ) {
+
+        await this.setState(
+            STATES.DONE,
+            opId,
+            {
+                report:
+                    "Consulta completada."
+            }
+        );
+
+        await this.ledger.removeOp(
+            opId
+        );
+
+        return {
+            ok: true,
+            success: true,
+            opId,
+            message:
+                "Consulta completada."
+        };
+    }
         /* ==========================================
            JOURNAL
         ========================================== */
