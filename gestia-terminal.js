@@ -1552,9 +1552,9 @@ const detectedType =
 ========================================== */
 
 const issue =
-    first.summary ||
     first.raw ||
-    "";
+    first.summary ||
+    JSON.stringify(plan);
 
 /* ==========================================
    OPERACIÓN
