@@ -1609,115 +1609,82 @@ try {
     );
 
     /* ==========================================
-       SELF REPAIR BRIDGE
-    ========================================== */
+   SELF REPAIR BRIDGE (FIXED)
+========================================== */
+
+if (
+    operation.type === "REPAIR"
+) {
+
+    console.log("🔥 SELF REPAIR ENTER");
+
+    const target =
+        first.target ||
+        first.entity ||
+        "system";
+
+    // 🔥 TODO vive en gestia-terminal
+    const rawSource =
+        window.__GESTIA_TERMINAL_SOURCE__ || "";
+
+    if (!rawSource) {
+        console.warn("⚠️ NO SOURCE DETECTED");
+    }
+
+    const diagnostic =
+        SelfRepairSentinelV10
+        .diagnosticarPayloadFinal(
+            {
+                id: target,
+                json: {
+                    javascript: rawSource
+                },
+                tenantId:
+                    this.session.tenantId
+            },
+            opId,
+            this.session
+        );
+
+    const repaired =
+        diagnostic
+            ?.payloadCorregido
+            ?.json
+            ?.javascript || "";
 
     if (
-        operation.type ===
-        "REPAIR"
+        repaired &&
+        repaired.length > 0
     ) {
 
-        const target =
-            first.target ||
-            first.entity ||
-            "system";
+        console.log("🛠️ REPAIR APPLY:", target);
 
-  const sourceMap = {
-    "admin": window.__GESTIA_TERMINAL_SOURCE__ || "",
-    "panel-admin": window.__GESTIA_TERMINAL_SOURCE__ || "",
-    "tecnico": window.__GESTIA_TERMINAL_SOURCE__ || "",
-    "panel-tecnico": window.__GESTIA_TERMINAL_SOURCE__ || "",
-    "cliente": window.__GESTIA_TERMINAL_SOURCE__ || "",
-    "panel-cliente": window.__GESTIA_TERMINAL_SOURCE__ || "",
-    "system": window.__GESTIA_TERMINAL_SOURCE__ || ""
-};
-
-        const rawSource =
-            sourceMap[
-                target
-            ] || "";
-
-        const diagnostic =
-            SelfRepairSentinelV10
-            .diagnosticarPayloadFinal(
-                {
-                    id:
-                        target,
-                    json: {
-                        javascript:
-                            rawSource
-                    },
-                    tenantId:
-                        this.session
-                            .tenantId
-                },
-                opId,
-                this.session
-            );
-
-        const repaired =
-            diagnostic
-                ?.payloadCorregido
-                ?.json
-                ?.javascript ||
-            "";
-
-        if (
-            repaired
-        ) {
-
-            if (
-                target ===
-                    "admin" ||
-                target ===
-                    "panel-admin"
-            ) {
-                window.__PANEL_ADMIN_SOURCE__ =
-                    repaired;
-            }
-
-            if (
-                target ===
-                    "tecnico" ||
-                target ===
-                    "panel-tecnico"
-            ) {
-                window.__PANEL_TECNICO_SOURCE__ =
-                    repaired;
-            }
-
-            if (
-                target ===
-                    "cliente" ||
-                target ===
-                    "panel-cliente"
-            ) {
-                window.__PANEL_CLIENTE_SOURCE__ =
-                    repaired;
-            }
-        }
-
-        await this.setState(
-            STATES.DONE,
-            opId,
-            {
-                report:
-                    "Autorreparación aplicada."
-            }
-        );
-
-        await this.ledger.removeOp(
-            opId
-        );
-
-        return {
-            ok: true,
-            success: true,
-            opId,
-            message:
-                "Repair ejecutado por Sentinel."
-        };
+        // 🔥 FIX REAL: actualizar el source correcto
+        window.__GESTIA_TERMINAL_SOURCE__ =
+            repaired;
     }
+
+    await this.setState(
+        STATES.DONE,
+        opId,
+        {
+            report:
+                "Autorreparación aplicada."
+        }
+    );
+
+    await this.ledger.removeOp(
+        opId
+    );
+
+    return {
+        ok: true,
+        success: true,
+        opId,
+        message:
+            "Repair ejecutado por Sentinel."
+    };
+}
 
     /* ==========================================
        READ ONLY BYPASS

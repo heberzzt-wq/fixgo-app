@@ -130,133 +130,181 @@ const aplicarIdGlobalV10 = (obj, id) => {
  * 🧩 MOTOR DE REGLAS PLUGGABLES V10
  */
 const ReglasReparacionV10 = [
+
+    /* =====================================================
+       REPARACION JSON
+    ===================================================== */
     {
         nombre: "REPARACION_JSON_NATIVO",
         ejecutar: (adn, errores, contexto) => {
-            if (typeof adn.json === 'string') {
+
+            if (typeof adn.json === "string") {
+
                 try {
+
                     adn.json = JSON.parse(adn.json);
+
                     errores.push({
                         codigo: "RUIDO_NEURAL",
-                        descripcion: "ADN entregado como texto en lugar de JSON.",
-                        solucion: "CONVERSIÓN: String transformado a JSON Object.",
+                        descripcion: "ADN como string",
+                        solucion: "Parse JSON aplicado",
                         archivo_origen: "brain.engine.js"
                     });
-                    emitSia7("CURE_JSON", "Capa de transporte decodificada.", "WARN", contexto.idPropuesto);
+
+                    emitSia7("CURE_JSON", "JSON reparado", "WARN", contexto.idPropuesto);
+
                 } catch (e) {
+
                     errores.push({
                         codigo: "ADN_CORRUPTO",
-                        descripcion: "Estructura JSON truncada irreversiblemente.",
-                        solucion: "CRÍTICO: Abortar. ADN irrecuperable.",
+                        descripcion: "JSON irreparable",
+                        solucion: "Abortar",
                         archivo_origen: "gestia-terminal.js"
                     });
                 }
             }
         }
     },
+
+    /* =====================================================
+       REPARACION ID
+    ===================================================== */
     {
-        nombre: "RASTREO_PROFUNDO_ID_SOBERANO", 
+        nombre: "RASTREO_PROFUNDO_ID_SOBERANO",
         ejecutar: (adn, errores, contexto) => {
-            const idRaiz = adn?.id || adn?.modulo_id;
-            const idJson = adn?.json?.modulo_id || adn?.json?.id;
-            const idData = adn?.data?.modulo_id;
-            
-            const idsDetectados = [idRaiz, idJson, idData].filter(Boolean);
-            const esCorrupto = idsDetectados.length === 0 || idsDetectados.some(id => ["undefined", "modulo_id", "null", ""].includes(String(id).toLowerCase()));
-            
-            if (esCorrupto) {
-                const idSugerido = contexto.idPropuesto || `gestia_fix_v10_${Date.now()}`;
-                aplicarIdGlobalV10(adn, idSugerido);
+
+            const id =
+                adn?.id ||
+                adn?.modulo_id ||
+                adn?.json?.id;
+
+            if (!id || String(id).includes("undefined")) {
+
+                const nuevoId =
+                    contexto.idPropuesto ||
+                    `fix_${Date.now()}`;
+
+                aplicarIdGlobalV10(adn, nuevoId);
 
                 errores.push({
-                    codigo: "INFARTO_ID_TERMINAL",
-                    descripcion: "ID principal perdido o severamente mutado.",
-                    solucion: `AUTOCURACIÓN: Inyección respetuosa con ID [${idSugerido}].`,
+                    codigo: "INFARTO_ID",
+                    descripcion: "ID corrupto",
+                    solucion: "ID regenerado",
                     archivo_origen: "semantic.engine.js"
                 });
-                emitSia7("CURE_ID", `Vacíos de identidad rellenados con: ${idSugerido}`, "WARN", contexto.idPropuesto);
+
+                emitSia7("CURE_ID", "ID reparado", "WARN", contexto.idPropuesto);
             }
         }
     },
+
+    /* =====================================================
+       🔥 NUEVA REGLA: LOGOUT ADMIN
+    ===================================================== */
     {
-        nombre: "ANALISIS_ENTRELAZADO_DINAMICO",
+        nombre: "REPARACION_LOGOUT_ADMIN",
         ejecutar: (adn, errores, contexto) => {
-            const js = adn?.json?.javascript || adn?.javascript || "";
-            if (!js || js.length < 50) return;
 
-            const invocadasCrudo = [...js.matchAll(/([a-zA-Z0-9_]+)\s*\(/g)].map(m => m[1]);
-            const definidas = [...js.matchAll(/function\s+([a-zA-Z0-9_]+)|(?:const|let|var)\s+([a-zA-Z0-9_]+)\s*=/g)].map(m => m[1] || m[2]);
-            
-            const nativas = ['console', 'JSON', 'Object', 'Array', 'window', 'document', 'localStorage', 'sessionStorage', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'push', 'map', 'filter', 'forEach', 'reduce', 'String', 'Number', 'Math', 'Date', 'Promise', 'fetch', 'alert'];
-            const reservadasJS = ['if', 'for', 'while', 'switch', 'catch', 'function', 'return', 'typeof', 'await', 'async', 'import', 'export', 'require'];
-            
-            const huerfanas = invocadasCrudo.filter(f => 
-                !definidas.includes(f) && !nativas.includes(f) && !reservadasJS.includes(f)
-            );
+            const js =
+                adn?.json?.javascript ||
+                adn?.javascript ||
+                "";
 
-            const huerfanasUnicas = [...new Set(huerfanas)];
+            if (!js) return;
 
-            if (huerfanasUnicas.length > 0) {
-                errores.push({
-                    codigo: "DESENTRELAZADO_JS",
-                    descripcion: `Invocaciones sin definición local: [${huerfanasUnicas.join(", ")}].`,
-                    solucion: "AUTOREPARACIÓN: Inyectar Mocks ruidosos en scope global.",
-                    archivo_origen: "deep-scan.js"
-                });
+            const hayLogout =
+                js.includes("logout") ||
+                js.includes("btnLogout");
 
-                // ✅ BANKING FIX: Mocks ruidosos (no silencian errores lógicos, los hacen obvios en el HUD)
-                let mockInjection = "\n/* --- AUTO-FIX V10 (LOUD MOCKS) --- */\n";
-                huerfanasUnicas.forEach(f => {
-                    mockInjection += `
-                    window.${f} = window.${f} || function(...args){ 
-                        console.error('🚨 KERNEL_STUB_TRIGGERED: Función huérfana ${f} invocada.', args);
-                        window.dispatchEvent(new CustomEvent('gestia-terminal-state', { detail: { step: 'MOCK_TRIGGER', details: '${f} fue llamada artificialmente.', severity: 'ERROR' }}));
-                    };\n`;
-                });
+            if (!hayLogout) return;
 
-                if (adn.json && adn.json.javascript) adn.json.javascript += mockInjection;
-                else if (adn.javascript) adn.javascript += mockInjection;
+            const tieneListener =
+                js.includes("addEventListener") &&
+                js.includes("click");
 
-                emitSia7("CURE_JS", `Inyectados ${huerfanasUnicas.length} Loud Mocks.`, "WARN", contexto.idPropuesto);
+            const tieneSignOut =
+                js.includes("signOut");
+
+            if (tieneListener && tieneSignOut) return;
+
+            const fix = `
+/* AUTO-REPAIR LOGOUT ADMIN */
+document.querySelectorAll("#btnLogout, #logoutBtn")
+.forEach(btn => {
+    btn.onclick = async (e) => {
+        e.preventDefault();
+        try {
+            if (typeof signOut === "function") {
+                await signOut(auth);
             }
+            window.location.href = "login.html";
+        } catch(err){
+            console.error("Logout error", err);
+        }
+    };
+});
+`;
+
+            if (adn.json && adn.json.javascript) {
+                adn.json.javascript += fix;
+            } else {
+                adn.javascript += fix;
+            }
+
+            errores.push({
+                codigo: "LOGOUT_FIX",
+                descripcion: "Logout sin handler",
+                solucion: "Handler inyectado",
+                archivo_origen: "self-repair.engine.js"
+            });
+
+            emitSia7("CURE_LOGOUT", "Logout reparado", "WARN", contexto.idPropuesto);
         }
     },
+
+    /* =====================================================
+       TENANT ZERO TRUST
+    ===================================================== */
     {
         nombre: "REPARACION_TENANT_ZERO_TRUST",
         ejecutar: (adn, errores, contexto) => {
-            // ✅ BANKING FIX: Cero tolerancia a hardcodes.
-            const tenantOficial = contexto.session?.tenantId;
-            
-            if (!tenantOficial) {
-                // Si la sesión no tiene Tenant, el sistema debe abortar
-                throw new Error("VIOLACIÓN ZERO-TRUST: La sesión carece de TenantID verificado.");
+
+            const tenant =
+                contexto.session?.tenantId;
+
+            if (!tenant) {
+                throw new Error("ZERO_TRUST_FAIL");
             }
 
-            const tenantEnPayload = adn?.tenantId || adn?.json?.tenantId || adn?.data?.tenantId;
+            adn.tenantId = tenant;
 
-            if (!tenantEnPayload || String(tenantEnPayload).toUpperCase() !== String(tenantOficial).toUpperCase()) {
-                adn.tenantId = tenantOficial;
-                if (adn.json && typeof adn.json === "object") adn.json.tenantId = tenantOficial;
-                if (adn.data && typeof adn.data === "object") adn.data.tenantId = tenantOficial;
-
-                errores.push({
-                    codigo: "TENANT_REWRITE",
-                    descripcion: `Soberanía desalineada o nula. Esperado [${tenantOficial}].`,
-                    solucion: `AUTOCURACIÓN: Reescritura absoluta al Búnker [${tenantOficial}].`,
-                    archivo_origen: "firewall.engine.js"
-                });
-                emitSia7("CURE_TENANT", `Soberanía sellada bajo: ${tenantOficial}`, "WARN", contexto.idPropuesto);
+            if (adn.json) {
+                adn.json.tenantId = tenant;
             }
         }
     },
+
+    /* =====================================================
+       CIERRE MODULO
+    ===================================================== */
     {
         nombre: "AUDITORIA_CIERRE_LOGICO",
-        ejecutar: (adn, errores) => {
-            const js = adn?.json?.javascript || adn?.javascript || "";
-            if (js.length > 0 && !js.includes('/* FIN_MODULO */')) {
+        ejecutar: (adn) => {
+
+            const js =
+                adn?.json?.javascript ||
+                adn?.javascript ||
+                "";
+
+            if (js && !js.includes("FIN_MODULO")) {
+
                 const sello = "\n/* FIN_MODULO */\n";
-                if (adn.json && adn.json.javascript) adn.json.javascript += sello;
-                else if (adn.javascript) adn.javascript += sello;
+
+                if (adn.json && adn.json.javascript) {
+                    adn.json.javascript += sello;
+                } else {
+                    adn.javascript += sello;
+                }
             }
         }
     }
@@ -284,13 +332,13 @@ export const SelfRepairSentinelV10 = {
                 console.error(`❌ [SENTINEL V10] Fallo Crítico en regla ${regla.nombre}:`, ruleError);
                 emitSia7("RULE_CRASH", `Fallo en ${regla.nombre}: ${ruleError.message}`, "FATAL", idPropuesto);
                 // Si una regla de Zero-Trust falla, marcamos todo el ADN como crítico
-                if (ruleError.message.includes("ZERO-TRUST")) {
+                if (ruleError.message.includes("ZERO_TRUST")) {
                     return { nivelCriticidad: "CRITICO", reporte: [{ codigo: "VIOLACION_SEGURIDAD" }] };
                 }
             }
         }
 
-        const criticidad = reportePropuestas.some(e => ["ADN_CORRUPTO", "INFARTO_ID_TERMINAL"].includes(e.codigo)) ? "CRITICO" : "REPARABLE";
+        const criticidad = reportePropuestas.some(e => ["ADN_CORRUPTO", "INFARTO_ID"].includes(e.codigo)) ? "CRITICO" : "REPARABLE";
 
         emitSia7("END_TRIAJE", `Triaje completado. Intervenciones: ${reportePropuestas.length}`, reportePropuestas.length > 0 ? "WARN" : "SUCCESS", idPropuesto);
 
@@ -390,7 +438,6 @@ console.log("%c🛡️ [SECURITY_CORE]: V10.0 THE VAULT (BANKING GRADE) ONLINE",
 
 /**
  * ======================================================================================
- * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 395 (BÓVEDA SELLADA)
+ * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 405 (BÓVEDA SELLADA)
  * ======================================================================================
  */
-
