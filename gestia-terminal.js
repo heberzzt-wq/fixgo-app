@@ -1609,24 +1609,48 @@ if (
         }
     );
 
-    logCore(
-        "OP_EXEC",
-        {
-            opId,
-            type:
-                operation.type,
-            steps:
-                plan.length
-        }
-    );
+   logCore(
+    "OP_EXEC",
+    {
+        opId,
+        type: operation.type,
+        steps: plan.length
+    }
+);
 
-    /* ==========================================
-   SELF REPAIR BRIDGE (FIXED)
+/* ==========================================
+   ⏳ GARANTIZAR SOURCE LISTO (FIX CRÍTICO)
 ========================================== */
 
 if (
-    operation.type === "REPAIR"
+    !window.__GESTIA_TERMINAL_SOURCE__ ||
+    window.__GESTIA_TERMINAL_SOURCE__.length < 50
 ) {
+
+    console.warn("⏳ SOURCE NOT READY - waiting...");
+
+    await new Promise(resolve => {
+
+        const interval = setInterval(() => {
+
+            if (
+                window.__GESTIA_TERMINAL_SOURCE__ &&
+                window.__GESTIA_TERMINAL_SOURCE__.length > 50
+            ) {
+                clearInterval(interval);
+                resolve();
+            }
+
+        }, 50);
+
+    });
+}
+
+/* ==========================================
+   SELF REPAIR BRIDGE
+========================================== */
+
+if (operation.type === "REPAIR") {
 
     console.log("🔥 SELF REPAIR ENTER");
 
@@ -1635,66 +1659,54 @@ if (
         first.entity ||
         "system";
 
-    // 🔥 TODO vive en gestia-terminal
     const rawSource =
         window.__GESTIA_TERMINAL_SOURCE__ || "";
+
+    console.log("📦 SOURCE LENGTH:", rawSource.length);
 
     if (!rawSource) {
         console.warn("⚠️ NO SOURCE DETECTED");
     }
 
-   const diagnostic =
-    SelfRepairSentinelV10
-    .diagnosticarPayloadFinal(
-        {
-            id: target,
-            issue: issue, // 🔥 ESTE ES EL QUE FALTA
-            json: {
-                javascript: rawSource
+    const diagnostic =
+        SelfRepairSentinelV10
+        .diagnosticarPayloadFinal(
+            {
+                id: target,
+                json: {
+                    javascript: rawSource
+                },
+                tenantId: this.session.tenantId
             },
-            tenantId:
-                this.session.tenantId
-        },
-        opId,
-        this.session
-    );
-    const repaired =
-        diagnostic
-            ?.payloadCorregido
-            ?.json
-            ?.javascript || "";
+            opId,
+            this.session
+        );
 
-    if (
-        repaired &&
-        repaired.length > 0
-    ) {
+    const repaired =
+        diagnostic?.payloadCorregido?.json?.javascript || "";
+
+    if (repaired && repaired.length > 0) {
 
         console.log("🛠️ REPAIR APPLY:", target);
 
-        // 🔥 FIX REAL: actualizar el source correcto
-        window.__GESTIA_TERMINAL_SOURCE__ =
-            repaired;
+        window.__GESTIA_TERMINAL_SOURCE__ = repaired;
     }
 
     await this.setState(
         STATES.DONE,
         opId,
         {
-            report:
-                "Autorreparación aplicada."
+            report: "Autorreparación aplicada."
         }
     );
 
-    await this.ledger.removeOp(
-        opId
-    );
+    await this.ledger.removeOp(opId);
 
     return {
         ok: true,
         success: true,
         opId,
-        message:
-            "Repair ejecutado por Sentinel."
+        message: "Repair ejecutado por Sentinel."
     };
 }
 
