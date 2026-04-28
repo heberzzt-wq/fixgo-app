@@ -1691,7 +1691,22 @@ if (operation.type === "REPAIR") {
         console.log("🛠️ REPAIR APPLY:", target);
 
         window.__GESTIA_TERMINAL_SOURCE__ = repaired;
+         /* 🔥 FIX REAL: RE-EJECUTAR SCRIPT */
+    try {
+
+        console.log("♻️ RE-EJECUTANDO SCRIPT REPARADO");
+
+        const script = document.createElement("script");
+        script.type = "module";
+        script.textContent = repaired;
+
+        document.body.appendChild(script);
+
+    } catch (err) {
+        console.error("❌ ERROR RE-EJECUTANDO SCRIPT", err);
     }
+}
+    
 
     await this.setState(
         STATES.DONE,
