@@ -1622,34 +1622,15 @@ try {
             first.entity ||
             "system";
 
-        const sourceMap = {
-            "admin":
-                window
-                    .__PANEL_ADMIN_SOURCE__ ||
-                "",
-            "panel-admin":
-                window
-                    .__PANEL_ADMIN_SOURCE__ ||
-                "",
-
-            "tecnico":
-                window
-                    .__PANEL_TECNICO_SOURCE__ ||
-                "",
-            "panel-tecnico":
-                window
-                    .__PANEL_TECNICO_SOURCE__ ||
-                "",
-
-            "cliente":
-                window
-                    .__PANEL_CLIENTE_SOURCE__ ||
-                "",
-            "panel-cliente":
-                window
-                    .__PANEL_CLIENTE_SOURCE__ ||
-                ""
-        };
+  const sourceMap = {
+    "admin": window.__GESTIA_TERMINAL_SOURCE__ || "",
+    "panel-admin": window.__GESTIA_TERMINAL_SOURCE__ || "",
+    "tecnico": window.__GESTIA_TERMINAL_SOURCE__ || "",
+    "panel-tecnico": window.__GESTIA_TERMINAL_SOURCE__ || "",
+    "cliente": window.__GESTIA_TERMINAL_SOURCE__ || "",
+    "panel-cliente": window.__GESTIA_TERMINAL_SOURCE__ || "",
+    "system": window.__GESTIA_TERMINAL_SOURCE__ || ""
+};
 
         const rawSource =
             sourceMap[
