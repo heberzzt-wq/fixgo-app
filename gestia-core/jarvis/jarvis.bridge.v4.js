@@ -506,79 +506,85 @@ async function resolveCommands(raw = "") {
         }
 
         /* ======================================
-           HARD REPAIR ROUTER
-           EJECUCIÓN REAL
-        ====================================== */
+   HARD REPAIR ROUTER
+   EJECUCIÓN REAL (CON CONTEXTO)
+====================================== */
 
-        if (
-            low.includes("logout") &&
-            low.includes("admin")
-        ) {
-            commands.push(
-                "REPAIR::admin"
-            );
-            continue;
-        }
+const pushRepair = (cmdType) => {
+    commands.push({
+        cmd: cmdType,
+        raw: cleanPart // 🔥 contexto original intacto
+    });
+};
 
-        if (
-            low.includes("cerrar sesion") &&
-            low.includes("admin")
-        ) {
-            commands.push(
-                "REPAIR::admin"
-            );
-            continue;
-        }
+/* ======================================
+   ADMIN LOGOUT
+====================================== */
 
-        if (
-            low.includes("cerrar sesión") &&
-            low.includes("admin")
-        ) {
-            commands.push(
-                "REPAIR::admin"
-            );
-            continue;
-        }
+if (
+    low.includes("logout") &&
+    low.includes("admin")
+) {
+    pushRepair("REPAIR::admin");
+    continue;
+}
 
-        if (
-            low.includes("boton") &&
-            low.includes("admin") &&
-            low.includes("no funciona")
-        ) {
-            commands.push(
-                "REPAIR::admin"
-            );
-            continue;
-        }
+if (
+    low.includes("cerrar sesion") &&
+    low.includes("admin")
+) {
+    pushRepair("REPAIR::admin");
+    continue;
+}
 
-        if (
-            low.includes("tecnico") &&
-            low.includes("login") &&
-            (
-                low.includes("falla") ||
-                low.includes("no funciona")
-            )
-        ) {
-            commands.push(
-                "REPAIR::tecnico"
-            );
-            continue;
-        }
+if (
+    low.includes("cerrar sesión") &&
+    low.includes("admin")
+) {
+    pushRepair("REPAIR::admin");
+    continue;
+}
 
-        if (
-            low.includes("cliente") &&
-            low.includes("panel") &&
-            (
-                low.includes("roto") ||
-                low.includes("falla")
-            )
-        ) {
-            commands.push(
-                "REPAIR::cliente"
-            );
-            continue;
-        }
+if (
+    low.includes("boton") &&
+    low.includes("admin") &&
+    low.includes("no funciona")
+) {
+    pushRepair("REPAIR::admin");
+    continue;
+}
 
+/* ======================================
+   TECNICO LOGIN
+====================================== */
+
+if (
+    low.includes("tecnico") &&
+    low.includes("login") &&
+    (
+        low.includes("falla") ||
+        low.includes("no funciona")
+    )
+) {
+    pushRepair("REPAIR::tecnico");
+    continue;
+}
+
+/* ======================================
+   CLIENTE PANEL
+====================================== */
+
+if (
+    low.includes("cliente") &&
+    low.includes("panel") &&
+    (
+        low.includes("roto") ||
+        low.includes("falla")
+    )
+) {
+    pushRepair("REPAIR::cliente");
+    continue;
+}
         /* ======================================
            PREMIUM INTERNAL ROUTER
         ====================================== */
