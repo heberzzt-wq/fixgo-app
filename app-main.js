@@ -1158,3 +1158,54 @@ async (
   }
 };
 
+/* =====================================================
+   🚀 CENTINELA DE SALIDA SEGURA (DELEGACIÓN GLOBAL)
+   Ubicación: app-main.js (Raíz del archivo)
+   Versión: 5.66 - GestiaPremium
+   ===================================================== */
+
+document.addEventListener("click", async (e) => {
+    // Detectamos si el clic fue en el botón de logout o en algo dentro de él (como el icono)
+    const btn = e.target.closest("#logoutBtn, #btnLogout");
+
+    if (btn) {
+        e.preventDefault();
+        console.log("📡 Señal de salida detectada por el Centinela Global...");
+
+        // Validación táctica: Confirmación del usuario
+        const ok = confirm("¿Deseas cerrar tu sesión en la Cabina de Mando?");
+        if (!ok) {
+            console.log("❌ Operación de salida cancelada por el usuario.");
+            return;
+        }
+
+        try {
+            // 1. Feedback visual (Jessica Mode)
+            if (typeof showLoader === "function") {
+                showLoader("DESCONECTANDO SISTEMAS...");
+            }
+
+            // 2. Ejecución en Firebase (Bypass de visto)
+            if (typeof signOut === "function" && auth) {
+                await signOut(auth);
+                console.log("✅ Firebase Auth: Sesión terminada con éxito.");
+            } else {
+                throw new Error("Referencia a Firebase (auth/signOut) no encontrada.");
+            }
+
+            // 3. Limpieza de rastro y redirección
+            document.body.style.display = "none";
+            window.location.replace("login.html");
+
+        } catch (error) {
+            console.error("🚨 Error crítico en el cierre de sesión:", error);
+            alert("Error al cerrar sesión. Revisa la consola (F12).");
+        } finally {
+            if (typeof hideLoader === "function") {
+                hideLoader();
+            }
+        }
+    }
+});
+
+console.log("🛠️ Centinela Global V5.66 activo y escuchando...");
