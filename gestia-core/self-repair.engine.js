@@ -199,69 +199,80 @@ const ReglasReparacionV10 = [
     },
 
     /* =====================================================
-       🔥 NUEVA REGLA: LOGOUT ADMIN
-    ===================================================== */
-    {
-        nombre: "REPARACION_LOGOUT_ADMIN",
-        ejecutar: (adn, errores, contexto) => {
+   🔥 NUEVA REGLA: LOGOUT ADMIN (SAFE VERSION)
+===================================================== */
+{
+    nombre: "REPARACION_LOGOUT_ADMIN",
+    ejecutar: function(adn, errores, contexto) {
 
-            const js =
-                adn?.json?.javascript ||
-                adn?.javascript ||
-                "";
+        const issue =
+            (adn && adn.issue ? adn.issue : "").toLowerCase();
 
-            if (!js) return;
+        const js =
+            (adn && adn.json && adn.json.javascript)
+                ? adn.json.javascript
+                : (adn && adn.javascript ? adn.javascript : "");
 
-            const hayLogout =
-                js.includes("logout") ||
-                js.includes("btnLogout");
+        if (!js) return;
 
-            if (!hayLogout) return;
+        const jsLower = js.toLowerCase();
 
-            const tieneListener =
-                js.includes("addEventListener") &&
-                js.includes("click");
+        const hayLogout =
+            issue.indexOf("logout") !== -1 ||
+            jsLower.indexOf("logout") !== -1 ||
+            js.indexOf("btnLogout") !== -1 ||
+            js.indexOf("logoutBtn") !== -1;
 
-            const tieneSignOut =
-                js.includes("signOut");
+        if (!hayLogout) return;
 
-            if (tieneListener && tieneSignOut) return;
+        const tieneListener =
+            js.indexOf("addEventListener") !== -1 &&
+            js.indexOf("click") !== -1;
 
-            const fix = `
-/* AUTO-REPAIR LOGOUT ADMIN */
-document.querySelectorAll("#btnLogout, #logoutBtn")
-.forEach(btn => {
-    btn.onclick = async (e) => {
-        e.preventDefault();
-        try {
-            if (typeof signOut === "function") {
-                await signOut(auth);
-            }
-            window.location.href = "login.html";
-        } catch(err){
-            console.error("Logout error", err);
+        const tieneSignOut =
+            js.indexOf("signOut") !== -1;
+
+        if (tieneListener && tieneSignOut) return;
+
+        const fix = "\n/* AUTO-REPAIR LOGOUT ADMIN */\n" +
+        "document.querySelectorAll('#btnLogout, #logoutBtn, .logout')\n" +
+        ".forEach(function(btn){\n" +
+        "    btn.onclick = async function(e){\n" +
+        "        e.preventDefault();\n" +
+        "        try {\n" +
+        "            if (typeof signOut === 'function') {\n" +
+        "                await signOut(auth);\n" +
+        "            }\n" +
+        "            window.location.href = 'login.html';\n" +
+        "        } catch(err){\n" +
+        "            console.error('Logout error', err);\n" +
+        "        }\n" +
+        "    };\n" +
+        "});\n";
+
+        if (adn.json && adn.json.javascript) {
+            adn.json.javascript += fix;
+        } else {
+            adn.javascript = (adn.javascript || "") + fix;
         }
-    };
-});
-`;
 
-            if (adn.json && adn.json.javascript) {
-                adn.json.javascript += fix;
-            } else {
-                adn.javascript += fix;
-            }
+        errores.push({
+            codigo: "LOGOUT_FIX",
+            descripcion: "Logout detectado sin handler",
+            solucion: "Handler inyectado",
+            archivo_origen: "self-repair.engine.js"
+        });
 
-            errores.push({
-                codigo: "LOGOUT_FIX",
-                descripcion: "Logout sin handler",
-                solucion: "Handler inyectado",
-                archivo_origen: "self-repair.engine.js"
-            });
-
-            emitSia7("CURE_LOGOUT", "Logout reparado", "WARN", contexto.idPropuesto);
+        if (typeof emitSia7 === "function") {
+            emitSia7(
+                "CURE_LOGOUT",
+                "Logout reparado",
+                "WARN",
+                contexto && contexto.idPropuesto
+            );
         }
-    },
-
+    }
+},
     /* =====================================================
        TENANT ZERO TRUST
     ===================================================== */

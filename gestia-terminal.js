@@ -1533,46 +1533,58 @@ this.activeOps.add(
 try {
 
     const first =
-        plan[0] || {};
+    plan[0] || {};
 
-    const detectedType =
-        first.intent ||
-        first.action ||
-        first.type ||
-        first.response
-            ?.intent ||
-        first.response
-            ?.action ||
-        first.preview?.[0]
-            ?.intent ||
-        "ANALYZE";
+const detectedType =
+    first.intent ||
+    first.action ||
+    first.type ||
+    first.response
+        ?.intent ||
+    first.response
+        ?.action ||
+    first.preview?.[0]
+        ?.intent ||
+    "ANALYZE";
 
-    const operation = {
-        id: opId,
-        type:
-            detectedType,
-        payload: plan
-    };
+/* ==========================================
+   🔥 CONTEXTO DEL PROBLEMA (NUEVO)
+========================================== */
 
-    if (
-        !operation.id ||
-        !operation.type
-    ) {
-        throw new Error(
-            "INVALID_OPERATION"
-        );
-    }
+const issue =
+    first.summary ||
+    first.raw ||
+    "";
 
-    if (
-        !this.session?.uid ||
-        !this.session
-            ?.tenantId
-    ) {
-        throw new Error(
-            "INVALID_SECURITY_CONTEXT"
-        );
-    }
+/* ==========================================
+   OPERACIÓN
+========================================== */
 
+const operation = {
+    id: opId,
+    type:
+        detectedType,
+    payload: plan
+};
+
+if (
+    !operation.id ||
+    !operation.type
+) {
+    throw new Error(
+        "INVALID_OPERATION"
+    );
+}
+
+if (
+    !this.session?.uid ||
+    !this.session
+        ?.tenantId
+) {
+    throw new Error(
+        "INVALID_SECURITY_CONTEXT"
+    );
+}
     /* ==========================================
        FIREWALL ENFORCE
     ========================================== */
