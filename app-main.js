@@ -679,74 +679,65 @@ function iniciarEscuchaEventosDinamicos() {
   );
 }
 
-// =====================================================
-// 🧠 UI GLOBAL V7
-// =====================================================
+/**
+ * =====================================================
+ * 🧠 UI GLOBAL V7 - GESTIA PREMIUM
+ * REVISIÓN: 5.94 (Anti-Duplicate Listener Logic)
+ * Lead Architect: Heberto Mendoza
+ * =====================================================
+ */
 function actualizarInterfazGlobal(user) {
+  // 1. Actualización del nombre de usuario en el Dashboard
   const userNameDisplay =
     document.getElementById("userName") ||
-    document.getElementById(
-      "userNameDisplay"
-    );
+    document.getElementById("userNameDisplay");
 
-  if (userNameDisplay) {
-    userNameDisplay.innerText =
-      (
-        user.nombre ||
-        user.email
-      ).toUpperCase();
+  if (userNameDisplay && user) {
+    userNameDisplay.innerText = (user.nombre || user.email || "ADMIN").toUpperCase();
   }
 
-  document
-    .querySelectorAll(
-      "#btnLogout, #logoutBtn"
-    )
-    .forEach((btn) => {
-      const nuevo =
-        btn.cloneNode(true);
+  // 2. Control de Salida Segura (Logout)
+  // Usamos el flag __logoutBound para evitar duplicidad sin romper el nodo
+  document.querySelectorAll("#btnLogout, #logoutBtn").forEach((btn) => {
+    
+    if (btn.__logoutBound) return; // Evita bindeos duplicados si la función se rellama
+    btn.__logoutBound = true;
 
-      btn.parentNode.replaceChild(
-        nuevo,
-        btn
-      );
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
 
-      nuevo.addEventListener(
-        "click",
-        async (e) => {
-          e.preventDefault();
+      const ok = confirm("¿Cerrar sesión de GestiaPremium?");
+      if (!ok) return;
 
-          const ok = confirm(
-            "¿Cerrar sesión de GestiaPremium?"
-          );
-
-          if (!ok) return;
-
-          try {
-            showLoader(
-              "CERRANDO SESIÓN..."
-            );
-
-            await signOut(auth);
-
-            document.body.style.display =
-              "none";
-
-            window.location.replace(
-              "login.html"
-            );
-
-          } catch (error) {
-            console.error(
-              "Logout error:",
-              error
-            );
-
-          } finally {
-            hideLoader();
-          }
+      try {
+        if (typeof showLoader === "function") {
+          showLoader("CERRANDO SESIÓN...");
         }
-      );
+
+        // Validación de seguridad para la instancia de Firebase
+        if (typeof signOut === "function" && auth) {
+          await signOut(auth);
+          console.log("✅ Sesión finalizada en Firebase");
+        } else {
+          console.warn("⚠️ Firebase signOut no detectado o auth inválido");
+        }
+
+        // Limpieza de UI y Redirección
+        document.body.style.display = "none";
+        window.location.replace("login.html");
+
+      } catch (error) {
+        console.error("❌ Logout error:", error);
+        alert("Error al cerrar sesión. Revisa la consola.");
+      } finally {
+        if (typeof hideLoader === "function") {
+          hideLoader();
+        }
+      }
     });
+  });
+  
+  console.log("🛠️ Interfaz Global V7 sincronizada con éxito.");
 }
 
 // ======================================================================================
