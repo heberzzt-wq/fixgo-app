@@ -1643,21 +1643,21 @@ if (
         console.warn("⚠️ NO SOURCE DETECTED");
     }
 
-    const diagnostic =
-        SelfRepairSentinelV10
-        .diagnosticarPayloadFinal(
-            {
-                id: target,
-                json: {
-                    javascript: rawSource
-                },
-                tenantId:
-                    this.session.tenantId
+   const diagnostic =
+    SelfRepairSentinelV10
+    .diagnosticarPayloadFinal(
+        {
+            id: target,
+            issue: issue, // 🔥 ESTE ES EL QUE FALTA
+            json: {
+                javascript: rawSource
             },
-            opId,
-            this.session
-        );
-
+            tenantId:
+                this.session.tenantId
+        },
+        opId,
+        this.session
+    );
     const repaired =
         diagnostic
             ?.payloadCorregido
