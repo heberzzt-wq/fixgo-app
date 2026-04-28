@@ -38,19 +38,65 @@ function speak(msg) {
 }
 
 /* =====================================================================================
-   EXECUTORS
+   EXECUTORS (FIXED: CONTEXTO + TIPOS)
 ===================================================================================== */
 
-async function runCore(text = "") {
+async function runCore(input = "") {
 
     if (!window.KernelHeberto) {
         throw new Error("CORE_NOT_READY");
     }
 
-    return await window.KernelHeberto.execute(text);
+    /* ======================================
+       🔥 SOPORTE OBJETO (cmd + raw)
+    ====================================== */
+
+    if (typeof input === "object" && input !== null) {
+
+        const cmd =
+            input.cmd ||
+            input.command ||
+            "";
+
+        const raw =
+            input.raw ||
+            "";
+
+        if (!cmd) {
+            throw new Error("INVALID_COMMAND");
+        }
+
+        return await window.KernelHeberto.execute(
+            cmd,        // ✔ string limpio para Jarvis
+            null,
+            {
+                raw: raw // 🔥 contexto real via options
+            }
+        );
+    }
+
+    /* ======================================
+       ✔ CASO NORMAL (string)
+    ====================================== */
+
+    return await window.KernelHeberto.execute(input);
 }
 
-async function runExternalAI(text = "") {
+
+/* =====================================================================================
+   EXTERNAL AI
+===================================================================================== */
+
+async function runExternalAI(input = "") {
+
+    /* ======================================
+       🔥 NORMALIZACIÓN INPUT
+    ====================================== */
+
+    const text =
+        typeof input === "object"
+            ? input.raw || input.cmd || ""
+            : input;
 
     if (window.consultarCerebroIA) {
         return await window.consultarCerebroIA(text);
@@ -62,7 +108,6 @@ async function runExternalAI(text = "") {
 
     return "IA externa no disponible.";
 }
-
 /* =====================================================================================
    OBSERVABILITY
 ===================================================================================== */
