@@ -1264,7 +1264,7 @@ Escribe:
         // DIRECT SUCCESS
         // -----------------------------------------------
 
-        if (jarvisRes?.ok) {
+        if (jarvisRes?.ok && jarvisRes?.mode !== "EXECUTION") {
 
             await this.setState(
                 STATES.DONE,
