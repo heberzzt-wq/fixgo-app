@@ -976,8 +976,8 @@ async function activarOidoJessica(userUid) {
     }
 }
 /* =========================================================================
-   MÓDULO 17: CENTRO DE MANDO B2B (ALERTAS DE SEGURIDAD EN VIVO)
-   Arquitectura: Escucha activa en tiempo real para panel lateral / Dropdown
+    MÓDULO 17: CENTRO DE MANDO B2B (ALERTAS DE SEGURIDAD EN VIVO)
+    Arquitectura: Escucha activa en tiempo real para panel lateral / Dropdown
    ========================================================================= */
 
 function escucharAlertasNOC(edificioId) {
@@ -1072,14 +1072,29 @@ window.marcarAlertaLeida = async (alertaId) => {
 };
 
 // ======================================================
-// LOGIN / SESIÓN
+// LOGIN / SESIÓN (FIX V5.93 - MODULAR SIGN-OUT)
 // ======================================================
 
-window.logout = () => auth.signOut();
+/**
+ * Función de Logout Blindada (V5.93)
+ * Corrige el error de auth.signOut() y añade log de auditoría
+ */
+window.logout = async () => {
+    console.log("🚀 Iniciando secuencia de cierre de sesión segura...");
+    try {
+        if (typeof showToast === "function") showToast("Cerrando sesión...");
+        await signOut(auth);
+        console.log("✅ Sesión cerrada correctamente");
+    } catch (error) {
+        console.error("❌ Error Crítico en Logout:", error);
+        if (typeof showToast === "function") showToast("Error al salir", true);
+    }
+};
 
 auth.onAuthStateChanged(async (userAuth) => {
 
     if (!userAuth) {
+        console.log("🛡️ No se detecta sesión activa. Redirigiendo a Login...");
         window.location.href = "login.html";
         return;
     }
@@ -1284,8 +1299,8 @@ document.getElementById("formTicketB2B").addEventListener("submit", async (e) =>
 });
 
 /* =====================================================
-   MÓDULO 12: MOTOR DE EMISIÓN DE PASES DIGITALES (STORAGE + WA)
-   Arquitectura: GestiaPremium B2B Enterprise v5.30
+    MÓDULO 12: MOTOR DE EMISIÓN DE PASES DIGITALES (STORAGE + WA)
+    Arquitectura: GestiaPremium B2B Enterprise v5.30
    ===================================================== */
 
 // Importación dinámica de Storage para no romper tus encabezados actuales
@@ -1615,7 +1630,7 @@ document.getElementById("formComunicadoB2B").addEventListener("submit", async (e
     }
 });
 /* =====================================================
-   PUENTE A TERMINAL HEBERTO - REPORTE FLOTILLA (B2B)
+    PUENTE A TERMINAL HEBERTO - REPORTE FLOTILLA (B2B)
    ===================================================== */
 window.reportarFallaVehiculo = async () => {
     // Feedback visual en consola
@@ -1651,3 +1666,19 @@ window.reportarFallaVehiculo = async () => {
         alert("🚨 Terminal Heberto offline. No se detectó la instancia del Kernel.");
     }
 };
+
+/* =====================================================
+    REFORZAMIENTO DOM (V5.93)
+    Este bloque asegura que el botón sea funcional incluso
+    si el onclick no se bindea correctamente en el módulo.
+   ===================================================== */
+document.addEventListener("DOMContentLoaded", () => {
+    const idsPosibles = ["btn-logout", "btnLogout", "cerrarSesion"];
+    idsPosibles.forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) {
+            console.log(`🎯 Botón de logout detectado: ${id}`);
+            btn.addEventListener("click", window.logout);
+        }
+    });
+});
