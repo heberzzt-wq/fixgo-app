@@ -86,6 +86,117 @@ function initCore() {
 }
 
 // ======================================================================================
+// 🧠 MÓDULO 0.5: ENDPOINT IA: INTENT PARSER (KERNEL BRIDGE) - BLINDADO V5.56
+// ======================================================================================
+// Declarado temprano en el stack de ruteo de Express para evitar 404s en Firebase
+app.post(["/ai-intent", "/api/ai-intent", "*/ai-intent"], async (req, res) => {
+    console.log(`⚡ [KERNEL BRIDGE] Endpoint alcanzado. Path detectado: ${req.path}`);
+    
+    initCore();
+
+    const traceId = `trace_intent_${Date.now()}`;
+
+    try {
+        const { input } = req.body;
+
+        if (!input || input.trim().length < 2) {
+            return res.json({
+                output: JSON.stringify({
+                    intent: "analyze",
+                    target: "system",
+                    confidence: 0
+                })
+            });
+        }
+
+        const prompt = `
+Eres el núcleo de interpretación de un sistema operativo.
+
+Responde SOLO con JSON válido:
+
+{
+  "intent": string,
+  "target": string,
+  "confidence": number
+}
+
+Reglas:
+- intent ∈ ["logout","analyze","open","repair","create","update","delete"]
+- target ∈ ["admin","system","auth","user"]
+- confidence entre 0 y 1
+- NO texto extra
+
+Input: "${input}"
+`;
+
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash",
+            generationConfig: {
+                temperature: 0.1,
+                responseMimeType: "application/json"
+            }
+        });
+
+        const result = await model.generateContent(prompt);
+
+        let raw = result.response.text();
+
+        // 🔥 limpieza defensiva ajustada
+        raw = raw
+            .replace(/```json/gi, "")
+            .replace(/```/g, "")
+            .trim();
+
+        let parsed;
+
+        // 🔥 VALIDACIÓN ESTRICTA DEL SCHEMA
+        try {
+            const temp = JSON.parse(raw);
+
+            const validIntents = ["logout","analyze","open","repair","create","update","delete"];
+            const validTargets = ["admin","system","auth","user"];
+
+            if (
+                validIntents.includes(temp.intent) &&
+                validTargets.includes(temp.target) &&
+                typeof temp.confidence === "number"
+            ) {
+                parsed = temp;
+            } else {
+                throw new Error("INVALID_SCHEMA");
+            }
+
+        } catch {
+            // Fallback seguro si el LLM alucina o el esquema no hace match
+            parsed = {
+                intent: "analyze",
+                target: "system",
+                confidence: 0
+            };
+        }
+
+        return res.json({
+            output: JSON.stringify(parsed),
+            traceId
+        });
+
+    } catch (error) {
+        console.error("🔥 AI INTENT ERROR:", error.message);
+
+        return res.status(200).json({
+            output: JSON.stringify({
+                intent: "analyze",
+                target: "system",
+                confidence: 0
+            }),
+            error: error.message,
+            traceId
+        });
+    }
+});
+
+
+// ======================================================================================
 // 5. HELPERS DE AUTORIDAD Y SALUD SENTINEL (V5.55 FINAL CORE)
 // ======================================================================================
 
@@ -252,6 +363,7 @@ async function internalCreateModule(params) {
         throw error;
     }
 }
+
 // ======================================================================================
 // 🧩 MÓDULO 1: FINANZAS - GENERADOR DE SESIÓN STRIPE (V5.55 FINAL CORE)
 // ======================================================================================
@@ -353,113 +465,6 @@ app.post("/create-checkout-session", async (req, res) => {
     }
 });
 
-// ======================================================================================
-// 🧠 ENDPOINT IA: INTENT PARSER (KERNEL BRIDGE)
-// ======================================================================================
-// Acepta tanto /ai-intent como /api/ai-intent
-app.post(["/ai-intent", "/api/ai-intent"], async (req, res) => {
-    initCore();
-
-    const traceId = `trace_intent_${Date.now()}`;
-
-    try {
-        const { input } = req.body;
-
-        if (!input || input.trim().length < 2) {
-            return res.json({
-                output: JSON.stringify({
-                    intent: "analyze",
-                    target: "system",
-                    confidence: 0
-                })
-            });
-        }
-
-        const prompt = `
-Eres el núcleo de interpretación de un sistema operativo.
-
-Responde SOLO con JSON válido:
-
-{
-  "intent": string,
-  "target": string,
-  "confidence": number
-}
-
-Reglas:
-- intent ∈ ["logout","analyze","open","repair","create","update","delete"]
-- target ∈ ["admin","system","auth","user"]
-- confidence entre 0 y 1
-- NO texto extra
-
-Input: "${input}"
-`;
-
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
-            generationConfig: {
-                temperature: 0.1,
-                responseMimeType: "application/json"
-            }
-        });
-
-        const result = await model.generateContent(prompt);
-
-        let raw = result.response.text();
-
-        // 🔥 limpieza defensiva ajustada
-        raw = raw
-            .replace(/```json/gi, "")
-            .replace(/```/g, "")
-            .trim();
-
-        let parsed;
-
-        // 🔥 VALIDACIÓN ESTRICTA DEL SCHEMA
-        try {
-            const temp = JSON.parse(raw);
-
-            const validIntents = ["logout","analyze","open","repair","create","update","delete"];
-            const validTargets = ["admin","system","auth","user"];
-
-            if (
-                validIntents.includes(temp.intent) &&
-                validTargets.includes(temp.target) &&
-                typeof temp.confidence === "number"
-            ) {
-                parsed = temp;
-            } else {
-                throw new Error("INVALID_SCHEMA");
-            }
-
-        } catch {
-            // Fallback seguro si el LLM alucina o el esquema no hace match
-            parsed = {
-                intent: "analyze",
-                target: "system",
-                confidence: 0
-            };
-        }
-
-        return res.json({
-            output: JSON.stringify(parsed),
-            traceId
-        });
-
-    } catch (error) {
-        console.error("🔥 AI INTENT ERROR:", error.message);
-
-        return res.status(200).json({
-            output: JSON.stringify({
-                intent: "analyze",
-                target: "system",
-                confidence: 0
-            }),
-            error: error.message,
-            traceId
-        });
-    }
-});
 // ======================================================================================
 // 🧩 MÓDULO 2: FINANZAS - WEBHOOK MULTIMODAL (V5.55 FINAL CORE)
 // ======================================================================================
@@ -642,6 +647,7 @@ app.post(["/", "/webhook", "/stripe-webhook"], express.raw({ type: 'application/
 
 // 🏁 EXPORTACIÓN CENTRALIZADA (Fix V5.55: Punto de entrada Express)
 exports.api = functions.https.onRequest(app);
+
 // ======================================================================================
 // 🧩 MÓDULO 3: TRIGGER - FINALIZACIÓN DE SERVICIO (V5.55 FINAL CORE)
 // ======================================================================================
@@ -775,6 +781,7 @@ exports.onServiceCompleted = functions.firestore
             return null;
         }
     });
+
 // ======================================================================================
 // 🧩 MÓDULO 4: WALLET - SOLICITUD DE RETIRO (V5.55 FINAL CORE)
 // ======================================================================================
@@ -910,7 +917,7 @@ exports.solicitarRetiro = functions.https.onCall(async (data, context) => {
         
         throw new functions.https.HttpsError('internal', error.message);
     }
-});                                                                                                                        
+});
 
 // ======================================================================================
 // 🧩 MÓDULO 5: MOTOR IA - VALIDACIÓN DE CIERRE (V5.55 FINAL CORE)
@@ -1057,6 +1064,7 @@ exports.validarCierreIA = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', `Error Crítico Sentinel IA: ${error.message}`);
     }
 });
+
 /**
  * ======================================================================================
  * 🧩 MÓDULO 6: TERMINAL HEBERTO - ARCHITECT ENGINE (SENTINEL V5.55 FINAL CORE)
@@ -1251,6 +1259,7 @@ MODULOS ACTUALES: [${modulos.join(", ")}]
   });
 
 exports.generarModuloIA = exports.gestiaArchitectV5;
+
 /**
  * ======================================================================================
  * 🧩 MÓDULO 7: TERMINAL - ENDPOINT DE CREACIÓN DIRECTA (SENTINEL V5.55 FINAL CORE)
@@ -1400,6 +1409,7 @@ exports.createGestiaModule = functions
             }
         });
     });
+
 /**
  * ======================================================================================
  * 🧩 MÓDULO 8: SCHEDULERS - MANTENIMIENTO PREVENTIVO (SENTINEL V5.55 FINAL CORE)
@@ -1410,7 +1420,6 @@ exports.createGestiaModule = functions
  * REGLA 2: Telemetría de Ingresos Proyectados en el Radar Sentinel V5.55.
  * --------------------------------------------------------------------------------------
  */
-
 exports.onScheduleMantenimiento = functions.pubsub
     .schedule('0 0 * * *') // Ejecución diaria a medianoche
     .timeZone('America/Mexico_City')
@@ -1619,6 +1628,7 @@ exports.reservarCancha = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', `Error en Búnker Operations: ${error.message}`);
     }
 });
+
 /**
  * ======================================================================================
  * 🧩 MÓDULO 10: CONTROL DE ACCESOS DINÁMICOS (SENTINEL V5.56 - HYBRID CORE)
@@ -1626,7 +1636,6 @@ exports.reservarCancha = functions.https.onCall(async (data, context) => {
  * OBJETIVO: Registro de entradas y salidas con trazabilidad de autoridad y saneamiento.
  * ACTUALIZACIÓN V5.56: Whitelist Híbrida para soporte dinámico de Uxmal 39.
  * REGLA: Sin compactación. Preserva lógica de auditoría V5.55 y expande capacidad.
- * STATUS: Cero duplicados de constantes (Listo para inyección en línea 1516).
  * --------------------------------------------------------------------------------------
  */
 
@@ -1805,6 +1814,7 @@ exports.registrarSalida = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', `Error Sentinel Salidas V5.56: ${error.message}`);
     }
 });
+
 /**
  * ======================================================================================
  * 🧩 MÓDULO 11: SEGURIDAD - PAQUETERÍA E INCIDENCIAS (SENTINEL V5.55 FINAL CORE)
@@ -2117,7 +2127,7 @@ exports.limpiarSesionesHuerfanas = functions.pubsub
         }
     });
 
-    /**
+/**
  * ======================================================================================
  * 🛰️ MÓDULO 13: SENTINEL HEALTH ENGINE (EL RADAR V5.55 FINAL CORE)
  * ======================================================================================
@@ -2299,10 +2309,11 @@ exports.jarvisConversacional = functions
             throw new functions.https.HttpsError('internal', 'Pérdida de conexión con el núcleo lógico.');
         }
     });
+
 /**
  * ======================================================================================
- * FIN DEL NÚCLEO GESTIAPREMIUM V5.55 (SENTINEL CORE - FINAL)
+ * FIN DEL NÚCLEO GESTIAPREMIUM V5.56 (SENTINEL HYBRID CORE)
  * ======================================================================================
- * REGLA 1: SIN CORTES. CÓDIGO ÍNTEGRO. 13 MÓDULOS SELLADOS POR HEBER MENDOZA.
+ * REGLA 1: SIN CORTES. CÓDIGO ÍNTEGRO.
  * --------------------------------------------------------------------------------------
  */

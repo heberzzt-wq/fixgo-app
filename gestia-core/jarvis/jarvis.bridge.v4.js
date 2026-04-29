@@ -83,18 +83,25 @@ async function runCore(input = "") {
 
 /**
  * 🔥 1️⃣ REESCRIBE runExternalAI (FORMATO OBLIGATORIO)
- * Tu función debe FORZAR salida estructurada.
+ * Tu función debe FORZAR salida estructurada y defenderse de HTML.
  */
 async function runExternalAI(input = "") {
 
     try {
-       const res = await fetch("https://us-central1-fixgo-44e4d.cloudfunctions.net/api/ai-intent", {
-    method: "POST",
-    headers: {
-        "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ input })
-});
+        const res = await fetch("https://us-central1-fixgo-44e4d.cloudfunctions.net/api/ai-intent", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ input })
+        });
+
+        // 🛡️ AQUÍ ESTÁ LO QUE FALTABA: BARRERA ANTI-HTML
+        // Si el server tira 404, 500 o CORS, abortamos ANTES de intentar parsear JSON
+        if (!res.ok) {
+            console.error(`[AI BRIDGE] Error HTTP devuelto por el servidor: ${res.status}`);
+            return fallback();
+        }
 
         const data = await res.json();
 
@@ -135,7 +142,6 @@ function fallback() {
         confidence: 0
     };
 }
-
 // =====================================================
 // HELPERS DE INTERPRETACIÓN AI
 // =====================================================
