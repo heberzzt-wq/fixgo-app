@@ -96,7 +96,8 @@ function isNativeJarvis(text = "") {
  */
 function detectIntent(t = "") {
 
-    // 🔥 FIX V5.93: Prioridad absoluta para cierre de sesión (Evita caída en LOCK)
+    // 🔥 FIX V5.93: Prioridad absoluta para cierre de sesión (Evita caída en LOCK o ANALYZE)
+    // Se intercepta al inicio para asegurar que el ruteo hacia REPAIR::admin.logout sea limpio.
     if (/cerrar sesión|logout|sign out|salir del sistema|desconectar/.test(t)) {
         return "REPAIR";
     }
@@ -112,6 +113,7 @@ function detectIntent(t = "") {
     }
 
     // Análisis de Reparación y Parcheo
+    // Se mantienen términos genéricos, pero el logout ya fue capturado por la regla superior.
     if (/corrige|repara|arregla|fix|parchea|cerrar|logout/.test(t)) {
         return "REPAIR";
     }
@@ -132,12 +134,15 @@ function detectIntent(t = "") {
     }
 
     // Análisis de Seguridad
+    // Nota: "cierra" se omite aquí para no chocar con "cerrar sesión".
     if (/bloquea|suspende|corta/.test(t)) {
         return "LOCK";
     }
 
+    // Fallback por defecto a análisis si no hay coincidencia clara
     return "ANALYZE";
 }
+
 /* =====================================================================================
    SECCIÓN 4: DETECCIÓN DE ENTIDADES (ENTITY DETECTOR)
    ===================================================================================== */
@@ -324,14 +329,19 @@ export function toLegacyCommands(parsed) {
      * Mapeador interno para corregir salidas inválidas y forzar comandos críticos.
      */
     function mapToCommand(intent, entity, raw = "") {
-        const text = String(raw).toLowerCase();
+        const text = String(raw).toLowerCase().trim();
+
+        // 🔍 SOPORTE HEARTBEAT (PING)
+        if (text === "ping") {
+            return "ping";
+        }
 
         // 🔥 FIX FINAL (CRÍTICO): RE-MAPEO DE LOGOUT
-        // Aseguramos que REPAIR + AUTH + KEYWORDS resulte en el comando exacto.
+        // Interceptamos la combinación detectada en el Intent Engine para forzar la sub-acción.
         if (
             intent === "REPAIR" &&
             entity === "auth" &&
-            /cerrar sesión|logout|sign out/.test(text)
+            /cerrar sesión|logout|sign out|salir del sistema|desconectar/.test(text)
         ) {
             return "REPAIR::admin.logout";
         }
@@ -342,6 +352,7 @@ export function toLegacyCommands(parsed) {
 
     return parsed.actions.map(a => {
 
+        // Si el Parser marcó el comando como nativo (Jarvis Status, etc.), se envía directo.
         if (a.native) {
             return a.command;
         }
