@@ -81,30 +81,79 @@ async function runCore(input = "") {
 }
 
 
-/* =====================================================================================
-   EXTERNAL AI
-===================================================================================== */
-
+/**
+ * 🔥 1️⃣ REESCRIBE runExternalAI (FORMATO OBLIGATORIO)
+ * Tu función debe FORZAR salida estructurada.
+ */
 async function runExternalAI(input = "") {
 
-    /* ======================================
-        🔥 NORMALIZACIÓN INPUT
-    ====================================== */
+    const prompt = `
+Eres el núcleo de interpretación de un sistema operativo.
 
-    const text =
-        typeof input === "object"
-            ? input.raw || input.cmd || ""
-            : input;
+Convierte la instrucción a JSON con esta estructura EXACTA:
 
-    if (window.consultarCerebroIA) {
-        return await window.consultarCerebroIA(text);
+{
+  "intent": string,
+  "target": string,
+  "confidence": number
+}
+
+Reglas:
+- intent ∈ ["logout","analyze","open","repair","create","update","delete"]
+- target debe ser una entidad clara ("admin","system","auth","user")
+- NO expliques nada
+- SOLO JSON
+
+Input: "${input}"
+`;
+
+    const res = await fetch("/gemini", {
+        method: "POST",
+        body: JSON.stringify({ prompt })
+    });
+
+    const data = await res.json();
+
+    try {
+        // Retornamos el objeto JSON parseado directamente para el Kernel[cite: 1]
+        return JSON.parse(data.output);
+    } catch {
+        return null;
+    }
+}
+
+// =====================================================
+// HELPERS DE INTERPRETACIÓN AI
+// =====================================================
+function resolveAIIntent(ai) {
+
+    const { intent, target } = ai;
+
+    // 🔐 LOGOUT
+    if (intent === "logout") {
+        return "REPAIR::admin.logout";
     }
 
-    if (window.askOpenAI) {
-        return await window.askOpenAI(text);
+    // 🔍 ANALYZE
+    if (intent === "analyze" && target === "system") {
+        return "ANALYZE::system";
     }
 
-    return "IA externa no disponible.";
+    if (intent === "analyze" && target === "auth") {
+        return "ANALYZE::auth";
+    }
+
+    // 🛠️ REPAIR
+    if (intent === "repair") {
+        return "REPAIR::system";
+    }
+
+    // 📂 OPEN
+    if (intent === "open" && target === "auth") {
+        return "OPEN::auth";
+    }
+
+    return null;
 }
 /* =====================================================================================
    OBSERVABILITY
@@ -1640,6 +1689,27 @@ const loaderTimer = setInterval(() => {
         render("Jarvis", loaders[loaderIndex], "info");
     }
 }, 700);
+
+// =====================================================
+// 🧠 GEMINI COMO CEREBRO (NLU PRIMARIO)
+// =====================================================
+const ai = await runExternalAI(raw);
+
+if (ai && ai.intent) {
+    safeLog("AI_INTENT", ai);
+    const aiCmd = `${ai.intent.toUpperCase()}::${ai.target.toLowerCase()}`;
+    
+    if (aiCmd) {
+        clearInterval(loaderTimer); // 👈 Apagamos la animación
+        const outputs = await executeCommands([aiCmd]);
+        const finalText = composeResponse(outputs);
+        
+        render("Jarvis", finalText, "success");
+        speak(finalText);
+        
+        return { ok: true, route: "GEMINI_CORE", commands: [aiCmd], message: finalText };
+    }
+}
 
 try {
     // 1. Intentamos resolver por la vía normal[cite: 2]
