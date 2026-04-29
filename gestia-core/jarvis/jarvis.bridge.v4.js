@@ -1697,17 +1697,24 @@ const ai = await runExternalAI(raw);
 
 if (ai && ai.intent) {
     safeLog("AI_INTENT", ai);
-    const aiCmd = `${ai.intent.toUpperCase()}::${ai.target.toLowerCase()}`;
-    
+
+    const aiCmd = resolveAIIntent(ai); // 🔥 FIX REAL: Usamos el traductor oficial
+
     if (aiCmd) {
         clearInterval(loaderTimer); // 👈 Apagamos la animación
+
         const outputs = await executeCommands([aiCmd]);
         const finalText = composeResponse(outputs);
-        
+
         render("Jarvis", finalText, "success");
         speak(finalText);
-        
-        return { ok: true, route: "GEMINI_CORE", commands: [aiCmd], message: finalText };
+
+        return {
+            ok: true,
+            route: "GEMINI_CORE",
+            commands: [aiCmd],
+            message: finalText
+        };
     }
 }
 
