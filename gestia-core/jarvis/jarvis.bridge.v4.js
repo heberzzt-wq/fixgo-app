@@ -1789,3 +1789,4 @@ try {
 
 window.runExternalAI = runExternalAI;
 window.resolveAIIntent = resolveAIIntent;
+window.JarvisBridge = JarvisBridge;
