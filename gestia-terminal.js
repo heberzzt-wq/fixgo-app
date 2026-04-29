@@ -2217,17 +2217,15 @@ handleError(
 ===================================================== */
 
 // =====================================================
-// 🔥 KERNEL ÚNICO (OFICIAL)
+// 🔥 KERNEL ÚNICO (SIN COLISIÓN)
 // =====================================================
 
-const kernel = new GestiaTerminal();
+window.KernelHeberto = new GestiaTerminal();
 
-kernel.db = db;
-kernel.doc = doc;
-kernel.getDoc = getDoc;
-kernel.setDoc = setDoc;
-
-window.KernelHeberto = kernel;
+window.KernelHeberto.db = db;
+window.KernelHeberto.doc = doc;
+window.KernelHeberto.getDoc = getDoc;
+window.KernelHeberto.setDoc = setDoc;
 
 /* =====================================================
    AUTH WATCHER
