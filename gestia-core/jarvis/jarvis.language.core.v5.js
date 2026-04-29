@@ -96,6 +96,11 @@ function isNativeJarvis(text = "") {
  */
 function detectIntent(t = "") {
 
+    // 🔥 FIX V5.93: Prioridad absoluta para cierre de sesión (Evita caída en LOCK)
+    if (/cerrar sesión|logout|sign out|salir del sistema|desconectar/.test(t)) {
+        return "REPAIR";
+    }
+
     // Análisis de Auditoría y Consulta
     if (/revisa|analiza|consulta|verifica|checa|inspecciona/.test(t)) {
         return "ANALYZE";
@@ -107,7 +112,6 @@ function detectIntent(t = "") {
     }
 
     // Análisis de Reparación y Parcheo
-    // FIX V5.93: Se incluye "cerrar" aquí para evitar que caiga en LOCK
     if (/corrige|repara|arregla|fix|parchea|cerrar|logout/.test(t)) {
         return "REPAIR";
     }
@@ -128,14 +132,12 @@ function detectIntent(t = "") {
     }
 
     // Análisis de Seguridad
-    // Se eliminó "cierra" de este bloque para priorizar el flujo de REPAIR::admin.logout
     if (/bloquea|suspende|corta/.test(t)) {
         return "LOCK";
     }
 
     return "ANALYZE";
 }
-
 /* =====================================================================================
    SECCIÓN 4: DETECCIÓN DE ENTIDADES (ENTITY DETECTOR)
    ===================================================================================== */
@@ -145,6 +147,11 @@ function detectIntent(t = "") {
  * @param {string} t - Texto normalizado.
  */
 function detectEntity(t = "") {
+
+    // 🔥 FIX V5.93: Validación explícita de autenticación/sesión
+    if (/sesion|sesión|login|auth/.test(t)) {
+        return "auth";
+    }
 
     const map = {
         // Finanzas y Pagos
@@ -313,6 +320,26 @@ export function toLegacyCommands(parsed) {
 
     if (!parsed?.actions?.length) return [];
 
+    /**
+     * Mapeador interno para corregir salidas inválidas y forzar comandos críticos.
+     */
+    function mapToCommand(intent, entity, raw = "") {
+        const text = String(raw).toLowerCase();
+
+        // 🔥 FIX FINAL (CRÍTICO): RE-MAPEO DE LOGOUT
+        // Aseguramos que REPAIR + AUTH + KEYWORDS resulte en el comando exacto.
+        if (
+            intent === "REPAIR" &&
+            entity === "auth" &&
+            /cerrar sesión|logout|sign out/.test(text)
+        ) {
+            return "REPAIR::admin.logout";
+        }
+
+        // Fallback estándar: ANALYZE::payments, CREATE::tickets, etc.
+        return `${intent}::${entity}`;
+    }
+
     return parsed.actions.map(a => {
 
         if (a.native) {
@@ -320,20 +347,11 @@ export function toLegacyCommands(parsed) {
         }
 
         /* ----------------------------------------------------
-           MAPEOS ESPECIALES DE ALTO NIVEL (V5.93)
+           EJECUCIÓN DEL MAPEO ESTRATÉGICO (V5.93)
            ---------------------------------------------------- */
-        
-        // Intercepción de Logout: Si la intención es REPAIR y la entidad es AUTH (sesión)
-        // Mapeamos directamente al comando especializado del motor.
-        if (a.intent === "REPAIR" && a.entity === "auth") {
-            return "REPAIR::admin.logout";
-        }
-
-        // Formato estándar: ANALYZE::payments, CREATE::tickets, etc.
-        return `${a.intent}::${a.entity}`;
+        return mapToCommand(a.intent, a.entity, a.raw);
     });
 }
-
 
 /* =====================================================================================
    SECCIÓN 8: MODO DE TRADUCCIÓN DIRECTA (BRIDGE)
