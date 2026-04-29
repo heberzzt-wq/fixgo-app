@@ -1182,15 +1182,35 @@ Estado núcleo: ${this.state}`
         );
 
         /* =================================================
-   PRIORIDAD MÁXIMA: JARVIS ORCHESTRATOR
-   SOLO SI NO ES COMANDO ESTRUCTURADO
+   🧠 ENRUTAMIENTO PRINCIPAL (BRIDGE FIRST)
 ================================================= */
 
-const isStructured =
-    rawInput.includes("::");
+if (!isStructured) {
 
-let jarvisRes = null;
+    // 🔥 PRIORIDAD ABSOLUTA: Bridge (cerebro)
+    if (window.JarvisBridge?.dispatch) {
 
+        console.log("🧠 [BRIDGE ROUTING ACTIVE]");
+
+        return await window.JarvisBridge.dispatch(
+            rawInput,
+            {
+                userId: this.session?.uid,
+                tenantId: this.session?.tenantId,
+                authorized: this.session?.authorized
+            }
+        );
+    }
+
+    // ⚠️ Fallback (solo si el bridge falla o no existe)
+    console.warn("⚠️ Bridge no disponible, usando fallback local");
+
+    jarvisRes = await runJarvis(
+        rawInput,
+        ctx,
+        false
+    );
+}
 // =====================================================
 // 🧠 GEMINI COMO CEREBRO PRINCIPAL
 // =====================================================
