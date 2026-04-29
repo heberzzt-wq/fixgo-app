@@ -120,20 +120,6 @@ JarvisMemory.subscribe((actionType, payload, currentState) => {
  * =====================================================
  */
 
-// 🔥 FIX: Usamos 'var' en lugar de 'const' para evitar el error de redeclaración
-var kernel = new GestiaTerminal();
-
-// Inyectas dependencias
-kernel.db = db;
-kernel.doc = doc;
-kernel.getDoc = getDoc;
-kernel.setDoc = setDoc;
-
-// Exposición global
-window.KernelHeberto = kernel;
-
-// Log de carga corporativo
-console.log("%c🧠 [GESTIA-TERMINAL]: V5.18 OPERATIONAL - KERNEL SYNC READY", "color: #3b82f6; font-weight: bold; background: #0f172a; border-left: 4px solid #3b82f6; padding: 2px 10px;");// =====================================================
 // ADAPTER LEGACY → CORE INTENT
 // =====================================================
 
@@ -2226,7 +2212,7 @@ window.KernelHeberto.db = db;
 window.KernelHeberto.doc = doc;
 window.KernelHeberto.getDoc = getDoc;
 window.KernelHeberto.setDoc = setDoc;
-
+console.log("%c🧠 [GESTIA-TERMINAL]: V5.18 OPERATIONAL - KERNEL SYNC READY", "color: #3b82f6; font-weight: bold; background: #0f172a; border-left: 4px solid #3b82f6; padding: 2px 10px;");
 /* =====================================================
    AUTH WATCHER
 ===================================================== */
