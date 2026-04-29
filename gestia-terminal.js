@@ -120,8 +120,8 @@ JarvisMemory.subscribe((actionType, payload, currentState) => {
  * =====================================================
  */
 
-// Instancia REAL del kernel
-const kernel = new GestiaTerminal();
+// 🔥 FIX: Usamos 'var' en lugar de 'const' para evitar el error de redeclaración
+var kernel = new GestiaTerminal();
 
 // Inyectas dependencias
 kernel.db = db;
@@ -133,8 +133,7 @@ kernel.setDoc = setDoc;
 window.KernelHeberto = kernel;
 
 // Log de carga corporativo
-console.log("%c🧠 [GESTIA-TERMINAL]: V5.18 OPERATIONAL - KERNEL SYNC READY", "color: #3b82f6; font-weight: bold; background: #0f172a; border-left: 4px solid #3b82f6; padding: 2px 10px;");
-// =====================================================
+console.log("%c🧠 [GESTIA-TERMINAL]: V5.18 OPERATIONAL - KERNEL SYNC READY", "color: #3b82f6; font-weight: bold; background: #0f172a; border-left: 4px solid #3b82f6; padding: 2px 10px;");// =====================================================
 // ADAPTER LEGACY → CORE INTENT
 // =====================================================
 
@@ -2210,7 +2209,8 @@ handleError(
     };
 }
 
-} // END CLASS
+} 
+// END CLASS
 
 /* =====================================================
    INSTANCE
