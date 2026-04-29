@@ -1786,3 +1786,6 @@ try {
 }
 } // <--- CIERRE DISPATCH[cite: 2]
 }; // <--- CIERRE JARVISBRIDGE[cite: 2]
+
+window.runExternalAI = runExternalAI;
+window.resolveAIIntent = resolveAIIntent;
