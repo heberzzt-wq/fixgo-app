@@ -87,39 +87,53 @@ async function runCore(input = "") {
  */
 async function runExternalAI(input = "") {
 
-    const prompt = `
-Eres el núcleo de interpretación de un sistema operativo.
+    try {
+        const res = await fetch("/ai-intent", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ input })
+        });
 
-Convierte la instrucción a JSON con esta estructura EXACTA:
+        const data = await res.json();
 
-{
-  "intent": string,
-  "target": string,
-  "confidence": number
+        let parsed;
+
+        try {
+            parsed = JSON.parse(data.output);
+        } catch {
+            return fallback();
+        }
+
+        // 🛡️ VALIDACIÓN FINAL (bridge layer)
+        const validIntents = ["logout","analyze","open","repair","create","update","delete"];
+        const validTargets = ["admin","system","auth","user"];
+
+        if (
+            !parsed ||
+            !validIntents.includes(parsed.intent) ||
+            !validTargets.includes(parsed.target) ||
+            typeof parsed.confidence !== "number"
+        ) {
+            return fallback();
+        }
+
+        return parsed;
+
+    } catch (error) {
+        console.error("AI BRIDGE ERROR:", error);
+        return fallback();
+    }
 }
 
-Reglas:
-- intent ∈ ["logout","analyze","open","repair","create","update","delete"]
-- target debe ser una entidad clara ("admin","system","auth","user")
-- NO expliques nada
-- SOLO JSON
-
-Input: "${input}"
-`;
-
-    const res = await fetch("/gemini", {
-        method: "POST",
-        body: JSON.stringify({ prompt })
-    });
-
-    const data = await res.json();
-
-    try {
-        // Retornamos el objeto JSON parseado directamente para el Kernel[cite: 1]
-        return JSON.parse(data.output);
-    } catch {
-        return null;
-    }
+// 🔒 fallback centralizado
+function fallback() {
+    return {
+        intent: "analyze",
+        target: "system",
+        confidence: 0
+    };
 }
 
 // =====================================================

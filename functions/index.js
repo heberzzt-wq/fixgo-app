@@ -352,6 +352,113 @@ app.post("/create-checkout-session", async (req, res) => {
         });
     }
 });
+
+// ======================================================================================
+// 🧠 ENDPOINT IA: INTENT PARSER (KERNEL BRIDGE)
+// ======================================================================================
+app.post("/ai-intent", async (req, res) => {
+    initCore();
+
+    const traceId = `trace_intent_${Date.now()}`;
+
+    try {
+        const { input } = req.body;
+
+        if (!input || input.trim().length < 2) {
+            return res.json({
+                output: JSON.stringify({
+                    intent: "analyze",
+                    target: "system",
+                    confidence: 0
+                })
+            });
+        }
+
+        const prompt = `
+Eres el núcleo de interpretación de un sistema operativo.
+
+Responde SOLO con JSON válido:
+
+{
+  "intent": string,
+  "target": string,
+  "confidence": number
+}
+
+Reglas:
+- intent ∈ ["logout","analyze","open","repair","create","update","delete"]
+- target ∈ ["admin","system","auth","user"]
+- confidence entre 0 y 1
+- NO texto extra
+
+Input: "${input}"
+`;
+
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash",
+            generationConfig: {
+                temperature: 0.1,
+                responseMimeType: "application/json"
+            }
+        });
+
+        const result = await model.generateContent(prompt);
+
+        let raw = result.response.text();
+
+        // 🔥 limpieza defensiva ajustada
+        raw = raw
+            .replace(/```json/gi, "")
+            .replace(/```/g, "")
+            .trim();
+
+        let parsed;
+
+        // 🔥 VALIDACIÓN ESTRICTA DEL SCHEMA
+        try {
+            const temp = JSON.parse(raw);
+
+            const validIntents = ["logout","analyze","open","repair","create","update","delete"];
+            const validTargets = ["admin","system","auth","user"];
+
+            if (
+                validIntents.includes(temp.intent) &&
+                validTargets.includes(temp.target) &&
+                typeof temp.confidence === "number"
+            ) {
+                parsed = temp;
+            } else {
+                throw new Error("INVALID_SCHEMA");
+            }
+
+        } catch {
+            // Fallback seguro si el LLM alucina o el esquema no hace match
+            parsed = {
+                intent: "analyze",
+                target: "system",
+                confidence: 0
+            };
+        }
+
+        return res.json({
+            output: JSON.stringify(parsed),
+            traceId
+        });
+
+    } catch (error) {
+        console.error("🔥 AI INTENT ERROR:", error.message);
+
+        return res.status(200).json({
+            output: JSON.stringify({
+                intent: "analyze",
+                target: "system",
+                confidence: 0
+            }),
+            error: error.message,
+            traceId
+        });
+    }
+});
 // ======================================================================================
 // 🧩 MÓDULO 2: FINANZAS - WEBHOOK MULTIMODAL (V5.55 FINAL CORE)
 // ======================================================================================
