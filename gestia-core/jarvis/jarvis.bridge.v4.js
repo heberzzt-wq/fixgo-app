@@ -88,13 +88,13 @@ async function runCore(input = "") {
 async function runExternalAI(input = "") {
 
     try {
-        const res = await fetch("/ai-intent", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ input })
-        });
+       const res = await fetch("https://us-central1-fixgo-44e4d.cloudfunctions.net/api/ai-intent", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ input })
+});
 
         const data = await res.json();
 
