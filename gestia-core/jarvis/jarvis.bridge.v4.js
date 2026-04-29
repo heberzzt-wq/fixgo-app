@@ -48,7 +48,7 @@ async function runCore(input = "") {
     }
 
     /* ======================================
-       🔥 SOPORTE OBJETO (cmd + raw)
+        🔥 SOPORTE OBJETO (cmd + raw)
     ====================================== */
 
     if (typeof input === "object" && input !== null) {
@@ -76,7 +76,7 @@ async function runCore(input = "") {
     }
 
     /* ======================================
-       ✔ CASO NORMAL (string)
+        ✔ CASO NORMAL (string)
     ====================================== */
 
     return await window.KernelHeberto.execute(input);
@@ -90,7 +90,7 @@ async function runCore(input = "") {
 async function runExternalAI(input = "") {
 
     /* ======================================
-       🔥 NORMALIZACIÓN INPUT
+        🔥 NORMALIZACIÓN INPUT
     ====================================== */
 
     const text =
@@ -173,7 +173,7 @@ function beautifyOutput(
         String(text || "").trim();
 
     /* ==========================================
-       CACHE
+        CACHE
     ========================================== */
 
     if (fromCache) {
@@ -181,7 +181,7 @@ function beautifyOutput(
     }
 
     /* ==========================================
-       OPEN
+        OPEN
     ========================================== */
 
     if (c.includes("OPEN::TICKETS")) {
@@ -197,7 +197,7 @@ function beautifyOutput(
     }
 
     /* ==========================================
-       ANALYZE
+        ANALYZE
     ========================================== */
 
     if (c.includes("ANALYZE::PAYMENTS")) {
@@ -217,7 +217,7 @@ function beautifyOutput(
     }
 
     /* ==========================================
-       CREATE
+        CREATE
     ========================================== */
 
     if (c.includes("CREATE::")) {
@@ -225,7 +225,7 @@ function beautifyOutput(
     }
 
     /* ==========================================
-       UPDATE
+        UPDATE
     ========================================== */
 
     if (c.includes("UPDATE::")) {
@@ -233,7 +233,7 @@ function beautifyOutput(
     }
 
     /* ==========================================
-       DELETE
+        DELETE
     ========================================== */
 
     if (c.includes("DELETE::")) {
@@ -241,7 +241,7 @@ function beautifyOutput(
     }
 
     /* ==========================================
-       REPAIR
+        REPAIR
     ========================================== */
 
     if (c.includes("REPAIR::")) {
@@ -249,7 +249,7 @@ function beautifyOutput(
     }
 
     /* ==========================================
-       NATIVE COMMANDS
+        NATIVE COMMANDS
     ========================================== */
 
     if (
@@ -262,7 +262,7 @@ function beautifyOutput(
     }
 
     /* ==========================================
-       FALLBACK
+        FALLBACK
     ========================================== */
 
     return raw || "Operación completada correctamente.";
@@ -452,7 +452,7 @@ async function executeNativeJarvis(text = "") {
         .trim();
 
     /* ======================================
-       SOCIAL PRIORITY
+        SOCIAL PRIORITY
     ====================================== */
 if (
     isSocialJarvis(t) &&
@@ -464,7 +464,7 @@ if (
 
 
     /* ======================================
-       SYSTEM COMMANDS
+        SYSTEM COMMANDS
     ====================================== */
 
     if (
@@ -495,8 +495,8 @@ async function resolveCommands(raw = "") {
         String(raw || "").trim();
 
     /* ======================================
-       DIRECT DSL BYPASS
-    ====================================== */
+        DIRECT DSL BYPASS
+    ===================================== */
 
     if (
         cleanRaw.includes("::")
@@ -525,7 +525,7 @@ async function resolveCommands(raw = "") {
             cleanPart.toLowerCase();
 
         /* ======================================
-           SOCIAL PART ROUTER
+            SOCIAL PART ROUTER
         ====================================== */
 
         if (
@@ -538,7 +538,7 @@ async function resolveCommands(raw = "") {
         }
 
         /* ======================================
-           NATIVE PART ROUTER
+            NATIVE PART ROUTER
         ====================================== */
 
         if (
@@ -551,8 +551,8 @@ async function resolveCommands(raw = "") {
         }
 
        /* ======================================
-   HARD REPAIR ROUTER 
-   EJECUCIÓN REAL (CON CONTEXTO)
+    HARD REPAIR ROUTER 
+    EJECUCIÓN REAL (CON CONTEXTO)
 ====================================== */
 
 const pushRepair = (cmdType) => {
@@ -565,13 +565,13 @@ const pushRepair = (cmdType) => {
 };
 
 /* ======================================
-   ADMIN / TECNICO / CLIENTE ROUTER
-   (REMOVIDO: LÓGICA DELEGADA AL CORE V5.93)
-   ====================================== */
+    ADMIN / TECNICO / CLIENTE ROUTER
+    (REMOVIDO: LÓGICA DELEGADA AL CORE V5.93)
+    ====================================== */
 
 /* ======================================
-   PREMIUM INTERNAL ROUTER
-   ====================================== */
+    PREMIUM INTERNAL ROUTER
+    ====================================== */
 
 if (
     low.includes("auditoria automatica") ||
@@ -589,8 +589,8 @@ if (
 }
 
 /* ======================================
-   LANGUAGE CORE (EJE CENTRAL)
-   ====================================== */
+    LANGUAGE CORE (EJE CENTRAL)
+    ====================================== */
 
         if (
             window.JarvisLanguageCore &&
@@ -657,7 +657,7 @@ async function executeCommands(commands = []) {
                 performance.now();
 
             /* ==================================
-               SOCIAL + NATIVE + CORE ROUTER
+                SOCIAL + NATIVE + CORE ROUTER
             ================================== */
 
             if (
@@ -1113,7 +1113,7 @@ try {
             ).toLowerCase();
 
         /* ==========================
-           LOGOUT ADMIN FIX
+            LOGOUT ADMIN FIX
         ========================== */
 
         if (
@@ -1163,7 +1163,7 @@ try {
         }
 
         /* ==========================
-           MOBILE UI FIX
+            MOBILE UI FIX
         ========================== */
 
         if (
@@ -1215,7 +1215,7 @@ safeLog(
     try {
 
         /* ===============================
-           PRECHECK
+            PRECHECK
         =============================== */
 
         const precheck =
@@ -1230,7 +1230,7 @@ safeLog(
                 );
 
         /* ===============================
-           REPAIR EXECUTION
+            REPAIR EXECUTION
         =============================== */
 
         const coreRes =
@@ -1245,7 +1245,7 @@ safeLog(
                 );
 
         /* ===============================
-           VERIFY PASS
+            VERIFY PASS
         =============================== */
 
         const verify =
@@ -1335,7 +1335,7 @@ ${error.message || error}`;
     }
 }
         /* ======================================
-           REWRITE
+            REWRITE
         ====================================== */
 
         else if (
@@ -1354,7 +1354,7 @@ ${proposal.impact}`;
         }
 
         /* ======================================
-           HEALTH CHECK
+            HEALTH CHECK
         ====================================== */
 
         else if (
@@ -1374,7 +1374,7 @@ ${proposal.impact}`;
         }
 
         /* ======================================
-           UI AUDIT
+            UI AUDIT
         ====================================== */
 
         else if (
@@ -1396,7 +1396,7 @@ Revisión:
         }
 
         /* ======================================
-           FALLBACK
+            FALLBACK
         ====================================== */
 
         else {
@@ -1489,7 +1489,7 @@ if (
     };
 }
         /* =====================================================
-           AUTONOMOUS SUPERVISED DETECTION
+            AUTONOMOUS SUPERVISED DETECTION
         ===================================================== */
 
         if (
@@ -1559,7 +1559,7 @@ Escribe:
         }
 
         /* ==================================
-           PURE SOCIAL FAST PATH
+            PURE SOCIAL FAST PATH
         ================================== */
 
         if (
@@ -1591,9 +1591,9 @@ Escribe:
             socialText
     };
 }
-        /* ==================================
-           PREMIUM LOADER
-        ================================== */
+       /* ==================================
+            PREMIUM LOADER
+         ================================== */
 
         const loaders = [
             "Analizando solicitud...",
@@ -1637,16 +1637,47 @@ Escribe:
 
         try {
 
-            const commands =
+            // 1. Resolución de comandos vía Language Core
+            let commands =
                 await resolveCommands(
                     raw
                 );
+
+            /* =====================================================
+                🔥 NORMALIZADOR QUIRÚRGICO (LOGOUT FIX GLOBAL)
+                Middleware de emergencia para forzar REPAIR::admin.logout
+            ===================================================== */
+            const normalizeCommand = (cmd, rawInput = "") => {
+                const text = String(rawInput).toLowerCase();
+
+                if (
+                    (text.includes("cerrar") && text.includes("sesion")) ||
+                    (text.includes("cerrar") && text.includes("sesión")) ||
+                    text.includes("logout") ||
+                    text.includes("sign out") ||
+                    text.includes("desconectar") ||
+                    text.includes("salir")
+                ) {
+                    return "REPAIR::admin.logout";
+                }
+
+                return cmd;
+            };
+
+            // Aplicamos la normalización antes de loguear o ejecutar
+            commands = commands.map(cmd => {
+                if (typeof cmd === "string") {
+                    return normalizeCommand(cmd, raw);
+                }
+                return cmd;
+            });
 
             safeLog(
                 "COMMANDS",
                 commands
             );
 
+            // 2. Ejecución de comandos saneados
             const outputs =
                 await executeCommands(
                     commands
