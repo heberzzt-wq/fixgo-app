@@ -96,9 +96,11 @@ function isNativeJarvis(text = "") {
  */
 function detectIntent(t = "") {
 
-    // 🔥 FIX V5.93: Prioridad absoluta para cierre de sesión (Evita caída en LOCK o ANALYZE)
-    // Se intercepta al inicio para asegurar que el ruteo hacia REPAIR::admin.logout sea limpio.
-    if (/cerrar sesión|logout|sign out|salir del sistema|desconectar/.test(t)) {
+    // 🔥 FIX V5.94: Prioridad absoluta para cierre de sesión (Regex Flexible)
+    // Detecta variaciones como "cierra la sesion", "cerrar la sesion del admin", etc.
+    const logoutRegex = /(cerrar.*sesion|logout|sign out|desconectar|salir)/i;
+
+    if (logoutRegex.test(t)) {
         return "REPAIR";
     }
 
@@ -113,7 +115,7 @@ function detectIntent(t = "") {
     }
 
     // Análisis de Reparación y Parcheo
-    // Se mantienen términos genéricos, pero el logout ya fue capturado por la regla superior.
+    // Se mantienen términos genéricos para otras reparaciones.
     if (/corrige|repara|arregla|fix|parchea|cerrar|logout/.test(t)) {
         return "REPAIR";
     }
@@ -134,7 +136,6 @@ function detectIntent(t = "") {
     }
 
     // Análisis de Seguridad
-    // Nota: "cierra" se omite aquí para no chocar con "cerrar sesión".
     if (/bloquea|suspende|corta/.test(t)) {
         return "LOCK";
     }
@@ -336,12 +337,13 @@ export function toLegacyCommands(parsed) {
             return "ping";
         }
 
-        // 🔥 FIX FINAL (CRÍTICO): RE-MAPEO DE LOGOUT
-        // Interceptamos la combinación detectada en el Intent Engine para forzar la sub-acción.
+        // 🔥 FIX FINAL (CRÍTICO): RE-MAPEO DE LOGOUT V5.94
+        // Usamos regex flexible /(cerrar.*sesion|logout|sign out)/i para capturar variaciones
+        // y asegurar que el motor reciba la sub-acción exacta.
         if (
             intent === "REPAIR" &&
             entity === "auth" &&
-            /cerrar sesión|logout|sign out|salir del sistema|desconectar/.test(text)
+            /(cerrar.*sesion|logout|sign out|desconectar|salir)/i.test(text)
         ) {
             return "REPAIR::admin.logout";
         }
@@ -358,7 +360,7 @@ export function toLegacyCommands(parsed) {
         }
 
         /* ----------------------------------------------------
-           EJECUCIÓN DEL MAPEO ESTRATÉGICO (V5.93)
+           EJECUCIÓN DEL MAPEO ESTRATÉGICO (V5.94)
            ---------------------------------------------------- */
         return mapToCommand(a.intent, a.entity, a.raw);
     });
