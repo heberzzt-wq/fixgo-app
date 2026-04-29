@@ -116,24 +116,21 @@ JarvisMemory.subscribe((actionType, payload, currentState) => {
 
 /**
  * =====================================================
- * 🔥 EXPOSICIÓN GLOBAL (MODO DIOS)
- * Para que el HTML pueda ejecutar el Kernel
+ * 🔥 EXPOSICIÓN GLOBAL (MODO DIOS - CORRECTA)
  * =====================================================
  */
-window.KernelHeberto = {
-    execute: async (input, event) => {
-        console.log("⚡ [KERNEL_EXECUTE]:", input);
-        
-        // Ejecutamos el orquestador real que ya tienes importado
-        return await runJarvis(input, { 
-            auth: auth.currentUser,
-            db: db 
-        });
-    },
-    
-    dispatch: (action) => JarvisMemory.dispatch(action),
-    getState: () => JarvisMemory.getState()
-};
+
+// Instancia REAL del kernel
+const kernel = new GestiaTerminal();
+
+// Inyectas dependencias
+kernel.db = db;
+kernel.doc = doc;
+kernel.getDoc = getDoc;
+kernel.setDoc = setDoc;
+
+// Exposición global
+window.KernelHeberto = kernel;
 
 // Log de carga corporativo
 console.log("%c🧠 [GESTIA-TERMINAL]: V5.18 OPERATIONAL - KERNEL SYNC READY", "color: #3b82f6; font-weight: bold; background: #0f172a; border-left: 4px solid #3b82f6; padding: 2px 10px;");
@@ -1209,14 +1206,48 @@ const isStructured =
 
 let jarvisRes = null;
 
+// =====================================================
+// 🧠 GEMINI COMO CEREBRO PRINCIPAL
+// =====================================================
 if (!isStructured) {
 
+    try {
+
+        const ai = await window.runExternalAI?.(rawInput);
+
+        if (ai && ai.intent) {
+
+            console.warn("🧠 GEMINI ACTIVE:", ai);
+
+            const cmd = window.resolveAIIntent?.(ai);
+
+            if (cmd) {
+
+                console.warn("⚡ COMMAND FROM AI:", cmd);
+
+                // Ejecuta directo contra tu kernel real
+                return await this.runPlan(
+                    crypto.randomUUID(),
+                    [{
+                        intent: ai.intent.toUpperCase(),
+                        action: cmd.split("::")[0],
+                        target: cmd.split("::")[1]?.split(".")[0] || "system",
+                        raw: rawInput
+                    }]
+                );
+            }
+        }
+
+    } catch (err) {
+        console.warn("⚠️ Gemini fallback:", err);
+    }
+
+    // 🔻 fallback a tu sistema actual
     jarvisRes = await runJarvis(
         rawInput,
         ctx,
         false
     );
-
 }
         // -----------------------------------------------
         // SIMULATION MODE
@@ -2185,18 +2216,18 @@ handleError(
    INSTANCE
 ===================================================== */
 
-const BankTerminal =
-    new GestiaTerminal();
+// =====================================================
+// 🔥 KERNEL ÚNICO (OFICIAL)
+// =====================================================
 
-BankTerminal.db = db;
-BankTerminal.doc = doc;
-BankTerminal.getDoc =
-    getDoc;
-BankTerminal.setDoc =
-    setDoc;
+const kernel = new GestiaTerminal();
 
-window.KernelHeberto =
-    BankTerminal;
+kernel.db = db;
+kernel.doc = doc;
+kernel.getDoc = getDoc;
+kernel.setDoc = setDoc;
+
+window.KernelHeberto = kernel;
 
 /* =====================================================
    AUTH WATCHER
