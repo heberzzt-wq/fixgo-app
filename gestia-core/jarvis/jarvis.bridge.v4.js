@@ -1707,7 +1707,7 @@ const loaderTimer = setInterval(() => {
 // =====================================================
 // 🧠 GEMINI COMO CEREBRO (NLU PRIMARIO)
 // =====================================================
-const ai = await runExternalAI(raw);
+const ai = await window.runExternalAI(raw);
 
 if (ai && ai.intent) {
     safeLog("AI_INTENT", ai);
@@ -1781,7 +1781,7 @@ try {
 
     try {
         render("Jarvis", "Activando respaldo cognitivo...", "info");
-        const aiText = await runExternalAI(raw);
+        const aiText = await window.runExternalAI(raw);
         render("Jarvis", aiText, "success");
         speak(aiText);
 
