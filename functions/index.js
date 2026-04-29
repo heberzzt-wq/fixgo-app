@@ -356,7 +356,8 @@ app.post("/create-checkout-session", async (req, res) => {
 // ======================================================================================
 // 🧠 ENDPOINT IA: INTENT PARSER (KERNEL BRIDGE)
 // ======================================================================================
-app.post("/ai-intent", async (req, res) => {
+// Acepta tanto /ai-intent como /api/ai-intent
+app.post(["/ai-intent", "/api/ai-intent"], async (req, res) => {
     initCore();
 
     const traceId = `trace_intent_${Date.now()}`;
