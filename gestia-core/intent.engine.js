@@ -317,64 +317,52 @@ export function interpretarIntenciones(comandos) {
             }
 
             // =====================================================
-// REPAIR
+// REPAIR (ACTUALIZADO V5.93 - SOPORTE SUB-ACCIONES)
 // =====================================================
-if (rawLower === "repair") {
+if (rawLower === "repair" || rawLower.startsWith("repair")) {
 
     console.log(
-        "🔥 [DSL HIT] REPAIR detectado"
+        "🔥 [DSL HIT] REPAIR detectado (Sub-acción compatible)"
     );
 
-    const payload =
-        extraerPayload(cmd.raw) || {};
+    const payload = extraerPayload(cmd.raw) || {};
 
-    const entity =
-        (
-            payloadPart ||
-            payload.entity ||
-            "system"
-        )
-        .trim()
-        .toLowerCase();
+    let entity = (
+        payloadPart ||
+        payload.entity ||
+        "system"
+    ).trim().toLowerCase();
 
-    let target =
-        payload.target ||
-        entity;
+    let target = payload.target || entity;
+    let sourceFile = null;
+    let repairProfile = "GENERIC";
 
-    let sourceFile =
-        null;
-
-    let repairProfile =
-        "GENERIC";
-
-    if (entity === "admin") {
+    /* =====================================================
+       SOPORTE EXPLÍCITO: ADMIN.LOGOUT
+       ===================================================== */
+    if (cmd.raw.includes("admin.logout")) {
+        entity = "admin";
+        target = "logout";
+        repairProfile = "ADMIN_SESSION_FORCE";
+        sourceFile = "auth_core"; // O el archivo que maneje el signout
+    } 
+    
+    else if (entity === "admin") {
         target = "panel-admin";
-        sourceFile =
-            "panel-admin.js";
-        repairProfile =
-            "ADMIN_UI";
+        sourceFile = "panel-admin.js";
+        repairProfile = "ADMIN_UI";
     }
 
-    else if (
-        entity === "tecnico"
-    ) {
-        target =
-            "panel-tecnico";
-        sourceFile =
-            "panel-tecnico.js";
-        repairProfile =
-            "TECH_UI";
+    else if (entity === "tecnico") {
+        target = "panel-tecnico";
+        sourceFile = "panel-tecnico.js";
+        repairProfile = "TECH_UI";
     }
 
-    else if (
-        entity === "cliente"
-    ) {
-        target =
-            "panel-cliente";
-        sourceFile =
-            "panel-cliente.js";
-        repairProfile =
-            "CLIENT_UI";
+    else if (entity === "cliente") {
+        target = "panel-cliente";
+        sourceFile = "panel-cliente.js";
+        repairProfile = "CLIENT_UI";
     }
 
     interpretedPlan.push({
@@ -386,8 +374,9 @@ if (rawLower === "repair") {
         repairProfile,
         payload,
         confidence: 1,
-        summary:
-            `Reparación inteligente de ${entity}`
+        summary: target === "logout" 
+            ? `Cierre de sesión administrativo forzado (Seguridad)`
+            : `Reparación inteligente de ${entity}`
     });
 
     return;

@@ -550,12 +550,14 @@ async function resolveCommands(raw = "") {
             continue;
         }
 
-        /* ======================================
-   HARD REPAIR ROUTER
+       /* ======================================
+   HARD REPAIR ROUTER 
    EJECUCIÓN REAL (CON CONTEXTO)
 ====================================== */
 
 const pushRepair = (cmdType) => {
+    // 🧠 Jarvis V5.93: Ahora empuja el comando mapeado por el Core 
+    // sin interferir con validaciones manuales de logout.
     commands.push({
         cmd: cmdType,
         raw: cleanPart // 🔥 contexto original intacto
@@ -563,148 +565,58 @@ const pushRepair = (cmdType) => {
 };
 
 /* ======================================
-   ADMIN LOGOUT
-====================================== */
+   ADMIN / TECNICO / CLIENTE ROUTER
+   (REMOVIDO: LÓGICA DELEGADA AL CORE V5.93)
+   ====================================== */
+
+/* ======================================
+   PREMIUM INTERNAL ROUTER
+   ====================================== */
 
 if (
-    low.includes("logout") &&
-    low.includes("admin")
+    low.includes("auditoria automatica") ||
+    cleanPart === "__AUTO_AUDIT_UI__"
 ) {
-    pushRepair("REPAIR::admin");
+    commands.push("__AUTO_AUDIT_UI__");
     continue;
 }
 
 if (
-    low.includes("cerrar sesion") &&
-    low.includes("admin")
+    cleanPart === "__AUTO_HEALTH_CHECK__"
 ) {
-    pushRepair("REPAIR::admin");
-    continue;
-}
-
-if (
-    low.includes("cerrar sesión") &&
-    low.includes("admin")
-) {
-    pushRepair("REPAIR::admin");
-    continue;
-}
-
-if (
-    low.includes("boton") &&
-    low.includes("admin") &&
-    low.includes("no funciona")
-) {
-    pushRepair("REPAIR::admin");
+    commands.push("__AUTO_HEALTH_CHECK__");
     continue;
 }
 
 /* ======================================
-   TECNICO LOGIN
-====================================== */
-
-if (
-    low.includes("tecnico") &&
-    low.includes("login") &&
-    (
-        low.includes("falla") ||
-        low.includes("no funciona")
-    )
-) {
-    pushRepair("REPAIR::tecnico");
-    continue;
-}
-
-/* ======================================
-   CLIENTE PANEL
-====================================== */
-
-if (
-    low.includes("cliente") &&
-    low.includes("panel") &&
-    (
-        low.includes("roto") ||
-        low.includes("falla")
-    )
-) {
-    pushRepair("REPAIR::cliente");
-    continue;
-}
-        /* ======================================
-           PREMIUM INTERNAL ROUTER
-        ====================================== */
-
-        if (
-            low.includes(
-                "auditoria automatica"
-            ) ||
-            cleanPart ===
-                "__AUTO_AUDIT_UI__"
-        ) {
-            commands.push(
-                "__AUTO_AUDIT_UI__"
-            );
-            continue;
-        }
-
-        if (
-            cleanPart ===
-            "__AUTO_HEALTH_CHECK__"
-        ) {
-            commands.push(
-                "__AUTO_HEALTH_CHECK__"
-            );
-            continue;
-        }
-
-        /* ======================================
-           LANGUAGE CORE
-        ====================================== */
+   LANGUAGE CORE (EJE CENTRAL)
+   ====================================== */
 
         if (
             window.JarvisLanguageCore &&
-            typeof window
-                .JarvisLanguageCore
-                .translate ===
-                "function"
+            typeof window.JarvisLanguageCore.translate === "function"
         ) {
 
-            let translated =
-                await window
-                    .JarvisLanguageCore
-                    .translate(
-                        cleanPart
-                    );
+            let translated = await window.JarvisLanguageCore.translate(cleanPart);
 
-            if (
-                !Array.isArray(
-                    translated
-                )
-            ) {
-                translated = [
-                    translated
-                ];
+            if (!Array.isArray(translated)) {
+                translated = [translated];
             }
 
             commands.push(
-                ...translated.filter(
-                    Boolean
-                )
+                ...translated.filter(Boolean)
             );
 
         } else {
 
             commands.push(
-                fallbackTranslate(
-                    cleanPart
-                )
+                fallbackTranslate(cleanPart)
             );
         }
-    }
+    } // <--- ESTA LLAVE CIERRA EL "for (const part of parts)"
 
     return commands;
-}
-
+} // <--- ESTA LLAVE CIERRA LA "async function resolveCommands"
 /* =====================================================================================
    EXECUTION CORE V6.1 HYBRID SOCIAL
 ===================================================================================== */

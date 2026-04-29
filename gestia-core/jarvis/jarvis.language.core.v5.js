@@ -3,8 +3,8 @@
  * ARCHIVO:
  * /gestia-core/jarvis/jarvis.language.core.v5.js
  * =====================================================================================
- * JARVIS LANGUAGE CORE V5.92 - NATIVE PROTECTED + SMART PARSER
- * FIX FINAL: Executive Layer estable + mapeo logout admin REPAIR::admin.logout
+ * JARVIS LANGUAGE CORE V5.93 - NATIVE PROTECTED + SMART PARSER
+ * FIX CRÍTICO: Re-mapeo de "cerrar sesión" de LOCK a REPAIR::admin.logout
  * * Lead Architect: Heberto Mendoza (Senior Software Architect & CEO)
  * * REGLA 1: NO CORTAR. NO COMPACTAR. CÓDIGO COMPLETO.
  * REGLA 2: PASO A PASO.
@@ -107,7 +107,8 @@ function detectIntent(t = "") {
     }
 
     // Análisis de Reparación y Parcheo
-    if (/corrige|repara|arregla|fix|parchea/.test(t)) {
+    // FIX V5.93: Se incluye "cerrar" aquí para evitar que caiga en LOCK
+    if (/corrige|repara|arregla|fix|parchea|cerrar|logout/.test(t)) {
         return "REPAIR";
     }
 
@@ -127,13 +128,13 @@ function detectIntent(t = "") {
     }
 
     // Análisis de Seguridad
-    if (/bloquea|cierra|suspende|corta/.test(t)) {
+    // Se eliminó "cierra" de este bloque para priorizar el flujo de REPAIR::admin.logout
+    if (/bloquea|suspende|corta/.test(t)) {
         return "LOCK";
     }
 
     return "ANALYZE";
 }
-
 
 /* =====================================================================================
    SECCIÓN 4: DETECCIÓN DE ENTIDADES (ENTITY DETECTOR)
@@ -316,6 +317,16 @@ export function toLegacyCommands(parsed) {
 
         if (a.native) {
             return a.command;
+        }
+
+        /* ----------------------------------------------------
+           MAPEOS ESPECIALES DE ALTO NIVEL (V5.93)
+           ---------------------------------------------------- */
+        
+        // Intercepción de Logout: Si la intención es REPAIR y la entidad es AUTH (sesión)
+        // Mapeamos directamente al comando especializado del motor.
+        if (a.intent === "REPAIR" && a.entity === "auth") {
+            return "REPAIR::admin.logout";
         }
 
         // Formato estándar: ANALYZE::payments, CREATE::tickets, etc.
