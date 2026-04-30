@@ -299,57 +299,52 @@ const hablarJarvis = (texto) => {
 };
 
 /* =====================================================
-   BRIEFING INICIAL PROACTIVO
+    BRIEFING INICIAL PROACTIVO (REAL-TIME ENGINE)
 ===================================================== */
 
 speechSynthesis.onvoiceschanged = () => {
 
-    setTimeout(() => {
+    setTimeout(async () => { // Agregamos async para el await de executeCommands
 
-        const totalOps =
-            Array.isArray(
-                window.JarvisHistory
-            )
-                ? window.JarvisHistory.length
-                : 0;
+        // 1. Obtener métricas de hardware y sesión
+        const totalOps = Array.isArray(window.JarvisHistory) 
+            ? window.JarvisHistory.length 
+            : 0;
 
-        const ram =
-            navigator.deviceMemory
-                ? `${navigator.deviceMemory} GB`
-                : "N/D";
+        const ram = navigator.deviceMemory 
+            ? `${navigator.deviceMemory} GB` 
+            : "N/D";
 
-        const online =
-            navigator.onLine
-                ? "Activa"
-                : "Sin conexión";
+        // 🔥 VALIDACIÓN DE DATOS REALES EN CONSOLA
+        console.log("RAM:", ram);
+        console.log("OPS:", totalOps);
 
-        const hora =
-            new Date()
-                .toLocaleTimeString(
-                    "es-MX",
-                    {
-                        hour: "2-digit",
-                        minute: "2-digit"
-                    }
-                );
+        // 2. 🔥 EJECUCIÓN REAL DEL SISTEMA
+        // En lugar de inventar el texto, ejecutamos el comando de análisis
+        const outputs = await executeCommands(["ANALYZE::system"]);
+        const systemStatus = composeResponse(outputs);
 
-        const briefing =
+        const online = navigator.onLine ? "Activa" : "Sin conexión";
+        const hora = new Date().toLocaleTimeString("es-MX", {
+            hour: "2-digit",
+            minute: "2-digit"
+        });
+
+        // 3. CONSTRUCCIÓN DEL BRIEFING HÍBRIDO
+        // Combinamos los datos de hardware con la respuesta real del núcleo
+        const briefing = 
 `Bienvenido Arquitecto.
-Sistemas en línea.
+${systemStatus}
 Conexión ${online}.
 Memoria estimada ${ram}.
 Operaciones registradas ${totalOps}.
 Hora local ${hora}.
 Núcleo autónomo listo para recibir órdenes.`;
 
-        hablarJarvis(
-            briefing
-        );
+        // 4. SALIDA DE VOZ Y RENDER
+        hablarJarvis(briefing);
 
-        if (
-            typeof renderJarvisResponse ===
-            "function"
-        ) {
+        if (typeof renderJarvisResponse === "function") {
             renderJarvisResponse(
                 "Briefing Inicial",
                 briefing,
@@ -359,7 +354,6 @@ Núcleo autónomo listo para recibir órdenes.`;
 
     }, 800);
 };
-
 /* =====================================================
    SONIDO FIRMA JARVIS
 ===================================================== */
