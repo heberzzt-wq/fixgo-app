@@ -1715,9 +1715,25 @@ const loaderTimer = setInterval(() => {
 const ai = await window.runExternalAI(raw);
 
 if (ai && ai.intent) {
-    safeLog("AI_INTENT", ai);
 
-    const aiCmd = resolveAIIntent(ai); // 🔥 FIX REAL: Usamos el traductor oficial
+    let target = ai.target;
+
+    const rawLow = String(raw).toLowerCase();
+
+    if (!target || target === "system") {
+        if (rawLow.includes("pago") || rawLow.includes("pagos")) {
+            target = "payments";
+        }
+    }
+
+    const aiFixed = {
+        ...ai,
+        target
+    };
+
+    safeLog("AI_INTENT", aiFixed);
+
+    const aiCmd = resolveAIIntent(aiFixed); // 🔥 FIX
 
     if (aiCmd) {
         clearInterval(loaderTimer); // 👈 Apagamos la animación
@@ -1738,9 +1754,8 @@ if (ai && ai.intent) {
 }
 
 try {
-    // 1. Intentamos resolver por la vía normal[cite: 2]
+    // 1. Intentamos resolver por la vía normal
     let commands = await resolveCommands(raw);
-
     /* =====================================================
         🔥 CONTROL CENTRAL ABSOLUTO (BYPASS TOTAL)[cite: 1]
         Este bloque pisa cualquier error de Language Core o NLU.
