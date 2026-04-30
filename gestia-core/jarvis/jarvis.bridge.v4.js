@@ -651,8 +651,15 @@ if (
     typeof window.JarvisLanguageCore.translate === "function"
 ) {
 
-    let translated =
-        await window.JarvisLanguageCore.translate(cleanPart);
+    let translated;
+
+    // 🔥 BYPASS MULTI-INTENT
+    if (parts.length > 1) {
+        translated = [fallbackTranslate(cleanPart)];
+    } else {
+        translated =
+            await window.JarvisLanguageCore.translate(cleanPart);
+    }
 
     // 🔥 NORMALIZACIÓN
     if (!Array.isArray(translated)) {
