@@ -1641,7 +1641,6 @@ if (
 ) {
 
     let target = ai.target;
-
     const rawLow = String(raw).toLowerCase();
 
     if (!target || target === "system") {
@@ -1657,7 +1656,15 @@ if (
 
     safeLog("AI_INTENT", aiFixed);
 
-    const aiCmd = resolveAIIntent(aiFixed); // 🔥 FIX
+    // 🔥 REEMPLAZO CRÍTICO: VALIDACIÓN CONTRA MOTOR REAL
+    let aiCmd = resolveAIIntent(aiFixed);
+
+    if (aiCmd) {
+        const structured = await runIntentEngine(aiCmd);
+        if (structured && structured.intent && structured.entity) {
+            aiCmd = `${structured.intent}::${structured.entity}`;
+        }
+    }
 
     if (aiCmd) {
         clearInterval(loaderTimer); // 👈 Apagamos la animación
