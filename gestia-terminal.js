@@ -1182,12 +1182,14 @@ Estado núcleo: ${this.state}`
         );
 
         /* =================================================
-   🧠 ENRUTAMIENTO PRINCIPAL (BRIDGE FIRST)
+   🧠 ENRUTAMIENTO PRINCIPAL UNIFICADO (BRIDGE FIRST)
 ================================================= */
 
 if (!isStructured) {
 
-    // 🔥 PRIORIDAD ABSOLUTA: Bridge (cerebro)
+    /* =============================================
+       1. PRIORIDAD ABSUTA: JARVIS BRIDGE
+    ============================================= */
     if (window.JarvisBridge?.dispatch) {
 
         console.log("🧠 [BRIDGE ROUTING ACTIVE]");
@@ -1202,27 +1204,16 @@ if (!isStructured) {
         );
     }
 
-    // ⚠️ Fallback (solo si el bridge falla o no existe)
-    console.warn("⚠️ Bridge no disponible, usando fallback local");
-
-    jarvisRes = await runJarvis(
-        rawInput,
-        ctx,
-        false
-    );
-}
-// =====================================================
-// 🧠 GEMINI COMO CEREBRO PRINCIPAL
-// =====================================================
-if (!isStructured) {
-
+    /* =============================================
+       2. SEGUNDO NIVEL: AI EXTERNA (GEMINI / NLU)
+    ============================================= */
     try {
 
         const ai = await window.runExternalAI?.(rawInput);
 
         if (ai && ai.intent) {
 
-            console.warn("🧠 GEMINI ACTIVE:", ai);
+            console.warn("🧠 AI ACTIVE:", ai);
 
             const cmd = window.resolveAIIntent?.(ai);
 
@@ -1230,7 +1221,6 @@ if (!isStructured) {
 
                 console.warn("⚡ COMMAND FROM AI:", cmd);
 
-                // Ejecuta directo contra tu kernel real
                 return await this.runPlan(
                     crypto.randomUUID(),
                     [{
@@ -1244,10 +1234,14 @@ if (!isStructured) {
         }
 
     } catch (err) {
-        console.warn("⚠️ Gemini fallback:", err);
+        console.warn("⚠️ AI FALLBACK:", err);
     }
 
-    // 🔻 fallback a tu sistema actual
+    /* =============================================
+       3. ÚLTIMO RECURSO: CORE LOCAL
+    ============================================= */
+    console.warn("⚠️ Usando fallback local (runJarvis)");
+
     jarvisRes = await runJarvis(
         rawInput,
         ctx,
