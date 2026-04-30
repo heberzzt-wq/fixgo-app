@@ -675,8 +675,11 @@ async function executeCommands(commands = []) {
 window.executeCommands = executeCommands; 
            /* =====================================================================================
     EXECUTION CORE V6.1 HYBRID SOCIAL (CORREGIDO V5.95)
+    PROTECCIÓN DE REDECLARACIÓN ACTIVA
 ===================================================================================== */
-async function executeCommands(commands = []) {
+
+// 1. Usamos window.executeCommands para evitar el error "already been declared"
+window.executeCommands = async function(commands = []) {
     const outputs = [];
     const burstCache = new Map();
     
@@ -712,15 +715,11 @@ async function executeCommands(commands = []) {
         safeLog("EXEC", cmd);
 
         try {
-            // 1. VERIFICACIÓN DE CACHÉ OPERATIVA
+            // 2. VERIFICACIÓN DE CACHÉ OPERATIVA
             if (burstCache.has(cmd)) {
                 safeLog("CACHE_HIT", cmd);
                 outputs.push(
-                    beautifyOutput(
-                        cmd,
-                        burstCache.get(cmd),
-                        true
-                    )
+                    beautifyOutput(cmd, burstCache.get(cmd), true)
                 );
                 continue;
             }
@@ -731,33 +730,20 @@ async function executeCommands(commands = []) {
             /* ==================================
                 SOCIAL + NATIVE + CORE ROUTER
             ================================== */
-            if (
-                isSocialJarvis(cmd) ||
-                isNativeJarvis(cmd)
-            ) {
-                res = await withTimeout(
-                    executeNativeJarvis(cmd),
-                    8000
-                );
+            if (isSocialJarvis(cmd) || isNativeJarvis(cmd)) {
+                res = await withTimeout(executeNativeJarvis(cmd), 8000);
             } else {
-                res = await withTimeout(
-                    runCore(cmd),
-                    8000
-                );
+                res = await withTimeout(runCore(cmd), 8000);
             }
 
             const ms = Math.round(performance.now() - t0);
             const clean = normalize(res);
 
-            // 2. REGISTRO EN MEMORIA Y MÉTRICAS
+            // 3. REGISTRO EN MEMORIA Y MÉTRICAS
             burstCache.set(cmd, clean);
 
             outputs.push(
-                beautifyOutput(
-                    cmd,
-                    clean,
-                    false
-                )
+                beautifyOutput(cmd, clean, false)
             );
 
             safeLog("METRIC", { cmd, ms });
@@ -773,13 +759,13 @@ async function executeCommands(commands = []) {
             outputs.push(`Error en ${cmd}`);
             saveHistory({ cmd, error: true });
         }
-    } // Final del For
+    } 
 
     return outputs;
-}
+}; 
 
-// 🔥 EXPOSICIÓN GLOBAL PARA EL BRIEFING
-window.executeCommands = executeCommands;
+// ✅ Ya no necesitas window.executeCommands = executeCommands al final 
+// porque ya la definimos directamente en window.
 
 /* =====================================================================================
     MAIN BRIDGE
