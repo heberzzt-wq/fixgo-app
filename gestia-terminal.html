@@ -303,47 +303,42 @@ const hablarJarvis = (texto) => {
 ===================================================== */
 
 /* =====================================================
-    BRIEFING INICIAL PROACTIVO (V5.19 IDENTITY-AWARE)
+    BRIEFING INICIAL PROACTIVO (V5.19 KERNEL-SYNC)
+    Sustituye al antiguo checkAndBoot por polling.
 ===================================================== */
-speechSynthesis.onvoiceschanged = () => {
-    let attempts = 0;
 
-    const checkAndBoot = async () => {
-        attempts++;
+const launchSovereignBriefing = async () => {
+    // 1. Doble validación de seguridad antes de hablar
+    const coreReady = typeof window.executeCommands === 'function';
+    const userReady = window.auth?.currentUser?.uid || window.currentUserID;
 
-        // 1. Esperar a que executeCommands Y el UID de usuario estén listos
-        const coreReady = typeof window.executeCommands === 'function';
-        const userReady = window.auth?.currentUser?.uid || window.currentUserID; 
+    if (!coreReady || !userReady) {
+        console.warn("⚠️ [BOOT_ABORT] Intento de briefing sin Core o Identidad.");
+        return;
+    }
 
-        if (!coreReady || !userReady) {
-            if (attempts < 20) {
-                setTimeout(checkAndBoot, 600);
-            }
-            return;
-        }
+    console.log("✅ [BOOT] Kernel validado y Sesión Segura detectada. Iniciando...");
 
-        console.log("✅ [BOOT] Identidad validada. Iniciando Core...");
+    const totalOps = Array.isArray(window.JarvisHistory) ? window.JarvisHistory.length : 0;
+    const ram = navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "N/D";
 
-        const totalOps = Array.isArray(window.JarvisHistory) ? window.JarvisHistory.length : 0;
-        const ram = navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "N/D";
+    let systemStatus = "Sistemas en línea.";
+    try {
+        // 🔥 Aquí es donde la magia ocurre: El Firewall ya tiene las llaves
+        const outputs = await window.executeCommands(["ANALYZE::system"]);
+        
+        systemStatus = (typeof window.composeResponse === 'function') 
+            ? window.composeResponse(outputs) 
+            : "Estado del sistema verificado correctamente.";
+    } catch (e) {
+        console.error("❌ [BOOT_CRITICAL] Fallo en análisis inicial:", e);
+        systemStatus = "Sistemas en espera de sincronización manual.";
+    }
 
-        let systemStatus = "Sistemas en línea.";
-        try {
-            // Ahora el Firewall no bloqueará porque ya tenemos identidad
-            const outputs = await window.executeCommands(["ANALYZE::system"]);
-            
-            // Fallback de seguridad para composeResponse
-            systemStatus = (typeof window.composeResponse === 'function') 
-                ? window.composeResponse(outputs) 
-                : "Estado del sistema verificado correctamente.";
-        } catch (e) {
-            console.warn("[BOOT_DIAGNOSTIC] Bypass por seguridad activa.");
-        }
+    const online = navigator.onLine ? "Activa" : "Sin conexión";
+    const hora = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
 
-        const online = navigator.onLine ? "Activa" : "Sin conexión";
-        const hora = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
-
-        const briefing = 
+    const briefing = 
 `Bienvenido Arquitecto.
 ${systemStatus}
 Conexión ${online}.
@@ -352,14 +347,34 @@ Operaciones registradas ${totalOps}.
 Hora local ${hora}.
 Núcleo autónomo listo para recibir órdenes.`;
 
-        if (typeof hablarJarvis === 'function') hablarJarvis(briefing);
+    // Salida de voz y renderizado en terminal
+    if (typeof hablarJarvis === 'function') hablarJarvis(briefing);
 
-        if (typeof renderJarvisResponse === "function") {
-            renderJarvisResponse("Briefing Inicial", briefing, "success");
-        }
-    };
+    if (typeof renderJarvisResponse === "function") {
+        renderJarvisResponse("Briefing Inicial", briefing, "success");
+    }
+};
 
-    setTimeout(checkAndBoot, 1000);
+/* =====================================================
+    🔥 OBSERVADOR DE ESTADO DEL BANCO (TRIGGER)
+    Este bloque detecta el momento exacto del [SECURE SESSION READY]
+===================================================== */
+// Guardamos la función original para no romper el flujo del sistema
+const backupSetState = window.setState;
+
+window.setState = function(nuevoEstado) {
+    // Ejecutamos la lógica original del sistema primero
+    if (typeof backupSetState === 'function') backupSetState(nuevoEstado);
+
+    // Si el estado es el que libera el Firewall, disparamos el briefing una sola vez
+    if (nuevoEstado === "IDLE" || nuevoEstado === "SECURE SESSION READY") {
+        console.log("🧬 [KERNEL_EVENT] Sesión Segura detectada. Disparando Briefing...");
+        
+        launchSovereignBriefing();
+
+        // Restauramos la función original para que el trigger no se repita
+        window.setState = backupSetState;
+    }
 };
 /* =====================================================
    SONIDO FIRMA JARVIS
