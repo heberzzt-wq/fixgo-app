@@ -506,9 +506,11 @@ async function executeNativeJarvis(text = "") {
 }
 
 async function resolveCommands(raw = "") {
+    // 1. DETERMINACIÓN DE ESTRUCTURA
     const isStructured = typeof raw === "object" && raw !== null;
     const input = isStructured ? raw.input || "" : raw;
 
+    // 2. DESCOMPOSICIÓN EN ACCIONES ATÓMICAS
     const actions = splitActions(input)
         .map(a => a.trim())
         .filter(Boolean);
@@ -527,7 +529,7 @@ async function resolveCommands(raw = "") {
 
     const commands = [];
 
-    // 🔥 PROCESAMIENTO UNIFICADO Y RECURSIVO
+    // 3. PIPELINE LINEAL (Eficiencia O(n))
     for (const action of actions) {
         const cleanPart = String(action || "").trim();
         if (!cleanPart) continue;
@@ -535,7 +537,7 @@ async function resolveCommands(raw = "") {
         const low = cleanPart.toLowerCase();
 
         /* ======================================
-            🔥 HARD BYPASS / DICCIONARIO (TU LÓGICA)
+            🔥 DICCIONARIO HARD-CODED (BYPASS RÁPIDO)
         ====================================== */
         if (low.includes("estado") || low.includes("general")) {
             commands.push("ANALYZE::system");
@@ -564,26 +566,27 @@ async function resolveCommands(raw = "") {
         }
 
         /* ======================================
-            LANGUAGE CORE (TRADUCCIÓN + RECURSIÓN)
+            LANGUAGE CORE (ÚLTIMA INSTANCIA)
         ====================================== */
         if (window.JarvisLanguageCore && typeof window.JarvisLanguageCore.translate === "function") {
             
-            // En lugar de ir directo al traductor, podríamos re-validar
-            // Pero para evitar bucles infinitos, llamamos al Core aquí
             let translated = await window.JarvisLanguageCore.translate(cleanPart);
 
-            // Normalización
+            // Normalización segura a Array
             if (!Array.isArray(translated)) {
                 translated = translated ? [translated] : [fallbackTranslate(cleanPart)];
             }
 
-            for (const t of translated) {
-                if (!t) continue;
+            // Fallback si el core no devuelve nada útil
+            if (translated.length === 0 || translated.every(x => !x)) {
+                translated = [fallbackTranslate(cleanPart)];
+            }
 
-                // Si la traducción genera un comando complejo, lo limpiamos
-                const cleanCmd = String(t).toUpperCase().trim();
+            for (const t of translated) {
+                if (!t || typeof t !== "string") continue;
+                const cleanCmd = t.toUpperCase().trim();
                 
-                // Evitar el error "" is not a function
+                // 🔥 FILTRO CRÍTICO ANTI-ERROR ""
                 if (!cleanCmd || cleanCmd === "CREATE::SYSTEM") continue;
                 
                 commands.push(t);
@@ -594,9 +597,9 @@ async function resolveCommands(raw = "") {
         }
     }
 
-    return commands; // ✅ Un solo punto de salida
+    // 4. RETORNO ÚNICO DE COMANDOS ACUMULADOS
+    return commands;
 }
-
 /* =====================================================================================
    EXECUTION CORE V6.1 HYBRID SOCIAL (CORREGIDO V5.95)
 ===================================================================================== */
