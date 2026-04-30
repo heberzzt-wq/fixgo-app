@@ -944,6 +944,28 @@ if (!isStructured && !String(input).trim()) {
         message: "Entrada vacía."
     };
 }
+
+/* =====================================================
+   🔥 INSERTAR AQUÍ (ANTES DE BLOQUEO)
+===================================================== */
+
+let rawInput;
+let cmd;
+
+if (isStructured) {
+
+    rawInput = input;
+
+    cmd = `${input.intent || ""}::${input.target || ""}`
+        .toLowerCase();
+
+} else {
+
+    rawInput = String(input).trim();
+
+    cmd = rawInput.toLowerCase();
+}
+
     /* =====================================================
        BLOQUEO: APROBACIÓN SIN PLAN PENDIENTE
     ===================================================== */
