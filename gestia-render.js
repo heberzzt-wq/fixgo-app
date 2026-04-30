@@ -69,9 +69,22 @@ const Lifecycle = {
 let condominioIdActual = null; 
 let rolUsuarioActual = null;  
 
+/* ==========================================
+    🛡️ ACTUALIZACIÓN V5.19 - PULSO DE TELEMETRÍA
+    Ubicación: GESTIA RENDER ENGINE V7.3
+========================================== */
 function emitirPulsoHUD(step, status = "INFO", details = "") {
+    // 🧠 Detectamos si vienen datos técnicos (Memoria, Ops, RAM)
+    const hasTelemetry = typeof details === 'object' && details !== null;
+    
     window.dispatchEvent(new CustomEvent('gestia-terminal-state', {
-        detail: { state: null, step: `RENDER_${step}: ${status}`, details }
+        detail: { 
+            state: null, 
+            step: `RENDER_${step}: ${status}`, 
+            details: hasTelemetry ? "DATA_STREAM_ACTIVE" : details,
+            // 🔥 Inyectamos el objeto real para que composeResponse lo vea
+            data: hasTelemetry ? details : null 
+        }
     }));
 }
 
