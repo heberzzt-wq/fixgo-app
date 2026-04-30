@@ -940,7 +940,13 @@ async execute(input, e = null, options = { simulate: false }) {
     }
 
     const rawInput = String(input).trim();
-    const cmd = rawInput.toLowerCase();
+const cmd = rawInput.toLowerCase();
+
+/* 🔥 DEFINE AQUÍ (NO MÁS ABAJO) */
+const isStructured =
+    typeof input === "object" &&
+    input !== null;
+
      /* =====================================================
    BLOQUEO: APROBACIÓN SIN PLAN PENDIENTE
 ===================================================== */
@@ -1184,9 +1190,6 @@ Estado núcleo: ${this.state}`
         /* =================================================
    🔥 FIX CRÍTICO: DEFINIR isStructured
 ================================================= */
-const isStructured =
-    typeof rawInput === "object" &&
-    rawInput !== null;
 
         /* =================================================
    🧠 ENRUTAMIENTO PRINCIPAL UNIFICADO (BRIDGE FIRST)
