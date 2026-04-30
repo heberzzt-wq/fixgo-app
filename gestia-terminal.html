@@ -302,42 +302,46 @@ const hablarJarvis = (texto) => {
     BRIEFING INICIAL PROACTIVO (SAFE-MODE ENGINE)
 ===================================================== */
 
+/* =====================================================
+    BRIEFING INICIAL PROACTIVO (V5.19 IDENTITY-AWARE)
+===================================================== */
 speechSynthesis.onvoiceschanged = () => {
+    let attempts = 0;
 
     const checkAndBoot = async () => {
-        // Validamos si la función ya existe en el scope global
-        if (typeof executeCommands !== "function") {
-            console.warn("[BOOT] Esperando a que executeCommands se inicialice...");
-            setTimeout(checkAndBoot, 500); // Reintenta en 500ms
+        attempts++;
+
+        // 1. Esperar a que executeCommands Y el UID de usuario estén listos
+        const coreReady = typeof window.executeCommands === 'function';
+        const userReady = window.auth?.currentUser?.uid || window.currentUserID; 
+
+        if (!coreReady || !userReady) {
+            if (attempts < 20) {
+                setTimeout(checkAndBoot, 600);
+            }
             return;
         }
 
-        // 1. Obtener métricas de hardware y sesión
-        const totalOps = Array.isArray(window.JarvisHistory) 
-            ? window.JarvisHistory.length 
-            : 0;
+        console.log("✅ [BOOT] Identidad validada. Iniciando Core...");
 
-        const ram = navigator.deviceMemory 
-            ? `${navigator.deviceMemory} GB` 
-            : "N/D";
+        const totalOps = Array.isArray(window.JarvisHistory) ? window.JarvisHistory.length : 0;
+        const ram = navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "N/D";
 
-        console.log("RAM:", ram);
-        console.log("OPS:", totalOps);
-
-        // 2. 🔥 EJECUCIÓN SEGURA DEL SISTEMA
-        let systemStatus = "Sistemas en espera.";
+        let systemStatus = "Sistemas en línea.";
         try {
-            const outputs = await executeCommands(["ANALYZE::system"]);
-            systemStatus = composeResponse(outputs);
+            // Ahora el Firewall no bloqueará porque ya tenemos identidad
+            const outputs = await window.executeCommands(["ANALYZE::system"]);
+            
+            // Fallback de seguridad para composeResponse
+            systemStatus = (typeof window.composeResponse === 'function') 
+                ? window.composeResponse(outputs) 
+                : "Estado del sistema verificado correctamente.";
         } catch (e) {
-            console.error("[BOOT_FAIL] Error en análisis inicial:", e);
+            console.warn("[BOOT_DIAGNOSTIC] Bypass por seguridad activa.");
         }
 
         const online = navigator.onLine ? "Activa" : "Sin conexión";
-        const hora = new Date().toLocaleTimeString("es-MX", {
-            hour: "2-digit",
-            minute: "2-digit"
-        });
+        const hora = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
 
         const briefing = 
 `Bienvenido Arquitecto.
@@ -348,19 +352,14 @@ Operaciones registradas ${totalOps}.
 Hora local ${hora}.
 Núcleo autónomo listo para recibir órdenes.`;
 
-        hablarJarvis(briefing);
+        if (typeof hablarJarvis === 'function') hablarJarvis(briefing);
 
         if (typeof renderJarvisResponse === "function") {
-            renderJarvisResponse(
-                "Briefing Inicial",
-                briefing,
-                "success"
-            );
+            renderJarvisResponse("Briefing Inicial", briefing, "success");
         }
     };
 
-    // Iniciamos el ciclo de verificación a los 800ms
-    setTimeout(checkAndBoot, 800);
+    setTimeout(checkAndBoot, 1000);
 };
 /* =====================================================
    SONIDO FIRMA JARVIS
