@@ -527,7 +527,7 @@ async function resolveCommands(raw = "") {
 
     const commands = [];
 
-    // 🔥 PROCESAMIENTO UNIFICADO: Aquí integramos tu lógica sin el "return" prematuro
+    // 🔥 PROCESAMIENTO UNIFICADO Y RECURSIVO
     for (const action of actions) {
         const cleanPart = String(action || "").trim();
         if (!cleanPart) continue;
@@ -535,7 +535,7 @@ async function resolveCommands(raw = "") {
         const low = cleanPart.toLowerCase();
 
         /* ======================================
-            🔥 HARD BYPASS GLOBAL (TU LÓGICA)
+            🔥 HARD BYPASS / DICCIONARIO (TU LÓGICA)
         ====================================== */
         if (low.includes("estado") || low.includes("general")) {
             commands.push("ANALYZE::system");
@@ -548,7 +548,7 @@ async function resolveCommands(raw = "") {
         }
 
         /* ======================================
-            SOCIAL & NATIVE ROUTERS (RECUPERADOS)
+            SOCIAL & NATIVE ROUTERS
         ====================================== */
         if (isSocialJarvis(cleanPart) || isNativeJarvis(cleanPart)) {
             commands.push(cleanPart);
@@ -564,9 +564,12 @@ async function resolveCommands(raw = "") {
         }
 
         /* ======================================
-            LANGUAGE CORE (CON FALLBACK CONTROLADO)
+            LANGUAGE CORE (TRADUCCIÓN + RECURSIÓN)
         ====================================== */
         if (window.JarvisLanguageCore && typeof window.JarvisLanguageCore.translate === "function") {
+            
+            // En lugar de ir directo al traductor, podríamos re-validar
+            // Pero para evitar bucles infinitos, llamamos al Core aquí
             let translated = await window.JarvisLanguageCore.translate(cleanPart);
 
             // Normalización
@@ -576,6 +579,8 @@ async function resolveCommands(raw = "") {
 
             for (const t of translated) {
                 if (!t) continue;
+
+                // Si la traducción genera un comando complejo, lo limpiamos
                 const cleanCmd = String(t).toUpperCase().trim();
                 
                 // Evitar el error "" is not a function
@@ -589,15 +594,15 @@ async function resolveCommands(raw = "") {
         }
     }
 
-    return commands; // ✅ Un solo punto de salida para todos los casos
+    return commands; // ✅ Un solo punto de salida
 }
+
 /* =====================================================================================
    EXECUTION CORE V6.1 HYBRID SOCIAL (CORREGIDO V5.95)
 ===================================================================================== */
 async function executeCommands(commands = []) {
     const outputs = [];
     const burstCache = new Map();
-
     for (let cmd of commands) {
         if (typeof cmd === "string") {
             const low = cmd.toLowerCase();
