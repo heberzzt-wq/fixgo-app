@@ -518,21 +518,21 @@ async function executeNativeJarvis(text = "") {
         .toLowerCase()
         .trim();
 
-    /* ======================================
-        SOCIAL PRIORITY
-    ====================================== */
+   /* ======================================
+    SOCIAL PRIORITY
+====================================== */
 if (
+    typeof t === "string" &&
     isSocialJarvis(t) &&
     splitActions(t).length === 1
 ) {
     return await executeSocialJarvis(t);
 }
 
-
-
-    /* ======================================
-        SYSTEM COMMANDS
-    ====================================== */
+/* ======================================
+    SYSTEM COMMANDS
+====================================== */
+if (typeof t === "string") {
 
     if (
         t.includes("jarvis estado") ||
@@ -541,33 +541,38 @@ if (
         return await runCore("jarvis estado");
     }
 
-    if (
-        t.includes("jarvis resumen")
-    ) {
+    if (t.includes("jarvis resumen")) {
         return await runCore("jarvis resumen");
     }
 
-    if (
-        t.includes("jarvis salud")
-    ) {
+    if (t.includes("jarvis salud")) {
         return await runCore("jarvis salud");
     }
+}
 
-    return await runCore(text);
+return await runCore(text);
 }
 
 async function resolveCommands(raw = "") {
 
-    const cleanRaw =
-        String(raw || "").trim();
+    const isStructured =
+        typeof raw === "object" &&
+        raw !== null;
 
     /* ======================================
         DIRECT DSL BYPASS
     ===================================== */
 
-    if (
-        cleanRaw.includes("::")
-    ) {
+    if (isStructured) {
+        return [
+            `${raw.intent || "ANALYZE"}::${raw.target || "system"}`
+        ];
+    }
+
+    const cleanRaw =
+        String(raw || "").trim();
+
+    if (cleanRaw.includes("::")) {
         return cleanRaw
             .split(";;")
             .map(x => x.trim())
@@ -595,12 +600,8 @@ async function resolveCommands(raw = "") {
             SOCIAL PART ROUTER
         ====================================== */
 
-        if (
-            isSocialJarvis(cleanPart)
-        ) {
-            commands.push(
-                cleanPart
-            );
+        if (isSocialJarvis(cleanPart)) {
+            commands.push(cleanPart);
             continue;
         }
 
@@ -608,63 +609,50 @@ async function resolveCommands(raw = "") {
             NATIVE PART ROUTER
         ====================================== */
 
-        if (
-            isNativeJarvis(cleanPart)
-        ) {
-            commands.push(
-                cleanPart
-            );
+        if (isNativeJarvis(cleanPart)) {
+            commands.push(cleanPart);
             continue;
         }
 
-       /* ======================================
-    HARD REPAIR ROUTER 
-    EJECUCIÓN REAL (CON CONTEXTO)
-====================================== */
+        /* ======================================
+            HARD REPAIR ROUTER
+        ====================================== */
 
-const pushRepair = (cmdType) => {
-    // 🧠 Jarvis V5.93: Ahora empuja el comando mapeado por el Core
-    // sin interferir con validaciones manuales de logout.
-    commands.push({
-        cmd: cmdType,
-        raw: cleanPart // 🔥 contexto original intacto[cite: 2]
-    });
-};
+        const pushRepair = (cmdType) => {
+            commands.push({
+                cmd: cmdType,
+                raw: cleanPart
+            });
+        };
 
-/* ======================================
-    ADMIN / TECNICO / CLIENTE ROUTER
-    (REMOVIDO: LÓGICA DELEGADA AL CORE V5.93)[cite: 2]
-    ====================================== */
+        /* ======================================
+            PREMIUM INTERNAL ROUTER
+        ====================================== */
 
-/* ======================================
-    PREMIUM INTERNAL ROUTER
-    ====================================== */
+        if (
+            low.includes("auditoria automatica") ||
+            cleanPart === "__AUTO_AUDIT_UI__"
+        ) {
+            commands.push("__AUTO_AUDIT_UI__");
+            continue;
+        }
 
-if (
-    low.includes("auditoria automatica") ||
-    cleanPart === "__AUTO_AUDIT_UI__"
-) {
-    commands.push("__AUTO_AUDIT_UI__");
-    continue;
-}
+        if (cleanPart === "__AUTO_HEALTH_CHECK__") {
+            commands.push("__AUTO_HEALTH_CHECK__");
+            continue;
+        }
 
-if (
-    cleanPart === "__AUTO_HEALTH_CHECK__"
-) {
-    commands.push("__AUTO_HEALTH_CHECK__");
-    continue;
-}
-
-/* ======================================
-    LANGUAGE CORE (EJE CENTRAL)
-    ====================================== */
+        /* ======================================
+            LANGUAGE CORE
+        ====================================== */
 
         if (
             window.JarvisLanguageCore &&
             typeof window.JarvisLanguageCore.translate === "function"
         ) {
 
-            let translated = await window.JarvisLanguageCore.translate(cleanPart);
+            let translated =
+                await window.JarvisLanguageCore.translate(cleanPart);
 
             if (!Array.isArray(translated)) {
                 translated = [translated];
@@ -680,11 +668,10 @@ if (
                 fallbackTranslate(cleanPart)
             );
         }
-    } // <--- ESTA LLAVE CIERRA EL "for (const part of parts)"[cite: 2]
+    }
 
     return commands;
-} // <--- ESTA LLAVE CIERRA LA "async function resolveCommands"[cite: 2]
-
+}
 /* =====================================================================================
    EXECUTION CORE V6.1 HYBRID SOCIAL (CORREGIDO V5.95)
 ===================================================================================== */
@@ -863,13 +850,25 @@ knownModules: {
 
 async dispatch(input = "") {
 
-    let raw =
-        String(
-            input || ""
-        ).trim();
+    let raw;
+    let rawLow;
 
-    const rawLow =
-        raw.toLowerCase();
+    const isStructured =
+        typeof input === "object" &&
+        input !== null;
+
+    if (isStructured) {
+
+        raw = input;
+
+        rawLow = `${input.intent || ""}::${input.target || ""}`
+            .toLowerCase();
+
+    } else {
+
+        raw = String(input || "").trim();
+        rawLow = raw.toLowerCase();
+    }
 
     /* =====================================================
        CODE SURGEON MODE
