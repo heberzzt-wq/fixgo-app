@@ -915,7 +915,7 @@ Escribe:
    async execute(input, e = null, options = { simulate: false }) {
 
     /* 🔥 VARIABLE GLOBAL DEL MÉTODO */
-    let isStructured;
+
 
     /* =====================================================
        HTML GUARD
