@@ -918,40 +918,31 @@ Escribe:
 
 
     /* =====================================================
-       HTML GUARD
-    ===================================================== */
+   HTML GUARD
+===================================================== */
 
-    if (e?.preventDefault) {
-        e.preventDefault();
-        console.debug("🛡️ [JARVIS] Submit interceptado.");
-    }
+if (e?.preventDefault) {
+    e.preventDefault();
+    console.debug("🛡️ [JARVIS] Submit interceptado.");
+}
 
-    if (!input || !String(input).trim()) {
-        return {
-            error: true,
-            message: "Entrada vacía."
-        };
-    }
-let rawInput;
-let cmd;
-
-/* 🔥 DEFINICIÓN CENTRAL (ÚNICA) */
 const isStructured =
     typeof input === "object" &&
     input !== null;
 
-if (isStructured) {
+if (!input) {
+    return {
+        error: true,
+        message: "Entrada vacía."
+    };
+}
 
-    rawInput = input; // ← se conserva el objeto
-
-    cmd = `${input.intent || ""}::${input.target || ""}`
-        .toLowerCase();
-
-} else {
-
-    rawInput = String(input).trim();
-
-    cmd = rawInput.toLowerCase();
+// 🔥 VALIDACIÓN SEGURA
+if (!isStructured && !String(input).trim()) {
+    return {
+        error: true,
+        message: "Entrada vacía."
+    };
 }
     /* =====================================================
        BLOQUEO: APROBACIÓN SIN PLAN PENDIENTE
