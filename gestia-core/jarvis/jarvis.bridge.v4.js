@@ -672,8 +672,14 @@ translated = [];
 
 ```
 for (const action of actions) {
-    const cmd = window.JarvisLanguageCore.fallbackTranslate(action);
-    if (cmd) translated.push(cmd);
+    const cmd = await window.JarvisLanguageCore.translate(action);
+    if (cmd) {
+        if (Array.isArray(cmd)) {
+            translated.push(...cmd);
+        } else {
+            translated.push(cmd);
+        }
+    }
 }
 ```
 
@@ -681,6 +687,7 @@ for (const action of actions) {
 translated =
 await window.JarvisLanguageCore.translate(cleanPart);
 }
+
 
     // 🔥 NORMALIZACIÓN
     if (!Array.isArray(translated)) {
