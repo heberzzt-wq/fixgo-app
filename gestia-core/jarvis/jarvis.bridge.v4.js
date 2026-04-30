@@ -422,12 +422,7 @@ function splitActions(text = "") {
 ===================================================================================== */
 
 function isNativeJarvis(text = "") {
-
-    const t =
-        String(text)
-        .toLowerCase()
-        .trim();
-
+    const t = String(text).toLowerCase().trim();
     return (
         t.includes("jarvis estado") ||
         t.includes("jarvis resumen") ||
@@ -437,12 +432,7 @@ function isNativeJarvis(text = "") {
 }
 
 function isSocialJarvis(text = "") {
-
-    const t =
-        String(text)
-        .toLowerCase()
-        .trim();
-
+    const t = String(text).toLowerCase().trim();
     return (
         t === "hola" ||
         t.includes("buenos dias") ||
@@ -460,87 +450,69 @@ function isSocialJarvis(text = "") {
 }
 
 async function executeSocialJarvis(text = "") {
+    const t = String(text).toLowerCase().trim();
 
-    const t =
-        String(text)
-        .toLowerCase()
-        .trim();
-
-    if (
-        t === "hola" ||
-        t.includes("que tal") ||
-        t.includes("qué tal")
-    ) {
+    if (t === "hola" || t.includes("que tal") || t.includes("qué tal")) {
         return "Hola Arquitecto. Núcleo operativo y atento.";
     }
-
-    if (
-        t.includes("buenos dias") ||
-        t.includes("buen día") ||
-        t.includes("buen dia")
-    ) {
+    if (t.includes("buenos dias") || t.includes("buen día") || t.includes("buen dia")) {
         return "Buenos días Arquitecto. Sistemas estables y listos.";
     }
-
-    if (
-        t.includes("buenas tardes")
-    ) {
+    if (t.includes("buenas tardes")) {
         return "Buenas tardes Arquitecto. Todo bajo control.";
     }
-
-    if (
-        t.includes("buenas noches")
-    ) {
+    if (t.includes("buenas noches")) {
         return "Buenas noches Arquitecto. Núcleo vigilante y operativo.";
     }
-
-    if (
-        t.includes("como estas") ||
-        t.includes("cómo estás")
-    ) {
+    if (t.includes("como estas") || t.includes("cómo estás")) {
         return "Operando al cien por ciento. Sin incidencias críticas.";
     }
-
-    if (
-        t === "gracias" ||
-        t.includes("muchas gracias")
-    ) {
+    if (t === "gracias" || t.includes("muchas gracias")) {
         return "Siempre a la orden, Arquitecto.";
     }
-
     return "Presente, Arquitecto.";
 }
 
-async function executeNativeJarvis(text = "") {
-
-    const t =
-        String(text)
-        .toLowerCase()
-        .trim();
-
-   /* ======================================
-    SOCIAL PRIORITY
+/* ======================================
+    SYSTEM COMMANDS / NATIVE CORE
 ====================================== */
-if (
-    typeof t === "string" &&
-    isSocialJarvis(t) &&
-    splitActions(t).length === 1
-) {
-    return await executeSocialJarvis(t);
+async function executeNativeJarvis(text = "") {
+    const t = String(text).toLowerCase().trim();
+
+    /* ======================================
+        SOCIAL PRIORITY
+    ====================================== */
+    if (
+        typeof t === "string" &&
+        isSocialJarvis(t) &&
+        splitActions(t).length === 1
+    ) {
+        return await executeSocialJarvis(t);
+    }
+
+    if (typeof t === "string") {
+        if (t.includes("jarvis estado") || t.includes("jarvis status")) {
+            return await runCore("jarvis estado");
+        }
+        if (t.includes("jarvis resumen")) {
+            return await runCore("jarvis resumen");
+        }
+        if (t.includes("jarvis salud")) {
+            return await runCore("jarvis salud");
+        }
+    }
+
+    return await runCore(text);
 }
 
 async function resolveCommands(raw = "") {
-    const isStructured =
-        typeof raw === "object" &&
-        raw !== null;
-
+    const isStructured = typeof raw === "object" && raw !== null;
     const input = isStructured ? raw.input || "" : raw;
 
+    // Usamos el filtro Boolean para limpiar desde el inicio
     const actions = splitActions(input)
         .map(a => a.trim())
         .filter(Boolean);
-
-    const isMultiIntent = actions.length > 1;
 
     /* ======================================
         DIRECT DSL BYPASS
@@ -560,15 +532,12 @@ async function resolveCommands(raw = "") {
             .filter(Boolean);
     }
 
-    // Usamos 'actions' que ya procesamos arriba para evitar redundancia
     const commands = [];
 
+    // Bucle unificado: procesa cada parte/acción individualmente
     for (const part of actions) {
         const cleanPart = String(part || "").trim();
-
-        if (!cleanPart) {
-            continue;
-        }
+        if (!cleanPart) continue;
 
         const low = cleanPart.toLowerCase();
 
@@ -591,10 +560,7 @@ async function resolveCommands(raw = "") {
         /* ======================================
             PREMIUM INTERNAL ROUTER
         ====================================== */
-        if (
-            low.includes("auditoria automatica") ||
-            cleanPart === "__AUTO_AUDIT_UI__"
-        ) {
+        if (low.includes("auditoria automatica") || cleanPart === "__AUTO_AUDIT_UI__") {
             commands.push("__AUTO_AUDIT_UI__");
             continue;
         }
@@ -607,37 +573,27 @@ async function resolveCommands(raw = "") {
         /* ======================================
             LANGUAGE CORE
         ====================================== */
-        if (
-            window.JarvisLanguageCore &&
-            typeof window.JarvisLanguageCore.translate === "function"
-        ) {
+        if (window.JarvisLanguageCore && typeof window.JarvisLanguageCore.translate === "function") {
+            
+            // Traducimos la parte actual directamente
             let translated = await window.JarvisLanguageCore.translate(cleanPart);
 
-            // 🔥 NORMALIZACIÓN: Forzamos que siempre sea un Array para procesar igual
+            // 🔥 NORMALIZACIÓN
             if (!Array.isArray(translated)) {
-                // Si translate devolvió null, undefined o "", usamos el fallback
-                if (!translated) {
-                    translated = [fallbackTranslate(cleanPart)];
-                } else {
-                    translated = [translated];
-                }
+                translated = translated ? [translated] : [];
             }
 
-            // 🔥 FALLBACK SI EL ARRAY VIENE VACÍO O CON VALORES NULOS
+            // 🔥 FALLBACK SI VIENE VACÍO
             if (translated.length === 0 || translated.every(x => !x)) {
                 translated = [fallbackTranslate(cleanPart)];
             }
 
             for (const t of translated) {
-                if (!t || typeof t !== "string") continue;
+                if (!t) continue;
+                const cleanCmd = String(t).toUpperCase().trim();
 
-                const cleanCmd = t.toUpperCase().trim();
-
-                // Evitar comandos vacíos que causan el TypeError: "" is not a function
-                if (!cleanCmd) continue;
-
-                // 🔥 FILTRO CRÍTICO
-                if (cleanCmd === "CREATE::SYSTEM") continue;
+                // 🔥 FILTRO CRÍTICO Y ANTI-ERROR ""
+                if (!cleanCmd || cleanCmd === "CREATE::SYSTEM") continue;
 
                 commands.push(t);
             }
@@ -645,25 +601,22 @@ async function resolveCommands(raw = "") {
             const fallback = fallbackTranslate(cleanPart);
             if (fallback) commands.push(fallback);
         }
-    } // 🔥 CIERRA EL FOR
+    } 
 
     return commands;
 }
+
 /* =====================================================================================
    EXECUTION CORE V6.1 HYBRID SOCIAL (CORREGIDO V5.95)
 ===================================================================================== */
-
 async function executeCommands(commands = []) {
-
     const outputs = [];
     const burstCache = new Map();
 
-    // 🔥 CAMBIO CRÍTICO: Usar "let" para normalizar[cite: 1]
     for (let cmd of commands) {
-
-        // 🔥 ÚLTIMA LÍNEA DE DEFENSA (PUNTO FINAL DE EJECUCIÓN)[cite: 1]
         if (typeof cmd === "string") {
             const low = cmd.toLowerCase();
+            // Continuación de tu lógica...
             if (
                 low.includes("cerrar sesion") ||
                 low.includes("cerrar sesión") ||
