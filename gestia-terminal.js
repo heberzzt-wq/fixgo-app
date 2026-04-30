@@ -1184,7 +1184,9 @@ Estado núcleo: ${this.state}`
         /* =================================================
    🔥 FIX CRÍTICO: DEFINIR isStructured
 ================================================= */
-const isStructured = false;
+const isStructured =
+    typeof rawInput === "object" &&
+    rawInput !== null;
 
         /* =================================================
    🧠 ENRUTAMIENTO PRINCIPAL UNIFICADO (BRIDGE FIRST)
