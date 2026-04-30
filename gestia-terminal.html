@@ -304,7 +304,7 @@ const hablarJarvis = (texto) => {
 
 /* =====================================================
     BRIEFING INICIAL PROACTIVO (V5.19 KERNEL-SYNC)
-    Archivo: gestia-terminal.js
+    Ubicación: Terminal HTML Script
 ===================================================== */
 
 const launchSovereignBriefing = async () => {
@@ -329,7 +329,7 @@ const launchSovereignBriefing = async () => {
         // 🔥 EJECUCIÓN SOBERANA: ANALYZE::system ahora devuelve un objeto estructurado
         const outputs = await window.executeCommands(["ANALYZE::system"]);
         
-        // El composeResponse usará el bloque if (output.type === "SYSTEM_STATUS") que definimos
+        // El composeResponse procesará el objeto data (definido abajo)
         systemStatus = (typeof window.composeResponse === 'function') 
             ? window.composeResponse(outputs) 
             : "Estado del sistema verificado correctamente.";
@@ -360,44 +360,51 @@ Núcleo autónomo listo para recibir órdenes.`;
 };
 
 /* =====================================================
-    TRIGGER REACTIVO (POST-AUTH & POST-KEYS)
+    🔥 COMPOSE RESPONSE V5.19 (DATA-AWARE)
+    Indispensable para transformar el objeto data en texto
 ===================================================== */
-const originalSetState = window.setState;
+window.composeResponse = function(outputs = []) {
+    const clean = Array.isArray(outputs) ? outputs : [outputs];
 
-window.setState = function(nuevoEstado) {
-    if (typeof originalSetState === 'function') originalSetState(nuevoEstado);
+    if (!clean.length) return "Sistemas operativos.";
 
-    // Solo disparamos cuando el banco está listo y el Firewall tiene las llaves
-    if (nuevoEstado === "IDLE" || nuevoEstado === "SECURE SESSION READY") {
-        console.log("🧬 [KERNEL_EVENT] SECURE_SESSION detectada. Lanzando Briefing...");
-        launchSovereignBriefing();
-        
-        // Restauramos para evitar bucles en el briefing
-        window.setState = originalSetState; 
-    }
+    return clean.map(output => {
+        // 🧠 Si el motor envió datos reales (Memoria, Ops, etc.)
+        if (output?.data) {
+            const d = output.data;
+            return `
+Sistema: ${d.online ? "Activo" : "Sin conexión"}
+Operaciones: ${d.ops ?? 0}
+Memoria: ${d.memory ?? "N/A"}
+Hora: ${new Date(d.timestamp).toLocaleTimeString()}
+`.trim();
+        }
+
+        // Fallback: Si no hay data, usamos el resumen textual
+        return output.summary || (typeof output === "string" ? output : "Operación completada.");
+    }).join("\n\n");
 };
 
 /* =====================================================
-    🔥 OBSERVADOR DE ESTADO DEL BANCO (TRIGGER)
-    Este bloque detecta el momento exacto del [SECURE SESSION READY]
+    🔥 OBSERVADOR DE ESTADO DEL BANCO (TRIGGER ÚNICO)
 ===================================================== */
-// Guardamos la función original para no romper el flujo del sistema
 const backupSetState = window.setState;
 
 window.setState = function(nuevoEstado) {
-    // Ejecutamos la lógica original del sistema primero
+    // Ejecutamos la lógica original del sistema
     if (typeof backupSetState === 'function') backupSetState(nuevoEstado);
 
-    // Si el estado es el que libera el Firewall, disparamos el briefing una sola vez
+    // Si el estado libera el Firewall, disparamos el briefing una sola vez
     if (nuevoEstado === "IDLE" || nuevoEstado === "SECURE SESSION READY") {
         console.log("🧬 [KERNEL_EVENT] Sesión Segura detectada. Disparando Briefing...");
         
         launchSovereignBriefing();
 
-        // Restauramos la función original para que el trigger no se repita
+        // Restauramos la función original para que el trigger no se repita en la sesión
         window.setState = backupSetState;
     }
 };
+
 /* =====================================================
    SONIDO FIRMA JARVIS
 ===================================================== */
