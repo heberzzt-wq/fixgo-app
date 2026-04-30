@@ -360,36 +360,39 @@ Núcleo autónomo listo para recibir órdenes.`;
 };
 
 /* =====================================================
-    🔥 COMPOSE RESPONSE V5.19 (DEEP-EXTRACTOR)
-    Archivo: Terminal HTML
+    🔥 COMPOSE RESPONSE V5.19 (KERNEL-READY)
+    Ubicación: Script dentro de gestia-terminal (HTML)
 ===================================================== */
-window.composeResponse = function(outputs = []) {
-    // 1. Forzamos array y limpiamos nulos
-    const clean = (Array.isArray(outputs) ? outputs : [outputs]).filter(Boolean);
+function composeResponse(outputs = []) {
+    if (!Array.isArray(outputs)) return "";
 
-    if (!clean.length) return "Sistemas en línea.";
+    const parts = outputs.map(o => {
+        // 🔥 SOPORTE PARA OBJETOS ESTRUCTURADOS (Telemetría Real)
+        if (o && typeof o === "object") {
+            // Si es un estado de sistema con datos técnicos
+            if (o.type === "SYSTEM_STATUS" && o.data) {
+                const d = o.data;
 
-    return clean.map(output => {
-        // 🔍 BÚSQUEDA PROFUNDA DE DATOS (Deep Search)
-        // Buscamos 'data' en la raíz, o dentro de output[0], o en output.payload
-        const targetData = output?.data || output?.[0]?.data || output?.payload?.data;
+                return [
+                    `Sistema: ${d.online ? "🟢 Activo" : "🔴 Sin conexión"}`,
+                    `Operaciones: ${d.ops ?? 0}`,
+                    `Memoria: ${d.memory ?? "N/A"}`,
+                    `Hora: ${new Date(d.timestamp || Date.now()).toLocaleTimeString()}`
+                ].join("\n");
+            }
 
-        if (targetData) {
-            const d = targetData;
-            return `
-Sistema: ${d.online ? "🟢 Activo" : "🔴 Sin conexión"}
-Operaciones: ${d.ops ?? 0}
-Memoria: ${d.memory ?? "N/A"}
-Sincronización: ${new Date(d.timestamp || Date.now()).toLocaleTimeString()}
-`.trim();
+            // Fallback para otros objetos (Mensajes de error o logs)
+            if (o.message) return String(o.message);
+            return JSON.stringify(o);
         }
 
-        // 2. Si no hay datos técnicos, devolvemos el resumen textual
-        // Priorizamos el summary del Intent Engine V3.1
-        return output.summary || output.message || (typeof output === "string" ? output : "Operación completa.");
-    }).join("\n\n");
-};
+        // Flujo previo: Soporte para strings clásicos
+        return String(o);
+    });
 
+    // Filtramos partes vacías y unimos con doble salto para legibilidad
+    return parts.filter(Boolean).join("\n\n");
+}
 /* =====================================================
     🔥 OBSERVADOR DE ESTADO DEL BANCO (TRIGGER ÚNICO)
 ===================================================== */
