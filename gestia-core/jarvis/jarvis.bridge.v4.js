@@ -509,7 +509,6 @@ async function resolveCommands(raw = "") {
     const isStructured = typeof raw === "object" && raw !== null;
     const input = isStructured ? raw.input || "" : raw;
 
-    // Usamos el filtro Boolean para limpiar desde el inicio
     const actions = splitActions(input)
         .map(a => a.trim())
         .filter(Boolean);
@@ -518,81 +517,65 @@ async function resolveCommands(raw = "") {
         DIRECT DSL BYPASS
     ====================================== */
     if (isStructured) {
-        return [
-            `${raw.intent || "ANALYZE"}::${raw.target || "system"}`
-        ];
+        return [`${raw.intent || "ANALYZE"}::${raw.target || "system"}`];
     }
 
     const cleanRaw = String(raw || "").trim();
-
     if (cleanRaw.includes("::")) {
-        return cleanRaw
-            .split(";;")
-            .map(x => x.trim())
-            .filter(Boolean);
+        return cleanRaw.split(";;").map(x => x.trim()).filter(Boolean);
     }
 
     const commands = [];
 
-    // Bucle unificado: procesa cada parte/acción individualmente
-    for (const part of actions) {
-        const cleanPart = String(part || "").trim();
+    // 🔥 PROCESAMIENTO UNIFICADO (Regla 1: Código completo)
+    for (const action of actions) {
+        const cleanPart = String(action || "").trim();
         if (!cleanPart) continue;
 
         const low = cleanPart.toLowerCase();
 
         /* ======================================
-            SOCIAL PART ROUTER
+            DETECCIÓN MANUAL (HARD-CODED INTENTS)
         ====================================== */
-        if (isSocialJarvis(cleanPart)) {
+        if (low.includes("estado") || low.includes("general")) {
+            commands.push("ANALYZE::system");
+            continue;
+        }
+
+        if (low.includes("pago") || low.includes("pagos")) {
+            commands.push("ANALYZE::payments");
+            continue;
+        }
+
+        /* ======================================
+            ROUTERS EXISTENTES (SOCIAL / NATIVE)
+        ====================================== */
+        if (isSocialJarvis(cleanPart) || isNativeJarvis(cleanPart)) {
             commands.push(cleanPart);
             continue;
         }
 
         /* ======================================
-            NATIVE PART ROUTER
-        ====================================== */
-        if (isNativeJarvis(cleanPart)) {
-            commands.push(cleanPart);
-            continue;
-        }
-
-        /* ======================================
-            PREMIUM INTERNAL ROUTER
-        ====================================== */
-        if (low.includes("auditoria automatica") || cleanPart === "__AUTO_AUDIT_UI__") {
-            commands.push("__AUTO_AUDIT_UI__");
-            continue;
-        }
-
-        if (cleanPart === "__AUTO_HEALTH_CHECK__") {
-            commands.push("__AUTO_HEALTH_CHECK__");
-            continue;
-        }
-
-        /* ======================================
-            LANGUAGE CORE
+            LANGUAGE CORE TRANSLATION
         ====================================== */
         if (window.JarvisLanguageCore && typeof window.JarvisLanguageCore.translate === "function") {
-            
-            // Traducimos la parte actual directamente
             let translated = await window.JarvisLanguageCore.translate(cleanPart);
 
-            // 🔥 NORMALIZACIÓN
+            // Normalización a Array
             if (!Array.isArray(translated)) {
-                translated = translated ? [translated] : [];
+                translated = translated ? [translated] : [fallbackTranslate(cleanPart)];
             }
 
-            // 🔥 FALLBACK SI VIENE VACÍO
+            // Fallback si el array está vacío
             if (translated.length === 0 || translated.every(x => !x)) {
                 translated = [fallbackTranslate(cleanPart)];
             }
 
             for (const t of translated) {
-                if (!t) continue;
-                const cleanCmd = String(t).toUpperCase().trim();
+                if (!t || typeof t !== "string") continue;
+                const cleanCmd = t.toUpperCase().trim();
 
-                // 🔥 FILTRO CRÍTICO Y ANTI-ERROR ""
+                // Anti-error "" is not a function
                 if (!cleanCmd || cleanCmd === "CREATE::SYSTEM") continue;
 
                 commands.push(t);
@@ -601,11 +584,10 @@ async function resolveCommands(raw = "") {
             const fallback = fallbackTranslate(cleanPart);
             if (fallback) commands.push(fallback);
         }
-    } 
+    }
 
     return commands;
-}
-
+} 
 /* =====================================================================================
    EXECUTION CORE V6.1 HYBRID SOCIAL (CORREGIDO V5.95)
 ===================================================================================== */
