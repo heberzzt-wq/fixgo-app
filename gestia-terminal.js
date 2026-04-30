@@ -1160,7 +1160,9 @@ Estado núcleo: ${this.state}`
 
     const opId = crypto.randomUUID();
 
-    try {
+let jarvisRes; // 🔥 FIX
+
+try {
 
         /* =================================================
            FIREWALL PRECHECK
