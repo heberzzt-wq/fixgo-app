@@ -750,13 +750,15 @@ window.executeCommands = async function(commands = []) {
             const clean = normalize(res);
 
             // 3. REGISTRO EN MEMORIA Y MÉTRICAS
-            burstCache.set(cmd, clean);
-
-            // 🔥 SI ES OBJETO ESTRUCTURADO → NO TOCARLO (SOVEREIGN BYPASS)
+            // 🔥 BYPASS CRÍTICO: NO destruir data estructurada
             if (clean && typeof clean === "object" && clean.type) {
-                console.log("🧠 [PASS_THROUGH]:", clean);
+                console.log("🧠 [PASS_THROUGH REAL]:", clean);
+
+                burstCache.set(cmd, clean);
                 outputs.push(clean);
             } else {
+                burstCache.set(cmd, clean);
+
                 outputs.push(
                     beautifyOutput(cmd, clean, false)
                 );
