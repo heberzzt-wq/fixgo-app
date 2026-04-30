@@ -506,11 +506,11 @@ async function executeNativeJarvis(text = "") {
 }
 
 async function resolveCommands(raw = "") {
-    // 1. DETERMINACIÓN DE ESTRUCTURA
+    // 1. NORMALIZACIÓN DE ENTRADA
     const isStructured = typeof raw === "object" && raw !== null;
     const input = isStructured ? raw.input || "" : raw;
 
-    // 2. DESCOMPOSICIÓN EN ACCIONES ATÓMICAS
+    // 2. DESCOMPOSICIÓN SEMÁNTICA
     const actions = splitActions(input)
         .map(a => a.trim())
         .filter(Boolean);
@@ -529,15 +529,15 @@ async function resolveCommands(raw = "") {
 
     const commands = [];
 
-    // 3. PIPELINE LINEAL (Eficiencia O(n))
+    // 3. PIPELINE DE INTELIGENCIA (V5.19 FINAL)
     for (const action of actions) {
-        const cleanPart = String(action || "").trim();
-        if (!cleanPart) continue;
+        const t = String(action).trim();
+        if (!t) continue;
 
-        const low = cleanPart.toLowerCase();
+        const low = t.toLowerCase();
 
         /* ======================================
-            🔥 DICCIONARIO HARD-CODED (BYPASS RÁPIDO)
+            HARD BYPASS (REGLAS DE ORO)
         ====================================== */
         if (low.includes("estado") || low.includes("general")) {
             commands.push("ANALYZE::system");
@@ -552,52 +552,49 @@ async function resolveCommands(raw = "") {
         /* ======================================
             SOCIAL & NATIVE ROUTERS
         ====================================== */
-        if (isSocialJarvis(cleanPart) || isNativeJarvis(cleanPart)) {
-            commands.push(cleanPart);
+        if (isSocialJarvis(t) || isNativeJarvis(t)) {
+            commands.push(t);
             continue;
         }
 
         /* ======================================
-            PREMIUM INTERNAL ROUTER
+            🔥 INTENT ENGINE DELEGATION
         ====================================== */
-        if (low.includes("auditoria automatica") || cleanPart === "__AUTO_AUDIT_UI__") {
-            commands.push("__AUTO_AUDIT_UI__");
+        // Delegamos al motor real para obtener la estructura técnica
+        const structured = await runIntentEngine(t);
+
+        if (structured && structured.intent && structured.entity) {
+            commands.push(`${structured.intent}::${structured.entity}`);
             continue;
         }
 
         /* ======================================
-            LANGUAGE CORE (ÚLTIMA INSTANCIA)
+            LANGUAGE CORE (FALLBACK FINAL)
         ====================================== */
-        if (window.JarvisLanguageCore && typeof window.JarvisLanguageCore.translate === "function") {
-            
-            let translated = await window.JarvisLanguageCore.translate(cleanPart);
+        if (window.JarvisLanguageCore?.translate) {
+            let translated = await window.JarvisLanguageCore.translate(t);
 
-            // Normalización segura a Array
+            // Normalización de salida del Core
             if (!Array.isArray(translated)) {
-                translated = translated ? [translated] : [fallbackTranslate(cleanPart)];
+                translated = translated ? [translated] : [fallbackTranslate(t)];
             }
 
-            // Fallback si el core no devuelve nada útil
-            if (translated.length === 0 || translated.every(x => !x)) {
-                translated = [fallbackTranslate(cleanPart)];
-            }
-
-            for (const t of translated) {
-                if (!t || typeof t !== "string") continue;
-                const cleanCmd = t.toUpperCase().trim();
+            for (const cmd of translated) {
+                if (!cmd || typeof cmd !== "string") continue;
+                const cleanCmd = cmd.toUpperCase().trim();
                 
-                // 🔥 FILTRO CRÍTICO ANTI-ERROR ""
+                // Evitar colapsos por strings vacíos
                 if (!cleanCmd || cleanCmd === "CREATE::SYSTEM") continue;
                 
-                commands.push(t);
+                commands.push(cmd);
             }
         } else {
-            const fb = fallbackTranslate(cleanPart);
+            const fb = fallbackTranslate(t);
             if (fb) commands.push(fb);
         }
     }
 
-    // 4. RETORNO ÚNICO DE COMANDOS ACUMULADOS
+    // 4. DESPACHO DE COMANDOS ACUMULADOS
     return commands;
 }
 /* =====================================================================================
