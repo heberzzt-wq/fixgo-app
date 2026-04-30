@@ -1182,6 +1182,11 @@ Estado núcleo: ${this.state}`
         );
 
         /* =================================================
+   🔥 FIX CRÍTICO: DEFINIR isStructured
+================================================= */
+const isStructured = false;
+
+        /* =================================================
    🧠 ENRUTAMIENTO PRINCIPAL UNIFICADO (BRIDGE FIRST)
 ================================================= */
 
