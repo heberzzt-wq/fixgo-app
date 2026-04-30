@@ -360,28 +360,33 @@ Núcleo autónomo listo para recibir órdenes.`;
 };
 
 /* =====================================================
-    🔥 COMPOSE RESPONSE V5.19 (DATA-AWARE)
-    Indispensable para transformar el objeto data en texto
+    🔥 COMPOSE RESPONSE V5.19 (DEEP-EXTRACTOR)
+    Archivo: Terminal HTML
 ===================================================== */
 window.composeResponse = function(outputs = []) {
-    const clean = Array.isArray(outputs) ? outputs : [outputs];
+    // 1. Forzamos array y limpiamos nulos
+    const clean = (Array.isArray(outputs) ? outputs : [outputs]).filter(Boolean);
 
-    if (!clean.length) return "Sistemas operativos.";
+    if (!clean.length) return "Sistemas en línea.";
 
     return clean.map(output => {
-        // 🧠 Si el motor envió datos reales (Memoria, Ops, etc.)
-        if (output?.data) {
-            const d = output.data;
+        // 🔍 BÚSQUEDA PROFUNDA DE DATOS (Deep Search)
+        // Buscamos 'data' en la raíz, o dentro de output[0], o en output.payload
+        const targetData = output?.data || output?.[0]?.data || output?.payload?.data;
+
+        if (targetData) {
+            const d = targetData;
             return `
-Sistema: ${d.online ? "Activo" : "Sin conexión"}
+Sistema: ${d.online ? "🟢 Activo" : "🔴 Sin conexión"}
 Operaciones: ${d.ops ?? 0}
 Memoria: ${d.memory ?? "N/A"}
-Hora: ${new Date(d.timestamp).toLocaleTimeString()}
+Sincronización: ${new Date(d.timestamp || Date.now()).toLocaleTimeString()}
 `.trim();
         }
 
-        // Fallback: Si no hay data, usamos el resumen textual
-        return output.summary || (typeof output === "string" ? output : "Operación completada.");
+        // 2. Si no hay datos técnicos, devolvemos el resumen textual
+        // Priorizamos el summary del Intent Engine V3.1
+        return output.summary || output.message || (typeof output === "string" ? output : "Operación completa.");
     }).join("\n\n");
 };
 
