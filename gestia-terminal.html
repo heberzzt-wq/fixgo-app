@@ -143,10 +143,11 @@ fetch("/gestia-terminal.js")
 </script>
 
 <script type="module" src="/firebase.js"></script>
-<script type="module" src="/gestia-terminal.js"></script>
+<script type="module" src="/gestia-terminal.js?v=fix2"></script>
 <script type="module" src="/gestia-core/jarvis/jarvis.language.core.v5.js"></script>
 <script type="module" src="/gestia-core/jarvis/jarvis.context.memory.v6.js"></script>
-<script type="module" src="/gestia-core/jarvis/jarvis.bridge.v4.js"></script>
+<!-- 🔥 FIX APLICADO: Inyección de parámetro de versión para forzar limpieza de caché -->
+<script type="module" src="/gestia-core/jarvis/jarvis.bridge.v4.js?v=fuerzacache1"></script>
 
 <script defer>
 document.addEventListener('DOMContentLoaded', () => {
@@ -646,7 +647,7 @@ form.addEventListener("submit", async function (e) {
         );
 
         /* =================================================
-           ROUTER SOBERANO V4
+            ROUTER SOBERANO V4
         ================================================= */
 
         if (
@@ -662,7 +663,7 @@ form.addEventListener("submit", async function (e) {
         } else {
 
             /* =============================================
-               FALLBACK LEGACY
+                FALLBACK LEGACY
             ============================================= */
 
             let output = "";
