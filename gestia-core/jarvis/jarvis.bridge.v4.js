@@ -654,8 +654,18 @@ if (
     let translated =
         await window.JarvisLanguageCore.translate(cleanPart);
 
+    // 🔥 NORMALIZACIÓN
     if (!Array.isArray(translated)) {
         translated = [translated];
+    }
+
+    // 🔥 FALLBACK SI VIENE VACÍO O INVÁLIDO
+    if (
+        !translated ||
+        translated.length === 0 ||
+        translated.every(x => !x)
+    ) {
+        translated = [fallbackTranslate(cleanPart)];
     }
 
     for (const t of translated) {
@@ -676,7 +686,7 @@ if (
         fallbackTranslate(cleanPart)
     );
 }
-    
+
 } // 🔥 CIERRA EL FOR
 
 return commands;
