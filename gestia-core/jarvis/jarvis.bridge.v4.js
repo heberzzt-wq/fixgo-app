@@ -534,20 +534,23 @@ if (
 ====================================== */
 if (typeof t === "string") {
 
-    if (
-        t.includes("jarvis estado") ||
-        t.includes("jarvis status")
-    ) {
-        return await runCore("jarvis estado");
-    }
+```
+if (
+    t.includes("jarvis estado") ||
+    t.includes("jarvis status")
+) {
+    return await runCore("jarvis estado");
+}
 
-    if (t.includes("jarvis resumen")) {
-        return await runCore("jarvis resumen");
-    }
+if (t.includes("jarvis resumen")) {
+    return await runCore("jarvis resumen");
+}
 
-    if (t.includes("jarvis salud")) {
-        return await runCore("jarvis salud");
-    }
+if (t.includes("jarvis salud")) {
+    return await runCore("jarvis salud");
+}
+```
+
 }
 
 return await runCore(text);
@@ -555,9 +558,19 @@ return await runCore(text);
 
 async function resolveCommands(raw = "") {
 
-    const isStructured =
-        typeof raw === "object" &&
-        raw !== null;
+```
+const isStructured =
+    typeof raw === "object" &&
+    raw !== null;
+
+const input = isStructured ? raw.input || "" : raw;
+
+const actions = splitActions(input)
+    .map(a => a.trim())
+    .filter(Boolean);
+
+const isMultiIntent = actions.length > 1;
+```
 
     /* ======================================
         DIRECT DSL BYPASS
@@ -653,13 +666,21 @@ if (
 
     let translated;
 
-    // 🔥 BYPASS MULTI-INTENT
-    if (parts.length > 1) {
-        translated = [fallbackTranslate(cleanPart)];
-    } else {
-        translated =
-            await window.JarvisLanguageCore.translate(cleanPart);
-    }
+    // 🔥 FIX MULTI-INTENT (no colapsar intents)
+if (isMultiIntent) {
+translated = [];
+
+```
+for (const action of actions) {
+    const cmd = fallbackTranslate(action);
+    if (cmd) translated.push(cmd);
+}
+```
+
+} else {
+translated =
+await window.JarvisLanguageCore.translate(cleanPart);
+}
 
     // 🔥 NORMALIZACIÓN
     if (!Array.isArray(translated)) {
