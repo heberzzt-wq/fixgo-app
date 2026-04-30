@@ -124,9 +124,15 @@ JarvisMemory.subscribe((actionType, payload, currentState) => {
 // =====================================================
 
 function resolveIntentsAdapter(input, contextoSemantico) {
+
+    const intentInput =
+        typeof input === "object" && input !== null
+            ? `${input.intent || ""}::${input.target || ""}`
+            : input;
+
     return interpretarIntenciones([
         {
-            raw: input,
+            raw: intentInput,
             context: contextoSemantico
         }
     ]);
