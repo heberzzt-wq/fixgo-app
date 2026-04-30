@@ -1724,7 +1724,11 @@ const loaderTimer = setInterval(() => {
 // =====================================================
 const ai = await window.runExternalAI(raw);
 
-if (ai && ai.intent) {
+if (
+    ai &&
+    ai.intent &&
+    splitActions(raw).length === 1 // 🔥 SOLO si es una sola intención
+) {
 
     let target = ai.target;
 
