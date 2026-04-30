@@ -237,87 +237,61 @@ if (SpeechRecognition) {
 
 const hablarJarvis = (texto) => {
 
-    if (!("speechSynthesis" in window)) return;
+```
+if (!("speechSynthesis" in window)) return;
 
-    jarvisHablando = true;
+jarvisHablando = true;
 
-    if (
-        typeof reconocimiento !== 'undefined' && 
-        reconocimiento &&
-        typeof escuchandoAhora !== 'undefined' && 
-        escuchandoAhora
-    ) {
-        try {
-            reconocimiento.abort();
-        } catch (e) {}
-    }
+if (
+    typeof reconocimiento !== 'undefined' && 
+    reconocimiento &&
+    typeof escuchandoAhora !== 'undefined' && 
+    escuchandoAhora
+) {
+    try {
+        reconocimiento.abort();
+    } catch (e) {}
+}
 
-    // 🧠 PARCHE SOBERANO: Escudo traductor de Objetos a Voz
-    let textoLimpio = texto;
-    
-    if (texto && typeof texto === "object") {
-        // Si el objeto es nuestra telemetría de Cancún
-        if (texto.type === "SYSTEM_STATUS" && texto.data) {
-            textoLimpio = `Análisis completado. El sistema se encuentra ${texto.data.online ? 'activo' : 'sin conexión'}. Tienes ${texto.data.ops} operaciones registradas.`;
-        } else {
-            // Si es cualquier otro objeto, intentamos leer un mensaje o damos un fallback
-            textoLimpio = texto.message || "Procesando paquete de datos estructurados.";
-        }
-    } else {
-        // Aseguramos que sea un string nativo
-        textoLimpio = String(texto);
-    }
+// 🔥 SOLO TEXTO (la inteligencia ya pasó antes)
+const textoLimpio = typeof texto === "string"
+    ? texto
+    : (typeof window.composeResponse === "function"
+        ? window.composeResponse(texto)
+        : JSON.stringify(texto));
 
-    const voz =
-        new SpeechSynthesisUtterance(
-            textoLimpio
-        );
+console.log("🔊 JARVIS VOZ:", textoLimpio);
 
-    voz.lang = "es-MX";
-    voz.rate = 0.94;
-    voz.pitch = 0.84;
-    voz.volume = 1;
+const voz = new SpeechSynthesisUtterance(textoLimpio);
 
-    // 🔥 Adiós al [object Object] en los logs
-    console.log(
-        "🔊 JARVIS VOZ:",
-        textoLimpio
-    );
+voz.lang = "es-MX";
+voz.rate = 0.94;
+voz.pitch = 0.84;
+voz.volume = 1;
 
-    const voces =
-        speechSynthesis.getVoices();
+const voces = speechSynthesis.getVoices();
 
-    const seleccion =
-        voces.find(v =>
-            v.lang.includes("es-MX")
-        ) ||
-        voces.find(v =>
-            v.lang.includes("es")
-        ) ||
-        null;
+const seleccion =
+    voces.find(v => v.lang.includes("es-MX")) ||
+    voces.find(v => v.lang.includes("es")) ||
+    null;
 
-    if (seleccion) {
-        voz.voice =
-            seleccion;
-    }
+if (seleccion) voz.voice = seleccion;
 
-    speechSynthesis.cancel();
+speechSynthesis.cancel();
 
-    voz.onend = () => {
-
-        jarvisHablando = false;
-
-        setTimeout(() => {
-            if (typeof beepJarvis === 'function') {
-                beepJarvis();
-            }
-        }, 220);
-    };
-
-    speechSynthesis.speak(
-        voz
-    );
+voz.onend = () => {
+    jarvisHablando = false;
+    setTimeout(() => {
+        if (typeof beepJarvis === 'function') beepJarvis();
+    }, 220);
 };
+
+speechSynthesis.speak(voz);
+```
+
+};
+
 
 /* =====================================================
     BRIEFING INICIAL PROACTIVO (SAFE-MODE ENGINE)
