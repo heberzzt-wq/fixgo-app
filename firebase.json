@@ -29,12 +29,18 @@
     ],
     "cleanUrls": true,
     "trailingSlash": false,
+
     "rewrites": [
+      {
+        "source": "/api/**",
+        "function": "default"
+      },
       {
         "source": "**",
         "destination": "/index.html"
       }
     ],
+
     "headers": [
       {
         "source": "/sw.js",
@@ -59,6 +65,15 @@
           {
             "key": "Content-Type",
             "value": "application/manifest+json"
+          }
+        ]
+      },
+      {
+        "source": "**/*.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
           }
         ]
       }
