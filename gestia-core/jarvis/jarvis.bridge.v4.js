@@ -752,9 +752,15 @@ window.executeCommands = async function(commands = []) {
             // 3. REGISTRO EN MEMORIA Y MÉTRICAS
             burstCache.set(cmd, clean);
 
-            outputs.push(
-                beautifyOutput(cmd, clean, false)
-            );
+            // 🔥 SI ES OBJETO ESTRUCTURADO → NO TOCARLO (SOVEREIGN BYPASS)
+            if (clean && typeof clean === "object" && clean.type) {
+                console.log("🧠 [PASS_THROUGH]:", clean);
+                outputs.push(clean);
+            } else {
+                outputs.push(
+                    beautifyOutput(cmd, clean, false)
+                );
+            }
 
             safeLog("METRIC", { cmd, ms });
 
@@ -776,7 +782,6 @@ window.executeCommands = async function(commands = []) {
 
 // ✅ Ya no necesitas window.executeCommands = executeCommands al final 
 // porque ya la definimos directamente en window.
-
 /* =====================================================================================
     MAIN BRIDGE
 ===================================================================================== */
