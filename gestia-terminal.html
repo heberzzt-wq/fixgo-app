@@ -323,39 +323,63 @@ const launchSovereignBriefing = async () => {
     const totalOps = (window.JarvisHistory ? window.JarvisHistory.length : 0);
     const ram = navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "N/D";
 
-    let systemStatus = "Sistemas en línea.";
+    let visualStatus = "Sistemas en línea.";
+    let voiceStatus = "Sistemas en línea.";
     
     try {
-        // 🔥 EJECUCIÓN SOBERANA: ANALYZE::system ahora devuelve un objeto estructurado
+        // 🔥 EJECUCIÓN SOBERANA: ANALYZE::system devuelve el objeto estructurado
         const outputs = await window.executeCommands(["ANALYZE::system"]);
         
-        // El composeResponse procesará el objeto data (definido abajo)
-        systemStatus = (typeof window.composeResponse === 'function') 
-            ? window.composeResponse(outputs) 
-            : "Estado del sistema verificado correctamente.";
+        // Extraemos el primer output real para analizar qué nos devolvió el Bridge
+        const cleanOutputs = (Array.isArray(outputs) ? outputs : [outputs]).filter(Boolean);
+        const firstOutput = cleanOutputs[0];
+
+        // 🧠 SPLIT ROUTING: Separamos lo que se lee de lo que se ve
+        if (firstOutput && typeof firstOutput === 'object' && firstOutput.type === "SYSTEM_STATUS") {
+            // Para la pantalla: Usamos el extractor de telemetría (composeResponse)
+            visualStatus = typeof window.composeResponse === 'function' 
+                ? window.composeResponse(cleanOutputs) 
+                : JSON.stringify(firstOutput.data);
+            
+            // Para la voz: Texto natural limpio sin emojis ni saltos de línea
+            voiceStatus = `Telemetría enlazada. El sistema se encuentra ${firstOutput.data.online ? 'activo' : 'sin conexión'}.`;
+        } else {
+            visualStatus = typeof window.composeResponse === 'function' 
+                ? window.composeResponse(cleanOutputs) 
+                : "Estado del sistema verificado correctamente.";
+            voiceStatus = "Estado del sistema verificado correctamente.";
+        }
 
     } catch (e) {
         console.error("❌ [BOOT_CRITICAL] Fallo en análisis inicial:", e);
-        systemStatus = "Sistemas en espera de sincronización manual.";
+        visualStatus = "🔴 Sistemas en espera de sincronización manual.";
+        voiceStatus = "Atención. Fallo en el análisis de sincronización.";
     }
 
-    const online = navigator.onLine ? "🟢 Activa" : "🔴 Sin conexión";
+    const onlineStatusVisual = navigator.onLine ? "🟢 Activa" : "🔴 Sin conexión";
+    const onlineStatusVoice = navigator.onLine ? "activa" : "sin conexión";
     const hora = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
 
-    // Narrativa final para la voz y el HUD
-    const briefing = 
-`Bienvenido Arquitecto.
-${systemStatus}
-Conexión ${online}.
-Operaciones en Ledger: ${totalOps}.
-Hora local: ${hora}.
+    // 3. Empaquetado Multi-canal
+    const briefingVisual = `Bienvenido Arquitecto.
+
+${visualStatus}
+
+Conexión: ${onlineStatusVisual}
+Operaciones en Ledger: ${totalOps}
+Hora local: ${hora}
+
 Núcleo autónomo listo para recibir órdenes.`;
 
-    // 3. Salida Multi-canal
-    if (typeof hablarJarvis === 'function') hablarJarvis(briefing);
+    const briefingVoz = `Bienvenido Arquitecto. ${voiceStatus} Conexión ${onlineStatusVoice}. Tienes ${totalOps} operaciones en Ledger. Núcleo autónomo listo para recibir órdenes.`;
+
+    // 4. Salida Ejecutiva
+    if (typeof hablarJarvis === 'function') {
+        hablarJarvis(briefingVoz);
+    }
 
     if (typeof renderJarvisResponse === "function") {
-        renderJarvisResponse("Briefing Inicial", briefing, "success");
+        renderJarvisResponse("Briefing Inicial", briefingVisual, "success");
     }
 };
 
@@ -363,7 +387,7 @@ Núcleo autónomo listo para recibir órdenes.`;
     🔥 COMPOSE RESPONSE V5.19 (KERNEL-READY)
     Ubicación: Script dentro de gestia-terminal (HTML)
 ===================================================== */
-function composeResponse(outputs = []) {
+window.composeResponse = function(outputs = []) {
     if (!Array.isArray(outputs)) return "";
 
     const parts = outputs.map(o => {
@@ -376,8 +400,8 @@ function composeResponse(outputs = []) {
                 return [
                     `Sistema: ${d.online ? "🟢 Activo" : "🔴 Sin conexión"}`,
                     `Operaciones: ${d.ops ?? 0}`,
-                    `Memoria: ${d.memory ?? "N/A"}`,
-                    `Hora: ${new Date(d.timestamp || Date.now()).toLocaleTimeString()}`
+                    `Memoria RAM Activa: ${d.memory ?? "N/A"}`,
+                    `Hora de Sync: ${new Date(d.timestamp || Date.now()).toLocaleTimeString("es-MX")}`
                 ].join("\n");
             }
 
@@ -392,7 +416,8 @@ function composeResponse(outputs = []) {
 
     // Filtramos partes vacías y unimos con doble salto para legibilidad
     return parts.filter(Boolean).join("\n\n");
-}
+};
+
 /* =====================================================
     🔥 OBSERVADOR DE ESTADO DEL BANCO (TRIGGER ÚNICO)
 ===================================================== */
@@ -412,7 +437,6 @@ window.setState = function(nuevoEstado) {
         window.setState = backupSetState;
     }
 };
-
 /* =====================================================
    SONIDO FIRMA JARVIS
 ===================================================== */
