@@ -932,14 +932,27 @@ Escribe:
             message: "Entrada vacía."
         };
     }
+let rawInput;
+let cmd;
 
-    const rawInput = String(input).trim();
-    const cmd = rawInput.toLowerCase();
-
-    /* 🔥 DEFINICIÓN CENTRAL (ÚNICA) */
-    const isStructured =
+/* 🔥 DEFINICIÓN CENTRAL (ÚNICA) */
+const isStructured =
     typeof input === "object" &&
     input !== null;
+
+if (isStructured) {
+
+    rawInput = input; // ← se conserva el objeto
+
+    cmd = `${input.intent || ""}::${input.target || ""}`
+        .toLowerCase();
+
+} else {
+
+    rawInput = String(input).trim();
+
+    cmd = rawInput.toLowerCase();
+}
     /* =====================================================
        BLOQUEO: APROBACIÓN SIN PLAN PENDIENTE
     ===================================================== */
