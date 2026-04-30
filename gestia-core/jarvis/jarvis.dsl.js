@@ -2,8 +2,19 @@ import { JarvisMemory } from "./jarvis.memory.js";
 import { analyzeIntent } from "./jarvis.vision.engine.js";
 
 export function toCommand(input) {
-  if (!input || typeof input !== "string") {
+
+  if (!input) {
     throw new Error("DSL_INPUT_INVALID");
+  }
+
+  // 🔥 FIX: soportar objeto
+  if (typeof input !== "string") {
+
+    if (typeof input === "object") {
+      input = `${input.intent || "ANALYZE"}::${input.target || "system"}`;
+    } else {
+      throw new Error("DSL_INPUT_INVALID");
+    }
   }
 
   const raw = input.trim();

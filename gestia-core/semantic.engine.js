@@ -119,18 +119,26 @@ function normalizarID(texto) {
  * ✅ CORPORATE FIX: Implementación de Stopwords para mayor precisión.
  */
 export function extraerKeywords(input) {
-    if (!input || typeof input !== 'string') return [];
-    
+
+    if (!input) return [];
+
+    // 🔥 FIX: normalizar entrada
+    if (typeof input !== "string") {
+        if (typeof input === "object") {
+            input = `${input.intent || ""} ${input.target || ""}`;
+        } else {
+            return [];
+        }
+    }
+
     return input
         .toLowerCase()
         .replace(/[^a-z0-9\s_]/g, "") 
         .split(/\s+/)
-        // Filtramos longitud mínima y eliminamos palabras vacías (ruido)
         .filter(w => w.length > 2 && !STOPWORDS.has(w))
         .map(w => normalizarID(w))
-        .slice(-15); // Rango táctico de búsqueda (15 keywords máximo)
+        .slice(-15);
 }
-
 /**
  * sincronizarCorralSemantico: El Cerebro Cognitivo.
  * Inyecta en la IA el esquema de datos filtrado por relevancia semántica.
