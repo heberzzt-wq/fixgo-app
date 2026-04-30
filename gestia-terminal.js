@@ -937,10 +937,9 @@ Escribe:
     const cmd = rawInput.toLowerCase();
 
     /* 🔥 DEFINICIÓN CENTRAL (ÚNICA) */
-    isStructured =
-        typeof input === "object" &&
-        input !== null;
-
+    const isStructured =
+    typeof input === "object" &&
+    input !== null;
     /* =====================================================
        BLOQUEO: APROBACIÓN SIN PLAN PENDIENTE
     ===================================================== */
