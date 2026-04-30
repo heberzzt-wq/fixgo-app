@@ -29,7 +29,10 @@ export async function ejecutarFirewallGlobal(context) {
     }
 
     // 🛡️ 3. SANITIZACIÓN DE INPUT
-    const cleanInput = (input || "").trim();
+    const cleanInput =
+    typeof input === "object" && input !== null
+        ? `${input.intent || ""}::${input.target || ""}`
+        : String(input || "").trim();
     if (cleanInput.length === 0) {
         throw new Error("FIREWALL_BLOCK: EMPTY_INPUT_REJECTED");
     }
