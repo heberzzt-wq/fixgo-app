@@ -772,55 +772,55 @@ window.executeCommands = async function(commands = []) {
 ===================================================================================== */
 export const JarvisBridge = {
 
-   /* =====================================================
-   AUTONOMOUS SUPERVISED CORE STATE
-===================================================== */
-supervisedMode: true,
-pendingProposal: null,
-lastAuditAt: 0,
-
-codeSurgeonMode: true,
-
-knownModules: {
-    tecnico: "./panel-tecnico.js",
-    tecnico_b2b: "./panel-tecnico.js",
-    admin: "./panel-admin.js",
-    cliente: "./panel-cliente.js",
-    bridge: "/gestia-core/jarvis/jarvis.bridge.v5.js",
-    terminal: "/gestia-core/gestia-terminal.js",
-    memory: "/gestia-core/jarvis/jarvis.memory.js",
-    ui: "./app-main.js"
-},
-
-async dispatch(input = "") {
-
-    let raw;
-    let rawLow;
-
-    const isStructured =
-        typeof input === "object" &&
-        input !== null;
-
-    if (isStructured) {
-
-        raw = input;
-
-        rawLow = `${input.intent || ""}::${input.target || ""}`
-            .toLowerCase();
-
-    } else {
-
-        raw = String(input || "").trim();
-        rawLow = raw.toLowerCase();
-    }
-
     /* =====================================================
-       CODE SURGEON MODE
+        AUTONOMOUS SUPERVISED CORE STATE
     ===================================================== */
+    supervisedMode: true,
+    pendingProposal: null,
+    lastAuditAt: 0,
+    codeSurgeonMode: true,
 
-    if (
-        this.codeSurgeonMode &&
-        (
+    knownModules: {
+        tecnico: "./panel-tecnico.js",
+        tecnico_b2b: "./panel-tecnico.js",
+        admin: "./panel-admin.js",
+        cliente: "./panel-cliente.js",
+        bridge: "/gestia-core/jarvis/jarvis.bridge.v5.js",
+        terminal: "/gestia-core/gestia-terminal.js",
+        memory: "/gestia-core/jarvis/jarvis.memory.js",
+        ui: "./app-main.js"
+    },
+
+    async dispatch(input = "") {
+
+        let raw;
+        let rawLow;
+
+        // 1. NORMALIZACIÓN DE ENTRADA
+        const isStructured = typeof input === "object" && input !== null;
+
+        if (isStructured) {
+            raw = input;
+            rawLow = `${input.intent || ""}::${input.target || ""}`.toLowerCase();
+        } else {
+            raw = String(input || "").trim();
+            rawLow = raw.toLowerCase();
+        }
+
+        /* =====================================================
+            🔥 INYECCIÓN V5.19: REDIRECCIÓN DE TELEMETRÍA
+            Asegura que "estado general" toque el motor de datos.
+        ===================================================== */
+        if (rawLow.includes("estado") || rawLow.includes("general") || rawLow.includes("analyze::system")) {
+            safeLog("DISPATCH", "Redirigiendo a Análisis de Telemetría Real.");
+        }
+
+        /* =====================================================
+            CODE SURGEON MODE (Lógica existente...)
+        ===================================================== */
+        if (
+            this.codeSurgeonMode &&
+            (
             rawLow.includes("revisa panel") ||
             rawLow.includes("analiza panel") ||
             rawLow.includes("revisa movil") ||
