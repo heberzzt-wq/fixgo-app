@@ -672,7 +672,10 @@ translated = [];
 
 ```
 for (const action of actions) {
-    const cmd = await window.JarvisLanguageCore.translate(action);
+    const safeAction = String(action).trim().toLowerCase();
+
+    const cmd = await window.JarvisLanguageCore.translate(safeAction);
+
     if (cmd) {
         if (Array.isArray(cmd)) {
             translated.push(...cmd);
