@@ -1187,7 +1187,7 @@ Estado núcleo: ${this.state}`
    🧠 ENRUTAMIENTO PRINCIPAL UNIFICADO (BRIDGE FIRST)
 ================================================= */
 
-if (!isStructured) {
+if (!isStructured && !rawInput.includes("::")) {
 
     /* =============================================
        1. PRIORIDAD ABSUTA: JARVIS BRIDGE
