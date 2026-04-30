@@ -672,7 +672,7 @@ translated = [];
 
 ```
 for (const action of actions) {
-    const cmd = fallbackTranslate(action);
+    const cmd = window.JarvisLanguageCore.fallbackTranslate(action);
     if (cmd) translated.push(cmd);
 }
 ```
