@@ -1653,9 +1653,9 @@ const loaderTimer = setInterval(() => {
     }
 }, 700);
 
-// =====================================================
-// 🧠 GEMINI COMO CEREBRO (NLU PRIMARIO)
-// =====================================================
+/* =====================================================
+    🧠 GEMINI COMO CEREBRO (NLU PRIMARIO)
+===================================================== */
 const ai = await window.runExternalAI(raw);
 
 if (
@@ -1680,21 +1680,28 @@ if (
 
     safeLog("AI_INTENT", aiFixed);
 
-    // 🔥 REEMPLAZO CRÍTICO: VALIDACIÓN CONTRA MOTOR REAL
+    // 🔥 REEMPLAZO CRÍTICO: VALIDACIÓN CONTRA MOTOR REAL (SOVEREIGN FIX)
     let aiCmd = resolveAIIntent(aiFixed);
 
     if (aiCmd) {
-        const structured = await runIntentEngine(aiCmd);
-        if (structured && structured.intent && structured.entity) {
-            aiCmd = `${structured.intent}::${structured.entity}`;
+        // Buscamos el motor en el scope global para evitar ReferenceError
+        const engine = window.runIntentEngine || (typeof runIntentEngine === 'function' ? runIntentEngine : null);
+        
+        if (engine) {
+            const structured = await engine(aiCmd);
+            if (structured && structured.intent && structured.entity) {
+                aiCmd = `${structured.intent}::${structured.entity}`;
+            }
         }
     }
 
     if (aiCmd) {
-        clearInterval(loaderTimer); // 👈 Apagamos la animación
+        if (typeof loaderTimer !== 'undefined') clearInterval(loaderTimer); 
 
         const outputs = await executeCommands([aiCmd]);
-        const finalText = composeResponse(outputs);
+        const finalText = (typeof composeResponse === 'function') 
+            ? composeResponse(outputs) 
+            : (outputs[0] || "Procesamiento completado.");
 
         render("Jarvis", finalText, "success");
         speak(finalText);
@@ -1711,8 +1718,9 @@ if (
 try {
     // 1. Intentamos resolver por la vía normal
     let commands = await resolveCommands(raw);
+
     /* =====================================================
-        🔥 CONTROL CENTRAL ABSOLUTO (BYPASS TOTAL)[cite: 1]
+        🔥 CONTROL CENTRAL ABSOLUTO (BYPASS TOTAL)
         Este bloque pisa cualquier error de Language Core o NLU.
         Si el usuario pide salir, no hay discusión.
     ===================================================== */
@@ -1726,19 +1734,21 @@ try {
         textLow.includes("desconectar") ||
         textLow.includes("salir del sistema")
     ) {
-        // Forzamos el array de comandos a la instrucción única y correcta[cite: 1]
+        // Forzamos el array de comandos a la instrucción única y correcta
         commands = ["REPAIR::admin.logout"];
     }
 
-    // Registro en log del comando final (Ya corregido)[cite: 1]
+    // Registro en log del comando final
     safeLog("COMMANDS", commands);
 
-    // 2. Ejecución de comandos (Aquí ya va REPAIR::admin.logout sí o sí)[cite: 1]
+    // 2. Ejecución de comandos (Aquí ya va REPAIR::admin.logout sí o sí)
     const outputs = await executeCommands(commands);
 
-    const finalText = composeResponse(outputs);
+    const finalText = (typeof composeResponse === 'function') 
+        ? composeResponse(outputs) 
+        : "Comando ejecutado.";
 
-    clearInterval(loaderTimer);
+    if (typeof loaderTimer !== 'undefined') clearInterval(loaderTimer);
 
     render("Jarvis", finalText, "success");
     speak(finalText);
@@ -1751,7 +1761,7 @@ try {
     };
 
 } catch (error) {
-    clearInterval(loaderTimer);
+    if (typeof loaderTimer !== 'undefined') clearInterval(loaderTimer);
     safeError("CORE_FAIL", error);
 
     try {
@@ -1769,13 +1779,15 @@ try {
         return {
             ok: false,
             error: true,
-            message: "Fallo total."
+            message: "Fallo total en el núcleo de inteligencia."
         };
     }
 }
-} // <--- CIERRE DISPATCH[cite: 2]
-}; // <--- CIERRE JARVISBRIDGE[cite: 2]
+// ✅ CIERRE CORRECTO DEL DISPATCH Y EL OBJETO
+    } 
+};
 
+// 🔥 EXPORTACIONES FINALES AL OBJETO WINDOW (PUNTO DE UNIÓN GLOBAL)
 window.runExternalAI = runExternalAI;
 window.resolveAIIntent = resolveAIIntent;
 window.JarvisBridge = JarvisBridge;

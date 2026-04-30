@@ -660,6 +660,32 @@ if (rawLower === "repair" || rawLower.startsWith("repair")) {
 // Log de Estado Maestro del Día
 console.log("%c🧠 [INTENT_ENGINE V3.1]: ARCHITECT SOVEREIGN 1000% OPERATIONAL", "color: #10b981; font-weight: bold; background: #064e3b; padding: 2px 10px; border-radius: 4px;");
 
+// --- AL FINAL DE intent.engine.js ---
+
+/* =====================================================
+    INTENT ENGINE BRIDGE (V5.19 FIX)
+===================================================== */
+window.runIntentEngine = async function(text) {
+    // 1. Intentamos usar la función maestra que ya tienes definida arriba
+    if (typeof interpretarIntenciones === 'function') {
+        // Envolvemos el texto en el formato que espera interpretarIntenciones [{raw: '...'}]
+        const res = interpretarIntenciones([{ raw: text }]);
+        if (res && res[0]) {
+            return {
+                intent: res[0].intent,
+                entity: res[0].entity
+            };
+        }
+    }
+    
+    // 2. Fallback de emergencia si el motor principal no responde
+    const low = String(text || "").toLowerCase();
+    if (low.includes("estado") || low.includes("sistema")) return { intent: "ANALYZE", entity: "system" };
+    if (low.includes("pago")) return { intent: "ANALYZE", entity: "payments" };
+    
+    return null; 
+}; 
+
 /**
  * ======================================================================================
  * FIN DEL ARCHIVO - INGENIERÍA DEFINITIVA PARA GESTIAPREMIUM V3.1
