@@ -232,7 +232,7 @@ if (SpeechRecognition) {
 }
 
 /* =====================================================
-   VOZ JARVIS V5.9 POLISH + PROACTIVE STARTUP
+    VOZ JARVIS V5.9 POLISH + PROACTIVE STARTUP (DATA-AWARE)
 ===================================================== */
 
 const hablarJarvis = (texto) => {
@@ -242,7 +242,9 @@ const hablarJarvis = (texto) => {
     jarvisHablando = true;
 
     if (
+        typeof reconocimiento !== 'undefined' && 
         reconocimiento &&
+        typeof escuchandoAhora !== 'undefined' && 
         escuchandoAhora
     ) {
         try {
@@ -250,9 +252,25 @@ const hablarJarvis = (texto) => {
         } catch (e) {}
     }
 
+    // 🧠 PARCHE SOBERANO: Escudo traductor de Objetos a Voz
+    let textoLimpio = texto;
+    
+    if (texto && typeof texto === "object") {
+        // Si el objeto es nuestra telemetría de Cancún
+        if (texto.type === "SYSTEM_STATUS" && texto.data) {
+            textoLimpio = `Análisis completado. El sistema se encuentra ${texto.data.online ? 'activo' : 'sin conexión'}. Tienes ${texto.data.ops} operaciones registradas.`;
+        } else {
+            // Si es cualquier otro objeto, intentamos leer un mensaje o damos un fallback
+            textoLimpio = texto.message || "Procesando paquete de datos estructurados.";
+        }
+    } else {
+        // Aseguramos que sea un string nativo
+        textoLimpio = String(texto);
+    }
+
     const voz =
         new SpeechSynthesisUtterance(
-            texto
+            textoLimpio
         );
 
     voz.lang = "es-MX";
@@ -260,9 +278,10 @@ const hablarJarvis = (texto) => {
     voz.pitch = 0.84;
     voz.volume = 1;
 
+    // 🔥 Adiós al [object Object] en los logs
     console.log(
         "🔊 JARVIS VOZ:",
-        texto
+        textoLimpio
     );
 
     const voces =
@@ -289,7 +308,9 @@ const hablarJarvis = (texto) => {
         jarvisHablando = false;
 
         setTimeout(() => {
-            beepJarvis();
+            if (typeof beepJarvis === 'function') {
+                beepJarvis();
+            }
         }, 220);
     };
 
