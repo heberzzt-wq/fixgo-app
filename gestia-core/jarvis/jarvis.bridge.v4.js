@@ -596,82 +596,92 @@ async function resolveCommands(raw = "") {
         const low =
             cleanPart.toLowerCase();
 
-        /* ======================================
-            SOCIAL PART ROUTER
-        ====================================== */
+       /* ======================================
+    SOCIAL PART ROUTER
+====================================== */
 
-        if (isSocialJarvis(cleanPart)) {
-            commands.push(cleanPart);
-            continue;
-        }
+if (isSocialJarvis(cleanPart)) {
+    commands.push(cleanPart);
+    continue;
+}
 
-        /* ======================================
-            NATIVE PART ROUTER
-        ====================================== */
+/* ======================================
+    NATIVE PART ROUTER
+====================================== */
 
-        if (isNativeJarvis(cleanPart)) {
-            commands.push(cleanPart);
-            continue;
-        }
+if (isNativeJarvis(cleanPart)) {
+    commands.push(cleanPart);
+    continue;
+}
 
-        /* ======================================
-            HARD REPAIR ROUTER
-        ====================================== */
+/* ======================================
+    HARD REPAIR ROUTER
+====================================== */
 
-        const pushRepair = (cmdType) => {
-            commands.push({
-                cmd: cmdType,
-                raw: cleanPart
-            });
-        };
+const pushRepair = (cmdType) => {
+    commands.push({
+        cmd: cmdType,
+        raw: cleanPart
+    });
+};
 
-        /* ======================================
-            PREMIUM INTERNAL ROUTER
-        ====================================== */
+/* ======================================
+    PREMIUM INTERNAL ROUTER
+====================================== */
 
-        if (
-            low.includes("auditoria automatica") ||
-            cleanPart === "__AUTO_AUDIT_UI__"
-        ) {
-            commands.push("__AUTO_AUDIT_UI__");
-            continue;
-        }
+if (
+    low.includes("auditoria automatica") ||
+    cleanPart === "__AUTO_AUDIT_UI__"
+) {
+    commands.push("__AUTO_AUDIT_UI__");
+    continue;
+}
 
-        if (cleanPart === "__AUTO_HEALTH_CHECK__") {
-            commands.push("__AUTO_HEALTH_CHECK__");
-            continue;
-        }
+if (cleanPart === "__AUTO_HEALTH_CHECK__") {
+    commands.push("__AUTO_HEALTH_CHECK__");
+    continue;
+}
 
-        /* ======================================
-            LANGUAGE CORE
-        ====================================== */
+/* ======================================
+    LANGUAGE CORE
+====================================== */
 
-        if (
-            window.JarvisLanguageCore &&
-            typeof window.JarvisLanguageCore.translate === "function"
-        ) {
+if (
+    window.JarvisLanguageCore &&
+    typeof window.JarvisLanguageCore.translate === "function"
+) {
 
-            let translated =
-                await window.JarvisLanguageCore.translate(cleanPart);
+    let translated =
+        await window.JarvisLanguageCore.translate(cleanPart);
 
-            if (!Array.isArray(translated)) {
-                translated = [translated];
-            }
-
-            commands.push(
-                ...translated.filter(Boolean)
-            );
-
-        } else {
-
-            commands.push(
-                fallbackTranslate(cleanPart)
-            );
-        }
+    if (!Array.isArray(translated)) {
+        translated = [translated];
     }
 
-    return commands;
+    for (const t of translated) {
+
+        if (!t) continue;
+
+        const cleanCmd = String(t).toUpperCase();
+
+        // 🔥 FILTRO CRÍTICO
+        if (cleanCmd === "CREATE::SYSTEM") continue;
+
+        commands.push(t);
+    }
+
+} else {
+
+    commands.push(
+        fallbackTranslate(cleanPart)
+    );
 }
+    
+} // 🔥 CIERRA EL FOR
+
+return commands;
+
+} // 🔥 CIERRA resolveCommands
 /* =====================================================================================
    EXECUTION CORE V6.1 HYBRID SOCIAL (CORREGIDO V5.95)
 ===================================================================================== */
