@@ -603,17 +603,19 @@ async function resolveCommands(raw = "") {
 async function executeCommands(commands = []) {
     const outputs = [];
     const burstCache = new Map();
+    
     for (let cmd of commands) {
         if (typeof cmd === "string") {
             const low = cmd.toLowerCase();
-            // Continuación de tu lógica...
+            
+            // 🔥 MANTENER PARCHE DE SEGURIDAD V5.95
             if (
                 low.includes("cerrar sesion") ||
                 low.includes("cerrar sesión") ||
                 low.includes("logout") ||
                 low.includes("sign out")
             ) {
-                cmd = "REPAIR::admin.logout"; // ✔ Inyección forzada[cite: 1]
+                cmd = "REPAIR::admin.logout"; 
             }
         }
 
@@ -634,16 +636,8 @@ async function executeCommands(commands = []) {
         safeLog("EXEC", cmd);
 
         try {
-
-            if (
-                burstCache.has(cmd)
-            ) {
-
-                safeLog(
-                    "CACHE_HIT",
-                    cmd
-                );
-
+            if (burstCache.has(cmd)) {
+                safeLog("CACHE_HIT", cmd);
                 outputs.push(
                     beautifyOutput(
                         cmd,
@@ -651,53 +645,112 @@ async function executeCommands(commands = []) {
                         true
                     )
                 );
+                continue;
+            }
 
+            const t0 = performance.now();
+            
+            // 🔥 LÓGICA DE EJECUCIÓN REAL
+            let res = await runCore(cmd); 
+            burstCache.set(cmd, res);
+
+            outputs.push(
+                beautifyOutput(
+                    cmd,
+                    res,
+                    false,
+                    performance.now() - t0
+                )
+            );
+            
+        } catch (error) {
+            console.error("❌ [EXEC_FAIL]:", error);
+            outputs.push(`Error en comando: ${error.message}`);
+        }
+    }
+    return outputs;
+}
+
+// 🔥 CLAVE: Exponer la función al scope global para detener el bucle del Briefing
+window.executeCommands = executeCommands; 
+           /* =====================================================================================
+    EXECUTION CORE V6.1 HYBRID SOCIAL (CORREGIDO V5.95)
+===================================================================================== */
+async function executeCommands(commands = []) {
+    const outputs = [];
+    const burstCache = new Map();
+    
+    for (let cmd of commands) {
+        if (typeof cmd === "string") {
+            const low = cmd.toLowerCase();
+            
+            // 🔥 MANTENER PARCHE DE SEGURIDAD V5.95
+            if (
+                low.includes("cerrar sesion") ||
+                low.includes("cerrar sesión") ||
+                low.includes("logout") ||
+                low.includes("sign out")
+            ) {
+                cmd = "REPAIR::admin.logout"; 
+            }
+        }
+
+        if (typeof cmd === "object" && cmd !== null) {
+            const rawCmd = String(cmd.cmd || "").toLowerCase();
+            if (
+                rawCmd.includes("cerrar sesion") ||
+                rawCmd.includes("cerrar sesión") ||
+                rawCmd.includes("logout")
+            ) {
+                cmd = {
+                    cmd: "REPAIR::admin.logout",
+                    raw: cmd.raw || ""
+                };
+            }
+        }
+
+        safeLog("EXEC", cmd);
+
+        try {
+            // 1. VERIFICACIÓN DE CACHÉ OPERATIVA
+            if (burstCache.has(cmd)) {
+                safeLog("CACHE_HIT", cmd);
+                outputs.push(
+                    beautifyOutput(
+                        cmd,
+                        burstCache.get(cmd),
+                        true
+                    )
+                );
                 continue;
             }
 
             let res;
-            const t0 =
-                performance.now();
+            const t0 = performance.now();
 
             /* ==================================
                 SOCIAL + NATIVE + CORE ROUTER
             ================================== */
-
             if (
                 isSocialJarvis(cmd) ||
                 isNativeJarvis(cmd)
             ) {
-
-                res =
-                    await withTimeout(
-                        executeNativeJarvis(
-                            cmd
-                        ),
-                        8000
-                    );
-
+                res = await withTimeout(
+                    executeNativeJarvis(cmd),
+                    8000
+                );
             } else {
-
-                res =
-                    await withTimeout(
-                        runCore(cmd),
-                        8000
-                    );
+                res = await withTimeout(
+                    runCore(cmd),
+                    8000
+                );
             }
 
-            const ms =
-                Math.round(
-                    performance.now() -
-                    t0
-                );
+            const ms = Math.round(performance.now() - t0);
+            const clean = normalize(res);
 
-            const clean =
-                normalize(res);
-
-            burstCache.set(
-                cmd,
-                clean
-            );
+            // 2. REGISTRO EN MEMORIA Y MÉTRICAS
+            burstCache.set(cmd, clean);
 
             outputs.push(
                 beautifyOutput(
@@ -707,10 +760,7 @@ async function executeCommands(commands = []) {
                 )
             );
 
-            safeLog(
-                "METRIC",
-                { cmd, ms }
-            );
+            safeLog("METRIC", { cmd, ms });
 
             saveHistory({
                 cmd,
@@ -719,33 +769,21 @@ async function executeCommands(commands = []) {
             });
 
         } catch (error) {
-
-            safeError(
-                "CMD_FAIL",
-                {
-                    cmd,
-                    error
-                }
-            );
-
-            outputs.push(
-                `Error en ${cmd}`
-            );
-
-            saveHistory({
-                cmd,
-                error: true
-            });
+            safeError("CMD_FAIL", { cmd, error });
+            outputs.push(`Error en ${cmd}`);
+            saveHistory({ cmd, error: true });
         }
-    }
+    } // Final del For
 
     return outputs;
 }
 
-/* =====================================================================================
-   MAIN BRIDGE
-===================================================================================== */
+// 🔥 EXPOSICIÓN GLOBAL PARA EL BRIEFING
+window.executeCommands = executeCommands;
 
+/* =====================================================================================
+    MAIN BRIDGE
+===================================================================================== */
 export const JarvisBridge = {
 
    /* =====================================================
