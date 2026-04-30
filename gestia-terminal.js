@@ -912,16 +912,10 @@ Escribe:
  * ======================================================================================
  */
 
-   /**
- * execute: Punto de entrada orquestado V15
- * PRIORIDAD:
- * 1. runJarvis (NLU + Orchestrator)
- * 2. Confirmaciones naturales
- * 3. Comandos rápidos Jarvis HUD
- * 4. Legacy semantic fallback
- */
+   async execute(input, e = null, options = { simulate: false }) {
 
-async execute(input, e = null, options = { simulate: false }) {
+    /* 🔥 VARIABLE GLOBAL DEL MÉTODO */
+    let isStructured;
 
     /* =====================================================
        HTML GUARD
@@ -940,34 +934,33 @@ async execute(input, e = null, options = { simulate: false }) {
     }
 
     const rawInput = String(input).trim();
-const cmd = rawInput.toLowerCase();
+    const cmd = rawInput.toLowerCase();
 
-/* 🔥 DEFINE AQUÍ (NO MÁS ABAJO) */
-const isStructured =
-    typeof input === "object" &&
-    input !== null;
+    /* 🔥 DEFINICIÓN CENTRAL (ÚNICA) */
+    isStructured =
+        typeof input === "object" &&
+        input !== null;
 
-     /* =====================================================
-   BLOQUEO: APROBACIÓN SIN PLAN PENDIENTE
-===================================================== */
+    /* =====================================================
+       BLOQUEO: APROBACIÓN SIN PLAN PENDIENTE
+    ===================================================== */
 
-if (
-    APPROVAL_WORDS.includes(cmd) &&
-    this.pendingPlans.size === 0
-) {
-    return {
-        ok: false,
-        message:
-            "No hay planes pendientes."
-    };
-}
+    if (
+        APPROVAL_WORDS.includes(cmd) &&
+        this.pendingPlans.size === 0
+    ) {
+        return {
+            ok: false,
+            message: "No hay planes pendientes."
+        };
+    }
+
     const ctx = {
         userId: this.session?.uid,
         tenantId: this.session?.tenantId || "uxmal39",
         authorized: this.session?.authorized === true,
         source: "GESTIA_TERMINAL_V15"
     };
-
     /* =====================================================
        CANCELACIÓN DE PLAN PENDIENTE
     ===================================================== */
