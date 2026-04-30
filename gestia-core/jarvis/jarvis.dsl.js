@@ -207,44 +207,51 @@ export function toCommand(input) {
     };
   }
 
-  // =====================================================
-  // 🔥 ANALYZE NATURAL
-  // =====================================================
-  if (detectedAction === "ANALYZE") {
-    let target = "system";
+  /* =====================================================
+    SECCIÓN: DSL ANALYZE (V5.19 DATA-DRIVEN)
+    Archivo: jarvis.dsl.js
+===================================================== */
+if (rawLower === "analyze") {
+    console.log("🔥 [DSL_HIT] ANALYZE detectado en Capa DSL");
 
-    const words = clean.split(" ");
+    const payload = extraerPayload(cmd.raw) || {};
+    const entity = (payloadPart || payload.entity || "system")
+        .trim()
+        .toLowerCase();
 
-    const triggers = [
-      "modulo",
-      "módulo",
-      "archivo",
-      "main",
-      "proyecto"
-    ];
-
-    for (let i = 0; i < words.length; i++) {
-      if (triggers.includes(words[i]) && words[i + 1]) {
-        target = words[i + 1];
-        break;
-      }
+    // 🧠 RECOLECCIÓN DE MÉTRICAS EN TIEMPO REAL
+    let systemData = null;
+    
+    if (entity === "system") {
+        systemData = {
+            online: navigator.onLine,
+            timestamp: Date.now(),
+            // Extraemos ops del buffer global de Jarvis
+            ops: (window.JarvisHistory ? window.JarvisHistory.length : 0),
+            // Cálculo de memoria JS Heap para el entorno de Cancún
+            memory: performance?.memory?.usedJSHeapSize 
+                ? (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2) + " MB" 
+                : "N/A"
+        };
     }
 
-    return {
-      id: crypto.randomUUID(),
-      action: "ANALYZE",
-      raw,
-      target,
-      payload: {
-        target,
-        text: raw
-      },
-      meta: {
-        detected: true,
-        cognitive: false
-      }
-    };
-  }
+    interpretedPlan.push({
+        intent: "ANALYZE",
+        action: "ANALYZE",
+        entity: entity,
+        target: payload.target || entity,
+        // ✅ CLAVE: Definimos el tipo para que composeResponse lo reconozca
+        type: entity === "system" ? "SYSTEM_STATUS" : "GENERAL_ANALYZE",
+        data: systemData, 
+        payload,
+        confidence: 1,
+        summary: entity === "system" 
+            ? "Reporte técnico del núcleo generado." 
+            : `Análisis de ${entity}`
+    });
+
+    return;
+} 
 
   // =====================================================
   // 🔥 ACCIONES GENERALES

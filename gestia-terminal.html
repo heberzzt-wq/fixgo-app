@@ -304,7 +304,7 @@ const hablarJarvis = (texto) => {
 
 /* =====================================================
     BRIEFING INICIAL PROACTIVO (V5.19 KERNEL-SYNC)
-    Sustituye al antiguo checkAndBoot por polling.
+    Archivo: gestia-terminal.js
 ===================================================== */
 
 const launchSovereignBriefing = async () => {
@@ -319,39 +319,61 @@ const launchSovereignBriefing = async () => {
 
     console.log("✅ [BOOT] Kernel validado y Sesión Segura detectada. Iniciando...");
 
-    const totalOps = Array.isArray(window.JarvisHistory) ? window.JarvisHistory.length : 0;
+    // 2. Extracción de métricas base para el encabezado
+    const totalOps = (window.JarvisHistory ? window.JarvisHistory.length : 0);
     const ram = navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "N/D";
 
     let systemStatus = "Sistemas en línea.";
+    
     try {
-        // 🔥 Aquí es donde la magia ocurre: El Firewall ya tiene las llaves
+        // 🔥 EJECUCIÓN SOBERANA: ANALYZE::system ahora devuelve un objeto estructurado
         const outputs = await window.executeCommands(["ANALYZE::system"]);
         
+        // El composeResponse usará el bloque if (output.type === "SYSTEM_STATUS") que definimos
         systemStatus = (typeof window.composeResponse === 'function') 
             ? window.composeResponse(outputs) 
             : "Estado del sistema verificado correctamente.";
+
     } catch (e) {
         console.error("❌ [BOOT_CRITICAL] Fallo en análisis inicial:", e);
         systemStatus = "Sistemas en espera de sincronización manual.";
     }
 
-    const online = navigator.onLine ? "Activa" : "Sin conexión";
+    const online = navigator.onLine ? "🟢 Activa" : "🔴 Sin conexión";
     const hora = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
 
+    // Narrativa final para la voz y el HUD
     const briefing = 
 `Bienvenido Arquitecto.
 ${systemStatus}
 Conexión ${online}.
-Memoria estimada ${ram}.
-Operaciones registradas ${totalOps}.
-Hora local ${hora}.
+Operaciones en Ledger: ${totalOps}.
+Hora local: ${hora}.
 Núcleo autónomo listo para recibir órdenes.`;
 
-    // Salida de voz y renderizado en terminal
+    // 3. Salida Multi-canal
     if (typeof hablarJarvis === 'function') hablarJarvis(briefing);
 
     if (typeof renderJarvisResponse === "function") {
         renderJarvisResponse("Briefing Inicial", briefing, "success");
+    }
+};
+
+/* =====================================================
+    TRIGGER REACTIVO (POST-AUTH & POST-KEYS)
+===================================================== */
+const originalSetState = window.setState;
+
+window.setState = function(nuevoEstado) {
+    if (typeof originalSetState === 'function') originalSetState(nuevoEstado);
+
+    // Solo disparamos cuando el banco está listo y el Firewall tiene las llaves
+    if (nuevoEstado === "IDLE" || nuevoEstado === "SECURE SESSION READY") {
+        console.log("🧬 [KERNEL_EVENT] SECURE_SESSION detectada. Lanzando Briefing...");
+        launchSovereignBriefing();
+        
+        // Restauramos para evitar bucles en el briefing
+        window.setState = originalSetState; 
     }
 };
 

@@ -280,42 +280,55 @@ export function interpretarIntenciones(comandos) {
             }
 
                // =====================================================
-            // ANALYZE
-            // =====================================================
-            if (rawLower === "analyze") {
+// ANALYZE (V5.19 DATA-DRIVEN - SOVEREIGN FIX)
+// =====================================================
+if (rawLower === "analyze") {
+    console.log("🔥 [DSL HIT] ANALYZE detectado");
 
-                console.log("🔥 [DSL HIT] ANALYZE detectado");
+    const payload = extraerPayload(cmd.raw) || {};
 
-                const payload =
-                    extraerPayload(cmd.raw) || {};
+    const entity = (payloadPart || payload.entity || "system")
+        .trim()
+        .toLowerCase();
 
-                const entity =
-                    (payloadPart || payload.entity || "system")
-                    .trim()
-                    .toLowerCase();
+    // 🧠 RECOLECCIÓN DE MÉTRICAS OPERATIVAS
+    let systemData = null;
+    if (entity === "system") {
+        systemData = {
+            online: navigator.onLine,
+            timestamp: Date.now(),
+            // Extraemos operaciones del historial global de Jarvis
+            ops: (window.JarvisHistory ? window.JarvisHistory.length : 0),
+            // Memoria real del heap de JS
+            memory: performance?.memory?.usedJSHeapSize 
+                ? (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2) + " MB" 
+                : "N/A"
+        };
+    }
 
-                interpretedPlan.push({
-                    intent: "ANALYZE",
-                    action: "ANALYZE",
-                    entity: entity,
-                    target: payload.target || entity,
-                    payload,
-                    confidence: 1,
-                    summary:
-                        `Análisis de ${entity}`
-                });
+    interpretedPlan.push({
+        intent: "ANALYZE",
+        action: "ANALYZE",
+        entity: entity,
+        target: payload.target || entity,
+        // ✅ CLAVE: Identificador de tipo para composeResponse
+        type: entity === "system" ? "SYSTEM_STATUS" : "GENERAL_ANALYZE",
+        data: systemData,
+        payload,
+        confidence: 1,
+        summary: entity === "system" 
+            ? "Reporte técnico del núcleo generado." 
+            : `Análisis de ${entity}`
+    });
 
-                console.log(
-                    "🧠 [STRUCTURED_INTENT]",
-                    {
-                        intent:"ANALYZE",
-                        entity
-                    }
-                );
+    console.log("🧠 [STRUCTURED_INTENT]", {
+        intent: "ANALYZE",
+        entity,
+        hasData: !!systemData
+    });
 
-                return;
-            }
-
+    return;
+}
             // =====================================================
 // REPAIR (ACTUALIZADO V5.93 - SOPORTE SUB-ACCIONES)
 // =====================================================
