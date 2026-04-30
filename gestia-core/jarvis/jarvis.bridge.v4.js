@@ -529,61 +529,29 @@ if (
     return await executeSocialJarvis(t);
 }
 
-/* ======================================
-    SYSTEM COMMANDS
-====================================== */
-if (typeof t === "string") {
-
-```
-if (
-    t.includes("jarvis estado") ||
-    t.includes("jarvis status")
-) {
-    return await runCore("jarvis estado");
-}
-
-if (t.includes("jarvis resumen")) {
-    return await runCore("jarvis resumen");
-}
-
-if (t.includes("jarvis salud")) {
-    return await runCore("jarvis salud");
-}
-```
-
-}
-
-return await runCore(text);
-}
-
 async function resolveCommands(raw = "") {
+    const isStructured =
+        typeof raw === "object" &&
+        raw !== null;
 
-```
-const isStructured =
-    typeof raw === "object" &&
-    raw !== null;
+    const input = isStructured ? raw.input || "" : raw;
 
-const input = isStructured ? raw.input || "" : raw;
+    const actions = splitActions(input)
+        .map(a => a.trim())
+        .filter(Boolean);
 
-const actions = splitActions(input)
-    .map(a => a.trim())
-    .filter(Boolean);
-
-const isMultiIntent = actions.length > 1;
-```
+    const isMultiIntent = actions.length > 1;
 
     /* ======================================
         DIRECT DSL BYPASS
-    ===================================== */
-
+    ====================================== */
     if (isStructured) {
         return [
             `${raw.intent || "ANALYZE"}::${raw.target || "system"}`
         ];
     }
 
-    const cleanRaw =
-        String(raw || "").trim();
+    const cleanRaw = String(raw || "").trim();
 
     if (cleanRaw.includes("::")) {
         return cleanRaw
@@ -592,144 +560,95 @@ const isMultiIntent = actions.length > 1;
             .filter(Boolean);
     }
 
-    const parts =
-        splitActions(cleanRaw);
-
+    // Usamos 'actions' que ya procesamos arriba para evitar redundancia
     const commands = [];
 
-    for (const part of parts) {
-
-        const cleanPart =
-            String(part || "").trim();
+    for (const part of actions) {
+        const cleanPart = String(part || "").trim();
 
         if (!cleanPart) {
             continue;
         }
 
-        const low =
-            cleanPart.toLowerCase();
+        const low = cleanPart.toLowerCase();
 
-       /* ======================================
-    SOCIAL PART ROUTER
-====================================== */
-
-if (isSocialJarvis(cleanPart)) {
-    commands.push(cleanPart);
-    continue;
-}
-
-/* ======================================
-    NATIVE PART ROUTER
-====================================== */
-
-if (isNativeJarvis(cleanPart)) {
-    commands.push(cleanPart);
-    continue;
-}
-
-/* ======================================
-    HARD REPAIR ROUTER
-====================================== */
-
-const pushRepair = (cmdType) => {
-    commands.push({
-        cmd: cmdType,
-        raw: cleanPart
-    });
-};
-
-/* ======================================
-    PREMIUM INTERNAL ROUTER
-====================================== */
-
-if (
-    low.includes("auditoria automatica") ||
-    cleanPart === "__AUTO_AUDIT_UI__"
-) {
-    commands.push("__AUTO_AUDIT_UI__");
-    continue;
-}
-
-if (cleanPart === "__AUTO_HEALTH_CHECK__") {
-    commands.push("__AUTO_HEALTH_CHECK__");
-    continue;
-}
-
-/* ======================================
-    LANGUAGE CORE
-====================================== */
-
-if (
-    window.JarvisLanguageCore &&
-    typeof window.JarvisLanguageCore.translate === "function"
-) {
-
-    let translated;
-
-    // 🔥 FIX MULTI-INTENT (no colapsar intents)
-if (isMultiIntent) {
-translated = [];
-
-```
-for (const action of actions) {
-    const safeAction = String(action).trim().toLowerCase();
-
-    const cmd = await window.JarvisLanguageCore.translate(safeAction);
-
-    if (cmd) {
-        if (Array.isArray(cmd)) {
-            translated.push(...cmd);
-        } else {
-            translated.push(cmd);
+        /* ======================================
+            SOCIAL PART ROUTER
+        ====================================== */
+        if (isSocialJarvis(cleanPart)) {
+            commands.push(cleanPart);
+            continue;
         }
-    }
+
+        /* ======================================
+            NATIVE PART ROUTER
+        ====================================== */
+        if (isNativeJarvis(cleanPart)) {
+            commands.push(cleanPart);
+            continue;
+        }
+
+        /* ======================================
+            PREMIUM INTERNAL ROUTER
+        ====================================== */
+        if (
+            low.includes("auditoria automatica") ||
+            cleanPart === "__AUTO_AUDIT_UI__"
+        ) {
+            commands.push("__AUTO_AUDIT_UI__");
+            continue;
+        }
+
+        if (cleanPart === "__AUTO_HEALTH_CHECK__") {
+            commands.push("__AUTO_HEALTH_CHECK__");
+            continue;
+        }
+
+        /* ======================================
+            LANGUAGE CORE
+        ====================================== */
+        if (
+            window.JarvisLanguageCore &&
+            typeof window.JarvisLanguageCore.translate === "function"
+        ) {
+            let translated = await window.JarvisLanguageCore.translate(cleanPart);
+
+            // 🔥 NORMALIZACIÓN: Forzamos que siempre sea un Array para procesar igual
+            if (!Array.isArray(translated)) {
+                // Si translate devolvió null, undefined o "", usamos el fallback
+                if (!translated) {
+                    translated = [fallbackTranslate(cleanPart)];
+                } else {
+                    translated = [translated];
+                }
+            }
+
+            // 🔥 FALLBACK SI EL ARRAY VIENE VACÍO O CON VALORES NULOS
+            if (translated.length === 0 || translated.every(x => !x)) {
+                translated = [fallbackTranslate(cleanPart)];
+            }
+
+            for (const t of translated) {
+                if (!t || typeof t !== "string") continue;
+
+                const cleanCmd = t.toUpperCase().trim();
+
+                // Evitar comandos vacíos que causan el TypeError: "" is not a function
+                if (!cleanCmd) continue;
+
+                // 🔥 FILTRO CRÍTICO
+                if (cleanCmd === "CREATE::SYSTEM") continue;
+
+                commands.push(t);
+            }
+        } else {
+            const fallback = fallbackTranslate(cleanPart);
+            if (fallback) commands.push(fallback);
+        }
+    } // 🔥 CIERRA EL FOR
+
+    return commands;
 }
-```
-
-} else {
-translated =
-await window.JarvisLanguageCore.translate(cleanPart);
-}
-
-
-    // 🔥 NORMALIZACIÓN
-    if (!Array.isArray(translated)) {
-        translated = [translated];
-    }
-
-    // 🔥 FALLBACK SI VIENE VACÍO O INVÁLIDO
-    if (
-        !translated ||
-        translated.length === 0 ||
-        translated.every(x => !x)
-    ) {
-        translated = [fallbackTranslate(cleanPart)];
-    }
-
-    for (const t of translated) {
-
-        if (!t) continue;
-
-        const cleanCmd = String(t).toUpperCase();
-
-        // 🔥 FILTRO CRÍTICO
-        if (cleanCmd === "CREATE::SYSTEM") continue;
-
-        commands.push(t);
-    }
-
-} else {
-
-    commands.push(
-        fallbackTranslate(cleanPart)
-    );
-}
-
-} // 🔥 CIERRA EL FOR
-
-return commands;
-
-} // 🔥 CIERRA resolveCommands
 /* =====================================================================================
    EXECUTION CORE V6.1 HYBRID SOCIAL (CORREGIDO V5.95)
 ===================================================================================== */
