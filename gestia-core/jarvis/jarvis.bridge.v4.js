@@ -527,7 +527,7 @@ async function resolveCommands(raw = "") {
 
     const commands = [];
 
-    // 🔥 PROCESAMIENTO UNIFICADO (Regla 1: Código completo)
+    // 🔥 PROCESAMIENTO UNIFICADO: Aquí integramos tu lógica sin el "return" prematuro
     for (const action of actions) {
         const cleanPart = String(action || "").trim();
         if (!cleanPart) continue;
@@ -535,7 +535,7 @@ async function resolveCommands(raw = "") {
         const low = cleanPart.toLowerCase();
 
         /* ======================================
-            DETECCIÓN MANUAL (HARD-CODED INTENTS)
+            🔥 HARD BYPASS GLOBAL (TU LÓGICA)
         ====================================== */
         if (low.includes("estado") || low.includes("general")) {
             commands.push("ANALYZE::system");
@@ -548,7 +548,7 @@ async function resolveCommands(raw = "") {
         }
 
         /* ======================================
-            ROUTERS EXISTENTES (SOCIAL / NATIVE)
+            SOCIAL & NATIVE ROUTERS (RECUPERADOS)
         ====================================== */
         if (isSocialJarvis(cleanPart) || isNativeJarvis(cleanPart)) {
             commands.push(cleanPart);
@@ -556,38 +556,41 @@ async function resolveCommands(raw = "") {
         }
 
         /* ======================================
-            LANGUAGE CORE TRANSLATION
+            PREMIUM INTERNAL ROUTER
+        ====================================== */
+        if (low.includes("auditoria automatica") || cleanPart === "__AUTO_AUDIT_UI__") {
+            commands.push("__AUTO_AUDIT_UI__");
+            continue;
+        }
+
+        /* ======================================
+            LANGUAGE CORE (CON FALLBACK CONTROLADO)
         ====================================== */
         if (window.JarvisLanguageCore && typeof window.JarvisLanguageCore.translate === "function") {
             let translated = await window.JarvisLanguageCore.translate(cleanPart);
 
-            // Normalización a Array
+            // Normalización
             if (!Array.isArray(translated)) {
                 translated = translated ? [translated] : [fallbackTranslate(cleanPart)];
             }
 
-            // Fallback si el array está vacío
-            if (translated.length === 0 || translated.every(x => !x)) {
-                translated = [fallbackTranslate(cleanPart)];
-            }
-
             for (const t of translated) {
-                if (!t || typeof t !== "string") continue;
-                const cleanCmd = t.toUpperCase().trim();
-
-                // Anti-error "" is not a function
+                if (!t) continue;
+                const cleanCmd = String(t).toUpperCase().trim();
+                
+                // Evitar el error "" is not a function
                 if (!cleanCmd || cleanCmd === "CREATE::SYSTEM") continue;
-
+                
                 commands.push(t);
             }
         } else {
-            const fallback = fallbackTranslate(cleanPart);
-            if (fallback) commands.push(fallback);
+            const fb = fallbackTranslate(cleanPart);
+            if (fb) commands.push(fb);
         }
     }
 
-    return commands;
-} 
+    return commands; // ✅ Un solo punto de salida para todos los casos
+}
 /* =====================================================================================
    EXECUTION CORE V6.1 HYBRID SOCIAL (CORREGIDO V5.95)
 ===================================================================================== */
