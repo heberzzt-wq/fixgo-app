@@ -157,6 +157,248 @@ document.addEventListener('DOMContentLoaded', () => {
     const output = document.getElementById('gestia-output');
 
     /* =====================================================
+        🛡️ SISTEMA DE AUDITORÍA Y NORMALIZACIÓN (NÚCLEO RESILIENTE)
+        Blindaje Total: Coherencia Temporal, Serialización Extendida y Seguridad V5.70.
+    ===================================================== */
+    
+    window.__DEV__ = true; 
+    const ALLOWED_TYPES = new Set(["SYSTEM_STATUS", "LEDGER", "ALERT", "TEXT", "UNKNOWN"]);
+    const MAX_ARRAY = 50;
+    const MAX_KEYS = 50;
+    const MAX_SNAPSHOT_SIZE = 5000;
+    const lastAuditMap = new Map();
+
+    // 1. Utilidades de Infraestructura y Relojes Duales
+    const isPlainObject = (v) => {
+        if (!v || typeof v !== "object") return false;
+        try {
+            const proto = Object.getPrototypeOf(v);
+            return proto === Object.prototype || proto === null;
+        } catch { return false; }
+    };
+
+    const isDomNode = (v) => 
+        v && typeof v === "object" && 
+        typeof v.nodeType === "number" && 
+        typeof v.nodeName === "string";
+
+    const genId = () => 
+        (typeof crypto !== "undefined" && crypto.randomUUID) 
+            ? crypto.randomUUID() 
+            : "op_" + Math.random().toString(36).slice(2);
+
+    const nowEpoch = () => Date.now();
+    const nowPerf = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+
+    const unwrap = (input) => {
+        let current = input;
+        const seen = new Set();
+        let safety = 0;
+        while (current && (current.detail || current.payload) && safety < 8) {
+            if (seen.has(current)) break;
+            seen.add(current);
+            const d = current.detail;
+            const p = current.payload;
+            
+            const hasDetail = isPlainObject(d) && ("type" in d || "data" in d || "message" in d || "report" in d);
+            
+            if (hasDetail) {
+                current = d;
+            } else if (p && typeof p === "object") {
+                current = p; // seen Set ya protege contra ciclos
+            } else {
+                break;
+            }
+            safety++;
+        }
+        if (safety >= 7 && window.__DEV__) console.warn("⚠️ unwrap limit reached", input);
+        return current;
+    };
+
+    // 2. Sanitización con Soporte Recursivo de Map/Set
+    const safeData = (data, depth = 0, seen = new WeakSet()) => {
+        if (depth > 2) return "[truncated]";
+        if (typeof data !== "object" || data === null) return data;
+
+        if (data instanceof Date) return data.toISOString();
+        if (data instanceof Error) return { message: data.message, stack: "[stack]" };
+        if (data instanceof RegExp) return data.toString();
+        
+        // Cierre de hueco de estabilidad en Map
+        if (data instanceof Map) {
+            const out = {};
+            let i = 0;
+            for (const [k, v] of data.entries()) {
+                if (i++ >= MAX_KEYS) break;
+                out[k] = typeof v === "object" ? safeData(v, depth + 1, seen) : v;
+            }
+            return out;
+        }
+
+        // Cierre de hueco de estabilidad en Set
+        if (data instanceof Set) {
+            const arr = [];
+            let i = 0;
+            for (const v of data.values()) {
+                if (i++ >= MAX_ARRAY) break;
+                arr.push(typeof v === "object" ? safeData(v, depth + 1, seen) : v);
+            }
+            return arr;
+        }
+
+        if (!isPlainObject(data) && !Array.isArray(data)) return "[complex]";
+        if (seen.has(data)) return "[circular]";
+        seen.add(data);
+
+        if (Array.isArray(data)) {
+            const truncated = data.length > MAX_ARRAY;
+            const arr = data.slice(0, MAX_ARRAY).map(v => 
+                typeof v === "object" ? safeData(v, depth + 1, seen) : v
+            );
+            if (truncated) arr.push("[...truncated]");
+            return arr;
+        }
+
+        const keys = Object.keys(data);
+        const slicedKeys = keys.slice(0, MAX_KEYS);
+        const result = {};
+
+        for (const k of slicedKeys) {
+            try {
+                const desc = Object.getOwnPropertyDescriptor(data, k);
+                if (desc && typeof desc.get === "function") {
+                    result[k] = "[getter]";
+                    continue;
+                }
+                const v = data[k];
+                if (typeof v === "symbol") {
+                    result[k] = "[symbol]";
+                    continue;
+                }
+                result[k] = (typeof v === "object") ? safeData(v, depth + 1, seen) : v;
+            } catch { result[k] = "[unserializable]"; }
+        }
+
+        if (keys.length > MAX_KEYS) result["__truncated_keys__"] = true;
+        return result;
+    };
+
+    // 3. Auditoría con Estimación Híbrida y Throttle Inteligente
+    const estimateSize = (obj) => {
+        if (!obj || typeof obj !== "object") return 0;
+        const keys = Object.keys(obj);
+        if (keys.length < 20) return 0; // Fast path
+
+        try {
+            return JSON.stringify(obj).length;
+        } catch {
+            return MAX_SNAPSHOT_SIZE + 1;
+        }
+    };
+
+    const bigIntReplacer = (_, value) => typeof value === "bigint" ? value.toString() : value;
+
+    const safeClone = (obj) => {
+        if (typeof obj === "function") return "[function]";
+        if (typeof obj !== "object" || obj === null) return obj;
+        if (isDomNode(obj)) return "[dom]";
+
+        try {
+            const clone = (typeof structuredClone === "function") 
+                ? structuredClone(obj) 
+                : JSON.parse(JSON.stringify(obj, bigIntReplacer));
+            return (estimateSize(clone) > MAX_SNAPSHOT_SIZE) ? { truncated: true } : clone;
+        } catch { return { warning: "snapshot_failed" }; }
+    };
+
+    const AUDIT_LIMIT = 200;
+    let __AUDIT_SEQ__ = 0;
+    window.__AUDIT__ = [];
+
+    const auditPush = (entry) => {
+        window.__AUDIT__.push({ id: ++__AUDIT_SEQ__, ts: nowEpoch(), ...entry });
+        if (window.__AUDIT__.length > AUDIT_LIMIT) window.__AUDIT__.shift();
+    };
+
+    const audit = (stage, payload, level = "info") => {
+        const now = nowPerf();
+        if (lastAuditMap.size > 1000) lastAuditMap.clear();
+
+        // Key mejorada para evitar explosión de claves dinámicas
+        const key = payload?.opId ? stage + ":" + payload.opId : stage;
+        const last = lastAuditMap.get(key) || 0;
+
+        if (now - last < 5 && level === "info") return; 
+
+        lastAuditMap.set(key, now);
+        auditPush({ stage, level, opId: payload?.opId, snapshot: safeClone(payload) });
+    };
+
+    // 4. Normalizador SOBERANO con Validación de Contenido Real
+    const normalizeType = (t) => 
+        String(t)
+            .replace(/([a-z])([A-Z])/g, "$1_$2")
+            .replace(/[-\s]+/g, "_")
+            .replace(/[^A-Z0-9_]/gi, "")
+            .toUpperCase()
+            .trim() || "UNKNOWN";
+
+    const resolveOpId = (base, raw) => {
+        const id = base?.meta?.opId || base?.opId || raw?.meta?.opId || raw?.opId;
+        return (typeof id === "string" && id.length > 5) ? id : genId();
+    };
+
+    const normalize = (raw, source = "unknown") => {
+        const t0 = nowPerf();
+        if (!raw) return { ok: false, type: "UNKNOWN", valid: false, data: null, message: "Vacio", meta: { ts: nowEpoch(), opId: genId(), source, latency: 0, normalized: true } };
+
+        const base = unwrap(raw);
+        if (!base || typeof base !== "object") {
+            return { ok: false, type: "UNKNOWN", valid: false, data: null, message: "Estructura inválida", meta: { ts: nowEpoch(), opId: genId(), source, latency: nowPerf() - t0, normalized: true } };
+        }
+
+        const rawType = base.type || base.state || "UNKNOWN";
+        const type = normalizeType(rawType);
+        const isTypeValid = ALLOWED_TYPES.has(type);
+        
+        let data = base.data ?? base.payload ?? null;
+        if (typeof data === "object" && data !== null) {
+            if (Array.isArray(data) && data.length === 1) data = data[0];
+            data = safeData(data);
+        }
+
+        const message = typeof base.message === "string" ? base.message : (typeof base.report === "string" ? base.report : null);
+        
+        // Validación fina de contenido útil
+        const hasContent = 
+            (typeof message === "string" && message.length > 0) || 
+            (Array.isArray(data) && data.length > 0) || 
+            (typeof data === "number" || typeof data === "boolean") ||
+            (data && typeof data === "object" && Object.keys(data).length > 0);
+
+        const res = {
+            ok: base.ok ?? true,
+            type: isTypeValid ? type : "UNKNOWN",
+            valid: isTypeValid && hasContent,
+            data, message,
+            meta: { 
+                ts: base.meta?.ts || base.timestamp || nowEpoch(),
+                opId: resolveOpId(base, raw), 
+                source, 
+                latency: nowPerf() - t0,
+                normalized: true 
+            }
+        };
+
+        if (window.__DEV__) { res.__raw = safeClone(raw); }
+        if (!isTypeValid) audit("TYPE_UNKNOWN", { rawType, normalized: type, opId: res.meta.opId }, "warn");
+        if (!res.ok) audit("RESPONSE_ERROR", { ...res, opId: res.meta.opId }, "error");
+
+        audit("NORMALIZED", { type: res.type, opId: res.meta.opId, source });
+        return res;
+    };
+
+    /* =====================================================
         🎨 GESTIA PREMIUM UI ENGINE V5.70 (SOVEREIGN RENDER)
         Arquitectura Limpia: Datos -> Render Directo
     ===================================================== */
