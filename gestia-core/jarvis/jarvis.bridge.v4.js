@@ -747,22 +747,31 @@ window.executeCommands = async function(commands = []) {
             }
 
             const ms = Math.round(performance.now() - t0);
-            const clean = normalize(res);
 
-            // 3. REGISTRO EN MEMORIA Y MÉTRICAS
-            // 🔥 BYPASS CRÍTICO: NO destruir data estructurada
-            if (clean && typeof clean === "object" && clean.type) {
-                console.log("🧠 [PASS_THROUGH REAL]:", clean);
+// 🔥 DETECTAR DATA ANTES DE NORMALIZAR
+if (res && typeof res === "object" && res.type) {
 
-                burstCache.set(cmd, clean);
-                outputs.push(clean);
-            } else {
-                burstCache.set(cmd, clean);
+```
+console.log("🧠 [PASS_THROUGH REAL]:", res);
 
-                outputs.push(
-                    beautifyOutput(cmd, clean, false)
-                );
-            }
+burstCache.set(cmd, res);
+outputs.push(res);
+```
+
+} else {
+
+```
+const clean = normalize(res);
+
+burstCache.set(cmd, clean);
+
+outputs.push(
+    beautifyOutput(cmd, clean, false)
+);
+```
+
+}
+
 
             safeLog("METRIC", { cmd, ms });
 
