@@ -1628,15 +1628,14 @@ const issue =
 
 const node = Array.isArray(plan) ? plan[0] : plan;
 
-
 const operation = {
     id: opId,
     type: detectedType,
     payload: plan,
 
-    // 🔥 FIX CRÍTICO
-    hasData: first?.hasData === true,
-    data: first?.data ?? null
+    // 🔥 FIX CORRECTO
+    data: node?.data ?? null,
+    hasData: !!node?.data
 };
 
 if (!operation.id || !operation.type) {
