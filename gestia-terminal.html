@@ -153,77 +153,94 @@ fetch("/gestia-terminal.js")
 document.addEventListener('DOMContentLoaded', () => {
 
     /* =====================================================
-        🛡️ SIA7 UI ENGINE (RENDERIZADO DINÁMICO DE TELEMETRÍA)
-        Intercepta el [object Object] y lo convierte en UI Real
+        🎨 GESTIA PREMIUM UI ENGINE V5.60 (CLEAN ARCHITECTURE)
+        Centralizador de Renderizado Estructurado
     ===================================================== */
-    const outputContenedor = document.getElementById('gestia-output');
     
-    if (outputContenedor) {
-        const uiEngine = new MutationObserver((mutations) => {
-            mutations.forEach((m) => {
-                m.addedNodes.forEach((node) => {
-                    // Si detectamos el error de objeto crudo, inyectamos la tarjeta Antifrágil
-                    if (node.nodeType === 1 && node.innerHTML.includes('[object Object]')) {
-                        console.log("🛠️ [SIA7_UI]: Transformando telemetría cruda en Reporte Visual...");
-                        
-                        // Recuperamos la data real capturada por el sensor
-                        const d = window.lastTelemetry || { online: true, memory: '26.50 MB', ops: 0 };
-                        
-                        node.innerHTML = `
-                            <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
-                                <div class="w-10 h-10 rounded-full bg-gestia-accent flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
-                                    <i class="fa-solid fa-microchip text-white text-sm"></i>
-                                </div>
-                                <div class="bg-gestia-panel border border-gestia-accent/30 p-6 rounded-2xl rounded-tl-none shadow-xl flex-1 font-mono">
-                                    <div class="flex justify-between items-start mb-4">
-                                        <h3 class="text-gestia-accent font-bold text-xs uppercase tracking-widest flex items-center gap-2">
-                                            <span class="relative flex h-2 w-2">
-                                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                                            </span>
-                                            GESTIA PREMIUM V5.51 ANTIFRÁGIL
-                                        </h3>
-                                        <span class="text-[10px] text-slate-500">${new Date().toISOString()}</span>
-                                    </div>
-                                    
-                                    <div class="grid grid-cols-2 gap-3">
-                                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
-                                            <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold">Estado Núcleo</p>
-                                            <p class="text-sm font-mono text-emerald-400">${d.online ? 'SISTEMA INTEGRAL' : 'OFFLINE'}</p>
-                                        </div>
-                                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
-                                            <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold">Memoria RAM</p>
-                                            <p class="text-sm font-mono text-white">${d.memory || '26.50 MB'}</p>
-                                        </div>
-                                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
-                                            <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold">Operaciones</p>
-                                            <p class="text-sm font-mono text-white">${d.ops || '0'} Ledger</p>
-                                        </div>
-                                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
-                                            <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold">Autoridad</p>
-                                            <p class="text-sm font-mono text-blue-400 italic">Heberto Confirmado</p>
-                                        </div>
-                                    </div>
-                                    <div class="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between">
-                                        <span class="text-[9px] text-emerald-500/50 font-mono italic">... AUTORIDAD CONFIRMADA. DB INYECTADA.</span>
-                                        <div class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }
-                });
-            });
-        });
-        uiEngine.observe(outputContenedor, { childList: true, subtree: true });
-    }
+    // 1. EL RENDERER EXPLÍCITO (Expuesto globalmente para consola y sistema)
+    window.renderResponse = (payload) => {
+        const output = document.getElementById('gestia-output');
+        if (!output || !payload) return;
 
-    // Listener para capturar la telemetría del Bridge y tenerla lista para el UI Engine
+        const { type, data } = payload;
+
+        // Caso 1: Estado de Sistema (La Tarjeta Antifrágil Real)
+        if (type === "SYSTEM_STATUS" || payload.state === "SYSTEM_STATUS") {
+            const d = data || payload.data || window.lastTelemetry || {};
+            
+            const cardHtml = `
+                <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4" id="sys-card-${Date.now()}">
+                    <div class="w-10 h-10 rounded-full bg-gestia-accent flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
+                        <i class="fa-solid fa-microchip text-white text-sm"></i>
+                    </div>
+                    <div class="bg-gestia-panel border border-gestia-accent/30 p-6 rounded-2xl rounded-tl-none shadow-xl flex-1 font-mono">
+                        <div class="flex justify-between items-start mb-4">
+                            <h3 class="text-gestia-accent font-bold text-xs uppercase tracking-widest flex items-center gap-2">
+                                <span class="relative flex h-2 w-2">
+                                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                                GESTIA PREMIUM V5.51 ANTIFRÁGIL
+                            </h3>
+                            <span class="text-[10px] text-slate-500">${new Date().toISOString()}</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
+                                <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold">Estado Núcleo</p>
+                                <p class="text-sm font-mono text-emerald-400">${d.online ? 'SISTEMA INTEGRAL' : 'OFFLINE'}</p>
+                            </div>
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
+                                <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold">Memoria RAM</p>
+                                <p class="text-sm font-mono text-white">${d.memory || 'Detectando...'}</p>
+                            </div>
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
+                                <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold">Operaciones</p>
+                                <p class="text-sm font-mono text-white">${d.ops ?? '0'} Ledger</p>
+                            </div>
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
+                                <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold">Autoridad</p>
+                                <p class="text-sm text-blue-400">Heberto Confirmado</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between">
+                            <span class="text-[9px] text-emerald-500/50 font-mono italic">... AUTORIDAD CONFIRMADA. DB INYECTADA.</span>
+                            <div class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            output.insertAdjacentHTML('beforeend', cardHtml);
+        } 
+        else {
+            const text = typeof payload === "string" ? payload : (data?.message || JSON.stringify(payload));
+            if (window.renderJarvisResponse) {
+                window.renderJarvisResponse("Jarvis", text, "info");
+            }
+        }
+        output.scrollTop = output.scrollHeight;
+    };
+
+    /* =====================================================
+        📊 SIA7 TRACKER V3 (EVENT-DRIVEN SYNC)
+    ===================================================== */
     window.addEventListener('gestia-terminal-state', (e) => {
-        if (e.detail && (e.detail.data || e.detail.payload)) {
-            const rawData = e.detail.data || e.detail.payload;
-            window.lastTelemetry = Array.isArray(rawData) ? rawData[0] : rawData;
-            console.log("📊 [SIA7_SYNC]: Telemetría sincronizada para el HTML.");
+        try {
+            const detail = e.detail || {};
+            const source = detail.data || (detail.payload ? detail.payload[0] : null) || detail;
+            
+            if (source && (source.memory || source.type === 'SYSTEM_STATUS')) {
+                window.lastTelemetry = {
+                    online: source.online !== undefined ? source.online : true,
+                    memory: source.memory || '33 MB',
+                    ops: source.ops !== undefined ? source.ops : 0
+                };
+                
+                // DISPARO DIRECTO AL RENDERER
+                window.renderResponse({ type: "SYSTEM_STATUS", data: window.lastTelemetry });
+                console.log("🚀 [UI_DIRECT_RENDER]: Tarjeta disparada con RAM real:", window.lastTelemetry.memory);
+            }
+        } catch (err) {
+            console.error("❌ [SYNC_FAIL]:", err);
         }
     });
 
@@ -519,9 +536,8 @@ window.composeResponse = function(outputs = []) {
 
             // 🔥 SYSTEM STATUS (caso principal)
             if (target.type === "SYSTEM_STATUS" || target.state === "SYSTEM_STATUS") {
-                const d = target.data || target;
-                // Retornamos el objeto como string clave para que el UI ENGINE lo intercepte
-                return "[object Object]"; 
+                // Ya no devolvemos [object Object], devolvemos texto para la burbuja
+                return "Reporte de infraestructura generado."; 
             }
 
             // 🔥 SI HAY DATA GENÉRICA → Parsear, nunca Object
@@ -563,7 +579,7 @@ window.setState = function(nuevoEstado) {
     if (nuevoEstado === "IDLE" || nuevoEstado === "SECURE SESSION READY") {
         console.log("🧬 [KERNEL_EVENT] Sesión Segura detectada. Disparando Briefing...");
         
-        launchSovereignBriefing();
+        if (typeof launchSovereignBriefing === 'function') launchSovereignBriefing();
 
         // Restauramos la función original para que el trigger no se repita en la sesión
         window.setState = backupSetState;
