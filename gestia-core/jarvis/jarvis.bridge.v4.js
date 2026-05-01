@@ -36,75 +36,72 @@ function speak(msg) {
 }
 
 /* =====================================================================================
-   EXECUTORS (FIXED: CONTEXTO + TIPOS)
+EXECUTORS (FIXED: CONTEXTO + TIPOS)
 ===================================================================================== */
 
 async function runCore(input = "") {
-
     if (!window.KernelHeberto) {
         throw new Error("CORE_NOT_READY");
     }
 
+    let result;
+
     /* ======================================
-        🔥 SOPORTE OBJETO (cmd + raw)
+       🔥 SOPORTE OBJETO (cmd + raw)
     ====================================== */
-
     if (typeof input === "object" && input !== null) {
-
-        const cmd =
-            input.cmd ||
-            input.command ||
-            "";
-
-        const raw =
-            input.raw ||
-            "";
+        const cmd = input.cmd || input.command || "";
+        const raw = input.raw || "";
 
         if (!cmd) {
             throw new Error("INVALID_COMMAND");
         }
 
-        return await window.KernelHeberto.execute(
-            cmd,        // ✔ string limpio para Jarvis
+        result = await window.KernelHeberto.execute(
+            cmd,
             null,
-            {
-                raw: raw // 🔥 contexto real via options
-            }
+            { raw }
         );
+
+    } else {
+        /* ======================================
+            ✔ CASO NORMAL (string)
+        ====================================== */
+        result = await window.KernelHeberto.execute(input);
     }
 
-    /* ======================================
-        ✔ CASO NORMAL (string)
-    ====================================== */
+    // 🔥 GUARD CRÍTICO: no destruir objetos estructurados
+    if (result && typeof result === "object") {
+        console.log("🧠 [RUNCORE PASS OBJECT]:", result);
+        return result;
+    }
 
-    return await window.KernelHeberto.execute(input);
+    return result;
 }
 
-
 /**
- * 🔥 1️⃣ REESCRIBE runExternalAI (FORMATO OBLIGATORIO)
- * Tu función debe FORZAR salida estructurada y defenderse de HTML.
+ * 🔥 runExternalAI (FORMATO OBLIGATORIO + HARDENED)
  */
 async function runExternalAI(input = "") {
-
     try {
-        const res = await fetch("https://us-central1-fixgo-44e4d.cloudfunctions.net/api/ai-intent", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ input })
-        });
+        const res = await fetch(
+            "[https://us-central1-fixgo-44e4d.cloudfunctions.net/api/ai-intent](https://us-central1-fixgo-44e4d.cloudfunctions.net/api/ai-intent)",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ input })
+            }
+        );
 
-        // 🛡️ AQUÍ ESTÁ LO QUE FALTABA: BARRERA ANTI-HTML
-        // Si el server tira 404, 500 o CORS, abortamos ANTES de intentar parsear JSON
+        // 🛡️ BARRERA ANTI-HTML / ERRORES HTTP
         if (!res.ok) {
-            console.error(`[AI BRIDGE] Error HTTP devuelto por el servidor: ${res.status}`);
+            console.error(`[AI BRIDGE] Error HTTP: ${res.status}`);
             return fallback();
         }
 
         const data = await res.json();
-
         let parsed;
 
         try {
@@ -113,9 +110,9 @@ async function runExternalAI(input = "") {
             return fallback();
         }
 
-        // 🛡️ VALIDACIÓN FINAL (bridge layer)
-        const validIntents = ["logout","analyze","open","repair","create","update","delete"];
-        const validTargets = ["admin","system","auth","user"];
+        // 🛡️ VALIDACIÓN FINAL
+        const validIntents = ["logout", "analyze", "open", "repair", "create", "update", "delete"];
+        const validTargets = ["admin", "system", "auth", "user"];
 
         if (
             !parsed ||
@@ -142,11 +139,11 @@ function fallback() {
         confidence: 0
     };
 }
+
 // =====================================================
 // HELPERS DE INTERPRETACIÓN AI
 // =====================================================
 function resolveAIIntent(ai) {
-
     const { intent, target } = ai;
 
     // 🔐 LOGOUT
@@ -175,6 +172,7 @@ function resolveAIIntent(ai) {
 
     return null;
 }
+
 /* =====================================================================================
    OBSERVABILITY
 ===================================================================================== */
@@ -1769,6 +1767,8 @@ try {
 
     // 2. Ejecución de comandos (Aquí ya va REPAIR::admin.logout sí o sí)
     const outputs = await executeCommands(commands);
+
+    console.log("🚨 OUTPUTS FINAL:", outputs);
 
     const finalText = (typeof composeResponse === 'function') 
         ? composeResponse(outputs) 
