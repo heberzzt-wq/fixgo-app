@@ -1,144 +1,145 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terminal Heberto | GestiaPremium</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        gestia: {
-                            dark: '#0f172a',      /* Fondo principal oscuro */
-                            primary: '#3b82f6',   /* Azul tecnológico */
-                            accent: '#10b981',    /* Verde éxito */
-                            panel: '#1e293b'      /* Fondo de paneles */
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-    
-    <style>
-/* Scrollbar personalizado para mantener el look de terminal limpia */
- ::-webkit-scrollbar { width: 8px; }
- ::-webkit-scrollbar-track { background: #0f172a; }
- ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
- ::-webkit-scrollbar-thumb:hover { background: #475569; }
-/* Animación suave para la aparición de mensajes */
-@keyframes fadeIn {
-from { opacity: 0; transform: translateY(10px); }
-to { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in {
- animation: fadeIn 0.4s ease-out forwards;
- }
- </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terminal Heberto | GestiaPremium</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        gestia: {
+                            dark: '#0f172a',      /* Fondo principal oscuro */
+                            primary: '#3b82f6',   /* Azul tecnológico */
+                            accent: '#10b981',    /* Verde éxito */
+                            panel: '#1e293b'      /* Fondo de paneles */
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* Scrollbar personalizado para mantener el look de terminal limpia */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        /* Animación suave para la aparición de mensajes */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+    </style>
 </head>
 <body class="bg-gestia-dark text-slate-200 h-screen flex flex-col font-sans overflow-hidden">
 
-    <header class="bg-gestia-panel border-b border-slate-800 p-4 flex justify-between items-center shadow-lg z-10">
-        <div class="flex items-center gap-3">
-            <div class="bg-gestia-primary p-2.5 rounded-lg text-white shadow-lg shadow-blue-500/20">
-                <i class="fa-solid fa-terminal"></i>
-            </div>
-            <div>
-                <h1 class="text-xl font-bold text-white tracking-wide">Terminal Heberto</h1>
-                <p class="text-xs text-slate-400 font-mono">Motor No-Code | GestiaPremium V5.18</p>
-            </div>
-        </div>
-        <div class="flex gap-4 items-center">
-            <button class="text-slate-400 hover:text-white transition-colors" title="Historial de Módulos Creados">
-                <i class="fa-solid fa-database"></i>
-            </button>
-            <button class="text-slate-400 hover:text-white transition-colors" title="Ajustes del Motor">
-                <i class="fa-solid fa-microchip"></i>
-            </button>
-            <div class="w-px h-6 bg-slate-700 mx-2"></div>
-            <a href="ceo.html" class="bg-slate-800 hover:bg-slate-700 text-sm px-4 py-2 rounded-lg border border-slate-700 transition-colors flex items-center gap-2">
-                <i class="fa-solid fa-arrow-left"></i> Volver a CEO
-            </a>
-        </div>
-    </header>
+    <header class="bg-gestia-panel border-b border-slate-800 p-4 flex justify-between items-center shadow-lg z-10">
+        <div class="flex items-center gap-3">
+            <div class="bg-gestia-primary p-2.5 rounded-lg text-white shadow-lg shadow-blue-500/20">
+                <i class="fa-solid fa-terminal"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-wide">Terminal Heberto</h1>
+                <p class="text-xs text-slate-400 font-mono">Motor No-Code | GestiaPremium V5.18</p>
+            </div>
+        </div>
+        <div class="flex gap-4 items-center">
+            <button class="text-slate-400 hover:text-white transition-colors" title="Historial de Módulos Creados">
+                <i class="fa-solid fa-database"></i>
+            </button>
+            <button class="text-slate-400 hover:text-white transition-colors" title="Ajustes del Motor">
+                <i class="fa-solid fa-microchip"></i>
+            </button>
+            <div class="w-px h-6 bg-slate-700 mx-2"></div>
+            <a href="ceo.html" class="bg-slate-800 hover:bg-slate-700 text-sm px-4 py-2 rounded-lg border border-slate-700 transition-colors flex items-center gap-2">
+                <i class="fa-solid fa-arrow-left"></i> Volver a CEO
+            </a>
+        </div>
+    </header>
 
-    <main class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 relative" id="gestia-output">
-        
-        <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-4">
-            <div class="w-10 h-10 rounded-full bg-gestia-primary flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/30">
-                <i class="fa-solid fa-bolt text-white text-sm"></i>
-            </div>
-            <div class="bg-gestia-panel border border-slate-700 p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
-                <h3 class="font-semibold text-white mb-2 text-lg">¡Sistema Inicializado, Arquitecto!</h3>
-                <p class="text-slate-300 text-sm leading-relaxed mb-4">
-                    Soy tu motor generador de módulos. Escribe en lenguaje natural qué parte de GestiaPremium necesitas construir hoy y yo me encargaré de generar la estructura de la base de datos y la interfaz visual.
-                </p>
-                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700/50">
-                    <p class="text-xs text-slate-500 mb-2 font-semibold uppercase tracking-wider">Última idea analizada:</p>
-                    <p class="text-sm text-gestia-accent font-mono border-l-2 border-gestia-accent pl-3">
-                        "Un nuevo módulo para el área de personal de seguridad, donde puedan vigilar accesos y salidas, revisión de QR de visitantes y trabajadores externos..."
-                    </p>
-                </div>
-            </div>
-        </div>
-        
-    </main>
+    <main class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 relative" id="gestia-output">
+        
+        <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-4">
+            <div class="w-10 h-10 rounded-full bg-gestia-primary flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/30">
+                <i class="fa-solid fa-bolt text-white text-sm"></i>
+            </div>
+            <div class="bg-gestia-panel border border-slate-700 p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
+                <h3 class="font-semibold text-white mb-2 text-lg">¡Sistema Inicializado, Arquitecto!</h3>
+                <p class="text-slate-300 text-sm leading-relaxed mb-4">
+                    Soy tu motor generador de módulos. Escribe en lenguaje natural qué parte de GestiaPremium necesitas construir hoy y yo me encargaré de generar la estructura de la base de datos y la interfaz visual.
+                </p>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700/50">
+                    <p class="text-xs text-slate-500 mb-2 font-semibold uppercase tracking-wider">Última idea analizada:</p>
+                    <p class="text-sm text-gestia-accent font-mono border-l-2 border-gestia-accent pl-3">
+                        "Un nuevo módulo para el área de personal de seguridad, donde puedan vigilar accesos y salidas, revisión de QR de visitantes y trabajadores externos..."
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+    </main>
 
-    <footer class="p-4 bg-gestia-panel border-t border-slate-800 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)]">
-        <div class="max-w-4xl mx-auto relative">
-            <form id="gestia-form" class="relative flex items-end gap-3">
-                
-                <div class="relative flex-1 bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden focus-within:border-gestia-primary focus-within:ring-1 focus-within:ring-gestia-primary transition-all shadow-inner">
-                    <textarea 
-                        id="gestia-input" 
-                        rows="1" 
-                        class="w-full bg-transparent text-slate-100 p-4 resize-none focus:outline-none max-h-48 overflow-y-auto block font-sans" 
-                        placeholder="Describe el módulo que vamos a construir (Ej. 'Crea un control de accesos...')"
-                        style="min-height: 58px;"
-                    ></textarea>
-                </div>
-                
-                <button 
-                    type="submit" 
-                    id="btn-generate"
-                    class="bg-gestia-primary hover:bg-blue-500 text-white h-[58px] w-[58px] rounded-2xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/25 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed group"
-                    title="Generar Módulo"
-                >
-                    <i class="fa-solid fa-wand-magic-sparkles text-lg group-hover:scale-110 transition-transform"></i>
-                </button>
-                
-            </form>
-            <div class="text-center mt-3">
-                <span class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-lock text-slate-600"></i> Conexión Segura Firestore V2.0
-                </span>
-            </div>
-        </div>
-    </footer>
-    
-   <script>
+    <footer class="p-4 bg-gestia-panel border-t border-slate-800 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)]">
+        <div class="max-w-4xl mx-auto relative">
+            <form id="gestia-form" class="relative flex items-end gap-3">
+                
+                <div class="relative flex-1 bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden focus-within:border-gestia-primary focus-within:ring-1 focus-within:ring-gestia-primary transition-all shadow-inner">
+                    <textarea 
+                        id="gestia-input" 
+                        rows="1" 
+                        class="w-full bg-transparent text-slate-100 p-4 resize-none focus:outline-none max-h-48 overflow-y-auto block font-sans" 
+                        placeholder="Describe el módulo que vamos a construir (Ej. 'Crea un control de accesos...')"
+                        style="min-height: 58px;"
+                    ></textarea>
+                </div>
+                
+                <button 
+                    type="submit" 
+                    id="btn-generate"
+                    class="bg-gestia-primary hover:bg-blue-500 text-white h-[58px] w-[58px] rounded-2xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/25 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed group"
+                    title="Generar Módulo"
+                >
+                    <i class="fa-solid fa-wand-magic-sparkles text-lg group-hover:scale-110 transition-transform"></i>
+                </button>
+                
+            </form>
+            <div class="text-center mt-3">
+                <span class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-lock text-slate-600"></i> Conexión Segura Firestore V2.0
+                </span>
+            </div>
+        </div>
+    </footer>
+    
+   <script>
 window.__APP_MAIN_SOURCE__ = "";
 window.__INDEX_SOURCE__ = "";
 window.__GESTIA_TERMINAL_SOURCE__ = "";
 window.__APP_TECNICO_B2B_SOURCE__ = "";
 
 fetch("/app-main.js")
-  .then(r => r.text())
-  .then(t => {
-    window.__APP_MAIN_SOURCE__ = t;
-  });
+  .then(r => r.text())
+  .then(t => {
+    window.__APP_MAIN_SOURCE__ = t;
+  });
 
 fetch("/gestia-terminal.js")
-  .then(r => r.text())
-  .then(t => {
-    window.__GESTIA_TERMINAL_SOURCE__ = t;
-  });
+  .then(r => r.text())
+  .then(t => {
+    window.__GESTIA_TERMINAL_SOURCE__ = t;
+  });
 </script>
 
 <script type="module" src="/firebase.js"></script>
@@ -151,16 +152,16 @@ fetch("/gestia-terminal.js")
 <script defer>
 document.addEventListener('DOMContentLoaded', () => {
 
-    const textarea = document.getElementById('gestia-input');
-    const form = document.getElementById('gestia-form');
-    const output = document.getElementById('gestia-output');
+    const textarea = document.getElementById('gestia-input');
+    const form = document.getElementById('gestia-form');
+    const output = document.getElementById('gestia-output');
 
-   const SpeechRecognition =
-    window.SpeechRecognition ||
-    window.webkitSpeechRecognition;
+   const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
 
 /* =====================================================
-   VOZ / MICRÓFONO V2 (CORREGIDO LOOP)
+   VOZ / MICRÓFONO V2 (CORREGIDO LOOP)
 ===================================================== */
 
 let reconocimiento = null;
@@ -169,69 +170,69 @@ let escuchandoAhora = false;
 let jarvisHablando = false; 
 
 function iniciarEscucha() {
-    if (
-        !reconocimiento ||
-        escuchandoAhora ||
-        speechSynthesis.speaking ||
-        jarvisHablando
-    ) return;
+    if (
+        !reconocimiento ||
+        escuchandoAhora ||
+        speechSynthesis.speaking ||
+        jarvisHablando
+    ) return;
 
-    try {
-        reconocimiento.start();
-    } catch (err) {}
+    try {
+        reconocimiento.start();
+    } catch (err) {}
 }
 
 if (SpeechRecognition) {
 
-    reconocimiento = new SpeechRecognition();
+    reconocimiento = new SpeechRecognition();
 
-    reconocimiento.lang = "es-MX";
-    reconocimiento.continuous = false;
-    reconocimiento.interimResults = false;
-    reconocimiento.maxAlternatives = 1;
+    reconocimiento.lang = "es-MX";
+    reconocimiento.continuous = false;
+    reconocimiento.interimResults = false;
+    reconocimiento.maxAlternatives = 1;
 
-    reconocimiento.onstart = () => {
-        escuchandoAhora = true;
-        console.log("🎤 Jarvis escuchando...");
-    };
+    reconocimiento.onstart = () => {
+        escuchandoAhora = true;
+        console.log("🎤 Jarvis escuchando...");
+    };
 
-    reconocimiento.onresult = (event) => {
-        const texto = event.results[0][0].transcript;
+    reconocimiento.onresult = (event) => {
+        const texto = event.results[0][0].transcript;
 
-        try { reconocimiento.abort(); } catch(e){}
+        try { reconocimiento.abort(); } catch(e){}
 
-        textarea.value = texto;
+        textarea.value = texto;
 
-        form.dispatchEvent(
-            new Event(
-                "submit",
-                {
-                    cancelable: true,
-                    bubbles: true
-                }
-            )
-        );
-    };
+        form.dispatchEvent(
+            new Event(
+                "submit",
+                {
+                    cancelable: true,
+                    bubbles: true
+                }
+            )
+        );
+    };
 
-    reconocimiento.onerror = (event) => {
-        console.log("🎤 ERROR MIC:", event.error);
-    };
+    reconocimiento.onerror = (event) => {
+        console.log("🎤 ERROR MIC:", event.error);
+    };
 
-    reconocimiento.onend = () => {
-        escuchandoAhora = false;
-        console.log("🎤 Micrófono en espera");
-    };
+    reconocimiento.onend = () => {
+        escuchandoAhora = false;
+        console.log("🎤 Micrófono en espera");
+    };
 
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "F2" && reconocimiento) {
-            e.preventDefault();
-            iniciarEscucha();
-        }
-    });
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "F2" && reconocimiento) {
+            e.preventDefault();
+            iniciarEscucha();
+        }
+    });
 }
 
 /* =====================================================
-    VOZ JARVIS V5.9 POLISH + PROACTIVE STARTUP (DATA-AWARE)
+    VOZ JARVIS V5.9 POLISH + PROACTIVE STARTUP (DATA-AWARE)
 ===================================================== */
 
 const hablarJarvis = (texto) => {
@@ -241,51 +242,24 @@ if (!("speechSynthesis" in window)) return;
 jarvisHablando = true;
 
 if (
-    typeof reconocimiento !== 'undefined' && 
-    reconocimiento &&
-    typeof escuchandoAhora !== 'undefined' && 
-    escuchandoAhora
+    typeof reconocimiento !== 'undefined' && 
+    reconocimiento &&
+    typeof escuchandoAhora !== 'undefined' && 
+    escuchandoAhora
 ) {
-    try {
-        reconocimiento.abort();
-    } catch (e) {}
+    try {
+        reconocimiento.abort();
+    } catch (e) {}
 }
 
-// 🔥 PARCHE V5.21: DEEP-SCAN PARA EXTRAER TEXTO DE OBJETOS
-let textoLimpio = "Comando procesado.";
-try {
-    if (typeof texto === "string") {
-        textoLimpio = texto;
-    } else if (typeof texto === "object" && texto !== null) {
-        const target = texto.detail || texto.payload || texto;
-        
-        if (target.type === "SYSTEM_STATUS" || target.state === "SYSTEM_STATUS") {
-            const d = target.data || {};
-            textoLimpio = `Análisis del núcleo completado. Sistema ${d.online ? 'activo y blindado' : 'fuera de línea'}. Memoria RAM operando en ${d.memory || 'estado óptimo'}.`;
-        } else if (target.report && typeof target.report === "string") {
-            textoLimpio = target.report;
-        } else if (target.message && typeof target.message === "string") {
-            textoLimpio = target.message;
-        } else if (target.respuesta && typeof target.respuesta === "string") {
-            textoLimpio = target.respuesta;
-        } else {
-            textoLimpio = typeof window.composeResponse === "function" 
-                ? window.composeResponse(target) 
-                : "Sincronización de datos completada.";
-        }
-    } else {
-        textoLimpio = String(texto);
-    }
+// 🔥 SOLO TEXTO (la inteligencia ya pasó antes)
+const textoLimpio = typeof texto === "string"
+    ? texto
+    : (typeof window.composeResponse === "function"
+        ? window.composeResponse(texto)
+        : JSON.stringify(texto));
 
-    if (textoLimpio === "[object Object]") {
-        textoLimpio = "Análisis completado satisfactoriamente en el Ledger.";
-    }
-    textoLimpio = textoLimpio.replace(/[\u{1F600}-\u{1F6FF}🟢🔴🛡️🧠🔥🧪📊]/gu, '').trim();
-} catch (err) {
-    textoLimpio = "Datos procesados y encriptados.";
-}
-
-console.log("🔊 JARVIS VOZ limpia:", textoLimpio);
+console.log("🔊 JARVIS VOZ:", textoLimpio);
 
 const voz = new SpeechSynthesisUtterance(textoLimpio);
 
@@ -297,19 +271,19 @@ voz.volume = 1;
 const voces = speechSynthesis.getVoices();
 
 const seleccion =
-    voces.find(v => v.lang.includes("es-MX")) ||
-    voces.find(v => v.lang.includes("es")) ||
-    null;
+    voces.find(v => v.lang.includes("es-MX")) ||
+    voces.find(v => v.lang.includes("es")) ||
+    null;
 
 if (seleccion) voz.voice = seleccion;
 
 speechSynthesis.cancel();
 
 voz.onend = () => {
-    jarvisHablando = false;
-    setTimeout(() => {
-        if (typeof beepJarvis === 'function') beepJarvis();
-    }, 220);
+    jarvisHablando = false;
+    setTimeout(() => {
+        if (typeof beepJarvis === 'function') beepJarvis();
+    }, 220);
 };
 
 speechSynthesis.speak(voz);
@@ -318,85 +292,85 @@ speechSynthesis.speak(voz);
 
 
 /* =====================================================
-    BRIEFING INICIAL PROACTIVO (SAFE-MODE ENGINE)
+    BRIEFING INICIAL PROACTIVO (SAFE-MODE ENGINE)
 ===================================================== */
 
 /* =====================================================
-   BRIEFING INICIAL PROACTIVO (HARDENED)
+   BRIEFING INICIAL PROACTIVO (HARDENED)
 ===================================================== */
 
 const launchSovereignBriefing = async () => {
 
-    const coreReady = typeof window.executeCommands === 'function';
-    const userReady = window.auth?.currentUser?.uid || window.currentUserID;
+    const coreReady = typeof window.executeCommands === 'function';
+    const userReady = window.auth?.currentUser?.uid || window.currentUserID;
 
-    if (!coreReady || !userReady) {
-        console.warn("⚠️ [BOOT_ABORT] Core o usuario no listo.");
-        return;
-    }
+    if (!coreReady || !userReady) {
+        console.warn("⚠️ [BOOT_ABORT] Core o usuario no listo.");
+        return;
+    }
 
-    console.log("✅ [BOOT] Iniciando briefing...");
+    console.log("✅ [BOOT] Iniciando briefing...");
 
-    const totalOps = window.JarvisHistory?.length || 0;
+    const totalOps = window.JarvisHistory?.length || 0;
 
-    let visualStatus = "Sistemas en línea.";
-    let voiceStatus = "Sistemas en línea.";
+    let visualStatus = "Sistemas en línea.";
+    let voiceStatus = "Sistemas en línea.";
 
-    try {
-        const outputs = await window.executeCommands(["ANALYZE::system"]);
+    try {
+        const outputs = await window.executeCommands(["ANALYZE::system"]);
 
-        // 🔥 NORMALIZACIÓN FUERTE
-        const arr = Array.isArray(outputs) ? outputs : [outputs];
-        const clean = arr.filter(Boolean);
+        // 🔥 NORMALIZACIÓN FUERTE
+        const arr = Array.isArray(outputs) ? outputs : [outputs];
+        const clean = arr.filter(Boolean);
 
-        console.log("🧪 [BRIEFING OUTPUTS]:", clean);
+        console.log("🧪 [BRIEFING OUTPUTS]:", clean);
 
-        const first = clean[0];
+        const first = clean[0];
 
-        /* ==========================================
-           CASO IDEAL: OBJETO ESTRUCTURADO
-        ========================================== */
-        if (first && typeof first === "object" && first.type === "SYSTEM_STATUS") {
+        /* ==========================================
+           CASO IDEAL: OBJETO ESTRUCTURADO
+        ========================================== */
+        if (first && typeof first === "object" && first.type === "SYSTEM_STATUS") {
 
-            const d = first.data || {};
+            const d = first.data || {};
 
-            visualStatus = `
+            visualStatus = `
 Sistema: ${d.online ? "🟢 Activo" : "🔴 Sin conexión"}
 Operaciones: ${d.ops ?? 0}
 Memoria: ${d.memory ?? "N/A"}
 Hora: ${new Date(d.timestamp || Date.now()).toLocaleTimeString("es-MX")}
-            `.trim();
+            `.trim();
 
-            voiceStatus = `Sistema ${d.online ? "activo" : "sin conexión"}.`;
+            voiceStatus = `Sistema ${d.online ? "activo" : "sin conexión"}.`;
 
-        }
+        }
 
-        /* ==========================================
-           FALLBACK CONTROLADO
-        ========================================== */
-        else {
-            console.warn("⚠️ [BRIEFING FALLBACK]: no llegó SYSTEM_STATUS");
+        /* ==========================================
+           FALLBACK CONTROLADO
+        ========================================== */
+        else {
+            console.warn("⚠️ [BRIEFING FALLBACK]: no llegó SYSTEM_STATUS");
 
-            visualStatus =
-                typeof window.composeResponse === "function"
-                    ? window.composeResponse(clean)
-                    : "Estado verificado.";
+            visualStatus =
+                typeof window.composeResponse === "function"
+                    ? window.composeResponse(clean)
+                    : "Estado verificado.";
 
-            voiceStatus = "Estado del sistema verificado.";
-        }
+            voiceStatus = "Estado del sistema verificado.";
+        }
 
-    } catch (e) {
-        console.error("❌ [BOOT_FAIL]:", e);
+    } catch (e) {
+        console.error("❌ [BOOT_FAIL]:", e);
 
-        visualStatus = "🔴 Error en sincronización.";
-        voiceStatus = "Fallo en análisis del sistema.";
-    }
+        visualStatus = "🔴 Error en sincronización.";
+        voiceStatus = "Fallo en análisis del sistema.";
+    }
 
-    const onlineVisual = navigator.onLine ? "🟢 Activa" : "🔴 Sin conexión";
-    const onlineVoice = navigator.onLine ? "activa" : "sin conexión";
-    const hora = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+    const onlineVisual = navigator.onLine ? "🟢 Activa" : "🔴 Sin conexión";
+    const onlineVoice = navigator.onLine ? "activa" : "sin conexión";
+    const hora = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
 
-    const briefingVisual = `Bienvenido Arquitecto.
+    const briefingVisual = `Bienvenido Arquitecto.
 
 ${visualStatus}
 
@@ -406,363 +380,359 @@ Hora local: ${hora}
 
 Núcleo autónomo listo para recibir órdenes.`;
 
-    const briefingVoz = `Bienvenido Arquitecto. ${voiceStatus} Conexión ${onlineVoice}. ${totalOps} operaciones registradas.`;
+    const briefingVoz = `Bienvenido Arquitecto. ${voiceStatus} Conexión ${onlineVoice}. ${totalOps} operaciones registradas.`;
 
-    // 🔥 SALIDA
-    if (typeof hablarJarvis === "function") {
-        hablarJarvis(briefingVoz);
-    }
+    // 🔥 SALIDA
+    if (typeof hablarJarvis === "function") {
+        hablarJarvis(briefingVoz);
+    }
 
-    if (typeof renderJarvisResponse === "function") {
-        renderJarvisResponse("Briefing Inicial", briefingVisual, "success");
-    }
+    if (typeof renderJarvisResponse === "function") {
+        renderJarvisResponse("Briefing Inicial", briefingVisual, "success");
+    }
 };
 
 /* =====================================================
-    🔥 COMPOSE RESPONSE V5.21 (HARDENED - ANTI OBJECT)
+    🔥 COMPOSE RESPONSE V5.20 (HARDENED)
 ===================================================== */
 window.composeResponse = function(outputs = []) {
 
-    // 🔥 NORMALIZACIÓN: SIEMPRE ARRAY
-    const arr = Array.isArray(outputs) ? outputs : [outputs];
+    // 🔥 NORMALIZACIÓN: SIEMPRE ARRAY
+    const arr = Array.isArray(outputs) ? outputs : [outputs];
 
-    const parts = arr.map(o => {
+    const parts = arr.map(o => {
 
-        if (!o) return "";
+        if (!o) return "";
 
-        /* ==========================================
-           🧠 PRIORIDAD: DATA ESTRUCTURADA
-        ========================================== */
-        if (typeof o === "object") {
-            // 🛡️ Escudo protector contra Wrappers de eventos
-            const target = o.detail || o.payload || o;
+        /* ==========================================
+           🧠 PRIORIDAD: DATA ESTRUCTURADA
+        ========================================== */
+        if (typeof o === "object") {
 
-            // 🔥 SYSTEM STATUS (caso principal)
-            if (target.type === "SYSTEM_STATUS" && target.data) {
-                const d = target.data;
-                return [
-                    `Sistema: ${d.online ? "🟢 Activo" : "🔴 Sin conexión"}`,
-                    `Operaciones: ${d.ops ?? 0}`,
-                    `Memoria RAM Activa: ${d.memory ?? "N/A"}`,
-                    `Hora de Sync: ${new Date(d.timestamp || Date.now()).toLocaleTimeString("es-MX")}`
-                ].join("\n");
-            }
+            // 🔥 SYSTEM STATUS (caso principal)
+            if (o.type === "SYSTEM_STATUS" && o.data) {
+                const d = o.data;
 
-            // 🔥 SI HAY DATA GENÉRICA → Parsear, nunca Object
-            if (target.data && typeof target.data === "object") {
-                return JSON.stringify(target.data, null, 2);
-            }
+                return [
+                    `Sistema: ${d.online ? "🟢 Activo" : "🔴 Sin conexión"}`,
+                    `Operaciones: ${d.ops ?? 0}`,
+                    `Memoria RAM Activa: ${d.memory ?? "N/A"}`,
+                    `Hora de Sync: ${new Date(d.timestamp || Date.now()).toLocaleTimeString("es-MX")}`
+                ].join("\n");
+            }
 
-            // 🔥 MENSAJES Y REPORTES
-            if (target.message) {
-                return typeof target.message === "object" ? JSON.stringify(target.message, null, 2) : String(target.message);
-            }
-            if (target.report) {
-                return typeof target.report === "object" ? JSON.stringify(target.report, null, 2) : String(target.report);
-            }
+            // 🔥 SI HAY DATA GENÉRICA → mostrarla
+            if (o.data && typeof o.data === "object") {
+                return JSON.stringify(o.data, null, 2);
+            }
 
-            // 🔥 FALLBACK FINAL A JSON LEGIBLE
-            return JSON.stringify(target, null, 2);
-        }
+            // 🔥 MENSAJE
+            if (o.message) {
+                return String(o.message);
+            }
 
-        /* ==========================================
-           STRINGS
-        ========================================== */
-        return String(o);
-    });
+            // 🔥 FALLBACK FINAL
+            return JSON.stringify(o);
+        }
 
-    return parts.filter(Boolean).join("\n\n");
+        /* ==========================================
+           STRINGS
+        ========================================== */
+        return String(o);
+    });
+
+    return parts.filter(Boolean).join("\n\n");
 };
 
 /* =====================================================
-    🔥 OBSERVADOR DE ESTADO DEL BANCO (TRIGGER ÚNICO)
+    🔥 OBSERVADOR DE ESTADO DEL BANCO (TRIGGER ÚNICO)
 ===================================================== */
 const backupSetState = window.setState;
 
 window.setState = function(nuevoEstado) {
-    // Ejecutamos la lógica original del sistema
-    if (typeof backupSetState === 'function') backupSetState(nuevoEstado);
+    // Ejecutamos la lógica original del sistema
+    if (typeof backupSetState === 'function') backupSetState(nuevoEstado);
 
-    // Si el estado libera el Firewall, disparamos el briefing una sola vez
-    if (nuevoEstado === "IDLE" || nuevoEstado === "SECURE SESSION READY") {
-        console.log("🧬 [KERNEL_EVENT] Sesión Segura detectada. Disparando Briefing...");
-        
-        launchSovereignBriefing();
+    // Si el estado libera el Firewall, disparamos el briefing una sola vez
+    if (nuevoEstado === "IDLE" || nuevoEstado === "SECURE SESSION READY") {
+        console.log("🧬 [KERNEL_EVENT] Sesión Segura detectada. Disparando Briefing...");
+        
+        launchSovereignBriefing();
 
-        // Restauramos la función original para que el trigger no se repita en la sesión
-        window.setState = backupSetState;
-    }
+        // Restauramos la función original para que el trigger no se repita en la sesión
+        window.setState = backupSetState;
+    }
 };
 /* =====================================================
-   SONIDO FIRMA JARVIS
+   SONIDO FIRMA JARVIS
 ===================================================== */
 
 function beepJarvis() {
 
-    try {
+    try {
 
-        const ctx =
-            new (
-                window.AudioContext ||
-                window.webkitAudioContext
-            )();
+        const ctx =
+            new (
+                window.AudioContext ||
+                window.webkitAudioContext
+            )();
 
-        const osc =
-            ctx.createOscillator();
+        const osc =
+            ctx.createOscillator();
 
-        const gain =
-            ctx.createGain();
+        const gain =
+            ctx.createGain();
 
-        osc.type = "sine";
-        osc.frequency.value = 880;
-        gain.gain.value = 0.03;
+        osc.type = "sine";
+        osc.frequency.value = 880;
+        gain.gain.value = 0.03;
 
-        osc.connect(gain);
-        gain.connect(
-            ctx.destination
-        );
+        osc.connect(gain);
+        gain.connect(
+            ctx.destination
+        );
 
-        osc.start();
+        osc.start();
 
-        setTimeout(() => {
+        setTimeout(() => {
 
-            osc.stop();
-            ctx.close();
+            osc.stop();
+            ctx.close();
 
-        }, 120);
+        }, 120);
 
-    } catch (err) {
+    } catch (err) {
 
-        console.error(
-            "AudioError:",
-            err
-        );
-    }
+        console.error(
+            "AudioError:",
+            err
+        );
+    }
 }
 
 /* ======================================================================================
-   CEREBRO IA (VERSIÓN SOBERANA V5.80 - SINGLETON AWARE)
-   ====================================================================================== */
+   CEREBRO IA (VERSIÓN SOBERANA V5.80 - SINGLETON AWARE)
+   ====================================================================================== */
 async function consultarCerebroIA(mensajeUsuario) {
-    try {
-        const PROJECT_ID = "fixgo-44e4d"; 
-        const functionUrl = `https://us-central1-${PROJECT_ID}.cloudfunctions.net/jarvisConversacional`;
+    try {
+        const PROJECT_ID = "fixgo-44e4d"; 
+        const functionUrl = `https://us-central1-${PROJECT_ID}.cloudfunctions.net/jarvisConversacional`;
 
-        const obtenerTokenSia7 = () => {
-            return new Promise((resolve, reject) => {
-                // 🛡️ Buscamos la autoridad inyectada por el Singleton Armor v5.66
-                const firebaseAuth = window.auth;
+        const obtenerTokenSia7 = () => {
+            return new Promise((resolve, reject) => {
+                // 🛡️ Buscamos la autoridad inyectada por el Singleton Armor v5.66
+                const firebaseAuth = window.auth;
 
-                if (!firebaseAuth) {
-                    console.error("🚨 [SIA7]: Error Crítico - Instancia Auth no detectada en window.");
-                    return reject("NUCLEO_AUTH_DESCONECTADO");
-                }
+                if (!firebaseAuth) {
+                    console.error("🚨 [SIA7]: Error Crítico - Instancia Auth no detectada en window.");
+                    return reject("NUCLEO_AUTH_DESCONECTADO");
+                }
 
-                // Si Heberto ya tiene sesión activa
-                if (firebaseAuth.currentUser) {
-                    return firebaseAuth.currentUser.getIdToken().then(resolve).catch(reject);
-                }
+                // Si Heberto ya tiene sesión activa
+                if (firebaseAuth.currentUser) {
+                    return firebaseAuth.currentUser.getIdToken().then(resolve).catch(reject);
+                }
 
-                // Esperamos al observador del Singleton
-                const unsub = firebaseAuth.onAuthStateChanged(async (user) => {
-                    unsub();
-                    if (user) {
-                        const token = await user.getIdToken();
-                        resolve(token);
-                    } else {
-                        reject("SESION_NO_DETECTADA");
-                    }
-                });
+                // Esperamos al observador del Singleton
+                const unsub = firebaseAuth.onAuthStateChanged(async (user) => {
+                    unsub();
+                    if (user) {
+                        const token = await user.getIdToken();
+                        resolve(token);
+                    } else {
+                        reject("SESION_NO_DETECTADA");
+                    }
+                });
 
-                setTimeout(() => reject("TIMEOUT_BUNKER"), 5000);
-            });
-        };
+                setTimeout(() => reject("TIMEOUT_BUNKER"), 5000);
+            });
+        };
 
-        let token;
-        try {
-            token = await obtenerTokenSia7();
-            console.log("🔐 [SIA7]: Firma de Heberto confirmada. Transmitiendo ráfaga...");
-        } catch (err) {
-            console.error("🚨 [SIA7]: Fallo de identidad:", err);
-            return "Arquitecto, el búnker denegó la consulta. (Fallo: " + err + "). Asegúrate de estar logueado en GestiaPremium.";
-        }
+        let token;
+        try {
+            token = await obtenerTokenSia7();
+            console.log("🔐 [SIA7]: Firma de Heberto confirmada. Transmitiendo ráfaga...");
+        } catch (err) {
+            console.error("🚨 [SIA7]: Fallo de identidad:", err);
+            return "Arquitecto, el búnker denegó la consulta. (Fallo: " + err + "). Asegúrate de estar logueado en GestiaPremium.";
+        }
 
-        const response = await fetch(functionUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify({ data: { prompt: mensajeUsuario } })
-        });
+        const response = await fetch(functionUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ data: { prompt: mensajeUsuario } })
+        });
 
-        if (!response.ok) return `Fallo de comunicación con el núcleo (Status: ${response.status})`;
+        if (!response.ok) return `Fallo de comunicación con el núcleo (Status: ${response.status})`;
 
-        const jsonResponse = await response.json();
-        return jsonResponse.result?.respuesta || "El núcleo procesó la ráfaga pero no devolvió datos.";
+        const jsonResponse = await response.json();
+        return jsonResponse.result?.respuesta || "El núcleo procesó la ráfaga pero no devolvió datos.";
 
-    } catch (error) {
-        console.error("🚨 [SIA7]: Error crítico en ráfaga:", error);
-        return "Conexión interrumpida con el núcleo central.";
-    }
+    } catch (error) {
+        console.error("🚨 [SIA7]: Error crítico en ráfaga:", error);
+        return "Conexión interrumpida con el núcleo central.";
+    }
 }
 
 /**
- * 🎨 RENDERER ENGINE PREMIUM
- */
+ * 🎨 RENDERER ENGINE PREMIUM
+ */
 const renderJarvisResponse = (title, message, type = 'info') => {
-    const config = {
-        info: {
-            icon: 'fa-bolt',
-            color: 'bg-gestia-primary',
-            border: 'border-slate-700'
-        },
-        warning: {
-            icon: 'fa-triangle-exclamation',
-            color: 'bg-amber-500',
-            border: 'border-amber-500/30'
-        },
-        success: {
-            icon: 'fa-check',
-            color: 'bg-gestia-accent',
-            border: 'border-gestia-accent/30'
-        },
-        error: {
-            icon: 'fa-xmark',
-            color: 'bg-red-500',
-            border: 'border-red-500/30'
-        }
-    };
+    const config = {
+        info: {
+            icon: 'fa-bolt',
+            color: 'bg-gestia-primary',
+            border: 'border-slate-700'
+        },
+        warning: {
+            icon: 'fa-triangle-exclamation',
+            color: 'bg-amber-500',
+            border: 'border-amber-500/30'
+        },
+        success: {
+            icon: 'fa-check',
+            color: 'bg-gestia-accent',
+            border: 'border-gestia-accent/30'
+        },
+        error: {
+            icon: 'fa-xmark',
+            color: 'bg-red-500',
+            border: 'border-red-500/30'
+        }
+    };
 
-    const current = config[type] || config.info;
-    const safeMessage = String(message).replace(/\n/g, '<br>');
+    const current = config[type] || config.info;
+    const safeMessage = String(message).replace(/\n/g, '<br>');
 
-    const responseHtml = `
-        <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
-            <div class="w-10 h-10 rounded-full ${current.color} flex items-center justify-center shrink-0 shadow-lg">
-                <i class="fa-solid ${current.icon} text-white text-sm"></i>
-            </div>
+    const responseHtml = `
+        <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
+            <div class="w-10 h-10 rounded-full ${current.color} flex items-center justify-center shrink-0 shadow-lg">
+                <i class="fa-solid ${current.icon} text-white text-sm"></i>
+            </div>
 
-            <div class="bg-gestia-panel border ${current.border} p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
-                <h3 class="font-semibold text-white mb-3 text-lg">${title}</h3>
+            <div class="bg-gestia-panel border ${current.border} p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
+                <h3 class="font-semibold text-white mb-3 text-lg">${title}</h3>
 
-                <div class="text-slate-300 text-sm leading-relaxed">
-                    ${safeMessage}
-                </div>
-            </div>
-        </div>
-    `;
+                <div class="text-slate-300 text-sm leading-relaxed">
+                    ${safeMessage}
+                </div>
+            </div>
+        </div>
+    `;
 
-    output.insertAdjacentHTML('beforeend', responseHtml);
-    output.scrollTop = output.scrollHeight;
+    output.insertAdjacentHTML('beforeend', responseHtml);
+    output.scrollTop = output.scrollHeight;
 };
 
 /**
- * 🎧 SENSOR DE ESTADOS (SIA7 INTERFACE)
- */
+ * 🎧 SENSOR DE ESTADOS (SIA7 INTERFACE)
+ */
 window.addEventListener('gestia-terminal-state', (e) => {
 
-    const { state, type, data, opId, error, report } = e.detail;
+    const { state, type, data, opId, error, report } = e.detail;
 
-    // 🔥 FIX V5.18: Atrapamos la telemetría del Bridge que antes era ignorada
-    if (type === 'SYSTEM_STATUS' || state === 'SYSTEM_STATUS') {
-        const sysData = data || {};
-        const ram = sysData.memory || 'N/A';
-        const ops = sysData.ops || 0;
-        const statusStr = sysData.online ? "🟢 ONLINE" : "🔴 OFFLINE";
-        const time = sysData.timestamp ? new Date(sysData.timestamp).toLocaleTimeString('es-MX') : new Date().toLocaleTimeString('es-MX');
+    // 🔥 FIX V5.18: Atrapamos la telemetría del Bridge que antes era ignorada
+    if (type === 'SYSTEM_STATUS' || state === 'SYSTEM_STATUS') {
+        const sysData = data || {};
+        const ram = sysData.memory || 'N/A';
+        const ops = sysData.ops || 0;
+        const statusStr = sysData.online ? "🟢 ONLINE" : "🔴 OFFLINE";
+        const time = sysData.timestamp ? new Date(sysData.timestamp).toLocaleTimeString('es-MX') : new Date().toLocaleTimeString('es-MX');
 
-        renderJarvisResponse(
-            "Telemetría de Infraestructura",
-            `Estado del Núcleo: ${statusStr}\nMemoria Asignada: ${ram}\nOperaciones en Ledger: ${ops}\nSincronización: ${time}`,
-            "info"
-        );
-        return; // Salimos para no ejecutar los switch de abajo
-    }
+        renderJarvisResponse(
+            "Telemetría de Infraestructura",
+            `Estado del Núcleo: ${statusStr}\nMemoria Asignada: ${ram}\nOperaciones en Ledger: ${ops}\nSincronización: ${time}`,
+            "info"
+        );
+        return; // Salimos para no ejecutar los switch de abajo
+    }
 
-    if (report) {
+    if (report) {
 
-        let title = "Reporte SIA7";
-        let rType = "info";
+        let title = "Reporte SIA7";
+        let rType = "info";
 
-        if (state === 'WAIT_APPROVAL') {
-            title = "Propuesta de Misión";
-            rType = "warning";
-        }
-        else if (state === 'DONE') {
-            title = "Respuesta del Sistema";
-            rType = "success";
-        }
-        else if (state === 'ERROR') {
-            title = "Fallo Detectado";
-            rType = "error";
-        }
+        if (state === 'WAIT_APPROVAL') {
+            title = "Propuesta de Misión";
+            rType = "warning";
+        }
+        else if (state === 'DONE') {
+            title = "Respuesta del Sistema";
+            rType = "success";
+        }
+        else if (state === 'ERROR') {
+            title = "Fallo Detectado";
+            rType = "error";
+        }
 
-        renderJarvisResponse(title, report, rType);
-        return;
-    }
+        renderJarvisResponse(title, report, rType);
+        return;
+    }
 
-    switch(state) {
+    switch(state) {
 
-        case 'ANALYZE':
-            renderJarvisResponse(
-                "Análisis de Intención",
-                "SIA7 está decodificando tu solicitud en el corral semántico..."
-            );
-            break;
+        case 'ANALYZE':
+            renderJarvisResponse(
+                "Análisis de Intención",
+                "SIA7 está decodificando tu solicitud en el corral semántico..."
+            );
+            break;
 
-        case 'WAIT_APPROVAL':
-            renderJarvisResponse(
-                "Propuesta de Ráfaga",
-                `He preparado un plan de ejecución para la operación <b>${opId}</b>.\nEl firewall validó consistencia.\nEscribe 'arre' para confirmar.`,
-                'warning'
-            );
-            break;
+        case 'WAIT_APPROVAL':
+            renderJarvisResponse(
+                "Propuesta de Ráfaga",
+                `He preparado un plan de ejecución para la operación <b>${opId}</b>.\nEl firewall validó consistencia.\nEscribe 'arre' para confirmar.`,
+                'warning'
+            );
+            break;
 
-        case 'DONE':
-            renderJarvisResponse(
-                "Operación Exitosa",
-                `La ráfaga <b>${opId}</b> fue firmada y persistida en el Ledger.\nSistema estable.`,
-                'success'
-            );
-            break;
+        case 'DONE':
+            renderJarvisResponse(
+                "Operación Exitosa",
+                `La ráfaga <b>${opId}</b> fue firmada y persistida en el Ledger.\nSistema estable.`,
+                'success'
+            );
+            break;
 
-        case 'ERROR':
-            renderJarvisResponse(
-                "Fallo de Seguridad / Sistema",
-                `Error detectado: <b>${error || 'Ráfaga bloqueada'}</b>\nRollback aplicado.`,
-                'error'
-            );
-            break;
-    }
+        case 'ERROR':
+            renderJarvisResponse(
+                "Fallo de Seguridad / Sistema",
+                `Error detectado: <b>${error || 'Ráfaga bloqueada'}</b>\nRollback aplicado.`,
+                'error'
+            );
+            break;
+    }
 });
 
 
 
 /**
- * ✅ SOLDADURA FEDERAL (Detección de comandos fijos)
- */
+ * ✅ SOLDADURA FEDERAL (Detección de comandos fijos)
+ */
 function pareceComando(texto = "") {
-    const t = texto.toLowerCase();
-    const comandos = [
-        "command center",
-        "centro de mando",
-        "commander",
-        "predictor",
-        "sentinel",
-        "watchdog",
-        "tickets",
-        "jonathan",
-        "estado general",
-        "acciones reales",
-        "self healing",
-        "execution core"
-    ];
-    return comandos.some(c => t.includes(c));
+    const t = texto.toLowerCase();
+    const comandos = [
+        "command center",
+        "centro de mando",
+        "commander",
+        "predictor",
+        "sentinel",
+        "watchdog",
+        "tickets",
+        "jonathan",
+        "estado general",
+        "acciones reales",
+        "self healing",
+        "execution core"
+    ];
+    return comandos.some(c => t.includes(c));
 }
 
 /* =====================================================
-    EXPOSICIÓN GLOBAL PARA JARVIS BRIDGE V4
+    EXPOSICIÓN GLOBAL PARA JARVIS BRIDGE V4
 ===================================================== */
 
 window.renderJarvisResponse = renderJarvisResponse;
@@ -770,149 +740,149 @@ window.hablarJarvis = hablarJarvis;
 window.consultarCerebroIA = consultarCerebroIA;
 
 /* =====================================================================================
-    PARCHE EXACTO PARA gestia-terminal.html
-    form.addEventListener("submit", async function (e) { ... });
-    ===================================================================================== */
+    PARCHE EXACTO PARA gestia-terminal.html
+    form.addEventListener("submit", async function (e) { ... });
+    ===================================================================================== */
 
 form.addEventListener("submit", async function (e) {
 
-    e.preventDefault();
+    e.preventDefault();
 
-    const comando =
-        textarea.value.trim();
+    const comando =
+        textarea.value.trim();
 
-    if (!comando) return;
+    if (!comando) return;
 
-    const btnGenerate =
-        document.getElementById(
-            "btn-generate"
-        );
+    const btnGenerate =
+        document.getElementById(
+            "btn-generate"
+        );
 
-    try {
+    try {
 
-        btnGenerate.disabled = true;
-        btnGenerate.classList.add(
-            "animate-pulse"
-        );
+        btnGenerate.disabled = true;
+        btnGenerate.classList.add(
+            "animate-pulse"
+        );
 
-        /* =================================================
-            ROUTER SOBERANO V4
-        ================================================= */
+        /* =================================================
+            ROUTER SOBERANO V4
+        ================================================= */
 
-        if (
-            window.JarvisBridge &&
-            typeof window.JarvisBridge.dispatch ===
-                "function"
-        ) {
+        if (
+            window.JarvisBridge &&
+            typeof window.JarvisBridge.dispatch ===
+                "function"
+        ) {
 
-            await window.JarvisBridge.dispatch(
-                comando
-            );
+            await window.JarvisBridge.dispatch(
+                comando
+            );
 
-        } else {
+        } else {
 
-            /* =============================================
-                FALLBACK LEGACY
-            ============================================= */
+            /* =============================================
+                FALLBACK LEGACY
+            ============================================= */
 
-            let output = "";
+            let output = "";
 
-            if (
-                window.KernelHeberto
-            ) {
+            if (
+                window.KernelHeberto
+            ) {
 
-                const res =
-                    await window
-                        .KernelHeberto
-                        .execute(
-                            comando,
-                            e
-                        );
+                const res =
+                    await window
+                        .KernelHeberto
+                        .execute(
+                            comando,
+                            e
+                        );
 
-                output =
-                    res?.report ||
-                    res?.message ||
-                    "Orden completada.";
+                output =
+                    res?.report ||
+                    res?.message ||
+                    "Orden completada.";
 
-            } else {
+            } else {
 
-                output =
-                    "Kernel no disponible.";
-            }
+                output =
+                    "Kernel no disponible.";
+            }
 
-            if (
-                window.renderJarvisResponse
-            ) {
-                window.renderJarvisResponse(
-                    "Jarvis",
-                    output,
-                    "success"
-                );
-            }
+            if (
+                window.renderJarvisResponse
+            ) {
+                window.renderJarvisResponse(
+                    "Jarvis",
+                    output,
+                    "success"
+                );
+            }
 
-            if (
-                window.hablarJarvis
-            ) {
-                try {
-                    window.hablarJarvis(
-                        output
-                    );
-                } catch(err){}
-            }
-        }
+            if (
+                window.hablarJarvis
+            ) {
+                try {
+                    window.hablarJarvis(
+                        output
+                    );
+                } catch(err){}
+            }
+        }
 
-    } catch (error) {
+    } catch (error) {
 
-        console.error(
-            "❌ SUBMIT_FAIL:",
-            error
-        );
+        console.error(
+            "❌ SUBMIT_FAIL:",
+            error
+        );
 
-        if (
-            window.renderJarvisResponse
-        ) {
-            window.renderJarvisResponse(
-                "Jarvis",
-                "Ocurrió una incidencia controlada.",
-                "error"
-            );
-        }
+        if (
+            window.renderJarvisResponse
+        ) {
+            window.renderJarvisResponse(
+                "Jarvis",
+                "Ocurrió una incidencia controlada.",
+                "error"
+            );
+        }
 
-        if (
-            window.hablarJarvis
-        ) {
-            try {
-                window.hablarJarvis(
-                    "Ocurrió una incidencia controlada."
-                );
-            } catch(err){}
-        }
+        if (
+            window.hablarJarvis
+        ) {
+            try {
+                window.hablarJarvis(
+                    "Ocurrió una incidencia controlada."
+                );
+            } catch(err){}
+        }
 
-    } finally {
+    } finally {
 
-        btnGenerate.disabled =
-            false;
+        btnGenerate.disabled =
+            false;
 
-        btnGenerate.classList.remove(
-            "animate-pulse"
-        );
+        btnGenerate.classList.remove(
+            "animate-pulse"
+        );
 
-        textarea.value = "";
-        textarea.style.height =
-            "58px";
-    }
+        textarea.value = "";
+        textarea.style.height =
+            "58px";
+    }
 });
 
 textarea.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        // Disparar submit al presionar enter
-        form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
-    }
+    if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        // Disparar submit al presionar enter
+        form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    }
 });
 });
-    </script>
-    <div id="jarvisHud" style="
+    </script>
+    <div id="jarvisHud" style="
 position:fixed;
 top:18px;
 right:18px;
