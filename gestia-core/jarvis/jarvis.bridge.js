@@ -161,43 +161,46 @@ export async function dispatch(
       }
     );
 
-    /* =====================================================
-        EXECUTOR
-    ===================================================== */
+  
+/* =====================================================
+    EXECUTOR
+===================================================== */
 
-    const res =
-      await window.KernelHeberto.execute(
-        enrichedInput,
-        null,
-        {
-          simulate:
-            options.simulate
-        }
-      );
+const res = await window.KernelHeberto.execute(
+    enrichedInput,
+    null,
+    {
+        simulate: options.simulate
+    }
+);
 
-    return {
-      ok: !res?.error,
-      mode:
-        options.simulate
-          ? "SIMULATION"
-          : "EXECUTION",
-      command,
-      response: res
-    };
-
-  } catch (err) {
-
-    console.error(
-      "❌ [BRIDGE_V3.1_ERROR]",
-      err
-    );
-
-    return {
-      ok: false,
-      error: true,
-      message: err.message,
-      command
-    };
-  }
+// 🔥 FIX: SI ES OBJETO ESTRUCTURADO → PASAR DIRECTO
+if (res && typeof res === "object" && res.type) {
+    console.log("🧠 [BRIDGE PASS THROUGH]:", res);
+    return res;
 }
 
+// fallback normal
+return {
+    ok: !res?.error,
+    mode: options.simulate ? "SIMULATION" : "EXECUTION",
+    command,
+    response: res
+};
+
+
+} catch (err) {
+
+
+console.error("❌ [BRIDGE_V3.1_ERROR]", err);
+
+return {
+  ok: false,
+  error: true,
+  message: err.message,
+  command
+};
+
+
+}
+}
