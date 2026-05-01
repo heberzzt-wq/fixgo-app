@@ -152,6 +152,25 @@ fetch("/gestia-terminal.js")
 <script defer>
 document.addEventListener('DOMContentLoaded', () => {
 
+    /* =====================================================
+       🛡️ SIA7 UI CLEANER (INTERCEPTOR DE FANTASMAS LEGACY)
+    ===================================================== */
+    const outputContenedor = document.getElementById('gestia-output');
+    if (outputContenedor) {
+        const uiCleaner = new MutationObserver((mutations) => {
+            mutations.forEach((m) => {
+                m.addedNodes.forEach((node) => {
+                    if (node.nodeType === 1 && node.innerHTML.includes('[object Object]')) {
+                        console.log("🧹 [SIA7_CLEANER]: Interceptado y eliminado ghost box legacy.");
+                        node.style.display = 'none';
+                        node.remove();
+                    }
+                });
+            });
+        });
+        uiCleaner.observe(outputContenedor, { childList: true, subtree: true });
+    }
+
     const textarea = document.getElementById('gestia-input');
     const form = document.getElementById('gestia-form');
     const output = document.getElementById('gestia-output');
@@ -160,6 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.SpeechRecognition ||
     window.webkitSpeechRecognition;
 
+    
 /* =====================================================
    VOZ / MICRÓFONO V2 (CORREGIDO LOOP)
 ===================================================== */
