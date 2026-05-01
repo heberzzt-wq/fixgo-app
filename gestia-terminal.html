@@ -237,7 +237,6 @@ if (SpeechRecognition) {
 
 const hablarJarvis = (texto) => {
 
-```
 if (!("speechSynthesis" in window)) return;
 
 jarvisHablando = true;
@@ -288,7 +287,6 @@ voz.onend = () => {
 };
 
 speechSynthesis.speak(voz);
-```
 
 };
 
@@ -395,7 +393,7 @@ Núcleo autónomo listo para recibir órdenes.`;
 };
 
 /* =====================================================
-   🔥 COMPOSE RESPONSE V5.20 (HARDENED)
+    🔥 COMPOSE RESPONSE V5.20 (HARDENED)
 ===================================================== */
 window.composeResponse = function(outputs = []) {
 
@@ -634,27 +632,43 @@ const renderJarvisResponse = (title, message, type = 'info') => {
  */
 window.addEventListener('gestia-terminal-state', (e) => {
 
-    const { state, opId, error, report } = e.detail;
+    const { state, type, data, opId, error, report } = e.detail;
+
+    // 🔥 FIX V5.18: Atrapamos la telemetría del Bridge que antes era ignorada
+    if (type === 'SYSTEM_STATUS' || state === 'SYSTEM_STATUS') {
+        const sysData = data || {};
+        const ram = sysData.memory || 'N/A';
+        const ops = sysData.ops || 0;
+        const statusStr = sysData.online ? "🟢 ONLINE" : "🔴 OFFLINE";
+        const time = sysData.timestamp ? new Date(sysData.timestamp).toLocaleTimeString('es-MX') : new Date().toLocaleTimeString('es-MX');
+
+        renderJarvisResponse(
+            "Telemetría de Infraestructura",
+            `Estado del Núcleo: ${statusStr}\nMemoria Asignada: ${ram}\nOperaciones en Ledger: ${ops}\nSincronización: ${time}`,
+            "info"
+        );
+        return; // Salimos para no ejecutar los switch de abajo
+    }
 
     if (report) {
 
         let title = "Reporte SIA7";
-        let type = "info";
+        let rType = "info";
 
         if (state === 'WAIT_APPROVAL') {
             title = "Propuesta de Misión";
-            type = "warning";
+            rType = "warning";
         }
         else if (state === 'DONE') {
             title = "Respuesta del Sistema";
-            type = "success";
+            rType = "success";
         }
         else if (state === 'ERROR') {
             title = "Fallo Detectado";
-            type = "error";
+            rType = "error";
         }
 
-        renderJarvisResponse(title, report, type);
+        renderJarvisResponse(title, report, rType);
         return;
     }
 
@@ -718,7 +732,7 @@ function pareceComando(texto = "") {
 }
 
 /* =====================================================
-   EXPOSICIÓN GLOBAL PARA JARVIS BRIDGE V4
+    EXPOSICIÓN GLOBAL PARA JARVIS BRIDGE V4
 ===================================================== */
 
 window.renderJarvisResponse = renderJarvisResponse;
@@ -726,9 +740,9 @@ window.hablarJarvis = hablarJarvis;
 window.consultarCerebroIA = consultarCerebroIA;
 
 /* =====================================================================================
-   PARCHE EXACTO PARA gestia-terminal.html
-   form.addEventListener("submit", async function (e) { ... });
-   ===================================================================================== */
+    PARCHE EXACTO PARA gestia-terminal.html
+    form.addEventListener("submit", async function (e) { ... });
+    ===================================================================================== */
 
 form.addEventListener("submit", async function (e) {
 
