@@ -1792,52 +1792,48 @@ if (operation.type === "REPAIR") {
     };
 }
 
-    /* ==========================================
-READ ONLY BYPASS
+   /* ==========================================
+READ ONLY BYPASS (FINAL FIX)
 ========================================== */
 
 const READ_TYPES = [
-"ANALYZE",
-"REPORT",
-"STATUS",
-"SEARCH",
-"AUDIT"
+    "ANALYZE",
+    "REPORT",
+    "STATUS",
+    "SEARCH",
+    "AUDIT"
 ];
 
 if (READ_TYPES.includes(operation.type)) {
 
+    await this.setState(
+        STATES.DONE,
+        opId,
+        { report: "Consulta completada." }
+    );
 
-await this.setState(
-    STATES.DONE,
-    opId,
-    {
-        report: "Consulta completada."
+    await this.ledger.removeOp(opId);
+
+    // 🔥 FIX REAL: usar data del intent (NO result)
+    if (operation && operation.hasData && operation.data) {
+        console.log("🧠 [KERNEL RETURN DATA]:", operation.data);
+
+        return {
+            ok: true,
+            success: true,
+            opId,
+            type: "SYSTEM_STATUS", // 🔥 importante para composeResponse
+            data: operation.data
+        };
     }
-);
 
-await this.ledger.removeOp(opId);
-
-// 🔥 FIX: devolver resultado REAL si existe
-if (operation && operation.data) {
-    console.log("🧠 [KERNEL RETURN DATA]:", operation);
-
+    // fallback
     return {
         ok: true,
         success: true,
         opId,
-        type: operation.type === "ANALYZE" ? operation.type : "RESULT",
-        ...operation // 🔥 incluye type + data del DSL
+        message: "Consulta completada."
     };
-}
-
-// fallback normal
-return {
-    ok: true,
-    success: true,
-    opId,
-    message: "Consulta completada."
-};
-
 }
 
         /* ==========================================
