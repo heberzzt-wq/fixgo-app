@@ -701,32 +701,36 @@ async function executeCommands(commands = []) {
 // 🔥 CLAVE: Exponer la función al scope global para detener el bucle del Briefing
 window.executeCommands = executeCommands; 
            /* =====================================================================================
-    EXECUTION CORE V6.1 HYBRID SOCIAL (CORREGIDO V5.95)
-    PROTECCIÓN DE REDECLARACIÓN ACTIVA
+    EXECUTION CORE V6.1 HYBRID SOCIAL (CORREGIDO V5.96 STABLE)
+    PROTECCIÓN DE REDECLARACIÓN + PASS THROUGH + CACHE FIX
 ===================================================================================== */
 
-// 1. Usamos window.executeCommands para evitar el error "already been declared"
 window.executeCommands = async function(commands = []) {
+
     const outputs = [];
     const burstCache = new Map();
-    
+
     for (let cmd of commands) {
+
+        /* ======================================
+           NORMALIZACIÓN SEGURIDAD (LOGOUT FIX)
+        ====================================== */
         if (typeof cmd === "string") {
             const low = cmd.toLowerCase();
-            
-            // 🔥 MANTENER PARCHE DE SEGURIDAD V5.95
+
             if (
                 low.includes("cerrar sesion") ||
                 low.includes("cerrar sesión") ||
                 low.includes("logout") ||
                 low.includes("sign out")
             ) {
-                cmd = "REPAIR::admin.logout"; 
+                cmd = "REPAIR::admin.logout";
             }
         }
 
         if (typeof cmd === "object" && cmd !== null) {
             const rawCmd = String(cmd.cmd || "").toLowerCase();
+
             if (
                 rawCmd.includes("cerrar sesion") ||
                 rawCmd.includes("cerrar sesión") ||
@@ -741,13 +745,26 @@ window.executeCommands = async function(commands = []) {
 
         safeLog("EXEC", cmd);
 
+        /* ======================================
+           CACHE KEY ESTABLE (FIX OBJETOS)
+        ====================================== */
+        const cacheKey = (typeof cmd === "string")
+            ? cmd
+            : JSON.stringify(cmd);
+
         try {
-            // 2. VERIFICACIÓN DE CACHÉ OPERATIVA
-            if (burstCache.has(cmd)) {
+
+            if (burstCache.has(cacheKey)) {
                 safeLog("CACHE_HIT", cmd);
+
+                const cached = burstCache.get(cacheKey);
+
                 outputs.push(
-                    beautifyOutput(cmd, burstCache.get(cmd), true)
+                    (cached && typeof cached === "object" && cached.type)
+                        ? cached
+                        : beautifyOutput(cmd, cached, true)
                 );
+
                 continue;
             }
 
@@ -755,7 +772,7 @@ window.executeCommands = async function(commands = []) {
             const t0 = performance.now();
 
             /* ==================================
-                SOCIAL + NATIVE + CORE ROUTER
+               SOCIAL + NATIVE + CORE ROUTER
             ================================== */
             if (isSocialJarvis(cmd) || isNativeJarvis(cmd)) {
                 res = await withTimeout(executeNativeJarvis(cmd), 8000);
@@ -765,31 +782,37 @@ window.executeCommands = async function(commands = []) {
 
             const ms = Math.round(performance.now() - t0);
 
-// 🔥 DETECTAR DATA ANTES DE NORMALIZAR
-if (res && typeof res === "object" && res.type) {
+            let clean;
 
-```
-console.log("🧠 [PASS_THROUGH REAL]:", res);
+            /* ==================================
+               🔥 PASS THROUGH (OBJETOS REALES)
+            ================================== */
+            if (res && typeof res === "object" && res.type) {
 
-burstCache.set(cmd, res);
-outputs.push(res);
-```
+                console.log("🧠 [PASS_THROUGH REAL]:", res);
 
-} else {
+                clean = res;
 
-```
-const clean = normalize(res);
+                burstCache.set(cacheKey, clean);
+                outputs.push(clean);
 
-burstCache.set(cmd, clean);
+            } else {
 
-outputs.push(
-    beautifyOutput(cmd, clean, false)
-);
-```
+                /* ==================================
+                   NORMAL FLOW
+                ================================== */
+                clean = normalize(res);
 
-}
+                burstCache.set(cacheKey, clean);
 
+                outputs.push(
+                    beautifyOutput(cmd, clean, false)
+                );
+            }
 
+            /* ==================================
+               MÉTRICAS Y LOG
+            ================================== */
             safeLog("METRIC", { cmd, ms });
 
             saveHistory({
@@ -799,17 +822,20 @@ outputs.push(
             });
 
         } catch (error) {
+
             safeError("CMD_FAIL", { cmd, error });
+
             outputs.push(`Error en ${cmd}`);
-            saveHistory({ cmd, error: true });
+
+            saveHistory({
+                cmd,
+                error: true
+            });
         }
-    } 
+    }
 
     return outputs;
-}; 
-
-// ✅ Ya no necesitas window.executeCommands = executeCommands al final 
-// porque ya la definimos directamente en window.
+};
 /* =====================================================================================
     MAIN BRIDGE
 ===================================================================================== */

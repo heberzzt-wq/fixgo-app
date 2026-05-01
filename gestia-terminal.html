@@ -232,61 +232,91 @@ if (SpeechRecognition) {
 }
 
 /* =====================================================
-    VOZ JARVIS V5.9 POLISH + PROACTIVE STARTUP (DATA-AWARE)
+    VOZ JARVIS V5.21 BLINDADO CONTRA OBJECTOS CRUDOS
 ===================================================== */
 
 const hablarJarvis = (texto) => {
 
-if (!("speechSynthesis" in window)) return;
+    if (!("speechSynthesis" in window)) return;
 
-jarvisHablando = true;
+    jarvisHablando = true;
 
-if (
-    typeof reconocimiento !== 'undefined' && 
-    reconocimiento &&
-    typeof escuchandoAhora !== 'undefined' && 
-    escuchandoAhora
-) {
+    if (
+        typeof reconocimiento !== 'undefined' && 
+        reconocimiento &&
+        typeof escuchandoAhora !== 'undefined' && 
+        escuchandoAhora
+    ) {
+        try {
+            reconocimiento.abort();
+        } catch (e) {}
+    }
+
+    // 🔥 PARCHE DEEP-SCAN: Extraemos texto real de cualquier objeto crudo
+    let textoLimpio = "Comando procesado.";
     try {
-        reconocimiento.abort();
-    } catch (e) {}
-}
+        if (typeof texto === "string") {
+            textoLimpio = texto;
+        } else if (typeof texto === "object" && texto !== null) {
+            const target = texto.detail || texto.payload || texto;
+            
+            if (target.type === "SYSTEM_STATUS" || target.state === "SYSTEM_STATUS") {
+                const d = target.data || {};
+                textoLimpio = `Análisis del núcleo completado. Sistema ${d.online ? 'activo' : 'fuera de línea'}. Memoria RAM operando en ${d.memory || 'estado óptimo'}.`;
+            } else if (target.report && typeof target.report === "string") {
+                textoLimpio = target.report;
+            } else if (target.message && typeof target.message === "string") {
+                textoLimpio = target.message;
+            } else if (target.respuesta && typeof target.respuesta === "string") {
+                textoLimpio = target.respuesta;
+            } else {
+                textoLimpio = typeof window.composeResponse === "function" 
+                    ? window.composeResponse(target) 
+                    : "Sincronización de datos completada.";
+            }
+        } else {
+            textoLimpio = String(texto);
+        }
 
-// 🔥 SOLO TEXTO (la inteligencia ya pasó antes)
-const textoLimpio = typeof texto === "string"
-    ? texto
-    : (typeof window.composeResponse === "function"
-        ? window.composeResponse(texto)
-        : JSON.stringify(texto));
+        // Filtro final anti-object por si acaso
+        if (textoLimpio === "[object Object]") {
+            textoLimpio = "Análisis completado satisfactoriamente en el Ledger.";
+        }
+        
+        // Limpiamos emojis para que no traben el sintetizador de Windows/Chrome
+        textoLimpio = textoLimpio.replace(/[\u{1F600}-\u{1F6FF}🟢🔴🛡️🧠🔥🧪📊]/gu, '').trim();
+    } catch (err) {
+        textoLimpio = "Datos procesados y encriptados.";
+    }
 
-console.log("🔊 JARVIS VOZ:", textoLimpio);
+    console.log("🔊 JARVIS VOZ limpia:", textoLimpio);
 
-const voz = new SpeechSynthesisUtterance(textoLimpio);
+    const voz = new SpeechSynthesisUtterance(textoLimpio);
 
-voz.lang = "es-MX";
-voz.rate = 0.94;
-voz.pitch = 0.84;
-voz.volume = 1;
+    voz.lang = "es-MX";
+    voz.rate = 0.94;
+    voz.pitch = 0.84;
+    voz.volume = 1;
 
-const voces = speechSynthesis.getVoices();
+    const voces = speechSynthesis.getVoices();
 
-const seleccion =
-    voces.find(v => v.lang.includes("es-MX")) ||
-    voces.find(v => v.lang.includes("es")) ||
-    null;
+    const seleccion =
+        voces.find(v => v.lang.includes("es-MX")) ||
+        voces.find(v => v.lang.includes("es")) ||
+        null;
 
-if (seleccion) voz.voice = seleccion;
+    if (seleccion) voz.voice = seleccion;
 
-speechSynthesis.cancel();
+    speechSynthesis.cancel();
 
-voz.onend = () => {
-    jarvisHablando = false;
-    setTimeout(() => {
-        if (typeof beepJarvis === 'function') beepJarvis();
-    }, 220);
-};
+    voz.onend = () => {
+        jarvisHablando = false;
+        setTimeout(() => {
+            if (typeof beepJarvis === 'function') beepJarvis();
+        }, 220);
+    };
 
-speechSynthesis.speak(voz);
+    speechSynthesis.speak(voz);
 
 };
 
@@ -393,7 +423,7 @@ Núcleo autónomo listo para recibir órdenes.`;
 };
 
 /* =====================================================
-    🔥 COMPOSE RESPONSE V5.20 (HARDENED)
+    🔥 COMPOSE RESPONSE V5.21 (HARDENED - ANTI OBJECT)
 ===================================================== */
 window.composeResponse = function(outputs = []) {
 
@@ -408,11 +438,12 @@ window.composeResponse = function(outputs = []) {
            🧠 PRIORIDAD: DATA ESTRUCTURADA
         ========================================== */
         if (typeof o === "object") {
+            // 🛡️ Escudo protector contra Wrappers de eventos
+            const target = o.detail || o.payload || o;
 
             // 🔥 SYSTEM STATUS (caso principal)
-            if (o.type === "SYSTEM_STATUS" && o.data) {
-                const d = o.data;
-
+            if (target.type === "SYSTEM_STATUS" || target.state === "SYSTEM_STATUS") {
+                const d = target.data || {};
                 return [
                     `Sistema: ${d.online ? "🟢 Activo" : "🔴 Sin conexión"}`,
                     `Operaciones: ${d.ops ?? 0}`,
@@ -421,18 +452,21 @@ window.composeResponse = function(outputs = []) {
                 ].join("\n");
             }
 
-            // 🔥 SI HAY DATA GENÉRICA → mostrarla
-            if (o.data && typeof o.data === "object") {
-                return JSON.stringify(o.data, null, 2);
+            // 🔥 SI HAY DATA GENÉRICA → Parsear, nunca Object
+            if (target.data && typeof target.data === "object") {
+                return JSON.stringify(target.data, null, 2);
             }
 
-            // 🔥 MENSAJE
-            if (o.message) {
-                return String(o.message);
+            // 🔥 MENSAJES Y REPORTES
+            if (target.message) {
+                return typeof target.message === "object" ? JSON.stringify(target.message, null, 2) : String(target.message);
+            }
+            if (target.report) {
+                return typeof target.report === "object" ? JSON.stringify(target.report, null, 2) : String(target.report);
             }
 
-            // 🔥 FALLBACK FINAL
-            return JSON.stringify(o);
+            // 🔥 FALLBACK FINAL A JSON LEGIBLE
+            return JSON.stringify(target, null, 2);
         }
 
         /* ==========================================
@@ -605,7 +639,16 @@ const renderJarvisResponse = (title, message, type = 'info') => {
     };
 
     const current = config[type] || config.info;
-    const safeMessage = String(message).replace(/\n/g, '<br>');
+
+    // 🔥 FIX: Parseo preventivo antes de pintar en el HTML
+    let parsedMessage = message;
+    if (typeof message === "object" && message !== null) {
+        parsedMessage = typeof window.composeResponse === "function" 
+            ? window.composeResponse(message) 
+            : JSON.stringify(message, null, 2);
+    }
+
+    const safeMessage = String(parsedMessage).replace(/\n/g, '<br>');
 
     const responseHtml = `
         <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
@@ -616,7 +659,7 @@ const renderJarvisResponse = (title, message, type = 'info') => {
             <div class="bg-gestia-panel border ${current.border} p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
                 <h3 class="font-semibold text-white mb-3 text-lg">${title}</h3>
 
-                <div class="text-slate-300 text-sm leading-relaxed">
+                <div class="text-slate-300 text-sm leading-relaxed font-mono">
                     ${safeMessage}
                 </div>
             </div>
