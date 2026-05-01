@@ -80,65 +80,84 @@ async function runCore(input = "") {
 }
 
 /**
- * 🔥 runExternalAI (FORMATO OBLIGATORIO + HARDENED)
- */
-async function runExternalAI(input = "") {
-    try {
-        const res = await fetch(
-            "[https://us-central1-fixgo-44e4d.cloudfunctions.net/api/ai-intent](https://us-central1-fixgo-44e4d.cloudfunctions.net/api/ai-intent)",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ input })
-            }
-        );
 
-        // 🛡️ BARRERA ANTI-HTML / ERRORES HTTP
-        if (!res.ok) {
-            console.error(`[AI BRIDGE] Error HTTP: ${res.status}`);
-            return fallback();
-        }
+* 🔥 runExternalAI (HARDENED + HTML SAFE + URL FIX)
+  */
+  async function runExternalAI(input = "") {
+  try {
+  const res = await fetch(
+  "https://us-central1-fixgo-44e4d.cloudfunctions.net/api/ai-intent",
+  {
+  method: "POST",
+  headers: {
+  "Content-Type": "application/json"
+  },
+  body: JSON.stringify({ input })
+  }
+  );
 
-        const data = await res.json();
-        let parsed;
+  
+   // 🔴 Leemos como texto SIEMPRE (anti-HTML crash)
+   const text = await res.text();
 
-        try {
-            parsed = JSON.parse(data.output);
-        } catch {
-            return fallback();
-        }
+   // 🛡️ Detectar HTML (errores Firebase / 404 / proxy)
+   if (text.startsWith("<")) {
+       console.warn("🚨 [AI_HTML_RESPONSE]:", text.slice(0, 120));
+       return fallback();
+   }
 
-        // 🛡️ VALIDACIÓN FINAL
-        const validIntents = ["logout", "analyze", "open", "repair", "create", "update", "delete"];
-        const validTargets = ["admin", "system", "auth", "user"];
+   // 🛡️ Parseo seguro
+   let data;
+   try {
+       data = JSON.parse(text);
+   } catch {
+       console.warn("🚨 [AI_BAD_JSON]:", text);
+       return fallback();
+   }
 
-        if (
-            !parsed ||
-            !validIntents.includes(parsed.intent) ||
-            !validTargets.includes(parsed.target) ||
-            typeof parsed.confidence !== "number"
-        ) {
-            return fallback();
-        }
+   // 🧠 Parseo del output interno
+   let parsed;
+   try {
+       parsed = JSON.parse(data.output);
+   } catch {
+       console.warn("🚨 [AI_BAD_OUTPUT]:", data);
+       return fallback();
+   }
 
-        return parsed;
+   // 🛡️ Validación final estricta
+   const validIntents = ["logout", "analyze", "open", "repair", "create", "update", "delete"];
+   const validTargets = ["admin", "system", "auth", "user", "payments"];
 
-    } catch (error) {
-        console.error("AI BRIDGE ERROR:", error);
-        return fallback();
-    }
-}
+   if (
+       !parsed ||
+       !validIntents.includes(parsed.intent) ||
+       !validTargets.includes(parsed.target) ||
+       typeof parsed.confidence !== "number"
+   ) {
+       console.warn("🚨 [AI_INVALID_SCHEMA]:", parsed);
+       return fallback();
+   }
 
-// 🔒 fallback centralizado
-function fallback() {
-    return {
-        intent: "analyze",
-        target: "system",
-        confidence: 0
-    };
-}
+   return parsed;
+  
+
+  } catch (error) {
+  console.error("🚨 [AI_FETCH_FAIL]:", error);
+  return fallback();
+  }
+  }
+
+/**
+
+* 🔒 fallback centralizado
+  */
+  function fallback() {
+  return {
+  intent: "analyze",
+  target: "system",
+  confidence: 0
+  };
+  }
 
 // =====================================================
 // HELPERS DE INTERPRETACIÓN AI

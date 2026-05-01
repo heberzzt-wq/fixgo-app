@@ -1793,44 +1793,53 @@ if (operation.type === "REPAIR") {
 }
 
     /* ==========================================
-       READ ONLY BYPASS
-    ========================================== */
+READ ONLY BYPASS
+========================================== */
 
-    const READ_TYPES = [
-        "ANALYZE",
-        "REPORT",
-        "STATUS",
-        "SEARCH",
-        "AUDIT"
-    ];
+const READ_TYPES = [
+"ANALYZE",
+"REPORT",
+"STATUS",
+"SEARCH",
+"AUDIT"
+];
 
-    if (
-        READ_TYPES.includes(
-            operation.type
-        )
-    ) {
+if (READ_TYPES.includes(operation.type)) {
 
-        await this.setState(
-            STATES.DONE,
-            opId,
-            {
-                report:
-                    "Consulta completada."
-            }
-        );
 
-        await this.ledger.removeOp(
-            opId
-        );
-
-        return {
-            ok: true,
-            success: true,
-            opId,
-            message:
-                "Consulta completada."
-        };
+await this.setState(
+    STATES.DONE,
+    opId,
+    {
+        report: "Consulta completada."
     }
+);
+
+await this.ledger.removeOp(opId);
+
+// 🔥 FIX: devolver resultado REAL si existe
+if (operation && operation.data) {
+    console.log("🧠 [KERNEL RETURN DATA]:", operation);
+
+    return {
+        ok: true,
+        success: true,
+        opId,
+        type: operation.type === "ANALYZE" ? operation.type : "RESULT",
+        ...operation // 🔥 incluye type + data del DSL
+    };
+}
+
+// fallback normal
+return {
+    ok: true,
+    success: true,
+    opId,
+    message: "Consulta completada."
+};
+
+}
+
         /* ==========================================
            JOURNAL
         ========================================== */
