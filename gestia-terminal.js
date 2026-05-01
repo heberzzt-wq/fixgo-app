@@ -1623,33 +1623,25 @@ const issue =
     JSON.stringify(plan);
 
 /* ==========================================
-   OPERACIÓN
+   OPERACIÓN (FIX DATA PROPAGATION)
 ========================================== */
 
 const operation = {
     id: opId,
-    type:
-        detectedType,
-    payload: plan
+    type: detectedType,
+    payload: plan,
+
+    // 🔥 FIX CRÍTICO
+    hasData: plan?.hasData || false,
+    data: plan?.data || null
 };
 
-if (
-    !operation.id ||
-    !operation.type
-) {
-    throw new Error(
-        "INVALID_OPERATION"
-    );
+if (!operation.id || !operation.type) {
+    throw new Error("INVALID_OPERATION");
 }
 
-if (
-    !this.session?.uid ||
-    !this.session
-        ?.tenantId
-) {
-    throw new Error(
-        "INVALID_SECURITY_CONTEXT"
-    );
+if (!this.session?.uid || !this.session?.tenantId) {
+    throw new Error("INVALID_SECURITY_CONTEXT");
 }
     /* ==========================================
        FIREWALL ENFORCE
