@@ -298,78 +298,94 @@ speechSynthesis.speak(voz);
 ===================================================== */
 
 /* =====================================================
-    BRIEFING INICIAL PROACTIVO (V5.19 KERNEL-SYNC)
-    Ubicación: Terminal HTML Script
+   BRIEFING INICIAL PROACTIVO (HARDENED)
 ===================================================== */
 
 const launchSovereignBriefing = async () => {
-    // 1. Doble validación de seguridad antes de hablar
+
     const coreReady = typeof window.executeCommands === 'function';
     const userReady = window.auth?.currentUser?.uid || window.currentUserID;
 
     if (!coreReady || !userReady) {
-        console.warn("⚠️ [BOOT_ABORT] Intento de briefing sin Core o Identidad.");
+        console.warn("⚠️ [BOOT_ABORT] Core o usuario no listo.");
         return;
     }
 
-    console.log("✅ [BOOT] Kernel validado y Sesión Segura detectada. Iniciando...");
+    console.log("✅ [BOOT] Iniciando briefing...");
 
-    // 2. Extracción de métricas base para el encabezado
-    const totalOps = (window.JarvisHistory ? window.JarvisHistory.length : 0);
-    const ram = navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "N/D";
+    const totalOps = window.JarvisHistory?.length || 0;
 
     let visualStatus = "Sistemas en línea.";
     let voiceStatus = "Sistemas en línea.";
-    
-    try {
-        // 🔥 EJECUCIÓN SOBERANA: ANALYZE::system devuelve el objeto estructurado
-        const outputs = await window.executeCommands(["ANALYZE::system"]);
-        
-        // Extraemos el primer output real para analizar qué nos devolvió el Bridge
-        const cleanOutputs = (Array.isArray(outputs) ? outputs : [outputs]).filter(Boolean);
-        const firstOutput = cleanOutputs[0];
 
-        // 🧠 SPLIT ROUTING: Separamos lo que se lee de lo que se ve
-        if (firstOutput && typeof firstOutput === 'object' && firstOutput.type === "SYSTEM_STATUS") {
-            // Para la pantalla: Usamos el extractor de telemetría (composeResponse)
-            visualStatus = typeof window.composeResponse === 'function' 
-                ? window.composeResponse(cleanOutputs) 
-                : JSON.stringify(firstOutput.data);
-            
-            // Para la voz: Texto natural limpio sin emojis ni saltos de línea
-            voiceStatus = `Telemetría enlazada. El sistema se encuentra ${firstOutput.data.online ? 'activo' : 'sin conexión'}.`;
-        } else {
-            visualStatus = typeof window.composeResponse === 'function' 
-                ? window.composeResponse(cleanOutputs) 
-                : "Estado del sistema verificado correctamente.";
-            voiceStatus = "Estado del sistema verificado correctamente.";
+    try {
+        const outputs = await window.executeCommands(["ANALYZE::system"]);
+
+        // 🔥 NORMALIZACIÓN FUERTE
+        const arr = Array.isArray(outputs) ? outputs : [outputs];
+        const clean = arr.filter(Boolean);
+
+        console.log("🧪 [BRIEFING OUTPUTS]:", clean);
+
+        const first = clean[0];
+
+        /* ==========================================
+           CASO IDEAL: OBJETO ESTRUCTURADO
+        ========================================== */
+        if (first && typeof first === "object" && first.type === "SYSTEM_STATUS") {
+
+            const d = first.data || {};
+
+            visualStatus = `
+Sistema: ${d.online ? "🟢 Activo" : "🔴 Sin conexión"}
+Operaciones: ${d.ops ?? 0}
+Memoria: ${d.memory ?? "N/A"}
+Hora: ${new Date(d.timestamp || Date.now()).toLocaleTimeString("es-MX")}
+            `.trim();
+
+            voiceStatus = `Sistema ${d.online ? "activo" : "sin conexión"}.`;
+
+        }
+
+        /* ==========================================
+           FALLBACK CONTROLADO
+        ========================================== */
+        else {
+            console.warn("⚠️ [BRIEFING FALLBACK]: no llegó SYSTEM_STATUS");
+
+            visualStatus =
+                typeof window.composeResponse === "function"
+                    ? window.composeResponse(clean)
+                    : "Estado verificado.";
+
+            voiceStatus = "Estado del sistema verificado.";
         }
 
     } catch (e) {
-        console.error("❌ [BOOT_CRITICAL] Fallo en análisis inicial:", e);
-        visualStatus = "🔴 Sistemas en espera de sincronización manual.";
-        voiceStatus = "Atención. Fallo en el análisis de sincronización.";
+        console.error("❌ [BOOT_FAIL]:", e);
+
+        visualStatus = "🔴 Error en sincronización.";
+        voiceStatus = "Fallo en análisis del sistema.";
     }
 
-    const onlineStatusVisual = navigator.onLine ? "🟢 Activa" : "🔴 Sin conexión";
-    const onlineStatusVoice = navigator.onLine ? "activa" : "sin conexión";
+    const onlineVisual = navigator.onLine ? "🟢 Activa" : "🔴 Sin conexión";
+    const onlineVoice = navigator.onLine ? "activa" : "sin conexión";
     const hora = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
 
-    // 3. Empaquetado Multi-canal
     const briefingVisual = `Bienvenido Arquitecto.
 
 ${visualStatus}
 
-Conexión: ${onlineStatusVisual}
+Conexión: ${onlineVisual}
 Operaciones en Ledger: ${totalOps}
 Hora local: ${hora}
 
 Núcleo autónomo listo para recibir órdenes.`;
 
-    const briefingVoz = `Bienvenido Arquitecto. ${voiceStatus} Conexión ${onlineStatusVoice}. Tienes ${totalOps} operaciones en Ledger. Núcleo autónomo listo para recibir órdenes.`;
+    const briefingVoz = `Bienvenido Arquitecto. ${voiceStatus} Conexión ${onlineVoice}. ${totalOps} operaciones registradas.`;
 
-    // 4. Salida Ejecutiva
-    if (typeof hablarJarvis === 'function') {
+    // 🔥 SALIDA
+    if (typeof hablarJarvis === "function") {
         hablarJarvis(briefingVoz);
     }
 
@@ -379,16 +395,23 @@ Núcleo autónomo listo para recibir órdenes.`;
 };
 
 /* =====================================================
-    🔥 COMPOSE RESPONSE V5.19 (KERNEL-READY)
-    Ubicación: Script dentro de gestia-terminal (HTML)
+   🔥 COMPOSE RESPONSE V5.20 (HARDENED)
 ===================================================== */
 window.composeResponse = function(outputs = []) {
-    if (!Array.isArray(outputs)) return "";
 
-    const parts = outputs.map(o => {
-        // 🔥 SOPORTE PARA OBJETOS ESTRUCTURADOS (Telemetría Real)
-        if (o && typeof o === "object") {
-            // Si es un estado de sistema con datos técnicos
+    // 🔥 NORMALIZACIÓN: SIEMPRE ARRAY
+    const arr = Array.isArray(outputs) ? outputs : [outputs];
+
+    const parts = arr.map(o => {
+
+        if (!o) return "";
+
+        /* ==========================================
+           🧠 PRIORIDAD: DATA ESTRUCTURADA
+        ========================================== */
+        if (typeof o === "object") {
+
+            // 🔥 SYSTEM STATUS (caso principal)
             if (o.type === "SYSTEM_STATUS" && o.data) {
                 const d = o.data;
 
@@ -400,16 +423,26 @@ window.composeResponse = function(outputs = []) {
                 ].join("\n");
             }
 
-            // Fallback para otros objetos (Mensajes de error o logs)
-            if (o.message) return String(o.message);
+            // 🔥 SI HAY DATA GENÉRICA → mostrarla
+            if (o.data && typeof o.data === "object") {
+                return JSON.stringify(o.data, null, 2);
+            }
+
+            // 🔥 MENSAJE
+            if (o.message) {
+                return String(o.message);
+            }
+
+            // 🔥 FALLBACK FINAL
             return JSON.stringify(o);
         }
 
-        // Flujo previo: Soporte para strings clásicos
+        /* ==========================================
+           STRINGS
+        ========================================== */
         return String(o);
     });
 
-    // Filtramos partes vacías y unimos con doble salto para legibilidad
     return parts.filter(Boolean).join("\n\n");
 };
 
