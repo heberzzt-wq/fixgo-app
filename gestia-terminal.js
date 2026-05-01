@@ -1626,7 +1626,8 @@ const issue =
    OPERACIÓN (FIX DATA PROPAGATION CORRECTO)
 ========================================== */
 
-const first = Array.isArray(plan) ? plan[0] : plan;
+const node = Array.isArray(plan) ? plan[0] : plan;
+
 
 const operation = {
     id: opId,
