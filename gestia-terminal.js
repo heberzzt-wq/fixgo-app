@@ -1792,8 +1792,8 @@ if (operation.type === "REPAIR") {
     };
 }
 
-   /* ==========================================
-READ ONLY BYPASS (FINAL FIX)
+  /* ==========================================
+READ ONLY BYPASS (FINAL STABLE FIX)
 ========================================== */
 
 const READ_TYPES = [
@@ -1814,28 +1814,40 @@ if (READ_TYPES.includes(operation.type)) {
 
     await this.ledger.removeOp(opId);
 
-    // 🔥 FIX REAL: usar data del intent (NO result)
-    if (operation && operation.hasData && operation.data) {
-        console.log("🧠 [KERNEL RETURN DATA]:", operation.data);
+    // 🔍 DEBUG
+    console.log("🧪 [OPERATION]:", operation);
+
+    /* ==========================================
+       ✅ CASO IDEAL: DATA DESDE DSL
+    ========================================== */
+    if (operation?.hasData && operation?.data) {
+
+        console.log("🧠 [RETURN DATA OK]:", operation.data);
 
         return {
             ok: true,
             success: true,
             opId,
-            type: "SYSTEM_STATUS", // 🔥 importante para composeResponse
+            type: "SYSTEM_STATUS",
             data: operation.data
         };
     }
 
-    // fallback
+    /* ==========================================
+       ⚠️ FALLBACK INTELIGENTE
+       (NO lo quites)
+    ========================================== */
+
+    console.warn("⚠️ [NO DATA] usando fallback controlado");
+
     return {
         ok: true,
         success: true,
         opId,
+        type: "READ_RESULT", // 🔥 importante para no romper compose
         message: "Consulta completada."
     };
 }
-
         /* ==========================================
            JOURNAL
         ========================================== */
