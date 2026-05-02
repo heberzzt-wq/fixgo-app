@@ -742,23 +742,87 @@ console.log("%c🧠 [INTENT_ENGINE V3.1]: ARCHITECT SOVEREIGN 1000% OPERATIONAL"
 // --- AL FINAL DE intent.engine.js ---
 
 /* =====================================================
-    INTENT ENGINE BRIDGE (V5.19 FIX - SOVEREIGN OUTPUT)
+    INTENT ENGINE BRIDGE (V5.20 HYBRID SOVEREIGN FIX)
 ===================================================== */
 window.runIntentEngine = async function(text) {
 
-    // 1. Intentamos usar el motor principal (YA NORMALIZADO)
-    if (typeof interpretarIntenciones === 'function') {
+    try {
 
-        const res = interpretarIntenciones([{ raw: text }]);
+        let cleanText = text;
+        let nluMeta = null;
 
-        if (res && res[0]) {
-            // 🔥 YA VIENE EN FORMATO SISTEMA (ok, type, data, message, meta)
-            return res[0];
+        // =====================================================
+        // 🧠 1. NLU HYBRID (ANTES DEL INTENT ENGINE)
+        // =====================================================
+        if (typeof understand === "function") {
+
+            const nlu = understand(text);
+
+            if (nlu && nlu.commands && nlu.commands[0]) {
+
+                const cmd = nlu.commands[0];
+
+                console.log("🧠 [NLU → INTENT]", cmd);
+
+                cleanText = cmd.clean || text;
+
+                nluMeta = {
+                    fallback: cmd.fallback || false,
+                    confidence: cmd.confidence || 0.5
+                };
+            }
         }
+
+        // =====================================================
+        // 🧠 2. INTENT ENGINE (YA NORMALIZADO)
+        // =====================================================
+        if (typeof interpretarIntenciones === 'function') {
+
+            const res = interpretarIntenciones([{ raw: cleanText }]);
+
+            if (res && res[0]) {
+
+                const out = res[0];
+
+                // 🔥 NORMALIZACIÓN SOBERANA FINAL
+                return {
+                    ok: true,
+                    type: out.type || "TEXT",
+                    data: out.data || {},
+                    message: out.summary || "Operación ejecutada.",
+                    meta: {
+                        source: "intent_engine",
+                        ts: Date.now(),
+                        nlu: nluMeta
+                    }
+                };
+            }
+        }
+
+    } catch (err) {
+        console.error("❌ [RUN_INTENT_ENGINE_FAIL]", err);
     }
-    
-    // 2. Fallback de emergencia (también alineado al contrato global)
+
+    // =====================================================
+    // 🧯 3. FALLBACK DURO (NUNCA ROMPE)
+    // =====================================================
     const low = String(text || "").toLowerCase();
+
+    if (low.includes("tecnic")) {
+        return {
+            ok: true,
+            type: "TEXT",
+            data: {
+                intent: "ANALYZE_TECHNICIANS",
+                entity: "tecnico"
+            },
+            message: "Consulta de técnicos detectada (fallback).",
+            meta: {
+                source: "intent_fallback",
+                ts: Date.now()
+            }
+        };
+    }
 
     if (low.includes("estado") || low.includes("sistema")) {
         return {
@@ -791,8 +855,17 @@ window.runIntentEngine = async function(text) {
             }
         };
     }
-    
-    return null; 
+
+    return {
+        ok: true,
+        type: "TEXT",
+        data: {},
+        message: "No se pudo interpretar completamente la instrucción, pero el sistema sigue operativo.",
+        meta: {
+            source: "intent_fallback_safe",
+            ts: Date.now()
+        }
+    };
 };
 /**
  * ======================================================================================
