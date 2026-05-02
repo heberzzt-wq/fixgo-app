@@ -1496,17 +1496,26 @@ document.addEventListener('DOMContentLoaded', () => {
         metadata: { version: "5.18", mode: "TACAÑO_OPTIMIZED" }
     };
 
-    // Interceptor para que el Bridge reconozca los datos de Jonathan y el equipo
-    const originalExecuteCommands = window.executeCommands;
+    // ⚡ INYECCIÓN AGRESIVA: Si el Bridge ya existe, le inyectamos la data directamente
+    if (window.JarvisBridge) {
+        window.JarvisBridge.localCache = window.GestiaTaskForce;
+        console.log("🚀 [BRIDGE_SYNC]: Cache de técnicos vinculada.");
+    }
+
+    // Interceptor reforzado para capturar la llamada antes que el Bridge viejo
+    var originalExecuteCommands = window.executeCommands;
     window.executeCommands = async function(cmds) {
-        if (cmds && cmds.includes("ANALYZE::technicians")) {
+        // Normalizamos el comando para que ANALYZE::technicians entre siempre
+        const checkCmd = Array.isArray(cmds) ? cmds[0] : cmds;
+        
+        if (checkCmd && checkCmd.includes("ANALYZE::technicians")) {
             if (typeof window.audit === "function") {
                 window.audit("DATA_HYDRATION", { target: "technicians", count: window.GestiaTaskForce.technicians.length });
             }
             
             return [{
                 ok: true,
-                type: "LEDGER",
+                type: "SYSTEM_STATUS", // Cambiado a SYSTEM_STATUS para que el Renderer lo pinte con estilo
                 data: window.GestiaTaskForce.technicians,
                 message: `Análisis de Fuerza de Tarea: ${window.GestiaTaskForce.technicians.length} perfiles activos.`
             }];
@@ -1515,7 +1524,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     console.log("📦 [DATA_VAULT]: Perfiles cargados. Jonathan listo para pruebas.");
-
+    
     if (textarea) {
         textarea.addEventListener("keydown", function (e) {
             if (e.key === "Enter" && !e.shiftKey) {
