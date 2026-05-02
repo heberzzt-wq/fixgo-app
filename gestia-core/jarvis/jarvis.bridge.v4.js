@@ -280,35 +280,32 @@ function beautifyOutput(
         return "Dashboard operativo desplegado.";
     }
 
-  /* ======================================================================================
-    🧠 ANALYZE::SYSTEM - KERNEL TELEMETRY V5.19 (SOVEREIGN SYNC)
-    Sustituye el bloque anterior para activar la telemetría real en la terminal.
-    Basado en Arquitectura GestiaPremium V5.18.
-   ====================================================================================== */
-if (c.includes("ANALYZE::SYSTEM")) {
-    // 🧠 Extracción de métricas en tiempo real del entorno del Arquitecto
-    const telemetry = {
-        ok: true,
-        type: "SYSTEM_STATUS", // 🔥 Llave crítica para el mapeo en composeResponse
-        data: {
-            online: navigator.onLine,
-            timestamp: Date.now(),
-            // 📊 Sincronización con el historial de Jarvis o el estado del Bank Core
-            ops: (window?.JarvisHistory?.length) || (window?.bankState?.totalOps) || 0,
-            // 🔋 Cálculo de memoria activa (Conversión a MB para legibilidad)
-            memory: performance?.memory 
-                ? `${Math.round(performance.memory.usedJSHeapSize / 1048576)} MB` 
-                : "N/A"
-        }
-    };
+    /* ======================================================================================
+        🧠 ANALYZE::SYSTEM
+    ====================================================================================== */
+    if (c.includes("ANALYZE::SYSTEM")) {
 
-    // 🛡️ Registro de Telemetría (Auditoría de Modo God)
-    console.log("%c📊 [TELEMETRY_DISPATCH]: Ejecutando Análisis de Infraestructura...", "color: #3b82f6; font-weight: bold;", telemetry);
-    
-    // 🚀 Retorno del objeto estructurado (No más strings planos)
-    return telemetry;
-}
-    
+        const telemetry = {
+            ok: true,
+            type: "SYSTEM_STATUS",
+            data: {
+                online: navigator.onLine,
+                timestamp: Date.now(),
+                ops: (window?.JarvisHistory?.length) || (window?.bankState?.totalOps) || 0,
+                memory: performance?.memory
+                    ? `${Math.round(performance.memory.usedJSHeapSize / 1048576)} MB`
+                    : "N/A"
+            }
+        };
+
+        console.log(
+            "%c📊 [TELEMETRY_DISPATCH]: Ejecutando Análisis de Infraestructura...",
+            "color: #3b82f6; font-weight: bold;",
+            telemetry
+        );
+
+        return telemetry;
+    }
 
     /* ==========================================
         CREATE
@@ -366,7 +363,16 @@ function composeResponse(outputs = []) {
 
     const clean = outputs
         .filter(Boolean)
-        .map(x => String(x).trim())
+        .map(x => {
+            if (typeof x === "object") {
+                return (
+                    x.message ||
+                    x.summary ||
+                    JSON.stringify(x.data || x)
+                );
+            }
+            return String(x).trim();
+        })
         .filter(Boolean);
 
     if (!clean.length) {
