@@ -1614,13 +1614,16 @@ const detectedType =
     "ANALYZE";
 
 /* ==========================================
-   🔥 CONTEXTO DEL PROBLEMA (NUEVO)
+   🔥 CONTEXTO DEL PROBLEMA (FIX: BLINDAJE)
 ========================================== */
 
-const issue =
+// Forzamos String para evitar el error de 'indexOf' de undefined
+const issue = String(
     first.raw ||
     first.summary ||
-    JSON.stringify(plan);
+    JSON.stringify(plan) || 
+    ""
+);
 
 /* ==========================================
    OPERACIÓN (FIX DATA PROPAGATION CORRECTO)
@@ -1735,7 +1738,7 @@ if (operation.type === "REPAIR") {
     .diagnosticarPayloadFinal(
         {
             id: target,
-            issue: issue, // 🔥 ESTE ES EL FIX REAL
+            issue: issue, // 🔥 USANDO EL ISSUE BLINDADO
             json: {
                 javascript: rawSource
             },
@@ -1768,7 +1771,7 @@ if (operation.type === "REPAIR") {
         console.error("❌ ERROR RE-EJECUTANDO SCRIPT", err);
     }
 }
-    
+   
 
     await this.setState(
         STATES.DONE,
@@ -1845,8 +1848,8 @@ if (READ_TYPES.includes(operation.type)) {
     };
 }
         /* ==========================================
-           JOURNAL
-        ========================================== */
+            JOURNAL
+         ========================================== */
 
        await this.setState(
     STATES.JOURNALING,
@@ -1879,8 +1882,8 @@ const journal =
     );
 
         /* ==========================================
-           SIGNATURE
-        ========================================== */
+            SIGNATURE
+         ========================================== */
 
         await this.setState(
             STATES.SIGNING,
@@ -1901,8 +1904,8 @@ const journal =
         }
 
         /* ==========================================
-           TRANSACTION
-        ========================================== */
+            TRANSACTION
+         ========================================== */
 
         await this.setState(
             STATES.APPLY_ATOMIC,
@@ -1998,11 +2001,11 @@ const journal =
                                 : 0,
                         credit:
                             action ===
-                                "CREATE" ||
+                            "CREATE" ||
                             action ===
-                                "UPDATE" ||
+                            "UPDATE" ||
                             action ===
-                                "REPAIR"
+                            "REPAIR"
                                 ? 1
                                 : 0,
                         v:
@@ -2059,8 +2062,8 @@ const journal =
         );
 
         /* ==========================================
-           SUCCESS
-        ========================================== */
+            SUCCESS
+         ========================================== */
 
         await this.setState(
             STATES.DONE,
