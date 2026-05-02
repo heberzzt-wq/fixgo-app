@@ -158,9 +158,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* =====================================================
         🛡️ SISTEMA DE AUDITORÍA Y NORMALIZACIÓN (NÚCLEO RESILIENTE)
-        Blindaje Total: Coherencia Temporal, Serialización Extendida y Seguridad V5.70.
+        Blindaje Total: Coherencia Temporal y Seguridad V5.70.
     ===================================================== */
     
+    // Configuración de límites del Búnker (Modo Tacaño)
     window.__DEV__ = true; 
     const ALLOWED_TYPES = new Set(["SYSTEM_STATUS", "LEDGER", "ALERT", "TEXT", "UNKNOWN"]);
     const MAX_ARRAY = 50;
@@ -168,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAX_SNAPSHOT_SIZE = 5000;
     const lastAuditMap = new Map();
 
-    // 1. Utilidades de Infraestructura y Relojes Duales
+    // 1. UTILIDADES DE INFRAESTRUCTURA (DECLARACIÓN ÚNICA)
     const isPlainObject = (v) => {
         if (!v || typeof v !== "object") return false;
         try {
@@ -190,7 +191,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const nowEpoch = () => Date.now();
     const nowPerf = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
-    const unwrap = (input) => {
+    // 2. DESEMPAQUETADO DE PAYLOADS (UNWRAP)
+    window.unwrap = (input) => {
         let current = input;
         const seen = new Set();
         let safety = 0;
@@ -205,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (hasDetail) {
                 current = d;
             } else if (p && typeof p === "object") {
-                current = p; // seen Set ya protege contra ciclos
+                current = p;
             } else {
                 break;
             }
@@ -215,8 +217,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return current;
     };
 
-    // 2. Sanitización con Soporte Recursivo de Map/Set
-    const safeData = (data, depth = 0, seen = new WeakSet()) => {
+    // 3. SANITIZACIÓN RECURSIVA (SAFE DATA)
+    window.safeData = (data, depth = 0, seen = new WeakSet()) => {
         if (depth > 2) return "[truncated]";
         if (typeof data !== "object" || data === null) return data;
 
@@ -224,24 +226,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data instanceof Error) return { message: data.message, stack: "[stack]" };
         if (data instanceof RegExp) return data.toString();
         
-        // Cierre de hueco de estabilidad en Map
         if (data instanceof Map) {
             const out = {};
             let i = 0;
             for (const [k, v] of data.entries()) {
                 if (i++ >= MAX_KEYS) break;
-                out[k] = typeof v === "object" ? safeData(v, depth + 1, seen) : v;
+                out[k] = typeof v === "object" ? window.safeData(v, depth + 1, seen) : v;
             }
             return out;
         }
 
-        // Cierre de hueco de estabilidad en Set
         if (data instanceof Set) {
             const arr = [];
             let i = 0;
             for (const v of data.values()) {
                 if (i++ >= MAX_ARRAY) break;
-                arr.push(typeof v === "object" ? safeData(v, depth + 1, seen) : v);
+                arr.push(typeof v === "object" ? window.safeData(v, depth + 1, seen) : v);
             }
             return arr;
         }
@@ -253,7 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (Array.isArray(data)) {
             const truncated = data.length > MAX_ARRAY;
             const arr = data.slice(0, MAX_ARRAY).map(v => 
-                typeof v === "object" ? safeData(v, depth + 1, seen) : v
+                typeof v === "object" ? window.safeData(v, depth + 1, seen) : v
             );
             if (truncated) arr.push("[...truncated]");
             return arr;
@@ -275,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     result[k] = "[symbol]";
                     continue;
                 }
-                result[k] = (typeof v === "object") ? safeData(v, depth + 1, seen) : v;
+                result[k] = (typeof v === "object") ? window.safeData(v, depth + 1, seen) : v;
             } catch { result[k] = "[unserializable]"; }
         }
 
@@ -283,12 +283,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return result;
     };
 
-    // 3. Auditoría con Estimación Híbrida y Throttle Inteligente
-    const estimateSize = (obj) => {
+    // 4. CONTROL DE TAMAÑO Y CLONACIÓN
+    window.estimateSize = (obj) => {
         if (!obj || typeof obj !== "object") return 0;
         const keys = Object.keys(obj);
-        if (keys.length < 20) return 0; // Fast path
-
+        if (keys.length < 20) return 0; 
         try {
             return JSON.stringify(obj).length;
         } catch {
@@ -298,44 +297,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const bigIntReplacer = (_, value) => typeof value === "bigint" ? value.toString() : value;
 
-    const safeClone = (obj) => {
+    window.safeClone = (obj) => {
         if (typeof obj === "function") return "[function]";
         if (typeof obj !== "object" || obj === null) return obj;
         if (isDomNode(obj)) return "[dom]";
-
         try {
-            const clone = (typeof structuredClone === "function") 
+            const hasStructuredClone = typeof structuredClone === "function";
+            const clone = hasStructuredClone 
                 ? structuredClone(obj) 
                 : JSON.parse(JSON.stringify(obj, bigIntReplacer));
-            return (estimateSize(clone) > MAX_SNAPSHOT_SIZE) ? { truncated: true } : clone;
+            return (window.estimateSize(clone) > MAX_SNAPSHOT_SIZE) ? { truncated: true } : clone;
         } catch { return { warning: "snapshot_failed" }; }
     };
 
-    const AUDIT_LIMIT = 200;
-    let __AUDIT_SEQ__ = 0;
+    // 5. REGISTRO DE AUDITORÍA (LEDGER)
     window.__AUDIT__ = [];
-
-    const auditPush = (entry) => {
-        window.__AUDIT__.push({ id: ++__AUDIT_SEQ__, ts: nowEpoch(), ...entry });
-        if (window.__AUDIT__.length > AUDIT_LIMIT) window.__AUDIT__.shift();
-    };
-
-    const audit = (stage, payload, level = "info") => {
+    let __AUDIT_SEQ__ = 0;
+    window.audit = (stage, payload, level = "info") => {
         const now = nowPerf();
-        if (lastAuditMap.size > 1000) lastAuditMap.clear();
-
-        // Key mejorada para evitar explosión de claves dinámicas
+        if (lastAuditMap.size > 1000) {
+            const firstKey = lastAuditMap.keys().next().value;
+            lastAuditMap.delete(firstKey);
+        }
         const key = payload?.opId ? stage + ":" + payload.opId : stage;
         const last = lastAuditMap.get(key) || 0;
 
         if (now - last < 5 && level === "info") return; 
 
         lastAuditMap.set(key, now);
-        auditPush({ stage, level, opId: payload?.opId, snapshot: safeClone(payload) });
+        const entry = { 
+            id: ++__AUDIT_SEQ__, 
+            ts: nowEpoch(), 
+            stage, 
+            level, 
+            opId: payload?.opId || genId(), 
+            snapshot: window.safeClone(payload) 
+        };
+        window.__AUDIT__.push(entry);
+        if (window.__AUDIT__.length > 200) window.__AUDIT__.shift();
     };
 
-    // 4. Normalizador SOBERANO con Validación de Contenido Real
-    const normalizeType = (t) => 
+    // 6. NORMALIZACIÓN SOBERANA
+    window.normalizeType = (t) => 
         String(t)
             .replace(/([a-z])([A-Z])/g, "$1_$2")
             .replace(/[-\s]+/g, "_")
@@ -343,38 +346,34 @@ document.addEventListener('DOMContentLoaded', () => {
             .toUpperCase()
             .trim() || "UNKNOWN";
 
-    const resolveOpId = (base, raw) => {
+    window.resolveOpId = (base, raw) => {
         const id = base?.meta?.opId || base?.opId || raw?.meta?.opId || raw?.opId;
         return (typeof id === "string" && id.length > 5) ? id : genId();
     };
 
-    const normalize = (raw, source = "unknown") => {
+    window.normalize = (raw, source = "unknown") => {
         const t0 = nowPerf();
         if (!raw) return { ok: false, type: "UNKNOWN", valid: false, data: null, message: "Vacio", meta: { ts: nowEpoch(), opId: genId(), source, latency: 0, normalized: true } };
 
-        const base = unwrap(raw);
+        const base = window.unwrap(raw);
         if (!base || typeof base !== "object") {
             return { ok: false, type: "UNKNOWN", valid: false, data: null, message: "Estructura inválida", meta: { ts: nowEpoch(), opId: genId(), source, latency: nowPerf() - t0, normalized: true } };
         }
 
-        const rawType = base.type || base.state || "UNKNOWN";
-        const type = normalizeType(rawType);
+        const type = window.normalizeType(base.type || base.state || "UNKNOWN");
         const isTypeValid = ALLOWED_TYPES.has(type);
         
         let data = base.data ?? base.payload ?? null;
         if (typeof data === "object" && data !== null) {
             if (Array.isArray(data) && data.length === 1) data = data[0];
-            data = safeData(data);
+            data = window.safeData(data);
         }
 
         const message = typeof base.message === "string" ? base.message : (typeof base.report === "string" ? base.report : null);
-        
-        // Validación fina de contenido útil
-        const hasContent = 
-            (typeof message === "string" && message.length > 0) || 
-            (Array.isArray(data) && data.length > 0) || 
-            (typeof data === "number" || typeof data === "boolean") ||
-            (data && typeof data === "object" && Object.keys(data).length > 0);
+        const hasContent = (typeof message === "string" && message.length > 0) || 
+                           (Array.isArray(data) && data.length > 0) || 
+                           (typeof data === "number" || typeof data === "boolean") ||
+                           (data && typeof data === "object" && Object.keys(data).length > 0);
 
         const res = {
             ok: base.ok ?? true,
@@ -383,30 +382,64 @@ document.addEventListener('DOMContentLoaded', () => {
             data, message,
             meta: { 
                 ts: base.meta?.ts || base.timestamp || nowEpoch(),
-                opId: resolveOpId(base, raw), 
+                opId: window.resolveOpId(base, raw), 
                 source, 
                 latency: nowPerf() - t0,
                 normalized: true 
             }
         };
 
-        if (window.__DEV__) { res.__raw = safeClone(raw); }
-        if (!isTypeValid) audit("TYPE_UNKNOWN", { rawType, normalized: type, opId: res.meta.opId }, "warn");
-        if (!res.ok) audit("RESPONSE_ERROR", { ...res, opId: res.meta.opId }, "error");
-
-        audit("NORMALIZED", { type: res.type, opId: res.meta.opId, source });
+        if (window.__DEV__) { res.__raw = window.safeClone(raw); }
+        if (!isTypeValid) window.audit("TYPE_UNKNOWN", { type, opId: res.meta.opId }, "warn");
+        window.audit("NORMALIZED", { type: res.type, opId: res.meta.opId, source });
         return res;
     };
 
     /* =====================================================
         🎨 GESTIA PREMIUM UI ENGINE V5.70 (SOVEREIGN RENDER)
-        Arquitectura Limpia: Datos -> Render Directo
+        Arquitectura de Misión Crítica: Capa de Presentación Determinística.
     ===================================================== */
-    
-    // 1. EL RENDERER ESTRUCTURADO (Formalización de la Tarjeta Antifrágil)
+
+    // 1. UTILIDADES DE SEGURIDAD Y CONTROL DE FLUJO
+    const renderedOps = new Set();
+
+    // Nota: escapeHTML se queda aquí ya que es específico de la UI
+    const escapeHTML = (str) => 
+        String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+
+    // 🔥 FIX: Eliminamos 'const genId' porque ya existe en el Módulo 2.
+    // El sistema usará automáticamente la función genId declarada arriba.
+
+    const normalizeSafe = typeof window.normalize === "function"
+        ? window.normalize
+        : (x) => ({
+            ok: true,
+            type: "UNKNOWN",
+            valid: true,
+            data: x,
+            message: null,
+            meta: { ts: Date.now(), opId: genId() }
+        });
+
+    // 2. EL RENDERER ESTRUCTURADO (Tarjeta de Telemetría Blindada)
     const renderSystemStatus = (data) => {
         const outputElement = document.getElementById('gestia-output');
-        const d = data || window.lastTelemetry || { online: true, memory: '27.11 MB', ops: 0 };
+        if (!outputElement) return;
+
+        const d = data || window.lastTelemetry || { online: true, memory: 'STABLE', ops: 0 };
+        
+        // Resolución robusta de Timestamp (Number o ISO String)
+        const rawTs = d.timestamp;
+        const ts = (typeof rawTs === "number" && Number.isFinite(rawTs)) ? rawTs :
+                   (typeof rawTs === "string" && !isNaN(Date.parse(rawTs))) ? Date.parse(rawTs) :
+                   Date.now();
+        
+        const isoDate = new Date(ts).toISOString();
         
         const cardHtml = `
             <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
@@ -422,779 +455,1018 @@ document.addEventListener('DOMContentLoaded', () => {
                             </span>
                             GESTIA PREMIUM V5.51 ANTIFRÁGIL
                         </h3>
-                        <span class="text-[10px] text-slate-500">${new Date().toISOString()}</span>
+                        <span class="text-[10px] text-slate-500">${escapeHTML(isoDate)}</span>
                     </div>
                     
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
-                            <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold">Estado Núcleo</p>
-                            <p class="text-sm font-mono text-emerald-400">${d.online ? 'SISTEMA INTEGRAL' : 'OFFLINE'}</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50 hover:border-emerald-500/30 transition-colors">
+                            <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold tracking-tighter">Estado Núcleo</p>
+                            <p class="text-sm font-mono ${d.online ? 'text-emerald-400' : 'text-red-400'}">
+                                ${d.online ? 'SISTEMA INTEGRAL' : 'CRITICAL_OFFLINE'}
+                            </p>
                         </div>
-                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
-                            <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold">Memoria RAM</p>
-                            <p class="text-sm font-mono text-white">${d.memory || '27.11 MB'}</p>
+                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50 hover:border-blue-500/30 transition-colors">
+                            <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold tracking-tighter">Memoria RAM</p>
+                            <p class="text-sm font-mono text-white">${escapeHTML(d.memory || 'OPTIMIZING...')}</p>
                         </div>
-                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
-                            <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold">Operaciones</p>
-                            <p class="text-sm font-mono text-white">${d.ops || '0'} Ledger</p>
+                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50 hover:border-blue-500/30 transition-colors">
+                            <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold tracking-tighter">Operaciones</p>
+                            <p class="text-sm font-mono text-white">${escapeHTML(d.ops || '0')} Ledger</p>
                         </div>
-                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
-                            <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold">Autoridad</p>
+                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50 hover:border-blue-500/30 transition-colors">
+                            <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold tracking-tighter">Autoridad</p>
                             <p class="text-sm font-mono text-blue-400 italic">Heberto Confirmado</p>
                         </div>
                     </div>
                     <div class="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between">
-                        <span class="text-[9px] text-emerald-500/50 font-mono italic">... AUTORIDAD CONFIRMADA. DB INYECTADA.</span>
+                        <span class="text-[9px] text-emerald-500/50 font-mono italic uppercase tracking-tighter">
+                            ... AUTORIDAD CONFIRMADA. DB INYECTADA. VERIFICACIÓN 007.
+                        </span>
                         <div class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
                     </div>
                 </div>
             </div>
         `;
         
-        if (outputElement) {
-            outputElement.insertAdjacentHTML('beforeend', cardHtml);
-            outputElement.scrollTop = outputElement.scrollHeight;
-        }
+        outputElement.insertAdjacentHTML('beforeend', cardHtml);
+        outputElement.scrollTop = outputElement.scrollHeight;
     };
 
-    // 2. EL ADAPTADOR GLOBAL (Expuesto en window para que deje de ser 'undefined')
-    window.renderResponse = (payload) => {
+    // 3. EL ADAPTADOR GLOBAL (Orquestador con Control de Idempotencia Total)
+    window.renderResponse = (payload, alreadyNormalized = false) => {
         if (!payload) return;
 
-        // Si es tipo SYSTEM_STATUS, disparamos la tarjeta profesional
-        if (payload.type === "SYSTEM_STATUS" || payload.state === "SYSTEM_STATUS") {
-            renderSystemStatus(payload.data || payload);
+        const clean = alreadyNormalized ? payload : normalizeSafe(payload, "SovereignRender_UI");
+
+        // Control de Idempotencia Reforzado: Forzamos opId incluso en payloads corruptos
+        const opId = clean.meta?.opId || genId();
+        if (renderedOps.has(opId)) return;
+        renderedOps.add(opId);
+        
+        // Limpieza FIFO del Ledger Visual
+        if (renderedOps.size > 100) {
+            const firstKey = renderedOps.values().next().value;
+            renderedOps.delete(firstKey);
+        }
+
+        // Caso 1: SYSTEM_STATUS (Renderizado de Telemetría)
+        if (clean.type === "SYSTEM_STATUS") {
+            renderSystemStatus(clean.data);
+            return;
         } 
-        // Fallback para mensajes de texto normales
-        else {
-            const message = typeof payload === 'string' ? payload : (payload.message || payload.report);
-            if (window.renderJarvisResponse) {
-                window.renderJarvisResponse("Sistema", message, "info");
+        
+        // Caso 2: Mensajería Genérica con Blindaje Anti-Ciclos y XSS
+        let safeDataString = "Protocolo finalizado.";
+        if (clean.data) {
+            try {
+                // Serialización segura con truncamiento preventivo
+                safeDataString = JSON.stringify(clean.data, null, 2).slice(0, 800);
+            } catch {
+                safeDataString = "[unserializable_data]";
             }
+        }
+
+        const message = clean.message || safeDataString;
+        const title = clean.ok ? "Jarvis" : "Incidencia de Sistema";
+        const type = clean.ok ? "success" : "error";
+
+        if (window.renderJarvisResponse) {
+            // Mitigación local: escapeHTML preventivo para blindar el módulo receptor
+            const safeMessage = escapeHTML(message);
+            window.renderJarvisResponse(title, safeMessage, type);
         }
     };
 
-    // 3. TELEMETRY SYNC (Captura datos sin mezclar con la UI)
+    // 4. TELEMETRY SYNC (Captura Eficiente de Estados)
     window.addEventListener('gestia-terminal-state', (e) => {
-        if (e.detail) {
-            const data = e.detail.data || (e.detail.payload ? e.detail.payload[0] : null);
-            if (data) {
-                window.lastTelemetry = data;
-                console.log("📊 [SIA7_SYNC]: Telemetría sincronizada.");
-                
-                // DISPARO AUTOMÁTICO AL RENDERER SI ES STATUS
-                if (e.detail.type === "SYSTEM_STATUS") {
-                    window.renderResponse(e.detail);
-                }
+        if (!e.detail) return;
+        
+        const clean = normalizeSafe(e.detail, "TelemetryEvent_Listener");
+        
+        if (clean.valid && clean.data) {
+            window.lastTelemetry = clean.data;
+            
+            if (clean.type === "SYSTEM_STATUS") {
+                // Inyectamos ya normalizado para optimizar CPU
+                window.renderResponse(clean, true);
             }
         }
     });
 
-    const SpeechRecognition =
-        window.SpeechRecognition ||
-        window.webkitSpeechRecognition;
+/* =====================================================
+        🎙️ VOZ Y PROTOCOLO DE BRIEFING V5.70 (SOVEREIGN VOICE)
+        Arquitectura de Respuesta Proactiva: Blindaje Vocal y Sincronización.
+    ===================================================== */
 
+    let audioCtx = null;
+    let currentTTSId = 0; // Identificador monotónico (nunca se resetea a 0)
+    let voiceRetries = 0;
+    let voiceTimer = null;
+    const MAX_VOICE_RETRIES = 20;
+
+    // 1. UTILIDADES DE ESTADO DETERMINISTA
+    // 🔥 FIX: Eliminamos 'const isPlainObject' porque ya existe en el Módulo 2.
+
+    // Determinismo real: Basado en el hardware y el ID de instancia actual.
+    const isJarvisSpeaking = () => speechSynthesis.speaking && currentTTSId > 0;
+
+    // 2. GESTIÓN DE VOCES ASÍNCRONAS (SOVEREIGN VOICE ADAPTER)
+    const pickVoice = () => {
+        const voces = speechSynthesis.getVoices();
+        return voces.find(v => v.lang.includes("es-MX")) ||
+               voces.find(v => v.lang.includes("es")) ||
+               null;
+    };
+
+    let voice = pickVoice();
+
+    // Refuerzo autolimitado para carga de voces (Safari/Chrome Mobile)
+    const ensureVoice = () => {
+        if (voice || !("speechSynthesis" in window)) return;
+
+        const voces = speechSynthesis.getVoices();
+        if (voces.length) {
+            voice = pickVoice();
+            if (voiceTimer) {
+                clearTimeout(voiceTimer);
+                voiceTimer = null;
+            }
+        } else if (voiceRetries < MAX_VOICE_RETRIES) {
+            voiceRetries++;
+            voiceTimer = setTimeout(ensureVoice, 150);
+        }
+    };
+
+    if (!voice && "speechSynthesis" in window) {
+        const handler = () => {
+            voice = pickVoice();
+            if (window.__DEV__) console.log("🎤 [VOCALIZER]: Voces sincronizadas.");
+            speechSynthesis.removeEventListener("voiceschanged", handler);
+            if (voiceTimer) {
+                clearTimeout(voiceTimer);
+                voiceTimer = null;
+            }
+        };
+        speechSynthesis.addEventListener("voiceschanged", handler);
+    }
+
+    // 3. COMPOSITOR DE RESPUESTA UNIVERSAL (CONTRATO DE VERDAD V5.21)
+    // Punto único de salida para asegurar la integridad del Ledger y la UI.
+    window.composeResponse = function(outputs = []) {
+        const arr = Array.isArray(outputs) ? outputs : [outputs];
+
+        const parts = arr.map(o => {
+            if (o === undefined || o === null) return "";
+
+            if (typeof o === "string") return o.slice(0, 500);
+
+            if (typeof o === "object") {
+                const target = 
+                    (o.detail && isPlainObject(o.detail)) ? o.detail :
+                    (o.payload && isPlainObject(o.payload)) ? o.payload :
+                    (isPlainObject(o)) ? o : null;
+
+                if (!target) return "[Invalid_Data_Structure]";
+
+                // Resolución de opId e Inmutabilidad funcional (Sincronización Módulo 2)
+                if (target.type === "SYSTEM_STATUS" || target.state === "SYSTEM_STATUS") {
+                    const opId = target?.meta?.opId || 
+                        (typeof window.genId === "function" ? window.genId() : Date.now().toString());
+
+                    const safeTarget = {
+                        ...target,
+                        meta: { ...(target.meta || {}), opId }
+                    };
+
+                    if (typeof window.renderResponse === "function") {
+                        window.renderResponse(safeTarget, true); 
+                        return "[SYSTEM_STATUS]"; 
+                    }
+                }
+
+                if (target.message !== undefined) return String(target.message).slice(0, 500);
+                if (target.report !== undefined) return String(target.report).slice(0, 500);
+                if (target.respuesta !== undefined) return String(target.respuesta).slice(0, 500);
+
+                try {
+                    const raw = (target.data !== undefined) ? target.data : target;
+                    if (raw === null || raw === undefined) return "[Empty]";
+
+                    const limited = {};
+                    let count = 0;
+
+                    if (Array.isArray(raw)) {
+                        const limitedArr = [];
+                        for (let i = 0; i < Math.min(10, raw.length); i++) {
+                            limitedArr.push(raw[i]);
+                        }
+                        return JSON.stringify(limitedArr, null, 2);
+                    }
+
+                    for (const k in raw) {
+                        if (Object.prototype.hasOwnProperty.call(raw, k)) {
+                            limited[k] = raw[k];
+                            if (++count >= 10) break;
+                        }
+                    }
+                    
+                    return JSON.stringify(limited, null, 2) || "[Empty]";
+                } catch {
+                    return "[Data Unserializable]";
+                }
+            }
+
+            return String(o).slice(0, 500);
+        });
+
+        return parts.filter(Boolean).join("\n\n");
+    };
+
+    // 4. SÍNTESIS DE VOZ BLINDADA (VOICE COMMANDER V5.70)
+    window.hablarJarvis = async (texto) => {
+        if (!("speechSynthesis" in window)) return;
+
+        if (speechSynthesis.speaking || speechSynthesis.pending) {
+            try { 
+                speechSynthesis.cancel(); 
+                await new Promise(r => setTimeout(r, 0)); 
+            } catch(e){}
+        }
+
+        const ttsId = ++currentTTSId; 
+        let started = false;
+        let textoLimpio = "Datos procesados.";
+
+        try {
+            textoLimpio = (typeof texto === "object") ? window.composeResponse(texto) : String(texto);
+
+            textoLimpio = textoLimpio
+                .replace(/\[SYSTEM_STATUS\]/g, 'Análisis del núcleo completado.')
+                .replace(/_/g, ' ') 
+                .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')       
+                .replace(/\s{2,}/g, ' ')                        
+                .replace(/[^\w\s.,:;=áéíóúÁÉÍÓÚñÑ\-()%$@#\/]/g, '') 
+                .trim();
+            
+            if (!textoLimpio || textoLimpio === "[object Object]") {
+                textoLimpio = "Sincronización completada satisfactoriamente.";
+            }
+        } catch (err) {
+            textoLimpio = "Protocolo de datos finalizado.";
+        }
+
+        const voz = new SpeechSynthesisUtterance(textoLimpio);
+        voz.lang = "es-MX";
+        voz.rate = 0.94;
+        voz.pitch = 0.84;
+        voz.volume = 1;
+
+        ensureVoice();
+        if (voice) voz.voice = voice;
+
+        const MAX_TTS_TIME = Math.min(15000, Math.max(3000, textoLimpio.length * 80));
+        let hardReset = setTimeout(() => {
+            if (window.__DEV__) console.warn("🎤 [VOCALIZER]: Watchdog forzando liberación.");
+            try { speechSynthesis.cancel(); } catch(e){}
+        }, MAX_TTS_TIME);
+
+        let startCheck = setTimeout(() => {
+            if (!started && ttsId === currentTTSId) {
+                if (window.__DEV__) console.warn("🎤 [VOCALIZER]: TTS no inició. Forzando cancelación.");
+                try { speechSynthesis.cancel(); } catch(e){}
+            }
+        }, 500);
+
+        const cleanExit = () => {
+            if (ttsId !== currentTTSId) return; 
+            clearTimeout(hardReset); 
+            clearTimeout(startCheck);
+        };
+
+        voz.onstart = () => {
+            started = true;
+            if (window.__DEV__) console.log("🎤 [VOCALIZER]: Inicio detectado.");
+        };
+
+        voz.onend = () => {
+            cleanExit();
+            setTimeout(() => { 
+                if (ttsId === currentTTSId && typeof window.beepJarvis === 'function') {
+                    window.beepJarvis();
+                }
+            }, 200);
+        };
+
+        voz.onerror = () => {
+            if (window.__DEV__) console.warn("🎤 [VOCALIZER]: Error en motor TTS.");
+            cleanExit();
+        };
+
+        speechSynthesis.speak(voz);
+    };
+
+    // 5. FIRMA SÓNICA (AUDIO CONTEXT IDLE CLEANUP)
+    window.beepJarvis = function() {
+        try {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            if (audioCtx.state === "suspended") {
+                audioCtx.resume().catch(() => {});
+            }
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = "sine";
+            osc.frequency.value = 880;
+            gain.gain.value = 0.03;
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            setTimeout(() => {
+                try { 
+                    osc.stop(); 
+                    osc.disconnect(); 
+                    gain.disconnect();
+                } catch(e) {}
+            }, 120);
+
+            clearTimeout(window.__AUDIO_IDLE_TIMER__);
+            window.__AUDIO_IDLE_TIMER__ = setTimeout(() => {
+                if (audioCtx && audioCtx.state !== "closed") {
+                    audioCtx.close().catch(() => {});
+                    audioCtx = null;
+                }
+            }, 30000);
+
+        } catch (err) {
+            console.warn("🔊 [AUDIO_BLOCKED]");
+        }
+    };
+
+    // 6. PROTOCOLO DE BRIEFING PROACTIVO (SOVEREIGN BOOT)
+    window.launchSovereignBriefing = async () => {
+        const coreReady = typeof window.executeCommands === 'function';
+        const userReady = window.auth?.currentUser?.uid || window.currentUserID;
+
+        if (!coreReady || !userReady) return;
+
+        try {
+            const outputs = await window.executeCommands(["ANALYZE::system"]);
+            const clean = window.composeResponse(outputs);
+
+            const hora = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+            const totalOps = window.JarvisHistory?.length || 0;
+
+            const briefingVisual = `Bienvenido Arquitecto Mendoza.\n\n${clean}\n\nOperaciones: ${totalOps} | Hora: ${hora}`;
+            const briefingVoz = `Bienvenido Arquitecto. Sistemas verificados y activos. ${totalOps} operaciones registradas.`;
+
+            if (typeof window.hablarJarvis === "function") await window.hablarJarvis(briefingVoz);
+            if (typeof window.renderJarvisResponse === "function") {
+                window.renderJarvisResponse("Briefing Inicial", briefingVisual, "success");
+            }
+        } catch (e) {
+            console.error("❌ [BOOT_FAIL]: Secuencia interrumpida.", e);
+        }
+    };
     
 /* =====================================================
-    VOZ / MICRÓFONO V2 (CORREGIDO LOOP)
-===================================================== */
+        🎤 RECONOCIMIENTO DE VOZ V5.95 (VOICE COMMANDER)
+        Arquitectura de Entrada: Control Manos Libres y Watchdog de Audio.
+    ===================================================== */
 
-let reconocimiento = null;
-let escuchandoAhora = false;
-let jarvisHablando = false; 
+    let reconocimiento = null;
+    let escuchandoAhora = false;
+    let lastJarvisEnd = 0; 
+    let isProcessing = false; 
+    let activeUtterances = 0; 
+    const COOLDOWN_ACUSTICO = 1200; 
 
-function iniciarEscucha() {
-    if (
-        !reconocimiento ||
-        escuchandoAhora ||
-        speechSynthesis.speaking ||
-        jarvisHablando
-    ) return;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    try {
-        reconocimiento.start();
-    } catch (err) {}
-}
+    // 1. DETERMINISMO DE HARDWARE: Centralización de estado con cola invisible (Pending Aware)
+    const isAudioBusy = () => (
+        activeUtterances > 0 || 
+        speechSynthesis.speaking || 
+        speechSynthesis.pending
+    );
 
-if (SpeechRecognition) {
+    // 2. HOOK DE PRECISIÓN (PROXY): Gestión de Ráfagas Encadenadas con Blindaje Global
+    const hookVoiceEnd = () => {
+        if (!("speechSynthesis" in window) || window.__JARVIS_TTS_HOOKED__) return;
+        
+        window.__JARVIS_TTS_HOOKED__ = true;
+        const originalSpeak = speechSynthesis.speak.bind(speechSynthesis);
 
-    reconocimiento = new SpeechRecognition();
+        const safeSpeak = (utterance) => {
+            activeUtterances++; 
 
-    reconocimiento.lang = "es-MX";
-    reconocimiento.continuous = false;
-    reconocimiento.interimResults = false;
-    reconocimiento.maxAlternatives = 1;
+            const originalOnEnd = utterance.onend;
+            const originalOnError = utterance.onerror;
 
-    reconocimiento.onstart = () => {
-        escuchandoAhora = true;
-        console.log("🎤 Jarvis escuchando...");
-    };
-
-    reconocimiento.onresult = (event) => {
-        const texto = event.results[0][0].transcript;
-
-        try { reconocimiento.abort(); } catch(e){}
-
-        textarea.value = texto;
-
-        form.dispatchEvent(
-            new Event(
-                "submit",
-                {
-                    cancelable: true,
-                    bubbles: true
+            const finalize = () => {
+                activeUtterances--;
+                if (activeUtterances <= 0) {
+                    lastJarvisEnd = Date.now();
+                    activeUtterances = 0;
                 }
-            )
-        );
+            };
+
+            utterance.onend = (e) => {
+                finalize();
+                if (originalOnEnd) originalOnEnd(e);
+            };
+
+            utterance.onerror = (e) => {
+                finalize();
+                if (originalOnError) originalOnError(e);
+            };
+
+            try {
+                return originalSpeak(utterance);
+            } catch (err) {
+                // Rollback inmediato para evitar bloqueo del contador por fallo de hardware
+                finalize(); 
+                if (window.__DEV__) console.error("🎤 [TTS_HW_FAIL]: Rollback de ráfaga.", err);
+                throw err;
+            }
+        };
+
+        speechSynthesis.speak = safeSpeak;
     };
 
-    reconocimiento.onerror = (event) => {
-        console.log("🎤 ERROR MIC:", event.error);
+    hookVoiceEnd();
+
+    // 3. CONTROLADOR DE MICRÓFONO (RESILIENTE A ZOMBIES Y DEGRADACIÓN)
+    function iniciarEscucha() {
+        if (!SpeechRecognition) {
+            if (window.__DEV__) console.warn("🎤 [MIC_UNSUPPORTED]: El navegador no soporta reconocimiento de voz.");
+            return;
+        }
+
+        if (!reconocimiento) {
+            setupSpeechRecognition();
+        }
+
+        if (isAudioBusy()) return;
+
+        if (Date.now() - lastJarvisEnd < COOLDOWN_ACUSTICO) {
+            if (window.__DEV__) console.warn("🎤 [MIC_COOLDOWN]: Esperando disipación acústica.");
+            return;
+        }
+
+        if (!reconocimiento || escuchandoAhora) return;
+
+        try {
+            reconocimiento.start();
+        } catch (err) {
+            escuchandoAhora = false;
+            console.error("🎤 [MIC_FAIL]:", err);
+        }
+    }
+
+    function setupSpeechRecognition() {
+        if (!SpeechRecognition) return;
+
+        // Limpieza preventiva de handlers antiguos
+        if (reconocimiento) {
+            try {
+                reconocimiento.onstart = null;
+                reconocimiento.onresult = null;
+                reconocimiento.onerror = null;
+                reconocimiento.onend = null;
+            } catch(e){}
+        }
+
+        reconocimiento = new SpeechRecognition();
+        reconocimiento.lang = "es-MX";
+        reconocimiento.continuous = false;
+        reconocimiento.interimResults = false;
+        reconocimiento.maxAlternatives = 1;
+
+        reconocimiento.onstart = () => {
+            escuchandoAhora = true;
+            if (window.__DEV__) console.log("🎤 [LISTENING]...");
+        };
+
+        reconocimiento.onresult = (event) => {
+            if (!event.results || !event.results[0] || !event.results[0][0]) return;
+
+            const texto = event.results[0][0].transcript?.trim();
+            if (!texto) return;
+
+            try { reconocimiento.stop(); } catch(e){}
+
+            // Blindaje de existencia de elementos DOM
+            if (textarea && form) {
+                textarea.value = texto;
+                form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+            }
+        };
+
+        reconocimiento.onerror = (event) => {
+            if (window.__DEV__) console.error("🎤 [MIC_ERROR]:", event.error);
+            
+            if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+                reconocimiento = null; 
+                console.warn("🎤 [MIC_DISABLED]: Permisos denegados.");
+            }
+            escuchandoAhora = false;
+        };
+
+        reconocimiento.onend = () => {
+            escuchandoAhora = false;
+        };
+    }
+
+    setupSpeechRecognition();
+
+    /* =====================================================
+        🧠 CEREBRO IA (SIA7 - CLOUD CONNECTOR V5.95)
+        Watchdog de Red y Body Timeout en Modo Tacaño.
+    ===================================================== */
+    window.consultarCerebroIA = async function(mensajeUsuario) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000); 
+
+        try {
+            const PROJECT_ID = "fixgo-44e4d"; 
+            const functionUrl = `https://us-central1-${PROJECT_ID}.cloudfunctions.net/jarvisConversacional`;
+
+            const obtenerTokenSeguro = () => {
+                return new Promise((resolve, reject) => {
+                    const firebaseAuth = window.auth;
+                    if (!firebaseAuth) return reject("NUCLEO_AUTH_DESCONECTADO");
+                    if (firebaseAuth.currentUser) {
+                        return firebaseAuth.currentUser.getIdToken().then(resolve).catch(reject);
+                    }
+                    const unsub = firebaseAuth.onAuthStateChanged(async (user) => {
+                        unsub();
+                        if (user) resolve(await user.getIdToken());
+                        else reject("SESION_NO_DETECTADA");
+                    });
+                });
+            };
+
+            const token = await Promise.race([
+                obtenerTokenSeguro(),
+                new Promise((_, reject) => setTimeout(() => reject("AUTH_TIMEOUT"), 5000))
+            ]);
+
+            const response = await fetch(functionUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({ data: { prompt: mensajeUsuario } }),
+                signal: controller.signal
+            });
+
+            if (!response.ok) return `Fallo de ráfaga (Status: ${response.status})`;
+
+            // Watchdog adicional para el procesamiento del cuerpo de la respuesta
+            const text = await Promise.race([
+                response.text(),
+                new Promise((_, reject) => setTimeout(() => reject("BODY_TIMEOUT"), 3000))
+            ]);
+
+            const jsonResponse = JSON.parse(text);
+            return jsonResponse.result?.respuesta || "Núcleo en silencio.";
+
+        } catch (error) {
+            if (error === "AUTH_TIMEOUT") return "El búnker no respondió a la firma de identidad.";
+            if (error === "BODY_TIMEOUT") return "Ráfaga recibida, pero el cuerpo de datos excedió el tiempo de lectura.";
+            if (error.name === 'AbortError') return "Tiempo de respuesta excedido en el búnker central.";
+            return "Conexión interrumpida con el núcleo central.";
+        } finally {
+            clearTimeout(timeout);
+        }
     };
 
-    reconocimiento.onend = () => {
-        escuchandoAhora = false;
-        console.log("🎤 Micrófono en espera");
-    };
+    /* =====================================================
+        🔥 ROUTER DE COMANDOS SOBERANO (MISSION DISPATCHER)
+        Idempotencia y Failover con Delay de Seguridad.
+    ===================================================== */
+    if (form && textarea && !window.__JARVIS_SUBMIT_BOUND__) {
+        window.__JARVIS_SUBMIT_BOUND__ = true;
+
+        form.addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            const comando = textarea.value.trim();
+            // Orden de validación defensivo para evitar microtasks encadenadas
+            if (!comando || isProcessing) return;
+
+            isProcessing = true;
+            const btnGenerate = document.getElementById("btn-generate");
+            let handled = false; 
+            
+            try {
+                if (btnGenerate) {
+                    btnGenerate.disabled = true;
+                    btnGenerate.classList.add("animate-pulse");
+                }
+
+                if (typeof window.audit === "function") {
+                    window.audit("COMMAND_INPUT", { command: comando, source: "terminal_v5" });
+                }
+
+                // 1. Bridge (SIA7/Sentinel)
+                try {
+                    if (window.JarvisBridge?.dispatch) {
+                        await window.JarvisBridge.dispatch(comando);
+                        handled = true;
+                    }
+                } catch (bridgeErr) {
+                    console.warn("⚠️ [BRIDGE_FAIL]: Fallback a Kernel.");
+                }
+
+                // 2. Kernel Local (Heberto Core)
+                if (!handled) {
+                    try {
+                        if (window.KernelHeberto?.execute) {
+                            const res = await window.KernelHeberto.execute(comando, e);
+                            if (window.hablarJarvis) window.hablarJarvis(res);
+                            handled = true;
+                        }
+                    } catch (kernelErr) {
+                        console.warn("⚠️ [KERNEL_FAIL]: Fallback a IA.");
+                    }
+                }
+
+                // 3. IA (SIA7 Conversacional)
+                if (!handled) {
+                    const respuestaIA = await window.consultarCerebroIA(comando);
+                    if (window.hablarJarvis) window.hablarJarvis(respuestaIA);
+                    if (window.renderJarvisResponse) {
+                        window.renderJarvisResponse("SIA7 Analysis", respuestaIA, "info");
+                    }
+                }
+
+            } catch (error) {
+                if (window.hablarJarvis) window.hablarJarvis("Error crítico en la ráfaga de comandos.");
+            } finally {
+                // Delay de seguridad de 50ms para evitar reentrada por eventos async externos
+                setTimeout(() => { isProcessing = false; }, 50);
+
+                if (btnGenerate) {
+                    btnGenerate.disabled = false;
+                    btnGenerate.classList.remove("animate-pulse");
+                }
+                if (textarea) {
+                    textarea.value = "";
+                    textarea.style.height = "58px";
+                }
+            }
+        });
+    }
+
+    if (textarea) {
+        textarea.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+            }
+        });
+    }
 
     document.addEventListener("keydown", (e) => {
-        if (e.key === "F2" && reconocimiento) {
+        if (e.key === "F2") {
             e.preventDefault();
             iniciarEscucha();
         }
     });
-}
-
 /* =====================================================
-    VOZ JARVIS V5.21 BLINDADO CONTRA OBJECTOS CRUDOS
-===================================================== */
+        🛠️ UTILIDADES DE SEGURIDAD (PRODUCTION GRADE V6.7)
+        Blindaje de Memoria: Corte duro y JSON Estructuralmente Válido.
+    ===================================================== */
+    const safeStringify = (obj, maxLen = 1000) => {
+        const seen = new WeakSet();
+        let currentLength = 0;
+        let truncated = false;
 
-window.hablarJarvis = (texto) => {
-
-    if (!("speechSynthesis" in window)) return;
-
-    jarvisHablando = true;
-
-    if (
-        typeof reconocimiento !== 'undefined' && 
-        reconocimiento &&
-        typeof escuchandoAhora !== 'undefined' && 
-        escuchandoAhora
-    ) {
         try {
-            reconocimiento.abort();
-        } catch (e) {}
-    }
+            const result = JSON.stringify(obj, (key, value) => {
+                if (typeof value === "bigint") return value.toString();
 
-    // 🔥 PARCHE DEEP-SCAN: Extraemos texto real de cualquier objeto crudo
-    let textoLimpio = "Comando procesado.";
-    try {
-        if (typeof texto === "string") {
-            textoLimpio = texto;
-        } else if (typeof texto === "object" && texto !== null) {
-            const target = texto.detail || texto.payload || texto;
-            
-            if (target.type === "SYSTEM_STATUS" || target.state === "SYSTEM_STATUS") {
-                const d = target.data || target;
-                textoLimpio = `Análisis del núcleo completado. Sistema ${d.online ? 'activo y blindado' : 'fuera de línea'}. Memoria RAM operando en ${d.memory || 'estado óptimo'}.`;
-            } else if (target.report && typeof target.report === "string") {
-                textoLimpio = target.report;
-            } else if (target.message && typeof target.message === "string") {
-                textoLimpio = target.message;
-            } else if (target.respuesta && typeof target.respuesta === "string") {
-                textoLimpio = target.respuesta;
-            } else {
-                textoLimpio = typeof window.composeResponse === "function" 
-                    ? window.composeResponse(target) 
-                    : "Sincronización de datos completada.";
-            }
-        } else {
-            textoLimpio = String(texto);
+                if (typeof value === "object" && value !== null) {
+                    if (seen.has(value)) return "[Circular]";
+                    seen.add(value);
+                }
+
+                // Señalización de truncado sin eliminar la clave para mantener consistencia
+                if (truncated) return "__TRUNCATED__";
+
+                const estimated =
+                    typeof value === "string" ? value.length :
+                    typeof value === "number" || typeof value === "boolean" ? 8 : 20;
+
+                currentLength += estimated;
+
+                if (currentLength > maxLen) {
+                    truncated = true;
+                    return "__TRUNCATED__";
+                }
+
+                return value;
+            }, 2);
+
+            // Defensa ante truncado de raíz (Root Truncation)
+            if (result === undefined || result === '"__TRUNCATED__"') return "[Truncated root]";
+
+            // Reemplazo semántico para el Ledger visual
+            return truncated 
+                ? result.replace(/"__TRUNCATED__"/g, '"[Truncated...]"') 
+                : result;
+        } catch (e) {
+            return "[Unserializable Object]";
         }
-
-        // Filtro final anti-object por si acaso
-        if (textoLimpio === "[object Object]") {
-            textoLimpio = "Análisis completado satisfactoriamente en el Ledger.";
-        }
-        
-        // Limpiamos emojis para que no traben el sintetizador de Windows/Chrome
-        textoLimpio = textoLimpio.replace(/[\u{1F600}-\u{1F6FF}🟢🔴🛡️🧠🔥🧪📊]/gu, '').trim();
-    } catch (err) {
-        textoLimpio = "Datos procesados y encriptados.";
-    }
-
-    console.log("🔊 JARVIS VOZ limpia:", textoLimpio);
-
-    const voz = new SpeechSynthesisUtterance(textoLimpio);
-
-    voz.lang = "es-MX";
-    voz.rate = 0.94;
-    voz.pitch = 0.84;
-    voz.volume = 1;
-
-    const voces = speechSynthesis.getVoices();
-
-    const seleccion =
-        voces.find(v => v.lang.includes("es-MX")) ||
-        voces.find(v => v.lang.includes("es")) ||
-        null;
-
-    if (seleccion) voz.voice = seleccion;
-
-    speechSynthesis.cancel();
-
-    voz.onend = () => {
-        jarvisHablando = false;
-        setTimeout(() => {
-            if (typeof window.beepJarvis === 'function') window.beepJarvis();
-        }, 220);
     };
 
-    speechSynthesis.speak(voz);
-
-};
-
-
-/* =====================================================
-    BRIEFING INICIAL PROACTIVO (HARDENED)
-===================================================== */
-
-window.launchSovereignBriefing = async () => {
-
-    const coreReady = typeof window.executeCommands === 'function';
-    const userReady = window.auth?.currentUser?.uid || window.currentUserID;
-
-    if (!coreReady || !userReady) {
-        console.warn("⚠️ [BOOT_ABORT] Core o usuario no listo.");
-        return;
-    }
-
-    console.log("✅ [BOOT] Iniciando briefing...");
-
-    const totalOps = window.JarvisHistory?.length || 0;
-
-    let visualStatus = "Sistemas en línea.";
-    let voiceStatus = "Sistemas en línea.";
-
-    try {
-        const outputs = await window.executeCommands(["ANALYZE::system"]);
-
-        // 🔥 NORMALIZACIÓN FUERTE
-        const arr = Array.isArray(outputs) ? outputs : [outputs];
-        const clean = arr.filter(Boolean);
-
-        console.log("🧪 [BRIEFING OUTPUTS]:", clean);
-
-        const first = clean[0];
-
-        /* ==========================================
-            CASO IDEAL: OBJETO ESTRUCTURADO
-        ========================================== */
-        if (first && typeof first === "object" && first.type === "SYSTEM_STATUS") {
-
-            const d = first.data || {};
-
-            visualStatus = `
-Sistema: ${d.online ? "🟢 Activo" : "🔴 Sin conexión"}
-Operaciones: ${d.ops ?? 0}
-Memoria: ${d.memory ?? "N/A"}
-Hora: ${new Date(d.timestamp || Date.now()).toLocaleTimeString("es-MX")}
-            `.trim();
-
-            voiceStatus = `Sistema ${d.online ? "activo" : "sin conexión"}.`;
-
-        }
-
-        /* ==========================================
-            FALLBACK CONTROLADO
-        ========================================== */
-        else {
-            console.warn("⚠️ [BRIEFING FALLBACK]: no llegó SYSTEM_STATUS");
-
-            visualStatus =
-                typeof window.composeResponse === "function"
-                    ? window.composeResponse(clean)
-                    : "Estado verificado.";
-
-            voiceStatus = "Estado del sistema verificado.";
-        }
-
-    } catch (e) {
-        console.error("❌ [BOOT_FAIL]:", e);
-
-        visualStatus = "🔴 Error en sincronización.";
-        voiceStatus = "Fallo en análisis del sistema.";
-    }
-
-    const onlineVisual = navigator.onLine ? "🟢 Activa" : "🔴 Sin conexión";
-    const onlineVoice = navigator.onLine ? "activa" : "sin conexión";
-    const hora = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
-
-    const briefingVisual = `Bienvenido Arquitecto.
-
-${visualStatus}
-
-Conexión: ${onlineVisual}
-Operaciones en Ledger: ${totalOps}
-Hora local: ${hora}
-
-Núcleo autónomo listo para recibir órdenes.`;
-
-    const briefingVoz = `Bienvenido Arquitecto. ${voiceStatus} Conexión ${onlineVoice}. ${totalOps} operaciones registradas.`;
-
-    // 🔥 SALIDA
-    if (typeof window.hablarJarvis === "function") {
-        window.hablarJarvis(briefingVoz);
-    }
-
-    if (typeof window.renderJarvisResponse === "function") {
-        window.renderJarvisResponse("Briefing Inicial", briefingVisual, "success");
-    }
-};
-
-/* =====================================================
-    🔥 COMPOSE RESPONSE V5.21 (HARDENED - ANTI OBJECT)
-===================================================== */
-window.composeResponse = function(outputs = []) {
-
-    // 🔥 NORMALIZACIÓN: SIEMPRE ARRAY
-    const arr = Array.isArray(outputs) ? outputs : [outputs];
-
-    const parts = arr.map(o => {
-
-        if (!o) return "";
-
-        /* ==========================================
-            🧠 PRIORIDAD: DATA ESTRUCTURADA
-        ========================================== */
-        if (typeof o === "object") {
-            // 🛡️ Escudo protector contra Wrappers de eventos
-            const target = o.detail || o.payload || o;
-
-            // 🔥 SYSTEM STATUS (caso principal)
-            if (target.type === "SYSTEM_STATUS" || target.state === "SYSTEM_STATUS") {
-                const d = target.data || target;
-                
-                // Si la función global existe, la usamos para pintar la tarjeta real
-                if (typeof window.renderResponse === "function") {
-                    window.renderResponse(target);
-                    return ""; // Evitamos duplicar texto en la burbuja
-                }
-                
-                // Fallback de texto si el renderer no está listo
-                return [
-                    `Sistema: ${d.online ? "🟢 Activo" : "🔴 Sin conexión"}`,
-                    `Operaciones: ${d.ops ?? 0}`,
-                    `Memoria RAM Activa: ${d.memory ?? "N/A"}`,
-                    `Hora de Sync: ${new Date(d.timestamp || Date.now()).toLocaleTimeString("es-MX")}`
-                ].join("\n");
-            }
-
-            // 🔥 SI HAY DATA GENÉRICA → Parsear, nunca Object
-            if (target.data && typeof target.data === "object") {
-                return JSON.stringify(target.data, null, 2);
-            }
-
-            // 🔥 MENSAJES Y REPORTES
-            if (target.message) {
-                return typeof target.message === "object" ? JSON.stringify(target.message, null, 2) : String(target.message);
-            }
-            if (target.report) {
-                return typeof target.report === "object" ? JSON.stringify(target.report, null, 2) : String(target.report);
-            }
-
-            // 🔥 FALLBACK FINAL A JSON LEGIBLE
-            return JSON.stringify(target, null, 2);
-        }
-
-        /* ==========================================
-            STRINGS
-        ========================================== */
-        return String(o);
-    });
-
-    return parts.filter(Boolean).join("\n\n");
-};
-
-/* =====================================================
-    🔥 OBSERVADOR DE ESTADO DEL BANCO (TRIGGER ÚNICO)
-===================================================== */
-const backupSetState = window.setState;
-
-window.setState = function(nuevoEstado) {
-    // Ejecutamos la lógica original del sistema
-    if (typeof backupSetState === 'function') backupSetState(nuevoEstado);
-
-    // Si el estado libera el Firewall, disparamos el briefing una sola vez
-    if (nuevoEstado === "IDLE" || nuevoEstado === "SECURE SESSION READY") {
-        console.log("🧬 [KERNEL_EVENT] Sesión Segura detectada. Disparando Briefing...");
+    /* =====================================================
+        📜 CONTRATO DE RESPUESTA SOBERANO (PLATFORM HARMONIZER)
+        Unificación Obligatoria y Resolución de TraceId Determinista.
+    ===================================================== */
+    window.normalizeResponse = function(raw, traceId = null) {
+        const allowedTypes = ["info", "warning", "success", "error"];
+        const allowedSources = ["bridge", "kernel", "ia", "system"];
         
-        if (typeof window.launchSovereignBriefing === 'function') window.launchSovereignBriefing();
+        // Resolución garantizada de ID para trazabilidad usable
+        const resolvedTraceId = 
+            traceId || 
+            raw?.meta?.traceId || 
+            (typeof window.getCurrentTrace === 'function' ? window.getCurrentTrace() : null) ||
+            (window.genId ? window.genId() : "trace_" + Date.now());
 
-        // Restauramos la función original para que el trigger no se repita en la sesión
-        window.setState = backupSetState;
-    }
-};
+        if (!raw) {
+            return { title: "Jarvis", message: "Sin datos en el Ledger.", type: "error", traceId: resolvedTraceId };
+        }
 
-/* =====================================================
-   SONIDO FIRMA JARVIS
-===================================================== */
+        if (typeof raw === "string") {
+            return { title: "Jarvis", message: raw, type: "info", traceId: resolvedTraceId };
+        }
 
-window.beepJarvis = function() {
-
-    try {
-
-        const ctx =
-            new (
-                window.AudioContext ||
-                window.webkitAudioContext
-            )();
-
-        const osc =
-            ctx.createOscillator();
-
-        const gain =
-            ctx.createGain();
-
-        osc.type = "sine";
-        osc.frequency.value = 880;
-        gain.gain.value = 0.03;
-
-        osc.connect(gain);
-        gain.connect(
-            ctx.destination
-        );
-
-        osc.start();
-
-        setTimeout(() => {
-
-            osc.stop();
-            ctx.close();
-
-        }, 120);
-
-    } catch (err) {
-
-        console.error(
-            "AudioError:",
-            err
-        );
-    }
-}
-
-/* ======================================================================================
-   CEREBRO IA (VERSIÓN SOBERANA V5.80 - SINGLETON AWARE)
-   ====================================================================================== */
-window.consultarCerebroIA = async function(mensajeUsuario) {
-    try {
-        const PROJECT_ID = "fixgo-44e4d"; 
-        const functionUrl = `https://us-central1-${PROJECT_ID}.cloudfunctions.net/jarvisConversacional`;
-
-        const obtenerTokenSia7 = () => {
-            return new Promise((resolve, reject) => {
-                // 🛡️ Buscamos la autoridad inyectada por el Singleton Armor v5.66
-                const firebaseAuth = window.auth;
-
-                if (!firebaseAuth) {
-                    console.error("🚨 [SIA7]: Error Crítico - Instancia Auth no detectada en window.");
-                    return reject("NUCLEO_AUTH_DESCONECTADO");
+        if (typeof raw === "object") {
+            const rawSource = raw.meta?.source || raw.source || "system";
+            return {
+                title: raw.title || "Jarvis",
+                message: raw.message || raw.report || raw.respuesta || safeStringify(raw),
+                type: allowedTypes.includes(raw.type) ? raw.type : "info",
+                traceId: resolvedTraceId,
+                meta: {
+                    source: allowedSources.includes(rawSource) ? rawSource : "system",
+                    timestamp: Date.now()
                 }
+            };
+        }
 
-                // Si Heberto ya tiene sesión activa
-                if (firebaseAuth.currentUser) {
-                    return firebaseAuth.currentUser.getIdToken().then(resolve).catch(reject);
-                }
+        return { title: "Jarvis", message: String(raw), type: "info", traceId: resolvedTraceId };
+    };
 
-                // Esperamos al observador del Singleton
-                const unsub = firebaseAuth.onAuthStateChanged(async (user) => {
-                    unsub();
-                    if (user) {
-                        const token = await user.getIdToken();
-                        resolve(token);
-                    } else {
-                        reject("SESION_NO_DETECTADA");
-                    }
-                });
+    /* =====================================================
+        🎨 RENDERER ENGINE PREMIUM V6.7 (BURST ISOLATED)
+        Motor de Renderizado: Aislamiento Total de Template.
+    ===================================================== */
+    const sanitizer = document.createElement("div");
 
-                setTimeout(() => reject("TIMEOUT_BUNKER"), 5000);
-            });
+    const scheduleScroll = (container) => {
+        if (!container || container.__scrollScheduled__) return;
+        container.__scrollScheduled__ = true;
+
+        requestAnimationFrame(() => {
+            const threshold = 80;
+            const isAtBottom = (container.scrollHeight - container.clientHeight - container.scrollTop) < threshold;
+            if (isAtBottom) {
+                container.scrollTop = container.scrollHeight;
+            }
+            container.__scrollScheduled__ = false;
+        });
+    };
+
+    window.renderJarvisResponse = (title, message, type = 'info') => {
+        const outputContainer = document.getElementById('gestia-output');
+        if (!outputContainer) return;
+
+        // Higiene de DOM (Control de memoria)
+        const MAX_NODES = 100;
+        while (outputContainer.children.length >= MAX_NODES) {
+            outputContainer.removeChild(outputContainer.firstChild);
+        }
+
+        const config = {
+            info: { icon: 'fa-bolt', color: 'bg-gestia-primary', border: 'border-slate-700' },
+            warning: { icon: 'fa-triangle-exclamation', color: 'bg-amber-500', border: 'border-amber-500/30' },
+            success: { icon: 'fa-check', color: 'bg-gestia-accent', border: 'border-gestia-accent/30' },
+            error: { icon: 'fa-xmark', color: 'bg-red-500', border: 'border-red-500/30' }
         };
 
-        let token;
-        try {
-            token = await obtenerTokenSia7();
-            console.log("🔐 [SIA7]: Firma de Heberto confirmada. Transmitiendo ráfaga...");
-        } catch (err) {
-            console.error("🚨 [SIA7]: Fallo de identidad:", err);
-            return "Arquitecto, el búnker denegó la consulta. (Fallo: " + err + "). Asegúrate de estar logueado en GestiaPremium.";
+        const current = config[type] || config.info;
+
+        const escapeHTML = (str) => {
+            sanitizer.textContent = str || "Sin mensaje.";
+            return sanitizer.innerHTML;
+        };
+
+        const safeMessage = escapeHTML(String(message)).split("\n").join("<br>");
+
+        const responseHtml = `
+            <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
+                <div class="w-10 h-10 rounded-full ${current.color} flex items-center justify-center shrink-0 shadow-lg">
+                    <i class="fa-solid ${current.icon} text-white text-sm"></i>
+                </div>
+                <div class="bg-gestia-panel border ${current.border} p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
+                    <h3 class="font-semibold text-white mb-3 text-lg">${title}</h3>
+                    <div class="text-slate-300 text-sm leading-relaxed font-mono">
+                        ${safeMessage}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Aislamiento total: Un template local por render para evitar colisiones en ráfagas UI
+        const localTpl = document.createElement("template");
+        localTpl.innerHTML = responseHtml.trim();
+        outputContainer.appendChild(localTpl.content.firstElementChild);
+        
+        scheduleScroll(outputContainer);
+
+        window.logEvent({
+            type: "RESPONSE_RENDERED",
+            level: "info",
+            source: "renderer",
+            payload: { title, type }
+        });
+    };
+
+    /* =====================================================
+        📊 SOVEREIGN TRACE SYSTEM (DETERMINISTIC FIFO)
+        Trazabilidad Real: Orden garantizado y degradación suave.
+    ===================================================== */
+    window.__TRACE_STACK__ = [];
+    window.__TRACE_ORDER__ = []; // Orden FIFO determinista
+    window.traceMap = {};
+
+    window.startTrace = () => {
+        const id = window.genId ? window.genId() : "trace_" + Date.now();
+        
+        // Registro en orden FIFO real
+        window.__TRACE_ORDER__.push(id);
+        window.__TRACE_STACK__.push(id);
+        window.traceMap[id] = { start: performance.now() };
+
+        // Límite de mapa: Eliminamos el más antiguo (FIFO real)
+        if (window.__TRACE_ORDER__.length > 100) {
+            const oldest = window.__TRACE_ORDER__.shift();
+            delete window.traceMap[oldest];
+            if (window.__DEV__) console.warn("🛡️ [TRACE_MAP]: Purga FIFO determinista.");
         }
 
-        const response = await fetch(functionUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify({ data: { prompt: mensajeUsuario } })
-        });
+        // Blindaje de Stack: Degradación suave para mantener correlación activa
+        if (window.__TRACE_STACK__.length > 50) {
+            window.__TRACE_STACK__.shift();
+            if (window.__DEV__) console.error("🚨 [TRACE_STACK]: Desbordamiento. Desplazando contexto.");
+        }
 
-        if (!response.ok) return `Fallo de comunicación con el núcleo (Status: ${response.status})`;
+        return id;
+    };
 
-        const jsonResponse = await response.json();
-        return jsonResponse.result?.respuesta || "El núcleo procesó la ráfaga pero no devolvió datos.";
+    window.getCurrentTrace = () => {
+        return window.__TRACE_STACK__[window.__TRACE_STACK__.length - 1] || null;
+    };
 
-    } catch (error) {
-        console.error("🚨 [SIA7]: Error crítico en ráfaga:", error);
-        return "Conexión interrumpida con el núcleo central.";
-    }
-}
+    window.endTrace = () => {
+        const id = window.__TRACE_STACK__.pop();
+        if (id && window.traceMap[id]) {
+            const duration = performance.now() - window.traceMap[id].start;
 
-/**
- * 🎨 RENDERER ENGINE PREMIUM
- */
-window.renderJarvisResponse = (title, message, type = 'info') => {
-    const config = {
-        info: {
-            icon: 'fa-bolt',
-            color: 'bg-gestia-primary',
-            border: 'border-slate-700'
-        },
-        warning: {
-            icon: 'fa-triangle-exclamation',
-            color: 'bg-amber-500',
-            border: 'border-amber-500/30'
-        },
-        success: {
-            icon: 'fa-check',
-            color: 'bg-gestia-accent',
-            border: 'border-gestia-accent/30'
-        },
-        error: {
-            icon: 'fa-xmark',
-            color: 'bg-red-500',
-            border: 'border-red-500/30'
+            window.logEvent({
+                type: "TRACE_COMPLETE",
+                source: "trace",
+                duration: duration,
+                traceId: id
+            });
+
+            // Limpieza del mapa y el orden una vez finalizado
+            delete window.traceMap[id];
+            const orderIdx = window.__TRACE_ORDER__.indexOf(id);
+            if (orderIdx > -1) window.__TRACE_ORDER__.splice(orderIdx, 1);
         }
     };
 
-    const current = config[type] || config.info;
+    window.logEvent = function(event) {
+        if (!window.__JARVIS_LOGS__) window.__JARVIS_LOGS__ = [];
 
-    // 🔥 FIX: Parseo preventivo antes de pintar en el HTML
-    let parsedMessage = message;
-    if (typeof message === "object" && message !== null) {
-        parsedMessage = typeof window.composeResponse === "function" 
-            ? window.composeResponse(message) 
-            : JSON.stringify(message, null, 2);
-    }
+        const logEntry = {
+            timestamp: Date.now(),
+            duration: typeof event.duration === "number" ? event.duration : null,
+            traceId: event.traceId || window.getCurrentTrace() || "N/A",
+            ...event
+        };
 
-    const safeMessage = String(parsedMessage).replace(/\n/g, '<br>');
+        window.__JARVIS_LOGS__ = [...window.__JARVIS_LOGS__, logEntry].slice(-50);
 
-    const responseHtml = `
-        <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
-            <div class="w-10 h-10 rounded-full ${current.color} flex items-center justify-center shrink-0 shadow-lg">
-                <i class="fa-solid ${current.icon} text-white text-sm"></i>
-            </div>
+        if (window.__DEV__) {
+            const timeInfo = logEntry.duration ? ` [${logEntry.duration.toFixed(2)}ms]` : "";
+            console.log(`📊 [${event.source?.toUpperCase() || 'SYS'}]: ${event.type}${timeInfo}`, logEntry);
+        }
+    };
 
-            <div class="bg-gestia-panel border ${current.border} p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
-                <h3 class="font-semibold text-white mb-3 text-lg">${title}</h3>
+    /* =====================================
+        🧬 SINGLETON ARMOR & LIFECYCLE
+    ===================================== */
+    const hookJarvisLifecycle = () => {
+        if (window.__SETSTATE_PATCHED__) return;
+        window.__SETSTATE_PATCHED__ = true;
 
-                <div class="text-slate-300 text-sm leading-relaxed font-mono">
-                    ${safeMessage}
-                </div>
-            </div>
-        </div>
-    `;
+        const originalSetState = window.setState;
 
-    const outputContainer = document.getElementById('gestia-output');
-    if (outputContainer) {
-        outputContainer.insertAdjacentHTML('beforeend', responseHtml);
-        outputContainer.scrollTop = outputContainer.scrollHeight;
-    }
-};
+        window.setState = function(nuevoEstado) {
+            if (typeof originalSetState === 'function') originalSetState(nuevoEstado);
 
-/**
- * ✅ SOLDADURA FEDERAL (Detección de comandos fijos)
- */
-window.pareceComando = function(texto = "") {
-    const t = texto.toLowerCase();
-    const comandos = [
-        "command center",
-        "centro de mando",
-        "commander",
-        "predictor",
-        "sentinel",
-        "watchdog",
-        "tickets",
-        "jonathan",
-        "estado general",
-        "acciones reales",
-        "self healing",
-        "execution core"
-    ];
-    return comandos.some(c => t.includes(c));
-}
-
-/* =====================================================================================
-    PARCHE EXACTO PARA gestia-terminal.html
-    form.addEventListener("submit", async function (e) { ... });
-===================================================================================== */
-
-form.addEventListener("submit", async function (e) {
-
-    e.preventDefault();
-
-    const comando =
-        textarea.value.trim();
-
-    if (!comando) return;
-
-    const btnGenerate =
-        document.getElementById(
-            "btn-generate"
-        );
-
-    try {
-
-        btnGenerate.disabled = true;
-        btnGenerate.classList.add(
-            "animate-pulse"
-        );
-
-        /* =================================================
-            ROUTER SOBERANO V4
-        ================================================= */
-
-        if (
-            window.JarvisBridge &&
-            typeof window.JarvisBridge.dispatch ===
-                "function"
-        ) {
-
-            await window.JarvisBridge.dispatch(
-                comando
-            );
-
-        } else {
-
-            /* =============================================
-                FALLBACK LEGACY
-            ============================================= */
-
-            let finalOutput = "";
-
-            if (
-                window.KernelHeberto
-            ) {
-
-                const res =
-                    await window
-                        .KernelHeberto
-                        .execute(
-                            comando,
-                            e
-                        );
-
-                finalOutput =
-                    res?.report ||
-                    res?.message ||
-                    "Orden completada.";
-
+            const snapshot = nuevoEstado;
+            const sessionReady = snapshot === "IDLE" || snapshot === "SECURE SESSION READY";
+            
+            if (sessionReady) {
+                if (!window.__JARVIS_BOOTED__) {
+                    window.__JARVIS_BOOTED__ = true; 
+                    
+                    setTimeout(() => {
+                        if (((window.state || snapshot) === snapshot) && typeof window.launchSovereignBriefing === 'function') {
+                            window.launchSovereignBriefing();
+                        }
+                    }, 800);
+                }
             } else {
-
-                finalOutput =
-                    "Kernel no disponible.";
+                window.__JARVIS_BOOTED__ = false;
             }
 
-            if (
-                window.renderJarvisResponse
-            ) {
-                window.renderJarvisResponse(
-                    "Jarvis",
-                    finalOutput,
-                    "success"
-                );
+            if (typeof updateJarvisHUD === "function") updateJarvisHUD();
+        };
+    };
+
+    hookJarvisLifecycle();
+
+    window.updateJarvisHUD = () => {
+        const hud = document.getElementById("jarvisState");
+        if (hud) {
+            const status = window.__JARVIS_BOOTED__ ? "NÚCLEO ACTIVO" : "SINCRONIZANDO...";
+            hud.innerHTML = `${status} <span class="opacity-30 text-[10px] ml-2">${new Date().toLocaleTimeString()}</span>`;
+        }
+    };
+
+    setInterval(window.updateJarvisHUD, 60000);
+    
+    // Persistencia final: Garantía de cierre de sesión
+    window.addEventListener('beforeunload', () => {
+        window.logEvent({ type: "SESSION_TERMINATED", source: "lifecycle" });
+        
+        // Opcional: Envío de ráfaga final de logs si el búnker está configurado
+        if (navigator.sendBeacon && window.__JARVIS_LOGS__) {
+            const finalData = JSON.stringify(window.__JARVIS_LOGS__.slice(-5));
+            // navigator.sendBeacon('/api/v1/telemetry', finalData);
+        }
+
+        window.__JARVIS_BOOTED__ = false;
+        window.__TRACE_STACK__ = [];
+        window.__TRACE_ORDER__ = [];
+        window.traceMap = {};
+    });
+
+    if (textarea) {
+        textarea.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
             }
-
-            if (
-                window.hablarJarvis
-            ) {
-                try {
-                    window.hablarJarvis(
-                        finalOutput
-                    );
-                } catch(err){}
-            }
-        }
-
-    } catch (error) {
-
-        console.error(
-            "❌ SUBMIT_FAIL:",
-            error
-        );
-
-        if (
-            window.renderJarvisResponse
-        ) {
-            window.renderJarvisResponse(
-                "Jarvis",
-                "Ocurrió una incidencia controlada.",
-                "error"
-            );
-        }
-
-        if (
-            window.hablarJarvis
-        ) {
-            try {
-                window.hablarJarvis(
-                    "Ocurrió una incidencia controlada."
-                );
-            } catch(err){}
-        }
-
-    } finally {
-
-        btnGenerate.disabled =
-            false;
-
-        btnGenerate.classList.remove(
-            "animate-pulse"
-        );
-
-        textarea.value = "";
-        textarea.style.height =
-            "58px";
+        });
     }
-});
-
-textarea.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        // Disparar submit al presionar enter
-        form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
-    }
-});
 
 }); // CIERRE DEL DOMContentLoaded
     </script>
+
+    <!-- HUD PERSISTENTE GESTIAPREMIUM -->
     <div id="jarvisHud" style="
-position:fixed;
-top:18px;
-right:18px;
-z-index:9999;
-background:rgba(8,47,73,.88);
-color:#67e8f9;
-padding:10px 14px;
-border-radius:12px;
-font-family:Arial,sans-serif;
-font-size:13px;
-box-shadow:0 0 14px rgba(103,232,249,.25);
-backdrop-filter:blur(6px);
-border:1px solid rgba(103,232,249,.25);
-">
-🤖 JARVIS ONLINE<br>
-<span id="jarvisState">Vigilando sistemas...</span>
-</div>
+        position:fixed;
+        top:18px;
+        right:18px;
+        z-index:9999;
+        background:rgba(8,47,73,.88);
+        color:#67e8f9;
+        padding:10px 14px;
+        border-radius:12px;
+        font-family:Arial,sans-serif;
+        font-size:13px;
+        box-shadow:0 0 14px rgba(103,232,249,.25);
+        backdrop-filter:blur(6px);
+        border:1px solid rgba(103,232,249,.25);
+    ">
+        🤖 JARVIS ONLINE<br>
+        <span id="jarvisState">Vigilando sistemas...</span>
+    </div>
 </body>
 </html>
