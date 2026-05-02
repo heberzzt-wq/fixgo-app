@@ -1059,8 +1059,14 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
 
             const comando = textarea.value.trim();
+            
             // Orden de validación defensivo para evitar microtasks encadenadas
             if (!comando || isProcessing) return;
+
+            // 🟢 INTEGRACIÓN DE TRAZA: Iniciamos el túnel de seguimiento
+            const currentTraceId = (typeof window.startTrace === "function") 
+                ? window.startTrace() 
+                : "trace_" + Date.now();
 
             isProcessing = true;
             const btnGenerate = document.getElementById("btn-generate");
@@ -1072,8 +1078,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     btnGenerate.classList.add("animate-pulse");
                 }
 
+                // Auditoría vinculada a la traza actual
                 if (typeof window.audit === "function") {
-                    window.audit("COMMAND_INPUT", { command: comando, source: "terminal_v5" });
+                    window.audit("COMMAND_INPUT", { 
+                        command: comando, 
+                        traceId: currentTraceId, 
+                        source: "terminal_v5" 
+                    });
                 }
 
                 // 1. Bridge (SIA7/Sentinel)
@@ -1102,15 +1113,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 3. IA (SIA7 Conversacional)
                 if (!handled) {
                     const respuestaIA = await window.consultarCerebroIA(comando);
-                    if (window.hablarJarvis) window.hablarJarvis(respuestaIA);
+                    
+                    // Al haber iniciado el trace arriba, renderJarvisResponse capturará el ID correcto
                     if (window.renderJarvisResponse) {
                         window.renderJarvisResponse("SIA7 Analysis", respuestaIA, "info");
                     }
+                    
+                    if (window.hablarJarvis) window.hablarJarvis(respuestaIA);
                 }
 
             } catch (error) {
+                if (typeof window.audit === "function") {
+                    window.audit("MISSION_CRASH", { 
+                        error: error.message, 
+                        traceId: currentTraceId 
+                    }, "error");
+                }
                 if (window.hablarJarvis) window.hablarJarvis("Error crítico en la ráfaga de comandos.");
             } finally {
+                // 🔴 CIERRE DE TRAZA: Finalizamos seguimiento y calculamos latencia
+                if (typeof window.endTrace === "function") window.endTrace();
+
                 // Delay de seguridad de 50ms para evitar reentrada por eventos async externos
                 setTimeout(() => { isProcessing = false; }, 50);
 
@@ -1138,7 +1161,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener("keydown", (e) => {
         if (e.key === "F2") {
             e.preventDefault();
-            iniciarEscucha();
+            if (typeof iniciarEscucha === "function") {
+                iniciarEscucha();
+            }
         }
     });
 /* =====================================================
@@ -1436,6 +1461,60 @@ document.addEventListener('DOMContentLoaded', () => {
         window.__TRACE_ORDER__ = [];
         window.traceMap = {};
     });
+
+
+  /* =====================================================
+        🗄️ DATA VAULT: HIDRATACIÓN DE FUERZA DE TAREA
+        Sincronización de Perfiles: Jonathan, Jessica y Luis.
+    ===================================================== */
+    window.GestiaTaskForce = {
+        technicians: [
+            { 
+                id: "tech_jonathan_01", 
+                name: "Jonathan", 
+                role: "Lead Technician", 
+                status: "active", 
+                location: "Uxmal 39", 
+                specialty: "General Maintenance"
+            },
+            { 
+                id: "tech_jessica_02", 
+                name: "Jessica", 
+                role: "Operations Coordinator", 
+                status: "active", 
+                location: "Cancún Office"
+            },
+            { 
+                id: "tech_luis_03", 
+                name: "Luis", 
+                role: "Field Technician", 
+                status: "standby", 
+                location: "Riviera Maya"
+            }
+        ],
+        staff: ["Laura", "Mari Jo"],
+        metadata: { version: "5.18", mode: "TACAÑO_OPTIMIZED" }
+    };
+
+    // Interceptor para que el Bridge reconozca los datos de Jonathan y el equipo
+    const originalExecuteCommands = window.executeCommands;
+    window.executeCommands = async function(cmds) {
+        if (cmds && cmds.includes("ANALYZE::technicians")) {
+            if (typeof window.audit === "function") {
+                window.audit("DATA_HYDRATION", { target: "technicians", count: window.GestiaTaskForce.technicians.length });
+            }
+            
+            return [{
+                ok: true,
+                type: "LEDGER",
+                data: window.GestiaTaskForce.technicians,
+                message: `Análisis de Fuerza de Tarea: ${window.GestiaTaskForce.technicians.length} perfiles activos.`
+            }];
+        }
+        return (typeof originalExecuteCommands === "function") ? await originalExecuteCommands(cmds) : [];
+    };
+
+    console.log("📦 [DATA_VAULT]: Perfiles cargados. Jonathan listo para pruebas.");
 
     if (textarea) {
         textarea.addEventListener("keydown", function (e) {
