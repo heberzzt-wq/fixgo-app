@@ -312,7 +312,7 @@ if (rawLower === "analyze") {
         entity: entity,
         target: payload.target || entity,
         // ✅ CLAVE: Identificador de tipo para composeResponse
-        type: entity === "system" ? "SYSTEM_STATUS" : "GENERAL_ANALYZE",
+        type: "SYSTEM_STATUS",
         data: systemData,
         payload,
         confidence: 1,
@@ -667,7 +667,73 @@ if (rawLower === "repair" || rawLower.startsWith("repair")) {
         );
     });
 
-    return interpretedPlan;
+   // 🔥 ADAPTACIÓN FINAL SOBERANA (CONTRATO GLOBAL)
+return interpretedPlan.map(i => __toSystemFormat(i));
+}
+
+/* =====================================================
+   🔥 SOVEREIGN OUTPUT ADAPTER (V3.2 GOD MODE)
+   Normaliza Intent → Sistema (Renderer / Kernel / Voice)
+===================================================== */
+
+function __resolveType(intentResult) {
+    if (!intentResult) return "UNKNOWN";
+
+    // 🔥 PRIORIDAD SISTEMA
+    if (intentResult.type === "SYSTEM_STATUS") return "SYSTEM_STATUS";
+
+    // 🔥 MAPEO DETERMINISTA
+    const map = {
+        "CREATE_BUILDING": "TEXT",
+        "DELETE_BUILDING": "TEXT",
+        "REPAIR": "TEXT",
+        "UPDATE": "TEXT",
+        "OPEN": "TEXT",
+        "PURGE_ORPHAN": "ALERT"
+    };
+
+    return map[intentResult.intent] || "TEXT";
+}
+
+function __buildData(intentResult) {
+    return {
+        intent: intentResult.intent,
+        action: intentResult.action,
+        entity: intentResult.entity,
+        target: intentResult.target,
+        payload: intentResult.payload || {},
+        meta: intentResult.contextRef || {}
+    };
+}
+
+function __toSystemFormat(intentResult) {
+    const resolvedType = __resolveType(intentResult);
+
+    // 🔥 CASO ESPECIAL: SYSTEM STATUS
+    if (resolvedType === "SYSTEM_STATUS") {
+        return {
+            ok: true,
+            type: "SYSTEM_STATUS",
+            data: intentResult.data || {},
+            message: intentResult.summary || "Sistema analizado.",
+            meta: {
+                source: "intent_engine",
+                ts: Date.now()
+            }
+        };
+    }
+
+    return {
+        ok: true,
+        type: resolvedType,
+        data: __buildData(intentResult),
+        message: intentResult.summary || "Operación ejecutada.",
+        meta: {
+            source: "intent_engine",
+            confidence: intentResult.contextRef?.confidence || 1,
+            ts: Date.now()
+        }
+    };
 }
 
 // Log de Estado Maestro del Día
@@ -676,29 +742,58 @@ console.log("%c🧠 [INTENT_ENGINE V3.1]: ARCHITECT SOVEREIGN 1000% OPERATIONAL"
 // --- AL FINAL DE intent.engine.js ---
 
 /* =====================================================
-    INTENT ENGINE BRIDGE (V5.19 FIX)
+    INTENT ENGINE BRIDGE (V5.19 FIX - SOVEREIGN OUTPUT)
 ===================================================== */
 window.runIntentEngine = async function(text) {
-    // 1. Intentamos usar la función maestra que ya tienes definida arriba
+
+    // 1. Intentamos usar el motor principal (YA NORMALIZADO)
     if (typeof interpretarIntenciones === 'function') {
-        // Envolvemos el texto en el formato que espera interpretarIntenciones [{raw: '...'}]
+
         const res = interpretarIntenciones([{ raw: text }]);
+
         if (res && res[0]) {
-            return {
-                intent: res[0].intent,
-                entity: res[0].entity
-            };
+            // 🔥 YA VIENE EN FORMATO SISTEMA (ok, type, data, message, meta)
+            return res[0];
         }
     }
     
-    // 2. Fallback de emergencia si el motor principal no responde
+    // 2. Fallback de emergencia (también alineado al contrato global)
     const low = String(text || "").toLowerCase();
-    if (low.includes("estado") || low.includes("sistema")) return { intent: "ANALYZE", entity: "system" };
-    if (low.includes("pago")) return { intent: "ANALYZE", entity: "payments" };
+
+    if (low.includes("estado") || low.includes("sistema")) {
+        return {
+            ok: true,
+            type: "SYSTEM_STATUS",
+            data: {
+                online: navigator.onLine,
+                timestamp: Date.now()
+            },
+            message: "Estado básico del sistema (fallback).",
+            meta: {
+                source: "intent_fallback",
+                ts: Date.now()
+            }
+        };
+    }
+
+    if (low.includes("pago")) {
+        return {
+            ok: true,
+            type: "TEXT",
+            data: {
+                intent: "ANALYZE_PAYMENTS",
+                entity: "payments"
+            },
+            message: "Consulta de pagos detectada.",
+            meta: {
+                source: "intent_fallback",
+                ts: Date.now()
+            }
+        };
+    }
     
     return null; 
-}; 
-
+};
 /**
  * ======================================================================================
  * FIN DEL ARCHIVO - INGENIERÍA DEFINITIVA PARA GESTIAPREMIUM V3.1
