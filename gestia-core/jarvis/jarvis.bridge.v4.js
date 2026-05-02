@@ -785,19 +785,26 @@ window.executeCommands = async function(commands = []) {
             let clean;
 
             /* ==================================
-               🔥 PASS THROUGH (OBJETOS REALES)
-            ================================== */
-            if (res && typeof res === "object" && res.type) {
+   🔥 PASS THROUGH (OBJETOS REALES - SAFE OUTPUT)
+================================== */
+if (res && typeof res === "object" && res.type) {
 
-                console.log("🧠 [PASS_THROUGH REAL]:", res);
+    console.log("🧠 [PASS_THROUGH REAL]:", res);
 
-                clean = res;
+    // 🔥 mantenemos el objeto completo en cache (esto sí es correcto)
+    burstCache.set(cacheKey, res);
 
-                burstCache.set(cacheKey, clean);
-                outputs.push(clean);
+    // 🔥 pero al renderer SOLO le mandamos string seguro
+    const safeOutput =
+        res.message ||
+        res.summary ||
+        (res.data && typeof res.data === "object"
+            ? JSON.stringify(res.data, null, 2)
+            : JSON.stringify(res));
 
-            } else {
+    outputs.push(safeOutput);
 
+} else {
                 /* ==================================
                    NORMAL FLOW
                 ================================== */
