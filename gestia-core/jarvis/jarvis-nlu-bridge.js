@@ -1,16 +1,17 @@
 /**
  * =====================================================================================
- * JARVIS NLU BRIDGE v1.0 GOD MODE (V4 COMPATIBLE)
+ * JARVIS NLU BRIDGE v1.1 GOD MODE (HYBRID SOVEREIGN)
  * Natural Language Understanding Layer for Gestia / FixGo / Jarvis Sovereign Core
  * =====================================================================================
  * MISIÓN:
  * Traducir lenguaje humano real -> comandos limpios para Intent Engine V3.1
+ * + FALLBACK INTELIGENTE (NO rompe flujo)
  * -------------------------------------------------------------------------------------
  */
 
 import { JarvisMemory } from "./jarvis.memory.js";
 
-const NLU_VERSION = "1.0 GOD MODE - KERNEL V4";
+const NLU_VERSION = "1.1 HYBRID SOVEREIGN";
 
 // =====================================================================================
 // NORMALIZADOR
@@ -28,75 +29,62 @@ function normalize(text = "") {
 }
 
 // =====================================================================================
-// DICCIONARIOS HUMANOS (MODISMOS DE MÉXICO INCLUIDOS)
+// DICCIONARIOS HUMANOS
 // =====================================================================================
 
 const ACTION_MAP = {
   analyze: [
-    "analiza", "revisa", "checA", "checa", "mira", "verifica",
-    "echale un ojo", "echale ojo", "dale una revisada",
-    "anda raro", "anda fallando", "que paso con"
+    "analiza","revisa","checa","mira","verifica",
+    "echale un ojo","anda raro","anda fallando","que paso con"
   ],
-
   repair: [
-    "repara", "corrige", "arregla", "soluciona",
-    "tronó", "trono", "se cayo", "caido", "caído",
-    "no sirve", "falla", "fallando", "urge reparar"
+    "repara","corrige","arregla","soluciona",
+    "tronó","trono","se cayo","no sirve","falla"
   ],
-
   update: [
-    "actualiza", "modifica", "cambia",
-    "mete cambio", "ajusta", "parcha"
+    "actualiza","modifica","cambia","ajusta"
   ],
-
   create: [
-    "crea", "genera", "construye",
-    "haz", "levanta", "arma"
+    "crea","genera","arma","haz"
   ],
-
   activate: [
-    "activa", "enciende", "habilita", "prende"
+    "activa","enciende","habilita"
   ],
-
   deactivate: [
-    "desactiva", "apaga", "deshabilita"
+    "desactiva","apaga"
   ],
-
   purge: [
-    "limpia", "purga", "borra basura", "vacía cache"
+    "limpia","purga","borra basura"
   ],
-
   status: [
-    "como vamos", "que traemos", "que pendientes",
-    "estado del sistema", "todo bien", "al cien"
+    "como vamos","estado del sistema","todo bien"
   ],
-
   open: [
-    "abre", "muestrame", "enseñame", "ponme",
-    "quiero ver", "mostrar", "ver"
+    "abre","muestrame","ver","mostrar"
   ]
 };
 
 const ENTITY_MAP = {
-  pagos: ["pagos", "cobros", "cuotas", "morosos", "finanzas"],
-  auth: ["login", "acceso", "usuarios", "sesion"],
-  camaras: ["camaras", "camara", "vigilancia", "cctv", "seguridad"],
-  tenant: ["tenant", "edificio", "torre", "condominio"],
-  firewall: ["firewall", "seguridad red"],
-  terminal: ["terminal", "consola"],
-  jarvis: ["jarvis", "sia7", "asistente"],
-  main: ["main", "principal", "app"],
-  snapshot: ["snapshot", "backup", "respaldo"],
-  memory: ["memoria", "historial", "recuerdo"]
+  pagos: ["pagos","cobros","finanzas"],
+  auth: ["login","acceso","usuarios"],
+  camaras: ["camaras","cctv","vigilancia"],
+  tenant: ["edificio","torre","condominio"],
+  firewall: ["firewall"],
+  terminal: ["terminal","consola"],
+  jarvis: ["jarvis","sia7"],
+  main: ["main","app"],
+  snapshot: ["snapshot","backup"],
+  memory: ["memoria","historial"],
+  tecnico: ["tecnico","tecnicos","tecs","personal"],
+  system: ["sistema","system","core"]
 };
 
 const URGENCY_MAP = [
-  "urge", "urgente", "rapido", "rápido", "ya",
-  "en chinga", "ahorita", "de inmediato"
+  "urge","urgente","rapido","ya","ahorita"
 ];
 
 // =====================================================================================
-// DETECTORES TÁCTICOS
+// DETECTORES
 // =====================================================================================
 
 function detectAction(text) {
@@ -130,55 +118,97 @@ function detectPriority(text) {
 
 function buildCleanCommand(action, entity, text) {
   if (!action) return text;
+
   const map = {
-    ANALYZE: "analiza", REPAIR: "repara", UPDATE: "actualiza",
-    CREATE: "crea", ACTIVATE: "activa", DEACTIVATE: "desactiva",
-    PURGE: "limpia", OPEN: "abre", STATUS: "analiza"
+    ANALYZE: "analiza",
+    REPAIR: "repara",
+    UPDATE: "actualiza",
+    CREATE: "crea",
+    ACTIVATE: "activa",
+    DEACTIVATE: "desactiva",
+    PURGE: "limpia",
+    OPEN: "abre",
+    STATUS: "analiza"
   };
+
   let command = map[action] || "analiza";
   if (entity) command += " " + entity;
+
   return command.trim();
 }
 
 function splitCommands(text) {
-  return text.split(/\s+y luego\s+|\s+y\s+|\s+despues\s+|\s+luego\s+/gi)
+  return text
+    .split(/\s+y luego\s+|\s+y\s+|\s+despues\s+|\s+luego\s+/gi)
     .map(x => x.trim())
     .filter(Boolean);
 }
 
 // =====================================================================================
-// MAIN ENGINE (EXPORTADO PARA GESTIA)
+// MAIN ENGINE
 // =====================================================================================
 
 export function understand(rawInput = "") {
+
   const original = String(rawInput);
   const normalized = normalize(original);
   const chunks = splitCommands(normalized);
 
   const results = chunks.map(chunk => {
+
     const action = detectAction(chunk);
     const entity = detectEntity(chunk);
     const priority = detectPriority(chunk);
-    
-    const clean = buildCleanCommand(action, entity, chunk);
+
+    let fallback = false;
+
+    // =====================================================
+    // 🔥 HYBRID FALLBACK REAL
+    // =====================================================
+    let finalAction = action;
+    let finalEntity = entity;
+
+    if (!action || !entity) {
+      fallback = true;
+
+      console.warn("🧠 [NLU HYBRID]: fallback activo →", chunk);
+
+      // Inferencias mínimas inteligentes
+      if (!finalAction) finalAction = "ANALYZE";
+
+      if (!finalEntity) {
+        if (chunk.includes("tecnic")) finalEntity = "tecnico";
+        else if (chunk.includes("pago")) finalEntity = "pagos";
+        else finalEntity = "system";
+      }
+    }
+
+    const clean = buildCleanCommand(finalAction, finalEntity, chunk);
 
     return {
       original: chunk,
-      action,
-      entity,
+      action: finalAction,
+      entity: finalEntity,
       priority,
-      clean,
-      confidence: action && entity ? 0.96 : action ? 0.84 : 0.55
+      clean: fallback ? chunk : clean,
+      confidence: action && entity
+        ? 0.96
+        : fallback
+          ? 0.55
+          : 0.84,
+      fallback
     };
   });
 
-  // 🧠 PERSISTENCIA EN KERNEL V4 (TACAÑO MODE)
-  // Solo guardamos el input original para no saturar de logs el historial
+  // =====================================================================================
+  // MEMORIA (ligera)
+  // =====================================================================================
+
   JarvisMemory.dispatch({
-    type: 'PUSH_HISTORY',
-    payload: { 
-        role: 'user', 
-        message: original 
+    type: "PUSH_HISTORY",
+    payload: {
+      role: "user",
+      message: original
     }
   });
 
@@ -190,5 +220,4 @@ export function understand(rawInput = "") {
   };
 }
 
-console.log("🧠 JARVIS NLU BRIDGE v1.0 GOD MODE ONLINE");
-
+console.log("🧠 JARVIS NLU BRIDGE v1.1 HYBRID SOVEREIGN ONLINE");
