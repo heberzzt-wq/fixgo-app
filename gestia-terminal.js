@@ -1634,7 +1634,7 @@ const operation = {
     payload: plan,
 
     // 🔥 FIX CORRECTO
-    data: node?.data ?? null,
+    data: node?.data ?? "",
     hasData: !!node?.data
 };
 
