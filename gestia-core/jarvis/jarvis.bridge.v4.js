@@ -1706,7 +1706,7 @@ const ai = await window.runExternalAI(raw);
 if (
     ai &&
     ai.intent &&
-    splitActions(raw).length === 1 // 🔥 SOLO si es una sola intención
+    splitActions(raw).length === 1 
 ) {
     let target = ai.target;
     const rawLow = String(raw).toLowerCase();
@@ -1720,7 +1720,6 @@ if (
     const aiFixed = { ...ai, target };
     safeLog("AI_INTENT", aiFixed);
 
-    // 🔥 REEMPLAZO CRÍTICO: VALIDACIÓN CONTRA MOTOR REAL (SOVEREIGN FIX)
     let aiCmd = resolveAIIntent(aiFixed);
 
     if (aiCmd) {
@@ -1740,16 +1739,14 @@ if (
 
         const outputs = await executeCommands([aiCmd]);
         
-        // 🛡️ BLINDAJE VOCALIZER: Extraer solo texto
         let finalText = (typeof composeResponse === 'function') 
             ? composeResponse(outputs) 
             : (outputs[0] || "Procesamiento completado.");
 
-        // Si después de componer sigue siendo un objeto, extraemos el mensaje
         if (typeof finalText === 'object') finalText = finalText.message || finalText.report || "Operación terminada.";
 
         render("Jarvis", finalText, "success");
-        speak(String(finalText)); // <--- Casting forzado a String
+        speak(String(finalText)); 
 
         return {
             ok: true,
@@ -1761,13 +1758,14 @@ if (
 }
 
 try {
-    // 1. Intentamos resolver por la vía normal
-    let commands = await resolveCommands(raw);
-
     /* =====================================================
-        🔥 CONTROL CENTRAL ABSOLUTO (BYPASS TOTAL)
+        🔥 CLEANING & RESOLUTION (SOVEREIGN FIX)
+        Limpiamos comas que rompen el split en el ruteo.
     ===================================================== */
-    const textLow = String(raw).toLowerCase();
+    const sanitizedRaw = String(raw).replace(/,/g, ''); // 🛡️ Evita que la coma cree comandos basura
+    let commands = await resolveCommands(sanitizedRaw);
+
+    const textLow = sanitizedRaw.toLowerCase();
 
     if (
         textLow.includes("cerrar sesion") || 
@@ -1780,10 +1778,8 @@ try {
 
     safeLog("COMMANDS", commands);
 
-    // 2. Ejecución de comandos
     const outputs = await executeCommands(commands);
     
-    // 🛡️ BLINDAJE VOCALIZER: Extraer solo texto para el renderer y la voz
     let finalText = (typeof composeResponse === 'function') 
         ? composeResponse(outputs) 
         : "Comando ejecutado.";
@@ -1810,7 +1806,6 @@ try {
         render("Jarvis", "Activando respaldo cognitivo...", "info");
         const aiResponse = await window.runExternalAI(raw);
         
-        // Si la IA responde con un objeto de intención, lo normalizamos a texto
         const fallbackText = (typeof aiResponse === 'object') 
             ? (aiResponse.message || "Entendido, procediendo vía IA.") 
             : aiResponse;
@@ -1831,7 +1826,7 @@ try {
         };
     }
 }
-// ✅ CIERRE CORRECTO DEL DISPATCH Y EL OBJETO
+// ✅ CIERRE CORRECTO DEL DISPATCH
     } 
 };
 

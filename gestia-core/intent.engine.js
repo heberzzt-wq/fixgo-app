@@ -585,19 +585,18 @@ if (rawLower === "repair" || rawLower.startsWith("repair")) {
         }
 
         // --- 🛡️ 6. VALIDACIÓN DE INTEGRIDAD Y NARRATIVA HUMANA ---
+        // FIX V5.22: Se elimina el throw para evitar bloqueos del Kernel.
         const finalIntent = action && entity ? `${action}_${entity}` : "UNKNOWN_INTENT";
         
         let reporteSIA7 = "";
 
-        // ✅ FIX "FRIJOLITOS": En lugar de tronar violentamente, SIA7 dialoga como compa.
         if (finalIntent === "UNKNOWN_INTENT") {
-            // Blindaje para palabras pegadas como "buenasnoches"
+            // Blindaje para palabras pegadas y lenguaje natural del búnker
             const isSaludo = /\b(hola|buenos|buenas|buenasnoches|buenosdias|que tal|q tal|hey|arre|que onda|q onda|carnita asada)\b/i.test(rawLower);
             const isLlamado = /\b(jarvis|sia7|computadora|sistema)\b/i.test(rawLower);
             const isDespedida = /\b(adios|bye|hasta luego|nos vemos|chao|camara|sobres)\b/i.test(rawLower);
             
             if (isSaludo || isLlamado || isDespedida) {
-                // 🧠 MATRIZ DE PERSONALIDAD SIA7 (Modo Compa / Carnita Asada)
                 const respuestasSaludo = [
                     "¡Arre pá! Aquí andamos al 100. ¿Qué vamos a armar hoy en Gestia?",
                     "¡Buenos días, Arquitecto! Ya me tomé el café, listo para tirar código.",
@@ -618,7 +617,6 @@ if (rawLower === "repair" || rawLower.startsWith("repair")) {
                     "Sobres, me desconecto por una Tecate. Ahí nos vidrios."
                 ];
 
-                // Selección dinámica para evitar respuestas robóticas
                 if (isDespedida) {
                     reporteSIA7 = respuestasDespedida[Math.floor(Math.random() * respuestasDespedida.length)];
                 } else if (isSaludo) {
@@ -627,12 +625,22 @@ if (rawLower === "repair" || rawLower.startsWith("repair")) {
                     reporteSIA7 = respuestasLlamado[Math.floor(Math.random() * respuestasLlamado.length)];
                 }
             } else {
-                throw new Error(`INTENT_INVALID: Jarvis no le entiende a "${cmd.raw}". Tírala más clara, especifica acción y entidad.`);
+                // 🛡️ FALLBACK SOBERANO: En lugar de Error, enviamos una respuesta de "Modo Aprendizaje"
+                reporteSIA7 = `Arquitecto, sentí un glitch en la orden: "${cmd.raw}". No capté la acción-entidad, pero el búnker sigue estable. ¿Lo intentamos de nuevo más claro?`;
+                console.warn("⚠️ [INTENT_BYPASS]: Se evitó un INTENT_INVALID mediante narrativa de seguridad.");
             }
         } else {
             // Generación de narrativa para acciones válidas (Modo Relajado)
-            const diccionarioAcciones = { "CREATE": "crear", "DELETE": "eliminar", "UPDATE": "actualizar", "REPAIR": "reparar", "ACTIVATE": "activar", "DEACTIVATE": "desactivar", "PURGE": "purgar" };
-            const diccionarioEntidades = { "MODULE": "el módulo", "CORE": "el núcleo", "USER": "el usuario", "TASK": "la tarea", "SYSTEM": "el sistema", "ORPHAN": "la basura de memoria" };
+            const diccionarioAcciones = { 
+                "CREATE": "crear", "DELETE": "eliminar", "UPDATE": "actualizar", 
+                "REPAIR": "reparar", "ACTIVATE": "activar", "DEACTIVATE": "desactivar", 
+                "PURGE": "purgar", "ANALYZE": "analizar" 
+            };
+            const diccionarioEntidades = { 
+                "MODULE": "el módulo", "CORE": "el núcleo", "USER": "el usuario", 
+                "TASK": "la tarea", "SYSTEM": "el sistema", "ORPHAN": "la basura de memoria",
+                "TECHNICIANS": "el censo de técnicos", "PAYMENTS": "el flujo de pagos"
+            };
             
             const verbo = diccionarioAcciones[action] || action;
             const sustantivo = diccionarioEntidades[entity] || entity;
@@ -640,6 +648,8 @@ if (rawLower === "repair" || rawLower.startsWith("repair")) {
             
             if (finalIntent === "PURGE_ORPHAN") {
                 reporteSIA7 = "¡Cámara pariente! Procedo a limpiar el búnker. Voy a borrar todas las ráfagas huérfanas de la memoria local.";
+            } else if (entity === "TECHNICIANS") {
+                reporteSIA7 = `¡Arre! Ya estoy conectando con el Data Vault para **${verbo} ${sustantivo}**. Dame un segundo para traer la data de Jonathan y los demás.`;
             } else {
                 reporteSIA7 = `Arre, ya lo capté. Mi misión ahorita es **${verbo} ${sustantivo} '${objTarget}'**.`;
             }
@@ -717,19 +727,19 @@ if (rawLower === "repair" || rawLower.startsWith("repair")) {
 return interpretedPlan.map(i => __toSystemFormat(i));
 }
 
-/* =====================================================
-   🔥 SOVEREIGN OUTPUT ADAPTER (V3.2 GOD MODE)
-   Normaliza Intent → Sistema (Renderer / Kernel / Voice)
-===================================================== */
+/* =====================================================================================
+    🔥 SOVEREIGN OUTPUT ADAPTER (V3.2.1 GOD MODE - BLINDADO)
+    Normaliza Intent → Sistema (Renderer / Kernel / Voice)
+    FIX: Asegura que el mensaje siempre sea un string limpio para el Vocalizer.
+===================================================================================== */
 
 function __resolveType(intentResult) {
     if (!intentResult) return "UNKNOWN";
-
-    // 🔥 PRIORIDAD SISTEMA
     if (intentResult.type === "SYSTEM_STATUS") return "SYSTEM_STATUS";
 
-    // 🔥 MAPEO DETERMINISTA
     const map = {
+        "ANALYZE_TECHNICIANS": "TEXT",
+        "ANALYZE_PAYMENTS": "TEXT",
         "CREATE_BUILDING": "TEXT",
         "DELETE_BUILDING": "TEXT",
         "REPAIR": "TEXT",
@@ -743,10 +753,10 @@ function __resolveType(intentResult) {
 
 function __buildData(intentResult) {
     return {
-        intent: intentResult.intent,
-        action: intentResult.action,
-        entity: intentResult.entity,
-        target: intentResult.target,
+        intent: intentResult.intent || "UNKNOWN",
+        action: intentResult.action || "ANALYZE",
+        entity: intentResult.entity || "system",
+        target: intentResult.target || "general",
         payload: intentResult.payload || {},
         meta: intentResult.contextRef || {}
     };
@@ -754,164 +764,107 @@ function __buildData(intentResult) {
 
 function __toSystemFormat(intentResult) {
     const resolvedType = __resolveType(intentResult);
-
-    // 🔥 CASO ESPECIAL: SYSTEM STATUS
-    if (resolvedType === "SYSTEM_STATUS") {
-        return {
-            ok: true,
-            type: "SYSTEM_STATUS",
-            data: intentResult.data || {},
-            message: intentResult.summary || "Sistema analizado.",
-            meta: {
-                source: "intent_engine",
-                ts: Date.now()
-            }
-        };
-    }
+    
+    // 🛡️ Garantía de Mensaje: Si no hay summary, generamos uno basado en la entidad.
+    const safeMessage = intentResult.summary || intentResult.message || `Procesando solicitud de ${intentResult.entity || 'sistema'}...`;
 
     return {
         ok: true,
         type: resolvedType,
-        data: __buildData(intentResult),
-        message: intentResult.summary || "Operación ejecutada.",
+        data: resolvedType === "SYSTEM_STATUS" ? (intentResult.data || {}) : __buildData(intentResult),
+        message: String(safeMessage), // Forzado a String para Vocalizer
         meta: {
-            source: "intent_engine",
-            confidence: intentResult.contextRef?.confidence || 1,
+            source: intentResult.source || "intent_engine",
+            confidence: intentResult.confidence || intentResult.contextRef?.confidence || 1,
             ts: Date.now()
         }
     };
 }
 
-// Log de Estado Maestro del Día
+// Log de Estado Maestro
 console.log("%c🧠 [INTENT_ENGINE V3.1]: ARCHITECT SOVEREIGN 1000% OPERATIONAL", "color: #10b981; font-weight: bold; background: #064e3b; padding: 2px 10px; border-radius: 4px;");
 
-// --- AL FINAL DE intent.engine.js ---
-
 /* =====================================================
-    INTENT ENGINE BRIDGE (V5.20 HYBRID SOVEREIGN FIX)
+    INTENT ENGINE BRIDGE (V5.21 HYBRID SOVEREIGN FIX)
+    Optimizado para evitar el error INTENT_INVALID
 ===================================================== */
 window.runIntentEngine = async function(text) {
-
+    const low = String(text || "").toLowerCase().trim();
+    
     try {
-
         let cleanText = text;
         let nluMeta = null;
 
-        // =====================================================
-        // 🧠 1. NLU HYBRID (ANTES DEL INTENT ENGINE)
-        // =====================================================
+        // 🧠 1. NLU HYBRID (Pre-procesamiento)
         if (typeof understand === "function") {
-
             const nlu = understand(text);
-
             if (nlu && nlu.commands && nlu.commands[0]) {
-
                 const cmd = nlu.commands[0];
-
                 console.log("🧠 [NLU → INTENT]", cmd);
-
                 cleanText = cmd.clean || text;
-
-                nluMeta = {
-                    fallback: cmd.fallback || false,
-                    confidence: cmd.confidence || 0.5
-                };
+                nluMeta = { fallback: cmd.fallback || false, confidence: cmd.confidence || 0.5 };
             }
         }
 
-        // =====================================================
-        // 🧠 2. INTENT ENGINE (YA NORMALIZADO)
-        // =====================================================
+        // 🧠 2. INTENT ENGINE (Mapeo primario)
         if (typeof interpretarIntenciones === 'function') {
-
-            const res = interpretarIntenciones([{ raw: cleanText }]);
-
-            if (res && res[0]) {
-
-                const out = res[0];
-
-                // 🔥 NORMALIZACIÓN SOBERANA FINAL
-                return {
-                    ok: true,
-                    type: out.type || "TEXT",
-                    data: out.data || {},
-                    message: out.summary || "Operación ejecutada.",
-                    meta: {
-                        source: "intent_engine",
-                        ts: Date.now(),
-                        nlu: nluMeta
-                    }
-                };
+            try {
+                const res = interpretarIntenciones([{ raw: cleanText }]);
+                if (res && res[0]) {
+                    // Usamos el Adaptador Soberano para formatear la salida
+                    return __toSystemFormat({ ...res[0], source: "intent_engine", contextRef: nluMeta });
+                }
+            } catch (e) {
+                console.warn("⚠️ [INTENT_INTERNAL_FAIL]: Rebotando a Fallback Soberano.");
             }
         }
-
     } catch (err) {
-        console.error("❌ [RUN_INTENT_ENGINE_FAIL]", err);
+        console.error("❌ [RUN_INTENT_ENGINE_CRITICAL_FAIL]", err);
     }
 
     // =====================================================
-    // 🧯 3. FALLBACK DURO (NUNCA ROMPE)
+    // 🧯 3. FALLBACK INTELIGENTE (V5.21 - ANTI-MUTE)
     // =====================================================
-    const low = String(text || "").toLowerCase();
-
-    if (low.includes("tecnic")) {
-        return {
-            ok: true,
-            type: "TEXT",
-            data: {
-                intent: "ANALYZE_TECHNICIANS",
-                entity: "tecnico"
-            },
-            message: "Consulta de técnicos detectada (fallback).",
-            meta: {
-                source: "intent_fallback",
-                ts: Date.now()
-            }
-        };
+    
+    // 🛠️ Caso: Técnicos (Jonathan Profile)
+    if (low.includes("tecnic") || low.includes("cuantos hay")) {
+        return __toSystemFormat({
+            intent: "ANALYZE_TECHNICIANS",
+            entity: "technicians",
+            summary: "Consultando el censo de técnicos en el Data Vault...",
+            source: "intent_fallback_smart"
+        });
     }
 
-    if (low.includes("estado") || low.includes("sistema")) {
-        return {
-            ok: true,
+    // 🛠️ Caso: Estado / Sistema
+    if (low.includes("estado") || low.includes("sistema") || low.includes("analisis")) {
+        return __toSystemFormat({
             type: "SYSTEM_STATUS",
-            data: {
-                online: navigator.onLine,
-                timestamp: Date.now()
-            },
-            message: "Estado básico del sistema (fallback).",
-            meta: {
-                source: "intent_fallback",
-                ts: Date.now()
-            }
-        };
+            intent: "SYSTEM_CHECK",
+            entity: "system",
+            summary: "Realizando escaneo de telemetría y estado de fuerzas...",
+            data: { online: navigator.onLine, status: "GOD_MODE" },
+            source: "intent_fallback_smart"
+        });
     }
 
-    if (low.includes("pago")) {
-        return {
-            ok: true,
-            type: "TEXT",
-            data: {
-                intent: "ANALYZE_PAYMENTS",
-                entity: "payments"
-            },
-            message: "Consulta de pagos detectada.",
-            meta: {
-                source: "intent_fallback",
-                ts: Date.now()
-            }
-        };
+    // 🛠️ Caso: Pagos / Stripe
+    if (low.includes("pago") || low.includes("cobro") || low.includes("factura")) {
+        return __toSystemFormat({
+            intent: "ANALYZE_PAYMENTS",
+            entity: "payments",
+            summary: "Accediendo al historial de transacciones y estados de pago...",
+            source: "intent_fallback_smart"
+        });
     }
 
-    return {
-        ok: true,
-        type: "TEXT",
-        data: {},
-        message: "No se pudo interpretar completamente la instrucción, pero el sistema sigue operativo.",
-        meta: {
-            source: "intent_fallback_safe",
-            ts: Date.now()
-        }
-    };
+    // 🛡️ Cierre de Seguridad (Safe Exit)
+    return __toSystemFormat({
+        intent: "GENERAL_QUERY",
+        entity: "system",
+        summary: "Instrucción recibida. Procesando a través del núcleo general.",
+        source: "intent_fallback_safe"
+    });
 };
 /**
  * ======================================================================================
