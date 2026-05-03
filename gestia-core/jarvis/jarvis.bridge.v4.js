@@ -836,14 +836,12 @@ export const JarvisBridge = {
         ui: "./app-main.js"
     },
 
-    async dispatch(input = "") {
-
+   async dispatch(input = "") {
         let raw;
         let rawLow;
 
         // 1. NORMALIZACIÓN DE ENTRADA
         const isStructured = typeof input === "object" && input !== null;
-
         if (isStructured) {
             raw = input;
             rawLow = `${input.intent || ""}::${input.target || ""}`.toLowerCase();
@@ -851,6 +849,134 @@ export const JarvisBridge = {
             raw = String(input || "").trim();
             rawLow = raw.toLowerCase();
         }
+
+        /* =====================================================
+            🛡️ 2. HARDEN GLOBAL SCOPE (V5.18 BOOT-FIX)
+        ===================================================== */
+        const AI_MODE = true; 
+        
+        if (!window.__LEGACY_HARDENED__) {
+            (function hardenGlobalScope(){
+                const msg = "BLOCKED: Motor legacy deshabilitado en modo AI_SUPERVISED";
+                const blocker = () => { throw new Error(msg); };
+                const protectedFns = ["runIntentEngine", "resolveCommands", "intentEngine", "runPlan"];
+
+                protectedFns.forEach(fn => {
+                    try {
+                        Object.defineProperty(window, fn, {
+                            get() { return blocker; },
+                            set() { throw new Error("Reasignación bloqueada: " + fn); },
+                            configurable: false
+                        });
+                    } catch(e) {}
+                });
+                window.__LEGACY_HARDENED__ = true;
+                console.log("🛑 [LEGACY_DISABLED]: HARD BLOCK activo (Supreme)");
+            })();
+        }
+
+        if (AI_MODE) {
+            window.__AI_PIPELINE_ACTIVE__ = true;
+            console.log("🧠 [AI_PIPELINE]: Iniciando motor de planeación...");
+
+            const controller = new AbortController(); 
+
+            try {
+                // 3. CONTEXTO Y JERARQUÍA DE PERMISOS
+                const ROLE_HIERARCHY = {
+                    ADMIN: ["ADMIN", "WRITE", "READ", "ANALYZE"],
+                    WRITE: ["WRITE", "READ"],
+                    READ: ["READ"],
+                    ANALYZE: ["ANALYZE"]
+                };
+
+                const context = { 
+                    userId: "Jonathan_Operator", 
+                    role: "OPERATOR",
+                    permissions: ["READ", "ANALYZE"], 
+                    traceId: `trace_${Date.now()}` 
+                };
+
+                const userPermsExpanded = context.permissions.flatMap(p => ROLE_HIERARCHY[p] || [p]);
+
+                // 4. GENERACIÓN DE PLAN CON TIMEOUT & ABORT REAL
+                const rawPlan = await Promise.race([
+                    window.runExternalAI({ input: raw, mode: "PLANNER", context, signal: controller.signal }),
+                    new Promise((_, reject) => 
+                        setTimeout(() => { 
+                            controller.abort(); 
+                            reject(new Error("AI timeout")); 
+                        }, 8000)
+                    )
+                ]);
+
+                if (!rawPlan || typeof rawPlan !== "object") throw new Error("AI no devolvió un plan válido");
+
+                // 5. NORMALIZACIÓN E INTEGRIDAD (STRICT)
+                if (typeof normalizeAIPlan !== 'function') throw new Error("Normalizer no disponible");
+                const plan = normalizeAIPlan(rawPlan);
+                if (!plan || !plan.steps || !plan.steps.length) throw new Error("Plan sin pasos ejecutables.");
+                
+                // 🛡️ CONTROL DE VOLUMEN: Evita saturación del Executor
+                if (plan.steps.length > 25) throw new Error("Plan excede límite máximo de pasos (25).");
+
+                // 🛡️ 6. VALIDACIÓN SEMÁNTICA & SEGURIDAD DEFENSIVA
+                const PERMISSION_MAP = { READ: ["READ"], ANALYZE: ["ANALYZE"], UPDATE: ["WRITE"], WRITE: ["WRITE"], DELETE: ["ADMIN"] };
+
+                for (const step of plan.steps) {
+                    // Garantía de ID para el Ledger
+                    if (!step.id) step.id = `step_${Math.random().toString(36).slice(2, 9)}`;
+
+                    if (!PERMISSION_MAP[step.type]) throw new Error(`Operación no permitida: ${step.type}`);
+
+                    const required = PERMISSION_MAP[step.type];
+                    const allowed = required.some(p => userPermsExpanded.includes(p));
+
+                    if (!allowed) throw new Error(`Permiso denegado para acción: ${step.type}`);
+                    
+                    if (!step.target?.collection) throw new Error(`Target inválido en: ${step.id}`);
+                    if (["UPDATE", "WRITE"].includes(step.type) && !step.payload) throw new Error(`Step ${step.type} requiere payload.`);
+                    if (step.type === "DELETE" && !step.target.docId) throw new Error("DELETE requiere docId específico.");
+                }
+
+                // 🛡️ 7. FINGERPRINT CONTEXTUAL (V1.0 SCHEMA)
+                const fingerprintPayload = { v: "1.0", steps: plan.steps, role: context.role };
+                const fingerprintBase = new TextEncoder().encode(JSON.stringify(fingerprintPayload));
+                const hashBuffer = await crypto.subtle.digest("SHA-256", fingerprintBase);
+                plan.fingerprint = Array.from(new Uint8Array(hashBuffer))
+                    .slice(0, 12).map(b => b.toString(16).padStart(2, "0")).join("");
+
+                // 🛡️ 8. DEDUPLICACIÓN CON TTL Y TRAZABILIDAD
+                if (typeof findPlanByFingerprint === 'function') {
+                    const existing = await findPlanByFingerprint(plan.fingerprint);
+                    if (existing && (Date.now() - existing.createdAt < 30000)) {
+                        console.log("♻️ [PLAN_REUSED]:", { reused: existing.id, traceId: context.traceId });
+                        return renderPlanPreview(existing);
+                    }
+                }
+
+                plan.mode = "AI_SUPERVISED";
+                plan.createdBy = context.userId;
+                plan.traceId = context.traceId;
+                plan.createdAt = Date.now();
+
+                // 9. PERSISTENCIA OBLIGATORIA
+                if (typeof savePendingPlan !== 'function') throw new Error("savePendingPlan no disponible");
+                await savePendingPlan(plan);
+                
+                console.log("🧠 [AI_PLAN_READY]:", plan.id);
+                return renderPlanPreview(plan); 
+
+            } catch (err) {
+                if (err.name === "AbortError" || err.message === "AI timeout") {
+                    console.warn("⏱️ [AI_ABORTED]:", context.traceId);
+                }
+                console.error("❌ [AI_PIPELINE_ERROR]:", err);
+                return render("Jarvis", `Error en planeación: ${err.message}`, "error");
+            }
+        }
+
+        /* --- El código de abajo (Surgeon Mode / Telemetría) ya no se ejecutará en AI_MODE --- */
 
         /* =====================================================
             🔥 INYECCIÓN V5.19: REDIRECCIÓN DE TELEMETRÍA
