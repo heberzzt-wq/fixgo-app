@@ -1778,7 +1778,7 @@ if (operation.type === "REPAIR") {
 }
 
 /* =====================================================================================
-    READ ONLY BYPASS (FINAL STABLE FIX V15.3 - KERNEL SHIELD)
+    READ ONLY BYPASS (FINAL STABLE FIX V15.4 - LIVE DATA + VOCALIZER SYNC)
 ===================================================================================== */
 const READ_TYPES = [
     "ANALYZE",
@@ -1794,7 +1794,7 @@ if (READ_TYPES.includes(operation.type)) {
     await this.setState(
         STATES.DONE,
         opId,
-        { report: "Consulta completada." }
+        { report: "Sincronizando telemetría..." }
     );
 
     await this.ledger.removeOp(opId);
@@ -1807,7 +1807,7 @@ if (READ_TYPES.includes(operation.type)) {
     ========================================== */
     if (operation?.hasData || operation?.data || first?.payload) {
         
-        // 🚀 CONEXIÓN EN VIVO: Si la entidad es técnicos, contamos en Firestore
+        // 🚀 CONEXIÓN EN VIVO: Consulta real a Firestore para técnicos
         if (first.entity === "technicians" || first.target === "technicians") {
             try {
                 const { getCountFromServer, query, where, collection } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
@@ -1823,7 +1823,7 @@ if (READ_TYPES.includes(operation.type)) {
                 // Inyectamos el dato real en el dashboard
                 const liveData = operation.data || first.data || {};
                 liveData.counts = { ...liveData.counts, technicians: count };
-                liveData.message = `Arquitecto, el censo actual en Firestore reporta ${count} técnicos activos en la plataforma.`;
+                liveData.message = `Arquitecto, el censo actual en Firestore reporta ${count} técnicos activos en la plataforma de ${this.session.tenantId}.`;
                 
                 operation.data = liveData;
             } catch (e) {
@@ -1831,7 +1831,8 @@ if (READ_TYPES.includes(operation.type)) {
             }
         }
 
-        console.log("🧠 [RETURN DATA OK]:", operation.data || first.payload);
+        const finalMsg = operation.data?.message || first.summary || "Reporte generado.";
+        console.log("🧠 [RETURN DATA OK]:", finalMsg);
 
         return {
             ok: true,
@@ -1839,14 +1840,14 @@ if (READ_TYPES.includes(operation.type)) {
             opId,
             type: "SYSTEM_STATUS",
             data: operation.data || first.data || first.payload,
-            message: operation.data?.message || first.summary || "Reporte SIA7 generado."
+            message: finalMsg // Crucial para que el Vocalizer lo lea
         };
     }
 
     /* ==========================================
         ⚠️ FALLBACK INTELIGENTE (DENTRO DEL IF)
     ========================================== */
-    console.warn("⚠️ [READ_BYPASS]: Consulta sin data estructurada, cerrando flujo.");
+    console.warn("⚠️ [READ_BYPASS]: Consulta sin data estructurada.");
     return {
         ok: true,
         success: true,
@@ -1855,7 +1856,6 @@ if (READ_TYPES.includes(operation.type)) {
         message: "Consulta finalizada."
     };
 }
-
 /* ==========================================
     JOURNAL
 ========================================== */
