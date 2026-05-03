@@ -1708,7 +1708,6 @@ if (
     ai.intent &&
     splitActions(raw).length === 1 // 🔥 SOLO si es una sola intención
 ) {
-
     let target = ai.target;
     const rawLow = String(raw).toLowerCase();
 
@@ -1718,25 +1717,21 @@ if (
         }
     }
 
-    const aiFixed = {
-        ...ai,
-        target
-    };
-
+    const aiFixed = { ...ai, target };
     safeLog("AI_INTENT", aiFixed);
 
     // 🔥 REEMPLAZO CRÍTICO: VALIDACIÓN CONTRA MOTOR REAL (SOVEREIGN FIX)
     let aiCmd = resolveAIIntent(aiFixed);
 
     if (aiCmd) {
-        // Buscamos el motor en el scope global para evitar ReferenceError
         const engine = window.runIntentEngine || (typeof runIntentEngine === 'function' ? runIntentEngine : null);
-        
         if (engine) {
-            const structured = await engine(aiCmd);
-            if (structured && structured.intent && structured.entity) {
-                aiCmd = `${structured.intent}::${structured.entity}`;
-            }
+            try {
+                const structured = await engine(aiCmd);
+                if (structured && structured.intent && structured.entity) {
+                    aiCmd = `${structured.intent}::${structured.entity}`;
+                }
+            } catch (e) { safeLog("ENGINE_BYPASS", "Usando comando original"); }
         }
     }
 
@@ -1744,12 +1739,17 @@ if (
         if (typeof loaderTimer !== 'undefined') clearInterval(loaderTimer); 
 
         const outputs = await executeCommands([aiCmd]);
-        const finalText = (typeof composeResponse === 'function') 
+        
+        // 🛡️ BLINDAJE VOCALIZER: Extraer solo texto
+        let finalText = (typeof composeResponse === 'function') 
             ? composeResponse(outputs) 
             : (outputs[0] || "Procesamiento completado.");
 
+        // Si después de componer sigue siendo un objeto, extraemos el mensaje
+        if (typeof finalText === 'object') finalText = finalText.message || finalText.report || "Operación terminada.";
+
         render("Jarvis", finalText, "success");
-        speak(finalText);
+        speak(String(finalText)); // <--- Casting forzado a String
 
         return {
             ok: true,
@@ -1766,39 +1766,34 @@ try {
 
     /* =====================================================
         🔥 CONTROL CENTRAL ABSOLUTO (BYPASS TOTAL)
-        Este bloque pisa cualquier error de Language Core o NLU.
-        Si el usuario pide salir, no hay discusión.
     ===================================================== */
-    const textLow = raw.toLowerCase();
+    const textLow = String(raw).toLowerCase();
 
     if (
-        (textLow.includes("cerrar") && textLow.includes("sesion")) ||
-        (textLow.includes("cerrar") && textLow.includes("sesión")) ||
-        textLow.includes("logout") ||
-        textLow.includes("sign out") ||
-        textLow.includes("desconectar") ||
+        textLow.includes("cerrar sesion") || 
+        textLow.includes("cerrar sesión") || 
+        textLow.includes("logout") || 
         textLow.includes("salir del sistema")
     ) {
-        // Forzamos el array de comandos a la instrucción única y correcta
         commands = ["REPAIR::admin.logout"];
     }
 
-    // Registro en log del comando final
     safeLog("COMMANDS", commands);
 
-    // 2. Ejecución de comandos (Aquí ya va REPAIR::admin.logout sí o sí)
+    // 2. Ejecución de comandos
     const outputs = await executeCommands(commands);
-
-    console.log("🚨 OUTPUTS FINAL:", outputs);
-
-    const finalText = (typeof composeResponse === 'function') 
+    
+    // 🛡️ BLINDAJE VOCALIZER: Extraer solo texto para el renderer y la voz
+    let finalText = (typeof composeResponse === 'function') 
         ? composeResponse(outputs) 
         : "Comando ejecutado.";
+
+    if (typeof finalText === 'object') finalText = finalText.message || finalText.report || "Orden procesada.";
 
     if (typeof loaderTimer !== 'undefined') clearInterval(loaderTimer);
 
     render("Jarvis", finalText, "success");
-    speak(finalText);
+    speak(String(finalText)); 
 
     return {
         ok: true,
@@ -1813,14 +1808,20 @@ try {
 
     try {
         render("Jarvis", "Activando respaldo cognitivo...", "info");
-        const aiText = await window.runExternalAI(raw);
-        render("Jarvis", aiText, "success");
-        speak(aiText);
+        const aiResponse = await window.runExternalAI(raw);
+        
+        // Si la IA responde con un objeto de intención, lo normalizamos a texto
+        const fallbackText = (typeof aiResponse === 'object') 
+            ? (aiResponse.message || "Entendido, procediendo vía IA.") 
+            : aiResponse;
+
+        render("Jarvis", fallbackText, "success");
+        speak(String(fallbackText));
 
         return {
             ok: true,
             route: "AI_FALLBACK",
-            message: aiText
+            message: fallbackText
         };
     } catch (subError) {
         return {
@@ -1834,7 +1835,7 @@ try {
     } 
 };
 
-// 🔥 EXPORTACIONES FINALES AL OBJETO WINDOW (PUNTO DE UNIÓN GLOBAL)
+// 🔥 EXPORTACIONES FINALES AL OBJETO WINDOW
 window.runExternalAI = runExternalAI;
 window.resolveAIIntent = resolveAIIntent;
 window.JarvisBridge = JarvisBridge;
