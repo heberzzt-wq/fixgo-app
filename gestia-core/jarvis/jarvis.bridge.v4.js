@@ -11,6 +11,11 @@
  * =====================================================================================
  */
 
+
+// 🔌 IMPORTS (AI PIPELINE)
+import { normalizeAIPlan } from "./jarvis.normalizer.js";
+
+
 function safeLog(label, data = "") {
     console.log(`🧠 [JARVIS_UNIFIED:${label}]`, data);
 }

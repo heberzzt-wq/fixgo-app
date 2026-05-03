@@ -380,6 +380,64 @@ console.log("%c🦾 [OPERATIONS_EXECUTOR]: V16.1.1 INDESTRUCTIBLE LEDGER ONLINE"
 
 /**
  * ======================================================================================
+ * 🧠 AI EXECUTION ADAPTER (V1.0)
+ * Conecta plan.steps → motor transaccional existente (ejecutarCambios)
+ * ======================================================================================
+ */
+
+export async function executeSteps(steps = [], context = {}) {
+
+    if (!Array.isArray(steps) || !steps.length) {
+        throw new Error("No steps to execute");
+    }
+
+    // 🔁 Convertimos steps IA → formato proposal que tu executor entiende
+    const proposal = {
+        operation_id: `ai_op_${Date.now()}`,
+        tenantId: context.tenantId || "default",
+        ejecutado_por: context.userId || "jarvis_ai",
+        changes: steps.map(step => ({
+            type: mapActionToLegacyType(step),
+            target: step.target?.docId || step.target?.collection,
+            payload: step.payload,
+            reason: "AI_PLAN_EXECUTION"
+        }))
+    };
+
+    console.log("🧠 [AI→EXECUTOR]: Adaptando plan a proposal", proposal);
+
+    // 🔥 Aquí reutilizas tu motor V16.1
+    return await ejecutarCambios(proposal);
+}
+
+/**
+ * 🔄 Mapeo IA → tipos legacy del executor
+ */
+function mapActionToLegacyType(step) {
+
+    switch (step.action) {
+
+        case "getDocs":
+            return "READ_OPERATION";
+
+        case "setDoc":
+            return "CREATE_MODULE";
+
+        case "updateDoc":
+            return "PATCH_SYSTEM_CORE";
+
+        case "deleteDoc":
+            return "DELETE_OPERATION";
+
+        case "aggregate":
+            return "DATA_ANALYSIS";
+
+        default:
+            return "UNKNOWN";
+    }
+}
+/**
+ * ======================================================================================
  * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 385 (INGENIERÍA EXQUISITA GARANTIZADA)
  * ======================================================================================
  */
