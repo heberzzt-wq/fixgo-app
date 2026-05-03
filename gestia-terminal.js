@@ -1613,17 +1613,22 @@ const detectedType =
         ?.intent ||
     "ANALYZE";
 
-/* ==========================================
-   🔥 CONTEXTO DEL PROBLEMA (FIX: BLINDAJE)
-========================================== */
+/* =====================================================================================
+   🔥 CONTEXTO DEL PROBLEMA (FIX: BLINDAJE SOBERANO V15.3)
+   Blindaje total para evitar crash de indexOf en Sentinel y logs.
+===================================================================================== */
 
-// Forzamos String para evitar el error de 'indexOf' de undefined
-const issue = String(
-    first.raw ||
-    first.summary ||
-    JSON.stringify(plan) || 
-    ""
-);
+// 1. Forzamos String absoluto. 
+// Si plan es un objeto (telemetría), lo serializamos para que Sentinel pueda leerlo sin romperse.
+const issue = (typeof first.raw === 'string') 
+    ? first.raw 
+    : (first.summary || JSON.stringify(plan) || "SIA7_SYSTEM_SCAN");
+
+// 2. Inyectamos flag de telemetría directamente en el contexto
+// Esto le dirá al BYPASS de más abajo que no active el Journaling financiero.
+const isTelemetry = (detectedType === "SYSTEM_STATUS" || detectedType === "ANALYZE");
+
+console.log(`🧠 [DEBUG_ISSUE_SHIELD]: ${issue.slice(0, 50)}...`);
 
 /* ==========================================
    OPERACIÓN (FIX DATA PROPAGATION CORRECTO)
@@ -1712,20 +1717,14 @@ if (
 }
 
 /* ==========================================
-   SELF REPAIR BRIDGE
+    SELF REPAIR BRIDGE
 ========================================== */
-
 if (operation.type === "REPAIR") {
 
     console.log("🔥 SELF REPAIR ENTER");
 
-    const target =
-        first.target ||
-        first.entity ||
-        "system";
-
-    const rawSource =
-        window.__GESTIA_TERMINAL_SOURCE__ || "";
+    const target = first.target || first.entity || "system";
+    const rawSource = window.__GESTIA_TERMINAL_SOURCE__ || "";
 
     console.log("📦 SOURCE LENGTH:", rawSource.length);
 
@@ -1733,52 +1732,39 @@ if (operation.type === "REPAIR") {
         console.warn("⚠️ NO SOURCE DETECTED");
     }
 
-   const diagnostic =
-    SelfRepairSentinelV10
-    .diagnosticarPayloadFinal(
+    const diagnostic = SelfRepairSentinelV10.diagnosticarPayloadFinal(
         {
             id: target,
             issue: issue, // 🔥 USANDO EL ISSUE BLINDADO
-            json: {
-                javascript: rawSource
-            },
+            json: { javascript: rawSource },
             tenantId: this.session.tenantId
         },
         opId,
         this.session
     );
 
-    const repaired =
-        diagnostic?.payloadCorregido?.json?.javascript || "";
+    const repaired = diagnostic?.payloadCorregido?.json?.javascript || "";
 
     if (repaired && repaired.length > 0) {
-
         console.log("🛠️ REPAIR APPLY:", target);
-
         window.__GESTIA_TERMINAL_SOURCE__ = repaired;
-         /* 🔥 FIX REAL: RE-EJECUTAR SCRIPT */
-    try {
 
-        console.log("♻️ RE-EJECUTANDO SCRIPT REPARADO");
-
-        const script = document.createElement("script");
-        script.type = "module";
-        script.textContent = repaired;
-
-        document.body.appendChild(script);
-
-    } catch (err) {
-        console.error("❌ ERROR RE-EJECUTANDO SCRIPT", err);
+        /* 🔥 FIX REAL: RE-EJECUTAR SCRIPT */
+        try {
+            console.log("♻️ RE-EJECUTANDO SCRIPT REPARADO");
+            const script = document.createElement("script");
+            script.type = "module";
+            script.textContent = repaired;
+            document.body.appendChild(script);
+        } catch (err) {
+            console.error("❌ ERROR RE-EJECUTANDO SCRIPT", err);
+        }
     }
-}
-   
 
     await this.setState(
         STATES.DONE,
         opId,
-        {
-            report: "Autorreparación aplicada."
-        }
+        { report: "Autorreparación aplicada." }
     );
 
     await this.ledger.removeOp(opId);
@@ -1791,16 +1777,16 @@ if (operation.type === "REPAIR") {
     };
 }
 
-  /* ==========================================
-READ ONLY BYPASS (FINAL STABLE FIX)
-========================================== */
-
+/* =====================================================================================
+    READ ONLY BYPASS (FINAL STABLE FIX V15.3 - KERNEL SHIELD)
+===================================================================================== */
 const READ_TYPES = [
     "ANALYZE",
     "REPORT",
     "STATUS",
     "SEARCH",
-    "AUDIT"
+    "AUDIT",
+    "SYSTEM_STATUS" 
 ];
 
 if (READ_TYPES.includes(operation.type)) {
@@ -1817,41 +1803,38 @@ if (READ_TYPES.includes(operation.type)) {
     console.log("🧪 [OPERATION]:", operation);
 
     /* ==========================================
-       ✅ CASO IDEAL: DATA DESDE DSL
+        ✅ CASO IDEAL: DATA DESDE DSL (REFORZADO)
     ========================================== */
-    if (operation?.hasData && operation?.data) {
-
-        console.log("🧠 [RETURN DATA OK]:", operation.data);
+    if (operation?.hasData || operation?.data || first?.payload) {
+        console.log("🧠 [RETURN DATA OK]:", operation.data || first.payload);
 
         return {
             ok: true,
             success: true,
             opId,
             type: "SYSTEM_STATUS",
-            data: operation.data
+            data: operation.data || first.data || first.payload,
+            message: first.summary || "Reporte SIA7 generado."
         };
     }
 
     /* ==========================================
-       ⚠️ FALLBACK INTELIGENTE
-       (NO lo quites)
+        ⚠️ FALLBACK INTELIGENTE (DENTRO DEL IF)
     ========================================== */
-
-    console.warn("⚠️ [NO DATA] usando fallback controlado");
-
+    console.warn("⚠️ [READ_BYPASS]: Consulta sin data estructurada, cerrando flujo.");
     return {
         ok: true,
         success: true,
         opId,
-        type: "READ_RESULT", // 🔥 importante para no romper compose
-        message: "Consulta completada."
+        type: "READ_RESULT",
+        message: "Consulta finalizada."
     };
 }
-        /* ==========================================
-            JOURNAL
-         ========================================== */
 
-       await this.setState(
+/* ==========================================
+    JOURNAL
+========================================== */
+await this.setState(
     STATES.JOURNALING,
     opId
 );
