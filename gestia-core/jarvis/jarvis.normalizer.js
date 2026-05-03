@@ -1,28 +1,64 @@
 export function normalizeAIPlan(planRaw = {}, traceId = "no_trace") {
 
-    if (!planRaw || typeof planRaw !== "object") return null;
-    if (!Array.isArray(planRaw.steps)) return null;
+    console.log("🧠 [NORMALIZER]: START", { traceId, planRaw });
+
+    if (!planRaw || typeof planRaw !== "object") {
+        console.warn("⚠️ [NORMALIZER]: planRaw inválido");
+        return null;
+    }
+
+    if (!Array.isArray(planRaw.steps)) {
+        console.warn("⚠️ [NORMALIZER]: steps no es array");
+        return null;
+    }
 
     const steps = [];
 
     for (const step of planRaw.steps) {
-        if (!step || typeof step !== "object") continue;
+
+        console.log("🔍 [NORMALIZER]: STEP_RAW", step);
+
+        if (!step || typeof step !== "object") {
+            console.warn("⚠️ Step inválido (no objeto)");
+            continue;
+        }
 
         const type = String(step.type || "").toUpperCase();
-        if (!type || !step.target?.collection) continue;
+        if (!type) {
+            console.warn("⚠️ Step sin type");
+            continue;
+        }
+
+        // 🔥 FLEXIBILIDAD DE TARGET
+        const collection =
+            step.target?.collection ||
+            step.target?.name ||
+            (typeof step.target === "string" ? step.target : null);
+
+        if (!collection) {
+            console.warn("⚠️ Step sin collection válido", step.target);
+            continue;
+        }
 
         const action = step.action || inferAction(type);
-        if (action === "custom") continue;
 
-        if ((type === "UPDATE" || type === "WRITE") && !step.payload) continue;
+        if (action === "custom") {
+            console.warn("⚠️ Acción no soportada", type);
+            continue;
+        }
 
-        steps.push({
+        if ((type === "UPDATE" || type === "WRITE") && !step.payload) {
+            console.warn("⚠️ Step sin payload requerido", type);
+            continue;
+        }
+
+        const normalizedStep = {
             id: step.id || `step_${Math.random().toString(36).slice(2, 8)}`,
             type,
             target: {
-                collection: step.target.collection,
-                docId: step.target.docId || null,
-                query: step.target.query || null
+                collection,
+                docId: step.target?.docId || null,
+                query: step.target?.query || null
             },
             action,
             payload: step.payload || {},
@@ -31,18 +67,29 @@ export function normalizeAIPlan(planRaw = {}, traceId = "no_trace") {
                 description: step.meta?.description || ""
             },
             traceId
-        });
+        };
+
+        console.log("✅ [NORMALIZER]: STEP_OK", normalizedStep);
+
+        steps.push(normalizedStep);
     }
 
-    if (!steps.length) return null;
+    if (!steps.length) {
+        console.error("❌ [NORMALIZER]: SIN STEPS VÁLIDOS");
+        return null;
+    }
 
-    return {
+    const normalizedPlan = {
         id: planRaw.id || `plan_${Date.now()}`,
         steps,
         normalized: true,
         traceId,
         createdAt: Date.now()
     };
+
+    console.log("🧠 [NORMALIZER]: PLAN_OK", normalizedPlan);
+
+    return normalizedPlan;
 }
 
 function inferAction(type) {

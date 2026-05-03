@@ -66,6 +66,10 @@ import {
     runJarvis
 } from "/gestia-core/jarvis/jarvis.orchestrator.js";
 
+import { 
+    approvePlan 
+} from "/gestia-core/plans.engine.js";
+
 /* =====================================================
    SELF REPAIR CORE
 ===================================================== */
@@ -1092,10 +1096,10 @@ if (
         }
     );
 
-    return await this.runPlan(
-        opId,
-        intents
-    );
+    return await approvePlan(opId, {
+    id: this.session?.uid,
+    tenantId: this.session?.tenantId
+});
 }
 
 /* =====================================================
