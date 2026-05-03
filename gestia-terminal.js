@@ -1803,9 +1803,34 @@ if (READ_TYPES.includes(operation.type)) {
     console.log("🧪 [OPERATION]:", operation);
 
     /* ==========================================
-        ✅ CASO IDEAL: DATA DESDE DSL (REFORZADO)
+        ✅ CASO IDEAL: DATA DESDE DSL + LIVE FETCH
     ========================================== */
     if (operation?.hasData || operation?.data || first?.payload) {
+        
+        // 🚀 CONEXIÓN EN VIVO: Si la entidad es técnicos, contamos en Firestore
+        if (first.entity === "technicians" || first.target === "technicians") {
+            try {
+                const { getCountFromServer, query, where, collection } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+                
+                const q = query(
+                    collection(db, `tenants/${this.session.tenantId}/users`), 
+                    where("role", "==", "tecnico")
+                );
+                
+                const snapshot = await getCountFromServer(q);
+                const count = snapshot.data().count;
+
+                // Inyectamos el dato real en el dashboard
+                const liveData = operation.data || first.data || {};
+                liveData.counts = { ...liveData.counts, technicians: count };
+                liveData.message = `Arquitecto, el censo actual en Firestore reporta ${count} técnicos activos en la plataforma.`;
+                
+                operation.data = liveData;
+            } catch (e) {
+                console.warn("⚠️ [LIVE_COUNT_FAIL]:", e);
+            }
+        }
+
         console.log("🧠 [RETURN DATA OK]:", operation.data || first.payload);
 
         return {
@@ -1814,7 +1839,7 @@ if (READ_TYPES.includes(operation.type)) {
             opId,
             type: "SYSTEM_STATUS",
             data: operation.data || first.data || first.payload,
-            message: first.summary || "Reporte SIA7 generado."
+            message: operation.data?.message || first.summary || "Reporte SIA7 generado."
         };
     }
 

@@ -335,10 +335,9 @@ function beautifyOutput(
         return "Proceso de eliminación completado.";
     }
 
-    /* ==========================================
+   /* ==========================================
         REPAIR
     ========================================== */
-
     if (c.includes("REPAIR::")) {
         return "Rutina de corrección ejecutada satisfactoriamente.";
     }
@@ -346,7 +345,6 @@ function beautifyOutput(
     /* ==========================================
         NATIVE COMMANDS
     ========================================== */
-
     if (
         c.includes("JARVIS ESTADO") ||
         c.includes("JARVIS RESUMEN") ||
@@ -359,25 +357,26 @@ function beautifyOutput(
     /* ==========================================
         FALLBACK
     ========================================== */
-
     return raw || "Operación completada correctamente.";
-}
+} // <--- LLAVE CRÍTICA: Cierra la función beautifyOutput
 
 function composeResponse(outputs = []) {
 
     const clean = outputs
         .filter(Boolean)
         .map(x => {
-            if (typeof x === "object") {
+            // 🧠 FIX: Extracción profunda para evitar [object Object]
+            if (typeof x === "object" && x !== null) {
                 return (
-                    x.message ||
-                    x.summary ||
-                    JSON.stringify(x.data || x)
+                    x.message || 
+                    x.summary || 
+                    x.report || 
+                    (x.data && typeof x.data === 'object' ? JSON.stringify(x.data) : JSON.stringify(x))
                 );
             }
             return String(x).trim();
         })
-        .filter(Boolean);
+        .filter(x => x && x !== "[object Object]"); // Segunda capa de seguridad
 
     if (!clean.length) {
         return "Proceso completado.";
@@ -387,11 +386,10 @@ function composeResponse(outputs = []) {
 }
 
 /* =====================================================================================
-   NLP FALLBACK
+    NLP FALLBACK
 ===================================================================================== */
 
 function detectEntity(text = "") {
-
     const t = String(text).toLowerCase();
 
     const map = {
@@ -405,7 +403,9 @@ function detectEntity(text = "") {
         tenant: "tenant",
         edificio: "tenant",
         reporte: "reports",
-        dashboard: "dashboard"
+        dashboard: "dashboard",
+        tecnico: "technicians", // Sincronizado con el Kernel
+        tecnicos: "technicians"
     };
 
     for (const key in map) {
@@ -416,7 +416,6 @@ function detectEntity(text = "") {
 }
 
 function detectAction(text = "") {
-
     const t = String(text).toLowerCase();
 
     if (/revisa|analiza|consulta|verifica/.test(t))
@@ -445,7 +444,6 @@ function fallbackTranslate(text = "") {
 }
 
 function splitActions(text = "") {
-
     return String(text)
         .split(
             /\s+y luego\s+|\s+y\s+|\s+después\s+|\s+despues\s+|\s+luego\s+/i
@@ -455,7 +453,7 @@ function splitActions(text = "") {
 }
 
 /* =====================================================================================
-   NATIVE + SOCIAL LAYER
+    NATIVE + SOCIAL LAYER
 ===================================================================================== */
 
 function isNativeJarvis(text = "") {
