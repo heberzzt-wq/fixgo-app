@@ -974,8 +974,12 @@ export const JarvisBridge = {
                 console.log("🧠 [AI_PLAN_READY]:", plan.id);
 
                 window.lastPlanId = plan.id;
-                
-                return renderPlanPreview(plan); 
+
+                if (window.renderPlanPreview) {
+    window.renderPlanPreview(plan);
+} else {
+    console.warn("⚠️ renderPlanPreview no disponible");
+}
 
             } catch (err) {
                 if (err.name === "AbortError" || err.message === "AI timeout") {

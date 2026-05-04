@@ -436,6 +436,9 @@ function mapActionToLegacyType(step) {
             return "UNKNOWN";
     }
 }
+
+window.executeSteps = executeSteps;
+
 /**
  * ======================================================================================
  * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 385 (INGENIERÍA EXQUISITA GARANTIZADA)

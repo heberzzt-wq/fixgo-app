@@ -1,9 +1,5 @@
 // 🔌 IMPORTS
-let executeStepsFn = executeSteps;
-
-if (!executeStepsFn && window.executeSteps) {
-    executeStepsFn = window.executeSteps;
-}
+import { executeSteps } from "./operations-executor.engine.js";
 
 export async function approvePlan(planId, user = {}) {
 
