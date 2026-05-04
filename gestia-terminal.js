@@ -1027,11 +1027,12 @@ if (APPROVAL_WORDS.includes(cmd)) {
             report: "Ejecutando plan autorizado..."
         }
     );
+const lastPlanId = Array.from(this.pendingPlans.keys()).pop();
 
-    return await approvePlan(null, {
-        id: this.session?.uid,
-        tenantId: this.session?.tenantId
-    });
+return await approvePlan(lastPlanId, {
+    id: this.session?.uid,
+    tenantId: this.session?.tenantId
+});
 }
 /* =====================================================
    QUICK COMMANDS JARVIS
@@ -1158,7 +1159,8 @@ try {
 
 if (
     !isStructured &&
-    !rawInput.includes("::")
+    !rawInput.includes("::") &&
+    !APPROVAL_WORDS.includes(cmd)
 ) {
 
     /* =============================================
