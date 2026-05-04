@@ -1088,14 +1088,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // 1. Bridge (SIA7/Sentinel)
-                try {
-                    if (window.JarvisBridge?.dispatch) {
-                        await window.JarvisBridge.dispatch(comando);
-                        handled = true;
-                    }
-                } catch (bridgeErr) {
-                    console.warn("⚠️ [BRIDGE_FAIL]: Fallback a Kernel.");
-                }
+
+// 🔥 INTERCEPTOR DE APROBACIÓN
+const cmd = comando.toLowerCase();
+
+if (["arre", "confirmar", "ok"].includes(cmd)) {
+
+    console.log("🟢 [APPROVAL INTERCEPTED TERMINAL]:", cmd);
+
+    const lastPlanId = Array.from(window.pendingPlans?.keys?.() || []).pop();
+
+    if (lastPlanId && window.approvePlan) {
+        await window.approvePlan(lastPlanId, {
+            id: window.session?.uid,
+            tenantId: window.session?.tenantId
+        });
+    }
+
+    handled = true;
+
+} else {
+
+    try {
+        if (window.JarvisBridge?.dispatch) {
+            await window.JarvisBridge.dispatch(comando);
+            handled = true;
+        }
+    } catch (bridgeErr) {
+        console.warn("⚠️ [BRIDGE_FAIL]: Fallback a Kernel.");
+    }
+
+}
 
                 // 2. Kernel Local (Heberto Core)
                 if (!handled) {
