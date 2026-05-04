@@ -48,48 +48,57 @@ const result = await executeSteps(plan.steps, {
     tenantId: plan.tenantId || "default"
 });
 
-if (window.renderJarvisResponse) {
+// 🧠 FORMATEO + UI + VOZ (TODO JUNTO Y CERRADO BIEN)
+let msg = "Ejecución completada";
 
-    let msg = "Ejecución completada";
+if (result) {
 
-    if (result?.data) {
-        msg = JSON.stringify(result.data, null, 2);
-    } else if (result?.message) {
+    if (result.message) {
         msg = result.message;
-    } else if (typeof result === "string") {
-        msg = result;
     }
-
-    window.renderJarvisResponse(
-        "Resultado",
-        msg,
-        "success"
-    );
-
-    window.__LAST_EXECUTION__ = true;
+    else if (result.data) {
+        msg = JSON.stringify(result.data, null, 2);
+    }
+    else if (typeof result === "object") {
+        msg = JSON.stringify(result, null, 2);
+    }
+    else {
+        msg = String(result);
+    }
 }
 
+// 📺 UI
+if (window.renderJarvisResponse) {
+    window.renderJarvisResponse("Resultado", msg, "success");
+}
+
+// 🔊 VOZ
+if (window.hablarJarvis) {
+    window.hablarJarvis(msg);
+}
+
+// 🔒 BLOQUEO FALLBACK
+window.__LAST_EXECUTION__ = true;
 
 
+// 🔐 Ledger ejecución (tolerante)
+try {
+    await ledger.log("PLAN_EXECUTED", {
+        planId,
+        result
+    });
+} catch (err) {
+    console.warn("⚠️ Ledger ejecución omitido:", err.message);
+}
 
-    // 🔐 Ledger ejecución (tolerante)
-    try {
-        await ledger.log("PLAN_EXECUTED", {
-            planId,
-            result
-        });
-    } catch (err) {
-        console.warn("⚠️ Ledger ejecución omitido:", err.message);
-    }
+// 🧹 Limpieza
+try {
+    await window.removePendingPlan?.(planId);
+} catch (err) {
+    console.warn("⚠️ No se pudo limpiar plan:", err.message);
+}
 
-    // 🧹 Limpieza
-    try {
-        await window.removePendingPlan?.(planId);
-    } catch (err) {
-        console.warn("⚠️ No se pudo limpiar plan:", err.message);
-    }
-
-    return result;
+return result;
 }
 
 window.approvePlan = approvePlan;
