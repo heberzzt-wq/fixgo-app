@@ -67,8 +67,10 @@ if (result) {
     }
 }
 
-// 📺 UI
-if (window.renderJarvisResponse) {
+// 📺 UI (inteligente)
+if (window.renderResponse && result?.type) {
+    window.renderResponse(result);
+} else if (window.renderJarvisResponse) {
     window.renderJarvisResponse("Resultado", msg, "success");
 }
 
