@@ -38,3 +38,5 @@ export async function approvePlan(planId, user = {}) {
 
     return result;
 }
+
+window.approvePlan = approvePlan;
