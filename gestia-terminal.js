@@ -1148,6 +1148,10 @@ try {
             opId
         );
 
+        const cmd = (typeof rawInput === "string")
+    ? rawInput.trim().toLowerCase()
+    : "";
+
         /* =================================================
    🔥 FIX CRÍTICO: DEFINIR isStructured
 ================================================= */
@@ -1190,22 +1194,22 @@ if (
 
             console.warn("🧠 AI ACTIVE:", ai);
 
-            const cmd = window.resolveAIIntent?.(ai);
+            const aiCmd = window.resolveAIIntent?.(ai);
 
-            if (cmd) {
+            if (aiCmd) {
 
-                console.warn("⚡ COMMAND FROM AI:", cmd);
+    console.warn("⚡ COMMAND FROM AI:", aiCmd);
 
-                return await this.runPlan(
-                    crypto.randomUUID(),
-                    [{
-                        intent: ai.intent.toUpperCase(),
-                        action: cmd.split("::")[0],
-                        target: cmd.split("::")[1]?.split(".")[0] || "system",
-                        raw: rawInput
-                    }]
-                );
-            }
+    return await this.runPlan(
+        crypto.randomUUID(),
+        [{
+            intent: ai.intent.toUpperCase(),
+            action: aiCmd.split("::")[0],
+            target: aiCmd.split("::")[1]?.split(".")[0] || "system",
+            raw: rawInput
+        }]
+    );
+}
         }
 
     } catch (err) {
