@@ -1162,23 +1162,35 @@ if (
     !rawInput.includes("::") &&
     !APPROVAL_WORDS.includes(cmd)
 ) {
+/* =============================================
+   1. PRIORIDAD ABSUTA: JARVIS BRIDGE
+============================================= */
 
-    /* =============================================
-       1. PRIORIDAD ABSUTA: JARVIS BRIDGE
-    ============================================= */
-    if (window.JarvisBridge?.dispatch) {
+// 🔥 INTERCEPTOR DE APROBACIÓN (ANTES DEL BRIDGE)
+if (APPROVAL_WORDS.includes(cmd)) {
+    console.log("🟢 [APPROVAL BLOCKED BEFORE BRIDGE]:", cmd);
 
-        console.log("🧠 [BRIDGE ROUTING ACTIVE]");
+    const lastPlanId = Array.from(this.pendingPlans.keys()).pop();
 
-        return await window.JarvisBridge.dispatch(
-            rawInput,
-            {
-                userId: this.session?.uid,
-                tenantId: this.session?.tenantId,
-                authorized: this.session?.authorized
-            }
-        );
-    }
+    return await approvePlan(lastPlanId, {
+        id: this.session?.uid,
+        tenantId: this.session?.tenantId
+    });
+}
+
+if (window.JarvisBridge?.dispatch) {
+
+    console.log("🧠 [BRIDGE ROUTING ACTIVE]");
+
+    return await window.JarvisBridge.dispatch(
+        rawInput,
+        {
+            userId: this.session?.uid,
+            tenantId: this.session?.tenantId,
+            authorized: this.session?.authorized
+        }
+    );
+}
 
     /* =============================================
        2. SEGUNDO NIVEL: AI EXTERNA
