@@ -1787,11 +1787,17 @@ Escribe:
             };
         }
 
-       /* ==================================
+      /* ==================================
     PURE SOCIAL FAST PATH (solo si es 1 acción)
 ================================== */
 
-const actions = splitActions(raw);
+const actions = raw
+    .toLowerCase()
+    .split(/(?:\s+y\s+|\s+e\s+|,|\.|\s+and\s+)/gi)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+console.log("🧪 ACTIONS DIRECT:", actions);
 
 if (
     isSocialJarvis(raw) &&
@@ -1810,8 +1816,6 @@ if (
         message: socialText
     };
 }
-
-
 /* ==================================
     PREMIUM LOADER & EXECUTION (V5.95 FINAL)
 ================================== */
