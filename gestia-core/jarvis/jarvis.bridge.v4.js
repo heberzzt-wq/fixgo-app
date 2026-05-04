@@ -1882,23 +1882,13 @@ if (
     if (aiCmd) {
         if (typeof loaderTimer !== 'undefined') clearInterval(loaderTimer); 
 
-        const outputs = await executeCommands([aiCmd]);
-        
-        let finalText = (typeof composeResponse === 'function') 
-            ? composeResponse(outputs) 
-            : (outputs[0] || "Procesamiento completado.");
+        // 🚫 BLOQUEADO: ejecución directa deshabilitada (modo supervisado)
+console.warn("🚫 [BLOCKED]: Ejecución directa desactivada. Esperando aprobación.");
 
-        if (typeof finalText === 'object') finalText = finalText.message || finalText.report || "Operación terminada.";
-
-        render("Jarvis", finalText, "success");
-        speak(String(finalText)); 
-
-        return {
-            ok: true,
-            route: "GEMINI_CORE",
-            commands: [aiCmd],
-            message: finalText
-        };
+return {
+    ok: true,
+    blocked: true
+};
     }
 }
 
