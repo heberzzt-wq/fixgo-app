@@ -67,9 +67,11 @@ if (result) {
     }
 }
 
-// 📺 UI (inteligente)
-if (window.renderResponse && result?.type) {
-    window.renderResponse(result);
+// 📺 UI (inteligente + soporte array)
+const clean = Array.isArray(result) ? result[0] : result;
+
+if (window.renderResponse && clean?.type) {
+    window.renderResponse(clean);
 } else if (window.renderJarvisResponse) {
     window.renderJarvisResponse("Resultado", msg, "success");
 }
