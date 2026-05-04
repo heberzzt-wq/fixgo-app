@@ -439,7 +439,13 @@ function mapActionToLegacyType(step) {
             return "DELETE_OPERATION";
 
         case "aggregate":
-            return "DATA_ANALYSIS";
+
+    // 🔥 FIX: si es análisis del sistema → UI especial
+    if (step.target === "system") {
+        return "SYSTEM_STATUS";
+    }
+
+    return "DATA_ANALYSIS";
 
         default:
             return "UNKNOWN";
