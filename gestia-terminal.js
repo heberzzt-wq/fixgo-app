@@ -1025,10 +1025,7 @@ if (isStructured) {
    CONFIRMACIÓN NATURAL (PATCH DEFINITIVO)
 ===================================================== */
 
-if (
-    this.pendingPlans.size > 0 &&
-    APPROVAL_WORDS.includes(cmd)
-) {
+     if (APPROVAL_WORDS.includes(cmd)) {
 
     /* =====================================================
        TOMAR EL PLAN MÁS RECIENTE
