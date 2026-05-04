@@ -980,15 +980,6 @@ if (isStructured) {
        BLOQUEO: APROBACIÓN SIN PLAN PENDIENTE
     ===================================================== */
 
-    if (
-        APPROVAL_WORDS.includes(cmd) &&
-        this.pendingPlans.size === 0
-    ) {
-        return {
-            ok: false,
-            message: "No hay planes pendientes."
-        };
-    }
 
     const ctx = {
         userId: this.session?.uid,
