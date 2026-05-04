@@ -2366,7 +2366,7 @@ JarvisMemory.subscribe((type, payload) => {
 window.renderPlanPreview = function(plan) {
 
     if (!plan || !Array.isArray(plan.steps)) {
-        render("Jarvis", "Plan inválido para mostrar.", "error");
+        window.renderJarvisResponse("Jarvis", "Plan inválido para mostrar.", "error");
         return;
     }
 
@@ -2378,7 +2378,7 @@ window.renderPlanPreview = function(plan) {
 
     msg += "\n¿Confirmas ejecución? (escribe 'arre')";
 
-    render("Jarvis", msg, "info");
+    window.renderJarvisResponse("Jarvis", msg, "info");
 
     console.log("🧠 [PLAN_PREVIEW_RENDERED]:", plan);
 };
