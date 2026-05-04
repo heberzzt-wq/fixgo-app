@@ -1,5 +1,9 @@
 // 🔌 IMPORTS
-import { executeSteps } from "./operations-executor.engine.js";
+let executeStepsFn = executeSteps;
+
+if (!executeStepsFn && window.executeSteps) {
+    executeStepsFn = window.executeSteps;
+}
 
 export async function approvePlan(planId, user = {}) {
 
@@ -33,7 +37,7 @@ await ledger.log("PLAN_APPROVED", {
 });
 
     // 🚀 EJECUCIÓN
-    const result = await executeSteps(plan.steps, {
+    const result = await executeStepsFn(plan.steps, {
         traceId: plan.traceId,
         userId: user?.id || "system",
         tenantId: plan.tenantId || "default"
