@@ -1016,80 +1016,23 @@ if (isStructured) {
    CONFIRMACIÓN NATURAL (PATCH DEFINITIVO)
 ===================================================== */
 
-     if (APPROVAL_WORDS.includes(cmd)) {
+if (APPROVAL_WORDS.includes(cmd)) {
 
-    /* =====================================================
-       TOMAR EL PLAN MÁS RECIENTE
-    ===================================================== */
-
-    const keys =
-        Array.from(
-            this.pendingPlans.keys()
-        );
-
-    const opId =
-        keys[
-            keys.length - 1
-        ];
-
-    const savedPlan =
-        this.pendingPlans.get(opId);
-
-    if (!savedPlan) {
-
-        await this.setState(
-            STATES.ERROR,
-            opId,
-            {
-                error:
-                    "Plan no encontrado."
-            }
-        );
-
-        throw new Error(
-            "PLAN_NOT_FOUND"
-        );
-    }
-
-    const intents =
-        savedPlan.intents || [];
-
-    if (
-        !Array.isArray(intents) ||
-        intents.length === 0
-    ) {
-
-        this.pendingPlans.delete(opId);
-
-        await this.setState(
-            STATES.ERROR,
-            opId,
-            {
-                error:
-                    "Plan vacío o corrupto."
-            }
-        );
-
-        throw new Error(
-            "PLAN_EMPTY"
-        );
-    }
+    console.log("🟢 [APPROVAL DETECTED]:", cmd);
 
     await this.setState(
         STATES.APPLY_ATOMIC,
-        opId,
+        "ai-approval",
         {
-            report:
-                "Ejecutando plan autorizado..."
+            report: "Ejecutando plan autorizado..."
         }
     );
 
-    return await approvePlan(opId, {
-    id: this.session?.uid,
-    tenantId: this.session?.tenantId
-});
+    return await approvePlan(null, {
+        id: this.session?.uid,
+        tenantId: this.session?.tenantId
+    });
 }
-
 /* =====================================================
    QUICK COMMANDS JARVIS
 ===================================================== */
