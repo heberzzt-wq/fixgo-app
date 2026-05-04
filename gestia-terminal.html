@@ -682,88 +682,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return parts.filter(Boolean).join("\n\n");
     };
 
-    // 4. SÍNTESIS DE VOZ BLINDADA (VOICE COMMANDER V5.70)
-    window.hablarJarvis = async (texto) => {
-        if (!("speechSynthesis" in window)) return;
-
-        if (speechSynthesis.speaking || speechSynthesis.pending) {
-            try { 
-                speechSynthesis.cancel(); 
-                await new Promise(r => setTimeout(r, 0)); 
-            } catch(e){}
-        }
-
-        const ttsId = ++currentTTSId; 
-        let started = false;
-        let textoLimpio = "Datos procesados.";
-
-        try {
-            textoLimpio = (typeof texto === "object") ? window.composeResponse(texto) : String(texto);
-
-            textoLimpio = textoLimpio
-                .replace(/\[SYSTEM_STATUS\]/g, 'Análisis del núcleo completado.')
-                .replace(/_/g, ' ') 
-                .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')       
-                .replace(/\s{2,}/g, ' ')                        
-                .replace(/[^\w\s.,:;=áéíóúÁÉÍÓÚñÑ\-()%$@#\/]/g, '') 
-                .trim();
-            
-            if (!textoLimpio || textoLimpio === "[object Object]") {
-                textoLimpio = "Sincronización completada satisfactoriamente.";
-            }
-        } catch (err) {
-            textoLimpio = "Protocolo de datos finalizado.";
-        }
-
-        const voz = new SpeechSynthesisUtterance(textoLimpio);
-        voz.lang = "es-MX";
-        voz.rate = 0.94;
-        voz.pitch = 0.84;
-        voz.volume = 1;
-
-        ensureVoice();
-        if (voice) voz.voice = voice;
-
-        const MAX_TTS_TIME = Math.min(15000, Math.max(3000, textoLimpio.length * 80));
-        let hardReset = setTimeout(() => {
-            if (window.__DEV__) console.warn("🎤 [VOCALIZER]: Watchdog forzando liberación.");
-            try { speechSynthesis.cancel(); } catch(e){}
-        }, MAX_TTS_TIME);
-
-        let startCheck = setTimeout(() => {
-            if (!started && ttsId === currentTTSId) {
-                if (window.__DEV__) console.warn("🎤 [VOCALIZER]: TTS no inició. Forzando cancelación.");
-                try { speechSynthesis.cancel(); } catch(e){}
-            }
-        }, 500);
-
-        const cleanExit = () => {
-            if (ttsId !== currentTTSId) return; 
-            clearTimeout(hardReset); 
-            clearTimeout(startCheck);
-        };
-
-        voz.onstart = () => {
-            started = true;
-            if (window.__DEV__) console.log("🎤 [VOCALIZER]: Inicio detectado.");
-        };
-
-        voz.onend = () => {
-            cleanExit();
-            setTimeout(() => { 
-                if (ttsId === currentTTSId && typeof window.beepJarvis === 'function') {
-                    window.beepJarvis();
-                }
-            }, 200);
-        };
-
-        voz.onerror = () => {
-            if (window.__DEV__) console.warn("🎤 [VOCALIZER]: Error en motor TTS.");
-            cleanExit();
-        };
-
-        speechSynthesis.speak(voz);
-    };
+    // window.hablarJarvis = async (texto) => {
+//   ...
+// };
 
     // 5. FIRMA SÓNICA (AUDIO CONTEXT IDLE CLEANUP)
     window.beepJarvis = function() {
