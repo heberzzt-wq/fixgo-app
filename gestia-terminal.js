@@ -1144,26 +1144,43 @@ try {
         });
 
         await this.setState(
-            STATES.ANALYZE,
-            opId
-        );
+    STATES.ANALYZE,
+    opId
+);
 
-        const cmd = (typeof rawInput === "string")
+// 🔥 NORMALIZACIÓN DE COMANDO
+const cmd = (typeof rawInput === "string")
     ? rawInput.trim().toLowerCase()
     : "";
 
-        /* =================================================
-   🔥 FIX CRÍTICO: DEFINIR isStructured
+/* =================================================
+   🔥 INTERCEPTOR DE APROBACIÓN (ANTES DE TODO)
 ================================================= */
+if (APPROVAL_WORDS.includes(cmd)) {
 
-        /* =================================================
+    console.log("🟢 [APPROVAL INTERCEPTED BEFORE BRIDGE]:", cmd);
+
+    await this.setState(
+        STATES.APPLY_ATOMIC,
+        opId,
+        {
+            report: "Ejecutando plan autorizado..."
+        }
+    );
+
+    return await approvePlan(null, {
+        id: this.session?.uid,
+        tenantId: this.session?.tenantId
+    });
+}
+
+/* =================================================
    🧠 ENRUTAMIENTO PRINCIPAL UNIFICADO (BRIDGE FIRST)
 ================================================= */
 
 if (
     !isStructured &&
-    !rawInput.includes("::") &&
-    !APPROVAL_WORDS.includes(cmd) // 🔥 evita que "arre" entre al bridge
+    !rawInput.includes("::")
 ) {
 
     /* =============================================
@@ -1184,7 +1201,7 @@ if (
     }
 
     /* =============================================
-       2. SEGUNDO NIVEL: AI EXTERNA (GEMINI / NLU)
+       2. SEGUNDO NIVEL: AI EXTERNA
     ============================================= */
     try {
 
@@ -1198,18 +1215,18 @@ if (
 
             if (aiCmd) {
 
-    console.warn("⚡ COMMAND FROM AI:", aiCmd);
+                console.warn("⚡ COMMAND FROM AI:", aiCmd);
 
-    return await this.runPlan(
-        crypto.randomUUID(),
-        [{
-            intent: ai.intent.toUpperCase(),
-            action: aiCmd.split("::")[0],
-            target: aiCmd.split("::")[1]?.split(".")[0] || "system",
-            raw: rawInput
-        }]
-    );
-}
+                return await this.runPlan(
+                    crypto.randomUUID(),
+                    [{
+                        intent: ai.intent.toUpperCase(),
+                        action: aiCmd.split("::")[0],
+                        target: aiCmd.split("::")[1]?.split(".")[0] || "system",
+                        raw: rawInput
+                    }]
+                );
+            }
         }
 
     } catch (err) {
@@ -1217,7 +1234,7 @@ if (
     }
 
     /* =============================================
-       3. ÚLTIMO RECURSO: CORE LOCAL
+       3. FALLBACK LOCAL
     ============================================= */
     console.warn("⚠️ Usando fallback local (runJarvis)");
 
