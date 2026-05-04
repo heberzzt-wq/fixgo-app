@@ -409,25 +409,25 @@ export async function executeSteps(steps = [], context = {}) {
 
     if (!Array.isArray(steps) || !steps.length) {
         throw new Error("No steps to execute");
-        
+
     }
 
     // 🔁 Convertimos steps IA → formato proposal que tu executor entiende
-    const proposal = {
-        operation_id: `ai_op_${Date.now()}`,
-        tenantId: context.tenantId || "default",
-        ejecutado_por: context.userId || "jarvis_ai",
-        changes: steps.map(step => ({
+const proposal = {
+    operation_id: `ai_op_${Date.now()}`,
+    tenantId: context.tenantId || "default",
+    ejecutado_por: context.userId || "jarvis_ai",
+    changes: steps.map(step => ({
 
-    type: (step.action === "aggregate" && step.target === "system")
-        ? "SYSTEM_STATUS"
-        : mapActionToLegacyType(step),
+        type: (step.action === "aggregate" && step.target?.collection === "system")
+            ? "SYSTEM_STATUS"
+            : mapActionToLegacyType(step),
 
-    target: step.target?.docId || step.target?.collection,
-    payload: step.payload,
-    reason: "AI_PLAN_EXECUTION"
-}))
-    };
+        target: step.target?.docId || step.target?.collection,
+        payload: step.payload,
+        reason: "AI_PLAN_EXECUTION"
+    }))
+};
 
     console.log("🧠 [AI→EXECUTOR]: Adaptando plan a proposal", proposal);
 
