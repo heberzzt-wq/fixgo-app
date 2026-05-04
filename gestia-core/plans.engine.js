@@ -3,11 +3,16 @@ import { executeSteps } from "./operations-executor.engine.js";
 
 export async function approvePlan(planId, user = {}) {
 
+    console.log("🧪 [APPROVE ENTRY]:", planId);
+
     const plan = await getPendingPlan(planId);
+
+    console.log("🧪 [PLAN FETCHED]:", plan);
 
     if (!plan) throw new Error("Plan no encontrado");
 
-    if (plan.mode !== "AI_SUPERVISED") {
+    // 🔥 FIX: validar solo si existe mode
+    if (plan.mode && plan.mode !== "AI_SUPERVISED") {
         throw new Error("Plan inválido para ejecución");
     }
 
@@ -22,7 +27,7 @@ export async function approvePlan(planId, user = {}) {
         traceId: plan.traceId
     });
 
-    // 🚀 EJECUCIÓN (AQUÍ ESTÁ LA CLAVE)
+    // 🚀 EJECUCIÓN
     const result = await executeSteps(plan.steps, {
         traceId: plan.traceId,
         userId: user?.id || "system",
