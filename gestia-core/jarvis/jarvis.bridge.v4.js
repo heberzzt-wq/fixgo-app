@@ -15,6 +15,8 @@
 // 🔌 IMPORTS (AI PIPELINE)
 import { normalizeAIPlan } from "./jarvis.normalizer.js";
 
+import { savePendingPlan } from "/gestia-core/persistence.engine.js";
+
 
 function safeLog(label, data = "") {
     console.log(`🧠 [JARVIS_UNIFIED:${label}]`, data);

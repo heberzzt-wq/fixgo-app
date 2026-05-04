@@ -225,6 +225,41 @@ export async function persistirPerfilUsuario(uid, payload, opId) {
     }
 }
 
+// 🧠 PENDING PLANS STORE (IN-MEMORY)
+
+const __pendingPlans = new Map();
+
+export async function savePendingPlan(plan) {
+
+    if (!plan || !plan.id) {
+        throw new Error("Plan inválido para guardar");
+    }
+
+    __pendingPlans.set(plan.id, plan);
+
+    console.log("💾 [PENDING_PLAN_SAVED]:", plan.id);
+
+    return true;
+}
+
+export async function getPendingPlan(planId) {
+    return __pendingPlans.get(planId) || null;
+}
+
+export async function getAllPendingPlans() {
+    return Array.from(__pendingPlans.values());
+}
+
+export async function removePendingPlan(planId) {
+    __pendingPlans.delete(planId);
+    console.log("🗑️ [PENDING_PLAN_REMOVED]:", planId);
+}
+
+export async function getLastPendingPlan() {
+    const plans = Array.from(__pendingPlans.values());
+    return plans.length ? plans[plans.length - 1] : null;
+}
+
 /**
  * ======================================================================================
  * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 545 (INGENIERÍA EXQUISITA GARANTIZADA)
