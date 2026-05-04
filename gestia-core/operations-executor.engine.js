@@ -322,6 +322,15 @@ export async function ejecutarCambios(proposal) {
                         retryBuffer.push({ type, target, status: "locked" });
                         break;
 
+                        case "DATA_ANALYSIS":
+                        retryBuffer.push({
+                        type,
+                        target,
+                           status: "analyzed",
+                        result: payload || "analysis_completed"
+                        });
+                        break;
+
                     default:
                         // No lanzamos error para permitir que el resto de la ráfaga continúe
                         retryBuffer.push({ type, target, status: "ignored_type" });
