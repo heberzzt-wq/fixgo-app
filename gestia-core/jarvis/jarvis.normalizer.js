@@ -2,12 +2,28 @@ export function normalizeAIPlan(planRaw = {}, traceId = "no_trace") {
 
     console.log("🧠 [NORMALIZER]: START", { traceId, planRaw });
 
-    if (!planRaw || typeof planRaw !== "object") {
-        console.warn("⚠️ [NORMALIZER]: planRaw inválido");
-        return null;
-    }
+if (!planRaw || typeof planRaw !== "object") {
+    console.warn("⚠️ [NORMALIZER]: planRaw inválido");
+    return null;
+}
 
-   // 🔎 Resolver diferentes formatos posibles de salida del planner
+// 🔄 FALLBACK: convertir intent simple a step ejecutable
+if (!planRaw.steps && planRaw.intent && planRaw.target) {
+    console.warn("⚠️ [NORMALIZER]: Intent simple detectado, convirtiendo a step");
+
+    planRaw = {
+        steps: [
+            {
+                type: String(planRaw.intent).toUpperCase(),
+                target: typeof planRaw.target === "string"
+                    ? { collection: planRaw.target }
+                    : planRaw.target
+            }
+        ]
+    };
+}
+
+// 🔎 Resolver diferentes formatos posibles de salida del planner
 let rawSteps =
     Array.isArray(planRaw.steps) ? planRaw.steps :
     Array.isArray(planRaw.plan?.steps) ? planRaw.plan.steps :
@@ -20,7 +36,7 @@ if (!rawSteps) {
     return null;
 }
     const steps = [];
-    
+
 
     for (const step of rawSteps) {
 
