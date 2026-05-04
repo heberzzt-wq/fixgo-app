@@ -882,6 +882,70 @@ export const JarvisBridge = {
             })();
         }
 
+         // 🧠 PRE-FILTER MULTI INTENT (ANTES DEL AI PIPELINE)
+const actions = String(raw)
+    .toLowerCase()
+    .split(/(?:\s+y\s+|\s+e\s+|,|\.|\s+and\s+)/gi)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+if (actions.length > 1) {
+
+    console.log("🧠 [MULTI_INTENT_BYPASS_AI]:", actions);
+
+    const steps = actions.map(text => {
+
+        const t = text.toLowerCase();
+
+        if (t.includes("pago")) {
+            return {
+                type: "READ",
+                target: { collection: "payments" }
+            };
+        }
+
+        if (t.includes("usuario")) {
+            return {
+                type: "UPDATE",
+                target: { collection: "users" },
+                payload: {}
+            };
+        }
+
+        if (t.includes("analiza") || t.includes("estado")) {
+            return {
+                type: "ANALYZE",
+                target: { collection: "system" }
+            };
+        }
+
+        return {
+            type: "ANALYZE",
+            target: { collection: "system" }
+        };
+    });
+
+    const plan = {
+        id: `plan_${Date.now()}`,
+        steps,
+        mode: "AI_SUPERVISED",
+        createdAt: Date.now()
+    };
+
+    window.lastPlanId = plan.id;
+
+    if (typeof savePendingPlan === "function") {
+        await savePendingPlan(plan);
+    }
+
+    if (window.renderPlanPreview) {
+        window.renderPlanPreview(plan);
+    }
+
+    return;
+}
+
+
         if (AI_MODE) {
             window.__AI_PIPELINE_ACTIVE__ = true;
             console.log("🧠 [AI_PIPELINE]: Iniciando motor de planeación...");
