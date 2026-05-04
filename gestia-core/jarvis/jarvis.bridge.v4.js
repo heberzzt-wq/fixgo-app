@@ -1840,11 +1840,6 @@ const loaderTimer = setInterval(() => {
 }, 700);
 
 
-/* =====================================================
-    🧠 GEMINI COMO CEREBRO (NLU PRIMARIO)
-===================================================== */
-
-const ai = await window.runExternalAI(raw);
 
 
 /* ==================================
@@ -1896,6 +1891,11 @@ if (actions.length > 1) {
         steps
     );
 }
+/* =====================================================
+    🧠 GEMINI COMO CEREBRO (NLU PRIMARIO)
+===================================================== */
+
+const ai = await window.runExternalAI(raw);
 
 
 /* ==================================
