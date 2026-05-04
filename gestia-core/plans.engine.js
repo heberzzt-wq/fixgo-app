@@ -42,11 +42,21 @@ export async function approvePlan(planId, user = {}) {
     console.log("🧪 [EXECUTE CALL]:", typeof executeSteps);
 
     // 🚀 EJECUCIÓN REAL
-    const result = await executeSteps(plan.steps, {
-        traceId: plan.traceId,
-        userId: user?.id || "system",
-        tenantId: plan.tenantId || "default"
-    });
+const result = await executeSteps(plan.steps, {
+    traceId: plan.traceId,
+    userId: user?.id || "system",
+    tenantId: plan.tenantId || "default"
+});
+
+if (window.renderJarvisResponse) {
+    window.renderJarvisResponse(
+        "Ejecución completada",
+        typeof result === "object"
+            ? JSON.stringify(result, null, 2)
+            : String(result),
+        "success"
+    );
+}
 
     // 🔐 Ledger ejecución (tolerante)
     try {
