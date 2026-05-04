@@ -7,14 +7,22 @@ export function normalizeAIPlan(planRaw = {}, traceId = "no_trace") {
         return null;
     }
 
-    if (!Array.isArray(planRaw.steps)) {
-        console.warn("⚠️ [NORMALIZER]: steps no es array");
-        return null;
-    }
+   // 🔎 Resolver diferentes formatos posibles de salida del planner
+let rawSteps =
+    Array.isArray(planRaw.steps) ? planRaw.steps :
+    Array.isArray(planRaw.plan?.steps) ? planRaw.plan.steps :
+    Array.isArray(planRaw.actions) ? planRaw.actions :
+    Array.isArray(planRaw.commands) ? planRaw.commands :
+    null;
 
+if (!rawSteps) {
+    console.warn("⚠️ [NORMALIZER]: No se encontró arreglo de steps en planRaw", planRaw);
+    return null;
+}
     const steps = [];
+    
 
-    for (const step of planRaw.steps) {
+    for (const step of rawSteps) {
 
         console.log("🔍 [NORMALIZER]: STEP_RAW", step);
 
