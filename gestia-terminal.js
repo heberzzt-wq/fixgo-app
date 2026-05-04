@@ -2361,6 +2361,28 @@ JarvisMemory.subscribe((type, payload) => {
         }
     }
 });
+
+// 🧠 RENDER PREVIEW DEL PLAN IA
+window.renderPlanPreview = function(plan) {
+
+    if (!plan || !Array.isArray(plan.steps)) {
+        render("Jarvis", "Plan inválido para mostrar.", "error");
+        return;
+    }
+
+    let msg = `Plan generado (${plan.steps.length} pasos):\n\n`;
+
+    plan.steps.forEach((step, i) => {
+        msg += `${i + 1}. ${step.type} → ${step.target.collection}\n`;
+    });
+
+    msg += "\n¿Confirmas ejecución? (escribe 'arre')";
+
+    render("Jarvis", msg, "info");
+
+    console.log("🧠 [PLAN_PREVIEW_RENDERED]:", plan);
+};
+
 /**
  * =====================================================
  * FIN BLOQUE 4 V15
