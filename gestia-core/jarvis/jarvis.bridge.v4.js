@@ -1851,14 +1851,41 @@ if (actions.length > 1) {
 
     clearInterval(loaderTimer);
 
-    console.log("🧠 [MULTI_INTENT_DETECTED]:", actions);
+    console.log("🧠 [MULTI_INTENT_FORCE]:", actions);
 
-    // 👉 Generamos un step por cada acción
-    const steps = actions.map(text => ({
-        raw: text,
-        type: "AUTO",
-        target: "system"
-    }));
+    const steps = actions.map(text => {
+
+        const t = text.toLowerCase();
+
+        // 🔥 inferencia simple pero efectiva
+        if (t.includes("pago")) {
+            return {
+                type: "READ",
+                target: { collection: "payments" }
+            };
+        }
+
+        if (t.includes("usuario")) {
+            return {
+                type: "UPDATE",
+                target: { collection: "users" },
+                payload: {}
+            };
+        }
+
+        if (t.includes("analiza") || t.includes("estado")) {
+            return {
+                type: "ANALYZE",
+                target: { collection: "system" }
+            };
+        }
+
+        // fallback
+        return {
+            type: "ANALYZE",
+            target: { collection: "system" }
+        };
+    });
 
     return await this.runPlan(
         crypto.randomUUID(),
