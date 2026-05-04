@@ -5,7 +5,9 @@ export async function approvePlan(planId, user = {}) {
 
     console.log("🧪 [APPROVE ENTRY]:", planId);
 
-    const plan = await getPendingPlan(planId);
+    const plan = window.getPendingPlan
+    ? await window.getPendingPlan(planId)
+    : null;
 
     console.log("🧪 [PLAN FETCHED]:", plan);
 

@@ -260,6 +260,9 @@ export async function getLastPendingPlan() {
     return plans.length ? plans[plans.length - 1] : null;
 }
 
+window.getPendingPlan = getPendingPlan;
+window.removePendingPlan = removePendingPlan;
+
 /**
  * ======================================================================================
  * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 545 (INGENIERÍA EXQUISITA GARANTIZADA)
