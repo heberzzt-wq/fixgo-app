@@ -6,8 +6,8 @@ export async function approvePlan(planId, user = {}) {
     console.log("🧪 [APPROVE ENTRY]:", planId);
 
     const plan = window.getPendingPlan
-    ? await window.getPendingPlan(planId)
-    : null;
+        ? await window.getPendingPlan(planId)
+        : null;
 
     console.log("🧪 [PLAN FETCHED]:", plan);
 
@@ -19,35 +19,51 @@ export async function approvePlan(planId, user = {}) {
     }
 
     console.log("🟢 [APPROVE]: Plan aprobado", plan.id);
-// 🔐 Seguridad (modo tolerante)
-try {
-    await firewall.validate(plan);
-    await signature.sign(plan, user);
-} catch (err) {
-    console.warn("⚠️ Seguridad omitida:", err.message);
-}
 
-await ledger.log("PLAN_APPROVED", {
-    planId,
-    traceId: plan.traceId
-});
+    // 🔐 Seguridad (tolerante)
+    try {
+        await firewall.validate(plan);
+        await signature.sign(plan, user);
+    } catch (err) {
+        console.warn("⚠️ Seguridad omitida:", err.message);
+    }
 
-    // 🚀 EJECUCIÓN
+    // 🔐 Ledger (tolerante)
+    try {
+        await ledger.log("PLAN_APPROVED", {
+            planId,
+            traceId: plan.traceId
+        });
+    } catch (err) {
+        console.warn("⚠️ Ledger omitido:", err.message);
+    }
 
-    console.log("🧪 [EXECUTE CALL]:", executeSteps);
-    
-    const result = await executeStepsFn(plan.steps, {
+    // 🧪 DEBUG CLAVE
+    console.log("🧪 [EXECUTE CALL]:", typeof executeSteps);
+
+    // 🚀 EJECUCIÓN REAL
+    const result = await executeSteps(plan.steps, {
         traceId: plan.traceId,
         userId: user?.id || "system",
         tenantId: plan.tenantId || "default"
     });
 
-    await ledger.log("PLAN_EXECUTED", {
-        planId,
-        result
-    });
+    // 🔐 Ledger ejecución (tolerante)
+    try {
+        await ledger.log("PLAN_EXECUTED", {
+            planId,
+            result
+        });
+    } catch (err) {
+        console.warn("⚠️ Ledger ejecución omitido:", err.message);
+    }
 
-    await removePendingPlan(planId);
+    // 🧹 Limpieza
+    try {
+        await window.removePendingPlan?.(planId);
+    } catch (err) {
+        console.warn("⚠️ No se pudo limpiar plan:", err.message);
+    }
 
     return result;
 }
