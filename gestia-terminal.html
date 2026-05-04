@@ -1096,7 +1096,7 @@ if (["arre", "confirmar", "ok"].includes(cmd)) {
 
     console.log("🟢 [APPROVAL INTERCEPTED TERMINAL]:", cmd);
 
-    const lastPlanId = Array.from(window.pendingPlans?.keys?.() || []).pop();
+    const lastPlanId = window.lastPlanId;
 
     if (lastPlanId && window.approvePlan) {
         await window.approvePlan(lastPlanId, {

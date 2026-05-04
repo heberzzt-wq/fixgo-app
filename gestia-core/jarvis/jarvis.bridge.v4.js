@@ -972,6 +972,9 @@ export const JarvisBridge = {
                 await savePendingPlan(plan);
                 
                 console.log("🧠 [AI_PLAN_READY]:", plan.id);
+
+                window.lastPlanId = plan.id;
+                
                 return renderPlanPreview(plan); 
 
             } catch (err) {
