@@ -981,6 +981,11 @@ export const JarvisBridge = {
     console.warn("⚠️ renderPlanPreview no disponible");
 }
 
+return {
+    ok: true,
+    preview: true,
+    planId: plan.id
+};
             } catch (err) {
                 if (err.name === "AbortError" || err.message === "AI timeout") {
                     console.warn("⏱️ [AI_ABORTED]:", context.traceId);
