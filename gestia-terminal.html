@@ -511,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Caso 1: SYSTEM_STATUS (Renderizado de Telemetría)
         if (clean.type === "SYSTEM_STATUS") {
-            renderSystemStatus(clean.data);
+            renderSystemStatus(clean.data || clean.result || {});
             return;
         } 
         
