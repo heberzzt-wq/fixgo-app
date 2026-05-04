@@ -33,6 +33,9 @@ await ledger.log("PLAN_APPROVED", {
 });
 
     // 🚀 EJECUCIÓN
+
+    console.log("🧪 [EXECUTE CALL]:", executeSteps);
+    
     const result = await executeStepsFn(plan.steps, {
         traceId: plan.traceId,
         userId: user?.id || "system",
