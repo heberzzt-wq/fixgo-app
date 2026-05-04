@@ -510,27 +510,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Caso 1: SYSTEM_STATUS (Renderizado de Telemetría)
-        if (clean.type === "SYSTEM_STATUS") {
+if (clean.type === "SYSTEM_STATUS") {
 
     const normalizeSystemStatus = (input = {}) => {
 
         let ramMB = null;
 
-        if (performance && performance.memory) {
+        if (typeof performance !== "undefined" && performance.memory) {
             ramMB = Math.round(
                 performance.memory.usedJSHeapSize / 1024 / 1024
             );
         }
 
-        // 🔥 FIX: valor consistente para UI
-    const ramDisplay = ramMB !== null ? `${ramMB} MB` : "N/D";
+        // 🔥 Valor consistente para UI
+        const ramDisplay = ramMB !== null ? `${ramMB} MB` : "N/D";
 
         return {
             online: navigator.onLine,
-            ramMB,
+            memory: ramDisplay,   // ← lo que usa el renderer
+            ramMB,                // ← opcional para lógica futura
             timestamp: Date.now(),
-
-            // datos actuales (si existen)
             ...input
         };
     };
