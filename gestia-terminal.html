@@ -522,6 +522,9 @@ document.addEventListener('DOMContentLoaded', () => {
             );
         }
 
+        // 🔥 FIX: valor consistente para UI
+    const ramDisplay = ramMB !== null ? `${ramMB} MB` : "N/D";
+
         return {
             online: navigator.onLine,
             ramMB,
