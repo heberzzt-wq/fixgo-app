@@ -2310,7 +2310,7 @@ JarvisMemory.subscribe((type, payload) => {
     }
 });
 
-// 🧠 RENDER PREVIEW DEL PLAN IA
+// 🧠 RENDER PREVIEW DEL PLAN IA (multi-step robusto)
 window.renderPlanPreview = function(plan) {
 
     if (!plan || !Array.isArray(plan.steps)) {
@@ -2318,19 +2318,47 @@ window.renderPlanPreview = function(plan) {
         return;
     }
 
-    let msg = `Plan generado (${plan.steps.length} pasos):\n\n`;
+    const steps = plan.steps;
 
-    plan.steps.forEach((step, i) => {
-        msg += `${i + 1}. ${step.type} → ${step.target.collection}\n`;
-    });
+    const formatted = steps.map((step, i) => {
 
-    msg += "\n¿Confirmas ejecución? (escribe 'arre')";
+        // 🔥 acción segura (soporta distintos formatos)
+        const action =
+            step.action ||
+            step.type ||
+            "UNKNOWN";
 
-    window.renderJarvisResponse("Jarvis", msg, "info");
+        // 🔥 target seguro (objeto, string o vacío)
+        const target =
+            step.target?.collection ||
+            step.target?.docId ||
+            (typeof step.target === "string" ? step.target : null) ||
+            "system";
+
+        // 🔥 payload opcional (debug visual)
+        let extra = "";
+        if (step.payload && typeof step.payload === "object") {
+            const keys = Object.keys(step.payload).slice(0, 2);
+            if (keys.length) {
+                extra = ` [${keys.join(", ")}]`;
+            }
+        }
+
+        return `${i + 1}. ${action} → ${target}${extra}`;
+
+    }).join("\n");
+
+    const msg =
+`Plan generado (${steps.length} pasos):
+
+${formatted}
+
+Confirma ejecución escribiendo: arre`;
+
+    window.renderJarvisResponse("Plan Preview", msg, "info");
 
     console.log("🧠 [PLAN_PREVIEW_RENDERED]:", plan);
 };
-
 /**
  * =====================================================
  * FIN BLOQUE 4 V15
