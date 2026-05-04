@@ -1019,12 +1019,24 @@ if (["arre", "confirmar", "ok"].includes(cmd)) {
 
     const lastPlanId = window.lastPlanId;
 
-    if (lastPlanId && window.approvePlan) {
-        await window.approvePlan(lastPlanId, {
-            id: window.session?.uid,
-            tenantId: window.session?.tenantId
-        });
-    }
+    const planId = window.lastPlanId;
+
+if (!planId) {
+    console.warn("❌ No hay lastPlanId");
+    return;
+}
+
+if (!window.approvePlan) {
+    console.error("❌ approvePlan no está en window");
+    return;
+}
+
+console.log("🟢 Ejecutando approvePlan con:", planId);
+
+await window.approvePlan(planId, {
+    id: window.session?.uid,
+    tenantId: window.session?.tenantId
+});
 
     handled = true;
 
