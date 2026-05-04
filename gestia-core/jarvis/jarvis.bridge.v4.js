@@ -1787,40 +1787,32 @@ Escribe:
             };
         }
 
-        /* ==================================
-            PURE SOCIAL FAST PATH
-        ================================== */
+       /* ==================================
+    PURE SOCIAL FAST PATH (solo si es 1 acción)
+================================== */
 
-        if (
+const actions = splitActions(raw);
+
+if (
     isSocialJarvis(raw) &&
-    splitActions(raw).length === 1
+    actions.length === 1
 ) {
 
-    const socialText =
-        await executeSocialJarvis(
-            raw
-        );
+    const socialText = await executeSocialJarvis(raw);
 
-    render(
-        "Jarvis",
-        socialText,
-        "success"
-    );
-
-    speak(
-        socialText
-    );
+    render("Jarvis", socialText, "success");
+    speak(socialText);
 
     return {
         ok: true,
-        route:
-            "SOCIAL_NATIVE",
+        route: "SOCIAL_NATIVE",
         commands: [raw],
-        message:
-            socialText
+        message: socialText
     };
 }
-       /* ==================================
+
+
+/* ==================================
     PREMIUM LOADER & EXECUTION (V5.95 FINAL)
 ================================== */
 
@@ -1843,15 +1835,46 @@ const loaderTimer = setInterval(() => {
     }
 }, 700);
 
+
 /* =====================================================
     🧠 GEMINI COMO CEREBRO (NLU PRIMARIO)
 ===================================================== */
+
 const ai = await window.runExternalAI(raw);
+
+
+/* ==================================
+    🔥 MULTI-INTENT MODE (NUEVO)
+================================== */
+
+if (actions.length > 1) {
+
+    clearInterval(loaderTimer);
+
+    console.log("🧠 [MULTI_INTENT_DETECTED]:", actions);
+
+    // 👉 Generamos un step por cada acción
+    const steps = actions.map(text => ({
+        raw: text,
+        type: "AUTO",
+        target: "system"
+    }));
+
+    return await this.runPlan(
+        crypto.randomUUID(),
+        steps
+    );
+}
+
+
+/* ==================================
+    SINGLE INTENT (modo clásico)
+================================== */
 
 if (
     ai &&
     ai.intent &&
-    splitActions(raw).length === 1 
+    actions.length === 1
 ) {
     let target = ai.target;
     const rawLow = String(raw).toLowerCase();
@@ -1875,20 +1898,21 @@ if (
                 if (structured && structured.intent && structured.entity) {
                     aiCmd = `${structured.intent}::${structured.entity}`;
                 }
-            } catch (e) { safeLog("ENGINE_BYPASS", "Usando comando original"); }
+            } catch (e) {
+                safeLog("ENGINE_BYPASS", "Usando comando original");
+            }
         }
     }
 
     if (aiCmd) {
-        if (typeof loaderTimer !== 'undefined') clearInterval(loaderTimer); 
+        if (typeof loaderTimer !== 'undefined') clearInterval(loaderTimer);
 
-        // 🚫 BLOQUEADO: ejecución directa deshabilitada (modo supervisado)
-console.warn("🚫 [BLOCKED]: Ejecución directa desactivada. Esperando aprobación.");
+        console.warn("🚫 [BLOCKED]: Ejecución directa desactivada. Esperando aprobación.");
 
-return {
-    ok: true,
-    blocked: true
-};
+        return {
+            ok: true,
+            blocked: true
+        };
     }
 }
 
