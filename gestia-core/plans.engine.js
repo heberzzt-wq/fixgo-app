@@ -49,14 +49,28 @@ const result = await executeSteps(plan.steps, {
 });
 
 if (window.renderJarvisResponse) {
+
+    let msg = "Ejecución completada";
+
+    if (result?.data) {
+        msg = JSON.stringify(result.data, null, 2);
+    } else if (result?.message) {
+        msg = result.message;
+    } else if (typeof result === "string") {
+        msg = result;
+    }
+
     window.renderJarvisResponse(
-        "Ejecución completada",
-        typeof result === "object"
-            ? JSON.stringify(result, null, 2)
-            : String(result),
+        "Resultado",
+        msg,
         "success"
     );
+
+    window.__LAST_EXECUTION__ = true;
 }
+
+
+
 
     // 🔐 Ledger ejecución (tolerante)
     try {

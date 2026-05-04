@@ -1067,7 +1067,7 @@ await window.approvePlan(planId, {
                 }
 
                 // 3. IA (SIA7 Conversacional)
-                if (!handled) {
+                if (!handled && !window.__LAST_EXECUTION__) {
                     const respuestaIA = await window.consultarCerebroIA(comando);
                     
                     // Al haber iniciado el trace arriba, renderJarvisResponse capturará el ID correcto
