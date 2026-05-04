@@ -511,9 +511,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Caso 1: SYSTEM_STATUS (Renderizado de Telemetría)
         if (clean.type === "SYSTEM_STATUS") {
-            renderSystemStatus(clean.data || clean.result || {});
-            return;
-        } 
+
+    const normalizeSystemStatus = (input = {}) => {
+
+        let ramMB = null;
+
+        if (performance && performance.memory) {
+            ramMB = Math.round(
+                performance.memory.usedJSHeapSize / 1024 / 1024
+            );
+        }
+
+        return {
+            online: navigator.onLine,
+            ramMB,
+            timestamp: Date.now(),
+
+            // datos actuales (si existen)
+            ...input
+        };
+    };
+
+    const data = normalizeSystemStatus(clean.data || clean.result || {});
+    
+    renderSystemStatus(data);
+    return;
+}
         
         // Caso 2: Mensajería Genérica con Blindaje Anti-Ciclos y XSS
         let safeDataString = "Protocolo finalizado.";
