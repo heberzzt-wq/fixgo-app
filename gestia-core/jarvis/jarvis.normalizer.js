@@ -2,42 +2,76 @@ export function normalizeAIPlan(planRaw = {}, traceId = "no_trace") {
 
     console.log("🧠 [NORMALIZER]: START", { traceId, planRaw });
 
-if (!planRaw || typeof planRaw !== "object") {
-    console.warn("⚠️ [NORMALIZER]: planRaw inválido");
-    return null;
-}
+    // 🔒 Validación base
+    if (!planRaw || (typeof planRaw !== "object" && !Array.isArray(planRaw))) {
+        console.warn("⚠️ [NORMALIZER]: planRaw inválido");
+        return null;
+    }
 
-// 🔄 FALLBACK: convertir intent simple a step ejecutable
-if (!planRaw.steps && planRaw.intent && planRaw.target) {
-    console.warn("⚠️ [NORMALIZER]: Intent simple detectado, convirtiendo a step");
+    /* =====================================================
+        🔥 1. MULTI-INTENT DIRECTO (ARRAY PLANO DESDE BRIDGE)
+    ===================================================== */
+    if (Array.isArray(planRaw)) {
 
-    planRaw = {
-        steps: [
-            {
-                type: String(planRaw.intent).toUpperCase(),
-                target: typeof planRaw.target === "string"
-                    ? { collection: planRaw.target }
-                    : planRaw.target
-            }
-        ]
-    };
-}
+        console.log("🧠 [NORMALIZER]: Multi-step array detectado");
 
-// 🔎 Resolver diferentes formatos posibles de salida del planner
-let rawSteps =
-    Array.isArray(planRaw.steps) ? planRaw.steps :
-    Array.isArray(planRaw.plan?.steps) ? planRaw.plan.steps :
-    Array.isArray(planRaw.actions) ? planRaw.actions :
-    Array.isArray(planRaw.commands) ? planRaw.commands :
-    null;
+        planRaw = {
+            steps: planRaw.map((step, i) => ({
+                id: step.id || `step_${i}_${Date.now()}`,
+                type: (step.type || step.intent || "ANALYZE").toUpperCase(),
+                target: typeof step.target === "string"
+                    ? { collection: step.target }
+                    : (step.target || { collection: "system" }),
+                action: step.action || null,
+                payload: step.payload || {},
+                meta: step.meta || {}
+            }))
+        };
+    }
 
-if (!rawSteps) {
-    console.warn("⚠️ [NORMALIZER]: No se encontró arreglo de steps en planRaw", planRaw);
-    return null;
-}
+    /* =====================================================
+        🔄 2. FALLBACK: INTENT SIMPLE → STEP
+    ===================================================== */
+    if (!planRaw.steps && planRaw.intent && planRaw.target) {
+
+        console.warn("⚠️ [NORMALIZER]: Intent simple detectado, convirtiendo a step");
+
+        planRaw = {
+            steps: [
+                {
+                    id: `step_${Date.now()}`,
+                    type: String(planRaw.intent).toUpperCase(),
+                    target: typeof planRaw.target === "string"
+                        ? { collection: planRaw.target }
+                        : planRaw.target,
+                    action: null,
+                    payload: {},
+                    meta: {}
+                }
+            ]
+        };
+    }
+
+    /* =====================================================
+        🔎 3. DETECCIÓN FLEXIBLE DE STEPS
+    ===================================================== */
+    let rawSteps =
+        Array.isArray(planRaw.steps) ? planRaw.steps :
+        Array.isArray(planRaw.plan?.steps) ? planRaw.plan.steps :
+        Array.isArray(planRaw.actions) ? planRaw.actions :
+        Array.isArray(planRaw.commands) ? planRaw.commands :
+        null;
+
+    if (!rawSteps) {
+        console.warn("⚠️ [NORMALIZER]: No se encontró arreglo de steps en planRaw", planRaw);
+        return null;
+    }
+
     const steps = [];
 
-
+    /* =====================================================
+        🧠 4. NORMALIZACIÓN DE CADA STEP
+    ===================================================== */
     for (const step of rawSteps) {
 
         console.log("🔍 [NORMALIZER]: STEP_RAW", step);
@@ -47,22 +81,18 @@ if (!rawSteps) {
             continue;
         }
 
-        const type = String(step.type || "").toUpperCase();
+        const type = String(step.type || step.intent || "").toUpperCase();
         if (!type) {
             console.warn("⚠️ Step sin type");
             continue;
         }
 
-        // 🔥 FLEXIBILIDAD DE TARGET
+        // 🔥 TARGET FLEXIBLE
         const collection =
             step.target?.collection ||
             step.target?.name ||
-            (typeof step.target === "string" ? step.target : null);
-
-        if (!collection) {
-            console.warn("⚠️ Step sin collection válido", step.target);
-            continue;
-        }
+            (typeof step.target === "string" ? step.target : null) ||
+            "system";
 
         const action = step.action || inferAction(type);
 
@@ -71,6 +101,7 @@ if (!rawSteps) {
             continue;
         }
 
+        // 🔐 Validación mínima para escrituras
         if ((type === "UPDATE" || type === "WRITE") && !step.payload) {
             console.warn("⚠️ Step sin payload requerido", type);
             continue;
@@ -103,6 +134,9 @@ if (!rawSteps) {
         return null;
     }
 
+    /* =====================================================
+        🧾 5. PLAN FINAL
+    ===================================================== */
     const normalizedPlan = {
         id: planRaw.id || `plan_${Date.now()}`,
         steps,
@@ -116,6 +150,9 @@ if (!rawSteps) {
     return normalizedPlan;
 }
 
+/* =====================================================
+    🔧 ACTION INFERENCE
+===================================================== */
 function inferAction(type) {
     switch (type) {
         case "READ": return "getDocs";
