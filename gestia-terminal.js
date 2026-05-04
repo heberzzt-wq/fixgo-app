@@ -1156,7 +1156,11 @@ try {
    🧠 ENRUTAMIENTO PRINCIPAL UNIFICADO (BRIDGE FIRST)
 ================================================= */
 
-if (!isStructured && !rawInput.includes("::")) {
+if (
+    !isStructured &&
+    !rawInput.includes("::") &&
+    !APPROVAL_WORDS.includes(cmd) // 🔥 evita que "arre" entre al bridge
+) {
 
     /* =============================================
        1. PRIORIDAD ABSUTA: JARVIS BRIDGE
