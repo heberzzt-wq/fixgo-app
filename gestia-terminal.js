@@ -1153,26 +1153,6 @@ const cmd = (typeof rawInput === "string")
     ? rawInput.trim().toLowerCase()
     : "";
 
-/* =================================================
-   🔥 INTERCEPTOR DE APROBACIÓN (ANTES DE TODO)
-================================================= */
-if (APPROVAL_WORDS.includes(cmd)) {
-
-    console.log("🟢 [APPROVAL INTERCEPTED BEFORE BRIDGE]:", cmd);
-
-    await this.setState(
-        STATES.APPLY_ATOMIC,
-        opId,
-        {
-            report: "Ejecutando plan autorizado..."
-        }
-    );
-
-    return await approvePlan(null, {
-        id: this.session?.uid,
-        tenantId: this.session?.tenantId
-    });
-}
 
 /* =================================================
    🧠 ENRUTAMIENTO PRINCIPAL UNIFICADO (BRIDGE FIRST)
