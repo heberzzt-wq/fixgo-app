@@ -1149,9 +1149,7 @@ try {
 );
 
 // 🔥 NORMALIZACIÓN DE COMANDO
-const cmd = (typeof rawInput === "string")
-    ? rawInput.trim().toLowerCase()
-    : "";
+
 
 
 /* =================================================
