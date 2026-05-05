@@ -410,6 +410,69 @@ async log(type, payload = {}) {
 }
 }
 
+
+import {
+    getDocs,
+    query,
+    orderBy,
+    limit
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+async function fetchLedgerUI() {
+    try {
+
+        const q = query(
+            collection(db, "gestia_ledger"),
+            orderBy("serverTime", "desc"),
+            limit(10)
+        );
+
+        const snapshot = await getDocs(q);
+
+        const items = [];
+
+        snapshot.forEach(doc => {
+            items.push(doc.data());
+        });
+
+        renderLedgerUI(items);
+
+    } catch (err) {
+        console.warn("⚠️ Error leyendo ledger:", err.message);
+    }
+} 
+
+function renderLedgerUI(items = []) {
+
+    const output = document.getElementById("gestia-output");
+    if (!output) return;
+
+    const html = `
+        <div class="max-w-4xl mx-auto w-full">
+            <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
+                
+                <h3 class="text-sm text-blue-400 font-bold mb-4">
+                    📊 HISTORIAL DE OPERACIONES
+                </h3>
+
+                <div class="space-y-2 text-xs font-mono">
+                    ${items.map(item => `
+                        <div class="border-b border-slate-800 pb-2">
+                            <span class="text-emerald-400">${item.type}</span>
+                            <span class="text-slate-500 ml-2">
+                                ${item.payload?.planId || "N/A"}
+                            </span>
+                        </div>
+                    `).join("")}
+                </div>
+
+            </div>
+        </div>
+    `;
+
+    output.insertAdjacentHTML("beforeend", html);
+}
+
 /**
  * ======================================================================================
  * FIN BLOQUE 1 V15
