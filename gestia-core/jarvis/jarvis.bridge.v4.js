@@ -882,18 +882,18 @@ export const JarvisBridge = {
             })();
         }
 
-         // 🧠 PRE-FILTER MULTI INTENT (ANTES DEL AI PIPELINE)
-const actions = String(raw)
+    // 🧠 PRE-FILTER MULTI INTENT (ANTES DEL AI PIPELINE)
+const multiActions = String(raw)
     .toLowerCase()
     .split(/(?:\s+y\s+|\s+e\s+|,|\.|\s+and\s+)/gi)
     .map(s => s.trim())
     .filter(Boolean);
 
-if (actions.length > 1) {
+if (multiActions.length > 1) {
 
-    console.log("🧠 [MULTI_INTENT_BYPASS_AI]:", actions);
+    console.log("🧠 [MULTI_INTENT_BYPASS_AI]:", multiActions);
 
-    const steps = actions.map(text => {
+    const steps = multiActions.map(text => {
 
         const t = text.toLowerCase();
 
