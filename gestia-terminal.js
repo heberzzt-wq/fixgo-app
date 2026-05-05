@@ -366,6 +366,25 @@ class BankLedger {
         const active = await this.getActiveOperations();
         return active.length;
     }
+
+    /* 🔥 NUEVO MÉTODO LOG (PÉGALO AQUÍ) */
+async log(type, payload = {}) {
+    console.log("📘 [LEDGER LOG]:", type, payload);
+
+    try {
+        await this.persistOp(
+            payload.planId || crypto.randomUUID(),
+            {
+                type,
+                payload,
+                state: "LOGGED",
+                timestamp: new Date().toISOString()
+            }
+        );
+    } catch (err) {
+        console.warn("⚠️ Ledger log fallback:", err.message);
+    }
+}
 }
 
 /**
