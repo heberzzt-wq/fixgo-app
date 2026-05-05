@@ -485,7 +485,15 @@ function renderLedgerUI(items = []) {
         </div>
     `;
 
-    output.insertAdjacentHTML("beforeend", html);
+    // 🔥 eliminar bloque anterior si existe
+const existing = document.getElementById("ledger-ui-block");
+if (existing) {
+    existing.remove();
+}
+
+// 🔥 insertar nuevo
+output.insertAdjacentHTML("beforeend", html);
+
 }
 
 function listenLedgerRealtime() {

@@ -460,7 +460,7 @@ function formatOp(op) {
         const isoDate = new Date(ts).toISOString();
         
         const cardHtml = `
-            <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
+            <div id="system-status-block" class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
                 <div class="w-10 h-10 rounded-full bg-gestia-accent flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
                     <i class="fa-solid fa-microchip text-white text-sm"></i>
                 </div>
@@ -513,9 +513,19 @@ function formatOp(op) {
             </div>
         `;
         
-        outputElement.insertAdjacentHTML('beforeend', cardHtml);
-        outputElement.scrollTop = outputElement.scrollHeight;
-    };
+        // 🔥 detectar si ya existe el panel
+const existing = document.getElementById("system-status-block");
+
+if (existing) {
+    // 🔁 reemplaza el anterior
+    existing.outerHTML = cardHtml;
+} else {
+    // ➕ inserta si no existe
+    outputElement.insertAdjacentHTML('beforeend', cardHtml);
+}
+
+outputElement.scrollTop = outputElement.scrollHeight;
+};
 
     /* ==========================================
        🔥 RENDER GLOBAL JARVIS
