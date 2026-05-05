@@ -429,10 +429,24 @@ const proposal = {
     }))
 };
 
-    console.log("🧠 [AI→EXECUTOR]: Adaptando plan a proposal", proposal);
+   console.log("🧠 [AI→EXECUTOR]: Adaptando plan a proposal", proposal);
 
-    // 🔥 Aquí reutilizas tu motor V16.1
-    return await ejecutarCambios(proposal);
+// 🔥 Ejecutamos
+const result = await ejecutarCambios(proposal);
+
+// 🔥 EMITIR TELEMETRÍA AL PANEL (AQUÍ VA)
+window.dispatchEvent(new CustomEvent("gestia-terminal-state", {
+    detail: {
+        type: "SYSTEM_STATUS",
+        data: {
+            operations: proposal.changes.length,
+            lastOperation: proposal.changes.at(-1)?.type || "N/A",
+            timestamp: Date.now()
+        }
+    }
+}));
+
+return result;
 }
 
 /**
