@@ -458,14 +458,23 @@ function renderLedgerUI(items = []) {
     const grouped = {};
 
     items.forEach(item => {
-        const planId = item.payload?.planId || "unknown";
+    const planId = item.payload?.planId || "unknown";
 
-        if (!grouped[planId]) {
-            grouped[planId] = [];
-        }
+    if (!grouped[planId]) {
+        grouped[planId] = [];
+    }
 
-        grouped[planId].push(item);
+    grouped[planId].push(item);
+});
+
+/* 🔥 AQUÍ VA EL ORDEN (TE FALTÓ ESTO) */
+Object.keys(grouped).forEach(planId => {
+    grouped[planId].sort((a, b) => {
+        if (a.type === "PLAN_APPROVED") return -1;
+        if (b.type === "PLAN_APPROVED") return 1;
+        return 0;
     });
+});
 
     const html = `
         <div id="ledger-ui-block" class="max-w-4xl mx-auto w-full">
