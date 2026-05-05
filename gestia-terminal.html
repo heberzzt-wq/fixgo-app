@@ -1583,6 +1583,11 @@ await window.approvePlan(planId, {
         });
     }
 
+
+    setTimeout(() => {
+    window.fetchLedgerUI?.();
+}, 1500);
+
 }); // CIERRE DEL DOMContentLoaded
     </script>
 
