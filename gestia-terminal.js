@@ -507,7 +507,7 @@ function renderLedgerUI(items = []) {
                                     const isNew = !lastLedgerIds.has(id);
 
                                     return `
-                                        <div class="${isNew ? 'animate-pulse bg-emerald-500/10 rounded px-1' : ''}">
+                                        <div class="${isNew ? 'bg-emerald-500/20 rounded px-1 transition-all duration-700' : ''}">
                                             <span class="${
                                                 e.type === "PLAN_EXECUTED"
                                                     ? "text-emerald-400"
