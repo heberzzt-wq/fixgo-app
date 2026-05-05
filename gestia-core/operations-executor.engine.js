@@ -340,6 +340,34 @@ export async function ejecutarCambios(proposal) {
                         });
                         break;
 
+                        case "CODE_WRITE":
+
+    const fileName = payload?.file || `auto_${Date.now()}.js`;
+
+    const fileRef = doc(
+        collection(db, "repo_files")
+    );
+
+    transaction.set(fileRef, deepSanitize({
+        file: fileName,
+        content: payload?.content || "// archivo generado por jarvis",
+        created_at: serverTimestamp(),
+        created_by: ejecutado_por || "jarvis_ai",
+        op_id: opId,
+        tenantId: tenantId,
+        status: "active"
+    }));
+
+    retryBuffer.push({
+        type,
+        target: fileName,
+        status: "file_created"
+    });
+
+    emitirPulsoHUD(opId, "WRITE", "CODE_WRITE", fileName);
+
+    break;
+
                     default:
                         // No lanzamos error para permitir que el resto de la ráfaga continúe
                         retryBuffer.push({ type, target, status: "ignored_type" });
@@ -416,10 +444,22 @@ export async function executeSteps(steps = [], context = {}) {
         operation_id: `ai_op_${Date.now()}`,
         tenantId: context.tenantId || "default",
         ejecutado_por: context.userId || "jarvis_ai",
+
         changes: steps.map(step => {
-            // ✅ FIX: Mapeo robusto para asegurar que 'type' llegue al HUD
+
+            // 🔥 1. interceptar CODE_WRITE
+            if (step?.type === "CODE_WRITE") {
+                return {
+                    type: "CODE_WRITE",
+                    target: step.payload?.file || "repo",
+                    payload: step.payload || {},
+                    reason: "AI_CODE_WRITE"
+                };
+            }
+
+            // 🔁 2. flujo normal
             const mappedType = mapActionToLegacyType(step);
-            
+
             return {
                 type: mappedType,
                 target: step.target?.docId || step.target?.collection || step.target || "system_resource",
@@ -441,7 +481,6 @@ export async function executeSteps(steps = [], context = {}) {
 
     // 📡 TELEMETRÍA (PARA EL PANEL DE CONTROL)
     try {
-        // Obtenemos el tipo del último cambio para el HUD
         const lastChange = proposal.changes[proposal.changes.length - 1];
 
         window.dispatchEvent(new CustomEvent("gestia-terminal-state", {
@@ -449,11 +488,12 @@ export async function executeSteps(steps = [], context = {}) {
                 type: "SYSTEM_STATUS",
                 data: {
                     operations: proposal.changes?.length || 0,
-                    // ✅ FIX: Ahora garantizamos que sea el tipo mapeado
                     lastOperation: lastChange?.type || "COMPLETED",
                     timestamp: Date.now(),
-                    // Enviamos la lista completa para enriquecer el panel visual
-                    history: proposal.changes.map(c => ({ type: c.type, target: c.target }))
+                    history: proposal.changes.map(c => ({
+                        type: c.type,
+                        target: c.target
+                    }))
                 }
             }
         }));
@@ -466,7 +506,6 @@ export async function executeSteps(steps = [], context = {}) {
 
     return result;
 }
-
 /**
  * 🔄 mapActionToLegacyType (V1.1)
  * ✅ FIX: Añadidos casos para evitar el valor 'UNKNOWN'
