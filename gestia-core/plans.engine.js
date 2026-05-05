@@ -1,6 +1,9 @@
 // 🔌 IMPORTS
 import { executeSteps } from "./operations-executor.engine.js";
 
+/* 🔥 FIX: INYECCIÓN GLOBAL DEL LEDGER */
+const ledger = window.__GESTIA_LEDGER__;
+
 export async function approvePlan(planId, user = {}) {
 
     console.log("🧪 [APPROVE ENTRY]:", planId);

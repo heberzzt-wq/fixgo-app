@@ -491,6 +491,12 @@ export class GestiaTerminal {
         this.crypto = new CryptoEngine();
         this.ledger = new BankLedger();
 
+        this.crypto = new CryptoEngine();
+this.ledger = new BankLedger();
+
+/* 🔥 FIX: EXPOSICIÓN GLOBAL DEL LEDGER */
+window.__GESTIA_LEDGER__ = this.ledger;
+
         this.pendingPlans = new Map();
         this.activeOps = new Set();
 
