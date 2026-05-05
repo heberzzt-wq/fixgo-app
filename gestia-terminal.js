@@ -40,6 +40,10 @@ import {
     runTransaction,
     addDoc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+import {
+    onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 // 2. IMPORTS DE KERNEL Y MEMORIA
 import {
     JarvisMemory
@@ -484,6 +488,41 @@ function renderLedgerUI(items = []) {
     output.insertAdjacentHTML("beforeend", html);
 }
 
+function listenLedgerRealtime() {
+    try {
+
+        const q = query(
+            collection(db, "gestia_ledger"),
+            orderBy("serverTime", "desc"),
+            limit(10)
+        );
+
+        onSnapshot(q, (snapshot) => {
+
+            const items = [];
+
+            snapshot.forEach(doc => {
+                items.push(doc.data());
+            });
+
+            // 🔁 limpiar antes de renderizar (evita duplicados)
+            const output = document.getElementById("gestia-output");
+            if (output) {
+                output.innerHTML = "";
+            }
+
+            renderLedgerUI(items);
+
+        });
+
+        console.log("📡 Ledger realtime activo");
+
+    } catch (err) {
+        console.warn("⚠️ Realtime error:", err.message);
+    }
+}
+
+window.listenLedgerRealtime = listenLedgerRealtime;
 /**
  * ======================================================================================
  * FIN BLOQUE 1 V15
