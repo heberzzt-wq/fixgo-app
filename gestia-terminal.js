@@ -37,9 +37,9 @@ import {
 } from "./firebase.js";
 
 import {
-    runTransaction
+    runTransaction,
+    addDoc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
 // 2. IMPORTS DE KERNEL Y MEMORIA
 import {
     JarvisMemory
@@ -371,18 +371,41 @@ class BankLedger {
 async log(type, payload = {}) {
     console.log("📘 [LEDGER LOG]:", type, payload);
 
+    const opId = payload.planId || crypto.randomUUID();
+
+    const record = {
+        opId,
+        type,
+        payload,
+        state: "LOGGED",
+        timestamp: new Date().toISOString()
+    };
+
+    /* =========================
+       1. LOCAL (lo que ya tenías)
+    ========================= */
     try {
-        await this.persistOp(
-            payload.planId || crypto.randomUUID(),
+        await this.persistOp(opId, record);
+    } catch (err) {
+        console.warn("⚠️ Local persist falló:", err.message);
+    }
+
+    /* =========================
+       2. FIRESTORE (nuevo)
+    ========================= */
+    try {
+        await addDoc(
+            collection(db, "gestia_ledger"),
             {
-                type,
-                payload,
-                state: "LOGGED",
-                timestamp: new Date().toISOString()
+                ...record,
+                serverTime: serverTimestamp()
             }
         );
+
+        console.log("☁️ Firestore OK");
+
     } catch (err) {
-        console.warn("⚠️ Ledger log fallback:", err.message);
+        console.warn("⚠️ Firestore falló:", err.message);
     }
 }
 }
