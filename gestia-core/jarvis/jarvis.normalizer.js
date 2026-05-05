@@ -82,17 +82,49 @@ export function normalizeAIPlan(planRaw = {}, traceId = "no_trace") {
         }
 
         const type = String(step.type || step.intent || "").toUpperCase();
-        if (!type) {
-            console.warn("⚠️ Step sin type");
-            continue;
-        }
+if (!type) {
+    console.warn("⚠️ Step sin type");
+    continue;
+}
 
-        // 🔥 TARGET FLEXIBLE
-        const collection =
-            step.target?.collection ||
-            step.target?.name ||
-            (typeof step.target === "string" ? step.target : null) ||
-            "system";
+// 🔥 DETECTOR DE CODE_WRITE (AQUÍ VA)
+if (
+    type.includes("CODE") ||
+    step.intent?.toLowerCase().includes("archivo") ||
+    step.payload?.file
+) {
+    const normalizedStep = {
+        id: step.id || `step_${Math.random().toString(36).slice(2, 8)}`,
+        type: "CODE_WRITE",
+        target: {
+            collection: "repo_files",
+            docId: null,
+            query: null
+        },
+        action: "custom",
+        payload: {
+            file: step.payload?.file || "modules/auto.js",
+            content: step.payload?.content || "// generado por jarvis"
+        },
+        meta: {
+            reversible: true,
+            description: "AI Code Write"
+        },
+        traceId
+    };
+
+    console.log("🛠️ [NORMALIZER]: CODE_WRITE DETECTED", normalizedStep);
+
+    steps.push(normalizedStep);
+    continue; // 🚨 IMPORTANTE: corta el flujo normal
+}
+
+// 🔥 TARGET FLEXIBLE (esto ya lo tenías)
+const collection =
+    step.target?.collection ||
+    step.target?.name ||
+    (typeof step.target === "string" ? step.target : null) ||
+    "system";
 
         const action = step.action || inferAction(type);
 
