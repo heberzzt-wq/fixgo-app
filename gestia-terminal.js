@@ -449,6 +449,9 @@ async function fetchLedgerUI() {
 /* 🔥 ESTA LÍNEA ES LA CLAVE */
 window.fetchLedgerUI = fetchLedgerUI;
 
+/* 🔥 MEMORIA PARA DETECTAR NUEVOS (VA AQUÍ) */
+let lastLedgerIds = new Set();
+
 function renderLedgerUI(items = []) {
 
     const output = document.getElementById("gestia-output");
@@ -458,23 +461,28 @@ function renderLedgerUI(items = []) {
     const grouped = {};
 
     items.forEach(item => {
-    const planId = item.payload?.planId || "unknown";
+        const planId = item.payload?.planId || "unknown";
 
-    if (!grouped[planId]) {
-        grouped[planId] = [];
-    }
+        if (!grouped[planId]) {
+            grouped[planId] = [];
+        }
 
-    grouped[planId].push(item);
-});
-
-/* 🔥 AQUÍ VA EL ORDEN (TE FALTÓ ESTO) */
-Object.keys(grouped).forEach(planId => {
-    grouped[planId].sort((a, b) => {
-        if (a.type === "PLAN_APPROVED") return -1;
-        if (b.type === "PLAN_APPROVED") return 1;
-        return 0;
+        grouped[planId].push(item);
     });
-});
+
+    // 🔥 ordenar APPROVED → EXECUTED
+    Object.keys(grouped).forEach(planId => {
+        grouped[planId].sort((a, b) => {
+            if (a.type === "PLAN_APPROVED") return -1;
+            if (b.type === "PLAN_APPROVED") return 1;
+            return 0;
+        });
+    });
+
+    // 🔥 detectar nuevos eventos
+    const currentIds = new Set(
+        items.map(i => i.opId || i.timestamp || JSON.stringify(i))
+    );
 
     const html = `
         <div id="ledger-ui-block" class="max-w-4xl mx-auto w-full">
@@ -494,19 +502,24 @@ Object.keys(grouped).forEach(planId => {
                             </div>
 
                             <div class="ml-3 space-y-1">
-                                ${events.map(e => `
-                                    <div>
-                                        <span class="${
-                                            e.type === "PLAN_EXECUTED"
-                                                ? "text-emerald-400"
-                                                : e.type === "PLAN_APPROVED"
-                                                ? "text-blue-400"
-                                                : "text-slate-400"
-                                        }">
-                                            ├─ ${e.type.replace("PLAN_", "")}
-                                        </span>
-                                    </div>
-                                `).join("")}
+                                ${events.map(e => {
+                                    const id = e.opId || e.timestamp || JSON.stringify(e);
+                                    const isNew = !lastLedgerIds.has(id);
+
+                                    return `
+                                        <div class="${isNew ? 'animate-pulse bg-emerald-500/10 rounded px-1' : ''}">
+                                            <span class="${
+                                                e.type === "PLAN_EXECUTED"
+                                                    ? "text-emerald-400"
+                                                    : e.type === "PLAN_APPROVED"
+                                                    ? "text-blue-400"
+                                                    : "text-slate-400"
+                                            }">
+                                                ├─ ${e.type.replace("PLAN_", "")}
+                                            </span>
+                                        </div>
+                                    `;
+                                }).join("")}
                             </div>
 
                         </div>
@@ -518,7 +531,7 @@ Object.keys(grouped).forEach(planId => {
         </div>
     `;
 
-    // 🔥 reemplazo limpio (no duplicar)
+    // 🔁 reemplazo controlado (no duplicar)
     const existing = document.getElementById("ledger-ui-block");
 
     if (existing) {
@@ -529,8 +542,9 @@ Object.keys(grouped).forEach(planId => {
 
     output.scrollTop = output.scrollHeight;
 
-
-}
+    // 🔥 guardar estado para detectar nuevos en siguiente render
+    lastLedgerIds = currentIds;
+} 
 
 function listenLedgerRealtime() {
     try {
