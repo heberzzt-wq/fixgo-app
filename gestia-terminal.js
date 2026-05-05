@@ -442,6 +442,9 @@ async function fetchLedgerUI() {
     }
 } 
 
+/* 🔥 ESTA LÍNEA ES LA CLAVE */
+window.fetchLedgerUI = fetchLedgerUI;
+
 function renderLedgerUI(items = []) {
 
     const output = document.getElementById("gestia-output");
