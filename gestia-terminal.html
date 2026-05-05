@@ -551,7 +551,7 @@ outputElement.scrollTop = outputElement.scrollHeight;
         // Nota: Le agregué el mb-4 al contenedor principal y font-mono al mensaje
         // para que empate con el diseño tipo terminal de tu renderSystemStatus.
         const html = `
-            <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
+            <div id="ledger-ui-block" class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
                 <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border border-slate-700">
                     <i class="fa-solid ${icon[type] || icon.info} text-white text-sm"></i>
                 </div>
@@ -562,7 +562,13 @@ outputElement.scrollTop = outputElement.scrollHeight;
             </div>
         `;
 
-        output.insertAdjacentHTML("beforeend", html);
+        const existing = document.getElementById("ledger-ui-block");
+
+if (existing) {
+    existing.outerHTML = html;
+} else {
+    output.insertAdjacentHTML("beforeend", html);
+}
         output.scrollTop = output.scrollHeight;
     };
 
