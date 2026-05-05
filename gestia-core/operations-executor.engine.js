@@ -468,13 +468,13 @@ export async function executeSteps(steps = [], context = {}) {
 }
 
 /**
- * 🔄 Mapeo IA → tipos legacy del executor
+ * 🔄 mapActionToLegacyType (V1.1)
  * ✅ FIX: Añadidos casos para evitar el valor 'UNKNOWN'
  */
 function mapActionToLegacyType(step) {
-    const action = step.action?.toLowerCase();
+    const action = step.action?.toLowerCase(); // Normalizamos a minúsculas
 
-    // Detección de estatus de sistema (UI especial)
+    // 1. Detección de estatus de sistema (UI especial)
     if (step.target === "system" || (step.action === "aggregate" && step.target?.collection === "system")) {
         return "SYSTEM_STATUS";
     }
@@ -501,11 +501,9 @@ function mapActionToLegacyType(step) {
         case "analyze":
             return "DATA_ANALYSIS";
 
-        case "lock":
-            return "LOCK_RESOURCE";
-
         default:
-            // Fallback preventivo
+            // ✅ Cambio crítico: Ya no retornamos UNKNOWN, 
+            // usamos un tipo genérico que el panel sí pueda renderizar.
             return "GENERIC_OP";
     }
 }
