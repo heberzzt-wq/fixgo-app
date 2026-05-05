@@ -426,6 +426,22 @@ document.addEventListener('DOMContentLoaded', () => {
             meta: { ts: Date.now(), opId: genId() }
         });
 
+
+        // 🔥 HELPER GLOBAL (FUERA DEL RENDERER)
+function formatOp(op) {
+    if (!op) return "N/A";
+
+    const map = {
+        SYSTEM_STATUS: "ANÁLISIS",
+        READ: "LECTURA",
+        UPDATE: "ACTUALIZACIÓN",
+        WRITE: "ESCRITURA",
+        DELETE: "ELIMINACIÓN"
+    };
+
+    return map[op] || op;
+}
+
     // 2. EL RENDERER ESTRUCTURADO (Tarjeta de Telemetría Blindada)
     const renderSystemStatus = (data) => {
         const outputElement = document.getElementById('gestia-output');
@@ -478,7 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <!-- 🔥 NUEVO -->
     <p class="text-[9px] text-slate-500 uppercase mt-2">Última operación</p>
     <p class="text-xs font-mono text-emerald-400">
-        ${escapeHTML(d.lastOperation || 'N/A')}
+        ${escapeHTML(formatOp(d.lastOperation))}
     </p>
 </div>
                         
