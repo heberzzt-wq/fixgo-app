@@ -411,44 +411,54 @@ export async function executeSteps(steps = [], context = {}) {
 
     if (!Array.isArray(steps) || !steps.length) {
         throw new Error("No steps to execute");
-
     }
 
-    // 🔁 Convertimos steps IA → formato proposal que tu executor entiende
-const proposal = {
-    operation_id: `ai_op_${Date.now()}`,
-    tenantId: context.tenantId || "default",
-    ejecutado_por: context.userId || "jarvis_ai",
-    changes: steps.map(step => ({
+    // 🔁 Convertimos steps IA → proposal
+    const proposal = {
+        operation_id: `ai_op_${Date.now()}`,
+        tenantId: context.tenantId || "default",
+        ejecutado_por: context.userId || "jarvis_ai",
+        changes: steps.map(step => ({
+            type: (step.action === "aggregate" && step.target?.collection === "system")
+                ? "SYSTEM_STATUS"
+                : mapActionToLegacyType(step),
 
-        type: (step.action === "aggregate" && step.target?.collection === "system")
-            ? "SYSTEM_STATUS"
-            : mapActionToLegacyType(step),
+            target: step.target?.docId || step.target?.collection,
+            payload: step.payload,
+            reason: "AI_PLAN_EXECUTION"
+        }))
+    };
 
-        target: step.target?.docId || step.target?.collection,
-        payload: step.payload,
-        reason: "AI_PLAN_EXECUTION"
-    }))
-};
+    console.log("🧠 [AI→EXECUTOR]: Adaptando plan a proposal", proposal);
 
-   console.log("🧠 [AI→EXECUTOR]: Adaptando plan a proposal", proposal);
+    let result = null;
 
-// 🔥 Ejecutamos
-const result = await ejecutarCambios(proposal);
-
-// 🔥 EMITIR TELEMETRÍA AL PANEL (AQUÍ VA)
-window.dispatchEvent(new CustomEvent("gestia-terminal-state", {
-    detail: {
-        type: "SYSTEM_STATUS",
-        data: {
-            operations: proposal.changes.length,
-            lastOperation: proposal.changes.at(-1)?.type || "N/A",
-            timestamp: Date.now()
-        }
+    try {
+        result = await ejecutarCambios(proposal);
+    } catch (err) {
+        console.warn("⚠️ EXECUTION ERROR:", err);
     }
-}));
 
-return result;
+    // 📡 TELEMETRÍA (NO FALLA)
+    try {
+        window.dispatchEvent(new CustomEvent("gestia-terminal-state", {
+            detail: {
+                type: "SYSTEM_STATUS",
+                data: {
+                    operations: proposal.changes?.length || 0,
+                    lastOperation: proposal.changes?.[proposal.changes.length - 1]?.type || "N/A",
+                    timestamp: Date.now()
+                }
+            }
+        }));
+
+        console.log("📡 [TELEMETRY_EMIT]:", proposal.changes?.length || 0);
+
+    } catch (e) {
+        console.warn("⚠️ TELEMETRY_FAIL:", e);
+    }
+
+    return result;
 }
 
 /**
