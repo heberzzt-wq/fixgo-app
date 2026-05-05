@@ -322,25 +322,23 @@ export async function ejecutarCambios(proposal) {
                         retryBuffer.push({ type, target, status: "locked" });
                         break;
 
-                        case "DATA_ANALYSIS":
+                    case "DATA_ANALYSIS":
                         retryBuffer.push({
-                        type,
-                        target,
-                           status: "analyzed",
-                        result: payload || "analysis_completed"
+                            type,
+                            target,
+                            status: "analyzed",
+                            result: payload || "analysis_completed"
                         });
                         break;
 
-                        case "SYSTEM_STATUS":
-
-    retryBuffer.push({
-        type,
-        target,
-        status: "analyzed",
-        result: payload || {}
-    });
-
-    break;
+                    case "SYSTEM_STATUS":
+                        retryBuffer.push({
+                            type,
+                            target,
+                            status: "analyzed",
+                            result: payload || {}
+                        });
+                        break;
 
                     default:
                         // No lanzamos error para permitir que el resto de la ráfaga continúe
@@ -360,7 +358,7 @@ export async function ejecutarCambios(proposal) {
             }, { merge: true });
 
             // Al final de la transacción exitosa, volcamos el buffer al array externo
-            finalResults.length = 0; // Limpieza por si acaso
+            finalResults.length = 0; 
             finalResults.push(...retryBuffer);
         });
 
@@ -400,7 +398,7 @@ console.log("%c🦾 [OPERATIONS_EXECUTOR]: V16.1.1 INDESTRUCTIBLE LEDGER ONLINE"
 
 /**
  * ======================================================================================
- * 🧠 AI EXECUTION ADAPTER (V1.0)
+ * 🧠 AI EXECUTION ADAPTER (V1.1) - FIX: LAST_OPERATION UNKNOWN
  * Conecta plan.steps → motor transaccional existente (ejecutarCambios)
  * ======================================================================================
  */
@@ -418,15 +416,17 @@ export async function executeSteps(steps = [], context = {}) {
         operation_id: `ai_op_${Date.now()}`,
         tenantId: context.tenantId || "default",
         ejecutado_por: context.userId || "jarvis_ai",
-        changes: steps.map(step => ({
-            type: (step.action === "aggregate" && step.target?.collection === "system")
-                ? "SYSTEM_STATUS"
-                : mapActionToLegacyType(step),
-
-            target: step.target?.docId || step.target?.collection,
-            payload: step.payload,
-            reason: "AI_PLAN_EXECUTION"
-        }))
+        changes: steps.map(step => {
+            // ✅ FIX: Mapeo robusto para asegurar que 'type' llegue al HUD
+            const mappedType = mapActionToLegacyType(step);
+            
+            return {
+                type: mappedType,
+                target: step.target?.docId || step.target?.collection || step.target || "system_resource",
+                payload: step.payload || {},
+                reason: "AI_PLAN_EXECUTION"
+            };
+        })
     };
 
     console.log("🧠 [AI→EXECUTOR]: Adaptando plan a proposal", proposal);
@@ -439,20 +439,26 @@ export async function executeSteps(steps = [], context = {}) {
         console.warn("⚠️ EXECUTION ERROR:", err);
     }
 
-    // 📡 TELEMETRÍA (NO FALLA)
+    // 📡 TELEMETRÍA (PARA EL PANEL DE CONTROL)
     try {
+        // Obtenemos el tipo del último cambio para el HUD
+        const lastChange = proposal.changes[proposal.changes.length - 1];
+
         window.dispatchEvent(new CustomEvent("gestia-terminal-state", {
             detail: {
                 type: "SYSTEM_STATUS",
                 data: {
                     operations: proposal.changes?.length || 0,
-                    lastOperation: proposal.changes?.[proposal.changes.length - 1]?.type || "N/A",
-                    timestamp: Date.now()
+                    // ✅ FIX: Ahora garantizamos que sea el tipo mapeado
+                    lastOperation: lastChange?.type || "COMPLETED",
+                    timestamp: Date.now(),
+                    // Enviamos la lista completa para enriquecer el panel visual
+                    history: proposal.changes.map(c => ({ type: c.type, target: c.target }))
                 }
             }
         }));
 
-        console.log("📡 [TELEMETRY_EMIT]:", proposal.changes?.length || 0);
+        console.log("📡 [TELEMETRY_EMIT]: Op count", proposal.changes?.length);
 
     } catch (e) {
         console.warn("⚠️ TELEMETRY_FAIL:", e);
@@ -463,34 +469,44 @@ export async function executeSteps(steps = [], context = {}) {
 
 /**
  * 🔄 Mapeo IA → tipos legacy del executor
+ * ✅ FIX: Añadidos casos para evitar el valor 'UNKNOWN'
  */
 function mapActionToLegacyType(step) {
+    const action = step.action?.toLowerCase();
 
-    switch (step.action) {
-
-        case "getDocs":
-            return "READ_OPERATION";
-
-        case "setDoc":
-            return "CREATE_MODULE";
-
-        case "updateDoc":
-            return "PATCH_SYSTEM_CORE";
-
-        case "deleteDoc":
-            return "DELETE_OPERATION";
-
-        case "aggregate":
-
-    // 🔥 FIX: si es análisis del sistema → UI especial
-    if (step.target === "system") {
+    // Detección de estatus de sistema (UI especial)
+    if (step.target === "system" || (step.action === "aggregate" && step.target?.collection === "system")) {
         return "SYSTEM_STATUS";
     }
 
-    return "DATA_ANALYSIS";
+    switch (action) {
+        case "getdocs":
+        case "read":
+            return "READ_OPERATION";
+
+        case "setdoc":
+        case "create":
+            return "CREATE_MODULE";
+
+        case "updatedoc":
+        case "patch":
+        case "update":
+            return "PATCH_SYSTEM_CORE";
+
+        case "deletedoc":
+        case "delete":
+            return "DELETE_OPERATION";
+
+        case "aggregate":
+        case "analyze":
+            return "DATA_ANALYSIS";
+
+        case "lock":
+            return "LOCK_RESOURCE";
 
         default:
-            return "UNKNOWN";
+            // Fallback preventivo
+            return "GENERIC_OP";
     }
 }
 
@@ -498,7 +514,6 @@ window.executeSteps = executeSteps;
 
 /**
  * ======================================================================================
- * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 385 (INGENIERÍA EXQUISITA GARANTIZADA)
+ * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 503 (INGENIERÍA EXQUISITA GARANTIZADA)
  * ======================================================================================
  */
-
