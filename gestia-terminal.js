@@ -454,45 +454,72 @@ function renderLedgerUI(items = []) {
     const output = document.getElementById("gestia-output");
     if (!output) return;
 
+    // 🔥 agrupar por planId
+    const grouped = {};
+
+    items.forEach(item => {
+        const planId = item.payload?.planId || "unknown";
+
+        if (!grouped[planId]) {
+            grouped[planId] = [];
+        }
+
+        grouped[planId].push(item);
+    });
+
     const html = `
-        <div class="max-w-4xl mx-auto w-full">
+        <div id="ledger-ui-block" class="max-w-4xl mx-auto w-full">
             <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
                 
                 <h3 class="text-sm text-blue-400 font-bold mb-4">
                     📊 HISTORIAL DE OPERACIONES
                 </h3>
 
-                <div class="space-y-2 text-xs font-mono">
-                    ${items.map(item => `
-                        <div class="border-b border-slate-800 pb-2">
-                            <span class="${
-    item.type === "PLAN_EXECUTED"
-        ? "text-emerald-400"
-        : item.type === "PLAN_APPROVED"
-        ? "text-blue-400"
-        : "text-slate-400"
-}">
-    ${item.type}
-</span>
-                            <span class="text-slate-500 ml-2">
-                                ${item.payload?.planId || "N/A"}
-                            </span>
+                <div class="space-y-3 text-xs font-mono">
+
+                    ${Object.entries(grouped).map(([planId, events]) => `
+                        <div class="border border-slate-700 rounded-lg p-3">
+                            
+                            <div class="text-slate-400 mb-2">
+                                ${planId}
+                            </div>
+
+                            <div class="ml-3 space-y-1">
+                                ${events.map(e => `
+                                    <div>
+                                        <span class="${
+                                            e.type === "PLAN_EXECUTED"
+                                                ? "text-emerald-400"
+                                                : e.type === "PLAN_APPROVED"
+                                                ? "text-blue-400"
+                                                : "text-slate-400"
+                                        }">
+                                            ├─ ${e.type.replace("PLAN_", "")}
+                                        </span>
+                                    </div>
+                                `).join("")}
+                            </div>
+
                         </div>
                     `).join("")}
+
                 </div>
 
             </div>
         </div>
     `;
 
-    // 🔥 eliminar bloque anterior si existe
-const existing = document.getElementById("ledger-ui-block");
-if (existing) {
-    existing.remove();
-}
+    // 🔥 reemplazo limpio (no duplicar)
+    const existing = document.getElementById("ledger-ui-block");
 
-// 🔥 insertar nuevo
-output.insertAdjacentHTML("beforeend", html);
+    if (existing) {
+        existing.outerHTML = html;
+    } else {
+        output.insertAdjacentHTML("beforeend", html);
+    }
+
+    output.scrollTop = output.scrollHeight;
+
 
 }
 
