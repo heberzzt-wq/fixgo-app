@@ -2,7 +2,9 @@
 import { executeSteps } from "./operations-executor.engine.js";
 
 /* 🔥 FIX: INYECCIÓN GLOBAL DEL LEDGER */
-const ledger = window.__GESTIA_LEDGER__;
+function getLedger() {
+    return window.__GESTIA_LEDGER__;
+}
 
 export async function approvePlan(planId, user = {}) {
 
@@ -32,45 +34,47 @@ export async function approvePlan(planId, user = {}) {
     }
 
     // 🔐 Ledger (tolerante)
-    try {
+try {
+    const ledger = window.__GESTIA_LEDGER__;
+
+    if (ledger && typeof ledger.log === "function") {
         await ledger.log("PLAN_APPROVED", {
             planId,
             traceId: plan.traceId
         });
-    } catch (err) {
-        console.warn("⚠️ Ledger omitido:", err.message);
+    } else {
+        console.warn("⚠️ Ledger no disponible en PLAN_APPROVED");
     }
 
-    // 🧪 DEBUG CLAVE
-    console.log("🧪 [EXECUTE CALL]:", typeof executeSteps);
+} catch (err) {
+    console.warn("⚠️ Ledger omitido:", err.message);
+}
 
-    // 🚀 EJECUCIÓN REAL
+
+// 🧪 DEBUG CLAVE
+console.log("🧪 [EXECUTE CALL]:", typeof executeSteps);
+
+
+// 🚀 EJECUCIÓN REAL
 const result = await executeSteps(plan.steps, {
     traceId: plan.traceId,
     userId: user?.id || "system",
     tenantId: plan.tenantId || "default"
 });
 
-// 🧠 FORMATEO + UI + VOZ (TODO JUNTO Y CERRADO BIEN)
+
+// 🧠 FORMATEO + UI + VOZ
 let msg = "Ejecución completada";
 
 if (result) {
-
-    if (result.message) {
-        msg = result.message;
-    }
-    else if (result.data) {
-        msg = JSON.stringify(result.data, null, 2);
-    }
-    else if (typeof result === "object") {
-        msg = JSON.stringify(result, null, 2);
-    }
-    else {
-        msg = String(result);
-    }
+    if (result.message) msg = result.message;
+    else if (result.data) msg = JSON.stringify(result.data, null, 2);
+    else if (typeof result === "object") msg = JSON.stringify(result, null, 2);
+    else msg = String(result);
 }
 
-// 📺 UI (inteligente + soporte array)
+
+// 📺 UI
 const clean = Array.isArray(result) ? result[0] : result;
 
 if (window.renderResponse && clean?.type) {
@@ -79,24 +83,34 @@ if (window.renderResponse && clean?.type) {
     window.renderJarvisResponse("Resultado", msg, "success");
 }
 
+
 // 🔊 VOZ
 if (window.hablarJarvis) {
     window.hablarJarvis(msg);
 }
 
-// 🔒 BLOQUEO FALLBACK
+
+// 🔒 FLAG
 window.__LAST_EXECUTION__ = true;
 
 
 // 🔐 Ledger ejecución (tolerante)
 try {
-    await ledger.log("PLAN_EXECUTED", {
-        planId,
-        result
-    });
+    const ledger = window.__GESTIA_LEDGER__;
+
+    if (ledger && typeof ledger.log === "function") {
+        await ledger.log("PLAN_EXECUTED", {
+            planId,
+            result
+        });
+    } else {
+        console.warn("⚠️ Ledger no disponible en PLAN_EXECUTED");
+    }
+
 } catch (err) {
     console.warn("⚠️ Ledger ejecución omitido:", err.message);
 }
+
 
 // 🧹 Limpieza
 try {
