@@ -407,6 +407,8 @@ console.log("%c🦾 [OPERATIONS_EXECUTOR]: V16.1.1 INDESTRUCTIBLE LEDGER ONLINE"
 
 export async function executeSteps(steps = [], context = {}) {
 
+    console.log("🔥 EXECUTE_STEPS CALLED");
+
     if (!Array.isArray(steps) || !steps.length) {
         throw new Error("No steps to execute");
 
