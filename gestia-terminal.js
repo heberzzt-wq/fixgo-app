@@ -506,10 +506,7 @@ function listenLedgerRealtime() {
             });
 
             // 🔁 limpiar antes de renderizar (evita duplicados)
-            const output = document.getElementById("gestia-output");
-            if (output) {
-                output.innerHTML = "";
-            }
+            
 
             renderLedgerUI(items);
 
