@@ -461,7 +461,15 @@ function renderLedgerUI(items = []) {
                 <div class="space-y-2 text-xs font-mono">
                     ${items.map(item => `
                         <div class="border-b border-slate-800 pb-2">
-                            <span class="text-emerald-400">${item.type}</span>
+                            <span class="${
+    item.type === "PLAN_EXECUTED"
+        ? "text-emerald-400"
+        : item.type === "PLAN_APPROVED"
+        ? "text-blue-400"
+        : "text-slate-400"
+}">
+    ${item.type}
+</span>
                             <span class="text-slate-500 ml-2">
                                 ${item.payload?.planId || "N/A"}
                             </span>
