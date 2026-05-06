@@ -1176,13 +1176,25 @@ return;
                 }
             };
 
-            await window.executeSteps([step], {
-                tenantId: window.session?.tenantId || "default",
-                userId: window.session?.uid || "system"
-            });
+           // 🧠 Crear plan supervisado (como Jarvis real)
+const plan = {
+    id: `plan_${Date.now()}`,
+    steps: [step],
+    mode: "AI_SUPERVISED",
+    traceId: `trace_${Date.now()}`,
+    createdAt: Date.now()
+};
 
-            handled = true;
-            return; // 🔥 corta el flujo, no llega al bridge
+// 💾 Guardar plan
+await window.savePendingPlan?.(plan);
+
+// 📺 Mostrar preview (aquí aparece el "arre")
+window.renderPlanPreview?.(plan);
+
+console.log("🧠 [PLAN_GENERATED_FROM_TERMINAL]:", plan.id);
+
+handled = true;
+return;
         }
 
         // 🔁 FLUJO NORMAL (si no es código)
