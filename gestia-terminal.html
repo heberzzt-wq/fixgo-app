@@ -1188,6 +1188,9 @@ const plan = {
 // 💾 Guardar plan
 await window.savePendingPlan?.(plan);
 
+window.__PENDING_PLANS__ = window.__PENDING_PLANS__ || {};
+window.__PENDING_PLANS__[plan.id] = plan;
+
 // 🔥 CLAVE: registrar último plan para "arre"
 window.lastPlanId = plan.id; // 👈 este es el nombre correcto
 
