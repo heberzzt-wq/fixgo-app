@@ -578,6 +578,85 @@ function listenLedgerRealtime() {
 }
 
 window.listenLedgerRealtime = listenLedgerRealtime;
+
+/* =====================================================
+   SANDBOX WRITE ENGINE V1
+===================================================== */
+
+window.JARVIS_SANDBOX_FILES ||= {};
+
+window.writeSandboxFile = async function(payload = {}) {
+
+    try {
+
+        const {
+            file,
+            content
+        } = payload;
+
+        if (!file) {
+            throw new Error("FILE_REQUIRED");
+        }
+
+        const safePath =
+            String(file)
+            .replace(/\.\./g, "")
+            .replace(/\\/g, "/");
+
+        console.log(
+            "🧠 [SANDBOX_WRITE]:",
+            safePath
+        );
+
+        // 🔥 escritura sandbox memoria
+        window.JARVIS_SANDBOX_FILES[safePath] = {
+            content: content || "",
+            updatedAt: Date.now()
+        };
+
+        // 🔥 HUD
+        window.showJarvisPersistent?.(
+            `archivo escrito: ${safePath}`
+        );
+
+        // 🔥 ledger
+        const ledger =
+            window.__GESTIA_LEDGER__;
+
+        if (
+            ledger &&
+            typeof ledger.log === "function"
+        ) {
+
+            await ledger.log(
+                "SANDBOX_FILE_WRITTEN",
+                {
+                    file: safePath,
+                    bytes: (content || "").length
+                }
+            );
+        }
+
+        return {
+            ok: true,
+            file: safePath,
+            bytes: (content || "").length
+        };
+
+    } catch (err) {
+
+        console.error(
+            "❌ [SANDBOX_WRITE_FAIL]:",
+            err
+        );
+
+        return {
+            ok: false,
+            error: err.message
+        };
+    }
+};
+
 /**
  * ======================================================================================
  * FIN BLOQUE 1 V15
@@ -1819,6 +1898,55 @@ const operation = {
     data: node?.data ?? "",
     hasData: !!node?.data
 };
+
+/* =====================================================
+   SANDBOX WRITE ROUTER
+===================================================== */
+
+if (operation.type === "CODE_WRITE") {
+
+    console.log(
+        "🧠 [CODE_WRITE_DETECTED]"
+    );
+
+    const step =
+        Array.isArray(plan)
+            ? plan[0]
+            : plan;
+
+    const payload =
+        step.payload || {};
+
+    window.showJarvisPersistent?.(
+        "escribiendo archivo sandbox..."
+    );
+
+    const result =
+        await window.writeSandboxFile?.(
+            payload
+        );
+
+    await this.setState(
+        STATES.DONE,
+        opId,
+        {
+            report:
+                result?.ok
+                    ? "Archivo sandbox generado."
+                    : "Falló escritura sandbox."
+        }
+    );
+
+    await this.ledger.removeOp(
+        opId
+    );
+
+    return {
+        ok: !!result?.ok,
+        sandbox: true,
+        result
+    };
+}
 
 if (!operation.id || !operation.type) {
     throw new Error("INVALID_OPERATION");

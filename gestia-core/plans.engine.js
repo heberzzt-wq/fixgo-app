@@ -27,11 +27,28 @@ export async function approvePlan(planId, user = {}) {
 
     // 🔐 Seguridad (tolerante)
     try {
+
+    if (
+        typeof firewall !== "undefined" &&
+        firewall?.validate
+    ) {
         await firewall.validate(plan);
-        await signature.sign(plan, user);
-    } catch (err) {
-        console.warn("⚠️ Seguridad omitida:", err.message);
     }
+
+    if (
+        typeof signature !== "undefined" &&
+        signature?.sign
+    ) {
+        await signature.sign(plan, user);
+    }
+
+} catch (err) {
+
+    console.warn(
+        "⚠️ Seguridad omitida:",
+        err.message
+    );
+}
 
     // 🔐 Ledger (tolerante)
 try {
