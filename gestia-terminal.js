@@ -736,6 +736,92 @@ window.loadRepoContext = async function(fileName = "") {
     }
 };
 
+/* =====================================================
+   REPO SCANNER V1
+===================================================== */
+
+window.scanRepo = function(filters = {}) {
+
+    try {
+
+        const {
+            module,
+            type,
+            critical
+        } = filters;
+
+        const entries =
+            Object.entries(
+                window.__REPO_INDEX__ || {}
+            );
+
+        const results = entries.filter(
+            ([key, meta]) => {
+
+                // 🔍 filtro módulo
+                if (
+                    module &&
+                    meta?.module !== module
+                ) {
+                    return false;
+                }
+
+                // 🔍 filtro tipo
+                if (
+                    type &&
+                    meta?.type !== type
+                ) {
+                    return false;
+                }
+
+                // 🔍 filtro criticidad
+                if (
+                    typeof critical === "boolean" &&
+                    meta?.critical !== critical
+                ) {
+                    return false;
+                }
+
+                return true;
+            }
+        );
+
+        console.log(
+            "🧠 [REPO_SCAN]:",
+            results.length,
+            "files"
+        );
+
+        return {
+
+            ok: true,
+
+            total:
+                results.length,
+
+            files:
+                results.map(
+                    ([key, meta]) => ({
+                        file: key,
+                        ...meta
+                    })
+                )
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ REPO_SCAN_FAIL:",
+            err
+        );
+
+        return {
+            ok: false,
+            error: err.message
+        };
+    }
+};
+
 window.writeSandboxFile = async function(payload = {}) {
 
     try {
