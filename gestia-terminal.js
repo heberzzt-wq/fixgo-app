@@ -713,37 +713,37 @@ window.__GESTIA_LEDGER__ = this.ledger;
         this.bootTime = Date.now();
 
         /* =====================================================
-           AUTONOMY SUPERVISED CORE
-        ===================================================== */
+   AUTONOMY SUPERVISED CORE (CONTROLADO)
+===================================================== */
 
-        this.autonomy = {
-            enabled: true,
-            supervised: true,
-            intervalMs: 90000,
-            lastScan: 0,
-            pendingProposal: null,
-            issuesDetected: [],
-            modules: {
-                ui: true,
-                performance: true,
-                health: true,
-                layout: true
-            }
-        };
+this.autonomy = {
+    enabled: false,            // 🔥 OFF por defecto (evita propuestas automáticas)
+    supervised: true,
+    intervalMs: 90000,
+    lastScan: 0,
+    pendingProposal: null,
+    issuesDetected: [],
+    modules: {
+        ui: true,
+        performance: true,
+        health: true,
+        layout: true
+    }
+};
 
-        logCore(
-            `BANK CORE V${GESTIA_CONFIG.VERSION} ONLINE`
-        );
+logCore(`BANK CORE V${GESTIA_CONFIG.VERSION} ONLINE`);
 
-        setTimeout(() => {
-            logCore(
-                "JARVIS ONLINE - Esperando órdenes Arquitecto"
-            );
-        }, 1200);
+setTimeout(() => {
+    logCore("JARVIS ONLINE - Esperando órdenes Arquitecto");
+}, 1200);
 
-        this.initHUD();
-        this.initHeartbeat();
+// HUD siempre activo
+this.initHUD();
 
+// 🔥 Heartbeat solo si autonomy está habilitado
+if (this.autonomy.enabled) {
+    this.initHeartbeat();
+}
         /* =====================================================
            WATCHDOG AUTÓNOMO SUPERVISADO
         ===================================================== */
