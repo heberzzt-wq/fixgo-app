@@ -616,6 +616,51 @@ window.__REPO_INDEX__["plans.engine.js"] = {
     critical: true
 };
 
+/* =====================================================
+   REPO LOOKUP ENGINE
+===================================================== */
+
+window.findRepoFile = function(query = "") {
+
+    try {
+
+        const q =
+            String(query)
+            .toLowerCase()
+            .trim();
+
+        const entries =
+            Object.entries(
+                window.__REPO_INDEX__ || {}
+            );
+
+        return entries.find(([key, meta]) => {
+
+            return (
+                key.toLowerCase().includes(q) ||
+
+                meta?.module
+                    ?.toLowerCase()
+                    .includes(q) ||
+
+                meta?.type
+                    ?.toLowerCase()
+                    .includes(q)
+            );
+
+        }) || null;
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ REPO_LOOKUP_FAIL:",
+            err
+        );
+
+        return null;
+    }
+};
+
 window.writeSandboxFile = async function(payload = {}) {
 
     try {
