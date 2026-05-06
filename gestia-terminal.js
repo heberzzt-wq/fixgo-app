@@ -931,6 +931,100 @@ window.generatePatch = async function(config = {}) {
     }
 };
 
+/* =====================================================
+   PATCH APPLY ENGINE V1
+===================================================== */
+
+window.applyPatch = async function(patch = {}) {
+
+    try {
+
+        const {
+            file,
+            patched,
+            diff
+        } = patch;
+
+        if (!file) {
+            throw new Error(
+                "PATCH_FILE_REQUIRED"
+            );
+        }
+
+        if (!patched) {
+            throw new Error(
+                "PATCH_CONTENT_REQUIRED"
+            );
+        }
+
+        const found =
+            window.findRepoFile(file);
+
+        if (!found) {
+            throw new Error(
+                "PATCH_TARGET_NOT_FOUND"
+            );
+        }
+
+        const [
+            key,
+            meta
+        ] = found;
+
+        // 🔥 runtime patched cache
+        window.__PATCHED_RUNTIME__ ||= {};
+
+        window.__PATCHED_RUNTIME__[key] = {
+
+            patched,
+
+            diff,
+
+            updatedAt:
+                Date.now(),
+
+            path:
+                meta?.path ||
+
+                key
+        };
+
+        console.log(
+            "🧠 [PATCH_APPLIED]:",
+            key
+        );
+
+        // 🔥 HUD
+        window.showJarvisPersistent?.(
+            `patch aplicado: ${key}`
+        );
+
+        return {
+
+            ok: true,
+
+            file: key,
+
+            runtimeOnly: true,
+
+            patchSize:
+                patched.length
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ PATCH_APPLY_FAIL:",
+            err
+        );
+
+        return {
+            ok: false,
+            error: err.message
+        };
+    }
+};
+
 window.writeSandboxFile = async function(payload = {}) {
 
     try {
