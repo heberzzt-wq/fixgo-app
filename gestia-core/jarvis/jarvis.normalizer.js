@@ -72,6 +72,49 @@ export function normalizeAIPlan(planRaw = {}, traceId = "no_trace") {
     /* =====================================================
         🧠 4. NORMALIZACIÓN DE CADA STEP
     ===================================================== */
+
+    // 🔥 UNIFICAR TEXTO DE MULTI-INTENT (ANTES DEL LOOP)
+let unifiedText = rawSteps
+    .map(s => s?.text || s?.intent || "")
+    .join(" ")
+    .toLowerCase();
+
+// 🔥 DETECTOR GLOBAL DE CODE_WRITE
+if (
+    unifiedText.includes("archivo") ||
+    unifiedText.includes(".js")
+) {
+    const normalizedStep = {
+        id: `step_${Date.now()}`,
+        type: "CODE_WRITE",
+        target: {
+            collection: "repo_files",
+            docId: null,
+            query: null
+            
+        },
+        action: "custom",
+        payload: {
+            file: unifiedText.match(/modules\/[a-zA-Z0-9_\-]+\.js/)?.[0] || `modules/auto_${Date.now()}.js`,
+            content: unifiedText
+        },
+        meta: {
+            reversible: true,
+            description: "AI Code Write"
+        },
+        traceId
+    };
+
+    console.log("🛠️ [NORMALIZER]: CODE_WRITE DETECTED (GLOBAL)");
+
+    return {
+        id: `plan_${Date.now()}`,
+        steps: [normalizedStep],
+        normalized: true,
+        traceId,
+        createdAt: Date.now()
+    };
+}
     for (const step of rawSteps) {
 
         console.log("🔍 [NORMALIZER]: STEP_RAW", step);
