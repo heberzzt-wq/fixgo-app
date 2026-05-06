@@ -1185,25 +1185,21 @@ const plan = {
     createdAt: Date.now()
 };
 
-// 💾 Guardar plan
-await window.savePendingPlan?.(plan);
+// 💾 Guardar plan en el sistema REAL (fuente de verdad)
+if (window.__GESTIA_TERMINAL__) {
+    window.__GESTIA_TERMINAL__.pendingPlans.set(plan.id, plan);
+} else {
+    console.error("❌ __GESTIA_TERMINAL__ no disponible");
+}
 
-// 🔥 FIX MEMORIA (OBLIGATORIO)
-window.__PENDING_PLANS__ = window.__PENDING_PLANS__ || {};
-window.__PENDING_PLANS__[plan.id] = plan;
-
-// 🔥 DEBUG (IMPORTANTE)
-console.log("🧪 PLAN GUARDADO EN MEMORIA:", plan.id, window.__PENDING_PLANS__);
-
-// 🔥 LAST PLAN
+// 🔥 Registrar último plan (para "arre")
 window.lastPlanId = plan.id;
-console.log("🧪 LAST PLAN ID:", window.lastPlanId);
 
 // 📺 Mostrar preview
 window.renderPlanPreview?.(plan);
 
+// 🧪 Debug mínimo (opcional pero útil)
 console.log("🧠 [PLAN_GENERATED_FROM_TERMINAL]:", plan.id);
-
 handled = true;
 return;
         }

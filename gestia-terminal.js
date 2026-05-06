@@ -2450,10 +2450,14 @@ handleError(
 
 window.KernelHeberto = new GestiaTerminal();
 
+// 🔥 CLAVE (alias para el sistema de aprobación)
+window.__GESTIA_TERMINAL__ = window.KernelHeberto;
+
 window.KernelHeberto.db = db;
 window.KernelHeberto.doc = doc;
 window.KernelHeberto.getDoc = getDoc;
 window.KernelHeberto.setDoc = setDoc;
+
 console.log("%c🧠 [GESTIA-TERMINAL]: V5.18 OPERATIONAL - KERNEL SYNC READY", "color: #3b82f6; font-weight: bold; background: #0f172a; border-left: 4px solid #3b82f6; padding: 2px 10px;");
 /* =====================================================
    AUTH WATCHER
