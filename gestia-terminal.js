@@ -2461,33 +2461,25 @@ window.KernelHeberto.setDoc = setDoc;
 console.log("%c🧠 [GESTIA-TERMINAL]: V5.18 OPERATIONAL - KERNEL SYNC READY", "color: #3b82f6; font-weight: bold; background: #0f172a; border-left: 4px solid #3b82f6; padding: 2px 10px;");
 
 
+
+
 // =====================================================
-// 🔗 BRIDGE: approvePlan → pendingPlans (FIX DEFINITIVO)
+// 🔗 FIX REAL: getPendingPlan → Map interno
 // =====================================================
-(function () {
-    const originalGet = window.getPendingPlan;
+window.getPendingPlan = async function (planId) {
 
-    window.getPendingPlan = async function (planId) {
+    const t = window.__GESTIA_TERMINAL__;
 
-        const t = window.__GESTIA_TERMINAL__;
+    if (t?.pendingPlans?.has(planId)) {
+        const plan = t.pendingPlans.get(planId);
+        console.log("🧪 [GET PLAN FROM MAP]:", planId);
+        return plan;
+    }
 
-        // 🔥 1. Leer del Map REAL
-        if (t?.pendingPlans?.has(planId)) {
-            const plan = t.pendingPlans.get(planId);
-            console.log("🧪 [GET FROM MAP]:", planId);
-            return plan;
-        }
+    console.warn("⚠️ Plan no encontrado en Map:", planId);
+    return null;
+};
 
-        // 🔁 2. Fallback (por si existe otra capa)
-        if (originalGet) {
-            const res = await originalGet(planId);
-            console.log("🧪 [GET FALLBACK]:", res);
-            return res;
-        }
-
-        return null;
-    };
-})();
 /* =====================================================
    AUTH WATCHER
 ===================================================== */
