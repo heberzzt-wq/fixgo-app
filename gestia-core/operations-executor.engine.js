@@ -389,7 +389,7 @@ export async function ejecutarCambios(proposal) {
     );
 
     transaction.set(fileRef, deepSanitize({
-        file: fileName,
+        file: repoFileName,
         content: payload?.content || "// archivo generado por jarvis",
         created_at: serverTimestamp(),
         created_by: ejecutado_por || "jarvis_ai",
@@ -400,24 +400,31 @@ export async function ejecutarCambios(proposal) {
 
     retryBuffer.push({
         type,
-        target: fileName,
+    target: repoFileName,
         status: "file_created"
     });
 
-    emitirPulsoHUD(opId, "WRITE", "CODE_WRITE", fileName);
+    emitirPulsoHUD(
+    opId,
+    "WRITE",
+    "CODE_WRITE",
+    repoFileName
+);
 
     break;
 
 
 
-    const fileName = payload?.file || `auto_${Date.now()}.js`;
+    const repoFileName =
+    payload?.file ||
+    `auto_${Date.now()}.js`;
 
     const fileRef = doc(
         collection(db, "repo_files")
     );
 
     transaction.set(fileRef, deepSanitize({
-        file: fileName,
+        file: repoFileName,
         content: payload?.content || "// archivo generado por jarvis",
         created_at: serverTimestamp(),
         created_by: ejecutado_por || "jarvis_ai",
@@ -428,11 +435,16 @@ export async function ejecutarCambios(proposal) {
 
     retryBuffer.push({
         type,
-        target: fileName,
+        target: repoFileName,
         status: "file_created"
     });
 
-    emitirPulsoHUD(opId, "WRITE", "CODE_WRITE", fileName);
+    emitirPulsoHUD(
+    opId,
+    "WRITE",
+    "CODE_WRITE",
+    repoFileName
+);
 
     break;
 
