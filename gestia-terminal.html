@@ -1176,7 +1176,7 @@ return;
                 }
             };
 
-           // 🧠 Crear plan supervisado (como Jarvis real)
+           // 🧠 Crear plan
 const plan = {
     id: `plan_${Date.now()}`,
     steps: [step],
@@ -1185,23 +1185,15 @@ const plan = {
     createdAt: Date.now()
 };
 
-// 💾 1. Guardar en el Map REAL (UI / estado)
+// 💾 1. UI (opcional)
 if (window.__GESTIA_TERMINAL__?.pendingPlans) {
     window.__GESTIA_TERMINAL__.pendingPlans.set(plan.id, plan);
-    console.log("🧪 PLAN EN MAP:", window.__GESTIA_TERMINAL__.pendingPlans);
-} else {
-    console.error("❌ pendingPlans no disponible");
 }
 
-// 💾 2. GUARDAR EN PERSISTENCE (🔥 CLAVE PARA approvePlan)
-try {
-    await window.savePendingPlan?.(plan);
-    console.log("🧪 PLAN GUARDADO EN PERSISTENCE:", plan.id);
-} catch (e) {
-    console.warn("⚠️ savePendingPlan falló:", e);
-}
+// 💾 2. 🔥 REAL (EL ÚNICO IMPORTANTE)
+await window.savePendingPlan(plan);
 
-// 🔥 lastPlanId para "arre"
+// 🔥 lastPlanId
 window.lastPlanId = plan.id;
 
 // 📺 preview

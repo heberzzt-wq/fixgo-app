@@ -2450,7 +2450,7 @@ handleError(
 
 window.KernelHeberto = new GestiaTerminal();
 
-// 🔥 CLAVE (alias para el sistema de aprobación)
+// 🔥 Alias global (para UI/terminal)
 window.__GESTIA_TERMINAL__ = window.KernelHeberto;
 
 window.KernelHeberto.db = db;
@@ -2458,28 +2458,10 @@ window.KernelHeberto.doc = doc;
 window.KernelHeberto.getDoc = getDoc;
 window.KernelHeberto.setDoc = setDoc;
 
-console.log("%c🧠 [GESTIA-TERMINAL]: V5.18 OPERATIONAL - KERNEL SYNC READY", "color: #3b82f6; font-weight: bold; background: #0f172a; border-left: 4px solid #3b82f6; padding: 2px 10px;");
-
-
-
-
-// =====================================================
-// 🔗 FIX REAL: getPendingPlan → Map interno
-// =====================================================
-window.getPendingPlan = async function (planId) {
-
-    const t = window.__GESTIA_TERMINAL__;
-
-    if (t?.pendingPlans?.has(planId)) {
-        const plan = t.pendingPlans.get(planId);
-        console.log("🧪 [GET PLAN FROM MAP]:", planId);
-        return plan;
-    }
-
-    console.warn("⚠️ Plan no encontrado en Map:", planId);
-    return null;
-};
-
+console.log(
+  "%c🧠 [GESTIA-TERMINAL]: V5.18 OPERATIONAL - KERNEL SYNC READY",
+  "color: #3b82f6; font-weight: bold; background: #0f172a; border-left: 4px solid #3b82f6; padding: 2px 10px;"
+);
 /* =====================================================
    AUTH WATCHER
 ===================================================== */
