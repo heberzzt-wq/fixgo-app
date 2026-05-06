@@ -40,7 +40,7 @@ try {
     if (ledger && typeof ledger.log === "function") {
         await ledger.log("PLAN_APPROVED", {
             planId,
-            traceId: plan.traceId
+            traceId: plan.traceId || "no_trace"
         });
     } else {
         console.warn("⚠️ Ledger no disponible en PLAN_APPROVED");
@@ -57,7 +57,7 @@ console.log("🧪 [EXECUTE CALL]:", typeof executeSteps);
 
 // 🚀 EJECUCIÓN REAL
 const result = await executeSteps(plan.steps, {
-    traceId: plan.traceId,
+    traceId: plan.traceId || "no_trace",
     userId: user?.id || "system",
     tenantId: plan.tenantId || "default"
 });

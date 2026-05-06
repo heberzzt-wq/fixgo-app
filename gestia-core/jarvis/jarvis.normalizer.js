@@ -75,7 +75,7 @@ export function normalizeAIPlan(planRaw = {}, traceId = "no_trace") {
 
     // 🔥 UNIFICAR TEXTO DE MULTI-INTENT (ANTES DEL LOOP)
 let unifiedText = rawSteps
-    .map(s => s?.text || s?.intent || "")
+    .map(s => s?.intent || s?.type || "")
     .join(" ")
     .toLowerCase();
 
@@ -91,7 +91,7 @@ if (
             collection: "repo_files",
             docId: null,
             query: null
-            
+
         },
         action: "custom",
         payload: {
