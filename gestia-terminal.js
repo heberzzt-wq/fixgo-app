@@ -585,6 +585,12 @@ window.listenLedgerRealtime = listenLedgerRealtime;
 
 window.JARVIS_SANDBOX_FILES ||= {};
 
+/* =====================================================
+   REPO REGISTRY V1
+===================================================== */
+
+window.__REPO_INDEX__ ||= {};
+
 window.writeSandboxFile = async function(payload = {}) {
 
     try {
