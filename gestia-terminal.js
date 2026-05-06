@@ -1236,6 +1236,8 @@ if (APPROVAL_WORDS.includes(cmd)) {
 
     console.log("🟢 [APPROVAL DETECTED]:", cmd);
 
+    showJarvisPersistent("ejecutando plan...");
+
     await this.setState(
         STATES.APPLY_ATOMIC,
         "ai-approval",
@@ -1245,10 +1247,14 @@ if (APPROVAL_WORDS.includes(cmd)) {
     );
 const lastPlanId = Array.from(this.pendingPlans.keys()).pop();
 
-return await approvePlan(lastPlanId, {
+const result = await approvePlan(lastPlanId, {
     id: this.session?.uid,
     tenantId: this.session?.tenantId
 });
+
+showJarvis("plan completado");
+
+return result;
 }
 /* =====================================================
    QUICK COMMANDS JARVIS

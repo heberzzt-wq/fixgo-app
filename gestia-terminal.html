@@ -1087,6 +1087,8 @@ if (existing) {
             e.preventDefault();
 
             const comando = textarea.value.trim();
+
+            showJarvisPersistent("analizando comando...");
             
             // Orden de validación defensivo para evitar microtasks encadenadas
             if (!comando || isProcessing) return;
@@ -1140,10 +1142,14 @@ if (!window.approvePlan) {
 
 console.log("🟢 Ejecutando approvePlan con:", planId);
 
+showJarvisPersistent("ejecutando plan...");
+
 await window.approvePlan(planId, {
     id: window.session?.uid,
     tenantId: window.session?.tenantId
 });
+
+showJarvis("plan completado");
 
 handled = true;
 return;
@@ -1193,6 +1199,8 @@ if (window.__GESTIA_TERMINAL__?.pendingPlans) {
 // 💾 2. 🔥 REAL (EL ÚNICO IMPORTANTE)
 await window.savePendingPlan(plan);
 
+showJarvisPersistent("plan táctico generado");
+
 // 🔥 lastPlanId
 window.lastPlanId = plan.id;
 
@@ -1212,6 +1220,8 @@ return;
         }
 
     } catch (bridgeErr) {
+
+        showJarvis("error operativo");
         console.warn("⚠️ [BRIDGE_FAIL]: Fallback a Kernel.", bridgeErr);
     }
 
@@ -1776,7 +1786,10 @@ return;
 ============================== */
 
 // 🔥 GLOBAL (aparece y se oculta solo)
+window.__jarvisTimer = null;
+
 window.showJarvis = function(msg = "Procesando...") {
+
     const hud = document.getElementById("jarvisHud");
     const text = document.getElementById("jarvisMessage");
 
@@ -1786,29 +1799,11 @@ window.showJarvis = function(msg = "Procesando...") {
 
     hud.classList.add("active");
 
-    setTimeout(() => {
+    clearTimeout(window.__jarvisTimer);
+
+    window.__jarvisTimer = setTimeout(() => {
         hud.classList.remove("active");
-    }, 2500);
-};
-
-// 🔥 MODO PERSISTENTE (NO SE OCULTA)
-window.showJarvisPersistent = function(msg = "Actividad detectada") {
-    const hud = document.getElementById("jarvisHud");
-    const text = document.getElementById("jarvisMessage");
-
-    if (!hud) return;
-
-    if (text) text.innerText = msg;
-
-    hud.classList.add("active");
-};
-
-// 🔥 OCULTAR MANUAL
-window.hideJarvis = function() {
-    const hud = document.getElementById("jarvisHud");
-    if (!hud) return;
-
-    hud.classList.remove("active");
+    }, 3500);
 };
 
 // 🔥 PRUEBA AUTOMÁTICA (puedes borrarla luego)
