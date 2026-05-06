@@ -1653,15 +1653,14 @@ return;
         });
     }
 
-
     setTimeout(() => {
-    window.listenLedgerRealtime?.();
-}, 1500);
+        window.listenLedgerRealtime?.();
+    }, 1500);
 
 }); // CIERRE DEL DOMContentLoaded
-    </script>
+</script>
 
-   <!-- HUD CINEMATIC -->
+<!-- HUD CINEMATIC CONTROLADO -->
 <div id="jarvisHud" class="jarvis-hud">
   <div class="jarvis-core"></div>
   <div class="jarvis-card">
@@ -1670,22 +1669,34 @@ return;
       <span class="dot"></span>
       ONLINE — Vigilancia estable
     </div>
-    <div class="jarvis-sub">Esperando órdenes del Arquitecto</div>
+    <div class="jarvis-sub" id="jarvisMessage">
+      Esperando órdenes del Arquitecto
+    </div>
   </div>
 </div>
 
 <style>
 .jarvis-hud{
   position:fixed;
-  inset:0;                 /* ocupa toda la pantalla */
+  inset:0;
   display:flex;
   align-items:center;
   justify-content:center;
   z-index:9999;
-  pointer-events:none;     /* no bloquea clicks fuera de la tarjeta */
+  pointer-events:none;
+
+  /* 🔥 OCULTO POR DEFECTO */
+  opacity:0;
+  transform:scale(0.9);
+  transition:all 0.3s ease;
 }
 
-/* “aura” / core */
+.jarvis-hud.active{
+  opacity:1;
+  transform:scale(1);
+}
+
+/* aura */
 .jarvis-core{
   position:absolute;
   width:280px;
@@ -1702,7 +1713,7 @@ return;
 
 /* tarjeta */
 .jarvis-card{
-  pointer-events:auto; /* la tarjeta sí recibe eventos */
+  pointer-events:auto;
   min-width:260px;
   padding:18px 22px;
   border-radius:16px;
@@ -1758,7 +1769,34 @@ return;
   50%{ transform:translateY(-6px);}
 }
 </style>
-        <span id="jarvisState">Vigilando sistemas...</span>
-    </div>
+
+<script>
+// ==============================
+// 🧠 CONTROL REAL DE JARVIS
+// ==============================
+
+// 🔥 GLOBAL (para que funcione en todo tu sistema)
+window.showJarvis = function(msg = "Procesando...") {
+    const hud = document.getElementById("jarvisHud");
+    const text = document.getElementById("jarvisMessage");
+
+    if (!hud) return;
+
+    if (text) text.innerText = msg;
+
+    hud.classList.add("active");
+
+    // 🔥 se oculta solo
+    setTimeout(() => {
+        hud.classList.remove("active");
+    }, 2500);
+};
+
+// 🔥 PRUEBA AUTOMÁTICA (puedes borrarla luego)
+window.addEventListener("load", () => {
+    window.showJarvis("Sistema listo");
+});
+</script>
+
 </body>
 </html>
