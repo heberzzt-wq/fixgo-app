@@ -1188,7 +1188,10 @@ const plan = {
 // 💾 Guardar plan
 await window.savePendingPlan?.(plan);
 
-// 📺 Mostrar preview (aquí aparece el "arre")
+// 🔥 CLAVE: registrar último plan para "arre"
+window.__LAST_PLAN_ID__ = plan.id;
+
+// 📺 Mostrar preview
 window.renderPlanPreview?.(plan);
 
 console.log("🧠 [PLAN_GENERATED_FROM_TERMINAL]:", plan.id);
