@@ -591,6 +591,31 @@ window.JARVIS_SANDBOX_FILES ||= {};
 
 window.__REPO_INDEX__ ||= {};
 
+/* =====================================================
+   REPO BOOTSTRAP INDEX
+===================================================== */
+
+window.__REPO_INDEX__["gestia-terminal.js"] = {
+    path: "gestia-terminal.js",
+    module: "terminal",
+    type: "runtime_ui",
+    critical: true
+};
+
+window.__REPO_INDEX__["operations-executor.engine.js"] = {
+    path: "gestia-core/operations-executor.engine.js",
+    module: "executor",
+    type: "transactional_engine",
+    critical: true
+};
+
+window.__REPO_INDEX__["plans.engine.js"] = {
+    path: "gestia-core/plans.engine.js",
+    module: "planner",
+    type: "approval_engine",
+    critical: true
+};
+
 window.writeSandboxFile = async function(payload = {}) {
 
     try {
