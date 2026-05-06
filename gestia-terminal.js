@@ -661,6 +661,81 @@ window.findRepoFile = function(query = "") {
     }
 };
 
+/* =====================================================
+   REPO CONTEXT LOADER
+===================================================== */
+
+window.__REPO_SOURCE_CACHE__ ||= {};
+
+window.loadRepoContext = async function(fileName = "") {
+
+    try {
+
+        const found =
+            window.findRepoFile(fileName);
+
+        if (!found) {
+            throw new Error(
+                "FILE_NOT_REGISTERED"
+            );
+        }
+
+        const [
+            key,
+            meta
+        ] = found;
+
+        console.log(
+            "🧠 [REPO_LOAD]:",
+            key
+        );
+
+        // 🔥 cache hit
+        if (
+            window.__REPO_SOURCE_CACHE__[key]
+        ) {
+
+            return {
+                ok: true,
+                cached: true,
+                file: key,
+                source:
+                    window.__REPO_SOURCE_CACHE__[key]
+            };
+        }
+
+        // 🔥 runtime fetch
+        const response =
+            await fetch(meta.path);
+
+        const source =
+            await response.text();
+
+        // 🔥 cache
+        window.__REPO_SOURCE_CACHE__[key] =
+            source;
+
+        return {
+            ok: true,
+            cached: false,
+            file: key,
+            source
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ REPO_CONTEXT_FAIL:",
+            err
+        );
+
+        return {
+            ok: false,
+            error: err.message
+        };
+    }
+};
+
 window.writeSandboxFile = async function(payload = {}) {
 
     try {
