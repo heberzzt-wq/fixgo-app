@@ -75,14 +75,14 @@ export function normalizeAIPlan(planRaw = {}, traceId = "no_trace") {
 
     // 🔥 UNIFICAR TEXTO DE MULTI-INTENT (ANTES DEL LOOP)
 let unifiedText = rawSteps
-    .map(s => s?.intent || s?.type || "")
-    .join(" ")
-    .toLowerCase();
+    .map(s => JSON.stringify(s).toLowerCase())
+    .join(" ");
 
 // 🔥 DETECTOR GLOBAL DE CODE_WRITE
 if (
-    unifiedText.includes("archivo") ||
-    unifiedText.includes(".js")
+     unifiedText.includes("archivo") ||
+    unifiedText.includes(".js") ||
+    unifiedText.includes("export")
 ) {
     const normalizedStep = {
         id: `step_${Date.now()}`,
