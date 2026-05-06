@@ -340,13 +340,11 @@ export async function ejecutarCambios(proposal) {
                         });
                         break;
 
-                        case "CODE_WRITE":
+                       case "CODE_WRITE":
 
     /* =====================================================
-   SANDBOX RUNTIME MIRROR
-===================================================== */
-
-{
+       SANDBOX RUNTIME MIRROR
+    ===================================================== */
 
     try {
 
@@ -380,39 +378,60 @@ export async function ejecutarCambios(proposal) {
         );
     }
 
-}
+    transaction.set(
 
-    const fileName = payload?.file || `auto_${Date.now()}.js`;
+        doc(
+            collection(db, "repo_files")
+        ),
 
-    const repoFileRef = doc(
-        collection(db, "repo_files")
+        deepSanitize({
+
+            file:
+                payload?.file ||
+                `auto_${Date.now()}.js`,
+
+            content:
+                payload?.content ||
+                "// archivo generado por jarvis",
+
+            created_at:
+                serverTimestamp(),
+
+            created_by:
+                ejecutado_por ||
+                "jarvis_ai",
+
+            op_id:
+                opId,
+
+            tenantId:
+                tenantId,
+
+            status:
+                "active"
+        })
     );
 
-    transaction.set(repoFileRef, deepSanitize({
-        file: repoFileName,
-        content: payload?.content || "// archivo generado por jarvis",
-        created_at: serverTimestamp(),
-        created_by: ejecutado_por || "jarvis_ai",
-        op_id: opId,
-        tenantId: tenantId,
-        status: "active"
-    }));
-
     retryBuffer.push({
+
         type,
-    target: repoFileName,
-        status: "file_created"
+
+        target:
+            payload?.file ||
+            `auto_${Date.now()}.js`,
+
+        status:
+            "file_created"
     });
 
     emitirPulsoHUD(
-    opId,
-    "WRITE",
-    "CODE_WRITE",
-    repoFileName
-);
+        opId,
+        "WRITE",
+        "CODE_WRITE",
+        payload?.file || "auto_file"
+    );
 
     break;
-
 
 
     const repoFileName =
