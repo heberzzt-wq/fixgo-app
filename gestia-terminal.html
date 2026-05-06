@@ -1661,23 +1661,103 @@ return;
 }); // CIERRE DEL DOMContentLoaded
     </script>
 
-    <!-- HUD PERSISTENTE GESTIAPREMIUM -->
-    <div id="jarvisHud" style="
-        position:fixed;
-        top:18px;
-        right:18px;
-        z-index:9999;
-        background:rgba(8,47,73,.88);
-        color:#67e8f9;
-        padding:10px 14px;
-        border-radius:12px;
-        font-family:Arial,sans-serif;
-        font-size:13px;
-        box-shadow:0 0 14px rgba(103,232,249,.25);
-        backdrop-filter:blur(6px);
-        border:1px solid rgba(103,232,249,.25);
-    ">
-        🤖 JARVIS ONLINE<br>
+   <!-- HUD CINEMATIC -->
+<div id="jarvisHud" class="jarvis-hud">
+  <div class="jarvis-core"></div>
+  <div class="jarvis-card">
+    <div class="jarvis-title">🤖 JARVIS</div>
+    <div class="jarvis-status">
+      <span class="dot"></span>
+      ONLINE — Vigilancia estable
+    </div>
+    <div class="jarvis-sub">Esperando órdenes del Arquitecto</div>
+  </div>
+</div>
+
+<style>
+.jarvis-hud{
+  position:fixed;
+  inset:0;                 /* ocupa toda la pantalla */
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:9999;
+  pointer-events:none;     /* no bloquea clicks fuera de la tarjeta */
+}
+
+/* “aura” / core */
+.jarvis-core{
+  position:absolute;
+  width:280px;
+  height:280px;
+  border-radius:50%;
+  background: radial-gradient(circle,
+    rgba(103,232,249,0.35) 0%,
+    rgba(103,232,249,0.18) 25%,
+    rgba(103,232,249,0.08) 45%,
+    transparent 70%);
+  filter: blur(12px);
+  animation: pulse 3.2s ease-in-out infinite;
+}
+
+/* tarjeta */
+.jarvis-card{
+  pointer-events:auto; /* la tarjeta sí recibe eventos */
+  min-width:260px;
+  padding:18px 22px;
+  border-radius:16px;
+  text-align:center;
+  color:#67e8f9;
+  background:rgba(8,47,73,0.65);
+  border:1px solid rgba(103,232,249,0.35);
+  backdrop-filter:blur(10px);
+  box-shadow:
+    0 0 30px rgba(103,232,249,0.25),
+    inset 0 0 10px rgba(103,232,249,0.15);
+  animation: float 4.5s ease-in-out infinite;
+  font-family:Arial, sans-serif;
+}
+
+.jarvis-title{
+  font-size:16px;
+  letter-spacing:2px;
+  margin-bottom:6px;
+}
+
+.jarvis-status{
+  font-size:13px;
+  opacity:.9;
+  margin-bottom:6px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+}
+
+.dot{
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#22c55e;
+  box-shadow:0 0 10px #22c55e;
+}
+
+.jarvis-sub{
+  font-size:11px;
+  opacity:.6;
+}
+
+/* animaciones */
+@keyframes pulse{
+  0%,100%{ transform:scale(1); opacity:.7;}
+  50%{ transform:scale(1.15); opacity:1;}
+}
+
+@keyframes float{
+  0%,100%{ transform:translateY(0);}
+  50%{ transform:translateY(-6px);}
+}
+</style>
         <span id="jarvisState">Vigilando sistemas...</span>
     </div>
 </body>
