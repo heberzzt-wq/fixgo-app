@@ -1145,23 +1145,57 @@ await window.approvePlan(planId, {
     tenantId: window.session?.tenantId
 });
 
-    handled = true;
-
-    return;
+handled = true;
+return;
 
 } else {
 
     try {
+
+        // 🔥 INTERCEPTOR DIRECTO (ANTES DEL BRIDGE)
+        const raw = String(comando || "").toLowerCase();
+
+        if (
+            raw.includes("archivo") &&
+            raw.includes(".js")
+        ) {
+            console.log("🧠 [FORCE CODE_WRITE FROM TERMINAL]");
+
+            const fileMatch = raw.match(/modules\/[a-zA-Z0-9_\-]+\.js/);
+
+            const step = {
+                id: "step_force_" + Date.now(),
+                type: "CODE_WRITE",
+                target: {
+                    collection: "repo_files"
+                },
+                action: "custom",
+                payload: {
+                    file: fileMatch?.[0] || `modules/auto_${Date.now()}.js`,
+                    content: raw
+                }
+            };
+
+            await window.executeSteps([step], {
+                tenantId: window.session?.tenantId || "default",
+                userId: window.session?.uid || "system"
+            });
+
+            handled = true;
+            return; // 🔥 corta el flujo, no llega al bridge
+        }
+
+        // 🔁 FLUJO NORMAL (si no es código)
         if (window.JarvisBridge?.dispatch) {
             await window.JarvisBridge.dispatch(comando);
             handled = true;
         }
+
     } catch (bridgeErr) {
-        console.warn("⚠️ [BRIDGE_FAIL]: Fallback a Kernel.");
+        console.warn("⚠️ [BRIDGE_FAIL]: Fallback a Kernel.", bridgeErr);
     }
 
 }
-
                 // 2. Kernel Local (Heberto Core)
                 if (!handled) {
                     try {

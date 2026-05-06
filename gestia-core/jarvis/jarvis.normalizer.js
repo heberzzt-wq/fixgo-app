@@ -140,6 +140,46 @@ for (const step of rawSteps) {
         continue;
     }
 
+    // 🔥 DETECCIÓN POR CONTENIDO REAL (FIX DEFINITIVO)
+const rawText = JSON.stringify(step).toLowerCase();
+
+if (
+    rawText.includes("archivo") ||
+    rawText.includes(".js") ||
+    rawText.includes("export")
+) {
+    const fileMatch = rawText.match(/modules\/[a-zA-Z0-9_\-]+(\.js)?/);
+
+    const file = fileMatch
+        ? (fileMatch[0].endsWith(".js") ? fileMatch[0] : `${fileMatch[0]}.js`)
+        : `modules/auto_${Date.now()}.js`;
+
+    const normalizedStep = {
+        id: step.id || `step_${Math.random().toString(36).slice(2, 8)}`,
+        type: "CODE_WRITE",
+        target: {
+            collection: "repo_files",
+            docId: null,
+            query: null
+        },
+        action: "custom",
+        payload: {
+            file,
+            content: rawText
+        },
+        meta: {
+            reversible: true,
+            description: "AI Code Write (forced from text)"
+        },
+        traceId
+    };
+
+    console.log("🛠️ [NORMALIZER]: CODE_WRITE FORZADO DESDE TEXTO");
+
+    steps.push(normalizedStep);
+    continue;
+}
+
     //
     // 🔥 DETECTOR DIRECTO DE CODE_WRITE (single step)
     //
