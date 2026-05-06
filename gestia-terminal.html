@@ -1088,7 +1088,7 @@ if (existing) {
 
             const comando = textarea.value.trim();
 
-            showJarvisPersistent("analizando comando...");
+            window.showJarvisPersistent?.("analizando comando...");
             
             // Orden de validación defensivo para evitar microtasks encadenadas
             if (!comando || isProcessing) return;
@@ -1142,14 +1142,14 @@ if (!window.approvePlan) {
 
 console.log("🟢 Ejecutando approvePlan con:", planId);
 
-showJarvisPersistent("ejecutando plan...");
+window.showJarvisPersistent?.("ejecutando plan...");
 
 await window.approvePlan(planId, {
     id: window.session?.uid,
     tenantId: window.session?.tenantId
 });
 
-showJarvis("plan completado");
+window.showJarvis?.("plan completado");
 
 handled = true;
 return;
@@ -1199,7 +1199,7 @@ if (window.__GESTIA_TERMINAL__?.pendingPlans) {
 // 💾 2. 🔥 REAL (EL ÚNICO IMPORTANTE)
 await window.savePendingPlan(plan);
 
-showJarvisPersistent("plan táctico generado");
+window.showJarvisPersistent?.("plan táctico generado");
 
 // 🔥 lastPlanId
 window.lastPlanId = plan.id;
@@ -1221,7 +1221,7 @@ return;
 
     } catch (bridgeErr) {
 
-        showJarvis("error operativo");
+        window.showJarvis?.("error operativo");
         console.warn("⚠️ [BRIDGE_FAIL]: Fallback a Kernel.", bridgeErr);
     }
 

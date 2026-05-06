@@ -1236,7 +1236,7 @@ if (APPROVAL_WORDS.includes(cmd)) {
 
     console.log("🟢 [APPROVAL DETECTED]:", cmd);
 
-    showJarvisPersistent("ejecutando plan...");
+    window.showJarvisPersistent?.("ejecutando plan...");
 
     await this.setState(
         STATES.APPLY_ATOMIC,
@@ -1252,7 +1252,7 @@ const result = await approvePlan(lastPlanId, {
     tenantId: this.session?.tenantId
 });
 
-showJarvis("plan completado");
+window.showJarvis?.("plan completado");
 
 return result;
 }
