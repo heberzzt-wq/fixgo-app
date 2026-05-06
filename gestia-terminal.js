@@ -999,17 +999,65 @@ window.applyPatch = async function(patch = {}) {
             `patch aplicado: ${key}`
         );
 
-        return {
+        /* =====================================================
+   FILESYSTEM WRITE
+===================================================== */
 
-            ok: true,
+let fsWrite = null;
 
-            file: key,
+try {
 
-            runtimeOnly: true,
+    fsWrite = await fetch(
+        "http://localhost:3344/write",
+        {
+            method: "POST",
 
-            patchSize:
-                patched.length
-        };
+            headers: {
+                "Content-Type":
+                    "application/json"
+            },
+
+            body: JSON.stringify({
+
+                file:
+                    meta?.path || key,
+
+                content:
+                    patched
+            })
+        }
+    );
+
+    fsWrite =
+        await fsWrite.json();
+
+    console.log(
+        "🧠 [FS_WRITE_RESULT]:",
+        fsWrite
+    );
+
+} catch (fsErr) {
+
+    console.warn(
+        "⚠️ FS_WRITE_FAIL:",
+        fsErr
+    );
+}
+
+return {
+
+    ok: true,
+
+    file: key,
+
+    runtimeOnly: true,
+
+    filesystem:
+        !!fsWrite?.ok,
+
+    patchSize:
+        patched.length
+};
 
     } catch (err) {
 
