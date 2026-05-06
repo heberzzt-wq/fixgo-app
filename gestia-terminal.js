@@ -822,6 +822,115 @@ window.scanRepo = function(filters = {}) {
     }
 };
 
+/* =====================================================
+   PATCH ENGINE V1
+===================================================== */
+
+window.generatePatch = async function(config = {}) {
+
+    try {
+
+        const {
+            file,
+            search,
+            replace
+        } = config;
+
+        if (!file) {
+            throw new Error(
+                "FILE_REQUIRED"
+            );
+        }
+
+        if (!search) {
+            throw new Error(
+                "SEARCH_REQUIRED"
+            );
+        }
+
+        const loaded =
+            await window.loadRepoContext(
+                file
+            );
+
+        if (!loaded?.ok) {
+            throw new Error(
+                loaded?.error ||
+                "LOAD_FAIL"
+            );
+        }
+
+        const source =
+            loaded.source || "";
+
+        const exists =
+            source.includes(search);
+
+        if (!exists) {
+
+            return {
+                ok: false,
+                reason: "SEARCH_NOT_FOUND",
+                file
+            };
+        }
+
+        const patched =
+            source.replace(
+                search,
+                replace || ""
+            );
+
+        const diffPreview = {
+
+            file,
+
+            search,
+
+            replace,
+
+            beforeLength:
+                source.length,
+
+            afterLength:
+                patched.length,
+
+            changed:
+                source !== patched
+        };
+
+        console.log(
+            "🧠 [PATCH_GENERATED]:",
+            diffPreview
+        );
+
+        return {
+
+            ok: true,
+
+            file,
+
+            original: source,
+
+            patched,
+
+            diff: diffPreview
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ PATCH_ENGINE_FAIL:",
+            err
+        );
+
+        return {
+            ok: false,
+            error: err.message
+        };
+    }
+};
+
 window.writeSandboxFile = async function(payload = {}) {
 
     try {
