@@ -70,20 +70,26 @@ export function normalizeAIPlan(planRaw = {}, traceId = "no_trace") {
     const steps = [];
 
     /* =====================================================
-        🧠 4. NORMALIZACIÓN DE CADA STEP
-    ===================================================== */
+    🧠 4. NORMALIZACIÓN DE CADA STEP (FIX FINAL ESTABLE)
+===================================================== */
 
-    // 🔥 UNIFICAR TEXTO DE MULTI-INTENT (ANTES DEL LOOP)
-let unifiedText = rawSteps
-    .map(s => JSON.stringify(s).toLowerCase())
-    .join(" ");
+//
+// 🔥 1. MULTI-INTENT → SIEMPRE UNIFICAR A CODE_WRITE
+//
+if (Array.isArray(rawSteps) && rawSteps.length >= 2) {
 
-// 🔥 DETECTOR GLOBAL DE CODE_WRITE
-if (
-     unifiedText.includes("archivo") ||
-    unifiedText.includes(".js") ||
-    unifiedText.includes("export")
-) {
+    const unifiedText = rawSteps
+        .map(s => JSON.stringify(s))
+        .join(" ")
+        .toLowerCase();
+
+    // 🔍 detectar archivo (robusto)
+    const fileMatch = unifiedText.match(/modules\/[a-zA-Z0-9_\-]+(\.js)?/);
+
+    const file = fileMatch
+        ? (fileMatch[0].endsWith(".js") ? fileMatch[0] : `${fileMatch[0]}.js`)
+        : `modules/auto_${Date.now()}.js`;
+
     const normalizedStep = {
         id: `step_${Date.now()}`,
         type: "CODE_WRITE",
@@ -91,21 +97,20 @@ if (
             collection: "repo_files",
             docId: null,
             query: null
-
         },
         action: "custom",
         payload: {
-            file: unifiedText.match(/modules\/[a-zA-Z0-9_\-]+\.js/)?.[0] || `modules/auto_${Date.now()}.js`,
+            file,
             content: unifiedText
         },
         meta: {
             reversible: true,
-            description: "AI Code Write"
+            description: "AI Code Write (Unified Multi-Intent)"
         },
         traceId
     };
 
-    console.log("🛠️ [NORMALIZER]: CODE_WRITE DETECTED (GLOBAL)");
+    console.log("🛠️ [NORMALIZER]: MULTI → CODE_WRITE UNIFICADO");
 
     return {
         id: `plan_${Date.now()}`,
@@ -115,100 +120,113 @@ if (
         createdAt: Date.now()
     };
 }
-    for (const step of rawSteps) {
 
-        console.log("🔍 [NORMALIZER]: STEP_RAW", step);
+//
+// 🔁 2. FLUJO NORMAL (UN SOLO STEP)
+//
+for (const step of rawSteps) {
 
-        if (!step || typeof step !== "object") {
-            console.warn("⚠️ Step inválido (no objeto)");
-            continue;
-        }
+    console.log("🔍 [NORMALIZER]: STEP_RAW", step);
 
-        const type = String(step.type || step.intent || "").toUpperCase();
-if (!type) {
-    console.warn("⚠️ Step sin type");
-    continue;
-}
+    if (!step || typeof step !== "object") {
+        console.warn("⚠️ Step inválido (no objeto)");
+        continue;
+    }
 
-// 🔥 DETECTOR DE CODE_WRITE (AQUÍ VA)
-if (
-    type.includes("CODE") ||
-    step.intent?.toLowerCase().includes("archivo") ||
-    step.payload?.file
-) {
-    const normalizedStep = {
-        id: step.id || `step_${Math.random().toString(36).slice(2, 8)}`,
-        type: "CODE_WRITE",
-        target: {
-            collection: "repo_files",
-            docId: null,
-            query: null
-        },
-        action: "custom",
-        payload: {
-            file: step.payload?.file || "modules/auto.js",
-            content: step.payload?.content || "// generado por jarvis"
-        },
-        meta: {
-            reversible: true,
-            description: "AI Code Write"
-        },
-        traceId
-    };
+    const type = String(step.type || step.intent || "").toUpperCase();
 
-    console.log("🛠️ [NORMALIZER]: CODE_WRITE DETECTED", normalizedStep);
+    if (!type) {
+        console.warn("⚠️ Step sin type");
+        continue;
+    }
 
-    steps.push(normalizedStep);
-    continue; // 🚨 IMPORTANTE: corta el flujo normal
-}
-
-// 🔥 TARGET FLEXIBLE (esto ya lo tenías)
-const collection =
-    step.target?.collection ||
-    step.target?.name ||
-    (typeof step.target === "string" ? step.target : null) ||
-    "system";
-
-        const action = step.action || inferAction(type);
-
-        if (action === "custom") {
-            console.warn("⚠️ Acción no soportada", type);
-            continue;
-        }
-
-        // 🔐 Validación mínima para escrituras
-        if ((type === "UPDATE" || type === "WRITE") && !step.payload) {
-            console.warn("⚠️ Step sin payload requerido", type);
-            continue;
-        }
-
+    //
+    // 🔥 DETECTOR DIRECTO DE CODE_WRITE (single step)
+    //
+    if (
+        type.includes("CODE") ||
+        step.payload?.file ||
+        step.intent?.toLowerCase().includes("archivo")
+    ) {
         const normalizedStep = {
             id: step.id || `step_${Math.random().toString(36).slice(2, 8)}`,
-            type,
+            type: "CODE_WRITE",
             target: {
-                collection,
-                docId: step.target?.docId || null,
-                query: step.target?.query || null
+                collection: "repo_files",
+                docId: null,
+                query: null
             },
-            action,
-            payload: step.payload || {},
+            action: "custom",
+            payload: {
+                file: step.payload?.file || `modules/auto_${Date.now()}.js`,
+                content: step.payload?.content || "// generado por jarvis"
+            },
             meta: {
-                reversible: step.meta?.reversible ?? true,
-                description: step.meta?.description || ""
+                reversible: true,
+                description: "AI Code Write"
             },
             traceId
         };
 
-        console.log("✅ [NORMALIZER]: STEP_OK", normalizedStep);
+        console.log("🛠️ [NORMALIZER]: CODE_WRITE DETECTED", normalizedStep);
 
         steps.push(normalizedStep);
+        continue;
     }
 
-    if (!steps.length) {
-        console.error("❌ [NORMALIZER]: SIN STEPS VÁLIDOS");
-        return null;
+    //
+    // 🔥 TARGET FLEXIBLE
+    //
+    const collection =
+        step.target?.collection ||
+        step.target?.name ||
+        (typeof step.target === "string" ? step.target : null) ||
+        "system";
+
+    const action = step.action || inferAction(type);
+
+    if (action === "custom") {
+        console.warn("⚠️ Acción no soportada", type);
+        continue;
     }
 
+    //
+    // 🔐 VALIDACIÓN
+    //
+    if ((type === "UPDATE" || type === "WRITE") && !step.payload) {
+        console.warn("⚠️ Step sin payload requerido", type);
+        continue;
+    }
+
+    const normalizedStep = {
+        id: step.id || `step_${Math.random().toString(36).slice(2, 8)}`,
+        type,
+        target: {
+            collection,
+            docId: step.target?.docId || null,
+            query: step.target?.query || null
+        },
+        action,
+        payload: step.payload || {},
+        meta: {
+            reversible: step.meta?.reversible ?? true,
+            description: step.meta?.description || ""
+        },
+        traceId
+    };
+
+    console.log("✅ [NORMALIZER]: STEP_OK", normalizedStep);
+
+    steps.push(normalizedStep);
+}
+
+//
+// ❌ SIN STEPS
+//
+if (!steps.length) {
+    console.error("❌ [NORMALIZER]: SIN STEPS VÁLIDOS");
+    return null;
+}
     /* =====================================================
         🧾 5. PLAN FINAL
     ===================================================== */
