@@ -1771,11 +1771,11 @@ return;
 </style>
 
 <script>
-// ==============================
-// 🧠 CONTROL REAL DE JARVIS
-// ==============================
+/* ==============================
+   🧠 CONTROL REAL DE JARVIS
+============================== */
 
-// 🔥 GLOBAL (para que funcione en todo tu sistema)
+// 🔥 GLOBAL (aparece y se oculta solo)
 window.showJarvis = function(msg = "Procesando...") {
     const hud = document.getElementById("jarvisHud");
     const text = document.getElementById("jarvisMessage");
@@ -1786,10 +1786,29 @@ window.showJarvis = function(msg = "Procesando...") {
 
     hud.classList.add("active");
 
-    // 🔥 se oculta solo
     setTimeout(() => {
         hud.classList.remove("active");
     }, 2500);
+};
+
+// 🔥 MODO PERSISTENTE (NO SE OCULTA)
+window.showJarvisPersistent = function(msg = "Actividad detectada") {
+    const hud = document.getElementById("jarvisHud");
+    const text = document.getElementById("jarvisMessage");
+
+    if (!hud) return;
+
+    if (text) text.innerText = msg;
+
+    hud.classList.add("active");
+};
+
+// 🔥 OCULTAR MANUAL
+window.hideJarvis = function() {
+    const hud = document.getElementById("jarvisHud");
+    if (!hud) return;
+
+    hud.classList.remove("active");
 };
 
 // 🔥 PRUEBA AUTOMÁTICA (puedes borrarla luego)
