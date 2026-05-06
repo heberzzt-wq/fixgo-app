@@ -227,6 +227,8 @@ if (!steps.length) {
     console.error("❌ [NORMALIZER]: SIN STEPS VÁLIDOS");
     return null;
 }
+
+
     /* =====================================================
         🧾 5. PLAN FINAL
     ===================================================== */

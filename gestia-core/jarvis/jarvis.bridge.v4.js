@@ -889,7 +889,9 @@ const multiActions = String(raw)
     .map(s => s.trim())
     .filter(Boolean);
 
-if (multiActions.length > 1) {
+const isCodeIntent = rawLow.includes("archivo") || rawLow.includes(".js");
+
+if (multiActions.length > 1 && !isCodeIntent) {
 
     console.log("🧠 [MULTI_INTENT_BYPASS_AI]:", multiActions);
 
