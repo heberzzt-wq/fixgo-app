@@ -384,11 +384,11 @@ export async function ejecutarCambios(proposal) {
 
     const fileName = payload?.file || `auto_${Date.now()}.js`;
 
-    const fileRef = doc(
+    const repoFileRef = doc(
         collection(db, "repo_files")
     );
 
-    transaction.set(fileRef, deepSanitize({
+    transaction.set(repoFileRef, deepSanitize({
         file: repoFileName,
         content: payload?.content || "// archivo generado por jarvis",
         created_at: serverTimestamp(),
@@ -419,11 +419,11 @@ export async function ejecutarCambios(proposal) {
     payload?.file ||
     `auto_${Date.now()}.js`;
 
-    const fileRef = doc(
+    const repoFileRef = doc(
         collection(db, "repo_files")
     );
 
-    transaction.set(fileRef, deepSanitize({
+    transaction.set(repoFileRef, deepSanitize({
         file: repoFileName,
         content: payload?.content || "// archivo generado por jarvis",
         created_at: serverTimestamp(),
