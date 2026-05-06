@@ -1185,12 +1185,20 @@ const plan = {
     createdAt: Date.now()
 };
 
-// 💾 Guardar plan en el Map REAL
-if (window.__GESTIA_TERMINAL__ && window.__GESTIA_TERMINAL__.pendingPlans) {
+// 💾 1. Guardar en el Map REAL (UI / estado)
+if (window.__GESTIA_TERMINAL__?.pendingPlans) {
     window.__GESTIA_TERMINAL__.pendingPlans.set(plan.id, plan);
     console.log("🧪 PLAN EN MAP:", window.__GESTIA_TERMINAL__.pendingPlans);
 } else {
     console.error("❌ pendingPlans no disponible");
+}
+
+// 💾 2. GUARDAR EN PERSISTENCE (🔥 CLAVE PARA approvePlan)
+try {
+    await window.savePendingPlan?.(plan);
+    console.log("🧪 PLAN GUARDADO EN PERSISTENCE:", plan.id);
+} catch (e) {
+    console.warn("⚠️ savePendingPlan falló:", e);
 }
 
 // 🔥 lastPlanId para "arre"
@@ -1200,6 +1208,7 @@ window.lastPlanId = plan.id;
 window.renderPlanPreview?.(plan);
 
 console.log("🧠 [PLAN_GENERATED_FROM_TERMINAL]:", plan.id);
+
 handled = true;
 return;
         }
