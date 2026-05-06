@@ -1189,7 +1189,7 @@ const plan = {
 await window.savePendingPlan?.(plan);
 
 // 🔥 CLAVE: registrar último plan para "arre"
-window.__LAST_PLAN_ID__ = plan.id;
+window.lastPlanId = plan.id; // 👈 este es el nombre correcto
 
 // 📺 Mostrar preview
 window.renderPlanPreview?.(plan);
