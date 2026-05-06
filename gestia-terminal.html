@@ -1185,20 +1185,20 @@ const plan = {
     createdAt: Date.now()
 };
 
-// 💾 Guardar plan en el sistema REAL (fuente de verdad)
-if (window.__GESTIA_TERMINAL__) {
+// 💾 Guardar plan en el Map REAL
+if (window.__GESTIA_TERMINAL__ && window.__GESTIA_TERMINAL__.pendingPlans) {
     window.__GESTIA_TERMINAL__.pendingPlans.set(plan.id, plan);
+    console.log("🧪 PLAN EN MAP:", window.__GESTIA_TERMINAL__.pendingPlans);
 } else {
-    console.error("❌ __GESTIA_TERMINAL__ no disponible");
+    console.error("❌ pendingPlans no disponible");
 }
 
-// 🔥 Registrar último plan (para "arre")
+// 🔥 lastPlanId para "arre"
 window.lastPlanId = plan.id;
 
-// 📺 Mostrar preview
+// 📺 preview
 window.renderPlanPreview?.(plan);
 
-// 🧪 Debug mínimo (opcional pero útil)
 console.log("🧠 [PLAN_GENERATED_FROM_TERMINAL]:", plan.id);
 handled = true;
 return;
