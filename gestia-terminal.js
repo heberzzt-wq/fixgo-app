@@ -922,18 +922,32 @@ window.loadFirestoreModule = async function(moduleName = "") {
 
 
 /* =====================================================
-   MODULE INSPECTOR V1
+   MODULE INSPECTOR V2
 ===================================================== */
 
 window.inspectModule = function(moduleName = "") {
 
     try {
 
-        const mod =
+        console.log(
+            "🧠 [INSPECT_MODULE]:",
+            moduleName
+        );
+
+        console.log(
+            "🧠 [MODULES_AVAILABLE]:",
+            Object.keys(
+                window.MODULE_CONTEXT
+                    ?.loaded || {}
+            )
+        );
+
+        const loaded =
             window.MODULE_CONTEXT
-                ?.loaded?.[
-                    moduleName
-                ];
+                ?.loaded || {};
+
+        const mod =
+            loaded[moduleName];
 
         if (!mod) {
 
@@ -942,7 +956,12 @@ window.inspectModule = function(moduleName = "") {
                 ok: false,
 
                 error:
-                    "MODULE_NOT_LOADED"
+                    "MODULE_NOT_LOADED",
+
+                available:
+                    Object.keys(
+                        loaded
+                    )
             };
         }
 
@@ -952,9 +971,7 @@ window.inspectModule = function(moduleName = "") {
            VERSION
         ========================= */
 
-        if (
-            !mod.version
-        ) {
+        if (!mod.version) {
 
             risks.push(
                 "VERSION_MISSING"
@@ -977,22 +994,7 @@ window.inspectModule = function(moduleName = "") {
         }
 
         /* =========================
-           WIDGETS
-        ========================= */
-
-        if (
-            !Array.isArray(
-                mod.widgets_pro
-            )
-        ) {
-
-            risks.push(
-                "WIDGETS_INVALID"
-            );
-        }
-
-        /* =========================
-           ACTIONS
+           UI ACTIONS
         ========================= */
 
         if (
@@ -1014,20 +1016,25 @@ window.inspectModule = function(moduleName = "") {
             module:
                 moduleName,
 
-            risks,
-
             version:
                 mod.version,
+
+            risks,
 
             roles:
                 mod.seguridad_roles || [],
 
             widgets:
-                mod.widgets_pro || [],
+                mod.esquema_interfaz
+                    ?.widgets_pro || [],
 
             actions:
                 mod.esquema_interfaz
-                    ?.acciones_permitidas || []
+                    ?.acciones_permitidas || [],
+
+            fields:
+                mod.esquema_base_datos
+                    ?.campos?.length || 0
         };
 
     } catch (err) {
