@@ -920,6 +920,133 @@ window.loadFirestoreModule = async function(moduleName = "") {
     }
 };
 
+
+/* =====================================================
+   MODULE INSPECTOR V1
+===================================================== */
+
+window.inspectModule = function(moduleName = "") {
+
+    try {
+
+        const mod =
+            window.MODULE_CONTEXT
+                ?.loaded?.[
+                    moduleName
+                ];
+
+        if (!mod) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "MODULE_NOT_LOADED"
+            };
+        }
+
+        const risks = [];
+
+        /* =========================
+           VERSION
+        ========================= */
+
+        if (
+            !mod.version
+        ) {
+
+            risks.push(
+                "VERSION_MISSING"
+            );
+        }
+
+        /* =========================
+           ROLES
+        ========================= */
+
+        if (
+            !Array.isArray(
+                mod.seguridad_roles
+            )
+        ) {
+
+            risks.push(
+                "ROLES_INVALID"
+            );
+        }
+
+        /* =========================
+           WIDGETS
+        ========================= */
+
+        if (
+            !Array.isArray(
+                mod.widgets_pro
+            )
+        ) {
+
+            risks.push(
+                "WIDGETS_INVALID"
+            );
+        }
+
+        /* =========================
+           ACTIONS
+        ========================= */
+
+        if (
+            !Array.isArray(
+                mod.esquema_interfaz
+                    ?.acciones_permitidas
+            )
+        ) {
+
+            risks.push(
+                "ACTIONS_INVALID"
+            );
+        }
+
+        return {
+
+            ok: true,
+
+            module:
+                moduleName,
+
+            risks,
+
+            version:
+                mod.version,
+
+            roles:
+                mod.seguridad_roles || [],
+
+            widgets:
+                mod.widgets_pro || [],
+
+            actions:
+                mod.esquema_interfaz
+                    ?.acciones_permitidas || []
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ MODULE_INSPECT_FAIL:",
+            err
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                err.message
+        };
+    }
+};
+
 /* =====================================================
    REPO SCANNER V1
 ===================================================== */
