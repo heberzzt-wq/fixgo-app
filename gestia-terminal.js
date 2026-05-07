@@ -1308,6 +1308,89 @@ window.findModuleByFile = function(fileName = "") {
 };
 
 /* =====================================================
+   FILE IMPACT ENGINE V1
+===================================================== */
+
+window.analyzeFileImpact = function(fileName = "") {
+
+    try {
+
+        const lookup =
+            window.findModuleByFile(
+                fileName
+            );
+
+        if (!lookup.ok) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "MODULE_NOT_FOUND",
+
+                file:
+                    fileName
+            };
+        }
+
+        const mod =
+            window.inspectModule(
+                lookup.module
+            );
+
+        const risk =
+            window.evaluateModuleRisk(
+                lookup.module
+            );
+
+        return {
+
+            ok: true,
+
+            file:
+                fileName,
+
+            module:
+                lookup.module,
+
+            moduleName:
+                mod.name,
+
+            roles:
+                mod.roles || [],
+
+            widgets:
+                mod.widgets || [],
+
+            actions:
+                mod.actions || [],
+
+            totalFields:
+                mod.fields || 0,
+
+            risks:
+                risk.risks || []
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ FILE_IMPACT_FAIL:",
+            err
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                err.message
+        };
+    }
+};
+
+/* =====================================================
    MODULE RISK ENGINE V1
 ===================================================== */
 
