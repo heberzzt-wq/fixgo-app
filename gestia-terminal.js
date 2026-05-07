@@ -1475,6 +1475,89 @@ window.findDependentModules = function(moduleName = "") {
     }
 };
 
+
+/* =====================================================
+   RISK PROPAGATION ENGINE V1
+===================================================== */
+
+window.propagateModuleRisk = function(moduleName = "") {
+
+    try {
+
+        const sourceRisk =
+            window.evaluateModuleRisk(
+                moduleName
+            );
+
+        const impacted =
+            window.findDependentModules(
+                moduleName
+            );
+
+        if (!sourceRisk.ok) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "SOURCE_MODULE_INVALID"
+            };
+        }
+
+        const propagated = [];
+
+        for (const item of impacted.impacted || []) {
+
+            propagated.push({
+
+                module:
+                    item.module,
+
+                inheritedFrom:
+                    moduleName,
+
+                inheritedRisks:
+                    sourceRisk.risks || [],
+
+                level:
+                    "propagated"
+            });
+        }
+
+        return {
+
+            ok: true,
+
+            source:
+                moduleName,
+
+            sourceRisks:
+                sourceRisk.risks || [],
+
+            totalAffected:
+                propagated.length,
+
+            propagated
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ RISK_PROPAGATION_FAIL:",
+            err
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                err.message
+        };
+    }
+};
+
 /* =====================================================
    MODULE RISK ENGINE V1
 ===================================================== */
