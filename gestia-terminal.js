@@ -1020,6 +1020,13 @@ window.normalizeModule = function(rawModule = {}) {
 
                 [],
 
+                // 🧠 module dependencies
+                dependencies:
+
+                rawModule.dependencies ||
+
+                [],
+
             // 🚨 riesgos
             risks:
 
