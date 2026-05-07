@@ -1209,24 +1209,28 @@ window.inspectModule = function(moduleName = "") {
             risks,
 
             roles:
-                mod.roles || [],
+    mod.roles || [],
 
-            widgets:
-                mod.widgets || [],
+widgets:
+    mod.widgets || [],
 
-            repoFiles:
-                mod.repoFiles || [],
+repoFiles:
+    mod.repoFiles || [],
 
-            actions:
-                mod.actions || [],
+// 🧠 module graph
+dependencies:
+    mod.dependencies || [],
 
-            fields:
-                mod.schema
-                    ?.campos
-                    ?.length || 0,
+actions:
+    mod.actions || [],
 
-            active:
-                mod.active !== false
+fields:
+    mod.schema
+        ?.campos
+        ?.length || 0,
+
+active:
+    mod.active !== false
         };
 
     } catch (err) {
