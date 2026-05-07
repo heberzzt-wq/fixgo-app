@@ -1239,6 +1239,74 @@ window.inspectModule = function(moduleName = "") {
     }
 };
 
+
+/* =====================================================
+   MODULE FILE LOOKUP V1
+===================================================== */
+
+window.findModuleByFile = function(fileName = "") {
+
+    try {
+
+        const loaded =
+            window.MODULE_CONTEXT
+                ?.loaded || {};
+
+        for (const moduleName in loaded) {
+
+            const mod =
+                loaded[moduleName];
+
+            const repoFiles =
+                mod.repoFiles || [];
+
+            if (
+                repoFiles.includes(
+                    fileName
+                )
+            ) {
+
+                return {
+
+                    ok: true,
+
+                    module:
+                        moduleName,
+
+                    file:
+                        fileName
+                };
+            }
+        }
+
+        return {
+
+            ok: false,
+
+            reason:
+                "MODULE_NOT_FOUND",
+
+            file:
+                fileName
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ MODULE_LOOKUP_FAIL:",
+            err
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                err.message
+        };
+    }
+};
+
 /* =====================================================
    MODULE RISK ENGINE V1
 ===================================================== */
