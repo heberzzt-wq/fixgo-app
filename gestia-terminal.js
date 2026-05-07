@@ -1207,6 +1207,9 @@ window.inspectModule = function(moduleName = "") {
             widgets:
                 mod.widgets || [],
 
+            repoFiles:
+                mod.repoFiles || [],
+
             actions:
                 mod.actions || [],
 
