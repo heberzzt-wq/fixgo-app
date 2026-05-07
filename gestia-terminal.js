@@ -590,7 +590,7 @@ window.JARVIS_SANDBOX_FILES ||= {};
    FIRESTORE MODULE CONTEXT V1
 ===================================================== */
 
-window.MODULE_CONTEXT ||= {
+window.__MODULE_CONTEXT__ ||= {
 
     loaded: {},
 
@@ -606,6 +606,9 @@ window.MODULE_CONTEXT ||= {
 
     lastSync: null
 };
+
+window.MODULE_CONTEXT =
+    window.__MODULE_CONTEXT__;
 /* =====================================================
    REPO REGISTRY V1
 ===================================================== */
