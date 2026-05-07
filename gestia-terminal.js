@@ -616,6 +616,27 @@ window.__REPO_INDEX__["plans.engine.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["tecnico-b2b.html"] = {
+
+    path: "tecnico-b2b.html",
+
+    module: "tecnico",
+
+    type: "mobile_ui",
+
+    critical: false
+};
+
+window.__REPO_INDEX__["app-tecnico-b2b.js"] = {
+
+    path: "app-tecnico-b2b.js",
+
+    module: "tecnico",
+
+    type: "mobile_runtime",
+
+    critical: true
+};
 /* =====================================================
    REPO LOOKUP ENGINE
 ===================================================== */
