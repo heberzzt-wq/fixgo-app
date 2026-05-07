@@ -995,6 +995,18 @@ window.applyPatch = async function(patch = {}) {
             meta
         ] = found;
 
+        /* =====================================================
+   AUTO SNAPSHOT
+===================================================== */
+
+await window.createRepoSnapshot?.({
+
+    file: key,
+
+    source:
+        patch?.original || ""
+});
+
         // 🔥 runtime patched cache
         window.__PATCHED_RUNTIME__ ||= {};
 
