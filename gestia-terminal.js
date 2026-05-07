@@ -1061,7 +1061,7 @@ window.normalizeModule = function(rawModule = {}) {
 
 
 /* =====================================================
-   MODULE INSPECTOR V2
+   MODULE INSPECTOR V3
 ===================================================== */
 
 window.inspectModule = function(moduleName = "") {
@@ -1123,7 +1123,7 @@ window.inspectModule = function(moduleName = "") {
 
         if (
             !Array.isArray(
-                mod.seguridad_roles
+                mod.roles
             )
         ) {
 
@@ -1133,18 +1133,46 @@ window.inspectModule = function(moduleName = "") {
         }
 
         /* =========================
-           UI ACTIONS
+           WIDGETS
         ========================= */
 
         if (
             !Array.isArray(
-                mod.esquema_interfaz
-                    ?.acciones_permitidas
+                mod.widgets
+            )
+        ) {
+
+            risks.push(
+                "WIDGETS_INVALID"
+            );
+        }
+
+        /* =========================
+           ACTIONS
+        ========================= */
+
+        if (
+            !Array.isArray(
+                mod.actions
             )
         ) {
 
             risks.push(
                 "ACTIONS_INVALID"
+            );
+        }
+
+        /* =========================
+           SCHEMA
+        ========================= */
+
+        if (
+            typeof mod.schema !==
+            "object"
+        ) {
+
+            risks.push(
+                "SCHEMA_INVALID"
             );
         }
 
@@ -1155,25 +1183,33 @@ window.inspectModule = function(moduleName = "") {
             module:
                 moduleName,
 
+            id:
+                mod.id,
+
+            name:
+                mod.name,
+
             version:
                 mod.version,
 
             risks,
 
             roles:
-                mod.seguridad_roles || [],
+                mod.roles || [],
 
             widgets:
-                mod.esquema_interfaz
-                    ?.widgets_pro || [],
+                mod.widgets || [],
 
             actions:
-                mod.esquema_interfaz
-                    ?.acciones_permitidas || [],
+                mod.actions || [],
 
             fields:
-                mod.esquema_base_datos
-                    ?.campos?.length || 0
+                mod.schema
+                    ?.campos
+                    ?.length || 0,
+
+            active:
+                mod.active !== false
         };
 
     } catch (err) {
