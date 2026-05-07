@@ -1230,6 +1230,128 @@ window.inspectModule = function(moduleName = "") {
 };
 
 /* =====================================================
+   MODULE RISK ENGINE V1
+===================================================== */
+
+window.evaluateModuleRisk = function(moduleName = "") {
+
+    try {
+
+        const mod =
+            window.inspectModule(
+                moduleName
+            );
+
+        if (!mod.ok) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "MODULE_INVALID"
+            };
+        }
+
+        const risks = [];
+
+        /* =========================
+           HIGH PRIVILEGE
+        ========================= */
+
+        if (
+            mod.roles.includes(
+                "super_admin"
+            )
+        ) {
+
+            risks.push({
+                level: "high",
+                code:
+                    "HIGH_PRIVILEGE_MODULE"
+            });
+        }
+
+        /* =========================
+           ACCESS CONTROL
+        ========================= */
+
+        if (
+            mod.roles.includes(
+                "guardia"
+            )
+        ) {
+
+            risks.push({
+                level: "medium",
+                code:
+                    "ACCESS_CONTROL_MODULE"
+            });
+        }
+
+        /* =========================
+           BYPASS CLOUD
+        ========================= */
+
+        if (
+            mod.actions.includes(
+                "bypass_cloud"
+            )
+        ) {
+
+            risks.push({
+                level: "critical",
+                code:
+                    "BYPASS_CLOUD_ENABLED"
+            });
+        }
+
+        /* =========================
+           TOO MANY WIDGETS
+        ========================= */
+
+        if (
+            mod.widgets.length >= 10
+        ) {
+
+            risks.push({
+                level: "medium",
+                code:
+                    "UI_OVERLOAD"
+            });
+        }
+
+        return {
+
+            ok: true,
+
+            module:
+                moduleName,
+
+            totalRisks:
+                risks.length,
+
+            risks
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ MODULE_RISK_FAIL:",
+            err
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                err.message
+        };
+    }
+};
+
+/* =====================================================
    REPO SCANNER V1
 ===================================================== */
 
