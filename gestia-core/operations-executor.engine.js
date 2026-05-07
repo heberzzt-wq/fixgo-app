@@ -534,9 +534,76 @@ export async function executeSteps(steps = [], context = {}) {
 
     console.log("🔥 EXECUTE_STEPS CALLED");
 
+    /* =====================================================
+   FIRESTORE RUNTIME COGNITION
+===================================================== */
+
+try {
+
+    const detectedModules =
+        new Set();
+
+    steps.forEach(step => {
+
+        // 🔥 módulo explícito
+        if (step?.module) {
+
+            detectedModules.add(
+                step.module
+            );
+        }
+
+        // 🔥 inferencia runtime
+        const target =
+            String(
+                step?.target || ""
+            ).toLowerCase();
+
+        if (
+            target.includes("b2b")
+        ) {
+
+            detectedModules.add(
+                "seguridad_accesos_b2b"
+            );
+        }
+    });
+
+    // 🔥 carga cognitiva
+    for (const mod of detectedModules) {
+
+        const loadResult =
+            await window
+                .loadFirestoreModule?.(
+                    mod
+                );
+
+        console.log(
+            "🧠 [MODULE_LOAD_RESULT]:",
+            loadResult
+        );
+    }
+
+    console.log(
+        "🧠 [MODULE_CONTEXT_READY]:",
+        Array.from(
+            detectedModules
+        )
+    );
+
+} catch (modErr) {
+
+    console.warn(
+        "⚠️ MODULE_COGNITION_FAIL:",
+        modErr
+    );
+}
+
     if (!Array.isArray(steps) || !steps.length) {
         throw new Error("No steps to execute");
     }
+
+
 
     // 🔁 Convertimos steps IA → proposal
     const proposal = {

@@ -585,6 +585,27 @@ window.listenLedgerRealtime = listenLedgerRealtime;
 
 window.JARVIS_SANDBOX_FILES ||= {};
 
+
+/* =====================================================
+   FIRESTORE MODULE CONTEXT V1
+===================================================== */
+
+window.MODULE_CONTEXT ||= {
+
+    loaded: {},
+
+    schemas: {},
+
+    permissions: {},
+
+    widgets: {},
+
+    risks: {},
+
+    validators: {},
+
+    lastSync: null
+};
 /* =====================================================
    REPO REGISTRY V1
 ===================================================== */
@@ -753,6 +774,148 @@ window.loadRepoContext = async function(fileName = "") {
         return {
             ok: false,
             error: err.message
+        };
+    }
+};
+
+
+/* =====================================================
+   FIRESTORE MODULE LOADER V1
+===================================================== */
+
+window.loadFirestoreModule = async function(moduleName = "") {
+
+    try {
+
+        if (!moduleName) {
+
+            throw new Error(
+                "MODULE_NAME_REQUIRED"
+            );
+        }
+
+        console.log(
+            "🧠 [FS_MODULE_LOAD]:",
+            moduleName
+        );
+
+        // 🔥 cache hit
+        if (
+            window.MODULE_CONTEXT?.loaded?.[
+                moduleName
+            ]
+        ) {
+
+            return {
+
+                ok: true,
+
+                cached: true,
+
+                module: moduleName
+            };
+        }
+
+        const modRef = doc(
+            db,
+            "gestia_system_modules",
+            moduleName
+        );
+
+        const snap =
+            await getDoc(modRef);
+
+        if (!snap.exists()) {
+
+            return {
+
+                ok: false,
+
+                reason:
+                    "MODULE_NOT_FOUND",
+
+                module:
+                    moduleName
+            };
+        }
+
+        const data =
+            snap.data() || {};
+
+        // 🔒 validación mínima
+
+        if (!data.version) {
+
+            throw new Error(
+                "MODULE_VERSION_MISSING"
+            );
+        }
+
+        // 🧠 registro cognitivo
+
+        window.MODULE_CONTEXT
+            .loaded[moduleName] = data;
+
+        window.MODULE_CONTEXT
+            .schemas[moduleName] =
+                data.schema || {};
+
+        window.MODULE_CONTEXT
+            .permissions[moduleName] =
+                data.permissions || {};
+
+        window.MODULE_CONTEXT
+            .widgets[moduleName] =
+                data.widgets || [];
+
+        window.MODULE_CONTEXT
+            .validators[moduleName] =
+                data.validators || {};
+
+        window.MODULE_CONTEXT
+            .risks[moduleName] =
+                data.risk_rules || [];
+
+        window.MODULE_CONTEXT
+            .lastSync = Date.now();
+
+        console.log(
+            "✅ [MODULE_READY]:",
+            moduleName
+        );
+
+        return {
+
+            ok: true,
+
+            module:
+                moduleName,
+
+            version:
+                data.version,
+
+            type:
+                data.type || "generic",
+
+            cached: false
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ MODULE_LOAD_FAIL:",
+            err
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                err.message,
+
+            module:
+                moduleName
         };
     }
 };
