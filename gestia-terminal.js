@@ -1073,6 +1073,36 @@ return {
     }
 };
 
+/* =====================================================
+   SAFE EDIT VALIDATOR V1
+===================================================== */
+
+window.isSafeEditZone = function(source = "") {
+
+    try {
+
+        return (
+
+            source.includes(
+                "FIXGO_SAFE_EDIT_START"
+            ) &&
+
+            source.includes(
+                "FIXGO_SAFE_EDIT_END"
+            )
+        );
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ SAFE_ZONE_CHECK_FAIL:",
+            err
+        );
+
+        return false;
+    }
+};
+
 window.writeSandboxFile = async function(payload = {}) {
 
     try {
