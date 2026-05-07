@@ -1402,6 +1402,80 @@ window.analyzeFileImpact = function(fileName = "") {
 };
 
 /* =====================================================
+   DEPENDENCY IMPACT ENGINE V1
+===================================================== */
+
+window.findDependentModules = function(moduleName = "") {
+
+    try {
+
+        const loaded =
+            window.MODULE_CONTEXT
+                ?.loaded || {};
+
+        const impacted = [];
+
+        for (const name in loaded) {
+
+            const mod =
+                loaded[name];
+
+            const deps =
+                mod.dependencies || [];
+
+            if (
+                deps.includes(
+                    moduleName
+                )
+            ) {
+
+                impacted.push({
+
+                    module:
+                        name,
+
+                    name:
+                        mod.name ||
+
+                        name,
+
+                    dependencies:
+                        deps
+                });
+            }
+        }
+
+        return {
+
+            ok: true,
+
+            target:
+                moduleName,
+
+            total:
+                impacted.length,
+
+            impacted
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ DEPENDENCY_IMPACT_FAIL:",
+            err
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                err.message
+        };
+    }
+};
+
+/* =====================================================
    MODULE RISK ENGINE V1
 ===================================================== */
 
