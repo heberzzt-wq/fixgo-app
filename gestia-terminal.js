@@ -845,9 +845,18 @@ window.loadFirestoreModule = async function(moduleName = "") {
         const data =
             snap.data() || {};
 
+        /* =====================================================
+           UNIVERSAL NORMALIZATION
+        ===================================================== */
+
+        const normalized =
+            window.normalizeModule?.(
+                data
+            ) || data;
+
         // 🔒 validación mínima
 
-        if (!data.version) {
+        if (!normalized.version) {
 
             throw new Error(
                 "MODULE_VERSION_MISSING"
@@ -857,27 +866,28 @@ window.loadFirestoreModule = async function(moduleName = "") {
         // 🧠 registro cognitivo
 
         window.MODULE_CONTEXT
-            .loaded[moduleName] = data;
+            .loaded[moduleName] =
+                normalized;
 
         window.MODULE_CONTEXT
             .schemas[moduleName] =
-                data.schema || {};
+                normalized.schema || {};
 
         window.MODULE_CONTEXT
             .permissions[moduleName] =
-                data.permissions || {};
+                normalized.permissions || {};
 
         window.MODULE_CONTEXT
             .widgets[moduleName] =
-                data.widgets || [];
+                normalized.widgets || [];
 
         window.MODULE_CONTEXT
             .validators[moduleName] =
-                data.validators || {};
+                normalized.validators || {};
 
         window.MODULE_CONTEXT
             .risks[moduleName] =
-                data.risk_rules || [];
+                normalized.risks || [];
 
         window.MODULE_CONTEXT
             .lastSync = Date.now();
@@ -895,10 +905,10 @@ window.loadFirestoreModule = async function(moduleName = "") {
                 moduleName,
 
             version:
-                data.version,
+                normalized.version,
 
             type:
-                data.type || "generic",
+                normalized.type || "generic",
 
             cached: false
         };
@@ -919,6 +929,132 @@ window.loadFirestoreModule = async function(moduleName = "") {
 
             module:
                 moduleName
+        };
+    }
+};
+
+/* =====================================================
+   MODULE NORMALIZER V1
+===================================================== */
+
+window.normalizeModule = function(rawModule = {}) {
+
+    try {
+
+        return {
+
+            // 🔥 identidad
+            id:
+                rawModule.modulo_id ||
+
+                rawModule.id ||
+
+                "unknown_module",
+
+            name:
+                rawModule.nombre_display ||
+
+                rawModule.name ||
+
+                "Unnamed Module",
+
+            version:
+                rawModule.version ||
+
+                rawModule.version_motor ||
+
+                "0.0.0",
+
+            description:
+                rawModule.descripcion ||
+
+                "",
+
+            // 🔐 seguridad
+            roles:
+
+                rawModule.seguridad_roles ||
+
+                rawModule.roles ||
+
+                [],
+
+            // 🧩 widgets
+            widgets:
+
+                rawModule.widgets_pro ||
+
+                rawModule.widgets ||
+
+                rawModule
+                    ?.esquema_interfaz
+                    ?.widgets_pro ||
+
+                [],
+
+            // 🧠 schema runtime
+            schema:
+
+                rawModule
+                    ?.esquema_base_datos ||
+
+                rawModule.schema ||
+
+                {},
+
+            // ⚙️ acciones
+            actions:
+
+                rawModule
+                    ?.esquema_interfaz
+                    ?.acciones_permitidas ||
+
+                rawModule.actions ||
+
+                [],
+
+            // 🚨 riesgos
+            risks:
+
+                rawModule.risk_rules ||
+
+                [],
+
+            // 🧪 validators
+            validators:
+
+                rawModule.validators ||
+
+                {},
+
+            // 🎨 UI
+            icon:
+
+                rawModule.icono ||
+
+                "cube",
+
+            // 🔧 runtime
+            active:
+                rawModule.active !== false,
+
+            raw:
+                rawModule
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ MODULE_NORMALIZE_FAIL:",
+            err
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                err.message
         };
     }
 };
