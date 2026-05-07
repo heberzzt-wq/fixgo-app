@@ -863,6 +863,28 @@ window.generatePatch = async function(config = {}) {
         const source =
             loaded.source || "";
 
+            /* =====================================================
+   SAFE ZONE ENFORCEMENT
+===================================================== */
+
+const safe =
+    window.isSafeEditZone?.(
+        source
+    );
+
+if (!safe) {
+
+    return {
+
+        ok: false,
+
+        reason:
+            "DENY_PATCH_UNSAFE_ZONE",
+
+        file
+    };
+}
+
         const exists =
             source.includes(search);
 
@@ -930,6 +952,8 @@ window.generatePatch = async function(config = {}) {
         };
     }
 };
+
+
 
 /* =====================================================
    PATCH APPLY ENGINE V1
