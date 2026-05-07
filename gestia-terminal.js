@@ -1127,6 +1127,74 @@ window.isSafeEditZone = function(source = "") {
     }
 };
 
+/* =====================================================
+   SNAPSHOT ENGINE V1
+===================================================== */
+
+window.__REPO_SNAPSHOTS__ ||= {};
+
+window.createRepoSnapshot = function(config = {}) {
+
+    try {
+
+        const {
+            file,
+            source
+        } = config;
+
+        if (!file) {
+            throw new Error(
+                "SNAPSHOT_FILE_REQUIRED"
+            );
+        }
+
+        window.__REPO_SNAPSHOTS__[file] ||= [];
+
+        const snapshot = {
+
+            createdAt:
+                Date.now(),
+
+            source:
+                source || "",
+
+            size:
+                (source || "").length
+        };
+
+        window.__REPO_SNAPSHOTS__[file]
+            .push(snapshot);
+
+        console.log(
+            "🧠 [SNAPSHOT_CREATED]:",
+            file
+        );
+
+        return {
+
+            ok: true,
+
+            file,
+
+            totalSnapshots:
+                window.__REPO_SNAPSHOTS__[file]
+                    .length
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ SNAPSHOT_FAIL:",
+            err
+        );
+
+        return {
+            ok: false,
+            error: err.message
+        };
+    }
+};
+
 window.writeSandboxFile = async function(payload = {}) {
 
     try {
