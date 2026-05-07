@@ -1013,6 +1013,13 @@ window.normalizeModule = function(rawModule = {}) {
 
                 [],
 
+            // 🔗 repo cognition
+            repoFiles:
+
+                rawModule.repo_files ||
+
+                [],
+
             // 🚨 riesgos
             risks:
 
