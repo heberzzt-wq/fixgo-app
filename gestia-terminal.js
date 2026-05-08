@@ -1610,6 +1610,195 @@ function() {
     }
 };
 
+
+/* =====================================================================================
+   REPO DEPENDENCY GRAPH V1
+===================================================================================== */
+
+window.__REPO_DEP_GRAPH__ ||= {};
+
+/* =====================================================
+   EXTRACT IMPORTS
+===================================================== */
+
+window.extractImportsFromSource =
+function(source = "") {
+
+    try {
+
+        const imports = [];
+
+        const regex =
+
+            /import\s+[\s\S]*?\s+from\s+['"](.*?)['"]/g;
+
+        let match;
+
+        while (
+            (match = regex.exec(source))
+            !== null
+        ) {
+
+            imports.push(
+                match[1]
+            );
+        }
+
+        return imports;
+
+    }
+
+    catch(error) {
+
+        console.warn(
+            "⚠️ IMPORT_EXTRACT_FAIL:",
+            error
+        );
+
+        return [];
+    }
+};
+
+/* =====================================================
+   BUILD DEPENDENCY GRAPH
+===================================================== */
+
+window.buildRepoDependencyGraph =
+async function() {
+
+    try {
+
+        console.log(
+            "🧠 [DEPENDENCY_GRAPH_BUILD]"
+        );
+
+        window.__REPO_DEP_GRAPH__ = {};
+
+        const entries =
+
+            Object.entries(
+                window.__REPO_INDEX__ || {}
+            );
+
+        for (
+            const [
+                file,
+                meta
+            ] of entries
+        ) {
+
+            try {
+
+                const loaded =
+
+                    await window
+                        .loadRepoContext(
+                            file
+                        );
+
+                if (
+                    !loaded?.ok
+                ) {
+
+                    console.warn(
+                        "⚠️ SOURCE_NOT_LOADED:",
+                        file
+                    );
+
+                    continue;
+                }
+
+                const source =
+                    loaded.source || "";
+
+                const imports =
+
+                    extractImportsFromSource(
+                        source
+                    );
+
+                window
+                    .__REPO_DEP_GRAPH__[
+                        file
+                    ] = {
+
+                    file,
+
+                    path:
+                        meta.path ||
+
+                        file,
+
+                    module:
+                        meta.module ||
+
+                        "unknown",
+
+                    dependencies:
+                        imports,
+
+                    totalDependencies:
+                        imports.length
+                };
+
+                console.log(
+                    `🔗 [GRAPH_NODE]: ${file}`,
+                    imports.length
+                );
+
+            }
+
+            catch(innerError) {
+
+                console.warn(
+                    "⚠️ GRAPH_NODE_FAIL:",
+                    file,
+                    innerError
+                );
+            }
+        }
+
+        console.log(
+            "✅ [DEPENDENCY_GRAPH_READY]",
+            Object.keys(
+                window
+                    .__REPO_DEP_GRAPH__
+            ).length
+        );
+
+        return {
+
+            ok: true,
+
+            total:
+                Object.keys(
+                    window
+                        .__REPO_DEP_GRAPH__
+                ).length,
+
+            graph:
+                window
+                    .__REPO_DEP_GRAPH__
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [DEPENDENCY_GRAPH_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
 /* =====================================================
    REPO BOOTSTRAP INDEX
 ===================================================== */
