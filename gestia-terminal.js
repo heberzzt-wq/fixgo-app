@@ -1822,6 +1822,109 @@ window.calculateModuleCriticality = function(moduleName = "") {
 };
 
 /* =====================================================
+   AUTO PROTECTION ENGINE V1
+===================================================== */
+
+window.canExecuteModuleOperation = function({
+
+    moduleName = "",
+
+    operation = "read"
+
+} = {}) {
+
+    try {
+
+        const critical =
+            window
+                .calculateModuleCriticality(
+                    moduleName
+                );
+
+        if (!critical.ok) {
+
+            return {
+
+                ok: false,
+
+                allowed: false,
+
+                error:
+                    "MODULE_INVALID"
+            };
+        }
+
+        /* =========================
+           CRITICAL PROTECTION
+        ========================= */
+
+        if (
+
+            critical.level ===
+                "critical"
+
+            &&
+
+            [
+                "delete",
+                "destroy",
+                "drop",
+                "wipe",
+                "bypass"
+            ].includes(
+                operation
+            )
+
+        ) {
+
+            return {
+
+                ok: true,
+
+                allowed: false,
+
+                reason:
+                    "CRITICAL_MODULE_PROTECTED",
+
+                module:
+                    moduleName,
+
+                level:
+                    critical.level
+            };
+        }
+
+        return {
+
+            ok: true,
+
+            allowed: true,
+
+            module:
+                moduleName,
+
+            level:
+                critical.level
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ AUTO_PROTECT_FAIL:",
+            err
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                err.message
+        };
+    }
+};
+
+/* =====================================================
    MODULE RISK ENGINE V1
 ===================================================== */
 
