@@ -1668,6 +1668,158 @@ window.validateModuleDependencies = function(moduleName = "") {
     }
 };
 
+/* =====================================================
+   AUTO CRITICALITY ENGINE V1
+===================================================== */
+
+window.calculateModuleCriticality = function(moduleName = "") {
+
+    try {
+
+        const mod =
+            window.inspectModule(
+                moduleName
+            );
+
+        if (!mod.ok) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "MODULE_NOT_FOUND"
+            };
+        }
+
+        const risk =
+            window.evaluateModuleRisk(
+                moduleName
+            );
+
+        const deps =
+            window.findDependentModules(
+                moduleName
+            );
+
+        let score = 0;
+
+        /* =========================
+           RISK SCORE
+        ========================= */
+
+        score +=
+            (risk.risks || [])
+                .length * 10;
+
+        /* =========================
+           DEPENDENCY SCORE
+        ========================= */
+
+        score +=
+            (deps.impacted || [])
+                .length * 15;
+
+        /* =========================
+           PRIVILEGE SCORE
+        ========================= */
+
+        if (
+            mod.roles.includes(
+                "super_admin"
+            )
+        ) {
+
+            score += 25;
+        }
+
+        /* =========================
+           ACCESS CONTROL
+        ========================= */
+
+        if (
+            mod.roles.includes(
+                "guardia"
+            )
+        ) {
+
+            score += 15;
+        }
+
+        /* =========================
+           BYPASS CLOUD
+        ========================= */
+
+        if (
+            mod.actions.includes(
+                "bypass_cloud"
+            )
+        ) {
+
+            score += 30;
+        }
+
+        /* =========================
+           CLASSIFICATION
+        ========================= */
+
+        let level =
+            "low";
+
+        if (score >= 80) {
+
+            level =
+                "critical";
+
+        } else if (
+            score >= 50
+        ) {
+
+            level =
+                "high";
+
+        } else if (
+            score >= 25
+        ) {
+
+            level =
+                "medium";
+        }
+
+        return {
+
+            ok: true,
+
+            module:
+                moduleName,
+
+            score,
+
+            level,
+
+            risks:
+                risk.risks || [],
+
+            dependencies:
+                deps.total || 0
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ CRITICALITY_FAIL:",
+            err
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                err.message
+        };
+    }
+};
 
 /* =====================================================
    MODULE RISK ENGINE V1
