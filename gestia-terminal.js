@@ -1668,6 +1668,287 @@ window.validateModuleDependencies = function(moduleName = "") {
     }
 };
 
+/* =====================================================================================
+   AUTO HEALING GOVERNANCE V1
+   DEPENDENCY REPAIR ENGINE
+===================================================================================== */
+
+window.proposeDependencyRepair = async function(moduleName) {
+
+    try {
+
+        console.log(`🛠️ [DEPENDENCY_REPAIR]: Analizando ${moduleName}`);
+
+        // =========================================================
+        // VALIDACIÓN BASE
+        // =========================================================
+
+        if (!moduleName) {
+
+            return {
+                success: false,
+                error: "MODULE_NAME_REQUIRED"
+            };
+
+        }
+
+        if (!MODULE_CONTEXT?.modules?.[moduleName]) {
+
+            return {
+                success: false,
+                error: "MODULE_NOT_FOUND"
+            };
+
+        }
+
+        // =========================================================
+        // COGNITIVE SOURCES
+        // =========================================================
+
+        const moduleData =
+            MODULE_CONTEXT.modules[moduleName];
+
+        const dependencyCheck =
+            validateModuleDependencies(moduleName);
+
+        const propagatedRisk =
+            propagateModuleRisk(moduleName);
+
+        const criticality =
+            calculateModuleCriticality(moduleName);
+
+        // =========================================================
+        // EXTRAER DEPENDENCIAS FALTANTES
+        // =========================================================
+
+        const missingDependencies =
+            dependencyCheck?.missingDependencies || [];
+
+        // =========================================================
+        // REPAIR GRAPH
+        // =========================================================
+
+        const repairGraph = {
+
+            module: moduleName,
+
+            timestamp: Date.now(),
+
+            criticality,
+
+            propagatedRisk,
+
+            totalMissing:
+                missingDependencies.length,
+
+            missingDependencies,
+
+            repairCandidates: [],
+
+            blockers: [],
+
+            warnings: [],
+
+            severity: "LOW",
+
+            autoRepairEligible: false,
+
+            graphRebuildRequired: false,
+
+            governanceAction: "ALLOW"
+
+        };
+
+        // =========================================================
+        // ANALIZAR DEPENDENCIAS FALTANTES
+        // =========================================================
+
+        for (const dep of missingDependencies) {
+
+            const repairCandidate = {
+
+                dependency: dep,
+
+                existsInModules: false,
+
+                existsInRepo: false,
+
+                existsInLazyRuntime: false,
+
+                suggestedAction: null,
+
+                confidence: 0
+
+            };
+
+            // =============================================
+            // EXISTE EN MODULE_CONTEXT
+            // =============================================
+
+            if (MODULE_CONTEXT?.modules?.[dep]) {
+
+                repairCandidate.existsInModules = true;
+
+                repairCandidate.suggestedAction =
+                    "RELINK_MODULE_REFERENCE";
+
+                repairCandidate.confidence = 95;
+
+            }
+
+            // =============================================
+            // EXISTE EN REPO FILES
+            // =============================================
+
+            else if (
+                MODULE_CONTEXT?.repoFiles?.some(
+                    file =>
+                        file.includes(dep)
+                )
+            ) {
+
+                repairCandidate.existsInRepo = true;
+
+                repairCandidate.suggestedAction =
+                    "HYDRATE_MODULE_FROM_REPO";
+
+                repairCandidate.confidence = 80;
+
+            }
+
+            // =============================================
+            // EXISTE EN LAZY MODULES
+            // =============================================
+
+            else if (
+                MODULE_CONTEXT?.lazyModules?.[dep]
+            ) {
+
+                repairCandidate.existsInLazyRuntime = true;
+
+                repairCandidate.suggestedAction =
+                    "LAZY_HYDRATION";
+
+                repairCandidate.confidence = 75;
+
+            }
+
+            // =============================================
+            // NO EXISTE EN NINGÚN LADO
+            // =============================================
+
+            else {
+
+                repairCandidate.suggestedAction =
+                    "CREATE_MODULE";
+
+                repairCandidate.confidence = 40;
+
+                repairGraph.blockers.push({
+                    type: "MISSING_RUNTIME_MODULE",
+                    dependency: dep
+                });
+
+            }
+
+            repairGraph.repairCandidates.push(
+                repairCandidate
+            );
+
+        }
+
+        // =========================================================
+        // CLASIFICACIÓN DE SEVERIDAD
+        // =========================================================
+
+        if (
+            criticality >= 90 ||
+            propagatedRisk >= 85
+        ) {
+
+            repairGraph.severity = "CRITICAL";
+
+            repairGraph.governanceAction =
+                "HARD_BLOCK";
+
+            repairGraph.graphRebuildRequired = true;
+
+        }
+
+        else if (
+            criticality >= 70 ||
+            propagatedRisk >= 70
+        ) {
+
+            repairGraph.severity = "HIGH";
+
+            repairGraph.governanceAction =
+                "SOFT_BLOCK";
+
+        }
+
+        else if (
+            missingDependencies.length > 0
+        ) {
+
+            repairGraph.severity = "MEDIUM";
+
+            repairGraph.governanceAction =
+                "RESTRICTED_EXECUTION";
+
+        }
+
+        // =========================================================
+        // AUTO REPAIR ELIGIBILITY
+        // =========================================================
+
+        const safeRepairs =
+            repairGraph.repairCandidates.every(
+                candidate =>
+                    candidate.confidence >= 75
+            );
+
+        repairGraph.autoRepairEligible =
+            safeRepairs;
+
+        // =========================================================
+        // LOG FINAL
+        // =========================================================
+
+        console.log(
+            "🧠 [REPAIR_GRAPH]",
+            repairGraph
+        );
+
+        return {
+
+            success: true,
+
+            repairGraph
+
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [DEPENDENCY_REPAIR_ERROR]",
+            error
+        );
+
+        return {
+
+            success: false,
+
+            error: error.message
+
+        };
+
+    }
+
+};
+
 /* =====================================================
    AUTO CRITICALITY ENGINE V1
 ===================================================== */
