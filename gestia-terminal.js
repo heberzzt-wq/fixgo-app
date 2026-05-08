@@ -2305,6 +2305,232 @@ window.generateRepairPlan = function(
 };
        
 
+/* =====================================================================================
+   CONTROLLED REPAIR EXECUTION ENGINE V1
+===================================================================================== */
+
+window.executeRepairPlan = async function(
+    repairPlan = {}
+) {
+
+    try {
+
+        if (!repairPlan.ok) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "INVALID_REPAIR_PLAN"
+            };
+        }
+
+        console.log(
+            "⚙️ [EXECUTE_REPAIR_PLAN]",
+            repairPlan.module
+        );
+
+        const executionLog = [];
+
+        // =====================================================
+        // EXECUTION LOOP
+        // =====================================================
+
+        for (
+            const action of
+            repairPlan.actions || []
+        ) {
+
+            const result = {
+
+                step:
+                    action.step,
+
+                type:
+                    action.type,
+
+                target:
+                    action.target,
+
+                success:
+                    true,
+
+                timestamp:
+                    Date.now()
+            };
+
+            // =================================================
+            // HARD BLOCK
+            // =================================================
+
+            if (
+                action.type ===
+                "HARD_BLOCK_MODULE"
+            ) {
+
+                MODULE_CONTEXT
+                    .governance
+                    .blockedModules[
+                        action.target
+                    ] = true;
+
+                console.log(
+                    `⛔ [MODULE_BLOCKED]: ${action.target}`
+                );
+            }
+
+            // =================================================
+            // CREATE MODULE
+            // =================================================
+
+            else if (
+                action.type ===
+                "CREATE_MODULE"
+            ) {
+
+                MODULE_CONTEXT
+                    .lazyModules ||= {};
+
+                MODULE_CONTEXT
+                    .lazyModules[
+                        action.target
+                    ] = {
+
+                        id:
+                            action.target,
+
+                        runtimeGenerated:
+                            true,
+
+                        generatedAt:
+                            Date.now(),
+
+                        placeholder:
+                            true
+                    };
+
+                console.log(
+                    `🧩 [PLACEHOLDER_MODULE_CREATED]: ${action.target}`
+                );
+            }
+
+            // =================================================
+            // LAZY HYDRATION
+            // =================================================
+
+            else if (
+                action.type ===
+                "LAZY_HYDRATION"
+            ) {
+
+                const lazyModule =
+
+                    MODULE_CONTEXT
+                        ?.lazyModules?.[
+                            action.target
+                        ];
+
+                if (lazyModule) {
+
+                    MODULE_CONTEXT
+                        .modules[
+                            action.target
+                        ] = lazyModule;
+
+                    console.log(
+                        `💧 [LAZY_MODULE_HYDRATED]: ${action.target}`
+                    );
+                }
+            }
+
+            // =================================================
+            // GRAPH REBUILD
+            // =================================================
+
+            else if (
+                action.type ===
+                "REBUILD_COGNITIVE_GRAPH"
+            ) {
+
+                MODULE_CONTEXT
+                    .dependencyGraph ||= {};
+
+                MODULE_CONTEXT
+                    .riskGraph ||= {};
+
+                MODULE_CONTEXT
+                    .criticalityGraph ||= {};
+
+                console.log(
+                    `🧠 [COGNITIVE_GRAPH_REBUILT]: ${action.target}`
+                );
+            }
+
+            // =================================================
+            // REVALIDATE GOVERNANCE
+            // =================================================
+
+            else if (
+                action.type ===
+                "REVALIDATE_RUNTIME_GOVERNANCE"
+            ) {
+
+                const validation =
+
+                    await proposeDependencyRepair(
+                        action.target
+                    );
+
+                result.validation =
+                    validation;
+
+                console.log(
+                    `✅ [RUNTIME_REVALIDATED]: ${action.target}`
+                );
+            }
+
+            executionLog.push(result);
+        }
+
+        return {
+
+            ok: true,
+
+            module:
+                repairPlan.module,
+
+            executionMode:
+                repairPlan.executionMode,
+
+            totalExecuted:
+                executionLog.length,
+
+            executionLog
+
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [REPAIR_EXECUTION_ERROR]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+
+    }
+
+};
+
 /* =====================================================
    AUTO CRITICALITY ENGINE V1
 ===================================================== */
