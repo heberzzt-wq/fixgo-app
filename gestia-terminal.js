@@ -2531,6 +2531,107 @@ window.executeRepairPlan = async function(
 
 };
 
+/* =====================================================================================
+   PERSISTENT RUNTIME RESTORATION V1
+===================================================================================== */
+
+window.restoreRuntimeCognition = async function() {
+
+    try {
+
+        console.log(
+            "♻️ [RUNTIME_RESTORATION]: INIT"
+        );
+
+        MODULE_CONTEXT.loaded ||= {};
+
+        MODULE_CONTEXT.modules ||= {};
+
+        // =====================================================
+        // RECOVER LAZY MODULES
+        // =====================================================
+
+        const lazyModules =
+
+            MODULE_CONTEXT
+                ?.lazyModules || {};
+
+        const lazyNames =
+
+            Object.keys(
+                lazyModules
+            );
+
+        for (
+            const moduleName of
+            lazyNames
+        ) {
+
+            MODULE_CONTEXT.loaded[
+                moduleName
+            ] = lazyModules[
+                moduleName
+            ];
+
+            registerRuntimeModule(
+                moduleName,
+                lazyModules[moduleName]
+            );
+
+            console.log(
+                `♻️ [MODULE_RESTORED]: ${moduleName}`
+            );
+        }
+
+        // =====================================================
+        // REBUILD RUNTIME GRAPHS
+        // =====================================================
+
+        MODULE_CONTEXT
+            .dependencyGraph ||= {};
+
+        MODULE_CONTEXT
+            .riskGraph ||= {};
+
+        MODULE_CONTEXT
+            .criticalityGraph ||= {};
+
+        console.log(
+            "🧠 [COGNITIVE_RUNTIME_RESTORED]"
+        );
+
+        return {
+
+            ok: true,
+
+            restoredModules:
+                lazyNames.length,
+
+            modules:
+                lazyNames
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [RUNTIME_RESTORE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+
+    }
+
+};
+
 /* =====================================================
    AUTO CRITICALITY ENGINE V1
 ===================================================== */
