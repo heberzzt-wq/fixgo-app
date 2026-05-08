@@ -1809,34 +1809,47 @@ window.proposeDependencyRepair = async function(moduleName) {
 
         console.log(`🛠️ [DEPENDENCY_REPAIR]: Analizando ${moduleName}`);
 
-        // =========================================================
-        // VALIDACIÓN BASE
-        // =========================================================
+       // =========================================================
+// VALIDACIÓN BASE
+// =========================================================
 
-        if (!moduleName) {
+if (!moduleName) {
 
-            return {
-                success: false,
-                error: "MODULE_NAME_REQUIRED"
-            };
+    return {
+        success: false,
+        error: "MODULE_NAME_REQUIRED"
+    };
 
-        }
+}
 
-        if (!MODULE_CONTEXT?.modules?.[moduleName]) {
+// =========================================================
+// RUNTIME SOURCE RESOLUTION
+// =========================================================
 
-            return {
-                success: false,
-                error: "MODULE_NOT_FOUND"
-            };
+const runtimeModule =
 
-        }
+    MODULE_CONTEXT?.modules?.[moduleName] ||
 
-        // =========================================================
-        // COGNITIVE SOURCES
-        // =========================================================
+    MODULE_CONTEXT?.loaded?.[moduleName];
 
-        const moduleData =
-            MODULE_CONTEXT.modules[moduleName];
+if (!runtimeModule) {
+
+    return {
+
+        success: false,
+
+        error: "MODULE_NOT_FOUND"
+
+    };
+
+}
+
+// =========================================================
+// COGNITIVE SOURCES
+// =========================================================
+
+const moduleData =
+    runtimeModule;
 
         const dependencyCheck =
             validateModuleDependencies(moduleName);
