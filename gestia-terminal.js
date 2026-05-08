@@ -1883,19 +1883,30 @@ function(fileName = "") {
             fileName
         );
 
-        const cognition =
+        const normalizedFile =
 
-            window
-                .__REPO_COGNITION__?.[
-                    fileName
-                ];
+    Object.keys(
+        window.__REPO_COGNITION__ || {}
+    ).find(key =>
 
-        const graph =
+        key === fileName ||
 
-            window
-                .__REPO_DEP_GRAPH__?.[
-                    fileName
-                ];
+        key.includes(fileName)
+    );
+
+const cognition =
+
+    window
+        .__REPO_COGNITION__?.[
+            normalizedFile
+        ];
+
+const graph =
+
+    window
+        .__REPO_DEP_GRAPH__?.[
+            normalizedFile
+        ];
 
         if (
             !cognition ||
