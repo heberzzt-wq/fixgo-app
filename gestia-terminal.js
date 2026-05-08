@@ -1992,8 +1992,7 @@ window.proposeDependencyRepair = async function(moduleName) {
         // =========================================================
 
         if (
-            criticality >= 90 ||
-            propagatedRisk >= 85
+            criticality?.score >= 90
         ) {
 
             repairGraph.severity = "CRITICAL";
@@ -2006,9 +2005,8 @@ window.proposeDependencyRepair = async function(moduleName) {
         }
 
         else if (
-            criticality >= 70 ||
-            propagatedRisk >= 70
-        ) {
+            criticality?.score >= 70
+        ){
 
             repairGraph.severity = "HIGH";
 
