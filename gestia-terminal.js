@@ -694,7 +694,7 @@ window.registerRuntimeModule = function(
 
         };
 
-        MODULE_CONTEXT.loaded[moduleName] = true;
+        MODULE_CONTEXT.loaded[moduleName] ||= moduleData;
 
         console.log(
             `🧠 [MODULE_REGISTERED]: ${moduleName}`
