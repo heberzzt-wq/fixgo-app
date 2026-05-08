@@ -592,7 +592,25 @@ window.JARVIS_SANDBOX_FILES ||= {};
 
 window.__MODULE_CONTEXT__ ||= {
 
+    // =================================================
+    // RUNTIME LOAD STATE
+    // =================================================
+
     loaded: {},
+
+    // =================================================
+    // RUNTIME MODULE REGISTRY
+    // =================================================
+
+    modules: {},
+
+    lazyModules: {},
+
+    runtimeSnapshots: {},
+
+    // =================================================
+    // COGNITIVE LAYERS
+    // =================================================
 
     schemas: {},
 
@@ -604,11 +622,101 @@ window.__MODULE_CONTEXT__ ||= {
 
     validators: {},
 
-    lastSync: null
+    dependencies: {},
+
+    dependencyGraph: {},
+
+    riskGraph: {},
+
+    criticalityGraph: {},
+
+    // =================================================
+    // GOVERNANCE
+    // =================================================
+
+    governance: {
+
+        blockedModules: {},
+
+        degradedModules: {},
+
+        corruptedModules: {},
+
+        repairQueue: []
+
+    },
+
+    // =================================================
+    // META
+    // =================================================
+
+    lastSync: null,
+
+    initializedAt: Date.now(),
+
+    cognitionVersion: "SIA7_RUNTIME_V1"
+
 };
 
 window.MODULE_CONTEXT =
     window.__MODULE_CONTEXT__;
+
+    /* =====================================================================================
+   RUNTIME MODULE REGISTRY
+===================================================================================== */
+
+window.registerRuntimeModule = function(
+    moduleName,
+    moduleData = {}
+) {
+
+    try {
+
+        if (!moduleName) {
+
+            return false;
+
+        }
+
+        MODULE_CONTEXT.modules ||= {};
+
+        MODULE_CONTEXT.loaded ||= {};
+
+        MODULE_CONTEXT.modules[moduleName] = {
+
+            ...moduleData,
+
+            runtimeRegistered: true,
+
+            registeredAt: Date.now(),
+
+            runtimeStatus: "ACTIVE"
+
+        };
+
+        MODULE_CONTEXT.loaded[moduleName] = true;
+
+        console.log(
+            `🧠 [MODULE_REGISTERED]: ${moduleName}`
+        );
+
+        return true;
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [MODULE_REGISTER_ERROR]",
+            error
+        );
+
+        return false;
+
+    }
+
+};
+
 /* =====================================================
    REPO REGISTRY V1
 ===================================================== */
@@ -1134,7 +1242,20 @@ window.inspectModule = function(moduleName = "") {
                 ?.loaded || {};
 
         const mod =
-            loaded[moduleName];
+    loaded[moduleName];
+
+// =====================================================
+// RUNTIME REGISTRATION
+// =====================================================
+
+if (mod) {
+
+    registerRuntimeModule(
+        moduleName,
+        mod
+    );
+
+}
 
         if (!mod) {
 
