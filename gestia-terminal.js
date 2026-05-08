@@ -977,6 +977,15 @@ window.loadFirestoreModule = async function(moduleName = "") {
             .loaded[moduleName] =
                 normalized;
 
+                // =====================================================
+// RUNTIME REGISTRATION
+// =====================================================
+
+registerRuntimeModule(
+    moduleName,
+    normalized
+);
+
         window.MODULE_CONTEXT
             .schemas[moduleName] =
                 normalized.schema || {};
