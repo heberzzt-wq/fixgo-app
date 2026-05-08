@@ -892,6 +892,40 @@ window.loadFirestoreModule = async function(moduleName = "") {
         window.MODULE_CONTEXT
             .lastSync = Date.now();
 
+            /* =====================================================
+   AUTO DEPENDENCY HYDRATION
+===================================================== */
+
+for (const dep of normalized.dependencies || []) {
+
+    if (
+        !window.MODULE_CONTEXT
+            ?.loaded?.[dep]
+    ) {
+
+        console.log(
+            "🧠 [AUTO_DEP_LOAD]:",
+            dep
+        );
+
+        try {
+
+            await window
+                .loadFirestoreModule(
+                    dep
+                );
+
+        } catch (err) {
+
+            console.warn(
+                "⚠️ AUTO_DEP_FAIL:",
+                dep,
+                err.message
+            );
+        }
+    }
+}
+
         console.log(
             "✅ [MODULE_READY]:",
             moduleName
