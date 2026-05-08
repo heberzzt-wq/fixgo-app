@@ -1883,49 +1883,96 @@ function(fileName = "") {
             fileName
         );
 
+        const cognitionIndex =
+            window.__REPO_COGNITION__ || {};
+
+        const graphIndex =
+            window.__REPO_DEP_GRAPH__ || {};
+
+        console.log(
+            "🧠 [COGNITION_KEYS]",
+            Object.keys(cognitionIndex)
+        );
+
+        console.log(
+            "🧠 [GRAPH_KEYS]",
+            Object.keys(graphIndex)
+        );
+
         const normalizedFile =
 
-    Object.keys(
-        window.__REPO_COGNITION__ || {}
-    ).find(key =>
+            Object.keys(cognitionIndex)
+                .find(key => {
 
-        key === fileName ||
+                    return (
 
-        key.includes(fileName)
-    );
+                        key === fileName ||
 
-const cognition =
+                        key.includes(fileName) ||
 
-    window
-        .__REPO_COGNITION__?.[
+                        fileName.includes(key)
+                    );
+                });
+
+        console.log(
+            "🧠 [NORMALIZED_FILE]",
             normalizedFile
-        ];
+        );
 
-const graph =
-
-    window
-        .__REPO_DEP_GRAPH__?.[
-            normalizedFile
-        ];
-
-        if (
-            !cognition ||
-            !graph
-        ) {
+        if (!normalizedFile) {
 
             return {
 
                 ok: false,
 
                 error:
-                    "FILE_NOT_INDEXED"
+                    "FILE_NOT_FOUND_IN_COGNITION",
+
+                available:
+                    Object.keys(
+                        cognitionIndex
+                    )
+            };
+        }
+
+        const cognition =
+
+            cognitionIndex[
+                normalizedFile
+            ];
+
+        const graph =
+
+            graphIndex[
+                normalizedFile
+            ];
+
+        if (!cognition) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "COGNITION_NODE_MISSING"
+            };
+        }
+
+        if (!graph) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "GRAPH_NODE_MISSING"
             };
         }
 
         const dependents =
 
             findRepoDependents(
-                fileName
+                normalizedFile
             );
 
         /* =================================================
@@ -1966,7 +2013,7 @@ const graph =
         }
 
         /* =================================================
-           GOVERNANCE ESCALATION
+           GOVERNANCE ACTION
         ================================================= */
 
         let governanceAction =
@@ -2002,7 +2049,7 @@ const graph =
         const analysis = {
 
             file:
-                fileName,
+                normalizedFile,
 
             module:
                 cognition.module,
