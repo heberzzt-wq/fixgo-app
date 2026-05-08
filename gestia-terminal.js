@@ -1799,6 +1799,270 @@ async function() {
         };
     }
 };
+
+/* =====================================================================================
+   REPO IMPACT ANALYZER V1
+===================================================================================== */
+
+/* =====================================================
+   FIND REVERSE DEPENDENCIES
+===================================================== */
+
+window.findRepoDependents =
+function(targetFile = "") {
+
+    try {
+
+        const graph =
+            window.__REPO_DEP_GRAPH__ || {};
+
+        const impacted = [];
+
+        for (
+            const [
+                file,
+                node
+            ] of Object.entries(graph)
+        ) {
+
+            const deps =
+                node.dependencies || [];
+
+            const dependsOnTarget =
+
+                deps.some(dep =>
+
+                    dep.includes(
+                        targetFile
+                    )
+                );
+
+            if (
+                dependsOnTarget
+            ) {
+
+                impacted.push({
+
+                    file,
+
+                    module:
+                        node.module,
+
+                    totalDependencies:
+                        node.totalDependencies
+                });
+            }
+        }
+
+        return impacted;
+
+    }
+
+    catch(error) {
+
+        console.warn(
+            "⚠️ REVERSE_DEP_FAIL:",
+            error
+        );
+
+        return [];
+    }
+};
+
+/* =====================================================
+   ANALYZE REPO IMPACT
+===================================================== */
+
+window.analyzeRepoImpact =
+function(fileName = "") {
+
+    try {
+
+        console.log(
+            "🧠 [REPO_IMPACT_ANALYSIS]",
+            fileName
+        );
+
+        const cognition =
+
+            window
+                .__REPO_COGNITION__?.[
+                    fileName
+                ];
+
+        const graph =
+
+            window
+                .__REPO_DEP_GRAPH__?.[
+                    fileName
+                ];
+
+        if (
+            !cognition ||
+            !graph
+        ) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "FILE_NOT_INDEXED"
+            };
+        }
+
+        const dependents =
+
+            findRepoDependents(
+                fileName
+            );
+
+        /* =================================================
+           RISK CALCULATION
+        ================================================= */
+
+        let propagatedRisk =
+            "LOW";
+
+        if (
+            cognition
+                ?.cognition
+                ?.criticality >= 90
+        ) {
+
+            propagatedRisk =
+                "CRITICAL";
+        }
+
+        else if (
+            cognition
+                ?.cognition
+                ?.criticality >= 70
+        ) {
+
+            propagatedRisk =
+                "HIGH";
+        }
+
+        else if (
+            cognition
+                ?.cognition
+                ?.criticality >= 40
+        ) {
+
+            propagatedRisk =
+                "MEDIUM";
+        }
+
+        /* =================================================
+           GOVERNANCE ESCALATION
+        ================================================= */
+
+        let governanceAction =
+            "ALLOW";
+
+        if (
+            propagatedRisk ===
+            "CRITICAL"
+        ) {
+
+            governanceAction =
+                "HARD_BLOCK";
+        }
+
+        else if (
+            propagatedRisk ===
+            "HIGH"
+        ) {
+
+            governanceAction =
+                "SOFT_BLOCK";
+        }
+
+        else if (
+            propagatedRisk ===
+            "MEDIUM"
+        ) {
+
+            governanceAction =
+                "RESTRICTED_EXECUTION";
+        }
+
+        const analysis = {
+
+            file:
+                fileName,
+
+            module:
+                cognition.module,
+
+            engineType:
+                cognition
+                    ?.cognition
+                    ?.engineType,
+
+            runtimeRole:
+                cognition
+                    ?.cognition
+                    ?.runtimeRole,
+
+            governance:
+                cognition
+                    ?.cognition
+                    ?.governance,
+
+            criticality:
+                cognition
+                    ?.cognition
+                    ?.criticality,
+
+            dependencies:
+                graph.dependencies || [],
+
+            totalDependencies:
+                graph.totalDependencies || 0,
+
+            impactedFiles:
+                dependents,
+
+            totalImpacted:
+                dependents.length,
+
+            propagatedRisk,
+
+            governanceAction
+        };
+
+        console.log(
+            "🚨 [IMPACT_ANALYSIS_READY]",
+            analysis
+        );
+
+        return {
+
+            ok: true,
+
+            analysis
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [REPO_IMPACT_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
 /* =====================================================
    REPO BOOTSTRAP INDEX
 ===================================================== */
