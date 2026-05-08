@@ -921,6 +921,114 @@ window.createRuntimeSnapshot = async function() {
     }
 };
 
+
+/* =====================================================
+   GET LATEST RUNTIME SNAPSHOT V1
+===================================================== */
+
+window.getLatestRuntimeSnapshot =
+async function() {
+
+    try {
+
+        if (!window.__RUNTIME_DB__) {
+
+            await window
+                .initRuntimePersistence();
+        }
+
+        const tx =
+            window.__RUNTIME_DB__
+                .transaction(
+                    COGNITIVE_RUNTIME_DB
+                        .STORE_NAME,
+                    "readonly"
+                );
+
+        const store =
+            tx.objectStore(
+                COGNITIVE_RUNTIME_DB
+                    .STORE_NAME
+            );
+
+        const snapshots =
+            await new Promise(
+                (resolve, reject) => {
+
+                const req =
+                    store.getAll();
+
+                req.onsuccess =
+                    () =>
+                        resolve(
+                            req.result || []
+                        );
+
+                req.onerror =
+                    () =>
+                        reject(
+                            req.error
+                        );
+            });
+
+        if (
+            !snapshots.length
+        ) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "NO_SNAPSHOTS_FOUND"
+            };
+        }
+
+        snapshots.sort(
+
+            (a, b) =>
+
+                b.timestamp -
+                a.timestamp
+        );
+
+        const latest =
+            snapshots[0];
+
+        console.log(
+            "🧠 [LATEST_RUNTIME_SNAPSHOT]",
+            latest
+        );
+
+        return {
+
+            ok: true,
+
+            snapshot:
+                latest,
+
+            total:
+                snapshots.length
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [GET_SNAPSHOT_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
     /* =====================================================================================
    RUNTIME MODULE REGISTRY
 ===================================================================================== */
