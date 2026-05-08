@@ -1313,6 +1313,303 @@ window.registerRuntimeModule = function(
 
 window.__REPO_INDEX__ ||= {};
 
+/* =====================================================================================
+   REPO COGNITION ENGINE V1
+===================================================================================== */
+
+window.__REPO_COGNITION__ ||= {};
+
+/* =====================================================
+   ENGINE CLASSIFIER
+===================================================== */
+
+window.classifyRepoFile = function(
+    meta = {}
+) {
+
+    try {
+
+        const type =
+            meta?.type || "";
+
+        const module =
+            meta?.module || "";
+
+        let cognition = {
+
+            engineType:
+                "generic",
+
+            runtimeRole:
+                "support",
+
+            governance:
+                "NORMAL",
+
+            riskLevel:
+                "LOW",
+
+            criticality:
+                10
+        };
+
+        /* =================================================
+           TERMINAL / CORE
+        ================================================= */
+
+        if (
+            type.includes(
+                "runtime"
+            )
+        ) {
+
+            cognition.engineType =
+                "runtime_engine";
+
+            cognition.runtimeRole =
+                "live_runtime";
+
+            cognition.criticality =
+                85;
+
+            cognition.governance =
+                "HIGH";
+        }
+
+        /* =================================================
+           TRANSACTIONAL
+        ================================================= */
+
+        if (
+            type.includes(
+                "transactional"
+            )
+        ) {
+
+            cognition.engineType =
+                "transaction_engine";
+
+            cognition.runtimeRole =
+                "financial_execution";
+
+            cognition.riskLevel =
+                "HIGH";
+
+            cognition.criticality =
+                95;
+
+            cognition.governance =
+                "CRITICAL";
+        }
+
+        /* =================================================
+           APPROVAL
+        ================================================= */
+
+        if (
+            type.includes(
+                "approval"
+            )
+        ) {
+
+            cognition.engineType =
+                "approval_engine";
+
+            cognition.runtimeRole =
+                "governance_control";
+
+            cognition.riskLevel =
+                "HIGH";
+
+            cognition.criticality =
+                90;
+
+            cognition.governance =
+                "CRITICAL";
+        }
+
+        /* =================================================
+           UI
+        ================================================= */
+
+        if (
+            type.includes(
+                "mobile_ui"
+            )
+        ) {
+
+            cognition.engineType =
+                "ui_runtime";
+
+            cognition.runtimeRole =
+                "frontend_runtime";
+
+            cognition.criticality =
+                40;
+        }
+
+        /* =================================================
+           JARVIS
+        ================================================= */
+
+        if (
+            module.includes(
+                "jarvis"
+            )
+        ) {
+
+            cognition.engineType =
+                "cognitive_engine";
+
+            cognition.runtimeRole =
+                "cognition_runtime";
+
+            cognition.riskLevel =
+                "HIGH";
+
+            cognition.criticality =
+                92;
+
+            cognition.governance =
+                "CRITICAL";
+        }
+
+        return cognition;
+
+    }
+
+    catch(error) {
+
+        console.warn(
+            "⚠️ REPO_CLASSIFIER_FAIL:",
+            error
+        );
+
+        return {
+
+            engineType:
+                "unknown",
+
+            runtimeRole:
+                "unknown",
+
+            governance:
+                "UNKNOWN",
+
+            riskLevel:
+                "UNKNOWN",
+
+            criticality:
+                0
+        };
+    }
+};
+
+/* =====================================================
+   BUILD REPO COGNITION INDEX
+===================================================== */
+
+window.buildRepoCognitionIndex =
+function() {
+
+    try {
+
+        console.log(
+            "🧠 [REPO_COGNITION_BUILD]"
+        );
+
+        window.__REPO_COGNITION__ = {};
+
+        const entries =
+
+            Object.entries(
+                window.__REPO_INDEX__ || {}
+            );
+
+        for (
+            const [
+                file,
+                meta
+            ] of entries
+        ) {
+
+            const cognition =
+
+                classifyRepoFile(
+                    meta
+                );
+
+            window
+                .__REPO_COGNITION__[
+                    file
+                ] = {
+
+                file,
+
+                path:
+                    meta.path ||
+
+                    file,
+
+                module:
+                    meta.module ||
+
+                    "unknown",
+
+                type:
+                    meta.type ||
+
+                    "generic",
+
+                critical:
+                    meta.critical === true,
+
+                cognition
+            };
+        }
+
+        console.log(
+            "✅ [REPO_COGNITION_READY]",
+            Object.keys(
+                window
+                    .__REPO_COGNITION__
+            ).length
+        );
+
+        return {
+
+            ok: true,
+
+            total:
+                Object.keys(
+                    window
+                        .__REPO_COGNITION__
+                ).length,
+
+            cognition:
+                window
+                    .__REPO_COGNITION__
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [REPO_COGNITION_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
 /* =====================================================
    REPO BOOTSTRAP INDEX
 ===================================================== */
