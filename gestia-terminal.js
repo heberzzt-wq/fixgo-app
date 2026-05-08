@@ -1809,6 +1809,192 @@ window.proposeDependencyRepair = async function(moduleName) {
 
         console.log(`🛠️ [DEPENDENCY_REPAIR]: Analizando ${moduleName}`);
 
+        /* =====================================================================================
+   SELF HEALING PLANNER V1
+===================================================================================== */
+
+window.generateRepairPlan = function(
+    repairGraph = {}
+) {
+
+    try {
+
+        if (!repairGraph.module) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "INVALID_REPAIR_GRAPH"
+            };
+        }
+
+        const actions = [];
+
+        // =====================================================
+        // GOVERNANCE LOCK
+        // =====================================================
+
+        if (
+            repairGraph.severity ===
+            "CRITICAL"
+        ) {
+
+            actions.push({
+
+                step: 1,
+
+                type:
+                    "HARD_BLOCK_MODULE",
+
+                target:
+                    repairGraph.module,
+
+                priority:
+                    "CRITICAL"
+            });
+        }
+
+        // =====================================================
+        // DEPENDENCY REPAIRS
+        // =====================================================
+
+        let stepCounter =
+            actions.length + 1;
+
+        for (
+            const candidate of
+            repairGraph
+                .repairCandidates || []
+        ) {
+
+            actions.push({
+
+                step:
+                    stepCounter++,
+
+                type:
+                    candidate
+                        .suggestedAction ||
+
+                    "MANUAL_REVIEW",
+
+                target:
+                    candidate
+                        .dependency,
+
+                confidence:
+                    candidate
+                        .confidence || 0,
+
+                priority:
+                    repairGraph.severity
+            });
+        }
+
+        // =====================================================
+        // GRAPH REBUILD
+        // =====================================================
+
+        if (
+            repairGraph
+                .graphRebuildRequired
+        ) {
+
+            actions.push({
+
+                step:
+                    stepCounter++,
+
+                type:
+                    "REBUILD_COGNITIVE_GRAPH",
+
+                target:
+                    repairGraph.module,
+
+                priority:
+                    "HIGH"
+            });
+        }
+
+        // =====================================================
+        // REVALIDATION
+        // =====================================================
+
+        actions.push({
+
+            step:
+                stepCounter++,
+
+            type:
+                "REVALIDATE_RUNTIME_GOVERNANCE",
+
+            target:
+                repairGraph.module,
+
+            priority:
+                "HIGH"
+        });
+
+        return {
+
+            ok: true,
+
+            module:
+                repairGraph.module,
+
+            severity:
+                repairGraph.severity,
+
+            governanceAction:
+                repairGraph
+                    .governanceAction,
+
+            totalActions:
+                actions.length,
+
+            estimatedRisk:
+                repairGraph.severity,
+
+            requiresApproval:
+                repairGraph.severity ===
+                "CRITICAL",
+
+            executionMode:
+
+                repairGraph
+                    .autoRepairEligible
+
+                    ? "SAFE_AUTOMATIC"
+
+                    : "SUPERVISED",
+
+            actions
+
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [REPAIR_PLAN_ERROR]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+
+    }
+
+};
+
        // =========================================================
 // VALIDACIÓN BASE
 // =========================================================
