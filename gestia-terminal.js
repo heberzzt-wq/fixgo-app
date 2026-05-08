@@ -1593,6 +1593,83 @@ window.propagateModuleRisk = function(moduleName = "") {
 };
 
 /* =====================================================
+   DEPENDENCY INTEGRITY ENGINE V1
+===================================================== */
+
+window.validateModuleDependencies = function(moduleName = "") {
+
+    try {
+
+        const mod =
+            window.inspectModule(
+                moduleName
+            );
+
+        if (!mod.ok) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "MODULE_NOT_FOUND"
+            };
+        }
+
+        const loaded =
+            window.MODULE_CONTEXT
+                ?.loaded || {};
+
+        const missing = [];
+
+        for (
+            const dep of
+            mod.dependencies || []
+        ) {
+
+            if (!loaded[dep]) {
+
+                missing.push(dep);
+            }
+        }
+
+        return {
+
+            ok: true,
+
+            module:
+                moduleName,
+
+            totalDependencies:
+                mod.dependencies
+                    ?.length || 0,
+
+            missingDependencies:
+                missing,
+
+            integrity:
+                missing.length === 0
+        };
+
+    } catch (err) {
+
+        console.warn(
+            "⚠️ DEP_INTEGRITY_FAIL:",
+            err
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                err.message
+        };
+    }
+};
+
+
+/* =====================================================
    MODULE RISK ENGINE V1
 ===================================================== */
 
