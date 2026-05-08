@@ -1029,6 +1029,228 @@ async function() {
         };
     }
 };
+
+/* =====================================================
+   RESTORE RUNTIME SNAPSHOT V1
+===================================================== */
+
+window.restoreRuntimeSnapshot =
+async function() {
+
+    try {
+
+        console.log(
+            "♻️ [RUNTIME_RESTORE_START]"
+        );
+
+        const latest =
+
+            await window
+                .getLatestRuntimeSnapshot();
+
+        if (!latest?.ok) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "SNAPSHOT_NOT_FOUND"
+            };
+        }
+
+        const snapshot =
+            latest.snapshot;
+
+        if (!snapshot) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "INVALID_SNAPSHOT"
+            };
+        }
+
+        /* =================================================
+           SAFE RUNTIME RESET
+        ================================================= */
+
+        MODULE_CONTEXT.loaded = {};
+
+        MODULE_CONTEXT.modules = {};
+
+        MODULE_CONTEXT.lazyModules = {};
+
+        MODULE_CONTEXT.schemas = {};
+
+        MODULE_CONTEXT.permissions = {};
+
+        MODULE_CONTEXT.widgets = {};
+
+        MODULE_CONTEXT.risks = {};
+
+        MODULE_CONTEXT.validators = {};
+
+        /* =================================================
+           RUNTIME RESTORE
+        ================================================= */
+
+        MODULE_CONTEXT.modules =
+
+            structuredClone(
+                snapshot
+                    ?.runtime
+                    ?.modules || {}
+            );
+
+        MODULE_CONTEXT.loaded =
+
+            structuredClone(
+                snapshot
+                    ?.runtime
+                    ?.loaded || {}
+            );
+
+        MODULE_CONTEXT.lazyModules =
+
+            structuredClone(
+                snapshot
+                    ?.runtime
+                    ?.lazyModules || {}
+            );
+
+        /* =================================================
+           GRAPH RESTORE
+        ================================================= */
+
+        MODULE_CONTEXT
+            .dependencyGraph =
+
+            structuredClone(
+                snapshot
+                    ?.graphs
+                    ?.dependencyGraph || {}
+            );
+
+        MODULE_CONTEXT
+            .riskGraph =
+
+            structuredClone(
+                snapshot
+                    ?.graphs
+                    ?.riskGraph || {}
+            );
+
+        MODULE_CONTEXT
+            .criticalityGraph =
+
+            structuredClone(
+                snapshot
+                    ?.graphs
+                    ?.criticalityGraph || {}
+            );
+
+        /* =================================================
+           GOVERNANCE RESTORE
+        ================================================= */
+
+        MODULE_CONTEXT
+            .governance =
+
+            structuredClone(
+                snapshot
+                    ?.governance || {}
+            );
+
+        /* =================================================
+           METADATA
+        ================================================= */
+
+        MODULE_CONTEXT
+            .initializedAt =
+
+            snapshot
+                ?.metadata
+                ?.initializedAt ||
+
+            Date.now();
+
+        MODULE_CONTEXT
+            .lastSync =
+
+            snapshot
+                ?.metadata
+                ?.lastSync ||
+
+            null;
+
+        MODULE_CONTEXT
+            .cognitionVersion =
+
+            snapshot
+                ?.cognitionVersion ||
+
+            "SIA7_RUNTIME_V1";
+
+        /* =================================================
+           RUNTIME RE-REGISTRATION
+        ================================================= */
+
+        const modules =
+
+            Object.entries(
+                MODULE_CONTEXT
+                    ?.loaded || {}
+            );
+
+        for (
+            const [
+                moduleName,
+                moduleData
+            ] of modules
+        ) {
+
+            registerRuntimeModule(
+                moduleName,
+                moduleData
+            );
+        }
+
+        console.log(
+            "✅ [RUNTIME_RESTORE_OK]"
+        );
+
+        return {
+
+            ok: true,
+
+            restoredModules:
+                modules.length,
+
+            snapshotId:
+                snapshot.snapshotId
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [RUNTIME_RESTORE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
     /* =====================================================================================
    RUNTIME MODULE REGISTRY
 ===================================================================================== */
