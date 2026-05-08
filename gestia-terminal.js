@@ -661,6 +661,266 @@ window.__MODULE_CONTEXT__ ||= {
 window.MODULE_CONTEXT =
     window.__MODULE_CONTEXT__;
 
+    
+/* =====================================================================================
+   PERSISTENT COGNITIVE RUNTIME V1
+   SNAPSHOT ENGINE
+===================================================================================== */
+
+const COGNITIVE_RUNTIME_DB = {
+
+    DB_NAME: "JarvisCognitionDB",
+
+    DB_VERSION: 1,
+
+    STORE_NAME: "runtime_snapshots"
+};
+
+window.__RUNTIME_DB__ = null;
+
+/* =====================================================
+   INIT COGNITIVE DB
+===================================================== */
+
+window.initRuntimePersistence = async function() {
+
+    try {
+
+        return new Promise((resolve, reject) => {
+
+            const request = indexedDB.open(
+
+                COGNITIVE_RUNTIME_DB.DB_NAME,
+
+                COGNITIVE_RUNTIME_DB.DB_VERSION
+            );
+
+            request.onupgradeneeded = (e) => {
+
+                const db = e.target.result;
+
+                if (
+                    !db.objectStoreNames.contains(
+                        COGNITIVE_RUNTIME_DB.STORE_NAME
+                    )
+                ) {
+
+                    db.createObjectStore(
+
+                        COGNITIVE_RUNTIME_DB.STORE_NAME,
+
+                        {
+                            keyPath: "snapshotId"
+                        }
+                    );
+                }
+            };
+
+            request.onsuccess = (e) => {
+
+                window.__RUNTIME_DB__ =
+                    e.target.result;
+
+                console.log(
+                    "🧠 [COGNITIVE_DB_READY]"
+                );
+
+                resolve(true);
+            };
+
+            request.onerror = (e) => {
+
+                console.error(
+                    "❌ [COGNITIVE_DB_FAIL]",
+                    e.target.error
+                );
+
+                reject(e.target.error);
+            };
+        });
+
+    } catch (error) {
+
+        console.error(
+            "❌ [COGNITIVE_INIT_FAIL]",
+            error
+        );
+
+        return false;
+    }
+};
+
+/* =====================================================
+   CREATE RUNTIME SNAPSHOT V1
+===================================================== */
+
+window.createRuntimeSnapshot = async function() {
+
+    try {
+
+        console.log(
+            "📸 [RUNTIME_SNAPSHOT_START]"
+        );
+
+        if (!window.__RUNTIME_DB__) {
+
+            await window
+                .initRuntimePersistence();
+        }
+
+        const safeClone = (
+
+            typeof structuredClone ===
+            "function"
+
+        )
+
+            ? structuredClone
+
+            : (obj) =>
+
+                JSON.parse(
+                    JSON.stringify(obj)
+                );
+
+        const snapshot = {
+
+            snapshotId:
+                crypto.randomUUID(),
+
+            timestamp:
+                Date.now(),
+
+            cognitionVersion:
+
+                MODULE_CONTEXT
+                    ?.cognitionVersion ||
+
+                "SIA7_RUNTIME_V1",
+
+            runtime: {
+
+                modules:
+                    safeClone(
+                        MODULE_CONTEXT
+                            ?.modules || {}
+                    ),
+
+                loaded:
+                    safeClone(
+                        MODULE_CONTEXT
+                            ?.loaded || {}
+                    ),
+
+                lazyModules:
+                    safeClone(
+                        MODULE_CONTEXT
+                            ?.lazyModules || {}
+                    )
+            },
+
+            graphs: {
+
+                dependencyGraph:
+                    safeClone(
+                        MODULE_CONTEXT
+                            ?.dependencyGraph || {}
+                    ),
+
+                riskGraph:
+                    safeClone(
+                        MODULE_CONTEXT
+                            ?.riskGraph || {}
+                    ),
+
+                criticalityGraph:
+                    safeClone(
+                        MODULE_CONTEXT
+                            ?.criticalityGraph || {}
+                    )
+            },
+
+            governance:
+                safeClone(
+                    MODULE_CONTEXT
+                        ?.governance || {}
+                ),
+
+            metadata: {
+
+                initializedAt:
+                    MODULE_CONTEXT
+                        ?.initializedAt ||
+
+                    Date.now(),
+
+                lastSync:
+                    MODULE_CONTEXT
+                        ?.lastSync ||
+
+                    null
+            }
+        };
+
+        const tx =
+            window.__RUNTIME_DB__
+                .transaction(
+                    COGNITIVE_RUNTIME_DB
+                        .STORE_NAME,
+                    "readwrite"
+                );
+
+        const store =
+            tx.objectStore(
+                COGNITIVE_RUNTIME_DB
+                    .STORE_NAME
+            );
+
+        await new Promise((resolve, reject) => {
+
+            const req =
+                store.put(snapshot);
+
+            req.onsuccess =
+                () => resolve(true);
+
+            req.onerror =
+                () => reject(req.error);
+        });
+
+        console.log(
+            "✅ [RUNTIME_SNAPSHOT_CREATED]",
+            snapshot.snapshotId
+        );
+
+        return {
+
+            ok: true,
+
+            snapshotId:
+                snapshot.snapshotId,
+
+            timestamp:
+                snapshot.timestamp
+        };
+
+    } catch (error) {
+
+        console.error(
+            "❌ [SNAPSHOT_CREATE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
     /* =====================================================================================
    RUNTIME MODULE REGISTRY
 ===================================================================================== */
