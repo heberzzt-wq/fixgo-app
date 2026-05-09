@@ -2700,10 +2700,23 @@ await waitForCognitiveDB();
 
 
         /* =================================================
-   RESTORE GOVERNANCE
+   OPTIONAL GOVERNANCE RESTORE
 ================================================= */
 
-await restoreGovernanceLog();
+if (
+    window.cognitiveDB
+) {
+
+    await restoreGovernanceLog();
+
+}
+
+else {
+
+    console.warn(
+        "⚠️ GOVERNANCE_RESTORE_SKIPPED"
+    );
+}
         /* =================================================
            ONLINE
         ================================================= */
@@ -2784,7 +2797,17 @@ window.saveGovernanceLog =
 
 async function() {
 
+    /* =================================================
+   OPTIONAL DB SYNC
+================================================= */
+
+if (
+    window.cognitiveDB
+) {
+
     await waitForCognitiveDB();
+
+}
 
     
     try {
