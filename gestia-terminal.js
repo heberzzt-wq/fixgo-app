@@ -2485,6 +2485,102 @@ async function(config = {}) {
 };
 
 /* =====================================================================================
+   GOVERNANCE MEMORY ENGINE V1
+===================================================================================== */
+
+window.__GOVERNANCE_LOG__ ||= [];
+
+/* =====================================================
+   RECORD GOVERNANCE EVENT
+===================================================== */
+
+window.recordGovernanceEvent =
+function(event = {}) {
+
+    try {
+
+        const governanceEvent = {
+
+            eventId:
+                crypto.randomUUID(),
+
+            timestamp:
+                Date.now(),
+
+            operation:
+                event.operation ||
+
+                "UNKNOWN",
+
+            target:
+                event.target ||
+
+                "UNKNOWN",
+
+            governanceAction:
+                event.governanceAction ||
+
+                "UNKNOWN",
+
+            propagatedRisk:
+                event.propagatedRisk ||
+
+                "UNKNOWN",
+
+            criticality:
+                event.criticality ||
+
+                0,
+
+            allowed:
+                event.allowed === true,
+
+            blocked:
+                event.blocked === true
+        };
+
+        window
+            .__GOVERNANCE_LOG__
+            .push(governanceEvent);
+
+        console.log(
+            "🧠 [GOVERNANCE_EVENT_RECORDED]",
+            governanceEvent
+        );
+
+        return {
+
+            ok: true,
+
+            event:
+                governanceEvent,
+
+            totalEvents:
+                window
+                    .__GOVERNANCE_LOG__
+                    .length
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [GOVERNANCE_MEMORY_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
    REPO AUTO BOOTSTRAP V1
 ===================================================================================== */
 
