@@ -2602,6 +2602,11 @@ function(event = {}) {
         window
             .__GOVERNANCE_LOG__
             .push(governanceEvent);
+            /* =================================================
+   AUTO SAVE
+================================================= */
+
+saveGovernanceLog();
 
         console.log(
             "🧠 [GOVERNANCE_EVENT_RECORDED]",
@@ -2687,6 +2692,12 @@ async function() {
             );
         }
 
+
+        /* =================================================
+   RESTORE GOVERNANCE
+================================================= */
+
+await restoreGovernanceLog();
         /* =================================================
            ONLINE
         ================================================= */
