@@ -2420,32 +2420,7 @@ recordGovernanceEvent({
         }
 
 
-        /* =================================================
-   RECORD BLOCK EVENT
-================================================= */
-
-recordGovernanceEvent({
-
-    operation,
-
-    target,
-
-    governanceAction:
-        decision
-            ?.governanceAction,
-
-    propagatedRisk:
-        decision
-            ?.propagatedRisk,
-
-    criticality:
-        decision
-            ?.criticality,
-
-    allowed: false,
-
-    blocked: true
-});
+       
         /* =================================================
            SOFT BLOCK
         ================================================= */
