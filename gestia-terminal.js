@@ -2121,6 +2121,187 @@ function(fileName = "") {
         };
     }
 };
+
+/* =====================================================================================
+   REPO GOVERNANCE ENGINE V1
+===================================================================================== */
+
+/* =====================================================
+   CAN MODIFY REPO FILE
+===================================================== */
+
+window.canModifyRepoFile =
+function(fileName = "") {
+
+    try {
+
+        console.log(
+            "🛡️ [REPO_GOVERNANCE_CHECK]",
+            fileName
+        );
+
+        const impact =
+
+            analyzeRepoImpact(
+                fileName
+            );
+
+        if (!impact?.ok) {
+
+            return {
+
+                ok: false,
+
+                allowed: false,
+
+                error:
+                    impact?.error ||
+
+                    "IMPACT_ANALYSIS_FAILED"
+            };
+        }
+
+        const analysis =
+            impact.analysis;
+
+        let allowed = true;
+
+        let governanceAction =
+            "ALLOW";
+
+        let reason =
+            "SAFE_OPERATION";
+
+        /* =================================================
+           CRITICAL GOVERNANCE
+        ================================================= */
+
+        if (
+            analysis
+                ?.propagatedRisk ===
+            "CRITICAL"
+        ) {
+
+            allowed = false;
+
+            governanceAction =
+                "HARD_BLOCK";
+
+            reason =
+                "CRITICAL_RUNTIME_ENGINE";
+        }
+
+        /* =================================================
+           HIGH GOVERNANCE
+        ================================================= */
+
+        else if (
+            analysis
+                ?.propagatedRisk ===
+            "HIGH"
+        ) {
+
+            allowed = false;
+
+            governanceAction =
+                "SOFT_BLOCK";
+
+            reason =
+                "HIGH_RISK_ENGINE";
+        }
+
+        /* =================================================
+           MEDIUM GOVERNANCE
+        ================================================= */
+
+        else if (
+            analysis
+                ?.propagatedRisk ===
+            "MEDIUM"
+        ) {
+
+            governanceAction =
+                "RESTRICTED_EXECUTION";
+
+            reason =
+                "SUPERVISED_MODIFICATION";
+        }
+
+        /* =================================================
+           DEPENDENCY IMPACT
+        ================================================= */
+
+        if (
+            analysis
+                ?.totalImpacted >= 5
+        ) {
+
+            governanceAction =
+                "HARD_BLOCK";
+
+            allowed = false;
+
+            reason =
+                "HIGH_DEPENDENCY_PROPAGATION";
+        }
+
+        const decision = {
+
+            file:
+                analysis.file,
+
+            module:
+                analysis.module,
+
+            allowed,
+
+            governanceAction,
+
+            reason,
+
+            criticality:
+                analysis.criticality,
+
+            propagatedRisk:
+                analysis.propagatedRisk,
+
+            totalDependencies:
+                analysis.totalDependencies,
+
+            totalImpacted:
+                analysis.totalImpacted
+        };
+
+        console.log(
+            "🛡️ [GOVERNANCE_DECISION]",
+            decision
+        );
+
+        return {
+
+            ok: true,
+
+            decision
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [REPO_GOVERNANCE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
 /* =====================================================
    REPO BOOTSTRAP INDEX
 ===================================================== */
