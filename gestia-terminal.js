@@ -2363,6 +2363,33 @@ async function(config = {}) {
         const decision =
             governance.decision;
 
+            /* =================================================
+   RECORD BLOCK EVENT
+================================================= */
+
+recordGovernanceEvent({
+
+    operation,
+
+    target,
+
+    governanceAction:
+        decision
+            ?.governanceAction,
+
+    propagatedRisk:
+        decision
+            ?.propagatedRisk,
+
+    criticality:
+        decision
+            ?.criticality,
+
+    allowed: false,
+
+    blocked: true
+});
+
         /* =================================================
            HARD BLOCK
         ================================================= */
@@ -2392,6 +2419,33 @@ async function(config = {}) {
             };
         }
 
+
+        /* =================================================
+   RECORD BLOCK EVENT
+================================================= */
+
+recordGovernanceEvent({
+
+    operation,
+
+    target,
+
+    governanceAction:
+        decision
+            ?.governanceAction,
+
+    propagatedRisk:
+        decision
+            ?.propagatedRisk,
+
+    criticality:
+        decision
+            ?.criticality,
+
+    allowed: false,
+
+    blocked: true
+});
         /* =================================================
            SOFT BLOCK
         ================================================= */
