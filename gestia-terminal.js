@@ -2302,6 +2302,120 @@ function(fileName = "") {
         };
     }
 };
+
+/* =====================================================================================
+   REPO AUTO BOOTSTRAP V1
+===================================================================================== */
+
+/* =====================================================
+   BOOTSTRAP REPO COGNITION
+===================================================== */
+
+window.bootstrapRepoCognition =
+async function() {
+
+    try {
+
+        console.log(
+            "🧠 [BOOTSTRAP_REPO_COGNITION]"
+        );
+
+        /* =================================================
+           BUILD COGNITION
+        ================================================= */
+
+        const cognition =
+
+            buildRepoCognitionIndex();
+
+        if (!cognition?.ok) {
+
+            throw new Error(
+                "COGNITION_BUILD_FAILED"
+            );
+        }
+
+        /* =================================================
+           BUILD DEPENDENCY GRAPH
+        ================================================= */
+
+        const graph =
+
+            await buildRepoDependencyGraph();
+
+        if (!graph?.ok) {
+
+            throw new Error(
+                "GRAPH_BUILD_FAILED"
+            );
+        }
+
+        /* =================================================
+           ONLINE
+        ================================================= */
+
+        console.log(
+            "✅ [REPO_COGNITION_ONLINE]"
+        );
+
+        return {
+
+            ok: true,
+
+            cognitionNodes:
+                cognition.total,
+
+            graphNodes:
+                graph.total
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [BOOTSTRAP_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================
+   AUTO HYDRATION
+===================================================== */
+
+window.addEventListener(
+    "load",
+
+    async function() {
+
+        try {
+
+            console.log(
+                "🧠 [AUTO_REPO_HYDRATION]"
+            );
+
+            await bootstrapRepoCognition();
+
+        }
+
+        catch(error) {
+
+            console.warn(
+                "⚠️ AUTO_HYDRATION_FAIL:",
+                error
+            );
+        }
+    }
+);
 /* =====================================================
    REPO BOOTSTRAP INDEX
 ===================================================== */
