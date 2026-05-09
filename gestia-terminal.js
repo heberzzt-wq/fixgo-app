@@ -2979,6 +2979,78 @@ async function() {
         };
     }
 };
+
+/* =====================================================================================
+   COGNITIVE DB SYNCHRONIZER V1
+===================================================================================== */
+
+/* =====================================================
+   WAIT FOR DB
+===================================================== */
+
+window.waitForCognitiveDB =
+async function(
+    timeout = 10000
+) {
+
+    try {
+
+        const start =
+            Date.now();
+
+        while (
+
+            !window.cognitiveDB
+        ) {
+
+            if (
+
+                Date.now() - start
+                > timeout
+            ) {
+
+                throw new Error(
+                    "COGNITIVE_DB_TIMEOUT"
+                );
+            }
+
+            await new Promise(
+                resolve =>
+
+                    setTimeout(
+                        resolve,
+                        100
+                    )
+            );
+        }
+
+        console.log(
+            "🧠 [COGNITIVE_DB_SYNC_READY]"
+        );
+
+        return {
+
+            ok: true
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [DB_SYNC_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
 /* =====================================================
    REPO BOOTSTRAP INDEX
 ===================================================== */
