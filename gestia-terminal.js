@@ -2437,6 +2437,37 @@ async function(config = {}) {
             );
         }
 
+
+        /* =================================================
+   GOVERNANCE MEMORY
+================================================= */
+
+recordGovernanceEvent({
+
+    operation,
+
+    target,
+
+    governanceAction:
+        decision
+            ?.governanceAction,
+
+    propagatedRisk:
+        decision
+            ?.propagatedRisk,
+
+    criticality:
+        decision
+            ?.criticality,
+
+    allowed:
+        decision
+            ?.allowed,
+
+    blocked:
+        !decision
+            ?.allowed
+});
         /* =================================================
            EXECUTION SIMULATION
         ================================================= */
