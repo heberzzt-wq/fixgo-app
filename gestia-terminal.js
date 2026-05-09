@@ -2304,6 +2304,187 @@ function(fileName = "") {
 };
 
 /* =====================================================================================
+   GOVERNED REPO OPERATIONS V1
+===================================================================================== */
+
+/* =====================================================
+   EXECUTE GOVERNED OPERATION
+===================================================== */
+
+window.executeGovernedRepoOperation =
+async function(config = {}) {
+
+    try {
+
+        const {
+
+            operation =
+                "UNKNOWN",
+
+            target =
+                "",
+
+            payload =
+                {}
+
+        } = config;
+
+        console.log(
+            "🛡️ [GOVERNED_OPERATION]",
+            operation,
+            target
+        );
+
+        /* =================================================
+           GOVERNANCE CHECK
+        ================================================= */
+
+        const governance =
+
+            canModifyRepoFile(
+                target
+            );
+
+        if (!governance?.ok) {
+
+            return {
+
+                ok: false,
+
+                blocked: true,
+
+                error:
+                    governance?.error ||
+
+                    "GOVERNANCE_CHECK_FAILED"
+            };
+        }
+
+        const decision =
+            governance.decision;
+
+        /* =================================================
+           HARD BLOCK
+        ================================================= */
+
+        if (
+            decision
+                ?.governanceAction ===
+            "HARD_BLOCK"
+        ) {
+
+            console.warn(
+                "🛑 [HARD_BLOCK_ACTIVE]",
+                target
+            );
+
+            return {
+
+                ok: false,
+
+                blocked: true,
+
+                governance:
+                    decision,
+
+                error:
+                    "HARD_BLOCK_ACTIVE"
+            };
+        }
+
+        /* =================================================
+           SOFT BLOCK
+        ================================================= */
+
+        if (
+            decision
+                ?.governanceAction ===
+            "SOFT_BLOCK"
+        ) {
+
+            console.warn(
+                "⚠️ [SOFT_BLOCK_ACTIVE]",
+                target
+            );
+
+            return {
+
+                ok: false,
+
+                blocked: true,
+
+                governance:
+                    decision,
+
+                error:
+                    "SOFT_BLOCK_ACTIVE"
+            };
+        }
+
+        /* =================================================
+           RESTRICTED EXECUTION
+        ================================================= */
+
+        if (
+            decision
+                ?.governanceAction ===
+            "RESTRICTED_EXECUTION"
+        ) {
+
+            console.warn(
+                "🔒 [RESTRICTED_EXECUTION]",
+                target
+            );
+        }
+
+        /* =================================================
+           EXECUTION SIMULATION
+        ================================================= */
+
+        console.log(
+            "✅ [GOVERNED_EXECUTION_ALLOWED]",
+            operation,
+            target
+        );
+
+        return {
+
+            ok: true,
+
+            blocked: false,
+
+            governance:
+                decision,
+
+            operation,
+
+            target,
+
+            payload
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [GOVERNED_OPERATION_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            blocked: true,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
    REPO AUTO BOOTSTRAP V1
 ===================================================================================== */
 
