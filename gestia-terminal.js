@@ -2662,6 +2662,12 @@ async function() {
             "🧠 [BOOTSTRAP_REPO_COGNITION]"
         );
 
+
+        /* =================================================
+   WAIT FOR DB
+================================================= */
+
+await waitForCognitiveDB();
         /* =================================================
            BUILD COGNITION
         ================================================= */
@@ -2774,8 +2780,13 @@ window.addEventListener(
 ===================================================== */
 
 window.saveGovernanceLog =
+
+
 async function() {
 
+    await waitForCognitiveDB();
+
+    
     try {
 
         if (
