@@ -3261,21 +3261,34 @@ async function() {
         }
 
         /* =================================================
-           BUILD DEPENDENCY GRAPH
-        ================================================= */
+   BUILD DEPENDENCY GRAPH
+================================================= */
 
-        const graph =
+const graph =
 
-            await buildRepoDependencyGraph();
+    await buildRepoDependencyGraph();
 
-        if (!graph?.ok) {
+if (!graph?.ok) {
 
-            throw new Error(
-                "GRAPH_BUILD_FAILED"
-            );
-        }
+    throw new Error(
+        "GRAPH_BUILD_FAILED"
+    );
+}
 
+/* =================================================
+   BUILD COGNITIVE LAYERS
+================================================= */
 
+const layerMap =
+
+    buildCognitiveLayerMap();
+
+if (!layerMap?.ok) {
+
+    throw new Error(
+        "LAYER_MAP_BUILD_FAILED"
+    );
+}
         /* =================================================
    OPTIONAL GOVERNANCE RESTORE
 ================================================= */
