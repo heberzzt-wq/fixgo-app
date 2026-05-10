@@ -8836,6 +8836,94 @@ domain:
 ===================================================================================== */
 
 window.__RUNTIME_HEALTH_MAP__ = {};
+
+window.buildRuntimeHealthMap =
+function() {
+
+    try {
+
+        console.log(
+            "🩺 [RUNTIME_HEALTH_SCAN]"
+        );
+
+        const cognition =
+
+            window
+                .__REPO_COGNITION__ || {};
+
+        const healthMap = {};
+
+        Object.entries(
+            cognition
+        ).forEach(([file, meta]) => {
+
+            healthMap[file] = {
+
+                file,
+
+                status:
+                    "ONLINE",
+
+                health:
+                    100,
+
+                degraded:
+                    false,
+
+                isolated:
+                    false,
+
+                blocked:
+                    false,
+
+                lastCheck:
+                    Date.now()
+            };
+        });
+
+        window.__RUNTIME_HEALTH_MAP__ =
+            healthMap;
+
+        console.log(
+            "✅ [RUNTIME_HEALTH_READY]",
+            Object.keys(
+                healthMap
+            ).length
+        );
+
+        return {
+
+            ok: true,
+
+            total:
+                Object.keys(
+                    healthMap
+                ).length,
+
+            runtime:
+                healthMap
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [RUNTIME_HEALTH_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+
 /**
  * =====================================================
  * FIN BLOQUE 4 V15
