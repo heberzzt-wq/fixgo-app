@@ -3080,7 +3080,8 @@ function(targetFile = "") {
 };
 
 /* =====================================================================================
-   CASCADING RUNTIME DEGRADATION ENGINE V1
+   CASCADING RUNTIME DEGRADATION ENGINE V2
+   SAFE SUPERVISED PROPAGATION
 ===================================================================================== */
 
 window.propagateRuntimeDegradation =
@@ -3181,11 +3182,28 @@ function(
 
                 "LOW";
 
+            /* =============================================
+               RUNTIME VALIDATION
+            ============================================= */
+
+            const validation =
+
+                window
+                    .validateRuntimeIntegrity(
+                        file
+                    );
+
+            console.log(
+                "🩺 [CASCADE_VALIDATION]",
+                file,
+                validation?.state
+            );
+
             let level =
                 "DEGRADED";
 
             /* =============================================
-               RISK MAPPING
+               SAFE RISK MAPPING
             ============================================= */
 
             if (
@@ -3193,7 +3211,7 @@ function(
             ) {
 
                 level =
-                    "RESTRICTED";
+                    "DEGRADED";
             }
 
             if (
@@ -3201,15 +3219,58 @@ function(
             ) {
 
                 level =
-                    "ISOLATED";
+                    "RESTRICTED";
             }
+
+            /* =============================================
+               CRITICAL VALIDATION
+            ============================================= */
 
             if (
                 risk === "CRITICAL"
             ) {
 
-                level =
-                    "HARD_FAILURE";
+                if (
+                    validation?.state ===
+                    "ONLINE"
+                ) {
+
+                    level =
+                        "DEGRADED";
+                }
+
+                else if (
+                    validation?.state ===
+                    "DEGRADED"
+                ) {
+
+                    level =
+                        "RESTRICTED";
+                }
+
+                else if (
+                    validation?.state ===
+                    "RESTRICTED"
+                ) {
+
+                    level =
+                        "ISOLATED";
+                }
+
+                else if (
+                    validation?.state ===
+                    "ISOLATED"
+                ) {
+
+                    level =
+                        "HARD_FAILURE";
+                }
+
+                else {
+
+                    level =
+                        "RESTRICTED";
+                }
             }
 
             /* =============================================
@@ -3240,6 +3301,10 @@ function(
                 level,
 
                 risk,
+
+                validation:
+
+                    validation?.state,
 
                 ok:
                     result?.ok === true
@@ -3290,7 +3355,6 @@ function(
         };
     }
 };
-
 
 /* =====================================================================================
    REPO GOVERNANCE ENGINE V1
