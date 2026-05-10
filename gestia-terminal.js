@@ -10084,6 +10084,49 @@ setRuntimeModuleState(
             );
         });
 
+
+        /* =================================================
+   RUNTIME REINTEGRATION CLEANUP
+================================================= */
+
+const runtime =
+
+    window.__RUNTIME_HEALTH_MAP__?.[
+        fileName
+    ];
+
+if(runtime){
+
+    /*
+        REMOVE RECOVERY DAMAGE FLAGS
+    */
+
+    runtime.degraded = false;
+
+    runtime.isolated = false;
+
+    /*
+        NORMALIZE HEALTH
+    */
+
+    if(
+
+        runtime.health !== undefined &&
+
+        runtime.health < 80
+
+    ){
+
+        runtime.health = 80;
+
+    }
+
+    console.log(
+        "🧠 [RUNTIME_REINTEGRATED]",
+        fileName,
+        runtime
+    );
+}
         /* =================================================
            RECOVERY VERIFICATION
         ================================================= */
