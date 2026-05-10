@@ -2681,29 +2681,29 @@ function(fileName = "") {
             };
         }
 
-        const analysis =
-            impact.analysis;
+       const analysis =
+    impact.analysis;
 
-            const layer =
-
-            console.log(
-    "🧠 [GOVERNANCE_LAYER]",
-    fileName,
-    layer
-);
+const layer =
 
     window
         .__COGNITIVE_LAYER_MAP__?.[
             fileName
         ]?.layer || "UNKNOWN";
 
-        let allowed = true;
+console.log(
+    "🧠 [GOVERNANCE_LAYER]",
+    fileName,
+    layer
+);
 
-        let governanceAction =
-            "ALLOW";
+let allowed = true;
 
-        let reason =
-            "SAFE_OPERATION";
+let governanceAction =
+    "ALLOW";
+
+let reason =
+    "SAFE_OPERATION";
 
             /* =================================================
    LAYER GOVERNANCE
