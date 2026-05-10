@@ -2686,6 +2686,12 @@ function(fileName = "") {
 
             const layer =
 
+            console.log(
+    "🧠 [GOVERNANCE_LAYER]",
+    fileName,
+    layer
+);
+
     window
         .__COGNITIVE_LAYER_MAP__?.[
             fileName
