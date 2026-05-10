@@ -2291,6 +2291,21 @@ function(fileName = "") {
 
 window.__RUNTIME_RISK_GRAPH__ = {};
 
+
+/* =====================================================================================
+   RUNTIME CONTAMINATION MAP V1
+===================================================================================== */
+
+window.__RUNTIME_CONTAMINATION__ ||= {
+
+    contaminated: {},
+
+    propagationHistory: [],
+
+    cascadeSessions: {}
+};
+
+
 /* =====================================================
    BUILD RISK PROPAGATION GRAPH
 ===================================================== */
@@ -9268,28 +9283,49 @@ async function(fileName = "") {
             repair.repair;
 
         /* =================================================
-           ISOLATION
-        ================================================= */
+   ISOLATION
+================================================= */
 
-        if (
-            plan.requiresIsolation
-        ) {
+if (
+    plan.requiresIsolation
+) {
 
-            setRuntimeModuleState(
-                fileName,
-                "ISOLATED"
-            );
+    setRuntimeModuleState(
+        fileName,
+        "ISOLATED"
+    );
+
+    /* =============================================
+       APPLY RUNTIME CONTAMINATION
+    ============================================= */
+
+    applyRuntimeDegradation(
+        fileName,
+        {
+            level: "ISOLATED",
+            source: fileName,
+            reason: "RECOVERY_ISOLATION"
         }
+    );
+}
 
         /* =================================================
-           RECOVERING
-        ================================================= */
+   RECOVERING
+================================================= */
 
-        setRuntimeModuleState(
-            fileName,
-            "RECOVERING"
-        );
+applyRuntimeDegradation(
+    fileName,
+    {
+        level: "DEGRADED",
+        source: fileName,
+        reason: "PRE_RECOVERY_RUNTIME_DAMAGE"
+    }
+);
 
+setRuntimeModuleState(
+    fileName,
+    "RECOVERING"
+);
         /* =================================================
            RECOVERY SIMULATION
         ================================================= */
