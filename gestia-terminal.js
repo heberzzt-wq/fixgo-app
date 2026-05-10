@@ -8623,13 +8623,64 @@ function() {
                 file,
 
                 layer:
-                    "UNKNOWN",
 
-                role:
-                    "UNKNOWN",
+    file.includes("firewall") ||
 
-                domain:
-                    "UNKNOWN"
+    file.includes("auth") ||
+
+    file.includes("security")
+
+        ? "SECURITY"
+
+    : file.includes("memory") ||
+
+      file.includes("semantic") ||
+
+      file.includes("intent") ||
+
+      file.includes("brain")
+
+        ? "COGNITION"
+
+    : file.includes("operations") ||
+
+      file.includes("plans") ||
+
+      file.includes("executor")
+
+        ? "EXECUTION"
+
+    : file.includes("terminal") ||
+
+      file.includes(".html") ||
+
+      file.includes("hud")
+
+        ? "RUNTIME_UI"
+
+    : file.includes("firebase") ||
+
+      file.includes("persistence")
+
+        ? "PERSISTENCE"
+
+    : "UNKNOWN",
+
+role:
+    meta.type || "UNKNOWN",
+
+domain:
+
+    file.includes("jarvis")
+
+        ? "JARVIS_CORE"
+
+    : file.includes("gestia-core")
+
+        ? "GESTIA_CORE"
+
+    : "RUNTIME"
+    
             };
         });
 
