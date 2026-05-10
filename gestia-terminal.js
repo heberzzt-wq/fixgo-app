@@ -1808,6 +1808,28 @@ async function() {
     }
 };
 
+
+/* =================================================
+   MANUAL COGNITIVE LINKS
+================================================= */
+
+window.__REPO_DEP_GRAPH__["intent.engine.js"]
+    .dependencies = [
+
+        "/gestia-core/semantic.engine.js"
+];
+
+window.__REPO_DEP_GRAPH__["jarvis.bridge.v4.js"]
+    .dependencies = [
+
+        "/gestia-core/intent.engine.js"
+];
+
+window.__REPO_DEP_GRAPH__["operations.engine.js"]
+    .dependencies = [
+
+        "/gestia-core/jarvis/jarvis.bridge.v4.js"
+];
 /* =====================================================================================
    REPO IMPACT ANALYZER V1
 ===================================================================================== */
