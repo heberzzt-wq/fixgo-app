@@ -8923,6 +8923,146 @@ function() {
     }
 };
 
+/* =====================================================================================
+   REPAIR INTELLIGENCE ENGINE V1
+===================================================================================== */
+
+window.proposeRuntimeRepair =
+function(fileName = "") {
+
+    try {
+
+        console.log(
+            "🛠️ [REPAIR_ANALYSIS]",
+            fileName
+        );
+
+        const health =
+
+            window
+                .__RUNTIME_HEALTH_MAP__?.[
+                    fileName
+                ];
+
+        if (!health) {
+
+            throw new Error(
+                "RUNTIME_NODE_NOT_FOUND"
+            );
+        }
+
+        const layer =
+
+            window
+                .__COGNITIVE_LAYER_MAP__?.[
+                    fileName
+                ]?.layer ||
+
+            "UNKNOWN";
+
+        const repairPlan = {
+
+            file:
+                fileName,
+
+            layer,
+
+            currentStatus:
+                health.status,
+
+            currentHealth:
+                health.health,
+
+            strategy:
+                "UNKNOWN",
+
+            supervised:
+                true,
+
+            requiresIsolation:
+                false,
+
+            autoExecutable:
+                false
+        };
+
+        /* =================================================
+           LAYER STRATEGY
+        ================================================= */
+
+        if (
+            layer === "RUNTIME_UI"
+        ) {
+
+            repairPlan.strategy =
+                "SAFE_UI_RELOAD";
+
+            repairPlan.autoExecutable =
+                true;
+        }
+
+        if (
+            layer === "COGNITION"
+        ) {
+
+            repairPlan.strategy =
+                "SUPERVISED_COGNITION_REBUILD";
+
+            repairPlan.requiresIsolation =
+                true;
+        }
+
+        if (
+            layer === "SECURITY"
+        ) {
+
+            repairPlan.strategy =
+                "HARD_LOCK_SECURITY_AUDIT";
+
+            repairPlan.requiresIsolation =
+                true;
+        }
+
+        if (
+            layer === "EXECUTION"
+        ) {
+
+            repairPlan.strategy =
+                "CONTROLLED_EXECUTION_RESTART";
+        }
+
+        console.log(
+            "🧠 [REPAIR_PLAN_READY]",
+            repairPlan
+        );
+
+        return {
+
+            ok: true,
+
+            repair:
+                repairPlan
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [REPAIR_PLAN_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
 
 /**
  * =====================================================
