@@ -2306,6 +2306,231 @@ window.__RUNTIME_CONTAMINATION__ ||= {
 };
 
 
+/* =====================================================================================
+   APPLY RUNTIME DEGRADATION ENGINE V1
+===================================================================================== */
+
+window.applyRuntimeDegradation =
+function(
+    fileName = "",
+    config = {}
+) {
+
+    try {
+
+        const {
+
+            level = "DEGRADED",
+
+            source = "UNKNOWN",
+
+            reason = "RUNTIME_CASCADE",
+
+            propagatedBy = null
+
+        } = config;
+
+        console.warn(
+            "⚠️ [APPLY_RUNTIME_DEGRADATION]",
+            fileName,
+            level
+        );
+
+        /* =================================================
+           RUNTIME MAP
+        ================================================= */
+
+        if (
+            !window.__RUNTIME_HEALTH_MAP__
+        ) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "RUNTIME_HEALTH_MAP_NOT_READY"
+            };
+        }
+
+        /* =================================================
+           NODE
+        ================================================= */
+
+        const current =
+
+            window.__RUNTIME_HEALTH_MAP__[
+                fileName
+            ];
+
+        if (!current) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "RUNTIME_NODE_NOT_FOUND"
+            };
+        }
+
+        /* =================================================
+           HEALTH CALCULATION
+        ================================================= */
+
+        let nextHealth =
+            current.health || 100;
+
+        if (
+            level === "DEGRADED"
+        ) {
+
+            nextHealth -= 25;
+        }
+
+        else if (
+            level === "RESTRICTED"
+        ) {
+
+            nextHealth -= 40;
+        }
+
+        else if (
+            level === "ISOLATED"
+        ) {
+
+            nextHealth -= 70;
+        }
+
+        else if (
+            level === "HARD_FAILURE"
+        ) {
+
+            nextHealth = 0;
+        }
+
+        nextHealth =
+            Math.max(
+                nextHealth,
+                0
+            );
+
+        /* =================================================
+           STATE FLAGS
+        ================================================= */
+
+        current.status =
+            level;
+
+        current.health =
+            nextHealth;
+
+        current.degraded =
+            level !== "ONLINE";
+
+        current.isolated =
+            level === "ISOLATED";
+
+        current.lastDegradation =
+            Date.now();
+
+        current.degradationReason =
+            reason;
+
+        current.propagatedBy =
+            propagatedBy;
+
+        current.damageSource =
+            source;
+
+        /* =================================================
+           CONTAMINATION MEMORY
+        ================================================= */
+
+        window.__RUNTIME_CONTAMINATION__
+            .contaminated[
+                fileName
+            ] = {
+
+            file:
+                fileName,
+
+            level,
+
+            source,
+
+            reason,
+
+            propagatedBy,
+
+            contaminatedAt:
+                Date.now()
+        };
+
+        /* =================================================
+           HISTORY
+        ================================================= */
+
+        window.__RUNTIME_CONTAMINATION__
+            .propagationHistory
+            .push({
+
+                file:
+                    fileName,
+
+                level,
+
+                source,
+
+                reason,
+
+                propagatedBy,
+
+                timestamp:
+                    Date.now()
+            });
+
+        console.warn(
+            "🚨 [RUNTIME_DEGRADED]",
+            fileName,
+            current
+        );
+
+        return {
+
+            ok: true,
+
+            file:
+                fileName,
+
+            level,
+
+            health:
+                nextHealth,
+
+            runtime:
+                current
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [APPLY_DEGRADATION_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
 /* =====================================================
    BUILD RISK PROPAGATION GRAPH
 ===================================================== */
