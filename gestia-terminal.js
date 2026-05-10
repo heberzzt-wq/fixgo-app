@@ -2286,6 +2286,119 @@ function(fileName = "") {
 };
 
 /* =====================================================================================
+   RUNTIME RISK PROPAGATION ENGINE V1
+===================================================================================== */
+
+window.__RUNTIME_RISK_GRAPH__ = {};
+
+/* =====================================================
+   BUILD RISK PROPAGATION GRAPH
+===================================================== */
+
+window.buildRuntimeRiskGraph =
+function() {
+
+    try {
+
+        console.log(
+            "🧠 [RISK_GRAPH_BUILD]"
+        );
+
+        const graph =
+            window
+                .__REPO_DEP_GRAPH__ || {};
+
+        const riskGraph = {};
+
+        for (
+            const file in graph
+        ) {
+
+            const node =
+                graph[file];
+
+            const criticality =
+
+                calculatePropagatedCriticality(
+                    file
+                );
+
+            riskGraph[file] = {
+
+                file,
+
+                module:
+                    node.module,
+
+                dependencies:
+                    node.dependencies || [],
+
+                propagatedRisk:
+
+                    criticality
+                        ?.classification ||
+
+                    "LOW",
+
+                propagatedScore:
+
+                    criticality
+                        ?.propagatedScore ||
+
+                    0
+            };
+
+            console.log(
+                "⚠️ [RISK_NODE]",
+                file,
+                riskGraph[file]
+                    .propagatedRisk
+            );
+        }
+
+        window.__RUNTIME_RISK_GRAPH__ =
+            riskGraph;
+
+        console.log(
+            "✅ [RISK_GRAPH_READY]",
+            Object.keys(
+                riskGraph
+            ).length
+        );
+
+        return {
+
+            ok: true,
+
+            total:
+                Object.keys(
+                    riskGraph
+                ).length,
+
+            graph:
+                riskGraph
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [RISK_GRAPH_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
    REPO GOVERNANCE ENGINE V1
 ===================================================================================== */
 
