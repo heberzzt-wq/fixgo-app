@@ -2684,6 +2684,13 @@ function(fileName = "") {
         const analysis =
             impact.analysis;
 
+            const layer =
+
+    window
+        .__COGNITIVE_LAYER_MAP__?.[
+            fileName
+        ]?.layer || "UNKNOWN";
+
         let allowed = true;
 
         let governanceAction =
@@ -2691,6 +2698,39 @@ function(fileName = "") {
 
         let reason =
             "SAFE_OPERATION";
+
+            /* =================================================
+   LAYER GOVERNANCE
+================================================= */
+
+if (
+    layer === "SECURITY"
+) {
+
+    allowed = false;
+
+    governanceAction =
+        "HARD_BLOCK";
+
+    reason =
+        "SECURITY_LAYER_PROTECTED";
+}
+
+if (
+    layer === "COGNITION"
+) {
+
+    governanceAction =
+        "SUPERVISED_COGNITION";
+}
+
+if (
+    layer === "RUNTIME_UI"
+) {
+
+    governanceAction =
+        "RESTRICTED_EXECUTION";
+}
 
         /* =================================================
            CRITICAL GOVERNANCE
