@@ -3123,6 +3123,119 @@ window.__REPO_INDEX__["app-tecnico-b2b.js"] = {
 
     critical: true
 };
+
+window.__REPO_INDEX__["firewall.engine.js"] = {
+
+    path:
+        "gestia-core/firewall.engine.js",
+
+    module:
+        "firewall",
+
+    type:
+        "security_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["semantic.engine.js"] = {
+
+    path:
+        "gestia-core/semantic.engine.js",
+
+    module:
+        "semantic",
+
+    type:
+        "cognition_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["intent.engine.js"] = {
+
+    path:
+        "gestia-core/intent.engine.js",
+
+    module:
+        "intent",
+
+    type:
+        "decision_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["self-repair.engine.js"] = {
+
+    path:
+        "gestia-core/self-repair.engine.js",
+
+    module:
+        "self_repair",
+
+    type:
+        "repair_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.bridge.v4.js"] = {
+
+    path:
+        "gestia-core/jarvis/jarvis.bridge.v4.js",
+
+    module:
+        "jarvis_bridge",
+
+    type:
+        "orchestration_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.context.memory.v6.js"] = {
+
+    path:
+        "gestia-core/jarvis/jarvis.context.memory.v6.js",
+
+    module:
+        "context_memory",
+
+    type:
+        "memory_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["operations.engine.js"] = {
+
+    path:
+        "gestia-core/operations.engine.js",
+
+    module:
+        "operations",
+
+    type:
+        "execution_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["persistence.engine.js"] = {
+
+    path:
+        "gestia-core/persistence.engine.js",
+
+    module:
+        "persistence",
+
+    type:
+        "persistence_runtime",
+
+    critical: true
+};
+
 /* =====================================================
    REPO LOOKUP ENGINE
 ===================================================== */
