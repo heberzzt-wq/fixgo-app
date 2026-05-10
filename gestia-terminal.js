@@ -3305,6 +3305,19 @@ if (!runtimeHealth?.ok) {
     );
 }
 
+/* =================================================
+   INITIAL RUNTIME STATES
+================================================= */
+
+Object.keys(
+    window.__RUNTIME_HEALTH_MAP__ || {}
+).forEach((file) => {
+
+    setRuntimeModuleState(
+        file,
+        "ONLINE"
+    );
+});
 
         /* =================================================
    OPTIONAL GOVERNANCE RESTORE
@@ -9079,6 +9092,145 @@ function(fileName = "") {
         };
     }
 };
+
+
+/* =====================================================================================
+   RUNTIME RECOVERY ENGINE V1
+===================================================================================== */
+
+window.setRuntimeModuleState =
+function(
+    fileName = "",
+    newState = "ONLINE"
+) {
+
+    try {
+
+        console.log(
+            "🩺 [RUNTIME_STATE_CHANGE]",
+            fileName,
+            newState
+        );
+
+        const node =
+
+            window
+                .__RUNTIME_HEALTH_MAP__?.[
+                    fileName
+                ];
+
+        if (!node) {
+
+            throw new Error(
+                "RUNTIME_NODE_NOT_FOUND"
+            );
+        }
+
+        node.status =
+            newState;
+
+        node.lastCheck =
+            Date.now();
+
+        /* =================================================
+           DEGRADED
+        ================================================= */
+
+        if (
+            newState ===
+            "DEGRADED"
+        ) {
+
+            node.degraded =
+                true;
+
+            node.health =
+                60;
+        }
+
+        /* =================================================
+           ISOLATED
+        ================================================= */
+
+        if (
+            newState ===
+            "ISOLATED"
+        ) {
+
+            node.isolated =
+                true;
+
+            node.health =
+                25;
+        }
+
+        /* =================================================
+           RECOVERING
+        ================================================= */
+
+        if (
+            newState ===
+            "RECOVERING"
+        ) {
+
+            node.health =
+                80;
+        }
+
+        /* =================================================
+           ONLINE
+        ================================================= */
+
+        if (
+            newState ===
+            "ONLINE"
+        ) {
+
+            node.degraded =
+                false;
+
+            node.isolated =
+                false;
+
+            node.blocked =
+                false;
+
+            node.health =
+                100;
+        }
+
+        console.log(
+            "✅ [RUNTIME_STATE_UPDATED]",
+            node
+        );
+
+        return {
+
+            ok: true,
+
+            runtime:
+                node
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [RUNTIME_STATE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
 
 
 /**
