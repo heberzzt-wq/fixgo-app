@@ -2131,6 +2131,161 @@ function(fileName = "") {
 };
 
 /* =====================================================================================
+   RUNTIME CRITICALITY PROPAGATION ENGINE V1
+===================================================================================== */
+
+/* =====================================================
+   CALCULATE PROPAGATED CRITICALITY
+===================================================== */
+
+window.calculatePropagatedCriticality =
+function(fileName = "") {
+
+    try {
+
+        console.log(
+            "🧠 [CRITICALITY_PROPAGATION]",
+            fileName
+        );
+
+        const analysis =
+
+            analyzeRepoImpact(
+                fileName
+            );
+
+        if (
+            !analysis?.ok
+        ) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "ANALYSIS_FAILED"
+            };
+        }
+
+        const data =
+            analysis.analysis;
+
+        let propagatedScore = 0;
+
+        /* =================================================
+           BASE CRITICALITY
+        ================================================= */
+
+        propagatedScore +=
+            data.criticality || 0;
+
+        /* =================================================
+           DEPENDENCY WEIGHT
+        ================================================= */
+
+        propagatedScore +=
+            (
+                data.totalDependencies || 0
+            ) * 5;
+
+        /* =================================================
+           IMPACT WEIGHT
+        ================================================= */
+
+        propagatedScore +=
+            (
+                data.totalImpacted || 0
+            ) * 10;
+
+        /* =================================================
+           GOVERNANCE WEIGHT
+        ================================================= */
+
+        if (
+            data.governance ===
+            "HIGH"
+        ) {
+
+            propagatedScore += 25;
+        }
+
+        /* =================================================
+           NORMALIZE
+        ================================================= */
+
+        propagatedScore =
+            Math.min(
+                propagatedScore,
+                100
+            );
+
+        const classification =
+
+            propagatedScore >= 80
+
+                ? "CRITICAL"
+
+                : propagatedScore >= 50
+
+                    ? "HIGH"
+
+                    : propagatedScore >= 25
+
+                        ? "MEDIUM"
+
+                        : "LOW";
+
+        const result = {
+
+            ok: true,
+
+            file:
+                data.file,
+
+            module:
+                data.module,
+
+            propagatedScore,
+
+            classification,
+
+            dependencies:
+                data.totalDependencies,
+
+            impactedFiles:
+                data.totalImpacted,
+
+            governance:
+                data.governance
+        };
+
+        console.log(
+            "🚨 [CRITICALITY_RESULT]",
+            result
+        );
+
+        return result;
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [CRITICALITY_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
    REPO GOVERNANCE ENGINE V1
 ===================================================================================== */
 
