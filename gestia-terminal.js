@@ -2528,6 +2528,106 @@ function(fileName = "") {
     }
 };
 
+
+/* =====================================================================================
+   DEPENDENT RISK DISCOVERY ENGINE V1
+===================================================================================== */
+
+/* =====================================================
+   FIND DEPENDENT RISK NODES
+===================================================== */
+
+window.findDependentRiskNodes =
+function(targetFile = "") {
+
+    try {
+
+        console.log(
+            "🧠 [DEPENDENT_DISCOVERY]",
+            targetFile
+        );
+
+        const graph =
+
+            window
+                .__RUNTIME_RISK_GRAPH__ || {};
+
+        const dependents = [];
+
+        for (
+            const file in graph
+        ) {
+
+            const node =
+                graph[file];
+
+            const dependencies =
+
+                node.dependencies || [];
+
+            const dependsOnTarget =
+
+                dependencies.some(dep =>
+
+                    dep.includes(
+                        targetFile
+                    )
+                );
+
+            if (
+                dependsOnTarget
+            ) {
+
+                dependents.push({
+
+                    file,
+
+                    propagatedRisk:
+                        node.propagatedRisk,
+
+                    propagatedScore:
+                        node.propagatedScore
+                });
+
+                console.warn(
+                    "⚠️ [DEPENDENT_NODE]",
+                    file
+                );
+            }
+        }
+
+        return {
+
+            ok: true,
+
+            target:
+                targetFile,
+
+            total:
+                dependents.length,
+
+            dependents
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [DEPENDENT_DISCOVERY_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
 /* =====================================================================================
    REPO GOVERNANCE ENGINE V1
 ===================================================================================== */
