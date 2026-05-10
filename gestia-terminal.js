@@ -2882,6 +2882,220 @@ if (
     }
 };
 
+
+/* =====================================================================================
+   CASCADING RUNTIME DEGRADATION ENGINE V1
+===================================================================================== */
+
+window.propagateRuntimeDegradation =
+function(
+    targetFile = "",
+    options = {}
+) {
+
+    try {
+
+        console.warn(
+            "🚨 [CASCADE_START]",
+            targetFile
+        );
+
+        const {
+
+            source =
+                targetFile,
+
+            reason =
+                "RUNTIME_CASCADE",
+
+            maxDepth = 5
+
+        } = options;
+
+        /* =================================================
+           DEPENDENTS
+        ================================================= */
+
+        const discovered =
+
+            findDependentRiskNodes(
+                targetFile
+            );
+
+        if (
+            !discovered?.ok
+        ) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "DEPENDENT_DISCOVERY_FAILED"
+            };
+        }
+
+        const dependents =
+            discovered.dependents || [];
+
+        console.warn(
+            "⚠️ [CASCADE_DEPENDENTS]",
+            dependents.length
+        );
+
+        /* =================================================
+           CASCADE SESSION
+        ================================================= */
+
+        const cascadeId =
+            crypto.randomUUID();
+
+        window.__RUNTIME_CONTAMINATION__
+            .cascadeSessions[
+                cascadeId
+            ] = {
+
+            target:
+                targetFile,
+
+            startedAt:
+                Date.now(),
+
+            total:
+                dependents.length
+        };
+
+        const affected = [];
+
+        /* =================================================
+           CASCADE LOOP
+        ================================================= */
+
+        for (
+            const dependent
+            of dependents
+        ) {
+
+            const file =
+                dependent.file;
+
+            const risk =
+                dependent
+                    .propagatedRisk ||
+
+                "LOW";
+
+            let level =
+                "DEGRADED";
+
+            /* =============================================
+               RISK MAPPING
+            ============================================= */
+
+            if (
+                risk === "MEDIUM"
+            ) {
+
+                level =
+                    "RESTRICTED";
+            }
+
+            if (
+                risk === "HIGH"
+            ) {
+
+                level =
+                    "ISOLATED";
+            }
+
+            if (
+                risk === "CRITICAL"
+            ) {
+
+                level =
+                    "HARD_FAILURE";
+            }
+
+            /* =============================================
+               APPLY DAMAGE
+            ============================================= */
+
+            const result =
+
+                window
+                    .applyRuntimeDegradation(
+                        file,
+                        {
+                            level,
+
+                            source,
+
+                            reason,
+
+                            propagatedBy:
+                                targetFile
+                        }
+                    );
+
+            affected.push({
+
+                file,
+
+                level,
+
+                risk,
+
+                ok:
+                    result?.ok === true
+            });
+
+            console.warn(
+                "⚠️ [CASCADE_APPLIED]",
+                file,
+                level
+            );
+        }
+
+        console.warn(
+            "✅ [CASCADE_COMPLETED]",
+            affected.length
+        );
+
+        return {
+
+            ok: true,
+
+            cascadeId,
+
+            source:
+                targetFile,
+
+            totalAffected:
+                affected.length,
+
+            affected
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [CASCADE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+
 /* =====================================================================================
    REPO GOVERNANCE ENGINE V1
 ===================================================================================== */
