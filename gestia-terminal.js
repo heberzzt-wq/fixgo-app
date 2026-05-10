@@ -10085,6 +10085,91 @@ setRuntimeModuleState(
         });
 
         /* =================================================
+           RECOVERY VERIFICATION
+        ================================================= */
+
+        const verification =
+
+            window
+                .validateRuntimeIntegrity(
+                    fileName
+                );
+
+        console.log(
+            "🩺 [RECOVERY_VERIFICATION]",
+            fileName,
+            verification
+        );
+
+        /* =================================================
+           RECOVERY FAILED
+        ================================================= */
+
+        if (
+            !verification?.ok ||
+
+            verification?.state ===
+            "HARD_FAILURE"
+        ) {
+
+            setRuntimeModuleState(
+                fileName,
+                "ISOLATED"
+            );
+
+            console.warn(
+                "⚠️ [RECOVERY_VERIFICATION_FAIL]",
+                fileName
+            );
+
+            return {
+
+                ok: false,
+
+                recovered:
+                    false,
+
+                verification,
+
+                reason:
+                    "RECOVERY_VALIDATION_FAILED"
+            };
+        }
+
+        /* =================================================
+           DEGRADED RECOVERY
+        ================================================= */
+
+        if (
+            verification?.state ===
+            "DEGRADED"
+        ) {
+
+            setRuntimeModuleState(
+                fileName,
+                "DEGRADED"
+            );
+
+            console.warn(
+                "⚠️ [PARTIAL_RECOVERY]",
+                fileName
+            );
+
+            return {
+
+                ok: true,
+
+                recovered:
+                    "PARTIAL",
+
+                verification,
+
+                repairPlan:
+                    plan
+            };
+        }
+
+        /* =================================================
            ONLINE
         ================================================= */
 
@@ -10104,6 +10189,8 @@ setRuntimeModuleState(
 
             recovered:
                 true,
+
+            verification,
 
             repairPlan:
                 plan
