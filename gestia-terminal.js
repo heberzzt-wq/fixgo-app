@@ -2475,36 +2475,7 @@ recordGovernanceEvent({
         }
 
 
-        /* =================================================
-   GOVERNANCE MEMORY
-================================================= */
-
-recordGovernanceEvent({
-
-    operation,
-
-    target,
-
-    governanceAction:
-        decision
-            ?.governanceAction,
-
-    propagatedRisk:
-        decision
-            ?.propagatedRisk,
-
-    criticality:
-        decision
-            ?.criticality,
-
-    allowed:
-        decision
-            ?.allowed,
-
-    blocked:
-        !decision
-            ?.allowed
-});
+        
         /* =================================================
            EXECUTION SIMULATION
         ================================================= */
@@ -2841,17 +2812,20 @@ if (
 
         const transaction =
 
-            window.cognitiveDB
-                .transaction(
-                    ["runtimeSnapshots"],
-                    "readwrite"
-                );
+    window.cognitiveDB
+        .transaction(
+            [
+                COGNITIVE_RUNTIME_DB
+                    .STORE_NAME
+            ],
+            "readwrite"
+        );
 
-        const store =
-            transaction.objectStore(
-                "runtimeSnapshots"
-            );
-
+       const store =
+    transaction.objectStore(
+        COGNITIVE_RUNTIME_DB
+            .STORE_NAME
+    );
         const payload = {
 
             snapshotId:
@@ -2932,16 +2906,20 @@ async function() {
 
         const transaction =
 
-            window.cognitiveDB
-                .transaction(
-                    ["runtimeSnapshots"],
-                    "readonly"
-                );
+    window.cognitiveDB
+        .transaction(
+            [
+                COGNITIVE_RUNTIME_DB
+                    .STORE_NAME
+            ],
+            "readonly"
+        );
 
-        const store =
-            transaction.objectStore(
-                "runtimeSnapshots"
-            );
+const store =
+    transaction.objectStore(
+        COGNITIVE_RUNTIME_DB
+            .STORE_NAME
+    );
 
         const request =
             store.get(
