@@ -678,6 +678,7 @@ const COGNITIVE_RUNTIME_DB = {
 
 window.__RUNTIME_DB__ = null;
 
+window.cognitiveDB = null;
 /* =====================================================
    INIT COGNITIVE DB
 ===================================================== */
@@ -720,6 +721,13 @@ window.initRuntimePersistence = async function() {
 
                 window.__RUNTIME_DB__ =
                     e.target.result;
+
+                // =================================================
+                // DB BRIDGE
+                // =================================================
+
+                window.cognitiveDB =
+                    window.__RUNTIME_DB__;
 
                 console.log(
                     "🧠 [COGNITIVE_DB_READY]"
