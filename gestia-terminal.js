@@ -3289,6 +3289,23 @@ if (!layerMap?.ok) {
         "LAYER_MAP_BUILD_FAILED"
     );
 }
+
+/* =================================================
+   BUILD RUNTIME HEALTH
+================================================= */
+
+const runtimeHealth =
+
+    buildRuntimeHealthMap();
+
+if (!runtimeHealth?.ok) {
+
+    throw new Error(
+        "RUNTIME_HEALTH_BUILD_FAILED"
+    );
+}
+
+
         /* =================================================
    OPTIONAL GOVERNANCE RESTORE
 ================================================= */
