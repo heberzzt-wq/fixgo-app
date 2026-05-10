@@ -8624,7 +8624,7 @@ function() {
 
                 layer:
 
-    file.includes("firewall") ||
+   file.includes("firewall") ||
 
     file.includes("auth") ||
 
@@ -8646,7 +8646,11 @@ function() {
 
       file.includes("plans") ||
 
-      file.includes("executor")
+      file.includes("executor") ||
+
+      file.includes("bridge") ||
+
+      file.includes("repair")
 
         ? "EXECUTION"
 
@@ -8680,7 +8684,6 @@ domain:
         ? "GESTIA_CORE"
 
     : "RUNTIME"
-    
             };
         });
 
