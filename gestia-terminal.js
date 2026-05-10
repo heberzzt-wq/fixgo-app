@@ -2794,6 +2794,31 @@ function(targetFile = "") {
 
         const dependents = [];
 
+        /* =============================================
+           NORMALIZATION
+        ============================================= */
+
+        const normalizeRuntimePath =
+        (path = "") => {
+
+            return String(path)
+                .toLowerCase()
+                .replaceAll("\\", "/")
+                .split("/")
+                .pop()
+                .trim();
+        };
+
+        const normalizedTarget =
+
+            normalizeRuntimePath(
+                targetFile
+            );
+
+        /* =============================================
+           GRAPH LOOP
+        ============================================= */
+
         for (
             const file in graph
         ) {
@@ -2807,30 +2832,30 @@ function(targetFile = "") {
 
             const dependsOnTarget =
 
-    dependencies.some(dep => {
+                dependencies.some(dep => {
 
-        if (!dep) {
+                    if (!dep) {
 
-            return false;
-        }
+                        return false;
+                    }
 
-        return (
+                    const normalizedDep =
 
-            dep.includes(
-                targetFile
-            ) ||
+                        normalizeRuntimePath(
+                            dep
+                        );
 
-            targetFile.includes(
-                dep
-            )
-        );
-    });
+                    return (
 
-if (
-    dependsOnTarget &&
-    file !== targetFile
-)
-{
+                        normalizedDep ===
+                        normalizedTarget
+                    );
+                });
+
+            if (
+                dependsOnTarget &&
+                file !== targetFile
+            ) {
 
                 dependents.push({
 
@@ -2881,7 +2906,6 @@ if (
         };
     }
 };
-
 
 /* =====================================================================================
    CASCADING RUNTIME DEGRADATION ENGINE V1
