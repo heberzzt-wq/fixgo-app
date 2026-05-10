@@ -2774,6 +2774,16 @@ window.addEventListener(
                 "🧠 [AUTO_REPO_HYDRATION]"
             );
 
+            /* =================================================
+               INIT RUNTIME PERSISTENCE
+            ================================================= */
+
+            await initRuntimePersistence();
+
+            /* =================================================
+               BOOTSTRAP REPO COGNITION
+            ================================================= */
+
             await bootstrapRepoCognition();
 
         }
