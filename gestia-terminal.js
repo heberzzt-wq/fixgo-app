@@ -1813,23 +1813,105 @@ async function() {
    MANUAL COGNITIVE LINKS
 ================================================= */
 
-window.__REPO_DEP_GRAPH__["intent.engine.js"]
-    .dependencies = [
+console.log(
+    "🧠 [MANUAL_COGNITIVE_LINKS]"
+);
+
+/* =============================================
+   INTENT -> SEMANTIC
+============================================= */
+
+if (
+    window.__REPO_DEP_GRAPH__?.[
+        "intent.engine.js"
+    ]
+) {
+
+    window.__REPO_DEP_GRAPH__[
+        "intent.engine.js"
+    ].dependencies = [
 
         "/gestia-core/semantic.engine.js"
-];
+    ];
 
-window.__REPO_DEP_GRAPH__["jarvis.bridge.v4.js"]
-    .dependencies = [
+    console.log(
+        "✅ [LINKED]",
+        "intent.engine.js"
+    );
+
+} else {
+
+    console.warn(
+        "⚠️ NODE_MISSING:",
+        "intent.engine.js"
+    );
+}
+
+/* =============================================
+   BRIDGE -> INTENT
+============================================= */
+
+if (
+    window.__REPO_DEP_GRAPH__?.[
+        "jarvis.bridge.v4.js"
+    ]
+) {
+
+    window.__REPO_DEP_GRAPH__[
+        "jarvis.bridge.v4.js"
+    ].dependencies = [
 
         "/gestia-core/intent.engine.js"
-];
+    ];
 
-window.__REPO_DEP_GRAPH__["operations.engine.js"]
-    .dependencies = [
+    console.log(
+        "✅ [LINKED]",
+        "jarvis.bridge.v4.js"
+    );
+
+} else {
+
+    console.warn(
+        "⚠️ NODE_MISSING:",
+        "jarvis.bridge.v4.js"
+    );
+}
+
+/* =============================================
+   OPERATIONS -> BRIDGE
+============================================= */
+
+if (
+    window.__REPO_DEP_GRAPH__?.[
+        "operations.engine.js"
+    ]
+) {
+
+    window.__REPO_DEP_GRAPH__[
+        "operations.engine.js"
+    ].dependencies = [
 
         "/gestia-core/jarvis/jarvis.bridge.v4.js"
-];
+    ];
+
+    console.log(
+        "✅ [LINKED]",
+        "operations.engine.js"
+    );
+
+} else {
+
+    console.warn(
+        "⚠️ NODE_MISSING:",
+        "operations.engine.js"
+    );
+}
+
+/* =============================================
+   BUILD RUNTIME RISK GRAPH
+============================================= */
+
+window.buildRuntimeRiskGraph();
 /* =====================================================================================
    REPO IMPACT ANALYZER V1
 ===================================================================================== */
