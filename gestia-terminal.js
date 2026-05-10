@@ -2732,6 +2732,50 @@ if (
         "RESTRICTED_EXECUTION";
 }
 
+
+/* =================================================
+   SOVEREIGN LAYER PRIORITY
+================================================= */
+
+if (
+    governanceAction ===
+    "HARD_BLOCK"
+) {
+
+    return {
+
+        ok: true,
+
+        decision: {
+
+            file:
+                analysis.file,
+
+            module:
+                analysis.module,
+
+            allowed,
+
+            governanceAction,
+
+            reason,
+
+            criticality:
+                analysis.criticality,
+
+            propagatedRisk:
+                analysis.propagatedRisk,
+
+            totalDependencies:
+                analysis.totalDependencies,
+
+            totalImpacted:
+                analysis.totalImpacted,
+
+            layer
+        }
+    };
+}
         /* =================================================
            CRITICAL GOVERNANCE
         ================================================= */
