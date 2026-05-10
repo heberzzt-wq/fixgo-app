@@ -3779,23 +3779,38 @@ if (!graph?.ok) {
    MANUAL COGNITIVE LINKS
 ================================================= */
 
-window.__REPO_DEP_GRAPH__["intent.engine.js"]
-    .dependencies = [
+if (
+    window.__REPO_DEP_GRAPH__["intent.engine.js"]
+) {
 
-        "/gestia-core/semantic.engine.js"
-];
+    window.__REPO_DEP_GRAPH__["intent.engine.js"]
+        .dependencies = [
 
-window.__REPO_DEP_GRAPH__["jarvis.bridge.v4.js"]
-    .dependencies = [
+            "/gestia-core/semantic.engine.js"
+    ];
+}
 
-        "/gestia-core/intent.engine.js"
-];
+if (
+    window.__REPO_DEP_GRAPH__["jarvis.bridge.v4.js"]
+) {
 
-window.__REPO_DEP_GRAPH__["operations.engine.js"]
-    .dependencies = [
+    window.__REPO_DEP_GRAPH__["jarvis.bridge.v4.js"]
+        .dependencies = [
 
-        "/gestia-core/jarvis/jarvis.bridge.v4.js"
-];
+            "/gestia-core/intent.engine.js"
+    ];
+}
+
+if (
+    window.__REPO_DEP_GRAPH__["operations.engine.js"]
+) {
+
+    window.__REPO_DEP_GRAPH__["operations.engine.js"]
+        .dependencies = [
+
+            "/gestia-core/jarvis/jarvis.bridge.v4.js"
+    ];
+}
 
 /* =================================================
    BUILD RUNTIME RISK GRAPH
