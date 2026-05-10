@@ -2533,6 +2533,176 @@ function(
     }
 };
 
+/* =====================================================================================
+   RUNTIME VALIDATION ENGINE V1
+===================================================================================== */
+
+window.validateRuntimeIntegrity =
+function(
+    fileName = ""
+) {
+
+    try {
+
+        console.log(
+            "🧠 [RUNTIME_VALIDATION]",
+            fileName
+        );
+
+        const runtime =
+
+            window
+                .__RUNTIME_HEALTH_MAP__?.[
+                    fileName
+                ];
+
+        if (!runtime) {
+
+            return {
+
+                ok: false,
+
+                valid: false,
+
+                state:
+                    "UNKNOWN",
+
+                reason:
+                    "RUNTIME_NOT_FOUND"
+            };
+        }
+
+        /* =================================================
+           HEALTH SCORE
+        ================================================= */
+
+        const health =
+            runtime.health || 0;
+
+        /* =================================================
+           HARD FAILURE
+        ================================================= */
+
+        if (
+            health <= 0
+        ) {
+
+            return {
+
+                ok: true,
+
+                valid: false,
+
+                state:
+                    "HARD_FAILURE",
+
+                health
+            };
+        }
+
+        /* =================================================
+           ISOLATED
+        ================================================= */
+
+        if (
+            health <= 25
+        ) {
+
+            return {
+
+                ok: true,
+
+                valid: false,
+
+                state:
+                    "ISOLATED",
+
+                health
+            };
+        }
+
+        /* =================================================
+           RESTRICTED
+        ================================================= */
+
+        if (
+            health <= 50
+        ) {
+
+            return {
+
+                ok: true,
+
+                valid: true,
+
+                state:
+                    "RESTRICTED",
+
+                health
+            };
+        }
+
+        /* =================================================
+           DEGRADED
+        ================================================= */
+
+        if (
+            health <= 80
+        ) {
+
+            return {
+
+                ok: true,
+
+                valid: true,
+
+                state:
+                    "DEGRADED",
+
+                health
+            };
+        }
+
+        /* =================================================
+           ONLINE
+        ================================================= */
+
+        return {
+
+            ok: true,
+
+            valid: true,
+
+            state:
+                "ONLINE",
+
+            health
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [RUNTIME_VALIDATION_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            valid: false,
+
+            state:
+                "UNKNOWN",
+
+            error:
+                error.message
+        };
+    }
+};
+
 /* =====================================================
    BUILD RISK PROPAGATION GRAPH
 ===================================================== */
