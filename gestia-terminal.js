@@ -8591,6 +8591,88 @@ Confirma ejecución escribiendo: arre`;
 
     console.log("🧠 [PLAN_PREVIEW_RENDERED]:", plan);
 };
+
+/* =====================================================================================
+   COGNITIVE LAYER MAPPER V1
+===================================================================================== */
+
+window.__COGNITIVE_LAYER_MAP__ = {};
+
+window.buildCognitiveLayerMap =
+function() {
+
+    try {
+
+        console.log(
+            "🧠 [COGNITIVE_LAYER_MAPPING]"
+        );
+
+        const cognition =
+
+            window
+                .__REPO_COGNITION__ || {};
+
+        const layerMap = {};
+
+        Object.entries(
+            cognition
+        ).forEach(([file, meta]) => {
+
+            layerMap[file] = {
+
+                file,
+
+                layer:
+                    "UNKNOWN",
+
+                role:
+                    "UNKNOWN",
+
+                domain:
+                    "UNKNOWN"
+            };
+        });
+
+        window.__COGNITIVE_LAYER_MAP__ =
+            layerMap;
+
+        console.log(
+            "✅ [LAYER_MAP_READY]",
+            Object.keys(layerMap).length
+        );
+
+        return {
+
+            ok: true,
+
+            total:
+                Object.keys(
+                    layerMap
+                ).length,
+
+            layers:
+                layerMap
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [LAYER_MAP_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
 /**
  * =====================================================
  * FIN BLOQUE 4 V15
