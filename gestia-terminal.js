@@ -2567,16 +2567,30 @@ function(targetFile = "") {
 
             const dependsOnTarget =
 
-                dependencies.some(dep =>
+    dependencies.some(dep => {
 
-                    dep.includes(
-                        targetFile
-                    )
-                );
+        if (!dep) {
 
-            if (
-                dependsOnTarget
-            ) {
+            return false;
+        }
+
+        return (
+
+            dep.includes(
+                targetFile
+            ) ||
+
+            targetFile.includes(
+                dep
+            )
+        );
+    });
+
+if (
+    dependsOnTarget &&
+    file !== targetFile
+)
+{
 
                 dependents.push({
 
