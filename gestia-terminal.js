@@ -642,8 +642,9 @@ runtimeRepairCooldowns: {},
 
 runtimeRepairAttempts: {},
 
-runtimeQuarantinedModules: {},
+runtimeHealthSuppression: {},
 
+runtimeQuarantinedModules: {},
 /* =================================================
    ACTIVE RUNTIME REPAIRS
 ================================================= */
@@ -11115,6 +11116,25 @@ for (
         "OFFLINE"
     ) {
 
+
+        /* =========================
+   SUPPRESSION
+========================= */
+
+const suppressedUntil =
+
+    MODULE_CONTEXT
+        .runtimeHealthSuppression?.[
+            file
+        ] || 0;
+
+if (
+    Date.now() <
+    suppressedUntil
+) {
+
+    continue;
+}
         console.warn(
             "🩺 [HEALTH_ANOMALY_DETECTED]",
             file,
@@ -11154,6 +11174,21 @@ for (
 
             continue;
         }
+
+        /* =========================
+   REGISTER SUPPRESSION
+========================= */
+
+MODULE_CONTEXT
+    .runtimeHealthSuppression[
+        file
+    ] =
+
+    Date.now() +
+
+    (
+        1000 * 20
+    );
 
         enqueueRuntimeRepair(
             file,
