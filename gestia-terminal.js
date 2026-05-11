@@ -10071,7 +10071,7 @@ window
     .activeRuntimeRepairs
     .add(repairLockKey);
 
-    
+
 console.log(
     "🧠 [REPAIR_LOCK_ACQUIRED]",
     fileName
@@ -10336,16 +10336,7 @@ if(runtime){
 window
     .__MODULE_CONTEXT__
     .activeRuntimeRepairs
-    .delete(
-
-        JSON.stringify({
-
-            file: fileName,
-
-            repairId
-        })
-
-    );
+    .delete(repairLockKey);
 
 console.log(
     "🔓 [REPAIR_LOCK_RELEASED]",
