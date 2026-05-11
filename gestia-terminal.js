@@ -10456,7 +10456,7 @@ function(
 
             queue.some(item =>
 
-                item.file === fileName
+                item.file === file 
             );
 
         if (alreadyQueued) {
@@ -11125,20 +11125,20 @@ function() {
         .runtimeRepairQueue
         .some(
             item =>
-                item.file === fileName
+                item.file === file
         );
 
 const repairing =
 
     MODULE_CONTEXT
         .activeRuntimeRepairs
-        .has(fileName);
+        .has(file);
 
 const cooldown =
 
     MODULE_CONTEXT
         .runtimeRepairCooldowns[
-            fileName
+            file
         ];
 
 if (
@@ -11274,7 +11274,7 @@ function(
 
             MODULE_CONTEXT
                 .runtimeRepairCooldowns?.[
-                    fileName
+                    file
                 ] || 0;
 
         if (
@@ -11396,7 +11396,7 @@ function(
         return window
             .__MODULE_CONTEXT__
             .activeRuntimeRepairs
-            .has(fileName);
+            .has(file);
 
     }
 
