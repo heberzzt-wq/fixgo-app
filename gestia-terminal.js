@@ -851,24 +851,30 @@ window.createRuntimeSnapshot = async function() {
 
             runtime: {
 
-                modules:
-                    safeClone(
-                        MODULE_CONTEXT
-                            ?.modules || {}
-                    ),
+    modules:
+        safeClone(
+            MODULE_CONTEXT
+                ?.modules || {}
+        ),
 
-                loaded:
-                    safeClone(
-                        MODULE_CONTEXT
-                            ?.loaded || {}
-                    ),
+    loaded:
+        safeClone(
+            MODULE_CONTEXT
+                ?.loaded || {}
+        ),
 
-                lazyModules:
-                    safeClone(
-                        MODULE_CONTEXT
-                            ?.lazyModules || {}
-                    )
-            },
+    lazyModules:
+        safeClone(
+            MODULE_CONTEXT
+                ?.lazyModules || {}
+        ),
+
+    healthMap:
+        safeClone(
+            window
+                .__RUNTIME_HEALTH_MAP__ || {}
+        )
+},
 
             graphs: {
 
@@ -1171,6 +1177,18 @@ async function() {
                     ?.runtime
                     ?.lazyModules || {}
             );
+
+            /* =================================================
+   HEALTH MAP RESTORE
+================================================= */
+
+window.__RUNTIME_HEALTH_MAP__ =
+
+    structuredClone(
+        snapshot
+            ?.runtime
+            ?.healthMap || {}
+    );
 
         /* =================================================
            GRAPH RESTORE
