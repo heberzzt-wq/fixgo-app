@@ -10052,16 +10052,26 @@ if(
 const repairId =
 
     crypto.randomUUID();
-    
+
 /* =================================================
    REGISTER ACTIVE REPAIR
 ================================================= */
 
+const repairLockKey =
+
+    JSON.stringify({
+
+        file: fileName,
+
+        repairId
+    });
+
 window
     .__MODULE_CONTEXT__
     .activeRuntimeRepairs
-    .add(fileName);
+    .add(repairLockKey);
 
+    
 console.log(
     "🧠 [REPAIR_LOCK_ACQUIRED]",
     fileName
