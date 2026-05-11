@@ -4204,6 +4204,75 @@ else {
     }
 };
 
+
+/* =====================================================================================
+   AUTO BOOT HYDRATION V1
+===================================================================================== */
+
+window.bootstrapRuntimeCognition =
+async function() {
+
+    try {
+
+        console.log(
+            "🧠 [BOOT_HYDRATION_START]"
+        );
+
+        /* =================================================
+           INIT DB
+        ================================================= */
+
+        await initRuntimePersistence();
+
+        /* =================================================
+           RESTORE SNAPSHOT
+        ================================================= */
+
+        await restoreRuntimeSnapshot();
+
+        /* =================================================
+           START HEALTH SCANNER
+        ================================================= */
+
+        startRuntimeHealthScanner();
+
+        /* =================================================
+           START SNAPSHOT DAEMON
+        ================================================= */
+
+        startRuntimeSnapshotDaemon();
+
+        console.log(
+            "✅ [BOOT_HYDRATION_COMPLETED]"
+        );
+
+        return {
+
+            ok: true,
+
+            cognition:
+                "ONLINE"
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [BOOT_HYDRATION_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
 /* =====================================================
    AUTO HYDRATION
 ===================================================== */
@@ -4230,6 +4299,12 @@ window.addEventListener(
             ================================================= */
 
             await bootstrapRepoCognition();
+
+            /* =================================================
+               BOOTSTRAP RUNTIME COGNITION
+            ================================================= */
+
+            await bootstrapRuntimeCognition();
 
         }
 
