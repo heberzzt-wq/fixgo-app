@@ -11275,7 +11275,7 @@ function(
 
             MODULE_CONTEXT
                 .runtimeRepairCooldowns?.[
-                    file
+                    fileName
                 ] || 0;
 
         if (
@@ -11397,7 +11397,7 @@ function(
         return window
             .__MODULE_CONTEXT__
             .activeRuntimeRepairs
-            .has(file);
+            .has(fileName);
 
     }
 
