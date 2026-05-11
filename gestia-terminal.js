@@ -608,11 +608,15 @@ window.__MODULE_CONTEXT__ ||= {
 
     runtimeSnapshots: {},
 
-    /* =================================================
+   /* =================================================
    RUNTIME REPAIR QUEUE
 ================================================= */
 
 runtimeRepairQueue: [],
+
+runtimeRepairHistory: [],
+
+runtimeRepairProcessing: false,
 
 /* =================================================
    ACTIVE RUNTIME REPAIRS
@@ -10082,6 +10086,8 @@ function(
 
 };
 
+
+
 /* =================================================
    REPAIR OWNER ID
 ================================================= */
@@ -10383,6 +10389,145 @@ console.log(
 
     }
 };
+
+/* =====================================================================================
+   ENQUEUE RUNTIME REPAIR V1
+===================================================================================== */
+
+window.enqueueRuntimeRepair =
+function(
+    fileName = "",
+    config = {}
+) {
+
+    try {
+
+        if (!fileName) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "INVALID_FILE"
+            };
+        }
+
+        /* =================================================
+           QUEUE
+        ================================================= */
+
+        const queue =
+
+            MODULE_CONTEXT
+                .runtimeRepairQueue;
+
+        /* =================================================
+           DEDUPE
+        ================================================= */
+
+        const alreadyQueued =
+
+            queue.some(item =>
+
+                item.file === fileName
+            );
+
+        if (alreadyQueued) {
+
+            console.warn(
+                "⚠️ [REPAIR_ALREADY_QUEUED]",
+                fileName
+            );
+
+            return {
+
+                ok: false,
+
+                queued: false,
+
+                reason:
+                    "ALREADY_QUEUED"
+            };
+        }
+
+        /* =================================================
+           PAYLOAD
+        ================================================= */
+
+        const repairTask = {
+
+            repairTaskId:
+                crypto.randomUUID(),
+
+            file:
+                fileName,
+
+            priority:
+                config.priority ||
+
+                "NORMAL",
+
+            source:
+                config.source ||
+
+                "RUNTIME",
+
+            createdAt:
+                Date.now(),
+
+            attempts: 0,
+
+            status:
+                "PENDING"
+        };
+
+        /* =================================================
+           PUSH
+        ================================================= */
+
+        queue.push(
+            repairTask
+        );
+
+        console.log(
+            "📥 [REPAIR_ENQUEUED]",
+            repairTask
+        );
+
+        return {
+
+            ok: true,
+
+            queued: true,
+
+            queueSize:
+                queue.length,
+
+            task:
+                repairTask
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [REPAIR_ENQUEUE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+
 /* =====================================================================================
    RUNTIME REPAIR LOCK V1
 ===================================================================================== */
