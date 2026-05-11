@@ -10529,6 +10529,185 @@ function(
 
 
 /* =====================================================================================
+   PROCESS RUNTIME REPAIR QUEUE V1
+===================================================================================== */
+
+window.processRuntimeRepairQueue =
+async function() {
+
+    try {
+
+        /* =================================================
+           GLOBAL MUTEX
+        ================================================= */
+
+        if (
+            MODULE_CONTEXT
+                .runtimeRepairProcessing
+        ) {
+
+            console.warn(
+                "⚠️ [REPAIR_QUEUE_BUSY]"
+            );
+
+            return {
+
+                ok: false,
+
+                reason:
+                    "QUEUE_BUSY"
+            };
+        }
+
+        MODULE_CONTEXT
+            .runtimeRepairProcessing = true;
+
+        console.log(
+            "🧠 [REPAIR_QUEUE_START]"
+        );
+
+        /* =================================================
+           QUEUE
+        ================================================= */
+
+        const queue =
+
+            MODULE_CONTEXT
+                .runtimeRepairQueue;
+
+        /* =================================================
+           EMPTY
+        ================================================= */
+
+        if (!queue.length) {
+
+            MODULE_CONTEXT
+                .runtimeRepairProcessing = false;
+
+            console.log(
+                "📭 [REPAIR_QUEUE_EMPTY]"
+            );
+
+            return {
+
+                ok: true,
+
+                empty: true
+            };
+        }
+
+        /* =================================================
+           NEXT TASK
+        ================================================= */
+
+        const task =
+            queue.shift();
+
+        if (!task) {
+
+            MODULE_CONTEXT
+                .runtimeRepairProcessing = false;
+
+            return {
+
+                ok: false,
+
+                error:
+                    "INVALID_TASK"
+            };
+        }
+
+        console.log(
+            "⚙️ [PROCESSING_REPAIR_TASK]",
+            task
+        );
+
+        task.status =
+            "PROCESSING";
+
+        task.startedAt =
+            Date.now();
+
+        /* =================================================
+           EXECUTE RECOVERY
+        ================================================= */
+
+        const recovery =
+
+            await executeRuntimeRecovery(
+                task.file
+            );
+
+        /* =================================================
+           RESULT
+        ================================================= */
+
+        task.completedAt =
+            Date.now();
+
+        task.result =
+            recovery;
+
+        task.status =
+
+            recovery?.ok
+
+                ? "COMPLETED"
+
+                : "FAILED";
+
+        /* =================================================
+           HISTORY
+        ================================================= */
+
+        MODULE_CONTEXT
+            .runtimeRepairHistory
+            .push(task);
+
+        console.log(
+            "✅ [REPAIR_TASK_COMPLETED]",
+            task
+        );
+
+        return {
+
+            ok: true,
+
+            recovery,
+
+            task
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [QUEUE_PROCESS_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+
+    finally {
+
+        MODULE_CONTEXT
+            .runtimeRepairProcessing = false;
+
+        console.log(
+            "🔓 [QUEUE_MUTEX_RELEASED]"
+        );
+    }
+};
+
+/* =====================================================================================
    RUNTIME REPAIR LOCK V1
 ===================================================================================== */
 
