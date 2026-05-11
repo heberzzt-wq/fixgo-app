@@ -10010,6 +10010,10 @@ function(
 window.executeRuntimeRecovery =
 async function(fileName = "") {
 
+
+    let repairId = null;
+    let repairLockKey = null; 
+
     try {
 
         console.log(
@@ -10031,7 +10035,7 @@ function(
 
     try{
 
-        const repairs =
+         const repairs =
 
             Array.from(
 
@@ -10082,11 +10086,11 @@ function(
    REPAIR OWNER ID
 ================================================= */
 
-const repairId =
+        repairId =
 
     crypto.randomUUID();
 
-const repairLockKey =
+        repairLockKey =
 
     JSON.stringify({
 
