@@ -619,6 +619,16 @@ runtimeRepairHistory: [],
 runtimeRepairProcessing: false,
 
 /* =================================================
+   RETRY GOVERNANCE
+================================================= */
+
+runtimeRepairCooldowns: {},
+
+runtimeRepairAttempts: {},
+
+runtimeQuarantinedModules: {},
+
+/* =================================================
    ACTIVE RUNTIME REPAIRS
 ================================================= */
 
@@ -10704,6 +10714,173 @@ async function() {
         console.log(
             "🔓 [QUEUE_MUTEX_RELEASED]"
         );
+    }
+};
+
+/* =====================================================================================
+   RUNTIME REPAIR GOVERNANCE V1
+===================================================================================== */
+
+window.canAttemptRuntimeRepair =
+function(
+    fileName = ""
+) {
+
+    try {
+
+        if (!fileName) {
+
+            return {
+
+                ok: false,
+
+                allowed: false,
+
+                reason:
+                    "INVALID_FILE"
+            };
+        }
+
+        /* =================================================
+           QUARANTINE
+        ================================================= */
+
+        const quarantined =
+
+            MODULE_CONTEXT
+                .runtimeQuarantinedModules?.[
+                    fileName
+                ];
+
+        if (quarantined) {
+
+            console.warn(
+                "🛑 [MODULE_QUARANTINED]",
+                fileName
+            );
+
+            return {
+
+                ok: true,
+
+                allowed: false,
+
+                reason:
+                    "MODULE_QUARANTINED"
+            };
+        }
+
+        /* =================================================
+           COOLDOWN
+        ================================================= */
+
+        const cooldownUntil =
+
+            MODULE_CONTEXT
+                .runtimeRepairCooldowns?.[
+                    fileName
+                ] || 0;
+
+        if (
+            Date.now() <
+            cooldownUntil
+        ) {
+
+            console.warn(
+                "⏳ [REPAIR_COOLDOWN_ACTIVE]",
+                fileName
+            );
+
+            return {
+
+                ok: true,
+
+                allowed: false,
+
+                reason:
+                    "REPAIR_COOLDOWN_ACTIVE",
+
+                cooldownRemaining:
+
+                    cooldownUntil -
+                    Date.now()
+            };
+        }
+
+        /* =================================================
+           RETRY ATTEMPTS
+        ================================================= */
+
+        const attempts =
+
+            MODULE_CONTEXT
+                .runtimeRepairAttempts?.[
+                    fileName
+                ] || 0;
+
+        if (
+            attempts >= 3
+        ) {
+
+            console.warn(
+                "🛑 [REPAIR_LIMIT_REACHED]",
+                fileName
+            );
+
+            MODULE_CONTEXT
+                .runtimeQuarantinedModules[
+                    fileName
+                ] = {
+
+                quarantinedAt:
+                    Date.now(),
+
+                reason:
+                    "MAX_REPAIR_ATTEMPTS"
+            };
+
+            return {
+
+                ok: true,
+
+                allowed: false,
+
+                reason:
+                    "MAX_REPAIR_ATTEMPTS"
+            };
+        }
+
+        /* =================================================
+           ALLOWED
+        ================================================= */
+
+        return {
+
+            ok: true,
+
+            allowed: true,
+
+            attempts
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [REPAIR_GOVERNANCE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            allowed: false,
+
+            error:
+                error.message
+        };
     }
 };
 
