@@ -10707,22 +10707,42 @@ const recovery =
     );
 
         /* =================================================
-           RESULT
-        ================================================= */
+   RESULT
+================================================= */
 
-        task.completedAt =
-            Date.now();
+task.completedAt =
+    Date.now();
 
-        task.result =
-            recovery;
+task.result =
+    recovery;
 
-        task.status =
+/* =================================================
+   COOLDOWN REGISTRATION
+================================================= */
 
-            recovery?.ok
+MODULE_CONTEXT
+    .runtimeRepairCooldowns[
+        task.file
+    ] =
 
-                ? "COMPLETED"
+    Date.now() +
 
-                : "FAILED";
+    (
+        1000 * 15
+    );
+
+console.log(
+    "⏳ [REPAIR_COOLDOWN_SET]",
+    task.file
+);
+
+task.status =
+
+    recovery?.ok
+
+        ? "COMPLETED"
+
+        : "FAILED";
 
         /* =================================================
            HISTORY
