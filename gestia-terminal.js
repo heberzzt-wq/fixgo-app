@@ -10269,6 +10269,39 @@ if(runtime){
     }
 };
 
+/* =====================================================================================
+   RUNTIME REPAIR LOCK V1
+===================================================================================== */
+
+window.isRuntimeRepairActive =
+function(
+
+    fileName = ""
+
+){
+
+    try{
+
+        return window
+            .__MODULE_CONTEXT__
+            .activeRuntimeRepairs
+            .has(fileName);
+
+    }
+
+    catch(error){
+
+        console.error(
+            "❌ [REPAIR_LOCK_CHECK_FAIL]",
+            error
+        );
+
+        return false;
+
+    }
+
+};
+
 /**
  * =====================================================
  * FIN BLOQUE 4 V15
