@@ -11056,115 +11056,117 @@ function() {
                         }
 
                         /* =========================
-                           MODULES
-                        ========================= */
+   RUNTIME MAP
+========================= */
 
-                        const modules =
+const runtimeMap =
 
-                            MODULE_CONTEXT
-                                .modules || {};
+    window
+        .__RUNTIME_HEALTH_MAP__ ||
 
-                        const entries =
+    {};
 
-                            Object.entries(
-                                modules
-                            );
+const entries =
 
-                        if (
-                            !entries.length
-                        ) {
-
-                            return;
-                        }
-
-                        /* =========================
-                           SCAN
-                        ========================= */
-
-                        for (
-                            const [
-                                file,
-                                moduleData
-                            ]
-
-                            of entries
-                        ) {
-
-                            const state =
-
-                                moduleData
-                                    ?.status ||
-
-                                "UNKNOWN";
-
-                            if (
-
-                                state ===
-                                "DEGRADED"
-
-                                ||
-
-                                state ===
-                                "ISOLATED"
-
-                                ||
-
-                                state ===
-                                "OFFLINE"
-                            ) {
-
-                                console.warn(
-                                    "🩺 [HEALTH_ANOMALY_DETECTED]",
-                                    file,
-                                    state
-                                );
-
-                                const alreadyQueued =
-
-    MODULE_CONTEXT
-        .runtimeRepairQueue
-        .some(
-            item =>
-                item.file === file
-        );
-
-const repairing =
-
-    MODULE_CONTEXT
-        .activeRuntimeRepairs
-        .has(file);
-
-const cooldown =
-
-    MODULE_CONTEXT
-        .runtimeRepairCooldowns[
-            file
-        ];
+    Object.entries(
+        runtimeMap
+    );
 
 if (
-    alreadyQueued ||
-    repairing ||
-    (
-        cooldown &&
-        Date.now() < cooldown
-    )
+    !entries.length
 ) {
 
-    continue;
+    return;
 }
 
-                                enqueueRuntimeRepair(
-                                    file,
-                                    {
-                                        priority:
-                                            "HIGH",
+/* =========================
+   SCAN
+========================= */
 
-                                        source:
-                                            "HEALTH_SCANNER"
-                                    }
-                                );
-                            }
-                        }
+for (
+    const [
+        file,
+        moduleData
+    ]
+
+    of entries
+) {
+
+    const state =
+
+        moduleData
+            ?.status ||
+
+        "UNKNOWN";
+
+    if (
+
+        state ===
+        "DEGRADED"
+
+        ||
+
+        state ===
+        "ISOLATED"
+
+        ||
+
+        state ===
+        "OFFLINE"
+    ) {
+
+        console.warn(
+            "🩺 [HEALTH_ANOMALY_DETECTED]",
+            file,
+            state
+        );
+
+        const alreadyQueued =
+
+            MODULE_CONTEXT
+                .runtimeRepairQueue
+                .some(
+                    item =>
+                        item.file === file
+                );
+
+        const repairing =
+
+            MODULE_CONTEXT
+                .activeRuntimeRepairs
+                .has(file);
+
+        const cooldown =
+
+            MODULE_CONTEXT
+                .runtimeRepairCooldowns[
+                    file
+                ];
+
+        if (
+            alreadyQueued ||
+            repairing ||
+            (
+                cooldown &&
+                Date.now() < cooldown
+            )
+        ) {
+
+            continue;
+        }
+
+        enqueueRuntimeRepair(
+            file,
+            {
+                priority:
+                    "HIGH",
+
+                source:
+                    "HEALTH_SCANNER"
+            }
+        );
+    }
+}
 
                     }
 
@@ -11211,7 +11213,6 @@ if (
         };
     }
 };
-
 
 /* =====================================================================================
    RUNTIME REPAIR GOVERNANCE V1
