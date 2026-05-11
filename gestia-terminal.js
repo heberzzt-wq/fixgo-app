@@ -10017,6 +10017,47 @@ async function(fileName = "") {
             fileName
         );
 
+
+        /* =================================================
+   REPAIR LOCK
+================================================= */
+
+if(
+
+    window.isRuntimeRepairActive(
+        fileName
+    )
+
+){
+
+    console.warn(
+        "⚠️ [REPAIR_ALREADY_ACTIVE]",
+        fileName
+    );
+
+    return {
+
+        ok: false,
+
+        reason:
+            "REPAIR_ALREADY_ACTIVE"
+    };
+
+}
+
+/* =================================================
+   REGISTER ACTIVE REPAIR
+================================================= */
+
+window
+    .__MODULE_CONTEXT__
+    .activeRuntimeRepairs
+    .add(fileName);
+
+console.log(
+    "🧠 [REPAIR_LOCK_ACQUIRED]",
+    fileName
+);
         /* =================================================
            BUILD REPAIR PLAN
         ================================================= */
@@ -10250,7 +10291,7 @@ if(runtime){
                 plan
         };
 
-    }
+        }
 
     catch(error) {
 
@@ -10267,8 +10308,25 @@ if(runtime){
                 error.message
         };
     }
-};
 
+    finally{
+
+        /* =============================================
+           RELEASE REPAIR LOCK
+        ============================================= */
+
+        window
+            .__MODULE_CONTEXT__
+            .activeRuntimeRepairs
+            .delete(fileName);
+
+        console.log(
+            "🔓 [REPAIR_LOCK_RELEASED]",
+            fileName
+        );
+
+    }
+};
 /* =====================================================================================
    RUNTIME REPAIR LOCK V1
 ===================================================================================== */
