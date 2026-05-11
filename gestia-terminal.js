@@ -10508,6 +10508,40 @@ function(
             repairTask
         );
 
+        /* =================================================
+   PRIORITY SORT
+================================================= */
+
+const PRIORITY_ORDER = {
+
+    CRITICAL: 0,
+
+    HIGH: 1,
+
+    NORMAL: 2,
+
+    LOW: 3
+};
+
+queue.sort(
+
+    (a, b) =>
+
+        (
+            PRIORITY_ORDER[
+                a.priority
+            ] ?? 999
+        )
+
+        -
+
+        (
+            PRIORITY_ORDER[
+                b.priority
+            ] ?? 999
+        )
+);
+
         console.log(
             "📥 [REPAIR_ENQUEUED]",
             repairTask
