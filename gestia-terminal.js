@@ -10086,10 +10086,6 @@ const repairId =
 
     crypto.randomUUID();
 
-/* =================================================
-   REGISTER ACTIVE REPAIR
-================================================= */
-
 const repairLockKey =
 
     JSON.stringify({
@@ -10099,15 +10095,19 @@ const repairLockKey =
         repairId
     });
 
+/* =================================================
+   REGISTER ACTIVE REPAIR
+================================================= */
+
 window
     .__MODULE_CONTEXT__
     .activeRuntimeRepairs
     .add(repairLockKey);
 
-
 console.log(
     "🧠 [REPAIR_LOCK_ACQUIRED]",
-    fileName
+    fileName,
+    repairId
 );
         /* =================================================
            BUILD REPAIR PLAN
