@@ -627,6 +627,14 @@ runtimeRepairDaemonActive: false,
 runtimeRepairDaemonInterval: null,
 
 /* =================================================
+   HEALTH SCANNER
+================================================= */
+
+runtimeHealthScannerActive: false,
+
+runtimeHealthScannerInterval: null,
+
+/* =================================================
    RETRY GOVERNANCE
 ================================================= */
 
@@ -10965,6 +10973,198 @@ function() {
 
         console.error(
             "❌ [DAEMON_START_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+
+
+/* =====================================================================================
+   START RUNTIME HEALTH SCANNER V1
+===================================================================================== */
+
+window.startRuntimeHealthScanner =
+function() {
+
+    try {
+
+        /* =================================================
+           ALREADY ACTIVE
+        ================================================= */
+
+        if (
+            MODULE_CONTEXT
+                .runtimeHealthScannerActive
+        ) {
+
+            console.warn(
+                "⚠️ [HEALTH_SCANNER_ALREADY_ACTIVE]"
+            );
+
+            return {
+
+                ok: false,
+
+                reason:
+                    "SCANNER_ALREADY_ACTIVE"
+            };
+        }
+
+        console.log(
+            "🩺 [HEALTH_SCANNER_STARTING]"
+        );
+
+        /* =================================================
+           ACTIVATE
+        ================================================= */
+
+        MODULE_CONTEXT
+            .runtimeHealthScannerActive = true;
+
+        /* =================================================
+           LOOP
+        ================================================= */
+
+        MODULE_CONTEXT
+            .runtimeHealthScannerInterval =
+
+            setInterval(
+
+                async () => {
+
+                    try {
+
+                        /* =========================
+                           ACTIVE CHECK
+                        ========================= */
+
+                        if (
+                            !MODULE_CONTEXT
+                                .runtimeHealthScannerActive
+                        ) {
+
+                            return;
+                        }
+
+                        /* =========================
+                           MODULES
+                        ========================= */
+
+                        const modules =
+
+                            MODULE_CONTEXT
+                                .modules || {};
+
+                        const entries =
+
+                            Object.entries(
+                                modules
+                            );
+
+                        if (
+                            !entries.length
+                        ) {
+
+                            return;
+                        }
+
+                        /* =========================
+                           SCAN
+                        ========================= */
+
+                        for (
+                            const [
+                                file,
+                                moduleData
+                            ]
+
+                            of entries
+                        ) {
+
+                            const state =
+
+                                moduleData
+                                    ?.status ||
+
+                                "UNKNOWN";
+
+                            if (
+
+                                state ===
+                                "DEGRADED"
+
+                                ||
+
+                                state ===
+                                "ISOLATED"
+
+                                ||
+
+                                state ===
+                                "OFFLINE"
+                            ) {
+
+                                console.warn(
+                                    "🩺 [HEALTH_ANOMALY_DETECTED]",
+                                    file,
+                                    state
+                                );
+
+                                enqueueRuntimeRepair(
+                                    file,
+                                    {
+                                        priority:
+                                            "HIGH",
+
+                                        source:
+                                            "HEALTH_SCANNER"
+                                    }
+                                );
+                            }
+                        }
+
+                    }
+
+                    catch(error) {
+
+                        console.error(
+                            "❌ [HEALTH_SCANNER_FAIL]",
+                            error
+                        );
+                    }
+
+                },
+
+                5000
+            );
+
+        console.log(
+            "✅ [HEALTH_SCANNER_ONLINE]"
+        );
+
+        return {
+
+            ok: true,
+
+            scanner:
+                "ONLINE"
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [HEALTH_SCANNER_START_FAIL]",
             error
         );
 
