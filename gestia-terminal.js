@@ -10311,19 +10311,29 @@ if(runtime){
 
     finally{
 
-        /* =============================================
-           RELEASE REPAIR LOCK
-        ============================================= */
+       /* =============================================
+   RELEASE REPAIR LOCK
+============================================= */
 
-        window
-            .__MODULE_CONTEXT__
-            .activeRuntimeRepairs
-            .delete(fileName);
+window
+    .__MODULE_CONTEXT__
+    .activeRuntimeRepairs
+    .delete(
 
-        console.log(
-            "🔓 [REPAIR_LOCK_RELEASED]",
-            fileName
-        );
+        JSON.stringify({
+
+            file: fileName,
+
+            repairId
+        })
+
+    );
+
+console.log(
+    "🔓 [REPAIR_LOCK_RELEASED]",
+    fileName,
+    repairId
+);
 
     }
 };
