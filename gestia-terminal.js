@@ -11119,6 +11119,40 @@ function() {
                                     state
                                 );
 
+                                const alreadyQueued =
+
+    MODULE_CONTEXT
+        .runtimeRepairQueue
+        .some(
+            item =>
+                item.file === fileName
+        );
+
+const repairing =
+
+    MODULE_CONTEXT
+        .activeRuntimeRepairs
+        .has(fileName);
+
+const cooldown =
+
+    MODULE_CONTEXT
+        .runtimeRepairCooldowns[
+            fileName
+        ];
+
+if (
+    alreadyQueued ||
+    repairing ||
+    (
+        cooldown &&
+        Date.now() < cooldown
+    )
+) {
+
+    continue;
+}
+
                                 enqueueRuntimeRepair(
                                     file,
                                     {
