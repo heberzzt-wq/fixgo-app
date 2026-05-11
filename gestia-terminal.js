@@ -619,6 +619,14 @@ runtimeRepairHistory: [],
 runtimeRepairProcessing: false,
 
 /* =================================================
+   AUTONOMOUS REPAIR DAEMON
+================================================= */
+
+runtimeRepairDaemonActive: false,
+
+runtimeRepairDaemonInterval: null,
+
+/* =================================================
    RETRY GOVERNANCE
 ================================================= */
 
@@ -10794,6 +10802,148 @@ task.status =
         );
     }
 };
+
+
+/* =====================================================================================
+   START RUNTIME REPAIR DAEMON V1
+===================================================================================== */
+
+window.startRuntimeRepairDaemon =
+function() {
+
+    try {
+
+        /* =================================================
+           ALREADY ACTIVE
+        ================================================= */
+
+        if (
+            MODULE_CONTEXT
+                .runtimeRepairDaemonActive
+        ) {
+
+            console.warn(
+                "⚠️ [REPAIR_DAEMON_ALREADY_ACTIVE]"
+            );
+
+            return {
+
+                ok: false,
+
+                reason:
+                    "DAEMON_ALREADY_ACTIVE"
+            };
+        }
+
+        console.log(
+            "🤖 [REPAIR_DAEMON_STARTING]"
+        );
+
+        /* =================================================
+           ACTIVATE
+        ================================================= */
+
+        MODULE_CONTEXT
+            .runtimeRepairDaemonActive = true;
+
+        /* =================================================
+           LOOP
+        ================================================= */
+
+        MODULE_CONTEXT
+            .runtimeRepairDaemonInterval =
+
+            setInterval(
+
+                async () => {
+
+                    try {
+
+                        /* =========================
+                           ACTIVE CHECK
+                        ========================= */
+
+                        if (
+                            !MODULE_CONTEXT
+                                .runtimeRepairDaemonActive
+                        ) {
+
+                            return;
+                        }
+
+                        /* =========================
+                           QUEUE CHECK
+                        ========================= */
+
+                        const queue =
+
+                            MODULE_CONTEXT
+                                .runtimeRepairQueue;
+
+                        if (
+                            !queue?.length
+                        ) {
+
+                            return;
+                        }
+
+                        console.log(
+                            "🤖 [DAEMON_QUEUE_DETECTED]",
+                            queue.length
+                        );
+
+                        /* =========================
+                           PROCESS
+                        ========================= */
+
+                        await processRuntimeRepairQueue();
+
+                    }
+
+                    catch(error) {
+
+                        console.error(
+                            "❌ [DAEMON_LOOP_FAIL]",
+                            error
+                        );
+                    }
+
+                },
+
+                3000
+            );
+
+        console.log(
+            "✅ [REPAIR_DAEMON_ONLINE]"
+        );
+
+        return {
+
+            ok: true,
+
+            daemon:
+                "ONLINE"
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [DAEMON_START_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
 
 /* =====================================================================================
    RUNTIME REPAIR GOVERNANCE V1
