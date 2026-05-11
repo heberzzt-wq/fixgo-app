@@ -10018,32 +10018,65 @@ async function(fileName = "") {
         );
 
 
-        /* =================================================
-   REPAIR LOCK
-================================================= */
+        /* =====================================================================================
+   RUNTIME REPAIR LOCK V2
+===================================================================================== */
 
-if(
+window.isRuntimeRepairActive =
+function(
 
-    window.isRuntimeRepairActive(
-        fileName
-    )
+    fileName = ""
 
 ){
 
-    console.warn(
-        "⚠️ [REPAIR_ALREADY_ACTIVE]",
-        fileName
-    );
+    try{
 
-    return {
+        const repairs =
 
-        ok: false,
+            Array.from(
 
-        reason:
-            "REPAIR_ALREADY_ACTIVE"
-    };
+                window
+                    .__MODULE_CONTEXT__
+                    .activeRuntimeRepairs
 
-}
+            );
+
+        return repairs.some((entry) => {
+
+            try{
+
+                const parsed =
+                    JSON.parse(entry);
+
+                return (
+                    parsed.file ===
+                    fileName
+                );
+
+            }
+
+            catch{
+
+                return false;
+
+            }
+
+        });
+
+    }
+
+    catch(error){
+
+        console.error(
+            "❌ [REPAIR_LOCK_CHECK_FAIL]",
+            error
+        );
+
+        return false;
+
+    }
+
+};
 
 /* =================================================
    REPAIR OWNER ID
