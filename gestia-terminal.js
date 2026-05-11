@@ -11165,6 +11165,7 @@ for (
                     "HEALTH_SCANNER"
             }
         );
+        processRuntimeRepairQueue();
     }
 }
 
