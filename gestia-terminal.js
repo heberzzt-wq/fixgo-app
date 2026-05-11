@@ -10639,14 +10639,72 @@ async function() {
             Date.now();
 
         /* =================================================
-           EXECUTE RECOVERY
-        ================================================= */
+   GOVERNANCE CHECK
+================================================= */
 
-        const recovery =
+const governance =
 
-            await executeRuntimeRecovery(
+    canAttemptRuntimeRepair(
+        task.file
+    );
+
+if (
+    !governance?.allowed
+) {
+
+    task.status =
+        "BLOCKED";
+
+    task.blockedReason =
+        governance?.reason ||
+
+        "GOVERNANCE_BLOCK";
+
+    console.warn(
+        "🛑 [REPAIR_BLOCKED]",
+        task.file,
+        governance
+    );
+
+    MODULE_CONTEXT
+        .runtimeRepairHistory
+        .push(task);
+
+    return {
+
+        ok: false,
+
+        blocked: true,
+
+        governance
+    };
+}
+
+/* =================================================
+   ATTEMPT TRACKING
+================================================= */
+
+MODULE_CONTEXT
+    .runtimeRepairAttempts[
+        task.file
+    ] =
+
+    (
+        MODULE_CONTEXT
+            .runtimeRepairAttempts[
                 task.file
-            );
+            ] || 0
+    ) + 1;
+
+/* =================================================
+   EXECUTE RECOVERY
+================================================= */
+
+const recovery =
+
+    await executeRuntimeRecovery(
+        task.file
+    );
 
         /* =================================================
            RESULT
