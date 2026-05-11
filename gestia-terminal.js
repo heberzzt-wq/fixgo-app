@@ -635,6 +635,14 @@ runtimeHealthScannerActive: false,
 runtimeHealthScannerInterval: null,
 
 /* =================================================
+   SNAPSHOT DAEMON
+================================================= */
+
+runtimeSnapshotDaemonActive: false,
+
+runtimeSnapshotDaemonInterval: null,
+
+/* =================================================
    RETRY GOVERNANCE
 ================================================= */
 
@@ -11466,6 +11474,97 @@ function(
 
     }
 
+};
+
+/* =====================================================================================
+   RUNTIME SNAPSHOT DAEMON V1
+===================================================================================== */
+
+window.startRuntimeSnapshotDaemon =
+async function() {
+
+    try {
+
+        if (
+            MODULE_CONTEXT
+                .runtimeSnapshotDaemonActive
+        ) {
+
+            console.warn(
+                "⚠️ [SNAPSHOT_DAEMON_ALREADY_RUNNING]"
+            );
+
+            return {
+
+                ok: false,
+
+                reason:
+                    "ALREADY_RUNNING"
+            };
+        }
+
+        console.log(
+            "📸 [SNAPSHOT_DAEMON_STARTING]"
+        );
+
+        MODULE_CONTEXT
+            .runtimeSnapshotDaemonActive = true;
+
+        MODULE_CONTEXT
+            .runtimeSnapshotDaemonInterval =
+
+            setInterval(
+
+                async () => {
+
+                    try {
+
+                        await createRuntimeSnapshot();
+
+                    }
+
+                    catch(error) {
+
+                        console.error(
+                            "❌ [SNAPSHOT_DAEMON_FAIL]",
+                            error
+                        );
+                    }
+
+                },
+
+                1000 * 60
+            );
+
+        console.log(
+            "✅ [SNAPSHOT_DAEMON_ONLINE]"
+        );
+
+        return {
+
+            ok: true,
+
+            daemon:
+                "ONLINE"
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [SNAPSHOT_DAEMON_START_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
 };
 
 /**
