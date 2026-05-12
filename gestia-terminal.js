@@ -1139,60 +1139,67 @@ async function() {
             ).length;
 
         /* =================================================
-           STORE SNAPSHOT
-        ================================================= */
+   STORE SNAPSHOT
+================================================= */
 
-        const tx =
+const tx =
 
-            window.__RUNTIME_DB__
-                .transaction(
+    window.__RUNTIME_DB__
+        .transaction(
 
-                    COGNITIVE_RUNTIME_DB
-                        .STORE_NAME,
+            COGNITIVE_RUNTIME_DB
+                .STORE_NAME,
 
-                    "readwrite"
-                );
-
-        const store =
-
-            tx.objectStore(
-
-                COGNITIVE_RUNTIME_DB
-                    .STORE_NAME
-            );
-
-        await new Promise(
-
-            (resolve, reject) => {
-
-                const req =
-                    store.put(snapshot);
-
-                req.onsuccess =
-                    () => resolve(true);
-
-                req.onerror =
-                    () => reject(req.error);
-            }
+            "readwrite"
         );
 
-        console.log(
-            "✅ [RUNTIME_SNAPSHOT_CREATED]",
-            {
+const store =
 
-                snapshotId:
-                    snapshot.snapshotId,
+    tx.objectStore(
 
-                runtimeStatus:
-                    snapshot.runtimeStatus,
+        COGNITIVE_RUNTIME_DB
+            .STORE_NAME
+    );
 
-                runtimeHealth:
-                    snapshot.runtimeHealth,
+await new Promise(
 
-                snapshotSize:
-                    snapshot.snapshotSize
-            }
-        );
+    (resolve, reject) => {
+
+        const req =
+            store.put(snapshot);
+
+        req.onsuccess =
+            () => resolve(true);
+
+        req.onerror =
+            () => reject(req.error);
+    }
+);
+
+/* =================================================
+   PRUNE OLD SNAPSHOTS
+================================================= */
+
+await window
+    .pruneRuntimeSnapshots();
+
+console.log(
+    "✅ [RUNTIME_SNAPSHOT_CREATED]",
+    {
+
+        snapshotId:
+            snapshot.snapshotId,
+
+        runtimeStatus:
+            snapshot.runtimeStatus,
+
+        runtimeHealth:
+            snapshot.runtimeHealth,
+
+        snapshotSize:
+            snapshot.snapshotSize
+    }
+);
 
         return {
 
