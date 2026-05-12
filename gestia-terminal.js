@@ -810,10 +810,11 @@ window.initRuntimePersistence = async function() {
 };
 
 /* =====================================================
-   CREATE RUNTIME SNAPSHOT V1
+   CREATE RUNTIME SNAPSHOT V2
 ===================================================== */
 
-window.createRuntimeSnapshot = async function() {
+window.createRuntimeSnapshot =
+async function() {
 
     try {
 
@@ -821,11 +822,19 @@ window.createRuntimeSnapshot = async function() {
             "📸 [RUNTIME_SNAPSHOT_START]"
         );
 
+        /* =================================================
+           INIT DB
+        ================================================= */
+
         if (!window.__RUNTIME_DB__) {
 
             await window
                 .initRuntimePersistence();
         }
+
+        /* =================================================
+           SAFE CLONE
+        ================================================= */
 
         const safeClone = (
 
@@ -842,7 +851,175 @@ window.createRuntimeSnapshot = async function() {
                     JSON.stringify(obj)
                 );
 
+        /* =================================================
+           RUNTIME REFERENCES
+        ================================================= */
+
+        const runtimeModules =
+
+            safeClone(
+                MODULE_CONTEXT
+                    ?.modules || {}
+            );
+
+        const runtimeLoaded =
+
+            safeClone(
+                MODULE_CONTEXT
+                    ?.loaded || {}
+            );
+
+        const runtimeLazyModules =
+
+            safeClone(
+                MODULE_CONTEXT
+                    ?.lazyModules || {}
+            );
+
+        const runtimeHealthMap =
+
+            safeClone(
+                window
+                    .__RUNTIME_HEALTH_MAP__ || {}
+            );
+
+        const dependencyGraph =
+
+            safeClone(
+                MODULE_CONTEXT
+                    ?.dependencyGraph || {}
+            );
+
+        const riskGraph =
+
+            safeClone(
+                MODULE_CONTEXT
+                    ?.riskGraph || {}
+            );
+
+        const criticalityGraph =
+
+            safeClone(
+                MODULE_CONTEXT
+                    ?.criticalityGraph || {}
+            );
+
+        const governance =
+
+            safeClone(
+                MODULE_CONTEXT
+                    ?.governance || {}
+            );
+
+        /* =================================================
+           RUNTIME METRICS
+        ================================================= */
+
+        const moduleCount =
+
+            Object.keys(
+                runtimeModules
+            ).length;
+
+        const healthyModules =
+
+            Object.values(
+                runtimeHealthMap
+            )
+
+            .filter(
+
+                (m) =>
+
+                    m?.status ===
+                    "ONLINE"
+
+            ).length;
+
+        const degradedModules =
+
+            Object.values(
+                runtimeHealthMap
+            )
+
+            .filter(
+
+                (m) =>
+
+                    m?.status ===
+                    "DEGRADED"
+
+            ).length;
+
+        const isolatedModules =
+
+            Object.values(
+                runtimeHealthMap
+            )
+
+            .filter(
+
+                (m) =>
+
+                    m?.status ===
+                    "ISOLATED"
+
+            ).length;
+
+        const runtimeHealth =
+
+            moduleCount > 0
+
+                ? Math.floor(
+
+                    (
+                        healthyModules /
+                        moduleCount
+                    ) * 100
+                )
+
+                : 100;
+
+        /* =================================================
+           RUNTIME STATUS
+        ================================================= */
+
+        let runtimeStatus =
+            "ONLINE";
+
+        if (
+            isolatedModules > 0
+        ) {
+
+            runtimeStatus =
+                "DEGRADED";
+        }
+
+        if (
+            degradedModules > 0
+        ) {
+
+            runtimeStatus =
+                "DEGRADED";
+        }
+
+        if (
+            runtimeHealth <= 25
+        ) {
+
+            runtimeStatus =
+                "HARD_FAILURE";
+        }
+
+        /* =================================================
+           SNAPSHOT
+        ================================================= */
+
         const snapshot = {
+
+            /* =============================================
+               CORE METADATA
+            ============================================= */
 
             snapshotId:
                 crypto.randomUUID(),
@@ -850,66 +1027,84 @@ window.createRuntimeSnapshot = async function() {
             timestamp:
                 Date.now(),
 
+            schemaVersion:
+                "SNAPSHOT_SCHEMA_V2",
+
             cognitionVersion:
 
                 MODULE_CONTEXT
                     ?.cognitionVersion ||
 
-                "SIA7_RUNTIME_V1",
+                "SIA7_RUNTIME_V2",
+
+            runtimeVersion:
+                "RUNTIME_KERNEL_V2",
+
+            createdBy:
+                "AUTONOMOUS_DAEMON",
+
+            /* =============================================
+               RUNTIME STATE
+            ============================================= */
+
+            runtimeStatus,
+
+            runtimeHealth,
+
+            recoverySafe:
+
+                runtimeStatus !==
+                "HARD_FAILURE",
+
+            moduleCount,
+
+            healthyModules,
+
+            degradedModules,
+
+            isolatedModules,
+
+            /* =============================================
+               RUNTIME PAYLOAD
+            ============================================= */
 
             runtime: {
 
-    modules:
-        safeClone(
-            MODULE_CONTEXT
-                ?.modules || {}
-        ),
+                modules:
+                    runtimeModules,
 
-    loaded:
-        safeClone(
-            MODULE_CONTEXT
-                ?.loaded || {}
-        ),
+                loaded:
+                    runtimeLoaded,
 
-    lazyModules:
-        safeClone(
-            MODULE_CONTEXT
-                ?.lazyModules || {}
-        ),
+                lazyModules:
+                    runtimeLazyModules,
 
-    healthMap:
-        safeClone(
-            window
-                .__RUNTIME_HEALTH_MAP__ || {}
-        )
-},
+                healthMap:
+                    runtimeHealthMap
+            },
+
+            /* =============================================
+               COGNITIVE GRAPHS
+            ============================================= */
 
             graphs: {
 
-                dependencyGraph:
-                    safeClone(
-                        MODULE_CONTEXT
-                            ?.dependencyGraph || {}
-                    ),
+                dependencyGraph,
 
-                riskGraph:
-                    safeClone(
-                        MODULE_CONTEXT
-                            ?.riskGraph || {}
-                    ),
+                riskGraph,
 
-                criticalityGraph:
-                    safeClone(
-                        MODULE_CONTEXT
-                            ?.criticalityGraph || {}
-                    )
+                criticalityGraph
             },
 
-            governance:
-                safeClone(
-                    MODULE_CONTEXT
-                        ?.governance || {}
-                ),
+            /* =============================================
+               GOVERNANCE
+            ============================================= */
+
+            governance,
+
+            /* =============================================
+               METADATA
+            ============================================= */
 
             metadata: {
 
@@ -923,39 +1118,80 @@ window.createRuntimeSnapshot = async function() {
                     MODULE_CONTEXT
                         ?.lastSync ||
 
-                    null
+                    null,
+
+                snapshotSource:
+                    "AUTONOMOUS_RUNTIME",
+
+                persistence:
+                    "INDEXED_DB"
             }
         };
 
+        /* =================================================
+           SNAPSHOT SIZE
+        ================================================= */
+
+        snapshot.snapshotSize =
+
+            JSON.stringify(
+                snapshot
+            ).length;
+
+        /* =================================================
+           STORE SNAPSHOT
+        ================================================= */
+
         const tx =
+
             window.__RUNTIME_DB__
                 .transaction(
+
                     COGNITIVE_RUNTIME_DB
                         .STORE_NAME,
+
                     "readwrite"
                 );
 
         const store =
+
             tx.objectStore(
+
                 COGNITIVE_RUNTIME_DB
                     .STORE_NAME
             );
 
-        await new Promise((resolve, reject) => {
+        await new Promise(
 
-            const req =
-                store.put(snapshot);
+            (resolve, reject) => {
 
-            req.onsuccess =
-                () => resolve(true);
+                const req =
+                    store.put(snapshot);
 
-            req.onerror =
-                () => reject(req.error);
-        });
+                req.onsuccess =
+                    () => resolve(true);
+
+                req.onerror =
+                    () => reject(req.error);
+            }
+        );
 
         console.log(
             "✅ [RUNTIME_SNAPSHOT_CREATED]",
-            snapshot.snapshotId
+            {
+
+                snapshotId:
+                    snapshot.snapshotId,
+
+                runtimeStatus:
+                    snapshot.runtimeStatus,
+
+                runtimeHealth:
+                    snapshot.runtimeHealth,
+
+                snapshotSize:
+                    snapshot.snapshotSize
+            }
         );
 
         return {
@@ -966,10 +1202,18 @@ window.createRuntimeSnapshot = async function() {
                 snapshot.snapshotId,
 
             timestamp:
-                snapshot.timestamp
+                snapshot.timestamp,
+
+            runtimeStatus:
+                snapshot.runtimeStatus,
+
+            runtimeHealth:
+                snapshot.runtimeHealth
         };
 
-    } catch (error) {
+    }
+
+    catch(error) {
 
         console.error(
             "❌ [SNAPSHOT_CREATE_FAIL]",
@@ -985,7 +1229,6 @@ window.createRuntimeSnapshot = async function() {
         };
     }
 };
-
 
 /* =====================================================
    GET LATEST RUNTIME SNAPSHOT V1
@@ -11552,7 +11795,7 @@ function(
 };
 
 /* =====================================================================================
-   RUNTIME SNAPSHOT DAEMON V1
+   RUNTIME SNAPSHOT DAEMON V2
 ===================================================================================== */
 
 window.startRuntimeSnapshotDaemon =
@@ -11585,6 +11828,39 @@ async function() {
         MODULE_CONTEXT
             .runtimeSnapshotDaemonActive = true;
 
+        /* =========================================================
+           SNAPSHOT METRICS
+        ========================================================= */
+
+        MODULE_CONTEXT
+            .snapshotDaemonMetrics = {
+
+                startedAt:
+                    Date.now(),
+
+                totalExecutions:
+                    0,
+
+                successfulSnapshots:
+                    0,
+
+                failedSnapshots:
+                    0,
+
+                skippedSnapshots:
+                    0,
+
+                lastSnapshotAt:
+                    null,
+
+                lastFailureAt:
+                    null
+            };
+
+        /* =========================================================
+           SNAPSHOT INTERVAL
+        ========================================================= */
+
         MODULE_CONTEXT
             .runtimeSnapshotDaemonInterval =
 
@@ -11594,11 +11870,85 @@ async function() {
 
                     try {
 
-                        await createRuntimeSnapshot();
+                        MODULE_CONTEXT
+                            .snapshotDaemonMetrics
+                            .totalExecutions++;
+
+                        /* =========================================
+                           BASIC GOVERNANCE
+                        ========================================= */
+
+                        if (
+
+                            MODULE_CONTEXT
+                                .runtimeRecoveryActive
+
+                        ) {
+
+                            console.warn(
+                                "⚠️ [SNAPSHOT_SKIPPED_RECOVERY_ACTIVE]"
+                            );
+
+                            MODULE_CONTEXT
+                                .snapshotDaemonMetrics
+                                .skippedSnapshots++;
+
+                            return;
+                        }
+
+                        if (
+
+                            MODULE_CONTEXT
+                                .runtimeState ===
+                            "HARD_FAILURE"
+
+                        ) {
+
+                            console.warn(
+                                "🚫 [SNAPSHOT_BLOCKED_HARD_FAILURE]"
+                            );
+
+                            MODULE_CONTEXT
+                                .snapshotDaemonMetrics
+                                .skippedSnapshots++;
+
+                            return;
+                        }
+
+                        console.log(
+                            "📸 [RUNTIME_SNAPSHOT_START]"
+                        );
+
+                        const snapshotResult =
+
+                            await createRuntimeSnapshot();
+
+                        MODULE_CONTEXT
+                            .snapshotDaemonMetrics
+                            .successfulSnapshots++;
+
+                        MODULE_CONTEXT
+                            .snapshotDaemonMetrics
+                            .lastSnapshotAt =
+                                Date.now();
+
+                        console.log(
+                            "✅ [RUNTIME_SNAPSHOT_SUCCESS]",
+                            snapshotResult?.snapshotId
+                        );
 
                     }
 
                     catch(error) {
+
+                        MODULE_CONTEXT
+                            .snapshotDaemonMetrics
+                            .failedSnapshots++;
+
+                        MODULE_CONTEXT
+                            .snapshotDaemonMetrics
+                            .lastFailureAt =
+                                Date.now();
 
                         console.error(
                             "❌ [SNAPSHOT_DAEMON_FAIL]",
@@ -11620,7 +11970,10 @@ async function() {
             ok: true,
 
             daemon:
-                "ONLINE"
+                "ONLINE",
+
+            intervalMs:
+                1000 * 60
         };
 
     }
@@ -11631,6 +11984,9 @@ async function() {
             "❌ [SNAPSHOT_DAEMON_START_FAIL]",
             error
         );
+
+        MODULE_CONTEXT
+            .runtimeSnapshotDaemonActive = false;
 
         return {
 
