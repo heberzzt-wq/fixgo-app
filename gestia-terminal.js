@@ -846,6 +846,10 @@ async function() {
                     .STORE_NAME
             );
 
+        /* =============================================
+           LOAD ALL DOCUMENTS
+        ============================================= */
+
         const snapshots =
 
             await new Promise(
@@ -867,9 +871,27 @@ async function() {
                 }
             );
 
+        /* =============================================
+           FILTER SNAPSHOTS ONLY
+        ============================================= */
+
+        const runtimeSnapshots =
+
+            snapshots.filter(
+
+                (doc) =>
+
+                    doc?.documentType ===
+                    "RUNTIME_SNAPSHOT"
+            );
+
+        /* =============================================
+           BELOW LIMIT
+        ============================================= */
+
         if (
 
-            snapshots.length <=
+            runtimeSnapshots.length <=
             MAX_SNAPSHOTS
 
         ) {
@@ -882,7 +904,11 @@ async function() {
             };
         }
 
-        snapshots.sort(
+        /* =============================================
+           SORT OLDEST FIRST
+        ============================================= */
+
+        runtimeSnapshots.sort(
 
             (a, b) =>
 
@@ -890,17 +916,25 @@ async function() {
                 b.timestamp
         );
 
+        /* =============================================
+           SNAPSHOTS TO DELETE
+        ============================================= */
+
         const snapshotsToDelete =
 
-            snapshots.slice(
+            runtimeSnapshots.slice(
 
                 0,
 
-                snapshots.length -
+                runtimeSnapshots.length -
                 MAX_SNAPSHOTS
             );
 
         let deleted = 0;
+
+        /* =============================================
+           DELETE OLD SNAPSHOTS
+        ============================================= */
 
         for (
 
@@ -1174,6 +1208,9 @@ async function() {
         ================================================= */
 
         const snapshot = {
+
+            documentType:
+    "RUNTIME_SNAPSHOT",
 
             /* =============================================
                CORE METADATA
