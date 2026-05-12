@@ -809,6 +809,164 @@ window.initRuntimePersistence = async function() {
     }
 };
 
+
+/* =====================================================
+   PRUNE RUNTIME SNAPSHOTS V1
+===================================================== */
+
+window.pruneRuntimeSnapshots =
+async function() {
+
+    try {
+
+        if (!window.__RUNTIME_DB__) {
+
+            await window
+                .initRuntimePersistence();
+        }
+
+        const MAX_SNAPSHOTS = 10;
+
+        const tx =
+
+            window.__RUNTIME_DB__
+                .transaction(
+
+                    COGNITIVE_RUNTIME_DB
+                        .STORE_NAME,
+
+                    "readwrite"
+                );
+
+        const store =
+
+            tx.objectStore(
+
+                COGNITIVE_RUNTIME_DB
+                    .STORE_NAME
+            );
+
+        const snapshots =
+
+            await new Promise(
+
+                (resolve, reject) => {
+
+                    const req =
+                        store.getAll();
+
+                    req.onsuccess =
+                        () => resolve(
+                            req.result || []
+                        );
+
+                    req.onerror =
+                        () => reject(
+                            req.error
+                        );
+                }
+            );
+
+        if (
+
+            snapshots.length <=
+            MAX_SNAPSHOTS
+
+        ) {
+
+            return {
+
+                ok: true,
+
+                deleted: 0
+            };
+        }
+
+        snapshots.sort(
+
+            (a, b) =>
+
+                a.timestamp -
+                b.timestamp
+        );
+
+        const snapshotsToDelete =
+
+            snapshots.slice(
+
+                0,
+
+                snapshots.length -
+                MAX_SNAPSHOTS
+            );
+
+        let deleted = 0;
+
+        for (
+
+            const snapshot of
+            snapshotsToDelete
+
+        ) {
+
+            await new Promise(
+
+                (resolve, reject) => {
+
+                    const req =
+
+                        store.delete(
+                            snapshot.snapshotId
+                        );
+
+                    req.onsuccess =
+                        () => resolve(true);
+
+                    req.onerror =
+                        () => reject(
+                            req.error
+                        );
+                }
+            );
+
+            deleted++;
+
+            console.log(
+                "🗑️ [SNAPSHOT_PRUNED]",
+                snapshot.snapshotId
+            );
+        }
+
+        console.log(
+            "✅ [SNAPSHOT_PRUNE_COMPLETED]",
+            deleted
+        );
+
+        return {
+
+            ok: true,
+
+            deleted
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [SNAPSHOT_PRUNE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
 /* =====================================================
    CREATE RUNTIME SNAPSHOT V2
 ===================================================== */
