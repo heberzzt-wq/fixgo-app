@@ -1338,6 +1338,175 @@ async function() {
     }
 };
 
+
+/* =====================================================
+   VALIDATE RUNTIME SNAPSHOT V1
+===================================================== */
+
+window.validateRuntimeSnapshot =
+function(snapshot) {
+
+    try {
+
+        if (!snapshot) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "SNAPSHOT_NOT_FOUND"
+            };
+        }
+
+        /* =============================================
+           REQUIRED CORE
+        ============================================= */
+
+        const requiredFields = [
+
+            "snapshotId",
+            "timestamp",
+            "runtime",
+            "graphs",
+            "metadata"
+
+        ];
+
+        for (const field of requiredFields) {
+
+            if (
+
+                snapshot[field] ===
+                undefined
+
+            ) {
+
+                return {
+
+                    ok: false,
+
+                    error:
+                        `MISSING_FIELD_${field}`
+                };
+            }
+        }
+
+        /* =============================================
+           REQUIRED RUNTIME
+        ============================================= */
+
+        if (
+
+            !snapshot.runtime
+                ?.modules
+
+        ) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "INVALID_RUNTIME_MODULES"
+            };
+        }
+
+        /* =============================================
+           REQUIRED GRAPHS
+        ============================================= */
+
+        if (
+
+            !snapshot.graphs
+                ?.dependencyGraph
+
+        ) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "INVALID_DEPENDENCY_GRAPH"
+            };
+        }
+
+        /* =============================================
+           HARD FAILURE BLOCK
+        ============================================= */
+
+        if (
+
+            snapshot.runtimeStatus ===
+            "HARD_FAILURE"
+
+        ) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "SNAPSHOT_HARD_FAILURE"
+            };
+        }
+
+        /* =============================================
+           RECOVERY SAFETY
+        ============================================= */
+
+        if (
+
+            snapshot.recoverySafe ===
+            false
+
+        ) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "SNAPSHOT_NOT_RECOVERY_SAFE"
+            };
+        }
+
+        /* =============================================
+           VALID
+        ============================================= */
+
+        return {
+
+            ok: true,
+
+            snapshotId:
+                snapshot.snapshotId,
+
+            runtimeHealth:
+                snapshot.runtimeHealth ||
+
+                0
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [SNAPSHOT_VALIDATION_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
 /* =====================================================
    RESTORE RUNTIME SNAPSHOT V1
 ===================================================== */
@@ -1369,6 +1538,38 @@ async function() {
 
         const snapshot =
             latest.snapshot;
+
+            /* =============================================
+   VALIDATE SNAPSHOT
+============================================= */
+
+const validation =
+
+    window.validateRuntimeSnapshot(
+        snapshot
+    );
+
+if (!validation?.ok) {
+
+    console.error(
+        "❌ [SNAPSHOT_VALIDATION_FAILED]",
+        validation
+    );
+
+    return {
+
+        ok: false,
+
+        error:
+            validation.error
+    };
+}
+
+console.log(
+    "✅ [SNAPSHOT_VALID]",
+    validation
+);
+
 
         if (!snapshot) {
 
