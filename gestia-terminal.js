@@ -1239,25 +1239,28 @@ async function() {
                 "AUTONOMOUS_DAEMON",
 
             /* =============================================
-               RUNTIME STATE
-            ============================================= */
+   RUNTIME STATE
+============================================= */
 
-            runtimeStatus,
+runtimeStatus,
 
-            runtimeHealth,
+runtimeHealth,
 
-            recoverySafe:
+snapshotScore:
+    runtimeHealth,
 
-                runtimeStatus !==
-                "HARD_FAILURE",
+recoverySafe:
 
-            moduleCount,
+    runtimeStatus !==
+    "HARD_FAILURE",
 
-            healthyModules,
+moduleCount,
 
-            degradedModules,
+healthyModules,
 
-            isolatedModules,
+degradedModules,
+
+isolatedModules,
 
             /* =============================================
                RUNTIME PAYLOAD
@@ -1378,6 +1381,37 @@ await new Promise(
 await window
     .pruneRuntimeSnapshots();
 
+    /* =================================================
+   PRUNE OLD SNAPSHOTS
+================================================= */
+
+await window
+    .pruneRuntimeSnapshots();
+
+/* =============================================
+   EMIT SNAPSHOT EVENT
+============================================= */
+
+await emitRuntimeEvent(
+
+    "runtime.snapshot.created",
+
+    {
+
+        snapshotId:
+            snapshot.snapshotId,
+
+        runtimeStatus:
+            snapshot.runtimeStatus,
+
+        runtimeHealth:
+            snapshot.runtimeHealth,
+
+        snapshotScore:
+            snapshot.snapshotScore
+    }
+);
+
 console.log(
     "✅ [RUNTIME_SNAPSHOT_CREATED]",
     {
@@ -1396,21 +1430,23 @@ console.log(
     }
 );
 
-        return {
+return {
 
-            ok: true,
+    ok: true,
 
-            snapshotId:
-                snapshot.snapshotId,
+    
+    snapshotId:
+        snapshot.snapshotId,
 
-            timestamp:
-                snapshot.timestamp,
+    timestamp:
+        snapshot.timestamp,
 
-            runtimeStatus:
-                snapshot.runtimeStatus,
+    runtimeStatus:
+        snapshot.runtimeStatus,
 
-            runtimeHealth:
-                snapshot.runtimeHealth
+    runtimeHealth:
+        snapshot.runtimeHealth
+
         };
 
     }
@@ -1433,7 +1469,7 @@ console.log(
 };
 
 /* =====================================================
-   GET LATEST RUNTIME SNAPSHOT V1
+   GET LATEST RUNTIME SNAPSHOT V2
 ===================================================== */
 
 window.getLatestRuntimeSnapshot =
@@ -1461,28 +1497,106 @@ async function() {
                     .STORE_NAME
             );
 
+        /* =============================================
+           LOAD DOCUMENTS
+        ============================================= */
+
         const snapshots =
             await new Promise(
                 (resolve, reject) => {
 
-                const req =
-                    store.getAll();
+                    const req =
+                        store.getAll();
 
-                req.onsuccess =
-                    () =>
-                        resolve(
-                            req.result || []
-                        );
+                    req.onsuccess =
+                        () =>
+                            resolve(
+                                req.result || []
+                            );
 
-                req.onerror =
-                    () =>
-                        reject(
-                            req.error
-                        );
-            });
+                    req.onerror =
+                        () =>
+                            reject(
+                                req.error
+                            );
+                }
+            );
+
+        /* =============================================
+   FILTER ELIGIBLE SNAPSHOTS
+============================================= */
+
+const runtimeSnapshots =
+
+    snapshots.filter(
+
+        (doc) => {
+
+            /* ================================
+               VALID TYPE
+            ================================= */
+
+            if (
+
+                doc?.documentType !==
+                "RUNTIME_SNAPSHOT"
+
+            ) {
+
+                return false;
+            }
+
+            /* ================================
+               RECOVERY SAFE
+            ================================= */
+
+            if (
+
+                doc?.recoverySafe ===
+                false
+
+            ) {
+
+                return false;
+            }
+
+            /* ================================
+               HARD FAILURE
+            ================================= */
+
+            if (
+
+                doc?.runtimeStatus ===
+                "HARD_FAILURE"
+
+            ) {
+
+                return false;
+            }
+
+            /* ================================
+               MINIMUM HEALTH
+            ================================= */
+
+            if (
+
+                (doc?.runtimeHealth || 0)
+                < 50
+
+            ) {
+
+                return false;
+            }
+
+            return true;
+        }
+    );
+        /* =============================================
+           NO SNAPSHOTS
+        ============================================= */
 
         if (
-            !snapshots.length
+            !runtimeSnapshots.length
         ) {
 
             return {
@@ -1494,16 +1608,47 @@ async function() {
             };
         }
 
-        snapshots.sort(
+        /* =============================================
+           SORT BY SCORE + TIMESTAMP
+        ============================================= */
 
-            (a, b) =>
+        runtimeSnapshots.sort(
 
-                b.timestamp -
-                a.timestamp
+            (a, b) => {
+
+                const scoreA =
+                    a?.snapshotScore || 0;
+
+                const scoreB =
+                    b?.snapshotScore || 0;
+
+                /* =====================================
+                   HIGHER SCORE FIRST
+                ===================================== */
+
+                if (scoreB !== scoreA) {
+
+                    return scoreB - scoreA;
+                }
+
+                /* =====================================
+                   NEWEST FIRST
+                ===================================== */
+
+                return (
+
+                    b.timestamp -
+                    a.timestamp
+                );
+            }
         );
 
+        /* =============================================
+           BEST SNAPSHOT
+        ============================================= */
+
         const latest =
-            snapshots[0];
+            runtimeSnapshots[0];
 
         console.log(
             "🧠 [LATEST_RUNTIME_SNAPSHOT]",
@@ -1518,7 +1663,7 @@ async function() {
                 latest,
 
             total:
-                snapshots.length
+                runtimeSnapshots.length
         };
 
     }
@@ -1539,7 +1684,6 @@ async function() {
         };
     }
 };
-
 
 /* =====================================================
    VALIDATE RUNTIME SNAPSHOT V1
@@ -4906,6 +5050,238 @@ async function() {
 
         console.error(
             "❌ [BOOT_HYDRATION_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================
+   COGNITIVE EVENT BUS V1
+===================================================== */
+
+window.__RUNTIME_EVENT_BUS__ = {
+
+    listeners: {},
+
+    metrics: {
+
+        emitted: 0,
+
+        delivered: 0,
+
+        errors: 0
+    }
+};
+
+/* =====================================================
+   SUBSCRIBE RUNTIME EVENT
+===================================================== */
+
+window.subscribeRuntimeEvent =
+
+function(
+
+    eventName,
+    callback
+) {
+
+    try {
+
+        if (
+
+            !eventName ||
+
+            typeof callback !==
+            "function"
+
+        ) {
+
+            return false;
+        }
+
+        if (
+
+            !window
+                .__RUNTIME_EVENT_BUS__
+                .listeners[eventName]
+
+        ) {
+
+            window
+                .__RUNTIME_EVENT_BUS__
+                .listeners[eventName] = [];
+        }
+
+        window
+            .__RUNTIME_EVENT_BUS__
+            .listeners[eventName]
+            .push(callback);
+
+        console.log(
+            "📡 [EVENT_SUBSCRIBED]",
+            eventName
+        );
+
+        return true;
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [EVENT_SUBSCRIBE_FAIL]",
+            error
+        );
+
+        return false;
+    }
+};
+
+/* =====================================================
+   UNSUBSCRIBE RUNTIME EVENT
+===================================================== */
+
+window.unsubscribeRuntimeEvent =
+
+function(
+
+    eventName,
+    callback
+) {
+
+    try {
+
+        const listeners =
+
+            window
+                .__RUNTIME_EVENT_BUS__
+                .listeners[eventName];
+
+        if (!listeners) {
+
+            return false;
+        }
+
+        window
+            .__RUNTIME_EVENT_BUS__
+            .listeners[eventName] =
+
+            listeners.filter(
+
+                (fn) => fn !== callback
+            );
+
+        console.log(
+            "📴 [EVENT_UNSUBSCRIBED]",
+            eventName
+        );
+
+        return true;
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [EVENT_UNSUBSCRIBE_FAIL]",
+            error
+        );
+
+        return false;
+    }
+};
+
+/* =====================================================
+   EMIT RUNTIME EVENT
+===================================================== */
+
+window.emitRuntimeEvent =
+
+async function(
+
+    eventName,
+    payload = {}
+) {
+
+    try {
+
+        const listeners =
+
+            window
+                .__RUNTIME_EVENT_BUS__
+                .listeners[eventName] || [];
+
+        window
+            .__RUNTIME_EVENT_BUS__
+            .metrics
+            .emitted++;
+
+        console.log(
+            "📡 [EVENT_EMITTED]",
+            eventName,
+            payload
+        );
+
+        for (
+
+            const listener of
+            listeners
+
+        ) {
+
+            try {
+
+                await listener(payload);
+
+                window
+                    .__RUNTIME_EVENT_BUS__
+                    .metrics
+                    .delivered++;
+
+            }
+
+            catch(error) {
+
+                window
+                    .__RUNTIME_EVENT_BUS__
+                    .metrics
+                    .errors++;
+
+                console.error(
+                    "❌ [EVENT_DELIVERY_FAIL]",
+                    {
+                        eventName,
+                        error
+                    }
+                );
+            }
+        }
+
+        return {
+
+            ok: true,
+
+            event:
+                eventName,
+
+            listeners:
+                listeners.length
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [EVENT_EMIT_FAIL]",
             error
         );
 
