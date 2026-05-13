@@ -15966,9 +15966,6 @@ async function() {
                             return;
                         }
 
-                        console.log(
-                            "📸 [RUNTIME_SNAPSHOT_START]"
-                        );
 
                         const snapshotResult =
 
