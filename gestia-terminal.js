@@ -15615,6 +15615,199 @@ async function() {
 
 
 /* =====================================================================================
+   REPAIR INTROSPECTION LAYER V1
+   OBSERVABILITY OVER REAL REPAIR ENGINE
+===================================================================================== */
+
+window.getRuntimeRepairState =
+function() {
+
+    try {
+
+        return {
+
+            ok: true,
+
+            queueSize:
+
+                MODULE_CONTEXT
+                    .runtimeRepairQueue
+                    ?.length || 0,
+
+            processing:
+
+                MODULE_CONTEXT
+                    .runtimeRepairProcessing || false,
+
+            totalHistory:
+
+                MODULE_CONTEXT
+                    .runtimeRepairHistory
+                    ?.length || 0,
+
+            totalCooldowns:
+
+                Object.keys(
+
+                    MODULE_CONTEXT
+                        .runtimeRepairCooldowns || {}
+
+                ).length,
+
+            totalAttempts:
+
+                Object.keys(
+
+                    MODULE_CONTEXT
+                        .runtimeRepairAttempts || {}
+
+                ).length
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [GET_REPAIR_STATE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   GET REPAIR HISTORY
+===================================================================================== */
+
+window.getRuntimeRepairHistory =
+function(limit = 10) {
+
+    try {
+
+        MODULE_CONTEXT
+            .runtimeRepairHistory ||= [];
+
+        return {
+
+            ok: true,
+
+            total:
+
+                MODULE_CONTEXT
+                    .runtimeRepairHistory
+                    .length,
+
+            history:
+
+                MODULE_CONTEXT
+                    .runtimeRepairHistory
+                    .slice(-limit)
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [GET_REPAIR_HISTORY_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   GET REPAIR COOLDOWNS
+===================================================================================== */
+
+window.getRuntimeRepairCooldowns =
+function() {
+
+    try {
+
+        return {
+
+            ok: true,
+
+            cooldowns:
+
+                MODULE_CONTEXT
+                    .runtimeRepairCooldowns || {}
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [GET_REPAIR_COOLDOWNS_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   GET REPAIR ATTEMPTS
+===================================================================================== */
+
+window.getRuntimeRepairAttempts =
+function() {
+
+    try {
+
+        return {
+
+            ok: true,
+
+            attempts:
+
+                MODULE_CONTEXT
+                    .runtimeRepairAttempts || {}
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [GET_REPAIR_ATTEMPTS_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
    START RUNTIME REPAIR DAEMON V1
 ===================================================================================== */
 
