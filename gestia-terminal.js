@@ -4224,492 +4224,7 @@ function() {
     }
 };
 
-/* =====================================================================================
-   RUNTIME REPAIR GOVERNANCE V1
-   AUTONOMOUS REPAIR ORCHESTRATION
-===================================================================================== */
 
-window.__RUNTIME_REPAIR__ ||= {
-
-    initialized: false,
-
-    activeRepairs: new Set(),
-
-    repairQueue: [],
-
-    completedRepairs: [],
-
-    failedRepairs: [],
-
-    repairCooldowns: {},
-
-    repairMetrics: {
-
-        totalQueued: 0,
-
-        totalExecuted: 0,
-
-        totalFailed: 0,
-
-        totalBlocked: 0
-    }
-};
-
-/* =====================================================================================
-   QUEUE RUNTIME REPAIR
-===================================================================================== */
-
-window.queueRuntimeRepair =
-async function(config = {}) {
-
-    try {
-
-        const repair =
-            window.__RUNTIME_REPAIR__;
-
-        const repairId =
-            crypto.randomUUID();
-
-        const repairTask = {
-
-            repairId,
-
-            type:
-                config.type ||
-                "UNKNOWN_REPAIR",
-
-            severity:
-                config.severity ||
-                "LOW",
-
-            target:
-                config.target ||
-                "runtime",
-
-            createdAt:
-                Date.now(),
-
-            status:
-                "QUEUED"
-        };
-
-        /* =================================================
-           COOLDOWN PROTECTION
-        ================================================= */
-
-        const cooldownKey =
-
-            `${repairTask.type}:${repairTask.target}`;
-
-        const lastRepair =
-
-            repair.repairCooldowns[
-                cooldownKey
-            ];
-
-        if (
-
-            lastRepair &&
-
-            (
-                Date.now() - lastRepair
-            ) < 30000
-
-        ) {
-
-            repair.repairMetrics
-                .totalBlocked++;
-
-            console.warn(
-                "⚠️ [REPAIR_COOLDOWN_BLOCK]",
-                cooldownKey
-            );
-
-            return {
-
-                ok: false,
-
-                blocked: true,
-
-                reason:
-                    "REPAIR_COOLDOWN_ACTIVE"
-            };
-        }
-
-        repair.repairQueue.push(
-            repairTask
-        );
-
-        repair.repairMetrics
-            .totalQueued++;
-
-        console.log(
-            "🛠️ [REPAIR_QUEUED]",
-            repairTask
-        );
-
-        return {
-
-            ok: true,
-
-            repairId
-        };
-
-    }
-
-    catch(error) {
-
-        console.error(
-            "❌ [QUEUE_REPAIR_FAIL]",
-            error
-        );
-
-        return {
-
-            ok: false,
-
-            error:
-                error.message
-        };
-    }
-};
-
-/* =====================================================================================
-   EXECUTE RUNTIME REPAIR
-===================================================================================== */
-
-window.executeRuntimeRepair =
-async function(repairTask = {}) {
-
-    try {
-
-        const repair =
-            window.__RUNTIME_REPAIR__;
-
-        if (
-            !repairTask?.repairId
-        ) {
-
-            return {
-
-                ok: false,
-
-                error:
-                    "INVALID_REPAIR_TASK"
-            };
-        }
-
-        /* =================================================
-           ACTIVE LOCK
-        ================================================= */
-
-        if (
-
-            repair.activeRepairs.has(
-                repairTask.repairId
-            )
-
-        ) {
-
-            return {
-
-                ok: false,
-
-                blocked: true,
-
-                error:
-                    "REPAIR_ALREADY_RUNNING"
-            };
-        }
-
-        repair.activeRepairs.add(
-            repairTask.repairId
-        );
-
-        repairTask.status =
-            "RUNNING";
-
-        console.log(
-            "🛠️ [REPAIR_EXECUTION_START]",
-            repairTask.type
-        );
-
-        /* =================================================
-           SIMULATED REPAIR EXECUTION
-        ================================================= */
-
-        await new Promise(
-            resolve =>
-                setTimeout(resolve, 100)
-        );
-
-        repairTask.status =
-            "COMPLETED";
-
-        repair.completedRepairs.push(
-            repairTask
-        );
-
-        repair.repairCooldowns[
-
-            `${repairTask.type}:${repairTask.target}`
-
-        ] = Date.now();
-
-        repair.repairMetrics
-            .totalExecuted++;
-
-        repair.activeRepairs.delete(
-            repairTask.repairId
-        );
-
-        console.log(
-            "✅ [REPAIR_EXECUTED]",
-            repairTask.type
-        );
-
-        return {
-
-            ok: true,
-
-            repairId:
-                repairTask.repairId
-        };
-
-    }
-
-    catch(error) {
-
-        console.error(
-            "❌ [REPAIR_EXECUTION_FAIL]",
-            error
-        );
-
-        window.__RUNTIME_REPAIR__
-            .repairMetrics
-            .totalFailed++;
-
-        return {
-
-            ok: false,
-
-            error:
-                error.message
-        };
-    }
-};
-
-/* =====================================================================================
-   PROCESS REPAIR QUEUE
-===================================================================================== */
-
-window.processRuntimeRepairQueue =
-async function() {
-
-    try {
-
-        const repair =
-            window.__RUNTIME_REPAIR__;
-
-        if (
-            repair.repairQueue.length === 0
-        ) {
-
-            return {
-
-                ok: true,
-
-                processed: 0
-            };
-        }
-
-        let processed = 0;
-
-        while (
-
-            repair.repairQueue.length > 0
-
-        ) {
-
-            const repairTask =
-
-                repair.repairQueue.shift();
-
-            await executeRuntimeRepair(
-                repairTask
-            );
-
-            processed++;
-        }
-
-        console.log(
-            "🛠️ [REPAIR_QUEUE_PROCESSED]",
-            processed
-        );
-
-        return {
-
-            ok: true,
-
-            processed
-        };
-
-    }
-
-    catch(error) {
-
-        console.error(
-            "❌ [REPAIR_QUEUE_FAIL]",
-            error
-        );
-
-        return {
-
-            ok: false,
-
-            error:
-                error.message
-        };
-    }
-};
-
-/* =====================================================================================
-   START REPAIR GOVERNANCE DAEMON
-===================================================================================== */
-
-window.startRepairGovernanceDaemon =
-async function() {
-
-    try {
-
-        registerRuntimeDaemon(
-
-            "runtime.repair.daemon",
-
-            {
-
-                interval: 20000,
-
-                singleton: true,
-
-                critical: true,
-
-                handler: async () => {
-
-                    try {
-
-                        const health =
-                            window
-                                .__RUNTIME_HEALTH__;
-
-                        /* =============================
-                           ANOMALY-TRIGGERED REPAIR
-                        ============================== */
-
-                        if (
-
-                            health.anomalyScore > 0
-
-                        ) {
-
-                            await queueRuntimeRepair({
-
-                                type:
-                                    "ANOMALY_RUNTIME_REPAIR",
-
-                                severity:
-                                    "MEDIUM",
-
-                                target:
-                                    "runtime"
-                            });
-                        }
-
-                        await processRuntimeRepairQueue();
-
-                    }
-
-                    catch(error) {
-
-                        console.error(
-                            "❌ [REPAIR_DAEMON_FAIL]",
-                            error
-                        );
-                    }
-                }
-            }
-        );
-
-        const started =
-
-            startRuntimeDaemon(
-                "runtime.repair.daemon"
-            );
-
-        console.log(
-            "🛠️ [REPAIR_GOVERNANCE_ONLINE]"
-        );
-
-        return {
-
-            ok: true,
-
-            started
-        };
-
-    }
-
-    catch(error) {
-
-        console.error(
-            "❌ [REPAIR_GOVERNANCE_BOOT_FAIL]",
-            error
-        );
-
-        return {
-
-            ok: false,
-
-            error:
-                error.message
-        };
-    }
-};
-
-/* =====================================================================================
-   GET REPAIR STATE
-===================================================================================== */
-
-window.getRuntimeRepairState =
-function() {
-
-    try {
-
-        return {
-
-            ok: true,
-
-            ...(window.__RUNTIME_REPAIR__)
-        };
-
-    }
-
-    catch(error) {
-
-        console.error(
-            "❌ [GET_REPAIR_STATE_FAIL]",
-            error
-        );
-
-        return {
-
-            ok: false,
-
-            error:
-                error.message
-        };
-    }
-};
 /* =====================================================================================
    REGISTER RUNTIME TASK
 ===================================================================================== */
@@ -15832,7 +15347,8 @@ queue.sort(
 
 
 /* =====================================================================================
-   PROCESS RUNTIME REPAIR QUEUE V1
+   PROCESS RUNTIME REPAIR QUEUE V2
+   CONVERGED GOVERNANCE REPAIR ENGINE
 ===================================================================================== */
 
 window.processRuntimeRepairQueue =
@@ -15845,8 +15361,10 @@ async function() {
         ================================================= */
 
         if (
+
             MODULE_CONTEXT
                 .runtimeRepairProcessing
+
         ) {
 
             console.warn(
@@ -15873,6 +15391,9 @@ async function() {
            QUEUE
         ================================================= */
 
+        MODULE_CONTEXT
+            .runtimeRepairQueue ||= [];
+
         const queue =
 
             MODULE_CONTEXT
@@ -15883,9 +15404,6 @@ async function() {
         ================================================= */
 
         if (!queue.length) {
-
-            MODULE_CONTEXT
-                .runtimeRepairProcessing = false;
 
             console.log(
                 "📭 [REPAIR_QUEUE_EMPTY]"
@@ -15908,9 +15426,6 @@ async function() {
 
         if (!task) {
 
-            MODULE_CONTEXT
-                .runtimeRepairProcessing = false;
-
             return {
 
                 ok: false,
@@ -15932,114 +15447,124 @@ async function() {
             Date.now();
 
         /* =================================================
-   GOVERNANCE CHECK
-================================================= */
+           GOVERNANCE CHECK
+        ================================================= */
 
-const governance =
+        const governance =
 
-    canAttemptRuntimeRepair(
-        task.file
-    );
+            canAttemptRuntimeRepair(
+                task.file
+            );
 
-if (
-    !governance?.allowed
-) {
+        if (
+            !governance?.allowed
+        ) {
 
-    task.status =
-        "BLOCKED";
+            task.status =
+                "BLOCKED";
 
-    task.blockedReason =
-        governance?.reason ||
+            task.blockedReason =
 
-        "GOVERNANCE_BLOCK";
+                governance?.reason ||
 
-    console.warn(
-        "🛑 [REPAIR_BLOCKED]",
-        task.file,
-        governance
-    );
+                "GOVERNANCE_BLOCK";
 
-    MODULE_CONTEXT
-        .runtimeRepairHistory
-        .push(task);
+            console.warn(
+                "🛑 [REPAIR_BLOCKED]",
+                task.file,
+                governance
+            );
 
-    return {
+            MODULE_CONTEXT
+                .runtimeRepairHistory
+                .push(task);
 
-        ok: false,
+            return {
 
-        blocked: true,
+                ok: false,
 
-        governance
-    };
-}
+                blocked: true,
 
-/* =================================================
-   ATTEMPT TRACKING
-================================================= */
+                governance
+            };
+        }
 
-MODULE_CONTEXT
-    .runtimeRepairAttempts[
-        task.file
-    ] =
+        /* =================================================
+           ATTEMPT TRACKING
+        ================================================= */
 
-    (
+        MODULE_CONTEXT
+            .runtimeRepairAttempts ||= {};
+
         MODULE_CONTEXT
             .runtimeRepairAttempts[
                 task.file
-            ] || 0
-    ) + 1;
+            ] =
 
-/* =================================================
-   EXECUTE RECOVERY
-================================================= */
-
-const recovery =
-
-    await executeRuntimeRecovery(
-        task.file
-    );
+            (
+                MODULE_CONTEXT
+                    .runtimeRepairAttempts[
+                        task.file
+                    ] || 0
+            ) + 1;
 
         /* =================================================
-   RESULT
-================================================= */
+           EXECUTE RECOVERY
+        ================================================= */
 
-task.completedAt =
-    Date.now();
+        const recovery =
 
-task.result =
-    recovery;
+            await executeRuntimeRecovery(
+                task.file
+            );
 
-/* =================================================
-   COOLDOWN REGISTRATION
-================================================= */
+        /* =================================================
+           RESULT
+        ================================================= */
 
-MODULE_CONTEXT
-    .runtimeRepairCooldowns[
-        task.file
-    ] =
+        task.completedAt =
+            Date.now();
 
-    Date.now() +
+        task.result =
+            recovery;
 
-    (
-        1000 * 15
-    );
+        task.status =
 
-console.log(
-    "⏳ [REPAIR_COOLDOWN_SET]",
-    task.file
-);
+            recovery?.ok
 
-task.status =
+                ? "COMPLETED"
 
-    recovery?.ok
+                : "FAILED";
 
-        ? "COMPLETED"
+        /* =================================================
+           COOLDOWN
+        ================================================= */
 
-        : "FAILED";
+        MODULE_CONTEXT
+            .runtimeRepairCooldowns ||= {};
+
+        MODULE_CONTEXT
+            .runtimeRepairCooldowns[
+                task.file
+            ] =
+
+            Date.now() +
+
+            (
+                1000 * 15
+            );
+
+        console.log(
+            "⏳ [REPAIR_COOLDOWN_SET]",
+            task.file
+        );
 
         /* =================================================
            HISTORY
         ================================================= */
+
+        MODULE_CONTEXT
+            .runtimeRepairHistory ||= [];
 
         MODULE_CONTEXT
             .runtimeRepairHistory
