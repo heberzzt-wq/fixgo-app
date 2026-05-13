@@ -6295,7 +6295,7 @@ async function() {
            START SNAPSHOT DAEMON
         ================================================= */
 
-        startRuntimeSnapshotDaemon();
+        await startSnapshotDaemon();
 
         console.log(
             "✅ [BOOT_HYDRATION_COMPLETED]"
