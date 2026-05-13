@@ -15845,79 +15845,66 @@ function(
 
 };
 
-/* =====================================================================================
-   RUNTIME SNAPSHOT DAEMON V2
-===================================================================================== */
 
-window.startRuntimeSnapshotDaemon =
+        /* =========================================================
+   GOVERNED SNAPSHOT DAEMON V2
+========================================================= */
+
+window.startSnapshotDaemon =
 async function() {
 
     try {
 
-        if (
-            MODULE_CONTEXT
-                .runtimeSnapshotDaemonActive
-        ) {
-
-            console.warn(
-                "⚠️ [SNAPSHOT_DAEMON_ALREADY_RUNNING]"
-            );
-
-            return {
-
-                ok: false,
-
-                reason:
-                    "ALREADY_RUNNING"
-            };
-        }
-
         console.log(
-            "📸 [SNAPSHOT_DAEMON_STARTING]"
+            "🧠 [SNAPSHOT_DAEMON_BOOT]"
         );
 
-        MODULE_CONTEXT
-            .runtimeSnapshotDaemonActive = true;
 
-        /* =========================================================
-           SNAPSHOT METRICS
-        ========================================================= */
+        /* =================================================
+   SNAPSHOT METRICS INIT
+================================================= */
 
-        MODULE_CONTEXT
-            .snapshotDaemonMetrics = {
+MODULE_CONTEXT
+    .snapshotDaemonMetrics ||= {
 
-                startedAt:
-                    Date.now(),
+        startedAt:
+            Date.now(),
 
-                totalExecutions:
-                    0,
+        totalExecutions:
+            0,
 
-                successfulSnapshots:
-                    0,
+        successfulSnapshots:
+            0,
 
-                failedSnapshots:
-                    0,
+        failedSnapshots:
+            0,
 
-                skippedSnapshots:
-                    0,
+        skippedSnapshots:
+            0,
 
-                lastSnapshotAt:
-                    null,
+        lastSnapshotAt:
+            null,
 
-                lastFailureAt:
-                    null
-            };
+        lastFailureAt:
+            null
+    };
+        /* =================================================
+           REGISTER DAEMON
+        ================================================= */
 
-        /* =========================================================
-           SNAPSHOT INTERVAL
-        ========================================================= */
+        registerRuntimeDaemon(
 
-        MODULE_CONTEXT
-            .runtimeSnapshotDaemonInterval =
+            "runtime.snapshot.daemon",
 
-            setInterval(
+            {
 
-                async () => {
+                interval: 1000 * 60,
+
+                singleton: true,
+
+                critical: true,
+
+                handler: async () => {
 
                     try {
 
@@ -15925,9 +15912,9 @@ async function() {
                             .snapshotDaemonMetrics
                             .totalExecutions++;
 
-                        /* =========================================
-                           BASIC GOVERNANCE
-                        ========================================= */
+                        /* =============================
+                           GOVERNANCE
+                        ============================== */
 
                         if (
 
@@ -15966,6 +15953,9 @@ async function() {
                             return;
                         }
 
+                        /* =============================
+                           SNAPSHOT EXECUTION
+                        ============================== */
 
                         const snapshotResult =
 
@@ -16003,10 +15993,18 @@ async function() {
                             error
                         );
                     }
+                }
+            }
+        );
 
-                },
+        /* =================================================
+           START DAEMON
+        ================================================= */
 
-                1000 * 60
+        const started =
+
+            startRuntimeDaemon(
+                "runtime.snapshot.daemon"
             );
 
         console.log(
@@ -16020,8 +16018,7 @@ async function() {
             daemon:
                 "ONLINE",
 
-            intervalMs:
-                1000 * 60
+            started
         };
 
     }
@@ -16029,12 +16026,9 @@ async function() {
     catch(error) {
 
         console.error(
-            "❌ [SNAPSHOT_DAEMON_START_FAIL]",
+            "❌ [SNAPSHOT_DAEMON_BOOT_FAIL]",
             error
         );
-
-        MODULE_CONTEXT
-            .runtimeSnapshotDaemonActive = false;
 
         return {
 
@@ -16045,7 +16039,6 @@ async function() {
         };
     }
 };
-
 /**
  * =====================================================
  * FIN BLOQUE 4 V15
