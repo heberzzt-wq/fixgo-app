@@ -16076,40 +16076,8 @@ async function() {
     }
 };
 
+
 /* =====================================================================================
-   GET HEALING STATE
-===================================================================================== */
-
-window.getRuntimeHealingState =
-function() {
-
-    try {
-
-        return {
-
-            ok: true,
-
-            ...(window.__RUNTIME_HEALING__)
-        };
-
-    }
-
-    catch(error) {
-
-        console.error(
-            "❌ [GET_HEALING_STATE_FAIL]",
-            error
-        );
-
-        return {
-
-            ok: false,
-
-            error:
-                error.message
-        };
-    }
-};/* =====================================================================================
    SELF-HEALING PREPARATION LAYER V1
    REPAIR RECOMMENDATION COGNITION
 ===================================================================================== */
@@ -16413,6 +16381,273 @@ function() {
     }
 };
 
+
+/* =====================================================================================
+   ADAPTIVE RUNTIME GOVERNANCE V1
+   ADAPTIVE COGNITION CONTROL LAYER
+===================================================================================== */
+
+window.__RUNTIME_ADAPTIVE__ ||= {
+
+    initialized: false,
+
+    adaptiveMode: "NORMAL",
+
+    lastAdaptationAt: null,
+
+    totalAdaptations: 0,
+
+    schedulerAdjustments: 0,
+
+    snapshotAdjustments: 0,
+
+    runtimeThrottleLevel: 0
+};
+
+/* =====================================================================================
+   ADAPTIVE GOVERNANCE ANALYSIS
+===================================================================================== */
+
+window.evaluateAdaptiveRuntimeGovernance =
+async function() {
+
+    try {
+
+        const adaptive =
+            window.__RUNTIME_ADAPTIVE__;
+
+        const health =
+            window.__RUNTIME_HEALTH__;
+
+        const scheduler =
+            window.__RUNTIME_SCHEDULER__;
+
+        let mode = "NORMAL";
+
+        /* =================================================
+           HIGH PRESSURE
+        ================================================= */
+
+        if (
+
+            health.runtimePressure ===
+            "HIGH"
+
+        ) {
+
+            mode = "PROTECTIVE";
+
+            adaptive.runtimeThrottleLevel = 3;
+        }
+
+        /* =================================================
+           MEDIUM PRESSURE
+        ================================================= */
+
+        else if (
+
+            health.runtimePressure ===
+            "MEDIUM"
+
+        ) {
+
+            mode = "BALANCED";
+
+            adaptive.runtimeThrottleLevel = 2;
+        }
+
+        /* =================================================
+           HEALTH DEGRADATION
+        ================================================= */
+
+        if (
+
+            health.runtimeHealth < 70
+
+        ) {
+
+            mode = "RECOVERY";
+
+            adaptive.runtimeThrottleLevel = 4;
+        }
+
+        adaptive.adaptiveMode =
+            mode;
+
+        adaptive.lastAdaptationAt =
+            Date.now();
+
+        adaptive.totalAdaptations++;
+
+        /* =================================================
+           ADAPTIVE SCHEDULER TUNING
+        ================================================= */
+
+        if (
+
+            mode === "PROTECTIVE"
+
+        ) {
+
+            scheduler.tickRate = 2000;
+
+            adaptive.schedulerAdjustments++;
+        }
+
+        else if (
+
+            mode === "BALANCED"
+
+        ) {
+
+            scheduler.tickRate = 1500;
+
+            adaptive.schedulerAdjustments++;
+        }
+
+        else {
+
+            scheduler.tickRate = 1000;
+        }
+
+        console.log(
+            "⚖️ [ADAPTIVE_RUNTIME_GOVERNANCE]",
+            {
+
+                mode,
+
+                throttle:
+                    adaptive.runtimeThrottleLevel,
+
+                tickRate:
+                    scheduler.tickRate
+            }
+        );
+
+        return {
+
+            ok: true,
+
+            mode
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [ADAPTIVE_GOVERNANCE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   START ADAPTIVE GOVERNANCE DAEMON
+===================================================================================== */
+
+window.startAdaptiveGovernanceDaemon =
+async function() {
+
+    try {
+
+        registerRuntimeDaemon(
+
+            "runtime.adaptive.daemon",
+
+            {
+
+                interval: 20000,
+
+                singleton: true,
+
+                critical: false,
+
+                handler: async () => {
+
+                    await evaluateAdaptiveRuntimeGovernance();
+                }
+            }
+        );
+
+        const started =
+
+            startRuntimeDaemon(
+                "runtime.adaptive.daemon"
+            );
+
+        console.log(
+            "⚖️ [ADAPTIVE_GOVERNANCE_ONLINE]"
+        );
+
+        return {
+
+            ok: true,
+
+            started
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [ADAPTIVE_DAEMON_BOOT_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   GET ADAPTIVE GOVERNANCE STATE
+===================================================================================== */
+
+window.getAdaptiveRuntimeState =
+function() {
+
+    try {
+
+        return {
+
+            ok: true,
+
+            ...(window.__RUNTIME_ADAPTIVE__)
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [GET_ADAPTIVE_STATE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
 /* =====================================================================================
    START RUNTIME REPAIR DAEMON V1
 ===================================================================================== */
