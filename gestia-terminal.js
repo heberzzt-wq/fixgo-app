@@ -7216,123 +7216,20 @@ if (
         );
 }
 /* =============================================
-   TEMPORARY SYNCHRONOUS DELIVERY
+   ASYNCHRONOUS DELIVERY ENABLED
 ============================================= */
 
-for (
+console.log(
+    "⚡ [ASYNC_DISPATCH_ACTIVE]",
+    {
+        event:
+            eventName,
 
-    const listenerObject of
-    listeners
+        priority,
 
-) {
-
-    try {
-
-        /* =====================================
-           LISTENER GOVERNANCE
-        ===================================== */
-
-        if (
-
-            !listenerObject.active
-
-        ) {
-
-            continue;
-        }
-
-        if (
-
-            listenerObject.passive
-
-        ) {
-
-            continue;
-        }
-
-        /* =====================================
-           EXECUTE LISTENER
-        ===================================== */
-
-        await listenerObject.callback(
-            eventEnvelope
-        );
-
-        listenerObject.executions++;
-
-        listenerObject.lastExecution =
-            Date.now();
-
-        /* =====================================
-           ONCE CLEANUP
-        ===================================== */
-
-        if (
-
-            listenerObject.once
-
-        ) {
-
-            listenerObject.active =
-                false;
-        }
-
-        /* =====================================
-           DELIVERY METRICS
-        ===================================== */
-
-        window
-            .__RUNTIME_EVENT_BUS__
-            .metrics
-            .delivered++;
-
-        queueSystem.totalProcessed++;
-
-        queueSystem.lastProcessedAt =
-            Date.now();
-
-        if (
-
-            channelState
-
-        ) {
-
-            channelState.delivered++;
-        }
-
+        channel
     }
-
-    catch(error) {
-
-        listenerObject.errors++;
-
-        window
-            .__RUNTIME_EVENT_BUS__
-            .metrics
-            .errors++;
-
-        if (
-
-            channelState
-
-        ) {
-
-            channelState.errors++;
-        }
-
-        console.error(
-            "❌ [EVENT_DELIVERY_FAIL]",
-            {
-                eventName,
-                channel,
-                listener:
-                    listenerObject.eventName,
-
-                error
-            }
-        );
-    }
-}
+);
         /* =============================================
            FINAL RESULT
         ============================================= */
