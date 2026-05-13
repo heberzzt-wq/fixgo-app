@@ -3409,6 +3409,460 @@ window.__RUNTIME_SCHEDULER__ ||= {
     runtimeLoad: 0
 };
 
+
+/* =====================================================================================
+   RUNTIME DAEMON REGISTRY V1
+   AUTONOUS DAEMON GOVERNANCE LAYER
+===================================================================================== */
+
+window.__RUNTIME_DAEMONS__ ||= {
+
+    initialized: false,
+
+    daemons: {},
+
+    activeDaemons: new Set(),
+
+    daemonHeartbeats: {},
+
+    daemonLocks: {},
+
+    daemonMetrics: {
+
+        totalStarted: 0,
+
+        totalStopped: 0,
+
+        totalBlocked: 0,
+
+        totalHeartbeats: 0
+    }
+};
+
+/* =====================================================================================
+   REGISTER DAEMON
+===================================================================================== */
+
+window.registerRuntimeDaemon =
+function(daemonId, config = {}) {
+
+    try {
+
+        if (!daemonId) {
+
+            return {
+
+                ok: false,
+
+                error: "INVALID_DAEMON_ID"
+            };
+        }
+
+        const registry =
+            window.__RUNTIME_DAEMONS__;
+
+        /* =================================================
+           DUPLICATE REGISTRATION PROTECTION
+        ================================================= */
+
+        if (
+            registry.daemons?.[daemonId]
+        ) {
+
+            console.warn(
+                "⚠️ [DAEMON_ALREADY_REGISTERED]",
+                daemonId
+            );
+
+            return {
+
+                ok: true,
+
+                alreadyRegistered: true,
+
+                daemonId
+            };
+        }
+
+        registry.daemons[daemonId] = {
+
+            daemonId,
+
+            handler:
+                config.handler || null,
+
+            interval:
+                config.interval || 10000,
+
+            singleton:
+                config.singleton !== false,
+
+            critical:
+                config.critical || false,
+
+            autoStart:
+                config.autoStart || false,
+
+            enabled:
+                config.enabled !== false,
+
+            intervalRef: null,
+
+            status: "REGISTERED",
+
+            startedAt: null,
+
+            stoppedAt: null,
+
+            lastHeartbeat: null,
+
+            totalExecutions: 0,
+
+            failures: 0,
+
+            ownershipId:
+                crypto.randomUUID()
+        };
+
+        console.log(
+            "🧠 [DAEMON_REGISTERED]",
+            daemonId
+        );
+
+        return {
+
+            ok: true,
+
+            daemonId
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [DAEMON_REGISTER_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   START DAEMON
+===================================================================================== */
+
+window.startRuntimeDaemon =
+function(daemonId = "") {
+
+    try {
+
+        const registry =
+            window.__RUNTIME_DAEMONS__;
+
+        const daemon =
+            registry.daemons?.[daemonId];
+
+        if (!daemon) {
+
+            return {
+
+                ok: false,
+
+                error: "DAEMON_NOT_FOUND"
+            };
+        }
+
+        if (!daemon.enabled) {
+
+            return {
+
+                ok: false,
+
+                error: "DAEMON_DISABLED"
+            };
+        }
+
+        /* =================================================
+           SINGLETON PROTECTION
+        ================================================= */
+
+        if (
+            daemon.singleton &&
+            registry.activeDaemons.has(
+                daemonId
+            )
+        ) {
+
+            registry.daemonMetrics
+                .totalBlocked++;
+
+            console.warn(
+                "⚠️ [DAEMON_SINGLETON_BLOCK]",
+                daemonId
+            );
+
+            return {
+
+                ok: false,
+
+                blocked: true,
+
+                error:
+                    "DAEMON_ALREADY_RUNNING"
+            };
+        }
+
+        /* =================================================
+           ACTIVE
+        ================================================= */
+
+        registry.activeDaemons.add(
+            daemonId
+        );
+
+        daemon.status = "RUNNING";
+
+        daemon.startedAt =
+            Date.now();
+
+        /* =================================================
+           LOOP
+        ================================================= */
+
+        daemon.intervalRef =
+            setInterval(
+
+                async () => {
+
+                    try {
+
+                        /* =============================
+                           HEARTBEAT
+                        ============================== */
+
+                        daemon.lastHeartbeat =
+                            Date.now();
+
+                        registry
+                            .daemonHeartbeats[
+                                daemonId
+                            ] =
+
+                            daemon.lastHeartbeat;
+
+                        registry
+                            .daemonMetrics
+                            .totalHeartbeats++;
+
+                        /* =============================
+                           EXECUTION
+                        ============================== */
+
+                        if (
+                            typeof daemon.handler ===
+                            "function"
+                        ) {
+
+                            await daemon.handler();
+                        }
+
+                        daemon.totalExecutions++;
+
+                    }
+
+                    catch(execError) {
+
+                        daemon.failures++;
+
+                        console.error(
+                            "❌ [DAEMON_EXECUTION_FAIL]",
+                            daemonId,
+                            execError
+                        );
+                    }
+
+                },
+
+                daemon.interval
+            );
+
+        registry.daemonMetrics
+            .totalStarted++;
+
+        console.log(
+            "🚀 [DAEMON_STARTED]",
+            daemonId
+        );
+
+        return {
+
+            ok: true,
+
+            daemonId
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [DAEMON_START_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   STOP DAEMON
+===================================================================================== */
+
+window.stopRuntimeDaemon =
+function(daemonId = "") {
+
+    try {
+
+        const registry =
+            window.__RUNTIME_DAEMONS__;
+
+        const daemon =
+            registry.daemons?.[daemonId];
+
+        if (!daemon) {
+
+            return {
+
+                ok: false,
+
+                error: "DAEMON_NOT_FOUND"
+            };
+        }
+
+        if (
+            daemon.intervalRef
+        ) {
+
+            clearInterval(
+                daemon.intervalRef
+            );
+        }
+
+        daemon.intervalRef =
+            null;
+
+        daemon.status =
+            "STOPPED";
+
+        daemon.stoppedAt =
+            Date.now();
+
+        registry.activeDaemons.delete(
+            daemonId
+        );
+
+        registry.daemonMetrics
+            .totalStopped++;
+
+        console.log(
+            "🛑 [DAEMON_STOPPED]",
+            daemonId
+        );
+
+        return {
+
+            ok: true,
+
+            daemonId
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [DAEMON_STOP_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   GET DAEMON STATE
+===================================================================================== */
+
+window.getRuntimeDaemonState =
+function() {
+
+    try {
+
+        const registry =
+            window.__RUNTIME_DAEMONS__;
+
+        return {
+
+            ok: true,
+
+            totalDaemons:
+
+                Object.keys(
+                    registry.daemons || {}
+                ).length,
+
+            activeDaemons:
+
+                registry.activeDaemons.size,
+
+            daemonHeartbeats:
+
+                Object.keys(
+                    registry.daemonHeartbeats || {}
+                ).length,
+
+            metrics:
+                registry.daemonMetrics
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [DAEMON_STATE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
 /* =====================================================================================
    REGISTER RUNTIME TASK
 ===================================================================================== */
