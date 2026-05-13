@@ -4768,6 +4768,238 @@ function() {
         };
     }
 };
+
+/* =====================================================================================
+   START RUNTIME SCHEDULER V1
+   LIVE COGNITION EXECUTION CYCLE
+===================================================================================== */
+
+window.startRuntimeScheduler =
+async function() {
+
+    try {
+
+        const scheduler =
+            window.__RUNTIME_SCHEDULER__;
+
+        /* =================================================
+           ALREADY ACTIVE
+        ================================================= */
+
+        if (
+            scheduler.active
+        ) {
+
+            console.warn(
+                "⚠️ [SCHEDULER_ALREADY_ACTIVE]"
+            );
+
+            return {
+
+                ok: false,
+
+                reason:
+                    "ALREADY_ACTIVE"
+            };
+        }
+
+        console.log(
+            "🧠 [SCHEDULER_STARTING]"
+        );
+
+        scheduler.active = true;
+
+        scheduler.startedAt =
+            Date.now();
+
+        /* =================================================
+           LIVE EXECUTION LOOP
+        ================================================= */
+
+        scheduler.tickInterval =
+
+            setInterval(
+
+                async () => {
+
+                    try {
+
+                        scheduler.totalTicks++;
+
+                        scheduler.lastTick =
+                            Date.now();
+
+                        /* =============================
+                           LOAD CALCULATION
+                        ============================== */
+
+                        scheduler.runtimeLoad =
+
+                            window.dispatchQueue
+                                ?.length || 0;
+
+                        /* =============================
+                           TASK EXECUTION
+                        ============================== */
+
+                        const tasks =
+
+                            Object.values(
+                                scheduler.tasks || {}
+                            );
+
+                        for (
+
+                            const task of tasks
+
+                        ) {
+
+                            try {
+
+                                if (
+                                    !task?.handler
+                                ) {
+
+                                    continue;
+                                }
+
+                                await task.handler();
+
+                                scheduler.totalExecutions++;
+
+                            }
+
+                            catch(error) {
+
+                                scheduler
+                                    .failedExecutions++;
+
+                                console.error(
+                                    "❌ [SCHEDULER_TASK_FAIL]",
+                                    error
+                                );
+                            }
+                        }
+
+                        /* =============================
+                           HEALTH
+                        ============================== */
+
+                        scheduler.schedulerHealth =
+
+                            scheduler
+                                .failedExecutions > 10
+
+                                ? 70
+
+                                : 100;
+
+                    }
+
+                    catch(error) {
+
+                        console.error(
+                            "❌ [SCHEDULER_CYCLE_FAIL]",
+                            error
+                        );
+                    }
+                },
+
+                scheduler.tickRate || 1000
+            );
+
+        console.log(
+            "✅ [SCHEDULER_ONLINE]"
+        );
+
+        return {
+
+            ok: true,
+
+            tickRate:
+                scheduler.tickRate
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [SCHEDULER_START_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   STOP RUNTIME SCHEDULER
+===================================================================================== */
+
+window.stopRuntimeScheduler =
+async function() {
+
+    try {
+
+        const scheduler =
+            window.__RUNTIME_SCHEDULER__;
+
+        if (
+            !scheduler.active
+        ) {
+
+            return {
+
+                ok: false,
+
+                reason:
+                    "NOT_RUNNING"
+            };
+        }
+
+        clearInterval(
+            scheduler.tickInterval
+        );
+
+        scheduler.active = false;
+
+        scheduler.tickInterval =
+            null;
+
+        console.log(
+            "🛑 [SCHEDULER_STOPPED]"
+        );
+
+        return {
+
+            ok: true
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [SCHEDULER_STOP_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
 /* =====================================================================================
    APPLY RUNTIME DEGRADATION ENGINE V1
 ===================================================================================== */
