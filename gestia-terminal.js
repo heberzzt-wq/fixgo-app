@@ -5296,7 +5296,24 @@ window.__RUNTIME_EVENT_CHANNELS__ ||= {
         suppressed: false
     }
 };
+/* =====================================================
+   EVENT PERSISTENCE LEDGER V1
+===================================================== */
 
+window.__RUNTIME_EVENT_LEDGER__ ||= {
+
+    events: [],
+
+    indexes: {},
+
+    totalPersisted: 0,
+
+    totalPruned: 0,
+
+    maxEvents: 1000,
+
+    persistedAt: null
+};
 /* =====================================================
    EVENT CHANNEL ROUTING REGISTRY V1
 ===================================================== */
@@ -5316,6 +5333,74 @@ window.__RUNTIME_CHANNEL_ROUTING__ ||= {
     cognition: [],
 
     runtime: []
+};
+
+/* =====================================================
+   EVENT QUERY ENGINE V1
+===================================================== */
+
+window.queryRuntimeEvents =
+function(
+
+    eventType = ""
+
+) {
+
+    try {
+
+        if (
+
+            !eventType
+
+        ) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "EVENT_TYPE_REQUIRED"
+            };
+        }
+
+        const indexed =
+
+            window
+                .__RUNTIME_EVENT_LEDGER__
+                .indexes[
+                    eventType
+                ] || [];
+
+        return {
+
+            ok: true,
+
+            eventType,
+
+            total:
+                indexed.length,
+
+            events:
+                indexed
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [EVENT_QUERY_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
 };
 /* =====================================================
    SUBSCRIBE RUNTIME EVENT
@@ -5702,6 +5787,82 @@ if (
             channel
         ]
         .lastEvent = Date.now();
+}
+
+/* =============================================
+   EVENT LEDGER PERSISTENCE
+============================================= */
+
+window
+    .__RUNTIME_EVENT_LEDGER__
+    .events
+    .push(eventEnvelope);
+
+    /* =============================================
+   EVENT TYPE INDEX
+============================================= */
+
+const eventType =
+
+    eventEnvelope.type;
+
+if (
+
+    !window
+        .__RUNTIME_EVENT_LEDGER__
+        .indexes[
+            eventType
+        ]
+
+) {
+
+    window
+        .__RUNTIME_EVENT_LEDGER__
+        .indexes[
+            eventType
+        ] = [];
+}
+
+window
+    .__RUNTIME_EVENT_LEDGER__
+    .indexes[
+        eventType
+    ]
+    .push(eventEnvelope);
+
+    window
+    .__RUNTIME_EVENT_LEDGER__
+    .totalPersisted++;
+
+window
+    .__RUNTIME_EVENT_LEDGER__
+    .persistedAt = Date.now();
+
+/* =============================================
+   EVENT LEDGER LIMIT
+============================================= */
+
+if (
+
+    window
+        .__RUNTIME_EVENT_LEDGER__
+        .events
+        .length >
+
+    window
+        .__RUNTIME_EVENT_LEDGER__
+        .maxEvents
+
+) {
+
+    window
+        .__RUNTIME_EVENT_LEDGER__
+        .events
+        .shift();
+
+        window
+    .__RUNTIME_EVENT_LEDGER__
+    .totalPruned++;
 }
 
 console.log(
