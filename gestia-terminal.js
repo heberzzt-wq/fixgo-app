@@ -730,6 +730,58 @@ const COGNITIVE_RUNTIME_DB = {
 window.__RUNTIME_DB__ = null;
 
 window.cognitiveDB = null;
+
+/* =====================================================
+   EVENT ENVELOPE FACTORY V1
+===================================================== */
+
+window.createRuntimeEventEnvelope =
+function(
+    type,
+    payload = {},
+    options = {}
+) {
+
+    return {
+
+        eventId:
+            crypto.randomUUID(),
+
+        type,
+
+        channel:
+            options.channel ||
+            "runtime",
+
+        priority:
+            options.priority ||
+            "NORMAL",
+
+        timestamp:
+            Date.now(),
+
+        source:
+            options.source ||
+            "runtime.kernel",
+
+        governance: {
+
+            critical:
+                options.critical || false,
+
+            isolated:
+                options.isolated || false,
+
+            repairRelated:
+                options.repairRelated || false,
+
+            system:
+                options.system || false
+        },
+
+        payload
+    };
+};
 /* =====================================================
    INIT COGNITIVE DB
 ===================================================== */
@@ -1409,6 +1461,20 @@ await emitRuntimeEvent(
 
         snapshotScore:
             snapshot.snapshotScore
+    },
+
+    {
+
+        channel:
+            "persistence",
+
+        priority:
+            "HIGH",
+
+        source:
+            "snapshot.engine",
+
+        system: true
     }
 );
 
@@ -1434,7 +1500,6 @@ return {
 
     ok: true,
 
-    
     snapshotId:
         snapshot.snapshotId,
 
@@ -1447,27 +1512,26 @@ return {
     runtimeHealth:
         snapshot.runtimeHealth
 
-        };
+    };
 
-    }
+}
 
-    catch(error) {
+catch(error) {
 
-        console.error(
-            "❌ [SNAPSHOT_CREATE_FAIL]",
-            error
-        );
+    console.error(
+        "❌ [SNAPSHOT_CREATE_FAIL]",
+        error
+    );
 
-        return {
+    return {
 
-            ok: false,
+        ok: false,
 
-            error:
-                error.message
-        };
-    }
+        error:
+            error.message
+    };
+}
 };
-
 /* =====================================================
    GET LATEST RUNTIME SNAPSHOT V2
 ===================================================== */
@@ -4755,9 +4819,35 @@ function(event = {}) {
         window
             .__GOVERNANCE_LOG__
             .push(governanceEvent);
+
+
+            /* =============================================
+               EMIT GOVERNANCE EVENT
+            ============================================= */
+
+emitRuntimeEvent(
+
+    "runtime.governance.recorded",
+
+    governanceEvent,
+
+    {
+
+        channel:
+            "governance",
+
+        priority:
+            "HIGH",
+
+        source:
+            "governance.engine",
+
+        system: true
+    }
+);
             /* =================================================
-   AUTO SAVE
-================================================= */
+               AUTO SAVE
+            ================================================= */
 
 saveGovernanceLog();
 
@@ -5082,6 +5172,152 @@ window.__RUNTIME_EVENT_BUS__ = {
 };
 
 /* =====================================================
+   EVENT CHANNEL METRICS V1
+===================================================== */
+
+window.__RUNTIME_EVENT_CHANNELS__ ||= {
+
+    governance: {
+
+        emitted: 0,
+
+        delivered: 0,
+
+        errors: 0,
+
+        lastEvent: null,
+
+        health: "ONLINE",
+
+        quarantined: false,
+
+        suppressed: false
+    },
+
+    repair: {
+
+        emitted: 0,
+
+        delivered: 0,
+
+        errors: 0,
+
+        lastEvent: null,
+
+        health: "ONLINE",
+
+        quarantined: false,
+
+        suppressed: false
+    },
+
+    scanner: {
+
+        emitted: 0,
+
+        delivered: 0,
+
+        errors: 0,
+
+        lastEvent: null,
+
+        health: "ONLINE",
+
+        quarantined: false,
+
+        suppressed: false
+    },
+
+    daemon: {
+
+        emitted: 0,
+
+        delivered: 0,
+
+        errors: 0,
+
+        lastEvent: null,
+
+        health: "ONLINE",
+
+        quarantined: false,
+
+        suppressed: false
+    },
+
+    persistence: {
+
+        emitted: 0,
+
+        delivered: 0,
+
+        errors: 0,
+
+        lastEvent: null,
+
+        health: "ONLINE",
+
+        quarantined: false,
+
+        suppressed: false
+    },
+
+    cognition: {
+
+        emitted: 0,
+
+        delivered: 0,
+
+        errors: 0,
+
+        lastEvent: null,
+
+        health: "ONLINE",
+
+        quarantined: false,
+
+        suppressed: false
+    },
+
+    runtime: {
+
+        emitted: 0,
+
+        delivered: 0,
+
+        errors: 0,
+
+        lastEvent: null,
+
+        health: "ONLINE",
+
+        quarantined: false,
+
+        suppressed: false
+    }
+};
+
+/* =====================================================
+   EVENT CHANNEL ROUTING REGISTRY V1
+===================================================== */
+
+window.__RUNTIME_CHANNEL_ROUTING__ ||= {
+
+    governance: [],
+
+    repair: [],
+
+    scanner: [],
+
+    daemon: [],
+
+    persistence: [],
+
+    cognition: [],
+
+    runtime: []
+};
+/* =====================================================
    SUBSCRIBE RUNTIME EVENT
 ===================================================== */
 
@@ -5125,6 +5361,61 @@ function(
             .listeners[eventName]
             .push(callback);
 
+            /* =============================================
+   AUTO CHANNEL ROUTING
+============================================= */
+
+const inferredChannel =
+
+    eventName.includes(
+        "governance"
+    )
+
+        ? "governance"
+
+    : eventName.includes(
+        "repair"
+    )
+
+        ? "repair"
+
+    : eventName.includes(
+        "scanner"
+    )
+
+        ? "scanner"
+
+    : eventName.includes(
+        "daemon"
+    )
+
+        ? "daemon"
+
+    : eventName.includes(
+        "persistence"
+    )
+
+        ? "persistence"
+
+    : eventName.includes(
+        "cognition"
+    )
+
+        ? "cognition"
+
+    : "runtime";
+
+window
+    .__RUNTIME_CHANNEL_ROUTING__[
+        inferredChannel
+    ]
+    .push({
+
+        eventName,
+
+        callback
+    });
+
         console.log(
             "📡 [EVENT_SUBSCRIBED]",
             eventName
@@ -5145,6 +5436,53 @@ function(
     }
 };
 
+
+/* =====================================================
+   EVENT BUS TEST LISTENER
+===================================================== */
+
+subscribeRuntimeEvent(
+
+    "runtime.snapshot.created",
+
+    async function(event) {
+
+        console.log(
+            "📥 [EVENT_RECEIVED]",
+            event
+        );
+
+        console.log(
+            "📦 [EVENT_PAYLOAD]",
+            event.payload
+        );
+    }
+);
+
+
+/* =====================================================
+   GOVERNANCE CHANNEL LISTENER
+===================================================== */
+
+subscribeRuntimeEvent(
+
+    "runtime.governance.recorded",
+
+    async function(event) {
+
+        console.log(
+            "🛡️ [GOVERNANCE_CHANNEL]",
+            event
+        );
+
+        console.log(
+            "📊 [GOVERNANCE_METRICS]",
+            window
+                .__RUNTIME_EVENT_CHANNELS__
+                .governance
+        );
+    }
+);
 /* =====================================================
    UNSUBSCRIBE RUNTIME EVENT
 ===================================================== */
@@ -5208,93 +5546,389 @@ window.emitRuntimeEvent =
 async function(
 
     eventName,
-    payload = {}
+    payload = {},
+    options = {}
 ) {
 
     try {
 
-        const listeners =
+        /* =============================================
+   EVENT ENVELOPE
+============================================= */
 
-            window
-                .__RUNTIME_EVENT_BUS__
-                .listeners[eventName] || [];
+const eventEnvelope =
+
+    createRuntimeEventEnvelope(
+
+        eventName,
+        payload,
+        options
+    );
+
+const listeners =
+
+    window
+        .__RUNTIME_EVENT_BUS__
+        .listeners[eventName] || [];
+
+
+        /* =============================================
+           CHANNEL ROUTING LOOKUP
+        ============================================= */
+
+const routedListeners =
+
+    window
+        .__RUNTIME_CHANNEL_ROUTING__[
+            channel
+        ] || [];
+
+console.log(
+    "🧠 [CHANNEL_ROUTING]",
+    {
+        channel,
+        routed:
+            routedListeners.length
+    }
+);
+
+window
+    .__RUNTIME_EVENT_BUS__
+    .metrics
+    .emitted++;
+
+/* =============================================
+   CHANNEL METRICS
+============================================= */
+
+const channel =
+
+    eventEnvelope.channel ||
+    "runtime";
+
+   /* =============================================
+   CHANNEL GOVERNANCE
+============================================= */
+
+const channelState =
+
+    window
+        .__RUNTIME_EVENT_CHANNELS__[
+            channel
+        ];
+
+/* =============================================
+   QUARANTINE BLOCK
+============================================= */
+
+if (
+
+    channelState?.quarantined ===
+    true
+
+) {
+
+    console.error(
+        "☣️ [QUARANTINED_CHANNEL_BLOCKED]",
+        channel
+    );
+
+    return {
+
+        ok: false,
+
+        blocked: true,
+
+        quarantined: true,
+
+        reason:
+            "CHANNEL_QUARANTINED",
+
+        channel
+    };
+}
+
+/* =============================================
+   CRITICAL BLOCK
+============================================= */
+
+if (
+
+    channelState?.health ===
+    "CRITICAL"
+
+) {
+
+    console.error(
+        "🛑 [CHANNEL_BLOCKED]",
+        channel
+    );
+
+    return {
+
+        ok: false,
+
+        blocked: true,
+
+        reason:
+            "CHANNEL_CRITICAL",
+
+        channel
+    };
+}
+
+if (
+
+    window
+        .__RUNTIME_EVENT_CHANNELS__[
+            channel
+        ]
+
+) {
+
+    window
+        .__RUNTIME_EVENT_CHANNELS__[
+            channel
+        ]
+        .emitted++;
+
+    window
+        .__RUNTIME_EVENT_CHANNELS__[
+            channel
+        ]
+        .lastEvent = Date.now();
+}
+
+console.log(
+    "📡 [EVENT_EMITTED]",
+    eventEnvelope
+);
+
+for (
+
+    const listener of
+    listeners
+
+) {
+
+    try {
+
+        await listener(
+            eventEnvelope
+        );
 
         window
             .__RUNTIME_EVENT_BUS__
             .metrics
-            .emitted++;
+            .delivered++;
 
-        console.log(
-            "📡 [EVENT_EMITTED]",
-            eventName,
-            payload
-        );
+        if (
 
-        for (
-
-            const listener of
-            listeners
+            window
+                .__RUNTIME_EVENT_CHANNELS__[
+                    channel
+                ]
 
         ) {
 
-            try {
+            window
+                .__RUNTIME_EVENT_CHANNELS__[
+                    channel
+                ]
+                .delivered++;
 
-                await listener(payload);
+            /* =============================================
+               CHANNEL HEALTH RECOVERY
+            ============================================= */
+const channelState =
 
-                window
-                    .__RUNTIME_EVENT_BUS__
-                    .metrics
-                    .delivered++;
+    window
+        .__RUNTIME_EVENT_CHANNELS__[
+            channel
+        ];
 
-            }
+if (
 
-            catch(error) {
+    channelState.health ===
+    "CRITICAL"
 
-                window
-                    .__RUNTIME_EVENT_BUS__
-                    .metrics
-                    .errors++;
+    &&
 
-                console.error(
-                    "❌ [EVENT_DELIVERY_FAIL]",
-                    {
-                        eventName,
-                        error
-                    }
-                );
-            }
-        }
+    channelState.delivered >= 5
 
-        return {
+) {
 
-            ok: true,
+    channelState.health =
+    "DEGRADED";
 
-            event:
-                eventName,
+console.warn(
+    "⚠️ [CHANNEL_DEGRADED]",
+    channel,
+    channelState
+);
 
-            listeners:
-                listeners.length
-        };
+}
+
+if (
+
+    channelState.health ===
+    "DEGRADED"
+
+    &&
+
+    channelState.delivered >= 10
+
+) {
+
+    channelState.health =
+    "ONLINE";
+
+console.log(
+    "✅ [CHANNEL_RECOVERED]",
+    channel,
+    channelState
+);
+
+/* =============================================
+   CHANNEL REINTEGRATION
+============================================= */
+
+if (
+
+    channelState.quarantined ===
+    true
+
+) {
+
+    channelState.quarantined =
+        false;
+
+    console.log(
+        "♻️ [CHANNEL_REINTEGRATED]",
+        channel
+    );
+}
+}
+}
 
     }
 
     catch(error) {
 
+        window
+            .__RUNTIME_EVENT_BUS__
+            .metrics
+            .errors++;
+
+            if (
+
+    window
+        .__RUNTIME_EVENT_CHANNELS__[
+            channel
+        ]
+
+) {
+
+    window
+        .__RUNTIME_EVENT_CHANNELS__[
+            channel
+        ]
+        .errors++;
+
+        /* =============================================
+   CHANNEL HEALTH DEGRADATION
+============================================= */
+
+const channelState =
+
+    window
+        .__RUNTIME_EVENT_CHANNELS__[
+            channel
+        ];
+
+if (
+
+    channelState.errors >= 5
+
+) {
+
+    channelState.health =
+        "DEGRADED";
+}
+
+if (
+
+    channelState.errors >= 10
+
+) {
+
+    channelState.health =
+    "CRITICAL";
+
+console.error(
+    "🚨 [CHANNEL_CRITICAL]",
+    channel,
+    channelState
+);
+
+/* =============================================
+   CHANNEL QUARANTINE
+============================================= */
+
+channelState.quarantined =
+    true;
+
+console.error(
+    "☣️ [CHANNEL_QUARANTINED]",
+    channel
+);
+}
+}
+
         console.error(
-            "❌ [EVENT_EMIT_FAIL]",
-            error
+            "❌ [EVENT_DELIVERY_FAIL]",
+            {
+                eventName,
+                error
+            }
         );
-
-        return {
-
-            ok: false,
-
-            error:
-                error.message
-        };
     }
+}
+
+return {
+
+    ok: true,
+
+    event:
+        eventName,
+
+    eventId:
+        eventEnvelope.eventId,
+
+    channel,
+
+    listeners:
+        listeners.length
 };
 
+}
+
+catch(error) {
+
+    console.error(
+        "❌ [EVENT_EMIT_FAIL]",
+        error
+    );
+
+    return {
+
+        ok: false,
+
+        error:
+            error.message
+    };
+}
+};
 /* =====================================================
    AUTO HYDRATION
 ===================================================== */
