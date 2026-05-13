@@ -5610,10 +5610,6 @@ window
    CHANNEL METRICS
 ============================================= */
 
-const channel =
-
-    eventEnvelope.channel ||
-    "runtime";
 
    /* =============================================
    CHANNEL GOVERNANCE
