@@ -21541,6 +21541,264 @@ function() {
         };
     }
 };
+
+/* =====================================================================================
+   RUNTIME OPERATOR CONSOLE FOUNDATION V1
+   CENTRALIZED OPERATIONAL INSPECTION
+===================================================================================== */
+
+window.__RUNTIME_OPERATOR_CONSOLE__ ||= {
+
+    initialized: false,
+
+    totalInspections: 0,
+
+    lastInspectionAt: null,
+
+    operatorHealth: 100,
+
+    inspectionHistory: []
+};
+
+/* =====================================================================================
+   GENERATE OPERATOR INSPECTION REPORT
+===================================================================================== */
+
+window.generateOperatorInspectionReport =
+async function() {
+
+    try {
+
+        const consoleState =
+            window.__RUNTIME_OPERATOR_CONSOLE__;
+
+        const health =
+            window.__RUNTIME_HEALTH__;
+
+        const convergence =
+            window.__RUNTIME_CONVERGENCE__;
+
+        const federation =
+            window.__RUNTIME_FEDERATION__;
+
+        const safety =
+            window.__RUNTIME_SAFETY__;
+
+        const hardening =
+            window.__RUNTIME_HARDENING__;
+
+        const scheduler =
+            window.__RUNTIME_SCHEDULER__;
+
+        const daemons =
+            getRuntimeDaemonState();
+
+        const report = {
+
+            reportId:
+                crypto.randomUUID(),
+
+            runtimeHealth:
+
+                health.runtimeHealth || 100,
+
+            convergenceScore:
+
+                convergence.convergenceScore || 100,
+
+            federationHealth:
+
+                federation.federationHealth || 100,
+
+            safetyLevel:
+
+                safety.safetyLevel || "STABLE",
+
+            emergencyStabilization:
+
+                hardening
+                    .emergencyStabilization || false,
+
+            schedulerActive:
+
+                scheduler.active || false,
+
+            activeExecutions:
+
+                scheduler
+                    .activeExecutions
+                    ?.size || 0,
+
+            totalDaemons:
+
+                daemons.totalDaemons || 0,
+
+            activeDaemons:
+
+                daemons.activeDaemons || 0,
+
+            timestamp:
+                Date.now()
+        };
+
+        consoleState
+            .inspectionHistory
+            .push(report);
+
+        if (
+
+            consoleState
+                .inspectionHistory
+                .length > 50
+
+        ) {
+
+            consoleState
+                .inspectionHistory
+                .shift();
+        }
+
+        consoleState
+            .totalInspections++;
+
+        consoleState
+            .lastInspectionAt =
+                Date.now();
+
+        console.log(
+            "🖥️ [OPERATOR_INSPECTION_REPORT]",
+            report
+        );
+
+        return {
+
+            ok: true,
+
+            report
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [OPERATOR_REPORT_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   START OPERATOR CONSOLE
+===================================================================================== */
+
+window.startRuntimeOperatorConsole =
+async function() {
+
+    try {
+
+        window
+            .__RUNTIME_OPERATOR_CONSOLE__
+            .initialized = true;
+
+        registerRuntimeDaemon(
+
+            "runtime.operator.daemon",
+
+            {
+
+                interval: 60000,
+
+                singleton: true,
+
+                critical: false,
+
+                handler: async () => {
+
+                    await generateOperatorInspectionReport();
+                }
+            }
+        );
+
+        const started =
+
+            startRuntimeDaemon(
+                "runtime.operator.daemon"
+            );
+
+        console.log(
+            "🖥️ [RUNTIME_OPERATOR_CONSOLE_ONLINE]"
+        );
+
+        return {
+
+            ok: true,
+
+            started
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [OPERATOR_CONSOLE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   GET OPERATOR CONSOLE STATE
+===================================================================================== */
+
+window.getRuntimeOperatorConsoleState =
+function() {
+
+    try {
+
+        return {
+
+            ok: true,
+
+            ...(window
+                .__RUNTIME_OPERATOR_CONSOLE__)
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [GET_OPERATOR_STATE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
 /* =====================================================================================
    START RUNTIME REPAIR DAEMON V1
 ===================================================================================== */
