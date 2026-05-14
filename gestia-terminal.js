@@ -20513,6 +20513,362 @@ function() {
 };
 
 /* =====================================================================================
+   COGNITIVE SECURITY DOMAINS V1
+   EXECUTION ISOLATION + TRUST BOUNDARIES
+===================================================================================== */
+
+window.__RUNTIME_SECURITY_DOMAINS__ ||= {
+
+    initialized: false,
+
+    activeDomains: {},
+
+    domainPolicies: {},
+
+    totalDomains: 0,
+
+    totalAccessChecks: 0,
+
+    totalViolations: 0,
+
+    lastSecurityEvaluationAt: null,
+
+    securityEvents: []
+};
+
+/* =====================================================================================
+   REGISTER SECURITY DOMAIN
+===================================================================================== */
+
+window.registerSecurityDomain =
+function(
+
+    domainId,
+
+    config = {}
+
+) {
+
+    try {
+
+        if (!domainId) {
+
+            return {
+
+                ok: false,
+
+                error:
+                    "INVALID_DOMAIN_ID"
+            };
+        }
+
+        const domains =
+
+            window
+                .__RUNTIME_SECURITY_DOMAINS__;
+
+        if (
+
+            domains
+                .activeDomains[
+                    domainId
+                ]
+
+        ) {
+
+            console.warn(
+                "⚠️ [DOMAIN_ALREADY_EXISTS]",
+                domainId
+            );
+
+            return {
+
+                ok: false,
+
+                reason:
+                    "DOMAIN_EXISTS"
+            };
+        }
+
+        domains
+            .activeDomains[
+                domainId
+            ] = {
+
+                domainId,
+
+                isolationLevel:
+
+                    config.isolationLevel ||
+
+                    "STANDARD",
+
+                permissions:
+
+                    config.permissions ||
+
+                    [],
+
+                trusted:
+
+                    config.trusted !== false,
+
+                createdAt:
+                    Date.now()
+            };
+
+        domains.totalDomains++;
+
+        console.log(
+            "🔐 [SECURITY_DOMAIN_REGISTERED]",
+            domainId
+        );
+
+        return {
+
+            ok: true,
+
+            domainId
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [DOMAIN_REGISTRATION_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   VALIDATE DOMAIN ACCESS
+===================================================================================== */
+
+window.validateDomainAccess =
+function(
+
+    domainId,
+
+    permission
+
+) {
+
+    try {
+
+        const domains =
+
+            window
+                .__RUNTIME_SECURITY_DOMAINS__;
+
+        domains.totalAccessChecks++;
+
+        const domain =
+
+            domains
+                .activeDomains[
+                    domainId
+                ];
+
+        if (!domain) {
+
+            domains.totalViolations++;
+
+            console.warn(
+                "🚫 [DOMAIN_NOT_FOUND]",
+                domainId
+            );
+
+            return {
+
+                ok: false,
+
+                allowed: false
+            };
+        }
+
+        const allowed =
+
+            domain.permissions
+                .includes(permission);
+
+        if (!allowed) {
+
+            domains.totalViolations++;
+
+            domains.securityEvents
+                .push({
+
+                    type:
+                        "ACCESS_DENIED",
+
+                    domainId,
+
+                    permission,
+
+                    timestamp:
+                        Date.now()
+                });
+
+            console.warn(
+                "🚫 [DOMAIN_ACCESS_DENIED]",
+                {
+
+                    domainId,
+
+                    permission
+                }
+            );
+        }
+
+        else {
+
+            console.log(
+                "✅ [DOMAIN_ACCESS_GRANTED]",
+                {
+
+                    domainId,
+
+                    permission
+                }
+            );
+        }
+
+        return {
+
+            ok: true,
+
+            allowed
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [DOMAIN_ACCESS_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   START SECURITY DOMAIN GOVERNANCE
+===================================================================================== */
+
+window.startSecurityDomainGovernance =
+async function() {
+
+    try {
+
+        window
+            .__RUNTIME_SECURITY_DOMAINS__
+            .initialized = true;
+
+        registerSecurityDomain(
+
+            "core.runtime",
+
+            {
+
+                isolationLevel:
+                    "MAXIMUM",
+
+                trusted: true,
+
+                permissions: [
+
+                    "RUNTIME_CONTROL",
+
+                    "COGNITION_CONTROL",
+
+                    "GOVERNANCE_CONTROL"
+                ]
+            }
+        );
+
+        console.log(
+            "🔐 [SECURITY_DOMAIN_GOVERNANCE_ONLINE]"
+        );
+
+        return {
+
+            ok: true
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [SECURITY_GOVERNANCE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   GET SECURITY DOMAIN STATE
+===================================================================================== */
+
+window.getSecurityDomainState =
+function() {
+
+    try {
+
+        return {
+
+            ok: true,
+
+            ...(window
+                .__RUNTIME_SECURITY_DOMAINS__)
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [GET_SECURITY_STATE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
    START RUNTIME REPAIR DAEMON V1
 ===================================================================================== */
 
