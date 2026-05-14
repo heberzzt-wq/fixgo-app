@@ -19217,6 +19217,319 @@ function() {
         };
     }
 };
+
+/* =====================================================================================
+   RUNTIME META-COGNITION V1
+   SELF-REFLECTIVE COGNITION LAYER
+===================================================================================== */
+
+window.__RUNTIME_META_COGNITION__ ||= {
+
+    initialized: false,
+
+    totalEvaluations: 0,
+
+    lastEvaluationAt: null,
+
+    cognitionScore: 100,
+
+    governanceScore: 100,
+
+    planningScore: 100,
+
+    policyScore: 100,
+
+    runtimeSelfAssessment:
+        "STABLE",
+
+    evaluationHistory: []
+};
+
+/* =====================================================================================
+   EXECUTE META-COGNITIVE ANALYSIS
+===================================================================================== */
+
+window.executeMetaCognitiveAnalysis =
+async function() {
+
+    try {
+
+        const meta =
+            window.__RUNTIME_META_COGNITION__;
+
+        const planning =
+            window.__RUNTIME_PLANNING__;
+
+        const policy =
+            window.__RUNTIME_POLICY__;
+
+        const prediction =
+            window.__RUNTIME_PREDICTION__;
+
+        const health =
+            window.__RUNTIME_HEALTH__;
+
+        let cognitionScore = 100;
+
+        let governanceScore = 100;
+
+        let planningScore = 100;
+
+        let policyScore = 100;
+
+        let assessment =
+            "STABLE";
+
+        /* =================================================
+           HEALTH ANALYSIS
+        ================================================= */
+
+        if (
+
+            health.runtimeHealth < 90
+
+        ) {
+
+            cognitionScore -= 10;
+        }
+
+        if (
+
+            health.runtimeHealth < 75
+
+        ) {
+
+            cognitionScore -= 20;
+
+            assessment =
+                "DEGRADED";
+        }
+
+        /* =================================================
+           PLANNING ANALYSIS
+        ================================================= */
+
+        if (
+
+            planning.totalPlansGenerated >
+            planning.totalPlansExecuted + 5
+
+        ) {
+
+            planningScore -= 15;
+        }
+
+        /* =================================================
+           POLICY ANALYSIS
+        ================================================= */
+
+        if (
+
+            !policy.activePolicy
+
+        ) {
+
+            policyScore -= 25;
+        }
+
+        /* =================================================
+           PREDICTIVE ANALYSIS
+        ================================================= */
+
+        if (
+
+            prediction.runtimeRiskLevel ===
+            "HIGH"
+
+        ) {
+
+            governanceScore -= 20;
+
+            assessment =
+                "RISK_ELEVATED";
+        }
+
+        /* =================================================
+           STORE RESULTS
+        ================================================= */
+
+        const evaluation = {
+
+            evaluationId:
+                crypto.randomUUID(),
+
+            cognitionScore,
+
+            governanceScore,
+
+            planningScore,
+
+            policyScore,
+
+            assessment,
+
+            timestamp:
+                Date.now()
+        };
+
+        meta.totalEvaluations++;
+
+        meta.lastEvaluationAt =
+            Date.now();
+
+        meta.cognitionScore =
+            cognitionScore;
+
+        meta.governanceScore =
+            governanceScore;
+
+        meta.planningScore =
+            planningScore;
+
+        meta.policyScore =
+            policyScore;
+
+        meta.runtimeSelfAssessment =
+            assessment;
+
+        meta.evaluationHistory
+            .push(evaluation);
+
+        console.log(
+            "🪞 [META_COGNITIVE_ANALYSIS]",
+            evaluation
+        );
+
+        return {
+
+            ok: true,
+
+            evaluation
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [META_COGNITION_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   START META-COGNITION DAEMON
+===================================================================================== */
+
+window.startMetaCognitionDaemon =
+async function() {
+
+    try {
+
+        window
+            .__RUNTIME_META_COGNITION__
+            .initialized = true;
+
+        registerRuntimeDaemon(
+
+            "runtime.meta.daemon",
+
+            {
+
+                interval: 60000,
+
+                singleton: true,
+
+                critical: false,
+
+                handler: async () => {
+
+                    await executeMetaCognitiveAnalysis();
+                }
+            }
+        );
+
+        const started =
+
+            startRuntimeDaemon(
+                "runtime.meta.daemon"
+            );
+
+        console.log(
+            "🪞 [META_COGNITION_ONLINE]"
+        );
+
+        return {
+
+            ok: true,
+
+            started
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [META_DAEMON_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   GET META-COGNITION STATE
+===================================================================================== */
+
+window.getMetaCognitionState =
+function() {
+
+    try {
+
+        return {
+
+            ok: true,
+
+            ...(window.__RUNTIME_META_COGNITION__)
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [GET_META_STATE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+
 /* =====================================================================================
    START RUNTIME REPAIR DAEMON V1
 ===================================================================================== */
