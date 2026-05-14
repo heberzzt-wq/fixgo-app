@@ -9225,7 +9225,7 @@ try {
     const semanticModule =
 
         await import(
-            "./gestia-core/semantic.engine.v7.js"
+            "./gestia-core/semantic.engine.js"
         );
 
     console.log(
@@ -9964,13 +9964,13 @@ window.__REPO_INDEX__["brain.engine.js"] = {
    SEMANTIC ENGINE V7
 ===================================================== */
 
-window.__REPO_INDEX__["semantic.engine.v7.js"] = {
+window.__REPO_INDEX__["semantic.engine.js"] = {
 
     path:
-        "gestia-core/semantic.engine.v7.js",
+        "gestia-core/semantic.engine.js",
 
     module:
-        "semantic_v7",
+        "semantic",
 
     type:
         "semantic_cognition_runtime",
@@ -10069,7 +10069,7 @@ window.__HYBRID_COGNITION_LINKS__ ||= {
 
         "brain.engine.js",
 
-        "semantic.engine.v7.js",
+        "semantic.engine.js",
 
         "intent.engine.js"
     ],
@@ -10107,7 +10107,7 @@ window.__RUNTIME_MODULES__.brain =
     window.__REPO_INDEX__["brain.engine.js"];
 
 window.__RUNTIME_MODULES__.semantic =
-    window.__REPO_INDEX__["semantic.engine.v7.js"];
+    window.__REPO_INDEX__["semantic.engine.js"];
 
 window.__RUNTIME_MODULES__.core =
     window.__REPO_INDEX__["gestia-core.js"];

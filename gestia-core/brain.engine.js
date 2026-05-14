@@ -27,7 +27,7 @@ import {
   sincronizarCorralSemantico,
   getSemanticCognitiveState
 
-} from "./semantic.engine.v7.js";
+} from "./semantic.engine.js";
 
 import { JarvisMemory }
 from "./jarvis/jarvis.memory.js";

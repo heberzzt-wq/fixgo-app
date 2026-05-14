@@ -73,7 +73,7 @@ else {
 
             const semanticModule =
                 await import(
-                    "./semantic.engine.v7.js"
+                    "./semantic.engine.js"
                 );
 
             console.log(

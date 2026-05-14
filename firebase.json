@@ -27,7 +27,7 @@
       "mantenimiento_edificio.json",
       "*.md"
     ],
-    "cleanUrls": true,
+    "cleanUrls": false,
     "trailingSlash": false,
 
     "rewrites": [
