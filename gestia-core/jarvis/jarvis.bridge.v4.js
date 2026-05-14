@@ -37,8 +37,44 @@ function render(title, msg, type = "info") {
 }
 
 function speak(msg) {
-    if (window.hablarJarvis) {
-        try { window.hablarJarvis(msg); } catch (e) {}
+
+    try {
+
+        const voiceRuntime =
+
+            window.hablarJarvis ||
+
+            window.speakJarvis ||
+
+            window.jarvisSpeak ||
+
+            null;
+
+        if (
+            typeof voiceRuntime === "function"
+        ) {
+
+            voiceRuntime(msg);
+
+            return true;
+        }
+
+        console.warn(
+            "⚠️ [VOICE_RUNTIME_OFFLINE]"
+        );
+
+        return false;
+
+    }
+
+    catch(e) {
+
+        console.warn(
+            "⚠️ [VOICE_RUNTIME_FAIL]",
+            e
+        );
+
+        return false;
     }
 }
 
