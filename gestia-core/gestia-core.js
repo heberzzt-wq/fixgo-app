@@ -766,12 +766,62 @@ const cambiosFinales =
 
             this.emitirPulso("KERNEL", "SUCCESS", `Operación ${analysisId.substring(0,8)} Sellada.`);
 
-            return { 
-                status: "success", 
-                opId: analysisId, 
-                result, 
-                budget: atomicState.realBudgetSnapshot 
-            };
+            return {
+
+    status:
+        "success",
+
+    /* =================================================
+       EXECUTION CONTRACT NORMALIZATION
+    ================================================= */
+
+    operation_id:
+        analysisId,
+
+    analysis_id:
+        analysisId,
+
+    opId:
+        analysisId,
+
+    /* =================================================
+       RESULTS
+    ================================================= */
+
+    result,
+
+    reasoning:
+        result?.reasoning ||
+
+        null,
+
+    executionChain:
+        result?.reasoning
+            ?.executionChain ||
+
+        [],
+
+    /* =================================================
+       TELEMETRY
+    ================================================= */
+
+    budget:
+        atomicState
+            .realBudgetSnapshot,
+
+    runtime:
+        {
+
+            cognition:
+                "HYBRID_V7",
+
+            timestamp:
+                Date.now(),
+
+            runtimeStatus:
+                "ONLINE"
+        }
+};
 
         } catch (error) {
             this.emitirPulso("CRASH", "FATAL_FAILURE", error.message);
