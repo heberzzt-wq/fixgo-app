@@ -18933,6 +18933,290 @@ function() {
         };
     }
 };
+
+/* =====================================================================================
+   RUNTIME POLICY COGNITION V1
+   GOVERNANCE DOCTRINE LAYER
+===================================================================================== */
+
+window.__RUNTIME_POLICY__ ||= {
+
+    initialized: false,
+
+    activePolicy:
+        "STABILITY_FIRST",
+
+    totalPolicyEvaluations: 0,
+
+    lastPolicyEvaluationAt: null,
+
+    policyHistory: [],
+
+    policies: {
+
+        STABILITY_FIRST: {
+
+            priority: 100,
+
+            description:
+                "Protect runtime stability above all",
+
+            rules: [
+
+                "LIMIT_RISK",
+
+                "PRIORITIZE_HEALING",
+
+                "REDUCE_PRESSURE"
+            ]
+        },
+
+        PERFORMANCE_FIRST: {
+
+            priority: 70,
+
+            description:
+                "Optimize throughput performance",
+
+            rules: [
+
+                "MAXIMIZE_EXECUTION",
+
+                "ALLOW_HIGHER_LOAD"
+            ]
+        },
+
+        RESILIENCE_FIRST: {
+
+            priority: 95,
+
+            description:
+                "Maximize recovery resilience",
+
+            rules: [
+
+                "PRIORITIZE_RECOVERY",
+
+                "EXTEND_STABILIZATION"
+            ]
+        }
+    }
+};
+
+/* =====================================================================================
+   EVALUATE RUNTIME POLICY
+===================================================================================== */
+
+window.evaluateRuntimePolicy =
+async function() {
+
+    try {
+
+        const policy =
+            window.__RUNTIME_POLICY__;
+
+        const health =
+            window.__RUNTIME_HEALTH__;
+
+        const strategy =
+            window.__RUNTIME_STRATEGY__;
+
+        let selectedPolicy =
+            "STABILITY_FIRST";
+
+        /* =================================================
+           HEALTH GOVERNANCE
+        ================================================= */
+
+        if (
+
+            health.runtimeHealth < 80
+
+        ) {
+
+            selectedPolicy =
+                "RESILIENCE_FIRST";
+        }
+
+        /* =================================================
+           STRATEGIC GOVERNANCE
+        ================================================= */
+
+        if (
+
+            strategy.activeObjective ===
+            "OPTIMIZE_THROUGHPUT"
+
+        ) {
+
+            selectedPolicy =
+                "PERFORMANCE_FIRST";
+        }
+
+        policy.activePolicy =
+            selectedPolicy;
+
+        policy.totalPolicyEvaluations++;
+
+        policy.lastPolicyEvaluationAt =
+            Date.now();
+
+        policy.policyHistory
+            .push({
+
+                policy:
+                    selectedPolicy,
+
+                timestamp:
+                    Date.now()
+            });
+
+        console.log(
+            "📜 [RUNTIME_POLICY_SELECTED]",
+            {
+
+                policy:
+                    selectedPolicy,
+
+                rules:
+
+                    policy
+                        .policies[
+                            selectedPolicy
+                        ]
+                        ?.rules || []
+            }
+        );
+
+        return {
+
+            ok: true,
+
+            policy:
+                selectedPolicy
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [POLICY_EVALUATION_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   START POLICY COGNITION DAEMON
+===================================================================================== */
+
+window.startRuntimePolicyDaemon =
+async function() {
+
+    try {
+
+        window
+            .__RUNTIME_POLICY__
+            .initialized = true;
+
+        registerRuntimeDaemon(
+
+            "runtime.policy.daemon",
+
+            {
+
+                interval: 60000,
+
+                singleton: true,
+
+                critical: false,
+
+                handler: async () => {
+
+                    await evaluateRuntimePolicy();
+                }
+            }
+        );
+
+        const started =
+
+            startRuntimeDaemon(
+                "runtime.policy.daemon"
+            );
+
+        console.log(
+            "📜 [RUNTIME_POLICY_ONLINE]"
+        );
+
+        return {
+
+            ok: true,
+
+            started
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [POLICY_DAEMON_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   GET RUNTIME POLICY STATE
+===================================================================================== */
+
+window.getRuntimePolicyState =
+function() {
+
+    try {
+
+        return {
+
+            ok: true,
+
+            ...(window.__RUNTIME_POLICY__)
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [GET_POLICY_STATE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
 /* =====================================================================================
    START RUNTIME REPAIR DAEMON V1
 ===================================================================================== */
