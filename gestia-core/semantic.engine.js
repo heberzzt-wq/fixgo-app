@@ -1,317 +1,914 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - SEMANTIC ENGINE V6.1 (THE COGNITIVE SOVEREIGN)
+ * GESTIAPREMIUM 2026
+ * SEMANTIC COGNITIVE MATRIX V7
+ * THE COGNITIVE SOVEREIGN CORE
  * ======================================================================================
- * Identidad: Traductor Universal, Contextualizador y Filtro Cognitivo para IA.
- * Función: Mapear lenguaje natural a la estructura real de Firestore (B2B/B2C Aware).
- * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
- * --------------------------------------------------------------------------------------
- * INGENIERÍA DE GRADO EMPRESARIAL (V6.1 - EL CEREBRO PERFECTO):
- * 1. SAFE LOCK RELEASE: Resolución de concurrencia atómica con bloque `try/finally`.
- * Garantiza que el Lock de peticiones se libere incluso si Firebase sufre un crash.
- * 2. SCORED RELEVANCE: Implementación de un algoritmo de puntuación (Scoring) para
- * filtrar módulos. Ya no se usa un simple `.includes()`; se evalúa el peso semántico.
- * 3. NOISE REDUCTION (STOPWORDS): Filtro léxico inteligente que elimina palabras
- * vacías ("para", "con", "los") aumentando drásticamente la precisión del Propose Engine.
- * 4. MULTI-TENANT ISOLATION: El contexto (ContextId) ahora aísla la memoria RAM
- * por Búnker, evitando la contaminación cruzada entre operaciones de distintos clientes.
- * 5. DATA FINGERPRINT SYNC: Preparación del sistema de invalidación reactiva. Si 
- * la base de datos cambia, la caché se auto-destruye mediante `invalidateSemanticCache`.
- * 6. DEEP FREEZE TOTAL: Inmutabilización absoluta de arrays y objetos de configuración.
+ * IDENTIDAD:
+ * Motor de comprensión semántica, contexto cognitivo,
+ * relaciones conceptuales, interpretación humana
+ * y ensamblador dinámico de conciencia runtime.
+ *
+ * NIVEL:
+ * JARVIS OPERATOR INTELLIGENCE
  * ======================================================================================
  */
 
 import { db } from '/firebase.js';
-import { 
-    collection, 
-    getDocs, 
-    query, 
+
+import {
+
+    collection,
+    getDocs,
+    query,
     limit,
-    where 
+    where
+
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-/**
- * --- 🧠 MEMORIA SEMÁNTICA MULTI-TENANT (SISTEMA NERVIOSO CENTRAL) ---
- * SEMANTIC_CACHE: Map<contextId, { modulos: Array, lastSync: number, dataFingerprint: number }>
- * pendingSyncs: Map<contextId, Promise>
- */
-const SEMANTIC_CACHE = new Map();
-const pendingSyncs = new Map();
+/* ======================================================================================
+   GLOBAL COGNITIVE MATRIX
+====================================================================================== */
 
-// --- ⚙️ CALIBRACIÓN DEL MOTOR COGNITIVO ---
-const TTL_SEMANTICO = 10 * 60 * 1000; // 10 minutos de soberanía táctica
-const DEFAULT_CONTEXT = "GLOBAL_SYSTEM";
+window.__SEMANTIC_COGNITIVE_MATRIX__ =
+window.__SEMANTIC_COGNITIVE_MATRIX__ || {
 
-// 🚫 STOPWORDS (Filtro de Ruido): Palabras que no aportan valor semántico a la DB.
-const STOPWORDS = new Set([
-    "para", "con", "los", "las", "del", "que", "por", "una", "uno", "como", "mas", 
-    "sin", "sobre", "este", "esta", "todos", "todas", "crear", "hacer", "borrar",
-    "modificar", "actualizar", "ver", "listar", "quiero", "necesito", "favor", "sistema"
-]);
+    initialized: true,
 
-// ==========================================
-// 🗺️ MAPA MAESTRO DE COLECCIONES (Fallback de Infraestructura)
-// ==========================================
-const MASTER_COLLECTIONS = [
-    "activos", "b2b_keys", "bitacora_edificios", "clientes", "config_rutinas",
-    "config_services", "configuracion", "gestia_dynamic_data", "gestia_firewall",
-    "gestia_operations", "gestia_records", "gestia_system_modules", "log_rutinas",
-    "logs_ia_mantenimiento", "logs_terminal_heberto", "notificaciones_pendientes",
-    "packages", "panicAlerts", "rastreo", "residenciales", "services",
-    "servicios_b2b", "support_tickets", "tareas", "tecnicos", "transacciones", "users"
-];
+    cognitionLevel: "V7",
 
-/**
- * emitSia7: Telemetría táctica para el Jarvis HUD V10.
- * Inyecta el pulso del oráculo en el hilo visual del Arquitecto.
- */
-const emitSia7 = (opId, step, details, severity = "INFO") => {
-    window.dispatchEvent(new CustomEvent('gestia-terminal-state', {
-        detail: {
-            step: `SEMANTIC_ENGINE:${step}`,
-            details: details,
-            opId: opId,
-            severity: severity,
-            modulo: "SEMANTIC_CORE"
-        }
-    }));
+    semanticGraph: {},
+
+    runtimeAwareness: {
+
+        health: 100,
+
+        federation: "STABLE",
+
+        cognition: "ONLINE",
+
+        topology: "CONNECTED"
+    },
+
+    activeContextWindow: [],
+
+    semanticMemory: {},
+
+    emotionalMemory: {},
+
+    operatorPatterns: {},
+
+    contextualAssociations: {},
+
+    fuzzyRelations: {},
+
+    learningIndex: {},
+
+    semanticTelemetry: [],
+
+    conceptClusters: {},
+
+    activeObjectives: [],
+
+    lastSemanticResolution: null
 };
 
-/**
- * deepFreeze: Inmutabilidad absoluta recursiva (Blindaje de Memoria).
- * ✅ NASA FIX: Recorre explícitamente arrays e índices para un bloqueo total.
- */
-function deepFreeze(obj) {
-    if (obj === null || typeof obj !== "object" || Object.isFrozen(obj)) {
-        return obj;
-    }
-    
-    Object.freeze(obj);
-    
-    // Obtenemos todas las propiedades (incluyendo los índices si es un array)
-    Object.getOwnPropertyNames(obj).forEach(prop => {
-        const value = obj[prop];
-        if (value !== null && (typeof value === "object" || typeof value === "function")) {
-            deepFreeze(value);
-        }
-    });
-    
-    return obj;
+/* ======================================================================================
+   SEMANTIC CACHE
+====================================================================================== */
+
+const SEMANTIC_CACHE =
+new Map();
+
+const pendingSyncs =
+new Map();
+
+/* ======================================================================================
+   CONFIGURATION
+====================================================================================== */
+
+const TTL_SEMANTICO =
+10 * 60 * 1000;
+
+const DEFAULT_CONTEXT =
+"GLOBAL_SYSTEM";
+
+/* ======================================================================================
+   STOPWORDS
+====================================================================================== */
+
+const STOPWORDS =
+new Set([
+
+    "para",
+    "con",
+    "los",
+    "las",
+    "del",
+    "que",
+    "por",
+    "una",
+    "uno",
+    "como",
+    "mas",
+    "sin",
+    "sobre",
+    "este",
+    "esta",
+    "todos",
+    "todas",
+    "hacer",
+    "crear",
+    "borrar",
+    "modificar",
+    "actualizar",
+    "quiero",
+    "necesito",
+    "favor",
+    "oye",
+    "jarvis"
+]);
+
+/* ======================================================================================
+   CONCEPT CLUSTERS
+====================================================================================== */
+
+const CONCEPT_CLUSTERS = {
+
+    DASHBOARD: [
+
+        "dashboard",
+        "panel",
+        "hud",
+        "ui",
+        "interfaz",
+        "pantalla",
+        "vista",
+        "monitor"
+    ],
+
+    PERFORMANCE: [
+
+        "lento",
+        "trabado",
+        "raro",
+        "tronado",
+        "pesado",
+        "bug",
+        "falla",
+        "crash"
+    ],
+
+    VOICE: [
+
+        "voz",
+        "speech",
+        "hablar",
+        "escuchar",
+        "audio",
+        "microfono"
+    ],
+
+    MEMORY: [
+
+        "memoria",
+        "contexto",
+        "historial",
+        "recuerdo",
+        "persistencia"
+    ],
+
+    RUNTIME: [
+
+        "runtime",
+        "kernel",
+        "core",
+        "motor",
+        "daemon"
+    ],
+
+    FEDERATION: [
+
+        "federation",
+        "cluster",
+        "nodos",
+        "sync",
+        "federado"
+    ]
+};
+
+/* ======================================================================================
+   HUMAN SEMANTICS
+====================================================================================== */
+
+const HUMAN_SEMANTICS = {
+
+    urgency: /\b(ya|ahorita|de una|rapidito|en corto|chingatelo)\b/i,
+
+    frustration: /\b(no sirve|mal|wtf|bug|falla|tronado|raro)\b/i,
+
+    approval: /\b(arre|chingon|perfecto|excelente|jalo)\b/i,
+
+    confusion: /\b(no entendi|como|que pedo|explica)\b/i
+};
+
+/* ======================================================================================
+   TELEMETRY
+====================================================================================== */
+
+function emitSemanticTelemetry(
+
+    type,
+    payload = {},
+    severity = "INFO"
+
+) {
+
+    const event = {
+
+        type,
+        payload,
+        severity,
+        timestamp: Date.now()
+    };
+
+    console.log(
+
+        `%c🧠 [SEMANTIC:${type}]`,
+        "color:#67e8f9;font-weight:bold;",
+        payload
+    );
+
+    window.__SEMANTIC_COGNITIVE_MATRIX__
+        .semanticTelemetry
+        .push(event);
+
+    window.dispatchEvent(
+
+        new CustomEvent(
+            "semantic-cognitive-event",
+            {
+                detail: event
+            }
+        )
+    );
 }
 
-/**
- * normalizarID (V6.1 STRICT)
- * Fuerza que cualquier ID generado sea determinista.
- * Mata el error ID_CORRUPTO antes de que nazca.
- */
-function normalizarID(texto) {
-    if (!texto || typeof texto !== 'string') return "";
-    return texto
+/* ======================================================================================
+   NORMALIZATION
+====================================================================================== */
+
+function normalize(text = "") {
+
+    return String(text)
         .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '_')           // Convierte espacios a guiones bajos
-        .replace(/[^a-z0-9_]/g, '')     // Elimina todo lo no alfanumérico
-        .substring(0, 50);              // Previene desbordamiento
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^\w\s]/g, "")
+        .trim();
 }
 
-/**
- * extraerKeywords: Analizador Léxico Pro con Reducción de Ruido.
- * ✅ CORPORATE FIX: Implementación de Stopwords para mayor precisión.
- */
-export function extraerKeywords(input) {
+/* ======================================================================================
+   TOKENIZATION
+====================================================================================== */
 
-    if (!input) return [];
+function tokenize(text = "") {
 
-    // 🔥 FIX: normalizar entrada
-    if (typeof input !== "string") {
-        if (typeof input === "object") {
-            input = `${input.intent || ""} ${input.target || ""}`;
-        } else {
-            return [];
-        }
-    }
-
-    return input
-        .toLowerCase()
-        .replace(/[^a-z0-9\s_]/g, "") 
+    return normalize(text)
         .split(/\s+/)
-        .filter(w => w.length > 2 && !STOPWORDS.has(w))
-        .map(w => normalizarID(w))
-        .slice(-15);
+        .filter(Boolean)
+        .filter(w =>
+            !STOPWORDS.has(w)
+        );
 }
-/**
- * sincronizarCorralSemantico: El Cerebro Cognitivo.
- * Inyecta en la IA el esquema de datos filtrado por relevancia semántica.
- * ✅ MULTI-TENANT FIX: El contexto depende del tenantId.
- * @param {string} inputCEO - El comando natural.
- * @param {string} tenantId - Identificador del Búnker (Multi-Tenant).
- */
-export async function sincronizarCorralSemantico(inputCEO = "", tenantId = DEFAULT_CONTEXT) {
-    const ahora = Date.now();
-    const OP_ID = `SEM_${ahora.toString(36).toUpperCase()}`;
-    const keywords = extraerKeywords(inputCEO);
-    const contextKey = `TENANT_${normalizarID(tenantId) || DEFAULT_CONTEXT}`;
 
-    // --- 🛡️ 1. LECTURA RÁPIDA DE CACHÉ ---
-    let contextCache = SEMANTIC_CACHE.get(contextKey);
+/* ======================================================================================
+   FUZZY SEMANTIC DETECTION
+====================================================================================== */
 
-    if (contextCache && (ahora - contextCache.lastSync) <= TTL_SEMANTICO) {
-        emitSia7(OP_ID, "CACHE_HIT", `Contexto [${contextKey}] recuperado.`, "SUCCESS");
-        return buildContextString(OP_ID, contextCache.modulos, keywords);
+function detectFuzzyMeaning(tokens = []) {
+
+    const meanings = [];
+
+    Object.entries(CONCEPT_CLUSTERS)
+        .forEach(([concept, words]) => {
+
+            let score = 0;
+
+            tokens.forEach(token => {
+
+                if (
+                    words.includes(token)
+                ) {
+
+                    score++;
+                }
+            });
+
+            if (score > 0) {
+
+                meanings.push({
+
+                    concept,
+                    score
+                });
+            }
+        });
+
+    return meanings.sort(
+        (a, b) =>
+            b.score - a.score
+    );
+}
+
+/* ======================================================================================
+   EMOTIONAL SEMANTICS
+====================================================================================== */
+
+function detectEmotionalSemantics(text) {
+
+    const result = {
+
+        urgency: false,
+        frustration: false,
+        approval: false,
+        confusion: false
+    };
+
+    Object.entries(HUMAN_SEMANTICS)
+        .forEach(([k, regex]) => {
+
+            result[k] =
+                regex.test(text);
+        });
+
+    return result;
+}
+
+/* ======================================================================================
+   CONTEXT WINDOW
+====================================================================================== */
+
+function injectContextWindow(entry) {
+
+    const matrix =
+        window.__SEMANTIC_COGNITIVE_MATRIX__;
+
+    matrix.activeContextWindow.push({
+
+        ...entry,
+
+        timestamp: Date.now()
+    });
+
+    if (
+        matrix.activeContextWindow.length > 50
+    ) {
+
+        matrix.activeContextWindow.shift();
+    }
+}
+
+/* ======================================================================================
+   LEARNING ENGINE
+====================================================================================== */
+
+function learnSemanticPattern(
+
+    text,
+    semanticResult
+
+) {
+
+    const matrix =
+        window.__SEMANTIC_COGNITIVE_MATRIX__;
+
+    const key =
+        semanticResult.primaryConcept ||
+        "GENERAL";
+
+    if (
+        !matrix.learningIndex[key]
+    ) {
+
+        matrix.learningIndex[key] = [];
     }
 
-    // --- 🛡️ 2. ATOMIC LOCK (PROTECCIÓN CONTRA RÁFAGAS) ---
-    // Si ya existe una promesa de sincronización en vuelo, nos enganchamos a ella
-    let syncPromise = pendingSyncs.get(contextKey);
+    matrix.learningIndex[key].push({
+
+        text,
+        timestamp: Date.now()
+    });
+
+    if (
+        matrix.learningIndex[key]
+            .length > 100
+    ) {
+
+        matrix.learningIndex[key]
+            .shift();
+    }
+}
+
+/* ======================================================================================
+   SEMANTIC ASSOCIATION
+====================================================================================== */
+
+function createSemanticAssociations(
+
+    tokens,
+    concepts
+
+) {
+
+    const associations = [];
+
+    concepts.forEach(concept => {
+
+        tokens.forEach(token => {
+
+            associations.push({
+
+                token,
+                concept:
+                    concept.concept,
+
+                weight:
+                    concept.score
+            });
+        });
+    });
+
+    return associations;
+}
+
+/* ======================================================================================
+   COGNITIVE RESOLUTION
+====================================================================================== */
+
+function resolveSemanticIntent(
+
+    input = ""
+
+) {
+
+    const normalized =
+        normalize(input);
+
+    const tokens =
+        tokenize(normalized);
+
+    const emotional =
+        detectEmotionalSemantics(
+            normalized
+        );
+
+    const concepts =
+        detectFuzzyMeaning(
+            tokens
+        );
+
+    const associations =
+        createSemanticAssociations(
+            tokens,
+            concepts
+        );
+
+    const primaryConcept =
+        concepts[0]?.concept ||
+        "GENERAL";
+
+    const confidence =
+        concepts.length > 0
+            ? 0.92
+            : 0.65;
+
+    const semanticResult = {
+
+        ok: true,
+
+        raw: input,
+
+        normalized,
+
+        tokens,
+
+        concepts,
+
+        associations,
+
+        primaryConcept,
+
+        confidence,
+
+        emotional,
+
+        semanticState:
+
+            confidence > 0.9
+                ? "HIGH_CONFIDENCE"
+                : "LOW_CONFIDENCE",
+
+        timestamp:
+            Date.now()
+    };
+
+    injectContextWindow(
+        semanticResult
+    );
+
+    learnSemanticPattern(
+        input,
+        semanticResult
+    );
+
+    return semanticResult;
+}
+
+/* ======================================================================================
+   FIRESTORE CONTEXT INJECTION
+====================================================================================== */
+
+async function fetchRuntimeModules(
+
+    tenantId =
+    DEFAULT_CONTEXT
+
+) {
+
+    const contextKey =
+        `TENANT_${tenantId}`;
+
+    const cache =
+        SEMANTIC_CACHE.get(
+            contextKey
+        );
+
+    if (
+        cache &&
+        (
+            Date.now() -
+            cache.lastSync
+        ) < TTL_SEMANTICO
+    ) {
+
+        return cache.modules;
+    }
+
+    let syncPromise =
+        pendingSyncs.get(
+            contextKey
+        );
 
     if (!syncPromise) {
-        emitSia7(OP_ID, "FETCH", `Extrayendo diccionario para: ${contextKey}`, "INFO");
 
-        syncPromise = (async () => {
-            // Nota: En una BD real Multi-Tenant, aquí filtraríamos por 'tenantId'
-            // Por ahora, asumimos que 'gestia_system_modules' es el blueprint general
-            const q = query(
-                collection(db, "gestia_system_modules"),
-                where("status", "==", "activo"),
-                limit(100) // Ampliamos la capacidad de escaneo cognitivo
+        syncPromise =
+        (async() => {
+
+            emitSemanticTelemetry(
+
+                "FETCH_RUNTIME_MODULES",
+
+                {
+                    tenantId
+                }
             );
-            
-            const snap = await getDocs(q);
-            
-            const modulosExtraidos = snap.docs.map(d => ({
-                id: normalizarID(d.id), 
-                n: d.data().nombre_display || d.id,
-                campos: d.data().esquema_campos || [],
-                desc: d.data().descripcion_semantica || ""
-            }));
 
-            const modulosSeguros = deepFreeze(modulosExtraidos);
+            const q =
+                query(
 
-            // Generamos un fingerprint basado en la cantidad y el tiempo
-            const fingerprint = snap.docs.length + Date.now();
+                    collection(
+                        db,
+                        "gestia_system_modules"
+                    ),
 
-            SEMANTIC_CACHE.set(contextKey, {
-                modulos: modulosSeguros,
-                lastSync: Date.now(),
-                dataFingerprint: fingerprint
-            });
+                    where(
+                        "status",
+                        "==",
+                        "activo"
+                    ),
 
-            emitSia7(OP_ID, "SYNC_COMPLETE", `${modulosSeguros.length} módulos inyectados en RAM.`, "SUCCESS");
-            return modulosSeguros;
+                    limit(100)
+                );
+
+            const snap =
+                await getDocs(q);
+
+            const modules =
+                snap.docs.map(d => ({
+
+                    id: d.id,
+
+                    name:
+                        d.data()
+                            .nombre_display ||
+                        d.id,
+
+                    description:
+                        d.data()
+                            .descripcion_semantica ||
+                        "",
+
+                    schema:
+                        d.data()
+                            .esquema_campos ||
+                        []
+                }));
+
+            SEMANTIC_CACHE.set(
+
+                contextKey,
+
+                {
+
+                    modules,
+
+                    lastSync:
+                        Date.now()
+                }
+            );
+
+            return modules;
+
         })();
 
-        // Registramos el Lock atómico
-        pendingSyncs.set(contextKey, syncPromise);
-    } else {
-        emitSia7(OP_ID, "QUEUE", "Hilo compartido. Esperando resolución semántica...", "LIGHT");
+        pendingSyncs.set(
+
+            contextKey,
+            syncPromise
+        );
     }
 
-    // --- 🛡️ 3. RESOLUCIÓN SEGURA CON FINALLY (EL FIX CRÍTICO) ---
     try {
-        const finalModulos = await syncPromise;
-        return buildContextString(OP_ID, finalModulos, keywords);
-    } catch (e) {
-        emitSia7(OP_ID, "CRASH", `Derrame cognitivo: ${e.message}`, "ERROR");
-        console.error("🚨 Fallo Crítico en Semantic Engine V6.1:", e);
-        return "ERROR_SEMANTICO: El sistema opera en modo ciego. Strict Mode requerido.";
-    } finally {
-        // ✅ NASA FIX: Liberación garantizada del hilo concurrente pase lo que pase
-        pendingSyncs.delete(contextKey);
+
+        return await syncPromise;
+
+    }
+
+    finally {
+
+        pendingSyncs.delete(
+            contextKey
+        );
     }
 }
 
-/**
- * buildContextString: Ensamblador del Prompt Cognitivo.
- * Genera el mapa exacto usando el Motor de Scoring Semántico.
- */
-function buildContextString(opId, modulos, keywords) {
-    emitSia7(opId, "BUILDING_CONTEXT", "Ensamblando Corral con Scoring Semántico...", "INFO");
+/* ======================================================================================
+   CONTEXT ASSEMBLER
+====================================================================================== */
 
-    // --- 🔍 ALGORITMO DE SCORING SEMÁNTICO (NIVEL IA) ---
-    let modulosFiltrados = modulos;
-    
-    if (keywords.length > 0) {
-        const scoredModules = modulos.map(m => {
-            let score = 0;
-            const idLower = m.id.toLowerCase();
-            const nameLower = m.n.toLowerCase();
-            const descLower = m.desc.toLowerCase();
+function assembleCognitiveContext(
 
-            keywords.forEach(k => {
-                // Pesos de Relevancia (Alineados con lógica de IA)
-                if (idLower === k) score += 10;            // Coincidencia exacta (Bingo)
-                else if (idLower.includes(k)) score += 5;  // Coincidencia parcial en ID
-                
-                if (nameLower === k) score += 8;           // Coincidencia exacta en Nombre
-                else if (nameLower.includes(k)) score += 4;// Coincidencia parcial en Nombre
+    semantic,
+    modules
 
-                if (descLower.includes(k)) score += 2;     // Coincidencia en la descripción
-            });
+) {
 
-            return { ...m, _relevanceScore: score };
+    let context = "";
+
+    context +=
+`
+--- SEMANTIC COGNITIVE MATRIX V7 ---
+`;
+
+    context +=
+`
+PRIMARY_CONCEPT:
+${semantic.primaryConcept}
+`;
+
+    context +=
+`
+SEMANTIC_STATE:
+${semantic.semanticState}
+`;
+
+    context +=
+`
+EMOTIONAL_STATE:
+${JSON.stringify(
+    semantic.emotional
+)}
+`;
+
+    context +=
+`
+CONCEPT_RELATIONS:
+`;
+
+    semantic.associations
+        .forEach(a => {
+
+            context +=
+`
+- ${a.token} -> ${a.concept}
+`;
         });
 
-        // Filtramos solo los que tengan puntuación, ordenamos por relevancia y cortamos (Top 8)
-        modulosFiltrados = scoredModules
-            .filter(m => m._relevanceScore > 0)
-            .sort((a, b) => b._relevanceScore - a._relevanceScore)
-            .slice(0, 8);
-    }
+    context +=
+`
+RUNTIME_MODULES:
+`;
 
-    // 🎭 INYECCIÓN DE ESQUEMAS B2B/B2C (EL ADN DEL SISTEMA)
-    const schemaB2C = "B2C_FIELDS: [email, estado, metodo_pago(map), nombre, rol, telefono, uid, reputacion]";
-    const schemaB2B = "B2B_FIELDS: [edificioId, edificioNombre, email, estado, nombre, rol, sub_type, tipo_cuenta, uid]";
+    modules.forEach(m => {
 
-    // 🏗 REGLAS DE ESTRUCTURACIÓN (Educación de la IA)
-    const reglasID = "REGLA_NOMBRAMIENTO: Solo usar minúsculas y guiones bajos (ej: modulo_test_01). PROHIBIDO espacios y puntos.";
+        context +=
+`
+- ${m.id}
+  NAME: ${m.name}
+  SCHEMA: ${m.schema.join(", ")}
+`;
+    });
 
-    // 🏗️ CONSTRUCCIÓN DEL CONTEXTO (OUTPUT PARA IA)
-    let context = `--- CORRAL SEMÁNTICO V6.1 (COGNITIVE_STRICT_MODE) ---\n`;
-    context += `${reglasID}\n`;
-    context += `ESTRUCTURAS_CLIENTES:\n- ${schemaB2C}\n- ${schemaB2B}\n\n`;
-    context += `MODULOS_DETECTADOS_POR_RELEVANCIA:\n`;
-    
-    if (modulosFiltrados.length > 0) {
-        modulosFiltrados.forEach(m => {
-            const camposLimpios = Array.isArray(m.campos) ? m.campos.join(", ") : "esquema_dinamico";
-            // Inyectamos el score solo para telemetría interna o depuración de prompts
-            context += `- ID: ${m.id} | NOMBRE: ${m.n} | CAMPOS: [${camposLimpios}]\n`;
-        });
-    } else {
-        context += `- (Sin coincidencia de relevancia. Usar colecciones maestras como fallback)\n`;
-    }
+    context +=
+`
+--- END_MATRIX ---
+`;
 
-    context += `\nCOLECCIONES_SISTEMA_DISPONIBLES: [${MASTER_COLLECTIONS.join(", ")}]\n`;
-    context += `RUTA_REGISTROS: gestia_dynamic_data/{moduloId}/registros/\n`;
-    context += `--- FIN DEL CORRAL ---\n`;
-
-    emitSia7(opId, "READY", `Corral generado. ${modulosFiltrados.length} módulos inyectados.`, "SUCCESS");
-    
     return context;
 }
 
-/**
- * invalidateSemanticCache: Invocado por el Executor cuando se crea/modifica un módulo.
- * ✅ SYNC FIX: Garantiza que la IA nunca opere con diccionarios caducados.
- * @param {string} tenantId - Identificador opcional del Búnker a limpiar.
- */
-export function invalidateSemanticCache(tenantId = null) {
-    if (tenantId) {
-        const contextKey = `TENANT_${normalizarID(tenantId)}`;
-        SEMANTIC_CACHE.delete(contextKey);
-        emitSia7("SYS_PURGE", "PURGE", `Memoria semántica limpiada para: ${contextKey}`, "WARN");
-    } else {
-        SEMANTIC_CACHE.clear();
-        emitSia7("SYS_PURGE", "PURGE", "Limpieza total de memoria semántica.", "WARN");
+/* ======================================================================================
+   MAIN SEMANTIC ENGINE
+====================================================================================== */
+
+export async function
+sincronizarCorralSemantico(
+
+    inputCEO = "",
+
+    tenantId =
+    DEFAULT_CONTEXT
+
+) {
+
+    try {
+
+        emitSemanticTelemetry(
+
+            "SEMANTIC_ANALYSIS_START",
+
+            {
+                inputCEO
+            }
+        );
+
+        const semantic =
+            resolveSemanticIntent(
+                inputCEO
+            );
+
+        const modules =
+            await fetchRuntimeModules(
+                tenantId
+            );
+
+        const cognitiveContext =
+            assembleCognitiveContext(
+
+                semantic,
+                modules
+            );
+
+        window.__SEMANTIC_COGNITIVE_MATRIX__
+            .lastSemanticResolution = {
+
+            semantic,
+            modules,
+            cognitiveContext,
+
+            timestamp:
+                Date.now()
+        };
+
+        emitSemanticTelemetry(
+
+            "SEMANTIC_ANALYSIS_COMPLETE",
+
+            {
+
+                concept:
+                    semantic.primaryConcept,
+
+                confidence:
+                    semantic.confidence
+            },
+
+            "SUCCESS"
+        );
+
+        return cognitiveContext;
+
+    }
+
+    catch(error) {
+
+        console.error(
+
+            "SEMANTIC_COGNITIVE_MATRIX_FAIL",
+            error
+        );
+
+        emitSemanticTelemetry(
+
+            "SEMANTIC_CRASH",
+
+            {
+                error:
+                    error.message
+            },
+
+            "ERROR"
+        );
+
+        return `
+SEMANTIC_ENGINE_FAIL:
+Runtime operating in degraded cognition mode.
+        `.trim();
     }
 }
 
-// Log Corporativo
-console.log("%c🧠 [SEMANTIC_ENGINE]: V6.1 COGNITIVE SOVEREIGN ONLINE", "color: #bae6fd; font-weight: bold; background: #082f49; padding: 2px 10px; border-radius: 4px;");
+/* ======================================================================================
+   SEMANTIC MEMORY ACCESS
+====================================================================================== */
 
-/**
- * ======================================================================================
- * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 545 (INGENIERÍA EXQUISITA GARANTIZADA)
- * ======================================================================================
- */
+export function
+getSemanticCognitiveState() {
 
+    return {
+
+        ok: true,
+
+        ...(window.__SEMANTIC_COGNITIVE_MATRIX__)
+    };
+}
+
+/* ======================================================================================
+   CACHE INVALIDATION
+====================================================================================== */
+
+export function
+invalidateSemanticCache(
+
+    tenantId = null
+
+) {
+
+    if (tenantId) {
+
+        SEMANTIC_CACHE.delete(
+
+            `TENANT_${tenantId}`
+        );
+
+    }
+
+    else {
+
+        SEMANTIC_CACHE.clear();
+    }
+
+    emitSemanticTelemetry(
+
+        "CACHE_INVALIDATED",
+
+        {
+            tenantId
+        },
+
+        "WARN"
+    );
+}
+
+/* ======================================================================================
+   LIVE RUNTIME BRIDGE
+====================================================================================== */
+
+window.runSemanticCognition =
+async function(
+
+    input = "",
+
+    tenantId =
+    DEFAULT_CONTEXT
+
+) {
+
+    return await
+    sincronizarCorralSemantico(
+
+        input,
+        tenantId
+    );
+};
+
+/* ======================================================================================
+   STATUS
+====================================================================================== */
+
+console.log(
+
+    "%c🧠 SEMANTIC COGNITIVE MATRIX V7 ONLINE",
+
+    "background:#082f49;color:#67e8f9;padding:4px 12px;border-radius:6px;font-weight:bold;"
+);
