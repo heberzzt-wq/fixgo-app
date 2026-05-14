@@ -91,8 +91,7 @@ import {
    COGNITIVE RUNTIME BOOTSTRAP
 ===================================================== */
 
-import
-"./gestia-core/cognitive.bootstrap.js";
+// import "./gestia-core/cognitive.bootstrap.js";
 
 /* =====================================================
    LEGACY BRAIN BRIDGE

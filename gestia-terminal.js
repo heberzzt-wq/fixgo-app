@@ -9194,6 +9194,255 @@ window.addEventListener(
 
             await bootstrapRuntimeCognition();
 
+            /* =====================================================
+   HYBRID COGNITION RUNTIME EXPOSURE
+===================================================== */
+
+try {
+
+    console.log(
+        "🧠 [HYBRID_COGNITION_EXPOSURE]"
+    );
+
+    /* =================================================
+       LOAD BRAIN ENGINE
+    ================================================= */
+
+    const brainModule =
+
+        await import(
+            "./gestia-core/brain.engine.js"
+        );
+
+    console.log(
+        "✅ [BRAIN_ENGINE_RUNTIME]"
+    );
+
+    /* =================================================
+       LOAD SEMANTIC ENGINE
+    ================================================= */
+
+    const semanticModule =
+
+        await import(
+            "./gestia-core/semantic.engine.v7.js"
+        );
+
+    console.log(
+        "✅ [SEMANTIC_ENGINE_RUNTIME]"
+    );
+
+    /* =================================================
+       LOAD GESTIA CORE
+    ================================================= */
+
+    const gestiaCoreModule =
+
+        await import(
+            "./gestia-core/gestia-core.js"
+        );
+
+    console.log(
+        "✅ [GESTIA_CORE_RUNTIME]"
+    );
+
+    /* =================================================
+       GLOBAL EXPOSURE
+    ================================================= */
+
+    const reasoningFn =
+
+        brainModule
+            ?.runCognitiveReasoning ||
+
+        brainModule
+            ?.invocarArquitectoIA ||
+
+        null;
+
+    if (
+
+        reasoningFn
+
+    ) {
+
+        window.runCognitiveReasoning =
+            reasoningFn;
+
+        console.log(
+            "✅ [REASONING_EXPOSED]"
+        );
+    }
+
+    /* =================================================
+       SEMANTIC STATE
+    ================================================= */
+
+    const semanticStateFn =
+
+        semanticModule
+            ?.getSemanticCognitiveState ||
+
+        null;
+
+    if (
+
+        semanticStateFn
+
+    ) {
+
+        window.getSemanticCognitiveState =
+            semanticStateFn;
+
+        console.log(
+            "✅ [SEMANTIC_STATE_EXPOSED]"
+        );
+    }
+
+    /* =================================================
+       GESTIA CORE
+    ================================================= */
+
+    const GestiaCore =
+
+        gestiaCoreModule
+            ?.GestiaCore ||
+
+        gestiaCoreModule
+            ?.default ||
+
+        null;
+
+    if (
+
+        GestiaCore
+
+    ) {
+
+        window.GestiaCore =
+            GestiaCore;
+
+        console.log(
+            "✅ [GESTIA_CORE_EXPOSED]"
+        );
+    }
+
+    /* =================================================
+       COGNITIVE RUNTIME STATE
+    ================================================= */
+
+    window.__HYBRID_COGNITION_RUNTIME__ = {
+
+        online: true,
+
+        initializedAt:
+            Date.now(),
+
+        modules: {
+
+            brain:
+                !!brainModule,
+
+            semantic:
+                !!semanticModule,
+
+            core:
+                !!gestiaCoreModule
+        },
+
+        globals: {
+
+            GestiaCore:
+                !!window.GestiaCore,
+
+            reasoning:
+                !!window
+                    .runCognitiveReasoning,
+
+            semantic:
+                !!window
+                    .getSemanticCognitiveState
+        }
+    };
+
+    /* =================================================
+       COGNITIVE EVENT
+    ================================================= */
+
+    if (
+
+        typeof emitRuntimeEvent ===
+        "function"
+
+    ) {
+
+        await emitRuntimeEvent(
+
+            "cognition.hybrid.runtime.online",
+
+            {
+
+                runtime:
+                    "hybrid_cognition",
+
+                online:
+                    true,
+
+                timestamp:
+                    Date.now()
+            },
+
+            {
+
+                priority:
+                    "HIGH",
+
+                channel:
+                    "cognition"
+            }
+        );
+    }
+
+    console.table({
+
+        GestiaCore:
+            !!window.GestiaCore,
+
+        reasoning:
+            !!window
+                .runCognitiveReasoning,
+
+        semantic:
+            !!window
+                .getSemanticCognitiveState
+    });
+
+    console.log(
+        "🚀 [HYBRID_COGNITION_RUNTIME] ONLINE"
+    );
+
+}
+
+catch(error) {
+
+    console.error(
+        "❌ [HYBRID_RUNTIME_EXPOSURE_FAIL]",
+        error
+    );
+
+    window
+        .__HYBRID_COGNITION_RUNTIME__ = {
+
+            online: false,
+
+            error:
+                error.message,
+
+            crashedAt:
+                Date.now()
+        };
+}
+
         }
 
         catch(error) {
@@ -9673,6 +9922,233 @@ window.__REPO_INDEX__["persistence.engine.js"] = {
     critical: true
 };
 
+
+/* =====================================================================================
+   HYBRID COGNITION REGISTRY V7
+===================================================================================== */
+
+/* =====================================================
+   BRAIN ENGINE V7.5
+===================================================== */
+
+window.__REPO_INDEX__["brain.engine.js"] = {
+
+    path:
+        "gestia-core/brain.engine.js",
+
+    module:
+        "brain",
+
+    type:
+        "hybrid_cognition_runtime",
+
+    critical: true,
+
+    cognition: {
+
+        layer:
+            "reasoning",
+
+        runtime:
+            "hybrid",
+
+        semanticAware:
+            true,
+
+        autonomous:
+            true
+    }
+};
+
+/* =====================================================
+   SEMANTIC ENGINE V7
+===================================================== */
+
+window.__REPO_INDEX__["semantic.engine.v7.js"] = {
+
+    path:
+        "gestia-core/semantic.engine.v7.js",
+
+    module:
+        "semantic_v7",
+
+    type:
+        "semantic_cognition_runtime",
+
+    critical: true,
+
+    cognition: {
+
+        layer:
+            "semantic",
+
+        runtime:
+            "hybrid",
+
+        contextual:
+            true,
+
+        emotional:
+            true,
+
+        inferential:
+            true
+    }
+};
+
+/* =====================================================
+   GESTIA CORE
+===================================================== */
+
+window.__REPO_INDEX__["gestia-core.js"] = {
+
+    path:
+        "gestia-core/gestia-core.js",
+
+    module:
+        "gestia_core",
+
+    type:
+        "cognitive_orchestrator",
+
+    critical: true,
+
+    cognition: {
+
+        layer:
+            "orchestration",
+
+        runtime:
+            "hybrid",
+
+        executive:
+            true,
+
+        proposalGeneration:
+            true
+    }
+};
+
+/* =====================================================
+   COGNITIVE BRIDGE
+===================================================== */
+
+window.__REPO_INDEX__["cognitive.bootstrap.js"] = {
+
+    path:
+        "gestia-core/cognitive.bootstrap.js",
+
+    module:
+        "cognitive_bridge",
+
+    type:
+        "runtime_bridge",
+
+    critical: false,
+
+    cognition: {
+
+        layer:
+            "bridge",
+
+        runtime:
+            "integration",
+
+        passive:
+            true
+    }
+};
+
+/* =====================================================
+   MANUAL HYBRID DEPENDENCY LINKS
+===================================================== */
+
+window.__HYBRID_COGNITION_LINKS__ ||= {
+
+    reasoning: [
+
+        "brain.engine.js",
+
+        "semantic.engine.v7.js",
+
+        "intent.engine.js"
+    ],
+
+    orchestration: [
+
+        "gestia-core.js",
+
+        "operations.engine.js",
+
+        "jarvis.bridge.v4.js"
+    ],
+
+    runtime: [
+
+        "persistence.engine.js",
+
+        "self-repair.engine.js",
+
+        "operations-executor.engine.js"
+    ]
+};
+
+console.log(
+    "🧠 [HYBRID_COGNITION_REGISTRY] ONLINE"
+);
+
+/* =====================================================
+   RUNTIME MODULE AUTO REGISTRATION
+===================================================== */
+
+window.__RUNTIME_MODULES__ ||= {};
+
+window.__RUNTIME_MODULES__.brain =
+    window.__REPO_INDEX__["brain.engine.js"];
+
+window.__RUNTIME_MODULES__.semantic =
+    window.__REPO_INDEX__["semantic.engine.v7.js"];
+
+window.__RUNTIME_MODULES__.core =
+    window.__REPO_INDEX__["gestia-core.js"];
+
+/* =====================================================
+   COGNITIVE HEALTH PRESETS
+===================================================== */
+
+window.__COGNITIVE_HEALTH_PRESETS__ ||= {
+
+    reasoning: {
+
+        status:
+            "REGISTERED",
+
+        critical:
+            true
+    },
+
+    semantic: {
+
+        status:
+            "REGISTERED",
+
+        critical:
+            true
+    },
+
+    orchestration: {
+
+        status:
+            "REGISTERED",
+
+        critical:
+            true
+    }
+};
+
+console.log(
+    "🚀 [COGNITIVE_KERNEL_INJECTION] COMPLETED"
+);
 /* =====================================================
    REPO LOOKUP ENGINE
 ===================================================== */
