@@ -285,33 +285,181 @@ export const GestiaCore = {
                     }
                 }
 
-                // 6. Generación de Propuesta Estratégica (Brain Engine)
-                // Se asume que generarPropuesta ya entrega los cambios SIA7 deterministas.
-                const propuesta = generarPropuesta({ analysis_id: analysisId, input_original: inputRaw, context });
-                if (!propuesta || !Array.isArray(propuesta.changes)) throw new Error("PROPOSE_INVALID");
+                                // 6. HYBRID COGNITIVE REASONING ENGINE
+                // =====================================================================================
 
-                // --- 🛡️ HASHING CON TRAZABILIDAD Y LRU CACHE ---
-                // ✅ NOTA: JSON.stringify se procesa una sola vez por acción para optimizar el cuello de botella inevitable.
-                const enrichedChanges = await Promise.all(propuesta.changes.map(async (c) => {
-                    const payloadString = JSON.stringify(SIA7_UTILS.sortPayload(c.payload));
-                    const fingerprint = `${c.type}|${c.target}|${payloadString}`;
-                    const hashResult = await SIA7_UTILS.generarHashAtómico(fingerprint);
-                    // Inyectamos el ADN algorítmico para trazabilidad forense
-                    return { ...c, _hash: hashResult.h, _alg: hashResult.alg };
-                }));
-
-                // --- 🛡️ WATCHDOG: CONCURRENCY LOCK CHECK (DUAL FACTOR) ---
-                // Evitamos que dos hilos ejecuten la misma acción en paralelo comparando Hash + Algoritmo.
-                const enVuelo = enrichedChanges.some(c => 
-                    (memData.pending_hashes || []).some(p => 
-                        p.h === c._hash && p.alg === c._alg && (ahora - p.t < CORE_CONFIG.WATCHDOG.LOCK_TIMEOUT_MS)
-                    )
+                this.emitirPulso(
+                    "COGNITION",
+                    "HYBRID_REASONING"
                 );
 
-                if (enVuelo) {
-                    atomicState.isHalted = true;
-                    atomicState.haltReason = "CONCURRENCY_LOCK: Acción idéntica en proceso paralelo.";
-                    return;
+                let propuesta = null;
+
+                /**
+                 * =====================================================================================
+                 * V7.5 HYBRID COGNITION
+                 * =====================================================================================
+                 */
+
+                if (
+
+                    window.runCognitiveReasoning
+
+                ) {
+
+                    try {
+
+                        const cognitiveResult =
+                            await window.runCognitiveReasoning(
+
+                                inputRaw,
+
+                                {
+
+                                    ...context,
+
+                                    tenantId,
+                                    analysisId,
+                                    rol
+                                }
+                            );
+
+                        const reasoning =
+                            cognitiveResult?.reasoning;
+
+                        propuesta = {
+
+                            analysis_id:
+                                analysisId,
+
+                            cognition:
+                                reasoning,
+
+                            strategicMode:
+                                reasoning?.strategicMode ||
+
+                                "PROTECTIVE",
+
+                            semantic:
+                                reasoning?.semantic ||
+
+                                {},
+
+                            inferences:
+                                reasoning?.inferences ||
+
+                                [],
+
+                            executionChain:
+                                reasoning?.executionChain ||
+
+                                [],
+
+                            cloudReasoning:
+                                reasoning?.cloudReasoning ||
+
+                                null,
+
+                            changes:
+
+                                reasoning
+                                    ?.executionChain
+                                    ?.map(step => ({
+
+                                        type:
+                                            step.step,
+
+                                        target:
+                                            step.target,
+
+                                        payload: {
+
+                                            reasoningId:
+                                                reasoning?.reasoningId,
+
+                                            mode:
+                                                reasoning?.strategicMode,
+
+                                            cognition:
+                                                true
+                                        }
+
+                                    })) ||
+
+                                []
+                        };
+
+                        this.emitirPulso(
+
+                            "COGNITION",
+
+                            "CONNECTED",
+
+                            reasoning?.strategicMode
+                        );
+
+                    } catch (brainError) {
+
+                        console.error(
+
+                            "🚨 [COGNITIVE_BRIDGE_FAIL]",
+
+                            brainError
+                        );
+
+                        this.emitirPulso(
+
+                            "COGNITION",
+
+                            "FALLBACK_MODE"
+                        );
+                    }
+                }
+
+                /**
+                 * =====================================================================================
+                 * FALLBACK LEGACY ENGINE
+                 * =====================================================================================
+                 */
+
+                if (
+
+                    !propuesta
+
+                ) {
+
+                    propuesta =
+                        generarPropuesta({
+
+                            analysis_id:
+                                analysisId,
+
+                            input_original:
+                                inputRaw,
+
+                            context
+                        });
+                }
+
+                /**
+                 * =====================================================================================
+                 * VALIDATION
+                 * =====================================================================================
+                 */
+
+                if (
+
+                    !propuesta ||
+
+                    !Array.isArray(
+                        propuesta.changes
+                    )
+
+                ) {
+
+                    throw new Error(
+                        "PROPOSE_INVALID"
+                    );
                 }
 
                 // 7. Filtrado de Redundancia y Predictividad de Presupuesto
