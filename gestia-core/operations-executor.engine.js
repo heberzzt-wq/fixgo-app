@@ -525,198 +525,507 @@ console.log("%c🦾 [OPERATIONS_EXECUTOR]: V16.1.1 INDESTRUCTIBLE LEDGER ONLINE"
 
 /**
  * ======================================================================================
- * 🧠 AI EXECUTION ADAPTER (V1.1) - FIX: LAST_OPERATION UNKNOWN
- * Conecta plan.steps → motor transaccional existente (ejecutarCambios)
+ * 🧠 HYBRID COGNITIVE EXECUTION BRIDGE V17
+ * Cognitive Runtime → Transactional Executor Fabric
  * ======================================================================================
  */
 
-export async function executeSteps(steps = [], context = {}) {
+export async function executeSteps(
 
-    console.log("🔥 EXECUTE_STEPS CALLED");
+    steps = [],
+    context = {},
+    input = {}
 
-    /* =====================================================
-   FIRESTORE RUNTIME COGNITION
-===================================================== */
+) {
 
-try {
+    console.group(
+        "🧠 [HYBRID_EXECUTION_BRIDGE]"
+    );
 
-    const detectedModules =
-        new Set();
+    console.log(
+        "🚀 EXECUTE_STEPS_CALLED"
+    );
 
-    steps.forEach(step => {
+    /* ================================================================================
+       VALIDATION
+    ================================================================================ */
 
-        // 🔥 módulo explícito
-        if (step?.module) {
+    if (
 
-            detectedModules.add(
-                step.module
-            );
-        }
+        !Array.isArray(steps) ||
 
-        // 🔥 inferencia runtime
-        const target =
-            String(
-                step?.target || ""
-            ).toLowerCase();
+        !steps.length
 
-        if (
-            target.includes("b2b")
+    ) {
+
+        console.warn(
+            "⚠️ [EXECUTION_EMPTY]"
+        );
+
+        console.groupEnd();
+
+        return {
+
+            status:
+                "empty",
+
+            changes:
+                0
+        };
+    }
+
+    /* ================================================================================
+       EXECUTION IDS
+    ================================================================================ */
+
+    const operationId =
+
+        input?.operation_id ||
+
+        input?.analysis_id ||
+
+        input?.metadata?.analysis_id ||
+
+        crypto.randomUUID();
+
+    /* ================================================================================
+       FIRESTORE RUNTIME COGNITION
+    ================================================================================ */
+
+    try {
+
+        const detectedModules =
+            new Set();
+
+        steps.forEach(step => {
+
+            /* =========================================================================
+               EXPLICIT MODULES
+            ========================================================================= */
+
+            if (
+
+                step?.module
+
+            ) {
+
+                detectedModules.add(
+                    step.module
+                );
+            }
+
+            /* =========================================================================
+               RUNTIME INFERENCE
+            ========================================================================= */
+
+            const target =
+                String(
+                    step?.target || ""
+                ).toLowerCase();
+
+            if (
+
+                target.includes("b2b")
+
+            ) {
+
+                detectedModules.add(
+                    "seguridad_accesos_b2b"
+                );
+            }
+
+            if (
+
+                target.includes("dashboard") ||
+
+                target.includes("panel")
+
+            ) {
+
+                detectedModules.add(
+                    "dashboard_runtime"
+                );
+            }
+        });
+
+        /* ============================================================================
+           COGNITIVE MODULE LOAD
+        ============================================================================ */
+
+        for (
+
+            const mod of detectedModules
+
         ) {
 
-            detectedModules.add(
-                "seguridad_accesos_b2b"
-            );
-        }
-    });
+            try {
 
-    // 🔥 carga cognitiva
-    for (const mod of detectedModules) {
+                const loadResult =
 
-        const loadResult =
-            await window
-                .loadFirestoreModule?.(
-                    mod
+                    await window
+                        ?.loadFirestoreModule?.(
+                            mod
+                        );
+
+                console.log(
+                    "🧠 [MODULE_LOAD_RESULT]",
+                    mod,
+                    loadResult
                 );
 
+            }
+
+            catch(loadErr) {
+
+                console.warn(
+                    "⚠️ [MODULE_LOAD_FAIL]",
+                    mod,
+                    loadErr
+                );
+            }
+        }
+
         console.log(
-            "🧠 [MODULE_LOAD_RESULT]:",
-            loadResult
+            "🧠 [MODULE_CONTEXT_READY]",
+            Array.from(
+                detectedModules
+            )
+        );
+
+    }
+
+    catch(modErr) {
+
+        console.warn(
+            "⚠️ [MODULE_COGNITION_FAIL]",
+            modErr
         );
     }
 
-    console.log(
-        "🧠 [MODULE_CONTEXT_READY]:",
-        Array.from(
-            detectedModules
-        )
-    );
+    /* ================================================================================
+       NORMALIZED EXECUTION PROPOSAL
+    ================================================================================ */
 
-} catch (modErr) {
-
-    console.warn(
-        "⚠️ MODULE_COGNITION_FAIL:",
-        modErr
-    );
-}
-
-    if (!Array.isArray(steps) || !steps.length) {
-        throw new Error("No steps to execute");
-    }
-
-
-
-    // 🔁 Convertimos steps IA → proposal
     const proposal = {
-        operation_id: `ai_op_${Date.now()}`,
-        tenantId: context.tenantId || "default",
-        ejecutado_por: context.userId || "jarvis_ai",
 
-        changes: steps.map(step => {
+        operation_id:
+            operationId,
 
-            // 🔥 1. interceptar CODE_WRITE
-            if (step?.type === "CODE_WRITE") {
+        analysis_id:
+            operationId,
+
+        tenantId:
+            context?.tenantId || "default",
+
+        ejecutado_por:
+            context?.userId || "jarvis_ai",
+
+        cognition:
+            "HYBRID_V17",
+
+        runtime:
+            "COGNITIVE_OS",
+
+        createdAt:
+            Date.now(),
+
+        metadata: {
+
+            operation_id:
+                operationId,
+
+            analysis_id:
+                operationId,
+
+            source:
+                "executeSteps",
+
+            executor:
+                "operations-executor.engine.js",
+
+            cognition:
+                "HYBRID_V17",
+
+            runtime:
+                "COGNITIVE_OS"
+        },
+
+        /* ============================================================================
+           STEP NORMALIZATION
+        ============================================================================ */
+
+        changes:
+
+            (steps || [])
+
+            .map(step => {
+
+                const stepId =
+
+                    step?.id ||
+
+                    crypto.randomUUID();
+
+                /* ====================================================================
+                   CODE WRITE PIPELINE
+                ==================================================================== */
+
+                if (
+
+                    step?.type ===
+                    "CODE_WRITE"
+
+                ) {
+
+                    return {
+
+                        id:
+                            stepId,
+
+                        operation_id:
+                            operationId,
+
+                        type:
+                            "CODE_WRITE",
+
+                        target:
+
+                            step?.payload?.file ||
+
+                            "repo",
+
+                        payload:
+                            step?.payload || {},
+
+                        priority:
+                            step?.priority || "HIGH",
+
+                        cognition: {
+
+                            layer:
+                                "code_generation",
+
+                            reasoning:
+                                "autonomous_patch"
+                        },
+
+                        reason:
+                            "AI_CODE_WRITE"
+                    };
+                }
+
+                /* ====================================================================
+                   LEGACY EXECUTION MAPPING
+                ==================================================================== */
+
+                const mappedType =
+                    mapActionToLegacyType(
+                        step
+                    );
+
                 return {
-                    type: "CODE_WRITE",
-                    target: step.payload?.file || "repo",
-                    payload: step.payload || {},
-                    reason: "AI_CODE_WRITE"
+
+                    id:
+                        stepId,
+
+                    operation_id:
+                        operationId,
+
+                    type:
+                        mappedType,
+
+                    target:
+
+                        step?.target?.docId ||
+
+                        step?.target?.collection ||
+
+                        step?.target ||
+
+                        "system_resource",
+
+                    payload:
+                        step?.payload || {},
+
+                    priority:
+                        step?.priority || "NORMAL",
+
+                    cognition: {
+
+                        layer:
+                            "execution",
+
+                        reasoning:
+                            "hybrid_cognitive_execution"
+                    },
+
+                    reason:
+                        "AI_PLAN_EXECUTION"
                 };
-            }
-
-            // 🔁 2. flujo normal
-            const mappedType = mapActionToLegacyType(step);
-
-            return {
-                type: mappedType,
-                target: step.target?.docId || step.target?.collection || step.target || "system_resource",
-                payload: step.payload || {},
-                reason: "AI_PLAN_EXECUTION"
-            };
-        })
+            })
     };
 
-    console.log("🧠 [AI→EXECUTOR]: Adaptando plan a proposal", proposal);
+    /* ================================================================================
+       TELEMETRY
+    ================================================================================ */
+
+    console.log(
+        "🧠 [EXECUTION_OPERATION]",
+        proposal.operation_id
+    );
+
+    console.log(
+        "🧠 [EXECUTION_CHANGES]",
+        proposal.changes.length
+    );
+
+    console.log(
+        "🧠 [EXECUTION_PROPOSAL]",
+        proposal
+    );
+
+    /* ================================================================================
+       EXECUTION
+    ================================================================================ */
 
     let result = null;
 
     try {
-        result = await ejecutarCambios(proposal);
-    } catch (err) {
-        console.warn("⚠️ EXECUTION ERROR:", err);
+
+        result =
+
+            await ejecutarCambios(
+                proposal
+            );
+
     }
 
-    // 📡 TELEMETRÍA (PARA EL PANEL DE CONTROL)
+    catch(err) {
+
+        console.error(
+            "🚨 [EXECUTION_BRIDGE_FAIL]",
+            err
+        );
+
+        console.groupEnd();
+
+        return {
+
+            status:
+                "error",
+
+            operation_id:
+                operationId,
+
+            analysis_id:
+                operationId,
+
+            error:
+                err?.message ||
+
+                "EXECUTION_FAIL",
+
+            proposal
+        };
+    }
+
+    /* ================================================================================
+       HUD TELEMETRY
+    ================================================================================ */
+
     try {
-        const lastChange = proposal.changes[proposal.changes.length - 1];
 
-        window.dispatchEvent(new CustomEvent("gestia-terminal-state", {
-            detail: {
-                type: "SYSTEM_STATUS",
-                data: {
-                    operations: proposal.changes?.length || 0,
-                    lastOperation: lastChange?.type || "COMPLETED",
-                    timestamp: Date.now(),
-                    history: proposal.changes.map(c => ({
-                        type: c.type,
-                        target: c.target
-                    }))
+        const lastChange =
+
+            proposal.changes[
+                proposal.changes.length - 1
+            ];
+
+        window.dispatchEvent(
+
+            new CustomEvent(
+
+                "gestia-terminal-state",
+
+                {
+
+                    detail: {
+
+                        type:
+                            "SYSTEM_STATUS",
+
+                        data: {
+
+                            operation_id:
+                                operationId,
+
+                            operations:
+
+                                proposal
+                                    .changes
+                                    ?.length || 0,
+
+                            lastOperation:
+
+                                lastChange?.type ||
+
+                                "COMPLETED",
+
+                            timestamp:
+                                Date.now(),
+
+                            history:
+
+                                proposal
+                                    .changes
+                                    .map(c => ({
+
+                                        type:
+                                            c.type,
+
+                                        target:
+                                            c.target
+                                    }))
+                        }
+                    }
                 }
-            }
-        }));
+            )
+        );
 
-        console.log("📡 [TELEMETRY_EMIT]: Op count", proposal.changes?.length);
+        console.log(
+            "📡 [EXECUTION_TELEMETRY_OK]",
+            proposal.changes?.length
+        );
 
-    } catch (e) {
-        console.warn("⚠️ TELEMETRY_FAIL:", e);
     }
 
-    return result;
+    catch(e) {
+
+        console.warn(
+            "⚠️ [EXECUTION_TELEMETRY_FAIL]",
+            e
+        );
+    }
+
+    console.groupEnd();
+
+    /* ================================================================================
+       NORMALIZED RETURN
+    ================================================================================ */
+
+    return {
+
+        status:
+            "success",
+
+        operation_id:
+            operationId,
+
+        analysis_id:
+            operationId,
+
+        proposal,
+
+        result
+    };
 }
-/**
- * 🔄 mapActionToLegacyType (V1.1)
- * ✅ FIX: Añadidos casos para evitar el valor 'UNKNOWN'
- */
-function mapActionToLegacyType(step) {
-    const action = step.action?.toLowerCase(); // Normalizamos a minúsculas
-
-    // 1. Detección de estatus de sistema (UI especial)
-    if (step.target === "system" || (step.action === "aggregate" && step.target?.collection === "system")) {
-        return "SYSTEM_STATUS";
-    }
-
-    switch (action) {
-        case "getdocs":
-        case "read":
-            return "READ_OPERATION";
-
-        case "setdoc":
-        case "create":
-            return "CREATE_MODULE";
-
-        case "updatedoc":
-        case "patch":
-        case "update":
-            return "PATCH_SYSTEM_CORE";
-
-        case "deletedoc":
-        case "delete":
-            return "DELETE_OPERATION";
-
-        case "aggregate":
-        case "analyze":
-            return "DATA_ANALYSIS";
-
-        default:
-            // ✅ Cambio crítico: Ya no retornamos UNKNOWN, 
-            // usamos un tipo genérico que el panel sí pueda renderizar.
-            return "GENERIC_OP";
-    }
-}
-
-window.executeSteps = executeSteps;
-
-/**
- * ======================================================================================
- * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 503 (INGENIERÍA EXQUISITA GARANTIZADA)
- * ======================================================================================
- */
