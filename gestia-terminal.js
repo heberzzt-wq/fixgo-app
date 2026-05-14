@@ -21233,6 +21233,314 @@ function() {
         };
     }
 };
+
+/* =====================================================================================
+   RUNTIME OBSERVABILITY FABRIC V1
+   TELEMETRY + OPERATIONAL DIAGNOSTICS
+===================================================================================== */
+
+window.__RUNTIME_OBSERVABILITY__ ||= {
+
+    initialized: false,
+
+    telemetryHistory: [],
+
+    totalTelemetrySnapshots: 0,
+
+    lastTelemetryAt: null,
+
+    runtimeTelemetryHealth: 100,
+
+    telemetryRetentionLimit: 100,
+
+    telemetryMetrics: {
+
+        averageRuntimeHealth: 100,
+
+        averageConvergence: 100,
+
+        averageSafety: 100,
+
+        averageFederationHealth: 100
+    }
+};
+
+/* =====================================================================================
+   GENERATE RUNTIME TELEMETRY SNAPSHOT
+===================================================================================== */
+
+window.generateRuntimeTelemetrySnapshot =
+async function() {
+
+    try {
+
+        const observability =
+            window.__RUNTIME_OBSERVABILITY__;
+
+        const health =
+            window.__RUNTIME_HEALTH__;
+
+        const convergence =
+            window.__RUNTIME_CONVERGENCE__;
+
+        const safety =
+            window.__RUNTIME_SAFETY__;
+
+        const federation =
+            window.__RUNTIME_FEDERATION__;
+
+        const hardening =
+            window.__RUNTIME_HARDENING__;
+
+        const snapshot = {
+
+            telemetryId:
+                crypto.randomUUID(),
+
+            runtimeHealth:
+
+                health.runtimeHealth || 100,
+
+            convergenceScore:
+
+                convergence.convergenceScore || 100,
+
+            safetyLevel:
+
+                safety.safetyLevel || "STABLE",
+
+            federationHealth:
+
+                federation.federationHealth || 100,
+
+            emergencyStabilization:
+
+                hardening
+                    .emergencyStabilization || false,
+
+            timestamp:
+                Date.now()
+        };
+
+        observability
+            .telemetryHistory
+            .push(snapshot);
+
+        /* =================================================
+           RETENTION
+        ================================================= */
+
+        if (
+
+            observability
+                .telemetryHistory
+                .length >
+
+            observability
+                .telemetryRetentionLimit
+
+        ) {
+
+            observability
+                .telemetryHistory
+                .shift();
+        }
+
+        observability
+            .totalTelemetrySnapshots++;
+
+        observability
+            .lastTelemetryAt =
+                Date.now();
+
+        /* =================================================
+           METRICS
+        ================================================= */
+
+        const history =
+
+            observability
+                .telemetryHistory;
+
+        const avg =
+
+            (field) => {
+
+                return Math.floor(
+
+                    history.reduce(
+
+                        (acc, item) => {
+
+                            return acc +
+
+                                (item[field] || 0);
+
+                        },
+
+                        0
+                    ) /
+
+                    history.length
+                );
+            };
+
+        observability
+            .telemetryMetrics = {
+
+                averageRuntimeHealth:
+                    avg("runtimeHealth"),
+
+                averageConvergence:
+                    avg("convergenceScore"),
+
+                averageFederationHealth:
+                    avg("federationHealth"),
+
+                averageSafety:
+
+                    safety.safetyLevel ===
+                    "STABLE"
+
+                        ? 100
+
+                        : 75
+            };
+
+        console.log(
+            "📊 [RUNTIME_TELEMETRY_SNAPSHOT]",
+            snapshot
+        );
+
+        return {
+
+            ok: true,
+
+            snapshot
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [TELEMETRY_SNAPSHOT_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   START OBSERVABILITY FABRIC
+===================================================================================== */
+
+window.startRuntimeObservabilityFabric =
+async function() {
+
+    try {
+
+        window
+            .__RUNTIME_OBSERVABILITY__
+            .initialized = true;
+
+        registerRuntimeDaemon(
+
+            "runtime.observability.daemon",
+
+            {
+
+                interval: 45000,
+
+                singleton: true,
+
+                critical: true,
+
+                handler: async () => {
+
+                    await generateRuntimeTelemetrySnapshot();
+                }
+            }
+        );
+
+        const started =
+
+            startRuntimeDaemon(
+                "runtime.observability.daemon"
+            );
+
+        console.log(
+            "📊 [RUNTIME_OBSERVABILITY_ONLINE]"
+        );
+
+        return {
+
+            ok: true,
+
+            started
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [OBSERVABILITY_START_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
+
+/* =====================================================================================
+   GET OBSERVABILITY STATE
+===================================================================================== */
+
+window.getRuntimeObservabilityState =
+function() {
+
+    try {
+
+        return {
+
+            ok: true,
+
+            ...(window
+                .__RUNTIME_OBSERVABILITY__)
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [GET_OBSERVABILITY_STATE_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
 /* =====================================================================================
    START RUNTIME REPAIR DAEMON V1
 ===================================================================================== */
