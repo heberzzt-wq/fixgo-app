@@ -6,12 +6,20 @@
  * ======================================================================================
  */
 
-console.log("🚦 [app-main.js] Fortress AI Kernel v7.0.0 ONLINE");
+console.log(
+  "🚦 [app-main.js] Fortress AI Kernel v7.0.0 ONLINE"
+);
 
-// =====================================================
-// 🔥 IMPORTS
-// =====================================================
+/* =====================================================
+   🔥 IMPORTS
+===================================================== */
+
+/* =====================================================
+   FIREBASE CORE
+===================================================== */
+
 import {
+
   observarAuth,
   auth,
   signOut,
@@ -22,27 +30,80 @@ import {
   collection,
   updateDoc,
   serverTimestamp
+
 } from "./firebase.js";
 
+/* =====================================================
+   FIRESTORE EXTENSIONS
+===================================================== */
+
 import {
+
   query,
   getDocs,
   orderBy,
   limit
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+} from
+"https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+/* =====================================================
+   UI PANELS
+===================================================== */
 
 import {
+
   iniciarPanelAdmin,
   iniciarPanelTecnico,
   iniciarPanelCliente
+
 } from "./app-panel.js";
 
-import { iniciarMotorBI } from "./app-bi.js";
+/* =====================================================
+   BUSINESS INTELLIGENCE
+===================================================== */
 
-import { runJarvis } from "./gestia-core/jarvis/jarvis.orchestrator.js";
-import { analyzeIntent } from "./gestia-core/jarvis/jarvis.vision.engine.js";
-import { invocarArquitectoIA } from "./gestia-core/brain.engine.js";
+import {
 
+  iniciarMotorBI
+
+} from "./app-bi.js";
+
+/* =====================================================
+   JARVIS ORCHESTRATION
+===================================================== */
+
+import {
+
+  runJarvis
+
+} from
+"./gestia-core/jarvis/jarvis.orchestrator.js";
+
+import {
+
+  analyzeIntent
+
+} from
+"./gestia-core/jarvis/jarvis.vision.engine.js";
+
+/* =====================================================
+   COGNITIVE RUNTIME BOOTSTRAP
+===================================================== */
+
+import
+"./gestia-core/cognitive.bootstrap.js";
+
+/* =====================================================
+   LEGACY BRAIN BRIDGE
+===================================================== */
+
+import {
+
+  invocarArquitectoIA
+
+} from
+"./gestia-core/brain.engine.js";
 // =====================================================
 // 🧠 FORTRESS KERNEL + AUTOHEAL V7.1
 // =====================================================
