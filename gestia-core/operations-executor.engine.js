@@ -116,8 +116,51 @@ export async function simularCambios(changes, opId = "SIM_MODE") {
  */
 export async function ejecutarCambios(proposal) {
     const startTime = Date.now();
-    const opId = proposal.operation_id || proposal.metadata?.analysis_id;
-    const { tenantId, ejecutado_por, changes } = proposal;
+
+/* ================================================================================
+   EXECUTION FABRIC NORMALIZATION
+================================================================================ */
+
+proposal = normalizeOperationContext(
+    proposal
+);
+
+const opId =
+    proposal.operation_id;
+
+    /* ================================================================================
+   EXECUTION FABRIC VALIDATION
+================================================================================ */
+
+if (!proposal) {
+
+    throw {
+        code: "EXECUTION_FABRIC_ERROR",
+        message: "PROPOSAL_UNDEFINED"
+    };
+}
+
+if (!proposal.operation_id) {
+
+    throw {
+        code: "EXECUTION_FABRIC_ERROR",
+        message: "MISSING_OPERATION_ID"
+    };
+}
+
+if (!Array.isArray(proposal.changes)) {
+
+    throw {
+        code: "EXECUTION_FABRIC_ERROR",
+        message: "INVALID_CHANGES_ARRAY"
+    };
+}
+
+const {
+    tenantId,
+    ejecutado_por,
+    changes
+} = proposal;
 
     // --- 🛡️ PASO 0: VALIDACIONES DE INFRAESTRUCTURA ---
     if (!tenantId) {
@@ -434,38 +477,7 @@ export async function ejecutarCambios(proposal) {
     break;
 
 
-    const repoFileName =
-    payload?.file ||
-    `auto_${Date.now()}.js`;
-
-    const repoFileRef = doc(
-        collection(db, "repo_files")
-    );
-
-    transaction.set(repoFileRef, deepSanitize({
-        file: repoFileName,
-        content: payload?.content || "// archivo generado por jarvis",
-        created_at: serverTimestamp(),
-        created_by: ejecutado_por || "jarvis_ai",
-        op_id: opId,
-        tenantId: tenantId,
-        status: "active"
-    }));
-
-    retryBuffer.push({
-        type,
-        target: repoFileName,
-        status: "file_created"
-    });
-
-    emitirPulsoHUD(
-    opId,
-    "WRITE",
-    "CODE_WRITE",
-    repoFileName
-);
-
-    break;
+    
 
                     default:
                         // No lanzamos error para permitir que el resto de la ráfaga continúe
@@ -523,6 +535,52 @@ export async function consultarEstadoOperacion(opId) {
 // Log Corporativo para el Arquitecto Heberto
 console.log("%c🦾 [OPERATIONS_EXECUTOR]: V16.1.1 INDESTRUCTIBLE LEDGER ONLINE", "color: #f59e0b; font-weight: bold; background: #451a03; padding: 2px 10px; border-radius: 4px;");
 
+
+/**
+ * ======================================================================================
+ * 🧠 EXECUTION FABRIC NORMALIZER
+ * Canonicaliza operation lineage entre runtimes híbridos
+ * ======================================================================================
+ */
+
+function normalizeOperationContext(input = {}) {
+
+    const operation_id =
+
+        input?.operation_id ||
+
+        input?.analysis_id ||
+
+        input?.opId ||
+
+        input?.metadata?.operation_id ||
+
+        input?.metadata?.analysis_id ||
+
+        crypto.randomUUID();
+
+    return {
+
+        ...input,
+
+        operation_id,
+
+        analysis_id:
+            input?.analysis_id ||
+            operation_id,
+
+        metadata: {
+
+            ...(input?.metadata || {}),
+
+            operation_id,
+
+            analysis_id:
+                input?.analysis_id ||
+                operation_id
+        }
+    };
+}
 /**
  * ======================================================================================
  * 🧠 HYBRID COGNITIVE EXECUTION BRIDGE V17
@@ -578,16 +636,16 @@ export async function executeSteps(
        EXECUTION IDS
     ================================================================================ */
 
-    const operationId =
+    const normalizedContext =
 
-        input?.operation_id ||
+    normalizeOperationContext(
+        input
+    );
 
-        input?.analysis_id ||
+const operationId =
 
-        input?.metadata?.analysis_id ||
-
-        crypto.randomUUID();
-
+    normalizedContext
+        .operation_id;
     /* ================================================================================
        FIRESTORE RUNTIME COGNITION
     ================================================================================ */
