@@ -597,84 +597,424 @@ function determineStrategicMode(
 }
 
 /* ======================================================================================
-   EXECUTION CHAIN
+   EXECUTION GRAPH EXPANDER
 ====================================================================================== */
 
 function buildExecutionChain(
 
-  inferences = []
+  inferences = [],
+  semantic = {},
+  contexto = {}
 
 ) {
 
   const chain = [];
 
+  const pushStep = (
+
+    step,
+    target,
+    priority = "NORMAL",
+    cognition = {}
+
+  ) => {
+
+    chain.push({
+
+      id:
+        crypto.randomUUID(),
+
+      step,
+
+      target,
+
+      priority,
+
+      cognition,
+
+      status:
+        "QUEUED",
+
+      timestamp:
+        Date.now()
+    });
+  };
+
+  /* ===================================================================================
+     INFERENCE EXPANSION
+  =================================================================================== */
+
   inferences.forEach(inference => {
 
-    switch(inference.type) {
+    /* ================================================================================
+       UI / DASHBOARD COGNITION
+    ================================================================================ */
 
-      case "VOICE_REPAIR":
+    if (
 
-        chain.push({
+      inference.type ===
+      "UI_ANALYSIS"
 
-          step:
-            "CHECK_MEDIA_ENGINE",
+    ) {
 
-          target:
-            "media.engine.js",
+      pushStep(
 
-          status:
-            "QUEUED"
-        });
+        "CHECK_HUD_RENDER",
 
-        chain.push({
+        "jarvis-hud.js",
 
-          step:
-            "CHECK_TTS_ROUTING",
+        "HIGH",
 
-          target:
-            "jarvis.language.core.v5.js",
+        {
 
-          status:
-            "QUEUED"
-        });
+          layer:
+            "rendering",
 
-      break;
+          reasoning:
+            "ui_integrity"
+        }
+      );
 
-      case "UI_ANALYSIS":
+      pushStep(
 
-        chain.push({
+        "CHECK_RUNTIME_HEALTH",
 
-          step:
-            "CHECK_HUD_RENDER",
+        "gestia-terminal.js",
 
-          target:
-            "jarvis-hud.js",
+        "HIGH",
 
-          status:
-            "QUEUED"
-        });
+        {
 
-      break;
+          layer:
+            "runtime",
 
-      case "RUNTIME_OPTIMIZATION":
+          reasoning:
+            "health_validation"
+        }
+      );
 
-        chain.push({
+      pushStep(
 
-          step:
-            "CHECK_RUNTIME_LOAD",
+        "CHECK_EVENT_FAILURES",
 
-          target:
-            "operations.engine.js",
+        "__RUNTIME_EVENT_BUS__",
 
-          status:
-            "QUEUED"
-        });
+        "HIGH",
 
-      break;
+        {
+
+          layer:
+            "events",
+
+          reasoning:
+            "dispatch_validation"
+        }
+      );
+
+      pushStep(
+
+        "CHECK_RECENT_SNAPSHOTS",
+
+        "__RUNTIME_SNAPSHOTS__",
+
+        "NORMAL",
+
+        {
+
+          layer:
+            "observability",
+
+          reasoning:
+            "runtime_regression_detection"
+        }
+      );
+
+      pushStep(
+
+        "CHECK_DEPENDENCY_GRAPH",
+
+        "__DEPENDENCY_GRAPH__",
+
+        "NORMAL",
+
+        {
+
+          layer:
+            "graph",
+
+          reasoning:
+            "module_instability"
+        }
+      );
+
+      pushStep(
+
+        "CORRELATE_UI_TELEMETRY",
+
+        "__COGNITIVE_BRAIN__",
+
+        "NORMAL",
+
+        {
+
+          layer:
+            "telemetry",
+
+          reasoning:
+            "behavioral_correlation"
+        }
+      );
+
+      pushStep(
+
+        "PROPOSE_RUNTIME_RECOVERY",
+
+        "self-repair.engine.js",
+
+        "HIGH",
+
+        {
+
+          layer:
+            "recovery",
+
+          reasoning:
+            "autonomous_repair"
+        }
+      );
+    }
+
+    /* ================================================================================
+       VOICE / MEDIA COGNITION
+    ================================================================================ */
+
+    if (
+
+      inference.type ===
+      "VOICE_REPAIR"
+
+    ) {
+
+      pushStep(
+
+        "CHECK_MEDIA_ENGINE",
+
+        "media.engine.js",
+
+        "HIGH",
+
+        {
+
+          layer:
+            "media",
+
+          reasoning:
+            "voice_pipeline"
+        }
+      );
+
+      pushStep(
+
+        "CHECK_TTS_ROUTING",
+
+        "jarvis.language.core.v5.js",
+
+        "HIGH",
+
+        {
+
+          layer:
+            "language",
+
+          reasoning:
+            "speech_routing"
+        }
+      );
+
+      pushStep(
+
+        "CHECK_AUDIO_PERMISSIONS",
+
+        "browser.audio.permissions",
+
+        "NORMAL",
+
+        {
+
+          layer:
+            "browser",
+
+          reasoning:
+            "audio_access"
+        }
+      );
+    }
+
+    /* ================================================================================
+       PERFORMANCE COGNITION
+    ================================================================================ */
+
+    if (
+
+      inference.type ===
+      "RUNTIME_OPTIMIZATION"
+
+    ) {
+
+      pushStep(
+
+        "CHECK_RUNTIME_LOAD",
+
+        "operations.engine.js",
+
+        "HIGH",
+
+        {
+
+          layer:
+            "runtime",
+
+          reasoning:
+            "load_analysis"
+        }
+      );
+
+      pushStep(
+
+        "CHECK_MEMORY_PRESSURE",
+
+        "__COGNITIVE_BRAIN__",
+
+        "HIGH",
+
+        {
+
+          layer:
+            "memory",
+
+          reasoning:
+            "resource_pressure"
+        }
+      );
+
+      pushStep(
+
+        "CHECK_ASYNC_QUEUE",
+
+        "__DISPATCH_QUEUE__",
+
+        "NORMAL",
+
+        {
+
+          layer:
+            "dispatch",
+
+          reasoning:
+            "queue_congestion"
+        }
+      );
+    }
+
+    /* ================================================================================
+       RECOVERY MODE
+    ================================================================================ */
+
+    if (
+
+      inference.type ===
+      "RECOVERY_MODE"
+
+    ) {
+
+      pushStep(
+
+        "ENABLE_RECOVERY_PROTOCOL",
+
+        "self-repair.engine.js",
+
+        "CRITICAL",
+
+        {
+
+          layer:
+            "recovery",
+
+          reasoning:
+            "autonomous_recovery"
+        }
+      );
+
+      pushStep(
+
+        "CAPTURE_RUNTIME_SNAPSHOT",
+
+        "__RUNTIME_SNAPSHOTS__",
+
+        "HIGH",
+
+        {
+
+          layer:
+            "observability",
+
+          reasoning:
+            "forensic_capture"
+        }
+      );
     }
   });
 
-  return chain;
+  /* ===================================================================================
+     SEMANTIC CORRELATION
+  =================================================================================== */
+
+  if (
+
+    semantic?.primaryConcept ===
+    "DASHBOARD"
+
+  ) {
+
+    pushStep(
+
+      "INSPECT_DASHBOARD_MODULES",
+
+      "app-panel.js",
+
+      "HIGH",
+
+      {
+
+        layer:
+          "dashboard",
+
+        reasoning:
+          "visual_integrity"
+      }
+    );
+  }
+
+  /* ===================================================================================
+     DEDUPLICATION
+  =================================================================================== */
+
+  const seen = new Set();
+
+  return chain.filter(step => {
+
+    const key =
+      `${step.step}_${step.target}`;
+
+    if (seen.has(key)) {
+
+      return false;
+    }
+
+    seen.add(key);
+
+    return true;
+  });
 }
 
 /* ======================================================================================
@@ -1008,9 +1348,14 @@ export async function runCognitiveReasoning(
       );
 
     const executionChain =
-      buildExecutionChain(
-        inferences
-      );
+    buildExecutionChain(
+
+      inferences,
+
+      semantic,
+
+      contexto
+    );
 
     const cloudReasoning =
       await invocarArquitectoIA(
