@@ -789,9 +789,111 @@ if (existing) {
         return parts.filter(Boolean).join("\n\n");
     };
 
-    // window.hablarJarvis = async (texto) => {
-//   ...
-// };
+    /* =====================================================
+   🧠 JARVIS VOICE RUNTIME V6
+   Runtime soberano de síntesis de voz
+===================================================== */
+
+window.hablarJarvis = async function(texto = "") {
+
+    try {
+
+        if (
+            !("speechSynthesis" in window)
+        ) {
+
+            console.warn(
+                "⚠️ [TTS_UNSUPPORTED]"
+            );
+
+            return false;
+        }
+
+        const cleanText = String(texto)
+            .trim()
+            .slice(0, 1200);
+
+        if (!cleanText) {
+            return false;
+        }
+
+        speechSynthesis.cancel();
+
+        const utterance =
+            new SpeechSynthesisUtterance(
+                cleanText
+            );
+
+        const voces =
+            speechSynthesis.getVoices();
+
+        const voz =
+            voces.find(v =>
+                v.lang?.includes("es-MX")
+            ) ||
+
+            voces.find(v =>
+                v.lang?.includes("es")
+            ) ||
+
+            null;
+
+        if (voz) {
+            utterance.voice = voz;
+        }
+
+        utterance.lang = "es-MX";
+
+        utterance.rate = 1;
+
+        utterance.pitch = 1;
+
+        utterance.volume = 1;
+
+        utterance.onstart = () => {
+
+            console.log(
+                "🧠 [JARVIS_VOICE_START]"
+            );
+
+            window.showJarvis?.(
+                "Jarvis hablando..."
+            );
+        };
+
+        utterance.onend = () => {
+
+            console.log(
+                "🧠 [JARVIS_VOICE_END]"
+            );
+        };
+
+        utterance.onerror = (err) => {
+
+            console.warn(
+                "⚠️ [JARVIS_VOICE_ERROR]",
+                err
+            );
+        };
+
+        speechSynthesis.speak(
+            utterance
+        );
+
+        return true;
+
+    }
+
+    catch(err) {
+
+        console.error(
+            "🚨 [VOICE_RUNTIME_FATAL]",
+            err
+        );
+
+        return false;
+    }
+};
 
     // 5. FIRMA SÓNICA (AUDIO CONTEXT IDLE CLEANUP)
     window.beepJarvis = function() {
