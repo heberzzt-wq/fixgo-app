@@ -57,21 +57,73 @@ export function generarPropuesta(analysis) {
         warnings: analysis?.data?.warnings || analysis?.warnings || []
     };
 
-    // Estructura base de la propuesta
-    const proposal = {
-        risk: "LOW",
-        impact: "SISTEMA EN PARÁMETROS NOMINALES",
-        changes: [],
-        needs_approval: false,
-        confidence: 1.0, 
-        is_manual_override: false, 
-        metadata: {
-            analysis_id: finalId, // El ancla eterna
-            score_salud: 100,
-            timestamp: timestampLocal,
-            error: false
-        }
-    };
+    /* =====================================================
+   COGNITIVE EXECUTION CONTRACT
+===================================================== */
+
+const proposal = {
+
+    /* =================================================
+       EXECUTION IDs
+    ================================================= */
+
+    operation_id:
+        finalId,
+
+    analysis_id:
+        finalId,
+
+    /* =================================================
+       COGNITIVE STATE
+    ================================================= */
+
+    risk:
+        "LOW",
+
+    impact:
+        "SISTEMA EN PARÁMETROS NOMINALES",
+
+    changes:
+        [],
+
+    needs_approval:
+        false,
+
+    confidence:
+        1.0,
+
+    is_manual_override:
+        false,
+
+    /* =================================================
+       EXECUTION METADATA
+    ================================================= */
+
+    metadata: {
+
+        analysis_id:
+            finalId,
+
+        operation_id:
+            finalId,
+
+        score_salud:
+            100,
+
+        timestamp:
+            timestampLocal,
+
+        error:
+            false,
+
+        cognition:
+            "HYBRID_V7",
+
+        runtime:
+            "COGNITIVE_OS"
+    }
+};          
+
 
     // --- 🚀 4. INTERCEPTOR DE SOBERANÍA (SAFE-FAIL) ---
     const regexNorm = /(?:normaliza|vincula|arregla|ajusta)\s+([A-Z0-9]+)/i;
