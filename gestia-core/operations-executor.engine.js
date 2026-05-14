@@ -877,9 +877,12 @@ const operationId =
                 ==================================================================== */
 
                 const mappedType =
-                    mapActionToLegacyType(
-                        step
-                    );
+
+    step?.type ||
+
+    step?.action ||
+
+    "ANALYZE";
 
                 return {
 
