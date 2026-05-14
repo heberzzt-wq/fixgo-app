@@ -511,8 +511,9 @@ const enrichedChanges =
 
             normalized._hash =
 
-                SIA7_UTILS
-                    .generarHashSeguro(
+                SIA7_UTILS?.generarHashSeguro
+
+    ? SIA7_UTILS.generarHashSeguro(
 
                         JSON.stringify({
 
@@ -524,8 +525,11 @@ const enrichedChanges =
 
                             payload:
                                 normalized.payload
-                        })
-                    );
+                        
+                    })
+)
+
+: crypto.randomUUID();
 
         }
 
