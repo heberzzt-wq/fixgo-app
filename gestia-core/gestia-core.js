@@ -180,9 +180,8 @@ const CORE_CONFIG = {
         LOCK_TIMEOUT_MS: 45000 // 45 segundos para concurrencia paralela
     }
 };
-
-import "./semantic.engine.v7.js";
-import "./brain.engine.js";
+import '/gestia-core/semantic.engine.v7.js';
+import '/gestia-core/brain.engine.js';
 
 // ======================================================================================
 // 🛰️ SECCIÓN 2: GESTIA CORE ORCHESTRATOR (KERNEL V16.0)
