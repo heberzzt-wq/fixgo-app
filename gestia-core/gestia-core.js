@@ -473,14 +473,148 @@ export const GestiaCore = {
                 const proyectadoTotal = fwData.tokens_used + (fwData.reserved_tokens || 0) + tokensEstimados;
                 let degradedMode = proyectadoTotal > CORE_CONFIG.FIREWALL.COST_CONTROL.MAX_TOKENS_PER_DAY;
                 
-                const cambiosFinales = enrichedChanges.filter(c => {
-                    const historico = (memData.recent_hashes_v2 || []).find(r => r.h === c._hash && r.alg === c._alg);
-                    // Omitir si ya se hizo exitosamente (Memoria de Frescura TTL)
-                    if (historico && (ahora - historico.t < CORE_CONFIG.WATCHDOG.HASH_EXPIRATION_MS)) return false;
-                    // Shedding de carga pesada en modo degradado (Bypass Soberano)
-                    if (degradedMode && !esSoberano && ['FORCE_MAINTENANCE_TASK', 'NORMALIZE_IDENTITY'].includes(c.type)) return false;
-                    return true;
-                });
+                /* =====================================================================================
+   HYBRID CHANGE ENRICHMENT PIPELINE
+===================================================================================== */
+
+const enrichedChanges =
+
+    (propuesta.changes || [])
+
+    .map(change => {
+
+        const normalized = {
+
+            ...change,
+
+            _timestamp:
+                ahora,
+
+            _analysisId:
+                analysisId,
+
+            _tenantId:
+                tenantId,
+
+            _source:
+                "HYBRID_COGNITION",
+
+            _alg:
+                "SIA7_HYBRID_V7"
+        };
+
+        /* ============================================================================
+           STABLE HASH GENERATION
+        ============================================================================ */
+
+        try {
+
+            normalized._hash =
+
+                SIA7_UTILS
+                    .generarHashSeguro(
+
+                        JSON.stringify({
+
+                            type:
+                                normalized.type,
+
+                            target:
+                                normalized.target,
+
+                            payload:
+                                normalized.payload
+                        })
+                    );
+
+        }
+
+        catch(hashError) {
+
+            console.warn(
+                "⚠️ [HASH_GENERATION_FAIL]",
+                hashError
+            );
+
+            normalized._hash =
+
+                `${analysisId}_${Math.random()}`
+                    .replace(/\./g, "");
+        }
+
+        return normalized;
+    });
+
+/* =====================================================================================
+   REDUNDANCY + DEGRADATION FILTER
+===================================================================================== */
+
+const cambiosFinales =
+
+    enrichedChanges.filter(c => {
+
+        const historico =
+
+            (memData.recent_hashes_v2 || [])
+
+            .find(r =>
+
+                r.h === c._hash &&
+
+                r.alg === c._alg
+            );
+
+        /* ============================================================================
+           TTL FRESHNESS MEMORY
+        ============================================================================ */
+
+        if (
+
+            historico &&
+
+            (
+
+                ahora - historico.t
+
+                <
+
+                CORE_CONFIG
+                    .WATCHDOG
+                    .HASH_EXPIRATION_MS
+            )
+
+        ) {
+
+            return false;
+        }
+
+        /* ============================================================================
+           LOAD SHEDDING
+        ============================================================================ */
+
+        if (
+
+            degradedMode &&
+
+            !esSoberano &&
+
+            [
+
+                "FORCE_MAINTENANCE_TASK",
+
+                "NORMALIZE_IDENTITY"
+
+            ]
+
+            .includes(c.type)
+
+        ) {
+
+            return false;
+        }
+
+        return true;
+    });
 
                 if (cambiosFinales.length === 0) {
                     atomicState.isHalted = true;
