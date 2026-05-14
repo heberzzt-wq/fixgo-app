@@ -1246,10 +1246,60 @@ console.log("🟢 Ejecutando approvePlan con:", planId);
 
 window.showJarvisPersistent?.("ejecutando plan...");
 
-await window.approvePlan(planId, {
-    id: window.session?.uid,
-    tenantId: window.session?.tenantId
-});
+
+
+
+try {
+
+    if (!window.approvePlan) {
+
+        throw new Error(
+            "APPROVE_PLAN_UNDEFINED"
+        );
+    }
+
+    await window.approvePlan(
+        planId,
+        {
+            id:
+                window.session?.uid,
+
+            tenantId:
+                window.session?.tenantId
+        }
+    );
+
+    console.log(
+        "🧠 [PLAN_APPROVED]",
+        planId
+    );
+
+}
+catch(planError) {
+
+    console.error(
+        "🚨 [PLAN_APPROVAL_FAIL]",
+        planError
+    );
+
+    window.renderJarvisResponse?.(
+        "Plan Approval Failure",
+        String(
+            planError?.message ||
+            planError
+        ),
+        "error"
+    );
+
+    if (window.hablarJarvis) {
+
+        window.hablarJarvis(
+            "Falló la aprobación del plan."
+        );
+    }
+
+    return;
+}
 
 window.showJarvis?.("plan completado");
 
