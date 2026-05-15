@@ -3,11 +3,14 @@
    Runtime limpio de autenticación
 ===================================================== */
 
-import {
-    auth,
-    db
-}
+import * as FirebaseCore
 from "./firebase.js";
+
+const auth =
+    FirebaseCore.auth;
+
+const db =
+    FirebaseCore.db;
 
 import {
 
@@ -29,7 +32,6 @@ import {
 
 }
 from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
 /* =====================================================
    SESSION RESTORE
 ===================================================== */
