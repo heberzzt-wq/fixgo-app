@@ -361,38 +361,48 @@ setTimeout(() => {
     );
   }
 
-  /* =====================================================
-     ACTIVACIÓN FORTRESS
-  ===================================================== */
+ /* =====================================================
+   ACTIVACIÓN FORTRESS
+===================================================== */
 
-  showLoader("ACTIVANDO FORTRESS...");
-  await new Promise(r =>
+showLoader("ACTIVANDO FORTRESS...");
+
+await new Promise(r =>
     setTimeout(r, 900)
-  );
+);
 
-  V7.health = "ONLINE";
+V7.health = "ONLINE";
 
-  const total = Math.round(
+const total = Math.round(
     performance.now() - V7.start
-  );
+);
 
-  console.log(
+console.log(
     `🚀 Boot completado en ${total}ms`
-  );
+);
 
-  if (
+if (
     typeof hideLoader ===
     "function"
-  ) {
-    hideLoader();
-  }
+) {
 
-  if (
+    hideLoader();
+}
+
+if (
     typeof revealUI ===
     "function"
-  ) {
+) {
+
     revealUI();
-  }
+}
+
+/* ==========================================
+   SIA7 SURFACE REVEAL
+========================================== */
+
+document.body.style.visibility =
+    "visible";
 
   /* =====================================================
      JARVIS INTELLIGENT BRIEFING
