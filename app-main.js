@@ -191,13 +191,25 @@ function revealUI() {
 
   document.body.style.visibility =
     "visible";
-  document.body.style.display = "block";
+
+  document.body.style.opacity =
+    "1";
+
+  document.body.style.pointerEvents =
+    "auto";
 }
 
 function hideUI() {
-  document.body.style.display = "none";
-}
 
+  document.body.style.visibility =
+    "hidden";
+
+  document.body.style.opacity =
+    "0";
+
+  document.body.style.pointerEvents =
+    "none";
+}
 function go(url) {
   window.location.replace(url);
 }
@@ -889,7 +901,7 @@ function actualizarInterfazGlobal(user) {
         }
 
         // Limpieza de UI y Redirección
-        document.body.style.display = "none";
+        document.body.style.opacity = "0";
         window.location.replace("login.html");
 
       } catch (error) {
@@ -1360,7 +1372,7 @@ document.addEventListener("click", async (e) => {
             }
 
             // 3. Limpieza de rastro y redirección
-            document.body.style.display = "none";
+            document.body.style.opacity = "0";
             window.location.replace("login.html");
 
         } catch (error) {
