@@ -656,20 +656,36 @@ observarAuth(async (userAuth) => {
     delete window.analyzeIntent;
   }
 
-  if (
+  const adminSurfaces = [
+
+    "admin",
+
+    "ceo",
+
+    "gestia-terminal",
+
+    "gestia-modulo",
+
+    "noc"
+
+];
+
+const isAdminSurface =
+
+    adminSurfaces.some(
+
+        surface =>
+
+            pathActual.includes(surface)
+    );
+
+if (
 
     userAuth.rol === "admin" &&
 
-    !(
-
-        pathActual.includes("admin") ||
-
-        pathActual.includes("ceo")
-
-    )
+    !isAdminSurface
 
 ) {
-
     /* ============================================
        SIA7 SURFACE GUARD
     ============================================ */
