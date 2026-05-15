@@ -339,6 +339,15 @@ showLoader(
 
 setTimeout(() => {
 
+  if (!document.body) {
+
+    console.warn(
+      "⚠️ BODY aún no disponible"
+    );
+
+    return;
+  }
+
   const hidden =
 
     document.body.style.visibility ===
