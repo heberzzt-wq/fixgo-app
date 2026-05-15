@@ -36,6 +36,50 @@
     </style>
 </head>
 <body class="bg-gestia-dark h-screen w-screen p-2 md:p-4 flex flex-col font-sans overflow-hidden">
+
+    <!-- ===================================================== -->
+    <!-- GESTIA SURFACE TEMP SHELL -->
+    <!-- ===================================================== -->
+
+    <div
+        style="
+            position:fixed;
+            top:20px;
+            right:20px;
+            z-index:999999;
+            display:flex;
+            gap:10px;
+        ">
+
+        <button
+            onclick="history.back()"
+            style="
+                background:#1d4ed8;
+                color:white;
+                padding:10px 16px;
+                border:none;
+                border-radius:12px;
+                cursor:pointer;
+                font-weight:bold;
+            ">
+            ← Volver
+        </button>
+
+        <button
+            onclick="window.location.href='login.html'"
+            style="
+                background:#991b1b;
+                color:white;
+                padding:10px 16px;
+                border:none;
+                border-radius:12px;
+                cursor:pointer;
+                font-weight:bold;
+            ">
+            Cerrar sesión
+        </button>
+
+    </div>
     
     <div id="contenedor-magico" class="w-full h-full"></div>
 
