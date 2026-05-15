@@ -384,6 +384,17 @@ console.log(
     `🚀 Boot completado en ${total}ms`
 );
 
+
+const fortressBoot =
+
+    document.getElementById(
+        "fortressBootScreen"
+    );
+
+if (fortressBoot) {
+
+    fortressBoot.remove();
+}
 if (
     typeof hideLoader ===
     "function"
