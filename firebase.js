@@ -79,7 +79,64 @@ window.app = app;
 window.auth = auth;
 window.db = db;
 window.storage = storage;
+/* ======================================================
+   SIA7 ROUTING CONTROL LAYER
+====================================================== */
 
+window.__SIA7_ROUTING_ACTIVE__ =
+    window.__SIA7_ROUTING_ACTIVE__ || false;
+
+window.__SIA7_SURFACE_TRANSITION__ =
+    window.__SIA7_SURFACE_TRANSITION__ || false;
+
+function shouldSkipLegacyRouting() {
+
+    try {
+
+        /* ==========================================
+           RUNTIME V7 ACTIVE
+        ========================================== */
+
+        if (
+
+            typeof window !== "undefined" &&
+
+            window.GestiaRuntime
+
+        ) {
+
+            return true;
+        }
+
+        /* ==========================================
+           SURFACE TRANSITION ACTIVE
+        ========================================== */
+
+        if (
+
+            window.__SIA7_SURFACE_TRANSITION__
+
+        ) {
+
+            return true;
+        }
+
+        return false;
+
+    }
+
+    catch(error) {
+
+        console.error(
+
+            "🚨 [SIA7_ROUTING_LAYER_FAIL]",
+
+            error
+        );
+
+        return false;
+    }
+}
 // ======================================================
 // 🔥 ENRUTADOR DE TRÁFICO INTELIGENTE (VERSIÓN ROBUSTA V5.30)
 // ======================================================
@@ -88,6 +145,24 @@ export function verificarYRedireccionar(user) {
 
     if (!user || typeof window === "undefined") return;
 
+
+    /* ==========================================
+   SIA7 LEGACY ROUTING BYPASS
+========================================== */
+
+if (
+
+    shouldSkipLegacyRouting()
+
+) {
+
+    console.log(
+
+        "🧠 [SIA7] Legacy routing omitido"
+    );
+
+    return;
+}
     const path = window.location.pathname;
 
     // Extraemos la página actual, pero ahora considerando query params para el motor No-Code
