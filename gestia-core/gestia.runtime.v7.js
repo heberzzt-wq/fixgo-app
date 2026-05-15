@@ -8172,4 +8172,3 @@ console.log(
     "👁️ [COGNITIVE_ORCHESTRATION_ENGINE] ONLINE"
 );
 
-export default window.GestiaRuntime;
