@@ -2467,11 +2467,9 @@ window.addEventListener(
 
     async () => {
 
-        await window
-
-            .GestiaRuntime
-
-            .startBoot();
+        console.log(
+    "🧠 [SIA7] Runtime cargado en modo passive"
+);
     }
 );
 
