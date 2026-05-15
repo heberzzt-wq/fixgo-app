@@ -147,22 +147,15 @@ export function verificarYRedireccionar(user) {
 
 
     /* ==========================================
-   SIA7 LEGACY ROUTING BYPASS
+   SIA7 ROUTER DISABLED
 ========================================== */
 
-if (
+console.warn(
 
-    shouldSkipLegacyRouting()
+    "🧠 [SIA7] Legacy router deshabilitado"
+);
 
-) {
-
-    console.log(
-
-        "🧠 [SIA7] Legacy routing omitido"
-    );
-
-    return;
-}
+return;
     const path = window.location.pathname;
 
     // Extraemos la página actual, pero ahora considerando query params para el motor No-Code
