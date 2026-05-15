@@ -633,9 +633,15 @@ observarAuth(async (userAuth) => {
   }
 
   if (
-    userAuth.rol === "admin" &&
-    !pathActual.includes("admin")
-  ) return go(RUTAS.admin);
+  userAuth.rol === "admin" &&
+  !(
+      pathActual.includes("admin") ||
+      pathActual.includes("ceo")
+   )
+) {
+
+  return go(RUTAS.admin);
+}
 
   if (
     userAuth.rol === "tecnico" &&
