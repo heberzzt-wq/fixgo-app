@@ -605,7 +605,7 @@ observarAuth(async (userAuth) => {
     return;
   }
 
-  let userRol = "cliente";
+  let userRol = null;
   let userData = {};
 
   if (isMaster(userAuth)) {
@@ -740,16 +740,25 @@ if (
       }, 500);
     }
 
-    else if (userAuth.rol === "tecnico") {
-      await iniciarPanelTecnico(userAuth);
-    }
+   else if (userAuth.rol === "tecnico") {
 
-    else if (userAuth.rol === "cliente") {
-      await iniciarPanelCliente(userAuth);
+    await iniciarPanelTecnico(userAuth);
 
-      const contenedor =
+}
+
+else if (
+
+    userAuth.rol === "cliente" &&
+
+    userAuth.rol !== "admin"
+
+) {
+
+    await iniciarPanelCliente(userAuth);
+
+    const contenedor =
         document.getElementById(
-          "contenedorOpcionEfectivo"
+            "contenedorOpcionEfectivo"
         );
 
       if (
