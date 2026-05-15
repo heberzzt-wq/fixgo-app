@@ -642,23 +642,50 @@ function manejarErroresAuth(error) {
 // ======================================================
 // E. OBSERVADOR Y MANEJO DE ERRORES
 // ======================================================
+
+/*
 observarAuth((user) => {
+
     // 🔥 ESCUDO: Solo redirecciona automáticamente SI NO ESTAMOS en pleno proceso de registro
     if (user && !window.isRegisteringLocal) {
+
         const path = window.location.pathname;
-        if (path.includes("login.html") || path.includes("registro")) {
+
+        if (
+            path.includes("login.html") ||
+            path.includes("registro")
+        ) {
+
             setTimeout(() => {
+
                 // 🚀 REDIRECCIÓN MAESTRA CORREGIDA: Separamos los cables de Admin
                 if (user.rol === "tecnico") {
-                    window.location.href = "tecnico.html";
-                } else if (user.rol === "admin_b2b") {
-                    window.location.href = "panel-b2b-admin.html"; // Jorge va a su panel B2B
-                } else if (user.rol === "admin") {
-                    window.location.href = "admin.html"; // Heberto va a su Panel Maestro
+
+                    window.location.href =
+                        "tecnico.html";
+
+                } else if (
+                    user.rol === "admin_b2b"
+                ) {
+
+                    window.location.href =
+                        "panel-b2b-admin.html";
+
+                } else if (
+                    user.rol === "admin"
+                ) {
+
+                    window.location.href =
+                        "admin.html";
+
                 } else {
-                    window.location.href = "cliente.html";
+
+                    window.location.href =
+                        "cliente.html";
                 }
+
             }, 600);
         }
     }
 });
+*/
