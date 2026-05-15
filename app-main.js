@@ -797,8 +797,27 @@ if (
       await iniciarPanelAdmin(userAuth);
 
       setTimeout(() => {
-        iniciarMotorBI("dashboardAnalitico");
-      }, 500);
+
+    const dashboard =
+
+        document.getElementById(
+            "dashboardAnalitico"
+        );
+
+    if (!dashboard) {
+
+        console.warn(
+            "⚠️ Dashboard BI aún no disponible"
+        );
+
+        return;
+    }
+
+    iniciarMotorBI(
+        "dashboardAnalitico"
+    );
+
+}, 500);
     }
 
    else if (userAuth.rol === "tecnico") {
