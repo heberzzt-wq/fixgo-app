@@ -555,7 +555,31 @@ Esperando autorización.`;
   }, 5000);
 
 })();
+/* =====================================================
+   SIA7 RUNTIME ROUTING GUARD
+===================================================== */
 
+window.__GESTIA_SURFACE_LOCK__ =
+    window.__GESTIA_SURFACE_LOCK__ || false;
+
+function lockSurfaceRouting() {
+
+    window.__GESTIA_SURFACE_LOCK__ = true;
+}
+
+function unlockSurfaceRouting() {
+
+    setTimeout(() => {
+
+        window.__GESTIA_SURFACE_LOCK__ = false;
+
+    }, 1200);
+}
+
+function isSurfaceRoutingLocked() {
+
+    return window.__GESTIA_SURFACE_LOCK__ === true;
+}
 // =====================================================
 // 🔥 AUTH CORE
 // =====================================================
@@ -633,15 +657,45 @@ observarAuth(async (userAuth) => {
   }
 
   if (
-  userAuth.rol === "admin" &&
-  !(
-      pathActual.includes("admin") ||
-      pathActual.includes("ceo")
-   )
+
+    userAuth.rol === "admin" &&
+
+    !(
+
+        pathActual.includes("admin") ||
+
+        pathActual.includes("ceo")
+
+    )
+
 ) {
 
-  return go(RUTAS.admin);
+    /* ============================================
+       SIA7 SURFACE GUARD
+    ============================================ */
+
+    if (
+
+        isSurfaceRoutingLocked()
+
+    ) {
+
+        console.warn(
+
+            "🛡️ [SIA7] Redirect bloqueado temporalmente"
+        );
+
+    }
+
+    else {
+
+        lockSurfaceRouting();
+
+        return go(RUTAS.admin);
+    }
 }
+
+
 
   if (
     userAuth.rol === "tecnico" &&
