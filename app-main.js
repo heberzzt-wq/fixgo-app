@@ -331,36 +331,38 @@ async function smartPreload() {
 // 🚀 ANTI BLACK SCREEN
 // =====================================================
 
-hideUI();
+window.addEventListener(
 
-showLoader(
-  "VERIFICANDO SISTEMA..."
-);
+  "DOMContentLoaded",
 
-setTimeout(() => {
+  () => {
 
-  if (!document.body) {
+    hideUI();
 
-    console.warn(
-      "⚠️ BODY aún no disponible"
+    showLoader(
+      "VERIFICANDO SISTEMA..."
     );
 
-    return;
+    setTimeout(() => {
+
+      if (!document.body) return;
+
+      const hidden =
+
+        document.body.style.visibility ===
+        "hidden";
+
+      if (hidden) {
+
+        revealUI();
+
+        hideLoader();
+      }
+
+    }, 5000);
+
   }
-
-  const hidden =
-
-    document.body.style.visibility ===
-    "hidden";
-
-  if (hidden) {
-
-    revealUI();
-
-    hideLoader();
-  }
-
-}, 5000);
+);
 // =====================================================
 // 🚀 BOOT SEQUENCE + HEALTH MONITOR
 // =====================================================
