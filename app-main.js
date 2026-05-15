@@ -188,6 +188,9 @@ function hideLoader() {
 // 🔥 HELPERS
 // =====================================================
 function revealUI() {
+
+  document.body.style.visibility =
+    "visible";
   document.body.style.display = "block";
 }
 
@@ -400,9 +403,6 @@ if (
 /* ==========================================
    SIA7 SURFACE REVEAL
 ========================================== */
-
-document.body.style.visibility =
-    "visible";
 
   /* =====================================================
      JARVIS INTELLIGENT BRIEFING
