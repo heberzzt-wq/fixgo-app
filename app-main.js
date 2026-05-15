@@ -189,6 +189,8 @@ function hideLoader() {
 // =====================================================
 function revealUI() {
 
+  if (!document.body) return;
+
   document.body.style.visibility =
     "visible";
 
@@ -201,6 +203,8 @@ function revealUI() {
 
 function hideUI() {
 
+  if (!document.body) return;
+
   document.body.style.visibility =
     "hidden";
 
@@ -209,6 +213,7 @@ function hideUI() {
 
   document.body.style.pointerEvents =
     "none";
+
 }
 function go(url) {
   window.location.replace(url);
@@ -325,16 +330,28 @@ async function smartPreload() {
 // =====================================================
 // 🚀 ANTI BLACK SCREEN
 // =====================================================
+
 hideUI();
-showLoader("VERIFICANDO SISTEMA...");
+
+showLoader(
+  "VERIFICANDO SISTEMA..."
+);
 
 setTimeout(() => {
-  if (document.body.style.display === "none") {
+
+  const hidden =
+
+    document.body.style.visibility ===
+    "hidden";
+
+  if (hidden) {
+
     revealUI();
+
     hideLoader();
   }
-}, 5000);
 
+}, 5000);
 // =====================================================
 // 🚀 BOOT SEQUENCE + HEALTH MONITOR
 // =====================================================
