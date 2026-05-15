@@ -285,17 +285,49 @@ self.addEventListener('fetch', (event) => {
         }
 
         if (
-          event.request.method === 'GET' &&
-          response.status === 200
-        ) {
+  event.request.method === 'GET' &&
+  response.status === 200
+) {
 
-          const clone = response.clone();
+  const requestURL =
+    new URL(event.request.url);
 
-          caches.open(CACHE_NAME)
-            .then(cache => cache.put(event.request, clone));
+  const protocolo =
+    requestURL.protocol;
 
-        }
+  const protocoloPermitido = [
 
+    'http:',
+    'https:'
+
+  ].includes(protocolo);
+
+  if (protocoloPermitido) {
+
+    const clone =
+      response.clone();
+
+    caches.open(CACHE_NAME)
+
+      .then(cache => {
+
+        return cache.put(
+          event.request,
+          clone
+        );
+
+      })
+
+      .catch(cacheError => {
+
+        console.warn(
+          '[Gestia SW] Cache omitido:',
+          cacheError?.message
+        );
+
+      });
+  }
+}
         return response;
 
       })
