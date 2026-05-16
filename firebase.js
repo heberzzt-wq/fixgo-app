@@ -150,12 +150,14 @@ export function verificarYRedireccionar(user) {
    SIA7 ROUTER DISABLED
 ========================================== */
 
-console.warn(
+if (window.__SIA7_ROUTER_LOCK__) {
 
-    "🧠 [SIA7] Legacy router deshabilitado"
-);
+    console.warn(
+        "🧠 [SIA7] Legacy redirect omitido"
+    );
 
-return;
+    return;
+}
     const path = window.location.pathname;
 
     // Extraemos la página actual, pero ahora considerando query params para el motor No-Code

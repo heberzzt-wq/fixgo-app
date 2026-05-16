@@ -768,6 +768,8 @@ if (
 
         lockSurfaceRouting();
 
+        window.__SIA7_ROUTER_LOCK__ = true;
+
         return go(RUTAS.admin);
     }
 }
