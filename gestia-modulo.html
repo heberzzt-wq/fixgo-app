@@ -191,5 +191,33 @@
             }
         });
     </script>
+    <script type="module">
+
+import { auth }
+from "./firebase.js";
+
+window.cerrarSesionGlobal = async () => {
+
+    try {
+
+        await auth.signOut();
+
+        window.location.replace(
+            "login.html"
+        );
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "❌ Logout error:",
+            error
+        );
+    }
+};
+
+</script>
+
 </body>
 </html>
