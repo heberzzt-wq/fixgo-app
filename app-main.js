@@ -709,6 +709,25 @@ observarAuth(async (userAuth) => {
     `✅ ${userAuth.email} | ${userAuth.rol}`
   );
 
+  window.cerrarSesionGlobal = async () => {
+
+  try {
+
+    await auth.signOut();
+
+    window.location.replace(
+      "login.html"
+    );
+
+  } catch (error) {
+
+    console.error(
+      "❌ Logout error:",
+      error
+    );
+  }
+};
+
   if (userAuth.rol === "admin") {
     window.runJarvis = runJarvis;
     window.analyzeIntent = analyzeIntent;
