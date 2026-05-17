@@ -2224,6 +2224,122 @@ console.log(
 );
 
 
+/* =============================================
+   CROSS SURFACE RESTORE BLOCK V1
+============================================= */
+
+const currentSurface = (() => {
+
+    try {
+
+        const path =
+            window.location.pathname
+                .toLowerCase();
+
+        /* =====================================
+           TERMINAL / ADMIN
+        ===================================== */
+
+        if (
+            path.includes("gestia-terminal") ||
+            path.includes("admin") ||
+            path.includes("ceo") ||
+            path.includes("noc")
+        ) {
+
+            return "admin";
+        }
+
+        /* =====================================
+           TECNICO
+        ===================================== */
+
+        if (
+            path.includes("tecnico")
+        ) {
+
+            return "tecnico";
+        }
+
+        /* =====================================
+           CLIENTE
+        ===================================== */
+
+        if (
+            path.includes("cliente")
+        ) {
+
+            return "cliente";
+        }
+
+        /* =====================================
+           B2B
+        ===================================== */
+
+        if (
+            path.includes("gestia-modulo") ||
+            path.includes("residencial")
+        ) {
+
+            return "b2b";
+        }
+
+        /* =====================================
+           DEFAULT
+        ===================================== */
+
+        return "public";
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "🚨 [SURFACE_RESOLVE_FAIL]",
+            error
+        );
+
+        return "unknown";
+    }
+
+})();
+
+/* =============================================
+   GOVERNANCE BLOCK
+============================================= */
+
+if (
+
+    snapshot?.surface &&
+    currentSurface &&
+    snapshot.surface !== currentSurface
+
+) {
+
+    console.warn(
+        "🚫 [CROSS_SURFACE_RESTORE_BLOCKED]",
+        {
+            snapshotSurface:
+                snapshot.surface,
+
+            currentSurface
+        }
+    );
+
+    return {
+
+        ok: false,
+
+        error:
+            "CROSS_SURFACE_RESTORE_BLOCKED",
+
+        snapshotSurface:
+            snapshot.surface,
+
+        currentSurface
+    };
+}
+
         if (!snapshot) {
 
             return {
