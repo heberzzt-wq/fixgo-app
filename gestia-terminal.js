@@ -1405,12 +1405,69 @@ async function() {
     "RUNTIME_SNAPSHOT",
 
 
-    surface:
-    window.GestiaRuntime
-        ?.surfaces
-        ?.current ||
+   surface:
 
-    "unknown",
+    (() => {
+
+        try {
+
+            const path =
+
+                window.location.pathname
+                    .toLowerCase();
+
+            if (
+
+                path.includes("admin") ||
+
+                path.includes("ceo") ||
+
+                path.includes("noc")
+
+            ) {
+
+                return "admin";
+            }
+
+            if (
+
+                path.includes("tecnico")
+
+            ) {
+
+                return "tecnico";
+            }
+
+            if (
+
+                path.includes("cliente")
+
+            ) {
+
+                return "cliente";
+            }
+
+            if (
+
+                path.includes("gestia-modulo") ||
+
+                path.includes("residencial")
+
+            ) {
+
+                return "b2b";
+            }
+
+            return "public";
+
+        }
+
+        catch(error) {
+
+            return "unknown";
+        }
+
+    })(),
             /* =============================================
                CORE METADATA
             ============================================= */
