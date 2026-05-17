@@ -50,6 +50,11 @@ window.__GESTIA_RUNTIME_V7_BOOTED__ =
 window.GestiaRuntime =
     window.GestiaRuntime || {};
 
+
+    console.log(
+    "🧠 [GESTIA_RUNTIME_NAMESPACE]",
+    window.GestiaRuntime
+);
 /* =========================================================
    CORE REGISTRY
 ========================================================= */
