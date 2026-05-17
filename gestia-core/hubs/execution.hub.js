@@ -29,7 +29,7 @@ export {
 
 }
 
-from "../jarvis.snapshot.js";
+from "../jarvis/jarvis.snapshot.js";
 
 /* =====================================================
    PATCH FABRIC
@@ -41,7 +41,7 @@ export {
 
 }
 
-from "../jarvis.patchdiff.engine.js";
+from "../jarvis/jarvis.patchdiff.engine.js";
 
 export {
 
@@ -49,7 +49,7 @@ export {
 
 }
 
-from "../jarvis.autopatch.engine.js";
+from "../jarvis/jarvis.autopatch.engine.js";
 
 export {
 
@@ -57,7 +57,7 @@ export {
 
 }
 
-from "../jarvis.autofix.engine.js";
+from "../jarvis/jarvis.autofix.engine.js";
 
 console.log(
     "🧠 [EXECUTION_HUB] ONLINE"
