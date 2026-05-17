@@ -8382,3 +8382,52 @@ console.log(
     "👁️ [COGNITIVE_ORCHESTRATION_ENGINE] ONLINE"
 );
 
+/* =====================================================
+   JARVIS SOVEREIGN CORE V1
+===================================================== */
+
+window.Jarvis ||= {
+
+    runtime:
+        window.GestiaRuntime ||
+
+        null,
+
+    cognition: {},
+
+    memory: {},
+
+    orchestrator: {},
+
+    executor: {},
+
+    telemetry: {},
+
+    repair: {},
+
+    snapshots: {},
+
+    status: "INITIALIZING",
+
+    initializedAt:
+        Date.now()
+};
+
+/* =====================================================
+   RUNTIME LINK
+===================================================== */
+
+window.Jarvis.runtime =
+    window.GestiaRuntime;
+
+/* =====================================================
+   ONLINE STATUS
+===================================================== */
+
+window.Jarvis.status =
+    "ONLINE";
+
+console.log(
+    "🧠 [JARVIS_SOVEREIGN_CORE] ONLINE",
+    window.Jarvis
+);
