@@ -4001,6 +4001,44 @@ window.GestiaRuntime.safeExecute =
 
         try {
 
+            /* =============================================
+               JARVIS EXECUTION FABRIC
+            ============================================= */
+
+            if (
+
+                window
+                    ?.Jarvis
+                    ?.executor
+                    ?.executeSteps
+
+            ) {
+
+                await window
+
+                    .Jarvis
+
+                    .executor
+
+                    .executeSteps([{
+
+                        type:
+                            "RUNTIME_SAFE_EXECUTION",
+
+                        payload: {
+
+                            label,
+
+                            timestamp:
+                                Date.now()
+                        }
+                    }]);
+            }
+
+            /* =============================================
+               EXECUTION
+            ============================================= */
+
             return await callback();
 
         }
