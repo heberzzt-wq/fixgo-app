@@ -586,6 +586,64 @@ function(config = {}) {
     }
 };
 
+
+/* =========================================================
+   SET ACTIVE SURFACE
+========================================================= */
+
+window.GestiaRuntime.setSurface =
+function(surfaceId) {
+
+    try {
+
+        if (
+
+            !surfaceId ||
+
+            !window
+                .GestiaRuntime
+                .surfaces
+                .registry[surfaceId]
+
+        ) {
+
+            console.warn(
+                "⚠️ [INVALID_SURFACE]",
+                surfaceId
+            );
+
+            return false;
+        }
+
+        const surfaces =
+
+            window
+                .GestiaRuntime
+                .surfaces;
+
+        surfaces.previous =
+            surfaces.current;
+
+        surfaces.current =
+            surfaceId;
+
+        console.log(
+            `🧠 [SURFACE_ACTIVE]: ${surfaceId}`
+        );
+
+        return true;
+    }
+
+    catch(error) {
+
+        console.error(
+            "🚨 [SURFACE_SET_FAIL]",
+            error
+        );
+
+        return false;
+    }
+};
 /* =========================================================
    SET ACTIVE SURFACE
 ========================================================= */
