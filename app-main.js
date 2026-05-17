@@ -91,7 +91,7 @@ import {
    COGNITIVE RUNTIME BOOTSTRAP
 ===================================================== */
 
-import "./gestia-core/gestia.runtime-v7.js";
+import "./gestia-core/gestia.runtime.v7.js";
 
 /* =====================================================
    LEGACY BRAIN BRIDGE
