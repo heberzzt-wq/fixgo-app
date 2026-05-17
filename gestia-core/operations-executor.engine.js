@@ -1090,3 +1090,24 @@ const operationId =
         result
     };
 }
+
+/* =====================================================
+   GLOBAL JARVIS EXECUTION FABRIC
+===================================================== */
+
+window.Jarvis ||= {};
+
+window.Jarvis.executor ||= {};
+
+window.Jarvis.executor.executeSteps =
+    executeSteps;
+
+window.Jarvis.executor.ejecutarCambios =
+    ejecutarCambios;
+
+window.Jarvis.executor.simularCambios =
+    simularCambios;
+
+console.log(
+    "🧠 [GLOBAL_EXECUTION_FABRIC] ONLINE"
+);
