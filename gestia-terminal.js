@@ -1397,77 +1397,116 @@ async function() {
 
         /* =================================================
            SNAPSHOT
-        ================================================= */
+================================================= */
 
-        const snapshot = {
+const snapshot = {
 
-            documentType:
-    "RUNTIME_SNAPSHOT",
+    documentType:
+        "RUNTIME_SNAPSHOT",
 
+    surface:
 
-   surface:
+        (() => {
 
-    (() => {
+            try {
 
-        try {
+                const path =
 
-            const path =
+                    window.location.pathname
+                        .toLowerCase();
 
-                window.location.pathname
-                    .toLowerCase();
+                /* =====================================
+                   TERMINAL COGNITIVA
+                ===================================== */
 
-            if (
+                if (
 
-                path.includes("admin") ||
+                    path.includes(
+                        "gestia-terminal"
+                    )
 
-                path.includes("ceo") ||
+                ) {
 
-                path.includes("noc")
+                    return "admin";
+                }
 
-            ) {
+                /* =====================================
+                   ADMIN
+                ===================================== */
 
-                return "admin";
+                if (
+
+                    path.includes("admin") ||
+
+                    path.includes("ceo") ||
+
+                    path.includes("noc")
+
+                ) {
+
+                    return "admin";
+                }
+
+                /* =====================================
+                   TECNICO
+                ===================================== */
+
+                if (
+
+                    path.includes("tecnico")
+
+                ) {
+
+                    return "tecnico";
+                }
+
+                /* =====================================
+                   CLIENTE
+                ===================================== */
+
+                if (
+
+                    path.includes("cliente")
+
+                ) {
+
+                    return "cliente";
+                }
+
+                /* =====================================
+                   B2B
+                ===================================== */
+
+                if (
+
+                    path.includes("gestia-modulo") ||
+
+                    path.includes("residencial")
+
+                ) {
+
+                    return "b2b";
+                }
+
+                /* =====================================
+                   DEFAULT
+                ===================================== */
+
+                return "public";
+
             }
 
-            if (
+            catch(error) {
 
-                path.includes("tecnico")
+                console.error(
+                    "🚨 [SURFACE_DETECTION_FAIL]",
+                    error
+                );
 
-            ) {
-
-                return "tecnico";
+                return "unknown";
             }
 
-            if (
-
-                path.includes("cliente")
-
-            ) {
-
-                return "cliente";
-            }
-
-            if (
-
-                path.includes("gestia-modulo") ||
-
-                path.includes("residencial")
-
-            ) {
-
-                return "b2b";
-            }
-
-            return "public";
-
-        }
-
-        catch(error) {
-
-            return "unknown";
-        }
-
-    })(),
+        })(),
             /* =============================================
                CORE METADATA
             ============================================= */
