@@ -496,7 +496,156 @@ window.GestiaRuntime.store = {
             []
     }
 };
+/* =========================================================
+   SURFACE GOVERNANCE REGISTRY V1
+========================================================= */
 
+window.GestiaRuntime.surfaces = {
+
+    registry: {},
+
+    current: null,
+
+    previous: null,
+
+    locked: false
+};
+
+/* =========================================================
+   REGISTER SURFACE
+========================================================= */
+
+window.GestiaRuntime.registerSurface =
+function(config = {}) {
+
+    try {
+
+        const id =
+            config.id;
+
+        if (!id) {
+
+            console.warn(
+                "⚠️ [SURFACE_ID_MISSING]"
+            );
+
+            return false;
+        }
+
+        window
+            .GestiaRuntime
+            .surfaces
+            .registry[id] = {
+
+            id,
+
+            runtime:
+
+                config.runtime ||
+
+                "GENERIC_RUNTIME",
+
+            owner:
+
+                config.owner ||
+
+                "UNKNOWN",
+
+            routes:
+
+                config.routes || [],
+
+            protected:
+
+                config.protected !== false,
+
+            isolated:
+
+                config.isolated !== false,
+
+            createdAt:
+                Date.now()
+        };
+
+        console.log(
+            `🧠 [SURFACE_REGISTERED]: ${id}`
+        );
+
+        return true;
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "🚨 [SURFACE_REGISTER_FAIL]",
+            error
+        );
+
+        return false;
+    }
+};
+
+/* =========================================================
+   SET ACTIVE SURFACE
+========================================================= */
+
+window.GestiaRuntime.setSurface =
+function(surfaceId) {
+
+    try {
+
+        const registry =
+
+            window
+                .GestiaRuntime
+                .surfaces
+                .registry;
+
+        if (!registry[surfaceId]) {
+
+            console.warn(
+                "⚠️ [SURFACE_NOT_REGISTERED]",
+                surfaceId
+            );
+
+            return false;
+        }
+
+        window
+            .GestiaRuntime
+            .surfaces
+            .previous =
+
+            window
+                .GestiaRuntime
+                .surfaces
+                .current;
+
+        window
+            .GestiaRuntime
+            .surfaces
+            .current =
+                surfaceId;
+
+        console.log(
+            `🧠 [ACTIVE_SURFACE]: ${surfaceId}`
+        );
+
+        return true;
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "🚨 [SURFACE_SET_FAIL]",
+            error
+        );
+
+        return false;
+    }
+};
 /* =========================================================
    REACTIVE WATCHERS
 ========================================================= */

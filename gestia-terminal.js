@@ -1404,6 +1404,13 @@ async function() {
             documentType:
     "RUNTIME_SNAPSHOT",
 
+
+    surface:
+    window.GestiaRuntime
+        ?.surfaces
+        ?.current ||
+
+    "unknown",
             /* =============================================
                CORE METADATA
             ============================================= */

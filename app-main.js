@@ -146,7 +146,117 @@ const RUTAS = {
   cliente: "cliente.html",
   residencial: "residencial.html"
 };
+/* =====================================================
+   🧠 SIA7 SURFACE REGISTRATION
+===================================================== */
 
+if (
+
+  window.GestiaRuntime &&
+
+  typeof window.GestiaRuntime
+    .registerSurface === "function"
+
+) {
+
+  window.GestiaRuntime
+    .registerSurface({
+
+      id:
+        "admin",
+
+      runtime:
+        "ADMIN_RUNTIME",
+
+      owner:
+        "panel-admin.js",
+
+      routes: [
+
+        "admin.html",
+
+        "ceo.html",
+
+        "noc.html"
+
+      ],
+
+      protected:
+        true
+    });
+
+  window.GestiaRuntime
+    .registerSurface({
+
+      id:
+        "cliente",
+
+      runtime:
+        "CLIENT_RUNTIME",
+
+      owner:
+        "panel-cliente.js",
+
+      routes: [
+
+        "cliente.html"
+
+      ],
+
+      protected:
+        true
+    });
+
+  window.GestiaRuntime
+    .registerSurface({
+
+      id:
+        "tecnico",
+
+      runtime:
+        "TECH_RUNTIME",
+
+      owner:
+        "panel-tecnico.js",
+
+      routes: [
+
+        "tecnico.html"
+
+      ],
+
+      protected:
+        true
+    });
+
+  window.GestiaRuntime
+    .registerSurface({
+
+      id:
+        "b2b",
+
+      runtime:
+        "B2B_RUNTIME",
+
+      owner:
+        "modulo-b2b.js",
+
+      routes: [
+
+        "gestia-modulo.html",
+
+        "residencial.html"
+
+      ],
+
+      protected:
+        true
+    });
+
+  console.log(
+    "🧠 [SURFACE_GOVERNANCE_READY]"
+  );
+}
 // =====================================================
 // 🎬 LOADER PREMIUM
 // =====================================================
@@ -219,6 +329,102 @@ function go(url) {
   window.location.replace(url);
 }
 
+/* =====================================================
+   🧠 ACTIVE SURFACE DETECTOR
+===================================================== */
+
+function resolveCurrentSurface() {
+
+  try {
+
+    const path =
+      window.location.pathname
+        .toLowerCase();
+
+    if (
+
+      path.includes("admin") ||
+
+      path.includes("ceo") ||
+
+      path.includes("noc")
+
+    ) {
+
+      return "admin";
+    }
+
+    if (
+
+      path.includes("tecnico")
+
+    ) {
+
+      return "tecnico";
+    }
+
+    if (
+
+      path.includes("cliente")
+
+    ) {
+
+      return "cliente";
+    }
+
+    if (
+
+      path.includes("gestia-modulo") ||
+
+      path.includes("residencial")
+
+    ) {
+
+      return "b2b";
+    }
+
+    return "public";
+
+  }
+
+  catch(error) {
+
+    console.error(
+      "🚨 [SURFACE_RESOLVE_FAIL]",
+      error
+    );
+
+    return "unknown";
+  }
+}
+
+/* =====================================================
+   SURFACE ACTIVATION
+===================================================== */
+
+if (
+
+  window.GestiaRuntime &&
+
+  typeof window.GestiaRuntime
+    .setSurface === "function"
+
+) {
+
+  const activeSurface =
+
+    resolveCurrentSurface();
+
+  window.GestiaRuntime
+    .setSurface(
+      activeSurface
+    );
+
+  console.log(
+    `🧠 [SURFACE_ACTIVE]: ${activeSurface}`
+  );
+}
+
 function isMaster(user) {
   return (
     user?.email &&
@@ -265,6 +471,53 @@ function intentarAutoHeal(origen = "unknown") {
   }
 
   V7.autoheal.retries++;
+
+  /* =====================================================
+   🧠 SURFACE ISOLATION GUARD
+===================================================== */
+
+const activeSurface =
+
+  window.GestiaRuntime
+    ?.surfaces
+    ?.current;
+
+const protectedSurface =
+
+  [
+
+    "admin",
+
+    "b2b"
+
+  ].includes(
+    activeSurface
+  );
+
+if (
+
+  protectedSurface &&
+
+  origen ===
+    "js_runtime"
+
+) {
+
+  console.warn(
+
+    "🛡️ [SURFACE_HEAL_BLOCKED]",
+
+    {
+
+      surface:
+        activeSurface,
+
+      origen
+    }
+  );
+
+  return false;
+}
 
   console.warn(
     `♻️ AUTOHEAL ACTIVADO | causa=${origen} | intento=${V7.autoheal.retries}`
