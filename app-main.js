@@ -415,9 +415,16 @@ if (
 
     resolveCurrentSurface();
 
-  window.GestiaRuntime
+  /* ==========================================
+   ACTIVE SURFACE OWNERSHIP
+========================================== */
+
+window.__ACTIVE_SURFACE__ =
+    activeSurface;
+
+window.GestiaRuntime
     .setSurface(
-      activeSurface
+        activeSurface
     );
 
   console.log(
