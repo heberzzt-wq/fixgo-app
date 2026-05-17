@@ -1111,3 +1111,23 @@ window.Jarvis.executor.simularCambios =
 console.log(
     "🧠 [GLOBAL_EXECUTION_FABRIC] ONLINE"
 );
+
+/* =====================================================
+   JARVIS RUNTIME EXECUTION LINK V1
+===================================================== */
+
+if (
+
+    window.GestiaRuntime
+
+) {
+
+    window.GestiaRuntime.executor =
+
+        window.Jarvis.executor;
+
+    console.log(
+
+        "🧠 [RUNTIME_EXECUTOR_LINKED]"
+    );
+}
