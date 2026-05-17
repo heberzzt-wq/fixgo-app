@@ -402,6 +402,17 @@ function resolveCurrentSurface() {
    SURFACE ACTIVATION
 ===================================================== */
 
+const activeSurface =
+
+  resolveCurrentSurface();
+
+/* ==========================================
+   ACTIVE SURFACE OWNERSHIP
+========================================== */
+
+window.__ACTIVE_SURFACE__ =
+  activeSurface;
+
 if (
 
   window.GestiaRuntime &&
@@ -411,20 +422,9 @@ if (
 
 ) {
 
-  const activeSurface =
-
-    resolveCurrentSurface();
-
-  /* ==========================================
-   ACTIVE SURFACE OWNERSHIP
-========================================== */
-
-window.__ACTIVE_SURFACE__ =
-    activeSurface;
-
-window.GestiaRuntime
+  window.GestiaRuntime
     .setSurface(
-        activeSurface
+      activeSurface
     );
 
   console.log(
@@ -438,7 +438,6 @@ function isMaster(user) {
     user.email.toLowerCase() === MASTER_EMAIL
   );
 }
-
 // =====================================================
 // 🛡️ WATCHDOG GLOBAL + AUTOHEAL
 // =====================================================
