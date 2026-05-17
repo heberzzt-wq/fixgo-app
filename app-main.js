@@ -413,6 +413,48 @@ const activeSurface =
 window.__ACTIVE_SURFACE__ =
   activeSurface;
 
+
+  /* =====================================================
+   SIA7 COGNITIVE ATTACHMENT MAP V1
+===================================================== */
+
+window.__SURFACE_RUNTIME_MAP__ ||= {};
+
+window.__SURFACE_RUNTIME_MAP__[activeSurface] = {
+
+  surface:
+    activeSurface,
+
+  routerKernel:
+    "app-main.js",
+
+  cognitiveRuntime:
+
+    typeof window
+      .restoreRuntimeSnapshot ===
+      "function",
+
+  snapshotAuthority:
+
+    typeof window
+      .createRuntimeSnapshot ===
+      "function",
+
+  governanceRuntime:
+
+    !!window.GestiaRuntime,
+
+  timestamp:
+    Date.now()
+};
+
+console.log(
+  "🧠 [SURFACE_RUNTIME_MAP]",
+  window.__SURFACE_RUNTIME_MAP__[
+    activeSurface
+  ]
+);
+
 if (
 
   window.GestiaRuntime &&
