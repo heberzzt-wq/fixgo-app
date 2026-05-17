@@ -94,6 +94,12 @@ import {
 import "./gestia-core/gestia.runtime.v7.js";
 
 /* =====================================================
+   JARVIS EXECUTION FABRIC
+===================================================== */
+
+import "./gestia-core/operations-executor.engine.js";
+
+/* =====================================================
    LEGACY BRAIN BRIDGE
 ===================================================== */
 
