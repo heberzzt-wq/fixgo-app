@@ -845,6 +845,36 @@ window.GestiaRuntime.setState =
             const previous =
                 target[last];
 
+
+                /* =========================================
+                   AUTHORITY OBSERVABILITY
+                ========================================= */
+
+try {
+
+    window.GestiaAuthority
+        ?.registerMutation?.({
+
+        module:
+            "GestiaRuntime",
+
+        path,
+
+        previous,
+
+        value
+    });
+
+}
+
+catch(authorityError) {
+
+    console.warn(
+        "⚠️ [AUTHORITY_OBSERVABILITY_FAIL]",
+        authorityError
+    );
+}
+
             target[last] =
                 value;
 
