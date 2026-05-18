@@ -912,3 +912,47 @@ console.log(
 
     "background:#082f49;color:#67e8f9;padding:4px 12px;border-radius:6px;font-weight:bold;"
 );
+
+/* ======================================================================================
+   SOVEREIGN EXPORTS
+====================================================================================== */
+
+export function getSemanticMatrix() {
+
+    return (
+        window
+            .__SEMANTIC_COGNITIVE_MATRIX__
+    );
+}
+
+export function getRuntimeAwareness() {
+
+    return (
+
+        window
+            .__SEMANTIC_COGNITIVE_MATRIX__
+            ?.runtimeAwareness
+
+        ||
+
+        {}
+    );
+}
+
+export function getSemanticContext() {
+
+    return (
+
+        window
+            .__SEMANTIC_COGNITIVE_MATRIX__
+            ?.activeContextWindow
+
+        ||
+
+        []
+    );
+}
+
+console.log(
+    "🧠 [SEMANTIC_EXPORTS] ONLINE"
+);

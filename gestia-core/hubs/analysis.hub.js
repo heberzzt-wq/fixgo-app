@@ -21,7 +21,9 @@ from "../jarvis/jarvis.vision.engine.js";
 
 export {
 
-    semanticAnalysis
+    getSemanticMatrix,
+    getRuntimeAwareness,
+    getSemanticContext
 
 }
 
