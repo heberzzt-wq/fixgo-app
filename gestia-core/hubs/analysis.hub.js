@@ -1,0 +1,69 @@
+/* =====================================================
+   GESTIA ANALYSIS HUB V1
+   Sovereign Cognitive Analysis Layer
+===================================================== */
+
+/* =====================================================
+   INTENT FABRIC
+===================================================== */
+
+export {
+
+    analyzeIntent
+
+}
+
+from "../jarvis/jarvis.vision.engine.js";
+
+/* =====================================================
+   SEMANTIC FABRIC
+===================================================== */
+
+export {
+
+    semanticAnalysis
+
+}
+
+from "../semantic.engine.js";
+
+/* =====================================================
+   BRAIN FABRIC
+===================================================== */
+
+export {
+
+    invocarArquitectoIA
+
+}
+
+from "../brain.engine.js";
+
+/* =====================================================
+   SCANNER FABRIC
+===================================================== */
+
+export {
+
+    scanFile,
+    runFirestoreScan
+
+}
+
+from "../jarvis/jarvis.scanner.engine.js";
+
+/* =====================================================
+   DATA ANALYZER
+===================================================== */
+
+export {
+
+    analyzeSystemData
+
+}
+
+from "../data-analyzer.engine.js";
+
+console.log(
+    "🧠 [ANALYSIS_HUB] ONLINE"
+);

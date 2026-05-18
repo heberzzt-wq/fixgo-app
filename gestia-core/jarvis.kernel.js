@@ -11,6 +11,13 @@ import * as execution
 from "./hubs/execution.hub.js";
 
 /* =====================================================
+   ANALYSIS HUB
+===================================================== */
+
+import * as analysis
+from "./hubs/analysis.hub.js";
+
+/* =====================================================
    GLOBAL SOVEREIGN REGISTRY
 ===================================================== */
 
@@ -22,6 +29,13 @@ window.GestiaOS ||= {};
 
 window.GestiaOS.execution =
     execution;
+
+    /* =====================================================
+   ANALYSIS CAPABILITIES
+===================================================== */
+
+window.GestiaOS.analysis =
+    analysis;
 
 /* =====================================================
    RUNTIME MIRROR
