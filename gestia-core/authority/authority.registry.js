@@ -106,7 +106,12 @@ export function registerMutation({
             value,
 
             timestamp:
-                Date.now()
+                Date.now(),
+
+            stack:
+
+    new Error()
+        .stack
         };
 
         window.__GESTIA_AUTHORITY__
