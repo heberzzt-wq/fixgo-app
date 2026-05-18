@@ -9,7 +9,8 @@ import {
     runTransaction, 
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { JarvisMemory } from "../jarvis.memory.js"; // 🔥 FIX: Conexión al Kernel
+import { JarvisMemory }
+from "./jarvis/jarvis.memory.js"; // 🔥 FIX: Conexión al Kernel
 
 const HISTORY_CACHE = new Set();
 

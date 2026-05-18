@@ -4,7 +4,8 @@
  * ======================================================================================
  */
 import { existeEnHistorial } from './history.engine.js'; // 🔥 FIX: Ruta relativa corregida
-import { JarvisMemory } from "../jarvis.memory.js"; // 🔥 FIX: Para reporte de violaciones
+import { JarvisMemory }
+from "./jarvis/jarvis.memory.js"; // 🔥 FIX: Para reporte de violaciones
 
 const SECURITY_RULES = {
     CRITICAL: ["<script", "document.cookie", "eval(", "Object.defineProperty"],
