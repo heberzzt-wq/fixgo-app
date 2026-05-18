@@ -47,8 +47,7 @@ from "../brain.engine.js";
 
 export {
 
-    scanFile,
-    runFirestoreScan
+    scanFile
 
 }
 
