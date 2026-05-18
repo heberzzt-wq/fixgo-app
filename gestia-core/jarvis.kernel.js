@@ -29,6 +29,13 @@ import * as repoHub
 from "./hubs/repo.hub.js";
 
 /* =====================================================
+   AUTHORITY REGISTRY
+===================================================== */
+
+import * as authority
+from "./authority/authority.registry.js";
+
+/* =====================================================
    GLOBAL SOVEREIGN REGISTRY
 ===================================================== */
 
@@ -63,6 +70,14 @@ window.GestiaOS.analysis =
 window.GestiaOS.security =
     security;
 
+
+    /* =====================================================
+   AUTHORITY CAPABILITIES
+===================================================== */
+
+window.GestiaOS.authority =
+    authority;
+    
 /* =====================================================
    RUNTIME MIRROR
 ===================================================== */
