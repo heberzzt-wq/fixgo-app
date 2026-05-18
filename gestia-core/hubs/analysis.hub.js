@@ -59,7 +59,8 @@ from "../jarvis/jarvis.scanner.engine.js";
 
 export {
 
-    analyzeSystemData
+    analizarDatosSistema,
+    generateHealthScore
 
 }
 
