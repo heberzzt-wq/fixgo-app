@@ -18,6 +18,13 @@ import * as analysis
 from "./hubs/analysis.hub.js";
 
 /* =====================================================
+   SECURITY HUB
+===================================================== */
+
+import * as security
+from "./hubs/security.hub.js";
+
+/* =====================================================
    GLOBAL SOVEREIGN REGISTRY
 ===================================================== */
 
@@ -37,6 +44,14 @@ window.GestiaOS.execution =
 window.GestiaOS.analysis =
     analysis;
 
+
+    /* =====================================================
+   SECURITY CAPABILITIES
+===================================================== */
+
+window.GestiaOS.security =
+    security;
+    
 /* =====================================================
    RUNTIME MIRROR
 ===================================================== */
