@@ -434,7 +434,7 @@ function procesarSemaforosOperativos(servicios) {
     const promGen = llegadaGen.count > 0 ? (llegadaGen.sum / llegadaGen.count) : 0;
     const promZH = llegadaZH.count > 0 ? (llegadaZH.sum / llegadaZH.count) : 0;
     const tasaCierre = totalCotizados > 0 ? ((cotizacionesAprobadas / totalCotizados) * 100).toFixed(1) : 0;
-
+     /* FIXGO_SAFE_EDIT_START */
     const renderCard = (titulo, valor, unidad, evalColor) => {
         let border = "border-zinc-800 text-white";
         let icon = "fa-check-circle text-zinc-700";
@@ -446,6 +446,7 @@ function procesarSemaforosOperativos(servicios) {
         if (evalColor === "verde") { border = "border-emerald-600 text-emerald-400"; icon = "fa-check-double"; bg = "bg-emerald-900/10"; }
 
         return `
+       
             <div class="${bg} p-6 rounded-2xl border ${border} transition-all ${glow} flex flex-col justify-between h-[120px]">
                 <div class="flex justify-between items-start">
                     <h4 class="text-[9px] font-black uppercase tracking-widest text-zinc-500">${titulo}</h4>
@@ -458,7 +459,7 @@ function procesarSemaforosOperativos(servicios) {
             </div>
         `;
     };
-
+     /* FIXGO_SAFE_EDIT_END */
     contenedor.innerHTML = `
         ${renderCard("SLA RESIDENCIAL", promGen.toFixed(0), "min", promGen <= 30 ? "verde" : (promGen <= 45 ? "amarillo" : "rojo"))}
         ${renderCard("SLA ZONA HOTELERA", promZH.toFixed(0), "min", promZH <= 45 ? "verde" : (promZH <= 60 ? "amarillo" : "rojo"))}
