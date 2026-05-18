@@ -3,51 +3,57 @@
    Sovereign Repo Federation Layer
 ===================================================================================== */
 
-/* =====================================================================================
-   REPO COGNITION
-===================================================================================== */
+export const scanRepo =
+    (...args) =>
+        window.scanRepo?.(...args);
 
-export {
+export const analyzeRepoImpact =
+    (...args) =>
+        window.analyzeRepoImpact?.(...args);
 
-    bootstrapRepoCognition,
-    buildRepoCognitionIndex,
-    buildRepoDependencyGraph,
-    scanRepo,
-    analyzeRepoImpact,
-    findRepoFile,
-    findRepoDependents,
-    loadRepoContext
+export const generatePatch =
+    (...args) =>
+        window.generatePatch?.(...args);
 
-}
+export const applyPatch =
+    (...args) =>
+        window.applyPatch?.(...args);
 
-from "../gestia-terminal.js";
+export const createRepoSnapshot =
+    (...args) =>
+        window.createRepoSnapshot?.(...args);
 
-/* =====================================================================================
-   PATCH GOVERNANCE
-===================================================================================== */
+export const loadRepoContext =
+    (...args) =>
+        window.loadRepoContext?.(...args);
 
-export {
+export const findRepoFile =
+    (...args) =>
+        window.findRepoFile?.(...args);
 
-    generatePatch,
-    applyPatch,
-    createRepoSnapshot
+export const findRepoDependents =
+    (...args) =>
+        window.findRepoDependents?.(...args);
 
-}
+export const buildRepoCognitionIndex =
+    (...args) =>
+        window.buildRepoCognitionIndex?.(...args);
 
-from "../gestia-terminal.js";
+export const buildRepoDependencyGraph =
+    (...args) =>
+        window.buildRepoDependencyGraph?.(...args);
 
-/* =====================================================================================
-   SAFE GOVERNANCE
-===================================================================================== */
+export const bootstrapRepoCognition =
+    (...args) =>
+        window.bootstrapRepoCognition?.(...args);
 
-export {
+export const isSafeEditZone =
+    (...args) =>
+        window.isSafeEditZone?.(...args);
 
-    isSafeEditZone,
-    canModifyRepoFile
-
-}
-
-from "../gestia-terminal.js";
+export const canModifyRepoFile =
+    (...args) =>
+        window.canModifyRepoFile?.(...args);
 
 console.log(
     "🧠 [REPO_HUB] ONLINE"
