@@ -10148,6 +10148,35 @@ window.__REPO_INDEX__["persistence.engine.js"] = {
 };
 
 
+window.__REPO_INDEX__["app-bi.js"] = {
+
+    path:
+        "app-bi.js",
+
+    module:
+        "business_intelligence",
+
+    type:
+        "analytics_ui_runtime",
+
+    critical: false,
+
+    cognition: {
+
+        layer:
+            "ui_analytics",
+
+        runtime:
+            "hybrid",
+
+        visual:
+            true,
+
+        editable:
+            true
+    }
+};
+
 /* =====================================================================================
    HYBRID COGNITION REGISTRY V7
 ===================================================================================== */
