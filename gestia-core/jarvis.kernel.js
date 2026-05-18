@@ -24,11 +24,22 @@ from "./hubs/analysis.hub.js";
 import * as security
 from "./hubs/security.hub.js";
 
+
+import * as repoHub
+from "./hubs/repo.hub.js";
+
 /* =====================================================
    GLOBAL SOVEREIGN REGISTRY
 ===================================================== */
 
 window.GestiaOS ||= {};
+
+/* =====================================================
+   REPO AUTHORITY HUB
+===================================================== */
+
+window.GestiaOS.repo =
+    repoHub;
 
 /* =====================================================
    EXECUTION CAPABILITIES
@@ -51,7 +62,7 @@ window.GestiaOS.analysis =
 
 window.GestiaOS.security =
     security;
-    
+
 /* =====================================================
    RUNTIME MIRROR
 ===================================================== */
