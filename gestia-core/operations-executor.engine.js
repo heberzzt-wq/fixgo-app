@@ -395,6 +395,48 @@ const {
             payload?.file ||
             `auto_${Date.now()}.js`;
 
+            /* =====================================================
+   AUTHORITY WRITE TRACE
+===================================================== */
+
+try {
+
+    window.GestiaAuthority
+        ?.registerMutation?.({
+
+        module:
+            "execution.hub",
+
+        path:
+
+            `repo.write:${
+                payload?.file ||
+                "unknown"
+            }`,
+
+        previous:
+            null,
+
+        value: {
+
+            file:
+                payload?.file,
+
+            operation:
+                "CODE_WRITE"
+        }
+    });
+
+}
+
+catch(traceError) {
+
+    console.warn(
+        "⚠️ [AUTHORITY_CODE_WRITE_TRACE_FAIL]",
+        traceError
+    );
+}
+
         window.JARVIS_SANDBOX_FILES ||= {};
 
         window.JARVIS_SANDBOX_FILES[
