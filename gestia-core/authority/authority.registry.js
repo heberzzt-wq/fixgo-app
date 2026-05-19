@@ -131,6 +131,18 @@ else if (
 else if (
 
     stackTrace.includes(
+        "operations-executor"
+    )
+
+) {
+
+    source =
+        "execution.hub";
+}
+
+else if (
+
+    stackTrace.includes(
         "security.hub"
     )
 
