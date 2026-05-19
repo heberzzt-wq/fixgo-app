@@ -229,12 +229,48 @@ window.__GESTIA_AUTHORITY__
     });
 
 
-        console.log(
+        console.groupCollapsed(
 
-            `🛡️ [AUTHORITY_MUTATION] ${module} -> ${path}`,
+    `🛡️ [AUTHORITY_MUTATION] ${source} -> ${path}`
 
-            mutation
-        );
+);
+
+console.log(
+    "MODULE:",
+    module
+);
+
+console.log(
+    "SOURCE:",
+    source
+);
+
+console.log(
+    "PATH:",
+    path
+);
+
+console.log(
+    "PREVIOUS:",
+    previous
+);
+
+console.log(
+    "VALUE:",
+    value
+);
+
+console.log(
+    "STACK:",
+    stackTrace
+);
+
+console.log(
+    "FULL MUTATION:",
+    mutation
+);
+
+console.groupEnd();
 
         return mutation;
     }
