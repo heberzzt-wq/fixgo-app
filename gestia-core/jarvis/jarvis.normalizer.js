@@ -174,6 +174,54 @@ if (
         traceId
     };
 
+
+    /* =====================================================
+   AUTHORITY COGNITIVE PROMOTION TRACE
+===================================================== */
+
+try {
+
+    window.GestiaAuthority
+        ?.registerMutation?.({
+
+        module:
+            "analysis.hub",
+
+        path:
+
+            `cognition.codewrite:${
+                normalizedStep.payload?.file ||
+                "unknown"
+            }`,
+
+        previous:
+            null,
+
+        value: {
+
+            promotion:
+                "CODE_WRITE",
+
+            source:
+                "normalizer",
+
+            file:
+                normalizedStep.payload?.file,
+
+            traceId
+        }
+    });
+
+}
+
+catch(traceError) {
+
+    console.warn(
+        "⚠️ [COGNITIVE_PROMOTION_TRACE_FAIL]",
+        traceError
+    );
+}
+
     console.log("🛠️ [NORMALIZER]: CODE_WRITE FORZADO DESDE TEXTO");
 
     steps.push(normalizedStep);
@@ -207,6 +255,53 @@ if (
             },
             traceId
         };
+
+        /* =====================================================
+   AUTHORITY COGNITIVE PROMOTION TRACE
+===================================================== */
+
+try {
+
+    window.GestiaAuthority
+        ?.registerMutation?.({
+
+        module:
+            "analysis.hub",
+
+        path:
+
+            `cognition.codewrite:${
+                normalizedStep.payload?.file ||
+                "unknown"
+            }`,
+
+        previous:
+            null,
+
+        value: {
+
+            promotion:
+                "CODE_WRITE",
+
+            source:
+                "normalizer",
+
+            file:
+                normalizedStep.payload?.file,
+
+            traceId
+        }
+    });
+
+}
+
+catch(traceError) {
+
+    console.warn(
+        "⚠️ [COGNITIVE_PROMOTION_TRACE_FAIL]",
+        traceError
+    );
+}
 
         console.log("🛠️ [NORMALIZER]: CODE_WRITE DETECTED", normalizedStep);
 
