@@ -447,7 +447,7 @@ try {
 
         window.GestiaOS
             ?.repo
-            ?.isSafeEditZone?.(
+            ?.isSafeRepoPath?.(
 
                 payload?.file || ""
             );

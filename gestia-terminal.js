@@ -13048,6 +13048,48 @@ window.isSafeEditZone = function(source = "") {
 };
 
 /* =====================================================
+   SAFE REPO PATH VALIDATOR V1
+===================================================== */
+
+window.isSafeRepoPath = function(file = "") {
+
+    try {
+
+        if (!file) {
+            return false;
+        }
+
+        const SAFE_PATHS = [
+
+            "modules/",
+            "sandbox/",
+            "gestia-core/hubs/",
+            "gestia-core/adapters/",
+            "gestia-core/authority/"
+        ];
+
+        return SAFE_PATHS.some(
+
+            safePath =>
+
+                file.startsWith(
+                    safePath
+                )
+        );
+
+    } catch(err) {
+
+        console.warn(
+
+            "⚠️ SAFE_REPO_PATH_FAIL:",
+            err
+        );
+
+        return false;
+    }
+};
+
+/* =====================================================
    SNAPSHOT ENGINE V1
 ===================================================== */
 
