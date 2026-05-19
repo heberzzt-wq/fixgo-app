@@ -89,53 +89,145 @@ export function registerMutation({
 
 } = {}) {
 
-    try {
+ try {
 
-        const mutation = {
+/* =============================================
+   SOURCE ATTRIBUTION
+============================================= */
 
-            id:
-
-                crypto.randomUUID(),
-
-            module,
-
-            path,
-
-            previous,
-
-            value,
-
-            timestamp:
-                Date.now(),
-
-            stack:
+const stackTrace =
 
     new Error()
-        .stack
-        };
+        .stack || "";
 
-        window.__GESTIA_AUTHORITY__
-            .mutations
-            .push(mutation);
+let source =
 
-        /* =============================================
-           TELEMETRY
-        ============================================= */
+    "unknown";
 
-        window.__GESTIA_AUTHORITY__
-            .telemetry
-            .push({
+if (
 
-                type:
-                    "STATE_MUTATION",
+    stackTrace.includes(
+        "analysis.hub"
+    )
 
-                module,
+) {
 
-                path,
+    source =
+        "analysis.hub";
+}
 
-                timestamp:
-                    Date.now()
-            });
+else if (
+
+    stackTrace.includes(
+        "execution.hub"
+    )
+
+) {
+
+    source =
+        "execution.hub";
+}
+
+else if (
+
+    stackTrace.includes(
+        "security.hub"
+    )
+
+) {
+
+    source =
+        "security.hub";
+}
+
+else if (
+
+    stackTrace.includes(
+        "repo.hub"
+    )
+
+) {
+
+    source =
+        "repo.hub";
+}
+
+else if (
+
+    stackTrace.includes(
+        "gestia-terminal"
+    )
+
+) {
+
+    source =
+        "terminal.surface";
+}
+
+else if (
+
+    stackTrace.includes(
+        "app-main"
+    )
+
+) {
+
+    source =
+        "legacy.app";
+}
+
+/* =============================================
+   MUTATION OBJECT
+============================================= */
+
+const mutation = {
+
+    id:
+
+        crypto.randomUUID(),
+
+    module,
+
+    source,
+
+    path,
+
+    previous,
+
+    value,
+
+    timestamp:
+        Date.now(),
+
+    stack:
+        stackTrace
+};
+
+window.__GESTIA_AUTHORITY__
+    .mutations
+    .push(mutation);
+
+    /* =============================================
+   TELEMETRY
+============================================= */
+
+window.__GESTIA_AUTHORITY__
+    .telemetry
+    .push({
+
+        type:
+            "STATE_MUTATION",
+
+        module,
+
+        source,
+
+        path,
+
+        timestamp:
+            Date.now()
+    });
+
 
         console.log(
 
