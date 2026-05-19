@@ -435,6 +435,71 @@ catch(traceError) {
         "⚠️ [AUTHORITY_CODE_WRITE_TRACE_FAIL]",
         traceError
     );
+}    
+     
+     /* =====================================================
+   SAFE ZONE VALIDATION
+===================================================== */
+
+try {
+
+    const safeCheck =
+
+        window.GestiaOS
+            ?.repo
+            ?.isSafeEditZone?.(
+
+                payload?.file || ""
+            );
+
+    console.log(
+
+        "🛡️ [SAFE_ZONE_CHECK]",
+
+        {
+
+            file:
+                payload?.file,
+
+            safe:
+                safeCheck
+        }
+    );
+
+    window.GestiaAuthority
+        ?.registerMutation?.({
+
+        module:
+            "execution.hub",
+
+        path:
+
+            `repo.safezone:${
+                payload?.file ||
+                "unknown"
+            }`,
+
+        previous:
+            null,
+
+        value: {
+
+            file:
+                payload?.file,
+
+            safe:
+                safeCheck
+        }
+    });
+
+}
+
+catch(safeError) {
+
+    console.warn(
+        "⚠️ [SAFE_ZONE_CHECK_FAIL]",
+        safeError
+    );
 }
 
         window.JARVIS_SANDBOX_FILES ||= {};
