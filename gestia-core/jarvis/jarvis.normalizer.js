@@ -303,6 +303,91 @@ catch(traceError) {
     );
 }
 
+
+/* =====================================================
+   COGNITIVE GOVERNANCE OBSERVABILITY
+===================================================== */
+
+try {
+
+    const targetFile =
+
+        normalizedStep
+            ?.payload
+            ?.file || "";
+
+    const unsafeIntent = [
+
+        "firebase.js",
+        "gestia.runtime",
+        "jarvis.kernel",
+        "service-worker",
+        "firewall.engine"
+    ]
+
+    .some(
+
+        protectedPath =>
+
+            targetFile.includes(
+                protectedPath
+            )
+    );
+
+    if (unsafeIntent) {
+
+        console.warn(
+
+            "⚠️ [COGNITIVE_UNSAFE_INTENT]",
+
+            {
+
+                file:
+                    targetFile,
+
+                traceId
+            }
+        );
+
+        window.GestiaAuthority
+            ?.registerMutation?.({
+
+            module:
+                "analysis.hub",
+
+            path:
+
+                `cognition.unsafe:${
+                    targetFile
+                }`,
+
+            previous:
+                null,
+
+            value: {
+
+                file:
+                    targetFile,
+
+                traceId,
+
+                enforcement:
+                    "OBSERVE_ONLY"
+            }
+        });
+    }
+
+}
+
+catch(cognitiveError) {
+
+    console.warn(
+
+        "⚠️ [COGNITIVE_GOVERNANCE_FAIL]",
+
+        cognitiveError
+    );
+}
         console.log("🛠️ [NORMALIZER]: CODE_WRITE DETECTED", normalizedStep);
 
         steps.push(normalizedStep);
