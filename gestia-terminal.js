@@ -4999,7 +4999,7 @@ function() {
    LIVE COGNITION EXECUTION CYCLE
 ===================================================================================== */
 
-window.startRuntimeScheduler =
+window.startLiveCognitionCycle =
 async function() {
 
     try {
