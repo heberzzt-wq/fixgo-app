@@ -51,6 +51,10 @@ export const isSafeEditZone =
     (...args) =>
         window.isSafeEditZone?.(...args);
 
+    export const isSafeRepoPath =
+    (...args) =>
+        window.isSafeRepoPath?.(...args);
+
 export const canModifyRepoFile =
     (...args) =>
         window.canModifyRepoFile?.(...args);
