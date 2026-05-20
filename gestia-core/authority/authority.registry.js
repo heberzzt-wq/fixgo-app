@@ -7,10 +7,6 @@ console.log(
     "🛡️ [AUTHORITY_REGISTRY] Booting..."
 );
 
-/* =========================================================
-   GLOBAL AUTHORITY STATE
-========================================================= */
-
 window.__GESTIA_AUTHORITY__ =
     window.__GESTIA_AUTHORITY__ || {
 
@@ -26,9 +22,12 @@ window.__GESTIA_AUTHORITY__ =
 
     scopes: {},
 
-    telemetry: []
-};
+    telemetry: [],
 
+    riskScore: 0,
+
+    riskEvents: []
+};
 /* =========================================================
    REGISTER MODULE
 ========================================================= */
@@ -219,6 +218,74 @@ window.__GESTIA_AUTHORITY__
     .mutations
     .push(mutation);
 
+
+      /* =============================================
+   GOVERNANCE RISK ACCUMULATION
+============================================= */
+
+try {
+
+    const riskPaths = [
+
+        "cognition.unsafe",
+        "repo.safezone",
+        "terminal.original.intent"
+    ];
+
+    const risky = riskPaths.some(
+
+        riskKey =>
+
+            String(path)
+                .includes(riskKey)
+    );
+
+    if (risky) {
+
+        window.__GESTIA_AUTHORITY__
+            .riskScore += 1;
+
+        window.__GESTIA_AUTHORITY__
+            .riskEvents
+            .push({
+
+                path,
+
+                module,
+
+                timestamp:
+                    Date.now()
+            });
+
+        console.warn(
+
+            "⚠️ [GOVERNANCE_RISK_SCORE]",
+
+            {
+
+                riskScore:
+
+                    window
+                        .__GESTIA_AUTHORITY__
+                        .riskScore,
+
+                lastEvent:
+                    path
+            }
+        );
+    }
+
+}
+
+catch(riskErr) {
+
+    console.warn(
+
+        "⚠️ [RISK_ACCUMULATION_FAIL]",
+
+        riskErr
+    );
+}
     /* =============================================
    TELEMETRY
 ============================================= */
