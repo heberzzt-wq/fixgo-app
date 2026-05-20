@@ -1323,6 +1323,60 @@ return;
         ) {
             console.log("🧠 [FORCE CODE_WRITE FROM TERMINAL]");
 
+            /* =====================================================
+   TERMINAL ORIGINAL TARGET TRACE
+===================================================== */
+
+try {
+
+    const originalIntent =
+
+        userInput ||
+        input ||
+        prompt ||
+        "";
+
+    console.warn(
+
+        "🧠 [TERMINAL_ORIGINAL_TARGET]",
+
+        originalIntent
+    );
+
+    window.GestiaAuthority
+        ?.registerMutation?.({
+
+        module:
+            "terminal.surface",
+
+        path:
+            "terminal.original.intent",
+
+        previous:
+            null,
+
+        value: {
+
+            originalIntent,
+
+            traceId:
+                traceId ||
+                "no_trace"
+        }
+    });
+
+}
+
+catch(traceErr) {
+
+    console.warn(
+
+        "⚠️ [TERMINAL_TRACE_FAIL]",
+
+        traceErr
+    );
+}
+
             const fileMatch = raw.match(/modules\/[a-zA-Z0-9_\-]+\.js/);
 
             const step = {
