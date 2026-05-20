@@ -456,7 +456,10 @@ try {
 
         "🛡️ [SAFE_ZONE_CHECK]",
 
+        
+
         {
+            
 
             file:
                 payload?.file,
@@ -465,6 +468,59 @@ try {
                 safeCheck
         }
     );
+
+    /* =====================================================
+   PASSIVE GOVERNANCE WARNING
+===================================================== */
+
+if (safeCheck === false) {
+
+    console.warn(
+
+        "⚠️ [GOVERNANCE_WARNING]",
+
+        {
+
+            file:
+                payload?.file,
+
+            operation:
+                "CODE_WRITE",
+
+            enforcement:
+                "PASSIVE_ONLY"
+        }
+    );
+
+    window.GestiaAuthority
+        ?.registerMutation?.({
+
+        module:
+            "execution.hub",
+
+        path:
+
+            `repo.governance.warning:${
+                payload?.file ||
+                "unknown"
+            }`,
+
+        previous:
+            null,
+
+        value: {
+
+            file:
+                payload?.file,
+
+            operation:
+                "CODE_WRITE",
+
+            mode:
+                "PASSIVE_ONLY"
+        }
+    });
+}
 
     window.GestiaAuthority
         ?.registerMutation?.({
