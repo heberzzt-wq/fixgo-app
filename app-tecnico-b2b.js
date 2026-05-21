@@ -2124,8 +2124,8 @@ function lanzarNotificacionPush(titulo, mensaje) {
     navigator.serviceWorker.ready.then(registration => {
         registration.showNotification(titulo, {
             body: mensaje,
-            icon: "./assets/icono-192.png",
-            badge: "./assets/icono-192.png",
+            icon: "/icono-192.png",
+            badge: "/icono-192.png",
             vibrate: [500, 110, 500, 110, 450, 110], // Patrón ULTRA-FORCE
             requireInteraction: true, 
             data: { url: window.location.href }

@@ -13,8 +13,8 @@
   "backgroundColor": "#06B6D4",
   "enableNotifications": true,
   "startUrl": "/",
-  "iconUrl": "https://fixgo-44e4d.web.app/assets/icono-512.png",
-  "maskableIconUrl": "https://fixgo-44e4d.web.app/assets/icono-512.png",
+  "iconUrl": "https://fixgo-44e4d.web.app/icono-512.png",
+"maskableIconUrl": "https://fixgo-44e4d.web.app/icono-512.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "C:\\Users\\heber\\Desktop\\play-store-Gestia\\fixgo-app-main\\android.keystore",
