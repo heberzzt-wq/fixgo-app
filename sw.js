@@ -15,11 +15,11 @@ importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-comp
 const CACHE_NAME = 'gestia-premium-cache-v6.1-fire';
 
 const urlsToCache = [
-  './',
-  './index.html',
-  './manifest.json',
+  '/',
+  '/index.html',
+  '/manifest.json',
   '/icono-192.png',
-  './assets/icono-512.png'
+  '/icono-512.png'
 ];
 
 // 2. INICIALIZAR FIREBASE
