@@ -15177,10 +15177,10 @@ onAuthStateChanged(
     user => {
 
         if (user) {
-            window.KernelHeberto
-                .inicializarAutoridad();
+           /* window.KernelHeberto
+                .inicializarAutoridad();*/
             return;
-        }
+        } 
 
         setTimeout(() => {
 
