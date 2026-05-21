@@ -15182,14 +15182,21 @@ onAuthStateChanged(
             return;
         }
 
-        if (
-            !window.location.pathname.includes(
-                "login.html"
-            )
-        ) {
-            window.location.href =
-                "/login.html";
-        }
+        setTimeout(() => {
+
+    if (
+        !auth.currentUser &&
+
+        !window.location.pathname.includes(
+            "login.html"
+        )
+    ) {
+
+        window.location.href =
+            "/login.html";
+    }
+
+}, 2500);
     }
 );
 
