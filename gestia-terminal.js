@@ -15184,19 +15184,31 @@ onAuthStateChanged(
 
         setTimeout(() => {
 
+    const hydratedUser =
+        auth.currentUser;
+
+    console.log(
+        "🧠 [AUTH_HYDRATION_CHECK]",
+        hydratedUser
+    );
+
     if (
-        !auth.currentUser &&
+        !hydratedUser &&
 
         !window.location.pathname.includes(
             "login.html"
         )
     ) {
 
+        console.warn(
+            "⚠️ [AUTH_REDIRECT]"
+        );
+
         window.location.href =
             "/login.html";
     }
 
-}, 2500);
+}, 4000);
     }
 );
 
