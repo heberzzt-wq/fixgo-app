@@ -33,15 +33,11 @@
     "trailingSlash": false,
 
     "rewrites": [
-      {
-        "source": "/api/**",
-        "function": "default"
-      },
-      {
-        "source": "!/assets/**",
-        "destination": "/index.html"
-      }
-    ],
+  {
+    "source": "/api/**",
+    "function": "default"
+  }
+],
 
     "headers": [
       {
