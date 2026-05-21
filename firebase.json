@@ -14,6 +14,7 @@
   ],
   "hosting": {
     "public": ".",
+
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -27,6 +28,7 @@
       "mantenimiento_edificio.json",
       "*.md"
     ],
+
     "cleanUrls": false,
     "trailingSlash": false,
 
@@ -36,12 +38,22 @@
         "function": "default"
       },
       {
-        "source": "**",
+        "source": "!/assets/**",
         "destination": "/index.html"
       }
     ],
 
     "headers": [
+      {
+        "source": "/assets/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public,max-age=3600"
+          }
+        ]
+      },
+
       {
         "source": "/sw.js",
         "headers": [
@@ -55,6 +67,7 @@
           }
         ]
       },
+
       {
         "source": "/manifest.json",
         "headers": [
@@ -68,6 +81,7 @@
           }
         ]
       },
+
       {
         "source": "**/*.js",
         "headers": [
