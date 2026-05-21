@@ -1816,7 +1816,7 @@ export async function iniciarPanelTecnico(user) {
             // 🔥 INYECCIÓN DE LOGO PNG ABSOLUTO
             let logoBase64 = null;
             try { 
-                const logoUrl = window.location.origin + '/assets/icono-512.png';
+                const logoUrl = window.location.origin + '/icono-512.png';
                 logoBase64 = await urlABase64(logoUrl); 
             } catch(e) { console.warn("Aviso: No se pudo cargar el logo PNG para el PDF"); }
 
@@ -1925,7 +1925,7 @@ export async function iniciarPanelTecnico(user) {
 
             let logoBase64 = null;
             try { 
-                const logoUrl = window.location.origin + '/assets/icono-512.png';
+                const logoUrl = window.location.origin + '/icono-512.png';
                 logoBase64 = await urlABase64(logoUrl); 
             } catch(e) {}
 
