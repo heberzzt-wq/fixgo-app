@@ -18,7 +18,7 @@ const urlsToCache = [
   './',
   './index.html',
   './manifest.json',
-  './assets/icono-192.png',
+  '/icono-192.png',
   './assets/icono-512.png'
 ];
 
@@ -84,8 +84,8 @@ if (messaging) {
 
       body: body,
 
-      icon: './assets/icono-192.png',
-      badge: './assets/icono-192.png',
+      icon: '/icono-192.png',
+      badge: '/icono-192.png',
 
       vibrate: [500,110,500,110,450,110],
 
@@ -138,8 +138,8 @@ self.addEventListener('push', (event) => {
       payload.data?.body ||
       "Tienes una nueva orden asignada",
 
-    icon: './assets/icono-192.png',
-    badge: './assets/icono-192.png',
+    icon: '/icono-192.png',
+    badge: '/icono-192.png',
 
     vibrate: [500,110,500,110,450,110],
 
