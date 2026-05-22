@@ -528,6 +528,8 @@ if (
    EXECUTION AUTHORITY V1
 ===================================================== */
 
+window.__COGNITIVE_GRAPH__ ||= {};
+
 window.__COGNITIVE_TRACE__ ||= [];
 
 async function executeAuthority(
@@ -535,66 +537,103 @@ async function executeAuthority(
   executor
 ) {
 
+  const parentEngine =
+
+    window.__ACTIVE_COGNITIVE_ENGINE__ ||
+    null;
+
+  window.__ACTIVE_COGNITIVE_ENGINE__ =
+    engineName;
+
   console.log(
     "🧠 [EXECUTION_AUTHORITY]",
     engineName
   );
 
+  if (
+    parentEngine
+  ) {
+
+    window.__COGNITIVE_GRAPH__[
+      parentEngine
+    ] ||= [];
+
+    if (
+
+      !window
+        .__COGNITIVE_GRAPH__[
+          parentEngine
+        ]
+        .includes(engineName)
+
+    ) {
+
+      window
+        .__COGNITIVE_GRAPH__[
+          parentEngine
+        ]
+        .push(engineName);
+    }
+  }
+
   const traceId =
-  crypto.randomUUID();
+    crypto.randomUUID();
 
-const startedAt =
-  performance.now();
+  const startedAt =
+    performance.now();
 
-window.__COGNITIVE_TRACE__
-  .push({
+  window.__COGNITIVE_TRACE__
+    .push({
 
-    traceId,
+      traceId,
 
-    engine:
-      engineName,
+      engine:
+        engineName,
 
-    startedAt:
-      Date.now(),
+      startedAt:
+        Date.now(),
 
-    runtime:
-      performance.now(),
+      runtime:
+        performance.now(),
 
-    status:
-      "RUNNING"
-  });
+      status:
+        "RUNNING"
+    });
 
   try {
 
     const result =
       await executor();
 
+    const duration =
+
+      performance.now() -
+      startedAt;
+
+    window.__COGNITIVE_TRACE__
+      .push({
+
+        traceId,
+
+        engine:
+          engineName,
+
+        completedAt:
+          Date.now(),
+
+        duration,
+
+        status:
+          "SUCCESS"
+      });
+
+    window.__ACTIVE_COGNITIVE_ENGINE__ =
+      parentEngine;
+
     console.log(
       "✅ [EXECUTION_SUCCESS]",
       engineName
     );
-
-    const duration =
-
-  performance.now() -
-  startedAt;
-
-window.__COGNITIVE_TRACE__
-  .push({
-
-    traceId,
-
-    engine:
-      engineName,
-
-    completedAt:
-      Date.now(),
-
-    duration,
-
-    status:
-      "SUCCESS"
-  });
 
     return {
 
@@ -613,36 +652,39 @@ window.__COGNITIVE_TRACE__
 
   catch(error) {
 
+    const duration =
+
+      performance.now() -
+      startedAt;
+
+    window.__COGNITIVE_TRACE__
+      .push({
+
+        traceId,
+
+        engine:
+          engineName,
+
+        failedAt:
+          Date.now(),
+
+        duration,
+
+        status:
+          "FAILED",
+
+        error:
+          error.message
+      });
+
+    window.__ACTIVE_COGNITIVE_ENGINE__ =
+      parentEngine;
+
     console.error(
       "❌ [EXECUTION_FAILURE]",
       engineName,
       error
     );
-
-    const duration =
-
-  performance.now() -
-  startedAt;
-
-window.__COGNITIVE_TRACE__
-  .push({
-
-    traceId,
-
-    engine:
-      engineName,
-
-    failedAt:
-      Date.now(),
-
-    duration,
-
-    status:
-      "FAILED",
-
-    error:
-      error.message
-  });
 
     return {
 
@@ -659,6 +701,8 @@ window.__COGNITIVE_TRACE__
     };
   }
 }
+
+ 
 /* =====================================================
    SMART EXECUTIVE ROUTER
 ===================================================== */
