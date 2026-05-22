@@ -449,7 +449,11 @@ export async function iniciarPanelCliente(user) {
 
                 try {
                     // 🔥 1. EXTRAER DATOS B2B DEL NUEVO MÓDULO
-        const dataB2B = obtenerMetadatosB2B();
+        let dataB2B = null;
+
+if (metodoSeleccionado === "b2b") {
+    dataB2B = obtenerMetadatosB2B();
+}
                     
                     const payloadTicket = {
                         cliente_id: user.uid,
@@ -473,7 +477,7 @@ export async function iniciarPanelCliente(user) {
                         urgencia: flagUrgencia,
                         es_privada: flagPrivada, // 🔥 NUEVO: GUARDAR PRIVADA EN BD
                         foto_problema: urlFotoDescargada,
-                        b2b_metadata: dataB2B,
+                        ...(dataB2B ? { b2b_metadata: dataB2B } : {}),
                         link_waze_cliente: linkManualText || ""
                     };
 
