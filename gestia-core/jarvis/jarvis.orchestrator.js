@@ -422,7 +422,7 @@ if (
     "confirmar",
     "ok",
     "dale"
-  ].includes(cmd)
+  ].includes(low)
 ) {
 
   const approvedProposal =
