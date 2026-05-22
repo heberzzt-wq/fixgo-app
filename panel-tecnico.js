@@ -722,7 +722,7 @@ export async function iniciarPanelTecnico(user) {
                 const id = docSnap.id;
 
                 // 1. FILTROS GENERALES DE ASIGNACIÓN
-if (s.tecnico_id && s.tecnico_id !== tecnico.uid) return;
+//if (s.tecnico_id && s.tecnico_id !== tecnico.uid) return;
 if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) return;
 
 const skillServicio = (s.categoria_id || s.categoria || "").toLowerCase();
