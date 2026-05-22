@@ -141,11 +141,14 @@ const coolingDown =
   now - lastAuto <
   cooldownMs;
 
+const getPendingProposal = () =>
+  window.GestiaRuntime
+    ?.state
+    ?.autonomous
+    ?.pending;
+
 const pendingProposal =
-  !!window.GestiaRuntime
-      ?.state
-      ?.autonomous
-      ?.pending;
+  !!getPendingProposal();
 
 const humanForcedAudit =
   raw === "__AUTO_AUDIT_UI__";
@@ -211,10 +214,7 @@ if (
 
   console.log(
     "🧠 [PENDING_PROPOSAL_ACTIVE]",
-    window.GestiaRuntime
-      ?.state
-      ?.autonomous
-      ?.pending
+    getPendingProposal()
   );
 
   // Espera decisión humana
