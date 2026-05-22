@@ -1276,13 +1276,15 @@ if (
 ) {
 
     const proposal =
-        pendingProposal;
+    getPendingProposal();
 
     this.pendingProposal =
         null;
 
-    window.__JARVIS_PENDING__ =
-        null;
+    window.GestiaRuntime
+    .state
+    .autonomous
+    .pending = null;
 
     render(
         "Jarvis",
