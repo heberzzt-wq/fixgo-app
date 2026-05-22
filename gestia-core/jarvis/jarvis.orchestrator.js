@@ -157,6 +157,10 @@ const humanForcedHealth =
    SCORE ENGINE
 ========================================== */
 
+
+const isAutonomousCommand =
+  raw.startsWith("__AUTO_");
+
 const riskScore =
   (
     (online ? 0 : 45) +
@@ -186,6 +190,16 @@ const shouldMorningReport =
 const shouldDeepAudit =
   weakestScore < 75 ||
   riskScore >= 60;
+
+  if (
+  isAutonomousCommand
+) {
+
+  console.log(
+    "🛡️ [AUTONOMOUS_EXECUTIVE_LOCK]",
+    raw
+  );
+}
 
 /* ==========================================
    EXECUTIVE LOCKS
