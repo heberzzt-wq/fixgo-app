@@ -1563,6 +1563,20 @@ degradedModules,
 
 isolatedModules,
 
+
+/* =============================================
+   AUTONOMOUS STATE
+============================================= */
+
+autonomous:
+
+    safeClone(
+
+        window.GestiaRuntime
+            ?.state
+            ?.autonomous || {}
+
+    ),
             /* =============================================
                RUNTIME PAYLOAD
             ============================================= */
@@ -2404,6 +2418,37 @@ if (
                     ?.runtime
                     ?.lazyModules || {}
             );
+
+
+            /* =================================================
+   AUTONOMOUS STATE RESTORE
+================================================= */
+
+if (
+
+    window.GestiaRuntime &&
+    window.GestiaRuntime.state
+
+) {
+
+    window.GestiaRuntime
+        .state
+        .autonomous =
+
+            structuredClone(
+
+                snapshot
+                    ?.autonomous || {}
+
+            );
+
+    console.log(
+        "🧠 [AUTONOMOUS_STATE_RESTORED]",
+        window.GestiaRuntime
+            .state
+            .autonomous
+    );
+}
 
             /* =================================================
    HEALTH MAP RESTORE
