@@ -138,8 +138,10 @@ const lastAuto =
   );
 
 const coolingDown =
-  now - lastAuto <
-  cooldownMs;
+  window.GestiaRuntime
+    ?.state
+    ?.autonomous
+    ?.cooldownActive === true;
 
 const getPendingProposal = () =>
   window.GestiaRuntime
@@ -243,6 +245,23 @@ if (
   .state
   .autonomous
   .lastAuto = now;
+  window.GestiaRuntime
+  .state
+  .autonomous
+  .cooldownActive = true;
+
+setTimeout(() => {
+
+  window.GestiaRuntime
+    .state
+    .autonomous
+    .cooldownActive = false;
+
+  console.log(
+    "🧠 [AUTONOMOUS_COOLDOWN_RELEASED]"
+  );
+
+}, cooldownMs);
 
   window.GestiaRuntime
   .state
@@ -305,6 +324,24 @@ if (
   .autonomous
   .lastAuto = now;
 
+  window.GestiaRuntime
+  .state
+  .autonomous
+  .cooldownActive = true;
+
+setTimeout(() => {
+
+  window.GestiaRuntime
+    .state
+    .autonomous
+    .cooldownActive = false;
+
+  console.log(
+    "🧠 [AUTONOMOUS_COOLDOWN_RELEASED]"
+  );
+
+}, cooldownMs);
+
  window.GestiaRuntime
   .state
   .autonomous
@@ -366,6 +403,25 @@ if (
   .state
   .autonomous
   .lastAuto = now;
+
+
+  window.GestiaRuntime
+  .state
+  .autonomous
+  .cooldownActive = true;
+
+setTimeout(() => {
+
+  window.GestiaRuntime
+    .state
+    .autonomous
+    .cooldownActive = false;
+
+  console.log(
+    "🧠 [AUTONOMOUS_COOLDOWN_RELEASED]"
+  );
+
+}, cooldownMs);
 
   window.GestiaRuntime
   .state
