@@ -1264,7 +1264,7 @@ const pendingProposal =
 ========================================== */
 
 if (
-    pendingProposal &&
+    getPendingProposal() &&
     [
         "arre",
         "aprobar",
@@ -1786,7 +1786,7 @@ Revisión:
 ========================================== */
 
 if (
-    pendingProposal &&
+    getPendingProposal() &&
     [
         "cancelar",
         "rechazar",
@@ -1796,13 +1796,15 @@ if (
 ) {
 
     const rejected =
-        pendingProposal;
+        getPendingProposal();
 
     this.pendingProposal =
         null;
 
-    window.__JARVIS_PENDING__ =
-        null;
+    window.GestiaRuntime
+    .state
+    .autonomous
+    .pending = null;
 
     render(
         "Jarvis",
