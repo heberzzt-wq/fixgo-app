@@ -523,6 +523,69 @@ if (
     );
 }
 
+
+/* =====================================================
+   EXECUTION AUTHORITY V1
+===================================================== */
+
+async function executeAuthority(
+  engineName,
+  executor
+) {
+
+  console.log(
+    "🧠 [EXECUTION_AUTHORITY]",
+    engineName
+  );
+
+  try {
+
+    const result =
+      await executor();
+
+    console.log(
+      "✅ [EXECUTION_SUCCESS]",
+      engineName
+    );
+
+    return {
+
+      ok: true,
+
+      authority:
+        "CENTRAL_EXECUTION",
+
+      engine:
+        engineName,
+
+      result
+    };
+
+  }
+
+  catch(error) {
+
+    console.error(
+      "❌ [EXECUTION_FAILURE]",
+      engineName,
+      error
+    );
+
+    return {
+
+      ok: false,
+
+      authority:
+        "CENTRAL_EXECUTION",
+
+      engine:
+        engineName,
+
+      error:
+        error.message
+    };
+  }
+}
 /* =====================================================
    SMART EXECUTIVE ROUTER
 ===================================================== */
@@ -630,9 +693,14 @@ for (const item of routeMap) {
     );
 
   if (hit) {
-    return await item.run();
+    return await executeAuthority(
+  item.match[0],
+  item.run
+    );
   }
 }
+
+
 
 /* =====================================================
    LIVE QUERY ENGINE
@@ -644,6 +712,8 @@ const live =
 if (live?.ok) {
   return live;
 }
+
+
 
 /* =====================================================
    SCANNER CORE PRIORIDAD #1
