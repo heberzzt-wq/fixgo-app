@@ -208,6 +208,15 @@ const shouldDeepAudit =
 if (
   pendingProposal
 ) {
+
+  console.log(
+    "🧠 [PENDING_PROPOSAL_ACTIVE]",
+    window.GestiaRuntime
+      ?.state
+      ?.autonomous
+      ?.pending
+  );
+
   // Espera decisión humana
 }
 
