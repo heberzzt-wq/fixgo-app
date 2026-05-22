@@ -722,20 +722,18 @@ export async function iniciarPanelTecnico(user) {
                 const id = docSnap.id;
 
                 // 1. FILTROS GENERALES DE ASIGNACIÓN
-                if (s.tecnico_id && s.tecnico_id !== tecnico.uid) return; 
-                if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) return; 
-                const misSkills = tecnico.skills || [];
-                const skillServicio = (s.categoria_id || s.categoria || "").toLowerCase();
+if (s.tecnico_id && s.tecnico_id !== tecnico.uid) return;
+if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) return;
 
-                const skillServicio = (s.categoria_id || s.categoria || "").toLowerCase();
+const skillServicio = (s.categoria_id || s.categoria || "").toLowerCase();
 
-                const skillsTecnico = (tecnico.skills || []).map(x => x.toLowerCase());
+const skillsTecnico = (tecnico.skills || []).map(x => x.toLowerCase());
 
-                const permitido = skillsTecnico.some(skill =>
-                      skillServicio.includes(skill) || skill.includes(skillServicio)
-            );
+const permitido = skillsTecnico.some(skill =>
+    skillServicio.includes(skill) || skill.includes(skillServicio)
+);
 
-                if (!permitido) return;
+if (!permitido) return;
 
                 // 2. VISOR TÁCTICO DE FOTO Y URGENCIA (Compartido para ambos mundos)
                 let badgeUrgencia = s.urgencia ? `<span class="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(220,38,38,0.8)] ml-2 animate-pulse"><i class="fas fa-fire"></i> EMERGENCIA</span>` : '';
