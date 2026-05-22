@@ -412,6 +412,41 @@ Escribe:
 }
 
 }
+
+if (
+  getPendingProposal() &&
+  [
+    "arre",
+    "aprobar",
+    "autorizar",
+    "confirmar",
+    "ok",
+    "dale"
+  ].includes(cmd)
+) {
+
+  const approvedProposal =
+    getPendingProposal();
+
+  console.log(
+    "🛡️ [EXECUTION_OWNERSHIP_LOCK]",
+    approvedProposal
+  );
+
+  window.GestiaRuntime
+    .state
+    .autonomous
+    .pending = null;
+
+  return {
+    ok: true,
+    source:
+      "AUTONOMY_EXECUTION",
+    approved: true,
+    proposal:
+      approvedProposal
+  };
+}
     /* =====================================================
    AUTO PRIORITY ENGINE
    DECISIÓN CENTRAL + MOTORES + SCANNER CORE
