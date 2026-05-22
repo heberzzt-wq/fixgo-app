@@ -528,6 +528,8 @@ if (
    EXECUTION AUTHORITY V1
 ===================================================== */
 
+window.__COGNITIVE_TRACE__ ||= [];
+
 async function executeAuthority(
   engineName,
   executor
@@ -538,6 +540,30 @@ async function executeAuthority(
     engineName
   );
 
+  const traceId =
+  crypto.randomUUID();
+
+const startedAt =
+  performance.now();
+
+window.__COGNITIVE_TRACE__
+  .push({
+
+    traceId,
+
+    engine:
+      engineName,
+
+    startedAt:
+      Date.now(),
+
+    runtime:
+      performance.now(),
+
+    status:
+      "RUNNING"
+  });
+
   try {
 
     const result =
@@ -547,6 +573,28 @@ async function executeAuthority(
       "✅ [EXECUTION_SUCCESS]",
       engineName
     );
+
+    const duration =
+
+  performance.now() -
+  startedAt;
+
+window.__COGNITIVE_TRACE__
+  .push({
+
+    traceId,
+
+    engine:
+      engineName,
+
+    completedAt:
+      Date.now(),
+
+    duration,
+
+    status:
+      "SUCCESS"
+  });
 
     return {
 
@@ -570,6 +618,31 @@ async function executeAuthority(
       engineName,
       error
     );
+
+    const duration =
+
+  performance.now() -
+  startedAt;
+
+window.__COGNITIVE_TRACE__
+  .push({
+
+    traceId,
+
+    engine:
+      engineName,
+
+    failedAt:
+      Date.now(),
+
+    duration,
+
+    status:
+      "FAILED",
+
+    error:
+      error.message
+  });
 
     return {
 
