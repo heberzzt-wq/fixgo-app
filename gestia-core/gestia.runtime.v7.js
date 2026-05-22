@@ -176,6 +176,21 @@ window.GestiaRuntime.state = {
     currentModule:
         null,
 
+        autonomous: {
+
+    pending: null,
+
+    lastAuto: 0,
+
+    morningDone: false,
+
+    cooldownActive: false,
+
+    activeProposal: null,
+
+    executiveState: "IDLE"
+},
+
     bootPhase:
         "FORTRESS_KERNEL",
 
