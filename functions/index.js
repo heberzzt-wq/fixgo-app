@@ -2187,27 +2187,28 @@ exports.despachoTaticoB2B = functions.https.onCall(async (data, context) => {
                 body: mensaje
             },
             data: {
-                tipo: "orden_trabajo",
-                prioridad: "alta",
-                ordenId: ordenId || "",
-                click_action: "https://fixgo-44e4d.web.app/tecnico.html"
-            },
-            android: {
-                priority: "high", // 🔥 CRÍTICO: Despierta el cel en la bolsa (Doze Mode Bypass)
-                notification: {
-                    sound: "default",
-                    clickAction: "https://fixgo-44e4d.web.app/tecnico.html"
-                }
-            },
-            apns: {
-                payload: {
-                    aps: {
-                        sound: "default",
-                        badge: 1,
-                        contentAvailable: true
-                    }
-                }
-            }
+    tipo: "orden_trabajo",
+    prioridad: "alta",
+    orderId: ordenId || "",
+    url: "/tecnico.html"
+},
+
+android: {
+    priority: "high",
+    notification: {
+        sound: "default"
+    }
+},
+
+apns: {
+    payload: {
+        aps: {
+            sound: "default",
+            badge: 1,
+            contentAvailable: true
+        }
+    }
+}
         };
 
         // 🚀 4. DISPARO AL SATÉLITE
