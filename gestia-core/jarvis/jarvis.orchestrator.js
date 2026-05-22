@@ -131,7 +131,10 @@ const cooldownMs =
 
 const lastAuto =
   Number(
-    window.__JARVIS_LAST_AUTO__ || 0
+    window.GestiaRuntime
+      ?.state
+      ?.autonomous
+      ?.lastAuto || 0
   );
 
 const coolingDown =
@@ -139,7 +142,10 @@ const coolingDown =
   cooldownMs;
 
 const pendingProposal =
-  !!window.__JARVIS_PENDING__;
+  !!window.GestiaRuntime
+      ?.state
+      ?.autonomous
+      ?.pending;
 
 const humanForcedAudit =
   raw === "__AUTO_AUDIT_UI__";
@@ -172,7 +178,10 @@ const shouldHealthCheck =
 const shouldMorningReport =
   nowHour >= 8 &&
   nowHour <= 10 &&
-  !window.__JARVIS_MORNING_DONE__;
+  !window.GestiaRuntime
+    ?.state
+    ?.autonomous
+    ?.morningDone;
 
 const shouldDeepAudit =
   weakestScore < 75 ||
@@ -207,10 +216,15 @@ if (
   shouldHealthCheck
 ) {
 
-  window.__JARVIS_LAST_AUTO__ =
-    now;
+  window.GestiaRuntime
+  .state
+  .autonomous
+  .lastAuto = now;
 
-  window.__JARVIS_PENDING__ = {
+  window.GestiaRuntime
+  .state
+  .autonomous
+  .pending = {
     type: "HEALTH_CHECK",
     command:
       "__AUTO_HEALTH_CHECK__",
@@ -263,10 +277,15 @@ if (
   shouldAuditUI
 ) {
 
-  window.__JARVIS_LAST_AUTO__ =
-    now;
+  window.GestiaRuntime
+  .state
+  .autonomous
+  .lastAuto = now;
 
-  window.__JARVIS_PENDING__ = {
+ window.GestiaRuntime
+  .state
+  .autonomous
+  .pending = {
     type: "UI_AUDIT",
     command:
       "__AUTO_AUDIT_UI__",
@@ -320,13 +339,20 @@ if (
   shouldMorningReport
 ) {
 
-  window.__JARVIS_LAST_AUTO__ =
-    now;
+  window.GestiaRuntime
+  .state
+  .autonomous
+  .lastAuto = now;
 
-  window.__JARVIS_MORNING_DONE__ =
-    true;
+  window.GestiaRuntime
+  .state
+  .autonomous
+  .morningDone = true;
 
-  window.__JARVIS_PENDING__ = {
+ window.GestiaRuntime
+  .state
+  .autonomous
+  .pending = {
     type: "DAILY_REPORT",
     command:
       "jarvis resumen",
@@ -718,7 +744,10 @@ if (
           Date.now()
       };
 
-      window.__JARVIS_PENDING__ = {
+      window.GestiaRuntime
+  .state
+  .autonomous
+  .pending = {
         type:
           "PATCH_APPLY",
         file:
