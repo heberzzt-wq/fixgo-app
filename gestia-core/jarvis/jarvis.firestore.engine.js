@@ -417,6 +417,15 @@ export async function runCommander() {
     const sentinel =
       sentinelExecution?.result;
 
+      if (
+  !sentinelExecution?.ok
+) {
+
+  throw new Error(
+    "COMMANDER_CHILD_FAILURE"
+  );
+}
+
     const priorities = [];
 
     for (const alert of sentinel.alerts) {
