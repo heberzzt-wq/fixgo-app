@@ -732,6 +732,43 @@ async function executeAuthority(
       .push(parentEngine);
   }
 }
+
+window.__ENGINE_FAILURES__ ||= {};
+
+window.__ENGINE_FAILURES__[
+  engineName
+] ||= {
+
+  failures: 0,
+
+  degraded: false,
+
+  isolated: false,
+
+  lastFailure: null
+};
+
+window.__ENGINE_FAILURES__[
+  engineName
+].failures++;
+
+window.__ENGINE_FAILURES__[
+  engineName
+].lastFailure =
+  Date.now();
+
+if (
+
+  window.__ENGINE_FAILURES__[
+    engineName
+  ].failures >= 3
+
+) {
+
+  window.__ENGINE_FAILURES__[
+    engineName
+  ].degraded = true;
+}
   
     console.error(
       "❌ [EXECUTION_FAILURE]",
