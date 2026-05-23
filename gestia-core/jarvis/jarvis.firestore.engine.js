@@ -406,7 +406,12 @@ export async function runCommander() {
 
       await window.executeAuthority(
         "sentinel",
-        () => runSentinel()
+        () => {
+
+  throw new Error(
+    "SENTINEL_FAILURE_TEST"
+  );
+}
       );
 
     const sentinel =
