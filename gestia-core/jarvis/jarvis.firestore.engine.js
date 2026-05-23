@@ -317,7 +317,15 @@ export async function runExecutionCore() {
 
   try {
 
-    const heal = await runSelfHealing();
+    const healExecution =
+
+  await executeAuthority(
+    "self healing",
+    () => runSelfHealing()
+  );
+
+const heal =
+  healExecution?.result;
 
     const executed = [];
 
@@ -354,7 +362,15 @@ export async function runRealActions() {
 
   try {
 
-    const heal = await runSelfHealing();
+    const healExecution =
+
+  await executeAuthority(
+    "self healing",
+    () => runSelfHealing()
+  );
+
+const heal =
+  healExecution?.result;
 
     const ref = await addDoc(
       collection(db, "gestia_logs"),
@@ -386,7 +402,15 @@ export async function runCommander() {
 
   try {
 
-    const sentinel = await runSentinel();
+    const sentinelExecution =
+
+  await executeAuthority(
+    "sentinel",
+    () => runSentinel()
+  );
+
+const sentinel =
+  sentinelExecution?.result;
 
     const priorities = [];
 
@@ -441,9 +465,25 @@ export async function runPredictor() {
 
   try {
 
-    const sentinel = await runSentinel();
+    const sentinelExecution =
 
-    const command = await runCommandCenter();
+  await executeAuthority(
+    "sentinel",
+    () => runSentinel()
+  );
+
+const sentinel =
+  sentinelExecution?.result;
+
+const commandExecution =
+
+  await executeAuthority(
+    "command center",
+    () => runCommandCenter()
+  );
+
+const command =
+  commandExecution?.result;
 
     const text =
       command.summary || "";
