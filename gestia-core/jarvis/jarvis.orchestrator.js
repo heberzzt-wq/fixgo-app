@@ -528,6 +528,9 @@ if (
    EXECUTION AUTHORITY V1
 ===================================================== */
 
+
+window.__COGNITIVE_RISK_GRAPH__ ||= {};
+
 window.__COGNITIVE_GRAPH__ ||= {};
 
 window.__COGNITIVE_TRACE__ ||= [];
@@ -680,6 +683,41 @@ async function executeAuthority(
     window.__ACTIVE_COGNITIVE_ENGINE__ =
       parentEngine;
 
+
+      if (
+  parentEngine
+) {
+
+  window.__COGNITIVE_RISK_GRAPH__[
+    engineName
+  ] ||= {
+
+    risk:
+      "HIGH",
+
+    impacts: []
+  };
+
+  if (
+
+    !window
+      .__COGNITIVE_RISK_GRAPH__[
+        engineName
+      ]
+      .impacts
+      .includes(parentEngine)
+
+  ) {
+
+    window
+      .__COGNITIVE_RISK_GRAPH__[
+        engineName
+      ]
+      .impacts
+      .push(parentEngine);
+  }
+}
+  
     console.error(
       "❌ [EXECUTION_FAILURE]",
       engineName,
