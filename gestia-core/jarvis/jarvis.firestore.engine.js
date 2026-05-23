@@ -319,13 +319,13 @@ export async function runExecutionCore() {
 
     const healExecution =
 
-  await executeAuthority(
-    "self healing",
-    () => runSelfHealing()
-  );
+      await window.executeAuthority(
+        "self healing",
+        () => runSelfHealing()
+      );
 
-const heal =
-  healExecution?.result;
+    const heal =
+      healExecution?.result;
 
     const executed = [];
 
@@ -364,13 +364,13 @@ export async function runRealActions() {
 
     const healExecution =
 
-  await executeAuthority(
-    "self healing",
-    () => runSelfHealing()
-  );
+      await window.executeAuthority(
+        "self healing",
+        () => runSelfHealing()
+      );
 
-const heal =
-  healExecution?.result;
+    const heal =
+      healExecution?.result;
 
     const ref = await addDoc(
       collection(db, "gestia_logs"),
@@ -404,19 +404,20 @@ export async function runCommander() {
 
     const sentinelExecution =
 
-  await executeAuthority(
-    "sentinel",
-    () => runSentinel()
-  );
+      await window.executeAuthority(
+        "sentinel",
+        () => runSentinel()
+      );
 
-const sentinel =
-  sentinelExecution?.result;
+    const sentinel =
+      sentinelExecution?.result;
 
     const priorities = [];
 
     for (const alert of sentinel.alerts) {
 
       if (alert.includes("Sin técnicos")) {
+
         priorities.push({
           level: "CRITICAL",
           action: "Convocar soporte inmediato"
@@ -424,6 +425,7 @@ const sentinel =
       }
 
       else if (alert.includes("Tickets elevados")) {
+
         priorities.push({
           level: "HIGH",
           action: "Redistribuir carga operativa"
@@ -431,6 +433,7 @@ const sentinel =
       }
 
       else if (alert.includes("health")) {
+
         priorities.push({
           level: "HIGH",
           action: "Revisar monitoreo central"
@@ -438,6 +441,7 @@ const sentinel =
       }
 
       else if (alert.includes("estable")) {
+
         priorities.push({
           level: "LOW",
           action: "Mantener vigilancia"
@@ -467,28 +471,29 @@ export async function runPredictor() {
 
     const sentinelExecution =
 
-  await executeAuthority(
-    "sentinel",
-    () => runSentinel()
-  );
+      await window.executeAuthority(
+        "sentinel",
+        () => runSentinel()
+      );
 
-const sentinel =
-  sentinelExecution?.result;
+    const sentinel =
+      sentinelExecution?.result;
 
-const commandExecution =
+    const commandExecution =
 
-  await executeAuthority(
-    "command center",
-    () => runCommandCenter()
-  );
+      await window.executeAuthority(
+        "command center",
+        () => runCommandCenter()
+      );
 
-const command =
-  commandExecution?.result;
+    const command =
+      commandExecution?.result;
 
     const text =
       command.summary || "";
 
     let risk = "LOW";
+
     const forecasts = [];
 
     if (
@@ -497,7 +502,9 @@ const command =
       text.includes("Tickets: 2") === false &&
       text.includes("Tickets: 3") === false
     ) {
+
       risk = "MEDIUM";
+
       forecasts.push(
         "Posible aumento de carga operativa"
       );
@@ -508,7 +515,9 @@ const command =
         a.includes("logs")
       )
     ) {
+
       risk = "HIGH";
+
       forecasts.push(
         "Probable ruido sistémico próximo"
       );
@@ -519,13 +528,16 @@ const command =
         a.includes("health")
       )
     ) {
+
       risk = "CRITICAL";
+
       forecasts.push(
         "Riesgo de degradación del sistema"
       );
     }
 
     if (!forecasts.length) {
+
       forecasts.push(
         "Operación estable a corto plazo"
       );

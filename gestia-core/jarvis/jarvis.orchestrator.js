@@ -702,6 +702,9 @@ async function executeAuthority(
   }
 }
 
+window.executeAuthority =
+  executeAuthority;
+
  
 /* =====================================================
    SMART EXECUTIVE ROUTER
