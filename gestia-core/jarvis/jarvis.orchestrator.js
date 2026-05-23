@@ -613,6 +613,16 @@ async function executeAuthority(
     const result =
       await executor();
 
+      if (
+  result?.ok === false
+) {
+
+  throw new Error(
+    result.error ||
+    `${engineName}_FAILED`
+  );
+}
+
     const duration =
 
       performance.now() -
