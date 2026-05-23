@@ -540,6 +540,10 @@ async function executeAuthority(
   executor
 ) {
 
+
+  globalThis.executeAuthority =
+  executeAuthority;
+  
   const parentEngine =
 
     window.__ACTIVE_COGNITIVE_ENGINE__ ||
