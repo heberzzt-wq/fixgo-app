@@ -535,6 +535,7 @@ window.__COGNITIVE_GRAPH__ ||= {};
 
 window.__COGNITIVE_TRACE__ ||= [];
 
+globalThis.executeAuthority =
 async function executeAuthority(
   engineName,
   executor
@@ -543,7 +544,7 @@ async function executeAuthority(
 
   globalThis.executeAuthority =
   executeAuthority;
-  
+
   const parentEngine =
 
     window.__ACTIVE_COGNITIVE_ENGINE__ ||
@@ -744,8 +745,7 @@ async function executeAuthority(
   }
 }
 
-window.executeAuthority =
-  executeAuthority;
+
 
  
 /* =====================================================
