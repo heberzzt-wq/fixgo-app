@@ -533,6 +533,12 @@ window.__COGNITIVE_RISK_GRAPH__ ||= {};
 
 window.__COGNITIVE_GRAPH__ ||= {};
 
+window.__DEPENDENCY_GRAPH__ ||= {};
+
+window.__MODULE_OWNERSHIP__ ||= {};
+
+window.__FILE_IMPACT_GRAPH__ ||= {};
+
 window.__COGNITIVE_TRACE__ ||= [];
 
 globalThis.executeAuthority =
