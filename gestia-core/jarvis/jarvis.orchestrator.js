@@ -571,10 +571,39 @@ if (
   engineState?.degraded === true
 ) {
 
+
   console.warn(
     "🛑 [ENGINE_ISOLATED]",
     engineName
   );
+
+  window.__ENGINE_RECOVERY__ ||= {};
+
+window.__ENGINE_RECOVERY__[
+  engineName
+] ||= {
+
+  attempts: 0,
+
+  recovering: false,
+
+  recovered: false,
+
+  lastRecovery: null
+};
+
+window.__ENGINE_RECOVERY__[
+  engineName
+].attempts++;
+
+window.__ENGINE_RECOVERY__[
+  engineName
+].recovering = true;
+
+window.__ENGINE_RECOVERY__[
+  engineName
+].lastRecovery =
+  Date.now();
 
   return {
 
