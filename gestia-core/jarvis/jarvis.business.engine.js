@@ -51,6 +51,57 @@ export function runBusinessIntent(rawInput = "") {
 
 function detectTarget(text = "") {
 
+
+    const sovereignTargets = [
+
+    "analysis.hub",
+
+    "execution.hub",
+
+    "security.hub",
+
+    "repo.hub",
+
+    "gestia-terminal.js",
+
+    "gestia.runtime.v7.js",
+
+    "authority.registry.js",
+
+    "operations-executor.engine.js",
+
+    "brain.engine.js",
+
+    "semantic.engine.js"
+];
+
+const sovereignMatch =
+
+    sovereignTargets.find(
+        target =>
+            text.includes(
+                target.toLowerCase()
+            )
+    );
+
+if (
+    sovereignMatch
+) {
+
+    console.log(
+        "🛡️ [BUSINESS_SOVEREIGN_TARGET]",
+        sovereignMatch
+    );
+
+    return {
+        type:
+            "SOVEREIGN_RUNTIME_TARGET",
+
+        value:
+            sovereignMatch
+    };
+}
+
     const words =
         text.split(/\s+/);
 
