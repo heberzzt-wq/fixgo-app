@@ -421,7 +421,11 @@ TARGET:
 ${target.value}
 
 OWNER:
-${ownership.owner || "unknown"}
+${
+    ownership.module ||
+    ownership.owner ||
+    "unknown"
+}
 
 GOVERNANCE:
 ${ownership.governance || "NORMAL"}
