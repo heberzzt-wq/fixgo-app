@@ -3132,6 +3132,59 @@ async function() {
             }
         }
 
+
+        const authorityModules =
+
+    Object.keys(
+        window
+            .__MODULE_OWNERSHIP__ || {}
+    );
+
+for (
+    const moduleName
+    of authorityModules
+) {
+
+    if (
+        !window
+            .__REPO_DEP_GRAPH__?.[
+                moduleName
+            ]
+    ) {
+
+        window
+            .__REPO_DEP_GRAPH__[
+                moduleName
+            ] = {
+
+            file:
+                moduleName,
+
+            path:
+                moduleName,
+
+            module:
+                moduleName,
+
+            dependencies:
+                [],
+
+            totalDependencies:
+                0,
+
+            sovereign:
+                true,
+
+            topologySource:
+                "authority_registry"
+        };
+
+        console.log(
+            "🧠 [AUTHORITY_GRAPH_HYDRATED]",
+            moduleName
+        );
+    }
+}
         console.log(
             "✅ [DEPENDENCY_GRAPH_READY]",
             Object.keys(
