@@ -112,6 +112,21 @@ else {
 
             window.__COGNITIVE_RUNTIME__ = {
 
+                registries: {
+
+                dependencyGraph: true,
+
+                cognitiveGraph: true,
+
+                moduleOwnership: true,
+
+                impactGraph: true,
+
+                engineFailures: true,
+
+             engineRecovery: true
+            },
+
                 online: false,
 
                 initializedAt:
@@ -147,6 +162,24 @@ else {
                     warnings: []
                 }
             };
+
+
+            /* ==========================================================================
+   SOVEREIGN RUNTIME REGISTRIES
+========================================================================== */
+
+window.__DEPENDENCY_GRAPH__ ||= {};
+
+window.__COGNITIVE_GRAPH__ ||= {};
+
+window.__MODULE_OWNERSHIP__ ||= {};
+
+window.__FILE_IMPACT_GRAPH__ ||= {};
+
+window.__ENGINE_FAILURES__ ||= {};
+
+window.__ENGINE_RECOVERY__ ||= {};
+
 
             /* ==========================================================================
                BRAIN ENGINE EXPOSURE
