@@ -558,6 +558,41 @@ async function executeAuthority(
     engineName
   );
 
+
+  window.__ENGINE_FAILURES__ ||= {};
+
+const engineState =
+
+  window.__ENGINE_FAILURES__[
+    engineName
+  ];
+
+if (
+  engineState?.degraded === true
+) {
+
+  console.warn(
+    "🛑 [ENGINE_ISOLATED]",
+    engineName
+  );
+
+  return {
+
+    ok: false,
+
+    authority:
+      "CENTRAL_EXECUTION",
+
+    engine:
+      engineName,
+
+    isolated: true,
+
+    error:
+      `${engineName}_ISOLATED`
+  };
+}
+
   if (
     parentEngine
   ) {
