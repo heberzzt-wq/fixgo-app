@@ -201,6 +201,11 @@ const getPendingProposal = () =>
 const pendingProposal =
   !!getPendingProposal();
 
+  const sovereignPriority =
+
+  detectedSovereignTarget !==
+  null;
+
 const humanForcedAudit =
   raw === "__AUTO_AUDIT_UI__";
 
@@ -260,7 +265,8 @@ const shouldDeepAudit =
 ========================================== */
 
 if (
-  pendingProposal
+  pendingProposal &&
+  !sovereignPriority
 ) {
 
   console.log(
