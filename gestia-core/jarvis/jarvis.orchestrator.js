@@ -99,6 +99,52 @@ export async function runJarvis(input, ctx = {}, confirm = false) {
     const low =
       raw.toLowerCase();
 
+      const sovereignTargets = [
+
+  "analysis.hub",
+
+  "execution.hub",
+
+  "security.hub",
+
+  "repo.hub",
+
+  "gestia-terminal.js",
+
+  "gestia.runtime.v7.js",
+
+  "authority.registry.js",
+
+  "operations-executor.engine.js",
+
+  "brain.engine.js",
+
+  "semantic.engine.js"
+];
+
+const detectedSovereignTarget =
+
+  sovereignTargets.find(
+    target =>
+      low.includes(
+        target.toLowerCase()
+      )
+  ) || null;
+
+if (
+  detectedSovereignTarget
+) {
+
+  console.log(
+    "🧠 [SOVEREIGN_TARGET_DETECTED]",
+    detectedSovereignTarget
+  );
+
+  window.__ACTIVE_SOVEREIGN_TARGET__ =
+
+    detectedSovereignTarget;
+}
+
  /* =====================================================
    AUTONOMOUS EXECUTIVE CORE
    VIDA OPERATIVA REAL + SUPERVISADO
