@@ -3107,6 +3107,22 @@ async function() {
             ).length
         );
 
+        /* =====================================================
+           SOVEREIGN GRAPH EXPOSURE
+          ===================================================== */
+
+        window.__DEPENDENCY_GRAPH__ =
+
+        window.__REPO_DEP_GRAPH__;
+
+        window.__FILE_IMPACT_GRAPH__ =
+
+        window.__REPO_IMPACT_GRAPH__ ||
+        
+        {};
+
+        window.__COGNITIVE_GRAPH__ ||= {};
+
         return {
 
             ok: true,
