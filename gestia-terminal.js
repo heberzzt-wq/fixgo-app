@@ -3167,10 +3167,34 @@ for (
                 moduleName,
 
             dependencies:
-                [],
 
-            totalDependencies:
-                0,
+    moduleName ===
+    "execution.hub"
+
+    ? [
+
+        "operations.engine.js",
+
+        "operations-executor.engine.js",
+
+        "plans.engine.js",
+
+        "persistence.engine.js",
+
+        "gestia-core.js"
+
+      ]
+
+    : [],
+
+totalDependencies:
+
+    moduleName ===
+    "execution.hub"
+
+    ? 5
+
+    : 0,
 
             sovereign:
                 true,
