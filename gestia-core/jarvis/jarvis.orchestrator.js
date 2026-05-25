@@ -1149,13 +1149,52 @@ if (
     },
 
     "semantic.engine.js": {
-      key:
-        "__SEMANTIC_SOURCE__",
-      value:
-        window
-          .__SEMANTIC_SOURCE__ ||
-        ""
-    }
+  key:
+    "__SEMANTIC_SOURCE__",
+  value:
+    window
+      .__SEMANTIC_SOURCE__ ||
+    ""
+},
+
+"analysis.hub": {
+  key:
+    "__ANALYSIS_HUB__",
+  value:
+    window
+      .__ANALYSIS_HUB__ ||
+    ""
+},
+
+"execution.hub": {
+  key:
+    "__EXECUTION_HUB__",
+  value:
+    window
+      .__EXECUTION_HUB__ ||
+    ""
+},
+
+"security.hub": {
+  key:
+    "__SECURITY_HUB__",
+  value:
+    window
+      .__SECURITY_HUB__ ||
+    ""
+},
+
+"repo.hub": {
+  key:
+    "__REPO_HUB__",
+  value:
+    window
+      .__REPO_HUB__ ||
+    ""
+
+    
+      }
+
   };
 
   const sourceObj =

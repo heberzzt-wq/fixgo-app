@@ -3140,6 +3140,21 @@ async function() {
             ).length
         );
 
+        return {
+
+    ok: true,
+
+    total:
+        Object.keys(
+            window
+                .__REPO_DEP_GRAPH__
+        ).length,
+
+    graph:
+        window
+            .__REPO_DEP_GRAPH__
+};
+
     }
 
     catch(error) {
