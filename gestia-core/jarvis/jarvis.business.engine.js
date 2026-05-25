@@ -364,6 +364,68 @@ if (intent === "GERARDO_STATUS") {
         PEOPLE
     ================================================= */
 
+
+    if (
+    target?.type ===
+    "SOVEREIGN_RUNTIME_TARGET"
+) {
+
+    const ownership =
+
+        window
+            .__MODULE_OWNERSHIP__?.[
+                target.value
+            ] || {};
+
+    const graphNode =
+
+        window
+            .__REPO_DEP_GRAPH__?.[
+                target.value
+            ] || {};
+
+    const dependencies =
+
+        graphNode
+            .dependencies || [];
+
+    return ok(
+`
+[RUNTIME SOVEREIGN ANALYSIS]
+
+TARGET:
+${target.value}
+
+OWNER:
+${ownership.owner || "unknown"}
+
+GOVERNANCE:
+${ownership.governance || "NORMAL"}
+
+RUNTIME ROLE:
+${ownership.runtimeRole || "support"}
+
+DEPENDENCIES:
+${dependencies.length}
+
+IMPACT RISK:
+${
+    dependencies.length > 5
+        ? "HIGH"
+        : dependencies.length > 2
+            ? "MEDIUM"
+            : "LOW"
+}
+
+TOPOLOGY:
+${
+    dependencies.join(", ") ||
+    "No dependencies detected"
+}
+`
+    );
+}
+
    if (target.role) {
 
     const status =
