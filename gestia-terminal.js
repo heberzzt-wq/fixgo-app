@@ -3087,6 +3087,39 @@ async function() {
                     imports.length
                 );
 
+                window.__MODULE_OWNERSHIP__ ||= {};
+
+                window.__MODULE_OWNERSHIP__[
+                    file
+                ] = {
+
+                    owner:
+                        meta.module ||
+
+                        "unknown",
+
+                    governance:
+                        meta.governance ||
+
+                        "NORMAL",
+
+                    runtimeRole:
+                        meta.runtimeRole ||
+
+                        "support",
+
+                    engineType:
+                        meta.engineType ||
+
+                        "generic",
+
+                    dependencies:
+                        imports,
+
+                    registeredAt:
+                        Date.now()
+                };
+
             }
 
             catch(innerError) {
@@ -3107,55 +3140,18 @@ async function() {
             ).length
         );
 
-        /* =====================================================
-           SOVEREIGN GRAPH EXPOSURE
-          ===================================================== */
-
-        window.__DEPENDENCY_GRAPH__ =
-
-        window.__REPO_DEP_GRAPH__;
-
-        window.__FILE_IMPACT_GRAPH__ =
-
-        window.__REPO_IMPACT_GRAPH__ ||
-
-        {};
-
-        window.__COGNITIVE_GRAPH__ ||= {};
-
-        return {
-
-            ok: true,
-
-            total:
-                Object.keys(
-                    window
-                        .__REPO_DEP_GRAPH__
-                ).length,
-
-            graph:
-                window
-                    .__REPO_DEP_GRAPH__
-        };
-
     }
 
     catch(error) {
 
         console.error(
-            "❌ [DEPENDENCY_GRAPH_FAIL]",
+            "❌ [DEPENDENCY_GRAPH_FATAL]",
             error
         );
-
-        return {
-
-            ok: false,
-
-            error:
-                error.message
-        };
     }
 };
+        
+
 
 
 
