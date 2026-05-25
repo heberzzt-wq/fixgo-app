@@ -53,6 +53,31 @@ export function registerAuthorityModule({
                 Date.now()
         };
 
+        window.__MODULE_OWNERSHIP__ ||= {};
+
+window.__MODULE_OWNERSHIP__[
+    module
+] = {
+
+    authority: true,
+
+    module,
+
+    scopes,
+
+    classification:
+        "authority_module",
+
+    runtimeRole:
+        "core",
+
+    governance:
+        "HIGH",
+
+    registeredAt:
+        Date.now()
+};
+
         console.log(
             `🛡️ [AUTHORITY_MODULE_REGISTERED]: ${module}`
         );
