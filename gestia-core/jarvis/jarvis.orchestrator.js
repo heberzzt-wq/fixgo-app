@@ -577,6 +577,10 @@ if (
     engineName
   );
 
+  window.__ENGINE_FAILURES__[
+  engineName
+].isolated = true;
+
   window.__ENGINE_RECOVERY__ ||= {};
 
 window.__ENGINE_RECOVERY__[
