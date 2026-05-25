@@ -3207,6 +3207,80 @@ totalDependencies:
             "🧠 [AUTHORITY_GRAPH_HYDRATED]",
             moduleName
         );
+
+        // =====================================================
+// 🧠 RUNTIME HEALTH REGISTRY HYDRATION
+// =====================================================
+
+window.RUNTIME_HEALTH_MAP ||= {};
+
+window.RUNTIME_HEALTH_MAP[
+    moduleName
+] = {
+
+    ...(
+        window.RUNTIME_HEALTH_MAP[
+            moduleName
+        ] || {}
+    ),
+
+    id:
+        moduleName,
+
+    sovereign:
+        true,
+
+    hydrated:
+        true,
+
+    topologyIntegrated:
+        true,
+
+    registryIntegrated:
+        true,
+
+    runtimeConnected:
+        true,
+
+    healingEnabled:
+        true,
+
+    federationEnabled:
+        true,
+
+    convergenceEnabled:
+        true,
+
+    nodeType:
+        "authority-runtime-node",
+
+    state:
+        "ONLINE",
+
+    health:
+        100,
+
+    stabilityScore:
+        100,
+
+    convergenceScore:
+        100,
+
+    lastHydration:
+        Date.now(),
+
+    dependencies:
+
+        window
+            .__REPO_DEP_GRAPH__?.[
+                moduleName
+            ]?.dependencies || []
+};
+
+console.log(
+    "🧠 [RUNTIME_NODE_HYDRATED]",
+    moduleName
+);
     }
 }
         console.log(
