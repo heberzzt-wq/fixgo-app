@@ -20,6 +20,9 @@ import { scanFile } from "./jarvis.scanner.engine.js";
 import { buildAutoFix } from "./jarvis.autofix.engine.js";
 import { buildAutoPatch } from "./jarvis.autopatch.engine.js";
 import { buildPatchDiff } from "./jarvis.patchdiff.engine.js";
+import {
+  registerMutation
+} from "../authority/authority.registry.js";
 
 import {
   runFirestoreScan,
@@ -563,6 +566,18 @@ async function executeAuthority(
     "🧠 [EXECUTION_AUTHORITY]",
     engineName
   );
+
+  registerMutation({
+  module: "jarvis.orchestrator",
+  source: engineName,
+  target: "runtime.execution",
+  type: "JARVIS_EXECUTION_AUTHORITY",
+  risk: "LOW",
+  metadata: {
+    authority: engineName,
+    timestamp: Date.now()
+  }
+});
 
 
   window.__ENGINE_FAILURES__ ||= {};
@@ -1147,6 +1162,17 @@ if (
     sourceMap[
       vision.targetFile
     ];
+
+    const authorityInfo =
+  window.__MODULE_OWNERSHIP__?.[
+    vision.targetFile
+  ] || null;
+
+console.log(
+  "🛡️ [FILE_AUTHORITY]",
+  vision.targetFile,
+  authorityInfo
+);
 
   const source =
     sourceObj?.value || "";
