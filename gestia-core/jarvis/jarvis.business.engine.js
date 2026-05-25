@@ -370,19 +370,43 @@ if (intent === "GERARDO_STATUS") {
     "SOVEREIGN_RUNTIME_TARGET"
 ) {
 
-    const ownership =
+    const normalizedTarget =
 
+    Object.keys(
         window
-            .__MODULE_OWNERSHIP__?.[
+            .__MODULE_OWNERSHIP__ || {}
+    ).find(
+        key =>
+            key.includes(
                 target.value
-            ] || {};
+            )
+    ) ||
 
-    const graphNode =
-
+    Object.keys(
         window
-            .__REPO_DEP_GRAPH__?.[
+            .__REPO_DEP_GRAPH__ || {}
+    ).find(
+        key =>
+            key.includes(
                 target.value
-            ] || {};
+            )
+    ) ||
+
+    target.value;
+
+const ownership =
+
+    window
+        .__MODULE_OWNERSHIP__?.[
+            normalizedTarget
+        ] || {};
+
+const graphNode =
+
+    window
+        .__REPO_DEP_GRAPH__?.[
+            normalizedTarget
+        ] || {};
 
     const dependencies =
 
