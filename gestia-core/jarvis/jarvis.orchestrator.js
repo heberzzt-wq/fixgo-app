@@ -693,6 +693,51 @@ window.__ENGINE_RECOVERY__[
   );
 }
 
+if (
+
+  window.__ENGINE_FAILURES__?.[
+    engineName
+  ]?.degraded === true
+
+) {
+
+  window.__ENGINE_FAILURES__[
+    engineName
+  ].degraded = false;
+
+  window.__ENGINE_FAILURES__[
+    engineName
+  ].isolated = false;
+
+  window.__ENGINE_FAILURES__[
+    engineName
+  ].failures = 0;
+
+  window.__ENGINE_RECOVERY__ ||= {};
+
+  window.__ENGINE_RECOVERY__[
+    engineName
+  ] ||= {};
+
+  window.__ENGINE_RECOVERY__[
+    engineName
+  ].recovering = false;
+
+  window.__ENGINE_RECOVERY__[
+    engineName
+  ].recovered = true;
+
+  window.__ENGINE_RECOVERY__[
+    engineName
+  ].recoveredAt =
+    Date.now();
+
+  console.log(
+    "🟢 [ENGINE_REINTEGRATED]",
+    engineName
+  );
+}
+
     const duration =
 
       performance.now() -
