@@ -3118,7 +3118,7 @@ async function() {
         window.__FILE_IMPACT_GRAPH__ =
 
         window.__REPO_IMPACT_GRAPH__ ||
-        
+
         {};
 
         window.__COGNITIVE_GRAPH__ ||= {};
@@ -14181,6 +14181,51 @@ if (window.JarvisBridge?.dispatch) {
         jarvisRes?.preview ||
         [];
 
+        /* =====================================================
+   SOVEREIGN PREVIEW GOVERNANCE
+===================================================== */
+
+const previewTarget =
+
+    localPreview?.[0]?.target ||
+
+    localPreview?.[0]?.file ||
+
+    localPreview?.[0]?.module ||
+
+    "";
+
+const previewImpact =
+
+    window.analyzeRepoImpact?.(
+        previewTarget
+    );
+
+if (
+    previewImpact?.governanceAction ===
+    "HARD_BLOCK"
+) {
+
+    await this.setState(
+        STATES.ERROR,
+        opId,
+        {
+            report:
+                `🚨 BLOQUEO SOBERANO\n\n${previewTarget}\n\nRiesgo crítico detectado.`
+        }
+    );
+
+    return {
+
+        ok: false,
+
+        blocked: true,
+
+        governance:
+            previewImpact
+    };
+}
+
     this.pendingPlans.set(
         jarvisRes.confirmKey || opId,
         {
@@ -14335,6 +14380,43 @@ Escribe:
                 intents
             );
 
+            /* =====================================================
+   SOVEREIGN IMPACT GOVERNANCE
+===================================================== */
+
+const repoImpact =
+
+    window.analyzeRepoImpact?.(
+        intents?.[0]?.target ||
+        intents?.[0]?.file ||
+        intents?.[0]?.module ||
+        ""
+    );
+
+if (
+    repoImpact?.propagatedRisk ===
+    "CRITICAL"
+) {
+
+    decision.action =
+        "CONFIRM";
+
+    decision.requiereAprobacion =
+        true;
+
+    decision.confianza =
+        Math.min(
+            decision.confianza || 100,
+            40
+        );
+
+    decision.runtimeRisk =
+        repoImpact.propagatedRisk;
+
+    decision.governanceAction =
+        repoImpact.governanceAction;
+}
+
         if (
             decision.action ===
             "CONFIRM"
@@ -14372,6 +14454,29 @@ Escribe:
         );
 
     } catch (error) {
+
+        /* =====================================================
+   SOVEREIGN FAILURE CLEANUP
+===================================================== */
+
+if (opId) {
+
+    this.pendingPlans.delete(
+        opId
+    );
+
+    this.activeOps.delete(
+        opId
+    );
+}
+
+        /* =====================================================
+   LEDGER FAILURE PURGE
+===================================================== */
+
+await this.ledger.removeOp(
+    opId
+);
 
         const safe =
             this.handleError(
@@ -14416,6 +14521,72 @@ async runPlan(opId, intents = null) {
     let plan =
     planObj.intents || [];
 
+
+    /* =====================================================
+   SOVEREIGN EXECUTION REVALIDATION
+===================================================== */
+
+const executionTarget =
+
+    plan?.[0]?.target ||
+
+    plan?.[0]?.file ||
+
+    plan?.[0]?.module ||
+
+    "";
+
+const executionImpact =
+
+    window.analyzeRepoImpact?.(
+        executionTarget
+    );
+
+if (
+    executionImpact?.governanceAction ===
+    "HARD_BLOCK"
+) {
+
+    await this.setState(
+        STATES.ERROR,
+        opId,
+        {
+            report:
+                `🚨 EJECUCIÓN BLOQUEADA\n\n${executionTarget}\n\nGovernance soberano detectó riesgo crítico.`
+        }
+    );
+
+    /* =====================================================
+   GOVERNANCE INCIDENT RECORD
+===================================================== */
+
+window.recordGovernanceEvent?.({
+
+    type:
+        "SOVEREIGN_EXECUTION_BLOCKED",
+
+    opId,
+
+    target:
+        executionTarget,
+
+    governance:
+        executionImpact,
+
+    timestamp:
+        Date.now(),
+
+    source:
+        "runPlan",
+
+    severity:
+        "CRITICAL"
+});
+
+    throw new Error(
+        "SOVEREIGN_EXECUTION_BLOCKED"
+    );
+}
 /* =====================================================
    NORMALIZADOR DE PLAN V15.2
    + SELF REPAIR BRIDGE
@@ -14704,6 +14875,18 @@ if (operation.type === "REPAIR") {
 
     await this.ledger.removeOp(opId);
 
+    /* =====================================================
+   SUCCESS RUNTIME CLEANUP
+===================================================== */
+
+this.pendingPlans.delete(
+    opId
+);
+
+this.activeOps.delete(
+    opId
+);
+
     return {
         ok: true,
         success: true,
@@ -14731,6 +14914,18 @@ if (READ_TYPES.includes(operation.type)) {
         opId,
         { report: "Sincronizando telemetría..." }
     );
+
+    /* =====================================================
+   SUCCESS RUNTIME CLEANUP
+===================================================== */
+
+this.pendingPlans.delete(
+    opId
+);
+
+this.activeOps.delete(
+    opId
+);
 
     await this.ledger.removeOp(opId);
 
