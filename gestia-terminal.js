@@ -12343,6 +12343,34 @@ window.__RUNTIME_HEALTH_MAP__[
 
     Date.now();
 
+    /* ================================================
+   SOVEREIGN RUNTIME FEDERATION
+================================================ */
+
+window.GestiaRuntime
+    ?.setState?.(
+
+        "runtime.sovereign.isolationMode",
+
+        true
+    );
+
+window.GestiaRuntime
+    ?.setState?.(
+
+        "runtime.sovereign.recoveryMode",
+
+        true
+    );
+
+window.GestiaRuntime
+    ?.setState?.(
+
+        "runtime.sovereign.lastRecovery",
+
+        Date.now()
+    );
+
                 console.log(
                     `⛔ [MODULE_BLOCKED]: ${action.target}`
                 );
