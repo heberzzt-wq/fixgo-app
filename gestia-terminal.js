@@ -12450,6 +12450,11 @@ window.__RUNTIME_HEALTH_MAP__[
                         action.target
                     );
 
+                    console.log(
+    "🧪 [VALIDATION_RESULT]",
+    validation
+);
+
                 result.validation =
                     validation;
 
