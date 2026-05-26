@@ -417,7 +417,31 @@ window.GestiaRuntime.store = {
             false,
 
         servicesReady:
-            false
+            false,
+
+sovereign: {
+
+    active:
+        true,
+
+    federation:
+        true,
+
+    isolationMode:
+        false,
+
+    recoveryMode:
+        false,
+
+    totalHubs:
+        0,
+
+    isolatedHubs:
+        0,
+
+    lastRecovery:
+        null
+}
     },
 
     session: {
