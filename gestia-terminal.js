@@ -16220,7 +16220,9 @@ if (
         }
     ];
 }
-            repairPlan.actions = [
+            else {
+
+    repairPlan.actions = [
 
     {
 
@@ -16246,6 +16248,7 @@ if (
             fileName
     }
 ];
+}
         }
 
         console.log(
