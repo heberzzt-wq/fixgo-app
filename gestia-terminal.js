@@ -2462,6 +2462,8 @@ window.__RUNTIME_HEALTH_MAP__ =
             ?.healthMap || {}
     );
 
+    window.RUNTIME_HEALTH_MAP =
+    window.__RUNTIME_HEALTH_MAP__;
         /* =================================================
            GRAPH RESTORE
         ================================================= */
@@ -3212,19 +3214,22 @@ totalDependencies:
 // 🧠 RUNTIME HEALTH REGISTRY HYDRATION
 // =====================================================
 
-window.RUNTIME_HEALTH_MAP ||= {};
+window.__RUNTIME_HEALTH_MAP__ ||= {};
 
-window.RUNTIME_HEALTH_MAP[
+
+window.__RUNTIME_HEALTH_MAP__[
     moduleName
 ] = {
 
     ...(
-        window.RUNTIME_HEALTH_MAP[
-            moduleName
-        ] || {}
+        window
+            .__RUNTIME_HEALTH_MAP__[
+                moduleName
+            ] || {}
     ),
 
     id:
+    
         moduleName,
 
     sovereign:
@@ -3277,12 +3282,19 @@ window.RUNTIME_HEALTH_MAP[
             ]?.dependencies || []
 };
 
+window.RUNTIME_HEALTH_MAP =
+
+    window.__RUNTIME_HEALTH_MAP__;
+
 console.log(
     "🧠 [RUNTIME_NODE_HYDRATED]",
     moduleName
 );
+
+
     }
 }
+
         console.log(
             "✅ [DEPENDENCY_GRAPH_READY]",
             Object.keys(
@@ -3293,18 +3305,18 @@ console.log(
 
         return {
 
-    ok: true,
+            ok: true,
 
-    total:
-        Object.keys(
-            window
-                .__REPO_DEP_GRAPH__
-        ).length,
+            total:
+                Object.keys(
+                    window
+                        .__REPO_DEP_GRAPH__
+                ).length,
 
-    graph:
-        window
-            .__REPO_DEP_GRAPH__
-};
+            graph:
+                window
+                    .__REPO_DEP_GRAPH__
+        };
 
     }
 
@@ -3316,8 +3328,6 @@ console.log(
         );
     }
 };
-        
-
 
 
 
