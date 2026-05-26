@@ -16168,18 +16168,30 @@ function(fileName = "") {
                 
             repairPlan.actions = [
 
-                {
+    {
 
-                    step:
-                        1,
+        step:
+            1,
 
-                    type:
-                        "REVALIDATE_RUNTIME_GOVERNANCE",
+        type:
+            "REBUILD_COGNITIVE_GRAPH",
 
-                    target:
-                        fileName
-                }
-            ];
+        target:
+            fileName
+    },
+
+    {
+
+        step:
+            2,
+
+        type:
+            "REVALIDATE_RUNTIME_GOVERNANCE",
+
+        target:
+            fileName
+    }
+];
         }
 
         console.log(
