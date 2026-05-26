@@ -8154,6 +8154,133 @@ reintegrateHub(
         };
     }
 }
+,
+
+hydrateSovereignHubs() {
+
+    try {
+
+        const ownership =
+
+            window
+                .__MODULE_OWNERSHIP__ || {};
+
+        const hubs = {};
+
+        Object.entries(
+            ownership
+        ).forEach(([
+
+            moduleId,
+
+            meta
+
+        ]) => {
+
+            if (
+
+                meta?.authority ||
+
+                meta?.classification ===
+                "authority_module"
+
+            ) {
+
+                hubs[
+                    moduleId
+                ] = {
+
+                    id:
+                        moduleId,
+
+                    authority:
+                        true,
+
+                    scopes:
+                        meta.scopes || [],
+
+                    governance:
+
+                        meta.governance ||
+
+                        "NORMAL",
+
+                    runtimeRole:
+
+                        meta.runtimeRole ||
+
+                        "unknown",
+
+                    state:
+                        "ONLINE",
+
+                    hydrated:
+                        true,
+
+                    topologyDiscovered:
+                        true,
+
+                    registeredAt:
+
+                        meta.registeredAt ||
+
+                        Date.now()
+                };
+            }
+        });
+
+        this.hubs =
+            hubs;
+
+        window.GestiaRuntime.log(
+
+            "[SOVEREIGN_HUBS_HYDRATED]",
+
+            {
+
+                total:
+
+                    Object.keys(
+                        hubs
+                    ).length
+            }
+        );
+
+        return {
+
+            success:
+                true,
+
+            total:
+
+                Object.keys(
+                    hubs
+                ).length,
+
+            hubs
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+
+            "🚨 [SOVEREIGN_HYDRATION_FAIL]",
+
+            error
+        );
+
+        return {
+
+            success:
+                false,
+
+            error:
+                error.message
+        };
+    }
+}
 };
 
 /* =========================================================
