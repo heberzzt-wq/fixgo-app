@@ -15788,15 +15788,17 @@ function() {
 
     : file.includes("operations") ||
 
-      file.includes("plans") ||
+  file.includes("plans") ||
 
-      file.includes("executor") ||
+  file.includes("executor") ||
 
-      file.includes("bridge") ||
+  file.includes("bridge") ||
 
-      file.includes("repair")
+  file.includes("repair") ||
 
-        ? "EXECUTION"
+  file.includes("execution.hub")
+
+    ? "EXECUTION"
 
     : file.includes("terminal") ||
 
