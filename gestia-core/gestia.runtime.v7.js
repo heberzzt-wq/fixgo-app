@@ -7927,6 +7927,110 @@ window.GestiaRuntime.sovereignRuntime = {
             return false;
         }
     }
+    ,
+
+validateHub(
+
+    hubId
+
+) {
+
+    try {
+
+        if (!hubId) {
+
+            return {
+
+                valid:
+                    false,
+
+                error:
+                    "INVALID_HUB_ID"
+            };
+        }
+
+        const hub =
+
+            this.hubs?.[
+                hubId
+            ];
+
+        /* =============================================
+           HUB EXISTS
+        ============================================= */
+
+        if (!hub) {
+
+            return {
+
+                valid:
+                    false,
+
+                error:
+                    "HUB_NOT_REGISTERED"
+            };
+        }
+
+        /* =============================================
+           ISOLATED
+        ============================================= */
+
+        if (
+
+            hub.state ===
+            "ISOLATED"
+
+        ) {
+
+            return {
+
+                valid:
+                    false,
+
+                error:
+                    "HUB_ISOLATED"
+            };
+        }
+
+        /* =============================================
+           VALID
+        ============================================= */
+
+        return {
+
+            valid:
+                true,
+
+            hub:
+                hubId,
+
+            state:
+                hub.state ||
+
+                "ONLINE"
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+
+            "🚨 [SOVEREIGN_HUB_VALIDATION_FAIL]",
+
+            error
+        );
+
+        return {
+
+            valid:
+                false,
+
+            error:
+                error.message
+        };
+    }
+}
 };
 
 /* =========================================================
