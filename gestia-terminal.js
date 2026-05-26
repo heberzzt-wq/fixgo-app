@@ -12347,28 +12347,19 @@ window.__RUNTIME_HEALTH_MAP__[
    SOVEREIGN RUNTIME FEDERATION
 ================================================ */
 
-window.GestiaRuntime
-    ?.setState?.(
 
-        "runtime.sovereign.isolationMode",
+    /* ================================================
+   KERNEL SOVEREIGN API
+================================================ */
 
-        true
-    );
+window
+    .GestiaRuntime
+    ?.sovereignRuntime
+    ?.isolateHub?.(
 
-window.GestiaRuntime
-    ?.setState?.(
+        action.target,
 
-        "runtime.sovereign.recoveryMode",
-
-        true
-    );
-
-window.GestiaRuntime
-    ?.setState?.(
-
-        "runtime.sovereign.lastRecovery",
-
-        Date.now()
+        "HARD_RUNTIME_RECOVERY"
     );
 
                 console.log(

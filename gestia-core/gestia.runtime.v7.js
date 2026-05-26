@@ -7821,6 +7821,124 @@ window.GestiaRuntime.cognitive = {
 };
 
 /* =========================================================
+   SOVEREIGN RUNTIME API
+========================================================= */
+
+window.GestiaRuntime.sovereignRuntime = {
+
+    hubs: {},
+
+    isolateHub(
+
+        hubId,
+
+        reason = "UNKNOWN"
+
+    ) {
+
+        try {
+
+            if (!hubId) {
+
+                return false;
+            }
+
+            this.hubs[
+                hubId
+            ] ||= {};
+
+            this.hubs[
+                hubId
+            ].isolated = true;
+
+            this.hubs[
+                hubId
+            ].state =
+                "ISOLATED";
+
+            this.hubs[
+                hubId
+            ].reason =
+                reason;
+
+            this.hubs[
+                hubId
+            ].timestamp =
+                Date.now();
+
+            /* =============================================
+               GLOBAL FEDERATION
+            ============================================= */
+
+            window.GestiaRuntime
+                .setState(
+
+                    "runtime.sovereign.isolationMode",
+
+                    true
+                );
+
+            window.GestiaRuntime
+                .setState(
+
+                    "runtime.sovereign.recoveryMode",
+
+                    true
+                );
+
+            window.GestiaRuntime
+                .setState(
+
+                    "runtime.sovereign.lastRecovery",
+
+                    Date.now()
+                );
+
+            /* =============================================
+               TELEMETRY
+            ============================================= */
+
+            window.GestiaRuntime.log(
+
+                "[SOVEREIGN_HUB_ISOLATED]",
+
+                {
+
+                    hub:
+                        hubId,
+
+                    reason
+                }
+            );
+
+            return true;
+
+        }
+
+        catch(error) {
+
+            console.error(
+
+                "🚨 [SOVEREIGN_ISOLATION_FAIL]",
+
+                error
+            );
+
+            return false;
+        }
+    }
+};
+
+/* =========================================================
+   SOVEREIGN RUNTIME READY
+========================================================= */
+
+console.log(
+    "🧠 [SOVEREIGN_RUNTIME_API] ONLINE"
+);
+
+
+/* =========================================================
    POLICY ENGINE
 ========================================================= */
 
