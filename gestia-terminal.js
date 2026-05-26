@@ -16106,6 +16106,19 @@ function(fileName = "") {
 
             autoExecutable:
                 false
+
+                ,
+
+            ok:
+                true,
+
+            module:
+                fileName,
+
+            executionMode:
+                "CONTROLLED_RUNTIME_REPAIR",
+
+            actions: []
         };
 
         /* =================================================
