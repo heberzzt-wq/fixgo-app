@@ -16350,9 +16350,9 @@ console.log(
 
         const repair =
 
-            proposeRuntimeRepair(
-                fileName
-            );
+    await proposeRuntimeRepair(
+        fileName
+    );
 
         if (!repair?.ok) {
 
