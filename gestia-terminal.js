@@ -16746,6 +16746,17 @@ if(runtime){
         fileName,
         runtime
     );
+
+    /* =============================================
+   SOVEREIGN KERNEL REINTEGRATION
+============================================= */
+
+window
+    .GestiaRuntime
+    ?.sovereignRuntime
+    ?.reintegrateHub?.(
+        fileName
+    );
 }
         /* =================================================
            RECOVERY VERIFICATION
