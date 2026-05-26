@@ -16164,6 +16164,22 @@ function(fileName = "") {
 
             repairPlan.strategy =
                 "CONTROLLED_EXECUTION_RESTART";
+
+                
+            repairPlan.actions = [
+
+                {
+
+                    step:
+                        1,
+
+                    type:
+                        "REVALIDATE_RUNTIME_GOVERNANCE",
+
+                    target:
+                        fileName
+                }
+            ];
         }
 
         console.log(
