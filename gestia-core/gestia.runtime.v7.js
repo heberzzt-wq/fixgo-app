@@ -8281,6 +8281,132 @@ hydrateSovereignHubs() {
         };
     }
 }
+
+,
+
+runAutonomousGovernance() {
+
+    try {
+
+        const hubs =
+
+            this.hubs || {};
+
+        Object.entries(
+            hubs
+        ).forEach(([
+
+            hubId,
+
+            hub
+
+        ]) => {
+
+            const runtimeHealth =
+
+                window
+                    .__RUNTIME_HEALTH_MAP__?.[
+                        hubId
+                    ];
+
+            if (!runtimeHealth) {
+
+                return;
+            }
+
+            const health =
+
+                runtimeHealth.health ||
+
+                100;
+
+            /* =============================================
+               CRITICAL DEGRADATION
+            ============================================= */
+
+            if (
+
+                health < 50 &&
+
+                hub.state !==
+                "ISOLATED"
+
+            ) {
+
+                console.warn(
+
+                    `🚨 [AUTONOMOUS_ISOLATION]: ${hubId}`,
+
+                    health
+                );
+
+                this.isolateHub(
+
+                    hubId,
+
+                    "AUTONOMOUS_RUNTIME_GOVERNANCE"
+                );
+            }
+
+            /* =============================================
+               RECOVERY DETECTED
+            ============================================= */
+
+            else if (
+
+                health >= 80 &&
+
+                hub.state ===
+                "ISOLATED"
+
+            ) {
+
+                console.log(
+
+                    `♻️ [AUTONOMOUS_REINTEGRATION]: ${hubId}`,
+
+                    health
+                );
+
+                this.reintegrateHub(
+                    hubId
+                );
+            }
+        });
+
+        return {
+
+            success:
+                true,
+
+            total:
+
+                Object.keys(
+                    hubs
+                ).length
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+
+            "🚨 [AUTONOMOUS_GOVERNANCE_FAIL]",
+
+            error
+        );
+
+        return {
+
+            success:
+                false,
+
+            error:
+                error.message
+        };
+    }
+}
 };
 
 /* =========================================================
