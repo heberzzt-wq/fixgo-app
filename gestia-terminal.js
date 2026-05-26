@@ -16166,6 +16166,60 @@ function(fileName = "") {
                 "CONTROLLED_EXECUTION_RESTART";
 
                 
+
+                /* =================================================
+   HEALTH-BASED AUTONOMOUS DECISION
+================================================= */
+
+if (
+    health.health < 50
+) {
+
+    repairPlan.strategy =
+        "HARD_RUNTIME_RECOVERY";
+
+    repairPlan.requiresIsolation =
+        true;
+
+    repairPlan.actions = [
+
+        {
+
+            step:
+                1,
+
+            type:
+                "HARD_BLOCK_MODULE",
+
+            target:
+                fileName
+        },
+
+        {
+
+            step:
+                2,
+
+            type:
+                "REBUILD_COGNITIVE_GRAPH",
+
+            target:
+                fileName
+        },
+
+        {
+
+            step:
+                3,
+
+            type:
+                "REVALIDATE_RUNTIME_GOVERNANCE",
+
+            target:
+                fileName
+        }
+    ];
+}
             repairPlan.actions = [
 
     {
