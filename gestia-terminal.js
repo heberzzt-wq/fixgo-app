@@ -16009,7 +16009,10 @@ function(fileName = "") {
             layer,
 
             currentStatus:
-                health.status,
+
+    health.status ||
+
+    health.state,
 
             currentHealth:
                 health.health,
