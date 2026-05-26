@@ -2911,6 +2911,82 @@ function() {
             };
         }
 
+        /* =================================================
+   SOVEREIGN HUB COGNITION HYDRATION
+================================================= */
+
+window.__MODULE_OWNERSHIP__ ||= {};
+
+const sovereignHubs =
+
+    Object.keys(
+        window.__MODULE_OWNERSHIP__
+    ).filter(
+
+        moduleName =>
+
+            moduleName.includes(
+                ".hub"
+            )
+    );
+
+for (
+    const hubName
+    of sovereignHubs
+) {
+
+    if (
+        !window
+            .__REPO_COGNITION__?.[
+                hubName
+            ]
+    ) {
+
+        window
+            .__REPO_COGNITION__[
+                hubName
+            ] = {
+
+            file:
+                hubName,
+
+            path:
+                hubName,
+
+            module:
+                hubName,
+
+            type:
+                "sovereign_runtime_hub",
+
+            critical:
+                true,
+
+            cognition: {
+
+                engineType:
+                    "sovereign_hub",
+
+                runtimeRole:
+                    "runtime_orchestration",
+
+                governance:
+                    "CRITICAL",
+
+                riskLevel:
+                    "HIGH",
+
+                criticality:
+                    100
+            }
+        };
+
+        console.log(
+            "🧠 [SOVEREIGN_COGNITION_HYDRATED]",
+            hubName
+        );
+    }
+}
         console.log(
             "✅ [REPO_COGNITION_READY]",
             Object.keys(
