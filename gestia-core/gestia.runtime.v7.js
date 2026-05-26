@@ -8031,6 +8031,129 @@ validateHub(
         };
     }
 }
+
+,
+
+reintegrateHub(
+
+    hubId
+
+) {
+
+    try {
+
+        if (!hubId) {
+
+            return {
+
+                success:
+                    false,
+
+                error:
+                    "INVALID_HUB_ID"
+            };
+        }
+
+        const hub =
+
+            this.hubs?.[
+                hubId
+            ];
+
+        if (!hub) {
+
+            return {
+
+                success:
+                    false,
+
+                error:
+                    "HUB_NOT_REGISTERED"
+            };
+        }
+
+        /* =============================================
+           HUB REINTEGRATION
+        ============================================= */
+
+        hub.isolated =
+            false;
+
+        hub.state =
+            "ONLINE";
+
+        hub.reintegrationTimestamp =
+
+            Date.now();
+
+        /* =============================================
+           GLOBAL FEDERATION
+        ============================================= */
+
+        window.GestiaRuntime
+            .setState(
+
+                "runtime.sovereign.isolationMode",
+
+                false
+            );
+
+        window.GestiaRuntime
+            .setState(
+
+                "runtime.sovereign.recoveryMode",
+
+                false
+            );
+
+        /* =============================================
+           TELEMETRY
+        ============================================= */
+
+        window.GestiaRuntime.log(
+
+            "[SOVEREIGN_HUB_REINTEGRATED]",
+
+            {
+
+                hub:
+                    hubId
+            }
+        );
+
+        return {
+
+            success:
+                true,
+
+            hub:
+                hubId,
+
+            state:
+                "ONLINE"
+        };
+
+    }
+
+    catch(error) {
+
+        console.error(
+
+            "🚨 [SOVEREIGN_REINTEGRATION_FAIL]",
+
+            error
+        );
+
+        return {
+
+            success:
+                false,
+
+            error:
+                error.message
+        };
+    }
+}
 };
 
 /* =========================================================
