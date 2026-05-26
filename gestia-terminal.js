@@ -12318,6 +12318,31 @@ window.executeRepairPlan = async function(
                         action.target
                     ] = true;
 
+                    
+/* ================================================
+   RUNTIME ISOLATION STATE
+================================================ */
+
+window.__RUNTIME_HEALTH_MAP__ ||= {};
+
+window.__RUNTIME_HEALTH_MAP__[
+    action.target
+] ||= {};
+
+window.__RUNTIME_HEALTH_MAP__[
+    action.target
+].isolated = true;
+
+window.__RUNTIME_HEALTH_MAP__[
+    action.target
+].state = "ISOLATED";
+
+window.__RUNTIME_HEALTH_MAP__[
+    action.target
+].isolationTimestamp =
+
+    Date.now();
+
                 console.log(
                     `⛔ [MODULE_BLOCKED]: ${action.target}`
                 );
