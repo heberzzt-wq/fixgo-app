@@ -112,6 +112,36 @@ window.__REPO_COGNITION__[
 
     cognition
 };
+
+/* =========================================================
+   KERNEL MODULE REGISTRATION
+========================================================= */
+
+window.GestiaRuntime
+    ?.registerModule?.(
+
+        node.file,
+
+        {
+
+            type:
+                node.type ||
+
+                "runtime_node",
+
+            governance:
+                node.governance ||
+
+                "SUPERVISED_PATCH",
+
+            critical:
+                node.critical ||
+
+                false,
+
+            cognition
+        }
+    );
         console.log(
             "🧠 [REPO_NODE_REGISTERED]",
             node.file
