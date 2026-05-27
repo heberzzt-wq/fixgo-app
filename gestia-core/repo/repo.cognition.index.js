@@ -30,6 +30,26 @@ function(node = {}) {
                 Date.now()
         };
 
+        /* =====================================================
+   HYBRID COGNITION HYDRATION
+===================================================== */
+
+window.__REPO_COGNITION__ ||= {};
+
+window.__REPO_COGNITION__[
+    node.file
+] = {
+
+    file:
+        node.file,
+
+    module:
+        node.module ||
+
+        "unknown",
+
+    cognition
+};
         console.log(
             "🧠 [REPO_NODE_REGISTERED]",
             node.file
