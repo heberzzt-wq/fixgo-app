@@ -3546,9 +3546,17 @@ function(targetFile = "") {
 ===================================================== */
 
 window.analyzeRepoImpact =
-function(fileName = "") {
+function(config = {}) {
 
     try {
+
+        const fileName =
+
+            typeof config === "string"
+
+            ? config
+
+            : config.file || "";
 
         console.log(
             "🧠 [REPO_IMPACT_ANALYSIS]",
