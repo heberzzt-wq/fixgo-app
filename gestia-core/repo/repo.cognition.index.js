@@ -20,11 +20,31 @@ function(node = {}) {
     );
 }
 
-const cognition =
+const cognition = {
 
-    classifyRepoFile(
-        node
-    );
+    runtimeRole:
+        "sandbox_runtime",
+
+    governance:
+        node.governance ||
+
+        "SUPERVISED_PATCH",
+
+    mutationMode:
+        node.mutationMode ||
+
+        "SUPERVISED",
+
+    criticality:
+        node.critical
+
+        ? 90
+
+        : 20,
+
+    hydrated:
+        true
+};
 
 window.__REPO_INDEX__[
     node.file
