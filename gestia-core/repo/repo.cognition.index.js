@@ -117,3 +117,44 @@ function() {
 console.log(
     "🧠 [REPO_COGNITION_INDEX] ONLINE"
 );
+
+/* =========================================================
+   REGISTER SOVEREIGN SERVICE
+========================================================= */
+
+window.GestiaRuntime ||= {};
+
+window.GestiaRuntime.services ||= {};
+
+window.GestiaRuntime.services
+    .repoCognition = {
+
+    online:
+        true,
+
+    registry:
+        "__REPO_INDEX__",
+
+    cognition:
+        "__REPO_COGNITION__",
+
+    startedAt:
+        Date.now()
+};
+
+/* =========================================================
+   REGISTER COGNITIVE RUNTIME
+========================================================= */
+
+window.__COGNITIVE_RUNTIME__ ||= {
+
+    registries: {}
+};
+
+window.__COGNITIVE_RUNTIME__
+    .registries
+    .repoCognition = true;
+
+console.log(
+    "🧠 [REPO_COGNITION_SERVICE] REGISTERED"
+);
