@@ -55,6 +55,43 @@ window.__REPO_INDEX__[
                 Date.now()
         };
 
+        /* =========================================================
+   SOVEREIGN KERNEL REGISTRY MOUNT
+========================================================= */
+
+window.GestiaRuntime ||= {};
+
+window.GestiaRuntime.modules ||= {
+
+    registry: {},
+
+    mounted: {},
+
+    lifecycle: {},
+
+    telemetry: {}
+};
+
+window.GestiaRuntime
+    .modules
+    .registry[
+        node.file
+    ] = {
+
+    ...node,
+
+    cognition,
+
+    registeredAt:
+        Date.now(),
+
+    runtimeMounted:
+        false,
+
+    lifecycle:
+        "REGISTERED"
+};
+
         /* =====================================================
    HYBRID COGNITION HYDRATION
 ===================================================== */
