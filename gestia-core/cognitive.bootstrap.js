@@ -72,8 +72,8 @@ else {
             ========================================================================== */
 
                 await import(
-                    "./repo/repo.cognition.index.js"
-                );
+    "./repo/repo.cognition.index.js?v=" + Date.now()
+);
 
             console.log(
                 "🧠 [REPO_COGNITION_INDEX] LOADED"
