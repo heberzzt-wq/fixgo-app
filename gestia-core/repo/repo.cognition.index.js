@@ -15,15 +15,20 @@ function(node = {}) {
 
         if (!node.file) {
 
-            throw new Error(
-                "FILE_REQUIRED"
-            );
-        }
+    throw new Error(
+        "FILE_REQUIRED"
+    );
+}
 
-        window.__REPO_INDEX__[
-            node.file
-        ] = {
+const cognition =
 
+    classifyRepoFile(
+        node
+    );
+
+window.__REPO_INDEX__[
+    node.file
+] = {
             ...node,
 
             registeredAt:
