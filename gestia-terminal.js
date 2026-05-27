@@ -2656,6 +2656,71 @@ window.registerRuntimeModule = function(
 
 window.__REPO_INDEX__ ||= {};
 
+
+/* =====================================================
+   REGISTER REPO NODE
+===================================================== */
+
+window.registerRepoNode =
+function(node = {}) {
+
+    try {
+
+        if (!node.file) {
+
+            throw new Error(
+                "FILE_REQUIRED"
+            );
+        }
+
+        const cognition =
+
+            classifyRepoFile(
+                node
+            );
+
+        window.__REPO_INDEX__[
+            node.file
+        ] = {
+
+            ...node,
+
+            cognition,
+
+            registeredAt:
+                Date.now()
+        };
+
+        console.log(
+            "🧠 [REPO_NODE_REGISTERED]",
+            node.file
+        );
+
+        return {
+
+            ok: true,
+
+            file:
+                node.file
+        };
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [REPO_NODE_REGISTER_FAIL]",
+            error
+        );
+
+        return {
+
+            ok: false,
+
+            error:
+                error.message
+        };
+    }
+};
 /* =====================================================================================
    REPO COGNITION ENGINE V1
 ===================================================================================== */
