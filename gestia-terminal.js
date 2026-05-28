@@ -2635,41 +2635,7 @@ window.registerRuntimeModule = function(
             `🧠 [MODULE_REGISTERED]: ${moduleName}`
         );
 
-        /* =============================================
-   SOVEREIGN ORCHESTRATOR BRIDGE
-============================================= */
-
-try {
-
-    if (
-        window.GestiaRuntime
-        ?.registerModule
-    ) {
-
-        window.GestiaRuntime
-            .registerModule(
-
-                moduleName,
-
-                moduleData
-            );
-
-        console.log(
-            "🧠 [SOVEREIGN_BRIDGE_OK]",
-            moduleName
-        );
-    }
-
-}
-
-catch(bridgeError) {
-
-    console.warn(
-        "⚠️ [SOVEREIGN_BRIDGE_FAIL]",
-        moduleName,
-        bridgeError
-    );
-}
+       
 
         return true;
 
@@ -3469,6 +3435,81 @@ console.log(
     "🧠 [RUNTIME_NODE_HYDRATED]",
     moduleName
 );
+
+/* =============================================
+   SOVEREIGN ORCHESTRATOR CONVERGENCE
+============================================= */
+
+try {
+
+    if (
+        window.GestiaRuntime
+        ?.modules
+        ?.registry
+    ) {
+
+        window.GestiaRuntime
+            .modules
+            .registry[
+                moduleName
+            ] = {
+
+            id:
+                moduleName,
+
+            sovereign:
+                true,
+
+            mounted:
+                true,
+
+            hydrated:
+                true,
+
+            topologyIntegrated:
+                true,
+
+            dependencies:
+
+                window
+                    .__REPO_DEP_GRAPH__?.[
+                        moduleName
+                    ]?.dependencies || [],
+
+            cognition:
+
+                window
+                    .__REPO_COGNITION__?.[
+                        moduleName
+                    ] || {},
+
+            ownership:
+
+                window
+                    .__MODULE_OWNERSHIP__?.[
+                        moduleName
+                    ] || {},
+
+            mountedAt:
+                Date.now()
+        };
+
+        console.log(
+            "🧠 [ORCHESTRATOR_CONVERGED]",
+            moduleName
+        );
+    }
+
+}
+
+catch(convergenceError) {
+
+    console.warn(
+        "⚠️ [ORCHESTRATOR_CONVERGENCE_FAIL]",
+        moduleName,
+        convergenceError
+    );
+}
 
 
     }
