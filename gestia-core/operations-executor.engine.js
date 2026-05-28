@@ -1068,8 +1068,20 @@ const operationId =
 
                         "system_resource",
 
-                    payload:
-                        step?.payload || {},
+                    
+payload: {
+
+    ...(step?.payload || {}),
+
+    originalPrompt:
+
+        step?.payload?.originalPrompt ||
+
+        step?.meta?.originalPrompt ||
+
+        null
+},
+
 
                     priority:
                         step?.priority || "NORMAL",
@@ -1250,7 +1262,7 @@ const target = JSON.stringify({
         change?.target,
 
     payload:
-        change?.payload,
+       change?.payload,
 
     reason:
         change?.reason,
