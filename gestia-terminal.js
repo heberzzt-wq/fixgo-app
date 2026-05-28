@@ -80,6 +80,29 @@ import {
 
 import "./gestia-core/jarvis.kernel.js";
 
+
+/* =====================================================
+   TERMINAL ORCHESTRATOR BRIDGE V1
+===================================================== */
+
+window.GestiaRuntime.registerModule(
+    "terminal.core",
+    {
+
+        onMount(runtime) {
+
+            console.log(
+                "🧠 [TERMINAL_CORE_MOUNTED]",
+                runtime
+            );
+
+            window.__TERMINAL_RUNTIME__ =
+                runtime;
+
+            return true;
+        }
+    }
+);
 /* =====================================================
    SELF REPAIR CORE
 ===================================================== */
@@ -719,6 +742,41 @@ window.MODULE_CONTEXT =
     window.__MODULE_CONTEXT__;
 
     
+    /* =====================================================
+   TERMINAL MODULE MOUNT
+===================================================== */
+
+(async () => {
+
+    try {
+
+        await window.GestiaRuntime.mountModule(
+
+            "terminal.core",
+
+            {
+
+                moduleContext:
+                    window.__MODULE_CONTEXT__
+            }
+        );
+
+        console.log(
+            "✅ [TERMINAL_ORCHESTRATED]"
+        );
+
+    }
+
+    catch(error) {
+
+        console.error(
+            "❌ [TERMINAL_MOUNT_FAIL]",
+            error
+        );
+    }
+
+})();
+
 /* =====================================================================================
    PERSISTENT COGNITIVE RUNTIME V1
    SNAPSHOT ENGINE
