@@ -1423,6 +1423,26 @@ return;
         if (window.JarvisBridge?.dispatch) {
             await window.JarvisBridge.dispatch(comando);
             handled = true;
+
+            
+/* =========================================
+   HARD SOCIAL TERMINAL EXIT
+========================================= */
+
+if (
+
+    window.isSocialJarvis?.(comando)
+
+) {
+
+    console.warn(
+        "🧠 [TERMINAL_SOCIAL_STOP]"
+    );
+
+    return;
+}
+
+
         }
 
     } catch (bridgeErr) {
