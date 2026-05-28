@@ -81,28 +81,7 @@ import {
 import "./gestia-core/jarvis.kernel.js";
 
 
-/* =====================================================
-   TERMINAL ORCHESTRATOR BRIDGE V1
-===================================================== */
 
-window.GestiaRuntime.registerModule(
-    "terminal.core",
-    {
-
-        onMount(runtime) {
-
-            console.log(
-                "🧠 [TERMINAL_CORE_MOUNTED]",
-                runtime
-            );
-
-            window.__TERMINAL_RUNTIME__ =
-                runtime;
-
-            return true;
-        }
-    }
-);
 /* =====================================================
    SELF REPAIR CORE
 ===================================================== */
@@ -741,7 +720,28 @@ activeRuntimeRepairs: new Set(),
 window.MODULE_CONTEXT =
     window.__MODULE_CONTEXT__;
 
-    
+    /* =====================================================
+   TERMINAL ORCHESTRATOR BRIDGE V1
+===================================================== */
+
+window.GestiaRuntime.registerModule(
+    "terminal.core",
+    {
+
+        onMount(runtime) {
+
+            console.log(
+                "🧠 [TERMINAL_CORE_MOUNTED]",
+                runtime
+            );
+
+            window.__TERMINAL_RUNTIME__ =
+                runtime;
+
+            return true;
+        }
+    }
+);
     /* =====================================================
    TERMINAL MODULE MOUNT
 ===================================================== */
