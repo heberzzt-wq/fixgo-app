@@ -3515,6 +3515,97 @@ catch(convergenceError) {
     }
 }
 
+/* =============================================
+   FULL GRAPH ORCHESTRATOR CONVERGENCE
+============================================= */
+
+try {
+
+    const graphNodes =
+
+        Object.keys(
+            window.__REPO_DEP_GRAPH__ || {}
+        );
+
+    for (
+        const nodeName
+        of graphNodes
+    ) {
+
+        if (
+            !window.GestiaRuntime
+                ?.modules
+                ?.registry?.[
+                    nodeName
+                ]
+        ) {
+
+            window.GestiaRuntime
+                .modules
+                .registry[
+                    nodeName
+                ] = {
+
+                id:
+                    nodeName,
+
+                sovereign:
+                    true,
+
+                mounted:
+                    true,
+
+                hydrated:
+                    true,
+
+                topologyIntegrated:
+                    true,
+
+                dependencies:
+
+                    window
+                        .__REPO_DEP_GRAPH__?.[
+                            nodeName
+                        ]?.dependencies || [],
+
+                cognition:
+
+                    window
+                        .__REPO_COGNITION__?.[
+                            nodeName
+                        ] || {},
+
+                ownership:
+
+                    window
+                        .__MODULE_OWNERSHIP__?.[
+                            nodeName
+                        ] || {},
+
+                mountedAt:
+                    Date.now(),
+
+                convergenceSource:
+                    "dependency_graph"
+            };
+
+            console.log(
+                "🧠 [FULL_GRAPH_CONVERGED]",
+                nodeName
+            );
+        }
+    }
+
+}
+
+catch(fullGraphError) {
+
+    console.warn(
+        "⚠️ [FULL_GRAPH_CONVERGENCE_FAIL]",
+        fullGraphError
+    );
+}
+
         console.log(
             "✅ [DEPENDENCY_GRAPH_READY]",
             Object.keys(
