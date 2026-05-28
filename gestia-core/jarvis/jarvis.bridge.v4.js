@@ -802,16 +802,56 @@ window.executeCommands = async function(commands = []) {
             let res;
             const t0 = performance.now();
 
-           /* =====================================================================================
-               SOCIAL + NATIVE + CORE ROUTER (V6.0 PROACTIVE ENGINE)
-            ===================================================================================== */
-            if (isSocialJarvis(cmd) || isNativeJarvis(cmd)) {
-                res = await withTimeout(executeNativeJarvis(cmd), 8000);
-            } else {
-                res = await withTimeout(runCore(cmd), 8000);
-            }
+           
+/* =====================================================================================
+   SOCIAL + NATIVE + CORE ROUTER
+===================================================================================== */
 
-            const ms = Math.round(performance.now() - t0);
+if (
+    isSocialJarvis(cmd) ||
+    isNativeJarvis(cmd)
+) {
+
+    res = await withTimeout(
+        executeNativeJarvis(cmd),
+        8000
+    );
+
+    /* ======================================
+       SOCIAL RESPONSE HARD STOP
+    ====================================== */
+
+    if (
+
+        typeof res === "string" &&
+
+        isSocialJarvis(cmd)
+
+    ) {
+
+        outputs.push(res);
+
+        burstCache.set(
+            cacheKey,
+            res
+        );
+
+        continue;
+    }
+
+} else {
+
+    res = await withTimeout(
+        runCore(cmd),
+        8000
+    );
+}
+
+const ms =
+    Math.round(
+        performance.now() - t0
+    );
+
 
             /* =====================================================
                🔥 INYECCIÓN DE REPARACIÓN FÍSICA (EL FIX DEL ARRE)
