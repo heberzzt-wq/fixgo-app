@@ -87,26 +87,59 @@ if (result) {
     if (result.message) msg = result.message;
     else if (result.data) msg = JSON.stringify(result.data, null, 2);
     
+
 else if (typeof result === "object") {
 
-    const changes =
+    const issues =
 
-        result?.proposal?.changes ||
+        Array.isArray(result?.issues)
+            ? result.issues
+            : [];
 
-        result?.changes ||
+    if (issues.length > 0) {
 
-        [];
+        const top = issues[0];
 
-    const affected =
+        msg =
+`
+Arquitecto,
 
-        changes.map(c =>
+detecté:
 
-            c.target ||
-            c.type ||
-            "system"
-        );
+${top.title}
 
-    msg =
+Impacto:
+${top.impact || "Impacto visual detectado"}
+
+Recomendación:
+${top.recommendation || "Revisar componente afectado"}
+
+Riesgo:
+${top.severity || "LOW"}
+
+Esperando aprobación y validación humana.
+`;
+
+    } else {
+
+        const changes =
+
+            result?.proposal?.changes ||
+
+            result?.changes ||
+
+            [];
+
+        const affected =
+
+            changes.map(c =>
+
+                c.target ||
+                c.type ||
+                "system"
+            );
+
+        msg =
 `
 Arquitecto,
 
@@ -121,8 +154,9 @@ Objetivos afectados:
 Estado:
 esperando aprobación y validación humana.
 `;
-
+    }
 }
+
 
 
     else msg = String(result);

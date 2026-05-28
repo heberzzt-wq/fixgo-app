@@ -1233,26 +1233,120 @@ const operationId =
 
     console.groupEnd();
 
+    
+/* ================================================================================
+   EXECUTION FINDINGS SYNTHESIS
+================================================================================ */
+
+const issues = [];
+
+try {
+
+    for (const change of proposal.changes || []) {
+
+        const target =
+
+            String(
+                change?.target || ""
+            ).toLowerCase();
+
+        /* =========================================================
+           UI LAYOUT FINDINGS
+        ========================================================= */
+
+        if (
+
+            target.includes("tecnico") ||
+
+            target.includes("html")
+
+        ) {
+
+            issues.push({
+
+                type:
+                    "UI_LAYOUT",
+
+                severity:
+                    "MEDIUM",
+
+                title:
+                    "Posible sobredimensión visual detectada",
+
+                impact:
+                    "Desbordamiento móvil o tarjetas excesivas",
+
+                recommendation:
+                    "Revisar grid, width fijo y padding responsive"
+            });
+        }
+
+        /* =========================================================
+           PERFORMANCE
+        ========================================================= */
+
+        if (
+
+            target.includes("firebase")
+
+        ) {
+
+            issues.push({
+
+                type:
+                    "PERFORMANCE",
+
+                severity:
+                    "LOW",
+
+                title:
+                    "Operación relacionada con servicios cloud",
+
+                impact:
+                    "Posible latencia de sincronización",
+
+                recommendation:
+                    "Validar tiempos de respuesta y caché"
+            });
+        }
+    }
+
+}
+
+catch(err) {
+
+    console.warn(
+        "⚠️ [FINDINGS_SYNTH_FAIL]",
+        err
+    );
+}
+
+
+
     /* ================================================================================
        NORMALIZED RETURN
     ================================================================================ */
 
-    return {
+    
+return {
 
-        status:
-            "success",
+    status:
+        "success",
 
-        operation_id:
-            operationId,
+    operation_id:
+        operationId,
 
-        analysis_id:
-            operationId,
+    analysis_id:
+        operationId,
 
-        proposal,
+    proposal,
 
-        result
-    };
+    issues,
+
+    result
+};
 }
+
 
 /* =====================================================
    GLOBAL JARVIS EXECUTION FABRIC
