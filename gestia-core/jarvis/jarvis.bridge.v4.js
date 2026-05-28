@@ -2048,7 +2048,10 @@ const actions = raw
 console.log("🧪 ACTIONS DIRECT:", actions);
 
 
-
+if (
+    isSocialJarvis(raw) &&
+    actions.length === 1
+){
 
     const socialText = await executeSocialJarvis(raw);
 
@@ -2061,7 +2064,7 @@ console.log("🧪 ACTIONS DIRECT:", actions);
         commands: [raw],
         message: socialText
     };
-
+}
 /* ==================================
     PREMIUM LOADER & EXECUTION (V5.95 FINAL)
 ================================== */
