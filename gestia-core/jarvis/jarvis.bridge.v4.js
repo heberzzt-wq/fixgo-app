@@ -1057,7 +1057,10 @@ if (
 
     !isCodeIntent &&
 
-    actions.length === 1
+    
+multiActions.length === 1
+
+
 
 ) {
 
@@ -2050,7 +2053,10 @@ console.log("🧪 ACTIONS DIRECT:", actions);
 
 if (
     isSocialJarvis(raw) &&
-    actions.length === 1
+    
+multiActions.length === 1
+
+
 ){
 
     const socialText = await executeSocialJarvis(raw);
@@ -2154,7 +2160,10 @@ const ai = await window.runExternalAI(raw);
 if (
     ai &&
     ai.intent &&
-    actions.length === 1
+    
+multiActions.length === 1
+
+
 ) {
     let target = ai.target;
     const rawLow = String(raw).toLowerCase();
