@@ -934,11 +934,18 @@ export const JarvisBridge = {
             🛡️ 2. HARDEN GLOBAL SCOPE (V5.18 BOOT-FIX)
         ===================================================== */
         
+
+const SOCIAL_REGEX =
+
+/^(hola|buenas|buenos|buenas noches|buen día|como estas|qué onda|tecate|carnita|gracias|jajaja|xd|saludos)$/i;
+
 const HUMAN_FAST_PATH =
 
-    /hola|buenas|buenos|buenas noches|buen día|como estas|qué onda|tecate|carnita|gracias|jajaja|xd|saludos/i
+    SOCIAL_REGEX.test(
+        rawLow.trim()
+    );
 
-    .test(rawLow);
+
 
 const AI_MODE = !HUMAN_FAST_PATH;
 
