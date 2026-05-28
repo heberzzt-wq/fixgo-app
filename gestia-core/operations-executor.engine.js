@@ -1257,19 +1257,31 @@ try {
     for (const change of proposal.changes || []) {
 
         
+
 const target = JSON.stringify({
+
     target:
         change?.target,
 
     payload:
-       change?.payload,
+        change?.payload,
+
+    originalPrompt:
+
+        change?.payload?.originalPrompt ||
+
+        change?.meta?.originalPrompt ||
+
+        "",
 
     reason:
         change?.reason,
 
     type:
         change?.type
+
 }).toLowerCase();
+
 
 
 
