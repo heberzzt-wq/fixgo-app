@@ -1523,6 +1523,11 @@ Escribe:
             "INPUT",
             raw
         );
+
+        
+        throw new Error("🔥 DISPATCH PATCH ACTIVE");
+
+
         console.log("🔥 COGNITION PATCH LOADED");
         
 /* =====================================================
