@@ -964,7 +964,24 @@ const multiActions = String(raw)
 
 const isCodeIntent = rawLow.includes("archivo") || rawLow.includes(".js");
 
-if (multiActions.length > 1 && !isCodeIntent) {
+
+const hasTechnicalIntent =
+
+    /analiza|revisa|corrige|actualiza|elimina|crea|patch|repair|fix|estado|modulo|archivo|system|panel/i
+
+    .test(rawLow);
+
+if (
+
+    multiActions.length > 1 &&
+
+    hasTechnicalIntent &&
+
+    !isCodeIntent
+
+)
+
+ {
 
     console.log("🧠 [MULTI_INTENT_BYPASS_AI]:", multiActions);
 
