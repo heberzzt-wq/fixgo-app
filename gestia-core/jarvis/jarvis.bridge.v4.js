@@ -1047,6 +1047,46 @@ if (
 }
 
 
+/* ==================================
+   HARD SOCIAL EXIT
+================================== */
+
+if (
+
+    HUMAN_FAST_PATH &&
+
+    !isCodeIntent &&
+
+    actions.length === 1
+
+) {
+
+    console.log(
+        "🧠 [SOCIAL_HARD_EXIT]"
+    );
+
+    const socialText =
+        await executeSocialJarvis(raw);
+
+    render(
+        "Jarvis",
+        socialText,
+        "success"
+    );
+
+    speak(socialText);
+
+    return {
+        ok: true,
+        social: true,
+        bypass: true,
+        halted: true,
+        message: socialText
+    };
+}
+
+
+
         if (AI_MODE) {
             
 
@@ -2007,10 +2047,8 @@ const actions = raw
 
 console.log("🧪 ACTIONS DIRECT:", actions);
 
-if (
-    isSocialJarvis(raw) &&
-    actions.length === 1
-) {
+
+
 
     const socialText = await executeSocialJarvis(raw);
 
@@ -2023,7 +2061,7 @@ if (
         commands: [raw],
         message: socialText
     };
-}
+
 /* ==================================
     PREMIUM LOADER & EXECUTION (V5.95 FINAL)
 ================================== */
