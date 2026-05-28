@@ -1048,7 +1048,24 @@ if (
 
 
         if (AI_MODE) {
-            window.__AI_PIPELINE_ACTIVE__ = true;
+            
+
+            
+if (HUMAN_FAST_PATH) {
+
+    console.log(
+        "🧠 [AI_PIPELINE_BYPASSED]: HUMAN_FAST_PATH"
+    );
+
+    return {
+        ok: true,
+        bypass: true,
+        human: true
+    };
+}
+window.__AI_PIPELINE_ACTIVE__ = true;
+
+
             console.log("🧠 [AI_PIPELINE]: Iniciando motor de planeación...");
 
             const controller = new AbortController(); 
