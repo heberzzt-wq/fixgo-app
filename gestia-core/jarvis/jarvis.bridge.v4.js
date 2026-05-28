@@ -1533,9 +1533,17 @@ let cognition = null;
 
 try {
 
-    if (
-        window.JarvisCognitionEngine?.analyze
-    ) {
+    
+console.log(
+    "🔥 ENGINE TEST:",
+    window.JarvisCognitionEngine
+);
+
+if (
+    typeof window.JarvisCognitionEngine === "object"
+)
+
+ {
 
         cognition =
 
