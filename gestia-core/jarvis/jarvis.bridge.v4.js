@@ -1308,20 +1308,33 @@ Escribe:
    SOLO PROPUESTAS REALES
 ===================================================== */
 
+
+
+const proposalSource =
+
+    typeof getPendingProposal === "function"
+
+        ? getPendingProposal()
+
+        : this.pendingProposal;
+
 const pendingProposal =
 (
-    this.pendingProposal &&
+    proposalSource &&
+
     [
         "CODE_SURGEON",
         "REWRITE",
         "HEALTH_CHECK",
         "UI_AUDIT"
     ].includes(
-        this.pendingProposal.type
+        proposalSource.type
     )
 )
-    ? this.pendingProposal
+    ? proposalSource
     : null;
+
+
 /* ==========================================
    APPROVE + EXECUTE REAL
 ========================================== */
