@@ -86,7 +86,45 @@ let msg = "Ejecución completada";
 if (result) {
     if (result.message) msg = result.message;
     else if (result.data) msg = JSON.stringify(result.data, null, 2);
-    else if (typeof result === "object") msg = JSON.stringify(result, null, 2);
+    
+else if (typeof result === "object") {
+
+    const changes =
+
+        result?.proposal?.changes ||
+
+        result?.changes ||
+
+        [];
+
+    const affected =
+
+        changes.map(c =>
+
+            c.target ||
+            c.type ||
+            "system"
+        );
+
+    msg =
+`
+Arquitecto,
+
+la operación fue procesada correctamente.
+
+Operaciones detectadas:
+${changes.length}
+
+Objetivos afectados:
+- ${affected.join("\n- ") || "system"}
+
+Estado:
+esperando aprobación y validación humana.
+`;
+
+}
+
+
     else msg = String(result);
 }
 
