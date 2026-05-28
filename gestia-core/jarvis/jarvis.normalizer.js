@@ -143,11 +143,34 @@ for (const step of rawSteps) {
     // 🔥 DETECCIÓN POR CONTENIDO REAL (FIX DEFINITIVO)
 const rawText = JSON.stringify(step).toLowerCase();
 
+
 if (
+
     rawText.includes("archivo") ||
+
     rawText.includes(".js") ||
+
+    rawText.includes(".html") ||
+
+    rawText.includes("ui") ||
+
+    rawText.includes("layout") ||
+
+    rawText.includes("responsive") ||
+
+    rawText.includes("tarjeta") ||
+
+    rawText.includes("grid") ||
+
+    rawText.includes("sobredimension") ||
+
+    rawText.includes("overflow") ||
+
     rawText.includes("export")
-) {
+
+)
+
+{
     const fileMatch = rawText.match(/modules\/[a-zA-Z0-9_\-]+(\.js)?/);
 
     const file = fileMatch
