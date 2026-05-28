@@ -939,11 +939,77 @@ const SOCIAL_REGEX =
 
 /^(hola|buenas|buenos|buenas noches|buen día|como estas|qué onda|tecate|carnita|gracias|jajaja|xd|saludos)$/i;
 
+
+
+/* ==================================
+   LIGHT HUMAN INTENT CLASSIFIER
+================================== */
+
+function classifyHumanIntent(
+    input = ""
+) {
+
+    const raw =
+        String(input)
+            .toLowerCase()
+            .trim();
+
+    const operationalSignals = [
+
+        "analiza",
+        "revisa",
+        "corrige",
+        "repara",
+        "patch",
+        "modifica",
+        "crea",
+        "genera",
+        "ejecuta",
+        "diagnostica",
+        "optimiza",
+        "inspecciona",
+        ".js",
+        ".html",
+        ".css",
+        ".json",
+        "archivo",
+        "modulo",
+        "módulo",
+        "repo",
+        "sistema"
+    ];
+
+    const operational =
+        operationalSignals.some(
+            signal =>
+                raw.includes(signal)
+        );
+
+    if (operational) {
+
+        return {
+            type: "OPERATIONAL",
+            confidence: 0.95
+        };
+    }
+
+    return {
+        type: "SOCIAL",
+        confidence: 0.80
+    };
+}
+
+
+
+const detectedIntent =
+    classifyHumanIntent(raw);
+
 const HUMAN_FAST_PATH =
 
-    SOCIAL_REGEX.test(
-        rawLow.trim()
-    );
+    detectedIntent.type ===
+    "SOCIAL";
+
+
 
 
 
