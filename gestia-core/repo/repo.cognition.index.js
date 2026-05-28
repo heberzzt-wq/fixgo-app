@@ -251,7 +251,7 @@ console.log(
     "🧠 [REPO_COGNITION_SERVICE] REGISTERED"
 );
 
-```js
+js
 /* =========================================================
    FULL REPO HYDRATION PASS
 ========================================================= */
@@ -459,4 +459,4 @@ console.log(
             ).length
     }
 );
-```
+
