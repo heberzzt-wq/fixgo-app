@@ -548,6 +548,60 @@ async function executeSocialJarvis(text = "") {
     if (t === "gracias" || t.includes("muchas gracias")) {
         return "Siempre a la orden, Arquitecto.";
     }
+    
+/* ======================================
+   FLEXIBLE SOCIAL SEMANTICS
+====================================== */
+
+if (
+
+    t.includes("tecate") ||
+
+    t.includes("cheve") ||
+
+    t.includes("cerveza")
+
+) {
+
+    return
+        "Jajajaja... sí se antoja una fría, Arquitecto.";
+}
+
+if (
+
+    t.includes("carnita") ||
+
+    t.includes("asada")
+
+) {
+
+    return
+        "Eso ya suena a operativo serio de fin de semana.";
+}
+
+if (
+
+    t.includes("calor")
+
+) {
+
+    return
+        "Con este calor cualquier núcleo ocupa enfriamiento.";
+}
+
+if (
+
+    t.includes("jajaja") ||
+
+    t.includes("jaja")
+
+) {
+
+    return
+        "Me agrada ver estabilidad emocional en el núcleo humano.";
+}
+
+
     return "Presente, Arquitecto.";
 }
 
@@ -1040,7 +1094,7 @@ const AI_MODE = !HUMAN_FAST_PATH;
     // 🧠 PRE-FILTER MULTI INTENT (ANTES DEL AI PIPELINE)
 const multiActions = String(raw)
     .toLowerCase()
-    .split(/(?:\s+y\s+|\s+e\s+|,|\.|\s+and\s+)/gi)
+    .split(/(?:\s+y\s+|\s+e\s+|,|\s+and\s+)/gi)
     .map(s => s.trim())
     .filter(Boolean);
 
@@ -2117,7 +2171,7 @@ Escribe:
 
 const actions = raw
     .toLowerCase()
-    .split(/(?:\s+y\s+|\s+e\s+|,|\.|\s+and\s+)/gi)
+    .split(/(?:\s+y\s+|\s+e\s+|,|\s+and\s+)/gi)
     .map(s => s.trim())
     .filter(Boolean);
 
