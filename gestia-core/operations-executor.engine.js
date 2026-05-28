@@ -1244,11 +1244,22 @@ try {
 
     for (const change of proposal.changes || []) {
 
-        const target =
+        
+const target = JSON.stringify({
+    target:
+        change?.target,
 
-            String(
-                change?.target || ""
-            ).toLowerCase();
+    payload:
+        change?.payload,
+
+    reason:
+        change?.reason,
+
+    type:
+        change?.type
+}).toLowerCase();
+
+
 
         /* =========================================================
            UI LAYOUT FINDINGS
