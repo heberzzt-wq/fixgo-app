@@ -755,6 +755,49 @@ if (existing) {
                     }
                 }
 
+                
+/* ======================================
+   OPERATIONAL HUMAN NARRATOR
+====================================== */
+
+if (
+
+    target.proposal &&
+
+    Array.isArray(
+        target.proposal?.changes
+    )
+
+) {
+
+    const changes =
+        target.proposal.changes;
+
+    const affected =
+
+        changes.map(c =>
+            c.target || c.type || "system"
+        );
+
+    target.message =
+`
+Arquitecto,
+
+detecté ${
+    changes.length
+} operación(es) propuestas.
+
+Objetivos afectados:
+- ${affected.join("\n- ")}
+
+El plan fue generado correctamente
+y está esperando aprobación humana.
+`;
+
+}
+
+
+
                 if (target.message !== undefined) return String(target.message).slice(0, 500);
                 if (target.report !== undefined) return String(target.report).slice(0, 500);
                 if (target.respuesta !== undefined) return String(target.respuesta).slice(0, 500);
