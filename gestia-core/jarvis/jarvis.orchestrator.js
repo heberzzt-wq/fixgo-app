@@ -524,8 +524,11 @@ Escribe:
 
 }
 
+
 if (
-  getPendingProposal() &&
+    pendingProposal &&
+
+
   [
     "arre",
     "aprobar",
