@@ -1339,8 +1339,11 @@ const pendingProposal =
    APPROVE + EXECUTE REAL
 ========================================== */
 
+
 if (
-    getPendingProposal() &&
+    pendingProposal &&
+
+
     [
         "arre",
         "aprobar",
@@ -1351,8 +1354,11 @@ if (
     ].includes(cmd)
 ) {
 
-    const proposal =
-    getPendingProposal();
+    
+const proposal =
+    pendingProposal;
+
+
 
     this.pendingProposal =
         null;
@@ -1861,8 +1867,11 @@ Revisión:
    REJECT
 ========================================== */
 
+
 if (
-    getPendingProposal() &&
+    pendingProposal &&
+
+
     [
         "cancelar",
         "rechazar",
