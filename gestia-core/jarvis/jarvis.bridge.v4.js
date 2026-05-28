@@ -1539,6 +1539,14 @@ console.log(
     window.JarvisCognitionEngine
 );
 
+console.log(
+    "🔥 WINDOW TEST",
+    typeof window,
+    window
+);
+
+
+
 if (
     typeof window.JarvisCognitionEngine === "object"
 )
