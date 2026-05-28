@@ -1524,6 +1524,42 @@ Escribe:
             raw
         );
 
+        
+/* =====================================================
+   COGNITIVE ANALYSIS
+===================================================== */
+
+let cognition = null;
+
+try {
+
+    if (
+        window.JarvisCognitionEngine?.analyze
+    ) {
+
+        cognition =
+
+            window
+                .JarvisCognitionEngine
+                .analyze(raw);
+
+        safeLog(
+            "COGNITION",
+            cognition
+        );
+    }
+
+}
+
+catch(err) {
+
+    console.warn(
+        "⚠️ [COGNITION_FAIL]",
+        err
+    );
+}
+
+
         const cmd =
             raw.toLowerCase();
 
