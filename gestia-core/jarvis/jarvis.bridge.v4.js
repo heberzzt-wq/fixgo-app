@@ -563,8 +563,7 @@ if (
 
 ) {
 
-    return
-        "Jajajaja... sí se antoja una fría, Arquitecto.";
+    return "Jajajaja... sí se antoja una fría, Arquitecto.";
 }
 
 if (
@@ -575,8 +574,7 @@ if (
 
 ) {
 
-    return
-        "Eso ya suena a operativo serio de fin de semana.";
+    return "Eso ya suena a operativo serio de fin de semana.";
 }
 
 if (
@@ -585,8 +583,7 @@ if (
 
 ) {
 
-    return
-        "Con este calor cualquier núcleo ocupa enfriamiento.";
+    return "Con este calor cualquier núcleo ocupa enfriamiento.";
 }
 
 if (
@@ -597,8 +594,7 @@ if (
 
 ) {
 
-    return
-        "Me agrada ver estabilidad emocional en el núcleo humano.";
+    return "Me agrada ver estabilidad emocional en el núcleo humano.";
 }
 
 
