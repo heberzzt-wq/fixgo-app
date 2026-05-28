@@ -1523,7 +1523,7 @@ Escribe:
             "INPUT",
             raw
         );
-
+        console.log("🔥 COGNITION PATCH LOADED");
         
 /* =====================================================
    COGNITIVE ANALYSIS
