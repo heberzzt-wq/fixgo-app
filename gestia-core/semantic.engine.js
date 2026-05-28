@@ -194,7 +194,50 @@ const CONCEPT_CLUSTERS = {
         "nodos",
         "sync",
         "federado"
-    ]
+    ],
+
+    UI_DEBUG: [
+
+    "ui",
+    "layout",
+    "css",
+    "tarjetas",
+    "card",
+    "cards",
+    "responsive",
+    "sobredimensionadas",
+    "desbordado",
+    "overflow",
+    "grid",
+    "flex",
+    "pantalla",
+    "visual"
+],
+
+PATCH_ANALYSIS: [
+
+    "patch",
+    "propuesta",
+    "simulacion",
+    "impacto",
+    "analiza",
+    "detectar",
+    "corregir",
+    "arreglar",
+    "fix",
+    "solucion"
+],
+
+SUPERVISED_EXECUTION: [
+
+    "supervisado",
+    "aprobacion",
+    "espera",
+    "no ejecutes",
+    "proposal",
+    "arre",
+    "cancelar"
+]
 };
 
 /* ======================================================================================

@@ -807,12 +807,49 @@ if (res && typeof res === "object" && res.type) {
     burstCache.set(cacheKey, res);
 
     // 🔥 pero al renderer SOLO le mandamos string seguro
-    const safeOutput =
-        res.message ||
-        res.summary ||
-        (res.data && typeof res.data === "object"
-            ? JSON.stringify(res.data, null, 2)
-            : JSON.stringify(res));
+    
+let safeOutput = "";
+
+if (typeof res === "string") {
+
+    safeOutput = res;
+
+} else if (res?.message) {
+
+    safeOutput = res.message;
+
+} else if (res?.summary) {
+
+    safeOutput = res.summary;
+
+} else if (res?.proposal) {
+
+    const changes =
+        Array.isArray(res.proposal?.changes)
+            ? res.proposal.changes.length
+            : 0;
+
+    safeOutput =
+        `Propuesta generada correctamente.
+
+Cambios detectados: ${changes}
+
+Modo: SUPERVISED
+
+Esperando aprobación humana.`;
+
+} else if (res?.ok) {
+
+    safeOutput =
+        "Operación completada correctamente.";
+
+} else {
+
+    safeOutput =
+        "Operación procesada.";
+}
+
+
 
     outputs.push(safeOutput);
 
