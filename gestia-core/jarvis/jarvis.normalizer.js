@@ -45,8 +45,24 @@ export function normalizeAIPlan(planRaw = {}, traceId = "no_trace") {
                         ? { collection: planRaw.target }
                         : planRaw.target,
                     action: null,
-                    payload: {},
-                    meta: {}
+                    
+payload: {
+    originalPrompt:
+        JSON.stringify(planRaw)
+},
+
+meta: {
+    originalIntent:
+        planRaw.intent,
+
+    originalTarget:
+        planRaw.target,
+
+    cognitionHint:
+        "analyze"
+}
+
+
                 }
             ]
         };
