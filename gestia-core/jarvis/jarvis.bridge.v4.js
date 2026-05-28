@@ -933,7 +933,16 @@ export const JarvisBridge = {
         /* =====================================================
             🛡️ 2. HARDEN GLOBAL SCOPE (V5.18 BOOT-FIX)
         ===================================================== */
-        const AI_MODE = true; 
+        
+const HUMAN_FAST_PATH =
+
+    /hola|buenas|buenos|buenas noches|buen día|como estas|qué onda|tecate|carnita|gracias|jajaja|xd|saludos/i
+
+    .test(rawLow);
+
+const AI_MODE = !HUMAN_FAST_PATH;
+
+
         
         if (!window.__LEGACY_HARDENED__) {
             (function hardenGlobalScope(){
