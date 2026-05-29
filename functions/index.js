@@ -137,6 +137,10 @@ Input: "${input}"
             }
         });
 
+
+            console.log(
+    "🔥 V7_SCHEMA_BYPASS_ACTIVE"
+);
         const result = await model.generateContent(prompt);
 
         let raw = result.response.text();
