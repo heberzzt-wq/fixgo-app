@@ -172,7 +172,7 @@ console.log(
    "🔥 AI_RAW_RESPONSE",
    parsed
    );
-   
+
 // 🛡️ Validación final estricta
 const validIntents = [
     "logout",
@@ -1317,6 +1317,103 @@ try {
         err
     );
 }
+
+/* =====================================================
+            CODE SURGEON MODE (Lógica existente...)
+        ===================================================== */
+        if (
+            this.codeSurgeonMode &&
+            (
+            rawLow.includes("revisa panel") ||
+            rawLow.includes("analiza panel") ||
+            rawLow.includes("revisa movil") ||
+            rawLow.includes("revisa móvil") ||
+            rawLow.includes("optimiza panel") ||
+            rawLow.includes("corrige panel")
+        )
+    ) {
+
+        let target =
+            this.knownModules.tecnico;
+
+        if (
+            rawLow.includes("admin")
+        ) {
+            target =
+                this.knownModules.admin;
+        }
+
+        if (
+            rawLow.includes("cliente")
+        ) {
+            target =
+                this.knownModules.cliente;
+        }
+
+        const proposal = {
+            id:
+                crypto.randomUUID(),
+            type:
+                "CODE_SURGEON",
+            title:
+                "Optimización responsive supervisada",
+            target,
+            issue:
+                rawLow.includes("movil") ||
+                rawLow.includes("móvil")
+                    ? "Sobredimensión móvil detectada"
+                    : "Densidad visual mejorable",
+            patch: [
+                "Reducir padding móvil",
+                "Compactar tarjetas",
+                "Escalar tipografías responsive",
+                "Optimizar botones táctiles"
+            ],
+            risk: "BAJO",
+            createdAt:
+                Date.now()
+        };
+
+        this.pendingProposal =
+            proposal;
+
+        const msg =
+`Detecté oportunidad de mejora visual.
+
+Archivo objetivo:
+${proposal.target}
+
+Problema:
+${proposal.issue}
+
+Propuesta:
+• ${proposal.patch.join("\n• ")}
+
+Riesgo:
+${proposal.risk}
+
+Escribe:
+• arre
+• aprobar
+• cancelar`;
+
+        render(
+            "Jarvis Code Surgeon",
+            msg,
+            "warning"
+        );
+
+        safeLog(
+            "CODE_SURGEON_PROPOSAL",
+            proposal
+        );
+
+        return {
+            ok: true,
+            waitingApproval: true,
+            proposal
+        };
+    }
 
    if (AI_MODE) {
             if (HUMAN_FAST_PATH) {
