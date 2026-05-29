@@ -166,6 +166,10 @@ console.log(
 
 if (
 
+    type !== "ANALYZE" &&
+
+    (
+
     rawText.includes("archivo") ||
 
     rawText.includes(".js") ||
@@ -187,7 +191,7 @@ if (
     rawText.includes("overflow") ||
 
     rawText.includes("export")
-
+    )
 )
 
 {
