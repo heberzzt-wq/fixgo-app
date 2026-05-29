@@ -137,7 +137,40 @@ Responde SOLO con JSON válido:
 
 Reglas:
 - intent ∈ ["logout","analyze","open","repair","create","update","delete"]
-- target ∈ ["admin","system","auth","user"]
+
+- target puede ser:
+  - admin
+  - system
+  - auth
+  - user
+  - payments
+  - archivo específico
+  - módulo específico
+  - nombre de archivo
+
+Ejemplos:
+
+Input: "analiza tecnico-b2b.html"
+{
+  "intent":"analyze",
+  "target":"tecnico-b2b.html",
+  "confidence":0.95
+}
+
+Input: "revisa admin-panel.js"
+{
+  "intent":"analyze",
+  "target":"admin-panel.js",
+  "confidence":0.95
+}
+
+Input: "revisa pagos"
+{
+  "intent":"analyze",
+  "target":"payments",
+  "confidence":0.95
+}
+
 - confidence entre 0 y 1
 - NO texto extra
 
