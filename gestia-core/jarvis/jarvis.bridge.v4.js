@@ -127,6 +127,8 @@ async function runCore(input = "") {
 * 🔥 runExternalAI (HARDENED + HTML SAFE + URL FIX)
   */
   async function runExternalAI(input = "") {
+
+
   try {
   const res = await fetch(
   "https://us-central1-fixgo-44e4d.cloudfunctions.net/api/ai-intent",
@@ -166,7 +168,10 @@ async function runCore(input = "") {
        console.warn("🚨 [AI_BAD_OUTPUT]:", data);
        return fallback();
    }
-
+console.log(
+   "🔥 AI_RAW_RESPONSE",
+   parsed
+);
    // 🛡️ Validación final estricta
    const validIntents = ["logout", "analyze", "open", "repair", "create", "update", "delete"];
    const validTargets = ["admin", "system", "auth", "user", "payments"];

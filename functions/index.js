@@ -153,6 +153,11 @@ Input: "${input}"
         try {
             const temp = JSON.parse(raw);
 
+            console.log(
+            "🔥 GEMINI RAW:",
+             temp
+            );
+
             const validIntents = ["logout","analyze","open","repair","create","update","delete"];
             const validTargets = ["admin","system","auth","user"];
 
