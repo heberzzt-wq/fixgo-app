@@ -159,6 +159,10 @@ for (const step of rawSteps) {
     // 🔥 DETECCIÓN POR CONTENIDO REAL (FIX DEFINITIVO)
 const rawText = JSON.stringify(step).toLowerCase();
 
+console.log(
+    "🔥 NORMALIZER_TYPE",
+    type
+);
 
 if (
 
