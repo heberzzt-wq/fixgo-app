@@ -163,18 +163,27 @@ Input: "${input}"
              temp
             );
 
-            const validIntents = ["logout","analyze","open","repair","create","update","delete"];
-            const validTargets = ["admin","system","auth","user"];
-
             if (
-                validIntents.includes(temp.intent) &&
-                validTargets.includes(temp.target) &&
-                typeof temp.confidence === "number"
+         temp &&
+        typeof temp === "object" &&
+         typeof temp.intent === "string"
             ) {
-                parsed = temp;
-            } else {
-                throw new Error("INVALID_SCHEMA");
-            }
+
+             parsed = {
+              intent: temp.intent,
+              target: temp.target || "system",
+               confidence:
+            typeof temp.confidence === "number"
+                ? temp.confidence
+                : 0.5,
+
+            ...temp
+         };
+
+          } else {
+
+          throw new Error("INVALID_SCHEMA");
+}
 
         } catch {
             // Fallback seguro si el LLM alucina o el esquema no hace match
