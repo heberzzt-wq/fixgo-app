@@ -1325,7 +1325,7 @@ window.__AI_PIPELINE_ACTIVE__ = true;
 
                 // 4. GENERACIÓN DE PLAN CON TIMEOUT & ABORT REAL
                 const rawPlan = await Promise.race([
-                    window.runExternalAI({ input: raw, mode: "PLANNER", context, signal: controller.signal }),
+                    window.runExternalAI({input: raw, cognition, mode: "PLANNER", context, signal: controller.signal}),
                     new Promise((_, reject) => 
                         setTimeout(() => { 
                             controller.abort(); 
@@ -1333,6 +1333,11 @@ window.__AI_PIPELINE_ACTIVE__ = true;
                         }, 8000)
                     )
                 ]);
+
+                console.log(
+   "🧠 [RAW_PLAN]",
+   rawPlan
+);
 
                 if (!rawPlan || typeof rawPlan !== "object") throw new Error("AI no devolvió un plan válido");
 
