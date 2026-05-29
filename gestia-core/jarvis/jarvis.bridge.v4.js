@@ -174,21 +174,49 @@ console.log(
 );
 
    // 🛡️ Validación final estricta
-   const validIntents = ["logout", "analyze", "open", "repair", "create", "update", "delete"];
-   const validTargets = ["admin", "system", "auth", "user", "payments"];
+const validIntents = [
+    "logout",
+    "analyze",
+    "open",
+    "repair",
+    "create",
+    "update",
+    "delete"
+];
 
-   if (
-       !parsed ||
-       !validIntents.includes(parsed.intent) ||
-       !validTargets.includes(parsed.target) ||
-       typeof parsed.confidence !== "number"
-   ) {
-       console.warn("🚨 [AI_INVALID_SCHEMA]:", parsed);
-       return fallback();
-   }
+const validTargets = [
+    "admin",
+    "system",
+    "auth",
+    "user",
+    "payments"
+];
 
-   return parsed;
-  
+const isKnownTarget =
+    validTargets.includes(parsed.target);
+
+const isFileTarget =
+    typeof parsed.target === "string" &&
+    (
+        parsed.target.endsWith(".html") ||
+        parsed.target.endsWith(".js") ||
+        parsed.target.endsWith(".css")
+    );
+
+if (
+    !parsed ||
+    !validIntents.includes(parsed.intent) ||
+    (!isKnownTarget && !isFileTarget) ||
+    typeof parsed.confidence !== "number"
+) {
+    console.warn(
+        "🚨 [AI_INVALID_SCHEMA]:",
+        parsed
+    );
+
+    return fallback();
+}
+  return parsed;
 
   } catch (error) {
   console.error("🚨 [AI_FETCH_FAIL]:", error);
