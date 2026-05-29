@@ -1252,7 +1252,35 @@ multiActions.length === 1
     };
 }
 
+/* =====================================================
+   COGNITIVE ANALYSIS
+===================================================== */
 
+try {
+
+    if (
+        window.JarvisCognitionEngine?.analyze
+    ) {
+
+        const cognition =
+            window
+            .JarvisCognitionEngine
+            .analyze(raw);
+
+        console.log(
+            "🧠 [COGNITION]",
+            cognition
+        );
+
+    }
+
+} catch(err) {
+
+    console.warn(
+        "⚠️ [COGNITION_FAIL]",
+        err
+    );
+}
 
         if (AI_MODE) {
             
