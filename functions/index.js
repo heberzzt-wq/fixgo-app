@@ -153,6 +153,11 @@ Input: "${input}"
         try {
             const temp = JSON.parse(raw);
 
+
+            console.log(
+    "🔥 SERVER_TEMP",
+    temp
+); 
             console.log(
             "🔥 GEMINI RAW:",
              temp
