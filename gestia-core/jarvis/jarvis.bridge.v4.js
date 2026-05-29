@@ -213,7 +213,10 @@ if (
         "🚨 [AI_INVALID_SCHEMA]:",
         parsed
     );
-
+console.log(
+    "🔥 TARGET_REJECTED",
+    parsed.target
+);
     return fallback();
 }
   return parsed;
