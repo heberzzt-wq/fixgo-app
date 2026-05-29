@@ -173,15 +173,6 @@ console.log(
    parsed
 );
 
-console.log(
-    "🔥 GEMINI_DIRECT_OUTPUT",
-    raw
-);
-
-console.log(
-    "🔥 GEMINI_PARSED",
-    temp
-);
    // 🛡️ Validación final estricta
    const validIntents = ["logout", "analyze", "open", "repair", "create", "update", "delete"];
    const validTargets = ["admin", "system", "auth", "user", "payments"];
