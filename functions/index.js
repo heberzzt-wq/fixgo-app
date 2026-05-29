@@ -99,6 +99,16 @@ app.post(["/ai-intent", "/api/ai-intent", "*/ai-intent"], async (req, res) => {
     try {
         const { input } = req.body;
 
+        console.log(
+    "🔥 REQUEST_BODY",
+    req.body
+);
+
+console.log(
+    "🔥 INPUT_TYPE",
+    typeof input
+);
+
         if (!input || input.trim().length < 2) {
             return res.json({
                 output: JSON.stringify({
