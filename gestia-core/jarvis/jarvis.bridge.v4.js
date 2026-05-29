@@ -192,16 +192,20 @@ const validTargets = [
     "payments"
 ];
 
-const isKnownTarget =
-    validTargets.includes(parsed.target);
+// Limpieza preventiva: normalizamos a minúsculas de forma segura
+const safeTarget = typeof parsed.target === "string" ? parsed.target.toLowerCase() : "";
 
-const isFileTarget =
-    typeof parsed.target === "string" &&
-    (
-        parsed.target.endsWith(".html") ||
-        parsed.target.endsWith(".js") ||
-        parsed.target.endsWith(".css")
-    );
+const isKnownTarget = validTargets.includes(safeTarget);
+
+// Flexibilizamos la validación para que acepte "tecnico b2b html" o "tecnico-b2b.html"
+const isFileTarget = 
+    safeTarget.endsWith(".html") || 
+    safeTarget.endsWith(".js") || 
+    safeTarget.endsWith(".css") ||
+    safeTarget.includes("html") ||
+    safeTarget.includes("js") ||
+    safeTarget.includes("css") ||
+    safeTarget.includes("archivo");
 
 if (
     !parsed ||
@@ -213,32 +217,148 @@ if (
         "🚨 [AI_INVALID_SCHEMA]:",
         parsed
     );
-console.log(
-    "🔥 TARGET_REJECTED",
-    parsed.target
-);
+    console.log(
+        "🔥 TARGET_REJECTED",
+        parsed.target
+    );
     return fallback();
 }
-  return parsed;
 
-  } catch (error) {
-  console.error("🚨 [AI_FETCH_FAIL]:", error);
-  return fallback();
-  }
-  }
+return parsed;
+
+} catch (error) {
+    console.error("🚨 [AI_FETCH_FAIL]:", error);
+    return fallback();
+}
+}
 
 /**
+ * 🔒 fallback centralizado
+ */
+function fallback() {
+    return {
+        intent: "analyze",
+        target: "system",
+        confidence: 0
+    };
+}
 
-* 🔒 fallback centralizado
-  */
-  function fallback() {
-  return {
-  intent: "analyze",
-  target: "system",
-  confidence: 0
-  };
-  }
+// =====================================================
+// HELPERS DE INTERPRETACIÓN AI
+// =====================================================
+function resolveAIIntent(ai) {
+    const { intent, target } = ai;
+    const safeTarget = typeof target === "string" ? target.toLowerCase() : "";
 
+    // 🔐 LOGOUT
+    if (intent === "logout") {
+        return "REPAIR::admin.logout";
+    }
+
+    // 🔍 ANALYZE
+    if (intent === "analyze" && safeTarget === "system") {
+        return "ANALYZE::system";
+    }
+
+    if (intent === "analyze" && safeTarget === "auth") {
+        return "ANALYZE::auth";
+    }
+    
+    // 🚀 NUEVO: Soporte dinámico para análisis de archivos
+    // Convierte "tecnico b2b html" a "ANALYZE::tecnico-b2b-html"
+    if (intent === "analyze" && (safeTarget.includes("html") || safeTarget.includes("js") || safeTarget.includes("css"))) {
+        return `ANALYZE::${safeTarget.replace(/\s+/g, '-')}`;
+    }
+
+    // 🛠️ REPAIR
+    if (intent === "repair") {
+        return "REPAIR::system";
+    }
+
+    // 📂 OPEN
+    if (intent === "open" && safeTarget === "auth") {
+        return "OPEN::auth";
+    }
+
+    return null;
+}
+
+/* =====================================================================================
+   OBSERVABILITY
+===================================================================================== */
+
+function saveHistory(item = {}) {
+    window.JarvisHistory ||= [];
+
+    window.JarvisHistory.unshift({
+        ts: Date.now(),
+        ...item
+    });
+
+    window.JarvisHistory = window.JarvisHistory.slice(0, 50);
+}
+
+async function withTimeout(promise, ms = 8000) {
+    return await Promise.race([
+        promise,
+        new Promise((_, reject) =>
+            setTimeout(
+                () => reject(new Error("TIMEOUT")),
+                ms
+            )
+        )
+    ]);
+}
+
+/* =====================================================================================
+   RESPONSE
+===================================================================================== */
+
+function normalize(res) {
+    if (!res) return "Sin respuesta.";
+
+    if (typeof res === "string") return res;
+
+    return (
+        res.report ||
+        res.message ||
+        res.text ||
+        res.output ||
+        res.response?.report ||
+        res.response?.message ||
+        res.response?.text ||
+        "Orden completada."
+    );
+}
+
+function beautifyOutput(
+    cmd = "",
+    text = "",
+    fromCache = false
+) {
+    const c = String(cmd).toUpperCase();
+    const raw = String(text || "").trim();
+
+    /* ==========================================
+        CACHE
+    ========================================== */
+
+    if (fromCache) {
+        return "Resultado reciente reutilizado desde memoria operativa.";
+    }
+
+    /* ==========================================
+        OPEN
+    ========================================== */
+
+    if (c.includes("OPEN::TICKETS")) {
+        return "Tickets generados y registrados exitosamente.";
+    }
+
+    if (c.includes("OPEN::AUTH")) {
+        return "Panel de acceso abierto correctamente.";
+    }
+}
 // =====================================================
 // HELPERS DE INTERPRETACIÓN AI
 // =====================================================
