@@ -97,7 +97,12 @@ app.post(["/ai-intent", "/api/ai-intent", "*/ai-intent"], async (req, res) => {
     const traceId = `trace_intent_${Date.now()}`;
 
     try {
-        const { input } = req.body;
+        const payload = req.body?.input;
+
+const input =
+    typeof payload === "object"
+        ? payload.input
+        : payload;
 
         console.log(
     "🔥 REQUEST_BODY",
