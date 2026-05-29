@@ -1255,14 +1255,14 @@ multiActions.length === 1
 /* =====================================================
    COGNITIVE ANALYSIS
 ===================================================== */
-
+let cognition = null;
 try {
 
     if (
         window.JarvisCognitionEngine?.analyze
     ) {
 
-        const cognition =
+            cognition =
             window
             .JarvisCognitionEngine
             .analyze(raw);
