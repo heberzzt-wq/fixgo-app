@@ -171,9 +171,9 @@ async function runCore(input = "") {
 console.log(
    "🔥 AI_RAW_RESPONSE",
    parsed
-);
-
-   // 🛡️ Validación final estricta
+   );
+   
+// 🛡️ Validación final estricta
 const validIntents = [
     "logout",
     "analyze",
@@ -357,127 +357,6 @@ function beautifyOutput(
 
     if (c.includes("OPEN::AUTH")) {
         return "Panel de acceso abierto correctamente.";
-    }
-}
-// =====================================================
-// HELPERS DE INTERPRETACIÓN AI
-// =====================================================
-function resolveAIIntent(ai) {
-    const { intent, target } = ai;
-
-    // 🔐 LOGOUT
-    if (intent === "logout") {
-        return "REPAIR::admin.logout";
-    }
-
-    // 🔍 ANALYZE
-    if (intent === "analyze" && target === "system") {
-        return "ANALYZE::system";
-    }
-
-    if (intent === "analyze" && target === "auth") {
-        return "ANALYZE::auth";
-    }
-
-    // 🛠️ REPAIR
-    if (intent === "repair") {
-        return "REPAIR::system";
-    }
-
-    // 📂 OPEN
-    if (intent === "open" && target === "auth") {
-        return "OPEN::auth";
-    }
-
-    return null;
-}
-
-/* =====================================================================================
-   OBSERVABILITY
-===================================================================================== */
-
-function saveHistory(item = {}) {
-
-    window.JarvisHistory ||= [];
-
-    window.JarvisHistory.unshift({
-        ts: Date.now(),
-        ...item
-    });
-
-    window.JarvisHistory =
-        window.JarvisHistory.slice(0, 50);
-}
-
-async function withTimeout(promise, ms = 8000) {
-
-    return await Promise.race([
-        promise,
-        new Promise((_, reject) =>
-            setTimeout(
-                () => reject(new Error("TIMEOUT")),
-                ms
-            )
-        )
-    ]);
-}
-
-/* =====================================================================================
-   RESPONSE
-===================================================================================== */
-
-function normalize(res) {
-
-    if (!res) return "Sin respuesta.";
-
-    if (typeof res === "string") return res;
-
-    return (
-        res.report ||
-        res.message ||
-        res.text ||
-        res.output ||
-        res.response?.report ||
-        res.response?.message ||
-        res.response?.text ||
-        "Orden completada."
-    );
-}
-
-function beautifyOutput(
-    cmd = "",
-    text = "",
-    fromCache = false
-) {
-
-    const c =
-        String(cmd).toUpperCase();
-
-    const raw =
-        String(text || "").trim();
-
-    /* ==========================================
-        CACHE
-    ========================================== */
-
-    if (fromCache) {
-        return "Resultado reciente reutilizado desde memoria operativa.";
-    }
-
-    /* ==========================================
-        OPEN
-    ========================================== */
-
-    if (c.includes("OPEN::TICKETS")) {
-        return "Tickets generados y registrados exitosamente.";
-    }
-
-    if (c.includes("OPEN::AUTH")) {
-        return "Panel de acceso abierto correctamente.";
-    }
-
-    if (c.includes("OPEN::DASHBOARD")) {
-        return "Dashboard operativo desplegado.";
     }
 
     /* ======================================================================================
