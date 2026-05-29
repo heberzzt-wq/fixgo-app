@@ -78,14 +78,31 @@
                     0.92;
 
                 const fileMatch =
-                    text.match(
-                        /([a-z0-9-_]+\.html)/i
-                    );
+    text.match(
+        /([a-z0-9\-_]+\.html)/i
+    );
 
-                if (fileMatch) {
-                    cognition.target =
-                        fileMatch[1];
-                }
+if (fileMatch) {
+
+    cognition.target =
+        fileMatch[1];
+
+} else {
+
+    const humanFileMatch =
+        text.match(
+            /([a-z0-9\-_ ]+)\s+html/i
+        );
+
+    if (humanFileMatch) {
+
+        cognition.target =
+            humanFileMatch[1]
+                .trim()
+                .replace(/\s+/g, "-") +
+            ".html";
+    }
+}
             }
 
             /* =====================================================
