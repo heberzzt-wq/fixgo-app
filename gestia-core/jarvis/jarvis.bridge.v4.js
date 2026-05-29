@@ -1567,7 +1567,7 @@ Escribe:
    COGNITIVE ANALYSIS
 ===================================================== */
 
-let cognition = null;
+// let cognition = null;
 
 try {
 
