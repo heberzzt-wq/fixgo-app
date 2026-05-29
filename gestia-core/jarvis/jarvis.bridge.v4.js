@@ -1319,47 +1319,35 @@ try {
     );
 }
 
-        if (AI_MODE) {
-            
-
-            
-if (HUMAN_FAST_PATH) {
-
-    console.log(
-        "🧠 [AI_PIPELINE_BYPASSED]: HUMAN_FAST_PATH"
-    );
-
-    return {
-        ok: true,
-        bypass: true,
-        human: true
-    };
-}
-window.__AI_PIPELINE_ACTIVE__ = true;
-
-
+   if (AI_MODE) {
+            if (HUMAN_FAST_PATH) {
+                console.log("🧠 [AI_PIPELINE_BYPASSED]: HUMAN_FAST_PATH");
+                return { ok: true, bypass: true, human: true };
+            }
+            window.__AI_PIPELINE_ACTIVE__ = true;
             console.log("🧠 [AI_PIPELINE]: Iniciando motor de planeación...");
 
             const controller = new AbortController(); 
 
+            // 🔥 FIX: EXTRACCIÓN DEL CONTEXTO AL ÁMBITO PRINCIPAL
+            // 3. CONTEXTO Y JERARQUÍA DE PERMISOS
+            const ROLE_HIERARCHY = {
+                ADMIN: ["ADMIN", "WRITE", "READ", "ANALYZE"],
+                WRITE: ["WRITE", "READ"],
+                READ: ["READ"],
+                ANALYZE: ["ANALYZE"]
+            };
+
+            const context = { 
+                userId: "Jonathan_Operator", 
+                role: "OPERATOR",
+                permissions: ["READ", "ANALYZE"], 
+                traceId: `trace_${Date.now()}` 
+            };
+
+            const userPermsExpanded = context.permissions.flatMap(p => ROLE_HIERARCHY[p] || [p]);
+
             try {
-                // 3. CONTEXTO Y JERARQUÍA DE PERMISOS
-                const ROLE_HIERARCHY = {
-                    ADMIN: ["ADMIN", "WRITE", "READ", "ANALYZE"],
-                    WRITE: ["WRITE", "READ"],
-                    READ: ["READ"],
-                    ANALYZE: ["ANALYZE"]
-                };
-
-                const context = { 
-                    userId: "Jonathan_Operator", 
-                    role: "OPERATOR",
-                    permissions: ["READ", "ANALYZE"], 
-                    traceId: `trace_${Date.now()}` 
-                };
-
-                const userPermsExpanded = context.permissions.flatMap(p => ROLE_HIERARCHY[p] || [p]);
-
                 // 4. GENERACIÓN DE PLAN CON TIMEOUT & ABORT REAL
                 const rawPlan = await Promise.race([
                     window.runExternalAI({input: raw, cognition, mode: "PLANNER", context, signal: controller.signal}),
@@ -1371,10 +1359,7 @@ window.__AI_PIPELINE_ACTIVE__ = true;
                     )
                 ]);
 
-                console.log(
-   "🧠 [RAW_PLAN]",
-   rawPlan
-);
+                console.log("🧠 [RAW_PLAN]", rawPlan);
 
                 if (!rawPlan || typeof rawPlan !== "object") throw new Error("AI no devolvió un plan válido");
 
@@ -1435,16 +1420,16 @@ window.__AI_PIPELINE_ACTIVE__ = true;
                 window.lastPlanId = plan.id;
 
                 if (window.renderPlanPreview) {
-    window.renderPlanPreview(plan);
-} else {
-    console.warn("⚠️ renderPlanPreview no disponible");
-}
+                    window.renderPlanPreview(plan);
+                } else {
+                    console.warn("⚠️ renderPlanPreview no disponible");
+                }
 
-return {
-    ok: true,
-    preview: true,
-    planId: plan.id
-};
+                return {
+                    ok: true,
+                    preview: true,
+                    planId: plan.id
+                };
             } catch (err) {
                 if (err.name === "AbortError" || err.message === "AI timeout") {
                     console.warn("⏱️ [AI_ABORTED]:", context.traceId);
