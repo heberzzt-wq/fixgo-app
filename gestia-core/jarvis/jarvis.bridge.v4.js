@@ -1332,16 +1332,17 @@ if (
         rawLow.includes("corrige panel")
     )
 ) {
+    // 🔥 FIX: Ruteo preciso de targets
     let target = this.knownModules?.tecnico || "tecnico-b2b.html";
 
-    if (rawLow.includes("admin")) {
+    if (rawLow.includes("b2b")) {
+        target = "tecnico-b2b.html";
+    } else if (rawLow.includes("admin")) {
         target = this.knownModules?.admin || "admin.html";
-    }
-
-    if (rawLow.includes("cliente")) {
+    } else if (rawLow.includes("cliente")) {
         target = this.knownModules?.cliente || "cliente.html";
     }
-
+    
     // 🔥 FIX: Transformamos el proposal en un Plan oficial del sistema
     const planId = `plan_surgeon_${Date.now()}`;
     
