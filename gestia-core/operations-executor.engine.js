@@ -425,6 +425,59 @@ const {
                             retryBuffer.push({ type, target, status: "ignored_non_file_update" });
                         }
                         break;
+                        case "SYSTEM_STATUS":
+                        retryBuffer.push({
+                            type,
+                            target,
+                            status: "analyzed",
+                            result: payload || {}
+                        });
+                        break;
+
+                    /* =====================================================
+                        🔥 NUEVO: INYECCIÓN DIRECTA PARA CODE SURGEON (UPDATE)
+                    ===================================================== */
+                    case "UPDATE":
+                        if (target.includes('.js') || target.includes('.html') || target.includes('.css')) {
+                            
+                            window.JARVIS_SANDBOX_FILES ||= {};
+                            let prevContent = window.JARVIS_SANDBOX_FILES[target]?.content || "// Archivo original";
+                            let newContent = payload?.content;
+
+                            // Si es una orden de optimización visual, inyectamos CSS preciso para glass-card
+                            if (!newContent && payload?.action === "UI_OPTIMIZATION") {
+                                newContent = prevContent + "\n\n/* 🔥 INYECCIÓN JARVIS CODE SURGEON V16.3 */\n(function applyUIPatch() {\n  const style = document.createElement('style');\n  style.innerHTML = `\n    .glass-card { \n        padding: 4px !important; \n        margin-bottom: 4px !important; \n        border-radius: 12px !important; \n        min-height: auto !important;\n    }\n    .glass-card * { font-size: 0.8rem !important; }\n  `;\n  document.head.appendChild(style);\n  console.log('🦾 [JARVIS SURGEON]: UI_OPTIMIZATION Parche aplicado exitosamente.');\n})();\n";
+                            }
+
+                            // 1. Mutamos la memoria hidratada
+                            window.JARVIS_SANDBOX_FILES[target] = {
+                                content: newContent || prevContent,
+                                updatedAt: Date.now(),
+                                opId
+                            };
+
+                            // 2. Persistimos en la colección de repo
+                            transaction.set(
+                                doc(collection(db, "repo_files")), 
+                                deepSanitize({
+                                    file: target,
+                                    content: newContent || prevContent,
+                                    updated_at: serverTimestamp(),
+                                    updated_by: ejecutado_por || "jarvis_surgeon",
+                                    op_id: opId,
+                                    tenantId: tenantId,
+                                    status: "patched_update_v16.3"
+                                })
+                            );
+
+                            retryBuffer.push({ type, target, status: "file_updated" });
+                            emitirPulsoHUD(opId, "WRITE", "UPDATE_FILE_SUCCESS", target);
+                        } else {
+                            retryBuffer.push({ type, target, status: "ignored_non_file_update" });
+                        }
+                        break;
+
+                    
 
                     case "CODE_WRITE":
 
