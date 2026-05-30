@@ -383,7 +383,7 @@ const {
                         });
                         break;
 
-                    /* =====================================================
+               /* =====================================================
                         🔥 NUEVO: INYECCIÓN DIRECTA PARA CODE SURGEON (UPDATE)
                     ===================================================== */
                     case "UPDATE":
@@ -393,9 +393,9 @@ const {
                             let prevContent = window.JARVIS_SANDBOX_FILES[target]?.content || "// Archivo original";
                             let newContent = payload?.content;
 
-                            // Si es una orden de optimización visual de UI, inyectamos el parche dinámico en runtime
+                            // Si es una orden de optimización visual, inyectamos CSS preciso para glass-card
                             if (!newContent && payload?.action === "UI_OPTIMIZATION") {
-                                newContent = prevContent + "\n\n/* 🔥 INYECCIÓN JARVIS CODE SURGEON V16.1 */\n(function applyUIPatch() {\n  const style = document.createElement('style');\n  style.innerHTML = `\n    /* Compactando tarjetas y padding móvil (Modo Tacaño) */\n    .tarjeta, .card, [class*='card'] { padding: 8px !important; margin-bottom: 8px !important; }\n    .contenedor, .container, [class*='container'] { padding-left: 4px !important; padding-right: 4px !important; }\n    h1, h2, h3 { font-size: clamp(1rem, 4vw, 1.2rem) !important; }\n    button, .btn { min-height: 44px !important; margin-top: 4px !important; }\n  `;\n  document.head.appendChild(style);\n  console.log('🦾 [JARVIS SURGEON]: UI_OPTIMIZATION Parche CSS inyectado en runtime exitosamente.');\n})();\n";
+                                newContent = prevContent + "\n\n/* 🔥 INYECCIÓN JARVIS CODE SURGEON V16.2 - PRECISION PATCH */\n(function applyUIPatch() {\n  const style = document.createElement('style');\n  style.innerHTML = `\n    .glass-card { \n        padding: 10px !important; \n        margin-bottom: 8px !important; \n        border-radius: 16px !important; \n    }\n    /* Aseguramos que el contenido interno no rompa el layout */\n    .glass-card * { font-size: 0.9rem !important; }\n  `;\n  document.head.appendChild(style);\n  console.log('🦾 [JARVIS SURGEON]: UI_OPTIMIZATION Parche aplicado a .glass-card.');\n})();\n";
                             }
 
                             // 1. Mutamos la memoria hidratada
@@ -405,7 +405,7 @@ const {
                                 opId
                             };
 
-                            // 2. Persistimos en la colección de repo para hidrataciones futuras
+                            // 2. Persistimos en la colección de repo
                             transaction.set(
                                 doc(collection(db, "repo_files")), 
                                 deepSanitize({
@@ -415,13 +415,12 @@ const {
                                     updated_by: ejecutado_por || "jarvis_surgeon",
                                     op_id: opId,
                                     tenantId: tenantId,
-                                    status: "patched_update"
+                                    status: "patched_update_v16.2"
                                 })
                             );
 
                             retryBuffer.push({ type, target, status: "file_updated" });
                             emitirPulsoHUD(opId, "WRITE", "UPDATE_FILE_SUCCESS", target);
-                            console.log(`🦾 [JARVIS_EXEC]: Archivo ${target} parcheado correctamente en sandbox.`);
                         } else {
                             retryBuffer.push({ type, target, status: "ignored_non_file_update" });
                         }
