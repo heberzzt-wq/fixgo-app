@@ -1319,65 +1319,70 @@ try {
 }
 
 /* =====================================================
-            CODE SURGEON MODE (Lógica existente...)
-        ===================================================== */
-        if (
-            this.codeSurgeonMode &&
-            (
-            rawLow.includes("revisa panel") ||
-            rawLow.includes("analiza panel") ||
-            rawLow.includes("revisa movil") ||
-            rawLow.includes("revisa móvil") ||
-            rawLow.includes("optimiza panel") ||
-            rawLow.includes("corrige panel")
-        )
-    ) {
+    🔥 CODE SURGEON MODE (INTERCEPTOR ALTA PRIORIDAD)
+===================================================== */
+if (
+    this.codeSurgeonMode &&
+    (
+        rawLow.includes("revisa panel") ||
+        rawLow.includes("analiza panel") ||
+        rawLow.includes("revisa movil") ||
+        rawLow.includes("revisa móvil") ||
+        rawLow.includes("optimiza panel") ||
+        rawLow.includes("corrige panel")
+    )
+) {
+    let target = this.knownModules?.tecnico || "tecnico-b2b.html";
 
-        let target =
-            this.knownModules.tecnico;
+    if (rawLow.includes("admin")) {
+        target = this.knownModules?.admin || "admin.html";
+    }
 
-        if (
-            rawLow.includes("admin")
-        ) {
-            target =
-                this.knownModules.admin;
-        }
+    if (rawLow.includes("cliente")) {
+        target = this.knownModules?.cliente || "cliente.html";
+    }
 
-        if (
-            rawLow.includes("cliente")
-        ) {
-            target =
-                this.knownModules.cliente;
-        }
+    // 🔥 FIX: Transformamos el proposal en un Plan oficial del sistema
+    const planId = `plan_surgeon_${Date.now()}`;
+    
+    const proposal = {
+        id: planId,
+        type: "CODE_SURGEON",
+        title: "Optimización responsive supervisada",
+        target,
+        issue: rawLow.includes("movil") || rawLow.includes("móvil")
+            ? "Sobredimensión móvil detectada"
+            : "Densidad visual mejorable",
+        patch: [
+            "Reducir padding móvil",
+            "Compactar tarjetas",
+            "Escalar tipografías responsive",
+            "Optimizar botones táctiles"
+        ],
+        risk: "BAJO",
+        createdAt: Date.now(),
+        // Agregamos el step para que el Executor híbrido pueda mutar
+        steps: [
+            {
+                id: `step_surg_${Date.now()}`,
+                type: "UPDATE",
+                target: target,
+                payload: { action: "UI_OPTIMIZATION" }
+            }
+        ]
+    };
 
-        const proposal = {
-            id:
-                crypto.randomUUID(),
-            type:
-                "CODE_SURGEON",
-            title:
-                "Optimización responsive supervisada",
-            target,
-            issue:
-                rawLow.includes("movil") ||
-                rawLow.includes("móvil")
-                    ? "Sobredimensión móvil detectada"
-                    : "Densidad visual mejorable",
-            patch: [
-                "Reducir padding móvil",
-                "Compactar tarjetas",
-                "Escalar tipografías responsive",
-                "Optimizar botones táctiles"
-            ],
-            risk: "BAJO",
-            createdAt:
-                Date.now()
-        };
+    this.pendingProposal = proposal;
+    
+    // 🔥 FIX: Conectamos a la memoria de la terminal
+    window.lastPlanId = planId;
 
-        this.pendingProposal =
-            proposal;
+    // 🔥 FIX: Guardamos en persistencia para que approvePlan lo encuentre
+    if (typeof savePendingPlan === "function") {
+        savePendingPlan(proposal);
+    }
 
-        const msg =
+    const msg = 
 `Detecté oportunidad de mejora visual.
 
 Archivo objetivo:
@@ -1397,23 +1402,23 @@ Escribe:
 • aprobar
 • cancelar`;
 
-        render(
-            "Jarvis Code Surgeon",
-            msg,
-            "warning"
-        );
+    render(
+        "Jarvis Code Surgeon",
+        msg,
+        "warning"
+    );
 
-        safeLog(
-            "CODE_SURGEON_PROPOSAL",
-            proposal
-        );
+    safeLog(
+        "CODE_SURGEON_PROPOSAL",
+        proposal
+    );
 
-        return {
-            ok: true,
-            waitingApproval: true,
-            proposal
-        };
-    }
+    return {
+        ok: true,
+        waitingApproval: true,
+        proposal
+    };
+}
 
    if (AI_MODE) {
             if (HUMAN_FAST_PATH) {
