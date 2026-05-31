@@ -22,6 +22,15 @@
  * ======================================================================================
  */
 
+// --- PARCHE DE COMPATIBILIDAD PARA NODE.JS ---
+if (typeof window === 'undefined') {
+    global.window = global;
+    window.dispatchEvent = () => { /* Evento ignorado en terminal */ };
+    window.addEventListener = () => { /* Evento ignorado en terminal */ };
+    window.document = { head: { appendChild: () => {} } };
+}
+// ---------------------------------------------
+
 import { db } from '../firebase-node-adapter.js';
 
 import { 
