@@ -37,8 +37,7 @@ import {
     getDocs,
     addDoc,
     updateDoc
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
+} from "firebase-admin/firestore";
 /**
  * emitirPulsoHUD: Informa a la interfaz de Jarvis los signos vitales del motor.
  * ✅ MEJORA: Incluye contexto de OP_ID para trazabilidad en el Timeline.
