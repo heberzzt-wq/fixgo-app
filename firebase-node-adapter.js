@@ -10,3 +10,10 @@ const app = initializeApp({
 });
 
 export const db = getFirestore(app);
+
+// AQUÍ ESTÁ EL TRADUCTOR (El adaptador)
+export const addDoc = (collectionRef, data) => collectionRef.add(data);
+export const updateDoc = (docRef, data) => docRef.update(data);
+export const getDoc = (docRef) => docRef.get();
+export const deleteDoc = (docRef) => docRef.delete();
+export const getDocs = (query) => query.get();

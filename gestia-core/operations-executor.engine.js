@@ -24,20 +24,8 @@
 
 import { db } from '../firebase-node-adapter.js';
 
-import { 
-    runTransaction,
-    doc, 
-    collection, 
-    serverTimestamp,
-    getDoc,
-    writeBatch,
-    increment,
-    query,
-    where,
-    getDocs,
-    addDoc,
-    updateDoc
-} from "firebase-admin/firestore";
+import { runTransaction, doc, collection, serverTimestamp, writeBatch, increment, query, where } from "firebase-admin/firestore";
+import { getDoc, addDoc, updateDoc, getDocs } from "../firebase-node-adapter.js";
 /**
  * emitirPulsoHUD: Informa a la interfaz de Jarvis los signos vitales del motor.
  * ✅ MEJORA: Incluye contexto de OP_ID para trazabilidad en el Timeline.
