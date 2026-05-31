@@ -24,7 +24,20 @@
 
 import { db } from '../firebase-node-adapter.js';
 
-import { runTransaction, doc, collection, serverTimestamp, writeBatch, increment, query, where } from "firebase-admin/firestore";
+import { 
+    runTransaction, 
+    doc, 
+    collection, 
+    serverTimestamp, 
+    writeBatch, 
+    increment, 
+    query, 
+    where, 
+    getDoc, 
+    getDocs, 
+    addDoc, 
+    updateDoc 
+} from "../firebase-shim.js";
 import { getDoc, addDoc, updateDoc, getDocs } from "../firebase-node-adapter.js";
 /**
  * emitirPulsoHUD: Informa a la interfaz de Jarvis los signos vitales del motor.
