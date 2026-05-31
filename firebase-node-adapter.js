@@ -11,9 +11,14 @@ const app = initializeApp({
 
 export const db = getFirestore(app);
 
-// AQUÍ ESTÁ EL TRADUCTOR (El adaptador)
+// AQUÍ ESTÁ EL DICCIONARIO PARA QUE NO TRUENE TU CÓDIGO
+export const collection = (db, path) => db.collection(path);
+export const doc = (db, path, id) => id ? db.doc(path + '/' + id) : db.doc(path);
+export const getDoc = (docRef) => docRef.get();
+export const getDocs = (query) => query.get();
 export const addDoc = (collectionRef, data) => collectionRef.add(data);
 export const updateDoc = (docRef, data) => docRef.update(data);
-export const getDoc = (docRef) => docRef.get();
 export const deleteDoc = (docRef) => docRef.delete();
-export const getDocs = (query) => query.get();
+export const serverTimestamp = () => require('firebase-admin/firestore').FieldValue.serverTimestamp();
+export const increment = (val) => require('firebase-admin/firestore').FieldValue.increment(val);
+// Las funciones query y where son complejas de traducir, así que las importaremos distinto.
