@@ -22,6 +22,7 @@
  * ======================================================================================
  */
 
+
 // --- PARCHE DE COMPATIBILIDAD PARA NODE.JS ---
 if (typeof window === 'undefined') {
     global.window = global;

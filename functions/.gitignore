@@ -17,7 +17,6 @@ bower_components/
 .env.*.local
 
 serviceAccountKey.json
-firebase-service-account.json
 gestia-core/serviceAccountKey.json
 firebase-key.json
 auth_key.json
@@ -107,3 +106,4 @@ coverage-final.json
 # firebase.json
 # manifest.json
 # sw.js
+config/firebase-service-account.json
