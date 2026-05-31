@@ -22,7 +22,7 @@
  * ======================================================================================
  */
 
-import { db } from '../firebase.js';
+import { db } from '../firebase-node-adapter.js';
 
 import { 
     runTransaction,
