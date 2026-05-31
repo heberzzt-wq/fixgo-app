@@ -38,7 +38,6 @@ import {
     addDoc, 
     updateDoc 
 } from "../firebase-shim.js";
-import { getDoc, addDoc, updateDoc, getDocs } from "../firebase-node-adapter.js";
 /**
  * emitirPulsoHUD: Informa a la interfaz de Jarvis los signos vitales del motor.
  * ✅ MEJORA: Incluye contexto de OP_ID para trazabilidad en el Timeline.
