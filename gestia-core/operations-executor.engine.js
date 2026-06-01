@@ -124,33 +124,39 @@ export async function simularCambios(changes, opId = "SIM_MODE") {
     return projection;
 }
 
+
+/**
+ * 🛠️ UTILS: Asegura integridad de tipos para Firestore
+ */
+const ensureString = (val) => {
+    if (typeof val === 'string') return val;
+    if (val && typeof val === 'object') {
+        // Extrae el ID común de objetos de referencia o contextos
+        return val.id || val.operation_id || val.tenantId || val.uid || "";
+    }
+    return String(val || "");
+};
+
 /**
  * 🦾 2. EJECUTAR CAMBIOS (V16.1 INDESTRUCTIBLE)
  */
 export async function ejecutarCambios(proposal) {
     const startTime = Date.now();
-
-    // 1. Normalización inicial (sin tocar la propuesta original todavía)
     proposal = normalizeOperationContext(proposal);
 
-    // 2. Validación crítica de existencia (esto previene errores de "undefined")
-    if (!proposal || !proposal.operation_id) {
-        throw { code: "EXECUTION_FABRIC_ERROR", message: "MISSING_OPERATION_ID" };
-    }
+    if (!proposal) throw { code: "EXECUTION_FABRIC_ERROR", message: "MISSING_PROPOSAL" };
 
-    // 3. Extracción única y segura del ID
-    // Aquí resolvemos si operation_id es un objeto o un string de una vez por todas
-    const rawId = proposal.operation_id;
-    const opId = typeof rawId === 'object' ? (rawId.operation_id || rawId.id || "unknown") : rawId;
-
-    // 4. Desestructuración segura
-    // Corrección: Extraer tenantId y forzarlo a string inmediatamente
+    // 1. Extracción consolidada mediante la nueva utilidad
+    const opId = ensureString(proposal.operation_id);
+    const tenantId = ensureString(proposal.tenantId);
     const { ejecutado_por, changes } = proposal;
-    
-    // Si tenantId es un objeto, intentamos sacar su id, si es string lo dejamos igual
-    const tenantId = typeof proposal.tenantId === 'object' 
-        ? (proposal.tenantId.id || proposal.tenantId.tenantId || "unknown") 
-        : (proposal.tenantId || "unknown");
+
+    // 2. Validación estricta de IDs
+    if (!opId) throw { code: "EXECUTION_FABRIC_ERROR", message: "MISSING_OPERATION_ID" };
+    if (!tenantId) {
+        emitirPulsoHUD(opId, "CRASH", "DENIED", "TENANT_ID_INVALIDO");
+        throw { code: "EXECUTOR_ERROR", message: "TENANT_ID_INVALIDO" };
+    }
 
     /* ================================================================================
        EXECUTION FABRIC VALIDATION
@@ -158,6 +164,7 @@ export async function ejecutarCambios(proposal) {
     if (!Array.isArray(changes)) {
         throw { code: "EXECUTION_FABRIC_ERROR", message: "INVALID_CHANGES_ARRAY" };
     }
+    // ... resto del código sin cambios por ahora ...
 
     // --- 🛡️ PASO 0: VALIDACIONES DE INFRAESTRUCTURA ---
     if (!tenantId) {
