@@ -176,11 +176,14 @@ export async function ejecutarCambios(proposal) {
     }
 
     const {
-        operation_id: opId, // Aquí extraemos el ID y le ponemos el nombre 'opId' para que todo lo demás funcione
+        operation_id, // Solo extraemos la variable
         tenantId,
         ejecutado_por,
         changes
     } = proposal;
+
+    // Actualizamos el opId que ya tenías declarado con el valor que viene en la propuesta
+    opId = operation_id;
 
     // --- 🛡️ PASO 0: VALIDACIONES DE INFRAESTRUCTURA ---
     if (!tenantId) {
