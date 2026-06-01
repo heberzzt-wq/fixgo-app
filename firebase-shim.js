@@ -136,37 +136,3 @@ export const where = (field, op, value) => ({
     value
 });
 
-export const doc = (...segments) => {
-
-    console.log(
-        "🔥 DOC CALL:",
-        JSON.stringify(segments, null, 2)
-    );
-
-    if (
-        segments[0] &&
-        typeof segments[0] === "object" &&
-        typeof segments[0].doc === "function"
-    ) {
-        segments.shift();
-    }
-
-    const cleanSegments = segments
-        .map(toPathString);
-
-    console.log(
-        "🔥 CLEAN SEGMENTS:",
-        cleanSegments
-    );
-
-    const path = cleanSegments
-        .filter(Boolean)
-        .join("/");
-
-    console.log(
-        "🔥 FINAL PATH:",
-        path
-    );
-
-    return db.doc(path);
-};
