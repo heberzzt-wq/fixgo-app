@@ -256,7 +256,13 @@ export async function ejecutarCambios(proposal) {
 
                 // --- GENERACIÓN DE HUELLA FORENSE (LEDGER) ---
                 // doc(collection()) genera un ID único in-memory, garantizando inmutabilidad.
-                const ledgerRef = doc(collection(db, "tenants", tenantId, "gestia_ledger"));
+                const ledgerRef =
+    collection(
+        db,
+        "tenants",
+        tenantId,
+        "gestia_ledger"
+    ).doc();
 
                 transaction.set(ledgerRef, {
                     op_id: opId,
@@ -334,12 +340,23 @@ export async function ejecutarCambios(proposal) {
 
                     case "REPAIR_RUNTIME_LINK":
                         const opDocRef = doc(db, "gestia_operations", opId);
-                        transaction.update(opDocRef, deepSanitize({
-                            runtime_repaired: true,
-                            repaired_component: target,
-                            repair_timestamp: serverTimestamp(),
-                            repair_payload: payload
-                        }));
+
+transaction.set(
+    opDocRef,
+    deepSanitize({
+        runtime_repaired: true,
+        repaired_component: target,
+        repair_timestamp: serverTimestamp(),
+        repair_payload: payload
+    }),
+    { merge: true }
+);
+
+retryBuffer.push({
+    type,
+    target,
+    status: "repaired"
+});
                         retryBuffer.push({ type, target, status: "repaired" });
                         break;
 
