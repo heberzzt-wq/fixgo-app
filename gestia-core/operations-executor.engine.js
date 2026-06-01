@@ -132,10 +132,7 @@ export async function ejecutarCambios(proposal) {
     const startTime = Date.now();
     
     // --- INYECCIÓN DE BRAZO EJECUTOR DE SISTEMA ---
-    const { exec } = require('child_process');
-    const util = require('util');
-    const execPromise = util.promisify(exec);
-
+    // Nota: execPromise ya está disponible globalmente gracias al import de arriba.
     /* ================================================================================
        EXECUTION FABRIC NORMALIZATION
     ================================================================================ */
