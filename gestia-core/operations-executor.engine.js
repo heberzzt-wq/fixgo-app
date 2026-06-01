@@ -197,9 +197,14 @@ export async function ejecutarCambios(proposal) {
         throw { code: "PAYLOAD_TOO_LARGE", message: "Máximo 50 cambios por transacción." };
     }
 
-    // ✅ FIX: Sellamos la operación como completada para evitar el bloqueo 'analyzing'.
+   // ✅ FIX: Sellamos la operación como completada para evitar el bloqueo 'analyzing'.
     if (safeChanges.length === 0) {
         emitirPulsoHUD(opId, "EXECUTION", "COMPLETED_EMPTY", "No se detectaron cambios atómicos.");
+        
+        // AQUÍ ES DONDE LO VAS A PONER:
+        console.log("DEBUG: ¿Qué es opId?", typeof opId, opId);
+
+        // Esta es la línea que está tronando, y aquí sabremos por qué:
         await updateDoc(doc(db, "gestia_operations", opId), {
             status: "completed",
             completed_at: serverTimestamp(),
@@ -221,7 +226,7 @@ export async function ejecutarCambios(proposal) {
         const masterOpRef = doc(db, "gestia_operations", opId);
         const masterSnap = await getDoc(masterOpRef);
 
-        if (masterSnap.exists() && masterSnap.data().status === "completed") {
+        if (masterSnap.exists && masterSnap.data().status === "completed") {
             emitirPulsoHUD(opId, "IDEMPOTENCY", "ALREADY_DONE", "Operación ya completada previamente.");
             return masterSnap.data().engine_metadata?.results_summary || [];
         }
