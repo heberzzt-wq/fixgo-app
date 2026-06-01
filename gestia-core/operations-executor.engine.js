@@ -268,7 +268,7 @@ export async function ejecutarCambios(proposal) {
          * 🔒 FASE 2: COMMIT ATÓMICO (TRANSACCIÓN DETERMINISTA)
          * Se ejecuta como un bloque único. El buffer local asegura resultados limpios.
          */
-        await runTransaction(db, async (transaction) => {
+        await runTransaction(async (transaction) => {
 
             // Buffer local para esta ejecución (evita duplicados en retries de Firestore)
             const retryBuffer = [];
