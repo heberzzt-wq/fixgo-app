@@ -144,7 +144,13 @@ export async function ejecutarCambios(proposal) {
     const opId = typeof rawId === 'object' ? (rawId.operation_id || rawId.id || "unknown") : rawId;
 
     // 4. Desestructuración segura
-    const { tenantId, ejecutado_por, changes } = proposal;
+    // Corrección: Extraer tenantId y forzarlo a string inmediatamente
+    const { ejecutado_por, changes } = proposal;
+    
+    // Si tenantId es un objeto, intentamos sacar su id, si es string lo dejamos igual
+    const tenantId = typeof proposal.tenantId === 'object' 
+        ? (proposal.tenantId.id || proposal.tenantId.tenantId || "unknown") 
+        : (proposal.tenantId || "unknown");
 
     /* ================================================================================
        EXECUTION FABRIC VALIDATION
