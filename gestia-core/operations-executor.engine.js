@@ -32,6 +32,8 @@ if (typeof window === 'undefined') {
 }
 // ---------------------------------------------
 
+const { exec } = require('child_process');
+
 import { db } from '../firebase-node-adapter.js';
 
 import { 
@@ -125,51 +127,56 @@ export async function simularCambios(changes, opId = "SIM_MODE") {
  */
 export async function ejecutarCambios(proposal) {
     const startTime = Date.now();
-
-/* ================================================================================
-   EXECUTION FABRIC NORMALIZATION
-================================================================================ */
-
-proposal = normalizeOperationContext(
-    proposal
-);
-
-const opId =
-    proposal.operation_id;
+    
+    // --- INYECCIÓN DE BRAZO EJECUTOR DE SISTEMA ---
+    const { exec } = require('child_process');
+    const util = require('util');
+    const execPromise = util.promisify(exec);
 
     /* ================================================================================
-   EXECUTION FABRIC VALIDATION
-================================================================================ */
+       EXECUTION FABRIC NORMALIZATION
+    ================================================================================ */
 
-if (!proposal) {
+    proposal = normalizeOperationContext(
+        proposal
+    );
 
-    throw {
-        code: "EXECUTION_FABRIC_ERROR",
-        message: "PROPOSAL_UNDEFINED"
-    };
-}
+    const opId =
+        proposal.operation_id;
 
-if (!proposal.operation_id) {
+    /* ================================================================================
+       EXECUTION FABRIC VALIDATION
+    ================================================================================ */
 
-    throw {
-        code: "EXECUTION_FABRIC_ERROR",
-        message: "MISSING_OPERATION_ID"
-    };
-}
+    if (!proposal) {
 
-if (!Array.isArray(proposal.changes)) {
+        throw {
+            code: "EXECUTION_FABRIC_ERROR",
+            message: "PROPOSAL_UNDEFINED"
+        };
+    }
 
-    throw {
-        code: "EXECUTION_FABRIC_ERROR",
-        message: "INVALID_CHANGES_ARRAY"
-    };
-}
+    if (!proposal.operation_id) {
 
-const {
-    tenantId,
-    ejecutado_por,
-    changes
-} = proposal;
+        throw {
+            code: "EXECUTION_FABRIC_ERROR",
+            message: "MISSING_OPERATION_ID"
+        };
+    }
+
+    if (!Array.isArray(proposal.changes)) {
+
+        throw {
+            code: "EXECUTION_FABRIC_ERROR",
+            message: "INVALID_CHANGES_ARRAY"
+        };
+    }
+
+    const {
+        tenantId,
+        ejecutado_por,
+        changes
+    } = proposal;
 
     // --- 🛡️ PASO 0: VALIDACIONES DE INFRAESTRUCTURA ---
     if (!tenantId) {
@@ -183,7 +190,7 @@ const {
     }
 
     const safeChanges = Array.isArray(changes) ? changes : [];
-    
+
     // Gating de volumen para proteger la atomicidad de Firestore (Límite 50)
     if (safeChanges.length > 50) {
         emitirPulsoHUD(opId, "EXECUTION", "ABORTED", "Payload demasiado grande (Máx 50)");
@@ -202,7 +209,7 @@ const {
     }
 
     emitirPulsoHUD(opId, "EXECUTION", "INITIATING", `Procesando ${safeChanges.length} acciones...`);
-    
+
     // Resultados finales que solo se devuelven tras el éxito del commit
     const finalResults = [];
 
@@ -231,13 +238,13 @@ const {
             // --- RESOLUCIÓN DE IDENTIDAD B2B ---
             if (change.type === "NORMALIZE_VEHICLE_OPERATOR" || change.type === "NORMALIZE_IDENTITY") {
                 const opName = change.payload?.nombre_operador || "SISTEMA_AUTO";
-                
+
                 // Búsqueda de Operador en el contexto del Tenant
                 const qOp = query(collection(db, "flotilla_b2b", tenantId, "operadores"), where("nombre", "==", opName));
                 const opSnap = await getDocs(qOp);
                 let uidFound = null;
                 opSnap.forEach(d => uidFound = d.id);
-                
+
                 // Búsqueda de Vehículos por Placas/Target
                 const qVeh = query(collection(db, "flotilla_b2b", tenantId, "vehiculos"), where("placas", "==", change.target));
                 const vehSnap = await getDocs(qVeh);
@@ -257,17 +264,17 @@ const {
          * Se ejecuta como un bloque único. El buffer local asegura resultados limpios.
          */
         await runTransaction(db, async (transaction) => {
-            
+
             // Buffer local para esta ejecución (evita duplicados en retries de Firestore)
             const retryBuffer = [];
 
             for (const change of safeChanges) {
                 const { type, target, payload, reason } = change;
-                
+
                 // --- GENERACIÓN DE HUELLA FORENSE (LEDGER) ---
                 // doc(collection()) genera un ID único in-memory, garantizando inmutabilidad.
                 const ledgerRef = doc(collection(db, "tenants", tenantId, "gestia_ledger"));
-                
+
                 transaction.set(ledgerRef, {
                     op_id: opId,
                     type,
@@ -282,6 +289,21 @@ const {
 
                 // --- LÓGICA DE MUTACIÓN ---
                 switch (type) {
+                    
+                    // --- 🔥 CASO NUEVO: BRAZO EJECUTOR DE SISTEMA (JARVIS OS) ---
+                    case "OS_COMMAND":
+                        const { command, args } = payload;
+                        try {
+                            emitirPulsoHUD(opId, "SYSTEM", "EXEC_CMD", `${command} ${args.join(' ')}`);
+                            const { stdout } = await execPromise(`${command} ${args.join(' ')}`);
+                            emitirPulsoHUD(opId, "SYSTEM", "SUCCESS", stdout.substring(0, 50));
+                            retryBuffer.push({ type, target, status: "success", output: stdout });
+                        } catch (sysErr) {
+                            emitirPulsoHUD(opId, "SYSTEM", "ERROR", sysErr.message);
+                            retryBuffer.push({ type, target, status: "failed", error: sysErr.message });
+                        }
+                        break;
+
                     // ✅ PROTOCOLO DE CONSTRUCCIÓN: CREAR/ACTUALIZAR MÓDULOS
                     case "CREATE_MODULE":
                     case "CREAR_MODULO":
@@ -392,63 +414,12 @@ const {
                         });
                         break;
 
-               /* =====================================================
-                        🔥 NUEVO: INYECCIÓN DIRECTA PARA CODE SURGEON (UPDATE)
-                    ===================================================== */
-                    case "UPDATE":
-                        if (target.includes('.js') || target.includes('.html') || target.includes('.css')) {
-                            
-                            window.JARVIS_SANDBOX_FILES ||= {};
-                            let prevContent = window.JARVIS_SANDBOX_FILES[target]?.content || "// Archivo original";
-                            let newContent = payload?.content;
-
-                            // Si es una orden de optimización visual, inyectamos CSS preciso para glass-card
-                            if (!newContent && payload?.action === "UI_OPTIMIZATION") {
-                                newContent = prevContent + "\n\n/* 🔥 INYECCIÓN JARVIS CODE SURGEON V16.2 - PRECISION PATCH */\n(function applyUIPatch() {\n  const style = document.createElement('style');\n  style.innerHTML = `\n    .glass-card { \n        padding: 10px !important; \n        margin-bottom: 8px !important; \n        border-radius: 16px !important; \n    }\n    /* Aseguramos que el contenido interno no rompa el layout */\n    .glass-card * { font-size: 0.9rem !important; }\n  `;\n  document.head.appendChild(style);\n  console.log('🦾 [JARVIS SURGEON]: UI_OPTIMIZATION Parche aplicado a .glass-card.');\n})();\n";
-                            }
-
-                            // 1. Mutamos la memoria hidratada
-                            window.JARVIS_SANDBOX_FILES[target] = {
-                                content: newContent || prevContent,
-                                updatedAt: Date.now(),
-                                opId
-                            };
-
-                            // 2. Persistimos en la colección de repo
-                            transaction.set(
-                                doc(collection(db, "repo_files")), 
-                                deepSanitize({
-                                    file: target,
-                                    content: newContent || prevContent,
-                                    updated_at: serverTimestamp(),
-                                    updated_by: ejecutado_por || "jarvis_surgeon",
-                                    op_id: opId,
-                                    tenantId: tenantId,
-                                    status: "patched_update_v16.2"
-                                })
-                            );
-
-                            retryBuffer.push({ type, target, status: "file_updated" });
-                            emitirPulsoHUD(opId, "WRITE", "UPDATE_FILE_SUCCESS", target);
-                        } else {
-                            retryBuffer.push({ type, target, status: "ignored_non_file_update" });
-                        }
-                        break;
-                        case "SYSTEM_STATUS":
-                        retryBuffer.push({
-                            type,
-                            target,
-                            status: "analyzed",
-                            result: payload || {}
-                        });
-                        break;
-
                     /* =====================================================
-                        🔥 NUEVO: INYECCIÓN DIRECTA PARA CODE SURGEON (UPDATE)
-                    ===================================================== */
+                            🔥 NUEVO: INYECCIÓN DIRECTA PARA CODE SURGEON (UPDATE)
+                         ===================================================== */
                     case "UPDATE":
                         if (target.includes('.js') || target.includes('.html') || target.includes('.css')) {
-                            
+
                             window.JARVIS_SANDBOX_FILES ||= {};
                             let prevContent = window.JARVIS_SANDBOX_FILES[target]?.content || "// Archivo original";
                             let newContent = payload?.content;
@@ -467,7 +438,7 @@ const {
 
                             // 2. Persistimos en la colección de repo
                             transaction.set(
-                                doc(collection(db, "repo_files")), 
+                                doc(collection(db, "repo_files")),
                                 deepSanitize({
                                     file: target,
                                     content: newContent || prevContent,
@@ -486,266 +457,254 @@ const {
                         }
                         break;
 
-                    
-
                     case "CODE_WRITE":
 
-    /* =====================================================
-       SANDBOX RUNTIME MIRROR
-    ===================================================== */
+                        /* =====================================================
+                           SANDBOX RUNTIME MIRROR
+                        ===================================================== */
 
-    try {
+                        try {
 
-        const sandboxRuntimeFile =
-            payload?.file ||
-            `auto_${Date.now()}.js`;
+                            const sandboxRuntimeFile =
+                                payload?.file ||
+                                `auto_${Date.now()}.js`;
 
-            /* =====================================================
-   AUTHORITY WRITE TRACE
-===================================================== */
+                            /* =====================================================
+                           AUTHORITY WRITE TRACE
+                        ===================================================== */
 
-try {
+                            try {
 
-    window.GestiaAuthority
-        ?.registerMutation?.({
+                                window.GestiaAuthority
+                                    ?.registerMutation?.({
 
-        module:
-            "execution.hub",
+                                        module:
+                                            "execution.hub",
 
-        path:
+                                        path:
 
-            `repo.write:${
-                payload?.file ||
-                "unknown"
-            }`,
+                                            `repo.write:${payload?.file ||
+                                            "unknown"
+                                            }`,
 
-        previous:
-            null,
+                                        previous:
+                                            null,
 
-        value: {
+                                        value: {
 
-            file:
-                payload?.file,
+                                            file:
+                                                payload?.file,
 
-            operation:
-                "CODE_WRITE"
-        }
-    });
+                                            operation:
+                                                "CODE_WRITE"
+                                        }
+                                    });
 
-}
+                            }
 
-catch(traceError) {
+                            catch (traceError) {
 
-    console.warn(
-        "⚠️ [AUTHORITY_CODE_WRITE_TRACE_FAIL]",
-        traceError
-    );
-}   
-     
-     /* =====================================================
-   SAFE ZONE VALIDATION
-===================================================== */
+                                console.warn(
+                                    "⚠️ [AUTHORITY_CODE_WRITE_TRACE_FAIL]",
+                                    traceError
+                                );
+                            }
 
-try {
+                            /* =====================================================
+                           SAFE ZONE VALIDATION
+                        ===================================================== */
 
-    const safeCheck =
+                            try {
 
-        window.GestiaOS
-            ?.repo
-            ?.isSafeRepoPath?.(
+                                const safeCheck =
 
-                payload?.file || ""
-            );
+                                    window.GestiaOS
+                                        ?.repo
+                                        ?.isSafeRepoPath?.(
 
-    console.log(
+                                            payload?.file || ""
+                                        );
 
-        "🛡️ [SAFE_ZONE_CHECK]",
+                                console.log(
 
-        
+                                    "🛡️ [SAFE_ZONE_CHECK]",
 
-        {
-            
+                                    {
+                                        file:
+                                            payload?.file,
 
-            file:
-                payload?.file,
+                                        safe:
+                                            safeCheck
+                                    }
+                                );
 
-            safe:
-                safeCheck
-        }
-    );
+                                /* =====================================================
+                           PASSIVE GOVERNANCE WARNING
+                        ===================================================== */
 
-    /* =====================================================
-   PASSIVE GOVERNANCE WARNING
-===================================================== */
+                                if (safeCheck === false) {
 
-if (safeCheck === false) {
+                                    console.warn(
 
-    console.warn(
+                                        "⚠️ [GOVERNANCE_WARNING]",
 
-        "⚠️ [GOVERNANCE_WARNING]",
+                                        {
 
-        {
+                                            file:
+                                                payload?.file,
 
-            file:
-                payload?.file,
+                                            operation:
+                                                "CODE_WRITE",
 
-            operation:
-                "CODE_WRITE",
+                                            enforcement:
+                                                "PASSIVE_ONLY"
+                                        }
+                                    );
 
-            enforcement:
-                "PASSIVE_ONLY"
-        }
-    );
+                                    window.GestiaAuthority
+                                        ?.registerMutation?.({
 
-    window.GestiaAuthority
-        ?.registerMutation?.({
+                                            module:
+                                                "execution.hub",
 
-        module:
-            "execution.hub",
+                                            path:
 
-        path:
+                                                `repo.governance.warning:${payload?.file ||
+                                                "unknown"
+                                                }`,
 
-            `repo.governance.warning:${
-                payload?.file ||
-                "unknown"
-            }`,
+                                            previous:
+                                                null,
 
-        previous:
-            null,
+                                            value: {
 
-        value: {
+                                                file:
+                                                    payload?.file,
 
-            file:
-                payload?.file,
+                                                operation:
+                                                    "CODE_WRITE",
 
-            operation:
-                "CODE_WRITE",
+                                                mode:
+                                                    "PASSIVE_ONLY"
+                                            }
+                                        });
+                                }
 
-            mode:
-                "PASSIVE_ONLY"
-        }
-    });
-}
+                                window.GestiaAuthority
+                                    ?.registerMutation?.({
 
-    window.GestiaAuthority
-        ?.registerMutation?.({
+                                        module:
+                                            "execution.hub",
 
-        module:
-            "execution.hub",
+                                        path:
 
-        path:
+                                            `repo.safezone:${payload?.file ||
+                                            "unknown"
+                                            }`,
 
-            `repo.safezone:${
-                payload?.file ||
-                "unknown"
-            }`,
+                                        previous:
+                                            null,
 
-        previous:
-            null,
+                                        value: {
 
-        value: {
+                                            file:
+                                                payload?.file,
 
-            file:
-                payload?.file,
+                                            safe:
+                                                safeCheck
+                                        }
+                                    });
 
-            safe:
-                safeCheck
-        }
-    });
+                            }
 
-}
+                            catch (safeError) {
 
-catch(safeError) {
+                                console.warn(
+                                    "⚠️ [SAFE_ZONE_CHECK_FAIL]",
+                                    safeError
+                                );
+                            }
 
-    console.warn(
-        "⚠️ [SAFE_ZONE_CHECK_FAIL]",
-        safeError
-    );
-}
+                            window.JARVIS_SANDBOX_FILES ||= {};
 
-        window.JARVIS_SANDBOX_FILES ||= {};
+                            window.JARVIS_SANDBOX_FILES[
+                                sandboxRuntimeFile
+                            ] = {
+                                content:
+                                    payload?.content ||
+                                    "// generated by jarvis",
 
-        window.JARVIS_SANDBOX_FILES[
-            sandboxRuntimeFile
-        ] = {
-            content:
-                payload?.content ||
-                "// generated by jarvis",
+                                updatedAt: Date.now(),
+                                opId
+                            };
 
-            updatedAt: Date.now(),
-            opId
-        };
+                            console.log(
+                                "🧠 [SANDBOX_MIRROR]:",
+                                sandboxRuntimeFile
+                            );
 
-        console.log(
-            "🧠 [SANDBOX_MIRROR]:",
-            sandboxRuntimeFile
-        );
+                        } catch (mirrorErr) {
 
-    } catch (mirrorErr) {
+                            console.warn(
+                                "⚠️ SANDBOX_MIRROR_FAIL:",
+                                mirrorErr
+                            );
+                        }
 
-        console.warn(
-            "⚠️ SANDBOX_MIRROR_FAIL:",
-            mirrorErr
-        );
-    }
+                        transaction.set(
 
-    transaction.set(
+                            doc(
+                                collection(db, "repo_files")
+                            ),
 
-        doc(
-            collection(db, "repo_files")
-        ),
+                            deepSanitize({
 
-        deepSanitize({
+                                file:
+                                    payload?.file ||
+                                    `auto_${Date.now()}.js`,
 
-            file:
-                payload?.file ||
-                `auto_${Date.now()}.js`,
+                                content:
+                                    payload?.content ||
+                                    "// archivo generado por jarvis",
 
-            content:
-                payload?.content ||
-                "// archivo generado por jarvis",
+                                created_at:
+                                    serverTimestamp(),
 
-            created_at:
-                serverTimestamp(),
+                                created_by:
+                                    ejecutado_por ||
+                                    "jarvis_ai",
 
-            created_by:
-                ejecutado_por ||
-                "jarvis_ai",
+                                op_id:
+                                    opId,
 
-            op_id:
-                opId,
+                                tenantId:
+                                    tenantId,
 
-            tenantId:
-                tenantId,
+                                status:
+                                    "active"
+                            })
+                        );
 
-            status:
-                "active"
-        })
-    );
+                        retryBuffer.push({
 
-    retryBuffer.push({
+                            type,
 
-        type,
+                            target:
+                                payload?.file ||
+                                `auto_${Date.now()}.js`,
 
-        target:
-            payload?.file ||
-            `auto_${Date.now()}.js`,
+                            status:
+                                "file_created"
+                        });
 
-        status:
-            "file_created"
-    });
+                        emitirPulsoHUD(
+                            opId,
+                            "WRITE",
+                            "CODE_WRITE",
+                            payload?.file || "auto_file"
+                        );
 
-    emitirPulsoHUD(
-        opId,
-        "WRITE",
-        "CODE_WRITE",
-        payload?.file || "auto_file"
-    );
-
-    break;
-
-
-    
+                        break;
 
                     default:
                         // No lanzamos error para permitir que el resto de la ráfaga continúe
@@ -765,7 +724,7 @@ catch(safeError) {
             }, { merge: true });
 
             // Al final de la transacción exitosa, volcamos el buffer al array externo
-            finalResults.length = 0; 
+            finalResults.length = 0;
             finalResults.push(...retryBuffer);
         });
 
@@ -776,7 +735,7 @@ catch(safeError) {
     } catch (error) {
         emitirPulsoHUD(opId, "CRASH", "FAILED", error.message);
         console.error("❌ SIA7_EXECUTOR_CRASH:", error);
-        
+
         // Registro forense del error (Best effort)
         try {
             await updateDoc(doc(db, "gestia_operations", opId), {
@@ -802,8 +761,6 @@ export async function consultarEstadoOperacion(opId) {
 
 // Log Corporativo para el Arquitecto Heberto
 console.log("%c🦾 [OPERATIONS_EXECUTOR]: V16.1.1 INDESTRUCTIBLE LEDGER ONLINE", "color: #f59e0b; font-weight: bold; background: #451a03; padding: 2px 10px; border-radius: 4px;");
-
-
 /**
  * ======================================================================================
  * 🧠 EXECUTION FABRIC NORMALIZER
