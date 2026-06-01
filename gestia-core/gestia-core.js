@@ -37,7 +37,7 @@ import {
 
 // Motores de lógica estratégica (Cerebro) y ejecución mecánica (Brazo)
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
-import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
+//import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
 // 🛠️ SECCIÓN 0: SIA7 UTILS (DETERMINISMO, CRIPTOGRAFÍA Y MEMORIA)
@@ -697,13 +697,12 @@ const cambiosFinales =
             // --------------------------------------------------------------------------
             this.emitirPulso("EXECUTOR", "FIRING", `ID Operativo: ${analysisId.substring(0,8)}`);
 
-            const result = await ejecutarCambios({
-                ...atomicState.proposal,
-                changes: atomicState.approvedChanges,
-                tenantId,
-                ejecutado_por: user.email,
-                execution_id: analysisId // Idempotencia de brazo mecánico
-            });
+          //     ...atomicState.proposal,
+          //      changes: atomicState.approvedChanges,
+            //    tenantId,
+              //  ejecutado_por: user.email,
+                //execution_id: analysisId // Idempotencia de brazo mecánico
+           // });
 
             // --------------------------------------------------------------------------
             // 🔒 FASE 3: LIQUIDACIÓN ATÓMICA Y ASENTAMIENTO (COMMIT)
