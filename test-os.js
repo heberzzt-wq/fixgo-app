@@ -1,17 +1,23 @@
 import { ejecutarCambios } from './gestia-core/operations-executor.engine.js';
 
-// Operación de prueba para verificar acceso a sistema
-await ejecutarCambios({
+console.log("🔥 TEST START");
+
+const result = await ejecutarCambios({
     operation_id: "TEST_BRAZO_EJECUTOR_" + Date.now(),
-    tenantId: "admin", // Usa el tenant de pruebas
+    tenantId: "admin",
     ejecutado_por: "heberto_arquitecto",
     changes: [{
         type: "OS_COMMAND",
         target: "files_system",
         payload: {
-            command: "dir", // Usa "ls" si estuvieras en Linux/Mac
+            command: "dir",
             args: []
         },
         reason: "Validación de conectividad con sistema operativo"
     }]
 });
+
+console.log("🔥 RESULTADO:");
+console.dir(result, { depth: null });
+
+console.log("🔥 TEST END");
