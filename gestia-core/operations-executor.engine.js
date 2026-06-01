@@ -130,6 +130,9 @@ export async function simularCambios(changes, opId = "SIM_MODE") {
  */
 export async function ejecutarCambios(proposal) {
     const startTime = Date.now();
+
+    // FORZAR QUE opId SEA SIEMPRE UN TEXTO SIMPLE
+    opId = typeof opId === 'object' ? (opId.operation_id || opId.id || "unknown") : opId;
     
     // --- INYECCIÓN DE BRAZO EJECUTOR DE SISTEMA ---
     // Nota: execPromise ya está disponible globalmente gracias al import de arriba.
@@ -173,6 +176,7 @@ export async function ejecutarCambios(proposal) {
     }
 
     const {
+        operation_id: opId, // Aquí extraemos el ID y le ponemos el nombre 'opId' para que todo lo demás funcione
         tenantId,
         ejecutado_por,
         changes
