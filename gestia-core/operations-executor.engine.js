@@ -131,6 +131,9 @@ export async function simularCambios(changes, opId = "SIM_MODE") {
 export async function ejecutarCambios(proposal) {
     const startTime = Date.now();
 
+    // Declaramos opId como 'let' para que sea mutable y extraemos el valor de la propuesta de forma segura
+    let opId = proposal.operation_id || (typeof proposal.opId === 'object' ? proposal.opId.operation_id : proposal.opId);
+    
     // FORZAR QUE opId SEA SIEMPRE UN TEXTO SIMPLE
     opId = typeof opId === 'object' ? (opId.operation_id || opId.id || "unknown") : opId;
     
