@@ -8,7 +8,9 @@ const fs = require('fs');
 const path = require('path');
 
 // Cargamos las credenciales que guardaste en el Paso 1
-const serviceAccount = require('./firebase-service-account.json');
+const serviceAccount = require(
+  'C:/Users/heber/Desktop/firebase-keys/firebase-service-account.json'
+);
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
