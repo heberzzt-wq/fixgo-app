@@ -437,9 +437,14 @@ retryBuffer.push({
                             };
 
                             // 2. Persistimos en la colección de repo
-                            transaction.set(
-                                doc(collection(db, "repo_files")),
-                                deepSanitize({
+                            const repoFileRef =
+    collection(db, "repo_files").doc();
+
+transaction.set(
+
+    repoFileRef,
+
+    deepSanitize({
                                     file: target,
                                     content: newContent || prevContent,
                                     updated_at: serverTimestamp(),

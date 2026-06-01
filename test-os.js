@@ -1,20 +1,17 @@
 import { ejecutarCambios } from './gestia-core/operations-executor.engine.js';
 
 const result = await ejecutarCambios({
-    operation_id: "TEST_WRITE_" + Date.now(),
+    operation_id: "TEST_CODE_WRITE_" + Date.now(),
     tenantId: "admin",
     ejecutado_por: "heberto_arquitecto",
     changes: [{
-        type: "OS_COMMAND",
-        target: "files_system",
+        type: "CODE_WRITE",
+        target: "jarvis-test.js",
         payload: {
-            command: "cmd",
-            args: [
-                "/c",
-                "echo JARVIS_OK > prueba.txt"
-            ]
+            file: "jarvis-test.js",
+            content: 'export const TEST = "JARVIS ONLINE";'
         },
-        reason: "Validación de escritura"
+        reason: "Validacion CODE_WRITE"
     }]
 });
 
