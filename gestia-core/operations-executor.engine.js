@@ -656,14 +656,14 @@ transaction.set(
                             );
                         }
 
-                        transaction.set(
+                        const repoFileRef =
+    collection(db, "repo_files").doc();
 
-                            doc(
-                                collection(db, "repo_files")
-                            ),
+transaction.set(
 
-                            deepSanitize({
+    repoFileRef,
 
+    deepSanitize({
                                 file:
                                     payload?.file ||
                                     `auto_${Date.now()}.js`,
