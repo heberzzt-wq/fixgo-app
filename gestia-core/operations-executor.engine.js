@@ -32,7 +32,10 @@ if (typeof window === 'undefined') {
 }
 // ---------------------------------------------
 
-const { exec } = require('child_process');
+// USAMOS IMPORT EN LUGAR DE REQUIRE PARA SER COMPATIBLES CON TU PROYECTO ESM
+import { exec } from 'child_process';
+import { promisify } from 'util';
+const execPromise = promisify(exec); // Esto te servirá para que el motor pueda esperar los comandos
 
 import { db } from '../firebase-node-adapter.js';
 
