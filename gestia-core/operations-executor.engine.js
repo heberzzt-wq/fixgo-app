@@ -126,105 +126,60 @@ export async function simularCambios(changes, opId = "SIM_MODE") {
 
 /**
  * 🦾 2. EJECUTAR CAMBIOS (V16.1 INDESTRUCTIBLE)
- * Orquestador maestro con blindaje de integridad y Ledger forense.
  */
 export async function ejecutarCambios(proposal) {
     const startTime = Date.now();
 
-    // Declaramos opId como 'let' para que sea mutable y extraemos el valor de la propuesta de forma segura
-    let opId = proposal.operation_id || (typeof proposal.opId === 'object' ? proposal.opId.operation_id : proposal.opId);
-    
-    // FORZAR QUE opId SEA SIEMPRE UN TEXTO SIMPLE
-    opId = typeof opId === 'object' ? (opId.operation_id || opId.id || "unknown") : opId;
-    
-    // --- INYECCIÓN DE BRAZO EJECUTOR DE SISTEMA ---
-    // Nota: execPromise ya está disponible globalmente gracias al import de arriba.
-    /* ================================================================================
-       EXECUTION FABRIC NORMALIZATION
-    ================================================================================ */
+    // 1. Normalización inicial (sin tocar la propuesta original todavía)
+    proposal = normalizeOperationContext(proposal);
 
-    proposal = normalizeOperationContext(
-        proposal
-    );
+    // 2. Validación crítica de existencia (esto previene errores de "undefined")
+    if (!proposal || !proposal.operation_id) {
+        throw { code: "EXECUTION_FABRIC_ERROR", message: "MISSING_OPERATION_ID" };
+    }
 
-    const opId =
-        proposal.operation_id;
+    // 3. Extracción única y segura del ID
+    // Aquí resolvemos si operation_id es un objeto o un string de una vez por todas
+    const rawId = proposal.operation_id;
+    const opId = typeof rawId === 'object' ? (rawId.operation_id || rawId.id || "unknown") : rawId;
+
+    // 4. Desestructuración segura
+    const { tenantId, ejecutado_por, changes } = proposal;
 
     /* ================================================================================
        EXECUTION FABRIC VALIDATION
     ================================================================================ */
-
-    if (!proposal) {
-
-        throw {
-            code: "EXECUTION_FABRIC_ERROR",
-            message: "PROPOSAL_UNDEFINED"
-        };
+    if (!Array.isArray(changes)) {
+        throw { code: "EXECUTION_FABRIC_ERROR", message: "INVALID_CHANGES_ARRAY" };
     }
-
-    if (!proposal.operation_id) {
-
-        throw {
-            code: "EXECUTION_FABRIC_ERROR",
-            message: "MISSING_OPERATION_ID"
-        };
-    }
-
-    if (!Array.isArray(proposal.changes)) {
-
-        throw {
-            code: "EXECUTION_FABRIC_ERROR",
-            message: "INVALID_CHANGES_ARRAY"
-        };
-    }
-
-    const {
-        operation_id, // Solo extraemos la variable
-        tenantId,
-        ejecutado_por,
-        changes
-    } = proposal;
-
-    // Actualizamos el opId que ya tenías declarado con el valor que viene en la propuesta
-    opId = operation_id;
 
     // --- 🛡️ PASO 0: VALIDACIONES DE INFRAESTRUCTURA ---
     if (!tenantId) {
-        emitirPulsoHUD(opId || "SYS", "CRASH", "DENIED", "TENANT_ID_ABSENTE");
+        emitirPulsoHUD(opId, "CRASH", "DENIED", "TENANT_ID_ABSENTE");
         throw { code: "EXECUTOR_ERROR", message: "TENANT_ID_INVALIDO" };
-    }
-
-    if (!opId) {
-        emitirPulsoHUD("SYS", "CRASH", "DENIED", "OPERATION_ID_ABSENTE");
-        throw { code: "EXECUTOR_ERROR", message: "OPERATION_ID_INVALIDO" };
     }
 
     const safeChanges = Array.isArray(changes) ? changes : [];
 
-    // Gating de volumen para proteger la atomicidad de Firestore (Límite 50)
     if (safeChanges.length > 50) {
-        emitirPulsoHUD(opId, "EXECUTION", "ABORTED", "Payload demasiado grande (Máx 50)");
-        throw { code: "PAYLOAD_TOO_LARGE", message: "Máximo 50 cambios por transacción." };
+        emitirPulsoHUD(opId, "EXECUTION", "ABORTED", "Payload demasiado grande");
+        throw { code: "PAYLOAD_TOO_LARGE", message: "Máximo 50 cambios." };
     }
 
-   // ✅ FIX: Sellamos la operación como completada para evitar el bloqueo 'analyzing'.
+    // ✅ FIX: Sellamos operación vacía
     if (safeChanges.length === 0) {
-        emitirPulsoHUD(opId, "EXECUTION", "COMPLETED_EMPTY", "No se detectaron cambios atómicos.");
-        
-        // AQUÍ ES DONDE LO VAS A PONER:
-        console.log("DEBUG: ¿Qué es opId?", typeof opId, opId);
-
-        // Esta es la línea que está tronando, y aquí sabremos por qué:
+        emitirPulsoHUD(opId, "EXECUTION", "COMPLETED_EMPTY", "No cambios.");
         await updateDoc(doc(db, "gestia_operations", opId), {
             status: "completed",
             completed_at: serverTimestamp(),
-            engine_metadata: { note: "Ejecución finalizada sin mutaciones detectadas." }
+            engine_metadata: { note: "Ejecución finalizada." }
         });
         return [];
     }
 
     emitirPulsoHUD(opId, "EXECUTION", "INITIATING", `Procesando ${safeChanges.length} acciones...`);
-
+    
+    // (A partir de aquí sigue tu lógica original, pero sin re-declarar opId)
     // Resultados finales que solo se devuelven tras el éxito del commit
     const finalResults = [];
 
