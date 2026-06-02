@@ -44,6 +44,15 @@
                     0.5
             };
 
+
+            const wantsRepair =
+
+    text.includes("repara") ||
+    text.includes("corrige") ||
+    text.includes("fix") ||
+    text.includes("patch") ||
+    text.includes("ajusta") ||
+    text.includes("modifica");
             /* =====================================================
                UI ANALYSIS
             ===================================================== */
@@ -63,7 +72,9 @@
             ) {
 
                 cognition.intent =
-                    "ANALYZE_UI";
+    wantsRepair
+        ? "REPAIR_UI"
+        : "ANALYZE_UI";
 
                 cognition.domain =
                     "frontend";
@@ -109,6 +120,8 @@ if (fileMatch) {
                BACKEND ANALYSIS
             ===================================================== */
 
+
+
             if (
 
                 text.includes(".js") ||
@@ -133,9 +146,40 @@ if (fileMatch) {
 
                 cognition.confidence =
                     0.90;
-            }
+            
+}
 
-            return cognition;
+/* =====================================================
+   REPO AWARENESS
+===================================================== */
+
+if (
+
+    cognition.target &&
+
+    window.__REPO_COGNITION__?.[
+        cognition.target
+    ]
+
+) {
+
+    cognition.repoNode =
+
+        window.__REPO_COGNITION__[
+            cognition.target
+        ];
+
+    cognition.repoAware =
+        true;
+
+    console.log(
+        "🧠 [REPO_NODE_FOUND]",
+        cognition.target,
+        cognition.repoNode
+    );
+}
+
+return cognition;
         }
     };
 
