@@ -1451,19 +1451,7 @@ Escribe:
 
             try {
 
-                if (
-    cognition?.target &&
-    rawPlan?.target === "system"
-) {
-
-    console.warn(
-        "🛠️ TARGET_OVERRIDE",
-        cognition.target
-    );
-
-    rawPlan.target =
-        cognition.target;
-}
+                
                 // 4. GENERACIÓN DE PLAN CON TIMEOUT & ABORT REAL
                 const rawPlan = await Promise.race([
                     window.runExternalAI({input: raw, cognition, mode: "PLANNER", context, signal: controller.signal}),
@@ -1474,6 +1462,34 @@ Escribe:
                         }, 8000)
                     )
                 ]);
+
+                if (
+
+    cognition?.target &&
+
+    rawPlan?.target === "system"
+
+) {
+
+
+
+    console.warn(
+
+        "🛠️ TARGET_OVERRIDE",
+
+        cognition.target
+
+    );
+
+
+
+    rawPlan.target =
+
+        cognition.target;
+
+}
+
+
 
                 console.log("🧠 [RAW_PLAN]", rawPlan);
 
