@@ -164,36 +164,31 @@ console.log(
     type
 );
 
+const isAnalysisIntent =
+
+    type.startsWith("ANALYZE") ||
+
+    type.startsWith("REPAIR");
+
 if (
 
-    !type.startsWith("ANALYZE") &&
+    !isAnalysisIntent &&
 
     (
-
-    rawText.includes("archivo") ||
-
-    rawText.includes(".js") ||
-
-    rawText.includes(".html") ||
-
-    rawText.includes("ui") ||
-
-    rawText.includes("layout") ||
-
-    rawText.includes("responsive") ||
-
-    rawText.includes("tarjeta") ||
-
-    rawText.includes("grid") ||
-
-    rawText.includes("sobredimension") ||
-
-    rawText.includes("overflow") ||
-
-    rawText.includes("export")
+        rawText.includes("archivo") ||
+        rawText.includes(".js") ||
+        rawText.includes(".html") ||
+        rawText.includes("ui") ||
+        rawText.includes("layout") ||
+        rawText.includes("responsive") ||
+        rawText.includes("tarjeta") ||
+        rawText.includes("grid") ||
+        rawText.includes("sobredimension") ||
+        rawText.includes("overflow") ||
+        rawText.includes("export")
     )
-)
 
+)
 {
     const fileMatch = rawText.match(/modules\/[a-zA-Z0-9_\-]+(\.js)?/);
 
@@ -516,7 +511,8 @@ if (!steps.length) {
     🔧 ACTION INFERENCE
 ===================================================== */
 function inferAction(type) {
-    switch (type) {
+
+    switch (String(type || "").toUpperCase()) {
 
         case "READ":
             return "getDocs";
@@ -530,11 +526,35 @@ function inferAction(type) {
         case "DELETE":
             return "deleteDoc";
 
+        // =========================
+        // ANALYSIS
+        // =========================
+
         case "ANALYZE":
         case "ANALYZE_UI":
         case "ANALYZE_FILE":
         case "ANALYZE_RUNTIME":
             return "aggregate";
+
+        // =========================
+        // REPAIR
+        // =========================
+
+        case "REPAIR":
+        case "REPAIR_UI":
+        case "REPAIR_FILE":
+        case "REPAIR_RUNTIME":
+            return "aggregate";
+
+        // =========================
+        // CODE OPERATIONS
+        // =========================
+
+        case "CODE_READ":
+            return "aggregate";
+
+        case "CODE_WRITE":
+            return "custom";
 
         default:
             return "custom";
