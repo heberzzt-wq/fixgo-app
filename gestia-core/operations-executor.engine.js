@@ -22,21 +22,11 @@
  * ======================================================================================
  */
 
-
-// --- PARCHE DE COMPATIBILIDAD PARA NODE.JS ---
-if (typeof window === 'undefined') {
-    global.window = global;
-    window.dispatchEvent = () => { /* Evento ignorado en terminal */ };
-    window.addEventListener = () => { /* Evento ignorado en terminal */ };
-    window.document = { head: { appendChild: () => {} } };
-}
-// ---------------------------------------------
-
-// USAMOS IMPORT EN LUGAR DE REQUIRE PARA SER COMPATIBLES CON TU PROYECTO ESM
-let execPromise = null;
+// ================================================================================
+// GESTIA CORE: OPERATIONS EXECUTOR ENGINE (V5.18 - WEB STABILIZED)
+// ================================================================================
 
 import { db } from '../firebase-node-adapter.js';
-
 import { 
     runTransaction, 
     doc, 
@@ -51,25 +41,28 @@ import {
     addDoc, 
     updateDoc 
 } from "../firebase-shim.js";
+
 /**
  * emitirPulsoHUD: Informa a la interfaz de Jarvis los signos vitales del motor.
  * ✅ MEJORA: Incluye contexto de OP_ID para trazabilidad en el Timeline.
  */
 function emitirPulsoHUD(opId, step, status = "INFO", details = "") {
-    window.dispatchEvent(new CustomEvent('gestia-terminal-state', {
-        detail: {
-            step: `EXECUTOR_${step}: ${status}`,
-            details: details,
-            opId: opId,
-            modulo: "OPERATIONS_ENGINE",
-            severity: status === "ERROR" || status === "FAILED" ? "ERROR" : (status === "SUCCESSFUL_COMMIT" ? "SUCCESS" : "INFO")
-        }
-    }));
+    if (typeof window !== 'undefined' && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('gestia-terminal-state', {
+            detail: {
+                step: `EXECUTOR_${step}: ${status}`,
+                details: details,
+                opId: opId,
+                modulo: "OPERATIONS_ENGINE",
+                severity: status === "ERROR" || status === "FAILED" ? "ERROR" : (status === "SUCCESSFUL_COMMIT" ? "SUCCESS" : "INFO")
+            }
+        }));
+    }
 }
 
 /**
  * deepSanitize: Limpieza recursiva de objetos para Firestore.
- * ✅ NASA LEVEL: Protege contra valores nulos/undefined en cualquier nivel de profundidad.
+ * Protege contra valores nulos/undefined en cualquier nivel de profundidad.
  */
 const deepSanitize = (obj) => {
     if (obj === null || typeof obj !== "object") return obj;
@@ -82,7 +75,6 @@ const deepSanitize = (obj) => {
         return acc;
     }, {});
 };
-
 /**
  * 🧬 1. SIMULAR CAMBIOS (DRY RUN)
  * Proyecta el impacto para el HUD visual antes de la ejecución real.
