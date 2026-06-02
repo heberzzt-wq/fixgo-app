@@ -166,7 +166,7 @@ console.log(
 
 if (
 
-    type !== "ANALYZE" &&
+    !type.startsWith("ANALYZE") &&
 
     (
 
@@ -517,11 +517,26 @@ if (!steps.length) {
 ===================================================== */
 function inferAction(type) {
     switch (type) {
-        case "READ": return "getDocs";
-        case "WRITE": return "setDoc";
-        case "UPDATE": return "updateDoc";
-        case "DELETE": return "deleteDoc";
-        case "ANALYZE": return "aggregate";
-        default: return "custom";
+
+        case "READ":
+            return "getDocs";
+
+        case "WRITE":
+            return "setDoc";
+
+        case "UPDATE":
+            return "updateDoc";
+
+        case "DELETE":
+            return "deleteDoc";
+
+        case "ANALYZE":
+        case "ANALYZE_UI":
+        case "ANALYZE_FILE":
+        case "ANALYZE_RUNTIME":
+            return "aggregate";
+
+        default:
+            return "custom";
     }
 }
