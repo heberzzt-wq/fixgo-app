@@ -22,47 +22,42 @@
  * ======================================================================================
  */
 
-// ================================================================================
-// GESTIA CORE: OPERATIONS EXECUTOR ENGINE (V5.18 - WEB STABILIZED)
-// ================================================================================
+import { db } from '/firebase.js';
 
-import { db } from '../firebase-node-adapter.js';
 import { 
-    runTransaction, 
+    runTransaction,
     doc, 
     collection, 
-    serverTimestamp, 
-    writeBatch, 
-    increment, 
-    query, 
-    where, 
-    getDoc, 
-    getDocs, 
-    addDoc, 
-    updateDoc 
-} from "../firebase-shim.js";
+    serverTimestamp,
+    getDoc,
+    writeBatch,
+    increment,
+    query,
+    where,
+    getDocs,
+    addDoc,
+    updateDoc
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 /**
  * emitirPulsoHUD: Informa a la interfaz de Jarvis los signos vitales del motor.
  * ✅ MEJORA: Incluye contexto de OP_ID para trazabilidad en el Timeline.
  */
 function emitirPulsoHUD(opId, step, status = "INFO", details = "") {
-    if (typeof window !== 'undefined' && window.dispatchEvent) {
-        window.dispatchEvent(new CustomEvent('gestia-terminal-state', {
-            detail: {
-                step: `EXECUTOR_${step}: ${status}`,
-                details: details,
-                opId: opId,
-                modulo: "OPERATIONS_ENGINE",
-                severity: status === "ERROR" || status === "FAILED" ? "ERROR" : (status === "SUCCESSFUL_COMMIT" ? "SUCCESS" : "INFO")
-            }
-        }));
-    }
+    window.dispatchEvent(new CustomEvent('gestia-terminal-state', {
+        detail: {
+            step: `EXECUTOR_${step}: ${status}`,
+            details: details,
+            opId: opId,
+            modulo: "OPERATIONS_ENGINE",
+            severity: status === "ERROR" || status === "FAILED" ? "ERROR" : (status === "SUCCESSFUL_COMMIT" ? "SUCCESS" : "INFO")
+        }
+    }));
 }
 
 /**
  * deepSanitize: Limpieza recursiva de objetos para Firestore.
- * Protege contra valores nulos/undefined en cualquier nivel de profundidad.
+ * ✅ NASA LEVEL: Protege contra valores nulos/undefined en cualquier nivel de profundidad.
  */
 const deepSanitize = (obj) => {
     if (obj === null || typeof obj !== "object") return obj;
@@ -75,6 +70,7 @@ const deepSanitize = (obj) => {
         return acc;
     }, {});
 };
+
 /**
  * 🧬 1. SIMULAR CAMBIOS (DRY RUN)
  * Proyecta el impacto para el HUD visual antes de la ejecución real.
@@ -114,75 +110,90 @@ export async function simularCambios(changes, opId = "SIM_MODE") {
     return projection;
 }
 
-
-/**
- * 🛠️ UTILS: Asegura integridad de tipos para Firestore
- */
-const ensureString = (val) => {
-    if (typeof val === 'string') return val;
-    if (val && typeof val === 'object') {
-        // Extrae el ID común de objetos de referencia o contextos
-        return val.id || val.operation_id || val.tenantId || val.uid || "";
-    }
-    return String(val || "");
-};
-
 /**
  * 🦾 2. EJECUTAR CAMBIOS (V16.1 INDESTRUCTIBLE)
+ * Orquestador maestro con blindaje de integridad y Ledger forense.
  */
 export async function ejecutarCambios(proposal) {
     const startTime = Date.now();
-    proposal = normalizeOperationContext(proposal);
 
-    if (!proposal) throw { code: "EXECUTION_FABRIC_ERROR", message: "MISSING_PROPOSAL" };
+/* ================================================================================
+   EXECUTION FABRIC NORMALIZATION
+================================================================================ */
 
-    // 1. Extracción consolidada mediante la nueva utilidad
-    const opId = ensureString(proposal.operation_id);
-    const tenantId = ensureString(proposal.tenantId);
-    const { ejecutado_por, changes } = proposal;
+proposal = normalizeOperationContext(
+    proposal
+);
 
-    // 2. Validación estricta de IDs
-    if (!opId) throw { code: "EXECUTION_FABRIC_ERROR", message: "MISSING_OPERATION_ID" };
-    if (!tenantId) {
-        emitirPulsoHUD(opId, "CRASH", "DENIED", "TENANT_ID_INVALIDO");
-        throw { code: "EXECUTOR_ERROR", message: "TENANT_ID_INVALIDO" };
-    }
+const opId =
+    proposal.operation_id;
 
     /* ================================================================================
-       EXECUTION FABRIC VALIDATION
-    ================================================================================ */
-    if (!Array.isArray(changes)) {
-        throw { code: "EXECUTION_FABRIC_ERROR", message: "INVALID_CHANGES_ARRAY" };
-    }
-    // ... resto del código sin cambios por ahora ...
+   EXECUTION FABRIC VALIDATION
+================================================================================ */
+
+if (!proposal) {
+
+    throw {
+        code: "EXECUTION_FABRIC_ERROR",
+        message: "PROPOSAL_UNDEFINED"
+    };
+}
+
+if (!proposal.operation_id) {
+
+    throw {
+        code: "EXECUTION_FABRIC_ERROR",
+        message: "MISSING_OPERATION_ID"
+    };
+}
+
+if (!Array.isArray(proposal.changes)) {
+
+    throw {
+        code: "EXECUTION_FABRIC_ERROR",
+        message: "INVALID_CHANGES_ARRAY"
+    };
+}
+
+const {
+    tenantId,
+    ejecutado_por,
+    changes
+} = proposal;
 
     // --- 🛡️ PASO 0: VALIDACIONES DE INFRAESTRUCTURA ---
     if (!tenantId) {
-        emitirPulsoHUD(opId, "CRASH", "DENIED", "TENANT_ID_ABSENTE");
+        emitirPulsoHUD(opId || "SYS", "CRASH", "DENIED", "TENANT_ID_ABSENTE");
         throw { code: "EXECUTOR_ERROR", message: "TENANT_ID_INVALIDO" };
     }
 
-    const safeChanges = Array.isArray(changes) ? changes : [];
-
-    if (safeChanges.length > 50) {
-        emitirPulsoHUD(opId, "EXECUTION", "ABORTED", "Payload demasiado grande");
-        throw { code: "PAYLOAD_TOO_LARGE", message: "Máximo 50 cambios." };
+    if (!opId) {
+        emitirPulsoHUD("SYS", "CRASH", "DENIED", "OPERATION_ID_ABSENTE");
+        throw { code: "EXECUTOR_ERROR", message: "OPERATION_ID_INVALIDO" };
     }
 
-    // ✅ FIX: Sellamos operación vacía
+    const safeChanges = Array.isArray(changes) ? changes : [];
+    
+    // Gating de volumen para proteger la atomicidad de Firestore (Límite 50)
+    if (safeChanges.length > 50) {
+        emitirPulsoHUD(opId, "EXECUTION", "ABORTED", "Payload demasiado grande (Máx 50)");
+        throw { code: "PAYLOAD_TOO_LARGE", message: "Máximo 50 cambios por transacción." };
+    }
+
+    // ✅ FIX: Sellamos la operación como completada para evitar el bloqueo 'analyzing'.
     if (safeChanges.length === 0) {
-        emitirPulsoHUD(opId, "EXECUTION", "COMPLETED_EMPTY", "No cambios.");
+        emitirPulsoHUD(opId, "EXECUTION", "COMPLETED_EMPTY", "No se detectaron cambios atómicos.");
         await updateDoc(doc(db, "gestia_operations", opId), {
             status: "completed",
             completed_at: serverTimestamp(),
-            engine_metadata: { note: "Ejecución finalizada." }
+            engine_metadata: { note: "Ejecución finalizada sin mutaciones detectadas." }
         });
         return [];
     }
 
     emitirPulsoHUD(opId, "EXECUTION", "INITIATING", `Procesando ${safeChanges.length} acciones...`);
     
-    // (A partir de aquí sigue tu lógica original, pero sin re-declarar opId)
     // Resultados finales que solo se devuelven tras el éxito del commit
     const finalResults = [];
 
@@ -194,7 +205,7 @@ export async function ejecutarCambios(proposal) {
         const masterOpRef = doc(db, "gestia_operations", opId);
         const masterSnap = await getDoc(masterOpRef);
 
-        if (masterSnap.exists && masterSnap.data().status === "completed") {
+        if (masterSnap.exists() && masterSnap.data().status === "completed") {
             emitirPulsoHUD(opId, "IDEMPOTENCY", "ALREADY_DONE", "Operación ya completada previamente.");
             return masterSnap.data().engine_metadata?.results_summary || [];
         }
@@ -211,13 +222,13 @@ export async function ejecutarCambios(proposal) {
             // --- RESOLUCIÓN DE IDENTIDAD B2B ---
             if (change.type === "NORMALIZE_VEHICLE_OPERATOR" || change.type === "NORMALIZE_IDENTITY") {
                 const opName = change.payload?.nombre_operador || "SISTEMA_AUTO";
-
+                
                 // Búsqueda de Operador en el contexto del Tenant
                 const qOp = query(collection(db, "flotilla_b2b", tenantId, "operadores"), where("nombre", "==", opName));
                 const opSnap = await getDocs(qOp);
                 let uidFound = null;
                 opSnap.forEach(d => uidFound = d.id);
-
+                
                 // Búsqueda de Vehículos por Placas/Target
                 const qVeh = query(collection(db, "flotilla_b2b", tenantId, "vehiculos"), where("placas", "==", change.target));
                 const vehSnap = await getDocs(qVeh);
@@ -236,24 +247,18 @@ export async function ejecutarCambios(proposal) {
          * 🔒 FASE 2: COMMIT ATÓMICO (TRANSACCIÓN DETERMINISTA)
          * Se ejecuta como un bloque único. El buffer local asegura resultados limpios.
          */
-        await runTransaction(async (transaction) => {
-
+        await runTransaction(db, async (transaction) => {
+            
             // Buffer local para esta ejecución (evita duplicados en retries de Firestore)
             const retryBuffer = [];
 
             for (const change of safeChanges) {
                 const { type, target, payload, reason } = change;
-
+                
                 // --- GENERACIÓN DE HUELLA FORENSE (LEDGER) ---
                 // doc(collection()) genera un ID único in-memory, garantizando inmutabilidad.
-                const ledgerRef =
-    collection(
-        db,
-        "tenants",
-        tenantId,
-        "gestia_ledger"
-    ).doc();
-
+                const ledgerRef = doc(collection(db, "tenants", tenantId, "gestia_ledger"));
+                
                 transaction.set(ledgerRef, {
                     op_id: opId,
                     type,
@@ -268,21 +273,6 @@ export async function ejecutarCambios(proposal) {
 
                 // --- LÓGICA DE MUTACIÓN ---
                 switch (type) {
-                    
-                    // --- 🔥 CASO NUEVO: BRAZO EJECUTOR DE SISTEMA (JARVIS OS) ---
-                    case "OS_COMMAND":
-                        const { command, args } = payload;
-                        try {
-                            emitirPulsoHUD(opId, "SYSTEM", "EXEC_CMD", `${command} ${args.join(' ')}`);
-                            const { stdout } = await execPromise(`${command} ${args.join(' ')}`);
-                            emitirPulsoHUD(opId, "SYSTEM", "SUCCESS", stdout.substring(0, 50));
-                            retryBuffer.push({ type, target, status: "success", output: stdout });
-                        } catch (sysErr) {
-                            emitirPulsoHUD(opId, "SYSTEM", "ERROR", sysErr.message);
-                            retryBuffer.push({ type, target, status: "failed", error: sysErr.message });
-                        }
-                        break;
-
                     // ✅ PROTOCOLO DE CONSTRUCCIÓN: CREAR/ACTUALIZAR MÓDULOS
                     case "CREATE_MODULE":
                     case "CREAR_MODULO":
@@ -330,23 +320,12 @@ export async function ejecutarCambios(proposal) {
 
                     case "REPAIR_RUNTIME_LINK":
                         const opDocRef = doc(db, "gestia_operations", opId);
-
-transaction.set(
-    opDocRef,
-    deepSanitize({
-        runtime_repaired: true,
-        repaired_component: target,
-        repair_timestamp: serverTimestamp(),
-        repair_payload: payload
-    }),
-    { merge: true }
-);
-
-retryBuffer.push({
-    type,
-    target,
-    status: "repaired"
-});
+                        transaction.update(opDocRef, deepSanitize({
+                            runtime_repaired: true,
+                            repaired_component: target,
+                            repair_timestamp: serverTimestamp(),
+                            repair_payload: payload
+                        }));
                         retryBuffer.push({ type, target, status: "repaired" });
                         break;
 
@@ -405,18 +384,18 @@ retryBuffer.push({
                         break;
 
                     /* =====================================================
-                            🔥 NUEVO: INYECCIÓN DIRECTA PARA CODE SURGEON (UPDATE)
-                         ===================================================== */
+                        🔥 NUEVO: INYECCIÓN DIRECTA PARA CODE SURGEON (UPDATE)
+                    ===================================================== */
                     case "UPDATE":
                         if (target.includes('.js') || target.includes('.html') || target.includes('.css')) {
-
+                            
                             window.JARVIS_SANDBOX_FILES ||= {};
                             let prevContent = window.JARVIS_SANDBOX_FILES[target]?.content || "// Archivo original";
                             let newContent = payload?.content;
 
-                            // Si es una orden de optimización visual, inyectamos CSS preciso para glass-card
+                            // Si es una orden de optimización visual de UI, inyectamos el parche dinámico en runtime
                             if (!newContent && payload?.action === "UI_OPTIMIZATION") {
-                                newContent = prevContent + "\n\n/* 🔥 INYECCIÓN JARVIS CODE SURGEON V16.3 */\n(function applyUIPatch() {\n  const style = document.createElement('style');\n  style.innerHTML = `\n    .glass-card { \n        padding: 4px !important; \n        margin-bottom: 4px !important; \n        border-radius: 12px !important; \n        min-height: auto !important;\n    }\n    .glass-card * { font-size: 0.8rem !important; }\n  `;\n  document.head.appendChild(style);\n  console.log('🦾 [JARVIS SURGEON]: UI_OPTIMIZATION Parche aplicado exitosamente.');\n})();\n";
+                                newContent = prevContent + "\n\n/* 🔥 INYECCIÓN JARVIS CODE SURGEON V16.1 */\n(function applyUIPatch() {\n  const style = document.createElement('style');\n  style.innerHTML = `\n    /* Compactando tarjetas y padding móvil (Modo Tacaño) */\n    .tarjeta, .card, [class*='card'] { padding: 8px !important; margin-bottom: 8px !important; }\n    .contenedor, .container, [class*='container'] { padding-left: 4px !important; padding-right: 4px !important; }\n    h1, h2, h3 { font-size: clamp(1rem, 4vw, 1.2rem) !important; }\n    button, .btn { min-height: 44px !important; margin-top: 4px !important; }\n  `;\n  document.head.appendChild(style);\n  console.log('🦾 [JARVIS SURGEON]: UI_OPTIMIZATION Parche CSS inyectado en runtime exitosamente.');\n})();\n";
                             }
 
                             // 1. Mutamos la memoria hidratada
@@ -426,27 +405,23 @@ retryBuffer.push({
                                 opId
                             };
 
-                            // 2. Persistimos en la colección de repo
-                            const repoFileRef =
-    collection(db, "repo_files").doc();
-
-transaction.set(
-
-    repoFileRef,
-
-    deepSanitize({
+                            // 2. Persistimos en la colección de repo para hidrataciones futuras
+                            transaction.set(
+                                doc(collection(db, "repo_files")), 
+                                deepSanitize({
                                     file: target,
                                     content: newContent || prevContent,
                                     updated_at: serverTimestamp(),
                                     updated_by: ejecutado_por || "jarvis_surgeon",
                                     op_id: opId,
                                     tenantId: tenantId,
-                                    status: "patched_update_v16.3"
+                                    status: "patched_update"
                                 })
                             );
 
                             retryBuffer.push({ type, target, status: "file_updated" });
                             emitirPulsoHUD(opId, "WRITE", "UPDATE_FILE_SUCCESS", target);
+                            console.log(`🦾 [JARVIS_EXEC]: Archivo ${target} parcheado correctamente en sandbox.`);
                         } else {
                             retryBuffer.push({ type, target, status: "ignored_non_file_update" });
                         }
@@ -454,252 +429,262 @@ transaction.set(
 
                     case "CODE_WRITE":
 
-                        /* =====================================================
-                           SANDBOX RUNTIME MIRROR
-                        ===================================================== */
+    /* =====================================================
+       SANDBOX RUNTIME MIRROR
+    ===================================================== */
 
-                        try {
+    try {
 
-                            const sandboxRuntimeFile =
-                                payload?.file ||
-                                `auto_${Date.now()}.js`;
+        const sandboxRuntimeFile =
+            payload?.file ||
+            `auto_${Date.now()}.js`;
 
-                            /* =====================================================
-                           AUTHORITY WRITE TRACE
-                        ===================================================== */
+            /* =====================================================
+   AUTHORITY WRITE TRACE
+===================================================== */
 
-                            try {
+try {
 
-                                window.GestiaAuthority
-                                    ?.registerMutation?.({
+    window.GestiaAuthority
+        ?.registerMutation?.({
 
-                                        module:
-                                            "execution.hub",
+        module:
+            "execution.hub",
 
-                                        path:
+        path:
 
-                                            `repo.write:${payload?.file ||
-                                            "unknown"
-                                            }`,
+            `repo.write:${
+                payload?.file ||
+                "unknown"
+            }`,
 
-                                        previous:
-                                            null,
+        previous:
+            null,
 
-                                        value: {
+        value: {
 
-                                            file:
-                                                payload?.file,
+            file:
+                payload?.file,
 
-                                            operation:
-                                                "CODE_WRITE"
-                                        }
-                                    });
+            operation:
+                "CODE_WRITE"
+        }
+    });
 
-                            }
+}
 
-                            catch (traceError) {
+catch(traceError) {
 
-                                console.warn(
-                                    "⚠️ [AUTHORITY_CODE_WRITE_TRACE_FAIL]",
-                                    traceError
-                                );
-                            }
+    console.warn(
+        "⚠️ [AUTHORITY_CODE_WRITE_TRACE_FAIL]",
+        traceError
+    );
+}   
+     
+     /* =====================================================
+   SAFE ZONE VALIDATION
+===================================================== */
 
-                            /* =====================================================
-                           SAFE ZONE VALIDATION
-                        ===================================================== */
+try {
 
-                            try {
+    const safeCheck =
 
-                                const safeCheck =
+        window.GestiaOS
+            ?.repo
+            ?.isSafeRepoPath?.(
 
-                                    window.GestiaOS
-                                        ?.repo
-                                        ?.isSafeRepoPath?.(
+                payload?.file || ""
+            );
 
-                                            payload?.file || ""
-                                        );
+    console.log(
 
-                                console.log(
+        "🛡️ [SAFE_ZONE_CHECK]",
 
-                                    "🛡️ [SAFE_ZONE_CHECK]",
+        
 
-                                    {
-                                        file:
-                                            payload?.file,
+        {
+            
 
-                                        safe:
-                                            safeCheck
-                                    }
-                                );
+            file:
+                payload?.file,
 
-                                /* =====================================================
-                           PASSIVE GOVERNANCE WARNING
-                        ===================================================== */
+            safe:
+                safeCheck
+        }
+    );
 
-                                if (safeCheck === false) {
+    /* =====================================================
+   PASSIVE GOVERNANCE WARNING
+===================================================== */
 
-                                    console.warn(
+if (safeCheck === false) {
 
-                                        "⚠️ [GOVERNANCE_WARNING]",
+    console.warn(
 
-                                        {
+        "⚠️ [GOVERNANCE_WARNING]",
 
-                                            file:
-                                                payload?.file,
+        {
 
-                                            operation:
-                                                "CODE_WRITE",
+            file:
+                payload?.file,
 
-                                            enforcement:
-                                                "PASSIVE_ONLY"
-                                        }
-                                    );
+            operation:
+                "CODE_WRITE",
 
-                                    window.GestiaAuthority
-                                        ?.registerMutation?.({
+            enforcement:
+                "PASSIVE_ONLY"
+        }
+    );
 
-                                            module:
-                                                "execution.hub",
+    window.GestiaAuthority
+        ?.registerMutation?.({
 
-                                            path:
+        module:
+            "execution.hub",
 
-                                                `repo.governance.warning:${payload?.file ||
-                                                "unknown"
-                                                }`,
+        path:
 
-                                            previous:
-                                                null,
+            `repo.governance.warning:${
+                payload?.file ||
+                "unknown"
+            }`,
 
-                                            value: {
+        previous:
+            null,
 
-                                                file:
-                                                    payload?.file,
+        value: {
 
-                                                operation:
-                                                    "CODE_WRITE",
+            file:
+                payload?.file,
 
-                                                mode:
-                                                    "PASSIVE_ONLY"
-                                            }
-                                        });
-                                }
+            operation:
+                "CODE_WRITE",
 
-                                window.GestiaAuthority
-                                    ?.registerMutation?.({
+            mode:
+                "PASSIVE_ONLY"
+        }
+    });
+}
 
-                                        module:
-                                            "execution.hub",
+    window.GestiaAuthority
+        ?.registerMutation?.({
 
-                                        path:
+        module:
+            "execution.hub",
 
-                                            `repo.safezone:${payload?.file ||
-                                            "unknown"
-                                            }`,
+        path:
 
-                                        previous:
-                                            null,
+            `repo.safezone:${
+                payload?.file ||
+                "unknown"
+            }`,
 
-                                        value: {
+        previous:
+            null,
 
-                                            file:
-                                                payload?.file,
+        value: {
 
-                                            safe:
-                                                safeCheck
-                                        }
-                                    });
+            file:
+                payload?.file,
 
-                            }
+            safe:
+                safeCheck
+        }
+    });
 
-                            catch (safeError) {
+}
 
-                                console.warn(
-                                    "⚠️ [SAFE_ZONE_CHECK_FAIL]",
-                                    safeError
-                                );
-                            }
+catch(safeError) {
 
-                            window.JARVIS_SANDBOX_FILES ||= {};
+    console.warn(
+        "⚠️ [SAFE_ZONE_CHECK_FAIL]",
+        safeError
+    );
+}
 
-                            window.JARVIS_SANDBOX_FILES[
-                                sandboxRuntimeFile
-                            ] = {
-                                content:
-                                    payload?.content ||
-                                    "// generated by jarvis",
+        window.JARVIS_SANDBOX_FILES ||= {};
 
-                                updatedAt: Date.now(),
-                                opId
-                            };
+        window.JARVIS_SANDBOX_FILES[
+            sandboxRuntimeFile
+        ] = {
+            content:
+                payload?.content ||
+                "// generated by jarvis",
 
-                            console.log(
-                                "🧠 [SANDBOX_MIRROR]:",
-                                sandboxRuntimeFile
-                            );
+            updatedAt: Date.now(),
+            opId
+        };
 
-                        } catch (mirrorErr) {
+        console.log(
+            "🧠 [SANDBOX_MIRROR]:",
+            sandboxRuntimeFile
+        );
 
-                            console.warn(
-                                "⚠️ SANDBOX_MIRROR_FAIL:",
-                                mirrorErr
-                            );
-                        }
+    } catch (mirrorErr) {
 
-                        const repoFileRef =
-    collection(db, "repo_files").doc();
+        console.warn(
+            "⚠️ SANDBOX_MIRROR_FAIL:",
+            mirrorErr
+        );
+    }
 
-transaction.set(
+    transaction.set(
 
-    repoFileRef,
+        doc(
+            collection(db, "repo_files")
+        ),
 
-    deepSanitize({
-                                file:
-                                    payload?.file ||
-                                    `auto_${Date.now()}.js`,
+        deepSanitize({
 
-                                content:
-                                    payload?.content ||
-                                    "// archivo generado por jarvis",
+            file:
+                payload?.file ||
+                `auto_${Date.now()}.js`,
 
-                                created_at:
-                                    serverTimestamp(),
+            content:
+                payload?.content ||
+                "// archivo generado por jarvis",
 
-                                created_by:
-                                    ejecutado_por ||
-                                    "jarvis_ai",
+            created_at:
+                serverTimestamp(),
 
-                                op_id:
-                                    opId,
+            created_by:
+                ejecutado_por ||
+                "jarvis_ai",
 
-                                tenantId:
-                                    tenantId,
+            op_id:
+                opId,
 
-                                status:
-                                    "active"
-                            })
-                        );
+            tenantId:
+                tenantId,
 
-                        retryBuffer.push({
+            status:
+                "active"
+        })
+    );
 
-                            type,
+    retryBuffer.push({
 
-                            target:
-                                payload?.file ||
-                                `auto_${Date.now()}.js`,
+        type,
 
-                            status:
-                                "file_created"
-                        });
+        target:
+            payload?.file ||
+            `auto_${Date.now()}.js`,
 
-                        emitirPulsoHUD(
-                            opId,
-                            "WRITE",
-                            "CODE_WRITE",
-                            payload?.file || "auto_file"
-                        );
+        status:
+            "file_created"
+    });
 
-                        break;
+    emitirPulsoHUD(
+        opId,
+        "WRITE",
+        "CODE_WRITE",
+        payload?.file || "auto_file"
+    );
+
+    break;
+
+
+    
 
                     default:
                         // No lanzamos error para permitir que el resto de la ráfaga continúe
@@ -719,7 +704,7 @@ transaction.set(
             }, { merge: true });
 
             // Al final de la transacción exitosa, volcamos el buffer al array externo
-            finalResults.length = 0;
+            finalResults.length = 0; 
             finalResults.push(...retryBuffer);
         });
 
@@ -730,7 +715,7 @@ transaction.set(
     } catch (error) {
         emitirPulsoHUD(opId, "CRASH", "FAILED", error.message);
         console.error("❌ SIA7_EXECUTOR_CRASH:", error);
-
+        
         // Registro forense del error (Best effort)
         try {
             await updateDoc(doc(db, "gestia_operations", opId), {
@@ -756,6 +741,8 @@ export async function consultarEstadoOperacion(opId) {
 
 // Log Corporativo para el Arquitecto Heberto
 console.log("%c🦾 [OPERATIONS_EXECUTOR]: V16.1.1 INDESTRUCTIBLE LEDGER ONLINE", "color: #f59e0b; font-weight: bold; background: #451a03; padding: 2px 10px; border-radius: 4px;");
+
+
 /**
  * ======================================================================================
  * 🧠 EXECUTION FABRIC NORMALIZER
