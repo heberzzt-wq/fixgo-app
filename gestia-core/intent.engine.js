@@ -498,8 +498,6 @@ if (rawLower === "repair" || rawLower.startsWith("repair")) {
         // 👇 CONTINÚA EL PROCESAMIENTO HUMANO/HÍBRIDO
         const tokens = rawLower.split(/\s+/);
 
-        const tokens = rawLower.split(/\s+/);
-
 /* =====================================================
    REPO FILE DETECTOR
 ===================================================== */
@@ -562,6 +560,8 @@ let action = null;
 let entity = null;
 let target = null;
 let inferredEntity = false;
+
+        
 
 
         // --- 🔍 1. RESOLUCIÓN DE ACCIÓN (Boundary Safe) ---
