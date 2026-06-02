@@ -692,17 +692,23 @@ const cambiosFinales =
                 return { status: "halted", reason: atomicState.haltReason };
             }
 
-            // --------------------------------------------------------------------------
-            // 🦾 FASE 2: ACCIÓN IDEMPOTENTE FUERA DE TRANSACCIÓN (EXECUTE)
-            // --------------------------------------------------------------------------
-            this.emitirPulso("EXECUTOR", "FIRING", `ID Operativo: ${analysisId.substring(0,8)}`);
+           // --------------------------------------------------------------------------
+// 🦾 FASE 2: ACCIÓN IDEMPOTENTE FUERA DE TRANSACCIÓN (EXECUTE)
+// --------------------------------------------------------------------------
+this.emitirPulso(
+    "EXECUTOR",
+    "FIRING",
+    `ID Operativo: ${analysisId.substring(0,8)}`
+);
 
-          //     ...atomicState.proposal,
-          //      changes: atomicState.approvedChanges,
-            //    tenantId,
-              //  ejecutado_por: user.email,
-                //execution_id: analysisId // Idempotencia de brazo mecánico
-           // });
+const result = await ejecutarCambios({
+    ...atomicState.proposal,
+    changes: atomicState.approvedChanges,
+    tenantId,
+    ejecutado_por: user.email,
+    execution_id: analysisId // Idempotencia de brazo mecánico
+});
+
 
             // --------------------------------------------------------------------------
             // 🔒 FASE 3: LIQUIDACIÓN ATÓMICA Y ASENTAMIENTO (COMMIT)
