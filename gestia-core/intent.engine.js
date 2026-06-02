@@ -498,10 +498,71 @@ if (rawLower === "repair" || rawLower.startsWith("repair")) {
         // 👇 CONTINÚA EL PROCESAMIENTO HUMANO/HÍBRIDO
         const tokens = rawLower.split(/\s+/);
 
-        let action = null;
-        let entity = null;
-        let target = null;
-        let inferredEntity = false;
+        const tokens = rawLower.split(/\s+/);
+
+/* =====================================================
+   REPO FILE DETECTOR
+===================================================== */
+
+const repoFile = tokens.find(token => {
+
+    const clean = token
+        .replace(/['"]/g, "")
+        .trim();
+
+    return window.getRepoNode?.(clean);
+});
+
+if (
+    repoFile &&
+    (
+        rawLower.includes("analiza") ||
+        rawLower.includes("revisa") ||
+        rawLower.includes("scan") ||
+        rawLower.includes("inspecciona")
+    )
+) {
+
+    console.log(
+        "🧠 [REPO_FILE_DETECTED]",
+        repoFile
+    );
+
+    interpretedPlan.push({
+
+        intent: "ANALYZE_FILE",
+
+        action: "SCAN_FILE",
+
+        entity: "CODE_RESOURCE",
+
+        target: repoFile,
+
+        targetFile: repoFile,
+
+        repoNode:
+            window.getRepoNode(
+                repoFile
+            ),
+
+        confidence: 1,
+
+        summary:
+            `Análisis de código para ${repoFile}`
+    });
+
+    return;
+}
+
+/* =====================================================
+   FLUJO NORMAL
+===================================================== */
+
+let action = null;
+let entity = null;
+let target = null;
+let inferredEntity = false;
+
 
         // --- 🔍 1. RESOLUCIÓN DE ACCIÓN (Boundary Safe) ---
         const actionKey = sortedIntentKeys.find(k =>

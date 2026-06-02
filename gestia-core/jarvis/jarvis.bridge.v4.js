@@ -1450,6 +1450,20 @@ Escribe:
             const userPermsExpanded = context.permissions.flatMap(p => ROLE_HIERARCHY[p] || [p]);
 
             try {
+
+                if (
+    cognition?.target &&
+    rawPlan?.target === "system"
+) {
+
+    console.warn(
+        "🛠️ TARGET_OVERRIDE",
+        cognition.target
+    );
+
+    rawPlan.target =
+        cognition.target;
+}
                 // 4. GENERACIÓN DE PLAN CON TIMEOUT & ABORT REAL
                 const rawPlan = await Promise.race([
                     window.runExternalAI({input: raw, cognition, mode: "PLANNER", context, signal: controller.signal}),
