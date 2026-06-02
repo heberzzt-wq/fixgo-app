@@ -1522,12 +1522,38 @@ rawPlan.targetFile = cognition?.target || null;
                 if (plan.steps.length > 25) throw new Error("Plan excede límite máximo de pasos (25).");
 
                 // 🛡️ 6. VALIDACIÓN SEMÁNTICA & SEGURIDAD DEFENSIVA
-                const PERMISSION_MAP = { READ: ["READ"], ANALYZE: ["ANALYZE"], UPDATE: ["WRITE"], WRITE: ["WRITE"], DELETE: ["ADMIN"] };
+                const PERMISSION_MAP = {
+
+    READ: ["READ"],
+
+    ANALYZE: ["ANALYZE"],
+
+    ANALYZE_UI: ["ANALYZE"],
+
+    ANALYZE_FILE: ["ANALYZE"],
+
+    ANALYZE_RUNTIME: ["ANALYZE"],
+
+    UPDATE: ["WRITE"],
+
+    WRITE: ["WRITE"],
+
+    DELETE: ["ADMIN"]
+};
 
                 for (const step of plan.steps) {
                     // Garantía de ID para el Ledger
                     if (!step.id) step.id = `step_${Math.random().toString(36).slice(2, 9)}`;
 
+                    if (
+    step.type.startsWith(
+        "ANALYZE"
+    )
+) {
+
+    step.type =
+        "ANALYZE";
+}
                     if (!PERMISSION_MAP[step.type]) throw new Error(`Operación no permitida: ${step.type}`);
 
                     const required = PERMISSION_MAP[step.type];
