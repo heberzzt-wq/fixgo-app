@@ -1488,7 +1488,19 @@ Escribe:
         cognition.target;
 
 }
+if (
+    cognition?.intent &&
+    rawPlan?.intent === "analyze"
+) {
 
+    console.warn(
+        "🛠️ INTENT_OVERRIDE",
+        cognition.intent
+    );
+
+    rawPlan.intent =
+        cognition.intent;
+}
 
 
                 console.log("🧠 [RAW_PLAN]", rawPlan);
@@ -1497,6 +1509,12 @@ Escribe:
 
                 // 5. NORMALIZACIÓN E INTEGRIDAD (STRICT)
                 if (typeof normalizeAIPlan !== 'function') throw new Error("Normalizer no disponible");
+
+
+                rawPlan.cognition = cognition;
+rawPlan.domain = cognition?.domain || null;
+rawPlan.targetFile = cognition?.target || null;
+
                 const plan = normalizeAIPlan(rawPlan);
                 if (!plan || !plan.steps || !plan.steps.length) throw new Error("Plan sin pasos ejecutables.");
                 
