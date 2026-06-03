@@ -10565,11 +10565,14 @@ window.__REPO_INDEX__["plans.engine.js"] = {
     critical: true
 };
 
+/* =====================================================
+B2B ACCESS MODULE
+===================================================== */
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
     path: "tecnico-b2b.html",
 
-    module: "tecnico",
+    module: "seguridad_accesos_b2b",
 
     type: "mobile_ui",
 
@@ -10580,7 +10583,7 @@ window.__REPO_INDEX__["app-tecnico-b2b.js"] = {
 
     path: "app-tecnico-b2b.js",
 
-    module: "tecnico",
+    module: "seguridad_accesos_b2b",
 
     type: "mobile_runtime",
 
@@ -10728,6 +10731,39 @@ window.__REPO_INDEX__["app-bi.js"] = {
             true
     }
 };
+
+/* =====================================================
+   REBUILD REPO COGNITION
+===================================================== */
+
+if (
+    typeof window.buildRepoDependencyGraph ===
+    "function"
+) {
+
+    window.buildRepoDependencyGraph();
+
+    console.log(
+        "🧠 [REPO_GRAPH_REBUILT]"
+    );
+}
+
+if (
+    typeof window.buildRepoCognitionIndex ===
+    "function"
+) {
+
+    window.buildRepoCognitionIndex();
+
+    console.log(
+        "🧠 [REPO_COGNITION_REBUILT]"
+    );
+}
+
+console.log(
+    "🧠 [REPO_BOOTSTRAP_READY]"
+);
+
 
 /* =====================================================================================
    HYBRID COGNITION REGISTRY V7
