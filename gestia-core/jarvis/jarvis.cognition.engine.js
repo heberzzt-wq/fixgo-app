@@ -44,15 +44,55 @@
                     0.5
             };
 
+            /* =====================================================
+   REPO SEARCH INTENT
+===================================================== */
+
+if (
+
+    text.startsWith("buscar ") ||
+
+    text.startsWith("search ") ||
+
+    text.startsWith("find ")
+
+) {
+
+    cognition.intent =
+        "REPO_SEARCH";
+
+    cognition.domain =
+        "repository";
+
+    cognition.target =
+
+        text
+            .replace(/^buscar\s+/i, "")
+            .replace(/^search\s+/i, "")
+            .replace(/^find\s+/i, "");
+
+    cognition.expectedOutput =
+        "repo_search_results";
+
+    cognition.confidence =
+        0.99;
+
+    return cognition;
+}
 
             const wantsRepair =
 
-    text.includes("repara") ||
-    text.includes("corrige") ||
-    text.includes("fix") ||
-    text.includes("patch") ||
-    text.includes("ajusta") ||
-    text.includes("modifica");
+    /\brepara\b/i.test(text) ||
+    /\bcorrige\b/i.test(text) ||
+    /\bajusta\b/i.test(text) ||
+    /\bmodifica\b/i.test(text) ||
+
+    /\baplica patch\b/i.test(text) ||
+    /\bgenera patch\b/i.test(text) ||
+    /\bcrear patch\b/i.test(text) ||
+    /\baplicar patch\b/i.test(text) ||
+
+    /\bfix\b/i.test(text);
             /* =====================================================
                UI ANALYSIS
             ===================================================== */

@@ -14510,6 +14510,35 @@ if (!isStructured && !String(input).trim()) {
 let rawInput;
 let cmd;
 
+/* =====================================================
+   REPO SEARCH INTERCEPTOR
+===================================================== */
+
+if (
+    !isStructured &&
+    (
+        cmd.startsWith("buscar ") ||
+        cmd.startsWith("search ") ||
+        cmd.startsWith("find ")
+    )
+) {
+
+    const query = rawInput
+        .replace(/^buscar\s+/i, "")
+        .replace(/^search\s+/i, "")
+        .replace(/^find\s+/i, "")
+        .trim();
+
+    console.log(
+        "🧠 [REPO_SEARCH_DETECTED]",
+        query
+    );
+
+    return await window.searchRepo?.(
+        query
+    );
+}
+
 if (isStructured) {
 
     rawInput = input;
@@ -14731,6 +14760,8 @@ if (APPROVAL_WORDS.includes(cmd)) {
         tenantId: this.session?.tenantId
     });
 }
+
+
 
 if (window.JarvisBridge?.dispatch) {
 
