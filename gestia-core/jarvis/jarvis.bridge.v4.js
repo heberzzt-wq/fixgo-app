@@ -1544,6 +1544,8 @@ const PERMISSION_MAP = {
 
     CODE_READ: ["ANALYZE"],
 
+    REPO_SEARCH: ["READ"],
+
     CODE_WRITE: ["ADMIN"],
 
     UPDATE: ["WRITE"],
