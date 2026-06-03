@@ -47,8 +47,22 @@ export function normalizeAIPlan(planRaw = {}, traceId = "no_trace") {
                     action: null,
                     
 payload: {
+
     originalPrompt:
-        JSON.stringify(planRaw)
+        JSON.stringify(planRaw),
+
+    query:
+
+        String(planRaw.intent)
+            .toUpperCase() === "REPO_SEARCH"
+
+            ? planRaw.target
+
+            : "",
+
+    target:
+
+        planRaw.target
 },
 
 meta: {
