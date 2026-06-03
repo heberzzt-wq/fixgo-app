@@ -164,16 +164,112 @@ console.log(
     type
 );
 
-const isAnalysisIntent =
+const isAnalyzeIntent =
 
-    type.startsWith("ANALYZE") ||
+    type.startsWith(
+        "ANALYZE"
+    );
 
-    type.startsWith("REPAIR");
+const isRepairIntent =
+
+    type.startsWith(
+        "REPAIR"
+    );
+
+    if (
+    isRepairIntent
+) {
+
+    const targetFile =
+
+        step?.meta?.repoNode?.file ||
+
+        step?.payload?.file ||
+
+        null;
+
+    const normalizedStep = {
+
+        id:
+            step.id ||
+
+            `step_${Math.random()
+                .toString(36)
+                .slice(2,8)}`,
+
+        type:
+            "CODE_WRITE",
+
+        originalType:
+            type,
+
+        target: {
+
+            collection:
+                "repo_files",
+
+            docId:
+                null,
+
+            query:
+                null
+        },
+
+        action:
+            "custom",
+
+        payload: {
+
+            file:
+                targetFile,
+
+            originalPrompt:
+
+                step?.payload
+                    ?.originalPrompt ||
+
+                "",
+
+            repairIntent:
+                true
+        },
+
+        meta: {
+
+            repoAware:
+                true,
+
+            repoNode:
+
+                step?.meta
+                    ?.repoNode ||
+
+                null,
+
+            reversible:
+                true
+        },
+
+        traceId
+    };
+
+    console.log(
+        "🛠️ [REPAIR_PROMOTED_TO_CODE_WRITE]",
+        normalizedStep
+    );
+
+    steps.push(
+        normalizedStep
+    );
+
+    continue;
+}
 
 if (
 
-    !isAnalysisIntent &&
+    !isAnalyzeIntent &&
 
+    !isRepairIntent &&
     (
         rawText.includes("archivo") ||
         rawText.includes(".js") ||
