@@ -859,6 +859,11 @@ const operationId =
 
     try {
 
+
+        console.log(
+    "🧠 [EXECUTOR_INPUT_STEPS]",
+    steps
+);
         const detectedModules =
             new Set();
 
@@ -1158,6 +1163,22 @@ payload: {
 
                     priority:
                         step?.priority || "NORMAL",
+
+                        meta: {
+
+    ...(step?.meta || {}),
+
+    repoAware:
+        step?.meta?.repoAware || false,
+
+    repoNode:
+        step?.meta?.repoNode || null,
+
+    originalType:
+        step?.originalType ||
+        step?.meta?.originalType ||
+        null
+},
 
                     cognition: {
 
