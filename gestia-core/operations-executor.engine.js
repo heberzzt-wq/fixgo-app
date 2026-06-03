@@ -861,8 +861,12 @@ const operationId =
 
 
         console.log(
-    "🧠 [EXECUTOR_INPUT_STEPS]",
-    steps
+    "🧠 [EXECUTOR_FIRST_STEP]",
+    JSON.parse(
+        JSON.stringify(
+            steps?.[0] || {}
+        )
+    )
 );
         const detectedModules =
             new Set();
