@@ -910,6 +910,68 @@ const operationId =
    REPO COGNITION BRIDGE
 ======================================================================== */
 
+
+/* =========================================================================
+   REHYDRATE REPO COGNITION
+======================================================================== */
+
+if (
+
+    !step?.meta?.repoNode &&
+
+    step?.payload?.originalPrompt
+
+) {
+
+    try {
+
+        const promptData =
+
+            JSON.parse(
+                step.payload.originalPrompt
+            );
+
+        if (
+
+            promptData?.cognition?.repoNode
+
+        ) {
+
+            step.meta = {
+
+                ...(step.meta || {}),
+
+                repoAware:
+                    promptData.cognition.repoAware,
+
+                repoNode:
+                    promptData.cognition.repoNode
+            };
+
+            console.log(
+
+                "🧠 [REPO_REHYDRATED]",
+
+                promptData.cognition.repoNode.file
+
+            );
+        }
+
+    }
+
+    catch(err) {
+
+        console.warn(
+
+            "⚠️ [REPO_REHYDRATE_FAIL]",
+
+            err
+
+        );
+    }
+}
+
+
 if (
 
     step?.meta?.repoNode?.module
