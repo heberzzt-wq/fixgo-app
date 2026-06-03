@@ -182,11 +182,19 @@ const isRepairIntent =
 
     const targetFile =
 
-        step?.meta?.repoNode?.file ||
+    step?.meta?.repoNode?.file ||
 
-        step?.payload?.file ||
+    step?.payload?.file ||
 
-        null;
+    step?.targetFile ||
+
+    step?.meta?.originalTarget ||
+
+    planRaw?.targetFile ||
+
+    planRaw?.target ||
+
+    null;
 
     const normalizedStep = {
 
@@ -447,6 +455,31 @@ catch(traceError) {
 ===================================================== */
 
 try {
+
+    console.log(
+    "🔥 REPAIR_CONTEXT",
+    {
+        type,
+
+        repoNode:
+            step?.meta?.repoNode,
+
+        payloadFile:
+            step?.payload?.file,
+
+        target:
+            step?.target,
+
+        originalTarget:
+            step?.meta?.originalTarget,
+
+        planTarget:
+            planRaw?.target,
+
+        planTargetFile:
+            planRaw?.targetFile
+    }
+);
 
     const targetFile =
 
