@@ -1523,51 +1523,78 @@ rawPlan.targetFile = cognition?.target || null;
 
                 // 🛡️ 6. VALIDACIÓN SEMÁNTICA & SEGURIDAD DEFENSIVA
                 const PERMISSION_MAP = {
+                    READ: ["READ"],
+                    ANALYZE: ["ANALYZE"],
+                    ANALYZE_UI: ["ANALYZE"],
+                    ANALYZE_FILE: ["ANALYZE"],
+                    ANALYZE_RUNTIME: ["ANALYZE"],
+                    REPAIR: ["ANALYZE"],
+                    REPAIR_UI: ["ANALYZE"],
+                    REPAIR_FILE: ["ANALYZE"],
+                    REPAIR_RUNTIME: ["ANALYZE"],
+                    CODE_READ: ["ANALYZE"],
+                    CODE_WRITE: ["ADMIN"],
+                    UPDATE: ["WRITE"],
+                    WRITE: ["WRITE"],
+                    DELETE: ["ADMIN"]
+                };
 
-    READ: ["READ"],
-
-    ANALYZE: ["ANALYZE"],
-
-    ANALYZE_UI: ["ANALYZE"],
-
-    ANALYZE_FILE: ["ANALYZE"],
-
-    ANALYZE_RUNTIME: ["ANALYZE"],
-
-    UPDATE: ["WRITE"],
-
-    WRITE: ["WRITE"],
-
-    DELETE: ["ADMIN"]
-};
+                const INTENT_ALIAS = {
+                    ANALYZE_UI: "ANALYZE",
+                    ANALYZE_FILE: "ANALYZE",
+                    ANALYZE_RUNTIME: "ANALYZE",
+                    REPAIR: "ANALYZE",
+                    REPAIR_UI: "ANALYZE",
+                    REPAIR_FILE: "ANALYZE",
+                    REPAIR_RUNTIME: "ANALYZE"
+                };
 
                 for (const step of plan.steps) {
-                    // Garantía de ID para el Ledger
                     if (!step.id) step.id = `step_${Math.random().toString(36).slice(2, 9)}`;
 
-                    if (
-    step.type.startsWith(
-        "ANALYZE"
-    )
-) {
+                    step.originalType = step.type;
+                    
+                    step.meta = {
+                        ...(step.meta || {}),
+                        originalType: step.originalType
+                    };
 
-    step.type =
-        "ANALYZE";
-}
-                    if (!PERMISSION_MAP[step.type]) throw new Error(`Operación no permitida: ${step.type}`);
+                    step.type = INTENT_ALIAS[step.type] || step.type;
 
-                    const required = PERMISSION_MAP[step.type];
+                    if (!PERMISSION_MAP[step.originalType]) throw new Error(`Operación no permitida: ${step.originalType}`);
+
+                    const required = PERMISSION_MAP[step.originalType];
                     const allowed = required.some(p => userPermsExpanded.includes(p));
 
-                    if (!allowed) throw new Error(`Permiso denegado para acción: ${step.type}`);
-                    
-                    if (!step.target?.collection) throw new Error(`Target inválido en: ${step.id}`);
-                    if (["UPDATE", "WRITE"].includes(step.type) && !step.payload) throw new Error(`Step ${step.type} requiere payload.`);
-                    if (step.type === "DELETE" && !step.target.docId) throw new Error("DELETE requiere docId específico.");
+                    if (!allowed) throw new Error(`Permiso denegado para acción: ${step.originalType}`);
+
+                    if (!step.target) throw new Error(`Target inválido en: ${step.id}`);
+
+                    if (["UPDATE", "WRITE", "CODE_WRITE"].includes(step.originalType) && !step.payload) {
+                        throw new Error(`Step ${step.originalType} requiere payload.`);
+                    }
+
+                    if (step.originalType === "DELETE" && !step.target.docId) {
+                        throw new Error("DELETE requiere docId específico.");
+                    }
+
+                    if (step.meta?.repoAware && step.meta?.repoNode) {
+                        console.log("🧠 [REPO_AWARE_STEP]", step.meta.repoNode.file);
+                    }
                 }
 
-                // 🛡️ 7. FINGERPRINT CONTEXTUAL (V1.0 SCHEMA)
-                const fingerprintPayload = { v: "1.0", steps: plan.steps, role: context.role };
+                // 🛡️ 7. FINGERPRINT CONTEXTUAL (V2.0 SCHEMA)
+                const fingerprintPayload = { 
+                    v: "2.0", 
+                    role: context.role, 
+                    steps: plan.steps.map(step => ({
+                        type: step.originalType,
+                        target: step.target,
+                        repoAware: !!step.meta?.repoAware,
+                        repoFile: step.meta?.repoNode?.file || null
+                    }))
+                };
+                
                 const fingerprintBase = new TextEncoder().encode(JSON.stringify(fingerprintPayload));
                 const hashBuffer = await crypto.subtle.digest("SHA-256", fingerprintBase);
                 plan.fingerprint = Array.from(new Uint8Array(hashBuffer))
@@ -1582,21 +1609,22 @@ rawPlan.targetFile = cognition?.target || null;
                     }
                 }
 
+                // 🛡️ 9. PERSISTENCIA OBLIGATORIA
                 plan.mode = "AI_SUPERVISED";
                 plan.createdBy = context.userId;
                 plan.traceId = context.traceId;
                 plan.createdAt = Date.now();
 
-                // 9. PERSISTENCIA OBLIGATORIA
                 if (typeof savePendingPlan !== 'function') throw new Error("savePendingPlan no disponible");
-                await savePendingPlan(plan);
                 
-                console.log("🧠 [AI_PLAN_READY]:", plan.id);
+                const persistedPlan = await savePendingPlan(plan);
+                const finalPlan = persistedPlan && typeof persistedPlan === "object" ? persistedPlan : plan;
+                
+                window.lastPlanId = finalPlan.id;
+                console.log("🧠 [AI_PLAN_READY]:", finalPlan.id);
 
-                window.lastPlanId = plan.id;
-
-                if (window.renderPlanPreview) {
-                    window.renderPlanPreview(plan);
+                if (typeof window.renderPlanPreview === 'function') {
+                    window.renderPlanPreview(finalPlan);
                 } else {
                     console.warn("⚠️ renderPlanPreview no disponible");
                 }
@@ -1604,7 +1632,7 @@ rawPlan.targetFile = cognition?.target || null;
                 return {
                     ok: true,
                     preview: true,
-                    planId: plan.id
+                    planId: finalPlan.id
                 };
             } catch (err) {
                 if (err.name === "AbortError" || err.message === "AI timeout") {
@@ -1614,7 +1642,6 @@ rawPlan.targetFile = cognition?.target || null;
                 return render("Jarvis", `Error en planeación: ${err.message}`, "error");
             }
         }
-
         /* --- El código de abajo (Surgeon Mode / Telemetría) ya no se ejecutará en AI_MODE --- */
 
         /* =====================================================
