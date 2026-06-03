@@ -565,6 +565,75 @@ catch(cognitiveError) {
         continue;
     }
 
+    /* =====================================================
+   REPO SEARCH
+===================================================== */
+
+if (type === "REPO_SEARCH") {
+
+    const normalizedStep = {
+
+        id:
+            step.id ||
+
+            `step_${Math.random()
+                .toString(36)
+                .slice(2,8)}`,
+
+        type:
+            "REPO_SEARCH",
+
+        target: {
+
+            collection:
+                "repo_index",
+
+            docId:
+                null,
+
+            query:
+                null
+        },
+
+        action:
+            "repo_search",
+
+        payload: {
+
+            query:
+
+                planRaw?.target ||
+
+                step?.payload?.query ||
+
+                ""
+
+        },
+
+        meta: {
+
+            reversible:
+                false,
+
+            description:
+                "Repository Search"
+        },
+
+        traceId
+    };
+
+    console.log(
+        "🔎 [NORMALIZER]: REPO_SEARCH",
+        normalizedStep
+    );
+
+    steps.push(
+        normalizedStep
+    );
+
+    continue;
+}
+
     //
     // 🔥 TARGET FLEXIBLE
     //
@@ -684,6 +753,13 @@ function inferAction(type) {
 
         case "CODE_WRITE":
             return "custom";
+
+            // =========================
+// REPO
+// =========================
+
+case "REPO_SEARCH":
+    return "repo_search";
 
         default:
             return "custom";
