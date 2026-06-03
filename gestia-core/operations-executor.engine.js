@@ -880,14 +880,43 @@ const operationId =
             }
 
             /* =========================================================================
+   REPO COGNITION BRIDGE
+======================================================================== */
+
+if (
+
+    step?.meta?.repoNode?.module
+
+) {
+
+    detectedModules.add(
+
+        step.meta.repoNode.module
+
+    );
+
+    console.log(
+
+        "🧠 [REPO_MODULE_DETECTED]",
+
+        step.meta.repoNode.module,
+
+        step.meta.repoNode.file
+
+    );
+}
+
+            /* =========================================================================
                RUNTIME INFERENCE
             ========================================================================= */
 
             const target =
-                String(
-                    step?.target || ""
-                ).toLowerCase();
 
+    JSON.stringify(
+        step?.target || {}
+    )
+
+    .toLowerCase();
             if (
 
                 target.includes("b2b")
