@@ -1521,78 +1521,300 @@ rawPlan.targetFile = cognition?.target || null;
                 // 🛡️ CONTROL DE VOLUMEN: Evita saturación del Executor
                 if (plan.steps.length > 25) throw new Error("Plan excede límite máximo de pasos (25).");
 
-                // 🛡️ 6. VALIDACIÓN SEMÁNTICA & SEGURIDAD DEFENSIVA
-                const PERMISSION_MAP = {
-                    READ: ["READ"],
-                    ANALYZE: ["ANALYZE"],
-                    ANALYZE_UI: ["ANALYZE"],
-                    ANALYZE_FILE: ["ANALYZE"],
-                    ANALYZE_RUNTIME: ["ANALYZE"],
-                    REPAIR: ["ANALYZE"],
-                    REPAIR_UI: ["ANALYZE"],
-                    REPAIR_FILE: ["ANALYZE"],
-                    REPAIR_RUNTIME: ["ANALYZE"],
-                    CODE_READ: ["ANALYZE"],
-                    CODE_WRITE: ["ADMIN"],
-                    UPDATE: ["WRITE"],
-                    WRITE: ["WRITE"],
-                    DELETE: ["ADMIN"]
-                };
+               // 🛡️ 6. VALIDACIÓN SEMÁNTICA & SEGURIDAD DEFENSIVA
+const PERMISSION_MAP = {
 
-                const INTENT_ALIAS = {
-                    ANALYZE_UI: "ANALYZE",
-                    ANALYZE_FILE: "ANALYZE",
-                    ANALYZE_RUNTIME: "ANALYZE",
-                    REPAIR: "ANALYZE",
-                    REPAIR_UI: "ANALYZE",
-                    REPAIR_FILE: "ANALYZE",
-                    REPAIR_RUNTIME: "ANALYZE"
-                };
+    READ: ["READ"],
 
-                for (const step of plan.steps) {
-                    if (!step.id) step.id = `step_${Math.random().toString(36).slice(2, 9)}`;
+    ANALYZE: ["ANALYZE"],
 
-                    step.originalType = step.type;
-                    
-                    step.meta = {
-                        ...(step.meta || {}),
-                        originalType: step.originalType
-                    };
+    ANALYZE_UI: ["ANALYZE"],
 
-                    step.type = INTENT_ALIAS[step.type] || step.type;
+    ANALYZE_FILE: ["ANALYZE"],
 
-                    if (!PERMISSION_MAP[step.originalType]) throw new Error(`Operación no permitida: ${step.originalType}`);
+    ANALYZE_RUNTIME: ["ANALYZE"],
 
+    REPAIR: ["ANALYZE"],
 
-                    console.log(
-    "🧠 [PERMISSION_DEBUG]",
-    {
-        type: step.type,
-        originalType: step.originalType,
-        userPerms: userPermsExpanded
+    REPAIR_UI: ["ANALYZE"],
+
+    REPAIR_FILE: ["ANALYZE"],
+
+    REPAIR_RUNTIME: ["ANALYZE"],
+
+    CODE_READ: ["ANALYZE"],
+
+    CODE_WRITE: ["ADMIN"],
+
+    UPDATE: ["WRITE"],
+
+    WRITE: ["WRITE"],
+
+    DELETE: ["ADMIN"]
+};
+
+const INTENT_ALIAS = {
+
+    ANALYZE_UI:
+        "ANALYZE",
+
+    ANALYZE_FILE:
+        "ANALYZE",
+
+    ANALYZE_RUNTIME:
+        "ANALYZE",
+
+    REPAIR:
+        "ANALYZE",
+
+    REPAIR_UI:
+        "ANALYZE",
+
+    REPAIR_FILE:
+        "ANALYZE",
+
+    REPAIR_RUNTIME:
+        "ANALYZE"
+};
+
+for (
+
+    const step of plan.steps
+
+) {
+
+    if (!step.id) {
+
+        step.id =
+
+            `step_${
+                Math.random()
+                    .toString(36)
+                    .slice(2, 9)
+            }`;
     }
-);
 
-                    const required = PERMISSION_MAP[step.originalType];
-                    const allowed = required.some(p => userPermsExpanded.includes(p));
+    /* =====================================================
+       PRESERVAR TIPO ORIGINAL DEL NORMALIZER
+    ===================================================== */
 
-                    if (!allowed) throw new Error(`Permiso denegado para acción: ${step.originalType}`);
+    if (
 
-                    if (!step.target) throw new Error(`Target inválido en: ${step.id}`);
+        !step.originalType
 
-                    if (["UPDATE", "WRITE", "CODE_WRITE"].includes(step.originalType) && !step.payload) {
-                        throw new Error(`Step ${step.originalType} requiere payload.`);
-                    }
+    ) {
 
-                    if (step.originalType === "DELETE" && !step.target.docId) {
-                        throw new Error("DELETE requiere docId específico.");
-                    }
+        step.originalType =
+            step.type;
+    }
 
-                    if (step.meta?.repoAware && step.meta?.repoNode) {
-                        console.log("🧠 [REPO_AWARE_STEP]", step.meta.repoNode.file);
-                    }
-                }
+    step.meta = {
 
+        ...(step.meta || {}),
+
+        originalType:
+            step.originalType
+    };
+
+    /* =====================================================
+       ALIAS INTERNO DE EJECUCIÓN
+    ===================================================== */
+
+    step.type =
+
+        INTENT_ALIAS[
+            step.type
+        ] ||
+
+        step.type;
+
+    /* =====================================================
+       PERMISSION TYPE
+       (REPAIR_UI → CODE_WRITE interno
+       pero permisos REPAIR_UI)
+    ===================================================== */
+
+    const permissionType =
+
+        step.meta?.originalType ||
+
+        step.originalType ||
+
+        step.type;
+
+    console.log(
+
+        "🧠 [TYPE_PRESERVED]",
+
+        {
+
+            type:
+                step.type,
+
+            originalType:
+                step.originalType,
+
+            permissionType
+        }
+    );
+
+    if (
+
+        !PERMISSION_MAP[
+            permissionType
+        ]
+
+    ) {
+
+        throw new Error(
+
+            `Operación no permitida: ${
+                permissionType
+            }`
+        );
+    }
+
+    console.log(
+
+        "🧠 [PERMISSION_DEBUG]",
+
+        {
+
+            type:
+                step.type,
+
+            originalType:
+                step.originalType,
+
+            permissionType,
+
+            required:
+
+                PERMISSION_MAP[
+                    permissionType
+                ],
+
+            userPerms:
+                userPermsExpanded
+        }
+    );
+
+    const required =
+
+        PERMISSION_MAP[
+            permissionType
+        ];
+
+    const allowed =
+
+        required.some(
+
+            p =>
+
+                userPermsExpanded
+                    .includes(p)
+        );
+
+    if (
+
+        !allowed
+
+    ) {
+
+        throw new Error(
+
+            `Permiso denegado para acción: ${
+                permissionType
+            }`
+        );
+    }
+
+    /* =====================================================
+       VALIDACIÓN TARGET
+    ===================================================== */
+
+    if (
+
+        !step.target
+
+    ) {
+
+        throw new Error(
+
+            `Target inválido en: ${
+                step.id
+            }`
+        );
+    }
+
+    /* =====================================================
+       VALIDACIÓN PAYLOAD
+    ===================================================== */
+
+    if (
+
+        [
+
+            "UPDATE",
+            "WRITE",
+            "CODE_WRITE"
+
+        ].includes(
+            step.originalType
+        ) &&
+
+        !step.payload
+
+    ) {
+
+        throw new Error(
+
+            `Step ${
+                step.originalType
+            } requiere payload.`
+        );
+    }
+
+    /* =====================================================
+       DELETE
+    ===================================================== */
+
+    if (
+
+        step.originalType ===
+        "DELETE" &&
+
+        !step.target.docId
+
+    ) {
+
+        throw new Error(
+            "DELETE requiere docId específico."
+        );
+    }
+
+    /* =====================================================
+       REPO AWARENESS
+    ===================================================== */
+
+    if (
+
+        step.meta?.repoAware &&
+
+        step.meta?.repoNode
+
+    ) {
+
+        console.log(
+
+            "🧠 [REPO_AWARE_STEP]",
+
+            step.meta
+                .repoNode
+                .file
+        );
+    }
+}
                 // 🛡️ 7. FINGERPRINT CONTEXTUAL (V2.0 SCHEMA)
                 const fingerprintPayload = { 
                     v: "2.0", 
