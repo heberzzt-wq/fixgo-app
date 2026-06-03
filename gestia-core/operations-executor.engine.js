@@ -868,10 +868,28 @@ const operationId =
         )
     )
 );
+
+          console.log(
+    "🧠 [FIRST_STEP_RAW]",
+    JSON.stringify(
+        steps?.[0],
+        null,
+        2
+    )
+);
         const detectedModules =
             new Set();
 
         steps.forEach(step => {
+
+            console.log(
+        "🧠 [STEP_ITERATION]",
+        JSON.stringify(
+            step,
+            null,
+            2
+        )
+    );
 
             /* =========================================================================
                EXPLICIT MODULES
