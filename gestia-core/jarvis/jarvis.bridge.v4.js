@@ -1563,6 +1563,16 @@ rawPlan.targetFile = cognition?.target || null;
 
                     if (!PERMISSION_MAP[step.originalType]) throw new Error(`Operación no permitida: ${step.originalType}`);
 
+
+                    console.log(
+    "🧠 [PERMISSION_DEBUG]",
+    {
+        type: step.type,
+        originalType: step.originalType,
+        userPerms: userPermsExpanded
+    }
+);
+
                     const required = PERMISSION_MAP[step.originalType];
                     const allowed = required.some(p => userPermsExpanded.includes(p));
 
