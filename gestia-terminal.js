@@ -14509,7 +14509,14 @@ if (!isStructured && !String(input).trim()) {
 
 let rawInput;
 let cmd;
-
+console.log(
+    "🧪 BEFORE_SEARCH_INTERCEPTOR",
+    {
+        isStructured,
+        rawInput,
+        cmd
+    }
+);
 /* =====================================================
    REPO SEARCH INTERCEPTOR
 ===================================================== */
