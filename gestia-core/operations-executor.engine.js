@@ -1065,26 +1065,37 @@ if (
 
             );
 
-            if (
+           if (
     step?.meta?.repoNode?.file
 ) {
 
-    const loaded =
-        await window.loadRepoContext(
-            step.meta.repoNode.file
+    window.loadRepoContext(
+        step.meta.repoNode.file
+    )
+    .then(loaded => {
+
+        if (loaded?.ok) {
+
+            step.meta.source =
+                loaded.source;
+
+            console.log(
+                "🧠 [SOURCE_HYDRATED]",
+                loaded.file,
+                loaded.source.length
+            );
+        }
+
+    })
+    .catch(err => {
+
+        console.error(
+            "🚨 [SOURCE_HYDRATE_FAIL]",
+            err
         );
 
-    if (loaded?.ok) {
+    });
 
-        step.meta.source =
-            loaded.source;
-
-        console.log(
-            "🧠 [SOURCE_HYDRATED]",
-            loaded.file,
-            loaded.source.length
-        );
-    }
 }
 }
     }
