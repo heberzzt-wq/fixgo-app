@@ -157,38 +157,69 @@ if (fileMatch) {
             }
 
             /* =====================================================
-               BACKEND ANALYSIS
-            ===================================================== */
+   BACKEND ANALYSIS
+===================================================== */
 
+if (
 
+    text.includes(".js") ||
 
-            if (
+    text.includes("firebase") ||
 
-                text.includes(".js") ||
+    text.includes("runtime")
 
-                text.includes("firebase") ||
+) {
 
-                text.includes("runtime")
+    cognition.intent =
+        "ANALYZE_RUNTIME";
 
-            ) {
+    cognition.domain =
+        "backend";
 
-                cognition.intent =
-                    "ANALYZE_RUNTIME";
+    cognition.expectedOutput =
+        "technical_runtime_analysis";
 
-                cognition.domain =
-                    "backend";
+    cognition.cognitionLayer =
+        "runtime_audit";
 
-                cognition.expectedOutput =
-                    "technical_runtime_analysis";
+    cognition.confidence =
+        0.90;
 
-                cognition.cognitionLayer =
-                    "runtime_audit";
+    /* ==========================================
+       JS FILE DETECTION
+    ========================================== */
 
-                cognition.confidence =
-                    0.90;
-            
+    const fileMatch =
+        text.match(
+            /([a-z0-9\-_]+\.js)/i
+        );
+
+    if (fileMatch) {
+
+        cognition.target =
+            fileMatch[1];
+
+        const found =
+            window.findRepoFile?.(
+                cognition.target
+            );
+
+        if (found) {
+
+            cognition.repoNode =
+                found[1];
+
+            cognition.repoAware =
+                true;
+
+            console.log(
+                "🧠 [REPO_NODE_FOUND]",
+                cognition.target,
+                cognition.repoNode
+            );
+        }
+    }
 }
-
 /* =====================================================
    REPO AWARENESS
 ===================================================== */
