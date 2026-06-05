@@ -1632,6 +1632,15 @@ const target = JSON.stringify({
            UI LAYOUT FINDINGS
         ========================================================= */
 
+
+        const source =
+    proposal?.changes?.[0]?.meta?.source || "";
+
+console.log(
+    "🧪 SOURCE_IN_FINDINGS",
+    source.length
+); 
+
         if (
 
             target.includes("tecnico") ||
