@@ -1231,6 +1231,13 @@ if (
        NORMALIZED EXECUTION PROPOSAL
     ================================================================================ */
 
+
+    console.log(
+    "🧪 PRE_PROPOSAL_SOURCE",
+    !!step?.meta?.source,
+    step?.meta?.source?.length
+); 
+
     const proposal = {
 
         operation_id:
@@ -1274,6 +1281,7 @@ if (
             runtime:
                 "COGNITIVE_OS"
         },
+
 
         /* ============================================================================
            STEP NORMALIZATION
@@ -1338,6 +1346,13 @@ if (
                             "AI_CODE_WRITE"
                     };
                 }
+
+                console.log(
+    "🧪 PRE_PROPOSAL_SOURCE",
+    !!step?.meta?.source,
+    step?.meta?.source?.length
+);
+
 
                 /* ====================================================================
                    LEGACY EXECUTION MAPPING
@@ -1434,6 +1449,18 @@ payload: {
         "🧠 [EXECUTION_CHANGES]",
         proposal.changes.length
     );
+
+
+    console.log(
+    "🧪 PROPOSAL_CREATED",
+    proposal
+);
+
+    console.log(
+    "🧪 PROPOSAL_HAS_SOURCE",
+    JSON.stringify(proposal)
+        .includes("DOCTYPE html")
+);
 
     console.log(
         "🧠 [EXECUTION_PROPOSAL]",
