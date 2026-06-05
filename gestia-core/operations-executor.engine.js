@@ -271,8 +271,24 @@ const {
 
                 emitirPulsoHUD(opId, "WRITE", `PROCESSING:${type}`, target);
 
+
+
                 // --- LÓGICA DE MUTACIÓN ---
                 switch (type) {
+
+                    /* =====================================================
+                        ✅ INYECCIÓN PARA ANÁLISIS DE UI (SIA7)
+                    ===================================================== */
+                    case "ANALYZE":
+                    case "ANALYZE_UI":
+                        retryBuffer.push({
+                            type,
+                            target,
+                            status: "analyzed_success",
+                            result: payload || "analysis_completed"
+                        });
+                        break;
+                        
                     // ✅ PROTOCOLO DE CONSTRUCCIÓN: CREAR/ACTUALIZAR MÓDULOS
                     case "CREATE_MODULE":
                     case "CREAR_MODULO":
