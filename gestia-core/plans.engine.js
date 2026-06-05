@@ -97,24 +97,31 @@ console.log(
 let msg = "Ejecución completada";
 
 if (result) {
-    if (result.message) msg = result.message;
-    else if (result.data) msg = JSON.stringify(result.data, null, 2);
-    
 
-else if (typeof result === "object") {
+    if (result.message) {
 
-    const issues =
+        msg = result.message;
 
-        Array.isArray(result?.issues)
-            ? result.issues
-            : [];
+    } else if (result.data) {
 
-    if (issues.length > 0) {
+        msg = JSON.stringify(
+            result.data,
+            null,
+            2
+        );
 
-        const top = issues[0];
+    } else if (typeof result === "object") {
 
-        msg =
-`
+        const issues =
+            Array.isArray(result?.issues)
+                ? result.issues
+                : [];
+
+        if (issues.length > 0) {
+
+            const top = issues[0];
+
+            msg = `
 Arquitecto,
 
 detecté:
@@ -133,27 +140,21 @@ ${top.severity || "LOW"}
 Esperando aprobación y validación humana.
 `;
 
-    } else {
+        } else {
 
-        const changes =
+            const changes =
+                result?.proposal?.changes ||
+                result?.changes ||
+                [];
 
-            result?.proposal?.changes ||
+            const affected =
+                changes.map(c =>
+                    c.target ||
+                    c.type ||
+                    "system"
+                );
 
-            result?.changes ||
-
-            [];
-
-        const affected =
-
-            changes.map(c =>
-
-                c.target ||
-                c.type ||
-                "system"
-            );
-
-        msg =
-`
+            msg = `
 Arquitecto,
 
 la operación fue procesada correctamente.
@@ -167,13 +168,31 @@ Objetivos afectados:
 Estado:
 esperando aprobación y validación humana.
 `;
+
+        }
+
+    } else {
+
+        msg = String(result);
+
     }
+
 }
 
+console.log("🧠 FINAL_MSG", msg);
 
+console.log(
+    "🧠 RENDER_PATH",
+    {
+        hasRenderResponse:
+            !!window.renderResponse,
 
-    else msg = String(result);
-}
+        hasRenderJarvisResponse:
+            !!window.renderJarvisResponse,
+
+        result
+    }
+);
 
 
 // 📺 UI
