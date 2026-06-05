@@ -198,7 +198,21 @@ console.log(
 // 📺 UI
 const clean = Array.isArray(result) ? result[0] : result;
 
-if (window.renderResponse && clean?.type) {
+console.log(
+    "🧠 CLEAN_OBJECT",
+    clean
+);
+
+console.log(
+    "🧠 CLEAN_TYPE",
+    clean?.type
+);
+
+if (
+    false &&
+    window.renderResponse &&
+    clean?.type
+) {
     window.renderResponse(clean);
 } else if (window.renderJarvisResponse) {
     window.renderJarvisResponse("Resultado", msg, "success");
