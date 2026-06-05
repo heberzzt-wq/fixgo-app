@@ -288,7 +288,7 @@ const {
                             result: payload || "analysis_completed"
                         });
                         break;
-                        
+
                     // ✅ PROTOCOLO DE CONSTRUCCIÓN: CREAR/ACTUALIZAR MÓDULOS
                     case "CREATE_MODULE":
                     case "CREAR_MODULO":
@@ -399,6 +399,24 @@ const {
                         });
                         break;
 
+
+                        /* =====================================================
+   ANALYZE / ANALYZE_UI CONSUMER
+===================================================== */
+case "ANALYZE":
+case "ANALYZE_UI":
+
+    retryBuffer.push({
+        type,
+        target,
+        status: "analyzed",
+        result:
+            payload?.report ||
+            payload ||
+            "analysis_completed"
+    });
+
+    break;
                     /* =====================================================
                         🔥 NUEVO: INYECCIÓN DIRECTA PARA CODE SURGEON (UPDATE)
                     ===================================================== */
