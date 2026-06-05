@@ -196,7 +196,20 @@ console.log(
 
 
 // 📺 UI
-const clean = Array.isArray(result) ? result[0] : result;
+
+const clean =
+    result?.issues?.length
+        ? {
+            type: "ANALYZE",
+            message: msg,
+            issues: result.issues,
+            result
+        }
+        : (
+            Array.isArray(result)
+                ? result[0]
+                : result
+        );
 
 console.log(
     "🧠 CLEAN_OBJECT",
@@ -213,11 +226,20 @@ if (
     window.renderResponse &&
     clean?.type
 ) {
-    window.renderResponse(clean);
-} else if (window.renderJarvisResponse) {
-    window.renderJarvisResponse("Resultado", msg, "success");
-}
 
+    window.renderResponse(clean);
+
+} else if (
+    window.renderJarvisResponse
+) {
+
+    window.renderJarvisResponse(
+        "Resultado",
+        msg,
+        "success"
+    );
+
+}
 
 // 🔊 VOZ
 if (window.hablarJarvis) {
