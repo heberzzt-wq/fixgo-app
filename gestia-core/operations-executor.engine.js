@@ -1629,44 +1629,43 @@ const target = JSON.stringify({
 
 
         /* =========================================================
-           UI LAYOUT FINDINGS
-        ========================================================= */
+   UI LAYOUT FINDINGS
+========================================================= */
 
-
-        const source =
+const source =
     proposal?.changes?.[0]?.meta?.source || "";
 
 console.log(
     "🧪 SOURCE_IN_FINDINGS",
     source.length
-); 
+);
 
-        if (
+if (
 
-            target.includes("tecnico") ||
+    source.includes("overflow-x:hidden") ||
 
-            target.includes("html")
+    source.includes("overflow-x: hidden")
 
-        ) {
+) {
 
-            issues.push({
+    issues.push({
 
-                type:
-                    "UI_LAYOUT",
+        type:
+            "UI_LAYOUT",
 
-                severity:
-                    "MEDIUM",
+        severity:
+            "HIGH",
 
-                title:
-                    "Posible sobredimensión visual detectada",
+        title:
+            "Overflow horizontal encontrado",
 
-                impact:
-                    "Desbordamiento móvil o tarjetas excesivas",
+        impact:
+            "Se detectó overflow-x:hidden dentro del código fuente",
 
-                recommendation:
-                    "Revisar grid, width fijo y padding responsive"
-            });
-        }
+        recommendation:
+            "Validar si el overflow está ocultando desbordamientos reales"
+    });
+}
 
         /* =========================================================
            PERFORMANCE
