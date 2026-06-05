@@ -508,7 +508,9 @@ const repoFile = tokens.find(token => {
         .replace(/['"]/g, "")
         .trim();
 
-    return window.getRepoNode?.(clean);
+    return !!window.findRepoFile?.(
+        clean
+    );
 });
 
 if (
@@ -539,9 +541,9 @@ if (
         targetFile: repoFile,
 
         repoNode:
-            window.getRepoNode(
+            window.findRepoFile?.(
                 repoFile
-            ),
+            )?.[1] || null,
 
         confidence: 1,
 
@@ -551,7 +553,6 @@ if (
 
     return;
 }
-
 /* =====================================================
    FLUJO NORMAL
 ===================================================== */
