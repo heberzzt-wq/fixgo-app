@@ -1232,11 +1232,7 @@ if (
     ================================================================================ */
 
 
-    console.log(
-    "🧪 PRE_PROPOSAL_SOURCE",
-    !!step?.meta?.source,
-    step?.meta?.source?.length
-); 
+   
 
     const proposal = {
 
