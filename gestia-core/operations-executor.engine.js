@@ -1629,22 +1629,24 @@ const target = JSON.stringify({
 
 
         /* =========================================================
-   UI LAYOUT FINDINGS
+   SIA7 SOURCE FINDINGS ENGINE
 ========================================================= */
 
 const source =
-    proposal?.changes?.[0]?.meta?.source || "";
+    change?.meta?.source || "";
 
 console.log(
     "🧪 SOURCE_IN_FINDINGS",
     source.length
 );
 
+/* =========================================================
+   OVERFLOW ANALYSIS
+========================================================= */
+
 if (
 
-    source.includes("overflow-x:hidden") ||
-
-    source.includes("overflow-x: hidden")
+    /overflow-x\s*:\s*hidden/i.test(source)
 
 ) {
 
@@ -1657,44 +1659,163 @@ if (
             "HIGH",
 
         title:
-            "Overflow horizontal encontrado",
+            "Overflow horizontal oculto",
 
         impact:
-            "Se detectó overflow-x:hidden dentro del código fuente",
+            "Se detectó overflow-x:hidden dentro del código fuente.",
 
         recommendation:
-            "Validar si el overflow está ocultando desbordamientos reales"
+            "Validar si el overflow está ocultando problemas reales de layout responsive."
     });
 }
 
-        /* =========================================================
-           PERFORMANCE
-        ========================================================= */
+/* =========================================================
+   RESPONSIVE WIDTH ANALYSIS
+========================================================= */
 
-        if (
+if (
 
-            target.includes("firebase")
+    /\bw-screen\b/i.test(source) ||
 
-        ) {
+    /100vw/i.test(source)
 
-            issues.push({
+) {
 
-                type:
-                    "PERFORMANCE",
+    issues.push({
 
-                severity:
-                    "LOW",
+        type:
+            "RESPONSIVE_RISK",
 
-                title:
-                    "Operación relacionada con servicios cloud",
+        severity:
+            "MEDIUM",
 
-                impact:
-                    "Posible latencia de sincronización",
+        title:
+            "Ancho potencialmente riesgoso",
 
-                recommendation:
-                    "Validar tiempos de respuesta y caché"
-            });
-        }
+        impact:
+            "Se detectó uso de w-screen o 100vw. Puede generar desbordamiento horizontal.",
+
+        recommendation:
+            "Evaluar reemplazo por w-full o layouts adaptativos."
+    });
+}
+
+/* =========================================================
+   DOM INJECTION ANALYSIS
+========================================================= */
+
+if (
+
+    /\.innerHTML\s*=/i.test(source)
+
+) {
+
+    issues.push({
+
+        type:
+            "SECURITY",
+
+        severity:
+            "HIGH",
+
+        title:
+            "Manipulación directa del DOM",
+
+        impact:
+            "Se detectó uso de innerHTML dentro del módulo.",
+
+        recommendation:
+            "Validar sanitización de entradas y preferir textContent cuando sea posible."
+    });
+}
+
+/* =========================================================
+   TIMER ANALYSIS
+========================================================= */
+
+if (
+
+    /setInterval\s*\(/i.test(source)
+
+) {
+
+    issues.push({
+
+        type:
+            "PERFORMANCE",
+
+        severity:
+            "MEDIUM",
+
+        title:
+            "Timer persistente detectado",
+
+        impact:
+            "Se encontró uso de setInterval dentro del módulo.",
+
+        recommendation:
+            "Validar limpieza y ciclo de vida del intervalo."
+    });
+}
+
+/* =========================================================
+   LARGE MODULE ANALYSIS
+========================================================= */
+
+if (
+
+    source.length > 200000
+
+) {
+
+    issues.push({
+
+        type:
+            "ARCHITECTURE",
+
+        severity:
+            "LOW",
+
+        title:
+            "Módulo de gran tamaño",
+
+        impact:
+            `El archivo contiene ${source.length} caracteres.`,
+
+        recommendation:
+            "Evaluar particionado modular para mejorar mantenibilidad."
+    });
+}
+
+/* =========================================================
+   CLOUD ANALYSIS
+========================================================= */
+
+if (
+
+    target.includes("firebase")
+
+) {
+
+    issues.push({
+
+        type:
+            "PERFORMANCE",
+
+        severity:
+            "LOW",
+
+        title:
+            "Operación relacionada con servicios cloud",
+
+        impact:
+            "Posible latencia de sincronización",
+
+        recommendation:
+            "Validar tiempos de respuesta, caché y reconexión."
+    });
+}
+
     }
 
 }
