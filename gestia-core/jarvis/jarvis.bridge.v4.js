@@ -1488,18 +1488,32 @@ Escribe:
         cognition.target;
 
 }
+const localIntent = cognition?.intent;
+const remoteIntent = rawPlan?.intent;
+
 if (
-    cognition?.intent &&
-    rawPlan?.intent === "analyze"
+    localIntent &&
+    localIntent !== "UNKNOWN" &&
+    remoteIntent === "analyze"
 ) {
 
     console.warn(
         "🛠️ INTENT_OVERRIDE",
-        cognition.intent
+        localIntent
     );
 
-    rawPlan.intent =
-        cognition.intent;
+    rawPlan.intent = localIntent;
+
+} else if (
+    remoteIntent === "analyze" &&
+    localIntent === "UNKNOWN"
+) {
+
+    console.log(
+        "🛡️ [BRIDGE_PROTECTION]",
+        "Preservando intent IA:",
+        remoteIntent
+    );
 }
 
 
