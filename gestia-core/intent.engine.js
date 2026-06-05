@@ -498,6 +498,20 @@ if (rawLower === "repair" || rawLower.startsWith("repair")) {
         // 👇 CONTINÚA EL PROCESAMIENTO HUMANO/HÍBRIDO
         const tokens = rawLower.split(/\s+/);
 
+
+        console.log(
+    "🔥 REPO DETECTOR V3 ACTIVE"
+);
+
+console.log(
+    "🔥 TOKENS",
+    tokens
+);
+
+console.log(
+    "🔥 REPOFILE",
+    repoFile
+);
 /* =====================================================
    REPO FILE DETECTOR
 ===================================================== */
