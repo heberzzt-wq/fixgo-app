@@ -74,10 +74,23 @@ console.log("🧪 [EXECUTE CALL]:", typeof executeSteps);
 
 // 🚀 EJECUCIÓN REAL
 const result = await executeSteps(plan.steps, {
+
+    
     traceId: plan.traceId || "no_trace",
     userId: user?.id || "system",
     tenantId: plan.tenantId || "default"
 });
+
+// 🔥 BISTURÍ FORENSE
+console.log(
+    "🔥 EXECUTION_RESULT_CAPTURE",
+    result
+);
+
+console.log(
+    "🔥 EXECUTION_RESULT_JSON",
+    JSON.stringify(result, null, 2)
+);
 
 
 // 🧠 FORMATEO + UI + VOZ

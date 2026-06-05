@@ -380,6 +380,8 @@ class BankLedger {
     }
 
     /* 🔥 NUEVO MÉTODO LOG (PÉGALO AQUÍ) */
+
+    
 async log(type, payload = {}) {
     console.log("📘 [LEDGER LOG]:", type, payload);
 
