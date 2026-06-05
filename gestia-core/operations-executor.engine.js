@@ -381,6 +381,81 @@ const {
                         retryBuffer.push({ type, target, status: "locked" });
                         break;
 
+                        /* =====================================================
+   ANALYZE FILE HYDRATION
+===================================================== */
+
+case "ANALYZE":
+case "ANALYZE_UI":
+
+    try {
+
+        const fileName =
+
+            payload?.target ||
+            target ||
+            payload?.file;
+
+        const loaded =
+
+            await window.loadRepoContext(
+                fileName
+            );
+
+        retryBuffer.push({
+
+            type,
+
+            target: fileName,
+
+            status:
+
+                loaded?.ok
+                    ? "analysis_loaded"
+                    : "analysis_failed",
+
+            sourceSize:
+
+                loaded?.source?.length || 0,
+
+            result:
+
+                loaded?.ok
+                    ? loaded.source
+                    : loaded?.error
+        });
+
+        console.log(
+            "🧠 [ANALYZE_SOURCE_LOADED]",
+            fileName,
+            loaded?.source?.length || 0
+        );
+
+    }
+
+    catch(err) {
+
+        console.error(
+            "🚨 [ANALYZE_FAIL]",
+            err
+        );
+
+        retryBuffer.push({
+
+            type,
+
+            target,
+
+            status:
+                "analysis_error",
+
+            error:
+                err.message
+        });
+    }
+
+    break;
+
                     case "DATA_ANALYSIS":
                         retryBuffer.push({
                             type,
