@@ -10595,6 +10595,20 @@ window.__REPO_INDEX__["app-main.js"] = {
 };
 
 
+window.__REPO_INDEX__["panel-admin.js"] = {
+
+    path:
+        "panel-admin.js",
+
+    module:
+        "admin_control_center",
+
+    type:
+        "financial_support_runtime",
+
+    critical: true
+};
+
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
     path: "tecnico-b2b.html",
