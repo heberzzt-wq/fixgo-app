@@ -10637,6 +10637,20 @@ window.__REPO_INDEX__["panel-cliente.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["panel-b2b-admin.js"] = {
+
+    path:
+        "panel-b2b-admin.js",
+
+    module:
+        "b2b_command_center",
+
+    type:
+        "tenant_admin_runtime",
+
+    critical: true
+};
+
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
     path: "tecnico-b2b.html",
