@@ -78,7 +78,13 @@ else {
             console.log(
                 "🧠 [REPO_COGNITION_INDEX] LOADED"
             );
+await import(
+    "./repo/resource.registry.js?v=" + Date.now()
+);
 
+console.log(
+    "🧠 [RESOURCE_REGISTRY_LOADED]"
+);
             /* ==========================================================================
                SEMANTIC ENGINE
             ========================================================================== */
