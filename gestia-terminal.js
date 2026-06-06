@@ -10623,6 +10623,20 @@ window.__REPO_INDEX__["panel-tecnico.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["panel-cliente.js"] = {
+
+    path:
+        "panel-cliente.js",
+
+    module:
+        "customer_commerce",
+
+    type:
+        "customer_runtime",
+
+    critical: true
+};
+
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
     path: "tecnico-b2b.html",
