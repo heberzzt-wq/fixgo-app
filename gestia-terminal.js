@@ -10763,6 +10763,72 @@ window.__REPO_INDEX__["visor-flota.html"] = {
     critical: false
 };
 
+window.__REPO_INDEX__["login.html"] = {
+
+    path: "login.html",
+
+    module: "auth_domain",
+
+    type: "login_ui",
+
+    critical: false
+};
+
+window.__REPO_INDEX__["app-login.js"] = {
+
+    path: "app-login.js",
+
+    module: "auth_domain",
+
+    type: "login_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["registro.html"] = {
+
+    path: "registro.html",
+
+    module: "auth_domain",
+
+    type: "registration_ui",
+
+    critical: false
+};
+
+window.__REPO_INDEX__["app-registro.js"] = {
+
+    path: "app-registro.js",
+
+    module: "auth_domain",
+
+    type: "registration_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["core_auth_tenant_v1.js"] = {
+
+    path: "gestia-core/core_auth_tenant_v1.js",
+
+    module: "tenant_security",
+
+    type: "authority_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["core_tenant_resolver_v2.js"] = {
+
+    path: "gestia-core/core_tenant_resolver_v2.js",
+
+    module: "tenant_security",
+
+    type: "tenant_resolution_runtime",
+
+    critical: true
+};
+
 
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
