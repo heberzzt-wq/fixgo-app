@@ -10651,6 +10651,20 @@ window.__REPO_INDEX__["panel-b2b-admin.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["firebase.js"] = {
+
+    path:
+        "firebase.js",
+
+    module:
+        "firebase_core",
+
+    type:
+        "infrastructure_runtime",
+
+    critical: true
+};
+
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
     path: "tecnico-b2b.html",
