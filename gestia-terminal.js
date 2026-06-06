@@ -10708,6 +10708,61 @@ window.__REPO_INDEX__["gestia-render.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["modulo-flotilla.html"] = {
+
+    path: "modulo-flotilla.html",
+
+    module: "fleet_management",
+
+    type: "fleet_ui",
+
+    critical: false
+};
+
+window.__REPO_INDEX__["modulo-flotilla.js"] = {
+
+    path: "modulo-flotilla.js",
+
+    module: "fleet_management",
+
+    type: "fleet_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["terminal-chofer.html"] = {
+
+    path: "terminal-chofer.html",
+
+    module: "fleet_operations",
+
+    type: "driver_ui",
+
+    critical: false
+};
+
+window.__REPO_INDEX__["terminal-chofer.js"] = {
+
+    path: "terminal-chofer.js",
+
+    module: "fleet_operations",
+
+    type: "driver_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["visor-flota.html"] = {
+
+    path: "visor-flota.html",
+
+    module: "fleet_monitoring",
+
+    type: "tracking_command_center",
+
+    critical: false
+};
+
 
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
