@@ -10580,6 +10580,21 @@ window.__REPO_INDEX__["plans.engine.js"] = {
 /* =====================================================
 B2B ACCESS MODULE
 ===================================================== */
+window.__REPO_INDEX__["app-main.js"] = {
+
+    path:
+        "app-main.js",
+
+    module:
+        "main_controller",
+
+    type:
+        "runtime_router",
+
+    critical: true
+};
+
+
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
     path: "tecnico-b2b.html",
