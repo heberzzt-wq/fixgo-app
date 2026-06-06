@@ -10966,6 +10966,76 @@ window.__REPO_INDEX__["core_tenant_resolver_v2.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["audit.engine.js"] = {
+
+    path:
+        "gestia-core/audit.engine.js",
+
+    module:
+        "audit",
+
+    type:
+        "audit_runtime",
+
+    critical:
+        true
+};
+
+window.__REPO_COGNITION__["audit.engine.js"] = {
+
+    owner:
+        "audit",
+
+    governance:
+        "NORMAL",
+
+    runtimeRole:
+        "security",
+
+    engineType:
+        "audit_runtime",
+
+    dependencies: [
+
+        "history.engine.js",
+
+        "jarvis.memory.js"
+    ],
+
+    exports: [
+
+        "validarSeguridadCodigo",
+
+        "validarPesoCampos",
+
+        "ejecutarAuditoriaCore"
+    ]
+};
+
+window.__MODULE_OWNERSHIP__["audit.engine.js"] = {
+
+    owner:
+        "audit",
+
+    governance:
+        "NORMAL",
+
+    runtimeRole:
+        "security",
+
+    engineType:
+        "audit_runtime",
+
+    dependencies: [
+
+        "history.engine.js",
+
+        "jarvis.memory.js"
+    ]
+};
+
+
+
 
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
