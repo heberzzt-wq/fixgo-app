@@ -10935,7 +10935,7 @@ window.__REPO_INDEX__["jarvis.normalizer.js"] = {
 };
 
 window.__REPO_INDEX__["jarvis-hud.js"] = {
-    path: "gestia-core/jarvis/jarvis-hud.js",
+    path: "gestia-core/jarvis-hud.js",
     module: "jarvis_hud",
     type: "observability_runtime",
     critical: false
@@ -10948,8 +10948,8 @@ window.__REPO_INDEX__["jarvis.bridge.js"] = {
     critical: true
 };
 
-window.__REPO_INDEX__["jarvis.bridge.v5.js"] = {
-    path: "gestia-core/jarvis/jarvis.bridge.v5.js",
+window.__REPO_INDEX__["jarvis.bridge.v4.js"] = {
+    path: "gestia-core/jarvis/jarvis.bridge.v4.js",
     module: "jarvis_bridge",
     type: "bridge_runtime",
     critical: true
