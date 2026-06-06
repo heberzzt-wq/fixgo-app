@@ -9967,6 +9967,16 @@ window.addEventListener(
 
             await bootstrapRepoCognition();
 
+
+            await import(
+    "./gestia-core/repo/resource.registry.js?v=" +
+    Date.now()
+);
+
+console.log(
+    "🧠 [RESOURCE_REGISTRY_LOADED]"
+);
+
             /* =================================================
                BOOTSTRAP RUNTIME COGNITION
             ================================================= */
