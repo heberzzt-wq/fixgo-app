@@ -78,8 +78,16 @@ else {
             console.log(
                 "🧠 [REPO_COGNITION_INDEX] LOADED"
             );
+
+            console.log(
+    "🧪 BEFORE_RESOURCE_REGISTRY"
+);
 await import(
     "./repo/resource.registry.js?v=" + Date.now()
+);
+
+console.log(
+    "🧪 AFTER_RESOURCE_REGISTRY"
 );
 
 console.log(
