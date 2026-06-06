@@ -10818,6 +10818,143 @@ window.__REPO_INDEX__["core_auth_tenant_v1.js"] = {
     critical: true
 };
 
+/* =====================================================
+   JARVIS COGNITIVE SUITE
+===================================================== */
+
+window.__REPO_INDEX__["jarvis-nlu-bridge.js"] = {
+    path: "gestia-core/jarvis/jarvis-nlu-bridge.js",
+    module: "jarvis_nlu",
+    type: "cognitive_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.language.core.v5.js"] = {
+    path: "gestia-core/jarvis/jarvis.language.core.v5.js",
+    module: "jarvis_language",
+    type: "language_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.dsl.js"] = {
+    path: "gestia-core/jarvis/jarvis.dsl.js",
+    module: "jarvis_dsl",
+    type: "command_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.memory.js"] = {
+    path: "gestia-core/jarvis/jarvis.memory.js",
+    module: "jarvis_memory",
+    type: "memory_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.context.memory.v6.js"] = {
+    path: "gestia-core/jarvis/jarvis.context.memory.v6.js",
+    module: "context_memory",
+    type: "memory_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.business.engine.js"] = {
+    path: "gestia-core/jarvis/jarvis.business.engine.js",
+    module: "jarvis_business",
+    type: "business_runtime",
+    critical: false
+};
+
+window.__REPO_INDEX__["jarvis.company.registry.js"] = {
+    path: "gestia-core/jarvis/jarvis.company.registry.js",
+    module: "company_registry",
+    type: "knowledge_runtime",
+    critical: false
+};
+
+window.__REPO_INDEX__["jarvis.firestore.engine.js"] = {
+    path: "gestia-core/jarvis/jarvis.firestore.engine.js",
+    module: "jarvis_firestore",
+    type: "data_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.scanner.engine.js"] = {
+    path: "gestia-core/jarvis/jarvis.scanner.engine.js",
+    module: "jarvis_scanner",
+    type: "analysis_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.autofix.engine.js"] = {
+    path: "gestia-core/jarvis/jarvis.autofix.engine.js",
+    module: "jarvis_autofix",
+    type: "repair_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.autopatch.engine.js"] = {
+    path: "gestia-core/jarvis/jarvis.autopatch.engine.js",
+    module: "jarvis_autopatch",
+    type: "repair_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.patchdiff.engine.js"] = {
+    path: "gestia-core/jarvis/jarvis.patchdiff.engine.js",
+    module: "jarvis_patchdiff",
+    type: "analysis_runtime",
+    critical: false
+};
+
+window.__REPO_INDEX__["jarvis.snapshot.js"] = {
+    path: "gestia-core/jarvis/jarvis.snapshot.js",
+    module: "jarvis_snapshot",
+    type: "recovery_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.orchestrator.js"] = {
+    path: "gestia-core/jarvis/jarvis.orchestrator.js",
+    module: "jarvis_orchestrator",
+    type: "orchestration_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.vision.engine.js"] = {
+    path: "gestia-core/jarvis/jarvis.vision.engine.js",
+    module: "jarvis_vision",
+    type: "cognition_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.normalizer.js"] = {
+    path: "gestia-core/jarvis/jarvis.normalizer.js",
+    module: "jarvis_normalizer",
+    type: "normalization_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis-hud.js"] = {
+    path: "gestia-core/jarvis/jarvis-hud.js",
+    module: "jarvis_hud",
+    type: "observability_runtime",
+    critical: false
+};
+
+window.__REPO_INDEX__["jarvis.bridge.js"] = {
+    path: "gestia-core/jarvis/jarvis.bridge.js",
+    module: "jarvis_bridge_legacy",
+    type: "bridge_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["jarvis.bridge.v5.js"] = {
+    path: "gestia-core/jarvis/jarvis.bridge.v5.js",
+    module: "jarvis_bridge",
+    type: "bridge_runtime",
+    critical: true
+};
+
 window.__REPO_INDEX__["core_tenant_resolver_v2.js"] = {
 
     path: "gestia-core/core_tenant_resolver_v2.js",
