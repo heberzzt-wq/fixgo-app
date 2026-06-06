@@ -10679,6 +10679,20 @@ window.__REPO_INDEX__["gps-motor.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["rastreo.html"] = {
+
+    path:
+        "rastreo.html",
+
+    module:
+        "field_tracking",
+
+    type:
+        "tracking_ui",
+
+    critical: false
+};
+
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
     path: "tecnico-b2b.html",
