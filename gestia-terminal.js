@@ -10665,6 +10665,20 @@ window.__REPO_INDEX__["firebase.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["gps-motor.js"] = {
+
+    path:
+        "gps-motor.js",
+
+    module:
+        "field_tracking",
+
+    type:
+        "telemetry_runtime",
+
+    critical: true
+};
+
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
     path: "tecnico-b2b.html",
