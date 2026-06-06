@@ -10609,6 +10609,20 @@ window.__REPO_INDEX__["panel-admin.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["panel-tecnico.js"] = {
+
+    path:
+        "panel-tecnico.js",
+
+    module:
+        "field_operations",
+
+    type:
+        "technician_runtime",
+
+    critical: true
+};
+
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
     path: "tecnico-b2b.html",
