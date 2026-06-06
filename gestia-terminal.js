@@ -10693,6 +10693,22 @@ window.__REPO_INDEX__["rastreo.html"] = {
     critical: false
 };
 
+
+window.__REPO_INDEX__["gestia-render.js"] = {
+
+    path:
+        "gestia-render.js",
+
+    module:
+        "ui_orchestration",
+
+    type:
+        "render_runtime",
+
+    critical: true
+};
+
+
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
     path: "tecnico-b2b.html",
