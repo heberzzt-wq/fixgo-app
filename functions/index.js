@@ -2420,6 +2420,8 @@ exports.repoCommitEngineHealth = functions
     })
     .https.onRequest(async (req, res) => {
 
+        initRepoCommitEngine();
+
         return res.status(200).json({
             success: true,
             engine: "repo_commit_engine",
