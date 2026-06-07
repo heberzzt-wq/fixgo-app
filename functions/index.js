@@ -2751,6 +2751,121 @@ exports.repoCommitWriteFile = functions
             });
         }
     });
+
+
+    // ======================================================================================
+// REPO BACKUP FILE
+// ======================================================================================
+
+exports.repoCommitBackupFile = functions
+    .runWith({
+        timeoutSeconds: 120,
+        memory: "512MB",
+        secrets: ["GITHUB_TOKEN"]
+    })
+    .https.onRequest(async (req, res) => {
+
+        try {
+
+            initRepoCommitEngine();
+
+            if (!repoCommitEngine.github) {
+
+                return res.status(500).json({
+                    success: false,
+                    error: "GITHUB_CLIENT_NOT_AVAILABLE"
+                });
+            }
+
+            const sourcePath =
+                req.body?.path ||
+                req.query?.path;
+
+            if (!sourcePath) {
+
+                return res.status(400).json({
+                    success: false,
+                    error: "PATH_REQUIRED"
+                });
+            }
+
+            const sourceFile =
+                await repoCommitEngine.github.repos.getContent({
+
+                    owner: "heberzzt-wq",
+
+                    repo: "fixgo-app",
+
+                    path: sourcePath
+                });
+
+            if (
+                Array.isArray(sourceFile.data)
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    error: "PATH_IS_DIRECTORY"
+                });
+            }
+
+            const originalContent =
+                Buffer.from(
+                    sourceFile.data.content,
+                    "base64"
+                ).toString("utf8");
+
+            const timestamp =
+                Date.now();
+
+            const backupPath =
+                `_jarvis_backups/${timestamp}_${sourcePath.replace(/\//g, "__")}.bak`;
+
+            const encodedBackup =
+                Buffer
+                    .from(originalContent, "utf8")
+                    .toString("base64");
+
+            const result =
+                await repoCommitEngine.github.repos.createOrUpdateFileContents({
+
+                    owner: "heberzzt-wq",
+
+                    repo: "fixgo-app",
+
+                    path: backupPath,
+
+                    message:
+                        `Jarvis backup: ${sourcePath}`,
+
+                    content:
+                        encodedBackup
+                });
+
+            return res.status(200).json({
+                success: true,
+                sourcePath,
+                backupPath,
+                backupCommit:
+                    result.data.commit.sha,
+                backupSha:
+                    result.data.content.sha
+            });
+
+        } catch (error) {
+
+            console.error(
+                "[REPO_BACKUP_FILE_ERROR]",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                error: error.message,
+                status: error.status || null
+            });
+        }
+    });
     
 /**
  * ======================================================================================
