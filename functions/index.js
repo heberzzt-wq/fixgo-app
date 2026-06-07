@@ -23,6 +23,7 @@ const cors = require("cors");
 const crypto = require("crypto");
 const Stripe = require("stripe");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { Octokit } = require("@octokit/rest");
 
 /**
  * 🛡️ SELLADO DE INFRAESTRUCTURA (GLOBAL SCOPE)
@@ -59,6 +60,7 @@ app.use((req, res, next) => {
 let db = admin.firestore(); // Sello inmediato de base de datos
 let stripe;
 let genAI;
+let githubClient;
 let firewallV5;
 let initialized = false;
 
@@ -73,6 +75,29 @@ function initCore() {
 
     const rawKey = process.env.GEMINI_KEY || "";
     genAI = new GoogleGenerativeAI(rawKey);
+
+    const githubToken =
+    process.env.GITHUB_TOKEN || "";
+
+console.log(
+    "🧠 [GITHUB_TOKEN_PRESENT]",
+    !!githubToken
+);
+
+if (
+    githubToken &&
+    !githubClient
+) {
+
+    githubClient =
+        new Octokit({
+            auth: githubToken
+        });
+
+    console.log(
+        "🧠 [GITHUB_CLIENT_READY]"
+    );
+}
 
     const firewall = firewallFactory({ admin, db });
 
