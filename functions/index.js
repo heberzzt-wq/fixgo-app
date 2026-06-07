@@ -2535,6 +2535,92 @@ exports.repoCommitListRoot = functions
             });
         }
     });
+
+// ======================================================================================
+// REPO READ FILE
+// ======================================================================================
+
+exports.repoCommitReadFile = functions
+    .runWith({
+        timeoutSeconds: 120,
+        memory: "512MB",
+        secrets: ["GITHUB_TOKEN"]
+    })
+    .https.onRequest(async (req, res) => {
+
+        try {
+
+            initRepoCommitEngine();
+
+            if (!repoCommitEngine.github) {
+
+                return res.status(500).json({
+                    success: false,
+                    error: "GITHUB_CLIENT_NOT_AVAILABLE"
+                });
+            }
+
+            const path =
+                req.query.path ||
+                req.body?.path;
+
+            if (!path) {
+
+                return res.status(400).json({
+                    success: false,
+                    error: "PATH_REQUIRED"
+                });
+            }
+
+            const fileResponse =
+                await repoCommitEngine.github.repos.getContent({
+
+                    owner: "heberzzt-wq",
+
+                    repo: "fixgo-app",
+
+                    path
+                });
+
+            if (Array.isArray(fileResponse.data)) {
+
+                return res.status(400).json({
+                    success: false,
+                    error: "PATH_IS_DIRECTORY",
+                    path
+                });
+            }
+
+            const content =
+                Buffer.from(
+                    fileResponse.data.content,
+                    "base64"
+                ).toString("utf8");
+
+            return res.status(200).json({
+                success: true,
+                repo: "heberzzt-wq/fixgo-app",
+                path,
+                sha: fileResponse.data.sha,
+                size: fileResponse.data.size,
+                encoding: fileResponse.data.encoding,
+                content
+            });
+
+        } catch (error) {
+
+            console.error(
+                "[REPO_READ_FILE_ERROR]",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                error: error.message,
+                status: error.status || null
+            });
+        }
+    });
 /**
  * ======================================================================================
  * FIN DEL NÚCLEO GESTIAPREMIUM V5.56 (SENTINEL HYBRID CORE)
