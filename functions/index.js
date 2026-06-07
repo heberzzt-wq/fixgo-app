@@ -2404,22 +2404,19 @@ function initRepoCommitEngine() {
     repoCommitEngine.provider =
         "github";
 
-        repoCommitEngine.secret =
-    "GITHUB_TOKEN";
+    repoCommitEngine.secret =
+        "GITHUB_TOKEN";
 
     repoCommitEngine.tokenPresent =
-    !!process.env.GITHUB_TOKEN;
+        !!process.env.GITHUB_TOKEN;
 
-    if (
-    repoCommitEngine.tokenPresent
-) {
+    if (repoCommitEngine.tokenPresent) {
 
-    repoCommitEngine.github =
-        new Octokit({
-            auth:
-                process.env.GITHUB_TOKEN
-        });
-}
+        repoCommitEngine.github =
+            new Octokit({
+                auth: process.env.GITHUB_TOKEN
+            });
+    }
 
     repoCommitEngine.initialized = true;
 
@@ -2441,22 +2438,10 @@ exports.repoCommitEngineHealth = functions
         initRepoCommitEngine();
 
         const repoInfo =
-    await repoCommitEngine.github.repos.get({
-
-        owner: "heberzzt-wq",
-
-        repo: "fixgo-app"
-    });
-
-    const readmeInfo =
-    await repoCommitEngine.github.repos.getContent({
-
-        owner: "heberzzt-wq",
-
-        repo: "fixgo-app",
-
-        path: "README.md"
-    });
+            await repoCommitEngine.github.repos.get({
+                owner: "heberzzt-wq",
+                repo: "fixgo-app"
+            });
 
         return res.status(200).json({
             success: true,
@@ -2464,14 +2449,9 @@ exports.repoCommitEngineHealth = functions
             initialized: repoCommitEngine.initialized,
             provider: repoCommitEngine.provider,
             secret: repoCommitEngine.secret,
-            tokenPresent:
-            repoCommitEngine.tokenPresent,
-            githubClient:
-    !!repoCommitEngine.github,
-    repo:
-    repoInfo.data.full_name,
-    readme:
-    readmeInfo.data.path
+            tokenPresent: repoCommitEngine.tokenPresent,
+            githubClient: !!repoCommitEngine.github,
+            repo: repoInfo.data.full_name
         });
 
     });
