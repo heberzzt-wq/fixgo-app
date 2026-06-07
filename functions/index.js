@@ -2427,6 +2427,10 @@ function initRepoCommitEngine() {
     return repoCommitEngine;
 }
 
+// ======================================================================================
+// REPO COMMIT ENGINE HEALTH
+// ======================================================================================
+
 exports.repoCommitEngineHealth = functions
     .runWith({
         timeoutSeconds: 60,
@@ -2435,25 +2439,101 @@ exports.repoCommitEngineHealth = functions
     })
     .https.onRequest(async (req, res) => {
 
-        initRepoCommitEngine();
+        try {
 
-        const repoInfo =
-            await repoCommitEngine.github.repos.get({
-                owner: "heberzzt-wq",
-                repo: "fixgo-app"
+            initRepoCommitEngine();
+
+            const repoInfo =
+                await repoCommitEngine.github.repos.get({
+                    owner: "heberzzt-wq",
+                    repo: "fixgo-app"
+                });
+
+            return res.status(200).json({
+                success: true,
+                engine: "repo_commit_engine",
+                initialized: repoCommitEngine.initialized,
+                provider: repoCommitEngine.provider,
+                secret: repoCommitEngine.secret,
+                tokenPresent: repoCommitEngine.tokenPresent,
+                githubClient: !!repoCommitEngine.github,
+                repo: repoInfo.data.full_name
             });
 
-        return res.status(200).json({
-            success: true,
-            engine: "repo_commit_engine",
-            initialized: repoCommitEngine.initialized,
-            provider: repoCommitEngine.provider,
-            secret: repoCommitEngine.secret,
-            tokenPresent: repoCommitEngine.tokenPresent,
-            githubClient: !!repoCommitEngine.github,
-            repo: repoInfo.data.full_name
-        });
+        } catch (error) {
 
+            console.error(
+                "[REPO_COMMIT_ENGINE_HEALTH]",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+    });
+
+// ======================================================================================
+// REPO LIST ROOT
+// ======================================================================================
+
+exports.repoCommitListRoot = functions
+    .runWith({
+        timeoutSeconds: 60,
+        memory: "256MB",
+        secrets: ["GITHUB_TOKEN"]
+    })
+    .https.onRequest(async (req, res) => {
+
+        try {
+
+            initRepoCommitEngine();
+
+            if (!repoCommitEngine.github) {
+
+                return res.status(500).json({
+                    success: false,
+                    error: "GITHUB_CLIENT_NOT_AVAILABLE"
+                });
+            }
+
+            const rootContents =
+                await repoCommitEngine.github.repos.getContent({
+                    owner: "heberzzt-wq",
+                    repo: "fixgo-app",
+                    path: ""
+                });
+
+            const items =
+                Array.isArray(rootContents.data)
+                    ? rootContents.data.map(item => ({
+                        name: item.name,
+                        path: item.path,
+                        type: item.type
+                    }))
+                    : [];
+
+            return res.status(200).json({
+                success: true,
+                repo: "heberzzt-wq/fixgo-app",
+                count: items.length,
+                items
+            });
+
+        } catch (error) {
+
+            console.error(
+                "[REPO_LIST_ROOT_ERROR]",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                error: error.message,
+                status: error.status || null
+            });
+        }
     });
 /**
  * ======================================================================================
