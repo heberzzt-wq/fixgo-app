@@ -11217,6 +11217,118 @@ window.__REPO_INDEX__["app-inquilino.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["firebase-node-adapter.js"] = {
+
+    path:
+        "firebase-node-adapter.js",
+
+    module:
+        "firebase_adapter",
+
+    type:
+        "infrastructure_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["firebase-shim.js"] = {
+
+    path:
+        "firebase-shim.js",
+
+    module:
+        "firebase_shim",
+
+    type:
+        "compatibility_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["fixgo-bridge.js"] = {
+
+    path:
+        "fixgo-bridge.js",
+
+    module:
+        "financial_bridge",
+
+    type:
+        "business_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["modulo-b2b.js"] = {
+
+    path:
+        "modulo-b2b.js",
+
+    module:
+        "facility_management",
+
+    type:
+        "b2b_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["scheduler_predictivo.js"] = {
+
+    path:
+        "scheduler_predictivo.js",
+
+    module:
+        "predictive_scheduler",
+
+    type:
+        "automation_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["scheduler_rutinas.js"] = {
+
+    path:
+        "scheduler_rutinas.js",
+
+    module:
+        "preventive_scheduler",
+
+    type:
+        "automation_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["app-utils.js"] = {
+
+    path:
+        "app-utils.js",
+
+    module:
+        "shared_utilities",
+
+    type:
+        "utility_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["app-panel.js"] = {
+
+    path:
+        "app-panel.js",
+
+    module:
+        "panel_router",
+
+    type:
+        "runtime_router",
+
+    critical: true
+};
+
 
 
 
