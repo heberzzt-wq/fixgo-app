@@ -11385,6 +11385,34 @@ window.__REPO_INDEX__["jarvis.cognition.engine.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["alert-engine.js"] = {
+    path: "alert-engine.js",
+    module: "alert_engine",
+    type: "notification_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["fixgo-core-backend.js"] = {
+    path: "fixgo-core-backend.js",
+    module: "financial_core",
+    type: "financial_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["fixgo-modals.js"] = {
+    path: "fixgo-modals.js",
+    module: "modal_templates",
+    type: "ui_runtime",
+    critical: true
+};
+
+window.__REPO_INDEX__["soporte-whatsapp.js"] = {
+    path: "soporte-whatsapp.js",
+    module: "support_channel",
+    type: "communication_runtime",
+    critical: false
+};
+
 
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
