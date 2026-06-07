@@ -2440,6 +2440,14 @@ exports.repoCommitEngineHealth = functions
 
         initRepoCommitEngine();
 
+        const repoInfo =
+    await repoCommitEngine.github.repos.get({
+
+        owner: "heberzzt-wq",
+
+        repo: "fixgo-app"
+    });
+
         return res.status(200).json({
             success: true,
             engine: "repo_commit_engine",
@@ -2449,7 +2457,9 @@ exports.repoCommitEngineHealth = functions
             tokenPresent:
             repoCommitEngine.tokenPresent,
             githubClient:
-    !!repoCommitEngine.github
+    !!repoCommitEngine.github,
+    repo:
+    repoInfo.data.full_name
         });
 
     });
