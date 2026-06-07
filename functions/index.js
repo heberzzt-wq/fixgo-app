@@ -2422,7 +2422,8 @@ function initRepoCommitEngine() {
 exports.repoCommitEngineHealth = functions
     .runWith({
         timeoutSeconds: 60,
-        memory: "256MB"
+        memory: "256MB",
+        secrets: ["GITHUB_TOKEN"]
     })
     .https.onRequest(async (req, res) => {
 
