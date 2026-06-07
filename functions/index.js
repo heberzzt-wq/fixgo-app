@@ -2621,6 +2621,137 @@ exports.repoCommitReadFile = functions
             });
         }
     });
+
+    // ======================================================================================
+// REPO WRITE FILE
+// ======================================================================================
+
+exports.repoCommitWriteFile = functions
+    .runWith({
+        timeoutSeconds: 120,
+        memory: "512MB",
+        secrets: ["GITHUB_TOKEN"]
+    })
+    .https.onRequest(async (req, res) => {
+
+        try {
+
+            initRepoCommitEngine();
+
+            if (!repoCommitEngine.github) {
+
+                return res.status(500).json({
+                    success: false,
+                    error: "GITHUB_CLIENT_NOT_AVAILABLE"
+                });
+            }
+
+            const path =
+                req.body?.path ||
+                req.query?.path;
+
+            const content =
+                req.body?.content;
+
+            const commitMessage =
+                req.body?.message ||
+                `Jarvis update ${Date.now()}`;
+
+            if (!path) {
+
+                return res.status(400).json({
+                    success: false,
+                    error: "PATH_REQUIRED"
+                });
+            }
+
+            if (
+                typeof content !== "string"
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    error: "CONTENT_REQUIRED"
+                });
+            }
+
+            let currentSha = null;
+
+            try {
+
+                const existingFile =
+                    await repoCommitEngine.github.repos.getContent({
+                        owner: "heberzzt-wq",
+                        repo: "fixgo-app",
+                        path
+                    });
+
+                currentSha =
+                    existingFile.data.sha;
+
+            } catch (readError) {
+
+                if (
+                    readError.status !== 404
+                ) {
+                    throw readError;
+                }
+            }
+
+            const encodedContent =
+                Buffer
+                    .from(content, "utf8")
+                    .toString("base64");
+
+            const updatePayload = {
+                owner: "heberzzt-wq",
+                repo: "fixgo-app",
+                path,
+                message: commitMessage,
+                content: encodedContent
+            };
+
+            if (currentSha) {
+                updatePayload.sha =
+                    currentSha;
+            }
+
+            const result =
+                await repoCommitEngine.github
+                    .repos
+                    .createOrUpdateFileContents(
+                        updatePayload
+                    );
+
+            return res.status(200).json({
+                success: true,
+                repo: "heberzzt-wq/fixgo-app",
+                path,
+                commit:
+                    result.data.commit.sha,
+                fileSha:
+                    result.data.content.sha,
+                created:
+                    !currentSha,
+                updated:
+                    !!currentSha
+            });
+
+        } catch (error) {
+
+            console.error(
+                "[REPO_WRITE_FILE_ERROR]",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                error: error.message,
+                status: error.status || null
+            });
+        }
+    });
+    
 /**
  * ======================================================================================
  * FIN DEL NÚCLEO GESTIAPREMIUM V5.56 (SENTINEL HYBRID CORE)
