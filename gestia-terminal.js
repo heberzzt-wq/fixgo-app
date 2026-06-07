@@ -11371,7 +11371,19 @@ window.__REPO_INDEX__["sw.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["jarvis.cognition.engine.js"] = {
 
+    path:
+        "gestia-core/jarvis/jarvis.cognition.engine.js",
+
+    module:
+        "jarvis_cognition",
+
+    type:
+        "cognitive_runtime",
+
+    critical: true
+};
 
 
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
