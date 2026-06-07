@@ -11329,6 +11329,48 @@ window.__REPO_INDEX__["app-panel.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["jarvis-fs-bridge.js"] = {
+
+    path:
+        "jarvis-fs-bridge.js",
+
+    module:
+        "filesystem_bridge",
+
+    type:
+        "bridge_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["sync-agent.cjs"] = {
+
+    path:
+        "sync-agent.cjs",
+
+    module:
+        "sync_agent",
+
+    type:
+        "synchronization_runtime",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["sw.js"] = {
+
+    path:
+        "sw.js",
+
+    module:
+        "service_worker",
+
+    type:
+        "offline_runtime",
+
+    critical: true
+};
+
 
 
 
