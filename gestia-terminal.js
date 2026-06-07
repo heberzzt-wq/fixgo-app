@@ -11413,6 +11413,41 @@ window.__REPO_INDEX__["soporte-whatsapp.js"] = {
     critical: false
 };
 
+window.__REPO_INDEX__["admin.html"] = {
+    path: "admin.html",
+    module: "admin_dashboard",
+    type: "admin_interface",
+    critical: true
+};
+
+window.__REPO_INDEX__["app-inquilino.html"] = {
+    path: "app-inquilino.html",
+    module: "tenant_portal",
+    type: "tenant_interface",
+    critical: true
+};
+
+window.__REPO_INDEX__["b2b.html"] = {
+    path: "b2b.html",
+    module: "b2b_control_center",
+    type: "b2b_interface",
+    critical: true
+};
+
+window.__REPO_INDEX__["ceo.html"] = {
+    path: "ceo.html",
+    module: "executive_dashboard",
+    type: "executive_interface",
+    critical: false
+};
+
+window.__REPO_INDEX__["cliente.html"] = {
+    path: "cliente.html",
+    module: "client_portal",
+    type: "client_interface",
+    critical: true
+};
+
 
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
