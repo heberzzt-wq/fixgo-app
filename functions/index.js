@@ -2448,6 +2448,16 @@ exports.repoCommitEngineHealth = functions
         repo: "fixgo-app"
     });
 
+    const readmeInfo =
+    await repoCommitEngine.github.repos.getContent({
+
+        owner: "heberzzt-wq",
+
+        repo: "fixgo-app",
+
+        path: "README.md"
+    });
+
         return res.status(200).json({
             success: true,
             engine: "repo_commit_engine",
@@ -2459,7 +2469,9 @@ exports.repoCommitEngineHealth = functions
             githubClient:
     !!repoCommitEngine.github,
     repo:
-    repoInfo.data.full_name
+    repoInfo.data.full_name,
+    readme:
+    readmeInfo.data.path
         });
 
     });
