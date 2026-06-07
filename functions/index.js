@@ -2410,6 +2410,17 @@ function initRepoCommitEngine() {
     repoCommitEngine.tokenPresent =
     !!process.env.GITHUB_TOKEN;
 
+    if (
+    repoCommitEngine.tokenPresent
+) {
+
+    repoCommitEngine.github =
+        new Octokit({
+            auth:
+                process.env.GITHUB_TOKEN
+        });
+}
+
     repoCommitEngine.initialized = true;
 
     console.log(
