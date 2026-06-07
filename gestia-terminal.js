@@ -11133,6 +11133,20 @@ window.__REPO_INDEX__["resource.registry.js"] = {
 };
 
 
+window.__REPO_INDEX__["jarvis.kernel.js"] = {
+
+    path:
+        "gestia-core/jarvis.kernel.js",
+
+    module:
+        "gestia_kernel",
+
+    type:
+        "sovereign_runtime",
+
+    critical: true
+};
+
 
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
