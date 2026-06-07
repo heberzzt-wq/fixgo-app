@@ -2447,7 +2447,9 @@ exports.repoCommitEngineHealth = functions
             provider: repoCommitEngine.provider,
             secret: repoCommitEngine.secret,
             tokenPresent:
-            repoCommitEngine.tokenPresent
+            repoCommitEngine.tokenPresent,
+            githubClient:
+    !!repoCommitEngine.github
         });
 
     });
