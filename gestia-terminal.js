@@ -11147,6 +11147,78 @@ window.__REPO_INDEX__["jarvis.kernel.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["analysis.hub.js"] = {
+
+    path:
+        "gestia-core/hubs/analysis.hub.js",
+
+    module:
+        "analysis_hub",
+
+    type:
+        "cognitive_fabric",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["execution.hub.js"] = {
+
+    path:
+        "gestia-core/hubs/execution.hub.js",
+
+    module:
+        "execution_hub",
+
+    type:
+        "execution_fabric",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["repo.hub.js"] = {
+
+    path:
+        "gestia-core/hubs/repo.hub.js",
+
+    module:
+        "repo_hub",
+
+    type:
+        "repository_fabric",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["security.hub.js"] = {
+
+    path:
+        "gestia-core/hubs/security.hub.js",
+
+    module:
+        "security_hub",
+
+    type:
+        "governance_fabric",
+
+    critical: true
+};
+
+window.__REPO_INDEX__["app-inquilino.js"] = {
+
+    path:
+        "app-inquilino.js",
+
+    module:
+        "tenant_communication",
+
+    type:
+        "tenant_runtime",
+
+    critical: true
+};
+
+
+
 
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
