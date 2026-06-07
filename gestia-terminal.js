@@ -11483,6 +11483,27 @@ window.__REPO_INDEX__["gestia-modulo.html"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["crm.html"] = {
+    path: "crm.html",
+    module: "crm_directory",
+    type: "crm_interface",
+    critical: false
+};
+
+window.__REPO_INDEX__["manual.html"] = {
+    path: "manual.html",
+    module: "operations_manual",
+    type: "knowledge_interface",
+    critical: false
+};
+
+window.__REPO_INDEX__["politicas.html"] = {
+    path: "politicas.html",
+    module: "service_policies",
+    type: "governance_interface",
+    critical: false
+};
+
 
 
 
