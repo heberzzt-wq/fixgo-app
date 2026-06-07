@@ -60,7 +60,6 @@ app.use((req, res, next) => {
 let db = admin.firestore(); // Sello inmediato de base de datos
 let stripe;
 let genAI;
-let githubClient;
 let firewallV5;
 let initialized = false;
 
@@ -76,28 +75,7 @@ function initCore() {
     const rawKey = process.env.GEMINI_KEY || "";
     genAI = new GoogleGenerativeAI(rawKey);
 
-    const githubToken =
-    process.env.GITHUB_TOKEN || "";
-
-console.log(
-    "🧠 [GITHUB_TOKEN_PRESENT]",
-    !!githubToken
-);
-
-if (
-    githubToken &&
-    !githubClient
-) {
-
-    githubClient =
-        new Octokit({
-            auth: githubToken
-        });
-
-    console.log(
-        "🧠 [GITHUB_CLIENT_READY]"
-    );
-}
+    
 
     const firewall = firewallFactory({ admin, db });
 
@@ -2407,6 +2385,50 @@ exports.jarvisConversacional = functions
         }
     });
 
+    // ======================================================================================
+// REPO COMMIT ENGINE
+// ======================================================================================
+
+
+let repoCommitEngine = {
+    initialized: false
+};
+
+function initRepoCommitEngine() {
+
+    exports.repoCommitEngineHealth = functions
+        .runWith({
+        timeoutSeconds: 60,
+        memory: "256MB"
+    })
+
+        .https.onRequest(async (req, res) => {
+                    return res.status(200).json({
+            success: true,
+            engine: "repo_commit_engine",
+            initialized: repoCommitEngine.initialized,
+            provider: repoCommitEngine.provider
+           });
+
+        });
+
+    if (repoCommitEngine.initialized) {
+        return repoCommitEngine;
+    }
+
+    repoCommitEngine.github = null;
+
+    repoCommitEngine.provider =
+    "github";
+
+    repoCommitEngine.initialized = true;
+
+    console.log(
+        "🦾 [REPO_COMMIT_ENGINE_READY]"
+    );
+
+    return repoCommitEngine;
+}
 /**
  * ======================================================================================
  * FIN DEL NÚCLEO GESTIAPREMIUM V5.56 (SENTINEL HYBRID CORE)
