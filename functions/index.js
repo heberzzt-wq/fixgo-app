@@ -2404,6 +2404,9 @@ function initRepoCommitEngine() {
     repoCommitEngine.provider =
         "github";
 
+        repoCommitEngine.secret =
+    "GITHUB_TOKEN";
+
     repoCommitEngine.initialized = true;
 
     console.log(
@@ -2426,7 +2429,8 @@ exports.repoCommitEngineHealth = functions
             success: true,
             engine: "repo_commit_engine",
             initialized: repoCommitEngine.initialized,
-            provider: repoCommitEngine.provider
+            provider: repoCommitEngine.provider,
+            secret: repoCommitEngine.secret
         });
 
     });
