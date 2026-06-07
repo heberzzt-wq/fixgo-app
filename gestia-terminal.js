@@ -11448,6 +11448,43 @@ window.__REPO_INDEX__["cliente.html"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["index.html"] = {
+    path: "index.html",
+    module: "platform_entrypoint",
+    type: "bootstrap_interface",
+    critical: true
+};
+
+window.__REPO_INDEX__["gestia-terminal.html"] = {
+    path: "gestia-terminal.html",
+    module: "gestia_terminal",
+    type: "operator_interface",
+    critical: true
+};
+
+window.__REPO_INDEX__["tecnico.html"] = {
+    path: "tecnico.html",
+    module: "technician_portal",
+    type: "technician_interface",
+    critical: true
+};
+
+window.__REPO_INDEX__["panel-b2b-admin.html"] = {
+    path: "panel-b2b-admin.html",
+    module: "b2b_noc",
+    type: "operations_interface",
+    critical: true
+};
+
+window.__REPO_INDEX__["gestia-modulo.html"] = {
+    path: "gestia-modulo.html",
+    module: "module_builder",
+    type: "management_interface",
+    critical: true
+};
+
+
+
 
 window.__REPO_INDEX__["tecnico-b2b.html"] = {
 
