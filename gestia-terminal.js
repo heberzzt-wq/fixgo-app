@@ -11033,7 +11033,104 @@ window.__MODULE_OWNERSHIP__["audit.engine.js"] = {
         "jarvis.memory.js"
     ]
 };
+/* =====================================================
+   DATA ANALYZER
+===================================================== */
 
+window.__REPO_INDEX__["data-analyzer.engine.js"] = {
+    path: "gestia-core/data-analyzer.engine.js",
+    module: "data_analyzer",
+    type: "analysis_runtime",
+    critical: true
+};
+
+/* =====================================================
+   GESTIA RUNTIME
+===================================================== */
+
+window.__REPO_INDEX__["gestia.runtime.v7.js"] = {
+    path: "gestia-core/gestia.runtime.v7.js",
+    module: "gestia_runtime",
+    type: "runtime_kernel",
+    critical: true
+};
+
+/* =====================================================
+   HISTORY ENGINE
+===================================================== */
+
+window.__REPO_INDEX__["history.engine.js"] = {
+    path: "gestia-core/history.engine.js",
+    module: "history",
+    type: "audit_runtime",
+    critical: true
+};
+
+/* =====================================================
+   INTENT ENGINE V7
+===================================================== */
+
+window.__REPO_INDEX__["intent.engine.v7.js"] = {
+    path: "gestia-core/intent.engine.v7.js",
+    module: "intent_v7",
+    type: "decision_runtime",
+    critical: true
+};
+
+/* =====================================================
+   MEDIA ENGINE
+===================================================== */
+
+window.__REPO_INDEX__["media.engine.js"] = {
+    path: "gestia-core/media.engine.js",
+    module: "media",
+    type: "multimodal_runtime",
+    critical: true
+};
+
+/* =====================================================
+   AUTHORITY REGISTRY
+===================================================== */
+
+window.__REPO_INDEX__["authority.registry.js"] = {
+    path: "gestia-core/authority/authority.registry.js",
+    module: "authority_registry",
+    type: "governance_runtime",
+    critical: true
+};
+
+/* =====================================================
+   PROPOSE ENGINE
+===================================================== */
+
+window.__REPO_INDEX__["propose.engine.js"] = {
+    path: "gestia-core/propose.engine.js",
+    module: "proposal_engine",
+    type: "planning_runtime",
+    critical: true
+};
+
+/* =====================================================
+   REPO COGNITION INDEX
+===================================================== */
+
+window.__REPO_INDEX__["repo.cognition.index.js"] = {
+    path: "gestia-core/repo/repo.cognition.index.js",
+    module: "repo_cognition",
+    type: "repository_runtime",
+    critical: true
+};
+
+/* =====================================================
+   RESOURCE REGISTRY
+===================================================== */
+
+window.__REPO_INDEX__["resource.registry.js"] = {
+    path: "gestia-core/repo/resource.registry.js",
+    module: "resource_registry",
+    type: "repository_runtime",
+    critical: true
+};
 
 
 
