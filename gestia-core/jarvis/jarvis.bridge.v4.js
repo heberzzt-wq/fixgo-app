@@ -488,10 +488,27 @@ function detectEntity(text = "") {
     };
 
     for (const key in map) {
-        if (t.includes(key)) return map[key];
+    if (t.includes(key)) {
+        return map[key];
     }
+}
 
-    return "system";
+// =========================
+// FILE DETECTION
+// =========================
+
+if (
+    t.includes("archivo") ||
+    t.includes(".html") ||
+    t.includes(".js") ||
+    t.includes(".css") ||
+    t.includes(".txt") ||
+    t.includes(".json")
+) {
+    return "file";
+}
+
+return "system";
 }
 
 function detectAction(text = "") {
