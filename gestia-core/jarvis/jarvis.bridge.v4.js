@@ -2928,43 +2928,68 @@ multiActions.length === 1
 
     let aiCmd = resolveAIIntent(aiFixed);
 
-    if (aiCmd) {
-        const engine = window.runIntentEngine || (typeof runIntentEngine === 'function' ? runIntentEngine : null);
-        console.log(
-    "🧪 ENGINE_REF",
-    String(engine)
-);
-        if (engine) {
-            try {
-                const structured = await engine(aiCmd);
-                if (structured && structured.intent && structured.entity) {
-                    aiCmd = `${structured.intent}::${structured.entity}`;
-                }
-            } catch (e) {
-                safeLog("ENGINE_BYPASS", "Usando comando original");
-            }
-        }
-    }
-
-    if (aiCmd) {
-        if (typeof loaderTimer !== 'undefined') clearInterval(loaderTimer);
-
-        console.warn("🚫 [BLOCKED]: Ejecución directa desactivada. Esperando aprobación.");
-
-        return {
-            ok: true,
-            blocked: true
-        };
-    }
-}
 console.log(
     "🧪 AI_CMD_FINAL",
     aiCmd
 );
 
-console.log(
-    "🧪 ABOUT_TO_RETURN_BLOCKED"
-);
+if (aiCmd) {
+
+    const engine =
+        window.runIntentEngine ||
+        (typeof runIntentEngine === "function"
+            ? runIntentEngine
+            : null);
+
+    console.log(
+        "🧪 ENGINE_REF",
+        String(engine)
+    );
+
+    if (engine) {
+
+        try {
+
+            const structured =
+                await engine(aiCmd);
+
+            if (
+                structured &&
+                structured.intent &&
+                structured.entity
+            ) {
+
+                aiCmd =
+                    `${structured.intent}::${structured.entity}`;
+            }
+
+        } catch (e) {
+
+            safeLog(
+                "ENGINE_BYPASS",
+                "Usando comando original"
+            );
+        }
+    }
+
+    console.log(
+        "🧪 ABOUT_TO_RETURN_BLOCKED"
+    );
+
+    if (typeof loaderTimer !== "undefined") {
+        clearInterval(loaderTimer);
+    }
+
+    console.warn(
+        "🚫 [BLOCKED]: Ejecución directa desactivada. Esperando aprobación."
+    );
+
+    return {
+        ok: true,
+        blocked: true
+    };
+}
+}
 
 try {
     /* =====================================================
