@@ -2957,6 +2957,14 @@ multiActions.length === 1
         };
     }
 }
+console.log(
+    "🧪 AI_CMD_FINAL",
+    aiCmd
+);
+
+console.log(
+    "🧪 ABOUT_TO_RETURN_BLOCKED"
+);
 
 try {
     /* =====================================================
@@ -2964,6 +2972,10 @@ try {
         Limpiamos comas que rompen el split en el ruteo.
     ===================================================== */
     const sanitizedRaw = String(raw).replace(/,/g, ''); // 🛡️ Evita que la coma cree comandos basura
+
+    console.log(
+    "🚨 FALLING_TO_LEGACY_PATH"
+);
     let commands = await resolveCommands(sanitizedRaw);
 
     const textLow = sanitizedRaw.toLowerCase();
