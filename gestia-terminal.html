@@ -1473,7 +1473,14 @@ if (window.__GESTIA_TERMINAL__?.pendingPlans) {
     window.__GESTIA_TERMINAL__.pendingPlans.set(plan.id, plan);
 }
 
+
 // 💾 2. 🔥 REAL (EL ÚNICO IMPORTANTE)
+
+console.log(
+    "🧪 PLAN_BEFORE_SAVE",
+    JSON.stringify(plan, null, 2)
+);
+
 await window.savePendingPlan(plan);
 
 window.showJarvisPersistent?.("plan táctico generado");
