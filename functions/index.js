@@ -2498,10 +2498,15 @@ exports.repoCommitListRoot = functions
 
             const rootContents =
                 await repoCommitEngine.github.repos.getContent({
-                    owner: "heberzzt-wq",
-                    repo: "fixgo-app",
-                    path: ""
-                });
+
+    owner: "heberzzt-wq",
+
+    repo: "fixgo-app",
+
+    path: "",
+
+    ref: "v5.9-polish"
+});
 
             const items =
                 Array.isArray(rootContents.data)
@@ -2572,12 +2577,14 @@ exports.repoCommitReadFile = functions
             const fileResponse =
                 await repoCommitEngine.github.repos.getContent({
 
-                    owner: "heberzzt-wq",
+    owner: "heberzzt-wq",
 
-                    repo: "fixgo-app",
+    repo: "fixgo-app",
 
-                    path
-                });
+    path,
+
+    ref: "v5.9-polish"
+});
 
             if (Array.isArray(fileResponse.data)) {
 
@@ -2679,10 +2686,15 @@ exports.repoCommitWriteFile = functions
 
                     const existingFile =
                         await repoCommitEngine.github.repos.getContent({
-                            owner: "heberzzt-wq",
-                            repo: "fixgo-app",
-                            path
-                        });
+
+    owner: "heberzzt-wq",
+
+    repo: "fixgo-app",
+
+    path,
+
+    ref: "v5.9-polish"
+});
 
                     currentSha =
                         existingFile.data.sha;
@@ -2702,12 +2714,13 @@ exports.repoCommitWriteFile = functions
                         .toString("base64");
 
                 const updatePayload = {
-                    owner: "heberzzt-wq",
-                    repo: "fixgo-app",
-                    path,
-                    message: commitMessage,
-                    content: encodedContent
-                };
+    owner: "heberzzt-wq",
+    repo: "fixgo-app",
+    branch: "v5.9-polish",
+    path,
+    message: commitMessage,
+    content: encodedContent
+};
 
                 if (currentSha) {
                     updatePayload.sha =
@@ -2791,12 +2804,14 @@ exports.repoCommitBackupFile = functions
             const sourceFile =
                 await repoCommitEngine.github.repos.getContent({
 
-                    owner: "heberzzt-wq",
+    owner: "heberzzt-wq",
 
-                    repo: "fixgo-app",
+    repo: "fixgo-app",
 
-                    path: sourcePath
-                });
+    path: sourcePath,
+
+    ref: "v5.9-polish"
+});
 
             if (
                 Array.isArray(sourceFile.data)
@@ -2828,18 +2843,20 @@ exports.repoCommitBackupFile = functions
             const result =
                 await repoCommitEngine.github.repos.createOrUpdateFileContents({
 
-                    owner: "heberzzt-wq",
+    owner: "heberzzt-wq",
 
-                    repo: "fixgo-app",
+    repo: "fixgo-app",
 
-                    path: backupPath,
+    branch: "v5.9-polish",
 
-                    message:
-                        `Jarvis backup: ${sourcePath}`,
+    path: backupPath,
 
-                    content:
-                        encodedBackup
-                });
+    message:
+        `Jarvis backup: ${sourcePath}`,
+
+    content:
+        encodedBackup
+});
 
             return res.status(200).json({
                 success: true,
