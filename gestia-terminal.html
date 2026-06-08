@@ -1423,8 +1423,16 @@ catch(traceErr) {
 
 const fileMatch =
     raw.match(
-        /([a-zA-Z0-9_\-]+\.(txt|js|html|css|json))/i
+        /([a-zA-Z0-9_\/\-]+\.(txt|js|html|css|json))/i
     );
+
+    console.log(
+    "🧪 TERMINAL_FILE_MATCH",
+    {
+        raw,
+        match: fileMatch?.[0]
+    }
+);
 
 const step = {
     id: "step_force_" + Date.now(),
