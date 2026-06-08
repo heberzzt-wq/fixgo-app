@@ -70,43 +70,7 @@ const deepSanitize = (obj) => {
         return acc;
     }, {});
 };
-
-/**
- * 🧬 1. SIMULAR CAMBIOS (DRY RUN)
- * Proyecta el impacto para el HUD visual antes de la ejecución real.
- * Permite que Jonathan o la IA analicen el riesgo antes de sellar el commit.
- */
-export async function simularCambios(changes, opId = "SIM_MODE") {
-    emitirPulsoHUD(opId, "SIMULATION", "STARTING");
-    
-    if (!Array.isArray(changes)) {
-        emitirPulsoHUD(opId, "SIMULATION", "ERROR", "Payload de cambios inválido");
-        return [];
-    }
-
-    // Limitamos el volumen de la simulación para evitar desbordamiento del HUD
-    const maxSim = changes.slice(0, 50);
-
-    const projection = maxSim.map(change => {
-        return {
-            tipo: change.type || "UNKNOWN",
-            destino: change.target || "DYNAMIC_RESOURCE",
-            impacto: "TRANSACTIONAL_WRITE",
-            riesgo: (change.type === "SYSTEM_RESTRICTION" || change.type === "LOCK_TECHNICIAN") ? "HIGH" : "MEDIUM",
-            reason: change.reason || "Propuesta automática del Orquestador"
-        };
-    });
-
-    // Despacho de evento para que el HUD pinte la previsualización táctica
-    window.dispatchEvent(new CustomEvent('gestia-dry-run', {
-        detail: { 
-            simulacion: projection,
-            timestamp: Date.now(),
-            opId: opId
-        }
-    }));
-
-    // ======================================================================================
+ // ======================================================================================
 // REPO COMMIT BRIDGE
 // ======================================================================================
 
@@ -155,6 +119,42 @@ async function writeRepoFile({
 
     return result;
 }
+/**
+ * 🧬 1. SIMULAR CAMBIOS (DRY RUN)
+ * Proyecta el impacto para el HUD visual antes de la ejecución real.
+ * Permite que Jonathan o la IA analicen el riesgo antes de sellar el commit.
+ */
+export async function simularCambios(changes, opId = "SIM_MODE") {
+    emitirPulsoHUD(opId, "SIMULATION", "STARTING");
+    
+    if (!Array.isArray(changes)) {
+        emitirPulsoHUD(opId, "SIMULATION", "ERROR", "Payload de cambios inválido");
+        return [];
+    }
+
+    // Limitamos el volumen de la simulación para evitar desbordamiento del HUD
+    const maxSim = changes.slice(0, 50);
+
+    const projection = maxSim.map(change => {
+        return {
+            tipo: change.type || "UNKNOWN",
+            destino: change.target || "DYNAMIC_RESOURCE",
+            impacto: "TRANSACTIONAL_WRITE",
+            riesgo: (change.type === "SYSTEM_RESTRICTION" || change.type === "LOCK_TECHNICIAN") ? "HIGH" : "MEDIUM",
+            reason: change.reason || "Propuesta automática del Orquestador"
+        };
+    });
+
+    // Despacho de evento para que el HUD pinte la previsualización táctica
+    window.dispatchEvent(new CustomEvent('gestia-dry-run', {
+        detail: { 
+            simulacion: projection,
+            timestamp: Date.now(),
+            opId: opId
+        }
+    }));
+
+   
 
     emitirPulsoHUD(opId, "SIMULATION", "READY_FOR_APPROVAL", `${projection.length} acciones proyectadas`);
     return projection;
@@ -786,7 +786,7 @@ catch(safeError) {
             mirrorErr
         );
     }
-    
+
     console.log(
     "🦾 [CODE_WRITE_PAYLOAD]",
     payload
