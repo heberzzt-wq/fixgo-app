@@ -310,12 +310,41 @@ if (
 
 )
 {
-    const fileMatch = rawText.match(/modules\/[a-zA-Z0-9_\-]+(\.js)?/);
+    const fileMatch =
+    rawText.match(
+        /modules\/[a-zA-Z0-9_\-]+(\.js)?/
+    );
 
-    const file = fileMatch
-        ? (fileMatch[0].endsWith(".js") ? fileMatch[0] : `${fileMatch[0]}.js`)
-        : `modules/auto_${Date.now()}.js`;
+const file =
 
+    step?.payload?.file ||
+
+    step?.payload?.target ||
+
+    step?.meta?.originalTarget ||
+
+    planRaw?.target ||
+
+    (
+        fileMatch
+            ? (
+                fileMatch[0].endsWith(".js")
+                    ? fileMatch[0]
+                    : `${fileMatch[0]}.js`
+            )
+            : `modules/auto_${Date.now()}.js`
+    );
+
+console.log(
+    "🧪 FORCED_CODE_WRITE_FILE",
+    {
+        resolved: file,
+        payloadFile: step?.payload?.file,
+        payloadTarget: step?.payload?.target,
+        originalTarget: step?.meta?.originalTarget,
+        planTarget: planRaw?.target
+    }
+);
     const normalizedStep = {
         id: step.id || `step_${Math.random().toString(36).slice(2, 8)}`,
         type: "CODE_WRITE",
