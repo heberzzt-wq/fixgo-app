@@ -2433,10 +2433,9 @@ function initRepoCommitEngine() {
 
 exports.repoCommitEngineHealth = functions
     .runWith({
-        timeoutSeconds: 60,
-        memory: "256MB",
-        secrets: ["GITHUB_TOKEN"]
-    })
+    timeoutSeconds: 120,
+    memory: "512MB"
+})
     .https.onRequest(async (req, res) => {
 
         try {
@@ -2480,10 +2479,9 @@ exports.repoCommitEngineHealth = functions
 
 exports.repoCommitListRoot = functions
     .runWith({
-        timeoutSeconds: 60,
-        memory: "256MB",
-        secrets: ["GITHUB_TOKEN"]
-    })
+    timeoutSeconds: 120,
+    memory: "512MB"
+})
     .https.onRequest(async (req, res) => {
 
         try {
@@ -2542,10 +2540,9 @@ exports.repoCommitListRoot = functions
 
 exports.repoCommitReadFile = functions
     .runWith({
-        timeoutSeconds: 120,
-        memory: "512MB",
-        secrets: ["GITHUB_TOKEN"]
-    })
+    timeoutSeconds: 120,
+    memory: "512MB"
+})
     .https.onRequest(async (req, res) => {
 
         try {
@@ -2628,10 +2625,9 @@ exports.repoCommitReadFile = functions
 
 exports.repoCommitWriteFile = functions
     .runWith({
-        timeoutSeconds: 120,
-        memory: "512MB",
-        secrets: ["GITHUB_TOKEN"]
-    })
+    timeoutSeconds: 120,
+    memory: "512MB"
+})
     .https.onRequest((req, res) => {
 
         corsHandler(req, res, async () => {
@@ -2756,17 +2752,16 @@ exports.repoCommitWriteFile = functions
         });
 
     });
-    
+
     // ======================================================================================
 // REPO BACKUP FILE
 // ======================================================================================
 
 exports.repoCommitBackupFile = functions
     .runWith({
-        timeoutSeconds: 120,
-        memory: "512MB",
-        secrets: ["GITHUB_TOKEN"]
-    })
+    timeoutSeconds: 120,
+    memory: "512MB"
+})
     .https.onRequest(async (req, res) => {
 
         try {
