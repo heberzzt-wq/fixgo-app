@@ -106,6 +106,56 @@ export async function simularCambios(changes, opId = "SIM_MODE") {
         }
     }));
 
+    // ======================================================================================
+// REPO COMMIT BRIDGE
+// ======================================================================================
+
+const REPO_COMMIT_WRITE_URL =
+    "https://us-central1-fixgo-44e4d.cloudfunctions.net/repoCommitWriteFile";
+
+async function writeRepoFile({
+    file,
+    content,
+    operationId
+}) {
+
+    const response =
+        await fetch(
+            REPO_COMMIT_WRITE_URL,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body: JSON.stringify({
+                    path: file,
+                    content,
+                    message:
+                        `Jarvis Executor ${operationId}`
+                })
+            }
+        );
+
+    const result =
+        await response.json();
+
+    if (!result.success) {
+
+        throw new Error(
+            result.error ||
+            "REPO_WRITE_FAILED"
+        );
+    }
+
+    console.log(
+        "🦾 [REPO_WRITE_SUCCESS]",
+        result
+    );
+
+    return result;
+}
+
     emitirPulsoHUD(opId, "SIMULATION", "READY_FOR_APPROVAL", `${projection.length} acciones proyectadas`);
     return projection;
 }
@@ -736,6 +786,12 @@ catch(safeError) {
             mirrorErr
         );
     }
+
+    await writeRepoFile({
+    file: payload.file,
+    content: payload.content,
+    operationId: opId
+});
 
     transaction.set(
 
