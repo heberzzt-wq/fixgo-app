@@ -345,9 +345,41 @@ console.log(
         planTarget: planRaw?.target
     }
 );
-    const normalizedStep = {
-        id: step.id || `step_${Math.random().toString(36).slice(2, 8)}`,
-        type: "CODE_WRITE",
+    console.log(
+    "🧪 ORIGINAL_PROMPT",
+    step.payload?.originalprompt
+);
+
+try {
+
+    const parsedPrompt =
+        JSON.parse(
+            step.payload?.originalprompt || "{}"
+        );
+
+    console.log(
+        "🧪 PARSED_PROMPT",
+        parsedPrompt
+    );
+
+    console.log(
+        "🧪 COGNITION_ORIGINAL",
+        parsedPrompt?.cognition?.original
+    );
+
+} catch(e) {
+
+    console.error(
+        "🧪 PROMPT_PARSE_FAIL",
+        e
+    );
+}
+
+const normalizedStep = {
+
+    id: step.id || `step_${Math.random().toString(36).slice(2,8)}`,
+
+    type: "CODE_WRITE",
         target: {
             collection: "repo_files",
             docId: null,
