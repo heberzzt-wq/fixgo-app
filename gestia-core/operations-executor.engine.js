@@ -786,6 +786,11 @@ catch(safeError) {
             mirrorErr
         );
     }
+    
+    console.log(
+    "🦾 [CODE_WRITE_PAYLOAD]",
+    payload
+);
 
     await writeRepoFile({
     file: payload.file,
