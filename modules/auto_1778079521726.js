@@ -1,1 +1,0 @@
-crea archivo modules/generated/test.js
