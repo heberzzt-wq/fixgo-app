@@ -1188,7 +1188,10 @@ const multiActions = String(raw)
     .map(s => s.trim())
     .filter(Boolean);
 
-const isCodeIntent = rawLow.includes("archivo") || rawLow.includes(".js");
+const isCodeIntent =
+
+    /archivo|\.js|\.txt|\.html|\.css|\.json|editar|edita|modificar|modifica|repara|actualizar|actualiza/i
+        .test(rawLow);
 
 
 const hasTechnicalIntent =
