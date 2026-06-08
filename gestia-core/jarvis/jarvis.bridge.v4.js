@@ -276,6 +276,14 @@ function resolveAIIntent(ai) {
     if (intent === "open" && safeTarget === "auth") {
         return "OPEN::auth";
     }
+    // 📝 UPDATE FILE
+if (
+    intent === "update" &&
+    safeTarget
+) {
+
+    return `UPDATE::${safeTarget}`;
+}
 
     return null;
 }
