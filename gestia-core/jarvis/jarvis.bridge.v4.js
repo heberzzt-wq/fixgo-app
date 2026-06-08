@@ -198,13 +198,10 @@ const safeTarget = typeof parsed.target === "string" ? parsed.target.toLowerCase
 const isKnownTarget = validTargets.includes(safeTarget);
 
 // Flexibilizamos la validación para que acepte "tecnico b2b html" o "tecnico-b2b.html"
-const isFileTarget = 
-    safeTarget.endsWith(".html") || 
-    safeTarget.endsWith(".js") || 
-    safeTarget.endsWith(".css") ||
-    safeTarget.includes("html") ||
-    safeTarget.includes("js") ||
-    safeTarget.includes("css") ||
+const isFileTarget =
+
+    /\.[a-z0-9]+$/i.test(safeTarget) ||
+
     safeTarget.includes("archivo");
 
 if (
