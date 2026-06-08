@@ -1457,12 +1457,17 @@ Escribe:
                 ANALYZE: ["ANALYZE"]
             };
 
-            const context = { 
-                userId: "Jonathan_Operator", 
-                role: "OPERATOR",
-                permissions: ["READ", "ANALYZE"], 
-                traceId: `trace_${Date.now()}` 
-            };
+            const context = {
+    userId: "Jonathan_Operator",
+    role: "ADMIN",
+    permissions: [
+        "ADMIN",
+        "WRITE",
+        "READ",
+        "ANALYZE"
+    ],
+    traceId: `trace_${Date.now()}`
+};
 
             const userPermsExpanded = context.permissions.flatMap(p => ROLE_HIERARCHY[p] || [p]);
 
