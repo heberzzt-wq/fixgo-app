@@ -2626,13 +2626,19 @@ exports.repoCommitReadFile = functions
 // REPO WRITE FILE
 // ======================================================================================
 
+
+const cors = require("cors")({
+    origin: true
+});
 exports.repoCommitWriteFile = functions
     .runWith({
         timeoutSeconds: 120,
         memory: "512MB",
         secrets: ["GITHUB_TOKEN"]
     })
-    .https.onRequest(async (req, res) => {
+    .https.onRequest((req, res) => {
+
+    cors(req, res, async () => {
 
         try {
 
@@ -2752,7 +2758,7 @@ exports.repoCommitWriteFile = functions
         }
     });
 
-
+ });
     // ======================================================================================
 // REPO BACKUP FILE
 // ======================================================================================
@@ -2866,7 +2872,7 @@ exports.repoCommitBackupFile = functions
             });
         }
     });
-    
+
 /**
  * ======================================================================================
  * FIN DEL NÚCLEO GESTIAPREMIUM V5.56 (SENTINEL HYBRID CORE)
