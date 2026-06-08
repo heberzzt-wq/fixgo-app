@@ -1417,20 +1417,39 @@ catch(traceErr) {
     );
 }
 
-            const fileMatch = raw.match(/modules\/[a-zA-Z0-9_\-]+\.js/);
+            const cognition =
+    window.JarvisCognitionEngine
+        ?.analyze?.(raw);
 
-            const step = {
-                id: "step_force_" + Date.now(),
-                type: "CODE_WRITE",
-                target: {
-                    collection: "repo_files"
-                },
-                action: "custom",
-                payload: {
-                    file: fileMatch?.[0] || `modules/auto_${Date.now()}.js`,
-                    content: raw
-                }
-            };
+const fileMatch =
+    raw.match(
+        /([a-zA-Z0-9_\-]+\.(txt|js|html|css|json))/i
+    );
+
+const step = {
+    id: "step_force_" + Date.now(),
+
+    type: "CODE_WRITE",
+
+    target: {
+        collection: "repo_files"
+    },
+
+    action: "custom",
+
+    payload: {
+
+        file:
+
+            cognition?.target ||
+
+            fileMatch?.[0] ||
+
+            `modules/auto_${Date.now()}.js`,
+
+        content: raw
+    }
+};
 
            // 🧠 Crear plan
 const plan = {
