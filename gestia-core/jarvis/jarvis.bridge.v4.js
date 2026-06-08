@@ -2930,6 +2930,10 @@ multiActions.length === 1
 
     if (aiCmd) {
         const engine = window.runIntentEngine || (typeof runIntentEngine === 'function' ? runIntentEngine : null);
+        console.log(
+    "🧪 ENGINE_REF",
+    String(engine)
+);
         if (engine) {
             try {
                 const structured = await engine(aiCmd);
