@@ -2989,13 +2989,89 @@ if (aiCmd) {
     }
 
     console.warn(
-        "🚫 [BLOCKED]: Ejecución directa desactivada. Esperando aprobación."
-    );
+    "🚫 [BLOCKED]: Generando plan para aprobación."
+);
 
-    return {
-        ok: true,
-        blocked: true
-    };
+const step = {
+
+    id:
+        `step_${Date.now()}`,
+
+    type:
+        "CODE_WRITE",
+
+    target: {
+        collection:
+            "repo_files"
+    },
+
+    action:
+        "custom",
+
+    payload: {
+
+        file:
+            aiFixed.target,
+
+        content:
+            raw
+    }
+};
+
+const plan = {
+
+    id:
+        `plan_${Date.now()}`,
+
+    steps:
+        [step],
+
+    mode:
+        "AI_SUPERVISED",
+
+    traceId:
+        `trace_${Date.now()}`,
+
+    createdAt:
+        Date.now()
+};
+
+window.lastPlanId =
+    plan.id;
+
+if (
+    typeof savePendingPlan ===
+    "function"
+) {
+
+    await savePendingPlan(
+        plan
+    );
+}
+
+if (
+    window.renderPlanPreview
+) {
+
+    window.renderPlanPreview(
+        plan
+    );
+}
+
+console.log(
+    "🧠 [PLAN_CREATED]",
+    plan
+);
+
+return {
+
+    ok: true,
+
+    blocked: true,
+
+    planId:
+        plan.id
+};
 }
 }
 
