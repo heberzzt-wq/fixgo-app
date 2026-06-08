@@ -158,7 +158,23 @@ if (Array.isArray(rawSteps) && rawSteps.length >= 2) {
 //
 for (const step of rawSteps) {
 
-    console.log("🔍 [NORMALIZER]: STEP_RAW", step);
+    console.log(
+    "🔍 STEP_RAW_JSON",
+    JSON.stringify(
+        step,
+        null,
+        2
+    )
+);
+
+console.log(
+    "🔍 STEP_PAYLOAD_JSON",
+    JSON.stringify(
+        step?.payload,
+        null,
+        2
+    )
+);
 
     if (!step || typeof step !== "object") {
         console.warn("⚠️ Step inválido (no objeto)");
