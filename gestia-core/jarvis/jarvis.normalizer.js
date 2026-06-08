@@ -398,7 +398,24 @@ catch(traceError) {
         step.payload?.file ||
         step.intent?.toLowerCase().includes("archivo")
     ) {
-        const normalizedStep = {
+        console.log(
+    "🧪 CODE_WRITE_RESOLUTION",
+    {
+        payloadFile:
+            step.payload?.file,
+
+        payloadTarget:
+            step.payload?.target,
+
+        originalTarget:
+            step.meta?.originalTarget,
+
+        planTarget:
+            planRaw?.target
+    }
+);
+
+const normalizedStep = {
             id: step.id || `step_${Math.random().toString(36).slice(2, 8)}`,
             type: "CODE_WRITE",
             target: {
