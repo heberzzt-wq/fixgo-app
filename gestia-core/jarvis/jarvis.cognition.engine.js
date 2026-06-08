@@ -80,6 +80,48 @@ if (
     return cognition;
 }
 
+/* =====================================================
+   FILE CREATION
+===================================================== */
+
+if (
+
+    /\bcrear archivo\b/i.test(text) ||
+    /\bgenerar archivo\b/i.test(text) ||
+    /\bnuevo archivo\b/i.test(text) ||
+    /\bescribir archivo\b/i.test(text)
+
+) {
+
+    cognition.intent =
+        "CODE_WRITE";
+
+    cognition.domain =
+        "repository";
+
+    cognition.expectedOutput =
+        "file_write";
+
+    cognition.cognitionLayer =
+        "repo_write";
+
+    cognition.confidence =
+        0.98;
+
+    const fileMatch =
+        text.match(
+            /([a-z0-9\-_]+\.(txt|js|html|css|json))/i
+        );
+
+    if (fileMatch) {
+
+        cognition.target =
+            fileMatch[1];
+    }
+
+    return cognition;
+}
+
             const wantsRepair =
 
     /\brepara\b/i.test(text) ||
