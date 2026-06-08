@@ -52,17 +52,19 @@ payload: {
         JSON.stringify(planRaw),
 
     query:
-
         String(planRaw.intent)
             .toUpperCase() === "REPO_SEARCH"
-
             ? planRaw.target
-
             : "",
 
     target:
+        planRaw.target,
 
-        planRaw.target
+    file:
+        String(planRaw.intent)
+            .toUpperCase() === "CODE_WRITE"
+            ? planRaw.target
+            : null
 },
 
 meta: {
@@ -406,7 +408,12 @@ catch(traceError) {
             },
             action: "custom",
             payload: {
-                file: step.payload?.file || `modules/auto_${Date.now()}.js`,
+    file:
+        step.payload?.file ||
+        step.payload?.target ||
+        step.meta?.originalTarget ||
+        planRaw?.target ||
+        `modules/auto_${Date.now()}.js`,
                 content: step.payload?.content || "// generado por jarvis"
             },
             meta: {
