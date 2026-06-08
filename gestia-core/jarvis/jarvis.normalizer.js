@@ -444,6 +444,33 @@ catch(traceError) {
     }
 );
 
+console.log(
+    "🧪 STEP_PAYLOAD_RAW",
+    JSON.stringify(
+        step.payload,
+        null,
+        2
+    )
+);
+
+console.log(
+    "🧪 STEP_META_RAW",
+    JSON.stringify(
+        step.meta,
+        null,
+        2
+    )
+);
+
+console.log(
+    "🧪 PLAN_RAW",
+    JSON.stringify(
+        planRaw,
+        null,
+        2
+    )
+);
+
 const normalizedStep = {
             id: step.id || `step_${Math.random().toString(36).slice(2, 8)}`,
             type: "CODE_WRITE",
