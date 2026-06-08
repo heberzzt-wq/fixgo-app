@@ -2056,7 +2056,7 @@ Escribe:
         );
 
         
-        throw new Error("🔥 DISPATCH PATCH ACTIVE");
+        //throw new Error("🔥 DISPATCH PATCH ACTIVE");
 
 
         console.log("🔥 COGNITION PATCH LOADED");
