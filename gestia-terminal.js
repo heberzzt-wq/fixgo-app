@@ -14354,6 +14354,12 @@ window.scanRepo = function(filters = {}) {
    PATCH ENGINE V1
 ===================================================== */
 
+
+console.log(
+    "🧪 GENERATE_PATCH_ENTRY",
+    config
+);
+
 window.generatePatch = async function(config = {}) {
 
     try {
@@ -14487,6 +14493,12 @@ if (!safe) {
    PATCH APPLY ENGINE V1
 ===================================================== */
 
+
+console.log(
+    "🧪 APPLY_PATCH_ENTRY",
+    patch
+);
+
 window.applyPatch = async function(patch = {}) {
 
     try {
@@ -14570,8 +14582,22 @@ await window.createRepoSnapshot?.({
 let fsWrite = null;
 
 try {
+      console.log(
+        "🧪 PATCH_READY_FOR_GITHUB",
+        {
+            file:
+                meta?.path || key,
 
-    fsWrite = await fetch(
+            size:
+                patched?.length,
+
+            preview:
+                String(patched)
+                    .slice(0, 200)
+        }
+    );
+
+    /*fsWrite = await fetch(
         "http://localhost:3344/write",
         {
             method: "POST",
@@ -14599,6 +14625,7 @@ try {
         "🧠 [FS_WRITE_RESULT]:",
         fsWrite
     );
+    */
 
 } catch (fsErr) {
 
