@@ -298,6 +298,16 @@ const isRepairIntent =
         normalizedStep
     );
 
+
+    console.log(
+    "🧪 REPAIR_FINAL_STEP",
+    JSON.stringify(
+        normalizedStep,
+        null,
+        2
+    )
+);
+
     steps.push(
         normalizedStep
     );
