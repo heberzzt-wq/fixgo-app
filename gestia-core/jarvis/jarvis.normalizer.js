@@ -361,16 +361,18 @@ console.log(
         planTarget: planRaw?.target
     }
 );
-    console.log(
+   let extractedCode = null;
+
+console.log(
     "🧪 ORIGINAL_PROMPT",
-    step.payload?.originalprompt
+    step.payload?.originalPrompt
 );
 
 try {
 
     const parsedPrompt =
         JSON.parse(
-            step.payload?.originalprompt || "{}"
+            step.payload?.originalPrompt || "{}"
         );
 
     console.log(
@@ -382,6 +384,25 @@ try {
         "🧪 COGNITION_ORIGINAL",
         parsedPrompt?.cognition?.original
     );
+
+    const originalText =
+        parsedPrompt?.cognition?.original || "";
+
+    const match =
+        originalText.match(
+            /contenido:\s*([\s\S]*)/i
+        );
+
+    if (match) {
+
+        extractedCode =
+            match[1].trim();
+
+        console.log(
+            "🧪 EXTRACTED_CODE",
+            extractedCode
+        );
+    }
 
 } catch(e) {
 
