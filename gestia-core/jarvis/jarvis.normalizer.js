@@ -389,20 +389,30 @@ try {
         parsedPrompt?.cognition?.original || "";
 
     const match =
-        originalText.match(
-            /contenido:\s*([\s\S]*)/i
-        );
+    originalText.match(
+        /contenido:\s*([\s\S]*)/i
+    );
 
-    if (match) {
+console.log(
+    "🧪 ORIGINAL_TEXT",
+    originalText
+);
 
-        extractedCode =
-            match[1].trim();
+console.log(
+    "🧪 MATCH_RESULT",
+    match
+);
 
-        console.log(
-            "🧪 EXTRACTED_CODE",
-            extractedCode
-        );
-    }
+if (match) {
+
+    extractedCode =
+        match[1].trim();
+
+    console.log(
+        "🧪 EXTRACTED_CODE",
+        extractedCode
+    );
+}
 
 } catch(e) {
 
