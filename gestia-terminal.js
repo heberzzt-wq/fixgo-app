@@ -11680,7 +11680,7 @@ window.__REPO_INDEX__["app-bi.js"] = {
    REBUILD REPO COGNITION
 ===================================================== */
 
-if (
+/*if (
     typeof window.buildRepoDependencyGraph ===
     "function"
 ) {
@@ -11707,7 +11707,7 @@ if (
 console.log(
     "🧠 [REPO_BOOTSTRAP_READY]"
 );
-
+*/
 
 /* =====================================================================================
    HYBRID COGNITION REGISTRY V7
