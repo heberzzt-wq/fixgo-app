@@ -214,19 +214,70 @@ const isRepairIntent =
 
     const targetFile =
 
-    step?.meta?.repoNode?.file ||
+        step?.meta?.repoNode?.file ||
 
-    step?.payload?.file ||
+        step?.payload?.file ||
 
-    step?.targetFile ||
+        step?.targetFile ||
 
-    step?.meta?.originalTarget ||
+        step?.meta?.originalTarget ||
 
-    planRaw?.targetFile ||
+        planRaw?.targetFile ||
 
-    planRaw?.target ||
+        planRaw?.target ||
 
-    null;
+        null;
+
+    /* ============================================
+       REPAIR CONTENT GENERATION
+    ============================================ */
+
+    let generatedContent = null;
+
+    try {
+
+        const promptData = JSON.parse(
+            step?.payload?.originalPrompt || "{}"
+        );
+
+        const originalText =
+            promptData?.cognition?.original || "";
+
+        console.log(
+            "🧪 REPAIR_ORIGINAL_TEXT",
+            originalText
+        );
+
+        if (
+            originalText
+                .toLowerCase()
+                .includes("runtimeping")
+        ) {
+
+            generatedContent =
+
+`export function runtimePing() {
+
+    return "pong";
+
+}`;
+        }
+
+        console.log(
+            "🧪 REPAIR_GENERATED_CONTENT",
+            generatedContent
+        );
+
+    }
+
+    catch(err) {
+
+        console.warn(
+            "⚠️ REPAIR_CONTENT_GENERATION_FAIL",
+            err
+        );
+    }
+
 
     const normalizedStep = {
 
@@ -260,19 +311,24 @@ const isRepairIntent =
 
         payload: {
 
-            file:
-                targetFile,
+    file:
+        targetFile,
 
-            originalPrompt:
+    content:
+        generatedContent ||
 
-                step?.payload
-                    ?.originalPrompt ||
+        "// repair generated",
 
-                "",
+    originalPrompt:
 
-            repairIntent:
-                true
-        },
+        step?.payload
+            ?.originalPrompt ||
+
+        "",
+
+    repairIntent:
+        true
+},
 
         meta: {
 
@@ -308,6 +364,10 @@ const isRepairIntent =
     )
 );
 
+console.log(
+    "🧪 REPAIR_CONTENT_FINAL",
+    normalizedStep.payload.content
+);
     steps.push(
         normalizedStep
     );

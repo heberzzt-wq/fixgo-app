@@ -1101,72 +1101,82 @@ if (
 
     try {
 
-        const promptData =
+        const promptData = JSON.parse(
+            step.payload.originalPrompt
+        );
 
-            JSON.parse(
-                step.payload.originalPrompt
-            );
+        const repoNode =
+            promptData?.cognition?.repoNode;
 
-        if (
-
-            promptData?.cognition?.repoNode
-
-        ) {
+        if (repoNode) {
 
             step.meta = {
 
                 ...(step.meta || {}),
 
                 repoAware:
-                    promptData.cognition.repoAware,
+                    !!promptData?.cognition?.repoAware,
 
-                repoNode:
-                    promptData.cognition.repoNode
+                repoNode
             };
 
             console.log(
 
                 "🧠 [REPO_REHYDRATED]",
 
-                promptData.cognition.repoNode.file
-
+                repoNode.file
             );
 
-           if (
-    step?.meta?.repoNode?.file
-) {
+            /* =====================================================
+               SOURCE REHYDRATION
+            ===================================================== */
 
-    window.loadRepoContext(
-        step.meta.repoNode.file
-    )
-    .then(loaded => {
+            if (repoNode.file) {
 
-        if (loaded?.ok) {
+                window.loadRepoContext(
+                    repoNode.file
+                )
+                .then(loaded => {
 
-            step.meta.source =
-                loaded.source;
+                    if (!loaded?.ok) {
 
-            console.log(
-                "🧠 [SOURCE_HYDRATED]",
-                loaded.file,
-                loaded.source.length
-            );
+                        console.warn(
+
+                            "⚠️ [SOURCE_NOT_AVAILABLE]",
+
+                            repoNode.file
+                        );
+
+                        return;
+                    }
+
+                    step.meta.source =
+                        loaded.source;
+
+                    console.log(
+
+                        "🧠 [SOURCE_HYDRATED]",
+
+                        loaded.file,
+
+                        loaded.source?.length || 0
+                    );
+
+                })
+                .catch(err => {
+
+                    console.error(
+
+                        "🚨 [SOURCE_HYDRATE_FAIL]",
+
+                        err
+                    );
+
+                });
+            }
         }
 
-    })
-    .catch(err => {
-
-        console.error(
-            "🚨 [SOURCE_HYDRATE_FAIL]",
-            err
-        );
-
-    });
-
-}
-}
     }
-    
 
     catch(err) {
 
@@ -1175,11 +1185,13 @@ if (
             "⚠️ [REPO_REHYDRATE_FAIL]",
 
             err
-
         );
     }
 }
 
+/* =====================================================
+   MODULE DETECTION
+===================================================== */
 
 if (
 
@@ -1190,7 +1202,6 @@ if (
     detectedModules.add(
 
         step.meta.repoNode.module
-
     );
 
     console.log(
@@ -1200,10 +1211,8 @@ if (
         step.meta.repoNode.module,
 
         step.meta.repoNode.file
-
     );
 }
-
             /* =========================================================================
                RUNTIME INFERENCE
             ========================================================================= */
