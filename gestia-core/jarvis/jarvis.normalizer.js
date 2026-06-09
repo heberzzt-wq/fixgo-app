@@ -424,9 +424,12 @@ const normalizedStep = {
         },
         action: "custom",
         payload: {
-            file,
-            content: rawText
-        },
+    file,
+
+    content:
+        extractedCode ||
+        rawText
+},
         meta: {
             reversible: true,
             description: "AI Code Write (forced from text)"
