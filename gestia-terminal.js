@@ -14355,12 +14355,14 @@ window.scanRepo = function(filters = {}) {
 ===================================================== */
 
 
-console.log(
+
+
+window.generatePatch = async function(config = {}) {
+
+    console.log(
     "🧪 GENERATE_PATCH_ENTRY",
     config
 );
-
-window.generatePatch = async function(config = {}) {
 
     try {
 
@@ -14494,12 +14496,14 @@ if (!safe) {
 ===================================================== */
 
 
-console.log(
+
+
+window.applyPatch = async function(patch = {}) {
+
+    console.log(
     "🧪 APPLY_PATCH_ENTRY",
     patch
 );
-
-window.applyPatch = async function(patch = {}) {
 
     try {
 
