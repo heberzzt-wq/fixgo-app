@@ -1894,7 +1894,10 @@ for (
                 plan.createdAt = Date.now();
 
                 if (typeof savePendingPlan !== 'function') throw new Error("savePendingPlan no disponible");
-                
+                console.log(
+    "🧪 AI_PIPELINE_PLAN_SAVE",
+    plan
+);
                 const persistedPlan = await savePendingPlan(plan);
                 const finalPlan = persistedPlan && typeof persistedPlan === "object" ? persistedPlan : plan;
                 
@@ -3035,7 +3038,14 @@ const plan = {
     createdAt:
         Date.now()
 };
-
+console.log(
+    "🧪 FILE_PLAN_BRANCH_ENTERED",
+    {
+        target: aiFixed?.target,
+        intent: aiFixed?.intent,
+        plan
+    }
+);
 window.lastPlanId =
     plan.id;
 
