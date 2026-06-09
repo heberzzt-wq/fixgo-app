@@ -17139,7 +17139,12 @@ JarvisMemory.subscribe((type, payload) => {
 });
 
 // 🧠 RENDER PREVIEW DEL PLAN IA (multi-step robusto)
+
 window.renderPlanPreview = function(plan) {
+
+    console.log(
+    "🧪 TERMINAL_REGISTERING_RENDER_PREVIEW"
+);
 
     if (!plan || !Array.isArray(plan.steps)) {
         window.renderJarvisResponse("Jarvis", "Plan inválido para mostrar.", "error");

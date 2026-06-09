@@ -1902,6 +1902,15 @@ for (
                 const finalPlan = persistedPlan && typeof persistedPlan === "object" ? persistedPlan : plan;
                 
                 window.lastPlanId = finalPlan.id;
+                console.log(
+    "🧪 LAST_PLAN_SET",
+    window.lastPlanId
+);
+
+console.log(
+    "🧪 RENDER_PLAN_TYPE",
+    typeof window.renderPlanPreview
+);
                 console.log("🧠 [AI_PLAN_READY]:", finalPlan.id);
 
                 if (typeof window.renderPlanPreview === 'function') {
