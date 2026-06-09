@@ -390,7 +390,7 @@ try {
 
     const match =
     originalText.match(
-        /contenido:\s*([\s\S]*)/i
+        /(contenido|agrega|reemplaza|codigo|código)\s*:\s*([\s\S]*)/i
     );
 
 console.log(
@@ -406,7 +406,7 @@ console.log(
 if (match) {
 
     extractedCode =
-        match[1].trim();
+    match[2].trim();
 
     console.log(
         "🧪 EXTRACTED_CODE",
@@ -421,6 +421,10 @@ if (match) {
         e
     );
 }
+console.log(
+    "🧪 FINAL_CONTENT",
+    extractedCode || rawText
+);
 
 const normalizedStep = {
 
