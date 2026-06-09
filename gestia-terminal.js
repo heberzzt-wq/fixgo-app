@@ -3179,6 +3179,11 @@ async function() {
 
             try {
 
+                console.log(
+    "🧪 LOAD_REPO_CONTEXT_TYPE",
+    file,
+    typeof window.loadRepoContext
+);
                 const loaded =
 
                     await window
