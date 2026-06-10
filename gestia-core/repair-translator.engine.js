@@ -95,15 +95,27 @@ async function(
                 functionMatch[1];
 
             strategy =
-                "FUNCTION_APPEND";
+    "FUNCTION_APPEND";
 
-            confidence =
-                0.95;
+confidence =
+    0.95;
 
-            search =
-                "export default";
+/* ============================================
+   INTELLIGENT INSERTION POINT DETECTION
+============================================ */
 
-            replace =
+if (
+
+    currentSource.includes(
+        "export default"
+    )
+
+) {
+
+    search =
+        "export default";
+
+    replace =
 `export function ${functionName}() {
 
     return {
@@ -113,6 +125,75 @@ async function(
 }
 
 export default`;
+
+    strategy =
+        "FUNCTION_APPEND_ESMODULE";
+}
+
+else if (
+
+    currentSource.includes(
+        "window."
+    )
+
+) {
+
+    search =
+        currentSource;
+
+    replace =
+currentSource +
+
+`
+
+window.${functionName} =
+function() {
+
+    return {
+
+        ok: true,
+
+        timestamp:
+            Date.now()
+    };
+};
+`;
+
+    strategy =
+        "FUNCTION_APPEND_WINDOW";
+}
+
+else {
+
+    search =
+        currentSource;
+
+    replace =
+currentSource +
+
+`
+
+function ${functionName}() {
+
+    return {
+
+        ok: true,
+
+        timestamp:
+            Date.now()
+    };
+}
+`;
+
+    strategy =
+        "FUNCTION_APPEND_EOF";
+}
+
+console.log(
+    "🧠 [PATCH_STRATEGY]",
+    strategy,
+    functionName
+);
 
             console.log(
                 "🧠 [PATCH_STRATEGY]",
