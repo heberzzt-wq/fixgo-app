@@ -887,26 +887,7 @@ catch(loadError) {
     );
 }
 
-    payload.content =
-
-`/* =====================================================
-   SIA7 REPAIR PLACEHOLDER
-===================================================== */
-
-//
-// Target File:
-// ${payload.repairContext?.targetFile}
-//
-// User Intent:
-// ${payload.repairContext?.userIntent}
-//
-
-`;
-
-    console.log(
-        "🧠 [SIA7_CONTENT_GENERATED]",
-        payload.content
-    );
+    
 
     if (
 
