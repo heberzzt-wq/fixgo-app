@@ -842,6 +842,39 @@ try {
             "🧠 [SIA7_SOURCE_SIZE]",
             sourceContext?.length
         );
+
+        /* =====================================================
+   SIA7 SURGEON MOCK V1
+===================================================== */
+
+if (
+
+    payload?.repairContext
+        ?.userIntent
+        ?.toLowerCase()
+        ?.includes(
+            "runtimelatency"
+        )
+
+) {
+
+    payload.content =
+
+        sourceContext +
+
+`
+
+export function runtimeLatency() {
+
+    return 0;
+
+}
+`;
+
+    console.log(
+        "🧠 [SIA7_LATENCY_GENERATED]"
+    );
+}
     }
 
 }
