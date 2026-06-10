@@ -921,6 +921,24 @@ catch(loadError) {
             .generatePatch(
                 patch
             );
+            console.log(
+    "🧠 [PATCH_PREVIEW]",
+    generated
+);
+
+window.renderJarvisResponse(
+
+    "SIA7",
+
+    JSON.stringify(
+        generated?.diff ||
+        generated,
+        null,
+        2
+    ),
+
+    "info"
+);
 
     console.log(
         "🧠 [PATCH_GENERATED]",
