@@ -11760,6 +11760,24 @@ window.__REPO_INDEX__["brain.engine.js"] = {
     }
 };
 
+window.__REPO_INDEX__["repair-translator.engine.js"] = {
+
+    path:
+        "./gestia-core/repair-translator.engine.js",
+
+    module:
+        "repair.translator",
+
+    governance:
+        "HIGH",
+
+    runtimeRole:
+        "cognitive",
+
+    engineType:
+        "repair"
+};
+
 /* =====================================================
    SEMANTIC ENGINE V7
 ===================================================== */
