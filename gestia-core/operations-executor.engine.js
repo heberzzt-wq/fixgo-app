@@ -798,6 +798,47 @@ catch(safeError) {
     payload
 );
 
+
+/* =====================================================
+   SIA7 REPAIR PLANNER BRIDGE
+===================================================== */
+
+if (
+
+    payload?.repairIntent &&
+
+    payload?.repairContext &&
+
+    !payload?.content
+
+) {
+
+    console.log(
+        "🧠 [SIA7_REPAIR_CONTEXT]",
+        payload.repairContext
+    );
+
+    payload.content =
+
+`/* =====================================================
+   SIA7 REPAIR PLACEHOLDER
+===================================================== */
+
+//
+// Target File:
+// ${payload.repairContext?.targetFile}
+//
+// User Intent:
+// ${payload.repairContext?.userIntent}
+//
+
+`;
+
+    console.log(
+        "🧠 [SIA7_CONTENT_GENERATED]",
+        payload.content
+    );
+}
     await writeRepoFile({
     file: payload.file,
     content: payload.content,
