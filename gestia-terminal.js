@@ -14682,6 +14682,8 @@ return {
 
     file: key,
 
+    patched,
+
     runtimeOnly: true,
 
     filesystem:
