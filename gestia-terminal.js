@@ -9969,6 +9969,18 @@ window.addEventListener(
             /* =================================================
                BOOTSTRAP REPO COGNITION
             ================================================= */
+            
+
+            await bootstrapRepoCognition();
+
+await import(
+    "./gestia-core/repair-translator.engine.js?v=" +
+    Date.now()
+);
+
+console.log(
+    "🧠 [REPAIR_TRANSLATOR_LOADED]"
+);
 
             await bootstrapRepoCognition();
 
@@ -9981,6 +9993,8 @@ window.addEventListener(
 console.log(
     "🧠 [RESOURCE_REGISTRY_LOADED]"
 );
+
+
 
             /* =================================================
                BOOTSTRAP RUNTIME COGNITION
