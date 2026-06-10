@@ -818,6 +818,42 @@ if (
         payload.repairContext
     );
 
+    let sourceContext = null;
+
+try {
+
+    const loaded =
+
+        await window.loadRepoContext?.(
+            payload.repairContext.targetFile
+        );
+
+    console.log(
+        "🧠 [SIA7_REPO_LOAD]",
+        loaded
+    );
+
+    if (loaded?.ok) {
+
+        sourceContext =
+            loaded.source;
+
+        console.log(
+            "🧠 [SIA7_SOURCE_SIZE]",
+            sourceContext?.length
+        );
+    }
+
+}
+
+catch(loadError) {
+
+    console.error(
+        "🚨 [SIA7_REPO_LOAD_FAIL]",
+        loadError
+    );
+}
+
     payload.content =
 
 `/* =====================================================
