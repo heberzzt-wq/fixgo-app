@@ -907,6 +907,61 @@ catch(loadError) {
         "🧠 [SIA7_CONTENT_GENERATED]",
         payload.content
     );
+
+    if (
+
+    payload?.repairIntent &&
+
+    payload?.repairContext &&
+
+    !payload?.content
+
+) {
+
+    console.log(
+        "🧠 [COGNITIVE_REPAIR_START]"
+    );
+
+    const patch =
+
+        await window
+            .buildRepairPatch(
+                payload.repairContext
+            );
+
+    console.log(
+        "🧠 [PATCH_TRANSLATED]",
+        patch
+    );
+
+    const generated =
+
+        await window
+            .generatePatch(
+                patch
+            );
+
+    console.log(
+        "🧠 [PATCH_GENERATED]",
+        generated
+    );
+
+    const applied =
+
+        await window
+            .applyPatch(
+                generated
+            );
+
+    console.log(
+        "🧠 [PATCH_APPLIED]",
+        applied
+    );
+
+    payload.content =
+        applied?.patched ||
+        null;
+}
 }
     await writeRepoFile({
     file: payload.file,
