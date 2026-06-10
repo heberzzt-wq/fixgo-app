@@ -99,7 +99,49 @@ async function(
 
 confidence =
     0.95;
+/* ============================================
+   FUNCTION REPLACE
+============================================ */
 
+const replaceMatch =
+
+    intent.match(
+        /reemplaza\s+([a-zA-Z0-9_]+)/i
+    );
+
+if (replaceMatch) {
+
+    const functionName =
+
+        replaceMatch[1];
+
+    strategy =
+        "FUNCTION_REPLACE";
+
+    confidence =
+        0.95;
+
+    search =
+        `function ${functionName}`;
+
+    replace =
+`function ${functionName}() {
+
+    return {
+
+        repaired: true,
+
+        timestamp:
+            Date.now()
+    };
+}`;
+
+    console.log(
+        "🧠 [PATCH_STRATEGY]",
+        strategy,
+        functionName
+    );
+}
 /* ============================================
    INTELLIGENT INSERTION POINT DETECTION
 ============================================ */
