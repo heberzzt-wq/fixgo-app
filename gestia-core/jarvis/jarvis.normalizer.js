@@ -229,55 +229,63 @@ const isRepairIntent =
         null;
 
     /* ============================================
-       REPAIR CONTENT GENERATION
-    ============================================ */
+   REPAIR CONTEXT GENERATION
+============================================ */
 
-    let generatedContent = null;
+let repairContext = null;
 
-    try {
+try {
 
-        const promptData = JSON.parse(
-            step?.payload?.originalPrompt || "{}"
-        );
+    const promptData = JSON.parse(
+        step?.payload?.originalPrompt || "{}"
+    );
 
-        const originalText =
-            promptData?.cognition?.original || "";
+    const originalText =
+        promptData?.cognition?.original || "";
 
-        console.log(
-            "🧪 REPAIR_ORIGINAL_TEXT",
-            originalText
-        );
+    repairContext = {
 
-        if (
-            originalText
-                .toLowerCase()
-                .includes("runtimeping")
-        ) {
+        targetFile,
 
-            generatedContent =
+        userIntent:
+            originalText,
 
-`export function runtimePing() {
+        cognition:
+            promptData?.cognition || {},
 
-    return "pong";
+        repoNode:
+            step?.meta?.repoNode || null,
 
-}`;
-        }
+        source:
+            step?.meta?.source || null,
 
-        console.log(
-            "🧪 REPAIR_GENERATED_CONTENT",
-            generatedContent
-        );
+        repairMode:
+            "AUTONOMOUS",
 
-    }
+        executionMode:
+            "COGNITIVE_REPAIR",
 
-    catch(err) {
+        requiresPatch:
+            true,
 
-        console.warn(
-            "⚠️ REPAIR_CONTENT_GENERATION_FAIL",
-            err
-        );
-    }
+        requiresValidation:
+            true
+    };
 
+    console.log(
+        "🧪 REPAIR_CONTEXT",
+        repairContext
+    );
+
+}
+
+catch(err) {
+
+    console.warn(
+        "⚠️ REPAIR_CONTEXT_FAIL",
+        err
+    );
+}
 
     const normalizedStep = {
 
@@ -315,9 +323,9 @@ const isRepairIntent =
         targetFile,
 
     content:
-        generatedContent ||
+        null,
 
-        "// repair generated",
+    repairContext,
 
     originalPrompt:
 
