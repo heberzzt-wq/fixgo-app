@@ -10698,6 +10698,19 @@ window.__REPO_INDEX__["gps-motor.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["test-replace.js"] = {
+
+    path: "./test-replace.js",
+
+    module: "sandbox",
+
+    governance: "LOW",
+
+    runtimeRole: "test",
+
+    engineType: "test"
+};
+
 window.__REPO_INDEX__["rastreo.html"] = {
 
     path:
