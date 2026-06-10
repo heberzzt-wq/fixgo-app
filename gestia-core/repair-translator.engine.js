@@ -202,7 +202,9 @@ function ${functionName}() {
 
 const replaceMatch =
 
-    intent.match(
+    String(
+        userIntent || ""
+    ).match(
         /reemplaza\s+([a-zA-Z0-9_]+)/i
     );
 
