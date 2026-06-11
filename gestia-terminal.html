@@ -1538,9 +1538,25 @@ if (
                             if (window.hablarJarvis) window.hablarJarvis(res);
                             handled = true;
                         }
-                    } catch (kernelErr) {
-                        console.warn("⚠️ [KERNEL_FAIL]: Fallback a IA.");
-                    }
+                    } 
+                    catch (kernelErr) {
+
+    console.error(
+        "🚨 [KERNEL_FAIL_FULL]",
+        {
+            error:
+                kernelErr?.message,
+
+            stack:
+                kernelErr?.stack,
+
+            command:
+                comando
+        }
+    );
+
+    throw kernelErr;
+}
                 }
 
                 // 3. IA (SIA7 Conversacional)
