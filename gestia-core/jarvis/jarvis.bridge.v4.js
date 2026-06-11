@@ -1103,6 +1103,24 @@ function classifyHumanIntent(
             .toLowerCase()
             .trim();
 
+            const cognition =
+    window.JarvisCognitionEngine
+        ?.analyze?.(input);
+
+console.log(
+    "🧠 [HUMAN_CLASSIFIER_COGNITION]",
+    cognition
+);
+
+            const cognition =
+    window.JarvisCognitionEngine
+        ?.analyze?.(input);
+
+console.log(
+    "🧠 [HUMAN_CLASSIFIER_COGNITION]",
+    cognition
+);
+
     const operationalSignals = [
 
         "analiza",
