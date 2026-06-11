@@ -1145,6 +1145,14 @@ console.log(
                 raw.includes(signal)
         );
 
+        console.log(
+    "🧪 HUMAN_CLASSIFIER",
+    {
+        raw,
+        operational
+    }
+);
+
     if (operational) {
 
         return {
