@@ -263,6 +263,65 @@ if (replaceMatch) {
         functionName
     );
 }
+
+/* ============================================
+   FUNCTION REMOVE
+============================================ */
+
+const removeMatch =
+
+    String(
+        userIntent || ""
+    ).match(
+        /(elimina|borra|remove|delete)\s+([a-zA-Z0-9_]+)/i
+    );
+
+if (removeMatch) {
+
+    const functionName =
+
+        removeMatch[2];
+
+    strategy =
+        "FUNCTION_REMOVE";
+
+    confidence =
+        0.95;
+
+    const functionRegex =
+
+        new RegExp(
+
+            `function\\s+${functionName}\\s*\\([^)]*\\)\\s*\\{[\\s\\S]*?\\}`,
+
+            "m"
+        );
+
+    const functionMatchFound =
+
+        currentSource.match(
+            functionRegex
+        );
+
+    if (
+
+        functionMatchFound
+
+    ) {
+
+        search =
+            functionMatchFound[0];
+
+        replace =
+            "";
+    }
+
+    console.log(
+        "🧠 [PATCH_STRATEGY]",
+        strategy,
+        functionName
+    );
+}
         /* ============================================
            EXPORT APPEND
         ============================================ */
