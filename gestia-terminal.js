@@ -15524,7 +15524,19 @@ if (!isStructured && !String(input).trim()) {
         message: "Entrada vacía."
     };
 }
+if (isStructured) {
 
+    rawInput = input;
+
+    cmd = `${input.intent || ""}::${input.target || ""}`
+        .toLowerCase();
+
+} else {
+
+    rawInput = String(input).trim();
+
+    cmd = rawInput.toLowerCase();
+}
 /* =====================================================
    🔥 INSERTAR AQUÍ (ANTES DE BLOQUEO)
 ===================================================== */
@@ -15568,19 +15580,7 @@ if (
     );
 }
 
-if (isStructured) {
 
-    rawInput = input;
-
-    cmd = `${input.intent || ""}::${input.target || ""}`
-        .toLowerCase();
-
-} else {
-
-    rawInput = String(input).trim();
-
-    cmd = rawInput.toLowerCase();
-}
 
     /* =====================================================
        BLOQUEO: APROBACIÓN SIN PLAN PENDIENTE
