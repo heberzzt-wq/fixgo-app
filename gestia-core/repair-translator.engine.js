@@ -220,8 +220,30 @@ if (replaceMatch) {
     confidence =
         0.95;
 
-    search =
-        `function ${functionName}`;
+    const functionRegex =
+
+        new RegExp(
+
+            `function\\s+${functionName}\\s*\\([^)]*\\)\\s*\\{[\\s\\S]*?\\}`,
+
+            "m"
+        );
+
+    const functionMatchFound =
+
+        currentSource.match(
+            functionRegex
+        );
+
+    if (
+
+        functionMatchFound
+
+    ) {
+
+        search =
+            functionMatchFound[0];
+    }
 
     replace =
 `function ${functionName}() {
@@ -241,7 +263,6 @@ if (replaceMatch) {
         functionName
     );
 }
-
         /* ============================================
            EXPORT APPEND
         ============================================ */
