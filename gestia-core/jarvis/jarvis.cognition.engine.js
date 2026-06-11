@@ -121,6 +121,48 @@ if (
 
     return cognition;
 }
+/* =====================================================
+   REPOSITORY SURGEON INTENTS
+===================================================== */
+
+const removeIntent =
+
+    /\belimina\b/i.test(text) ||
+    /\bborra\b/i.test(text) ||
+    /\bquita\b/i.test(text) ||
+    /\bremueve\b/i.test(text) ||
+    /\bsuprime\b/i.test(text);
+
+if (removeIntent) {
+
+    cognition.intent =
+        "FUNCTION_REMOVE";
+
+    cognition.domain =
+        "repository";
+
+    cognition.expectedOutput =
+        "repo_patch";
+
+    cognition.cognitionLayer =
+        "repo_surgeon";
+
+    cognition.confidence =
+        0.95;
+
+    const targetMatch =
+        text.match(
+            /(?:elimina|borra|quita|remueve|suprime)\s+([a-z0-9_]+)/i
+        );
+
+    if (targetMatch) {
+
+        cognition.target =
+            targetMatch[1];
+    }
+
+    return cognition;
+}
 
             const wantsRepair =
 
