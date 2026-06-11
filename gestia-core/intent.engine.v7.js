@@ -247,7 +247,21 @@ function detectHumanState(text) {
    DETECT INTENT
 ====================================================================================== */
 
-function detectIntent(tokens = []) {
+function detectIntent(
+    tokens = [],
+    originalText = ""
+) {
+
+    const cognition =
+    window.JarvisCognitionEngine
+        ?.analyze?.(
+            originalText
+        );
+
+console.log(
+    "🧠 [INTENT_COGNITION]",
+    cognition
+);
 
     for (const token of tokens) {
 
@@ -504,7 +518,10 @@ function buildExecutionPlan(text) {
         detectHumanState(normalized);
 
     const intent =
-        detectIntent(tokens);
+    detectIntent(
+        tokens,
+        text
+    );
 
     const entity =
         detectEntity(tokens);
