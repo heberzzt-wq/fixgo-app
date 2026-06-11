@@ -1112,7 +1112,26 @@ console.log(
     cognition
 );
 
-            
+            if (
+
+    cognition?.domain ===
+    "repository"
+
+) {
+
+    console.log(
+        "🧠 [COGNITION_OVERRIDE]",
+        cognition.intent
+    );
+
+    return {
+
+        type: "OPERATIONAL",
+
+        confidence:
+            cognition.confidence || 0.95
+    };
+}
 
     const operationalSignals = [
 
