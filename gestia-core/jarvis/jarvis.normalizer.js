@@ -1016,6 +1016,9 @@ function inferAction(type) {
         case "CODE_WRITE":
             return "custom";
 
+
+            case "FUNCTION_REMOVE":
+    return "repo_function_remove";
             // =========================
 // REPO
 // =========================
