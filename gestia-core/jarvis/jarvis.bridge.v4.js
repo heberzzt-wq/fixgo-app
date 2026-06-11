@@ -1112,14 +1112,7 @@ console.log(
     cognition
 );
 
-            const cognition =
-    window.JarvisCognitionEngine
-        ?.analyze?.(input);
-
-console.log(
-    "🧠 [HUMAN_CLASSIFIER_COGNITION]",
-    cognition
-);
+            
 
     const operationalSignals = [
 
