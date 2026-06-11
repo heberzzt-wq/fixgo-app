@@ -1634,7 +1634,9 @@ const PERMISSION_MAP = {
 
     WRITE: ["WRITE"],
 
-    DELETE: ["ADMIN"]
+    DELETE: ["ADMIN"],
+    
+    FUNCTION_REMOVE: ["ADMIN"]
 };
 
 const INTENT_ALIAS = {
