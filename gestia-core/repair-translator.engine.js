@@ -1,6 +1,6 @@
 /* =====================================================================================
-   REPAIR TRANSLATOR ENGINE V2
-   SIA7 Cognitive Repo Surgeon - NLP Resilient
+   REPAIR TRANSLATOR ENGINE V3
+   SIA7 Cognitive Repo Surgeon - NLP Resilient + Filename Isolation
 ===================================================================================== */
 
 console.log(
@@ -72,10 +72,22 @@ async function(
             currentSource = loaded.source;
         }
 
-        const intent =
+        let intent =
             String(
                 userIntent || ""
             ).toLowerCase();
+
+        // 🔥 AISLAMIENTO DE NOMBRE DE ARCHIVO
+        // Evitamos que palabras dentro del nombre del archivo (ej. "replace" en "test-replace.js")
+        // activen estrategias incorrectas.
+        if (targetFile) {
+            const fileNameLower = targetFile.toLowerCase();
+            const fileNameWithoutExt = fileNameLower.split('.')[0];
+            
+            // Removemos el nombre exacto del archivo de la oración
+            intent = intent.replace(new RegExp(fileNameLower, 'g'), '');
+            intent = intent.replace(new RegExp(fileNameWithoutExt, 'g'), '');
+        }
 
         let strategy = "UNKNOWN";
         let search = null;
