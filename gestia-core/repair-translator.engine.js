@@ -103,7 +103,23 @@ async function(
         /* ============================================
            EVALUACIÓN DE ESTRATEGIA (Orden de Prioridad)
         ============================================ */
+         
 
+        // 0. READ-ONLY ANALYSIS (SIA7 Cognitive Audit)
+        if (intent.includes("analiza") || intent.includes("estado") || intent.includes("audit")) {
+            strategy = "ANALYZE_ONLY";
+            confidence = 1.0;
+            
+            // Retornamos un parche ficticio que el ejecutor entenderá como "No hacer cambios"
+            return {
+                ok: true,
+                file: targetFile,
+                strategy: "ANALYZE_ONLY",
+                isReadOnly: true, // Flag para que el ejecutor no toque GitHub
+                analysisResult: `El archivo ${targetFile} contiene ${currentSource.length} bytes y está bajo gobierno de zona segura.`
+            };
+        }
+        
         // 1. FUNCTION REMOVE
         if (removeRegex.test(intent)) {
             
