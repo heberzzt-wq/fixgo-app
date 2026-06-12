@@ -204,17 +204,19 @@ const isAnalyzeIntent =
 
 const isRepairIntent =
 
-console.log(
+
+
+    type.startsWith(
+        "REPAIR"
+    );
+
+    console.log(
     "🧪 REPAIR_GATE",
     {
         type,
         isRepairIntent
     }
 );
-
-    type.startsWith(
-        "REPAIR"
-    );
 
     if (
     isRepairIntent
