@@ -1521,15 +1521,79 @@ Escribe:
 
                 
                 // 4. GENERACIÓN DE PLAN CON TIMEOUT & ABORT REAL
-                const rawPlan = await Promise.race([
-                    window.runExternalAI({input: raw, cognition, mode: "PLANNER", context, signal: controller.signal}),
-                    new Promise((_, reject) => 
-                        setTimeout(() => { 
-                            controller.abort(); 
-                            reject(new Error("AI timeout")); 
-                        }, 8000)
-                    )
-                ]);
+                let rawPlan;
+
+try {
+
+    rawPlan = await Promise.race([
+
+        window.runExternalAI({
+
+            input: raw,
+
+            cognition,
+
+            mode: "PLANNER",
+
+            context,
+
+            signal: controller.signal
+
+        }),
+
+        new Promise((_, reject) =>
+
+            setTimeout(() => {
+
+                controller.abort();
+
+                reject(
+                    new Error("AI timeout")
+                );
+
+            }, 8000)
+        )
+    ]);
+
+} catch(err) {
+
+    if (
+
+        err.message === "AI timeout" ||
+
+        err.name === "AbortError"
+
+    ) {
+
+        console.warn(
+            "🧠 [COGNITION_FALLBACK]"
+        );
+
+        rawPlan = {
+
+            intent:
+                cognition?.intent,
+
+            target:
+                cognition?.target,
+
+            targetFile:
+                cognition?.targetFile,
+
+            confidence:
+                cognition?.confidence || 0.95
+        };
+
+    } else {
+
+        throw err;
+    }
+}
+
+                console.log(
+    "🧪 AI_RETURNED",
+    rawPlan
+);
 
                 if (
 
@@ -1621,7 +1685,8 @@ if (
 
                 rawPlan.cognition = cognition;
 rawPlan.domain = cognition?.domain || null;
-rawPlan.targetFile = cognition?.target || null;
+rawPlan.targetFile =
+    cognition?.targetFile || null;
 
                 const plan = normalizeAIPlan(rawPlan);
                 if (!plan || !plan.steps || !plan.steps.length) throw new Error("Plan sin pasos ejecutables.");
