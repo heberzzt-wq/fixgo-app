@@ -233,20 +233,45 @@ if (
 ) {
     const targetFile =
 
-        step?.meta?.repoNode?.file ||
+    step?.meta?.repoNode?.file ||
 
-        step?.payload?.file ||
+    step?.payload?.file ||
 
-        step?.targetFile ||
+    step?.targetFile ||
 
-        step?.meta?.originalTarget ||
+    step?.meta?.originalTarget ||
 
-        planRaw?.targetFile ||
+    planRaw?.targetFile ||
 
-        planRaw?.target ||
+    planRaw?.target ||
 
-        null;
+    null;
 
+console.log(
+    "🧪 TARGETFILE_RESOLUTION",
+    {
+        repoNodeFile:
+            step?.meta?.repoNode?.file,
+
+        payloadFile:
+            step?.payload?.file,
+
+        stepTargetFile:
+            step?.targetFile,
+
+        originalTarget:
+            step?.meta?.originalTarget,
+
+        planTargetFile:
+            planRaw?.targetFile,
+
+        planTarget:
+            planRaw?.target,
+
+        finalTargetFile:
+            targetFile
+    }
+);
     /* ============================================
    REPAIR CONTEXT GENERATION
 ============================================ */
