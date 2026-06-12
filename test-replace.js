@@ -1,1 +1,9 @@
-{"id":"step_1781289531096","type":"delete","target":{"collection":"test-replace.js"},"action":null,"payload":{"originalprompt":"{\"intent\":\"delete\",\"target\":\"test-replace.js\",\"confidence\":0.95,\"targetfile\":\"test-replace.js\",\"cognition\":{\"original\":\"elimina testbroken de test-replace.js\",\"timestamp\":1781289527038,\"intent\":\"function_remove\",\"domain\":\"repository\",\"target\":\"testbroken\",\"expectedoutput\":\"repo_patch\",\"cognitionlayer\":\"repo_surgeon\",\"confidence\":0.95,\"targetfile\":\"test-replace.js\",\"reponode\":{\"path\":\"./test-replace.js\",\"module\":\"sandbox\",\"governance\":\"low\",\"runtimerole\":\"test\",\"enginetype\":\"test\"},\"repoaware\":true},\"domain\":\"repository\"}","query":"","target":"test-replace.js","file":null},"meta":{"originalintent":"delete","originaltarget":"test-replace.js","cognitionhint":"analyze"}}
+/* FIXGO_SAFE_EDIT_START */
+
+function testBroken() {
+
+    return null;
+
+}
+
+/* FIXGO_SAFE_EDIT_END */
