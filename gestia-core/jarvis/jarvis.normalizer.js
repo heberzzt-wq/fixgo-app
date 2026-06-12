@@ -189,7 +189,10 @@ console.log(
     }
 
     // 🔥 DETECCIÓN POR CONTENIDO REAL (FIX DEFINITIVO)
-const rawText = JSON.stringify(step).toLowerCase();
+
+const rawText =
+    JSON.stringify(step)
+        .toLowerCase();
 
 console.log(
     "🔥 NORMALIZER_TYPE",
@@ -204,13 +207,20 @@ const isAnalyzeIntent =
 
 const isRepairIntent =
 
-
-
     type.startsWith(
         "REPAIR"
-    );
+    ) ||
 
-    console.log(
+    type ===
+        "FUNCTION_REMOVE" ||
+
+    type ===
+        "FUNCTION_REPLACE" ||
+
+    type ===
+        "FUNCTION_APPEND";
+
+console.log(
     "🧪 REPAIR_GATE",
     {
         type,
@@ -218,10 +228,9 @@ const isRepairIntent =
     }
 );
 
-    if (
+if (
     isRepairIntent
 ) {
-
     const targetFile =
 
         step?.meta?.repoNode?.file ||
