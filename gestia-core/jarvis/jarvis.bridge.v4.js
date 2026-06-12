@@ -1556,6 +1556,27 @@ Escribe:
         cognition.target;
 
 }
+
+if (
+
+    cognition?.targetFile &&
+
+    !rawPlan?.targetFile
+
+) {
+
+    console.warn(
+
+        "🛠️ TARGET_FILE_OVERRIDE",
+
+        cognition.targetFile
+
+    );
+
+    rawPlan.targetFile =
+
+        cognition.targetFile;
+}
 const localIntent = cognition?.intent;
 const remoteIntent = rawPlan?.intent;
 
@@ -1585,7 +1606,12 @@ if (
 }
 
 
-                console.log("🧠 [RAW_PLAN]", rawPlan);
+                console.log(
+    "🧠 [RAW_PLAN]",
+    JSON.parse(
+        JSON.stringify(rawPlan)
+    )
+);
 
                 if (!rawPlan || typeof rawPlan !== "object") throw new Error("AI no devolvió un plan válido");
 
@@ -1635,7 +1661,7 @@ const PERMISSION_MAP = {
     WRITE: ["WRITE"],
 
     DELETE: ["ADMIN"],
-    
+
     FUNCTION_REMOVE: ["ADMIN"]
 };
 
