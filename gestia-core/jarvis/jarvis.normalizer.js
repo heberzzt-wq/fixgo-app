@@ -206,19 +206,12 @@ const isAnalyzeIntent =
     );
 
 const isRepairIntent =
-
-    type.startsWith(
-        "REPAIR"
-    ) ||
-
-    type ===
-        "FUNCTION_REMOVE" ||
-
-    type ===
-        "FUNCTION_REPLACE" ||
-
-    type ===
-        "FUNCTION_APPEND";
+    type.startsWith("REPAIR") ||
+    type === "FUNCTION_REMOVE" ||
+    type === "FUNCTION_REPLACE" ||
+    type === "FUNCTION_APPEND" ||
+    (type === "DELETE" && rawText.includes("function_remove")) ||
+    rawText.includes("repair_");
 
 console.log(
     "🧪 REPAIR_GATE",
@@ -553,23 +546,18 @@ console.log(
 );
 
 const normalizedStep = {
-
     id: step.id || `step_${Math.random().toString(36).slice(2,8)}`,
-
     type: "CODE_WRITE",
-        target: {
-            collection: "repo_files",
-            docId: null,
-            query: null
-        },
-        action: "custom",
-        payload: {
-    file,
-
-    content:
-        extractedCode ||
-        rawText
-},
+    target: {
+        collection: "repo_files",
+        docId: null,
+        query: null
+    },
+    action: "custom",
+    payload: {
+        file,
+        content: extractedCode || null
+    },
         meta: {
             reversible: true,
             description: "AI Code Write (forced from text)"
