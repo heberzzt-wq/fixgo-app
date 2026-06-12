@@ -165,14 +165,19 @@ async function(
 
             /* INTELLIGENT INSERTION POINT DETECTION */
             
-            // 🔥 FIX SIA7: Inyección Protegida en Zona Segura
+            /// 🔥 FIX SIA7: Inyección Protegida por Reemplazo de Bloque
             if (currentSource.includes("/* FIXGO_SAFE_EDIT_START */")) {
                 strategy = "FUNCTION_APPEND_SAFE_ZONE";
-                search = "/* FIXGO_SAFE_EDIT_END */";
-                replace = 
-`
+                
+                // Buscamos desde el inicio hasta el fin del bloque seguro
+                const blockRegex = /\/\* FIXGO_SAFE_EDIT_START \*\/([\s\S]*?)\/\* FIXGO_SAFE_EDIT_END \*\//;
+                const match = currentSource.match(blockRegex);
+                
+                if (match) {
+                    search = match[0]; // El bloque completo original
+                    replace = 
+`/* FIXGO_SAFE_EDIT_START */${match[1]}
 function ${functionName}() {
-
     return {
         ok: true,
         timestamp: Date.now()
@@ -180,6 +185,8 @@ function ${functionName}() {
 }
 
 /* FIXGO_SAFE_EDIT_END */`;
+                }
+            
             }
             else if (currentSource.includes("export default")) {
                 search = "export default";
