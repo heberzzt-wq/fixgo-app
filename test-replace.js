@@ -11,3 +11,10 @@ function a() {
 }
 
 /* FIXGO_SAFE_EDIT_END */
+
+
+export function runtimeLatency() {
+
+    return 0;
+
+}
