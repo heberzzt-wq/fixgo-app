@@ -161,6 +161,31 @@ if (removeIntent) {
             targetMatch[1];
     }
 
+
+    const fileMatch =
+    text.match(
+        /([a-z0-9\-_]+\.js)/i
+    );
+
+if (fileMatch) {
+
+    cognition.targetFile =
+        fileMatch[1];
+
+    const found =
+        window.findRepoFile?.(
+            cognition.targetFile
+        );
+
+    if (found) {
+
+        cognition.repoNode =
+            found[1];
+
+        cognition.repoAware =
+            true;
+    }
+}
     return cognition;
 }
 
