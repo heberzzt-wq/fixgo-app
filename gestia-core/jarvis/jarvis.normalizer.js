@@ -336,8 +336,7 @@ catch(err) {
         type:
             "CODE_WRITE",
 
-        originalType:
-            type,
+        originalType: "CODE_WRITE",
 
         target: {
 
