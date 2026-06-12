@@ -205,13 +205,31 @@ const isAnalyzeIntent =
         "ANALYZE"
     );
 
-const isRepairIntent =
-    type.startsWith("REPAIR") ||
-    type === "FUNCTION_REMOVE" ||
-    type === "FUNCTION_REPLACE" ||
-    type === "FUNCTION_APPEND" ||
-    (type === "DELETE" && rawText.includes("function_remove")) ||
-    rawText.includes("repair_");
+// 🔥 SIA7: COMPUERTA COGNITIVA UNIVERSAL (BASE DEVELOPER MODE + NLP RESILIENCE)
+        // Ya no dependemos de palabras exactas. Confiamos en la inteligencia del LLM 
+        // y en expresiones tolerantes a fallos (typos).
+        
+        let aiCognition = {};
+        try { 
+            aiCognition = JSON.parse(step?.payload?.originalPrompt || "{}")?.cognition || {}; 
+        } catch(e) {}
+
+        const isRepairIntent = 
+            // 1. Delegación directa: Si la IA sabe que es una operación de repositorio, le creemos.
+            aiCognition.repoAware === true ||
+            ["repo_surgeon", "runtime_audit", "code_generation"].includes(aiCognition.cognitionLayer) ||
+            
+            // 2. Regex tolerante para los Intents principales del sistema
+            /^(REPAIR|REFACTOR|FUNCTION|CODE|ANALYZE)/i.test(type) ||
+            
+            // 3. Regex difuso para texto libre: si menciona un archivo y un verbo de acción (incluso con typos)
+            (
+                /(\.js|\.html|\.css|ui|layout)/i.test(rawText) &&
+                /(creat|crea|agreg|add|updat|actualiz|delet|borr|elimin|modif|patch|parch|fix|repar)/i.test(rawText)
+            ) ||
+            
+            // 4. Fallback de seguridad legacy
+            rawText.includes("repair_");
 
 console.log(
     "🧪 REPAIR_GATE",
