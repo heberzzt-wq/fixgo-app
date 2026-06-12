@@ -164,7 +164,24 @@ async function(
             confidence = 0.95;
 
             /* INTELLIGENT INSERTION POINT DETECTION */
-            if (currentSource.includes("export default")) {
+            
+            // 🔥 FIX SIA7: Inyección Protegida en Zona Segura
+            if (currentSource.includes("/* FIXGO_SAFE_EDIT_START */")) {
+                strategy = "FUNCTION_APPEND_SAFE_ZONE";
+                search = "/* FIXGO_SAFE_EDIT_END */";
+                replace = 
+`
+function ${functionName}() {
+
+    return {
+        ok: true,
+        timestamp: Date.now()
+    };
+}
+
+/* FIXGO_SAFE_EDIT_END */`;
+            }
+            else if (currentSource.includes("export default")) {
                 search = "export default";
                 replace = 
 `export function ${functionName}() {
@@ -211,7 +228,6 @@ function ${functionName}() {
 
             console.log("🧠 [PATCH_STRATEGY]", strategy, functionName);
         }
-
         /* ============================================
            EXPORT APPEND (Fallback)
         ============================================ */
