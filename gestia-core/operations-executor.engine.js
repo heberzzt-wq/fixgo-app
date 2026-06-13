@@ -644,29 +644,42 @@ case "ANALYZE_UI":
                            SIA7 REPAIR PLANNER BRIDGE
                         ===================================================== */
                         if (payload?.repairIntent && payload?.repairContext && !payload?.content) {
+                            console.log("🧠 [SIA7_REPAIR_CONTEXT]", payload.repairContext);
                             let sourceContext = null;
+
                             try {
                                 const loaded = await window.loadRepoContext?.(payload.repairContext.targetFile);
+                                console.log("🧠 [SIA7_REPO_LOAD]", loaded);
+
                                 if (loaded?.ok) {
                                     sourceContext = loaded.source;
+                                    console.log("🧠 [SIA7_SOURCE_SIZE]", sourceContext?.length);
+
+                                    /* =====================================================
+                                       SIA7 SURGEON MOCK V1
+                                    ===================================================== */
                                     if (payload?.repairContext?.userIntent?.toLowerCase()?.includes("runtimelatency")) {
                                         payload.content = sourceContext + `\n\nexport function runtimeLatency() { return 0; }`;
+                                        console.log("🧠 [SIA7_LATENCY_GENERATED]");
                                     }
                                 }
                             } catch(loadError) { console.error("🚨 [SIA7_REPO_LOAD_FAIL]", loadError); }
 
                             if (payload?.repairIntent && payload?.repairContext && !payload?.content) {
+                                console.log("🧠 [COGNITIVE_REPAIR_START]");
                                 const patch = await window.buildRepairPatch(payload.repairContext);
+                                console.log("🧠 [PATCH_TRANSLATED]", patch);
                                 const generated = await window.generatePatch(patch);
+                                console.log("🧠 [PATCH_PREVIEW]", generated);
                                 window.renderJarvisResponse("SIA7", JSON.stringify(generated?.diff || generated, null, 2), "info");
+                                console.log("🧠 [PATCH_GENERATED]", generated);
                                 const applied = await window.applyPatch(generated);
+                                console.log("🧠 [PATCH_APPLIED]", applied);
                                 payload.content = applied?.patched || null;
                             }
                         }
 
-                        /* =====================================================
-                           🔥 BLOQUEO DE ESCRITURA PARA ANÁLISIS
-                        ===================================================== */
+                        // 🔥 FIX SIA7: Inyección Protegida (Evita el Crash al analizar)
                         const isAnalysisResult = payload?.content === null && 
                                                  payload.repairContext?.cognition?.intent === 'ANALYZE_RUNTIME';
 
@@ -677,23 +690,27 @@ case "ANALYZE_UI":
                                 operationId: opId
                             });
 
-                            transaction.set(doc(collection(db, "repo_files")), deepSanitize({
-                                file: payload?.file || `auto_${Date.now()}.js`,
-                                content: payload?.content || "// archivo generado por jarvis",
-                                created_at: serverTimestamp(),
-                                created_by: ejecutado_por || "jarvis_ai",
-                                op_id: opId,
-                                tenantId: tenantId,
-                                status: "active"
-                            }));
+                            transaction.set(
+                                doc(collection(db, "repo_files")), 
+                                deepSanitize({
+                                    file: payload?.file || `auto_${Date.now()}.js`,
+                                    content: payload?.content || "// archivo generado por jarvis",
+                                    created_at: serverTimestamp(),
+                                    created_by: ejecutado_por || "jarvis_ai",
+                                    op_id: opId,
+                                    tenantId: tenantId,
+                                    status: "active"
+                                })
+                            );
 
                             retryBuffer.push({ type, target: payload?.file || `auto_${Date.now()}.js`, status: "file_created" });
                             emitirPulsoHUD(opId, "WRITE", "CODE_WRITE", payload?.file || "auto_file");
                         } else {
-                            console.log("🧠 [EXECUTOR]: Auditoría completada. Saltando commit a GitHub y escritura en DB.");
+                            console.log("🧠 [EXECUTOR]: Auditoría completada. Saltando commit a GitHub.");
                             retryBuffer.push({ type, target: payload.file, status: "analysis_only_success" });
                         }
 
+                        
     break;
 
 
