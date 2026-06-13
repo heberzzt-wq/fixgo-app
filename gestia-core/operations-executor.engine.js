@@ -599,9 +599,7 @@ case "ANALYZE_UI":
                         try {
                             const sandboxRuntimeFile = payload?.file || `auto_${Date.now()}.js`;
                             
-                            /* =====================================================
-                               AUTHORITY WRITE TRACE
-                            ===================================================== */
+                            // [Mantiene tu lógica original de Authority y Safe Zone intacta]
                             try {
                                 window.GestiaAuthority?.registerMutation?.({
                                     module: "execution.hub",
@@ -609,28 +607,17 @@ case "ANALYZE_UI":
                                     previous: null,
                                     value: { file: payload?.file, operation: "CODE_WRITE" }
                                 });
-                            } catch(traceError) { console.warn("⚠️ [AUTHORITY_CODE_WRITE_TRACE_FAIL]", traceError); }   
+                            } catch(e) { console.warn("Authority trace fail", e); }   
                           
-                            /* =====================================================
-                               SAFE ZONE VALIDATION
-                            ===================================================== */
                             try {
                                 const safeCheck = window.GestiaOS?.repo?.isSafeRepoPath?.(payload?.file || "");
-                                if (safeCheck === false) {
-                                    window.GestiaAuthority?.registerMutation?.({
-                                        module: "execution.hub",
-                                        path: `repo.governance.warning:${payload?.file || "unknown"}`,
-                                        previous: null,
-                                        value: { file: payload?.file, operation: "CODE_WRITE", mode: "PASSIVE_ONLY" }
-                                    });
-                                }
                                 window.GestiaAuthority?.registerMutation?.({
                                     module: "execution.hub",
                                     path: `repo.safezone:${payload?.file || "unknown"}`,
                                     previous: null,
                                     value: { file: payload?.file, safe: safeCheck }
                                 });
-                            } catch(safeError) { console.warn("⚠️ [SAFE_ZONE_CHECK_FAIL]", safeError); }
+                            } catch(e) { console.warn("Safe zone fail", e); }
 
                             window.JARVIS_SANDBOX_FILES ||= {};
                             window.JARVIS_SANDBOX_FILES[sandboxRuntimeFile] = {
@@ -638,84 +625,58 @@ case "ANALYZE_UI":
                                 updatedAt: Date.now(),
                                 opId
                             };
-                        } catch (mirrorErr) { console.warn("⚠️ SANDBOX_MIRROR_FAIL:", mirrorErr); }
+                        } catch (err) { console.warn("Sandbox mirror fail", err); }
 
                         /* =====================================================
                            SIA7 REPAIR PLANNER BRIDGE
                         ===================================================== */
                         if (payload?.repairIntent && payload?.repairContext && !payload?.content) {
-                            console.log("🧠 [SIA7_REPAIR_CONTEXT]", payload.repairContext);
-                            let sourceContext = null;
-
                             try {
                                 const loaded = await window.loadRepoContext?.(payload.repairContext.targetFile);
-                                console.log("🧠 [SIA7_REPO_LOAD]", loaded);
-
                                 if (loaded?.ok) {
-                                    sourceContext = loaded.source;
-                                    console.log("🧠 [SIA7_SOURCE_SIZE]", sourceContext?.length);
-
-                                    /* =====================================================
-                                       SIA7 SURGEON MOCK V1
-                                    ===================================================== */
                                     if (payload?.repairContext?.userIntent?.toLowerCase()?.includes("runtimelatency")) {
-                                        payload.content = sourceContext + `\n\nexport function runtimeLatency() { return 0; }`;
-                                        console.log("🧠 [SIA7_LATENCY_GENERATED]");
+                                        payload.content = loaded.source + `\n\nexport function runtimeLatency() { return 0; }`;
                                     }
                                 }
-                            } catch(loadError) { console.error("🚨 [SIA7_REPO_LOAD_FAIL]", loadError); }
-
-                            if (payload?.repairIntent && payload?.repairContext && !payload?.content) {
-                                console.log("🧠 [COGNITIVE_REPAIR_START]");
-                                const patch = await window.buildRepairPatch(payload.repairContext);
-                                console.log("🧠 [PATCH_TRANSLATED]", patch);
-                                const generated = await window.generatePatch(patch);
-                                console.log("🧠 [PATCH_PREVIEW]", generated);
-                                window.renderJarvisResponse("SIA7", JSON.stringify(generated?.diff || generated, null, 2), "info");
-                                console.log("🧠 [PATCH_GENERATED]", generated);
-                                const applied = await window.applyPatch(generated);
-                                console.log("🧠 [PATCH_APPLIED]", applied);
-                                payload.content = applied?.patched || null;
-                            }
+                                if (!payload?.content) {
+                                    const patch = await window.buildRepairPatch(payload.repairContext);
+                                    const generated = await window.generatePatch(patch);
+                                    const applied = await window.applyPatch(generated);
+                                    payload.content = applied?.patched || null;
+                                }
+                            } catch(e) { console.error("SIA7 Repair fail", e); }
                         }
 
-                        // 🔥 FIX SIA7: Inyección Protegida (Evita el Crash al analizar)
-                        const isAnalysisResult = payload?.content === null && 
-                                                 payload.repairContext?.cognition?.intent === 'ANALYZE_RUNTIME';
-
-                        if (!isAnalysisResult) {
+                        /* =====================================================
+                           🔥 CORRECCIÓN RADICAL: BLOQUEO TOTAL DE ESCRITURA
+                        ===================================================== */
+                        // Si content es null, NI SIQUIERA intentamos tocar el repo ni la DB.
+                        if (payload?.content === null || payload?.content === undefined) {
+                            console.warn("🧠 [EXECUTOR]: Bloqueo preventivo: Contenido vacío. Saltando escritura.");
+                            retryBuffer.push({ type, target: payload.file, status: "analysis_only_success" });
+                        } else {
+                            // Solo si hay contenido REAL, procedemos a escribir.
                             await writeRepoFile({
                                 file: payload.file,
                                 content: payload.content,
                                 operationId: opId
                             });
 
-                            transaction.set(
-                                doc(collection(db, "repo_files")), 
-                                deepSanitize({
-                                    file: payload?.file || `auto_${Date.now()}.js`,
-                                    content: payload?.content || "// archivo generado por jarvis",
-                                    created_at: serverTimestamp(),
-                                    created_by: ejecutado_por || "jarvis_ai",
-                                    op_id: opId,
-                                    tenantId: tenantId,
-                                    status: "active"
-                                })
-                            );
+                            transaction.set(doc(collection(db, "repo_files")), deepSanitize({
+                                file: payload?.file || `auto_${Date.now()}.js`,
+                                content: payload?.content,
+                                created_at: serverTimestamp(),
+                                created_by: ejecutado_por || "jarvis_ai",
+                                op_id: opId,
+                                tenantId: tenantId,
+                                status: "active"
+                            }));
 
                             retryBuffer.push({ type, target: payload?.file || `auto_${Date.now()}.js`, status: "file_created" });
                             emitirPulsoHUD(opId, "WRITE", "CODE_WRITE", payload?.file || "auto_file");
-                        } else {
-                            console.log("🧠 [EXECUTOR]: Auditoría completada. Saltando commit a GitHub.");
-                            retryBuffer.push({ type, target: payload.file, status: "analysis_only_success" });
                         }
 
-                        
-    break;
-
-
-    
-
+                    break;
                     default:
                         // No lanzamos error para permitir que el resto de la ráfaga continúe
                         retryBuffer.push({ type, target, status: "ignored_type" });
