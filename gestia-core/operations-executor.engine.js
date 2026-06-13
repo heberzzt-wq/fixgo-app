@@ -962,17 +962,26 @@ window.renderJarvisResponse(
         null;
 }
 }
-    await writeRepoFile({
-    file: payload.file,
-    content: payload.content,
-    operationId: opId
-});
+    // 🔥 FIX SIA7: Inyección Protegida (Evita el Crash al analizar)
+    const isAnalysisResult = payload?.content === null && 
+                             payload.repairContext?.cognition?.intent === 'ANALYZE_RUNTIME';
+
+    if (!isAnalysisResult) {
+        await writeRepoFile({
+            file: payload.file,
+            content: payload.content,
+            operationId: opId
+        });
+    } else {
+        console.log("🧠 [EXECUTOR]: Auditoría completada. Saltando commit a GitHub.");
+    }
 
     transaction.set(
-
         doc(
             collection(db, "repo_files")
         ),
+
+   
 
         deepSanitize({
 
