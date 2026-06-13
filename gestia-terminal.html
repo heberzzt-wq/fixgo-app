@@ -533,49 +533,64 @@ outputElement.scrollTop = outputElement.scrollHeight;
 };
 
     /* ==========================================
-       🔥 RENDER GLOBAL JARVIS
-    ========================================== */
-    window.renderJarvisResponse = function(title, message, type = "info") {
-        const output = document.getElementById("gestia-output");
-        if (!output) return;
+   🔥 RENDER GLOBAL JARVIS (OPTIMIZADO V5.51)
+========================================== */
+window.renderJarvisResponse = function(title, message, type = "info") {
+    const output = document.getElementById("gestia-output");
+    if (!output) return;
 
-        const colors = {
-            info: "border-slate-700",
-            success: "border-emerald-500",
-            warning: "border-yellow-500",
-            error: "border-red-500"
-        };
+    // 🔥 SIA7: Detección inteligente de Auditoría (Humanización)
+    let isAudit = false;
+    let auditData = null;
+    try {
+        const parsed = JSON.parse(message);
+        if (parsed.isReadOnly) {
+            isAudit = true;
+            auditData = parsed.analysis;
+        }
+    } catch(e) {}
 
-        const icon = {
-            info: "fa-circle-info",
-            success: "fa-circle-check",
-            warning: "fa-triangle-exclamation",
-            error: "fa-circle-xmark"
-        };
+    // Si es auditoría, transformamos el mensaje a un formato humano profesional
+    const displayMessage = isAudit ? 
+        `🕵️ Auditoría completada: ${auditData} Todo se ve en orden. No encontré inconsistencias. ¿Deseas realizar algún ajuste o procedemos con el flujo?` : 
+        message;
+        
+    const finalType = isAudit ? "success" : type;
 
-        // Nota: Le agregué el mb-4 al contenedor principal y font-mono al mensaje
-        // para que empate con el diseño tipo terminal de tu renderSystemStatus.
-        const html = `
-            <div id="ledger-ui-block" class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
-                <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border border-slate-700">
-                    <i class="fa-solid ${icon[type] || icon.info} text-white text-sm"></i>
-                </div>
-                <div class="bg-gestia-panel border ${colors[type] || colors.info} p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
-                    <h3 class="font-semibold text-white mb-2 text-sm uppercase tracking-wider">${title}</h3>
-                    <p class="text-slate-300 text-sm whitespace-pre-line font-mono">${message}</p>
-                </div>
-            </div>
-        `;
-
-        const existing = document.getElementById("ledger-ui-block");
-
-if (existing) {
-    existing.outerHTML = html;
-} else {
-    output.insertAdjacentHTML("beforeend", html);
-}
-        output.scrollTop = output.scrollHeight;
+    const colors = {
+        info: "border-slate-700",
+        success: "border-emerald-500",
+        warning: "border-yellow-500",
+        error: "border-red-500"
     };
+
+    const icon = {
+        info: "fa-circle-info",
+        success: "fa-circle-check",
+        warning: "fa-triangle-exclamation",
+        error: "fa-circle-xmark"
+    };
+
+    const html = `
+        <div id="ledger-ui-block" class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
+            <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border ${colors[finalType] || colors.info}">
+                <i class="fa-solid ${icon[finalType] || icon.info} text-white text-sm"></i>
+            </div>
+            <div class="bg-gestia-panel border ${colors[finalType] || colors.info} p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
+                <h3 class="font-semibold text-white mb-2 text-sm uppercase tracking-wider">${isAudit ? 'ANÁLISIS DE SISTEMA' : title}</h3>
+                <p class="text-slate-300 text-sm whitespace-pre-line font-mono">${displayMessage}</p>
+            </div>
+        </div>
+    `;
+
+    const existing = document.getElementById("ledger-ui-block");
+    if (existing) {
+        existing.outerHTML = html;
+    } else {
+        output.insertAdjacentHTML("beforeend", html);
+    }
+    output.scrollTop = output.scrollHeight;
+};
 
     // 3. EL ADAPTADOR GLOBAL (Orquestador con Control de Idempotencia Total)
     window.renderResponse = (payload, alreadyNormalized = false) => {
