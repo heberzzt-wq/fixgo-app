@@ -1371,144 +1371,85 @@ return;
 
     try {
 
-        // 🔥 INTERCEPTOR DIRECTO (ANTES DEL BRIDGE)
+        // 🔥 NUEVO INTERCEPTOR COGNITIVO UNIVERSAL (CERO DICCIONARIOS)
         const raw = String(comando || "").toLowerCase();
 
-        if (
-            raw.includes("archivo") &&
-            raw.includes(".js")
-        ) {
-            console.log("🧠 [FORCE CODE_WRITE FROM TERMINAL]");
+        console.log("🧠 [UNIVERSAL COGNITION PLAN FROM TERMINAL]");
 
-            /* =====================================================
-   TERMINAL ORIGINAL TARGET TRACE
-===================================================== */
+        /* =====================================================
+           TERMINAL ORIGINAL TARGET TRACE
+        ===================================================== */
+        try {
+            const originalIntent = comando || "";
+            console.warn("🧠 [TERMINAL_ORIGINAL_TARGET]", originalIntent);
 
-try {
-
-    const originalIntent =
-
-    comando || "";
-
-    console.warn(
-
-        "🧠 [TERMINAL_ORIGINAL_TARGET]",
-
-        originalIntent
-    );
-
-    window.GestiaAuthority
-        ?.registerMutation?.({
-
-        module:
-            "terminal.surface",
-
-        path:
-            "terminal.original.intent",
-
-        previous:
-            null,
-
-        value: {
-
-            originalIntent,
-
-            traceId:
-    `terminal_${Date.now()}`
+            window.GestiaAuthority?.registerMutation?.({
+                module: "terminal.surface",
+                path: "terminal.original.intent",
+                previous: null,
+                value: {
+                    originalIntent,
+                    traceId: `terminal_${Date.now()}`
+                }
+            });
+        } catch(traceErr) {
+            console.warn("⚠️ [TERMINAL_TRACE_FAIL]", traceErr);
         }
-    });
 
-}
+        const cognition = window.JarvisCognitionEngine?.analyze?.(raw);
 
-catch(traceErr) {
+        const fileMatch = raw.match(/([a-zA-Z0-9_\/\-]+\.(txt|js|html|css|json))/i);
 
-    console.warn(
+        console.log("🧪 TERMINAL_COGNITION_MATCH", {
+            raw,
+            match: fileMatch?.[0],
+            cognitionType: cognition?.type || "ANALYSIS"
+        });
 
-        "⚠️ [TERMINAL_TRACE_FAIL]",
+        const step = {
+            id: "step_auto_" + Date.now(),
+            type: cognition?.type || (fileMatch ? "CODE_WRITE" : "ANALYSIS"),
+            target: {
+                collection: cognition?.collection || "repo_files"
+            },
+            action: "custom",
+            payload: {
+                file: cognition?.target || fileMatch?.[0] || `modules/auto_analysis_${Date.now()}.js`,
+                content: raw
+            }
+        };
 
-        traceErr
-    );
-}
+        // 🧠 Crear plan universal
+        const plan = {
+            id: `plan_${Date.now()}`,
+            steps: [step],
+            mode: "AI_SUPERVISED",
+            traceId: `trace_${Date.now()}`,
+            createdAt: Date.now()
+        };
 
-            const cognition =
-    window.JarvisCognitionEngine
-        ?.analyze?.(raw);
-
-const fileMatch =
-    raw.match(
-        /([a-zA-Z0-9_\/\-]+\.(txt|js|html|css|json))/i
-    );
-
-    console.log(
-    "🧪 TERMINAL_FILE_MATCH",
-    {
-        raw,
-        match: fileMatch?.[0]
-    }
-);
-
-const step = {
-    id: "step_force_" + Date.now(),
-
-    type: "CODE_WRITE",
-
-    target: {
-        collection: "repo_files"
-    },
-
-    action: "custom",
-
-    payload: {
-
-        file:
-
-            cognition?.target ||
-
-            fileMatch?.[0] ||
-
-            `modules/auto_${Date.now()}.js`,
-
-        content: raw
-    }
-};
-
-           // 🧠 Crear plan
-const plan = {
-    id: `plan_${Date.now()}`,
-    steps: [step],
-    mode: "AI_SUPERVISED",
-    traceId: `trace_${Date.now()}`,
-    createdAt: Date.now()
-};
-
-// 💾 1. UI (opcional)
-if (window.__GESTIA_TERMINAL__?.pendingPlans) {
-    window.__GESTIA_TERMINAL__.pendingPlans.set(plan.id, plan);
-}
-
-
-// 💾 2. 🔥 REAL (EL ÚNICO IMPORTANTE)
-
-console.log(
-    "🧪 PLAN_BEFORE_SAVE",
-    JSON.stringify(plan, null, 2)
-);
-
-await window.savePendingPlan(plan);
-
-window.showJarvisPersistent?.("plan táctico generado");
-
-// 🔥 lastPlanId
-window.lastPlanId = plan.id;
-
-// 📺 preview
-window.renderPlanPreview?.(plan);
-
-console.log("🧠 [PLAN_GENERATED_FROM_TERMINAL]:", plan.id);
-
-handled = true;
-return;
+        // 💾 1. UI (opcional)
+        if (window.__GESTIA_TERMINAL__?.pendingPlans) {
+            window.__GESTIA_TERMINAL__.pendingPlans.set(plan.id, plan);
         }
+
+        // 💾 2. 🔥 REAL (EL ÚNICO IMPORTANTE)
+        console.log("🧪 PLAN_BEFORE_SAVE", JSON.stringify(plan, null, 2));
+
+        await window.savePendingPlan(plan);
+
+        window.showJarvisPersistent?.("plan táctico generado");
+
+        // 🔥 lastPlanId (AHORA SIEMPRE SE REGISTRA)
+        window.lastPlanId = plan.id;
+
+        // 📺 preview
+        window.renderPlanPreview?.(plan);
+
+        console.log("🧠 [PLAN_GENERATED_FROM_TERMINAL]:", plan.id);
+
+        handled = true;
+        return;
 
         // 🔁 FLUJO NORMAL (si no es código)
         if (window.JarvisBridge?.dispatch) {
