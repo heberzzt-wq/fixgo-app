@@ -532,28 +532,27 @@ if (existing) {
 outputElement.scrollTop = outputElement.scrollHeight;
 };
 
-    /* ==========================================
-   🔥 RENDER GLOBAL JARVIS (OPTIMIZADO V5.51)
-========================================== */
-window.renderJarvisResponse = function(title, message, type = "info") {
+    window.renderJarvisResponse = function(title, message, type = "info") {
     const output = document.getElementById("gestia-output");
     if (!output) return;
 
-    // 🔥 SIA7: Detección inteligente de Auditoría (Humanización)
+    // 🔥 SIA7: Filtro Blindado (No importa si viene como objeto o como texto)
     let isAudit = false;
-    let auditData = null;
-    try {
-        const parsed = JSON.parse(message);
-        if (parsed.isReadOnly) {
-            isAudit = true;
-            auditData = parsed.analysis;
-        }
-    } catch(e) {}
+    let auditData = "";
 
-    // Si es auditoría, transformamos el mensaje a un formato humano profesional
+    // Si 'message' ya es un objeto, lo usamos directo. Si es texto, intentamos parsearlo.
+    const data = (typeof message === 'object') ? message : (function() {
+        try { return JSON.parse(message); } catch(e) { return message; }
+    })();
+
+    if (data && data.isReadOnly) {
+        isAudit = true;
+        auditData = data.analysis || "Sin detalles.";
+    }
+
     const displayMessage = isAudit ? 
         `🕵️ Auditoría completada: ${auditData} Todo se ve en orden. No encontré inconsistencias. ¿Deseas realizar algún ajuste o procedemos con el flujo?` : 
-        message;
+        (typeof message === 'object' ? JSON.stringify(message, null, 2) : message);
         
     const finalType = isAudit ? "success" : type;
 
@@ -591,7 +590,6 @@ window.renderJarvisResponse = function(title, message, type = "info") {
     }
     output.scrollTop = output.scrollHeight;
 };
-
     // 3. EL ADAPTADOR GLOBAL (Orquestador con Control de Idempotencia Total)
     window.renderResponse = (payload, alreadyNormalized = false) => {
         if (!payload) return;
