@@ -327,8 +327,9 @@ const {
                 switch (type) {
 
                     /* =====================================================
-                        ✅ INYECCIÓN PARA ANÁLISIS DE UI (SIA7)
+                        ✅ INYECCIÓN PARA ANÁLISIS DE UI (SIA7) Y COGNICIÓN UNIVERSAL
                     ===================================================== */
+                    case "ANALYSIS":
                     case "ANALYZE":
                     case "ANALYZE_UI":
                         retryBuffer.push({
