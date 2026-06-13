@@ -14408,36 +14408,36 @@ window.scanRepo = function(filters = {}) {
 
 
 window.generatePatch = async function(config = {}) {
-
-    console.log(
-    "🧪 GENERATE_PATCH_ENTRY",
-    config
-);
+    console.log("🧪 GENERATE_PATCH_ENTRY", config);
 
     try {
-
         const {
             file,
             search,
-            replace
+            replace,
+            strategy // 🔥 Agregamos strategy aquí
         } = config;
 
+        // 🔥 SIA7: Bypass de validación para Auditorías (Modo Lectura)
+        if (strategy === "ANALYZE_ONLY") {
+            return { 
+                ok: true, 
+                file, 
+                isReadOnly: true, 
+                analysis: config.analysisResult 
+            };
+        }
+
         if (!file) {
-            throw new Error(
-                "FILE_REQUIRED"
-            );
+            throw new Error("FILE_REQUIRED");
         }
 
+        // Si NO es modo lectura, exigimos el search
         if (!search) {
-            throw new Error(
-                "SEARCH_REQUIRED"
-            );
+            throw new Error("SEARCH_REQUIRED");
         }
 
-        const loaded =
-            await window.loadRepoContext(
-                file
-            );
+        const loaded = await window.loadRepoContext(file);
 
         if (!loaded?.ok) {
             throw new Error(
@@ -14551,17 +14551,30 @@ if (!safe) {
 window.applyPatch = async function(patch = {}) {
 
     console.log(
-    "🧪 APPLY_PATCH_ENTRY",
-    patch
-);
+        "🧪 APPLY_PATCH_ENTRY",
+        patch
+    );
 
     try {
 
         const {
             file,
             patched,
-            diff
+            diff,
+            isReadOnly, // 🔥 Capturamos el nuevo flag de auditoría
+            analysis
         } = patch;
+
+        // 🔥 SIA7: Bypass de ejecución para modo Auditoría
+        if (isReadOnly) {
+            console.log("🧠 [AUDIT_RESULT_DISPLAYED]:", analysis);
+            return { 
+                ok: true, 
+                file, 
+                runtimeOnly: true, 
+                filesystem: false 
+            };
+        }
 
         if (!file) {
             throw new Error(
