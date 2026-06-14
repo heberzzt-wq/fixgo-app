@@ -225,21 +225,36 @@ export async function persistirPerfilUsuario(uid, payload, opId) {
     }
 }
 
-// 🧠 PENDING PLANS STORE (IN-MEMORY)
+// 🧠 PENDING PLANS STORE & SYNC ENGINE (V6.5 - SYNCHRONIZED)
 
 const __pendingPlans = new Map();
 
-export async function savePendingPlan(plan) {
-
-    if (!plan || !plan.id) {
-        throw new Error("Plan inválido para guardar");
+/**
+ * 🔒 MIDDLEWARE DE SINCRONÍA ATÓMICA
+ * Garantiza que el plan esté persistido en Firestore antes de que Jarvis lo ejecute.
+ */
+export async function sincronizarYPersistirPlan(plan) {
+    emitirPulsoHUD("SYNC_PLAN", "INITIATING");
+    
+    try {
+        // 1. Guardar en memoria local
+        __pendingPlans.set(plan.id, plan);
+        
+        // 2. Persistir en Firestore (La fuente de verdad para el Executor)
+        const opRef = doc(db, "gestia_operations", plan.id);
+        await setDoc(opRef, {
+            ...plan,
+            status: "pending_execution",
+            createdAt: serverTimestamp(),
+            engine_version: "6.5-Synchronized"
+        }, { merge: true });
+        
+        emitirPulsoHUD("SYNC_PLAN", "SUCCESS");
+        return true;
+    } catch (err) {
+        console.error("🚨 FALLO_SINCRONÍA_ATÓMICA", err);
+        throw err;
     }
-
-    __pendingPlans.set(plan.id, plan);
-
-    console.log("💾 [PENDING_PLAN_SAVED]:", plan.id);
-
-    return true;
 }
 
 export async function getPendingPlan(planId) {
@@ -255,14 +270,9 @@ export async function removePendingPlan(planId) {
     console.log("🗑️ [PENDING_PLAN_REMOVED]:", planId);
 }
 
-export async function getLastPendingPlan() {
-    const plans = Array.from(__pendingPlans.values());
-    return plans.length ? plans[plans.length - 1] : null;
-}
-
 window.getPendingPlan = getPendingPlan;
 window.removePendingPlan = removePendingPlan;
-window.savePendingPlan = savePendingPlan;
+window.sincronizarYPersistirPlan = sincronizarYPersistirPlan;
 /**
  * ======================================================================================
  * FIN DEL ARCHIVO - TOTAL LÍNEAS REALES: 545 (INGENIERÍA EXQUISITA GARANTIZADA)
