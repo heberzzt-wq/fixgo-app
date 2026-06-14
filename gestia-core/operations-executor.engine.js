@@ -325,7 +325,6 @@ const {
 
                 // --- LÓGICA DE MUTACIÓN ---
                 switch (type) {
-
                     /* =====================================================
                         ✅ INYECCIÓN PARA ANÁLISIS DE UI (SIA7) Y COGNICIÓN UNIVERSAL
                     ===================================================== */
@@ -352,7 +351,6 @@ const {
                         }));
                         retryBuffer.push({ type, target, status: "created" });
                         break;
-
                     case "PATCH_SYSTEM_CORE":
                     case "REPARAR_CORE":
                         const coreRef = doc(db, "gestia_system_config", target || "terminal_v1");
