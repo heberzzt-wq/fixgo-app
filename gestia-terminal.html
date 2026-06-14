@@ -1400,6 +1400,28 @@ return;
 
         const fileMatch = raw.match(/([a-zA-Z0-9_\/\-]+\.(txt|js|html|css|json))/i);
 
+        let generatedPatch = null;
+
+if (
+    fileMatch &&
+    typeof window.buildRepairPatch === "function"
+) {
+
+    generatedPatch =
+        await window.buildRepairPatch({
+
+            targetFile: fileMatch[0],
+
+            userIntent: comando
+
+        });
+
+    console.log(
+        "🧪 GENERATED_PATCH",
+        generatedPatch
+    );
+}
+
         console.log("🧪 TERMINAL_COGNITION_MATCH", {
             raw,
             match: fileMatch?.[0],
