@@ -1436,7 +1436,7 @@ return;
         // 💾 2. 🔥 REAL (EL ÚNICO IMPORTANTE)
         console.log("🧪 PLAN_BEFORE_SAVE", JSON.stringify(plan, null, 2));
 
-        await window.savePendingPlan(plan);
+        await window.sincronizarYPersistirPlan(plan);
 
         window.showJarvisPersistent?.("plan táctico generado");
 
