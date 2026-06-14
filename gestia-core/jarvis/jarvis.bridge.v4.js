@@ -15,7 +15,7 @@
 // 🔌 IMPORTS (AI PIPELINE)
 import { normalizeAIPlan } from "./jarvis.normalizer.js";
 
-import { savePendingPlan } from "/gestia-core/persistence.engine.js";
+import { sincronizarYPersistirPlan } from "/gestia-core/persistence.engine.js";
 
 
 function safeLog(label, data = "") {
@@ -1299,7 +1299,7 @@ if (
     window.lastPlanId = plan.id;
 
     if (typeof savePendingPlan === "function") {
-        await savePendingPlan(plan);
+        await sincronizarYPersistirPlan(plan);
     }
 
     if (window.renderPlanPreview) {
@@ -2029,7 +2029,7 @@ for (
     "🧪 AI_PIPELINE_PLAN_SAVE",
     plan
 );
-                const persistedPlan = await savePendingPlan(plan);
+                const persistedPlan = await sincronizarYPersistirPlan(plan);
                 const finalPlan = persistedPlan && typeof persistedPlan === "object" ? persistedPlan : plan;
                 
                 window.lastPlanId = finalPlan.id;
