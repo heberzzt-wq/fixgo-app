@@ -2895,10 +2895,10 @@ const { Octokit } = require("@octokit/rest");
 
 // Definición de Secretos (Ya configurados en tu consola)
 const GITHUB_PAT = defineSecret("GITHUB_PAT");
-const SIA7_SECRET_KEY = defineSecret("SIA7_SECRET_KEY");
+const SIA7_SECRET_KEY = defineSecret(SIA7_KEY_V2);
 
 exports.executeSIA7Commit = onRequest(
-    { secrets: [GITHUB_PAT, SIA7_SECRET_KEY], region: "us-central1" },
+    { secrets: [GITHUB_PAT, SIA7_KEY_V2], region: "us-central1" },
     async (req, res) => {
         // Validación de CORS para llamadas desde tu terminal (gestia-terminal.html)
         res.set("Access-Control-Allow-Origin", "*");
@@ -2912,7 +2912,7 @@ exports.executeSIA7Commit = onRequest(
 const { auth_token, operation_id, file_path, content, message } = req.body;
 
 // Accedemos al valor de la variable directamente, ya que el runtime lo inyecta como string
-const valorSecreto = process.env.SIA7_SECRET_KEY; 
+const valorSecreto = process.env.SIA7_KEY_V2; 
 
 if (auth_token !== valorSecreto) {
     console.log("Token recibido:", auth_token);
