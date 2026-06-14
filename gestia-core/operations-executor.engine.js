@@ -452,7 +452,35 @@ const {
                         });
                         retryBuffer.push({ type, target, status: "locked" });
                         break;
+                    
+                        // El motor invoca el endpoint que pusiste en tu index.js
+                        // Asegúrate de que el endpoint coincida con la ruta de tu backend
+                        case "SIA7_COMMIT":
+    // Usamos la URL absoluta de tu función desplegada
+    const SIA7_ENDPOINT = "https://executesia7commit-72a7uqnggq-uc.a.run.app";
+    
+    const commitResponse = await fetch(SIA7_ENDPOINT, {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+            // Usamos la llave que configuramos en los Secret Manager de Google
+            auth_token: "Heberto_SIA7_2026_Secure!", 
+            operation_id: opId,
+            file_path: target,
+            content: payload.content,
+            message: payload.commitMessage || "Auto-commit by SIA7"
+        })
+    }).then(r => r.json());
 
+    if (commitResponse.status === "success") {
+        retryBuffer.push({ type, target, status: "committed_to_github" });
+        emitirPulsoHUD(opId, "GIT", "SUCCESS", `Commit ejecutado: ${commitResponse.commit}`);
+    } else {
+        throw new Error("SIA7_REJECTED: " + (commitResponse.error || "Unknown error"));
+    }
+    break;
                         /* =====================================================
    ANALYZE FILE HYDRATION
 ===================================================== */

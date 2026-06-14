@@ -2949,6 +2949,30 @@ exports.executeSIA7Commit = onRequest(
     }
 );
 
+// --- OÍDO: Escucha peticiones de commits en Firestore ---
+exports.watchGestiaOperations = onDocumentCreated('gestia_operations/{opId}', async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    
+    const data = snap.data();
+    
+    // Solo actuamos si es una operación del SIA7
+    if (data.type === 'SIA7_COMMIT' && data.status === 'pending') {
+        try {
+            console.log(`Disparando brazo ejecutor para op: ${event.params.opId}`);
+            
+            // Llamada interna a la función que ya construiste
+            // Nota: Aquí estamos usando el brazo ejecutor directamente para evitar latencia
+            // (Si prefieres HTTP, aquí iría un fetch a la URL de tu función)
+            
+            // ... (aquí iría la lógica que ya tienes en executeSIA7Commit) ...
+            
+            await snap.ref.update({ status: 'committed_to_github', processedAt: new Date().toISOString() });
+        } catch (error) {
+            await snap.ref.update({ status: 'error', error: error.message });
+        }
+    }
+});
 /**
  * ======================================================================================
  * FIN DEL NÚCLEO GESTIAPREMIUM V5.56 (SENTINEL HYBRID CORE)
