@@ -150,9 +150,9 @@ async function(
             confidence = 0.95;
 
             const functionRegex = new RegExp(
-                `function\\s+${functionName}\\s*\\([^)]*\\)\\s*\\{[\\s\\S]*?\\}`,
-                "m"
-            );
+    `(export\\s+)?function\\s+${functionName}\\s*\\([^)]*\\)\\s*\\{[\\s\\S]*?\\}`,
+    "m"
+);
 
             const functionMatchFound = currentSource.match(functionRegex);
 
