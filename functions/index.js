@@ -2908,16 +2908,20 @@ exports.executeSIA7Commit = onRequest(
             return res.status(204).send("");
         }
 
-        // 1. Verificación de Seguridad (Token único por operación)
-        const { auth_token, operation_id, file_path, content, message } = req.body;
-        
-        if (auth_token !== SIA7_SECRET_KEY.value()) {
-            return res.status(403).json({ error: "Unauthorized access attempt" });
-        }
+        // 1. Verificación de Seguridad
+const { auth_token, operation_id, file_path, content, message } = req.body;
 
-        const octokit = new Octokit({ auth: GITHUB_PAT.value() });
+// Accedemos al valor de la variable directamente, ya que el runtime lo inyecta como string
+const valorSecreto = process.env.SIA7_SECRET_KEY; 
 
-        try {
+if (auth_token !== valorSecreto) {
+    console.log("Token recibido:", auth_token);
+    console.log("Token real en entorno:", valorSecreto); // Solo para debug, quítalo después
+    return res.status(403).json({ error: "Unauthorized access attempt" });
+}
+
+const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+try {
             // 2. Obtener SHA actual (Evita colisiones y garantiza idempotencia)
             let currentSha;
             try {
