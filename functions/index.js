@@ -2893,14 +2893,14 @@ const { onRequest } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { Octokit } = require("@octokit/rest");
 
-// Definición de Secretos (Ya configurados en tu consola)
+// Definición de Secretos (Nombre del secreto en Secret Manager: "SIA7_KEY_V2")
 const GITHUB_PAT = defineSecret("GITHUB_PAT");
-const SIA7_SECRET_KEY = defineSecret(SIA7_KEY_V2);
+const SIA7_SECRET_KEY = defineSecret("SIA7_KEY_V2");
 
 exports.executeSIA7Commit = onRequest(
-    { secrets: [GITHUB_PAT, SIA7_KEY_V2], region: "us-central1" },
+    { secrets: [GITHUB_PAT, SIA7_SECRET_KEY], region: "us-central1" },
     async (req, res) => {
-        // Validación de CORS para llamadas desde tu terminal (gestia-terminal.html)
+        // Validación de CORS
         res.set("Access-Control-Allow-Origin", "*");
         if (req.method === "OPTIONS") {
             res.set("Access-Control-Allow-Methods", "POST");
@@ -2908,21 +2908,20 @@ exports.executeSIA7Commit = onRequest(
             return res.status(204).send("");
         }
 
-        // 1. Verificación de Seguridad
-const { auth_token, operation_id, file_path, content, message } = req.body;
+        // 1. Verificación de Seguridad con limpieza de caracteres basura
+        const { auth_token, operation_id, file_path, content, message } = req.body;
+        const valorReal = (process.env.SIA7_KEY_V2 || "").trim();
+        const tokenLimpio = (auth_token || "").trim();
 
-// Accedemos al valor de la variable directamente, ya que el runtime lo inyecta como string
-const valorSecreto = process.env.SIA7_KEY_V2; 
+        if (tokenLimpio !== valorReal) {
+            console.error("Fallo de autenticación: El token no coincide.");
+            return res.status(403).json({ error: "Unauthorized access attempt" });
+        }
 
-if (auth_token !== valorSecreto) {
-    console.log("Token recibido:", auth_token);
-    console.log("Token real en entorno:", valorSecreto); // Solo para debug, quítalo después
-    return res.status(403).json({ error: "Unauthorized access attempt" });
-}
+        const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
 
-const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
-try {
-            // 2. Obtener SHA actual (Evita colisiones y garantiza idempotencia)
+        try {
+            // 2. Obtener SHA actual
             let currentSha;
             try {
                 const { data: currentFile } = await octokit.repos.getContent({
@@ -2932,18 +2931,17 @@ try {
                 });
                 currentSha = currentFile.sha;
             } catch (e) {
-                // Si falla el getContent, es un archivo nuevo (no tiene SHA)
-                currentSha = null;
+                currentSha = null; // Archivo nuevo
             }
 
-            // 3. Ejecución del Commit (El "Brazo" actúa)
+            // 3. Ejecución del Commit
             const result = await octokit.repos.createOrUpdateFileContents({
                 owner: 'heberzzt-wq',
                 repo: 'fixgo-app',
                 path: file_path,
                 message: `[SIA7-EXEC] ${message} | OP:${operation_id}`,
                 content: Buffer.from(content).toString('base64'),
-                sha: currentSha // Nulo si es creación nueva
+                sha: currentSha
             });
 
             res.status(200).json({ status: "success", commit: result.data.commit.sha });
@@ -2952,7 +2950,6 @@ try {
         }
     }
 );
-
 /**
  * ======================================================================================
  * FIN DEL NÚCLEO GESTIAPREMIUM V5.56 (SENTINEL HYBRID CORE)
