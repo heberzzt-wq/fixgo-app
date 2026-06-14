@@ -23,7 +23,6 @@ const cors = require("cors");
 const crypto = require("crypto");
 const Stripe = require("stripe");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { Octokit } = require("@octokit/rest");
 
 /**
  * 🛡️ SELLADO DE INFRAESTRUCTURA (GLOBAL SCOPE)
@@ -2883,10 +2882,78 @@ exports.repoCommitBackupFile = functions
         }
     });
 
+   /**
+ * ======================================================================================
+ * GESTIAPREMIUM V5.56 - NÚCLEO SIA7 (SENTINEL HYBRID CORE)
+ * BRAZO EJECUTOR - GIT BRIDGE
+ * ======================================================================================
+ */
+
+const { onRequest } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
+const { Octokit } = require("@octokit/rest");
+
+// Definición de Secretos (Ya configurados en tu consola)
+const GITHUB_PAT = defineSecret("GITHUB_PAT");
+const SIA7_SECRET_KEY = defineSecret("SIA7_SECRET_KEY");
+
+exports.executeSIA7Commit = onRequest(
+    { secrets: [GITHUB_PAT, SIA7_SECRET_KEY], region: "us-central1" },
+    async (req, res) => {
+        // Validación de CORS para llamadas desde tu terminal (gestia-terminal.html)
+        res.set("Access-Control-Allow-Origin", "*");
+        if (req.method === "OPTIONS") {
+            res.set("Access-Control-Allow-Methods", "POST");
+            res.set("Access-Control-Allow-Headers", "Content-Type");
+            return res.status(204).send("");
+        }
+
+        // 1. Verificación de Seguridad (Token único por operación)
+        const { auth_token, operation_id, file_path, content, message } = req.body;
+        
+        if (auth_token !== SIA7_SECRET_KEY.value()) {
+            return res.status(403).json({ error: "Unauthorized access attempt" });
+        }
+
+        const octokit = new Octokit({ auth: GITHUB_PAT.value() });
+
+        try {
+            // 2. Obtener SHA actual (Evita colisiones y garantiza idempotencia)
+            let currentSha;
+            try {
+                const { data: currentFile } = await octokit.repos.getContent({
+                    owner: 'heberzzt-wq',
+                    repo: 'fixgo-app',
+                    path: file_path
+                });
+                currentSha = currentFile.sha;
+            } catch (e) {
+                // Si falla el getContent, es un archivo nuevo (no tiene SHA)
+                currentSha = null;
+            }
+
+            // 3. Ejecución del Commit (El "Brazo" actúa)
+            const result = await octokit.repos.createOrUpdateFileContents({
+                owner: 'heberzzt-wq',
+                repo: 'fixgo-app',
+                path: file_path,
+                message: `[SIA7-EXEC] ${message} | OP:${operation_id}`,
+                content: Buffer.from(content).toString('base64'),
+                sha: currentSha // Nulo si es creación nueva
+            });
+
+            res.status(200).json({ status: "success", commit: result.data.commit.sha });
+        } catch (error) {
+            res.status(500).json({ error: "SIA7_EXECUTION_FAILURE", details: error.message });
+        }
+    }
+);
+
 /**
  * ======================================================================================
  * FIN DEL NÚCLEO GESTIAPREMIUM V5.56 (SENTINEL HYBRID CORE)
  * ======================================================================================
  * REGLA 1: SIN CORTES. CÓDIGO ÍNTEGRO.
+ * REGLA 2: LLEVAR PASO A PASO (NIVEL SIA7)
  * --------------------------------------------------------------------------------------
  */
