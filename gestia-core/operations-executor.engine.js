@@ -351,8 +351,31 @@ const {
                         }));
                         retryBuffer.push({ type, target, status: "created" });
                         break;
+                        /* =====================================================
+                       ✅ PROTOCOLO DE DUPLICACIÓN TÁCTICA (CLONE)
+                    ===================================================== */
+                    case "CLONE_FILE":
+                        // Intentamos hidratar el origen primero
+                        const sourceData = await window.loadRepoContext?.(target);
+                        if (sourceData?.ok) {
+                            const destRef = doc(collection(db, "repo_files")); // ID autogenerado para el clon
+                            transaction.set(destRef, deepSanitize({
+                                file: payload.destination,
+                                content: sourceData.source,
+                                cloned_from: target,
+                                created_at: serverTimestamp(),
+                                status: "active",
+                                op_id: opId
+                            }));
+                            retryBuffer.push({ type, target: payload.destination, status: "cloned_success" });
+                        } else {
+                            retryBuffer.push({ type, target, status: "clone_failed_source_not_found" });
+                        }
+                        break;
+
                     case "PATCH_SYSTEM_CORE":
                     case "REPARAR_CORE":
+                   
                         const coreRef = doc(db, "gestia_system_config", target || "terminal_v1");
                         transaction.set(coreRef, deepSanitize({
                             ...payload,
