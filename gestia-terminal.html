@@ -1447,12 +1447,13 @@ return;
         window.renderPlanPreview?.(plan);
 
         console.log("🧠 [PLAN_GENERATED_FROM_TERMINAL]:", plan.id);
-
+         console.log("🔥 BEFORE RETURN");
         handled = true;
         return;
 
         // 🔁 FLUJO NORMAL (si no es código)
         if (window.JarvisBridge?.dispatch) {
+            console.log("🔥 JARVIS_BRIDGE_REACHED");
             await window.JarvisBridge.dispatch(comando);
             handled = true;
 
