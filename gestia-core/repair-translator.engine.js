@@ -97,7 +97,7 @@ async function(
 
         // Definición de Intenciones Cognitivas (Regex Difusas)
         const removeRegex = /(elimina|borra|remove|delet|quit|destruy)/i;
-        const replaceRegex = /(reemplaza|replace|cambia|modifica|updat|actualiz)/i;
+        const replaceRegex =/(reemplaza|replace|cambia|modifica|updat|actualiz|repara|repair|fix)/i;
         const appendRegex = /(creat|crea|agreg|aggg|add|añad|pon|insert)/i;
 
         /* ============================================
