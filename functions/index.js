@@ -2908,18 +2908,23 @@ exports.executeSIA7Commit = onRequest(
             return res.status(204).send("");
         }
 
-        // 1. Verificación de Seguridad con limpieza de caracteres basura
-        const { auth_token, operation_id, file_path, content, message } = req.body;
-        const valorReal = (process.env.SIA7_KEY_V2 || "").trim();
-        const tokenLimpio = (auth_token || "").trim();
+        // 1. VERIFICACIÓN DE SEGURIDAD (BYPASS TEMPORAL PARA PRUEBA)
+const { auth_token, operation_id, file_path, content, message } = req.body;
+const valorReal = "Heberto_SIA7_2026_Secure!"; 
 
-        if (tokenLimpio !== valorReal) {
-            console.error("Fallo de autenticación: El token no coincide.");
-            return res.status(403).json({ error: "Unauthorized access attempt" });
-        }
+console.log("DEBUG: Token recibido ->", auth_token);
+console.log("DEBUG: Token comparado ->", valorReal);
 
-        const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+if (auth_token !== valorReal) {
+    return res.status(403).json({ 
+        error: "Unauthorized", 
+        debug_recibido: auth_token,
+        debug_esperado: valorReal
+    });
+}
 
+// Inicialización de Octokit (usando la variable directamente para evitar problemas de lectura)
+const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
         try {
             // 2. Obtener SHA actual
             let currentSha;
