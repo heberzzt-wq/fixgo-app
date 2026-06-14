@@ -1,1 +1,1 @@
-repara test-replace.js
+analiza test-replace.js
