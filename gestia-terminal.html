@@ -1429,9 +1429,16 @@ if (
         });
 
         
+
+const patchFailed =
+    !!fileMatch &&
+    !!generatedPatch &&
+    generatedPatch.ok !== true;
+
 const isReadOnlyAnalysis =
     generatedPatch?.strategy === "ANALYZE_ONLY" ||
-    generatedPatch?.isReadOnly === true;
+    generatedPatch?.isReadOnly === true ||
+    patchFailed;
 
 const resolvedFile =
     cognition?.target ||
@@ -1446,8 +1453,21 @@ const resolvedStepType =
             : cognition?.type ||
               (fileMatch ? "CODE_WRITE" : "ANALYZE");
 
+const safeReport =
+    patchFailed
+        ? (
+            `No se generó un parche seguro para ${resolvedFile}. ` +
+            `Motivo: ${
+                generatedPatch?.reason ||
+                generatedPatch?.error ||
+                "NO_REPAIR_STRATEGY"
+            }. No se realizará ninguna escritura.`
+        )
+        : (
+            generatedPatch?.analysisResult ||
+            "analysis_completed"
+        );
 
-        
 const step = {
     id:
         "step_auto_" +
@@ -1474,22 +1494,27 @@ const step = {
                 resolvedFile,
 
             report:
-                generatedPatch?.analysisResult ||
-                "analysis_completed",
+                safeReport,
 
             analysis:
-                generatedPatch
+                generatedPatch,
+
+            blocked:
+                patchFailed,
+
+            originalIntent:
+                raw
         }
         : {
             file:
                 resolvedFile,
 
             content:
-                generatedPatch?.ok
-                    ? generatedPatch
-                    : raw
+                generatedPatch
         }
 };
+
+
 
 
         // 🧠 Crear plan universal
