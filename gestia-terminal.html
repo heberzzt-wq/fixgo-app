@@ -1437,7 +1437,7 @@ if (
             action: "custom",
             payload: {
                 file: cognition?.target || fileMatch?.[0] || `modules/auto_analysis_${Date.now()}.js`,
-                content: raw
+                content: generatedPatch?.ok ? generatedPatch : raw
             }
         };
 
