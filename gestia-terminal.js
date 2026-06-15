@@ -12076,6 +12076,14 @@ window.loadRepoContext = async function(fileName = "") {
             await response.text();
 
             console.log(
+    "🧪 LOAD_REPO_RESULT",
+    {
+        file: key,
+        first100: source.substring(0, 100)
+    }
+);
+
+            console.log(
     "🧪 LOAD_REPO_SOURCE_PREVIEW",
     source.substring(0, 300)
 );
