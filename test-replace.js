@@ -19,5 +19,6 @@ function runtimelatency() {
         repaired: true,
         timestamp: Date.now()
     };
+};
 }
  /* fixgo_safe_edit_end */                                                                                                                                                                   
