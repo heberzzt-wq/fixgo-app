@@ -156,9 +156,25 @@ async function(
 
             const functionMatchFound = currentSource.match(functionRegex);
 
+            console.log(
+    "🧪 FUNCTION_MATCH_FOUND",
+    !!functionMatchFound
+);
+
+console.log(
+    "🧪 FUNCTION_REGEX",
+    functionRegex
+);
+
+console.log(
+    "🧪 SOURCE_SAMPLE",
+    currentSource.substring(0,500)
+);
+
             if (functionMatchFound) {
                 search = functionMatchFound[0];
             }
+            
 
             replace = 
 `function ${functionName}() {
