@@ -113,6 +113,127 @@ function findFunctionBlock(source, functionName) {
     return null;
 }
 
+/* ============================================
+   SIA7: SAFE REPLACEMENT BODY BUILDER
+   Convierte instrucciones simples en código.
+============================================ */
+
+function buildSafeReplacementBody(
+    instruction = ""
+) {
+
+    const normalized =
+        String(instruction)
+            .trim();
+
+    const returnMatch =
+        normalized.match(
+            /(?:retorne|devuelva|regrese|return)\s+(.+)$/i
+        );
+
+    if (!returnMatch) {
+
+        return {
+            ok: false,
+            reason:
+                "RETURN_VALUE_REQUIRED"
+        };
+    }
+
+    let rawValue =
+        returnMatch[1]
+            .trim()
+            .replace(/[.;]+$/, "");
+
+    let expression =
+        null;
+
+    /* ============================================
+       NUMBER
+    ============================================ */
+
+    if (
+        /^-?\d+(?:\.\d+)?$/.test(
+            rawValue
+        )
+    ) {
+
+        expression =
+            rawValue;
+    }
+
+    /* ============================================
+       BOOLEAN / NULL
+    ============================================ */
+
+    else if (
+        /^(true|false|null)$/i.test(
+            rawValue
+        )
+    ) {
+
+        expression =
+            rawValue.toLowerCase();
+    }
+
+    /* ============================================
+       QUOTED STRING
+    ============================================ */
+
+    else if (
+        /^(['"`])[\s\S]*\1$/.test(
+            rawValue
+        )
+    ) {
+
+        expression =
+            rawValue;
+    }
+
+    /* ============================================
+       SAFE TEXT
+       Ejemplo: retorne texto ONLINE
+    ============================================ */
+
+    else {
+
+        const textMatch =
+            rawValue.match(
+                /^texto\s+(.+)$/i
+            );
+
+        if (textMatch) {
+
+            expression =
+                JSON.stringify(
+                    textMatch[1].trim()
+                );
+        }
+    }
+
+    if (!expression) {
+
+        return {
+            ok: false,
+            reason:
+                "UNSUPPORTED_REPLACEMENT_VALUE"
+        };
+    }
+
+    return {
+        ok: true,
+
+        body:
+`{
+
+    return ${expression};
+}`,
+
+        expression
+    };
+}
+
+
 window.buildRepairPatch =
 async function(
     repairContext = {}
@@ -221,6 +342,52 @@ if (
             };
         }
         
+/* ============================================
+   REPAIR / REPLACE INTENT SEPARATION
+============================================ */
+
+const escapedTargetFile =
+    String(targetFile || "")
+        .replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+        );
+
+const intentWithoutFile =
+    String(intent || "")
+        .replace(
+            new RegExp(
+                `\\s+en\\s+${escapedTargetFile}\\s*$`,
+                "i"
+            ),
+            ""
+        )
+        .replace(
+            new RegExp(
+                `\\s+${escapedTargetFile}\\s*$`,
+                "i"
+            ),
+            ""
+        )
+        .replace(
+            /\s+/g,
+            " "
+        )
+        .trim();
+
+const repairFunctionRegex =
+    /^(?:repara|corrige|arregla)\s+(?:la\s+funci[oó]n\s+)?([a-zA-Z_$][a-zA-Z0-9_$]*)$/i;
+
+const replaceFunctionRegex =
+    /^(?:reemplaza|sustituye|cambia)\s+(?:la\s+funci[oó]n\s+)?([a-zA-Z_$][a-zA-Z0-9_$]*)\s+(?:por|con)\s+(.+)$/i;
+
+const incompleteRepairRegex =
+    /^(?:repara|corrige|arregla)\b/i;
+
+const incompleteReplaceRegex =
+    /^(?:reemplaza|sustituye|cambia)\b/i;
+
+
         
 // 1. FUNCTION REMOVE
 if (removeRegex.test(intent)) {
@@ -270,46 +437,212 @@ if (removeRegex.test(intent)) {
 }
 
 
-        // 2. FUNCTION REPLACE
-        else if (replaceRegex.test(intent)) {
-            
-            functionName = extractTargetName(intent, replaceRegex);
-            strategy = "FUNCTION_REPLACE";
-            confidence = 0.95;
+        
+// 2. FUNCTION REPLACE
+else if (
+    replaceFunctionRegex.test(
+        intentWithoutFile
+    )
+) {
 
-      const functionMatchFound =
-    findFunctionBlock(
-        currentSource,
-        functionName
+    const replacementMatch =
+        intentWithoutFile.match(
+            replaceFunctionRegex
+        );
+
+    functionName =
+        replacementMatch?.[1] ||
+        null;
+
+    const replacementInstruction =
+        replacementMatch?.[2] ||
+        "";
+
+    strategy =
+        "FUNCTION_REPLACE";
+
+    confidence =
+        0.95;
+
+    if (!functionName) {
+
+        return {
+            ok: false,
+            reason:
+                "REPLACEMENT_TARGET_REQUIRED",
+            file:
+                targetFile,
+            intent:
+                userIntent
+        };
+    }
+
+    const functionMatchFound =
+        findFunctionBlock(
+            currentSource,
+            functionName
+        );
+
+    console.log(
+        "🧪 FUNCTION_CAPTURED",
+        functionMatchFound?.block
     );
 
-console.log(
-    "🧪 FUNCTION_CAPTURED",
-    functionMatchFound?.block
-);
+    console.log(
+        "🧪 FUNCTION_MATCH_FOUND",
+        !!functionMatchFound
+    );
 
-console.log(
-    "🧪 FUNCTION_MATCH_FOUND",
-    !!functionMatchFound
-);
+    if (!functionMatchFound) {
 
-console.log("🧪 SOURCE_TYPE", typeof currentSource);
+        return {
+            ok: false,
+            reason:
+                "FUNCTION_NOT_FOUND",
+            file:
+                targetFile,
+            functionName,
+            strategy
+        };
+    }
 
-console.log("🧪 SOURCE_VALUE", currentSource);
+    const generatedReplacement =
+        buildSafeReplacementBody(
+            replacementInstruction
+        );
 
-console.log("🧪 USER_INTENT", userIntent);
+    if (!generatedReplacement.ok) {
 
-if (functionMatchFound) {
+        return {
+            ok: false,
+            reason:
+                generatedReplacement.reason,
+            file:
+                targetFile,
+            functionName,
+            strategy,
+            instruction:
+                replacementInstruction,
+            expectedExamples: [
+                "retorne 250",
+                "retorne true",
+                "retorne null",
+                "retorne \"ONLINE\"",
+                "retorne texto ONLINE"
+            ]
+        };
+    }
+
     search =
         functionMatchFound.block;
+
+    const preservedHeader =
+        functionMatchFound.header ||
+        `function ${functionName}()`;
+
+    replace =
+`${preservedHeader} ${generatedReplacement.body}`;
+
+    console.log(
+        "🧠 [PATCH_STRATEGY]",
+        strategy,
+        functionName,
+        generatedReplacement.expression
+    );
 }
-            
 
-            const preservedHeader =
-    functionMatchFound?.header ||
-    `function ${functionName}()`;
+// 3. INCOMPLETE FUNCTION REPLACE
+else if (
+    incompleteReplaceRegex.test(
+        intentWithoutFile
+    )
+) {
 
-replace =
+    return {
+        ok: false,
+        reason:
+            "REPLACEMENT_CONTENT_REQUIRED",
+        file:
+            targetFile,
+        intent:
+            userIntent,
+        expectedFormat:
+            "reemplaza <funcion> por una función que retorne <valor> en <archivo>"
+    };
+}
+
+// 4. FUNCTION REPAIR
+else if (
+    repairFunctionRegex.test(
+        intentWithoutFile
+    )
+) {
+
+    const repairMatch =
+        intentWithoutFile.match(
+            repairFunctionRegex
+        );
+
+    functionName =
+        repairMatch?.[1] ||
+        null;
+
+    strategy =
+        "FUNCTION_REPAIR";
+
+    confidence =
+        0.95;
+
+    if (!functionName) {
+
+        return {
+            ok: false,
+            reason:
+                "REPAIR_TARGET_REQUIRED",
+            file:
+                targetFile,
+            intent:
+                userIntent
+        };
+    }
+
+    const functionMatchFound =
+        findFunctionBlock(
+            currentSource,
+            functionName
+        );
+
+    console.log(
+        "🧪 FUNCTION_CAPTURED",
+        functionMatchFound?.block
+    );
+
+    console.log(
+        "🧪 FUNCTION_MATCH_FOUND",
+        !!functionMatchFound
+    );
+
+    if (!functionMatchFound) {
+
+        return {
+            ok: false,
+            reason:
+                "FUNCTION_NOT_FOUND",
+            file:
+                targetFile,
+            functionName,
+            strategy
+        };
+    }
+
+    search =
+        functionMatchFound.block;
+
+    const preservedHeader =
+        functionMatchFound.header ||
+        `function ${functionName}()`;
+
+    replace =
 `${preservedHeader} {
 
     return {
@@ -318,8 +651,34 @@ replace =
     };
 }`;
 
-            console.log("🧠 [PATCH_STRATEGY]", strategy, functionName);
-        }
+    console.log(
+        "🧠 [PATCH_STRATEGY]",
+        strategy,
+        functionName
+    );
+}
+
+// 5. INCOMPLETE FUNCTION REPAIR
+else if (
+    incompleteRepairRegex.test(
+        intentWithoutFile
+    )
+) {
+
+    return {
+        ok: false,
+        reason:
+            "REPAIR_TARGET_REQUIRED",
+        file:
+            targetFile,
+        intent:
+            userIntent,
+        expectedFormat:
+            "repara <funcion> en <archivo>"
+    };
+}
+
+
 
         // 3. FUNCTION APPEND
         else if (appendRegex.test(intent)) {
