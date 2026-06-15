@@ -13,9 +13,11 @@ function a() {
 
 
 
-export function runtimelatency() {
+function runtimelatency() {
 
-    return 0;
-
+    return {
+        repaired: true,
+        timestamp: Date.now()
+    };
 }
  /* fixgo_safe_edit_end */                                                                                                                                                                   
