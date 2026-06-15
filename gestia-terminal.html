@@ -1428,18 +1428,69 @@ if (
             cognitionType: cognition?.type || "ANALYSIS"
         });
 
-        const step = {
-            id: "step_auto_" + Date.now(),
-            type: cognition?.type || (fileMatch ? "CODE_WRITE" : "ANALYSIS"),
-            target: {
-                collection: cognition?.collection || "repo_files"
-            },
-            action: "custom",
-            payload: {
-                file: cognition?.target || fileMatch?.[0] || `modules/auto_analysis_${Date.now()}.js`,
-                content: generatedPatch?.ok ? generatedPatch : raw
-            }
-        };
+        
+const isReadOnlyAnalysis =
+    generatedPatch?.strategy === "ANALYZE_ONLY" ||
+    generatedPatch?.isReadOnly === true;
+
+const resolvedFile =
+    cognition?.target ||
+    fileMatch?.[0] ||
+    `modules/auto_analysis_${Date.now()}.js`;
+
+const resolvedStepType =
+    isReadOnlyAnalysis
+        ? "ANALYZE"
+        : cognition?.type === "ANALYSIS"
+            ? "ANALYZE"
+            : cognition?.type ||
+              (fileMatch ? "CODE_WRITE" : "ANALYZE");
+
+
+        
+const step = {
+    id:
+        "step_auto_" +
+        Date.now(),
+
+    type:
+        resolvedStepType,
+
+    target: {
+        collection:
+            cognition?.collection ||
+            "repo_files"
+    },
+
+    action:
+        "custom",
+
+    payload: isReadOnlyAnalysis
+        ? {
+            file:
+                resolvedFile,
+
+            target:
+                resolvedFile,
+
+            report:
+                generatedPatch?.analysisResult ||
+                "analysis_completed",
+
+            analysis:
+                generatedPatch
+        }
+        : {
+            file:
+                resolvedFile,
+
+            content:
+                generatedPatch?.ok
+                    ? generatedPatch
+                    : raw
+        }
+};
+
 
         // 🧠 Crear plan universal
         const plan = {
