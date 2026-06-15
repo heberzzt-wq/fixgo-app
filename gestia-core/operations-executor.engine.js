@@ -1347,15 +1347,20 @@ if (
                     type:
                         mappedType,
 
-                    target:
+                   
+target:
+    step?.payload?.target ||
+    step?.payload?.file ||
+    step?.target?.docId ||
+    step?.target?.collection ||
+    (
+        typeof step?.target === "string"
+            ? step.target
+            : null
+    ) ||
+    "system_resource",
 
-                        step?.target?.docId ||
 
-                        step?.target?.collection ||
-
-                        step?.target ||
-
-                        "system_resource",
 
                     
 payload: {
