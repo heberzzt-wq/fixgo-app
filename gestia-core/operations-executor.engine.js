@@ -706,6 +706,39 @@ case "ANALYZE_UI":
                             retryBuffer.push({ type, target: payload.file, status: "analysis_only_success" });
                         } else {
                             // Solo si hay contenido REAL, procedemos a escribir.
+
+                            if (
+    payload?.content &&
+    typeof payload.content === "object" &&
+    payload.content.ok === true &&
+    payload.content.search &&
+    payload.content.replace
+) {
+    const loaded =
+        await window.loadRepoContext?.(
+            payload.file
+        );
+
+    if (!loaded?.ok) {
+        throw new Error(
+            "PATCH_SOURCE_LOAD_FAIL"
+        );
+    }
+
+    payload.content =
+        loaded.source.replace(
+            payload.content.search,
+            payload.content.replace
+        );
+
+    console.log(
+        "🧠 [PATCH_APPLIED_TO_CONTENT]",
+        {
+            file: payload.file,
+            length: payload.content.length
+        }
+    );
+}
                             await writeRepoFile({
                                 file: payload.file,
                                 content: payload.content,
