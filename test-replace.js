@@ -20,5 +20,6 @@ function runtimelatency() {
         timestamp: Date.now()
     };
 };
+};
 }
  /* fixgo_safe_edit_end */                                                                                                                                                                   
