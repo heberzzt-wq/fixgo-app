@@ -142,34 +142,110 @@ Esperando aprobación y validación humana.
 
         } else {
 
-            const changes =
-                result?.proposal?.changes ||
-                result?.changes ||
-                [];
+            
+const changes =
+    result?.proposal?.changes ||
+    result?.changes ||
+    [];
 
-            const affected =
-                changes.map(c =>
-                    c.target ||
-                    c.type ||
+const affected =
+    [
+        ...new Set(
+            changes
+                .map(change =>
+                    change?.target ||
+                    change?.payload?.target ||
+                    change?.payload?.file ||
+                    change?.type ||
                     "system"
-                );
+                )
+                .filter(Boolean)
+        )
+    ];
 
-            msg = `
+const executionStatus =
+    result?.status ||
+    "unknown";
+
+const firstExecutionResult =
+    Array.isArray(result?.result)
+        ? result.result[0]
+        : null;
+
+const isAnalysis =
+    changes.some(change =>
+        [
+            "ANALYZE",
+            "ANALYZE_UI",
+            "DATA_ANALYSIS"
+        ].includes(change?.type)
+    );
+
+const analysisReport =
+    firstExecutionResult?.result?.report ||
+    changes.find(change =>
+        [
+            "ANALYZE",
+            "ANALYZE_UI",
+            "DATA_ANALYSIS"
+        ].includes(change?.type)
+    )?.payload?.report ||
+    null;
+
+if (executionStatus !== "success") {
+
+    msg = `
 Arquitecto,
 
-la operación fue procesada correctamente.
+la operación no pudo completarse.
 
-Operaciones detectadas:
+Error:
+${result?.error || "EXECUTION_FAILED"}
+
+Objetivos afectados:
+- ${affected.join("\n- ") || "system"}
+
+Estado:
+ejecución fallida.
+`;
+
+} else if (isAnalysis) {
+
+    msg = `
+Arquitecto,
+
+el análisis fue completado correctamente.
+
+Objetivos analizados:
+- ${affected.join("\n- ") || "system"}
+
+Resultado:
+${analysisReport || "Análisis completado sin realizar escrituras."}
+
+Estado:
+análisis finalizado en modo de solo lectura.
+`;
+
+} else {
+
+    msg = `
+Arquitecto,
+
+la operación fue ejecutada correctamente.
+
+Operaciones realizadas:
 ${changes.length}
 
 Objetivos afectados:
 - ${affected.join("\n- ") || "system"}
 
 Estado:
-esperando aprobación y validación humana.
+plan aprobado y ejecución completada.
 `;
-
+}
         }
+
+
 
     } else {
 
