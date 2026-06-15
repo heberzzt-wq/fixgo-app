@@ -707,43 +707,166 @@ case "ANALYZE_UI":
                         } else {
                             // Solo si hay contenido REAL, procedemos a escribir.
 
-                            if (
-    payload?.content &&
-    typeof payload.content === "object" &&
-    payload.content.ok === true &&
-    payload.content.search &&
-    payload.content.replace
-) {
-    const loaded =
-        await window.loadRepoContext?.(
-            payload.file
-        );
+               
+/* =====================================================
+   SIA7 PATCH APPLICATION + NO-OP GUARD
+===================================================== */
 
-    if (!loaded?.ok) {
+let originalSource =
+    null;
+
+let nextContent =
+    payload?.content;
+
+const loadedForWrite =
+    await window.loadRepoContext?.(
+        payload.file
+    );
+
+if (
+    loadedForWrite?.ok &&
+    typeof loadedForWrite.source === "string"
+) {
+    originalSource =
+        loadedForWrite.source;
+}
+
+/* =====================================================
+   STRUCTURED PATCH APPLICATION
+===================================================== */
+
+if (
+    nextContent &&
+    typeof nextContent === "object" &&
+    nextContent.ok === true &&
+    typeof nextContent.search === "string" &&
+    typeof nextContent.replace === "string"
+) {
+
+    if (!loadedForWrite?.ok) {
+
         throw new Error(
             "PATCH_SOURCE_LOAD_FAIL"
         );
     }
 
-    payload.content =
-        loaded.source.replace(
-            payload.content.search,
-            payload.content.replace
+    const patchSearch =
+        nextContent.search;
+
+    const patchReplace =
+        nextContent.replace;
+
+    nextContent =
+        loadedForWrite.source.replace(
+            patchSearch,
+            patchReplace
         );
 
     console.log(
         "🧠 [PATCH_APPLIED_TO_CONTENT]",
         {
-            file: payload.file,
-            length: payload.content.length
+            file:
+                payload.file,
+
+            originalLength:
+                loadedForWrite.source.length,
+
+            nextLength:
+                nextContent.length
         }
     );
 }
-                            await writeRepoFile({
-                                file: payload.file,
-                                content: payload.content,
-                                operationId: opId
-                            });
+
+/* =====================================================
+   CONTENT VALIDATION
+===================================================== */
+
+if (
+    typeof nextContent !== "string"
+) {
+
+    throw new Error(
+        "CONTENT_REQUIRED"
+    );
+}
+
+/* =====================================================
+   LINE ENDING NORMALIZATION
+===================================================== */
+
+const normalizeForComparison =
+    value => String(value)
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n");
+
+/* =====================================================
+   NO-OP GUARD
+===================================================== */
+
+if (
+    typeof originalSource === "string" &&
+    normalizeForComparison(originalSource) ===
+    normalizeForComparison(nextContent)
+) {
+
+    console.warn(
+        "🛑 [NO_OP_GUARD]",
+        {
+            file:
+                payload.file,
+
+            reason:
+                "NO_CONTENT_CHANGES",
+
+            originalLength:
+                originalSource.length,
+
+            nextLength:
+                nextContent.length
+        }
+    );
+
+    retryBuffer.push({
+        type,
+        target:
+            payload.file,
+
+        status:
+            "no_changes",
+
+        reason:
+            "ALREADY_REPAIRED"
+    });
+
+    emitirPulsoHUD?.(
+        opId,
+        "WRITE",
+        "NO_CHANGES",
+        payload.file
+    );
+
+    break;
+}
+
+/* =====================================================
+   REAL WRITE
+===================================================== */
+
+payload.content =
+    nextContent;
+
+await writeRepoFile({
+    file:
+        payload.file,
+
+    content:
+        payload.content,
+
+    operationId:
+        opId
+});
+
+
 
                             transaction.set(doc(collection(db, "repo_files")), deepSanitize({
                                 file: payload?.file || `auto_${Date.now()}.js`,
