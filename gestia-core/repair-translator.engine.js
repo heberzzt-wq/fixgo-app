@@ -255,26 +255,20 @@ if (
             strategy = "FUNCTION_REPLACE";
             confidence = 0.95;
 
-            const functionRegex = new RegExp(
-    `(export\\s+)?function\\s+${functionName}\\s*\\([^)]*\\)\\s*\\{[\\s\\S]*?\\}`,
-    "m"
-);
+      const functionMatchFound =
+    findFunctionBlock(
+        currentSource,
+        functionName
+    );
 
-            const functionMatchFound = currentSource.match(functionRegex);
-
-            console.log(
+console.log(
     "🧪 FUNCTION_CAPTURED",
-    functionMatchFound?.[0]
-);
-
-            console.log(
-    "🧪 FUNCTION_MATCH_FOUND",
-    !!functionMatchFound
+    functionMatchFound?.block
 );
 
 console.log(
-    "🧪 FUNCTION_REGEX",
-    functionRegex
+    "🧪 FUNCTION_MATCH_FOUND",
+    !!functionMatchFound
 );
 
 console.log("🧪 SOURCE_TYPE", typeof currentSource);
@@ -283,16 +277,14 @@ console.log("🧪 SOURCE_VALUE", currentSource);
 
 console.log("🧪 USER_INTENT", userIntent);
 
-            if (functionMatchFound) {
-                search = functionMatchFound[0];
-            }
+if (functionMatchFound) {
+    search =
+        functionMatchFound.block;
+}
             
 
-            const originalHeader =
-    search.match(/^(export\s+)?(async\s+)?function\s+[a-zA-Z0-9_]+\s*\([^)]*\)/)?.[0];
-
-const preservedHeader =
-    originalHeader ||
+            const preservedHeader =
+    functionMatchFound?.header ||
     `function ${functionName}()`;
 
 replace =
