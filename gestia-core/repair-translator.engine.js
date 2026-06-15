@@ -194,8 +194,15 @@ console.log("🧪 USER_INTENT", userIntent);
             }
             
 
-            replace = 
-`function ${functionName}() {
+            const originalHeader =
+    search.match(/^(export\s+)?(async\s+)?function\s+[a-zA-Z0-9_]+\s*\([^)]*\)/)?.[0];
+
+const preservedHeader =
+    originalHeader ||
+    `function ${functionName}()`;
+
+replace =
+`${preservedHeader} {
 
     return {
         repaired: true,
