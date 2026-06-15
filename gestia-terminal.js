@@ -12075,6 +12075,11 @@ window.loadRepoContext = async function(fileName = "") {
         const source =
             await response.text();
 
+            console.log(
+    "🧪 LOAD_REPO_SOURCE_PREVIEW",
+    source.substring(0, 300)
+);
+
         // 🔥 cache
         window.__REPO_SOURCE_CACHE__[key] =
             source;
