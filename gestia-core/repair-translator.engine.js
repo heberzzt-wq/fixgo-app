@@ -151,6 +151,11 @@ if (
 
             const functionMatchFound = currentSource.match(functionRegex);
 
+            console.log(
+    "🧪 FUNCTION_CAPTURED",
+    functionMatchFound?.[0]
+);
+
             if (functionMatchFound) {
                 search = functionMatchFound[0];
                 replace = "";
@@ -172,6 +177,11 @@ if (
 );
 
             const functionMatchFound = currentSource.match(functionRegex);
+
+            console.log(
+    "🧪 FUNCTION_CAPTURED",
+    functionMatchFound?.[0]
+);
 
             console.log(
     "🧪 FUNCTION_MATCH_FOUND",
