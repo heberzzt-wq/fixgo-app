@@ -166,10 +166,11 @@ console.log(
     functionRegex
 );
 
-console.log(
-    "🧪 SOURCE_SAMPLE",
-    currentSource.substring(0,500)
-);
+console.log("🧪 SOURCE_TYPE", typeof currentSource);
+
+console.log("🧪 SOURCE_VALUE", currentSource);
+
+console.log("🧪 USER_INTENT", userIntent);
 
             if (functionMatchFound) {
                 search = functionMatchFound[0];
