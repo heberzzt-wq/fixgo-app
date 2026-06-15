@@ -55,6 +55,23 @@ async function(
 
         let currentSource = source;
 
+        // 🔥 FIX: si "source" no parece código fuente, cargar el archivo real
+if (
+    !currentSource ||
+    typeof currentSource !== "string" ||
+    !currentSource.includes("function") &&
+    !currentSource.includes("export") &&
+    !currentSource.includes("window.")
+) {
+    const loaded = await window.loadRepoContext(targetFile);
+
+    if (!loaded?.ok) {
+        throw new Error("SOURCE_LOAD_FAIL");
+    }
+
+    currentSource = loaded.source;
+}
+
         if (!currentSource) {
             const loaded =
                 await window
