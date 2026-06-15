@@ -221,32 +221,54 @@ if (
             };
         }
         
-        // 1. FUNCTION REMOVE
-        if (removeRegex.test(intent)) {
-            
-            functionName = extractTargetName(intent, removeRegex);
-            strategy = "FUNCTION_REMOVE";
-            confidence = 0.95;
+        
+// 1. FUNCTION REMOVE
+if (removeRegex.test(intent)) {
 
-            const functionRegex = new RegExp(
-                `function\\s+${functionName}\\s*\\([^)]*\\)\\s*\\{[\\s\\S]*?\\}`,
-                "m"
-            );
+    functionName =
+        extractTargetName(
+            intent,
+            removeRegex
+        );
 
-            const functionMatchFound = currentSource.match(functionRegex);
+    strategy =
+        "FUNCTION_REMOVE";
 
-            console.log(
-    "🧪 FUNCTION_CAPTURED",
-    functionMatchFound?.[0]
-);
+    confidence =
+        0.95;
 
-            if (functionMatchFound) {
-                search = functionMatchFound[0];
-                replace = "";
-            }
+    const functionMatchFound =
+        findFunctionBlock(
+            currentSource,
+            functionName
+        );
 
-            console.log("🧠 [PATCH_STRATEGY]", strategy, functionName);
-        }
+    console.log(
+        "🧪 FUNCTION_CAPTURED",
+        functionMatchFound?.block
+    );
+
+    console.log(
+        "🧪 FUNCTION_MATCH_FOUND",
+        !!functionMatchFound
+    );
+
+    if (functionMatchFound) {
+
+        search =
+            functionMatchFound.block;
+
+        replace =
+            "";
+    }
+
+    console.log(
+        "🧠 [PATCH_STRATEGY]",
+        strategy,
+        functionName
+    );
+}
+
 
         // 2. FUNCTION REPLACE
         else if (replaceRegex.test(intent)) {
