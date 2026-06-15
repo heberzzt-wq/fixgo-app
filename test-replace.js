@@ -16,5 +16,4 @@ export function runtimelatency() {
     };
 }
 
-
 /* fixgo_safe_edit_end */
