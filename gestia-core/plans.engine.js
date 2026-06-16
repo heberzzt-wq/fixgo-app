@@ -95,7 +95,8 @@ console.log(
 
 // 🧠 FORMATEO + UI + VOZ
 let msg = "Ejecución completada";
-
+let responseType =
+    "success";
 if (result) {
 
     if (result.message) {
@@ -177,6 +178,7 @@ const firstExecutionResult =
     executionResults[0] ||
     null;
 
+
 /* =====================================================
    RESULT STATUS CLASSIFICATION
 ===================================================== */
@@ -188,8 +190,17 @@ const noChangeResult =
     ) ||
     null;
 
+const syntaxErrorResult =
+    executionResults.find(item =>
+        item?.status === "syntax_error" ||
+        item?.reason ===
+            "SYNTAX_VALIDATION_FAILED"
+    ) ||
+    null;
+
 const blockedResult =
     executionResults.find(item =>
+        item?.status === "blocked" ||
         item?.result?.blocked === true ||
         item?.blocked === true
     ) ||
@@ -201,11 +212,16 @@ const writeResults =
             "file_created",
             "file_updated",
             "write_success"
-        ].includes(item?.status)
+        ].includes(
+            item?.status
+        )
     );
 
 const isNoChanges =
     !!noChangeResult;
+
+const isSyntaxError =
+    !!syntaxErrorResult;
 
 const isBlocked =
     !!blockedResult;
@@ -216,13 +232,60 @@ const blockedReason =
     blockedResult?.reason ||
     "OPERATION_BLOCKED";
 
+const syntaxFile =
+    syntaxErrorResult?.target ||
+    syntaxErrorResult?.file ||
+    affected[0] ||
+    "system";
+
+const syntaxReason =
+    syntaxErrorResult?.reason ||
+    "SYNTAX_VALIDATION_FAILED";
+
+const syntaxMessage =
+    syntaxErrorResult?.message ||
+    "El contenido JavaScript contiene sintaxis inválida.";
+
+const syntaxLocationParts =
+    [];
+
+if (
+    Number.isInteger(
+        syntaxErrorResult?.line
+    )
+) {
+
+    syntaxLocationParts.push(
+        `línea ${syntaxErrorResult.line}`
+    );
+}
+
+if (
+    Number.isInteger(
+        syntaxErrorResult?.column
+    )
+) {
+
+    syntaxLocationParts.push(
+        `columna ${syntaxErrorResult.column}`
+    );
+}
+
+const syntaxLocation =
+    syntaxLocationParts.join(
+        ", "
+    ) ||
+    "ubicación no disponible";
+
 const isAnalysis =
     changes.some(change =>
         [
             "ANALYZE",
             "ANALYZE_UI",
             "DATA_ANALYSIS"
-        ].includes(change?.type)
+        ].includes(
+            change?.type
+        )
     );
 
 const analysisReport =
@@ -232,7 +295,9 @@ const analysisReport =
             "ANALYZE",
             "ANALYZE_UI",
             "DATA_ANALYSIS"
-        ].includes(change?.type)
+        ].includes(
+            change?.type
+        )
     )?.payload?.report ||
     null;
 
@@ -240,7 +305,12 @@ const analysisReport =
    FINAL MESSAGE ROUTING
 ===================================================== */
 
-if (executionStatus !== "success") {
+if (
+    executionStatus !== "success"
+) {
+
+    responseType =
+        "error";
 
     msg = `
 Arquitecto,
@@ -257,7 +327,40 @@ Estado:
 ejecución fallida.
 `;
 
-} else if (isBlocked) {
+} else if (
+    isSyntaxError
+) {
+
+    responseType =
+        "error";
+
+    msg = `
+Arquitecto,
+
+la escritura fue bloqueada por sintaxis JavaScript inválida.
+
+Archivo protegido:
+${syntaxFile}
+
+Error:
+${syntaxMessage}
+
+Ubicación:
+${syntaxLocation}
+
+Motivo:
+${syntaxReason}
+
+Estado:
+no se realizó ninguna escritura ni se creó ningún commit.
+`;
+
+} else if (
+    isBlocked
+) {
+
+    responseType =
+        "error";
 
     msg = `
 Arquitecto,
@@ -277,7 +380,9 @@ Estado:
 no se realizaron cambios ni escrituras en el repositorio.
 `;
 
-} else if (isNoChanges) {
+} else if (
+    isNoChanges
+) {
 
     msg = `
 Arquitecto,
@@ -294,7 +399,9 @@ Estado:
 operación omitida por ALREADY_REPAIRED. No se creó ningún commit.
 `;
 
-} else if (isAnalysis) {
+} else if (
+    isAnalysis
+) {
 
     msg = `
 Arquitecto,
@@ -328,6 +435,8 @@ Estado:
 plan aprobado y ejecución completada.
 `;
 }
+
+
 
 
         }
@@ -397,10 +506,10 @@ if (
 ) {
 
     window.renderJarvisResponse(
-        "Resultado",
-        msg,
-        "success"
-    );
+    "Resultado",
+    msg,
+    responseType
+);
 
 }
 
