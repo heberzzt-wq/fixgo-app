@@ -41,6 +41,9 @@ if (!admin.apps.length) {
 // FACTORIES
 const firewallFactory = require("./firewall/firewall.v5");
 
+const repoWriteAuthFactory =
+    require("./repo-write-auth");
+
 // ======================================================================================
 // 2. EXPRESS (INSTANCIACIÓN ANTES DE INIT)
 // ======================================================================================
@@ -61,6 +64,14 @@ app.use((req, res, next) => {
 // 3. SINGLETONS (CONTENEDORES DE ESTADO)
 // ======================================================================================
 let db = admin.firestore(); // Sello inmediato de base de datos
+
+const {
+    authorizeRepoWriteRequest
+} = repoWriteAuthFactory({
+    admin,
+    db
+});
+
 let stripe;
 let genAI;
 let firewallV5;
@@ -2642,11 +2653,103 @@ exports.repoCommitWriteFile = functions
 
         corsHandler(req, res, async () => {
 
-            try {
+            
+try {
 
-                initRepoCommitEngine();
+    /* ==============================================================================
+       FIREBASE AUTHORITY GATE
+    ============================================================================== */
 
-                if (!repoCommitEngine.github) {
+    const repoAuthorization =
+        await authorizeRepoWriteRequest(
+            req
+        );
+
+    if (
+        repoAuthorization.ok !== true
+    ) {
+
+        console.warn(
+            "🛑 [REPO_WRITE_AUTH_BLOCKED]",
+            {
+                status:
+                    repoAuthorization.status,
+
+                reason:
+                    repoAuthorization.reason,
+
+                uid:
+                    repoAuthorization.uid,
+
+                role:
+                    repoAuthorization.role
+            }
+        );
+
+        return res
+            .status(
+                repoAuthorization.httpStatus ||
+                401
+            )
+            .json({
+                success:
+                    false,
+
+                blocked:
+                    true,
+
+                status:
+                    repoAuthorization.status ||
+                    "unauthenticated",
+
+                error:
+                    repoAuthorization.reason ||
+                    "REPO_WRITE_AUTH_BLOCKED",
+
+                reason:
+                    repoAuthorization.reason ||
+                    "REPO_WRITE_AUTH_BLOCKED",
+
+                message:
+                    repoAuthorization.message ||
+                    "La escritura fue bloqueada por falta de autoridad.",
+
+                uid:
+                    repoAuthorization.uid,
+
+                role:
+                    repoAuthorization.role,
+
+                tenantId:
+                    repoAuthorization.tenantId,
+
+                surface:
+                    "server"
+            });
+    }
+
+    console.log(
+        "🔐 [REPO_WRITE_AUTHORIZED]",
+        {
+            uid:
+                repoAuthorization.uid,
+
+            role:
+                repoAuthorization.role,
+
+            tenantId:
+                repoAuthorization.tenantId,
+
+            authSource:
+                repoAuthorization.authSource
+        }
+    );
+
+    initRepoCommitEngine();
+
+    if (!repoCommitEngine.github) {
+
+
 
                     return res.status(500).json({
                         success: false,
