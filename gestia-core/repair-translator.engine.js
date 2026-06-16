@@ -346,34 +346,74 @@ if (
    REPAIR / REPLACE INTENT SEPARATION
 ============================================ */
 
+
+/* ============================================
+   NORMALIZACIÓN SEGURA DE INTENCIÓN Y ARCHIVO
+============================================ */
+
+const normalizedIntent =
+    String(
+        intent ||
+        userIntent ||
+        ""
+    )
+        .replace(/\s+/g, " ")
+        .trim();
+
+const normalizedTargetFile =
+    String(
+        targetFile ||
+        ""
+    )
+        .trim();
+
 const escapedTargetFile =
-    String(targetFile || "")
-        .replace(
-            /[.*+?^${}()|[\]\\]/g,
-            "\\$&"
-        );
+    normalizedTargetFile.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+    );
+
+/*
+    Elimina únicamente el archivo ubicado
+    al final de la instrucción.
+
+    Soporta:
+
+    repara funcion en archivo.js
+    repara funcion archivo.js
+    repara funcion en el archivo archivo.js
+    repara funcion del archivo archivo.js
+*/
+
+const targetFileSuffixRegex =
+    new RegExp(
+        `\\s+(?:(?:en(?:\\s+el\\s+archivo)?|del\\s+archivo|archivo)\\s+)?${escapedTargetFile}\\s*$`,
+        "i"
+    );
 
 const intentWithoutFile =
-    String(intent || "")
+    normalizedIntent
         .replace(
-            new RegExp(
-                `\\s+en\\s+${escapedTargetFile}\\s*$`,
-                "i"
-            ),
+            targetFileSuffixRegex,
             ""
-        )
-        .replace(
-            new RegExp(
-                `\\s+${escapedTargetFile}\\s*$`,
-                "i"
-            ),
-            ""
-        )
-        .replace(
-            /\s+/g,
-            " "
         )
         .trim();
+
+console.log(
+    "🧪 [INTENT_ROUTING]",
+    {
+        original:
+            normalizedIntent,
+
+        targetFile:
+            normalizedTargetFile,
+
+        routedIntent:
+            intentWithoutFile
+    }
+);
+
+
 
 const repairFunctionRegex =
     /^(?:repara|corrige|arregla)\s+(?:la\s+funci[oó]n\s+)?([a-zA-Z_$][a-zA-Z0-9_$]*)$/i;
