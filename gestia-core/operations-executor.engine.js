@@ -22,7 +22,7 @@
  * ======================================================================================
  */
 
-import { db } from '/firebase.js';
+import { auth, db } from '/firebase.js';
 import {
     resolveJavaScriptSourceType,
     validateJavaScriptSyntax
@@ -81,39 +81,124 @@ const deepSanitize = (obj) => {
 const REPO_COMMIT_WRITE_URL =
     "https://us-central1-fixgo-44e4d.cloudfunctions.net/repoCommitWriteFile";
 
+
 async function writeRepoFile({
     file,
     content,
     operationId
 }) {
 
+    const currentUser =
+        auth.currentUser;
+
+    if (!currentUser) {
+
+        const authError =
+            new Error(
+                "REPO_WRITE_AUTH_REQUIRED"
+            );
+
+        authError.code =
+            "REPO_WRITE_AUTH_REQUIRED";
+
+        authError.status =
+            401;
+
+        throw authError;
+    }
+
+    const idToken =
+        await currentUser
+            .getIdToken(
+                true
+            );
+
     const response =
         await fetch(
             REPO_COMMIT_WRITE_URL,
             {
-                method: "POST",
+                method:
+                    "POST",
+
                 headers: {
                     "Content-Type":
-                        "application/json"
+                        "application/json",
+
+                    "Authorization":
+                        `Bearer ${idToken}`
                 },
-                body: JSON.stringify({
-                    path: file,
-                    content,
-                    message:
-                        `Jarvis Executor ${operationId}`
-                })
+
+                body:
+                    JSON.stringify({
+                        path:
+                            file,
+
+                        content,
+
+                        message:
+                            `Jarvis Executor ${operationId}`
+                    })
             }
         );
 
-    const result =
-        await response.json();
+    const responseText =
+        await response.text();
 
-    if (!result.success) {
+    let result =
+        {};
 
-        throw new Error(
+    try {
+
+        result =
+            responseText
+                ? JSON.parse(
+                    responseText
+                )
+                : {};
+
+    } catch(parseError) {
+
+        const responseError =
+            new Error(
+                `REPO_WRITE_INVALID_RESPONSE_HTTP_${response.status}`
+            );
+
+        responseError.code =
+            "REPO_WRITE_INVALID_RESPONSE";
+
+        responseError.status =
+            response.status;
+
+        responseError.responseText =
+            responseText;
+
+        throw responseError;
+    }
+
+    if (
+        response.ok !== true ||
+        result.success !== true
+    ) {
+
+        const writeError =
+            new Error(
+                result.message ||
+                result.error ||
+                `REPO_WRITE_HTTP_${response.status}`
+            );
+
+        writeError.code =
             result.error ||
-            "REPO_WRITE_FAILED"
-        );
+            result.reason ||
+            "REPO_WRITE_FAILED";
+
+        writeError.status =
+            response.status;
+
+        writeError.details =
+            result;
+
+        throw writeError;
     }
 
     console.log(
@@ -123,6 +208,8 @@ async function writeRepoFile({
 
     return result;
 }
+
+
 /**
  * 🧬 1. SIMULAR CAMBIOS (DRY RUN)
  * Proyecta el impacto para el HUD visual antes de la ejecución real.
