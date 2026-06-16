@@ -10,10 +10,7 @@ function a() {
 
 export function runtimelatency() {
 
-    return {
-        repaired: true,
-        timestamp: Date.now()
-    };
+    return 250;
 }
 
 /* fixgo_safe_edit_end */
