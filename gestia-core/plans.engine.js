@@ -94,9 +94,13 @@ console.log(
 
 
 // 🧠 FORMATEO + UI + VOZ
-let msg = "Ejecución completada";
-let responseType =
+    let msg = "Ejecución completada";
+
+    let responseType =
     "success";
+
+    let ledgerEventType = "PLAN_EXECUTED";
+
 if (result) {
 
     if (result.message) {
@@ -223,14 +227,22 @@ const isNoChanges =
 const isSyntaxError =
     !!syntaxErrorResult;
 
-const isBlocked =
-    !!blockedResult;
+const effectiveBlockedResult =
+ blockedResult ||
+  result?.blocking_result ||
+   null; 
+   
+   const isBlocked =
+    !!effectiveBlockedResult || 
+    executionStatus === "blocked" ||
+     result?.blocked === true;
 
-const blockedReason =
-    blockedResult?.result?.analysis?.reason ||
-    blockedResult?.result?.reason ||
-    blockedResult?.reason ||
-    "OPERATION_BLOCKED";
+     const blockedReason =
+      effectiveBlockedResult?.result?.analysis?.reason ||
+       effectiveBlockedResult?.result?.reason ||
+        effectiveBlockedResult?.reason || 
+        result?.reason ||
+         "OPERATION_BLOCKED";
 
 const syntaxFile =
     syntaxErrorResult?.target ||
@@ -305,12 +317,18 @@ const analysisReport =
    FINAL MESSAGE ROUTING
 ===================================================== */
 
-if (
-    executionStatus !== "success"
-) {
-
-    responseType =
-        "error";
+if ( 
+    ![
+         "success",
+          "blocked"
+         ].includes(
+             executionStatus 
+            ) 
+        ) { 
+            responseType =
+             "error";
+              ledgerEventType =
+               "PLAN_FAILED";
 
     msg = `
 Arquitecto,
@@ -333,6 +351,9 @@ ejecución fallida.
 
     responseType =
         "error";
+
+        ledgerEventType = 
+        "PLAN_BLOCKED";
 
     msg = `
 Arquitecto,
@@ -361,6 +382,9 @@ no se realizó ninguna escritura ni se creó ningún commit.
 
     responseType =
         "error";
+
+        ledgerEventType =
+         "PLAN_BLOCKED";
 
     msg = `
 Arquitecto,
@@ -527,14 +551,31 @@ window.__LAST_EXECUTION__ = true;
 try {
     const ledger = window.__GESTIA_LEDGER__;
 
-    if (ledger && typeof ledger.log === "function") {
-        await ledger.log("PLAN_EXECUTED", {
-            planId,
-            result
-        });
-    } else {
-        console.warn("⚠️ Ledger no disponible en PLAN_EXECUTED");
-    }
+    if (
+         ledger && 
+         typeof ledger.log === "function" 
+        ) { 
+            
+            await ledger.log(
+                 ledgerEventType,
+                  { 
+                    planId,
+                    
+                    status: result?.status ||
+                     "unknown",
+                      blocked:
+                       result?.blocked === true,
+                        reason:
+                         result?.reason ||
+                          null, 
+                          result
+                         } 
+                        ); 
+                    } else { 
+                        console.warn(
+                             `⚠️ Ledger no disponible en ${ledgerEventType}`
+                             ); 
+                            }
 
 } catch (err) {
     console.warn("⚠️ Ledger ejecución omitido:", err.message);
