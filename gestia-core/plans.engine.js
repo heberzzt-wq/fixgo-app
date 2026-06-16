@@ -167,10 +167,54 @@ const executionStatus =
     result?.status ||
     "unknown";
 
-const firstExecutionResult =
+
+const executionResults =
     Array.isArray(result?.result)
-        ? result.result[0]
-        : null;
+        ? result.result
+        : [];
+
+const firstExecutionResult =
+    executionResults[0] ||
+    null;
+
+/* =====================================================
+   RESULT STATUS CLASSIFICATION
+===================================================== */
+
+const noChangeResult =
+    executionResults.find(item =>
+        item?.status === "no_changes" ||
+        item?.reason === "ALREADY_REPAIRED"
+    ) ||
+    null;
+
+const blockedResult =
+    executionResults.find(item =>
+        item?.result?.blocked === true ||
+        item?.blocked === true
+    ) ||
+    null;
+
+const writeResults =
+    executionResults.filter(item =>
+        [
+            "file_created",
+            "file_updated",
+            "write_success"
+        ].includes(item?.status)
+    );
+
+const isNoChanges =
+    !!noChangeResult;
+
+const isBlocked =
+    !!blockedResult;
+
+const blockedReason =
+    blockedResult?.result?.analysis?.reason ||
+    blockedResult?.result?.reason ||
+    blockedResult?.reason ||
+    "OPERATION_BLOCKED";
 
 const isAnalysis =
     changes.some(change =>
@@ -192,6 +236,10 @@ const analysisReport =
     )?.payload?.report ||
     null;
 
+/* =====================================================
+   FINAL MESSAGE ROUTING
+===================================================== */
+
 if (executionStatus !== "success") {
 
     msg = `
@@ -207,6 +255,43 @@ Objetivos afectados:
 
 Estado:
 ejecución fallida.
+`;
+
+} else if (isBlocked) {
+
+    msg = `
+Arquitecto,
+
+la operación fue bloqueada de forma preventiva.
+
+Motivo:
+${blockedReason}
+
+Objetivos protegidos:
+- ${affected.join("\n- ") || "system"}
+
+Resultado:
+${analysisReport || "No se generó un parche seguro."}
+
+Estado:
+no se realizaron cambios ni escrituras en el repositorio.
+`;
+
+} else if (isNoChanges) {
+
+    msg = `
+Arquitecto,
+
+el objetivo ya se encontraba en el estado solicitado.
+
+Objetivos verificados:
+- ${affected.join("\n- ") || "system"}
+
+Resultado:
+no se detectaron cambios que aplicar.
+
+Estado:
+operación omitida por ALREADY_REPAIRED. No se creó ningún commit.
 `;
 
 } else if (isAnalysis) {
@@ -234,7 +319,7 @@ Arquitecto,
 la operación fue ejecutada correctamente.
 
 Operaciones realizadas:
-${changes.length}
+${writeResults.length || changes.length}
 
 Objetivos afectados:
 - ${affected.join("\n- ") || "system"}
@@ -243,6 +328,8 @@ Estado:
 plan aprobado y ejecución completada.
 `;
 }
+
+
         }
 
 
