@@ -396,6 +396,19 @@ const intentWithoutFile =
         )
         .trim();
 
+        /* ============================================
+         DEBUG DE ENRUTAMIENTO DE INTENCIÓN
+          ============================================ */
+          console.log( "🧪 [INTENT_ROUTING]", {
+             original: normalizedIntent,
+              targetFile: normalizedTargetFile,
+               routedIntent: intentWithoutFile 
+            } 
+        ); 
+        /* ============================================ 
+        REGEX DE INTENCIONES 
+        ============================================ */
+
 
 
 
