@@ -23,6 +23,10 @@
  */
 
 import { db } from '/firebase.js';
+import {
+    resolveJavaScriptSourceType,
+    validateJavaScriptSyntax
+} from "./syntax-validator.engine.js";
 
 import { 
     runTransaction,
@@ -846,6 +850,179 @@ if (
     );
 
     break;
+}
+
+/* =====================================================
+   JAVASCRIPT SYNTAX VALIDATION
+===================================================== */
+
+const syntaxTargetResolution =
+    resolveJavaScriptSourceType(
+        payload.file
+    );
+
+const knownNonJavaScriptExtensions =
+    new Set([
+        ".html",
+        ".css",
+        ".json",
+        ".txt",
+        ".md",
+        ".svg",
+        ".xml"
+    ]);
+
+let syntaxValidationResult =
+    null;
+
+/*
+ * Los archivos JavaScript soportados se validan con Acorn.
+ * Las extensiones conocidas que no son JavaScript continúan
+ * sin pasar por este parser.
+ * Archivos sin extensión o con extensión desconocida se bloquean.
+ */
+if (
+    syntaxTargetResolution.ok === true
+) {
+
+    syntaxValidationResult =
+        validateJavaScriptSyntax({
+            file:
+                payload.file,
+
+            content:
+                nextContent
+        });
+
+} else if (
+    !knownNonJavaScriptExtensions.has(
+        syntaxTargetResolution.extension
+    )
+) {
+
+    syntaxValidationResult = {
+        ...syntaxTargetResolution,
+
+        ok:
+            false,
+
+        status:
+            syntaxTargetResolution.status ||
+            "blocked",
+
+        reason:
+            syntaxTargetResolution.reason ||
+            "AMBIGUOUS_FILE_EXTENSION",
+
+        message:
+            syntaxTargetResolution.message ||
+            "No fue posible determinar un tipo de archivo seguro.",
+
+        parser:
+            "acorn",
+
+        parserVersion:
+            null,
+
+        line:
+            null,
+
+        column:
+            null,
+
+        position:
+            null
+    };
+}
+
+/* =====================================================
+   SYNTAX FAILURE — FAIL CLOSED
+===================================================== */
+
+if (
+    syntaxValidationResult?.ok === false
+) {
+
+    console.error(
+        "🛑 [SYNTAX_WRITE_BLOCKED]",
+        syntaxValidationResult
+    );
+
+    retryBuffer.push({
+        type,
+
+        target:
+            payload.file,
+
+        status:
+            syntaxValidationResult.status ||
+            "blocked",
+
+        reason:
+            syntaxValidationResult.reason ||
+            "SYNTAX_VALIDATION_FAILED",
+
+        message:
+            syntaxValidationResult.message ||
+            "JavaScript syntax validation failed.",
+
+        line:
+            syntaxValidationResult.line ??
+            null,
+
+        column:
+            syntaxValidationResult.column ??
+            null,
+
+        position:
+            syntaxValidationResult.position ??
+            null,
+
+        parser:
+            syntaxValidationResult.parser ||
+            "acorn",
+
+        parserVersion:
+            syntaxValidationResult.parserVersion ||
+            null
+    });
+
+    emitirPulsoHUD(
+        opId,
+        "SYNTAX_VALIDATION",
+        "FAILED",
+        `${payload.file} | ${
+            syntaxValidationResult.message ||
+            syntaxValidationResult.reason
+        }`
+    );
+
+    break;
+}
+
+/* =====================================================
+   SYNTAX SUCCESS
+===================================================== */
+
+if (
+    syntaxValidationResult?.ok === true
+) {
+
+    console.log(
+        "✅ [SYNTAX_VALIDATION_PASSED]",
+        syntaxValidationResult
+    );
+
+    emitirPulsoHUD(
+        opId,
+        "SYNTAX_VALIDATION",
+        "VALID",
+        `${payload.file} | ${
+            syntaxValidationResult.parser
+        }@${
+            syntaxValidationResult.parserVersion
+        }`
+    );
 }
 
 /* =====================================================
