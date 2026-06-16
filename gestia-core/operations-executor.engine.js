@@ -2109,15 +2109,56 @@ catch(err) {
 
 
 
-    /* ================================================================================
-       NORMALIZED RETURN
-    ================================================================================ */
-
     
+/* ================================================================================
+   NORMALIZED RETURN
+================================================================================ */
+
+const normalizedExecutionResults =
+    Array.isArray(
+        result
+    )
+        ? result
+        : [];
+
+const blockingResult =
+    normalizedExecutionResults.find(item =>
+        item?.status ===
+            "syntax_error" ||
+
+        item?.status ===
+            "blocked" ||
+
+        item?.reason ===
+            "SYNTAX_VALIDATION_FAILED" ||
+
+        item?.blocked ===
+            true ||
+
+        item?.result?.blocked ===
+            true
+    ) ||
+    null;
+
+const normalizedExecutionStatus =
+    blockingResult
+        ? "blocked"
+        : "success";
+
 return {
 
     status:
-        "success",
+        normalizedExecutionStatus,
+
+    blocked:
+        !!blockingResult,
+
+    reason:
+        blockingResult?.reason ||
+        null,
+
+    blocking_result:
+        blockingResult,
 
     operation_id:
         operationId,
