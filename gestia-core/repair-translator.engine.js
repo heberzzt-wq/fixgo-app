@@ -351,10 +351,11 @@ if (
    NORMALIZACIÓN SEGURA DE INTENCIÓN Y ARCHIVO
 ============================================ */
 
+
 const normalizedIntent =
     String(
-        intent ||
         userIntent ||
+        intent ||
         ""
     )
         .replace(/\s+/g, " ")
@@ -373,18 +374,6 @@ const escapedTargetFile =
         "\\$&"
     );
 
-/*
-    Elimina únicamente el archivo ubicado
-    al final de la instrucción.
-
-    Soporta:
-
-    repara funcion en archivo.js
-    repara funcion archivo.js
-    repara funcion en el archivo archivo.js
-    repara funcion del archivo archivo.js
-*/
-
 const targetFileSuffixRegex =
     new RegExp(
         `\\s+(?:(?:en(?:\\s+el\\s+archivo)?|del\\s+archivo|archivo)\\s+)?${escapedTargetFile}\\s*$`,
@@ -397,21 +386,17 @@ const intentWithoutFile =
             targetFileSuffixRegex,
             ""
         )
+        /*
+            Blindaje adicional por si otra capa
+            ya eliminó el archivo y dejó "en".
+        */
+        .replace(
+            /\s+(?:en|del\s+archivo|archivo)\s*$/i,
+            ""
+        )
         .trim();
 
-console.log(
-    "🧪 [INTENT_ROUTING]",
-    {
-        original:
-            normalizedIntent,
 
-        targetFile:
-            normalizedTargetFile,
-
-        routedIntent:
-            intentWithoutFile
-    }
-);
 
 
 
