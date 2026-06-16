@@ -24,6 +24,10 @@ const crypto = require("crypto");
 const Stripe = require("stripe");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+const {
+    validateRepoWriteSyntax
+} = require("./repo-syntax-validator");
+
 /**
  * 🛡️ SELLADO DE INFRAESTRUCTURA (GLOBAL SCOPE)
  * Fix Crítico: initializeApp debe ocurrir al cargar el archivo para evitar 'app/no-app'.
@@ -2669,17 +2673,149 @@ exports.repoCommitWriteFile = functions
                     });
                 }
 
-                if (
-                    typeof content !== "string"
-                ) {
+                
+if (
+    typeof content !== "string"
+) {
 
-                    return res.status(400).json({
-                        success: false,
-                        error: "CONTENT_REQUIRED"
-                    });
-                }
+    return res.status(400).json({
+        success: false,
+        error: "CONTENT_REQUIRED"
+    });
+}
 
-                let currentSha = null;
+/* ==================================================================================
+   SERVER-SIDE REPO SYNTAX GATE
+================================================================================== */
+
+const syntaxValidation =
+    validateRepoWriteSyntax({
+        file:
+            path,
+
+        content
+    });
+
+if (
+    syntaxValidation.ok !== true
+) {
+
+    console.error(
+        "🛑 [SERVER_SYNTAX_WRITE_BLOCKED]",
+        {
+            path,
+            status:
+                syntaxValidation.status,
+
+            reason:
+                syntaxValidation.reason,
+
+            message:
+                syntaxValidation.message,
+
+            line:
+                syntaxValidation.line,
+
+            column:
+                syntaxValidation.column,
+
+            parser:
+                syntaxValidation.parser,
+
+            parserVersion:
+                syntaxValidation.parserVersion
+        }
+    );
+
+    return res.status(422).json({
+        success:
+            false,
+
+        blocked:
+            true,
+
+        status:
+            syntaxValidation.status,
+
+        error:
+            syntaxValidation.reason ||
+            "REPO_SYNTAX_VALIDATION_BLOCKED",
+
+        reason:
+            syntaxValidation.reason ||
+            "REPO_SYNTAX_VALIDATION_BLOCKED",
+
+        message:
+            syntaxValidation.message ||
+            "La escritura fue bloqueada por validación sintáctica.",
+
+        path:
+            syntaxValidation.file ||
+            path,
+
+        line:
+            syntaxValidation.line,
+
+        column:
+            syntaxValidation.column,
+
+        columnZeroBased:
+            syntaxValidation.columnZeroBased,
+
+        position:
+            syntaxValidation.position,
+
+        parser:
+            syntaxValidation.parser,
+
+        parserVersion:
+            syntaxValidation.parserVersion,
+
+        validator:
+            syntaxValidation.validator,
+
+        validatorVersion:
+            syntaxValidation.validatorVersion,
+
+        surface:
+            syntaxValidation.surface,
+
+        validation:
+            syntaxValidation
+    });
+}
+
+const safePath =
+    syntaxValidation.file ||
+    path;
+
+console.log(
+    "✅ [SERVER_SYNTAX_VALIDATION_PASSED]",
+    {
+        path:
+            safePath,
+
+        status:
+            syntaxValidation.status,
+
+        reason:
+            syntaxValidation.reason ||
+            null,
+
+        parser:
+            syntaxValidation.parser,
+
+        parserVersion:
+            syntaxValidation.parserVersion,
+
+        surface:
+            syntaxValidation.surface
+    }
+);
+
+let currentSha = null;
+
+
 
                 try {
 
@@ -2690,9 +2826,11 @@ exports.repoCommitWriteFile = functions
 
     repo: "fixgo-app",
 
-    path,
+    path:
+    safePath,
 
-    ref: "v5.9-polish"
+ref:
+    "v5.9-polish"
 });
 
                     currentSha =
@@ -2716,7 +2854,8 @@ exports.repoCommitWriteFile = functions
     owner: "heberzzt-wq",
     repo: "fixgo-app",
     branch: "v5.9-polish",
-    path,
+    path:
+    safePath,
     message: commitMessage,
     content: encodedContent
 };
@@ -2736,7 +2875,8 @@ exports.repoCommitWriteFile = functions
                 return res.status(200).json({
                     success: true,
                     repo: "heberzzt-wq/fixgo-app",
-                    path,
+                    path:
+                        safePath,
                     commit:
                         result.data.commit.sha,
                     fileSha:
