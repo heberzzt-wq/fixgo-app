@@ -10,6 +10,7 @@
  */
 
 import { JarvisMemory } from "./jarvis.memory.js";
+import { analyzeConversation } from "./jarvis.conversation.engine.v7.js";
 
 const NLU_VERSION = "1.1 HYBRID SOVEREIGN";
 
@@ -151,10 +152,30 @@ function splitCommands(text) {
 export function understand(rawInput = "") {
 
   const original = String(rawInput);
+  const conversation = analyzeConversation(original);
   const normalized = normalize(original);
-  const chunks = splitCommands(normalized);
+  const chunks = conversation.commands?.length
+    ? conversation.commands.map(command => command.original)
+    : splitCommands(normalized);
 
-  const results = chunks.map(chunk => {
+  const results = chunks.map((chunk, index) => {
+
+    const v7 = conversation.commands?.[index];
+
+    if (v7 && v7.confidence >= 0.7) {
+      return {
+        original: v7.original,
+        action: v7.action,
+        entity: v7.entity,
+        priority: v7.priority,
+        clean: v7.protocol || v7.clean,
+        confidence: v7.confidence,
+        fallback: false,
+        reply: v7.reply,
+        source: "conversation_engine_v7",
+        meta: v7.meta || {}
+      };
+    }
 
     const action = detectAction(chunk);
     const entity = detectEntity(chunk);
@@ -214,6 +235,8 @@ export function understand(rawInput = "") {
 
   return {
     engine: NLU_VERSION,
+    conversationEngine: conversation.version,
+    reply: conversation.reply,
     raw: original,
     normalized,
     commands: results

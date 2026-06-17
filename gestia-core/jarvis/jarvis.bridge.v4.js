@@ -14,6 +14,7 @@
 
 // 🔌 IMPORTS (AI PIPELINE)
 import { normalizeAIPlan } from "./jarvis.normalizer.js";
+import { analyzeConversation } from "./jarvis.conversation.engine.v7.js";
 
 import { sincronizarYPersistirPlan } from "/gestia-core/persistence.engine.js";
 
@@ -1059,7 +1060,7 @@ export const JarvisBridge = {
         tecnico_b2b: "./panel-tecnico.js",
         admin: "./panel-admin.js",
         cliente: "./panel-cliente.js",
-        bridge: "/gestia-core/jarvis/jarvis.bridge.v5.js",
+        bridge: "/gestia-core/jarvis/jarvis.bridge.v4.js",
         terminal: "/gestia-core/gestia-terminal.js",
         memory: "/gestia-core/jarvis/jarvis.memory.js",
         ui: "./app-main.js"
@@ -1102,6 +1103,36 @@ function classifyHumanIntent(
         String(input)
             .toLowerCase()
             .trim();
+
+            const conversation =
+    analyzeConversation(input, { remember: false });
+
+if (
+    conversation?.confidence >= 0.7 &&
+    (
+        conversation.intent !== "ANALYZE" ||
+        conversation.entity !== "SYSTEM"
+    )
+) {
+
+    return {
+        type: "OPERATIONAL",
+        confidence: conversation.confidence,
+        conversation
+    };
+}
+
+if (
+    conversation?.humanState?.greeting ||
+    conversation?.humanState?.thanks
+) {
+
+    return {
+        type: "SOCIAL",
+        confidence: conversation.confidence,
+        conversation
+    };
+}
 
             const cognition =
     window.JarvisCognitionEngine

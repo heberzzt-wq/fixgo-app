@@ -1,3 +1,5 @@
+import { analyzeConversation } from "./jarvis/jarvis.conversation.engine.v7.js";
+
 /* ======================================================================================
    GESTIAPREMIUM 2026
    INTENT ENGINE V7 — COGNITIVE OPERATOR CORE
@@ -252,6 +254,20 @@ function detectIntent(
     originalText = ""
 ) {
 
+    const conversation =
+        analyzeConversation(
+            originalText,
+            { remember: false }
+        );
+
+    if (
+        conversation?.confidence >= 0.7 &&
+        conversation.intent
+    ) {
+
+        return conversation.intent;
+    }
+
     const cognition =
     window.JarvisCognitionEngine
         ?.analyze?.(
@@ -277,7 +293,21 @@ console.log(
    DETECT ENTITY
 ====================================================================================== */
 
-function detectEntity(tokens = []) {
+function detectEntity(tokens = [], originalText = "") {
+
+    const conversation =
+        analyzeConversation(
+            originalText,
+            { remember: false }
+        );
+
+    if (
+        conversation?.confidence >= 0.7 &&
+        conversation.entity
+    ) {
+
+        return conversation.entity;
+    }
 
     for (const token of tokens) {
 
@@ -508,6 +538,9 @@ function detectMultiStep(text) {
 
 function buildExecutionPlan(text) {
 
+    const conversation =
+        analyzeConversation(text);
+
     const normalized =
         normalize(text);
 
@@ -518,25 +551,29 @@ function buildExecutionPlan(text) {
         detectHumanState(normalized);
 
     const intent =
-    detectIntent(
-        tokens,
-        text
-    );
+        conversation.intent ||
+        detectIntent(
+            tokens,
+            text
+        );
 
     const entity =
-        detectEntity(tokens);
+        conversation.entity ||
+        detectEntity(tokens, text);
 
     const contextualTarget =
         resolveContextualReferences(normalized);
 
     const target =
         contextualTarget ||
+        conversation.target ||
         extractTarget(tokens, entity);
 
     const confidence =
-        contextualTarget
+        conversation.confidence ||
+        (contextualTarget
             ? 0.95
-            : 0.88;
+            : 0.88);
 
     const result = {
 
@@ -564,6 +601,7 @@ function buildExecutionPlan(text) {
     };
 
     result.summary =
+        conversation.reply ||
         generateNaturalResponse(
             result,
             humanState

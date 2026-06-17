@@ -288,6 +288,13 @@ window.__REPO_INDEX__["jarvis-nlu-bridge.js"] = {
     critical: true
 };
 
+window.__REPO_INDEX__["jarvis.conversation.engine.v7.js"] = {
+    path: "gestia-core/jarvis/jarvis.conversation.engine.v7.js",
+    module: "jarvis_conversation_v7",
+    type: "cognitive_runtime",
+    critical: true
+};
+
 window.__REPO_INDEX__["jarvis.language.core.v5.js"] = {
     path: "gestia-core/jarvis/jarvis.language.core.v5.js",
     module: "jarvis_language",

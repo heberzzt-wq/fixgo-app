@@ -312,6 +312,7 @@ window.__FULL_REPO_STRUCTURE__ = [
     "jarvis.bridge.v4.js",
     "jarvis.business.engine.js",
     "jarvis.company.registry.js",
+    "jarvis.conversation.engine.v7.js",
     "jarvis.context.memory.v6.js",
     "jarvis.dsl.js",
     "jarvis.firestore.engine.js",
