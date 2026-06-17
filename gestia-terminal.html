@@ -150,6 +150,7 @@ src="/gestia-core/gestia.runtime.v7.js">
 </script>
 <script type="module" src="/gestia-core/jarvis/jarvis.language.core.v5.js"></script>
 <script type="module" src="/gestia-core/jarvis/jarvis.context.memory.v6.js"></script>
+<script type="module" src="/gestia-core/repair-translator.engine.js?v=runtime-latency-repair-20260617"></script>
 <!-- 🔥 FIX APLICADO: Inyección de parámetro de versión para forzar limpieza de caché -->
 <script src="gestia-core/jarvis/jarvis.cognition.engine.js"></script>
 <script type="module" src="/gestia-core/jarvis/jarvis.bridge.v4.js?v=fuerzacache1"></script>
@@ -1401,6 +1402,7 @@ return;
         const fileMatch = raw.match(/([a-zA-Z0-9_\/\-]+\.(txt|js|html|css|json))/i);
 
         let generatedPatch = null;
+        let generatedContent = null;
 
 if (
     fileMatch &&
@@ -1430,6 +1432,42 @@ if (
 
         
 
+if (
+    generatedPatch?.ok === true &&
+    generatedPatch?.isReadOnly !== true &&
+    typeof window.generatePatch === "function"
+) {
+    const generatedPatchResult =
+        await window.generatePatch(
+            generatedPatch
+        );
+
+    console.log(
+        "GENERATED_PATCH_RESULT",
+        generatedPatchResult
+    );
+
+    if (
+        generatedPatchResult?.ok === true &&
+        typeof generatedPatchResult?.patched === "string"
+    ) {
+        generatedContent =
+            generatedPatchResult.patched;
+    }
+    else if (
+        generatedPatchResult?.ok === false
+    ) {
+        generatedPatch = {
+            ...generatedPatch,
+            ok: false,
+            reason:
+                generatedPatchResult.reason ||
+                generatedPatchResult.error ||
+                "PATCH_GENERATION_FAILED"
+        };
+    }
+}
+
 const patchFailed =
     !!fileMatch &&
     !!generatedPatch &&
@@ -1439,10 +1477,17 @@ const patchUnavailable =
     !!fileMatch &&
     !generatedPatch;
 
+const writePatchMissingContent =
+    !!generatedPatch &&
+    generatedPatch.ok === true &&
+    generatedPatch.isReadOnly !== true &&
+    !generatedContent;
+
 const isReadOnlyAnalysis =
     generatedPatch?.strategy === "ANALYZE_ONLY" ||
     generatedPatch?.isReadOnly === true ||
     patchUnavailable ||
+    writePatchMissingContent ||
     patchFailed;
 
 const resolvedFile =
@@ -1463,6 +1508,12 @@ const safeReport =
         ? (
             `No se genero contenido ejecutable para ${resolvedFile}. ` +
             `El comando se conserva como analisis de solo lectura para evitar una escritura vacia.`
+        )
+        : writePatchMissingContent
+        ? (
+            `Se detecto estrategia ${generatedPatch?.strategy || "PATCH"}, ` +
+            `pero no se pudo materializar contenido final para ${resolvedFile}. ` +
+            `No se realizara escritura.`
         )
         : patchFailed
         ? (
@@ -1511,6 +1562,7 @@ const step = {
 
             blocked:
                 patchUnavailable ||
+                writePatchMissingContent ||
                 patchFailed,
 
             originalIntent:
@@ -1521,7 +1573,7 @@ const step = {
                 resolvedFile,
 
             content:
-                generatedPatch
+                generatedContent
         }
 };
 

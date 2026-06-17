@@ -426,13 +426,17 @@ window.isSafeEditZone = function(source = "") {
 
     try {
 
+        const normalizedSource =
+            String(source)
+                .toUpperCase();
+
         return (
 
-            source.includes(
+            normalizedSource.includes(
                 "FIXGO_SAFE_EDIT_START"
             ) &&
 
-            source.includes(
+            normalizedSource.includes(
                 "FIXGO_SAFE_EDIT_END"
             )
         );
