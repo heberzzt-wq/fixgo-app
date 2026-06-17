@@ -1,7 +1,7 @@
 /**
  * =====================================================================================
  * JARVIS BRIDGE V5.95 - FINAL PRODUCTION (FULL SOURCE)
- * ARCHIVO: /gestia-core/jarvis/jarvis.bridge.v4.js
+ * ARCHIVO: /gestia-core/jarvis/jarvis.bridge.v5.js
  * =====================================================================================
  * INCLUYE:
  * ✅ Todo V5.8 Original (1700+ líneas de lógica base)
@@ -14,7 +14,6 @@
 
 // 🔌 IMPORTS (AI PIPELINE)
 import { normalizeAIPlan } from "./jarvis.normalizer.js";
-import { analyzeConversation } from "./jarvis.conversation.engine.v7.js";
 
 import { sincronizarYPersistirPlan } from "/gestia-core/persistence.engine.js";
 
@@ -753,20 +752,11 @@ async function resolveCommands(raw = "") {
             🔥 INTENT ENGINE DELEGATION
         ====================================== */
         // Delegamos al motor real para obtener la estructura técnica
-        const engine =
-            typeof window.runIntentEngine === "function"
-                ? window.runIntentEngine
-                : null;
+        const structured = await runIntentEngine(t);
 
-        if (engine) {
-            const structured = await engine(t);
-            const intent = structured?.intent || structured?.data?.intent;
-            const entity = structured?.entity || structured?.data?.entity;
-
-            if (intent && entity) {
-                commands.push(`${intent}::${entity}`);
-                continue;
-            }
+        if (structured && structured.intent && structured.entity) {
+            commands.push(`${structured.intent}::${structured.entity}`);
+            continue;
         }
 
         /* ======================================
@@ -1069,7 +1059,7 @@ export const JarvisBridge = {
         tecnico_b2b: "./panel-tecnico.js",
         admin: "./panel-admin.js",
         cliente: "./panel-cliente.js",
-        bridge: "/gestia-core/jarvis/jarvis.bridge.v4.js",
+        bridge: "/gestia-core/jarvis/jarvis.bridge.v5.js",
         terminal: "/gestia-core/gestia-terminal.js",
         memory: "/gestia-core/jarvis/jarvis.memory.js",
         ui: "./app-main.js"
@@ -1112,36 +1102,6 @@ function classifyHumanIntent(
         String(input)
             .toLowerCase()
             .trim();
-
-            const conversation =
-    analyzeConversation(input, { remember: false });
-
-if (
-    conversation?.confidence >= 0.7 &&
-    (
-        conversation.intent !== "ANALYZE" ||
-        conversation.entity !== "SYSTEM"
-    )
-) {
-
-    return {
-        type: "OPERATIONAL",
-        confidence: conversation.confidence,
-        conversation
-    };
-}
-
-if (
-    conversation?.humanState?.greeting ||
-    conversation?.humanState?.thanks
-) {
-
-    return {
-        type: "SOCIAL",
-        confidence: conversation.confidence,
-        conversation
-    };
-}
 
             const cognition =
     window.JarvisCognitionEngine
@@ -1248,7 +1208,7 @@ const AI_MODE = !HUMAN_FAST_PATH;
             (function hardenGlobalScope(){
                 const msg = "BLOCKED: Motor legacy deshabilitado en modo AI_SUPERVISED";
                 const blocker = () => { throw new Error(msg); };
-                const protectedFns = ["intentEngine", "runPlan"];
+                const protectedFns = ["runIntentEngine", "resolveCommands", "intentEngine", "runPlan"];
 
                 protectedFns.forEach(fn => {
                     try {
@@ -2929,7 +2889,7 @@ if (
                 title:
                     "Optimizar router principal JarvisBridge",
                 target:
-                    "/gestia-core/jarvis/jarvis.bridge.v4.js",
+                    "/gestia-core/jarvis/jarvis.bridge.v5.js",
                 impact:
                     "Mayor autonomía supervisada, mejor respuesta y monitoreo.",
                 risk: "BAJO",
@@ -3127,9 +3087,10 @@ console.log(
 if (aiCmd) {
 
     const engine =
-        typeof window.runIntentEngine === "function"
-            ? window.runIntentEngine
-            : null;
+        window.runIntentEngine ||
+        (typeof runIntentEngine === "function"
+            ? runIntentEngine
+            : null);
 
     console.log(
         "🧪 ENGINE_REF",
@@ -3143,21 +3104,14 @@ if (aiCmd) {
             const structured =
                 await engine(aiCmd);
 
-            const structuredIntent =
-                structured?.intent ||
-                structured?.data?.intent;
-
-            const structuredEntity =
-                structured?.entity ||
-                structured?.data?.entity;
-
             if (
-                structuredIntent &&
-                structuredEntity
+                structured &&
+                structured.intent &&
+                structured.entity
             ) {
 
                 aiCmd =
-                    `${structuredIntent}::${structuredEntity}`;
+                    `${structured.intent}::${structured.entity}`;
             }
 
         } catch (e) {

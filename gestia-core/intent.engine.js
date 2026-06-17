@@ -1,8 +1,3 @@
-import {
-    understand,
-    runIntentEngine as runNluIntentEngine
-} from "./jarvis/jarvis-nlu-bridge.js";
-
 /* ======================================================================================
    GESTIAPREMIUM 2026 - MAPAS DE INTENCIÓN Y ENTIDAD (V4.1 SOVEREIGN EXECUTIVE)
    ====================================================================================== */
@@ -852,10 +847,6 @@ function __toSystemFormat(intentResult) {
     return {
         ok: true,
         type: resolvedType,
-        intent: intentResult.intent || "UNKNOWN",
-        action: intentResult.action || intentResult.intent || "ANALYZE",
-        entity: intentResult.entity || "system",
-        target: intentResult.target || "general",
         data: resolvedType === "SYSTEM_STATUS" ? (intentResult.data || {}) : __buildData(intentResult),
         message: String(safeMessage), // Forzado a String para Vocalizer
         meta: {
@@ -877,26 +868,6 @@ window.runIntentEngine = async function(text) {
     const low = String(text || "").toLowerCase().trim();
     
     try {
-        const nluIntent =
-            await runNluIntentEngine(text);
-
-        if (nluIntent?.confidence >= 0.7) {
-            return __toSystemFormat({
-                intent: nluIntent.intent,
-                action: nluIntent.action,
-                entity: nluIntent.entity,
-                target: nluIntent.target,
-                summary: nluIntent.reply,
-                confidence: nluIntent.confidence,
-                source: nluIntent.source || "jarvis_nlu_bridge_v7",
-                contextRef: {
-                    commands: nluIntent.commands,
-                    runtime: nluIntent.version,
-                    cognition: nluIntent.cognition
-                }
-            });
-        }
-
         let cleanText = text;
         let nluMeta = null;
 

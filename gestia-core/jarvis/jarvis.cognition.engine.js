@@ -1,207 +1,14 @@
 
 /* =====================================================================================
-   JARVIS COGNITION ENGINE V1.2
-   Semantic runtime + single-channel social terminal guard.
+   JARVIS COGNITION ENGINE V1
 ===================================================================================== */
 
 (function(global) {
 
-    function normalizeSocial(text = "") {
-
-        return String(text)
-            .toLowerCase()
-            .trim()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^a-z0-9\s]/g, " ")
-            .replace(/\s+/g, " ")
-            .trim();
-    }
-
-    function isSocialJarvis(input = "") {
-
-        const text = normalizeSocial(input);
-
-        return (
-            text === "hola" ||
-            text === "buenos dias" ||
-            text === "buen dia" ||
-            text === "buenas tardes" ||
-            text === "buenas noches" ||
-            text === "gracias" ||
-            text === "muchas gracias" ||
-            text === "que tal" ||
-            text === "que onda" ||
-            text === "como estas" ||
-            text.includes("buenos dias") ||
-            text.includes("buen dia") ||
-            text.includes("buenas tardes") ||
-            text.includes("buenas noches") ||
-            text.includes("como estas") ||
-            text.includes("que tal") ||
-            text.includes("que onda")
-        );
-    }
-
-    function socialReply(input = "") {
-
-        const text = normalizeSocial(input);
-
-        if (text.includes("buenos dias") || text.includes("buen dia")) {
-            return "Buenos días, Arquitecto. Jarvis en línea y listo para operar.";
-        }
-
-        if (text.includes("buenas tardes")) {
-            return "Buenas tardes, Arquitecto. Núcleo estable y atento.";
-        }
-
-        if (text.includes("buenas noches")) {
-            return "Buenas noches, Arquitecto. Núcleo vigilante y operativo.";
-        }
-
-        if (text.includes("como estas")) {
-            return "Operando estable, Arquitecto. Sin incidencias críticas registradas.";
-        }
-
-        if (text.includes("gracias")) {
-            return "Siempre a la orden, Arquitecto.";
-        }
-
-        if (text.includes("que tal") || text.includes("que onda")) {
-            return "Aquí estoy, Arquitecto. Jarvis listo para analizar, crear, reparar o escanear.";
-        }
-
-        return "Hola, Arquitecto. Jarvis en línea.";
-    }
-
-    function escapeHtml(value = "") {
-
-        return String(value)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
-
-    function renderSingleSocialReply(message = "") {
-
-        const output =
-            global.document
-                ?.getElementById("gestia-output");
-
-        if (!output) {
-            console.log("🧠 [JARVIS_SOCIAL_REPLY]", message);
-            return false;
-        }
-
-        const card =
-            global.document.createElement("div");
-
-        card.className =
-            "flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-4";
-
-        card.innerHTML = `
-            <div class="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/30">
-                <i class="fa-solid fa-check text-white text-sm"></i>
-            </div>
-            <div class="bg-gestia-panel border border-emerald-700/60 p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
-                <h3 class="font-semibold text-white mb-3 text-lg">Jarvis</h3>
-                <p class="text-slate-300 text-sm leading-relaxed font-mono whitespace-pre-wrap">${escapeHtml(message)}</p>
-            </div>
-        `;
-
-        output.appendChild(card);
-        output.scrollTop = output.scrollHeight;
-
-        return true;
-    }
-
-    global.isSocialJarvis = isSocialJarvis;
-    global.jarvisSocialReply = socialReply;
-    global.renderJarvisSocialReply = renderSingleSocialReply;
-
-    function stopTerminalSocialSubmit(event) {
-
-        try {
-
-            const form = event?.target;
-
-            if (!form || form.id !== "gestia-form") {
-                return;
-            }
-
-            const input =
-                global.document
-                    ?.getElementById("gestia-input");
-
-            const text =
-                String(input?.value || "").trim();
-
-            if (!isSocialJarvis(text)) {
-                return;
-            }
-
-            global.__JARVIS_SOCIAL_HANDLED__ = {
-                text,
-                at: Date.now(),
-                passive: true
-            };
-
-            const msg = socialReply(text);
-
-            console.warn(
-                "🧠 [TERMINAL_SOCIAL_GUARD_PASS]",
-                text
-            );
-
-            global.JarvisMemory?.dispatch?.({
-                type: "PUSH_HISTORY",
-                payload: {
-                    role: "user",
-                    message: text
-                }
-            });
-
-            global.JarvisMemory?.dispatch?.({
-                type: "PUSH_HISTORY",
-                payload: {
-                    role: "assistant",
-                    message: msg
-                }
-            });
-
-        }
-        catch(err) {
-
-            console.warn(
-                "⚠️ [TERMINAL_SOCIAL_GUARD_FAIL]",
-                err
-            );
-        }
-    }
-
-    if (global.document?.addEventListener) {
-
-        global.document.addEventListener(
-            "submit",
-            stopTerminalSocialSubmit,
-            true
-        );
-    }
-
     const CognitionEngine = {
 
         version:
-            "V1_2_SEMANTIC_RUNTIME_SINGLE_SOCIAL_GUARD",
-
-        isSocial:
-            isSocialJarvis,
-
-        socialReply,
-
-        renderSocialReply:
-            renderSingleSocialReply,
+            "V1_SEMANTIC_RUNTIME",
 
         analyze(input = "") {
 
@@ -237,176 +44,186 @@
                     0.5
             };
 
-            if (isSocialJarvis(input)) {
+            /* =====================================================
+   REPO SEARCH INTENT
+===================================================== */
 
-                cognition.intent =
-                    "SOCIAL";
+if (
 
-                cognition.type =
-                    "SOCIAL";
+    text.startsWith("buscar ") ||
 
-                cognition.domain =
-                    "conversation";
+    text.startsWith("search ") ||
 
-                cognition.target =
-                    "jarvis";
+    text.startsWith("find ")
 
-                cognition.expectedOutput =
-                    "social_reply";
+) {
 
-                cognition.cognitionLayer =
-                    "social_guard";
+    cognition.intent =
+        "REPO_SEARCH";
 
-                cognition.confidence =
-                    1;
+    cognition.domain =
+        "repository";
 
-                cognition.reply =
-                    socialReply(input);
+    cognition.target =
 
-                return cognition;
-            }
+        text
+            .replace(/^buscar\s+/i, "")
+            .replace(/^search\s+/i, "")
+            .replace(/^find\s+/i, "");
 
-            if (
-                text.startsWith("buscar ") ||
-                text.startsWith("search ") ||
-                text.startsWith("find ")
-            ) {
+    cognition.expectedOutput =
+        "repo_search_results";
 
-                cognition.intent =
-                    "REPO_SEARCH";
+    cognition.confidence =
+        0.99;
 
-                cognition.domain =
-                    "repository";
+    return cognition;
+}
 
-                cognition.target =
-                    text
-                        .replace(/^buscar\s+/i, "")
-                        .replace(/^search\s+/i, "")
-                        .replace(/^find\s+/i, "");
+/* =====================================================
+   FILE CREATION
+===================================================== */
 
-                cognition.expectedOutput =
-                    "repo_search_results";
+if (
 
-                cognition.confidence =
-                    0.99;
+    /\bcrear archivo\b/i.test(text) ||
+    /\bgenerar archivo\b/i.test(text) ||
+    /\bnuevo archivo\b/i.test(text) ||
+    /\bescribir archivo\b/i.test(text)
 
-                return cognition;
-            }
+) {
 
-            if (
-                /\bcrear archivo\b/i.test(text) ||
-                /\bgenerar archivo\b/i.test(text) ||
-                /\bnuevo archivo\b/i.test(text) ||
-                /\bescribir archivo\b/i.test(text)
-            ) {
+    cognition.intent =
+        "CODE_WRITE";
 
-                cognition.intent =
-                    "CODE_WRITE";
+    cognition.domain =
+        "repository";
 
-                cognition.domain =
-                    "repository";
+    cognition.expectedOutput =
+        "file_write";
 
-                cognition.expectedOutput =
-                    "file_write";
+    cognition.cognitionLayer =
+        "repo_write";
 
-                cognition.cognitionLayer =
-                    "repo_write";
+    cognition.confidence =
+        0.98;
 
-                cognition.confidence =
-                    0.98;
+    const fileMatch =
+        text.match(
+            /([a-z0-9\-_]+\.(txt|js|html|css|json))/i
+        );
 
-                const fileMatch =
-                    text.match(
-                        /([a-z0-9\-_]+\.(txt|js|html|css|json))/i
-                    );
+    if (fileMatch) {
 
-                if (fileMatch) {
-                    cognition.target = fileMatch[1];
-                }
+        cognition.target =
+            fileMatch[1];
+    }
 
-                return cognition;
-            }
+    return cognition;
+}
+/* =====================================================
+   REPOSITORY SURGEON INTENTS
+===================================================== */
 
-            const removeIntent =
-                /\belimina\b/i.test(text) ||
-                /\bborra\b/i.test(text) ||
-                /\bquita\b/i.test(text) ||
-                /\bremueve\b/i.test(text) ||
-                /\bsuprime\b/i.test(text);
+const removeIntent =
 
-            if (removeIntent) {
+    /\belimina\b/i.test(text) ||
+    /\bborra\b/i.test(text) ||
+    /\bquita\b/i.test(text) ||
+    /\bremueve\b/i.test(text) ||
+    /\bsuprime\b/i.test(text);
 
-                cognition.intent =
-                    "FUNCTION_REMOVE";
+if (removeIntent) {
 
-                cognition.domain =
-                    "repository";
+    cognition.intent =
+        "FUNCTION_REMOVE";
 
-                cognition.expectedOutput =
-                    "repo_patch";
+    cognition.domain =
+        "repository";
 
-                cognition.cognitionLayer =
-                    "repo_surgeon";
+    cognition.expectedOutput =
+        "repo_patch";
 
-                cognition.confidence =
-                    0.95;
+    cognition.cognitionLayer =
+        "repo_surgeon";
 
-                const targetMatch =
-                    text.match(
-                        /(?:elimina|borra|quita|remueve|suprime)\s+([a-z0-9_]+)/i
-                    );
+    cognition.confidence =
+        0.95;
 
-                if (targetMatch) {
-                    cognition.target = targetMatch[1];
-                }
+    const targetMatch =
+        text.match(
+            /(?:elimina|borra|quita|remueve|suprime)\s+([a-z0-9_]+)/i
+        );
 
-                const fileMatch =
-                    text.match(
-                        /([a-z0-9\-_]+\.js)/i
-                    );
+    if (targetMatch) {
 
-                if (fileMatch) {
+        cognition.target =
+            targetMatch[1];
+    }
 
-                    cognition.targetFile =
-                        fileMatch[1];
 
-                    const found =
-                        window.findRepoFile?.(
-                            cognition.targetFile
-                        );
+    const fileMatch =
+    text.match(
+        /([a-z0-9\-_]+\.js)/i
+    );
 
-                    if (found) {
-                        cognition.repoNode = found[1];
-                        cognition.repoAware = true;
-                    }
-                }
+if (fileMatch) {
 
-                return cognition;
-            }
+    cognition.targetFile =
+        fileMatch[1];
+
+    const found =
+        window.findRepoFile?.(
+            cognition.targetFile
+        );
+
+    if (found) {
+
+        cognition.repoNode =
+            found[1];
+
+        cognition.repoAware =
+            true;
+    }
+}
+    return cognition;
+}
 
             const wantsRepair =
-                /\brepara\b/i.test(text) ||
-                /\bcorrige\b/i.test(text) ||
-                /\bajusta\b/i.test(text) ||
-                /\bmodifica\b/i.test(text) ||
-                /\baplica patch\b/i.test(text) ||
-                /\bgenera patch\b/i.test(text) ||
-                /\bcrear patch\b/i.test(text) ||
-                /\baplicar patch\b/i.test(text) ||
-                /\bfix\b/i.test(text);
+
+    /\brepara\b/i.test(text) ||
+    /\bcorrige\b/i.test(text) ||
+    /\bajusta\b/i.test(text) ||
+    /\bmodifica\b/i.test(text) ||
+
+    /\baplica patch\b/i.test(text) ||
+    /\bgenera patch\b/i.test(text) ||
+    /\bcrear patch\b/i.test(text) ||
+    /\baplicar patch\b/i.test(text) ||
+
+    /\bfix\b/i.test(text);
+            /* =====================================================
+               UI ANALYSIS
+            ===================================================== */
 
             if (
+
                 text.includes(".html") ||
+
                 text.includes("responsive") ||
+
                 text.includes("ui") ||
+
                 text.includes("frontend") ||
+
                 text.includes("layout")
+
             ) {
 
                 cognition.intent =
-                    wantsRepair
-                        ? "REPAIR_UI"
-                        : "ANALYZE_UI";
+    wantsRepair
+        ? "REPAIR_UI"
+        : "ANALYZE_UI";
 
                 cognition.domain =
                     "frontend";
@@ -421,114 +238,133 @@
                     0.92;
 
                 const fileMatch =
-                    text.match(
-                        /([a-z0-9\-_]+\.html)/i
-                    );
+    text.match(
+        /([a-z0-9\-_]+\.html)/i
+    );
 
-                if (fileMatch) {
-                    cognition.target = fileMatch[1];
-                }
-                else {
+if (fileMatch) {
 
-                    const humanFileMatch =
-                        text.match(
-                            /([a-z0-9\-_ ]+)\s+html/i
-                        );
+    cognition.target =
+        fileMatch[1];
 
-                    if (humanFileMatch) {
-                        cognition.target =
-                            humanFileMatch[1]
-                                .trim()
-                                .replace(/\s+/g, "-") +
-                            ".html";
-                    }
-                }
+} else {
+
+    const humanFileMatch =
+        text.match(
+            /([a-z0-9\-_ ]+)\s+html/i
+        );
+
+    if (humanFileMatch) {
+
+        cognition.target =
+            humanFileMatch[1]
+                .trim()
+                .replace(/\s+/g, "-") +
+            ".html";
+    }
+}
             }
 
-            if (
-                text.includes(".js") ||
-                text.includes("firebase") ||
-                text.includes("runtime")
-            ) {
+            /* =====================================================
+   BACKEND ANALYSIS
+===================================================== */
 
-                cognition.intent =
-                    "ANALYZE_RUNTIME";
+if (
 
-                cognition.domain =
-                    "backend";
+    text.includes(".js") ||
 
-                cognition.expectedOutput =
-                    "technical_runtime_analysis";
+    text.includes("firebase") ||
 
-                cognition.cognitionLayer =
-                    "runtime_audit";
+    text.includes("runtime")
 
-                cognition.confidence =
-                    0.90;
+) {
 
-                const fileMatch =
-                    text.match(
-                        /([a-z0-9\-_]+\.js)/i
-                    );
+    cognition.intent =
+        "ANALYZE_RUNTIME";
 
-                if (fileMatch) {
+    cognition.domain =
+        "backend";
 
-                    cognition.target =
-                        fileMatch[1];
+    cognition.expectedOutput =
+        "technical_runtime_analysis";
 
-                    const found =
-                        window.findRepoFile?.(
-                            cognition.target
-                        );
+    cognition.cognitionLayer =
+        "runtime_audit";
 
-                    if (found) {
+    cognition.confidence =
+        0.90;
 
-                        cognition.repoNode =
-                            found[1];
+    /* ==========================================
+       JS FILE DETECTION
+    ========================================== */
 
-                        cognition.repoAware =
-                            true;
+    const fileMatch =
+        text.match(
+            /([a-z0-9\-_]+\.js)/i
+        );
 
-                        console.log(
-                            "🧠 [REPO_NODE_FOUND]",
-                            cognition.target,
-                            cognition.repoNode
-                        );
-                    }
-                }
-            }
+    if (fileMatch) {
 
-            if (
-                cognition.target &&
-                window.__REPO_COGNITION__?.[
-                    cognition.target
-                ]
-            ) {
+        cognition.target =
+            fileMatch[1];
 
-                cognition.repoNode =
-                    window.__REPO_COGNITION__[
-                        cognition.target
-                    ];
+        const found =
+            window.findRepoFile?.(
+                cognition.target
+            );
 
-                cognition.repoAware =
-                    true;
+        if (found) {
 
-                console.log(
-                    "🧠 [REPO_NODE_FOUND]",
-                    cognition.target,
-                    cognition.repoNode
-                );
-            }
+            cognition.repoNode =
+                found[1];
 
-            return cognition;
+            cognition.repoAware =
+                true;
+
+            console.log(
+                "🧠 [REPO_NODE_FOUND]",
+                cognition.target,
+                cognition.repoNode
+            );
+        }
+    }
+}
+/* =====================================================
+   REPO AWARENESS
+===================================================== */
+
+if (
+
+    cognition.target &&
+
+    window.__REPO_COGNITION__?.[
+        cognition.target
+    ]
+
+) {
+
+    cognition.repoNode =
+
+        window.__REPO_COGNITION__[
+            cognition.target
+        ];
+
+    cognition.repoAware =
+        true;
+
+    console.log(
+        "🧠 [REPO_NODE_FOUND]",
+        cognition.target,
+        cognition.repoNode
+    );
+}
+
+return cognition;
         }
     };
 
     global.JarvisCognitionEngine =
         CognitionEngine;
 
-    console.log(
-        "🧠 [JARVIS_COGNITION_ENGINE] ONLINE V1.2 SINGLE SOCIAL GUARD"
-    );
-
 })(window);
+

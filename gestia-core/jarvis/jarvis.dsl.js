@@ -211,7 +211,7 @@ export function toCommand(input) {
     SECCIÓN: DSL ANALYZE (V5.19 DATA-DRIVEN)
     Archivo: jarvis.dsl.js
 ===================================================== */
-if (false) {
+if (rawLower === "analyze") {
     console.log("🔥 [DSL_HIT] ANALYZE detectado en Capa DSL");
 
     const payload = extraerPayload(cmd.raw) || {};
@@ -252,22 +252,6 @@ if (false) {
 
     return;
 } 
-
-if (clean === "analyze" || clean === "analiza") {
-    return {
-      id: crypto.randomUUID(),
-      action: "ANALYZE",
-      raw,
-      target: "system",
-      payload: {
-        text: raw
-      },
-      meta: {
-        detected: true,
-        systemStatus: true
-      }
-    };
-}
 
   // =====================================================
   // 🔥 ACCIONES GENERALES

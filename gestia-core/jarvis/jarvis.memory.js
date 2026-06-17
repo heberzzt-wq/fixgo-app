@@ -20,39 +20,6 @@ export const JarvisMemory = (function() {
 
     const CORE_VERSION = 4;
 
-    const memoryStorage = new Map();
-    const storage = {
-        getItem(key) {
-            try {
-                if (typeof localStorage !== "undefined") {
-                    return localStorage.getItem(key);
-                }
-            } catch (_) {}
-
-            return memoryStorage.get(key) || null;
-        },
-        setItem(key, value) {
-            try {
-                if (typeof localStorage !== "undefined") {
-                    localStorage.setItem(key, value);
-                    return;
-                }
-            } catch (_) {}
-
-            memoryStorage.set(key, String(value));
-        },
-        removeItem(key) {
-            try {
-                if (typeof localStorage !== "undefined") {
-                    localStorage.removeItem(key);
-                    return;
-                }
-            } catch (_) {}
-
-            memoryStorage.delete(key);
-        }
-    };
-
     /* =====================================================
        ESTADO PRIVADO AISLADO
     ===================================================== */
@@ -242,7 +209,7 @@ export const JarvisMemory = (function() {
         if (syncTimeout) clearTimeout(syncTimeout);
         syncTimeout = setTimeout(() => {
             try {
-                storage.setItem('jarvis_cognitive_kernel_v4', JSON.stringify(state));
+                localStorage.setItem('jarvis_cognitive_kernel_v4', JSON.stringify(state));
                 console.log("💾 [KERNEL_IO] Sincronización local exitosa.");
             } catch (e) {
                 console.warn("⚠️ [JARVIS KERNEL] Fallo I/O local", e);
@@ -316,7 +283,7 @@ export const JarvisMemory = (function() {
         boot: function() {
 
             const saved =
-                storage.getItem(
+                localStorage.getItem(
                     "jarvis_cognitive_kernel_v4"
                 );
 
@@ -337,7 +304,7 @@ export const JarvisMemory = (function() {
                             "⚠️ Kernel obsoleto purgado."
                         );
 
-                        storage.removeItem(
+                        localStorage.removeItem(
                             "jarvis_cognitive_kernel_v4"
                         );
 
@@ -646,9 +613,7 @@ export const JarvisMemory = (function() {
 
 // 🔥 MODO DIOS: EXPOSICIÓN GLOBAL PARA LA CONSOLA DE HEBERTO
 // Esto permite que el Arquitecto lance comandos directamente desde Chrome DevTools
-if (typeof window !== "undefined") {
-    window.JarvisMemory = JarvisMemory;
-}
+window.JarvisMemory = JarvisMemory;
 
 // 🔥 IGNICIÓN DEL NÚCLEO
 JarvisMemory.boot();
