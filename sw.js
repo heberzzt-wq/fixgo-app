@@ -12,7 +12,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
 // 🔥 Configuración de Caché (Actualizado para forzar limpieza)
-const CACHE_NAME = 'gestia-premium-cache-v6.1-fire';
+const CACHE_NAME = 'gestia-premium-cache-v6.4-terminal-runtime-fresh';
 
 const urlsToCache = [
   '/',
@@ -281,6 +281,17 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
 
   const url = event.request.url;
+  const requestURL =
+    new URL(url);
+  const requestPath =
+    requestURL.pathname;
+  const isRuntimeAsset =
+    event.request.destination === 'document' ||
+    event.request.destination === 'script' ||
+    event.request.destination === 'worker' ||
+    requestPath.endsWith('.html') ||
+    requestPath.endsWith('.js') ||
+    requestPath.endsWith('.mjs');
 
   // No intervenir en llamadas de sistema de Google
   if (
@@ -305,11 +316,9 @@ self.addEventListener('fetch', (event) => {
 
         if (
   event.request.method === 'GET' &&
-  response.status === 200
+  response.status === 200 &&
+  !isRuntimeAsset
 ) {
-
-  const requestURL =
-    new URL(event.request.url);
 
   const protocolo =
     requestURL.protocol;

@@ -5125,7 +5125,11 @@ window.GestiaRuntime.registerServiceWorker =
 
                     .register(
 
-                        "/sw.js"
+                        "/sw.js?v=sw-runtime-fresh-20260617",
+                        {
+                            updateViaCache:
+                                "none"
+                        }
                     );
 
             /* =============================================

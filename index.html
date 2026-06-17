@@ -30,7 +30,10 @@
 
         // 2. MOTOR DE SINCRONIZACIÓN TEMPORAL (Pase VIP para PWABuilder)
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js', { scope: '/' })
+            navigator.serviceWorker.register('/sw.js?v=sw-runtime-fresh-20260617', {
+                    scope: '/',
+                    updateViaCache: 'none'
+                })
                 .then(reg => {
                     console.log('✅ AI ZUM: Gestia Engine activo (Modo Escáner PWABuilder)');
                 })
