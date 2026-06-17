@@ -5732,6 +5732,15 @@ console.log(
    AUTH WATCHER
 ===================================================== */
 
+console.log("[TERMINAL_BOOT_TRACE] after_kernel_sync");
+
+try {
+
+console.log("[TERMINAL_BOOT_TRACE] auth_watcher_register_start", {
+    hasAuth: !!auth,
+    hasOnAuthStateChanged: typeof onAuthStateChanged
+});
+
 onAuthStateChanged(
     auth,
     user => {
@@ -5772,6 +5781,17 @@ onAuthStateChanged(
     }
 );
 
+console.log("[TERMINAL_BOOT_TRACE] auth_watcher_register_ok");
+
+}
+catch(authWatcherError) {
+
+    console.error(
+        "[TERMINAL_BOOT_TRACE] auth_watcher_register_fail",
+        authWatcherError
+    );
+}
+
 /* =====================================================
    DEBUG
 ===================================================== */
@@ -5809,8 +5829,12 @@ window.testJarvis =
 window.runJarvis =
     runJarvis;
 // Fuerza la actualización del HUD azul cuando el Kernel hable
-JarvisMemory.subscribe((type, payload) => {
-    if (type === 'PUSH_HISTORY' && payload.role === 'assistant') {
+console.log("[TERMINAL_BOOT_TRACE] jarvis_memory_subscribe_start", {
+    hasJarvisMemory: !!JarvisMemory,
+    subscribeType: typeof JarvisMemory?.subscribe
+});
+JarvisMemory?.subscribe?.((type, payload) => {
+    if (type === 'PUSH_HISTORY' && payload?.role === 'assistant') {
         const display = document.querySelector('.sia7-decoding-text') || document.querySelector('p.text-slate-300');
         if (display) {
             display.innerHTML = `<span class="text-gestia-accent animate-pulse">SIA7:</span> ${payload.message}`;
@@ -5819,6 +5843,8 @@ JarvisMemory.subscribe((type, payload) => {
 });
 
 // 🧠 RENDER PREVIEW DEL PLAN IA (multi-step robusto)
+
+console.log("[TERMINAL_BOOT_TRACE] jarvis_memory_subscribe_ok");
 
 window.renderPlanPreview = function(plan) {
 
@@ -5877,33 +5903,64 @@ Confirma ejecución escribiendo: arre`;
    RUNTIME REPAIR + HEALTH MODULE
 ===================================================================================== */
 
-await import("./modules/terminal/runtime-repair-health.js");
+async function importTerminalBootModule(label, path) {
+    console.log(`[TERMINAL_BOOT_TRACE] ${label}_import_start`);
+
+    try {
+        await import(path);
+        console.log(`[TERMINAL_BOOT_TRACE] ${label}_import_ok`);
+        return true;
+    }
+    catch(error) {
+        console.error(`[TERMINAL_BOOT_TRACE] ${label}_import_fail`, error);
+        return false;
+    }
+}
+
+await importTerminalBootModule(
+    "runtime_repair_health",
+    "./modules/terminal/runtime-repair-health.js"
+);
 
 
 /* =====================================================================================
    RUNTIME INTELLIGENCE MODULE
 ===================================================================================== */
 
-await import("./modules/terminal/runtime-intelligence.js");
+await importTerminalBootModule(
+    "runtime_intelligence",
+    "./modules/terminal/runtime-intelligence.js"
+);
 
 
 /* =====================================================================================
    RUNTIME PLATFORM MODULE
 ===================================================================================== */
 
-await import("./modules/terminal/runtime-platform.js");
+await importTerminalBootModule(
+    "runtime_platform",
+    "./modules/terminal/runtime-platform.js"
+);
 
 /* =====================================================================================
    RUNTIME DAEMONS MODULE
 ===================================================================================== */
 
-await import("./modules/terminal/runtime-daemons.js");
+await importTerminalBootModule(
+    "runtime_daemons",
+    "./modules/terminal/runtime-daemons.js"
+);
 
 /* =====================================================================================
    RUNTIME SNAPSHOT DAEMON MODULE
 ===================================================================================== */
 
-await import("./modules/terminal/runtime-snapshot-daemon.js");
+await importTerminalBootModule(
+    "runtime_snapshot_daemon",
+    "./modules/terminal/runtime-snapshot-daemon.js"
+);
+
+console.log("[TERMINAL_BOOT_TRACE] terminal_module_boot_complete");
 
 /**
  * =====================================================
