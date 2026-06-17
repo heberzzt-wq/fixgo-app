@@ -336,7 +336,13 @@ const {
     emitirPulsoHUD(opId, "EXECUTION", "INITIATING", `Procesando ${safeChanges.length} acciones...`);
     
     // Resultados finales que solo se devuelven tras el éxito del commit
-    const finalResults = [];
+    
+const finalResults = [];
+
+let committedRepoWrites =
+    [];
+
+
 
     try {
         /**
@@ -391,7 +397,14 @@ const {
         await runTransaction(db, async (transaction) => {
             
             // Buffer local para esta ejecución (evita duplicados en retries de Firestore)
-            const retryBuffer = [];
+            
+const retryBuffer =
+    [];
+
+const transactionRepoWrites =
+    [];
+
+
 
             for (const change of safeChanges) {
                 const { type, target, payload, reason } = change;
@@ -1116,10 +1129,27 @@ if (
    REAL WRITE
 ===================================================== */
 
+
 payload.content =
     nextContent;
 
-await writeRepoFile({
+const repoWriteResultIndex =
+    retryBuffer.length;
+
+retryBuffer.push({
+    type,
+
+    target:
+        payload.file,
+
+    status:
+        "repo_write_pending"
+});
+
+transactionRepoWrites.push({
+    resultIndex:
+        repoWriteResultIndex,
+
     file:
         payload.file,
 
@@ -1129,6 +1159,8 @@ await writeRepoFile({
     operationId:
         opId
 });
+
+
 
 
 
@@ -1142,8 +1174,13 @@ await writeRepoFile({
                                 status: "active"
                             }));
 
-                            retryBuffer.push({ type, target: payload?.file || `auto_${Date.now()}.js`, status: "file_created" });
-                            emitirPulsoHUD(opId, "WRITE", "CODE_WRITE", payload?.file || "auto_file");
+                            emitirPulsoHUD(
+    opId,
+    "WRITE",
+    "REPO_WRITE_QUEUED",
+    payload?.file ||
+    "auto_file"
+);
                         }
 
                     break;
@@ -1153,23 +1190,152 @@ await writeRepoFile({
                 }
             }
 
-            // --- SELLADO MAESTRO (IDEMPOTENCY SEAL) ---
-            transaction.set(masterOpRef, {
-                status: "completed",
-                completed_at: serverTimestamp(),
-                affected_actions: retryBuffer.length,
-                engine_metadata: {
-                    version: "16.1.1",
-                    results_summary: retryBuffer.map(r => `${r.type}:${r.status}`)
-                }
-            }, { merge: true });
+            /* =====================================================
+   EXTERNAL WRITE PLAN SNAPSHOT
+===================================================== */
 
-            // Al final de la transacción exitosa, volcamos el buffer al array externo
-            finalResults.length = 0; 
-            finalResults.push(...retryBuffer);
+committedRepoWrites =
+    transactionRepoWrites.map(
+        repoWrite => ({
+            ...repoWrite
+        })
+    );
+
+/* =====================================================
+   FIRESTORE COMMIT SEAL
+===================================================== */
+
+transaction.set(
+    masterOpRef,
+    {
+        status:
+            "firestore_committed",
+
+        firestore_committed_at:
+            serverTimestamp(),
+
+        affected_actions:
+            retryBuffer.length,
+
+        external_writes_pending:
+            transactionRepoWrites.length,
+
+        engine_metadata: {
+            version:
+                "16.1.2",
+
+            results_summary:
+                retryBuffer.map(
+                    result =>
+                        `${result.type}:${result.status}`
+                )
+        }
+    },
+    {
+        merge:
+            true
+    }
+);
+
+/* =====================================================
+   TRANSACTION RESULT SNAPSHOT
+===================================================== */
+
+finalResults.length =
+    0;
+
+finalResults.push(
+    ...retryBuffer
+);
+       });
+
+/* =====================================================
+   PHASE 3 — EXTERNAL REPO WRITES
+===================================================== */
+
+for (
+    const repoWrite
+    of committedRepoWrites
+) {
+
+    const repoResult =
+        await writeRepoFile({
+            file:
+                repoWrite.file,
+
+            content:
+                repoWrite.content,
+
+            operationId:
+                repoWrite.operationId
         });
 
-        const latency = Date.now() - startTime;
+    const pendingResult =
+        finalResults[
+            repoWrite.resultIndex
+        ];
+
+    if (pendingResult) {
+
+        finalResults[
+            repoWrite.resultIndex
+        ] = {
+            ...pendingResult,
+
+            status:
+                "file_created",
+
+            repo:
+                repoResult.repo,
+
+            commit:
+                repoResult.commit,
+
+            fileSha:
+                repoResult.fileSha,
+
+            created:
+                repoResult.created,
+
+            updated:
+                repoResult.updated
+        };
+    }
+}
+
+/* =====================================================
+   FINAL OPERATION SEAL
+===================================================== */
+
+await updateDoc(
+    masterOpRef,
+    {
+        status:
+            "completed",
+
+        completed_at:
+            serverTimestamp(),
+
+        external_writes_pending:
+            0,
+
+        external_writes_completed:
+            committedRepoWrites.length,
+
+        engine_metadata: {
+            version:
+                "16.1.2",
+
+            results_summary:
+                finalResults.map(
+                    result =>
+                        `${result.type}:${result.status}`
+                )
+        }
+    }
+);
+
+const latency = Date.now() - startTime;
         emitirPulsoHUD(opId, "DONE", "SUCCESSFUL_COMMIT", `${finalResults.length} acciones atómicas en ${latency}ms`);
         return finalResults;
 
