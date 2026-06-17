@@ -142,34 +142,18 @@
                 return;
             }
 
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation?.();
-
             global.__JARVIS_SOCIAL_HANDLED__ = {
                 text,
-                at: Date.now()
+                at: Date.now(),
+                passive: true
             };
 
             const msg = socialReply(text);
 
             console.warn(
-                "🧠 [TERMINAL_SOCIAL_GUARD_STOP]",
+                "🧠 [TERMINAL_SOCIAL_GUARD_PASS]",
                 text
             );
-
-            if (input) {
-                input.value = "";
-            }
-
-            renderSingleSocialReply(msg);
-
-            if (typeof global.hablarJarvis === "function") {
-                try {
-                    global.hablarJarvis(msg);
-                }
-                catch (_) {}
-            }
 
             global.JarvisMemory?.dispatch?.({
                 type: "PUSH_HISTORY",
