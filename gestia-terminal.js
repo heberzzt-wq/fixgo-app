@@ -3980,6 +3980,9 @@ const isStructured =
     typeof input === "object" &&
     input !== null;
 
+let rawInput;
+let cmd;
+
 if (!input) {
     return {
         error: true,
@@ -4011,8 +4014,6 @@ if (isStructured) {
    🔥 INSERTAR AQUÍ (ANTES DE BLOQUEO)
 ===================================================== */
 
-let rawInput;
-let cmd;
 console.log(
     "🧪 BEFORE_SEARCH_INTERCEPTOR",
     {
@@ -5761,8 +5762,21 @@ onAuthStateChanged(
     ) {
 
         console.warn(
-            "⚠️ [AUTH_REDIRECT]"
+            "AUTH_REDIRECT_PENDING"
         );
+
+        const isTerminalDebugSurface =
+            window.location.pathname.includes("gestia-terminal") &&
+            (
+                window.__DEV__ === true ||
+                window.location.hostname === "localhost" ||
+                window.location.hostname === "127.0.0.1"
+            );
+
+        if (isTerminalDebugSurface) {
+            console.warn("AUTH_REDIRECT_SKIPPED_TERMINAL_DEBUG");
+            return;
+        }
 
         window.location.href =
             "/login.html";
