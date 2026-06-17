@@ -13,6 +13,7 @@
     }
   ],
   "hosting": {
+    "site": "fixgo-44e4d",
     "public": ".",
 
       "ignore": [
