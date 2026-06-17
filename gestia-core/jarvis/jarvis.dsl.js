@@ -211,7 +211,7 @@ export function toCommand(input) {
     SECCIÓN: DSL ANALYZE (V5.19 DATA-DRIVEN)
     Archivo: jarvis.dsl.js
 ===================================================== */
-if (false && rawLower === "analyze") {
+if (false) {
     console.log("🔥 [DSL_HIT] ANALYZE detectado en Capa DSL");
 
     const payload = extraerPayload(cmd.raw) || {};

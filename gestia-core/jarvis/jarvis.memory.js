@@ -646,7 +646,9 @@ export const JarvisMemory = (function() {
 
 // 🔥 MODO DIOS: EXPOSICIÓN GLOBAL PARA LA CONSOLA DE HEBERTO
 // Esto permite que el Arquitecto lance comandos directamente desde Chrome DevTools
-window.JarvisMemory = JarvisMemory;
+if (typeof window !== "undefined") {
+    window.JarvisMemory = JarvisMemory;
+}
 
 // 🔥 IGNICIÓN DEL NÚCLEO
 JarvisMemory.boot();
