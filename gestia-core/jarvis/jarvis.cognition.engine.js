@@ -1,14 +1,183 @@
 
 /* =====================================================================================
-   JARVIS COGNITION ENGINE V1
+   JARVIS COGNITION ENGINE V1.1
+   Semantic runtime + social terminal guard.
 ===================================================================================== */
 
 (function(global) {
 
+    function normalizeSocial(text = "") {
+
+        return String(text)
+            .toLowerCase()
+            .trim()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9\s]/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+
+    function isSocialJarvis(input = "") {
+
+        const text = normalizeSocial(input);
+
+        return (
+            text === "hola" ||
+            text === "buenos dias" ||
+            text === "buen dia" ||
+            text === "buenas tardes" ||
+            text === "buenas noches" ||
+            text === "gracias" ||
+            text === "muchas gracias" ||
+            text === "que tal" ||
+            text === "que onda" ||
+            text === "como estas" ||
+            text.includes("buenos dias") ||
+            text.includes("buen dia") ||
+            text.includes("buenas tardes") ||
+            text.includes("buenas noches") ||
+            text.includes("como estas") ||
+            text.includes("que tal") ||
+            text.includes("que onda")
+        );
+    }
+
+    function socialReply(input = "") {
+
+        const text = normalizeSocial(input);
+
+        if (text.includes("buenos dias") || text.includes("buen dia")) {
+            return "Buenos días, Arquitecto. Jarvis en línea y listo para operar.";
+        }
+
+        if (text.includes("buenas tardes")) {
+            return "Buenas tardes, Arquitecto. Núcleo estable y atento.";
+        }
+
+        if (text.includes("buenas noches")) {
+            return "Buenas noches, Arquitecto. Núcleo vigilante y operativo.";
+        }
+
+        if (text.includes("como estas")) {
+            return "Operando estable, Arquitecto. Sin incidencias críticas registradas.";
+        }
+
+        if (text.includes("gracias")) {
+            return "Siempre a la orden, Arquitecto.";
+        }
+
+        if (text.includes("que tal") || text.includes("que onda")) {
+            return "Aquí estoy, Arquitecto. Jarvis listo para analizar, crear, reparar o escanear.";
+        }
+
+        return "Hola, Arquitecto. Jarvis en línea.";
+    }
+
+    global.isSocialJarvis = isSocialJarvis;
+    global.jarvisSocialReply = socialReply;
+
+    function stopTerminalSocialSubmit(event) {
+
+        try {
+
+            const form = event?.target;
+
+            if (!form || form.id !== "gestia-form") {
+                return;
+            }
+
+            const input =
+                global.document
+                    ?.getElementById("gestia-input");
+
+            const text =
+                String(input?.value || "").trim();
+
+            if (!isSocialJarvis(text)) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation?.();
+
+            const msg = socialReply(text);
+
+            console.warn(
+                "🧠 [TERMINAL_SOCIAL_GUARD_STOP]",
+                text
+            );
+
+            if (input) {
+                input.value = "";
+            }
+
+            if (typeof global.renderJarvisResponse === "function") {
+                global.renderJarvisResponse(
+                    "Jarvis",
+                    msg,
+                    "success"
+                );
+            }
+            else if (typeof global.showJarvis === "function") {
+                global.showJarvis(msg);
+            }
+            else {
+                console.log("🧠 [JARVIS_SOCIAL_REPLY]", msg);
+            }
+
+            if (typeof global.hablarJarvis === "function") {
+                try {
+                    global.hablarJarvis(msg);
+                }
+                catch (_) {}
+            }
+
+            global.JarvisMemory?.dispatch?.({
+                type: "PUSH_HISTORY",
+                payload: {
+                    role: "user",
+                    message: text
+                }
+            });
+
+            global.JarvisMemory?.dispatch?.({
+                type: "PUSH_HISTORY",
+                payload: {
+                    role: "assistant",
+                    message: msg
+                }
+            });
+
+        }
+        catch(err) {
+
+            console.warn(
+                "⚠️ [TERMINAL_SOCIAL_GUARD_FAIL]",
+                err
+            );
+        }
+    }
+
+    if (global.document?.addEventListener) {
+
+        global.document.addEventListener(
+            "submit",
+            stopTerminalSocialSubmit,
+            true
+        );
+    }
+
     const CognitionEngine = {
 
         version:
-            "V1_SEMANTIC_RUNTIME",
+            "V1_1_SEMANTIC_RUNTIME_SOCIAL_GUARD",
+
+        isSocial:
+            isSocialJarvis,
+
+        socialReply,
 
         analyze(input = "") {
 
@@ -43,6 +212,35 @@
                 confidence:
                     0.5
             };
+
+            if (isSocialJarvis(input)) {
+
+                cognition.intent =
+                    "SOCIAL";
+
+                cognition.type =
+                    "SOCIAL";
+
+                cognition.domain =
+                    "conversation";
+
+                cognition.target =
+                    "jarvis";
+
+                cognition.expectedOutput =
+                    "social_reply";
+
+                cognition.cognitionLayer =
+                    "social_guard";
+
+                cognition.confidence =
+                    1;
+
+                cognition.reply =
+                    socialReply(input);
+
+                return cognition;
+            }
 
             /* =====================================================
    REPO SEARCH INTENT
@@ -366,5 +564,8 @@ return cognition;
     global.JarvisCognitionEngine =
         CognitionEngine;
 
-})(window);
+    console.log(
+        "🧠 [JARVIS_COGNITION_ENGINE] ONLINE V1.1 SOCIAL GUARD"
+    );
 
+})(window);
