@@ -1430,6 +1430,38 @@ if (
 
         
 
+        const universalPlanIntents = new Set([
+            "REPO_SEARCH",
+            "CODE_WRITE",
+            "FUNCTION_REMOVE",
+            "REPAIR_UI",
+            "ANALYZE_UI",
+            "ANALYZE_RUNTIME"
+        ]);
+
+        const shouldCreateUniversalPlan =
+            !!fileMatch ||
+            !!generatedPatch ||
+            universalPlanIntents.has(cognition?.intent) ||
+            universalPlanIntents.has(cognition?.type) ||
+            cognition?.domain === "repository" ||
+            cognition?.domain === "frontend" ||
+            (
+                cognition?.domain === "backend" &&
+                !!cognition?.target
+            );
+
+        if (!shouldCreateUniversalPlan) {
+            console.log("[TERMINAL_NORMAL_FLOW_RESTORED]", {
+                raw,
+                intent: cognition?.intent,
+                type: cognition?.type,
+                domain: cognition?.domain
+            });
+        }
+
+        if (shouldCreateUniversalPlan) {
+
 const patchFailed =
     !!fileMatch &&
     !!generatedPatch &&
@@ -1548,6 +1580,8 @@ const step = {
          console.log("🔥 BEFORE RETURN");
         handled = true;
         return;
+
+        }
 
         // 🔁 FLUJO NORMAL (si no es código)
         if (window.JarvisBridge?.dispatch) {
@@ -1895,7 +1929,7 @@ if (
             ...event
         };
 
-        window.__JARVIS_LOGS__ = [...window.__JARVIS_LOGS__, logEntry].slice(-50);
+        window.__JARVIS_LOGS__ = [...window.__JARVIS_LOGS__, logEntry].slice(-250);
 
         if (window.__DEV__) {
             const timeInfo = logEntry.duration ? ` [${logEntry.duration.toFixed(2)}ms]` : "";
@@ -2027,15 +2061,6 @@ if (
 
     console.log("📦 [DATA_VAULT]: Perfiles cargados. Jonathan listo para pruebas.");
     
-    if (textarea) {
-        textarea.addEventListener("keydown", function (e) {
-            if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
-            }
-        });
-    }
-
     setTimeout(() => {
         window.listenLedgerRealtime?.();
     }, 1500);
