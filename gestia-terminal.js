@@ -5732,14 +5732,7 @@ console.log(
    AUTH WATCHER
 ===================================================== */
 
-console.log("[TERMINAL_BOOT_TRACE] after_kernel_sync");
-
 try {
-
-console.log("[TERMINAL_BOOT_TRACE] auth_watcher_register_start", {
-    hasAuth: !!auth,
-    hasOnAuthStateChanged: typeof onAuthStateChanged
-});
 
 onAuthStateChanged(
     auth,
@@ -5781,13 +5774,11 @@ onAuthStateChanged(
     }
 );
 
-console.log("[TERMINAL_BOOT_TRACE] auth_watcher_register_ok");
-
 }
 catch(authWatcherError) {
 
     console.error(
-        "[TERMINAL_BOOT_TRACE] auth_watcher_register_fail",
+        "[AUTH_WATCHER_REGISTER_FAIL]",
         authWatcherError
     );
 }
@@ -5829,10 +5820,6 @@ window.testJarvis =
 window.runJarvis =
     runJarvis;
 // Fuerza la actualización del HUD azul cuando el Kernel hable
-console.log("[TERMINAL_BOOT_TRACE] jarvis_memory_subscribe_start", {
-    hasJarvisMemory: !!JarvisMemory,
-    subscribeType: typeof JarvisMemory?.subscribe
-});
 JarvisMemory?.subscribe?.((type, payload) => {
     if (type === 'PUSH_HISTORY' && payload?.role === 'assistant') {
         const display = document.querySelector('.sia7-decoding-text') || document.querySelector('p.text-slate-300');
@@ -5843,8 +5830,6 @@ JarvisMemory?.subscribe?.((type, payload) => {
 });
 
 // 🧠 RENDER PREVIEW DEL PLAN IA (multi-step robusto)
-
-console.log("[TERMINAL_BOOT_TRACE] jarvis_memory_subscribe_ok");
 
 window.renderPlanPreview = function(plan) {
 
@@ -5904,15 +5889,12 @@ Confirma ejecución escribiendo: arre`;
 ===================================================================================== */
 
 async function importTerminalBootModule(label, path) {
-    console.log(`[TERMINAL_BOOT_TRACE] ${label}_import_start`);
-
     try {
         await import(path);
-        console.log(`[TERMINAL_BOOT_TRACE] ${label}_import_ok`);
         return true;
     }
     catch(error) {
-        console.error(`[TERMINAL_BOOT_TRACE] ${label}_import_fail`, error);
+        console.error(`[TERMINAL_BOOT_IMPORT_FAIL] ${label}`, error);
         return false;
     }
 }
@@ -5959,8 +5941,6 @@ await importTerminalBootModule(
     "runtime_snapshot_daemon",
     "./modules/terminal/runtime-snapshot-daemon.js"
 );
-
-console.log("[TERMINAL_BOOT_TRACE] terminal_module_boot_complete");
 
 /**
  * =====================================================
