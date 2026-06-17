@@ -1435,9 +1435,14 @@ const patchFailed =
     !!generatedPatch &&
     generatedPatch.ok !== true;
 
+const patchUnavailable =
+    !!fileMatch &&
+    !generatedPatch;
+
 const isReadOnlyAnalysis =
     generatedPatch?.strategy === "ANALYZE_ONLY" ||
     generatedPatch?.isReadOnly === true ||
+    patchUnavailable ||
     patchFailed;
 
 const resolvedFile =
@@ -1454,7 +1459,12 @@ const resolvedStepType =
               (fileMatch ? "CODE_WRITE" : "ANALYZE");
 
 const safeReport =
-    patchFailed
+    patchUnavailable
+        ? (
+            `No se genero contenido ejecutable para ${resolvedFile}. ` +
+            `El comando se conserva como analisis de solo lectura para evitar una escritura vacia.`
+        )
+        : patchFailed
         ? (
             `No se generó un parche seguro para ${resolvedFile}. ` +
             `Motivo: ${
@@ -1500,6 +1510,7 @@ const step = {
                 generatedPatch,
 
             blocked:
+                patchUnavailable ||
                 patchFailed,
 
             originalIntent:
