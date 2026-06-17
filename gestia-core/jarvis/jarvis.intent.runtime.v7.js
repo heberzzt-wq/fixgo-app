@@ -236,7 +236,10 @@
             };
         }
 
-        if (/\b(scan|scanner|escanea|audita)\b/.test(normalized)) {
+        if (
+            action?.intent !== "UPDATE" &&
+            /\b(scan|scanner|escanea|audita)\b/.test(normalized)
+        ) {
             action = {
                 intent: "ANALYZE",
                 command: "analiza",
@@ -404,4 +407,4 @@
     global.runIntentEngine = runIntentEngine;
 
     console.log("🧠 [JARVIS_INTENT_RUNTIME_V7]: ONLINE", VERSION);
-})(window);
+})(typeof window !== "undefined" ? window : globalThis);

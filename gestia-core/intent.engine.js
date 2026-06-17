@@ -1,5 +1,7 @@
-import { analyzeConversation } from "./jarvis/jarvis.conversation.engine.v7.js";
-import { understand } from "./jarvis/jarvis-nlu-bridge.js";
+import {
+    understand,
+    runIntentEngine as runNluIntentEngine
+} from "./jarvis/jarvis-nlu-bridge.js";
 
 /* ======================================================================================
    GESTIAPREMIUM 2026 - MAPAS DE INTENCIÓN Y ENTIDAD (V4.1 SOVEREIGN EXECUTIVE)
@@ -875,24 +877,22 @@ window.runIntentEngine = async function(text) {
     const low = String(text || "").toLowerCase().trim();
     
     try {
-        const conversation =
-            analyzeConversation(text, { remember: false });
+        const nluIntent =
+            await runNluIntentEngine(text);
 
-        if (
-            conversation?.confidence >= 0.7 &&
-            conversation?.intent
-        ) {
+        if (nluIntent?.confidence >= 0.7) {
             return __toSystemFormat({
-                intent: conversation.intent,
-                action: conversation.action,
-                entity: conversation.entity,
-                target: conversation.target,
-                summary: conversation.reply,
-                confidence: conversation.confidence,
-                source: "conversation_engine_v7",
+                intent: nluIntent.intent,
+                action: nluIntent.action,
+                entity: nluIntent.entity,
+                target: nluIntent.target,
+                summary: nluIntent.reply,
+                confidence: nluIntent.confidence,
+                source: nluIntent.source || "jarvis_nlu_bridge_v7",
                 contextRef: {
-                    multiStep: conversation.multiStep,
-                    commands: conversation.commands
+                    commands: nluIntent.commands,
+                    runtime: nluIntent.version,
+                    cognition: nluIntent.cognition
                 }
             });
         }

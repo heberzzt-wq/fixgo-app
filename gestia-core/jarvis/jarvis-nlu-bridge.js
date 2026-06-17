@@ -12,6 +12,7 @@
 
 import { JarvisMemory } from "./jarvis.memory.js";
 import { analyzeConversation } from "./jarvis.conversation.engine.v7.js";
+import "./jarvis.intent.runtime.v7.js";
 
 const NLU_VERSION = "1.2 HYBRID SOVEREIGN V7 COMPAT";
 
@@ -196,7 +197,14 @@ function rememberConversation(original, envelope = {}) {
 
 export function understand(rawInput = "") {
   const original = String(rawInput || "");
-  const conversation = analyzeConversation(original);
+  const runtime =
+    (typeof window !== "undefined" ? window.JarvisIntentRuntimeV7 : null) ||
+    globalThis.JarvisIntentRuntimeV7 ||
+    null;
+  const conversation =
+    typeof runtime?.analyze === "function"
+      ? runtime.analyze(original)
+      : analyzeConversation(original);
   const normalized = normalize(original);
   const chunks = conversation.commands?.length
     ? conversation.commands.map(command => command.original)
