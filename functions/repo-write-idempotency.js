@@ -246,11 +246,12 @@ module.exports = ({ admin, db, crypto }) => {
                     });
                 };
 
-                return legacy(req, res);
+                return await legacy(req, res);
             } catch (error) {
                 console.error("[REPO_WRITE_IDEMPOTENCY_RUNTIME_ERROR]", error);
-                if (!claim?.ok || claim.replayed) return legacy(req, res);
-                try { await failRepoWrite({ claim, error }); } catch (auditError) { console.error("[REPO_WRITE_IDEMPOTENCY_AUDIT_ERROR]", auditError); }
+                if (claim?.ok === true && claim.replayed !== true) {
+                    try { await failRepoWrite({ claim, error }); } catch (auditError) { console.error("[REPO_WRITE_IDEMPOTENCY_AUDIT_ERROR]", auditError); }
+                }
                 return res.status(500).json({
                     success: false,
                     blocked: false,
