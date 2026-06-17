@@ -2,6 +2,9 @@
    REPO BOOTSTRAP INDEX
 ===================================================== */
 
+window.__REPO_INDEX__ ||= {};
+window.__MODULE_OWNERSHIP__ ||= {};
+
 window.__REPO_INDEX__["gestia-terminal.js"] = {
     path: "gestia-terminal.js",
     module: "terminal",

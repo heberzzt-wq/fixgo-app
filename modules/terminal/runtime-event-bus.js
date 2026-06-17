@@ -2306,7 +2306,7 @@ window.addEventListener(
             await bootstrapRepoCognition();
 
 await import(
-    "./gestia-core/repair-translator.engine.js?v=" +
+    "/gestia-core/repair-translator.engine.js?v=" +
     Date.now()
 );
 
@@ -2318,7 +2318,7 @@ console.log(
 
 
             await import(
-    "./gestia-core/repo/resource.registry.js?v=" +
+    "/gestia-core/repo/resource.registry.js?v=" +
     Date.now()
 );
 
@@ -2351,7 +2351,7 @@ try {
     const brainModule =
 
         await import(
-            "./gestia-core/brain.engine.js"
+            "/gestia-core/brain.engine.js"
         );
 
     console.log(
@@ -2365,7 +2365,7 @@ try {
     const semanticModule =
 
         await import(
-            "./gestia-core/semantic.engine.js"
+            "/gestia-core/semantic.engine.js"
         );
 
     console.log(
@@ -2379,7 +2379,7 @@ try {
     const gestiaCoreModule =
 
         await import(
-            "./gestia-core/gestia-core.js"
+            "/gestia-core/gestia-core.js"
         );
 
     console.log(
