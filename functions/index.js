@@ -41,8 +41,14 @@ if (!admin.apps.length) {
 // FACTORIES
 const firewallFactory = require("./firewall/firewall.v5");
 
+
 const repoWriteAuthFactory =
     require("./repo-write-auth");
+
+const repoWriteIdempotencyFactory =
+    require("./repo-write-idempotency");
+
+
 
 // ======================================================================================
 // 2. EXPRESS (INSTANCIACIÓN ANTES DE INIT)
@@ -71,6 +77,19 @@ const {
     admin,
     db
 });
+
+
+
+const {
+    claimRepoWrite,
+    completeRepoWrite,
+    failRepoWrite
+} = repoWriteIdempotencyFactory({
+    admin,
+    db,
+    crypto
+});
+
 
 let stripe;
 let genAI;
