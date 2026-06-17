@@ -40,6 +40,24 @@ if (firebase.messaging.isSupported()) {
   messaging = firebase.messaging();
 }
 
+function normalizeNotificationUrl(rawUrl) {
+  if (typeof rawUrl !== 'string' || rawUrl.trim() === '') {
+    return './';
+  }
+
+  try {
+    const url = new URL(rawUrl, self.location.origin);
+
+    if (url.origin !== self.location.origin) {
+      return './';
+    }
+
+    return `${url.pathname}${url.search}${url.hash}` || './';
+  } catch (error) {
+    return './';
+  }
+}
+
 /**
  * ======================================================
  * FCM BACKGROUND ENGINE (V5.35 HARDENED)
@@ -75,10 +93,11 @@ if (messaging) {
       notificationPayload.orderId ||
       null;
 
-    const targetUrl =
+    const targetUrl = normalizeNotificationUrl(
       payload.data?.url ||
       notificationPayload.url ||
-      './';
+      './'
+    );
 
     const options = {
 
@@ -149,7 +168,7 @@ self.addEventListener('push', (event) => {
     tag: payload.data?.orderId || "gestia-alert",
 
     data: {
-      url: payload.data?.url || './',
+      url: normalizeNotificationUrl(payload.data?.url || './'),
       orderId: payload.data?.orderId || null
     }
 
@@ -166,7 +185,7 @@ self.addEventListener('notificationclick', (event) => {
 
   event.notification.close();
 
-  const targetUrl = event.notification.data?.url || './';
+  const targetUrl = normalizeNotificationUrl(event.notification.data?.url || './');
 
   event.waitUntil(
 
@@ -177,7 +196,7 @@ self.addEventListener('notificationclick', (event) => {
 
       for (let client of windowClients) {
 
-        if (client.url.includes(targetUrl) && 'focus' in client) {
+        if (new URL(client.url).pathname === new URL(targetUrl, self.location.origin).pathname && 'focus' in client) {
           return client.focus();
         }
 

@@ -133,6 +133,15 @@ app.post(["/ai-intent", "/api/ai-intent", "*/ai-intent"], async (req, res) => {
     const traceId = `trace_intent_${Date.now()}`;
 
     try {
+        const session = await firewallV5(req);
+        if (!session?.authorized) {
+            await reportSentinelMetric('ai_intent_firewall_rejections');
+            return res.status(401).json({
+                error: "AUTH_REQUIRED",
+                traceId
+            });
+        }
+
         const payload = req.body?.input;
 
 const input =
@@ -150,13 +159,20 @@ console.log(
     typeof input
 );
 
-        if (!input || input.trim().length < 2) {
+        if (typeof input !== "string" || input.trim().length < 2) {
             return res.json({
                 output: JSON.stringify({
                     intent: "analyze",
                     target: "system",
                     confidence: 0
                 })
+            });
+        }
+
+        if (input.length > 1000) {
+            return res.status(413).json({
+                error: "INPUT_TOO_LARGE",
+                traceId
             });
         }
 
@@ -2363,6 +2379,13 @@ exports.jarvisConversacional = functions
     .https.onCall(async (data, context) => {
         // 🛡️ 0. DESPERTAR EL MOTOR
         initCore();
+
+        if (!context.auth?.uid) {
+            throw new functions.https.HttpsError(
+                'unauthenticated',
+                'Jarvis requiere una sesion autenticada.'
+            );
+        }
 
         const promptUsuario = data.prompt;
         const traceId = `trace_jarvis_${Date.now()}`;
