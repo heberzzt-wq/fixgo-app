@@ -1620,41 +1620,51 @@ if (
             })();
         }
 
-    // 🧠 PRE-FILTER MULTI INTENT (ANTES DEL AI PIPELINE)
+    // 🧠 READ-ONLY REPO ANALYSIS BYPASS
+const isCodeIntent =
+    /archivo|\.js|\.txt|\.html|\.css|\.json|editar|edita|modificar|modifica|repara|actualizar|actualiza/i
+        .test(rawLow);
+
+const isRepoReadOnlyAnalysis =
+    /analisis|análisis|analiza|revisa|audita/.test(rawLow) &&
+    /repo|repositorio|repository|sistema|system/.test(rawLow) &&
+    !isCodeIntent;
+
+if (isRepoReadOnlyAnalysis) {
+    console.log("🧠 [READ_ONLY_REPO_ANALYSIS_DIRECT]", raw);
+
+    return {
+        ok: true,
+        mode: "READ_ONLY",
+        intent: "analyze",
+        target: "repository",
+        confidence: 0.82,
+        message: "Arquitecto, solicitud read-only detectada. No crearé plan, no pediré aprobación y no ejecutaré escritura.",
+        requiresApproval: false,
+        requiresPatch: false,
+        writeMode: "READ_ONLY"
+    };
+}
+
+// 🧠 PRE-FILTER MULTI INTENT (ANTES DEL AI PIPELINE)
 const multiActions = String(raw)
     .toLowerCase()
     .split(/(?:\s+y\s+|\s+e\s+|,|\s+and\s+)/gi)
     .map(s => s.trim())
     .filter(Boolean);
 
-const isCodeIntent =
-
-    /archivo|\.js|\.txt|\.html|\.css|\.json|editar|edita|modificar|modifica|repara|actualizar|actualiza/i
+const hasTechnicalIntent =
+    /analiza|revisa|corrige|actualiza|elimina|crea|patch|repair|fix|estado|modulo|archivo|system|panel/i
         .test(rawLow);
 
-
-const hasTechnicalIntent =
-
-    /analiza|revisa|corrige|actualiza|elimina|crea|patch|repair|fix|estado|modulo|archivo|system|panel/i
-
-    .test(rawLow);
-
 if (
-
     multiActions.length > 1 &&
-
     hasTechnicalIntent &&
-
     !isCodeIntent
-
-)
-
- {
-
+) {
     console.log("🧠 [MULTI_INTENT_BYPASS_AI]:", multiActions);
 
     const steps = multiActions.map(text => {
-
         const t = text.toLowerCase();
 
         if (t.includes("pago")) {
@@ -1694,32 +1704,29 @@ if (
 
     window.lastPlanId = plan.id;
 
-    const isRepoReadOnlyAnalysis =
-    /analisis|análisis|analiza|revisa|audita/.test(rawLow) &&
-    /repo|repositorio|repository|sistema|system/.test(rawLow) &&
-    !isCodeIntent;
-
-if (isRepoReadOnlyAnalysis) {
-    console.log("🧠 [READ_ONLY_REPO_ANALYSIS_BYPASS_MULTI_INTENT]", raw);
-
-    if (window.JarvisBridge?.dispatch) {
-        return await window.JarvisBridge.dispatch(raw);
-    }
-
-    if (window.KernelHeberto?.execute) {
-        return await window.KernelHeberto.execute(raw);
-    }
-}
-
-    if (typeof savePendingPlan === "function") {
-        await sincronizarYPersistirPlan(plan);
+    if (typeof window.sincronizarYPersistirPlan === "function") {
+        await window.sincronizarYPersistirPlan(plan);
+    } else if (typeof window.savePendingPlan === "function") {
+        await window.savePendingPlan(plan);
+    } else {
+        console.warn("⚠️ [PLAN_PERSISTENCE_UNAVAILABLE]");
+        return {
+            ok: false,
+            error: "PLAN_PERSISTENCE_UNAVAILABLE",
+            message: "No hay persistencia de plan disponible."
+        };
     }
 
     if (window.renderPlanPreview) {
         window.renderPlanPreview(plan);
     }
 
-    return;
+    return {
+        ok: true,
+        planId: plan.id,
+        mode: "AI_SUPERVISED",
+        steps
+    };
 }
 
 
