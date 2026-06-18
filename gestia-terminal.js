@@ -4089,6 +4089,67 @@ console.log(
         cmd
     }
 );
+
+const normalizedCmd = cmd
+    .replace(/^(hola|buenos dias|buenos días|buenas|qué onda|que onda|saludos)[,\s]*/i, "")
+    .trim();
+
+const isRepoReadOnlyAudit =
+    !isStructured &&
+    /^(analiza|analisis|análisis|revisa|audita)\s+(el\s+)?(repo|repositorio|repository|sistema)$/i.test(normalizedCmd);
+
+if (isRepoReadOnlyAudit) {
+    console.log("🧠 [REPO_AUDIT_DIRECT]", {
+        rawInput,
+        normalizedCmd
+    });
+
+    const scan = window.scanRepo?.({}) || {
+        ok: false,
+        files: []
+    };
+
+    const files = scan.files || [];
+    const moduleNames = [
+        ...new Set(
+            files
+                .map(file => file.module)
+                .filter(Boolean)
+        )
+    ];
+
+    const report =
+`Arquitecto, análisis read-only del repositorio completado.
+
+Archivos registrados: ${files.length}
+Módulos detectados: ${moduleNames.length}
+
+Módulos:
+${moduleNames.length ? moduleNames.map(m => "- " + m).join("\n") : "- Sin módulos registrados"}
+
+Archivos críticos/relevantes:
+${files
+    .filter(file =>
+        file.critical === true ||
+        /jarvis|runtime|engine|terminal|bridge|executor|planner|repo/i.test(
+            `${file.file || ""} ${file.module || ""} ${file.type || ""}`
+        )
+    )
+    .slice(0, 15)
+    .map(file => `- ${file.file} (${file.module || "sin módulo"})`)
+    .join("\n") || "- Sin archivos relevantes destacados."}`;
+
+    return {
+        ok: true,
+        status: "DONE",
+        type: "REPO_ANALYSIS",
+        report,
+        data: {
+            totalFiles: files.length,
+            totalModules: moduleNames.length
+        }
+    };
+}
 /* =====================================================
    REPO SEARCH INTERCEPTOR
 ===================================================== */
@@ -4610,6 +4671,32 @@ let jarvisRes; // 🔥 FIX
 
 try {
 
+    /* =================================================
+   SESSION REHYDRATION BEFORE FIREWALL
+================================================= */
+
+if (
+    !this.session?.uid ||
+    !this.session?.token
+) {
+    console.warn(
+        "⚠️ [SESSION_REHYDRATION_BEFORE_FIREWALL]",
+        {
+            hasUid: !!this.session?.uid,
+            hasToken: !!this.session?.token,
+            authorized: this.session?.authorized === true
+        }
+    );
+
+    await this.inicializarAutoridad();
+
+    if (
+        !this.session?.uid ||
+        !this.session?.token
+    ) {
+        throw new Error("IDENTITY_NOT_READY_AFTER_REHYDRATION");
+    }
+}
         /* =================================================
            FIREWALL PRECHECK
         ================================================= */
