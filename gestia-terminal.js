@@ -3905,6 +3905,50 @@ Escribe:
         }
     }
 
+    dispatch(input, eOrOptions = null, options = undefined) {
+
+        const hasEvent =
+            typeof eOrOptions?.preventDefault === "function";
+
+        const dispatchOptions =
+            options ||
+            (
+                hasEvent
+                    ? { simulate: false }
+                    : eOrOptions || { simulate: false }
+            );
+
+        return this.execute(
+            input,
+            hasEvent ? eOrOptions : null,
+            dispatchOptions
+        );
+    }
+
+    getState() {
+
+        return {
+            state:
+                this.state,
+            session: {
+                authorized:
+                    this.session?.authorized === true,
+                uid:
+                    this.session?.uid || null,
+                tenantId:
+                    this.session?.tenantId || null,
+                hasToken:
+                    !!this.session?.token
+            },
+            pendingPlans:
+                this.pendingPlans?.size || 0,
+            activeOps:
+                this.activeOps?.size || 0,
+            bootTime:
+                this.bootTime
+        };
+    }
+
     /* =====================================================
        AUTH INIT
     ===================================================== */
@@ -5744,15 +5788,20 @@ handleError(
 // 🔥 KERNEL ÚNICO (SIN COLISIÓN)
 // =====================================================
 
-window.KernelHeberto = new GestiaTerminal();
+const BankTerminal =
+    new GestiaTerminal();
+
+window.KernelHeberto =
+    BankTerminal;
 
 // 🔥 Alias global (para UI/terminal)
-window.__GESTIA_TERMINAL__ = window.KernelHeberto;
+window.__GESTIA_TERMINAL__ =
+    BankTerminal;
 
-window.KernelHeberto.db = db;
-window.KernelHeberto.doc = doc;
-window.KernelHeberto.getDoc = getDoc;
-window.KernelHeberto.setDoc = setDoc;
+BankTerminal.db = db;
+BankTerminal.doc = doc;
+BankTerminal.getDoc = getDoc;
+BankTerminal.setDoc = setDoc;
 
 console.log(
   "%c🧠 [GESTIA-TERMINAL]: V5.18 OPERATIONAL - KERNEL SYNC READY",
