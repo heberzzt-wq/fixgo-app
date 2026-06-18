@@ -1,8 +1,56 @@
 /* =====================================================
-   REPO REGISTRY V1
+   REPO REGISTRY V2
 ===================================================== */
 
+const REPO_COGNITION_VERSION =
+    "2.0.0-full-repo-cognition";
+
+const REPO_COGNITION_POLICY = {
+    authority:
+        "full_repo_private_owner",
+    safeZone:
+        "advisory",
+    criticalRiskAction:
+        "REVIEW_REQUIRED",
+    highRiskAction:
+        "SUPERVISED_EXECUTION"
+};
+
 window.__REPO_INDEX__ ||= {};
+
+window.describeRepoCognitionV2 = function() {
+
+    return {
+        ok: true,
+        engine:
+            "repo_cognition",
+        version:
+            REPO_COGNITION_VERSION,
+        policy:
+            REPO_COGNITION_POLICY,
+        repoNodes:
+            Object.keys(
+                window.__REPO_INDEX__ || {}
+            ).length,
+        cognitionNodes:
+            Object.keys(
+                window.__REPO_COGNITION__ || {}
+            ).length,
+        graphNodes:
+            Object.keys(
+                window.__REPO_DEP_GRAPH__ || {}
+            ).length
+    };
+};
+
+window.RepoCognitionV2 = {
+    version:
+        REPO_COGNITION_VERSION,
+    policy:
+        REPO_COGNITION_POLICY,
+    describe:
+        window.describeRepoCognitionV2
+};
 
 
 /* =====================================================
@@ -70,7 +118,7 @@ function(node = {}) {
     }
 };
 /* =====================================================================================
-   REPO COGNITION ENGINE V1
+   REPO COGNITION ENGINE V2
 ===================================================================================== */
 
 window.__REPO_COGNITION__ ||= {};
@@ -92,6 +140,12 @@ window.classifyRepoFile = function(
             meta?.module || "";
 
         let cognition = {
+
+            version:
+                REPO_COGNITION_VERSION,
+
+            policy:
+                REPO_COGNITION_POLICY,
 
             engineType:
                 "generic",
@@ -412,6 +466,9 @@ for (
 
             ok: true,
 
+            version:
+                REPO_COGNITION_VERSION,
+
             total:
                 Object.keys(
                     window
@@ -444,7 +501,7 @@ for (
 
 
 /* =====================================================================================
-   REPO DEPENDENCY GRAPH V1
+   REPO DEPENDENCY GRAPH V2
 ===================================================================================== */
 
 window.__REPO_DEP_GRAPH__ ||= {};
@@ -967,6 +1024,9 @@ catch(fullGraphError) {
 
             ok: true,
 
+            version:
+                REPO_COGNITION_VERSION,
+
             total:
                 Object.keys(
                     window
@@ -992,7 +1052,7 @@ catch(fullGraphError) {
 
 
 /* =====================================================================================
-   REPO IMPACT ANALYZER V1
+   REPO IMPACT ANALYZER V2
 ===================================================================================== */
 
 /* =====================================================
@@ -1224,7 +1284,7 @@ function(config = {}) {
         ) {
 
             governanceAction =
-                "HARD_BLOCK";
+                "REVIEW_REQUIRED";
         }
 
         else if (
@@ -1233,7 +1293,7 @@ function(config = {}) {
         ) {
 
             governanceAction =
-                "SOFT_BLOCK";
+                "SUPERVISED_EXECUTION";
         }
 
         else if (
@@ -1242,10 +1302,16 @@ function(config = {}) {
         ) {
 
             governanceAction =
-                "RESTRICTED_EXECUTION";
+                "SUPERVISED_EXECUTION";
         }
 
         const analysis = {
+
+            version:
+                REPO_COGNITION_VERSION,
+
+            policy:
+                REPO_COGNITION_POLICY,
 
             file:
                 normalizedFile,
@@ -1322,7 +1388,7 @@ function(config = {}) {
 };
 
 /* =====================================================================================
-   RUNTIME CRITICALITY PROPAGATION ENGINE V1
+   RUNTIME CRITICALITY PROPAGATION ENGINE V2
 ===================================================================================== */
 
 /* =====================================================
@@ -1429,6 +1495,9 @@ function(fileName = "") {
         const result = {
 
             ok: true,
+
+            version:
+                REPO_COGNITION_VERSION,
 
             file:
                 data.file,

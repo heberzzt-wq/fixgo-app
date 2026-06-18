@@ -2,6 +2,27 @@
    RUNTIME SNAPSHOT DAEMON MODULE
 ===================================================================================== */
 
+const RUNTIME_SNAPSHOT_DAEMON_V2_VERSION =
+    "2.0.0-runtime-snapshot-daemon";
+
+window.RuntimeSnapshotDaemonV2 = {
+    version:
+        RUNTIME_SNAPSHOT_DAEMON_V2_VERSION,
+    mode:
+        "governed_snapshot_daemon",
+    describe() {
+        return {
+            ok: true,
+            module:
+                "runtime_snapshot_daemon",
+            version:
+                RUNTIME_SNAPSHOT_DAEMON_V2_VERSION,
+            metrics:
+                window.MODULE_CONTEXT?.snapshotDaemonMetrics || null
+        };
+    }
+};
+
 
         /* =========================================================
    GOVERNED SNAPSHOT DAEMON V2

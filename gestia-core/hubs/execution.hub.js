@@ -1,7 +1,26 @@
 /* =====================================================
-   GESTIA EXECUTION HUB V1
+   GESTIA EXECUTION HUB V2
    Sovereign Execution Capability Layer
 ===================================================== */
+
+export const EXECUTION_HUB_VERSION = "2.0.0-execution-contract";
+
+export function describeExecutionHub() {
+
+    return {
+        ok: true,
+        hub: "execution",
+        version:
+            EXECUTION_HUB_VERSION,
+        capabilities: [
+            "operations_executor_v17_bridge",
+            "snapshot",
+            "patch_diff",
+            "autopatch_v2",
+            "autofix_v2"
+        ]
+    };
+}
 
 /* =====================================================
    EXECUTION FABRIC

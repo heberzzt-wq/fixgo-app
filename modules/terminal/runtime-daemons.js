@@ -3,8 +3,37 @@
    Repair daemon, health scanner, suppression, and repair governance locks.
 ===================================================================================== */
 
+const RUNTIME_DAEMONS_V2_VERSION =
+    "2.0.0-runtime-daemons";
+
+window.RuntimeDaemonsV2 = {
+    version:
+        RUNTIME_DAEMONS_V2_VERSION,
+    mode:
+        "supervised_runtime_daemons",
+    capabilities: [
+        "repair_daemon",
+        "health_scanner",
+        "suppression",
+        "repair_governance_locks"
+    ],
+    describe() {
+        return {
+            ok: true,
+            module:
+                "runtime_daemons",
+            version:
+                RUNTIME_DAEMONS_V2_VERSION,
+            activeRepairDaemon:
+                window.MODULE_CONTEXT?.runtimeRepairDaemonActive === true,
+            activeHealthScanner:
+                window.MODULE_CONTEXT?.runtimeHealthScannerActive === true
+        };
+    }
+};
+
 /* =====================================================================================
-   START RUNTIME REPAIR DAEMON V1
+   START RUNTIME REPAIR DAEMON V2
 ===================================================================================== */
 
 window.startRuntimeRepairDaemon =
@@ -146,7 +175,7 @@ function() {
 
 
 /* =====================================================================================
-   START RUNTIME HEALTH SCANNER V1
+   START RUNTIME HEALTH SCANNER V2
 ===================================================================================== */
 
 window.startRuntimeHealthScanner =
@@ -407,7 +436,7 @@ MODULE_CONTEXT
 };
 
 /* =====================================================================================
-   RUNTIME REPAIR GOVERNANCE V1
+   RUNTIME REPAIR GOVERNANCE V2
 ===================================================================================== */
 
 window.canAttemptRuntimeRepair =

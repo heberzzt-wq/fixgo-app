@@ -1,5 +1,5 @@
 /* =====================================================================================
-   REPAIR TRANSLATOR ENGINE V3
+   REPAIR TRANSLATOR ENGINE V3.1
    SIA7 Cognitive Repo Surgeon - NLP Resilient + Filename Isolation
 ===================================================================================== */
 
@@ -299,6 +299,15 @@ if (
                 userIntent || ""
             ).toLowerCase();
 
+        if (
+            repairContext?.issue === "runtime_latency" &&
+            repairContext?.value &&
+            !/\b(?:runtime|rutyme|rutime|runtim)\b[\s_-]*(?:latencia|latenci|latency|delay)\b/i.test(intent)
+        ) {
+            intent =
+                `runtime latencia a ${repairContext.value}`;
+        }
+
         // 🔥 AISLAMIENTO DE NOMBRE DE ARCHIVO
         // Evitamos que palabras dentro del nombre del archivo (ej. "replace" en "test-replace.js")
         // activen estrategias incorrectas.
@@ -354,8 +363,8 @@ if (
 
 const normalizedIntent =
     String(
-        userIntent ||
         intent ||
+        userIntent ||
         ""
     )
         .replace(/\s+/g, " ")
@@ -425,10 +434,70 @@ const incompleteRepairRegex =
 const incompleteReplaceRegex =
     /^(?:reemplaza|sustituye|cambia)\b/i;
 
+const runtimeLatencyMatch =
+    intentWithoutFile.match(
+        /\b(?:runtime|rutyme|runtim|rutime)\b[\s_-]*(?:latenci(?:a)?|latency|latenci)\D+(\d+(?:\.\d+)?)/i
+    );
+
+if (runtimeLatencyMatch) {
+
+    functionName =
+        "runtimelatency";
+
+    const desiredLatency =
+        Number(runtimeLatencyMatch[1]);
+
+    const functionMatchFound =
+        findFunctionBlock(
+            currentSource,
+            functionName
+        ) ||
+        findFunctionBlock(
+            currentSource,
+            "runtimeLatency"
+        );
+
+    if (!functionMatchFound) {
+
+        return {
+            ok: false,
+            reason:
+                "RUNTIME_LATENCY_FUNCTION_NOT_FOUND",
+            file:
+                targetFile,
+            functionName,
+            strategy:
+                "RUNTIME_LATENCY_REPLACE"
+        };
+    }
+
+    strategy =
+        "RUNTIME_LATENCY_REPLACE";
+
+    confidence =
+        0.98;
+
+    search =
+        functionMatchFound.block;
+
+    replace =
+`${functionMatchFound.header} {
+
+    return ${desiredLatency};
+}`;
+
+    console.log(
+        "ðŸ§  [PATCH_STRATEGY]",
+        strategy,
+        functionName,
+        desiredLatency
+    );
+}
+
 
         
 // 1. FUNCTION REMOVE
-if (removeRegex.test(intent)) {
+else if (removeRegex.test(intent)) {
 
     functionName =
         extractTargetName(

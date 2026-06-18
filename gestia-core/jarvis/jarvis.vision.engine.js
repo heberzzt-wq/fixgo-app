@@ -33,6 +33,8 @@ const PROJECT_INDEX = [
   "jarvis.business.engine.js",
   "jarvis.company.registry.js",
   "jarvis.dsl.js",
+  "jarvis.intent.runtime.v7.js",
+  "jarvis.marketing.engine.js",
   "jarvis.memory.js",
   "jarvis.orchestrator.js",
   "jarvis.snapshot.js",

@@ -86,7 +86,7 @@ export async function persistirEstructuraModulo(moduloId, data, hash, tenantId, 
                 emitirPulsoHUD("BACKUP", `SECURE:${moduloId}`);
             }
 
-            // Validación de Mutex (Mutex Heberto V1.0)
+            // Validación de Mutex (Mutex Heberto V2.0)
             if (snap.exists() && snap.data().locked && snap.data().locked_by !== ejecutor) {
                 throw new Error(`MODULO_BLOQUEADO: ADN bajo edición por ${snap.data().locked_by}`);
             }

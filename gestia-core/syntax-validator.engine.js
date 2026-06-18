@@ -1,6 +1,6 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - JAVASCRIPT SYNTAX VALIDATOR ENGINE V1.0
+ * GESTIAPREMIUM 2026 - JAVASCRIPT SYNTAX VALIDATOR ENGINE V2.0
  * ======================================================================================
  * Identidad:
  * Validador sintáctico estático previo a cualquier escritura JavaScript en repositorio.
@@ -27,7 +27,18 @@ const VALIDATOR_NAME =
     "gestia-javascript-syntax-validator";
 
 const VALIDATOR_VERSION =
-    "1.0.0";
+    "2.0.0-browser-repo-write";
+
+const VALIDATOR_POLICY = {
+    surface:
+        "browser",
+    parser:
+        "acorn",
+    executesReceivedCode:
+        false,
+    blocksEmptyJavaScript:
+        true
+};
 
 const MODULE_EXTENSIONS =
     new Set([
@@ -176,6 +187,24 @@ export function resolveJavaScriptSourceType(file) {
             "UNSUPPORTED_JAVASCRIPT_EXTENSION",
         message:
             `La extensión ${extension} no pertenece a un archivo JavaScript soportado.`
+    };
+}
+
+export function describeSyntaxValidator() {
+
+    return {
+        ok: true,
+        validator:
+            VALIDATOR_NAME,
+        validatorVersion:
+            VALIDATOR_VERSION,
+        parser:
+            "acorn",
+        parserVersion:
+            acornVersion ||
+            null,
+        policy:
+            VALIDATOR_POLICY
     };
 }
 

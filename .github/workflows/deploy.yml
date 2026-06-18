@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - v5.9-polish
 
 jobs:
   deploy:
@@ -18,8 +19,17 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install functions dependencies
+        run: npm ci --prefix functions
+
+      - name: Validate Jarvis runtime
+        run: npm run ci:test
+
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Deploy to Firebase Hosting
-        run: firebase deploy --only hosting --token "${{ secrets.FIREBASE_TOKEN }}"
+      - name: Deploy to Firebase Hosting and Functions
+        run: firebase deploy --only hosting,functions --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"

@@ -28,6 +28,11 @@ const {
     validateRepoWriteSyntax
 } = require("./repo-syntax-validator");
 
+const {
+    understandServerIntentV7,
+    toPublicIntentContract
+} = require("./jarvis-intent-runtime-v7.cjs");
+
 /**
  * 🛡️ SELLADO DE INFRAESTRUCTURA (GLOBAL SCOPE)
  * Fix Crítico: initializeApp debe ocurrir al cargar el archivo para evitar 'app/no-app'.
@@ -131,6 +136,8 @@ app.post(["/ai-intent", "/api/ai-intent", "*/ai-intent"], async (req, res) => {
     initCore();
 
     const traceId = `trace_intent_${Date.now()}`;
+    let fallbackInput = "";
+    let fallbackIntentContext = {};
 
     try {
         const session = await firewallV5(req);
@@ -149,6 +156,23 @@ const input =
         ? payload.input
         : payload;
 
+const intentContext =
+    req.body?.context ||
+    (
+        typeof payload === "object"
+            ? payload.context
+            : null
+    ) ||
+    {};
+
+fallbackInput =
+    typeof input === "string"
+        ? input
+        : "";
+
+fallbackIntentContext =
+    intentContext;
+
         console.log(
     "🔥 REQUEST_BODY",
     req.body
@@ -160,12 +184,33 @@ console.log(
 );
 
         if (typeof input !== "string" || input.trim().length < 2) {
+            const emptyIntent =
+                understandServerIntentV7(
+                    "",
+                    intentContext
+                );
+
+            const emptyContract =
+                {
+                    ...toPublicIntentContract(
+                        emptyIntent
+                    ),
+                    intent:
+                        "analyze",
+                    target:
+                        "system",
+                    confidence:
+                        0
+                };
+
             return res.json({
-                output: JSON.stringify({
-                    intent: "analyze",
-                    target: "system",
-                    confidence: 0
-                })
+                output:
+                    JSON.stringify(
+                        emptyContract
+                    ),
+                intentV7:
+                    emptyIntent,
+                traceId
             });
         }
 
@@ -173,6 +218,35 @@ console.log(
             return res.status(413).json({
                 error: "INPUT_TOO_LARGE",
                 traceId
+            });
+        }
+
+        const localIntentV7 =
+            understandServerIntentV7(
+                input,
+                intentContext
+            );
+
+        const localContractV7 =
+            toPublicIntentContract(
+                localIntentV7
+            );
+
+        if (
+            localIntentV7.needsClarification === true ||
+            localIntentV7.confidence >= 0.86
+        ) {
+
+            return res.json({
+                output:
+                    JSON.stringify(
+                        localContractV7
+                    ),
+                intentV7:
+                    localIntentV7,
+                traceId,
+                source:
+                    "jarvis_intent_runtime_v7_server"
             });
         }
 
@@ -239,7 +313,7 @@ Input: "${input}"
 
 
             console.log(
-    "🔥 V7_SCHEMA_BYPASS_ACTIVE"
+    "🔥 SERVER_V7_CONTRACT_ACTIVE"
 );
         const result = await model.generateContent(prompt);
 
@@ -274,14 +348,21 @@ Input: "${input}"
             ) {
 
              parsed = {
+              ...localContractV7,
               intent: temp.intent,
-              target: temp.target || "system",
+              target: temp.target || localContractV7.target || "system",
                confidence:
             typeof temp.confidence === "number"
-                ? temp.confidence
-                : 0.5,
+                ? Math.max(
+                    temp.confidence,
+                    localContractV7.confidence || 0
+                )
+                : (localContractV7.confidence || 0.5),
 
-            ...temp
+            externalAI:
+                temp,
+            aiFallback:
+                "gemini_secondary_classifier"
          };
 
           } else {
@@ -292,26 +373,39 @@ Input: "${input}"
         } catch {
             // Fallback seguro si el LLM alucina o el esquema no hace match
             parsed = {
-                intent: "analyze",
-                target: "system",
-                confidence: 0
+                ...localContractV7,
+                aiFallback:
+                    "local_v7_after_invalid_llm_schema"
             };
         }
 
         return res.json({
             output: JSON.stringify(parsed),
+            intentV7:
+                localIntentV7,
             traceId
         });
 
     } catch (error) {
         console.error("🔥 AI INTENT ERROR:", error.message);
 
+        const fallbackIntentV7 =
+            understandServerIntentV7(
+                fallbackInput,
+                fallbackIntentContext
+            );
+
         return res.status(200).json({
-            output: JSON.stringify({
-                intent: "analyze",
-                target: "system",
-                confidence: 0
-            }),
+            output:
+                JSON.stringify({
+                    ...toPublicIntentContract(
+                        fallbackIntentV7
+                    ),
+                    aiFallback:
+                        "local_v7_after_endpoint_error"
+                }),
+            intentV7:
+                fallbackIntentV7,
             error: error.message,
             traceId
         });
@@ -3175,69 +3269,29 @@ exports.repoCommitBackupFile = functions
  */
 
 const { onRequest } = require("firebase-functions/v2/https");
-const { defineSecret } = require("firebase-functions/params");
 const { Octokit } = require("@octokit/rest");
 
-// Definición de Secretos (Nombre del secreto en Secret Manager: "SIA7_KEY_V2")
-const GITHUB_PAT = defineSecret("GITHUB_PAT");
-const SIA7_SECRET_KEY = defineSecret("SIA7_KEY_V2");
-
 exports.executeSIA7Commit = onRequest(
-    { secrets: [GITHUB_PAT, SIA7_SECRET_KEY], region: "us-central1" },
+    { region: "us-central1" },
     async (req, res) => {
         // Validación de CORS
         res.set("Access-Control-Allow-Origin", "*");
         if (req.method === "OPTIONS") {
             res.set("Access-Control-Allow-Methods", "POST");
-            res.set("Access-Control-Allow-Headers", "Content-Type");
+            res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
             return res.status(204).send("");
         }
 
-        // 1. VERIFICACIÓN DE SEGURIDAD (BYPASS TEMPORAL PARA PRUEBA)
-const { auth_token, operation_id, file_path, content, message } = req.body;
-const valorReal = "Heberto_SIA7_2026_Secure!"; 
-
-console.log("DEBUG: Token recibido ->", auth_token);
-console.log("DEBUG: Token comparado ->", valorReal);
-
-if (auth_token !== valorReal) {
-    return res.status(403).json({ 
-        error: "Unauthorized", 
-        debug_recibido: auth_token,
-        debug_esperado: valorReal
-    });
-}
-
-// Inicialización de Octokit (usando la variable directamente para evitar problemas de lectura)
-const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
-        try {
-            // 2. Obtener SHA actual
-            let currentSha;
-            try {
-                const { data: currentFile } = await octokit.repos.getContent({
-                    owner: 'heberzzt-wq',
-                    repo: 'fixgo-app',
-                    path: file_path
-                });
-                currentSha = currentFile.sha;
-            } catch (e) {
-                currentSha = null; // Archivo nuevo
-            }
-
-            // 3. Ejecución del Commit
-            const result = await octokit.repos.createOrUpdateFileContents({
-                owner: 'heberzzt-wq',
-                repo: 'fixgo-app',
-                path: file_path,
-                message: `[SIA7-EXEC] ${message} | OP:${operation_id}`,
-                content: Buffer.from(content).toString('base64'),
-                sha: currentSha
-            });
-
-            res.status(200).json({ status: "success", commit: result.data.commit.sha });
-        } catch (error) {
-            res.status(500).json({ error: "SIA7_EXECUTION_FAILURE", details: error.message });
-        }
+        return res.status(410).json({
+            success: false,
+            blocked: true,
+            status: "deprecated",
+            error: "SIA7_COMMIT_ENDPOINT_DEPRECATED",
+            reason: "SIA7_COMMIT_ENDPOINT_DEPRECATED",
+            message:
+                "Este puente legacy fue retirado. Usa repoCommitWriteFile con Firebase Auth, idempotencia y validacion sintactica.",
+            surface: "server"
+        });
     }
 );
 /**

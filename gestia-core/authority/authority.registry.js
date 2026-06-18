@@ -1,7 +1,21 @@
 /* =========================================================
-   GESTIA AUTHORITY REGISTRY V1
+   GESTIA AUTHORITY REGISTRY V2
    Sovereign Mutation Observability Layer
 ========================================================= */
+
+const AUTHORITY_REGISTRY_VERSION =
+    "2.0.0-authority-contract";
+
+const AUTHORITY_POLICY = {
+    authority:
+        "full_repo_private_owner",
+    safeZone:
+        "advisory",
+    mutationMode:
+        "observed_supervised",
+    blockedPathPolicy:
+        "deny_secrets_git_node_modules"
+};
 
 console.log(
     "🛡️ [AUTHORITY_REGISTRY] Booting..."
@@ -12,7 +26,7 @@ window.__GESTIA_AUTHORITY__ =
 
     initialized: true,
 
-    version: "1.0.0",
+    version: AUTHORITY_REGISTRY_VERSION,
 
     startedAt: Date.now(),
 
@@ -28,6 +42,20 @@ window.__GESTIA_AUTHORITY__ =
 
     riskEvents: []
 };
+
+Object.assign(
+    window.__GESTIA_AUTHORITY__,
+    {
+        version:
+            AUTHORITY_REGISTRY_VERSION,
+        policy:
+            AUTHORITY_POLICY,
+        authorityMode:
+            AUTHORITY_POLICY.authority,
+        safeZone:
+            AUTHORITY_POLICY.safeZone
+    }
+);
 /* =========================================================
    REGISTER MODULE
 ========================================================= */
@@ -46,6 +74,12 @@ export function registerAuthorityModule({
             .modules[module] = {
 
             module,
+
+            version:
+                AUTHORITY_REGISTRY_VERSION,
+
+            policy:
+                AUTHORITY_POLICY,
 
             scopes,
 
@@ -223,6 +257,12 @@ const mutation = {
         crypto.randomUUID(),
 
     module,
+
+    version:
+        AUTHORITY_REGISTRY_VERSION,
+
+    policy:
+        AUTHORITY_POLICY,
 
     source,
 
@@ -402,6 +442,27 @@ export function getAuthoritySnapshot() {
     );
 }
 
+export function describeAuthorityRegistry() {
+
+    return {
+        ok: true,
+        registry:
+            "gestia_authority_registry",
+        version:
+            AUTHORITY_REGISTRY_VERSION,
+        policy:
+            AUTHORITY_POLICY,
+        modules:
+            Object.keys(
+                window.__GESTIA_AUTHORITY__?.modules || {}
+            ).length,
+        mutations:
+            window.__GESTIA_AUTHORITY__?.mutations?.length || 0,
+        riskScore:
+            window.__GESTIA_AUTHORITY__?.riskScore || 0
+    };
+}
+
 /* =========================================================
    GLOBAL EXPOSURE
 ========================================================= */
@@ -412,7 +473,9 @@ window.GestiaAuthority = {
 
     registerMutation,
 
-    getAuthoritySnapshot
+    getAuthoritySnapshot,
+
+    describeAuthorityRegistry
 };
 
 console.log(

@@ -1,6 +1,6 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V16.1 (THE INDESTRUCTIBLE LEDGER)
+ * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V26.1 (THE INDESTRUCTIBLE LEDGER)
  * ======================================================================================
  * Identidad: El Brazo Mecánico con Resolución Pre-Transaccional y Blindaje Forense.
  * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
@@ -27,6 +27,14 @@ import {
     resolveJavaScriptSourceType,
     validateJavaScriptSyntax
 } from "./syntax-validator.engine.js";
+import { scanFile } from "./jarvis/jarvis.scanner.engine.js";
+import { buildAutoFix } from "./jarvis/jarvis.autofix.engine.js";
+import { buildAutoPatch } from "./jarvis/jarvis.autopatch.engine.js";
+import { buildPatchDiff } from "./jarvis/jarvis.patchdiff.engine.js";
+import {
+    recordAutonomyEvent,
+    recallAutonomyLessons
+} from "./jarvis/jarvis.autonomy.engine.js";
 
 import { 
     runTransaction,
@@ -74,6 +82,192 @@ const deepSanitize = (obj) => {
         return acc;
     }, {});
 };
+
+function resolveStepRepoFile(step = {}) {
+    return (
+        step?.payload?.file ||
+        step?.payload?.targetFile ||
+        step?.targetFile ||
+        step?.meta?.planner?.targetFile ||
+        step?.meta?.jarvisIntent?.file ||
+        step?.meta?.repoNode?.file ||
+        (
+            typeof step?.target === "string"
+                ? step.target
+                : null
+        ) ||
+        null
+    );
+}
+
+async function hydrateStepRepoEvidence(step = {}) {
+    const file =
+        resolveStepRepoFile(step);
+
+    if (!file || typeof window.loadRepoContext !== "function") {
+        return step;
+    }
+
+    try {
+        const loaded =
+            await window.loadRepoContext(file);
+
+        if (!loaded?.ok || typeof loaded.source !== "string") {
+            recordAutonomyEvent({
+                status:
+                    "blocked",
+                stage:
+                    "source_preflight",
+                operation:
+                    step?.type ||
+                    "unknown",
+                file,
+                reason:
+                    loaded?.error ||
+                    "SOURCE_NOT_AVAILABLE",
+                context: {
+                    planner:
+                        step?.meta?.planner ||
+                        null
+                }
+            });
+
+            step.meta = {
+                ...(step.meta || {}),
+                sourceLoad: {
+                    ok: false,
+                    file,
+                    error:
+                        loaded?.error ||
+                        "SOURCE_NOT_AVAILABLE"
+                }
+            };
+
+            return step;
+        }
+
+        const report =
+            scanFile(
+                loaded.file || file,
+                loaded.source
+            );
+
+        const autofix =
+            buildAutoFix(report);
+
+        const autopatch =
+            buildAutoPatch(report);
+
+        const patchdiff =
+            buildPatchDiff(report);
+
+        const autonomy =
+            recallAutonomyLessons({
+                file:
+                    loaded.file || file,
+                stage:
+                    "preflight",
+                operation:
+                    step?.type ||
+                    step?.originalType ||
+                    "unknown",
+                scan:
+                    report,
+                planner:
+                    step?.meta?.planner ||
+                    null
+            });
+
+        step.meta = {
+            ...(step.meta || {}),
+            repoEvidence: {
+                ok: true,
+                file:
+                    loaded.file || file,
+                sourceSize:
+                    loaded.source.length,
+                cached:
+                    loaded.cached === true,
+                report,
+                autofix,
+                autopatch,
+                patchdiff,
+                autonomy
+            },
+            source:
+                loaded.source
+        };
+
+        step.payload = {
+            ...(step.payload || {}),
+            sourceSize:
+                loaded.source.length,
+            scannerReport:
+                report,
+            scannerSummary: {
+                risk:
+                    report.risk,
+                flags:
+                    report.flags || [],
+                recommendations:
+                    report.recommendations || [],
+                lessons:
+                    autonomy?.lessons || []
+            }
+        };
+
+        console.log(
+            "[JARVIS_PREFLIGHT_EVIDENCE]",
+            {
+                file:
+                    loaded.file || file,
+                risk:
+                    report.risk,
+                flags:
+                    report.flags
+            }
+        );
+
+        return step;
+    } catch (err) {
+        recordAutonomyEvent({
+            status:
+                "failed",
+            stage:
+                "repo_evidence_preflight",
+            operation:
+                step?.type ||
+                "unknown",
+            file,
+            error:
+                err,
+            context: {
+                planner:
+                    step?.meta?.planner ||
+                    null
+            }
+        });
+
+        step.meta = {
+            ...(step.meta || {}),
+            sourceLoad: {
+                ok: false,
+                file,
+                error:
+                    err.message ||
+                    "SOURCE_PREFLIGHT_FAIL"
+            }
+        };
+
+        console.warn(
+            "[JARVIS_PREFLIGHT_EVIDENCE_FAIL]",
+            file,
+            err
+        );
+
+        return step;
+    }
+}
  // ======================================================================================
 // REPO COMMIT BRIDGE
 // ======================================================================================
@@ -557,34 +751,58 @@ const transactionRepoWrites =
                         retryBuffer.push({ type, target, status: "locked" });
                         break;
                     
-                        // El motor invoca el endpoint que pusiste en tu index.js
-                        // Asegúrate de que el endpoint coincida con la ruta de tu backend
-                        case "SIA7_COMMIT":
-    // Usamos la URL absoluta de tu función desplegada
-    const SIA7_ENDPOINT = "https://executesia7commit-72a7uqnggq-uc.a.run.app";
-    
-    const commitResponse = await fetch(SIA7_ENDPOINT, {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify({
-            // Usamos la llave que configuramos en los Secret Manager de Google
-            auth_token: "Heberto_SIA7_2026_Secure!", 
-            operation_id: opId,
-            file_path: target,
-            content: payload.content,
-            message: payload.commitMessage || "Auto-commit by SIA7"
-        })
-    }).then(r => r.json());
+                    case "SIA7_COMMIT": {
 
-    if (commitResponse.status === "success") {
-        retryBuffer.push({ type, target, status: "committed_to_github" });
-        emitirPulsoHUD(opId, "GIT", "SUCCESS", `Commit ejecutado: ${commitResponse.commit}`);
-    } else {
-        throw new Error("SIA7_REJECTED: " + (commitResponse.error || "Unknown error"));
-    }
-    break;
+                        const commitTarget =
+                            payload?.file ||
+                            payload?.file_path ||
+                            payload?.path ||
+                            target;
+
+                        if (
+                            !commitTarget ||
+                            typeof payload?.content !== "string"
+                        ) {
+
+                            throw new Error(
+                                "SIA7_COMMIT_REQUIRES_FILE_AND_CONTENT"
+                            );
+                        }
+
+                        const commitResult =
+                            await writeRepoFile({
+                                file:
+                                    commitTarget,
+
+                                content:
+                                    payload.content,
+
+                                operationId:
+                                    opId
+                            });
+
+                        retryBuffer.push({
+                            type,
+                            target:
+                                commitTarget,
+                            status:
+                                "committed_to_github",
+                            commit:
+                                commitResult?.commit ||
+                                null,
+                            secure:
+                                true
+                        });
+
+                        emitirPulsoHUD(
+                            opId,
+                            "GIT",
+                            "SUCCESS",
+                            `Commit ejecutado: ${commitResult?.commit || "repoCommitWriteFile"}`
+                        );
+
+                        break;
+                    }
                         /* =====================================================
    ANALYZE FILE HYDRATION
 ===================================================== */
@@ -775,7 +993,7 @@ case "ANALYZE_UI":
 
                             window.JARVIS_SANDBOX_FILES ||= {};
                             window.JARVIS_SANDBOX_FILES[sandboxRuntimeFile] = {
-                                content: payload?.content || "// generated by jarvis",
+                                content: payload?.content ?? null,
                                 updatedAt: Date.now(),
                                 opId
                             };
@@ -786,16 +1004,20 @@ case "ANALYZE_UI":
                         ===================================================== */
                         if (payload?.repairIntent && payload?.repairContext && !payload?.content) {
                             try {
-                                const loaded = await window.loadRepoContext?.(payload.repairContext.targetFile);
-                                if (loaded?.ok) {
-                                    if (payload?.repairContext?.userIntent?.toLowerCase()?.includes("runtimelatency")) {
-                                        payload.content = loaded.source + `\n\nexport function runtimeLatency() { return 0; }`;
-                                    }
-                                }
                                 if (!payload?.content) {
                                     const patch = await window.buildRepairPatch(payload.repairContext);
                                     const generated = await window.generatePatch(patch);
                                     const applied = await window.applyPatch(generated);
+                                    payload.analysis =
+                                        generated?.ok === false
+                                            ? generated
+                                            : patch;
+                                    payload.report =
+                                        patch?.analysisResult ||
+                                        generated?.reason ||
+                                        generated?.error ||
+                                        applied?.error ||
+                                        null;
                                     payload.content = applied?.patched || null;
                                 }
                             } catch(e) { console.error("SIA7 Repair fail", e); }
@@ -807,7 +1029,22 @@ case "ANALYZE_UI":
                         // Si content es null, NI SIQUIERA intentamos tocar el repo ni la DB.
                         if (payload?.content === null || payload?.content === undefined) {
                             console.warn("🧠 [EXECUTOR]: Bloqueo preventivo: Contenido vacío. Saltando escritura.");
-                            retryBuffer.push({ type, target: payload.file, status: "analysis_only_success" });
+                            retryBuffer.push({
+                                type,
+                                target: payload.file,
+                                status: "blocked",
+                                blocked: true,
+                                reason: payload?.analysis?.reason || "EMPTY_WRITE_CONTENT",
+                                result: {
+                                    blocked: true,
+                                    reason: payload?.analysis?.reason || "EMPTY_WRITE_CONTENT",
+                                    report:
+                                        payload?.report ||
+                                        "No se genero contenido ejecutable. Se bloqueo la escritura vacia.",
+                                    analysis: payload?.analysis || null,
+                                    originalIntent: payload?.originalIntent || null
+                                }
+                            });
                         } else {
                             // Solo si hay contenido REAL, procedemos a escribir.
 
@@ -1342,6 +1579,22 @@ const latency = Date.now() - startTime;
     } catch (error) {
         emitirPulsoHUD(opId, "CRASH", "FAILED", error.message);
         console.error("❌ SIA7_EXECUTOR_CRASH:", error);
+
+        recordAutonomyEvent({
+            status:
+                "failed",
+            stage:
+                "ejecutarCambios",
+            operation:
+                "transactional_execution",
+            operationId:
+                opId,
+            error,
+            context: {
+                source:
+                    "operations-executor.engine.js"
+            }
+        });
         
         // Registro forense del error (Best effort)
         try {
@@ -1759,6 +2012,20 @@ if (
     ================================================================================ */
 
 
+    const hydratedSteps =
+        [];
+
+    for (const step of steps || []) {
+        hydratedSteps.push(
+            await hydrateStepRepoEvidence(step)
+        );
+    }
+
+    const executionSteps =
+        hydratedSteps.length
+            ? hydratedSteps
+            : (steps || []);
+
    
 
     const proposal = {
@@ -1812,7 +2079,7 @@ if (
 
         changes:
 
-            (steps || [])
+            (executionSteps || [])
 
             .map(step => {
 
@@ -1852,6 +2119,23 @@ if (
 
                         payload:
                             step?.payload || {},
+
+                        meta: {
+                            ...(step?.meta || {}),
+                            repoAware:
+                                step?.meta?.repoAware ||
+                                !!step?.meta?.repoEvidence,
+                            repoEvidence:
+                                step?.meta?.repoEvidence ||
+                                null,
+                            repoNode:
+                                step?.meta?.repoNode ||
+                                null,
+                            originalType:
+                                step?.originalType ||
+                                step?.meta?.originalType ||
+                                "CODE_WRITE"
+                        },
 
                         priority:
                             step?.priority || "HIGH",
@@ -2398,6 +2682,32 @@ const normalizedExecutionStatus =
         ? "blocked"
         : "success";
 
+recordAutonomyEvent({
+    status:
+        normalizedExecutionStatus,
+    stage:
+        "executeSteps",
+    operation:
+        proposal?.type ||
+        proposal?.changes?.[0]?.type ||
+        "hybrid_execution",
+    operationId,
+    error:
+        blockingResult,
+    reason:
+        blockingResult?.reason ||
+        blockingResult?.status ||
+        null,
+    context: {
+        source:
+            "operations-executor.engine.js",
+        planner:
+            proposal?.planner ||
+            proposal?.changes?.[0]?.meta?.planner ||
+            null
+    }
+});
+
 return {
 
     status:
@@ -2450,7 +2760,7 @@ console.log(
 );
 
 /* =====================================================
-   JARVIS RUNTIME EXECUTION LINK V1
+   JARVIS RUNTIME EXECUTION LINK V2
 ===================================================== */
 
 if (

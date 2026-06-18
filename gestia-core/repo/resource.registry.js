@@ -6,7 +6,7 @@
 window.__SIA7_RESOURCE_REGISTRY__ ||= {
 
     version:
-        "SIA7_V1",
+        "SIA7_V2",
 
     hydratedAt:
         null,
@@ -52,6 +52,24 @@ window.__SIA7_RESOURCE_REGISTRY__ ||= {
 
 const registry =
     window.__SIA7_RESOURCE_REGISTRY__;
+
+registry.version =
+    "SIA7_V2";
+
+registry.hydrationCount =
+    (registry.hydrationCount || 0) + 1;
+
+registry.files = {};
+registry.modules = {};
+registry.dependencies = {};
+registry.ownership = {};
+registry.collections = {};
+registry.firestoreBindings = {};
+registry.engines = {};
+registry.hubs = {};
+registry.runtime = {};
+registry.impactGraph = {};
+registry.governance = {};
 
 /* =====================================================
    FIRESTORE COLLECTIONS

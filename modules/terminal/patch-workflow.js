@@ -1,10 +1,12 @@
 /* =====================================================================================
-   PATCH WORKFLOW MODULE
+   PATCH WORKFLOW MODULE V2
    Extracted from gestia-terminal.js to keep terminal orchestration scalable.
 ===================================================================================== */
 
+const PATCH_WORKFLOW_VERSION = "2.0.0-full-repo-authority";
+
 /* =====================================================
-   PATCH ENGINE V1
+   PATCH ENGINE V2
 ===================================================== */
 
 
@@ -53,7 +55,8 @@ window.generatePatch = async function(config = {}) {
             loaded.source || "";
 
             /* =====================================================
-   SAFE ZONE ENFORCEMENT
+   SAFE ZONE SIGNAL
+   Full-repo authority: safe zone is advisory, not a hard cage.
 ===================================================== */
 
 const safe =
@@ -62,16 +65,14 @@ const safe =
     );
 
 if (!safe) {
-
-    return {
-
-        ok: false,
-
-        reason:
-            "DENY_PATCH_UNSAFE_ZONE",
-
-        file
-    };
+    console.warn(
+        "[PATCH_FULL_REPO_AUTHORITY]",
+        {
+            file,
+            reason:
+                "SAFE_ZONE_NOT_PRESENT_REVIEW_REQUIRED"
+        }
+    );
 }
 
         const exists =
@@ -107,7 +108,16 @@ if (!safe) {
                 patched.length,
 
             changed:
-                source !== patched
+                source !== patched,
+
+            safeZone:
+                !!safe,
+
+            fullRepoAuthority:
+                !safe,
+
+            reviewRequired:
+                !safe
         };
 
         console.log(
@@ -125,7 +135,16 @@ if (!safe) {
 
             patched,
 
-            diff: diffPreview
+            diff: diffPreview,
+
+            safeZone:
+                !!safe,
+
+            fullRepoAuthority:
+                !safe,
+
+            reviewRequired:
+                !safe
         };
 
     } catch (err) {
@@ -145,7 +164,7 @@ if (!safe) {
 
 
 /* =====================================================
-   PATCH APPLY ENGINE V1
+   PATCH APPLY ENGINE V2
 ===================================================== */
 
 
@@ -352,7 +371,7 @@ return {
 };
 
 /* =====================================================
-   PATCH WORKFLOW BRIDGE V1
+   PATCH WORKFLOW BRIDGE V2
 ===================================================== */
 
 window.runPatchWorkflow = async function({
@@ -419,20 +438,24 @@ window.runPatchWorkflow = async function({
 };
 
 /* =====================================================
-   SAFE EDIT VALIDATOR V1
+   SAFE EDIT VALIDATOR V2
 ===================================================== */
 
 window.isSafeEditZone = function(source = "") {
 
     try {
 
+        const normalizedSource =
+            String(source)
+                .toUpperCase();
+
         return (
 
-            source.includes(
+            normalizedSource.includes(
                 "FIXGO_SAFE_EDIT_START"
             ) &&
 
-            source.includes(
+            normalizedSource.includes(
                 "FIXGO_SAFE_EDIT_END"
             )
         );
@@ -449,33 +472,41 @@ window.isSafeEditZone = function(source = "") {
 };
 
 /* =====================================================
-   SAFE REPO PATH VALIDATOR V1
+   SAFE REPO PATH VALIDATOR V2
 ===================================================== */
 
 window.isSafeRepoPath = function(file = "") {
 
     try {
 
-        if (!file) {
+        const normalized =
+            String(file)
+                .replace(/\\/g, "/")
+                .trim();
+
+        if (
+            !normalized ||
+            normalized.startsWith("/") ||
+            normalized.includes("..")
+        ) {
             return false;
         }
 
-        const SAFE_PATHS = [
+        const blockedPaths = [
 
-            "modules/",
-            "sandbox/",
-            "gestia-core/hubs/",
-            "gestia-core/adapters/",
-            "gestia-core/authority/"
+            /^\.git\//i,
+            /^node_modules\//i,
+            /^functions\/node_modules\//i,
+            /^\.env(\.|$)/i,
+            /serviceaccount.*\.json$/i,
+            /firebase-adminsdk.*\.json$/i,
+            /private[-_]?key/i,
+            /secret/i
         ];
 
-        return SAFE_PATHS.some(
-
-            safePath =>
-
-                file.startsWith(
-                    safePath
-                )
+        return !blockedPaths.some(
+            pattern =>
+                pattern.test(normalized)
         );
 
     } catch(err) {
@@ -491,7 +522,7 @@ window.isSafeRepoPath = function(file = "") {
 };
 
 /* =====================================================
-   SNAPSHOT ENGINE V1
+   SNAPSHOT ENGINE V2
 ===================================================== */
 
 window.__REPO_SNAPSHOTS__ ||= {};
@@ -628,4 +659,15 @@ window.writeSandboxFile = async function(payload = {}) {
             error: err.message
         };
     }
+};
+
+window.PatchWorkflowV2 = {
+    version:
+        PATCH_WORKFLOW_VERSION,
+    authority:
+        "full_repo_private_owner",
+    safeZone:
+        "advisory",
+    blockedPathPolicy:
+        "deny_secrets_git_node_modules"
 };

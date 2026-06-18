@@ -10,7 +10,7 @@ function a() {
 
 export function runtimelatency() {
 
-    return 252;
+    return 253;
 }
 
 /* fixgo_safe_edit_end */

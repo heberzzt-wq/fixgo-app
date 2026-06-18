@@ -1,6 +1,18 @@
 /* =========================================================
-   SOVEREIGN REPO COGNITION INDEX V1
+   SOVEREIGN REPO COGNITION INDEX V2
 ========================================================= */
+
+window.__REPO_COGNITION_INDEX_VERSION__ =
+    "2.0.0-repo-cognition-index";
+
+window.__REPO_COGNITION_INDEX_POLICY__ = {
+    authority:
+        "full_repo_private_owner",
+    safeZone:
+        "advisory",
+    indexMode:
+        "repo_wide"
+};
 
 
 console.log(
@@ -9,6 +21,23 @@ console.log(
 
 
 window.__REPO_INDEX__ ||= {};
+
+window.describeRepoCognitionIndex = function() {
+
+    return {
+        ok: true,
+        index:
+            "repo_cognition_index",
+        version:
+            window.__REPO_COGNITION_INDEX_VERSION__,
+        policy:
+            window.__REPO_COGNITION_INDEX_POLICY__,
+        total:
+            Object.keys(
+                window.__REPO_INDEX__ || {}
+            ).length
+    };
+};
 
 /* =========================================================
    REGISTER REPO NODE
@@ -27,6 +56,12 @@ function(node = {}) {
 }
 
 const cognition = {
+
+    version:
+        window.__REPO_COGNITION_INDEX_VERSION__,
+
+    policy:
+        window.__REPO_COGNITION_INDEX_POLICY__,
 
     runtimeRole:
         "sandbox_runtime",
@@ -312,11 +347,12 @@ window.__FULL_REPO_STRUCTURE__ = [
     "jarvis.bridge.v4.js",
     "jarvis.business.engine.js",
     "jarvis.company.registry.js",
-    "jarvis.conversation.engine.v7.js",
     "jarvis.context.memory.v6.js",
     "jarvis.dsl.js",
     "jarvis.firestore.engine.js",
+    "jarvis.intent.runtime.v7.js",
     "jarvis.language.core.v5.js",
+    "jarvis.marketing.engine.js",
     "jarvis.memory.js",
     "jarvis.normalizer.js",
     "jarvis.orchestrator.js",

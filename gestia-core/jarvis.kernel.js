@@ -1,7 +1,19 @@
 /* =====================================================
-   GESTIA COGNITIVE KERNEL V1
+   GESTIA COGNITIVE KERNEL V2
    Sovereign Runtime Connector
 ===================================================== */
+
+const GESTIA_KERNEL_VERSION =
+    "2.0.0-cognitive-kernel";
+
+const GESTIA_KERNEL_POLICY = {
+    authority:
+        "full_repo_private_owner",
+    safeZone:
+        "advisory",
+    contract:
+        "kernel_hub_authority_v2"
+};
 
 /* =====================================================
    EXECUTION HUB
@@ -106,13 +118,44 @@ window.GestiaOS.jarvis =
 window.GestiaOS.kernel = {
 
     version:
-        "V1",
+        "V2",
+
+    contractVersion:
+        GESTIA_KERNEL_VERSION,
+
+    policy:
+        GESTIA_KERNEL_POLICY,
 
     status:
         "ONLINE",
 
     initializedAt:
         Date.now()
+};
+
+window.GestiaOS.describeKernel = function() {
+
+    return {
+        ok: true,
+        kernel:
+            "GestiaOS",
+        version:
+            GESTIA_KERNEL_VERSION,
+        policy:
+            GESTIA_KERNEL_POLICY,
+        hubs: {
+            execution:
+                execution.describeExecutionHub?.() || null,
+            analysis:
+                analysis.describeAnalysisHub?.() || null,
+            security:
+                security.describeSecurityHub?.() || null,
+            repo:
+                repoHub.describeRepoHub?.() || null,
+            authority:
+                authority.describeAuthorityRegistry?.() || null
+        }
+    };
 };
 
 /* =====================================================

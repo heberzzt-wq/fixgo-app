@@ -1,3 +1,26 @@
+const RUNTIME_EVENT_BUS_V2_VERSION =
+    "2.0.0-runtime-event-bus";
+
+window.RuntimeEventBusV2 = {
+    version:
+        RUNTIME_EVENT_BUS_V2_VERSION,
+    mode:
+        "queued_runtime_dispatch",
+    describe() {
+        return {
+            ok: true,
+            module:
+                "runtime_event_bus",
+            version:
+                RUNTIME_EVENT_BUS_V2_VERSION,
+            queueActive:
+                window.__RUNTIME_EVENT_BUS__?.dispatchQueue?.active === true,
+            pendingEvents:
+                window.__RUNTIME_EVENT_BUS__?.dispatchQueue?.events?.length || 0
+        };
+    }
+};
+
 window.bootstrapRuntimeCognition =
 async function() {
 
@@ -188,7 +211,7 @@ dispatchQueue: {
 
 
 /* =====================================================
-   RUNTIME CHANNEL STATE FACTORY V1
+   RUNTIME CHANNEL STATE FACTORY V2
 ===================================================== */
 
 window.createRuntimeChannelState =
@@ -2017,7 +2040,7 @@ console.log(
 };
 
 /* =====================================================
-   RUNTIME DISPATCH PROCESSOR V1
+   RUNTIME DISPATCH PROCESSOR V2
 ===================================================== */
 
 window.processRuntimeDispatchQueue =
@@ -2281,6 +2304,13 @@ async function() {
    AUTO HYDRATION
 ===================================================== */
 
+if (
+    !window.__RUNTIME_AUTO_HYDRATION_BOUND__
+) {
+
+window.__RUNTIME_AUTO_HYDRATION_BOUND__ =
+    true;
+
 window.addEventListener(
     "load",
 
@@ -2306,7 +2336,7 @@ window.addEventListener(
             await bootstrapRepoCognition();
 
 await import(
-    "./gestia-core/repair-translator.engine.js?v=" +
+    "/gestia-core/repair-translator.engine.js?v=" +
     Date.now()
 );
 
@@ -2314,11 +2344,8 @@ console.log(
     "🧠 [REPAIR_TRANSLATOR_LOADED]"
 );
 
-            await bootstrapRepoCognition();
-
-
             await import(
-    "./gestia-core/repo/resource.registry.js?v=" +
+    "/gestia-core/repo/resource.registry.js?v=" +
     Date.now()
 );
 
@@ -2351,7 +2378,7 @@ try {
     const brainModule =
 
         await import(
-            "./gestia-core/brain.engine.js"
+            "/gestia-core/brain.engine.js"
         );
 
     console.log(
@@ -2365,7 +2392,7 @@ try {
     const semanticModule =
 
         await import(
-            "./gestia-core/semantic.engine.js"
+            "/gestia-core/semantic.engine.js"
         );
 
     console.log(
@@ -2379,7 +2406,7 @@ try {
     const gestiaCoreModule =
 
         await import(
-            "./gestia-core/gestia-core.js"
+            "/gestia-core/gestia-core.js"
         );
 
     console.log(
@@ -2592,5 +2619,8 @@ catch(error) {
                 error
             );
         }
-    }
+    },
+    { once: true }
 );
+
+}

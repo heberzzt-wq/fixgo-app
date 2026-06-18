@@ -1,7 +1,34 @@
 /* =====================================================================================
-   PERSISTENT COGNITIVE RUNTIME V1
+   PERSISTENT COGNITIVE RUNTIME V2
    SNAPSHOT ENGINE
 ===================================================================================== */
+
+const RUNTIME_PERSISTENCE_V2_VERSION =
+    "2.0.0-runtime-persistence";
+
+window.RuntimePersistenceV2 = {
+    version:
+        RUNTIME_PERSISTENCE_V2_VERSION,
+    authority:
+        "full_repo_private_owner",
+    persistence:
+        "indexeddb_runtime_snapshots",
+    safeZone:
+        "advisory",
+    describe() {
+        return {
+            ok: true,
+            module:
+                "runtime_persistence",
+            version:
+                RUNTIME_PERSISTENCE_V2_VERSION,
+            db:
+                COGNITIVE_RUNTIME_DB.DB_NAME,
+            store:
+                COGNITIVE_RUNTIME_DB.STORE_NAME
+        };
+    }
+};
 
 const COGNITIVE_RUNTIME_DB = {
 
@@ -288,7 +315,7 @@ window.initRuntimePersistence = async function() {
 
 
 /* =====================================================
-   PRUNE RUNTIME SNAPSHOTS V1
+   PRUNE RUNTIME SNAPSHOTS V2
 ===================================================== */
 
 window.pruneRuntimeSnapshots =
@@ -1292,7 +1319,7 @@ const runtimeSnapshots =
 };
 
 /* =====================================================
-   VALIDATE RUNTIME SNAPSHOT V1
+   VALIDATE RUNTIME SNAPSHOT V2
 ===================================================== */
 
 window.validateRuntimeSnapshot =
@@ -1460,7 +1487,7 @@ function(snapshot) {
     }
 };
 /* =====================================================
-   RESTORE RUNTIME SNAPSHOT V1
+   RESTORE RUNTIME SNAPSHOT V2
 ===================================================== */
 
 window.restoreRuntimeSnapshot =
@@ -1524,7 +1551,7 @@ console.log(
 
 
 /* =============================================
-   CROSS SURFACE RESTORE BLOCK V1
+   CROSS SURFACE RESTORE BLOCK V2
 ============================================= */
 
 const currentSurface = (() => {
@@ -1814,7 +1841,7 @@ window.__RUNTIME_HEALTH_MAP__ =
             snapshot
                 ?.cognitionVersion ||
 
-            "SIA7_RUNTIME_V1";
+            "SIA7_RUNTIME_V2";
 
         /* =================================================
            RUNTIME RE-REGISTRATION

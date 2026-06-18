@@ -13,6 +13,7 @@
     }
   ],
   "hosting": {
+    "site": "fixgo-44e4d",
     "public": ".",
 
       "ignore": [
@@ -60,11 +61,41 @@
     "rewrites": [
   {
     "source": "/api/**",
-    "function": "default"
+    "function": "api"
   }
 ],
 
     "headers": [
+      {
+        "source": "**/*.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+
+      {
+        "source": "/gestia-core/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+
+      {
+        "source": "/modules/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+
       {
         "source": "/assets/**",
         "headers": [

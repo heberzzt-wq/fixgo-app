@@ -1,7 +1,29 @@
 /* =====================================================================================
-   GESTIA REPO HUB V1
+   GESTIA REPO HUB V2
    Sovereign Repo Federation Layer
 ===================================================================================== */
+
+export const REPO_HUB_VERSION = "2.0.0-full-repo-contract";
+
+export function describeRepoHub() {
+
+    return {
+        ok: true,
+        hub: "repo",
+        version:
+            REPO_HUB_VERSION,
+        authority:
+            "full_repo_private_owner",
+        capabilities: [
+            "scan_repo",
+            "impact_analysis",
+            "patch_generation",
+            "patch_application",
+            "repo_cognition",
+            "dependency_graph"
+        ]
+    };
+}
 
 export const scanRepo =
     (...args) =>

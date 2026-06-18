@@ -14,7 +14,9 @@
 
 // 🔌 IMPORTS (AI PIPELINE)
 import { normalizeAIPlan } from "./jarvis.normalizer.js";
-import { analyzeConversation } from "./jarvis.conversation.engine.v7.js";
+import {
+    understandIntentV7
+} from "./jarvis.intent.runtime.v7.js?v=jarvis-core-v2-marketing-20260617";
 
 import { sincronizarYPersistirPlan } from "/gestia-core/persistence.engine.js";
 
@@ -25,6 +27,319 @@ function safeLog(label, data = "") {
 
 function safeError(label, err = "") {
     console.error(`❌ [JARVIS_UNIFIED:${label}]`, err);
+}
+
+function readJarvisIntentV7(input = "") {
+    try {
+        const text =
+            typeof input === "string"
+                ? input
+                : input?.input || input?.raw || "";
+
+        if (!text) return null;
+
+        const understood =
+            understandIntentV7(text);
+
+        console.log(
+            "[JARVIS_INTENT_V7_BRIDGE]",
+            understood
+        );
+
+        return understood;
+    } catch (err) {
+        console.warn(
+            "[JARVIS_INTENT_V7_BRIDGE_FAIL]",
+            err
+        );
+
+        return null;
+    }
+}
+
+function findRepoNodeForJarvisIntent(enriched = {}) {
+    const targetFile =
+        enriched?.file ||
+        enriched?.planner?.targetFile ||
+        enriched?.target ||
+        null;
+
+    if (!targetFile) return null;
+
+    try {
+        const found =
+            window.findRepoFile?.(
+                targetFile
+            );
+
+        return found?.[1] || null;
+    } catch (err) {
+        console.warn(
+            "[JARVIS_INTENT_V7_REPO_NODE_FAIL]",
+            err
+        );
+
+        return null;
+    }
+}
+
+function buildV7Cognition(raw, enriched = {}, baseCognition = {}) {
+    const planner =
+        enriched?.planner || {};
+
+    const repoNode =
+        findRepoNodeForJarvisIntent(enriched) ||
+        baseCognition?.repoNode ||
+        null;
+
+    return {
+        ...(baseCognition || {}),
+        original:
+            baseCognition?.original ||
+            raw,
+        intent:
+            planner.stepType ||
+            enriched?.intent ||
+            baseCognition?.intent ||
+            "UNKNOWN",
+        domain:
+            planner.repoAware
+                ? "repository"
+                : (baseCognition?.domain || "general"),
+        target:
+            planner.target ||
+            enriched?.target ||
+            baseCognition?.target ||
+            null,
+        targetFile:
+            planner.targetFile ||
+            enriched?.file ||
+            baseCognition?.targetFile ||
+            null,
+        expectedOutput:
+            enriched?.intent === "REPAIR"
+                ? "repo_patch"
+                : (baseCognition?.expectedOutput || "planner_context"),
+        cognitionLayer:
+            enriched?.intent === "REPAIR"
+                ? "repo_surgeon"
+                : (baseCognition?.cognitionLayer || "jarvis_intent_runtime_v7"),
+        confidence:
+            enriched?.confidence ||
+            planner.confidence ||
+            baseCognition?.confidence ||
+            0.5,
+        repoAware:
+            planner.repoAware === true ||
+            baseCognition?.repoAware === true,
+        repoNode,
+        jarvisIntentV7:
+            enriched,
+        planner,
+        repairHints:
+            enriched?.repairHints ||
+            planner.repairHints ||
+            null,
+        value:
+            enriched?.value ||
+            planner.value ||
+            null,
+        issue:
+            enriched?.issue ||
+            planner.issue ||
+            null
+    };
+}
+
+function buildRawPlanFromJarvisIntent(raw, enriched = {}, baseCognition = {}) {
+    if (!enriched?.planner || enriched.needsClarification) {
+        return null;
+    }
+
+    const planner =
+        enriched.planner;
+
+    const cognition =
+        buildV7Cognition(
+            raw,
+            enriched,
+            baseCognition
+        );
+
+    const target =
+        planner.target ||
+        enriched.target ||
+        enriched.file ||
+        "system";
+
+    const stepType =
+        planner.stepType ||
+        planner.planType ||
+        enriched.intent ||
+        "ANALYZE";
+
+    return {
+        intent:
+            stepType,
+        target,
+        targetFile:
+            planner.targetFile ||
+            enriched.file ||
+            null,
+        confidence:
+            enriched.confidence ||
+            planner.confidence ||
+            0.5,
+        cognition,
+        domain:
+            cognition.domain,
+        jarvisIntent:
+            enriched,
+        planner,
+        repairHints:
+            enriched.repairHints ||
+            planner.repairHints ||
+            null,
+        value:
+            enriched.value ||
+            planner.value ||
+            null,
+        issue:
+            enriched.issue ||
+            planner.issue ||
+            null,
+        steps: [
+            {
+                id:
+                    `step_v7_${
+                        Date.now()
+                    }`,
+                type:
+                    stepType,
+                target,
+                targetFile:
+                    planner.targetFile ||
+                    enriched.file ||
+                    null,
+                payload: {
+                    file:
+                        planner.targetFile ||
+                        enriched.file ||
+                        null,
+                    target,
+                    value:
+                        enriched.value ||
+                        planner.value ||
+                        null,
+                    issue:
+                        enriched.issue ||
+                        planner.issue ||
+                        null,
+                    repairHints:
+                        enriched.repairHints ||
+                        planner.repairHints ||
+                        null,
+                    originalPrompt:
+                        JSON.stringify({
+                            cognition,
+                            jarvisIntent:
+                                enriched,
+                            planner,
+                            raw
+                        })
+                },
+                meta: {
+                    source:
+                        "jarvis_intent_runtime_v7",
+                    confidence:
+                        enriched.confidence ||
+                        planner.confidence ||
+                        0.5,
+                    originalTarget:
+                        target,
+                    repoAware:
+                        planner.repoAware === true,
+                    repoNode:
+                        cognition.repoNode ||
+                        null,
+                    jarvisIntent:
+                        enriched,
+                    planner
+                }
+            }
+        ]
+    };
+}
+
+function mergeJarvisIntentIntoPlan(rawPlan = {}, enriched = {}, baseCognition = {}) {
+    if (!rawPlan || typeof rawPlan !== "object" || !enriched?.planner) {
+        return rawPlan;
+    }
+
+    const planner =
+        enriched.planner;
+
+    const cognition =
+        buildV7Cognition(
+            baseCognition?.original || enriched.raw || "",
+            enriched,
+            rawPlan.cognition || baseCognition
+        );
+
+    const targetFile =
+        planner.targetFile ||
+        enriched.file ||
+        rawPlan.targetFile ||
+        cognition.targetFile ||
+        null;
+
+    rawPlan.jarvisIntent =
+        enriched;
+
+    rawPlan.planner =
+        {
+            ...(rawPlan.planner || {}),
+            ...planner
+        };
+
+    rawPlan.cognition =
+        cognition;
+
+    rawPlan.confidence =
+        Math.max(
+            Number(rawPlan.confidence || 0),
+            Number(enriched.confidence || planner.confidence || 0)
+        ) || rawPlan.confidence;
+
+    rawPlan.target =
+        targetFile ||
+        planner.target ||
+        enriched.target ||
+        rawPlan.target ||
+        "system";
+
+    rawPlan.targetFile =
+        targetFile;
+
+    rawPlan.value =
+        enriched.value ||
+        planner.value ||
+        rawPlan.value ||
+        null;
+
+    rawPlan.issue =
+        enriched.issue ||
+        planner.issue ||
+        rawPlan.issue ||
+        null;
+
+    rawPlan.repairHints =
+        enriched.repairHints ||
+        planner.repairHints ||
+        rawPlan.repairHints ||
+        null;
+
+    return rawPlan;
 }
 
 /* =====================================================================================
@@ -732,8 +1047,15 @@ async function resolveCommands(raw = "") {
         }
 
         if (low.includes("repara") || low.includes("optimiza") || low.includes("fija")) {
-            commands.push("REPAIR::system");
-            continue;
+            const v7 =
+                readJarvisIntentV7(t);
+
+            if (v7?.command) {
+                commands.push(
+                    v7.command
+                );
+                continue;
+            }
         }
 
         if (low.includes("pago") || low.includes("pagos")) {
@@ -754,6 +1076,25 @@ async function resolveCommands(raw = "") {
         ====================================== */
         // Delegamos al motor real para obtener la estructura técnica
         const structured = await runIntentEngine(t);
+
+        if (structured?.needsClarification) {
+            const clarification =
+                structured.message ||
+                structured.clarification ||
+                "Necesito mas contexto para armar el plan.";
+
+            render(
+                "Jarvis",
+                clarification,
+                "warning"
+            );
+
+            speak(
+                clarification
+            );
+
+            continue;
+        }
 
         if (structured && structured.intent && structured.entity) {
             commands.push(`${structured.intent}::${structured.entity}`);
@@ -1060,7 +1401,7 @@ export const JarvisBridge = {
         tecnico_b2b: "./panel-tecnico.js",
         admin: "./panel-admin.js",
         cliente: "./panel-cliente.js",
-        bridge: "/gestia-core/jarvis/jarvis.bridge.v4.js",
+        bridge: "/gestia-core/jarvis/jarvis.bridge.v5.js",
         terminal: "/gestia-core/gestia-terminal.js",
         memory: "/gestia-core/jarvis/jarvis.memory.js",
         ui: "./app-main.js"
@@ -1079,6 +1420,11 @@ export const JarvisBridge = {
             raw = String(input || "").trim();
             rawLow = raw.toLowerCase();
         }
+
+        const jarvisIntentV7 =
+            !isStructured
+                ? readJarvisIntentV7(raw)
+                : null;
 
         /* =====================================================
             🛡️ 2. HARDEN GLOBAL SCOPE (V5.18 BOOT-FIX)
@@ -1104,35 +1450,19 @@ function classifyHumanIntent(
             .toLowerCase()
             .trim();
 
-            const conversation =
-    analyzeConversation(input, { remember: false });
+            if (
+                jarvisIntentV7?.action &&
+                !jarvisIntentV7?.socialIntent
+            ) {
 
-if (
-    conversation?.confidence >= 0.7 &&
-    (
-        conversation.intent !== "ANALYZE" ||
-        conversation.entity !== "SYSTEM"
-    )
-) {
-
-    return {
-        type: "OPERATIONAL",
-        confidence: conversation.confidence,
-        conversation
-    };
-}
-
-if (
-    conversation?.humanState?.greeting ||
-    conversation?.humanState?.thanks
-) {
-
-    return {
-        type: "SOCIAL",
-        confidence: conversation.confidence,
-        conversation
-    };
-}
+                return {
+                    type:
+                        "OPERATIONAL",
+                    confidence:
+                        jarvisIntentV7.confidence ||
+                        0.95
+                };
+            }
 
             const cognition =
     window.JarvisCognitionEngine
@@ -1232,6 +1562,41 @@ const HUMAN_FAST_PATH =
 
 
 const AI_MODE = !HUMAN_FAST_PATH;
+
+if (
+    AI_MODE &&
+    jarvisIntentV7?.needsClarification
+) {
+    const clarification =
+        jarvisIntentV7.clarification ||
+        "Necesito un poco mas de contexto para armar el plan.";
+
+    render(
+        "Jarvis",
+        clarification,
+        "warning"
+    );
+
+    speak(
+        clarification
+    );
+
+    return {
+        ok: true,
+        needsClarification: true,
+        halted: true,
+        source: "jarvis_intent_runtime_v7",
+        intent: jarvisIntentV7.intent,
+        entity: jarvisIntentV7.entity,
+        target: jarvisIntentV7.target,
+        targetFile: jarvisIntentV7.file,
+        value: jarvisIntentV7.value,
+        confidence: jarvisIntentV7.confidence,
+        planner: jarvisIntentV7.planner,
+        jarvisIntent: jarvisIntentV7,
+        message: clarification
+    };
+}
 
 
         
@@ -1416,6 +1781,23 @@ try {
     🔥 CODE SURGEON MODE (INTERCEPTOR ALTA PRIORIDAD)
 ===================================================== */
 if (
+    jarvisIntentV7?.planner &&
+    !jarvisIntentV7.needsClarification
+) {
+    cognition =
+        buildV7Cognition(
+            raw,
+            jarvisIntentV7,
+            cognition || {}
+        );
+
+    console.log(
+        "[COGNITION_ENRICHED_BY_V7]",
+        cognition
+    );
+}
+
+if (
     this.codeSurgeonMode &&
     (
         rawLow.includes("revisa panel") ||
@@ -1564,6 +1946,13 @@ try {
 
             cognition,
 
+            jarvisIntent:
+                jarvisIntentV7,
+
+            planner:
+                jarvisIntentV7?.planner ||
+                null,
+
             mode: "PLANNER",
 
             context,
@@ -1600,7 +1989,13 @@ try {
             "🧠 [COGNITION_FALLBACK]"
         );
 
-        rawPlan = {
+        rawPlan =
+            buildRawPlanFromJarvisIntent(
+                raw,
+                jarvisIntentV7,
+                cognition || {}
+            ) ||
+        {
 
             intent:
                 cognition?.intent,
@@ -1625,6 +2020,25 @@ try {
     "🧪 AI_RETURNED",
     rawPlan
 );
+
+if (
+    (!rawPlan || typeof rawPlan !== "object") &&
+    jarvisIntentV7?.planner
+) {
+    rawPlan =
+        buildRawPlanFromJarvisIntent(
+            raw,
+            jarvisIntentV7,
+            cognition || {}
+        );
+}
+
+rawPlan =
+    mergeJarvisIntentIntoPlan(
+        rawPlan,
+        jarvisIntentV7,
+        cognition || {}
+    );
 
                 if (
 
@@ -1703,9 +2117,11 @@ if (
 
                 console.log(
     "🧠 [RAW_PLAN]",
-    JSON.parse(
-        JSON.stringify(rawPlan)
-    )
+    rawPlan
+        ? JSON.parse(
+            JSON.stringify(rawPlan)
+        )
+        : rawPlan
 );
 
                 if (!rawPlan || typeof rawPlan !== "object") throw new Error("AI no devolvió un plan válido");
@@ -1714,10 +2130,19 @@ if (
                 if (typeof normalizeAIPlan !== 'function') throw new Error("Normalizer no disponible");
 
 
-                rawPlan.cognition = cognition;
-rawPlan.domain = cognition?.domain || null;
+                rawPlan.cognition =
+    cognition ||
+    rawPlan.cognition ||
+    null;
+rawPlan.domain =
+    cognition?.domain ||
+    rawPlan.domain ||
+    null;
 rawPlan.targetFile =
-    cognition?.targetFile || null;
+    cognition?.targetFile ||
+    rawPlan.targetFile ||
+    jarvisIntentV7?.file ||
+    null;
 
                 const plan = normalizeAIPlan(rawPlan);
                 if (!plan || !plan.steps || !plan.steps.length) throw new Error("Plan sin pasos ejecutables.");

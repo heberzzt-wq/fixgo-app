@@ -2,6 +2,9 @@
    REPO BOOTSTRAP INDEX
 ===================================================== */
 
+window.__REPO_INDEX__ ||= {};
+window.__MODULE_OWNERSHIP__ ||= {};
+
 window.__REPO_INDEX__["gestia-terminal.js"] = {
     path: "gestia-terminal.js",
     module: "terminal",
@@ -288,9 +291,9 @@ window.__REPO_INDEX__["jarvis-nlu-bridge.js"] = {
     critical: true
 };
 
-window.__REPO_INDEX__["jarvis.conversation.engine.v7.js"] = {
-    path: "gestia-core/jarvis/jarvis.conversation.engine.v7.js",
-    module: "jarvis_conversation_v7",
+window.__REPO_INDEX__["jarvis.intent.runtime.v7.js"] = {
+    path: "gestia-core/jarvis/jarvis.intent.runtime.v7.js",
+    module: "jarvis_intent_runtime_v7",
     type: "cognitive_runtime",
     critical: true
 };
@@ -327,6 +330,13 @@ window.__REPO_INDEX__["jarvis.business.engine.js"] = {
     path: "gestia-core/jarvis/jarvis.business.engine.js",
     module: "jarvis_business",
     type: "business_runtime",
+    critical: false
+};
+
+window.__REPO_INDEX__["jarvis.marketing.engine.js"] = {
+    path: "gestia-core/jarvis/jarvis.marketing.engine.js",
+    module: "jarvis_marketing",
+    type: "marketing_runtime",
     critical: false
 };
 

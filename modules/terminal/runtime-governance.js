@@ -2,17 +2,46 @@
    REPO REGISTRY AND COGNITION
 ===================================================== */
 
-await import("./modules/terminal/repo-cognition.js");
+await import("./repo-cognition.js?v=jarvis-runtime-macro-v2-20260618");
+
+const RUNTIME_GOVERNANCE_V2_VERSION =
+    "2.0.0-runtime-governance";
+
+window.RuntimeGovernanceV2 = {
+    version:
+        RUNTIME_GOVERNANCE_V2_VERSION,
+    authority:
+        "full_repo_private_owner",
+    safeZone:
+        "advisory",
+    criticalAction:
+        "REVIEW_REQUIRED",
+    highAction:
+        "SUPERVISED_EXECUTION",
+    describe() {
+        return {
+            ok: true,
+            module:
+                "runtime_governance",
+            version:
+                RUNTIME_GOVERNANCE_V2_VERSION,
+            riskNodes:
+                Object.keys(window.__RUNTIME_RISK_GRAPH__ || {}).length,
+            governedOperations:
+                window.__GOVERNED_REPO_OPERATIONS__?.history?.length || 0
+        };
+    }
+};
 
 /* =====================================================================================
-   RUNTIME RISK PROPAGATION ENGINE V1
+   RUNTIME RISK PROPAGATION ENGINE V2
 ===================================================================================== */
 
 window.__RUNTIME_RISK_GRAPH__ = {};
 
 
 /* =====================================================================================
-   RUNTIME CONTAMINATION MAP V1
+   RUNTIME CONTAMINATION MAP V2
 ===================================================================================== */
 
 window.__RUNTIME_CONTAMINATION__ ||= {
@@ -26,7 +55,7 @@ window.__RUNTIME_CONTAMINATION__ ||= {
 
 
 /* =====================================================================================
-   SCHEDULER COGNITION V1
+   SCHEDULER COGNITION V2
    AUTONOUS RUNTIME EXECUTION LAYER
 ===================================================================================== */
 
@@ -65,7 +94,7 @@ window.__RUNTIME_SCHEDULER__ ||= {
 
 
 /* =====================================================================================
-   RUNTIME DAEMON REGISTRY V1
+   RUNTIME DAEMON REGISTRY V2
    AUTONOUS DAEMON GOVERNANCE LAYER
 ===================================================================================== */
 
@@ -519,7 +548,7 @@ function() {
 };
 
 /* =====================================================================================
-   HEALTH GOVERNANCE DAEMON V1
+   HEALTH GOVERNANCE DAEMON V2
    AUTONOUS RUNTIME HEALTH COGNITION
 ===================================================================================== */
 
@@ -1371,7 +1400,7 @@ function() {
 };
 
 /* =====================================================================================
-   START RUNTIME SCHEDULER V1
+   START RUNTIME SCHEDULER V2
    LIVE COGNITION EXECUTION CYCLE
 ===================================================================================== */
 
@@ -1602,7 +1631,7 @@ async function() {
     }
 };
 /* =====================================================================================
-   APPLY RUNTIME DEGRADATION ENGINE V1
+   APPLY RUNTIME DEGRADATION ENGINE V2
 ===================================================================================== */
 
 window.applyRuntimeDegradation =
@@ -2103,7 +2132,7 @@ function() {
 };
 
 /* =====================================================================================
-   AUTONOMOUS RISK ESCALATION ENGINE V1
+   AUTONOMOUS RISK ESCALATION ENGINE V2
 ===================================================================================== */
 
 /* =====================================================
@@ -2234,7 +2263,7 @@ function(fileName = "") {
 
 
 /* =====================================================================================
-   DEPENDENT RISK DISCOVERY ENGINE V1
+   DEPENDENT RISK DISCOVERY ENGINE V2
 ===================================================================================== */
 
 /* =====================================================
@@ -2649,7 +2678,7 @@ function(
 };
 
 /* =====================================================================================
-   REPO GOVERNANCE ENGINE V1
+   REPO GOVERNANCE ENGINE V2
 ===================================================================================== */
 
 /* =====================================================
@@ -2722,7 +2751,7 @@ if (
     allowed = false;
 
     governanceAction =
-        "HARD_BLOCK";
+        "REVIEW_REQUIRED";
 
     reason =
         "SECURITY_LAYER_PROTECTED";
@@ -2741,7 +2770,7 @@ if (
 ) {
 
     governanceAction =
-        "RESTRICTED_EXECUTION";
+        "SUPERVISED_EXECUTION";
 }
 
 
@@ -2751,7 +2780,7 @@ if (
 
 if (
     governanceAction ===
-    "HARD_BLOCK"
+    "REVIEW_REQUIRED"
 ) {
 
     return {
@@ -2801,7 +2830,7 @@ if (
             allowed = false;
 
             governanceAction =
-                "HARD_BLOCK";
+                "REVIEW_REQUIRED";
 
             reason =
                 "CRITICAL_RUNTIME_ENGINE";
@@ -2820,7 +2849,7 @@ if (
             allowed = false;
 
             governanceAction =
-                "SOFT_BLOCK";
+                "SUPERVISED_EXECUTION";
 
             reason =
                 "HIGH_RISK_ENGINE";
@@ -2837,7 +2866,7 @@ if (
         ) {
 
             governanceAction =
-                "RESTRICTED_EXECUTION";
+                "SUPERVISED_EXECUTION";
 
             reason =
                 "SUPERVISED_MODIFICATION";
@@ -2853,7 +2882,7 @@ if (
         ) {
 
             governanceAction =
-                "HARD_BLOCK";
+                "REVIEW_REQUIRED";
 
             allowed = false;
 
@@ -2920,7 +2949,7 @@ if (
 };
 
 /* =====================================================================================
-   GOVERNED REPO OPERATIONS V1
+   GOVERNED REPO OPERATIONS V2
 ===================================================================================== */
 
 /* =====================================================
@@ -3013,11 +3042,11 @@ recordGovernanceEvent({
         if (
             decision
                 ?.governanceAction ===
-            "HARD_BLOCK"
+            "REVIEW_REQUIRED"
         ) {
 
             console.warn(
-                "🛑 [HARD_BLOCK_ACTIVE]",
+                "🛑 [REVIEW_REQUIRED_ACTIVE]",
                 target
             );
 
@@ -3031,7 +3060,7 @@ recordGovernanceEvent({
                     decision,
 
                 error:
-                    "HARD_BLOCK_ACTIVE"
+                    "REVIEW_REQUIRED_ACTIVE"
             };
         }
 
@@ -3044,11 +3073,11 @@ recordGovernanceEvent({
         if (
             decision
                 ?.governanceAction ===
-            "SOFT_BLOCK"
+            "SUPERVISED_EXECUTION"
         ) {
 
             console.warn(
-                "⚠️ [SOFT_BLOCK_ACTIVE]",
+                "⚠️ [SUPERVISED_EXECUTION_ACTIVE]",
                 target
             );
 
@@ -3062,7 +3091,7 @@ recordGovernanceEvent({
                     decision,
 
                 error:
-                    "SOFT_BLOCK_ACTIVE"
+                    "SUPERVISED_EXECUTION_ACTIVE"
             };
         }
 
@@ -3073,11 +3102,11 @@ recordGovernanceEvent({
         if (
             decision
                 ?.governanceAction ===
-            "RESTRICTED_EXECUTION"
+            "SUPERVISED_EXECUTION"
         ) {
 
             console.warn(
-                "🔒 [RESTRICTED_EXECUTION]",
+                "🔒 [SUPERVISED_EXECUTION]",
                 target
             );
         }
@@ -3132,7 +3161,7 @@ recordGovernanceEvent({
 };
 
 /* =====================================================================================
-   GOVERNANCE MEMORY ENGINE V1
+   GOVERNANCE MEMORY ENGINE V2
 ===================================================================================== */
 
 window.__GOVERNANCE_LOG__ ||= [];
@@ -3259,7 +3288,7 @@ saveGovernanceLog();
 };
 
 /* =====================================================================================
-   REPO AUTO BOOTSTRAP V1
+   REPO AUTO BOOTSTRAP V2
 ===================================================================================== */
 
 /* =====================================================
@@ -3456,5 +3485,5 @@ else {
 
 
 /* =====================================================================================
-   AUTO BOOT HYDRATION V1
+   AUTO BOOT HYDRATION V2
 ===================================================================================== */

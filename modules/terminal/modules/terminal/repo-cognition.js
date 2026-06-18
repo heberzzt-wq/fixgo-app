@@ -1,2 +1,2 @@
-/* Compatibility shim: runtime-governance.js historically imports ./modules/terminal/repo-cognition.js from inside modules/terminal. */
+/* Compatibility shim: runtime-governance.js imports this nested legacy path. */
 export * from "../../repo-cognition.js";

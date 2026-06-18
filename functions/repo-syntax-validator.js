@@ -3,7 +3,7 @@
 
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - SERVER REPO SYNTAX VALIDATOR V1.0
+ * GESTIAPREMIUM 2026 - SERVER REPO SYNTAX VALIDATOR V2.0
  * ======================================================================================
  * Valida contenido JavaScript dentro de Cloud Functions antes de cualquier escritura
  * en GitHub.
@@ -31,7 +31,22 @@ const VALIDATOR_NAME =
     "gestia-javascript-syntax-validator";
 
 const VALIDATOR_VERSION =
-    "1.0.0";
+    "2.0.0-server-repo-write";
+
+const VALIDATOR_POLICY = {
+    surface:
+        "server",
+    parser:
+        "acorn",
+    executesReceivedCode:
+        false,
+    blocksEmptyJavaScript:
+        true,
+    supports:
+        ["js", "mjs", "cjs"],
+    knownNonJavaScript:
+        ["html", "css", "json", "txt", "md", "svg", "xml"]
+};
 
 const MODULE_EXTENSIONS =
     new Set([
@@ -562,11 +577,30 @@ function validateRepoWriteSyntax({
     });
 }
 
+function describeRepoSyntaxValidator() {
+
+    return {
+        ok: true,
+        validator:
+            VALIDATOR_NAME,
+        validatorVersion:
+            VALIDATOR_VERSION,
+        parser:
+            "acorn",
+        parserVersion:
+            acornVersion ||
+            null,
+        policy:
+            VALIDATOR_POLICY
+    };
+}
+
 /* =====================================================================================
    EXPORTACIONES
 ===================================================================================== */
 
 module.exports = {
+    describeRepoSyntaxValidator,
     resolveJavaScriptSourceType,
     validateJavaScriptSyntax,
     validateRepoWriteSyntax

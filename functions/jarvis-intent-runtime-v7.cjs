@@ -1,14 +1,6 @@
-/* =====================================================================================
-   JARVIS INTENT RUNTIME V7
-   Conversational understanding layer for Gestia / FixGo.
+"use strict";
 
-   Goal:
-   - Understand natural Spanish/Spanglish operator commands.
-   - Preserve conversational context for "eso", "lo mismo", "otra vez".
-   - Avoid fake certainty: return needsClarification when target/action is missing.
-===================================================================================== */
-
-const VERSION = "7.0.0-conversational";
+const VERSION = "7.0.0-server-contract";
 
 const ACTIONS = [
     {
@@ -110,29 +102,6 @@ const PLAN_TYPE_BY_INTENT = {
     OPEN: "OPEN"
 };
 
-function state() {
-    const root =
-        typeof globalThis !== "undefined"
-            ? globalThis
-            : {};
-
-    root.__JARVIS_INTENT_RUNTIME_V7__ ||= {
-        version: VERSION,
-        lastAction: null,
-        lastIntent: null,
-        lastEntity: null,
-        lastTarget: null,
-        lastFile: null,
-        lastValue: null,
-        lastIssue: null,
-        lastMarketing: null,
-        lastRaw: null,
-        history: []
-    };
-
-    return root.__JARVIS_INTENT_RUNTIME_V7__;
-}
-
 function normalize(text = "") {
     return String(text)
         .toLowerCase()
@@ -143,29 +112,65 @@ function normalize(text = "") {
 }
 
 function detectAction(raw = "", normalized = normalize(raw)) {
-    for (const item of ACTIONS) {
-        if (item.patterns.some(pattern => pattern.test(normalized))) {
-            return item;
-        }
-    }
-
-    return null;
+    return ACTIONS.find(item => item.patterns.some(pattern => pattern.test(normalized))) || null;
 }
 
 function detectEntity(normalized = "") {
-    for (const [entity, pattern] of ENTITY_HINTS) {
-        if (pattern.test(normalized)) return entity;
-    }
-
-    return null;
+    const match = ENTITY_HINTS.find(([, pattern]) => pattern.test(normalized));
+    return match ? match[0] : null;
 }
 
 function detectSocial(normalized = "") {
-    for (const [intent, pattern] of SOCIAL_INTENTS) {
-        if (pattern.test(normalized)) return intent;
+    const match = SOCIAL_INTENTS.find(([, pattern]) => pattern.test(normalized));
+    return match ? match[0] : null;
+}
+
+function detectIssue(normalized = "") {
+    const match = ISSUE_HINTS.find(([, pattern]) => pattern.test(normalized));
+    return match ? match[0] : null;
+}
+
+function detectMarketing(normalized = "") {
+    const assets =
+        MARKETING_ASSETS
+            .filter(([, pattern]) => pattern.test(normalized))
+            .map(([asset]) => asset);
+
+    const channels =
+        MARKETING_CHANNELS
+            .filter(([, pattern]) => pattern.test(normalized))
+            .map(([channel]) => channel);
+
+    const uniqueAssets =
+        [...new Set(assets)];
+
+    const uniqueChannels =
+        [...new Set(channels)];
+
+    const explicit =
+        uniqueAssets.length > 0 ||
+        uniqueChannels.length > 0 ||
+        /\b(marketing|marca|campana|publicidad|contenido|redes sociales)\b/i.test(normalized);
+
+    if (!explicit) {
+        return null;
     }
 
-    return null;
+    return {
+        intent: "MARKETING",
+        action: "marketing",
+        entity: "MARKETING",
+        primaryAsset:
+            uniqueAssets[0] || "campaign",
+        assets:
+            uniqueAssets.length ? uniqueAssets : ["campaign"],
+        channels:
+            uniqueChannels,
+        editable:
+            true,
+        requiresHumanApproval:
+            true
+    };
 }
 
 function extractTarget(raw = "", normalized = normalize(raw)) {
@@ -199,14 +204,15 @@ function extractTarget(raw = "", normalized = normalize(raw)) {
     };
 }
 
-function resolveReference(result, normalized) {
-    const memory = state();
-
-    if (!REFERENCE_RE.test(normalized)) {
-        return result;
-    }
+function resolveReference(result, normalized, context = {}) {
+    if (!REFERENCE_RE.test(normalized)) return result;
 
     result.referencesContext = true;
+
+    const memory =
+        context?.memory ||
+        context ||
+        {};
 
     const shouldInheritAction =
         !result.action ||
@@ -219,7 +225,7 @@ function resolveReference(result, normalized) {
 
     if (memory.lastAction && shouldInheritAction) {
         result.action = memory.lastAction;
-        result.intent = memory.lastIntent;
+        result.intent = memory.lastIntent || result.intent;
         result.inheritedAction = true;
     }
 
@@ -293,57 +299,6 @@ function buildCommand(result) {
         (result.entity ? result.entity.toLowerCase() : "system");
 
     return `${result.action}::${entityOrTarget}`;
-}
-
-function detectIssue(normalized = "") {
-    for (const [issue, pattern] of ISSUE_HINTS) {
-        if (pattern.test(normalized)) return issue;
-    }
-
-    return null;
-}
-
-function detectMarketing(normalized = "") {
-    const assets =
-        MARKETING_ASSETS
-            .filter(([, pattern]) => pattern.test(normalized))
-            .map(([asset]) => asset);
-
-    const channels =
-        MARKETING_CHANNELS
-            .filter(([, pattern]) => pattern.test(normalized))
-            .map(([channel]) => channel);
-
-    const uniqueAssets =
-        [...new Set(assets)];
-
-    const uniqueChannels =
-        [...new Set(channels)];
-
-    const explicit =
-        uniqueAssets.length > 0 ||
-        uniqueChannels.length > 0 ||
-        /\b(marketing|marca|campana|publicidad|contenido|redes sociales)\b/i.test(normalized);
-
-    if (!explicit) {
-        return null;
-    }
-
-    return {
-        intent: "MARKETING",
-        action: "marketing",
-        entity: "MARKETING",
-        primaryAsset:
-            uniqueAssets[0] || "campaign",
-        assets:
-            uniqueAssets.length ? uniqueAssets : ["campaign"],
-        channels:
-            uniqueChannels,
-        editable:
-            true,
-        requiresHumanApproval:
-            true
-    };
 }
 
 function resolvePlanType(result) {
@@ -453,21 +408,20 @@ function buildPlanner(result) {
         !!result.file ||
         result.entity === "REPOSITORY" ||
         result.entity === "RUNTIME";
-
     const repairHints =
         result.intent === "REPAIR"
             ? {
                 issue: result.issue || "generic_repair",
                 requestedValue: result.value,
                 targetFile: result.file || null,
-                source: "jarvis_intent_runtime_v7"
+                source: "jarvis_intent_runtime_v7_server"
             }
             : null;
 
     const marketingPlan =
         result.intent === "MARKETING"
             ? {
-                source: "jarvis_intent_runtime_v7",
+                source: "jarvis_intent_runtime_v7_server",
                 primaryAsset:
                     result.marketing?.primaryAsset || "campaign",
                 assets:
@@ -494,7 +448,7 @@ function buildPlanner(result) {
             : null;
 
     return {
-        source: "jarvis_intent_runtime_v7",
+        source: "jarvis_intent_runtime_v7_server",
         version: VERSION,
         planType,
         stepType: planType,
@@ -540,39 +494,7 @@ function buildPlanner(result) {
     };
 }
 
-function remember(result) {
-    if (result.socialIntent && !result.action) return;
-    if (result.needsClarification) return;
-
-    const memory = state();
-    memory.lastAction = result.action || memory.lastAction;
-    memory.lastIntent = result.intent || memory.lastIntent;
-    memory.lastEntity = result.entity || memory.lastEntity;
-    memory.lastTarget = result.target || memory.lastTarget;
-    memory.lastFile = result.file || memory.lastFile;
-    memory.lastValue = result.value || memory.lastValue;
-    memory.lastIssue = result.issue || memory.lastIssue;
-    memory.lastMarketing = result.marketing || memory.lastMarketing;
-    memory.lastRaw = result.raw;
-    memory.history.push({
-        at: Date.now(),
-        raw: result.raw,
-        intent: result.intent,
-        entity: result.entity,
-        target: result.target,
-        file: result.file,
-        value: result.value,
-        issue: result.issue,
-        marketing: result.marketing,
-        confidence: result.confidence
-    });
-
-    if (memory.history.length > 50) {
-        memory.history.shift();
-    }
-}
-
-export function understandIntentV7(raw = "") {
+function understandServerIntentV7(raw = "", context = {}) {
     const original = String(raw || "");
     const normalized = normalize(original);
     const action = detectAction(original, normalized);
@@ -583,7 +505,7 @@ export function understandIntentV7(raw = "") {
 
     let result = {
         ok: true,
-        engine: "jarvis_intent_runtime_v7",
+        engine: "jarvis_intent_runtime_v7_server",
         version: VERSION,
         raw: original,
         normalized,
@@ -606,7 +528,7 @@ export function understandIntentV7(raw = "") {
         repairHints: null
     };
 
-    result = resolveReference(result, normalized);
+    result = resolveReference(result, normalized, context);
 
     if (!result.entity && result.file) {
         result.entity = "REPOSITORY";
@@ -624,41 +546,49 @@ export function understandIntentV7(raw = "") {
     result.execution = result.planner.execution;
     result.repairHints = result.planner.repairHints;
 
-    remember(result);
-
     return result;
 }
 
-export function toLegacyCommandV7(raw = "") {
-    return understandIntentV7(raw).command;
+function toPublicIntentContract(intent = {}) {
+    const normalizedIntent =
+        typeof intent.action === "string"
+            ? intent.action
+            : "analyze";
+
+    return {
+        intent: normalizedIntent,
+        target:
+            intent.file ||
+            intent.target ||
+            (intent.entity ? String(intent.entity).toLowerCase() : "system"),
+        confidence:
+            typeof intent.confidence === "number"
+                ? intent.confidence
+                : 0,
+        action: intent.action || null,
+        entity: intent.entity || null,
+        file: intent.file || null,
+        value: intent.value || null,
+        issue: intent.issue || null,
+        goal: intent.planner?.goal || null,
+        objective: intent.planner?.objective || null,
+        needsClarification: intent.needsClarification === true,
+        clarification: intent.clarification || null,
+        command: intent.command || null,
+        planner: intent.planner || null,
+        marketing:
+            intent.marketing ||
+            intent.planner?.marketing ||
+            null,
+        execution: intent.execution || null,
+        repairHints: intent.repairHints || null,
+        source: intent.engine || "jarvis_intent_runtime_v7_server",
+        version: intent.version || VERSION
+    };
 }
 
-export function resetIntentRuntimeV7() {
-    const memory = state();
-    memory.lastAction = null;
-    memory.lastIntent = null;
-    memory.lastEntity = null;
-    memory.lastTarget = null;
-    memory.lastFile = null;
-    memory.lastValue = null;
-    memory.lastIssue = null;
-    memory.lastMarketing = null;
-    memory.lastRaw = null;
-    memory.history = [];
-    return memory;
-}
-
-const root =
-    typeof globalThis !== "undefined"
-        ? globalThis
-        : {};
-
-root.JarvisIntentRuntimeV7 = {
-    version: VERSION,
-    understand: understandIntentV7,
-    toCommand: toLegacyCommandV7,
-    reset: resetIntentRuntimeV7,
-    dump: state
+module.exports = {
+    VERSION,
+    understandServerIntentV7,
+    toPublicIntentContract
 };
-
-console.log("🧠 [JARVIS_INTENT_RUNTIME_V7] ONLINE", VERSION);

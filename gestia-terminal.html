@@ -143,16 +143,17 @@ fetch("/gestia-terminal.js")
 </script>
 
 <script type="module" src="/firebase.js"></script>
-<script type="module" src="/gestia-terminal.js?v=fix2"></script>
+<script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
-src="/gestia-core/gestia.runtime.v7.js">
+src="/gestia-core/gestia.runtime.v7.js?v=jarvis-runtime-macro-v2-20260618">
 </script>
 <script type="module" src="/gestia-core/jarvis/jarvis.language.core.v5.js"></script>
 <script type="module" src="/gestia-core/jarvis/jarvis.context.memory.v6.js"></script>
+<script type="module" src="/gestia-core/repair-translator.engine.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <!-- 🔥 FIX APLICADO: Inyección de parámetro de versión para forzar limpieza de caché -->
-<script src="gestia-core/jarvis/jarvis.cognition.engine.js"></script>
-<script type="module" src="/gestia-core/jarvis/jarvis.bridge.v4.js?v=fuerzacache1"></script>
+<script src="gestia-core/jarvis/jarvis.cognition.engine.js?v=jarvis-runtime-macro-v2-20260618"></script>
+<script type="module" src="/gestia-core/jarvis/jarvis.bridge.v4.js?v=jarvis-runtime-macro-v2-20260618"></script>
 
 <script defer>
 document.addEventListener('DOMContentLoaded', () => {
@@ -1426,6 +1427,7 @@ if (isReadOnlyConversationalAnalysis) {
         const fileMatch = raw.match(/([a-zA-Z0-9_\/\-]+\.(txt|js|html|css|json))/i);
 
         let generatedPatch = null;
+        let generatedContent = null;
 
 if (
     fileMatch &&
@@ -1455,14 +1457,62 @@ if (
 
         
 
+if (
+    generatedPatch?.ok === true &&
+    generatedPatch?.isReadOnly !== true &&
+    typeof window.generatePatch === "function"
+) {
+    const generatedPatchResult =
+        await window.generatePatch(
+            generatedPatch
+        );
+
+    console.log(
+        "GENERATED_PATCH_RESULT",
+        generatedPatchResult
+    );
+
+    if (
+        generatedPatchResult?.ok === true &&
+        typeof generatedPatchResult?.patched === "string"
+    ) {
+        generatedContent =
+            generatedPatchResult.patched;
+    }
+    else if (
+        generatedPatchResult?.ok === false
+    ) {
+        generatedPatch = {
+            ...generatedPatch,
+            ok: false,
+            reason:
+                generatedPatchResult.reason ||
+                generatedPatchResult.error ||
+                "PATCH_GENERATION_FAILED"
+        };
+    }
+}
+
 const patchFailed =
     !!fileMatch &&
     !!generatedPatch &&
     generatedPatch.ok !== true;
 
+const patchUnavailable =
+    !!fileMatch &&
+    !generatedPatch;
+
+const writePatchMissingContent =
+    !!generatedPatch &&
+    generatedPatch.ok === true &&
+    generatedPatch.isReadOnly !== true &&
+    !generatedContent;
+
 const isReadOnlyAnalysis =
     generatedPatch?.strategy === "ANALYZE_ONLY" ||
     generatedPatch?.isReadOnly === true ||
+    patchUnavailable ||
+    writePatchMissingContent ||
     patchFailed;
 
 const resolvedFile =
@@ -1479,7 +1529,18 @@ const resolvedStepType =
               (fileMatch ? "CODE_WRITE" : "ANALYZE");
 
 const safeReport =
-    patchFailed
+    patchUnavailable
+        ? (
+            `No se genero contenido ejecutable para ${resolvedFile}. ` +
+            `El comando se conserva como analisis de solo lectura para evitar una escritura vacia.`
+        )
+        : writePatchMissingContent
+        ? (
+            `Se detecto estrategia ${generatedPatch?.strategy || "PATCH"}, ` +
+            `pero no se pudo materializar contenido final para ${resolvedFile}. ` +
+            `No se realizara escritura.`
+        )
+        : patchFailed
         ? (
             `No se generó un parche seguro para ${resolvedFile}. ` +
             `Motivo: ${
@@ -1525,6 +1586,8 @@ const step = {
                 generatedPatch,
 
             blocked:
+                patchUnavailable ||
+                writePatchMissingContent ||
                 patchFailed,
 
             originalIntent:
@@ -1535,7 +1598,7 @@ const step = {
                 resolvedFile,
 
             content:
-                generatedPatch
+                generatedContent
         }
 };
 
@@ -1676,7 +1739,9 @@ if (
         });
     }
 
-    if (textarea) {
+    if (textarea && !window.__JARVIS_ENTER_BOUND__) {
+        window.__JARVIS_ENTER_BOUND__ = true;
+
         textarea.addEventListener("keydown", (e) => {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -2052,15 +2117,6 @@ if (
 
     console.log("📦 [DATA_VAULT]: Perfiles cargados. Jonathan listo para pruebas.");
     
-    if (textarea) {
-        textarea.addEventListener("keydown", function (e) {
-            if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
-            }
-        });
-    }
-
     setTimeout(() => {
         window.listenLedgerRealtime?.();
     }, 1500);

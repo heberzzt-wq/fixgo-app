@@ -1,5 +1,5 @@
 // 🔌 IMPORTS
-import { executeSteps } from "./operations-executor.engine.js";
+import { executeSteps } from "./operations-executor.engine.js?v=jarvis-core-v2-marketing-20260617";
 
 /* 🔥 FIX: INYECCIÓN GLOBAL DEL LEDGER */
 function getLedger() {
@@ -221,6 +221,12 @@ const writeResults =
         )
     );
 
+const analysisOnlyResult =
+    executionResults.find(item =>
+        item?.status === "analysis_only_success"
+    ) ||
+    null;
+
 const isNoChanges =
     !!noChangeResult;
 
@@ -290,6 +296,7 @@ const syntaxLocation =
     "ubicación no disponible";
 
 const isAnalysis =
+    !!analysisOnlyResult ||
     changes.some(change =>
         [
             "ANALYZE",
@@ -301,6 +308,8 @@ const isAnalysis =
     );
 
 const analysisReport =
+    analysisOnlyResult?.result?.report ||
+    analysisOnlyResult?.report ||
     firstExecutionResult?.result?.report ||
     changes.find(change =>
         [
