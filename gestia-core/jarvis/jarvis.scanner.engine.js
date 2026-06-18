@@ -4,7 +4,7 @@
  * Structural File Scanner for Gestia / FixGo.
  *
  * Goals:
- * - Preserve the V1 summary contract used by executor/orchestrator.
+ * - Preserve the legacy summary contract used by executor/orchestrator.
  * - Add structured findings, evidence, safe-zone awareness and patchability.
  * - Avoid executing scanned code.
  * =====================================================================================

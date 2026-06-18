@@ -3,8 +3,35 @@
    Cognitive layer map, runtime health, repair planning, recovery queue, repair telemetry.
 ===================================================================================== */
 
+const RUNTIME_REPAIR_HEALTH_V2_VERSION =
+    "2.0.0-runtime-repair-health";
+
+window.RuntimeRepairHealthV2 = {
+    version:
+        RUNTIME_REPAIR_HEALTH_V2_VERSION,
+    authority:
+        "full_repo_private_owner",
+    mode:
+        "health_scan_repair_review",
+    blockedAction:
+        "REVIEW_REQUIRED_MODULE",
+    describe() {
+        return {
+            ok: true,
+            module:
+                "runtime_repair_health",
+            version:
+                RUNTIME_REPAIR_HEALTH_V2_VERSION,
+            health:
+                window.__RUNTIME_HEALTH__ || null,
+            queue:
+                window.__RUNTIME_REPAIR_QUEUE__?.length || 0
+        };
+    }
+};
+
 /* =====================================================================================
-   COGNITIVE LAYER MAPPER V1
+   COGNITIVE LAYER MAPPER V2
 ===================================================================================== */
 
 window.__COGNITIVE_LAYER_MAP__ = {};
@@ -142,7 +169,7 @@ domain:
 
 
 /* =====================================================================================
-   RUNTIME HEALTH ENGINE V1
+   RUNTIME HEALTH ENGINE V2
 ===================================================================================== */
 
 window.__RUNTIME_HEALTH_MAP__ ||= {};
@@ -247,7 +274,7 @@ function() {
 };
 
 /* =====================================================================================
-   REPAIR INTELLIGENCE ENGINE V1
+   REPAIR INTELLIGENCE ENGINE V2
 ===================================================================================== */
 
 window.proposeRuntimeRepair =
@@ -393,7 +420,7 @@ if (
                 1,
 
             type:
-                "HARD_BLOCK_MODULE",
+                "REVIEW_REQUIRED_MODULE",
 
             target:
                 fileName
@@ -489,7 +516,7 @@ if (
 
 
 /* =====================================================================================
-   RUNTIME RECOVERY ENGINE V1
+   RUNTIME RECOVERY ENGINE V2
 ===================================================================================== */
 
 window.setRuntimeModuleState =
@@ -626,7 +653,7 @@ function(
 };
 
 /* =====================================================================================
-   RUNTIME RECOVERY EXECUTOR V1
+   RUNTIME RECOVERY EXECUTOR V2
 ===================================================================================== */
 
 window.executeRuntimeRecovery =
@@ -1020,7 +1047,7 @@ console.log(
 };
 
 /* =====================================================================================
-   ENQUEUE RUNTIME REPAIR V1
+   ENQUEUE RUNTIME REPAIR V2
 ===================================================================================== */
 
 window.enqueueRuntimeRepair =
@@ -1460,7 +1487,7 @@ async function() {
 
 
 /* =====================================================================================
-   REPAIR INTROSPECTION LAYER V1
+   REPAIR INTROSPECTION LAYER V2
    OBSERVABILITY OVER REAL REPAIR ENGINE
 ===================================================================================== */
 

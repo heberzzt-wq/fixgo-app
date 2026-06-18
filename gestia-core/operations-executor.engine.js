@@ -1,6 +1,6 @@
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V16.1 (THE INDESTRUCTIBLE LEDGER)
+ * GESTIAPREMIUM 2026 - OPERATIONS EXECUTOR ENGINE V26.1 (THE INDESTRUCTIBLE LEDGER)
  * ======================================================================================
  * Identidad: El Brazo Mecánico con Resolución Pre-Transaccional y Blindaje Forense.
  * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.
@@ -2760,7 +2760,7 @@ console.log(
 );
 
 /* =====================================================
-   JARVIS RUNTIME EXECUTION LINK V1
+   JARVIS RUNTIME EXECUTION LINK V2
 ===================================================== */
 
 if (

@@ -1,3 +1,26 @@
+const RUNTIME_EVENT_BUS_V2_VERSION =
+    "2.0.0-runtime-event-bus";
+
+window.RuntimeEventBusV2 = {
+    version:
+        RUNTIME_EVENT_BUS_V2_VERSION,
+    mode:
+        "queued_runtime_dispatch",
+    describe() {
+        return {
+            ok: true,
+            module:
+                "runtime_event_bus",
+            version:
+                RUNTIME_EVENT_BUS_V2_VERSION,
+            queueActive:
+                window.__RUNTIME_EVENT_BUS__?.dispatchQueue?.active === true,
+            pendingEvents:
+                window.__RUNTIME_EVENT_BUS__?.dispatchQueue?.events?.length || 0
+        };
+    }
+};
+
 window.bootstrapRuntimeCognition =
 async function() {
 
@@ -188,7 +211,7 @@ dispatchQueue: {
 
 
 /* =====================================================
-   RUNTIME CHANNEL STATE FACTORY V1
+   RUNTIME CHANNEL STATE FACTORY V2
 ===================================================== */
 
 window.createRuntimeChannelState =
@@ -2017,7 +2040,7 @@ console.log(
 };
 
 /* =====================================================
-   RUNTIME DISPATCH PROCESSOR V1
+   RUNTIME DISPATCH PROCESSOR V2
 ===================================================== */
 
 window.processRuntimeDispatchQueue =

@@ -3,8 +3,41 @@
    Security domains, module system, transport, persistence, UI, bootloader, and execution.
 ===================================================================================== */
 
+const RUNTIME_PLATFORM_V2_VERSION =
+    "2.0.0-runtime-platform";
+
+window.RuntimePlatformV2 = {
+    version:
+        RUNTIME_PLATFORM_V2_VERSION,
+    authority:
+        "full_repo_private_owner",
+    mode:
+        "platform_runtime_fabric",
+    capabilities: [
+        "security_domains",
+        "federation_mesh",
+        "observability",
+        "operator_console",
+        "transport_fabric",
+        "visualization",
+        "productization",
+        "real_operations"
+    ],
+    describe() {
+        return {
+            ok: true,
+            module:
+                "runtime_platform",
+            version:
+                RUNTIME_PLATFORM_V2_VERSION,
+            capabilities:
+                this.capabilities
+        };
+    }
+};
+
 /* =====================================================================================
-   COGNITIVE SECURITY DOMAINS V1
+   COGNITIVE SECURITY DOMAINS V2
    EXECUTION ISOLATION + TRUST BOUNDARIES
 ===================================================================================== */
 
@@ -361,7 +394,7 @@ function() {
 
 
 /* =====================================================================================
-   FEDERATION COGNITION MESH V1
+   FEDERATION COGNITION MESH V2
    DISTRIBUTED COGNITIVE PREPARATION LAYER
 ===================================================================================== */
 
@@ -726,7 +759,7 @@ function() {
 };
 
 /* =====================================================================================
-   RUNTIME OBSERVABILITY FABRIC V1
+   RUNTIME OBSERVABILITY FABRIC V2
    TELEMETRY + OPERATIONAL DIAGNOSTICS
 ===================================================================================== */
 
@@ -1034,7 +1067,7 @@ function() {
 };
 
 /* =====================================================================================
-   RUNTIME OPERATOR CONSOLE FOUNDATION V1
+   RUNTIME OPERATOR CONSOLE FOUNDATION V2
    CENTRALIZED OPERATIONAL INSPECTION
 ===================================================================================== */
 
@@ -1292,7 +1325,7 @@ function() {
 };
 
 /* =====================================================================================
-   PLATFORM MODULARIZATION PACK V1
+   PLATFORM MODULARIZATION PACK V2
    MODULE REGISTRY + CAPABILITY CONTRACTS + SERVICE DISCOVERY
 ===================================================================================== */
 
@@ -1972,7 +2005,7 @@ function() {
 };
 
 /* =====================================================================================
-   DISTRIBUTED TRANSPORT FABRIC PACK V1
+   DISTRIBUTED TRANSPORT FABRIC PACK V2
    FEDERATION TRANSPORT + DISTRIBUTED PROPAGATION
 ===================================================================================== */
 
@@ -2520,7 +2553,7 @@ function() {
 };
 
 /* =====================================================================================
-   VISUALIZATION + PERSISTENCE INFRASTRUCTURE PACK V1
+   VISUALIZATION + PERSISTENCE INFRASTRUCTURE PACK V2
    TELEMETRY PERSISTENCE + TIMELINE REPLAY + VISUALIZATION PREP
 ===================================================================================== */
 
@@ -2994,7 +3027,7 @@ function() {
 };
 
 /* =====================================================================================
-   REALTIME VISUALIZATION + LIVE OPERATIONS PACK V1
+   REALTIME VISUALIZATION + LIVE OPERATIONS PACK V2
    LIVE TOPOLOGY + TELEMETRY STREAMING + DASHBOARD PREP
 ===================================================================================== */
 
@@ -3521,7 +3554,7 @@ function() {
 };
 
 /* =====================================================================================
-   RUNTIME UI PROTOCOL + DASHBOARD PREP PACK V1
+   RUNTIME UI PROTOCOL + DASHBOARD PREP PACK V2
    UI BRIDGE + LIVE DASHBOARD CONTRACTS + COMMAND BUS
 ===================================================================================== */
 
@@ -4080,7 +4113,7 @@ function() {
 
 
 /* =====================================================================================
-   ULTRA PRODUCTIZATION MACRO PACK V1
+   ULTRA PRODUCTIZATION MACRO PACK V2
    BOOTLOADER + STORAGE ENGINE + NETWORK PREP
 ===================================================================================== */
 
@@ -4829,7 +4862,7 @@ function() {
 };
 
 /* =====================================================================================
-   FINAL EXECUTION + REAL OPERATIONS MACRO PACK V1
+   FINAL EXECUTION + REAL OPERATIONS MACRO PACK V2
    EXECUTION BUS + JOB ORCHESTRATOR + API LAYER
 ===================================================================================== */
 

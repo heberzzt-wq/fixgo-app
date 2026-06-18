@@ -1302,7 +1302,7 @@ function(config = {}) {
         ) {
 
             governanceAction =
-                "RESTRICTED_EXECUTION";
+                "SUPERVISED_EXECUTION";
         }
 
         const analysis = {

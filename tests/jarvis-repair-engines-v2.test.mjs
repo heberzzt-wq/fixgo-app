@@ -86,7 +86,7 @@ export function run() {
     assert.equal(autopatch.patches[0].safe, false);
 });
 
-test("scanner V2 preserves V1 summary fields and flags empty source", () => {
+test("scanner V2 preserves legacy summary fields and flags empty source", () => {
     const scan =
         scanFile(
             "empty.js",

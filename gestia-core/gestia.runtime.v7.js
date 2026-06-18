@@ -15,6 +15,9 @@ console.log(
 const GESTIA_RUNTIME_VERSION =
     "7.0.0";
 
+const GESTIA_RUNTIME_MACRO_PACK_VERSION =
+    "2.0.0-runtime-v7-macro-pack";
+
 /* =========================================================
    DOUBLE BOOT PROTECTION
 ========================================================= */
@@ -49,6 +52,30 @@ window.__GESTIA_RUNTIME_V7_BOOTED__ =
 
 window.GestiaRuntime =
     window.GestiaRuntime || {};
+
+window.GestiaRuntime.macroPack = {
+    version:
+        GESTIA_RUNTIME_MACRO_PACK_VERSION,
+    authority:
+        "full_repo_private_owner",
+    safeZone:
+        "advisory",
+    governanceAction:
+        "review_or_supervised_execution"
+};
+
+window.GestiaRuntime.describeRuntimeV7 = function() {
+
+    return {
+        ok: true,
+        runtime:
+            "gestia_runtime_v7",
+        version:
+            GESTIA_RUNTIME_VERSION,
+        macroPack:
+            window.GestiaRuntime.macroPack
+    };
+};
 
 
     console.log(
@@ -541,7 +568,7 @@ sovereign: {
     }
 };
 /* =========================================================
-   SURFACE GOVERNANCE REGISTRY V1
+   SURFACE GOVERNANCE REGISTRY V2
 ========================================================= */
 
 window.GestiaRuntime.surfaces = {
@@ -9092,7 +9119,7 @@ console.log(
 );
 
 /* =====================================================
-   JARVIS SOVEREIGN CORE V1
+   JARVIS SOVEREIGN CORE V2
 ===================================================== */
 
 window.Jarvis ||= {

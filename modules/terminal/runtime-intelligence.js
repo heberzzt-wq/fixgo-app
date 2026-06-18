@@ -3,8 +3,41 @@
    Healing, adaptation, memory, prediction, strategy, planning, policy, convergence, safety.
 ===================================================================================== */
 
+const RUNTIME_INTELLIGENCE_V2_VERSION =
+    "2.0.0-runtime-intelligence";
+
+window.RuntimeIntelligenceV2 = {
+    version:
+        RUNTIME_INTELLIGENCE_V2_VERSION,
+    authority:
+        "full_repo_private_owner",
+    mode:
+        "adaptive_supervised_autonomy",
+    capabilities: [
+        "self_healing",
+        "adaptive_governance",
+        "runtime_memory_graph",
+        "predictive_cognition",
+        "strategic_planning",
+        "policy_cognition",
+        "meta_cognition",
+        "safety_architecture"
+    ],
+    describe() {
+        return {
+            ok: true,
+            module:
+                "runtime_intelligence",
+            version:
+                RUNTIME_INTELLIGENCE_V2_VERSION,
+            capabilities:
+                this.capabilities
+        };
+    }
+};
+
 /* =====================================================================================
-   SELF-HEALING PREPARATION LAYER V1
+   SELF-HEALING PREPARATION LAYER V2
    REPAIR RECOMMENDATION COGNITION
 ===================================================================================== */
 
@@ -311,7 +344,7 @@ function() {
 
 
 /* =====================================================================================
-   ADAPTIVE RUNTIME GOVERNANCE V1
+   ADAPTIVE RUNTIME GOVERNANCE V2
    ADAPTIVE COGNITION CONTROL LAYER
 ===================================================================================== */
 
@@ -578,7 +611,7 @@ function() {
 };
 
 /* =====================================================================================
-   CONTROLLED SELF-HEALING RUNTIME V1
+   CONTROLLED SELF-HEALING RUNTIME V2
    BOUNDED AUTONOMOUS RECOVERY LAYER
 ===================================================================================== */
 
@@ -949,7 +982,7 @@ function() {
 };
 
 /* =====================================================================================
-   DISTRIBUTED COGNITION PREPARATION V1
+   DISTRIBUTED COGNITION PREPARATION V2
    RUNTIME FEDERATION PREPARATION LAYER
 ===================================================================================== */
 
@@ -1203,7 +1236,7 @@ function() {
 };
 
 /* =====================================================================================
-   RUNTIME MEMORY GRAPH V1
+   RUNTIME MEMORY GRAPH V2
    SEMANTIC OPERATIONAL MEMORY LAYER
 ===================================================================================== */
 
@@ -1662,7 +1695,7 @@ function() {
 };
 
 /* =====================================================================================
-   PREDICTIVE RUNTIME COGNITION V1
+   PREDICTIVE RUNTIME COGNITION V2
    DETERMINISTIC FORECASTING LAYER
 ===================================================================================== */
 
@@ -1954,7 +1987,7 @@ function() {
 };
 
 /* =====================================================================================
-   RUNTIME STRATEGIC OBJECTIVES V1
+   RUNTIME STRATEGIC OBJECTIVES V2
    INTENTIONAL COGNITION PREPARATION
 ===================================================================================== */
 
@@ -2217,7 +2250,7 @@ function() {
 };
 
 /* =====================================================================================
-   STRATEGIC RUNTIME PLANNING V1
+   STRATEGIC RUNTIME PLANNING V2
    INTENTIONAL OPERATIONAL COGNITION
 ===================================================================================== */
 
@@ -2631,7 +2664,7 @@ function() {
 };
 
 /* =====================================================================================
-   RUNTIME POLICY COGNITION V1
+   RUNTIME POLICY COGNITION V2
    GOVERNANCE DOCTRINE LAYER
 ===================================================================================== */
 
@@ -2915,7 +2948,7 @@ function() {
 };
 
 /* =====================================================================================
-   RUNTIME META-COGNITION V1
+   RUNTIME META-COGNITION V2
    SELF-REFLECTIVE COGNITION LAYER
 ===================================================================================== */
 
@@ -3226,7 +3259,7 @@ function() {
 };
 
 /* =====================================================================================
-   COGNITIVE CONVERGENCE LAYER V1
+   COGNITIVE CONVERGENCE LAYER V2
    GLOBAL COGNITION COHERENCE SYSTEM
 ===================================================================================== */
 
@@ -3545,7 +3578,7 @@ function() {
 };
 
 /* =====================================================================================
-   COGNITIVE SAFETY ARCHITECTURE V1
+   COGNITIVE SAFETY ARCHITECTURE V2
    COGNITION CONTAINMENT + SAFETY GOVERNANCE
 ===================================================================================== */
 
@@ -3896,7 +3929,7 @@ function() {
 };
 
 /* =====================================================================================
-   RUNTIME HARDENING LAYER V1
+   RUNTIME HARDENING LAYER V2
    STABILITY + OVERLOAD PROTECTION
 ===================================================================================== */
 

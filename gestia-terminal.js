@@ -64,7 +64,7 @@ import {
 
 import {
     interpretarIntenciones
-} from "/gestia-core/intent.engine.js?v=jarvis-v7-contract-ci-20260617";
+} from "/gestia-core/intent.engine.js?v=jarvis-runtime-macro-v2-20260618";
 
 import {
     runJarvis
@@ -72,18 +72,51 @@ import {
 
 import {
     approvePlan
-} from "/gestia-core/plans.engine.js?v=jarvis-core-v2-marketing-20260617";
+} from "/gestia-core/plans.engine.js?v=jarvis-runtime-macro-v2-20260618";
 
 
 import {
     BankLedger,
     installLedgerModule
 } from "./modules/terminal/ledger.js";
+
+const TERMINAL_RUNTIME_V2_VERSION =
+    "2.0.0-terminal-runtime-pack";
+
+window.__TERMINAL_RUNTIME_V2__ = {
+    version:
+        TERMINAL_RUNTIME_V2_VERSION,
+    authority:
+        "full_repo_private_owner",
+    safeZone:
+        "advisory",
+    governanceAction:
+        "review_or_supervised_execution",
+    packs: [
+        "terminal_surface",
+        "runtime_governance",
+        "runtime_persistence",
+        "runtime_intelligence",
+        "runtime_platform",
+        "runtime_repair_health",
+        "runtime_daemons"
+    ]
+};
+
+window.describeTerminalRuntimeV2 = function() {
+
+    return {
+        ok: true,
+        runtime:
+            "gestia_terminal",
+        ...window.__TERMINAL_RUNTIME_V2__
+    };
+};
 /* =====================================================
    GESTIA SOVEREIGN KERNEL
 ===================================================== */
 
-import "./gestia-core/jarvis.kernel.js?v=jarvis-authority-v2-20260618";
+import "./gestia-core/jarvis.kernel.js?v=jarvis-runtime-macro-v2-20260618";
 
 
 
@@ -250,14 +283,14 @@ installLedgerModule({
 
 
 /* =====================================================
-   SANDBOX WRITE ENGINE V1
+   SANDBOX WRITE ENGINE V2
 ===================================================== */
 
 window.JARVIS_SANDBOX_FILES ||= {};
 
 
 /* =====================================================
-   FIRESTORE MODULE CONTEXT V1
+   FIRESTORE MODULE CONTEXT V2
 ===================================================== */
 
 window.__MODULE_CONTEXT__ ||= {
@@ -375,7 +408,7 @@ activeRuntimeRepairs: new Set(),
 
     initializedAt: Date.now(),
 
-    cognitionVersion: "SIA7_RUNTIME_V1"
+    cognitionVersion: "SIA7_RUNTIME_V2"
 
 };
 
@@ -384,11 +417,11 @@ window.MODULE_CONTEXT =
 
 
 /* =====================================================================================
-   PERSISTENT COGNITIVE RUNTIME V1
+   PERSISTENT COGNITIVE RUNTIME V2
    SNAPSHOT ENGINE
 ===================================================================================== */
 
-await import("./modules/terminal/runtime-persistence.js");
+await import("./modules/terminal/runtime-persistence.js?v=jarvis-runtime-macro-v2-20260618");
 
     /* =====================================================================================
    RUNTIME MODULE REGISTRY
@@ -452,17 +485,17 @@ window.registerRuntimeModule ||= function(
    RUNTIME GOVERNANCE, DAEMONS, SCHEDULER AND RISK GRAPH
 ===================================================================================== */
 
-await import("./modules/terminal/runtime-governance.js?v=jarvis-authority-v2-20260618");
+await import("./modules/terminal/runtime-governance.js?v=jarvis-runtime-macro-v2-20260618");
 
 /* =====================================================
    RUNTIME EVENT BUS AND AUTO HYDRATION
 ===================================================== */
 
-await import("./modules/terminal/runtime-event-bus.js");
+await import("./modules/terminal/runtime-event-bus.js?v=jarvis-runtime-macro-v2-20260618");
 
 
 /* =====================================================================================
-   GOVERNANCE PERSISTENCE ENGINE V1
+   GOVERNANCE PERSISTENCE ENGINE V2
 ===================================================================================== */
 
 /* =====================================================
@@ -699,7 +732,7 @@ const store =
 };
 
 /* =====================================================================================
-   COGNITIVE DB SYNCHRONIZER V1
+   COGNITIVE DB SYNCHRONIZER V2
 ===================================================================================== */
 
 /* =====================================================
@@ -775,7 +808,7 @@ async function(
 
 await import("./modules/terminal/repo-bootstrap-index.js");
 
-await import("./modules/terminal/patch-workflow.js?v=jarvis-core-v2-marketing-20260617");
+await import("./modules/terminal/patch-workflow.js?v=jarvis-runtime-macro-v2-20260618");
 
 
 /* =====================================================
@@ -1003,7 +1036,7 @@ window.loadRepoContext = async function(fileName = "") {
 
 
 /* =====================================================
-   FIRESTORE MODULE LOADER V1
+   FIRESTORE MODULE LOADER V2
 ===================================================== */
 
 window.loadFirestoreModule = async function(moduleName = "") {
@@ -1197,7 +1230,7 @@ for (const dep of normalized.dependencies || []) {
 };
 
 /* =====================================================
-   MODULE NORMALIZER V1
+   MODULE NORMALIZER V2
 ===================================================== */
 
 window.normalizeModule = function(rawModule = {}) {
@@ -1528,7 +1561,7 @@ active:
 
 
 /* =====================================================
-   MODULE FILE LOOKUP V1
+   MODULE FILE LOOKUP V2
 ===================================================== */
 
 window.findModuleByFile = function(fileName = "") {
@@ -1595,7 +1628,7 @@ window.findModuleByFile = function(fileName = "") {
 };
 
 /* =====================================================
-   FILE IMPACT ENGINE V1
+   FILE IMPACT ENGINE V2
 ===================================================== */
 
 window.analyzeFileImpact = function(fileName = "") {
@@ -1678,7 +1711,7 @@ window.analyzeFileImpact = function(fileName = "") {
 };
 
 /* =====================================================
-   DEPENDENCY IMPACT ENGINE V1
+   DEPENDENCY IMPACT ENGINE V2
 ===================================================== */
 
 window.findDependentModules = function(moduleName = "") {
@@ -1753,7 +1786,7 @@ window.findDependentModules = function(moduleName = "") {
 
 
 /* =====================================================
-   RISK PROPAGATION ENGINE V1
+   RISK PROPAGATION ENGINE V2
 ===================================================== */
 
 window.propagateModuleRisk = function(moduleName = "") {
@@ -1835,7 +1868,7 @@ window.propagateModuleRisk = function(moduleName = "") {
 };
 
 /* =====================================================
-   DEPENDENCY INTEGRITY ENGINE V1
+   DEPENDENCY INTEGRITY ENGINE V2
 ===================================================== */
 
 window.validateModuleDependencies = function(moduleName = "") {
@@ -1911,7 +1944,7 @@ window.validateModuleDependencies = function(moduleName = "") {
 };
 
 /* =====================================================================================
-   AUTO HEALING GOVERNANCE V1
+   AUTO HEALING GOVERNANCE V2
    DEPENDENCY REPAIR ENGINE
 ===================================================================================== */
 
@@ -2140,7 +2173,7 @@ window.proposeDependencyRepair = async function(moduleName) {
 
             repairGraph
                 .governanceAction =
-                    "HARD_BLOCK";
+                    "REVIEW_REQUIRED";
 
             repairGraph
                 .graphRebuildRequired =
@@ -2156,7 +2189,7 @@ window.proposeDependencyRepair = async function(moduleName) {
 
             repairGraph
                 .governanceAction =
-                    "SOFT_BLOCK";
+                    "SUPERVISED_EXECUTION";
         }
 
         else if (
@@ -2169,7 +2202,7 @@ window.proposeDependencyRepair = async function(moduleName) {
 
             repairGraph
                 .governanceAction =
-                    "RESTRICTED_EXECUTION";
+                    "SUPERVISED_EXECUTION";
         }
 
         // =========================================================
@@ -2230,7 +2263,7 @@ window.proposeDependencyRepair = async function(moduleName) {
 };
 
 /* =====================================================================================
-   SELF HEALING PLANNER V1
+   SELF HEALING PLANNER V2
 ===================================================================================== */
 
 window.generateRepairPlan = function(
@@ -2266,7 +2299,7 @@ window.generateRepairPlan = function(
                 step: 1,
 
                 type:
-                    "HARD_BLOCK_MODULE",
+                    "REVIEW_REQUIRED_MODULE",
 
                 target:
                     repairGraph.module,
@@ -2418,7 +2451,7 @@ window.generateRepairPlan = function(
 
 
 /* =====================================================================================
-   CONTROLLED REPAIR EXECUTION ENGINE V1
+   CONTROLLED REPAIR EXECUTION ENGINE V2
 ===================================================================================== */
 
 window.executeRepairPlan = async function(
@@ -2478,7 +2511,7 @@ window.executeRepairPlan = async function(
 
             if (
                 action.type ===
-                "HARD_BLOCK_MODULE"
+                "REVIEW_REQUIRED_MODULE"
             ) {
 
                 MODULE_CONTEXT
@@ -2737,7 +2770,7 @@ if (
 };
 
 /* =====================================================================================
-   DEPENDENCY REPAIR WORKFLOW BRIDGE V1
+   DEPENDENCY REPAIR WORKFLOW BRIDGE V2
    Connects graph analysis, supervised preview, and optional execution.
 ===================================================================================== */
 
@@ -2840,7 +2873,7 @@ window.runDependencyRepairWorkflow = async function({
     }
 };
 /* =====================================================================================
-   PERSISTENT RUNTIME RESTORATION V1
+   PERSISTENT RUNTIME RESTORATION V2
 ===================================================================================== */
 
 window.restoreRuntimeCognition = async function() {
@@ -2941,7 +2974,7 @@ window.restoreRuntimeCognition = async function() {
 };
 
 /* =====================================================
-   AUTO CRITICALITY ENGINE V1
+   AUTO CRITICALITY ENGINE V2
 ===================================================== */
 
 window.calculateModuleCriticality = function(moduleName = "") {
@@ -3094,7 +3127,7 @@ window.calculateModuleCriticality = function(moduleName = "") {
 };
 
 /* =====================================================
-   AUTO PROTECTION ENGINE V1
+   AUTO PROTECTION ENGINE V2
 ===================================================== */
 
 window.canExecuteModuleOperation = function({
@@ -3197,7 +3230,7 @@ window.canExecuteModuleOperation = function({
 };
 
 /* =====================================================
-   MODULE RISK ENGINE V1
+   MODULE RISK ENGINE V2
 ===================================================== */
 
 window.evaluateModuleRisk = function(moduleName = "") {
@@ -3319,7 +3352,7 @@ window.evaluateModuleRisk = function(moduleName = "") {
 };
 
 /* =====================================================
-   REPO SCANNER V1
+   REPO SCANNER V2
 ===================================================== */
 
 window.scanRepo = function(filters = {}) {
@@ -4507,7 +4540,7 @@ const previewImpact =
 
 if (
     previewImpact?.governanceAction ===
-    "HARD_BLOCK"
+    "REVIEW_REQUIRED"
 ) {
 
     await this.setState(
@@ -4848,7 +4881,7 @@ const executionImpact =
 
 if (
     executionImpact?.governanceAction ===
-    "HARD_BLOCK"
+    "REVIEW_REQUIRED"
 ) {
 
     await this.setState(
@@ -5904,7 +5937,7 @@ async function importTerminalBootModule(label, path) {
 
 await importTerminalBootModule(
     "runtime_repair_health",
-    "./modules/terminal/runtime-repair-health.js"
+    "./modules/terminal/runtime-repair-health.js?v=jarvis-runtime-macro-v2-20260618"
 );
 
 
@@ -5914,7 +5947,7 @@ await importTerminalBootModule(
 
 await importTerminalBootModule(
     "runtime_intelligence",
-    "./modules/terminal/runtime-intelligence.js"
+    "./modules/terminal/runtime-intelligence.js?v=jarvis-runtime-macro-v2-20260618"
 );
 
 
@@ -5924,7 +5957,7 @@ await importTerminalBootModule(
 
 await importTerminalBootModule(
     "runtime_platform",
-    "./modules/terminal/runtime-platform.js"
+    "./modules/terminal/runtime-platform.js?v=jarvis-runtime-macro-v2-20260618"
 );
 
 /* =====================================================================================
@@ -5933,7 +5966,7 @@ await importTerminalBootModule(
 
 await importTerminalBootModule(
     "runtime_daemons",
-    "./modules/terminal/runtime-daemons.js"
+    "./modules/terminal/runtime-daemons.js?v=jarvis-runtime-macro-v2-20260618"
 );
 
 /* =====================================================================================
@@ -5942,7 +5975,7 @@ await importTerminalBootModule(
 
 await importTerminalBootModule(
     "runtime_snapshot_daemon",
-    "./modules/terminal/runtime-snapshot-daemon.js"
+    "./modules/terminal/runtime-snapshot-daemon.js?v=jarvis-runtime-macro-v2-20260618"
 );
 
 /**
