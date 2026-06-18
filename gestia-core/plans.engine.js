@@ -1,5 +1,5 @@
 // 🔌 IMPORTS
-import { executeSteps } from "./operations-executor.engine.js?v=jarvis-v7-security-preflight-20260617";
+import { executeSteps } from "./operations-executor.engine.js?v=jarvis-repair-engines-v2-20260617";
 
 /* 🔥 FIX: INYECCIÓN GLOBAL DEL LEDGER */
 function getLedger() {

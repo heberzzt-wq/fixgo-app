@@ -72,7 +72,7 @@ import {
 
 import {
     approvePlan
-} from "/gestia-core/plans.engine.js?v=jarvis-v7-security-preflight-20260617";
+} from "/gestia-core/plans.engine.js?v=jarvis-repair-engines-v2-20260617";
 
 
 import {
