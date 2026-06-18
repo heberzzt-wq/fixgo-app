@@ -166,10 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function isKernelSessionReady() {
     try {
-        return window.KernelHeberto
-            ?.getState?.()
-            ?.session
-            ?.hasToken === true;
+        return !!window.KernelHeberto?.execute;
     } catch {
         return false;
     }
