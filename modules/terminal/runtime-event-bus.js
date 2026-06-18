@@ -2304,6 +2304,13 @@ async function() {
    AUTO HYDRATION
 ===================================================== */
 
+if (
+    !window.__RUNTIME_AUTO_HYDRATION_BOUND__
+) {
+
+window.__RUNTIME_AUTO_HYDRATION_BOUND__ =
+    true;
+
 window.addEventListener(
     "load",
 
@@ -2336,9 +2343,6 @@ await import(
 console.log(
     "🧠 [REPAIR_TRANSLATOR_LOADED]"
 );
-
-            await bootstrapRepoCognition();
-
 
             await import(
     "/gestia-core/repo/resource.registry.js?v=" +
@@ -2615,5 +2619,8 @@ catch(error) {
                 error
             );
         }
-    }
+    },
+    { once: true }
 );
+
+}

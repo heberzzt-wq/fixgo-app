@@ -38,10 +38,7 @@ import {
 
 import {
     runTransaction,
-    addDoc
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-import {
+    addDoc,
     onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 // 2. IMPORTS DE KERNEL Y MEMORIA

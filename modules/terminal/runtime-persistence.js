@@ -1841,7 +1841,7 @@ window.__RUNTIME_HEALTH_MAP__ =
             snapshot
                 ?.cognitionVersion ||
 
-            "SIA7_RUNTIME_V1";
+            "SIA7_RUNTIME_V2";
 
         /* =================================================
            RUNTIME RE-REGISTRATION

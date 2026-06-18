@@ -403,7 +403,7 @@ window.__RUNTIME_FEDERATION__ ||= {
     initialized: false,
 
     federationId:
-        "SIA7_FEDERATION_V1",
+        "SIA7_FEDERATION_V2",
 
     localNodeId:
         crypto.randomUUID(),

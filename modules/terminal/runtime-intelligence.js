@@ -994,7 +994,7 @@ window.__RUNTIME_DISTRIBUTED__ ||= {
         crypto.randomUUID(),
 
     clusterId:
-        "SIA7_CLUSTER_V1",
+        "SIA7_CLUSTER_V2",
 
     nodeRole:
         "PRIMARY",
