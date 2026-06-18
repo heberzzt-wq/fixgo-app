@@ -19,13 +19,105 @@ function ctxLog(label, data = "") {
     console.log(`🧠 [CTX_V6:${label}]`, data);
 }
 
-const memory = {
-    lastIntent: null,
-    lastEntity: null,
-    lastTarget: null,
-    lastRaw: null,
-    history: []
-};
+export const JARVIS_CONTEXT_MEMORY_V6 =
+    "JARVIS_CONTEXT_MEMORY_V6";
+
+function createEmptyMemory() {
+    return {
+        lastIntent: null,
+        lastEntity: null,
+        lastTarget: null,
+        lastRaw: null,
+        history: []
+    };
+}
+
+function getStorage() {
+    try {
+        return globalThis?.localStorage || null;
+    }
+    catch(err) {
+        return null;
+    }
+}
+
+function hydrateMemory() {
+    const fallback =
+        createEmptyMemory();
+
+    try {
+        const raw =
+            getStorage()?.getItem(
+                JARVIS_CONTEXT_MEMORY_V6
+            );
+
+        if (!raw) {
+            return fallback;
+        }
+
+        const stored =
+            JSON.parse(raw) || {};
+
+        return {
+            lastIntent:
+                stored.lastIntent || null,
+            lastEntity:
+                stored.lastEntity || null,
+            lastTarget:
+                stored.lastTarget || null,
+            lastRaw:
+                stored.lastRaw || null,
+            history:
+                Array.isArray(stored.history)
+                    ? stored.history.slice(-15)
+                    : []
+        };
+    }
+    catch(err) {
+        return fallback;
+    }
+}
+
+function persistMemory() {
+    try {
+        getStorage()?.setItem(
+            JARVIS_CONTEXT_MEMORY_V6,
+            JSON.stringify({
+                lastIntent:
+                    memory.lastIntent,
+                lastEntity:
+                    memory.lastEntity,
+                lastTarget:
+                    memory.lastTarget,
+                lastRaw:
+                    memory.lastRaw,
+                history:
+                    memory.history.slice(-15)
+            })
+        );
+    }
+    catch(err) {}
+}
+
+function clearMemory() {
+    memory.lastIntent = null;
+    memory.lastEntity = null;
+    memory.lastTarget = null;
+    memory.lastRaw = null;
+    memory.history = [];
+
+    try {
+        getStorage()?.removeItem(
+            JARVIS_CONTEXT_MEMORY_V6
+        );
+    }
+    catch(err) {}
+
+    return true;
+}
+
+const memory =
+    hydrateMemory();
 
 /* =====================================================================================
    SAVE
@@ -60,6 +152,8 @@ export function remember(plan = {}, raw = "") {
         if (memory.history.length > 15) {
             memory.history.shift();
         }
+
+        persistMemory();
 
         ctxLog("SAVE", memory);
 
@@ -130,6 +224,7 @@ window.JarvisContextMemory = {
     remember,
     resolveReferences,
     dump: () => memory,
+    clear: clearMemory,
 
     /* ===============================
        STRATEGIC SUPERVISED MEMORY
