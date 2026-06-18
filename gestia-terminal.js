@@ -990,21 +990,14 @@ window.loadRepoContext = async function(fileName = "") {
         const response =
             await fetch(meta.path);
 
+        if (!response.ok) {
+            throw new Error(
+                `REPO_FETCH_FAILED:${response.status}`
+            );
+        }
+
         const source =
             await response.text();
-
-            console.log(
-    "🧪 LOAD_REPO_RESULT",
-    {
-        file: key,
-        first100: source.substring(0, 100)
-    }
-);
-
-            console.log(
-    "🧪 LOAD_REPO_SOURCE_PREVIEW",
-    source.substring(0, 300)
-);
 
         // 🔥 cache
         window.__REPO_SOURCE_CACHE__[key] =
