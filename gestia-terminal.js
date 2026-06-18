@@ -4061,6 +4061,9 @@ if (!isStructured && !String(input).trim()) {
         message: "Entrada vacía."
     };
 }
+let rawInput;
+let cmd;
+
 if (isStructured) {
 
     rawInput = input;
@@ -4078,8 +4081,6 @@ if (isStructured) {
    🔥 INSERTAR AQUÍ (ANTES DE BLOQUEO)
 ===================================================== */
 
-let rawInput;
-let cmd;
 console.log(
     "🧪 BEFORE_SEARCH_INTERCEPTOR",
     {
@@ -4154,6 +4155,180 @@ if (
 /* =====================================================
    REPO AUDIT INTERCEPTORS
 ===================================================== */
+
+if (
+    !isStructured &&
+    [
+        "analiza el repo",
+        "revisa el repo",
+        "modulos criticos",
+        "módulos críticos",
+        "funciones",
+        "dependencias",
+        "impacto",
+        "auditoria repo",
+        "auditoría repo"
+    ].some(
+        term => cmd.includes(term)
+    )
+) {
+
+    const scan =
+        window.scanRepo?.({}) || {
+            ok: false,
+            files: []
+        };
+
+    const files =
+        scan.files || [];
+
+    const moduleNames =
+        [
+            ...new Set(
+                files
+                    .map(file => file.module)
+                    .filter(Boolean)
+            )
+        ];
+
+    const moduleReports =
+        moduleNames.map(moduleName => {
+
+            const inspected =
+                window.inspectModule?.(
+                    moduleName
+                ) || {};
+
+            const risk =
+                window.evaluateModuleRisk?.(
+                    moduleName
+                ) || {};
+
+            const dependencies =
+                window.validateModuleDependencies?.(
+                    moduleName
+                ) || {};
+
+            return {
+                module:
+                    moduleName,
+                critical:
+                    files.some(
+                        file =>
+                            file.module === moduleName &&
+                            file.critical === true
+                    ),
+                files:
+                    files
+                        .filter(file => file.module === moduleName)
+                        .map(file => file.file),
+                inspectRisks:
+                    inspected.risks || [],
+                risks:
+                    risk.risks || [],
+                missingDependencies:
+                    dependencies.missingDependencies || []
+            };
+        });
+
+    const criticalModules =
+        moduleReports
+            .filter(item => item.critical)
+            .slice(0, 8);
+
+    const riskyModules =
+        moduleReports
+            .filter(
+                item =>
+                    item.risks.length ||
+                    item.inspectRisks.length
+            )
+            .slice(0, 8);
+
+    const modulesWithMissingDeps =
+        moduleReports
+            .filter(
+                item => item.missingDependencies.length
+            )
+            .slice(0, 8);
+
+    const relevantFiles =
+        files
+            .filter(
+                file =>
+                    file.critical === true ||
+                    /jarvis|runtime|engine|terminal|bridge|executor|planner|repo/i
+                        .test(
+                            `${file.file || ""} ${file.module || ""} ${file.type || ""}`
+                        )
+            )
+            .slice(0, 12);
+
+    const formatList =
+        (items, emptyText) =>
+            items.length
+                ? items
+                    .map(item => `- ${item}`)
+                    .join("\n")
+                : `- ${emptyText}`;
+
+    const report =
+`Arquitecto, encontré ${files.length} archivos registrados y ${moduleNames.length} módulos en el mapa del repo.
+
+Módulos críticos:
+${formatList(
+    criticalModules.map(item => item.module),
+    "Sin módulos críticos marcados en el índice actual."
+)}
+
+Riesgos detectados:
+${formatList(
+    riskyModules.map(item => {
+        const risks = [
+            ...item.inspectRisks,
+            ...item.risks.map(risk => risk.code || risk.level || "RISK")
+        ];
+
+        return `${item.module}: ${risks.join(", ")}`;
+    }),
+    "Sin riesgos activos reportados por los analizadores cargados."
+)}
+
+Dependencias faltantes:
+${formatList(
+    modulesWithMissingDeps.map(
+        item => `${item.module}: ${item.missingDependencies.join(", ")}`
+    ),
+    "No encontré dependencias faltantes en los módulos cargados."
+)}
+
+Archivos relevantes:
+${formatList(
+    relevantFiles.map(file => `${file.file} (${file.module || "sin módulo"})`),
+    "Sin archivos relevantes destacados."
+)}`;
+
+    return {
+        ok: true,
+        status: "DONE",
+        type: "REPO_ANALYSIS",
+        report,
+        data: {
+            totalFiles:
+                files.length,
+            totalModules:
+                moduleNames.length,
+            criticalModules:
+                criticalModules.map(item => item.module),
+            riskyModules:
+                riskyModules.map(item => item.module),
+            modulesWithMissingDependencies:
+                modulesWithMissingDeps.map(item => item.module),
+            relevantFiles:
+                relevantFiles.map(file => file.file)
+        }
+    };
+}
 
 if (
     !isStructured &&
