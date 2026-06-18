@@ -317,6 +317,7 @@ window.__FULL_REPO_STRUCTURE__ = [
     "jarvis.firestore.engine.js",
     "jarvis.intent.runtime.v7.js",
     "jarvis.language.core.v5.js",
+    "jarvis.marketing.engine.js",
     "jarvis.memory.js",
     "jarvis.normalizer.js",
     "jarvis.orchestrator.js",

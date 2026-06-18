@@ -333,6 +333,13 @@ window.__REPO_INDEX__["jarvis.business.engine.js"] = {
     critical: false
 };
 
+window.__REPO_INDEX__["jarvis.marketing.engine.js"] = {
+    path: "gestia-core/jarvis/jarvis.marketing.engine.js",
+    module: "jarvis_marketing",
+    type: "marketing_runtime",
+    critical: false
+};
+
 window.__REPO_INDEX__["jarvis.company.registry.js"] = {
     path: "gestia-core/jarvis/jarvis.company.registry.js",
     module: "company_registry",

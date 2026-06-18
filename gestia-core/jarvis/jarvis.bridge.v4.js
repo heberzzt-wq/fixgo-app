@@ -16,7 +16,7 @@
 import { normalizeAIPlan } from "./jarvis.normalizer.js";
 import {
     understandIntentV7
-} from "./jarvis.intent.runtime.v7.js?v=v7-contract-ci-20260617";
+} from "./jarvis.intent.runtime.v7.js?v=jarvis-core-v2-marketing-20260617";
 
 import { sincronizarYPersistirPlan } from "/gestia-core/persistence.engine.js";
 

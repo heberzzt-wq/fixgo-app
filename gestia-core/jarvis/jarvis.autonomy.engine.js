@@ -1,6 +1,6 @@
 /**
  * =====================================================================================
- * JARVIS AUTONOMY ENGINE v1.0
+ * JARVIS AUTONOMY ENGINE v2.0
  * Technical learning memory for repo operations.
  *
  * Learns:
@@ -13,8 +13,11 @@
  * =====================================================================================
  */
 
-const VERSION = "1.0.0-failure-learning";
-const STORAGE_KEY = "jarvis_autonomy_learning_v1";
+const VERSION = "2.0.0-failure-learning";
+const STORAGE_KEY = "jarvis_autonomy_learning_v2";
+const LEGACY_STORAGE_KEYS = [
+    "jarvis_autonomy_learning_v1"
+];
 const MAX_PATTERNS = 80;
 const MAX_EVENTS = 120;
 const MAX_EXAMPLES = 6;
@@ -49,7 +52,18 @@ function readStorage() {
         const api = root().localStorage;
         if (!api) return null;
 
-        const raw = api.getItem(STORAGE_KEY);
+        const keys = [
+            STORAGE_KEY,
+            ...LEGACY_STORAGE_KEYS
+        ];
+
+        let raw = null;
+
+        for (const key of keys) {
+            raw = api.getItem(key);
+            if (raw) break;
+        }
+
         if (!raw) return null;
 
         const parsed = JSON.parse(raw);
@@ -112,6 +126,34 @@ export function resetAutonomyLearning() {
 
 export function snapshotAutonomyLearning() {
     return structuredCloneSafe(state());
+}
+
+export function describeAutonomyLearning() {
+    return {
+        ok: true,
+        engine: "jarvis_autonomy_engine",
+        version:
+            VERSION,
+        storageKey:
+            STORAGE_KEY,
+        legacyStorageKeys:
+            [...LEGACY_STORAGE_KEYS],
+        capabilities: [
+            "failure_pattern_learning",
+            "blocked_operation_recall",
+            "safe_zone_legacy_advisory",
+            "bounded_local_memory",
+            "next_action_recommendation"
+        ],
+        limits: {
+            maxPatterns:
+                MAX_PATTERNS,
+            maxEvents:
+                MAX_EVENTS,
+            maxExamples:
+                MAX_EXAMPLES
+        }
+    };
 }
 
 export function recordAutonomyEvent(input = {}) {
@@ -499,7 +541,8 @@ globalRoot.JarvisAutonomyEngine = {
     record: recordAutonomyEvent,
     recall: recallAutonomyLessons,
     reset: resetAutonomyLearning,
-    snapshot: snapshotAutonomyLearning
+    snapshot: snapshotAutonomyLearning,
+    describe: describeAutonomyLearning
 };
 
 console.log("🧠 [JARVIS_AUTONOMY_ENGINE] ONLINE", VERSION);

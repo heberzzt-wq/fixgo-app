@@ -1,9 +1,11 @@
 /**
  * =====================================================================================
- * JARVIS COMPANY REGISTRY v1.0
+ * JARVIS COMPANY REGISTRY v2.0
  * Memoria estructurada de operación Gestia / FixGo
  * =====================================================================================
  */
+
+export const COMPANY_REGISTRY_VERSION = "2.0.0-business-marketing";
 
 export const COMPANY = {
 
@@ -176,6 +178,45 @@ export const COMPANY = {
 
     },
 
+    marketing: {
+
+        brand: {
+            name: "FixGo / GestiaPremium",
+            owner: "Heberto",
+            voice: "confiable, directo, operativo y premium",
+            market: "servicios, administracion y operacion inmobiliaria"
+        },
+
+        channels: {
+            web: {
+                name: "Web / Landing",
+                defaultAsset: "landing_page"
+            },
+            instagram: {
+                name: "Instagram",
+                defaultAsset: "flyer"
+            },
+            tiktok: {
+                name: "TikTok",
+                defaultAsset: "reel"
+            },
+            facebook: {
+                name: "Facebook",
+                defaultAsset: "campaign"
+            },
+            whatsapp: {
+                name: "WhatsApp",
+                defaultAsset: "campaign"
+            }
+        },
+
+        defaultAudience:
+            "administradores, empresas y clientes operativos",
+
+        defaultOffer:
+            "operacion mas rapida, trazable y profesional"
+    },
+
     aliases: {
 
         jefe: "heberto",
@@ -250,3 +291,17 @@ export function resolveAny(text = "") {
     );
 }
 
+export function resolveMarketingContext() {
+
+    return {
+        ...COMPANY.marketing.brand,
+        audience:
+            COMPANY.marketing.defaultAudience,
+        offer:
+            COMPANY.marketing.defaultOffer,
+        channels:
+            COMPANY.marketing.channels,
+        registryVersion:
+            COMPANY_REGISTRY_VERSION
+    };
+}

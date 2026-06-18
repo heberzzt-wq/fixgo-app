@@ -1,7 +1,26 @@
 /* =====================================================
-   GESTIA SECURITY HUB V1
+   GESTIA SECURITY HUB V2
    Sovereign Security Governance Layer
 ===================================================== */
+
+export const SECURITY_HUB_VERSION = "2.0.0-security-contract";
+
+export function describeSecurityHub() {
+
+    return {
+        ok: true,
+        hub: "security",
+        version:
+            SECURITY_HUB_VERSION,
+        capabilities: [
+            "firewall",
+            "core_audit",
+            "code_security",
+            "field_weight_validation",
+            "history_integrity"
+        ]
+    };
+}
 
 /* =====================================================
    FIREWALL FABRIC

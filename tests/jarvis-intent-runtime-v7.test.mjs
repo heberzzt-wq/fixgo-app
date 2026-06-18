@@ -59,3 +59,44 @@ test("Jarvis V7 asks for clarification instead of inventing a repair target", ()
     assert.equal(result.command, null);
     assert.match(result.clarification, /archivo|modulo|area/i);
 });
+
+test("Jarvis V7 plans marketing assets with channels", () => {
+    resetIntentRuntimeV7();
+
+    const result =
+        understandIntentV7(
+            "crea una pagina para nuestra empresa, flyer y reel para Instagram y TikTok"
+        );
+
+    assert.equal(result.intent, "MARKETING");
+    assert.equal(result.action, "marketing");
+    assert.equal(result.entity, "MARKETING");
+    assert.equal(result.needsClarification, false);
+    assert.equal(result.planner.planType, "MARKETING_PLAN");
+    assert.equal(result.planner.execution.writeMode, "MARKETING_ASSET_PLAN");
+    assert.equal(result.planner.marketing.primaryAsset, "landing_page");
+    assert.ok(result.planner.marketing.assets.includes("flyer"));
+    assert.ok(result.planner.marketing.assets.includes("reel"));
+    assert.ok(result.planner.marketing.channels.includes("instagram"));
+    assert.ok(result.planner.marketing.channels.includes("tiktok"));
+});
+
+test("Jarvis V7 inherits marketing context for haz lo mismo", () => {
+    resetIntentRuntimeV7();
+
+    understandIntentV7(
+        "crea flyer para instagram"
+    );
+
+    const result =
+        understandIntentV7(
+            "haz lo mismo"
+        );
+
+    assert.equal(result.intent, "MARKETING");
+    assert.equal(result.action, "marketing");
+    assert.equal(result.planner.planType, "MARKETING_PLAN");
+    assert.equal(result.planner.memory.inheritedMarketing, true);
+    assert.ok(result.planner.marketing.assets.includes("flyer"));
+    assert.ok(result.planner.marketing.channels.includes("instagram"));
+});

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+    describeAutonomyLearning,
     recallAutonomyLessons,
     recordAutonomyEvent,
     resetAutonomyLearning,
@@ -97,4 +98,15 @@ test("autonomy keeps bounded memory snapshots", () => {
 
     assert.equal(snapshot.events.length, 120);
     assert.ok(Object.keys(snapshot.patterns).length <= 80);
+});
+
+test("autonomy exposes V2 learning contract", () => {
+    const description =
+        describeAutonomyLearning();
+
+    assert.equal(description.ok, true);
+    assert.equal(description.version, "2.0.0-failure-learning");
+    assert.equal(description.storageKey, "jarvis_autonomy_learning_v2");
+    assert.ok(description.legacyStorageKeys.includes("jarvis_autonomy_learning_v1"));
+    assert.ok(description.capabilities.includes("failure_pattern_learning"));
 });

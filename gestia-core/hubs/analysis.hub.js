@@ -1,7 +1,26 @@
 /* =====================================================
-   GESTIA ANALYSIS HUB V1
+   GESTIA ANALYSIS HUB V2
    Sovereign Cognitive Analysis Layer
 ===================================================== */
+
+export const ANALYSIS_HUB_VERSION = "2.0.0-analysis-contract";
+
+export function describeAnalysisHub() {
+
+    return {
+        ok: true,
+        hub: "analysis",
+        version:
+            ANALYSIS_HUB_VERSION,
+        capabilities: [
+            "intent_analysis",
+            "semantic_context",
+            "runtime_awareness",
+            "scanner_v2",
+            "health_score"
+        ]
+    };
+}
 
 /* =====================================================
    INTENT FABRIC

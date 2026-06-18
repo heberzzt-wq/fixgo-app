@@ -47,6 +47,7 @@ const ACTIONS = [
 ];
 
 const ENTITY_HINTS = [
+    ["MARKETING", /\b(marketing|marca|campana|publicidad|contenido|redes sociales|flyer|flayer|reel|tiktok|instagram|landing|pagina web)\b/i],
     ["TECHNICIANS", /\b(tecnico|tecnicos|jonathan|personal)\b/i],
     ["PAYMENTS", /\b(pago|pagos|cobro|cobros|stripe|factura|facturas)\b/i],
     ["AUTH", /\b(auth|login|sesion|logout|acceso|usuario|usuarios)\b/i],
@@ -76,7 +77,24 @@ const ISSUE_HINTS = [
     ["terminal_runtime", /\b(terminal|consola|logs|boot)\b/i]
 ];
 
+const MARKETING_ASSETS = [
+    ["landing_page", /\b(landing|pagina web|sitio web|web\s+(para|de)\s+(nuestra\s+)?empresa|pagina\s+(para|de)\s+(nuestra\s+)?empresa)\b/i],
+    ["flyer", /\b(flyer|flayer|volante|poster|post)\b/i],
+    ["editable_photo", /\b(foto|imagen|editable|mockup)\b/i],
+    ["reel", /\b(reel|video corto|short|tiktok|tik tok|historia|story)\b/i],
+    ["campaign", /\b(marketing|campana|publicidad|anuncio|ads|contenido|redes sociales)\b/i]
+];
+
+const MARKETING_CHANNELS = [
+    ["tiktok", /\b(tiktok|tik tok)\b/i],
+    ["instagram", /\b(instagram|insta|ig)\b/i],
+    ["facebook", /\b(facebook|fb)\b/i],
+    ["whatsapp", /\b(whatsapp|wa)\b/i],
+    ["web", /\b(landing|pagina web|sitio web|web\s+(para|de)\s+(nuestra\s+)?empresa|pagina\s+(para|de)\s+(nuestra\s+)?empresa)\b/i]
+];
+
 const PLAN_TYPE_BY_INTENT = {
+    MARKETING: "MARKETING_PLAN",
     ANALYZE: "ANALYZE",
     REPAIR: "REPAIR",
     CREATE: "CREATE",
@@ -110,6 +128,49 @@ function detectSocial(normalized = "") {
 function detectIssue(normalized = "") {
     const match = ISSUE_HINTS.find(([, pattern]) => pattern.test(normalized));
     return match ? match[0] : null;
+}
+
+function detectMarketing(normalized = "") {
+    const assets =
+        MARKETING_ASSETS
+            .filter(([, pattern]) => pattern.test(normalized))
+            .map(([asset]) => asset);
+
+    const channels =
+        MARKETING_CHANNELS
+            .filter(([, pattern]) => pattern.test(normalized))
+            .map(([channel]) => channel);
+
+    const uniqueAssets =
+        [...new Set(assets)];
+
+    const uniqueChannels =
+        [...new Set(channels)];
+
+    const explicit =
+        uniqueAssets.length > 0 ||
+        uniqueChannels.length > 0 ||
+        /\b(marketing|marca|campana|publicidad|contenido|redes sociales)\b/i.test(normalized);
+
+    if (!explicit) {
+        return null;
+    }
+
+    return {
+        intent: "MARKETING",
+        action: "marketing",
+        entity: "MARKETING",
+        primaryAsset:
+            uniqueAssets[0] || "campaign",
+        assets:
+            uniqueAssets.length ? uniqueAssets : ["campaign"],
+        channels:
+            uniqueChannels,
+        editable:
+            true,
+        requiresHumanApproval:
+            true
+    };
 }
 
 function extractTarget(raw = "", normalized = normalize(raw)) {
@@ -193,6 +254,13 @@ function resolveReference(result, normalized, context = {}) {
         result.inheritedIssue = true;
     }
 
+    if (!result.marketing && memory.lastMarketing && result.intent === "MARKETING") {
+        result.marketing = {
+            ...memory.lastMarketing
+        };
+        result.inheritedMarketing = true;
+    }
+
     return result;
 }
 
@@ -202,11 +270,12 @@ function buildClarification(result) {
         repair: "reparar",
         create: "crear",
         update: "actualizar",
+        marketing: "crear marketing",
         open: "abrir"
     };
 
     if (!result.action && !result.socialIntent) {
-        return "Te sigo, pero necesito la accion: analizar, reparar, crear, actualizar o abrir.";
+        return "Te sigo, pero necesito la accion: analizar, reparar, crear, marketing, actualizar o abrir.";
     }
 
     if (
@@ -235,6 +304,10 @@ function buildCommand(result) {
 function resolvePlanType(result) {
     if (!result.intent) return "UNKNOWN";
 
+    if (result.intent === "MARKETING") {
+        return "MARKETING_PLAN";
+    }
+
     if (result.intent === "REPAIR" && result.file) {
         return result.entity === "RUNTIME" || result.issue === "runtime_latency"
             ? "REPAIR_RUNTIME"
@@ -259,11 +332,13 @@ function buildGoal(result) {
         repair: "Reparar",
         create: "Crear",
         update: "Actualizar",
+        marketing: "Crear marketing",
         open: "Abrir"
     };
 
     const verb = actionLabels[result.action] || "Procesar";
     const target =
+        result.marketing?.primaryAsset ||
         result.file ||
         result.target ||
         (result.entity ? result.entity.toLowerCase() : "system");
@@ -273,9 +348,59 @@ function buildGoal(result) {
     return `${verb} ${target}${value}${issue}`.trim();
 }
 
+function buildMarketingDeliverables(marketing = {}) {
+    const assets =
+        marketing?.assets?.length
+            ? marketing.assets
+            : ["campaign"];
+
+    return assets.map(asset => {
+        if (asset === "landing_page") {
+            return {
+                type: "landing_page",
+                format: "html/css/js",
+                editable: true
+            };
+        }
+
+        if (asset === "flyer") {
+            return {
+                type: "flyer",
+                format: "editable_image_brief",
+                editable: true,
+                sizes: ["1080x1350", "1080x1080", "1080x1920"]
+            };
+        }
+
+        if (asset === "editable_photo") {
+            return {
+                type: "photo_edit",
+                format: "image_prompt_and_layers",
+                editable: true
+            };
+        }
+
+        if (asset === "reel") {
+            return {
+                type: "short_video",
+                format: "script_shotlist_caption",
+                editable: true,
+                durationSeconds: 30
+            };
+        }
+
+        return {
+            type: "campaign_calendar",
+            format: "weekly_plan",
+            editable: true
+        };
+    });
+}
+
 function buildPlanner(result) {
     const planType = resolvePlanType(result);
     const target =
+        result.marketing?.primaryAsset ||
         result.file ||
         result.target ||
         (result.entity ? result.entity.toLowerCase() : "system");
@@ -290,6 +415,35 @@ function buildPlanner(result) {
                 requestedValue: result.value,
                 targetFile: result.file || null,
                 source: "jarvis_intent_runtime_v7_server"
+            }
+            : null;
+
+    const marketingPlan =
+        result.intent === "MARKETING"
+            ? {
+                source: "jarvis_intent_runtime_v7_server",
+                primaryAsset:
+                    result.marketing?.primaryAsset || "campaign",
+                assets:
+                    result.marketing?.assets || ["campaign"],
+                channels:
+                    result.marketing?.channels || [],
+                editable:
+                    true,
+                requiresHumanApproval:
+                    true,
+                deliverables:
+                    buildMarketingDeliverables(result.marketing),
+                creativeBrief: {
+                    brand:
+                        "FixGo / GestiaPremium",
+                    voice:
+                        "confiable, directo, operativo y premium",
+                    callToAction:
+                        result.marketing?.channels?.includes("whatsapp")
+                            ? "Agenda por WhatsApp"
+                            : "Solicita una demo"
+                }
             }
             : null;
 
@@ -312,13 +466,20 @@ function buildPlanner(result) {
         needsClarification: result.needsClarification,
         clarification: result.clarification,
         repoAware,
+        marketing:
+            marketingPlan,
         repairHints,
         execution: {
             mode: "AI_SUPERVISED",
             safe: true,
-            requiresApproval: ["REPAIR", "UPDATE", "CREATE"].includes(result.intent),
+            requiresApproval: ["REPAIR", "UPDATE", "CREATE", "MARKETING"].includes(result.intent),
             requiresPatch: result.intent === "REPAIR",
-            writeMode: result.intent === "REPAIR" ? "PATCH_REQUIRED" : "READ_OR_PLAN"
+            writeMode:
+                result.intent === "REPAIR"
+                    ? "PATCH_REQUIRED"
+                    : result.intent === "MARKETING"
+                        ? "MARKETING_ASSET_PLAN"
+                        : "READ_OR_PLAN"
         },
         memory: {
             referencesContext: !!result.referencesContext,
@@ -327,7 +488,8 @@ function buildPlanner(result) {
             inheritedTarget: !!result.inheritedTarget,
             inheritedFile: !!result.inheritedFile,
             inheritedValue: !!result.inheritedValue,
-            inheritedIssue: !!result.inheritedIssue
+            inheritedIssue: !!result.inheritedIssue,
+            inheritedMarketing: !!result.inheritedMarketing
         }
     };
 }
@@ -339,6 +501,7 @@ function understandServerIntentV7(raw = "", context = {}) {
     const entity = detectEntity(normalized);
     const socialIntent = detectSocial(normalized);
     const targetInfo = extractTarget(original, normalized);
+    const marketing = detectMarketing(normalized);
 
     let result = {
         ok: true,
@@ -346,15 +509,16 @@ function understandServerIntentV7(raw = "", context = {}) {
         version: VERSION,
         raw: original,
         normalized,
-        intent: action?.intent || null,
-        action: action?.canonical || null,
-        entity,
-        target: targetInfo.target,
+        intent: marketing?.intent || action?.intent || null,
+        action: marketing?.action || action?.canonical || null,
+        entity: marketing?.entity || entity,
+        target: marketing?.primaryAsset || targetInfo.target,
         file: targetInfo.file,
         value: targetInfo.value,
         issue: detectIssue(normalized),
+        marketing,
         socialIntent,
-        confidence: action?.score || (socialIntent ? 0.82 : 0.45),
+        confidence: marketing ? 0.94 : action?.score || (socialIntent ? 0.82 : 0.45),
         needsClarification: false,
         clarification: null,
         command: null,
@@ -412,6 +576,10 @@ function toPublicIntentContract(intent = {}) {
         clarification: intent.clarification || null,
         command: intent.command || null,
         planner: intent.planner || null,
+        marketing:
+            intent.marketing ||
+            intent.planner?.marketing ||
+            null,
         execution: intent.execution || null,
         repairHints: intent.repairHints || null,
         source: intent.engine || "jarvis_intent_runtime_v7_server",

@@ -1,6 +1,6 @@
 /**
  * =====================================================================================
- * JARVIS BUSINESS ENGINE v1.0
+ * JARVIS BUSINESS ENGINE v2.0
  * Inteligencia empresarial Gestia / FixGo
  * =====================================================================================
  */
@@ -10,8 +10,16 @@ import {
     findVehicle,
     findTenant,
     findModule,
-    resolveAny
+    resolveAny,
+    resolveMarketingContext
 } from "./jarvis.company.registry.js";
+
+import {
+    isMarketingRequest,
+    planMarketingRequest
+} from "./jarvis.marketing.engine.js";
+
+const BUSINESS_ENGINE_VERSION = "2.0.0-business-marketing";
 
 /* =====================================================================================
     MAIN
@@ -26,6 +34,14 @@ export function runBusinessIntent(rawInput = "") {
 
     if (!text) {
         return null;
+    }
+
+    if (isMarketingRequest(rawInput)) {
+
+        return planMarketingRequest(
+            rawInput,
+            resolveMarketingContext()
+        );
     }
 
     const target =
@@ -328,7 +344,9 @@ if (intent === "GERARDO_STATUS") {
     if (!target) {
         return {
             ok: true,
-            source: "BUSINESS_ENGINE",
+            source: "BUSINESS_ENGINE_V2",
+            version:
+                BUSINESS_ENGINE_VERSION,
             message:
                 "Orden detectada. Falta objetivo específico."
         };
@@ -577,7 +595,9 @@ ${
 function ok(message = "") {
     return {
         ok: true,
-        source: "BUSINESS_ENGINE",
+        source: "BUSINESS_ENGINE_V2",
+        version:
+            BUSINESS_ENGINE_VERSION,
         message
     };
 }

@@ -1,6 +1,6 @@
 
 /* =====================================================================================
-   JARVIS COGNITION ENGINE V1
+   JARVIS COGNITION ENGINE V2
 ===================================================================================== */
 
 (function(global) {
@@ -8,7 +8,7 @@
     const CognitionEngine = {
 
         version:
-            "V1_SEMANTIC_RUNTIME",
+            "V2_SEMANTIC_MARKETING_RUNTIME",
 
         analyze(input = "") {
 
@@ -43,6 +43,41 @@
                 confidence:
                     0.5
             };
+
+            const normalizedText =
+                text
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "");
+
+            const marketingIntent =
+                /\b(marketing|marca|campana|publicidad|anuncio|ads|contenido|redes sociales)\b/i.test(normalizedText) ||
+                /\b(flyer|flayer|volante|poster|post|foto|imagen|editable|reel|tiktok|tik tok|instagram|insta|landing|pagina web|sitio web)\b/i.test(normalizedText);
+
+            if (marketingIntent) {
+
+                cognition.intent =
+                    "MARKETING_PLAN";
+
+                cognition.domain =
+                    "marketing";
+
+                cognition.expectedOutput =
+                    "marketing_asset_plan";
+
+                cognition.cognitionLayer =
+                    "marketing_studio_v2";
+
+                cognition.confidence =
+                    0.93;
+
+                cognition.target =
+                    detectMarketingTarget(normalizedText);
+
+                cognition.channels =
+                    detectMarketingChannels(normalizedText);
+
+                return cognition;
+            }
 
             /* =====================================================
    REPO SEARCH INTENT
@@ -362,6 +397,54 @@ if (
 return cognition;
         }
     };
+
+    function detectMarketingTarget(text = "") {
+
+        if (/\b(landing|pagina|web|sitio|home|page)\b/i.test(text)) {
+            return "landing_page";
+        }
+
+        if (/\b(flyer|flayer|volante|poster|post)\b/i.test(text)) {
+            return "flyer";
+        }
+
+        if (/\b(foto|imagen|editable|mockup)\b/i.test(text)) {
+            return "editable_photo";
+        }
+
+        if (/\b(reel|video corto|short|tiktok|tik tok|historia|story)\b/i.test(text)) {
+            return "reel";
+        }
+
+        return "campaign";
+    }
+
+    function detectMarketingChannels(text = "") {
+
+        const channels = [];
+
+        if (/\b(tiktok|tik tok)\b/i.test(text)) {
+            channels.push("tiktok");
+        }
+
+        if (/\b(instagram|insta|ig)\b/i.test(text)) {
+            channels.push("instagram");
+        }
+
+        if (/\b(facebook|fb)\b/i.test(text)) {
+            channels.push("facebook");
+        }
+
+        if (/\b(whatsapp|wa)\b/i.test(text)) {
+            channels.push("whatsapp");
+        }
+
+        if (/\b(web|landing|pagina|sitio)\b/i.test(text)) {
+            channels.push("web");
+        }
+
+        return channels;
+    }
 
     global.JarvisCognitionEngine =
         CognitionEngine;

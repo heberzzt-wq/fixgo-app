@@ -1,6 +1,6 @@
 /**
  * =====================================================================================
- * JARVIS NLU BRIDGE v1.1 GOD MODE (HYBRID SOVEREIGN)
+ * JARVIS NLU BRIDGE v2.0 MARKETING SOVEREIGN
  * Natural Language Understanding Layer for Gestia / FixGo / Jarvis Sovereign Core
  * =====================================================================================
  * MISIÓN:
@@ -11,7 +11,7 @@
 
 import { JarvisMemory } from "./jarvis.memory.js";
 
-const NLU_VERSION = "1.1 HYBRID SOVEREIGN";
+const NLU_VERSION = "2.0 MARKETING SOVEREIGN";
 
 // =====================================================================================
 // NORMALIZADOR
@@ -47,6 +47,10 @@ const ACTION_MAP = {
   create: [
     "crea","genera","arma","haz"
   ],
+  marketing: [
+    "marketing","campana","publicidad","anuncio","promociona",
+    "flyer","flayer","reel","tiktok","instagram","landing","pagina web"
+  ],
   activate: [
     "activa","enciende","habilita"
   ],
@@ -76,6 +80,12 @@ const ENTITY_MAP = {
   snapshot: ["snapshot","backup"],
   memory: ["memoria","historial"],
   tecnico: ["tecnico","tecnicos","tecs","personal"],
+  marketing: ["marketing","campana","publicidad","contenido","marca","redes sociales"],
+  landing: ["landing","pagina","web","sitio"],
+  flyer: ["flyer","flayer","volante","poster","post"],
+  reel: ["reel","video corto","short","tiktok"],
+  instagram: ["instagram","insta","ig"],
+  editable_photo: ["foto","imagen","editable","mockup"],
   system: ["sistema","system","core"]
 };
 
@@ -124,6 +134,7 @@ function buildCleanCommand(action, entity, text) {
     REPAIR: "repara",
     UPDATE: "actualiza",
     CREATE: "crea",
+    MARKETING: "marketing",
     ACTIVATE: "activa",
     DEACTIVATE: "desactiva",
     PURGE: "limpia",
@@ -177,7 +188,12 @@ export function understand(rawInput = "") {
       if (!finalAction) finalAction = "ANALYZE";
 
       if (!finalEntity) {
-        if (chunk.includes("tecnic")) finalEntity = "tecnico";
+        if (chunk.includes("tiktok") || chunk.includes("reel")) finalEntity = "reel";
+        else if (chunk.includes("instagram") || chunk.includes("insta")) finalEntity = "instagram";
+        else if (chunk.includes("flyer") || chunk.includes("flayer")) finalEntity = "flyer";
+        else if (chunk.includes("landing") || chunk.includes("pagina")) finalEntity = "landing";
+        else if (chunk.includes("foto") || chunk.includes("imagen")) finalEntity = "editable_photo";
+        else if (chunk.includes("tecnic")) finalEntity = "tecnico";
         else if (chunk.includes("pago")) finalEntity = "pagos";
         else finalEntity = "system";
       }
@@ -220,4 +236,4 @@ export function understand(rawInput = "") {
   };
 }
 
-console.log("🧠 JARVIS NLU BRIDGE v1.1 HYBRID SOVEREIGN ONLINE");
+console.log("🧠 JARVIS NLU BRIDGE v2.0 MARKETING SOVEREIGN ONLINE");
