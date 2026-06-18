@@ -1374,6 +1374,31 @@ return;
         // 🔥 NUEVO INTERCEPTOR COGNITIVO UNIVERSAL (CERO DICCIONARIOS)
         const raw = String(comando || "").toLowerCase();
 
+        const isReadOnlyConversationalAnalysis =
+    /analiza|análisis|analisis|revisa|audita|repo|sistema|módulos|modulos|dependencias|impacto|críticos|criticos/i
+        .test(comando);
+
+if (isReadOnlyConversationalAnalysis) {
+    console.warn("🧠 [TERMINAL_READ_ONLY_BYPASS]", comando);
+
+    if (window.JarvisBridge?.dispatch) {
+        await window.JarvisBridge.dispatch(comando);
+        handled = true;
+        return;
+    }
+
+    if (window.KernelHeberto?.execute) {
+        const res = await window.KernelHeberto.execute(comando, e);
+        window.renderJarvisResponse?.(
+            "Auditoría SIA7",
+            res?.report || res?.message || String(res),
+            "info"
+        );
+        handled = true;
+        return;
+    }
+}
+
         console.log("🧠 [UNIVERSAL COGNITION PLAN FROM TERMINAL]");
 
         /* =====================================================
