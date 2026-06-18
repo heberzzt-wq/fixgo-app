@@ -4789,7 +4789,31 @@ if (
 /* =============================================
    1. PRIORIDAD ABSUTA: JARVIS BRIDGE
 ============================================= */
+const cognition =
+    window.JarvisCognitionEngine?.analyze?.(rawInput);
 
+if (
+    !isStructured &&
+    cognition?.domain === "repository" &&
+    cognition?.intent === "analyze"
+) {
+    console.log("🧠 [REPO_AUDIT_BY_COGNITION]", cognition);
+
+    const scan = window.scanRepo?.({}) || {
+        ok: false,
+        files: []
+    };
+
+    return window.buildRepoAuditReport
+        ? window.buildRepoAuditReport(scan, cognition)
+        : {
+            ok: true,
+            status: "DONE",
+            type: "REPO_ANALYSIS",
+            report: JSON.stringify(scan, null, 2),
+            data: scan
+        };
+}
 // 🔥 INTERCEPTOR DE APROBACIÓN (ANTES DEL BRIDGE)
 if (APPROVAL_WORDS.includes(cmd)) {
     console.log("🟢 [APPROVAL BLOCKED BEFORE BRIDGE]:", cmd);
