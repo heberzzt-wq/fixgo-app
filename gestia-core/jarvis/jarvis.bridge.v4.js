@@ -1694,6 +1694,23 @@ if (
 
     window.lastPlanId = plan.id;
 
+    const isRepoReadOnlyAnalysis =
+    /analisis|análisis|analiza|revisa|audita/.test(rawLow) &&
+    /repo|repositorio|repository|sistema|system/.test(rawLow) &&
+    !isCodeIntent;
+
+if (isRepoReadOnlyAnalysis) {
+    console.log("🧠 [READ_ONLY_REPO_ANALYSIS_BYPASS_MULTI_INTENT]", raw);
+
+    if (window.JarvisBridge?.dispatch) {
+        return await window.JarvisBridge.dispatch(raw);
+    }
+
+    if (window.KernelHeberto?.execute) {
+        return await window.KernelHeberto.execute(raw);
+    }
+}
+
     if (typeof savePendingPlan === "function") {
         await sincronizarYPersistirPlan(plan);
     }
