@@ -1382,11 +1382,7 @@ return;
 if (isReadOnlyConversationalAnalysis) {
     console.warn("🧠 [TERMINAL_READ_ONLY_BYPASS]", comando);
 
-    if (window.JarvisBridge?.dispatch) {
-        await window.JarvisBridge.dispatch(comando);
-        handled = true;
-        return;
-    }
+    
 
     if (window.KernelHeberto?.execute) {
         const res = await window.KernelHeberto.execute(comando, e);
