@@ -1,3 +1,7 @@
+import {
+    understandIntentV7
+} from "./jarvis/jarvis.intent.runtime.v7.js?v=conversational-20260617";
+
 /* ======================================================================================
    GESTIAPREMIUM 2026 - MAPAS DE INTENCIÓN Y ENTIDAD (V4.1 SOVEREIGN EXECUTIVE)
    ====================================================================================== */
@@ -497,6 +501,7 @@ if (rawLower === "repair" || rawLower.startsWith("repair")) {
 
         // 👇 CONTINÚA EL PROCESAMIENTO HUMANO/HÍBRIDO
         const tokens = rawLower.split(/\s+/);
+        let repoFile = null;
 
 
         console.log(
@@ -516,7 +521,7 @@ console.log(
    REPO FILE DETECTOR
 ===================================================== */
 
-const repoFile = tokens.find(token => {
+repoFile = tokens.find(token => {
 
     const clean = token
         .replace(/['"]/g, "")
@@ -871,8 +876,61 @@ window.runIntentEngine = async function(text) {
         let cleanText = text;
         let nluMeta = null;
 
+        const conversational =
+            understandIntentV7(
+                text
+            );
+
+        if (
+            conversational?.needsClarification
+        ) {
+            return __toSystemFormat({
+                intent: "CLARIFY_INTENT",
+                action: "CLARIFY",
+                entity:
+                    conversational.entity ||
+                    "system",
+                target:
+                    conversational.target ||
+                    conversational.file ||
+                    "pending",
+                summary:
+                    conversational.clarification,
+                source:
+                    "jarvis_intent_runtime_v7",
+                confidence:
+                    conversational.confidence,
+                contextRef: {
+                    ...conversational,
+                    needsClarification: true
+                }
+            });
+        }
+
+        if (
+            conversational?.command
+        ) {
+            cleanText =
+                conversational.command;
+
+            nluMeta = {
+                source:
+                    "jarvis_intent_runtime_v7",
+                confidence:
+                    conversational.confidence,
+                fallback:
+                    false,
+                conversational
+            };
+
+            console.log(
+                "[INTENT_RUNTIME_V7_TO_LEGACY]",
+                conversational
+            );
+        }
+
         // 🧠 1. NLU HYBRID (Pre-procesamiento)
-        if (typeof understand === "function") {
+        if (!nluMeta && typeof understand === "function") {
             const nlu = understand(text);
             if (nlu && nlu.commands && nlu.commands[0]) {
                 const cmd = nlu.commands[0];
@@ -887,6 +945,31 @@ window.runIntentEngine = async function(text) {
             try {
                 const res = interpretarIntenciones([{ raw: cleanText }]);
                 if (res && res[0]) {
+                    if (
+                        res[0]?.message &&
+                        res[0]?.data &&
+                        res[0]?.meta
+                    ) {
+                        return {
+                            ...res[0],
+                            meta: {
+                                ...res[0].meta,
+                                source:
+                                    nluMeta?.source ||
+                                    res[0].meta.source ||
+                                    "intent_engine",
+                                confidence:
+                                    nluMeta?.confidence ||
+                                    res[0].meta.confidence ||
+                                    1,
+                                contextRef:
+                                    nluMeta ||
+                                    res[0].meta.contextRef ||
+                                    null
+                            }
+                        };
+                    }
+
                     // Usamos el Adaptador Soberano para formatear la salida
                     return __toSystemFormat({ ...res[0], source: "intent_engine", contextRef: nluMeta });
                 }

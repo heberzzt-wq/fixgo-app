@@ -64,7 +64,7 @@ import {
 
 import {
     interpretarIntenciones
-} from "/gestia-core/intent.engine.js";
+} from "/gestia-core/intent.engine.js?v=jarvis-intent-runtime-v7-20260617";
 
 import {
     runJarvis
