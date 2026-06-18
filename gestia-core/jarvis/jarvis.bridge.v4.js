@@ -1633,13 +1633,24 @@ const isRepoReadOnlyAnalysis =
 if (isRepoReadOnlyAnalysis) {
     console.log("🧠 [READ_ONLY_REPO_ANALYSIS_DIRECT]", raw);
 
+    const msg =
+        "Arquitecto, solicitud read-only detectada. No crearé plan, no pediré aprobación y no ejecutaré escritura.";
+
+    window.renderJarvisResponse?.(
+        "Auditoría del repo",
+        msg,
+        "info"
+    );
+
+    window.hablarJarvis?.(msg);
+
     return {
         ok: true,
         mode: "READ_ONLY",
         intent: "analyze",
         target: "repository",
         confidence: 0.82,
-        message: "Arquitecto, solicitud read-only detectada. No crearé plan, no pediré aprobación y no ejecutaré escritura.",
+        message: msg,
         requiresApproval: false,
         requiresPatch: false,
         writeMode: "READ_ONLY"
