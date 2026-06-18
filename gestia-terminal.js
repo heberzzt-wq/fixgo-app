@@ -4790,14 +4790,14 @@ if (
    1. PRIORIDAD ABSUTA: JARVIS BRIDGE
 ============================================= */
 const cognition =
-    window.JarvisCognitionEngine?.analyze?.(rawInput);
+    window.JarvisIntentRuntimeV7?.understand?.(rawInput);
 
 if (
     !isStructured &&
-    cognition?.domain === "repository" &&
-    cognition?.intent === "analyze"
+    cognition?.intent === "ANALYZE" &&
+    cognition?.entity === "REPOSITORY"
 ) {
-    console.log("🧠 [REPO_AUDIT_BY_COGNITION]", cognition);
+    console.log("🧠 [REPO_AUDIT_BY_INTENT_V7]", cognition);
 
     const scan = window.scanRepo?.({}) || {
         ok: false,
