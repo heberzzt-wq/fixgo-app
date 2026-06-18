@@ -162,6 +162,48 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('gestia-form');
     const output = document.getElementById('gestia-output');
 
+    const btnGenerate = document.getElementById("btn-generate");
+
+function isKernelSessionReady() {
+    try {
+        return window.KernelHeberto
+            ?.getState?.()
+            ?.session
+            ?.hasToken === true;
+    } catch {
+        return false;
+    }
+}
+
+function syncTerminalAuthGate() {
+    const ready = isKernelSessionReady();
+
+    if (textarea) {
+        textarea.disabled = !ready;
+        textarea.placeholder = ready
+            ? "Describe el módulo que vamos a construir..."
+            : "Esperando sesión segura Firebase...";
+    }
+
+    if (btnGenerate) {
+        btnGenerate.disabled = !ready;
+        btnGenerate.title = ready
+            ? "Generar Módulo"
+            : "Esperando sesión segura Firebase";
+    }
+
+    return ready;
+}
+
+syncTerminalAuthGate();
+
+const terminalAuthGateInterval = setInterval(() => {
+    if (syncTerminalAuthGate()) {
+        clearInterval(terminalAuthGateInterval);
+        console.log("✅ [TERMINAL_AUTH_GATE_READY]");
+    }
+}, 250);
+
     /* =====================================================
         🛡️ SISTEMA DE AUDITORÍA Y NORMALIZACIÓN (NÚCLEO RESILIENTE)
         Blindaje Total: Coherencia Temporal y Seguridad V5.70.
