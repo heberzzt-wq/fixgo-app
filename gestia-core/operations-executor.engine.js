@@ -807,7 +807,22 @@ case "ANALYZE_UI":
                         // Si content es null, NI SIQUIERA intentamos tocar el repo ni la DB.
                         if (payload?.content === null || payload?.content === undefined) {
                             console.warn("🧠 [EXECUTOR]: Bloqueo preventivo: Contenido vacío. Saltando escritura.");
-                            retryBuffer.push({ type, target: payload.file, status: "analysis_only_success" });
+                            retryBuffer.push({
+                                type,
+                                target: payload.file,
+                                status: "blocked",
+                                blocked: true,
+                                reason: payload?.analysis?.reason || "EMPTY_WRITE_CONTENT",
+                                result: {
+                                    blocked: true,
+                                    reason: payload?.analysis?.reason || "EMPTY_WRITE_CONTENT",
+                                    report:
+                                        payload?.report ||
+                                        "No se genero contenido ejecutable. Se bloqueo la escritura vacia.",
+                                    analysis: payload?.analysis || null,
+                                    originalIntent: payload?.originalIntent || null
+                                }
+                            });
                         } else {
                             // Solo si hay contenido REAL, procedemos a escribir.
 

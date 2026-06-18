@@ -72,7 +72,7 @@ import {
 
 import {
     approvePlan
-} from "/gestia-core/plans.engine.js";
+} from "/gestia-core/plans.engine.js?v=empty-write-blocked-20260617";
 
 
 import {
