@@ -2,10 +2,10 @@
 
 /**
  * ======================================================================================
- * GESTIAPREMIUM 2026 - REPO WRITE AUTHORITY GATE V1.0
+ * GESTIAPREMIUM 2026 - REPO WRITE AUTHORITY GATE V2.0
  * ======================================================================================
  * Autoriza escrituras en GitHub únicamente para identidades Firebase verificadas
- * con rango de CEO o Arquitecto Supremo.
+ * con rango de owner, CEO o Arquitecto Supremo.
  *
  * Reglas:
  * - Requiere Firebase ID Token en Authorization: Bearer <token>.
@@ -19,8 +19,42 @@
 const ALLOWED_REPO_WRITE_ROLES =
     new Set([
         "arquitecto_supremo",
-        "ceo"
+        "ceo",
+        "owner",
+        "dueno",
+        "founder"
     ]);
+
+const REPO_WRITE_AUTH_VERSION =
+    "2.0.0-private-owner-gate";
+
+const REPO_WRITE_AUTH_POLICY = {
+    authority:
+        "full_repo_private_owner",
+    requiresFirebaseIdToken:
+        true,
+    failureMode:
+        "closed",
+    allowedRoles:
+        [...ALLOWED_REPO_WRITE_ROLES],
+    safeZone:
+        "advisory",
+    blockedPathPolicy:
+        "deny_secrets_git_node_modules"
+};
+
+function withAuthorityContract(result = {}) {
+
+    return {
+        gate:
+            "repo_write_authority_gate",
+        version:
+            REPO_WRITE_AUTH_VERSION,
+        policy:
+            REPO_WRITE_AUTH_POLICY,
+        ...result
+    };
+}
 
 function normalizeAuthorityRole(value) {
 
@@ -80,7 +114,7 @@ module.exports = ({
 
         if (!idToken) {
 
-            return {
+            return withAuthorityContract({
                 ok: false,
                 authorized: false,
                 httpStatus: 401,
@@ -91,7 +125,7 @@ module.exports = ({
                 uid: null,
                 role: null,
                 tenantId: null
-            };
+            });
         }
 
         try {
@@ -110,7 +144,7 @@ module.exports = ({
 
             if (!uid) {
 
-                return {
+                return withAuthorityContract({
                     ok: false,
                     authorized: false,
                     httpStatus: 401,
@@ -121,7 +155,7 @@ module.exports = ({
                     uid: null,
                     role: null,
                     tenantId: null
-                };
+                });
             }
 
             let userData =
@@ -170,7 +204,7 @@ module.exports = ({
                 )
             ) {
 
-                return {
+                return withAuthorityContract({
                     ok: false,
                     authorized: false,
                     httpStatus: 403,
@@ -188,10 +222,10 @@ module.exports = ({
                         userData?.tenantId ||
                         userData?.condominioId ||
                         null
-                };
+                });
             }
 
-            return {
+            return withAuthorityContract({
                 ok: true,
                 authorized: true,
                 httpStatus: 200,
@@ -214,7 +248,7 @@ module.exports = ({
                     decodedToken.admin === true
                         ? "firebase_custom_claim"
                         : "firebase_token_or_user_profile"
-            };
+            });
 
         } catch(error) {
 
@@ -231,7 +265,7 @@ module.exports = ({
                 }
             );
 
-            return {
+            return withAuthorityContract({
                 ok: false,
                 authorized: false,
                 httpStatus: 401,
@@ -242,12 +276,26 @@ module.exports = ({
                 uid: null,
                 role: null,
                 tenantId: null
-            };
+            });
         }
+    }
+
+    function describeRepoWriteAuthorityGate() {
+
+        return {
+            ok: true,
+            gate:
+                "repo_write_authority_gate",
+            version:
+                REPO_WRITE_AUTH_VERSION,
+            policy:
+                REPO_WRITE_AUTH_POLICY
+        };
     }
 
     return {
         authorizeRepoWriteRequest,
-        normalizeAuthorityRole
+        normalizeAuthorityRole,
+        describeRepoWriteAuthorityGate
     };
 };
