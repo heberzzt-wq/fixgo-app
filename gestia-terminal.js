@@ -83,7 +83,7 @@ import {
    GESTIA SOVEREIGN KERNEL
 ===================================================== */
 
-import "./gestia-core/jarvis.kernel.js";
+import "./gestia-core/jarvis.kernel.js?v=jarvis-authority-v2-20260618";
 
 
 
@@ -452,7 +452,7 @@ window.registerRuntimeModule ||= function(
    RUNTIME GOVERNANCE, DAEMONS, SCHEDULER AND RISK GRAPH
 ===================================================================================== */
 
-await import("./modules/terminal/runtime-governance.js");
+await import("./modules/terminal/runtime-governance.js?v=jarvis-authority-v2-20260618");
 
 /* =====================================================
    RUNTIME EVENT BUS AND AUTO HYDRATION

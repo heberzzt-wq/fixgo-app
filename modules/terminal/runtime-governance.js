@@ -2,7 +2,7 @@
    REPO REGISTRY AND COGNITION
 ===================================================== */
 
-await import("./modules/terminal/repo-cognition.js");
+await import("./repo-cognition.js?v=jarvis-authority-v2-20260618");
 
 /* =====================================================================================
    RUNTIME RISK PROPAGATION ENGINE V1
