@@ -53,7 +53,8 @@ window.generatePatch = async function(config = {}) {
             loaded.source || "";
 
             /* =====================================================
-   SAFE ZONE ENFORCEMENT
+   SAFE ZONE SIGNAL
+   Full-repo authority: safe zone is advisory, not a hard cage.
 ===================================================== */
 
 const safe =
@@ -62,16 +63,14 @@ const safe =
     );
 
 if (!safe) {
-
-    return {
-
-        ok: false,
-
-        reason:
-            "DENY_PATCH_UNSAFE_ZONE",
-
-        file
-    };
+    console.warn(
+        "[PATCH_FULL_REPO_AUTHORITY]",
+        {
+            file,
+            reason:
+                "SAFE_ZONE_NOT_PRESENT_REVIEW_REQUIRED"
+        }
+    );
 }
 
         const exists =
@@ -107,7 +106,16 @@ if (!safe) {
                 patched.length,
 
             changed:
-                source !== patched
+                source !== patched,
+
+            safeZone:
+                !!safe,
+
+            fullRepoAuthority:
+                !safe,
+
+            reviewRequired:
+                !safe
         };
 
         console.log(
@@ -125,7 +133,16 @@ if (!safe) {
 
             patched,
 
-            diff: diffPreview
+            diff: diffPreview,
+
+            safeZone:
+                !!safe,
+
+            fullRepoAuthority:
+                !safe,
+
+            reviewRequired:
+                !safe
         };
 
     } catch (err) {

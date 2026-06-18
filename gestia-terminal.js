@@ -72,7 +72,7 @@ import {
 
 import {
     approvePlan
-} from "/gestia-core/plans.engine.js?v=jarvis-repair-engines-v2-20260617";
+} from "/gestia-core/plans.engine.js?v=jarvis-autonomy-v1-20260617";
 
 
 import {
@@ -775,7 +775,7 @@ async function(
 
 await import("./modules/terminal/repo-bootstrap-index.js");
 
-await import("./modules/terminal/patch-workflow.js");
+await import("./modules/terminal/patch-workflow.js?v=jarvis-autonomy-v1-20260617");
 
 
 /* =====================================================

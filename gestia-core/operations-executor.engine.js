@@ -31,6 +31,10 @@ import { scanFile } from "./jarvis/jarvis.scanner.engine.js";
 import { buildAutoFix } from "./jarvis/jarvis.autofix.engine.js";
 import { buildAutoPatch } from "./jarvis/jarvis.autopatch.engine.js";
 import { buildPatchDiff } from "./jarvis/jarvis.patchdiff.engine.js";
+import {
+    recordAutonomyEvent,
+    recallAutonomyLessons
+} from "./jarvis/jarvis.autonomy.engine.js";
 
 import { 
     runTransaction,
@@ -109,6 +113,25 @@ async function hydrateStepRepoEvidence(step = {}) {
             await window.loadRepoContext(file);
 
         if (!loaded?.ok || typeof loaded.source !== "string") {
+            recordAutonomyEvent({
+                status:
+                    "blocked",
+                stage:
+                    "source_preflight",
+                operation:
+                    step?.type ||
+                    "unknown",
+                file,
+                reason:
+                    loaded?.error ||
+                    "SOURCE_NOT_AVAILABLE",
+                context: {
+                    planner:
+                        step?.meta?.planner ||
+                        null
+                }
+            });
+
             step.meta = {
                 ...(step.meta || {}),
                 sourceLoad: {
@@ -138,6 +161,23 @@ async function hydrateStepRepoEvidence(step = {}) {
         const patchdiff =
             buildPatchDiff(report);
 
+        const autonomy =
+            recallAutonomyLessons({
+                file:
+                    loaded.file || file,
+                stage:
+                    "preflight",
+                operation:
+                    step?.type ||
+                    step?.originalType ||
+                    "unknown",
+                scan:
+                    report,
+                planner:
+                    step?.meta?.planner ||
+                    null
+            });
+
         step.meta = {
             ...(step.meta || {}),
             repoEvidence: {
@@ -151,7 +191,8 @@ async function hydrateStepRepoEvidence(step = {}) {
                 report,
                 autofix,
                 autopatch,
-                patchdiff
+                patchdiff,
+                autonomy
             },
             source:
                 loaded.source
@@ -169,7 +210,9 @@ async function hydrateStepRepoEvidence(step = {}) {
                 flags:
                     report.flags || [],
                 recommendations:
-                    report.recommendations || []
+                    report.recommendations || [],
+                lessons:
+                    autonomy?.lessons || []
             }
         };
 
@@ -187,6 +230,24 @@ async function hydrateStepRepoEvidence(step = {}) {
 
         return step;
     } catch (err) {
+        recordAutonomyEvent({
+            status:
+                "failed",
+            stage:
+                "repo_evidence_preflight",
+            operation:
+                step?.type ||
+                "unknown",
+            file,
+            error:
+                err,
+            context: {
+                planner:
+                    step?.meta?.planner ||
+                    null
+            }
+        });
+
         step.meta = {
             ...(step.meta || {}),
             sourceLoad: {
@@ -1518,6 +1579,22 @@ const latency = Date.now() - startTime;
     } catch (error) {
         emitirPulsoHUD(opId, "CRASH", "FAILED", error.message);
         console.error("❌ SIA7_EXECUTOR_CRASH:", error);
+
+        recordAutonomyEvent({
+            status:
+                "failed",
+            stage:
+                "ejecutarCambios",
+            operation:
+                "transactional_execution",
+            operationId:
+                opId,
+            error,
+            context: {
+                source:
+                    "operations-executor.engine.js"
+            }
+        });
         
         // Registro forense del error (Best effort)
         try {
@@ -2604,6 +2681,32 @@ const normalizedExecutionStatus =
     blockingResult
         ? "blocked"
         : "success";
+
+recordAutonomyEvent({
+    status:
+        normalizedExecutionStatus,
+    stage:
+        "executeSteps",
+    operation:
+        proposal?.type ||
+        proposal?.changes?.[0]?.type ||
+        "hybrid_execution",
+    operationId,
+    error:
+        blockingResult,
+    reason:
+        blockingResult?.reason ||
+        blockingResult?.status ||
+        null,
+    context: {
+        source:
+            "operations-executor.engine.js",
+        planner:
+            proposal?.planner ||
+            proposal?.changes?.[0]?.meta?.planner ||
+            null
+    }
+});
 
 return {
 
