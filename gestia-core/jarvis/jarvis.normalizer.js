@@ -1,3 +1,71 @@
+function safeParseJSON(raw = "", fallback = {}) {
+    try {
+        return raw
+            ? JSON.parse(raw)
+            : fallback;
+    } catch (err) {
+        return fallback;
+    }
+}
+
+function readJarvisPlanningContext(step = {}, planRaw = {}) {
+    const promptData =
+        safeParseJSON(
+            step?.payload?.originalPrompt || "{}",
+            {}
+        );
+
+    const cognition =
+        promptData?.cognition ||
+        planRaw?.cognition ||
+        {};
+
+    const jarvisIntent =
+        step?.meta?.jarvisIntent ||
+        step?.payload?.jarvisIntent ||
+        planRaw?.jarvisIntent ||
+        promptData?.jarvisIntent ||
+        cognition?.jarvisIntentV7 ||
+        {};
+
+    const planner =
+        step?.meta?.planner ||
+        step?.payload?.planner ||
+        planRaw?.planner ||
+        promptData?.planner ||
+        jarvisIntent?.planner ||
+        cognition?.planner ||
+        {};
+
+    return {
+        promptData,
+        cognition,
+        jarvisIntent,
+        planner,
+        repairHints:
+            step?.payload?.repairHints ||
+            planRaw?.repairHints ||
+            promptData?.repairHints ||
+            jarvisIntent?.repairHints ||
+            planner?.repairHints ||
+            null,
+        value:
+            step?.payload?.value ||
+            planRaw?.value ||
+            promptData?.value ||
+            jarvisIntent?.value ||
+            planner?.value ||
+            null,
+        issue:
+            step?.payload?.issue ||
+            planRaw?.issue ||
+            promptData?.issue ||
+            jarvisIntent?.issue ||
+            planner?.issue ||
+            null
+    };
+}
+
 export function normalizeAIPlan(planRaw = {}, traceId = "no_trace") {
 
     console.log("🧠 [NORMALIZER]: START", { traceId, planRaw });
@@ -75,7 +143,20 @@ meta: {
         planRaw.target,
 
     cognitionHint:
-        "analyze"
+        "analyze",
+
+    planner:
+        planRaw.planner ||
+        null,
+
+    jarvisIntent:
+        planRaw.jarvisIntent ||
+        planRaw.cognition?.jarvisIntentV7 ||
+        null,
+
+    confidence:
+        planRaw.confidence ||
+        null
 }
 
 
@@ -209,18 +290,30 @@ const isAnalyzeIntent =
         // Ya no dependemos de palabras exactas. Confiamos en la inteligencia del LLM 
         // y en expresiones tolerantes a fallos (typos).
         
-        let aiCognition = {};
-        try { 
-            aiCognition = JSON.parse(step?.payload?.originalPrompt || "{}")?.cognition || {}; 
-        } catch(e) {}
+        const jarvisPlanning =
+            readJarvisPlanningContext(
+                step,
+                planRaw
+            );
 
-        const isRepairIntent = 
+        let aiCognition =
+            jarvisPlanning.cognition || {};
+
+        const isRepairIntent =
+            !isAnalyzeIntent &&
+            (
             // 1. Delegación directa: Si la IA sabe que es una operación de repositorio, le creemos.
             aiCognition.repoAware === true ||
             ["repo_surgeon", "runtime_audit", "code_generation"].includes(aiCognition.cognitionLayer) ||
+            ["REPAIR", "REPAIR_FILE", "REPAIR_RUNTIME"].includes(jarvisPlanning.planner?.planType) ||
+            jarvisPlanning.jarvisIntent?.intent === "REPAIR" ||
             
             // 2. Regex tolerante para los Intents principales del sistema
-            /^(REPAIR|REFACTOR|FUNCTION|CODE|ANALYZE)/i.test(type) ||
+            /^(REPAIR|REFACTOR|FUNCTION)/i.test(type) ||
+            (
+                /^CODE/i.test(type) &&
+                /(repair|fix|repar|patch|parch|modif|actualiz)/i.test(rawText)
+            ) ||
             
             // 3. Regex difuso para texto libre: si menciona un archivo y un verbo de acción (incluso con typos)
             (
@@ -229,7 +322,8 @@ const isAnalyzeIntent =
             ) ||
             
             // 4. Fallback de seguridad legacy
-            rawText.includes("repair_");
+            rawText.includes("repair_")
+            );
 
 console.log(
     "🧪 REPAIR_GATE",
@@ -251,6 +345,14 @@ if (
     step?.targetFile ||
 
     step?.meta?.originalTarget ||
+
+    jarvisPlanning.planner?.targetFile ||
+
+    jarvisPlanning.jarvisIntent?.file ||
+
+    jarvisPlanning.repairHints?.targetFile ||
+
+    aiCognition?.targetFile ||
 
     planRaw?.targetFile ||
 
@@ -279,6 +381,10 @@ console.log(
         planTarget:
             planRaw?.target,
 
+        jarvisTargetFile:
+            jarvisPlanning.planner?.targetFile ||
+            jarvisPlanning.jarvisIntent?.file,
+
         finalTargetFile:
             targetFile
     }
@@ -291,12 +397,15 @@ let repairContext = null;
 
 try {
 
-    const promptData = JSON.parse(
-        step?.payload?.originalPrompt || "{}"
-    );
+    const promptData =
+        jarvisPlanning.promptData || {};
 
     const originalText =
-        promptData?.cognition?.original || "";
+        promptData?.cognition?.original ||
+        jarvisPlanning.jarvisIntent?.raw ||
+        aiCognition?.original ||
+        planRaw?.jarvisIntent?.raw ||
+        "";
 
     repairContext = {
 
@@ -306,13 +415,50 @@ try {
             originalText,
 
         cognition:
-            promptData?.cognition || {},
+            promptData?.cognition ||
+            aiCognition ||
+            {},
+
+        jarvisIntent:
+            jarvisPlanning.jarvisIntent ||
+            null,
+
+        planner:
+            jarvisPlanning.planner ||
+            null,
+
+        repairHints:
+            jarvisPlanning.repairHints ||
+            null,
+
+        issue:
+            jarvisPlanning.issue ||
+            null,
+
+        value:
+            jarvisPlanning.value ||
+            null,
+
+        goal:
+            jarvisPlanning.planner?.goal ||
+            jarvisPlanning.planner?.objective ||
+            null,
+
+        confidence:
+            jarvisPlanning.jarvisIntent?.confidence ||
+            jarvisPlanning.planner?.confidence ||
+            aiCognition?.confidence ||
+            null,
 
         repoNode:
-            step?.meta?.repoNode || null,
+            step?.meta?.repoNode ||
+            aiCognition?.repoNode ||
+            null,
 
         source:
-            step?.meta?.source || null,
+            step?.meta?.source ||
+            jarvisPlanning.planner?.source ||
+            null,
 
         repairMode:
             "AUTONOMOUS",
@@ -381,6 +527,31 @@ catch(err) {
 
     repairContext,
 
+    value:
+        jarvisPlanning.value ||
+        null,
+
+    issue:
+        jarvisPlanning.issue ||
+        null,
+
+    repairHints:
+        jarvisPlanning.repairHints ||
+        null,
+
+    planner:
+        jarvisPlanning.planner ||
+        null,
+
+    jarvisIntent:
+        jarvisPlanning.jarvisIntent ||
+        null,
+
+    originalIntent:
+        jarvisPlanning.jarvisIntent?.raw ||
+        aiCognition?.original ||
+        "",
+
     originalPrompt:
 
         step?.payload
@@ -402,10 +573,29 @@ catch(err) {
                 step?.meta
                     ?.repoNode ||
 
+                aiCognition?.repoNode ||
+
                 null,
 
             reversible:
-                true
+                true,
+
+            source:
+                "jarvis_intent_runtime_v7",
+
+            planner:
+                jarvisPlanning.planner ||
+                null,
+
+            jarvisIntent:
+                jarvisPlanning.jarvisIntent ||
+                null,
+
+            confidence:
+                jarvisPlanning.jarvisIntent?.confidence ||
+                jarvisPlanning.planner?.confidence ||
+                aiCognition?.confidence ||
+                null
         },
 
         traceId
@@ -573,11 +763,40 @@ const normalizedStep = {
     action: "custom",
     payload: {
         file,
-        content: extractedCode || null
+        content: extractedCode || null,
+        value:
+            jarvisPlanning.value ||
+            null,
+        issue:
+            jarvisPlanning.issue ||
+            null,
+        repairHints:
+            jarvisPlanning.repairHints ||
+            null,
+        planner:
+            jarvisPlanning.planner ||
+            null,
+        jarvisIntent:
+            jarvisPlanning.jarvisIntent ||
+            null
     },
         meta: {
             reversible: true,
-            description: "AI Code Write (forced from text)"
+            description: "AI Code Write (forced from text)",
+            source:
+                jarvisPlanning.planner?.source ||
+                "normalizer",
+            planner:
+                jarvisPlanning.planner ||
+                null,
+            jarvisIntent:
+                jarvisPlanning.jarvisIntent ||
+                null,
+            confidence:
+                jarvisPlanning.jarvisIntent?.confidence ||
+                jarvisPlanning.planner?.confidence ||
+                aiCognition?.confidence ||
+                null
         },
         traceId
     };
@@ -701,14 +920,48 @@ const normalizedStep = {
     file:
         step.payload?.file ||
         step.payload?.target ||
+        jarvisPlanning.planner?.targetFile ||
+        jarvisPlanning.jarvisIntent?.file ||
+        planRaw?.targetFile ||
         step.meta?.originalTarget ||
         planRaw?.target ||
         `modules/auto_${Date.now()}.js`,
-                content: step.payload?.content || "// generado por jarvis"
+                content:
+                    step.payload?.content ??
+                    null,
+                value:
+                    jarvisPlanning.value ||
+                    null,
+                issue:
+                    jarvisPlanning.issue ||
+                    null,
+                repairHints:
+                    jarvisPlanning.repairHints ||
+                    null,
+                planner:
+                    jarvisPlanning.planner ||
+                    null,
+                jarvisIntent:
+                    jarvisPlanning.jarvisIntent ||
+                    null
             },
             meta: {
                 reversible: true,
-                description: "AI Code Write"
+                description: "AI Code Write",
+                source:
+                    jarvisPlanning.planner?.source ||
+                    "normalizer",
+                planner:
+                    jarvisPlanning.planner ||
+                    null,
+                jarvisIntent:
+                    jarvisPlanning.jarvisIntent ||
+                    null,
+                confidence:
+                    jarvisPlanning.jarvisIntent?.confidence ||
+                    jarvisPlanning.planner?.confidence ||
+                    aiCognition?.confidence ||
+                    null
             },
             traceId
         };

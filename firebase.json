@@ -61,7 +61,7 @@
     "rewrites": [
   {
     "source": "/api/**",
-    "function": "default"
+    "function": "api"
   }
 ],
 

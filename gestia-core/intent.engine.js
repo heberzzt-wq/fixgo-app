@@ -1,6 +1,6 @@
 import {
     understandIntentV7
-} from "./jarvis/jarvis.intent.runtime.v7.js?v=conversational-20260617";
+} from "./jarvis/jarvis.intent.runtime.v7.js?v=v7-contract-ci-20260617";
 
 /* ======================================================================================
    GESTIAPREMIUM 2026 - MAPAS DE INTENCIÓN Y ENTIDAD (V4.1 SOVEREIGN EXECUTIVE)
@@ -838,6 +838,36 @@ function __buildData(intentResult) {
         action: intentResult.action || "ANALYZE",
         entity: intentResult.entity || "system",
         target: intentResult.target || "general",
+        targetFile:
+            intentResult.targetFile ||
+            intentResult.file ||
+            intentResult.planner?.targetFile ||
+            null,
+        file:
+            intentResult.file ||
+            intentResult.targetFile ||
+            intentResult.planner?.file ||
+            null,
+        value:
+            intentResult.value ||
+            intentResult.planner?.value ||
+            null,
+        planner:
+            intentResult.planner ||
+            null,
+        execution:
+            intentResult.execution ||
+            intentResult.planner?.execution ||
+            null,
+        repairHints:
+            intentResult.repairHints ||
+            intentResult.planner?.repairHints ||
+            null,
+        clarification:
+            intentResult.clarification ||
+            null,
+        needsClarification:
+            intentResult.needsClarification === true,
         payload: intentResult.payload || {},
         meta: intentResult.contextRef || {}
     };
@@ -849,9 +879,53 @@ function __toSystemFormat(intentResult) {
     // 🛡️ Garantía de Mensaje: Si no hay summary, generamos uno basado en la entidad.
     const safeMessage = intentResult.summary || intentResult.message || `Procesando solicitud de ${intentResult.entity || 'sistema'}...`;
 
+    const targetFile =
+        intentResult.targetFile ||
+        intentResult.file ||
+        intentResult.planner?.targetFile ||
+        intentResult.contextRef?.conversational?.file ||
+        null;
+
+    const planner =
+        intentResult.planner ||
+        intentResult.contextRef?.conversational?.planner ||
+        null;
+
     return {
         ok: true,
         type: resolvedType,
+        intent: intentResult.intent || "UNKNOWN",
+        action: intentResult.action || "ANALYZE",
+        entity: intentResult.entity || "system",
+        target: intentResult.target || targetFile || "general",
+        targetFile,
+        file: targetFile,
+        value:
+            intentResult.value ||
+            planner?.value ||
+            intentResult.contextRef?.conversational?.value ||
+            null,
+        confidence:
+            intentResult.confidence ||
+            intentResult.contextRef?.confidence ||
+            planner?.confidence ||
+            1,
+        needsClarification:
+            intentResult.needsClarification === true ||
+            intentResult.contextRef?.needsClarification === true,
+        clarification:
+            intentResult.clarification ||
+            planner?.clarification ||
+            null,
+        planner,
+        execution:
+            intentResult.execution ||
+            planner?.execution ||
+            null,
+        repairHints:
+            intentResult.repairHints ||
+            planner?.repairHints ||
+            null,
         data: resolvedType === "SYSTEM_STATUS" ? (intentResult.data || {}) : __buildData(intentResult),
         message: String(safeMessage), // Forzado a String para Vocalizer
         meta: {
@@ -894,6 +968,28 @@ window.runIntentEngine = async function(text) {
                     conversational.target ||
                     conversational.file ||
                     "pending",
+                targetFile:
+                    conversational.file ||
+                    null,
+                file:
+                    conversational.file ||
+                    null,
+                value:
+                    conversational.value ||
+                    null,
+                planner:
+                    conversational.planner ||
+                    null,
+                execution:
+                    conversational.execution ||
+                    null,
+                repairHints:
+                    conversational.repairHints ||
+                    null,
+                clarification:
+                    conversational.clarification,
+                needsClarification:
+                    true,
                 summary:
                     conversational.clarification,
                 source:
@@ -920,7 +1016,22 @@ window.runIntentEngine = async function(text) {
                     conversational.confidence,
                 fallback:
                     false,
-                conversational
+                conversational,
+                planner:
+                    conversational.planner ||
+                    null,
+                execution:
+                    conversational.execution ||
+                    null,
+                targetFile:
+                    conversational.file ||
+                    null,
+                value:
+                    conversational.value ||
+                    null,
+                repairHints:
+                    conversational.repairHints ||
+                    null
             };
 
             console.log(
@@ -952,6 +1063,52 @@ window.runIntentEngine = async function(text) {
                     ) {
                         return {
                             ...res[0],
+                            intent:
+                                res[0].intent ||
+                                res[0].data?.intent ||
+                                conversational?.intent ||
+                                "UNKNOWN",
+                            entity:
+                                res[0].entity ||
+                                res[0].data?.entity ||
+                                conversational?.entity ||
+                                "system",
+                            target:
+                                res[0].target ||
+                                res[0].data?.target ||
+                                conversational?.target ||
+                                conversational?.file ||
+                                "general",
+                            targetFile:
+                                res[0].targetFile ||
+                                res[0].data?.targetFile ||
+                                conversational?.file ||
+                                null,
+                            file:
+                                res[0].file ||
+                                res[0].data?.file ||
+                                conversational?.file ||
+                                null,
+                            value:
+                                res[0].value ||
+                                res[0].data?.value ||
+                                conversational?.value ||
+                                null,
+                            planner:
+                                conversational?.planner ||
+                                res[0].planner ||
+                                res[0].data?.planner ||
+                                null,
+                            execution:
+                                conversational?.execution ||
+                                res[0].execution ||
+                                res[0].data?.execution ||
+                                null,
+                            repairHints:
+                                conversational?.repairHints ||
+                                res[0].repairHints ||
+                                res[0].data?.repairHints ||
+                                null,
                             meta: {
                                 ...res[0].meta,
                                 source:
@@ -962,6 +1119,13 @@ window.runIntentEngine = async function(text) {
                                     nluMeta?.confidence ||
                                     res[0].meta.confidence ||
                                     1,
+                                planner:
+                                    nluMeta?.planner ||
+                                    res[0].meta.planner ||
+                                    null,
+                                jarvisIntent:
+                                    nluMeta?.conversational ||
+                                    null,
                                 contextRef:
                                     nluMeta ||
                                     res[0].meta.contextRef ||

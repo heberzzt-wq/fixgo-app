@@ -5125,7 +5125,7 @@ window.GestiaRuntime.registerServiceWorker =
 
                     .register(
 
-                        "/sw.js?v=sw-runtime-fresh-20260617",
+                        "/sw.js?v=jarvis-v7-contract-ci-20260617",
                         {
                             updateViaCache:
                                 "none"

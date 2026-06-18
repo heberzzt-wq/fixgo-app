@@ -64,7 +64,7 @@ import {
 
 import {
     interpretarIntenciones
-} from "/gestia-core/intent.engine.js?v=jarvis-intent-runtime-v7-20260617";
+} from "/gestia-core/intent.engine.js?v=jarvis-v7-contract-ci-20260617";
 
 import {
     runJarvis
@@ -72,7 +72,7 @@ import {
 
 import {
     approvePlan
-} from "/gestia-core/plans.engine.js?v=empty-write-blocked-20260617";
+} from "/gestia-core/plans.engine.js?v=jarvis-v7-security-preflight-20260617";
 
 
 import {
@@ -5854,6 +5854,9 @@ window.renderPlanPreview = function(plan) {
 
         // 🔥 target seguro (objeto, string o vacío)
         const target =
+            step.payload?.file ||
+            step.targetFile ||
+            step.meta?.planner?.targetFile ||
             step.target?.collection ||
             step.target?.docId ||
             (typeof step.target === "string" ? step.target : null) ||

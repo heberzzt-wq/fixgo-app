@@ -12,7 +12,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
 // 🔥 Configuración de Caché (Actualizado para forzar limpieza)
-const CACHE_NAME = 'gestia-premium-cache-v6.4-terminal-runtime-fresh';
+const CACHE_NAME = 'gestia-premium-cache-v7-contract-ci';
 
 const urlsToCache = [
   '/',

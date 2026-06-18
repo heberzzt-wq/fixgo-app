@@ -27,6 +27,10 @@ import {
     resolveJavaScriptSourceType,
     validateJavaScriptSyntax
 } from "./syntax-validator.engine.js";
+import { scanFile } from "./jarvis/jarvis.scanner.engine.js";
+import { buildAutoFix } from "./jarvis/jarvis.autofix.engine.js";
+import { buildAutoPatch } from "./jarvis/jarvis.autopatch.engine.js";
+import { buildPatchDiff } from "./jarvis/jarvis.patchdiff.engine.js";
 
 import { 
     runTransaction,
@@ -74,6 +78,135 @@ const deepSanitize = (obj) => {
         return acc;
     }, {});
 };
+
+function resolveStepRepoFile(step = {}) {
+    return (
+        step?.payload?.file ||
+        step?.payload?.targetFile ||
+        step?.targetFile ||
+        step?.meta?.planner?.targetFile ||
+        step?.meta?.jarvisIntent?.file ||
+        step?.meta?.repoNode?.file ||
+        (
+            typeof step?.target === "string"
+                ? step.target
+                : null
+        ) ||
+        null
+    );
+}
+
+async function hydrateStepRepoEvidence(step = {}) {
+    const file =
+        resolveStepRepoFile(step);
+
+    if (!file || typeof window.loadRepoContext !== "function") {
+        return step;
+    }
+
+    try {
+        const loaded =
+            await window.loadRepoContext(file);
+
+        if (!loaded?.ok || typeof loaded.source !== "string") {
+            step.meta = {
+                ...(step.meta || {}),
+                sourceLoad: {
+                    ok: false,
+                    file,
+                    error:
+                        loaded?.error ||
+                        "SOURCE_NOT_AVAILABLE"
+                }
+            };
+
+            return step;
+        }
+
+        const report =
+            scanFile(
+                loaded.file || file,
+                loaded.source
+            );
+
+        const autofix =
+            buildAutoFix(report);
+
+        const autopatch =
+            buildAutoPatch(report);
+
+        const patchdiff =
+            buildPatchDiff(report);
+
+        step.meta = {
+            ...(step.meta || {}),
+            repoEvidence: {
+                ok: true,
+                file:
+                    loaded.file || file,
+                sourceSize:
+                    loaded.source.length,
+                cached:
+                    loaded.cached === true,
+                report,
+                autofix,
+                autopatch,
+                patchdiff
+            },
+            source:
+                loaded.source
+        };
+
+        step.payload = {
+            ...(step.payload || {}),
+            sourceSize:
+                loaded.source.length,
+            scannerReport:
+                report,
+            scannerSummary: {
+                risk:
+                    report.risk,
+                flags:
+                    report.flags || [],
+                recommendations:
+                    report.recommendations || []
+            }
+        };
+
+        console.log(
+            "[JARVIS_PREFLIGHT_EVIDENCE]",
+            {
+                file:
+                    loaded.file || file,
+                risk:
+                    report.risk,
+                flags:
+                    report.flags
+            }
+        );
+
+        return step;
+    } catch (err) {
+        step.meta = {
+            ...(step.meta || {}),
+            sourceLoad: {
+                ok: false,
+                file,
+                error:
+                    err.message ||
+                    "SOURCE_PREFLIGHT_FAIL"
+            }
+        };
+
+        console.warn(
+            "[JARVIS_PREFLIGHT_EVIDENCE_FAIL]",
+            file,
+            err
+        );
+
+        return step;
+    }
+}
  // ======================================================================================
 // REPO COMMIT BRIDGE
 // ======================================================================================
@@ -557,34 +690,58 @@ const transactionRepoWrites =
                         retryBuffer.push({ type, target, status: "locked" });
                         break;
                     
-                        // El motor invoca el endpoint que pusiste en tu index.js
-                        // Asegúrate de que el endpoint coincida con la ruta de tu backend
-                        case "SIA7_COMMIT":
-    // Usamos la URL absoluta de tu función desplegada
-    const SIA7_ENDPOINT = "https://executesia7commit-72a7uqnggq-uc.a.run.app";
-    
-    const commitResponse = await fetch(SIA7_ENDPOINT, {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify({
-            // Usamos la llave que configuramos en los Secret Manager de Google
-            auth_token: "Heberto_SIA7_2026_Secure!", 
-            operation_id: opId,
-            file_path: target,
-            content: payload.content,
-            message: payload.commitMessage || "Auto-commit by SIA7"
-        })
-    }).then(r => r.json());
+                    case "SIA7_COMMIT": {
 
-    if (commitResponse.status === "success") {
-        retryBuffer.push({ type, target, status: "committed_to_github" });
-        emitirPulsoHUD(opId, "GIT", "SUCCESS", `Commit ejecutado: ${commitResponse.commit}`);
-    } else {
-        throw new Error("SIA7_REJECTED: " + (commitResponse.error || "Unknown error"));
-    }
-    break;
+                        const commitTarget =
+                            payload?.file ||
+                            payload?.file_path ||
+                            payload?.path ||
+                            target;
+
+                        if (
+                            !commitTarget ||
+                            typeof payload?.content !== "string"
+                        ) {
+
+                            throw new Error(
+                                "SIA7_COMMIT_REQUIRES_FILE_AND_CONTENT"
+                            );
+                        }
+
+                        const commitResult =
+                            await writeRepoFile({
+                                file:
+                                    commitTarget,
+
+                                content:
+                                    payload.content,
+
+                                operationId:
+                                    opId
+                            });
+
+                        retryBuffer.push({
+                            type,
+                            target:
+                                commitTarget,
+                            status:
+                                "committed_to_github",
+                            commit:
+                                commitResult?.commit ||
+                                null,
+                            secure:
+                                true
+                        });
+
+                        emitirPulsoHUD(
+                            opId,
+                            "GIT",
+                            "SUCCESS",
+                            `Commit ejecutado: ${commitResult?.commit || "repoCommitWriteFile"}`
+                        );
+
+                        break;
+                    }
                         /* =====================================================
    ANALYZE FILE HYDRATION
 ===================================================== */
@@ -775,7 +932,7 @@ case "ANALYZE_UI":
 
                             window.JARVIS_SANDBOX_FILES ||= {};
                             window.JARVIS_SANDBOX_FILES[sandboxRuntimeFile] = {
-                                content: payload?.content || "// generated by jarvis",
+                                content: payload?.content ?? null,
                                 updatedAt: Date.now(),
                                 opId
                             };
@@ -786,16 +943,20 @@ case "ANALYZE_UI":
                         ===================================================== */
                         if (payload?.repairIntent && payload?.repairContext && !payload?.content) {
                             try {
-                                const loaded = await window.loadRepoContext?.(payload.repairContext.targetFile);
-                                if (loaded?.ok) {
-                                    if (payload?.repairContext?.userIntent?.toLowerCase()?.includes("runtimelatency")) {
-                                        payload.content = loaded.source + `\n\nexport function runtimeLatency() { return 0; }`;
-                                    }
-                                }
                                 if (!payload?.content) {
                                     const patch = await window.buildRepairPatch(payload.repairContext);
                                     const generated = await window.generatePatch(patch);
                                     const applied = await window.applyPatch(generated);
+                                    payload.analysis =
+                                        generated?.ok === false
+                                            ? generated
+                                            : patch;
+                                    payload.report =
+                                        patch?.analysisResult ||
+                                        generated?.reason ||
+                                        generated?.error ||
+                                        applied?.error ||
+                                        null;
                                     payload.content = applied?.patched || null;
                                 }
                             } catch(e) { console.error("SIA7 Repair fail", e); }
@@ -1774,6 +1935,20 @@ if (
     ================================================================================ */
 
 
+    const hydratedSteps =
+        [];
+
+    for (const step of steps || []) {
+        hydratedSteps.push(
+            await hydrateStepRepoEvidence(step)
+        );
+    }
+
+    const executionSteps =
+        hydratedSteps.length
+            ? hydratedSteps
+            : (steps || []);
+
    
 
     const proposal = {
@@ -1827,7 +2002,7 @@ if (
 
         changes:
 
-            (steps || [])
+            (executionSteps || [])
 
             .map(step => {
 
@@ -1867,6 +2042,23 @@ if (
 
                         payload:
                             step?.payload || {},
+
+                        meta: {
+                            ...(step?.meta || {}),
+                            repoAware:
+                                step?.meta?.repoAware ||
+                                !!step?.meta?.repoEvidence,
+                            repoEvidence:
+                                step?.meta?.repoEvidence ||
+                                null,
+                            repoNode:
+                                step?.meta?.repoNode ||
+                                null,
+                            originalType:
+                                step?.originalType ||
+                                step?.meta?.originalType ||
+                                "CODE_WRITE"
+                        },
 
                         priority:
                             step?.priority || "HIGH",

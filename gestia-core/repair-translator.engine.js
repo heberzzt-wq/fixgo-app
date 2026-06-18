@@ -299,6 +299,15 @@ if (
                 userIntent || ""
             ).toLowerCase();
 
+        if (
+            repairContext?.issue === "runtime_latency" &&
+            repairContext?.value &&
+            !/\b(?:runtime|rutyme|rutime|runtim)\b[\s_-]*(?:latencia|latenci|latency|delay)\b/i.test(intent)
+        ) {
+            intent =
+                `runtime latencia a ${repairContext.value}`;
+        }
+
         // 🔥 AISLAMIENTO DE NOMBRE DE ARCHIVO
         // Evitamos que palabras dentro del nombre del archivo (ej. "replace" en "test-replace.js")
         // activen estrategias incorrectas.
@@ -354,8 +363,8 @@ if (
 
 const normalizedIntent =
     String(
-        userIntent ||
         intent ||
+        userIntent ||
         ""
     )
         .replace(/\s+/g, " ")
