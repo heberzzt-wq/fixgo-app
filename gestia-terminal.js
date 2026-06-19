@@ -4658,123 +4658,84 @@ if (
 // 🔥 NORMALIZACIÓN DE COMANDO
 
 const normalizedCmd = cmd
-
     .replace(/^(hola|buenos dias|buenos días|buenas|qué onda|que onda|saludos)[,\s]*/i, "")
-
     .trim();
 
-
-
 const isRepoReadOnlyAudit =
-
     !isStructured &&
-
     /^(analiza|analisis|análisis|revisa|audita)\s+(el\s+)?(repo|repositorio|repository|sistema)$/i.test(normalizedCmd);
 
-
-
 if (isRepoReadOnlyAudit) {
-
-    console.log("🧠 [REPO_AUDIT_DIRECT]", {
-
+    console.log("🧠 [REPO_AUDIT_RESULT_V7] Interceptando bypass con contrato conversacional", {
         rawInput,
-
         normalizedCmd
-
     });
 
-
-
     const scan = window.scanRepo?.({}) || {
-
         ok: false,
-
         files: []
-
     };
-
-
 
     const files = scan.files || [];
-
     const moduleNames = [
-
         ...new Set(
-
             files
-
                 .map(file => file.module)
-
                 .filter(Boolean)
-
         )
-
     ];
 
+    const filesTotal = files.length;
+    const modulesTotal = moduleNames.length;
 
+    const modulesText = modulesTotal === 0
+        ? "- Sin módulos registrados en esta ruta."
+        : moduleNames.map(m => "- " + m).join("\n");
 
-    const report =
-
-`Arquitecto, análisis read-only del repositorio completado.
-
-
-
-Archivos registrados: ${files.length}
-
-Módulos detectados: ${moduleNames.length}
-
-
-
-Módulos:
-
-${moduleNames.length ? moduleNames.map(m => "- " + m).join("\n") : "- Sin módulos registrados"}
-
-
-
-Archivos críticos/relevantes:
-
-${files
-
-    .filter(file =>
-
-        file.critical === true ||
-
-        /jarvis|runtime|engine|terminal|bridge|executor|planner|repo/i.test(
-
-            `${file.file || ""} ${file.module || ""} ${file.type || ""}`
-
+    const criticalFilesText = files
+        .filter(file =>
+            file.critical === true ||
+            /jarvis|runtime|engine|terminal|bridge|executor|planner|repo/i.test(
+                `${file.file || ""} ${file.module || ""} ${file.type || ""}`
+            )
         )
+        .slice(0, 15)
+        .map(file => `- ${file.file} (${file.module || "sin módulo"})`)
+        .join("\n") || "- Sin archivos relevantes destacados.";
 
-    )
-
-    .slice(0, 15)
-
-    .map(file => `- ${file.file} (${file.module || "sin módulo"})`)
-
-    .join("\n") || "- Sin archivos relevantes destacados."}`;
-
-
+    const textResponse = [
+        "Arquitecto, auditoría read-only del repositorio completada.",
+        "",
+        `El scanner recorrió **${filesTotal} archivos** del repositorio.`,
+        `También tengo **${modulesTotal} módulos** detectados para clasificación arquitectónica.`,
+        "",
+        "### Módulos",
+        modulesText,
+        "",
+        "### Archivos críticos/relevantes",
+        criticalFilesText
+    ].join("\n");
 
     return {
-
-        ok: true,
-
-        status: "DONE",
-
-        type: "REPO_ANALYSIS",
-
-        report,
-
+        kind: "JARVIS_CONVERSATIONAL_RESPONSE",
+        role: "assistant",
+        format: "markdown",
+        exposeRaw: false,
+        text: textResponse,
+        meta: {
+            source: "repo.audit",
+            mode: "read_only",
+            rawInput: rawInput
+        },
         data: {
-
-            totalFiles: files.length,
-
-            totalModules: moduleNames.length
-
+            scan: {
+                totalFiles: filesTotal,
+                totalModules: modulesTotal,
+                files: files,
+                modules: moduleNames
+            }
         }
-
     };
-
 }
 
 /* =================================================
