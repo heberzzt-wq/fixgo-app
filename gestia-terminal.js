@@ -4716,7 +4716,8 @@ if (isRepoReadOnlyAudit) {
         criticalFilesText
     ].join("\n");
 
-    return {
+   return {
+        // --- CONTRATO V7 (Para el nuevo motor y la traza) ---
         kind: "JARVIS_CONVERSATIONAL_RESPONSE",
         role: "assistant",
         format: "markdown",
@@ -4727,13 +4728,18 @@ if (isRepoReadOnlyAudit) {
             mode: "read_only",
             rawInput: rawInput
         },
+        
+        // --- COMPATIBILIDAD LEGACY TERMINAL (Para que la UI no tire [object Object]) ---
+        ok: true,
+        status: "DONE",
+        type: "REPO_ANALYSIS",
+        report: textResponse, // <-- Esta es la llave que la terminal actual necesita leer
+        
         data: {
-            scan: {
-                totalFiles: filesTotal,
-                totalModules: modulesTotal,
-                files: files,
-                modules: moduleNames
-            }
+            totalFiles: filesTotal,
+            totalModules: modulesTotal,
+            files: files,
+            modules: moduleNames
         }
     };
 }
