@@ -3592,7 +3592,7 @@ if (this.autonomy.enabled) {
     this.initHeartbeat();
 }
         /* =====================================================
-           WATCHDOG AUTÓNOMO SUPERVISADO
+            WATCHDOG AUTÓNOMO SUPERVISADO
         ===================================================== */
 
         this.initAutonomousSupervisor();
@@ -4804,15 +4804,40 @@ if (
         files: []
     };
 
-    return window.buildRepoAuditReport
-        ? window.buildRepoAuditReport(scan, cognition)
-        : {
+    /* 🔥 FASE 1: CONTRATO DE SALIDA CONVERSACIONAL V7 🔥 */
+    const result = {
+        kind: "REPO_AUDIT_RESULT",
+        mode: "READ_ONLY",
+        ok: scan.ok === true,
+        totals: {
+            files: scan.total || 0,
+            modules: scan.modulesTotal || (scan.modules ? scan.modules.length : 0) || 0
+        },
+        files: scan.files || [],
+        modules: scan.modules || [],
+        source: {
+            engine: "repo.hub",
+            scanner: "scanRepo",
+            cognition: "brain.engine.js + semantic.engine.js"
+        },
+        raw: scan
+    };
+
+    // Delegamos a un Renderer Conversacional si existe, o usamos un fallback estructural nativo
+    if (window.JarvisConversationRenderer?.render) {
+        return window.JarvisConversationRenderer.render(result, {
+            persona: "jarvis",
+            exposeRaw: false
+        });
+    } else {
+        return {
             ok: true,
             status: "DONE",
-            type: "REPO_ANALYSIS",
-            report: JSON.stringify(scan, null, 2),
-            data: scan
+            type: result.kind,
+            report: `Arquitecto, la auditoría del repositorio ya está operativa.\n\nEl scanner recorrió ${result.totals.files} archivos. El resultado técnico ha sido procesado mediante el contrato REPO_AUDIT_RESULT, aislando la estructura JSON cruda del canal humano.\n\nNúcleo estable y atento a instrucciones.`,
+            data: result
         };
+    }
 }
 // 🔥 INTERCEPTOR DE APROBACIÓN (ANTES DEL BRIDGE)
 if (APPROVAL_WORDS.includes(cmd)) {
