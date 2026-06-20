@@ -216,7 +216,7 @@ JarvisToolRuntime.register({
     output: "REPO_AUDIT_RESULT_V7",
     execute: async (args, context) => {
         // Importación dinámica del Hub existente para mantener el desacoplamiento
-        const { scanRepo } = await import('/gestia-core/repo.hub.js');
+        const { scanRepo } = await import('/gestia-core/hubs/repo.hub.js');
         return await scanRepo(args);
     }
 });
