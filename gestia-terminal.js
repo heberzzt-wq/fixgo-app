@@ -4665,6 +4665,36 @@ const isRepoReadOnlyAudit =
     !isStructured &&
     /^(analiza|analisis|análisis|revisa|audita)\s+(el\s+)?(repo|repositorio|repository|sistema)$/i.test(normalizedCmd);
 
+// ====================================================================
+// 🧠 [TERMINAL_CORE_FIRST] - GESTIAPREMIUM V16.0 (THE SUPREME SOVEREIGN)
+// ====================================================================
+const core =
+    window.GestiaCore ||
+    window.SIA7_CORE;
+
+if (
+    core?.procesarIntencion &&
+    window.ToolsBridge &&
+    window.JarvisToolRuntime
+) {
+    console.log("🧠 [TERMINAL_CORE_FIRST]", { rawInput });
+
+    const coreResult =
+        await core.procesarIntencion(rawInput, {
+            ...(typeof context !== 'undefined' ? context : (typeof ctx !== 'undefined' ? ctx : {})),
+            rawInput,
+            channel: "terminal",
+            entrypoint: "gestia-terminal",
+            availableTools:
+                window.JarvisToolRuntime.list?.() || []
+        });
+
+    if (coreResult?.type === "AGENT_TOOL_RESULT" || coreResult?.response) {
+        return coreResult?.response || coreResult;
+    }
+}
+// ====================================================================
+
 if (isRepoReadOnlyAudit) {
     console.log("🧠 [REPO_AUDIT_RESULT_V7] Interceptando bypass con contrato conversacional", {
         rawInput,
@@ -5087,7 +5117,6 @@ Escribe:
             this.evaluatePlan(
                 intents
             );
-
             /* =====================================================
    SOVEREIGN IMPACT GOVERNANCE
 ===================================================== */
