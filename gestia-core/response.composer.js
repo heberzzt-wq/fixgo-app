@@ -1,7 +1,7 @@
 /**
  * GESTIA RESPONSE COMPOSER - v7.0 (PRODUCTION GRADE)
- * Objetivo: Estandarizar salidas del sistema para Front-end, Terminal y Agent Tool Runtime.
- * Estructura estandar SIA7: { ok, status, type, data, meta, traceId }
+ * Objetivo: Estandarizar todas las salidas del sistema para Front-end, Terminal y Agent Tool Runtime.
+ * Estructura estándar SIA7: { ok, status, type, data, meta, traceId }
  */
 
 export const ResponseComposer = {
@@ -170,36 +170,33 @@ export const ResponseComposer = {
                     )
                 ];
 
-        const criticalFiles =
+        const text = [
+            "Auditoría SIA7",
+            "",
+            "Arquitecto, auditoría read-only del repositorio completada.",
+            "",
+            `El scanner recorrió **${scan?.total || files.length || 0} archivos** del repositorio.`,
+            `También tengo **${scan?.modulesTotal || moduleNames.length || 0} módulos** detectados para clasificación arquitectónica.`,
+            "",
+            "### Módulos",
+            moduleNames.length
+                ? moduleNames.map(m => `- ${m}`).join("\n")
+                : "- Sin módulos registrados",
+            "",
+            "### Archivos críticos/relevantes",
             files
                 .filter(file =>
                     file.critical === true ||
-                    file.runtimeRole ||
-                    file.governance ||
-                    file.moduleType ||
-                    file.type === "critical"
+                    /jarvis|runtime|engine|terminal|bridge|executor|planner|repo/i.test(
+                        `${file.file || ""} ${file.module || ""} ${file.type || ""}`
+                    )
                 )
-                .slice(0, 15);
-
-        const text = [
-            "Auditoria SIA7",
-            "",
-            "Arquitecto, auditoria read-only del repositorio completada.",
-            "",
-            `El scanner recorrio **${scan?.total || files.length || 0} archivos** del repositorio.`,
-            `Tambien tengo **${scan?.modulesTotal || moduleNames.length || 0} modulos** detectados para clasificacion arquitectonica.`,
-            "",
-            "### Modulos",
-            moduleNames.length
-                ? moduleNames.map(m => `- ${m}`).join("\n")
-                : "- Sin modulos registrados",
-            "",
-            "### Archivos criticos/relevantes",
-            criticalFiles.length
-                ? criticalFiles
-                    .map(file => `- ${file.file || file.path || file.name} (${file.module || "sin modulo"})`)
-                    .join("\n")
-                : "- Sin archivos relevantes destacados."
+                .slice(0, 15)
+                .map(file =>
+                    `- ${file.file} (${file.module || "sin módulo"})`
+                )
+                .join("\n") ||
+                "- Sin archivos relevantes destacados."
         ].join("\n");
 
         return this.composeJarvis(

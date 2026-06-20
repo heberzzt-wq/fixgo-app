@@ -183,6 +183,7 @@ const CORE_CONFIG = {
 import '/gestia-core/semantic.engine.js';
 import '/gestia-core/brain.engine.js';
 import '/gestia-core/tools.runtime.js';
+import '/gestia-core/response.composer.js';
 
 // ======================================================================================
 // 🛰️ SECCIÓN 2: GESTIA CORE ORCHESTRATOR (KERNEL V16.0)
