@@ -182,6 +182,7 @@ const CORE_CONFIG = {
 };
 import '/gestia-core/semantic.engine.js';
 import '/gestia-core/brain.engine.js';
+import '/gestia-core/tools.runtime.js';
 
 // ======================================================================================
 // 🛰️ SECCIÓN 2: GESTIA CORE ORCHESTRATOR (KERNEL V16.0)
@@ -189,6 +190,10 @@ import '/gestia-core/brain.engine.js';
 
 export const GestiaCore = {
     version: "16.0.0-SUPREME",
+    // Helper de seguridad para identificar planes Read-Only
+    isReadOnlyPlan(changes) {
+        return !changes || changes.length === 0;
+    },
 
     /**
      * procesarIntencion: El pipeline definitivo de soberanía sistémica.
@@ -226,6 +231,8 @@ export const GestiaCore = {
             // --------------------------------------------------------------------------
             // 🔒 FASE 1: RESERVA, BLOQUEO Y PROTECCIÓN DE REPLAY (PREPARE)
             // --------------------------------------------------------------------------
+
+            this.emitirPulso("INIT", "TERMINAL_START", `ID: ${analysisId.substring(0, 8)}`);
             this.emitirPulso("PREPARE", "STARTING_TRANSACTION");
             
             await runTransaction(db, async (transaction) => {
@@ -695,20 +702,36 @@ const cambiosFinales =
            // --------------------------------------------------------------------------
 // 🦾 FASE 2: ACCIÓN IDEMPOTENTE FUERA DE TRANSACCIÓN (EXECUTE)
 // --------------------------------------------------------------------------
-this.emitirPulso(
-    "EXECUTOR",
-    "FIRING",
-    `ID Operativo: ${analysisId.substring(0,8)}`
-);
 
-const result = await ejecutarCambios({
-    ...atomicState.proposal,
-    changes: atomicState.approvedChanges,
-    tenantId,
-    ejecutado_por: user.email,
-    execution_id: analysisId // Idempotencia de brazo mecánico
-});
+// SAFETY GATE: Impedir ejecución si no hay cambios aprobados
+const tieneCambios = atomicState.approvedChanges && atomicState.approvedChanges.length > 0;
 
+if (!tieneCambios) {
+    this.emitirPulso("EXECUTOR", "SKIPPED", "No hay cambios mutantes (ReadOnly Task).");
+    // Inicializamos result con un estado seguro para evitar errores en la Fase 3
+    var result = { 
+        status: "readonly_no_op", 
+        reasoning: atomicState.proposal?.cognition || null 
+    };
+} else {
+    this.emitirPulso(
+        "EXECUTOR",
+        "FIRING",
+        `ID Operativo: ${analysisId.substring(0,8)}`
+    );
+
+    // Ejecución controlada solo si hay cambios reales
+    // Usamos import dinámico para aislar la carga del ejecutor hasta este momento
+    const { ejecutarCambios } = await import('/gestia-core/operations-executor.engine.js');
+    
+    result = await ejecutarCambios({
+        ...atomicState.proposal,
+        changes: atomicState.approvedChanges,
+        tenantId,
+        ejecutado_por: user.email,
+        execution_id: analysisId // Idempotencia de brazo mecánico
+    });
+}
 
             // --------------------------------------------------------------------------
             // 🔒 FASE 3: LIQUIDACIÓN ATÓMICA Y ASENTAMIENTO (COMMIT)
@@ -922,5 +945,6 @@ const result = await ejecutarCambios({
 };
 
 // Exposición global para depuración en búnker
+window.GestiaCore = GestiaCore;
 window.SIA7_CORE = GestiaCore;
 

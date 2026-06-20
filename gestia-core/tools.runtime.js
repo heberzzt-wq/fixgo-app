@@ -1,12 +1,6 @@
 /**
  * JARVIS TOOL RUNTIME - v7.0 (PRODUCTION GRADE)
  * Arquitectura: Singleton Registry + Middleware Chain + Error Boundary
- *
- * Rol:
- * - Registrar herramientas disponibles para Jarvis/Gestia.
- * - Validar contratos de herramientas.
- * - Ejecutar tools con middleware, telemetria y frontera de errores.
- * - Bloquear tools mutantes cuando no exista aprobacion explicita.
  */
 
 export const JarvisToolRuntime = {
@@ -55,7 +49,7 @@ export const JarvisToolRuntime = {
     use(middleware) {
         if (typeof middleware !== "function") {
             throw new Error(
-                "[RUNTIME_ERROR] Middleware invalido"
+                "[RUNTIME_ERROR] Middleware inválido"
             );
         }
 
@@ -78,7 +72,6 @@ export const JarvisToolRuntime = {
             return {
                 ok: false,
                 success: false,
-                status: "TOOL_NOT_FOUND",
                 error:
                     `[RUNTIME_ERROR] TOOL_NOT_FOUND: ${name}`,
                 tool: name
@@ -114,7 +107,7 @@ export const JarvisToolRuntime = {
             timestamp:
                 Date.now(),
             executionId:
-                globalThis.crypto?.randomUUID?.() ||
+                crypto?.randomUUID?.() ||
                 `tool_${Date.now()}_${Math.random()
                     .toString(16)
                     .slice(2)}`
