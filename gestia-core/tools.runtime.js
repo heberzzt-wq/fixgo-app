@@ -207,6 +207,20 @@ export const JarvisToolRuntime = {
     }
 };
 
+// Registro de herramientas Read-Only iniciales
+JarvisToolRuntime.register({
+    name: "repo.audit",
+    description: "Auditoría profunda del repositorio: total de archivos y módulos.",
+    mutates: false,
+    requiresApproval: false,
+    output: "REPO_AUDIT_RESULT_V7",
+    execute: async (args, context) => {
+        // Importación dinámica del Hub existente para mantener el desacoplamiento
+        const { scanRepo } = await import('/gestia-core/repo.hub.js');
+        return await scanRepo(args);
+    }
+});
+
 window.JarvisToolRuntime = JarvisToolRuntime;
 
 console.info(
