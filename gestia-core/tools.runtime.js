@@ -221,6 +221,70 @@ JarvisToolRuntime.register({
     }
 });
 
+// ==========================================
+// REPO TOOL PACK V7
+// ==========================================
+
+JarvisToolRuntime.register({
+    name: "repo.scan",
+    description: "Escanea la estructura de un directorio específico y devuelve metadatos.",
+    mutates: false,
+    requiresApproval: false,
+    output: "REPO_SCAN_RESULT",
+    execute: async (args, context) => {
+        const { scanRepo } = await import('/gestia-core/hubs/repo.hub.js');
+        return await scanRepo(args);
+    }
+});
+
+JarvisToolRuntime.register({
+    name: "repo.read",
+    description: "Lee y extrae el contenido exacto de un archivo para el contexto del agente.",
+    mutates: false,
+    requiresApproval: false,
+    output: "REPO_FILE_CONTENT",
+    execute: async (args, context) => {
+        const { findRepoFile } = await import('/gestia-core/hubs/repo.hub.js');
+        return await findRepoFile(args);
+    }
+});
+
+JarvisToolRuntime.register({
+    name: "repo.search",
+    description: "Busca patrones, expresiones o contexto dentro del código base.",
+    mutates: false,
+    requiresApproval: false,
+    output: "REPO_SEARCH_RESULT",
+    execute: async (args, context) => {
+        const { loadRepoContext } = await import('/gestia-core/hubs/repo.hub.js');
+        return await loadRepoContext(args);
+    }
+});
+
+JarvisToolRuntime.register({
+    name: "repo.impact",
+    description: "Analiza el impacto y las dependencias (qué se rompe si se modifica un archivo).",
+    mutates: false,
+    requiresApproval: false,
+    output: "REPO_IMPACT_RESULT",
+    execute: async (args, context) => {
+        const { analyzeRepoImpact } = await import('/gestia-core/hubs/repo.hub.js');
+        return await analyzeRepoImpact(args);
+    }
+});
+
+JarvisToolRuntime.register({
+    name: "repo.patchPreview",
+    description: "Genera un diff en memoria (dry-run) sin tocar el disco, validando sintaxis.",
+    mutates: false, 
+    requiresApproval: false, 
+    output: "REPO_PATCH_PREVIEW",
+    execute: async (args, context) => {
+        const { generatePatch } = await import('/gestia-core/hubs/repo.hub.js');
+        return await generatePatch(args);
+    }
+});
+
 window.JarvisToolRuntime = JarvisToolRuntime;
 
 console.info(
