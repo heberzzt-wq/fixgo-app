@@ -263,134 +263,171 @@ if (!patched) {
 ===================================================== */
 
 await window.createRepoSnapshot?.({
-
     file: key,
-
     source:
         patch?.original || ""
 });
 
-        // 🔥 runtime patched cache
-        window.__PATCHED_RUNTIME__ ||= {};
+// 🔥 runtime patched cache
+window.__PATCHED_RUNTIME__ ||= {};
 
-        window.__PATCHED_RUNTIME__[key] = {
+window.__PATCHED_RUNTIME__[key] = {
+    patched,
+    diff,
+    updatedAt:
+        Date.now(),
+    path:
+        meta?.path ||
+        key
+};
 
-            patched,
+console.log(
+    "🧠 [PATCH_APPLIED]:",
+    key
+);
 
-            diff,
+// 🔥 HUD
+window.showJarvisPersistent?.(
+    `patch aplicado: ${key}`
+);
 
-            updatedAt:
-                Date.now(),
-
-            path:
-                meta?.path ||
-
-                key
-        };
-
-        console.log(
-            "🧠 [PATCH_APPLIED]:",
-            key
-        );
-
-        // 🔥 HUD
-        window.showJarvisPersistent?.(
-            `patch aplicado: ${key}`
-        );
-
-        /* =====================================================
-   FILESYSTEM WRITE
+/* =====================================================
+   PATCH TARGET ROUTER
 ===================================================== */
 
 let fsWrite = null;
+let githubWrite = null;
 
 try {
-      console.log(
-        "🧪 PATCH_READY_FOR_GITHUB",
+    console.log(
+        "🧪 PATCH_TARGET_SELECTED",
         {
+            target,
             file:
                 meta?.path || key,
-
             size:
                 patched?.length,
-
             preview:
                 String(patched)
                     .slice(0, 200)
         }
     );
 
-    /*fsWrite = await fetch(
-        "http://localhost:3344/write",
-        {
-            method: "POST",
+    if (target === "runtimeOnly") {
+        console.info(
+            "🧠 [PATCH_RUNTIME_ONLY]",
+            meta?.path || key
+        );
+    }
 
-            headers: {
-                "Content-Type":
-                    "application/json"
-            },
+    if (target === "localFsBridge") {
+        fsWrite = await fetch(
+            "http://localhost:3344/write",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body: JSON.stringify({
+                    file:
+                        meta?.path || key,
+                    content:
+                        patched
+                })
+            }
+        );
 
-            body: JSON.stringify({
+        fsWrite =
+            await fsWrite.json();
 
+        console.log(
+            "🧠 [FS_WRITE_RESULT]:",
+            fsWrite
+        );
+    }
+
+    if (target === "repoCommitWriteFile") {
+        console.warn(
+            "🧠 [REPO_COMMIT_WRITE_PENDING]",
+            {
                 file:
-                    meta?.path || key,
+                    meta?.path || key
+            }
+        );
 
-                content:
-                    patched
-            })
-        }
-    );
-
-    fsWrite =
-        await fsWrite.json();
-
-    console.log(
-        "🧠 [FS_WRITE_RESULT]:",
-        fsWrite
-    );
-    */
+        githubWrite = {
+            ok: false,
+            status: "PENDING_IMPLEMENTATION",
+            reason: "repoCommitWriteFile todavía no conectado"
+        };
+    }
 
 } catch (fsErr) {
-
     console.warn(
-        "⚠️ FS_WRITE_FAIL:",
+        "⚠️ PATCH_TARGET_WRITE_FAIL:",
         fsErr
     );
+
+    return {
+        ok: false,
+        file: key,
+        target,
+        error:
+            fsErr?.message ||
+            String(fsErr),
+        runtimeOnly:
+            target === "runtimeOnly",
+        filesystem: false,
+        github: false
+    };
 }
 
 return {
-
-    ok: true,
+    ok:
+        target === "repoCommitWriteFile"
+            ? false
+            : true,
 
     file: key,
-
     patched,
+    target,
 
-    runtimeOnly: true,
+    runtimeOnly:
+        target === "runtimeOnly",
 
     safeRepoPath,
 
     filesystem:
         !!fsWrite?.ok,
 
+    github:
+        !!githubWrite?.ok,
+
+    githubStatus:
+        githubWrite?.status || null,
+
+    reason:
+        githubWrite?.reason || null,
+
     patchSize:
         patched.length
 };
 
     } catch (err) {
-
         console.warn(
-            "⚠️ PATCH_APPLY_FAIL:",
+            "⚠️ APPLY_PATCH_FAIL:",
             err
         );
 
         return {
             ok: false,
-            error: err.message
+            error:
+                err?.message ||
+                String(err)
         };
     }
 };
-
 /* =====================================================
    PATCH WORKFLOW BRIDGE V2
 ===================================================== */
