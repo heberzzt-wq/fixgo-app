@@ -180,49 +180,70 @@ window.applyPatch = async function(patch = {}) {
     try {
 
         const {
+    file,
+    patched,
+    diff,
+    isReadOnly,
+    analysis
+} = patch;
+
+const target =
+    patch.target ||
+    patch.destination ||
+    "runtimeOnly";
+
+const allowedTargets = new Set([
+    "runtimeOnly",
+    "localFsBridge",
+    "repoCommitWriteFile"
+]);
+
+if (!allowedTargets.has(target)) {
+    throw new Error(
+        `PATCH_TARGET_INVALID: ${target}`
+    );
+}
+
+// 🔥 SIA7: Bypass de ejecución para modo Auditoría
+if (isReadOnly) {
+    console.log("🧠 [AUDIT_RESULT_DISPLAYED]:", analysis);
+
+    return {
+        ok: true,
+        file,
+        target: "runtimeOnly",
+        runtimeOnly: true,
+        filesystem: false,
+        github: false
+    };
+}
+
+if (!file) {
+    throw new Error(
+        "PATCH_FILE_REQUIRED"
+    );
+}
+
+const safeRepoPath =
+    window.isSafeRepoPath?.(
+        file
+    ) === true;
+
+if (!safeRepoPath) {
+    console.warn(
+        "[PATCH_UNSAFE_REPO_PATH]",
+        {
             file,
-            patched,
-            diff,
-            isReadOnly, // 🔥 Capturamos el nuevo flag de auditoría
-            analysis
-        } = patch;
-
-        // 🔥 SIA7: Bypass de ejecución para modo Auditoría
-        if (isReadOnly) {
-            console.log("🧠 [AUDIT_RESULT_DISPLAYED]:", analysis);
-            return {
-                ok: true,
-                file,
-                runtimeOnly: true,
-                filesystem: false
-            };
+            target
         }
+    );
+}
 
-        if (!file) {
-            throw new Error(
-                "PATCH_FILE_REQUIRED"
-            );
-        }
-
-        const safeRepoPath =
-            window.isSafeRepoPath?.(
-                file
-            ) === true;
-
-        if (!safeRepoPath) {
-
-            console.warn(
-                "[PATCH_UNSAFE_REPO_PATH]",
-                file
-            );
-        }
-
-        if (!patched) {
-            throw new Error(
-                "PATCH_CONTENT_REQUIRED"
-            );
-        }
-
+if (!patched) {
+    throw new Error(
+        "PATCH_CONTENT_REQUIRED"
+    );
+}
         const found =
             window.findRepoFile(file);
 
