@@ -1443,18 +1443,25 @@ if (isReadOnlyConversationalAnalysis) {
             toolResult?.type === "AGENT_TOOL_RESULT"
         ) {
             const response =
-                toolResult.response ||
-                toolResult.data?.response ||
-                toolResult;
+    toolResult.response ||
+    toolResult.data?.response ||
+    toolResult;
 
-            window.renderJarvisResponse?.(
-                "Auditoría SIA7",
-                response?.report ||
-                    response?.text ||
-                    response?.message ||
-                    "Auditoría completada.",
-                "info"
-            );
+const cleanReport =
+    String(
+        response?.report ||
+        response?.text ||
+        response?.message ||
+        "Auditoría completada."
+    )
+        .replace(/^Auditoría SIA7\s*/i, "")
+        .trim();
+
+window.renderJarvisResponse?.(
+    "Auditoría SIA7",
+    cleanReport,
+    "info"
+);
 
             handled = true;
             return;
