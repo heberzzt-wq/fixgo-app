@@ -1413,33 +1413,73 @@ return;
 
     try {
 
-        // 🔥 NUEVO INTERCEPTOR COGNITIVO UNIVERSAL (CERO DICCIONARIOS)
-        const raw = String(comando || "").toLowerCase();
+        // 🔥 NUEVO INTERCEPTOR COGNITIVO UNIVERSAL
+const raw = String(comando || "").toLowerCase();
 
-        const isReadOnlyConversationalAnalysis =
+const isReadOnlyConversationalAnalysis =
     /analiza|análisis|analisis|revisa|audita|repo|sistema|módulos|modulos|dependencias|impacto|críticos|criticos/i
         .test(comando);
 
 if (isReadOnlyConversationalAnalysis) {
-    console.warn("🧠 [TERMINAL_READ_ONLY_BYPASS]", comando);
 
-    
+    if (window.ToolsBridge?.executeAndCompose) {
+        console.info("🧠 [TERMINAL_TOOL_FIRST] repo.audit", {
+            rawInput: comando
+        });
+
+        const toolResult = await window.ToolsBridge.executeAndCompose(
+            "repo.audit",
+            {},
+            {
+                rawInput: comando,
+                analysisId:
+                    window.currentTraceId ||
+                    `terminal_${Date.now()}`
+            }
+        );
+
+        if (
+            toolResult?.ok === true &&
+            toolResult?.type === "AGENT_TOOL_RESULT"
+        ) {
+            const response =
+                toolResult.response ||
+                toolResult.data?.response ||
+                toolResult;
+
+            window.renderJarvisResponse?.(
+                "Auditoría SIA7",
+                response?.report ||
+                    response?.text ||
+                    response?.message ||
+                    "Auditoría completada.",
+                "info"
+            );
+
+            handled = true;
+            return;
+        }
+    }
+
+    console.warn("🧠 [TERMINAL_READ_ONLY_BYPASS]", comando);
 
     if (window.KernelHeberto?.execute) {
         const res = await window.KernelHeberto.execute(comando, e);
+
         window.renderJarvisResponse?.(
             "Auditoría SIA7",
             res?.report || res?.message || String(res),
             "info"
         );
+
         handled = true;
         return;
     }
 }
 
-        console.log("🧠 [UNIVERSAL COGNITION PLAN FROM TERMINAL]");
+console.log("🧠 [UNIVERSAL COGNITION PLAN FROM TERMINAL]");
 
-        /* =====================================================
+/* =====================================================
            TERMINAL ORIGINAL TARGET TRACE
         ===================================================== */
         try {
