@@ -132,6 +132,16 @@ export const JarvisToolRuntime = {
                     context
                 );
 
+            // Propagación de fallos de contrato desde la herramienta
+            if (result && result.ok === false) {
+                return {
+                    ...result,
+                    tool: name,
+                    executionId: executionContext.executionId,
+                    timestamp: Date.now()
+                };
+            }
+
             return {
                 ok: true,
                 success: true,
@@ -273,15 +283,66 @@ JarvisToolRuntime.register({
     }
 });
 
+// V7 PRODUCTION GRADE CONTRACT: repo.patchPreview
 JarvisToolRuntime.register({
     name: "repo.patchPreview",
-    description: "Genera un diff en memoria (dry-run) sin tocar el disco, validando sintaxis.",
+    description: "Genera un diff en memoria (dry-run) estricto. Requiere file, search y replace.",
     mutates: false, 
     requiresApproval: false, 
     output: "REPO_PATCH_PREVIEW",
+    inputSchema: {
+        type: "object",
+        required: ["file", "search", "replace"],
+        properties: {
+            file: { type: "string", description: "Ruta del archivo objetivo (ej. gestia-terminal.html)" },
+            search: { type: "string", description: "Bloque de código exacto a buscar en el archivo" },
+            replace: { type: "string", description: "Nuevo bloque de código que sustituirá a la búsqueda" },
+            dryRun: { type: "boolean", description: "Forzado a true internamente", default: true }
+        }
+    },
     execute: async (args, context) => {
+        // 1. Hard Validation del contrato
+        if (!args || typeof args !== 'object') {
+            return { 
+                ok: false, 
+                status: "CONTRACT_INVALID", 
+                error: "El payload de argumentos debe ser un objeto válido." 
+            };
+        }
+
+        const missing = ["file", "search", "replace"].filter(key => !(key in args) || !args[key]);
+
+        if (missing.length > 0) {
+            console.warn(`[RUNTIME_WARNING] Contrato inválido en repo.patchPreview. Faltan: ${missing.join(", ")}`);
+            return {
+                ok: false,
+                status: "CONTRACT_INVALID",
+                error: `Faltan parámetros obligatorios en el contrato: ${missing.join(", ")}`,
+                receivedArgs: Object.keys(args)
+            };
+        }
+
+        // 2. Forzar modo seguro e inyectar el diff completo
+        const safeArgs = { 
+            ...args, 
+            dryRun: true 
+        };
+
+        // 3. Ejecución contra el Hub
         const { generatePatch } = await import('/gestia-core/hubs/repo.hub.js');
-        return await generatePatch(args);
+        const result = await generatePatch(safeArgs);
+
+        // 4. Interceptar respuestas lógicas del hub que sean fallos en la práctica
+        if (result?.status === "SEARCH_REQUIRED" || result?.error) {
+            return {
+                ok: false,
+                status: "PATCH_FAILED",
+                error: result.error || "El motor de patches rebotó la solicitud (SEARCH_REQUIRED o similar).",
+                details: result
+            };
+        }
+
+        return result;
     }
 });
 
