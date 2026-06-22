@@ -366,6 +366,10 @@ export const GestiaCore = {
 
                                 [],
 
+                             toolCalls:
+                                reasoning?.toolCalls ||
+                                [],
+
                             cloudReasoning:
                                 reasoning?.cloudReasoning ||
 
