@@ -596,6 +596,69 @@ function determineStrategicMode(
   return "PROTECTIVE";
 }
 
+
+/* ======================================================================================
+   TOOL INTENT DETECTOR V7
+====================================================================================== */
+
+function buildToolCallsFromInput(
+  input = "",
+  contexto = {}
+) {
+  const text =
+    String(input || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  const toolCalls =
+    [];
+
+  const wantsCiTest =
+    /\b(ci:test|ci test|npm run ci:test|npm ci test|validacion completa|prueba completa|corre todo|ejecuta todo)\b/i
+      .test(text);
+
+  const wantsSyntax =
+    /\b(check:syntax|check syntax|syntax|sintaxis|validar sintaxis|revisa sintaxis|npm run check:syntax)\b/i
+      .test(text);
+
+  const wantsTests =
+    /\b(test|tests|prueba|pruebas|npm test|corre los tests|ejecuta tests|ejecuta pruebas|correr pruebas)\b/i
+      .test(text);
+
+  if (
+    wantsCiTest ||
+    wantsSyntax ||
+    wantsTests
+  ) {
+    toolCalls.push({
+      name:
+        "tests.run",
+      args:
+        {
+          command:
+            wantsCiTest
+              ? "ci:test"
+              : wantsSyntax
+                ? "check:syntax"
+                : "test",
+          timeoutMs:
+            wantsCiTest
+              ? 120000
+              : wantsSyntax
+                ? 120000
+                : 30000
+        },
+      reason:
+        "USER_REQUESTED_TEST_RUN",
+      mutates:
+        false
+    });
+  }
+
+  return toolCalls;
+}
+
 /* ======================================================================================
    EXECUTION GRAPH EXPANDER
 ====================================================================================== */
@@ -1357,19 +1420,27 @@ export async function runCognitiveReasoning(
       contexto
     );
 
+        const toolCalls =
+      buildToolCallsFromInput(
+        input,
+        contexto
+      );
+
     const cloudReasoning =
       await invocarArquitectoIA(
 
         input,
 
-        {
-
+                {
           ...contexto,
-
           semantic,
           inferences,
-          strategicMode,
-          executionChain
+          strategicMode:
+            toolCalls.length > 0
+              ? "TOOL_PLAN"
+              : strategicMode,
+          executionChain,
+          toolCalls
         },
 
         crypto.randomUUID()
@@ -1386,9 +1457,14 @@ export async function runCognitiveReasoning(
 
       inferences,
 
-      strategicMode,
+            strategicMode:
+        toolCalls.length > 0
+          ? "TOOL_PLAN"
+          : strategicMode,
 
       executionChain,
+
+      toolCalls,
 
       semanticContext,
 
