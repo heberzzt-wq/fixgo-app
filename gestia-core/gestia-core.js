@@ -1081,3 +1081,8 @@ if (!tieneCambios) {
 window.GestiaCore = GestiaCore;
 window.SIA7_CORE = GestiaCore;
 
+console.info(
+    "🧠 [GESTIA_CORE_GLOBAL] ONLINE",
+    GestiaCore.version
+);
+
