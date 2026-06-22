@@ -368,8 +368,13 @@ try {
             "https://us-central1-fixgo-44e4d.cloudfunctions.net/repoCommitWriteFile";
 
         const writePath =
-            meta?.path ||
-            key;
+    String(
+        meta?.path ||
+        key
+    )
+        .replace(/^\.\/+/, "")
+        .replace(/^\/+/, "")
+        .trim();
 
         const idempotencyKey =
             patch.idempotencyKey ||
