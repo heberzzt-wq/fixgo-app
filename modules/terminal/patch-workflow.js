@@ -377,9 +377,9 @@ try {
         .trim();
 
         const idempotencyKey =
-            patch.idempotencyKey ||
-            diff?.idempotencyKey ||
-            `jarvis:${writePath}:${String(patched).length}:${Date.now()}`;
+    patch.idempotencyKey ||
+    diff?.idempotencyKey ||
+    `jarvis:${writePath}:${String(patched).length}:${Date.now()}`;
 
         console.warn(
             "🧠 [REPO_COMMIT_WRITE_REQUEST]",
