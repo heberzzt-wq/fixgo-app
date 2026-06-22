@@ -492,6 +492,18 @@ return {
         githubWrite?.fileSha ||
         null,
 
+        replayed:
+    githubWrite?.replayed === true,
+
+noChange:
+    githubWrite?.noChange === true,
+
+created:
+    githubWrite?.created === true,
+
+updated:
+    githubWrite?.updated === true,
+    
     idempotencyKey:
         githubWrite?.idempotencyKey ||
         null,
