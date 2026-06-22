@@ -1329,6 +1329,123 @@ window.hablarJarvis = async function(texto = "") {
 // 🔥 INTERCEPTOR DE APROBACIÓN
 const cmd = comando.toLowerCase();
 
+/* =====================================================
+   TERMINAL CORE-FIRST V7
+   Terminal → GestiaCore → Brain → Agent Loop → Tools
+===================================================== */
+
+if (
+    window.GestiaCore?.procesarIntencion &&
+    !["arre", "confirmar", "ok"].includes(cmd)
+) {
+    try {
+        console.info(
+            "🧠 [TERMINAL_CORE_FIRST]",
+            {
+                command:
+                    comando,
+                traceId:
+                    currentTraceId
+            }
+        );
+
+        const coreResult =
+            await window.GestiaCore.procesarIntencion(
+                comando,
+                {
+                    tenantId:
+                        window.session?.tenantId ||
+                        window.KernelHeberto?.session?.tenantId ||
+                        "UXMAL39",
+                    rol:
+                        window.session?.rol ||
+                        window.KernelHeberto?.session?.rol ||
+                        "arquitecto_supremo",
+                    source:
+                        "gestia_terminal_core_first_v7",
+                    traceId:
+                        currentTraceId
+                }
+            );
+
+        if (
+            coreResult?.type === "AGENT_TOOL_RESULT"
+        ) {
+            const firstObservation =
+                coreResult
+                    ?.result
+                    ?.observations
+                    ?.[0];
+
+            const toolData =
+                firstObservation
+                    ?.response
+                    ?.data ||
+                firstObservation
+                    ?.data
+                    ?.response
+                    ?.data ||
+                firstObservation
+                    ?.data ||
+                firstObservation;
+
+            const title =
+                toolData?.tool === "tests.run"
+                    ? "Pruebas SIA7"
+                    : "Agent Loop SIA7";
+
+            const status =
+                toolData?.status ||
+                coreResult?.status ||
+                "COMPLETED";
+
+            const npmCommand =
+                toolData?.npmCommand ||
+                toolData?.result?.command ||
+                "";
+
+            const stdout =
+                toolData?.result?.stdout ||
+                "";
+
+            const summary =
+                [
+                    `Estado: ${status}`,
+                    npmCommand
+                        ? `Comando: ${npmCommand}`
+                        : "",
+                    stdout
+                        ? stdout
+                            .split("\n")
+                            .slice(-12)
+                            .join("\n")
+                        : ""
+                ]
+                    .filter(Boolean)
+                    .join("\n\n");
+
+            window.renderJarvisResponse?.(
+                title,
+                summary,
+                status === "PASSED" || status === "success"
+                    ? "success"
+                    : "info"
+            );
+
+            handled =
+                true;
+
+            return;
+        }
+    }
+    catch(coreFirstError) {
+        console.warn(
+            "⚠️ [TERMINAL_CORE_FIRST_FAIL]",
+            coreFirstError
+        );
+    }
+}
+
 if (["arre", "confirmar", "ok"].includes(cmd)) {
 
     console.log("🟢 [APPROVAL INTERCEPTED TERMINAL]:", cmd);
