@@ -283,6 +283,75 @@ JarvisToolRuntime.register({
     }
 });
 
+/* ==========================================
+   JARVIS LOCAL BRIDGE CLIENT V7
+========================================== */
+
+window.JarvisLocalBridge ||= {};
+
+window.JarvisLocalBridge.runCommand ||= async function(payload = {}) {
+    const command =
+        payload.command ||
+        "";
+
+    const allowedCommands =
+        new Set([
+            "npm run check:syntax",
+            "npm test",
+            "npm run ci:test"
+        ]);
+
+    if (!allowedCommands.has(command)) {
+        return {
+            ok: false,
+            status: "COMMAND_NOT_ALLOWED",
+            error: "COMMAND_NOT_ALLOWED",
+            command,
+            allowedCommands:
+                [...allowedCommands],
+            source:
+                "jarvis_local_bridge_client_v7"
+        };
+    }
+
+    const response =
+        await fetch(
+            "http://localhost:3344/run",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body:
+                    JSON.stringify({
+                        command,
+                        cwd:
+                            payload.cwd ||
+                            ".",
+                        timeoutMs:
+                            payload.timeoutMs ||
+                            120000,
+                        source:
+                            payload.source ||
+                            "jarvis_tests_run_v7"
+                    })
+            }
+        );
+
+    const result =
+        await response.json();
+
+    return {
+        ...result,
+        httpStatus:
+            response.status,
+        source:
+            result?.source ||
+            "jarvis_local_bridge_client_v7"
+    };
+};
+
 JarvisToolRuntime.register({
     name: "tests.run",
     description: "Ejecuta validaciones del repo: check:syntax, test o ci:test.",
