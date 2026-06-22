@@ -1488,8 +1488,10 @@ export async function runCognitiveReasoning(
 
       {
 
-        mode:
-          strategicMode,
+                mode:
+          toolCalls.length > 0
+            ? "TOOL_PLAN"
+            : strategicMode,
 
         chain:
           executionChain.length
