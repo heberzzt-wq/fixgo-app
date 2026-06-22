@@ -348,20 +348,86 @@ try {
     }
 
     if (target === "repoCommitWriteFile") {
+    const currentUser =
+        window.auth?.currentUser ||
+        null;
+
+    if (!currentUser?.getIdToken) {
+        githubWrite = {
+            success: false,
+            ok: false,
+            status: "AUTH_REQUIRED",
+            reason: "Firebase user token required for repoCommitWriteFile"
+        };
+    } else {
+        const idToken =
+            await currentUser.getIdToken();
+
+        const writeUrl =
+            window.__REPO_COMMIT_WRITE_URL__ ||
+            "https://us-central1-fixgo-44e4d.cloudfunctions.net/repoCommitWriteFile";
+
+        const writePath =
+            meta?.path ||
+            key;
+
+        const idempotencyKey =
+            patch.idempotencyKey ||
+            diff?.idempotencyKey ||
+            `jarvis:${writePath}:${String(patched).length}:${Date.now()}`;
+
         console.warn(
-            "🧠 [REPO_COMMIT_WRITE_PENDING]",
+            "🧠 [REPO_COMMIT_WRITE_REQUEST]",
             {
                 file:
-                    meta?.path || key
+                    writePath,
+                idempotencyKey,
+                target
             }
         );
 
-        githubWrite = {
-            ok: false,
-            status: "PENDING_IMPLEMENTATION",
-            reason: "repoCommitWriteFile todavía no conectado"
-        };
+        const response =
+            await fetch(
+                writeUrl,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                        "Authorization":
+                            `Bearer ${idToken}`,
+                        "X-Idempotency-Key":
+                            idempotencyKey
+                    },
+                    body:
+                        JSON.stringify({
+                            path:
+                                writePath,
+                            content:
+                                patched,
+                            message:
+                                patch.message ||
+                                `Jarvis repo write: ${writePath}`,
+                            idempotencyKey,
+                            source:
+                                "jarvis_patch_runtime_v7",
+                            target
+                        })
+                }
+            );
+
+        githubWrite =
+            await response.json();
+
+        githubWrite.httpStatus =
+            response.status;
+
+        console.log(
+            "🧠 [REPO_COMMIT_WRITE_RESULT]",
+            githubWrite
+        );
     }
+}
 
 } catch (fsErr) {
     console.warn(
@@ -386,7 +452,7 @@ try {
 return {
     ok:
         target === "repoCommitWriteFile"
-            ? false
+            ? githubWrite?.success === true
             : true,
 
     file: key,
@@ -402,17 +468,39 @@ return {
         !!fsWrite?.ok,
 
     github:
-        !!githubWrite?.ok,
+        githubWrite?.success === true,
 
     githubStatus:
-        githubWrite?.status || null,
+        githubWrite?.status ||
+        githubWrite?.error ||
+        null,
+
+    githubHttpStatus:
+        githubWrite?.httpStatus ||
+        null,
+
+    githubCommit:
+        githubWrite?.commit ||
+        null,
+
+    githubFileSha:
+        githubWrite?.fileSha ||
+        null,
+
+    idempotencyKey:
+        githubWrite?.idempotencyKey ||
+        null,
 
     reason:
-        githubWrite?.reason || null,
+        githubWrite?.reason ||
+        githubWrite?.message ||
+        null,
 
     patchSize:
         patched.length
 };
+
+
 
     } catch (err) {
         console.warn(
