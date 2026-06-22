@@ -452,6 +452,83 @@ export const GestiaCore = {
                         });
                 }
 
+
+                /**
+ * =====================================================================================
+ * AGENT LOOP V7 — TOOL PLAN EXECUTION
+ * =====================================================================================
+ * Ejecuta toolCalls explícitas antes de convertir todo a changes.
+ * Esto permite flujo tipo Codex:
+ * plan → tool → observe → verify → respond
+ */
+if (
+    Array.isArray(
+        propuesta?.toolCalls
+    ) &&
+    propuesta.toolCalls.length > 0
+) {
+    this.emitirPulso(
+        "AGENT_LOOP",
+        "TOOL_PLAN_DETECTED",
+        `${propuesta.toolCalls.length} tools`
+    );
+
+    if (
+        !window.ToolsBridge?.executeMany
+    ) {
+        throw new Error(
+            "TOOLS_BRIDGE_MISSING"
+        );
+    }
+
+    const toolObservations =
+        await window.ToolsBridge.executeMany(
+            propuesta.toolCalls,
+            {
+                ...context,
+                rawInput:
+                    inputRaw,
+                tenantId,
+                analysisId,
+                rol,
+                reasoning:
+                    propuesta.cognition ||
+                    propuesta.reasoning ||
+                    null
+            }
+        );
+
+    propuesta.agentLoop =
+        {
+            version:
+                "7.0.0",
+            mode:
+                "TOOL_PLAN",
+            toolCalls:
+                propuesta.toolCalls,
+            observations:
+                toolObservations,
+            verified:
+                toolObservations.every(
+                    item =>
+                        item?.ok !== false
+                )
+        };
+
+    propuesta.changes =
+        [];
+
+    atomicState.isHalted =
+        true;
+
+    atomicState.haltReason =
+        "AGENT_TOOL_RESULT";
+
+    atomicState.agentResult =
+        propuesta.agentLoop;
+
+    return;
+}
                 /**
                  * =====================================================================================
                  * VALIDATION
@@ -696,9 +773,59 @@ const cambiosFinales =
                 };
             });
 
-            if (atomicState.isHalted) {
-                this.emitirPulso("WATCHDOG", "STANDBY", atomicState.haltReason);
-                return { status: "halted", reason: atomicState.haltReason };
+                        if (atomicState.isHalted) {
+                if (
+                    atomicState.haltReason === "AGENT_TOOL_RESULT"
+                ) {
+                    this.emitirPulso(
+                        "AGENT_LOOP",
+                        "COMPLETED",
+                        analysisId.substring(0, 8)
+                    );
+
+                    return {
+                        status:
+                            "success",
+                        type:
+                            "AGENT_TOOL_RESULT",
+                        operation_id:
+                            analysisId,
+                        analysis_id:
+                            analysisId,
+                        opId:
+                            analysisId,
+                        result:
+                            atomicState.agentResult,
+                        reasoning:
+                            atomicState.proposal?.cognition ||
+                            null,
+                        executionChain:
+                            atomicState.agentResult?.toolCalls ||
+                            [],
+                        runtime:
+                            {
+                                cognition:
+                                    "AGENT_LOOP_V7",
+                                timestamp:
+                                    Date.now(),
+                                runtimeStatus:
+                                    "ONLINE"
+                            }
+                    };
+                }
+
+                this.emitirPulso(
+                    "WATCHDOG",
+                    "STANDBY",
+                    atomicState.haltReason
+                );
+
+                return {
+                    status:
+                        "halted",
+                    reason:
+                        atomicState.haltReason
+                };
             }
 
            // --------------------------------------------------------------------------
