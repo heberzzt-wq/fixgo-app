@@ -283,6 +283,92 @@ JarvisToolRuntime.register({
     }
 });
 
+JarvisToolRuntime.register({
+    name: "tests.run",
+    description: "Ejecuta validaciones del repo: check:syntax, test o ci:test.",
+    mutates: false,
+    requiresApproval: false,
+    output: "TEST_RUN_RESULT",
+    execute: async (args = {}, context = {}) => {
+        const command =
+            args.command ||
+            args.script ||
+            "ci:test";
+
+        const allowedCommands =
+            new Set([
+                "check:syntax",
+                "test",
+                "ci:test"
+            ]);
+
+        if (!allowedCommands.has(command)) {
+            return {
+                ok: false,
+                success: false,
+                status: "CONTRACT_INVALID",
+                error: "TEST_COMMAND_NOT_ALLOWED",
+                allowedCommands:
+                    [...allowedCommands],
+                received:
+                    command,
+                tool:
+                    "tests.run"
+            };
+        }
+
+        const npmCommand =
+            command === "test"
+                ? "npm test"
+                : `npm run ${command}`;
+
+        if (!window.JarvisLocalBridge?.runCommand) {
+            return {
+                ok: false,
+                success: false,
+                status: "LOCAL_BRIDGE_REQUIRED",
+                error: "JarvisLocalBridge.runCommand no está disponible.",
+                command,
+                npmCommand,
+                tool:
+                    "tests.run",
+                next:
+                    "Conectar tests.run al bridge local o endpoint de ejecución controlada."
+            };
+        }
+
+        const result =
+            await window.JarvisLocalBridge.runCommand({
+                command:
+                    npmCommand,
+                cwd:
+                    args.cwd ||
+                    ".",
+                timeoutMs:
+                    args.timeoutMs ||
+                    120000,
+                source:
+                    "jarvis_tests_run_v7"
+            });
+
+        return {
+            ok:
+                result?.ok === true,
+            success:
+                result?.ok === true,
+            status:
+                result?.ok === true
+                    ? "PASSED"
+                    : "FAILED",
+            command,
+            npmCommand,
+            result,
+            tool:
+                "tests.run"
+        };
+    }
+});
+
 // V7 PRODUCTION GRADE CONTRACT: repo.patchPreview
 JarvisToolRuntime.register({
     name: "repo.patchPreview",
