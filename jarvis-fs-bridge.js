@@ -190,6 +190,205 @@ export function createJarvisFsBridgeApp({
         }
     });
 
+        app.post("/run", async (req, res) => {
+        try {
+            const {
+                command,
+                cwd = ".",
+                timeoutMs = 120000,
+                source = "jarvis_local_bridge"
+            } = req.body || {};
+
+            const allowedCommands =
+                new Set([
+                    "npm run check:syntax",
+                    "npm test",
+                    "npm run ci:test"
+                ]);
+
+            if (
+                typeof command !== "string" ||
+                !allowedCommands.has(command)
+            ) {
+                return res.status(400).json({
+                    ok: false,
+                    status: "COMMAND_NOT_ALLOWED",
+                    error: "COMMAND_NOT_ALLOWED",
+                    command,
+                    allowedCommands:
+                        [...allowedCommands],
+                    version:
+                        JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+
+            const safeCwd =
+                resolveRepoPath(cwd, root);
+
+            const { spawn } =
+                await import("child_process");
+
+            const startedAt =
+                Date.now();
+
+            const child =
+                spawn(
+                    command,
+                    {
+                        cwd:
+                            safeCwd,
+                        shell:
+                            true,
+                        stdio:
+                            [
+                                "ignore",
+                                "pipe",
+                                "pipe"
+                            ],
+                        env:
+                            {
+                                ...process.env,
+                                CI:
+                                    "true"
+                            }
+                    }
+                );
+
+            let stdout =
+                "";
+
+            let stderr =
+                "";
+
+            let finished =
+                false;
+
+            const timer =
+                setTimeout(
+                    () => {
+                        if (finished) {
+                            return;
+                        }
+
+                        finished =
+                            true;
+
+                        child.kill(
+                            "SIGTERM"
+                        );
+
+                        return res.status(408).json({
+                            ok: false,
+                            status: "TIMEOUT",
+                            error: "COMMAND_TIMEOUT",
+                            command,
+                            timeoutMs,
+                            stdout,
+                            stderr,
+                            durationMs:
+                                Date.now() - startedAt,
+                            source,
+                            version:
+                                JARVIS_FS_BRIDGE_VERSION
+                        });
+                    },
+                    Number(timeoutMs) || 120000
+                );
+
+            child.stdout.on(
+                "data",
+                chunk => {
+                    stdout +=
+                        chunk.toString();
+                }
+            );
+
+            child.stderr.on(
+                "data",
+                chunk => {
+                    stderr +=
+                        chunk.toString();
+                }
+            );
+
+            child.on(
+                "error",
+                error => {
+                    if (finished) {
+                        return;
+                    }
+
+                    finished =
+                        true;
+
+                    clearTimeout(
+                        timer
+                    );
+
+                    return res.status(500).json({
+                        ok: false,
+                        status: "SPAWN_FAILED",
+                        error:
+                            error.message,
+                        command,
+                        stdout,
+                        stderr,
+                        durationMs:
+                            Date.now() - startedAt,
+                        source,
+                        version:
+                            JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
+            );
+
+            child.on(
+                "close",
+                code => {
+                    if (finished) {
+                        return;
+                    }
+
+                    finished =
+                        true;
+
+                    clearTimeout(
+                        timer
+                    );
+
+                    return res.json({
+                        ok:
+                            code === 0,
+                        status:
+                            code === 0
+                                ? "PASSED"
+                                : "FAILED",
+                        exitCode:
+                            code,
+                        command,
+                        stdout,
+                        stderr,
+                        durationMs:
+                            Date.now() - startedAt,
+                        source,
+                        version:
+                            JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
+            );
+        }
+        catch(error) {
+            return res.status(500).json({
+                ok: false,
+                status: "RUN_COMMAND_FAILED",
+                error:
+                    error.message,
+                version:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
     return app;
 }
 
