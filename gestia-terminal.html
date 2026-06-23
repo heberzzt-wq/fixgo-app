@@ -1532,7 +1532,7 @@ const title =
                 ? "Escaneo Repo SIA7"
                 : toolName === "repo.read"
                     ? "Lectura Repo SIA7"
-                    : toolName === "repo.search"
+                    : toolName === "repo.search" || toolName === "repo.grep"
                         ? "Búsqueda Repo SIA7"
                         : toolName === "repo.impact"
                             ? "Impacto Repo SIA7"
@@ -1646,6 +1646,39 @@ const repoSummary =
     .slice(0, 3000)
     ]
         .join("\n")
+
+                    : toolName === "repo.grep"
+    ? [
+        `Búsqueda: ${
+            repoData?.term ||
+            repoData?.query ||
+            coreResult?.result?.toolCalls?.[0]?.args?.term ||
+            "ND"
+        }`,
+        `Resultados: ${
+            repoData?.totalMatches ||
+            repoData?.matches?.length ||
+            repoData?.result?.totalMatches ||
+            0
+        }`,
+        `Archivos escaneados: ${
+            repoData?.totalFilesScanned ||
+            repoData?.result?.totalFilesScanned ||
+            "ND"
+        }`,
+        "",
+        ...(
+            repoData?.matches ||
+            repoData?.result?.matches ||
+            []
+        )
+            .slice(0, 20)
+            .map(match =>
+                `${match.file}:${match.line} — ${match.snippet}`
+            )
+    ]
+        .join("\n")
+        
             : toolName === "repo.search"
     ? errorPayload
         ? [

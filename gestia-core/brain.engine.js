@@ -743,19 +743,21 @@ function buildToolCallsFromInput(
     });
   }
 
-  if (wantsRepoSearch) {
+    if (wantsRepoSearch) {
     toolCalls.push({
       name:
-        "repo.search",
+        "repo.grep",
       args:
         {
           query:
             searchTerm,
           term:
-            searchTerm
+            searchTerm,
+          maxMatches:
+            80
         },
       reason:
-        "USER_REQUESTED_REPO_SEARCH",
+        "USER_REQUESTED_REPO_GREP",
       mutates:
         false
     });

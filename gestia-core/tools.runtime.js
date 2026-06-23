@@ -446,6 +446,84 @@ JarvisToolRuntime.register({
 });
 
 JarvisToolRuntime.register({
+    name: "repo.grep",
+    description: "Busca texto real dentro del repositorio usando el bridge local read-only.",
+    mutates: false,
+    requiresApproval: false,
+    output: "REPO_GREP_RESULT",
+    execute: async (args = {}, context = {}) => {
+        const term =
+            args.term ||
+            args.query ||
+            args.search ||
+            "";
+
+        if (!term) {
+            return {
+                ok: false,
+                success: false,
+                status: "CONTRACT_INVALID",
+                error: "GREP_TERM_REQUIRED",
+                tool: "repo.grep"
+            };
+        }
+
+        if (!window.JarvisLocalBridge?.grepRepo) {
+            return {
+                ok: false,
+                success: false,
+                status: "LOCAL_BRIDGE_REQUIRED",
+                error: "JarvisLocalBridge.grepRepo no está disponible.",
+                term,
+                tool: "repo.grep",
+                next:
+                    "Levantar jarvis-fs-bridge.js con endpoint /grep."
+            };
+        }
+
+        const result =
+            await window.JarvisLocalBridge.grepRepo({
+                term,
+                query:
+                    term,
+                cwd:
+                    args.cwd || ".",
+                maxFiles:
+                    args.maxFiles || 800,
+                maxFileSizeBytes:
+                    args.maxFileSizeBytes || 512000,
+                maxMatches:
+                    args.maxMatches || 80,
+                source:
+                    "jarvis_repo_grep_v7"
+            });
+
+        return {
+            ok:
+                result?.ok === true,
+            success:
+                result?.ok === true,
+            status:
+                result?.ok === true
+                    ? "COMPLETED"
+                    : "FAILED",
+            term,
+            query:
+                term,
+            totalFilesScanned:
+                result?.totalFilesScanned || 0,
+            totalMatches:
+                result?.totalMatches || 0,
+            matches:
+                result?.matches || [],
+            result,
+            tool:
+                "repo.grep"
+        };
+    }
+});
+
+JarvisToolRuntime.register({
     name: "repo.impact",
     description: "Analiza el impacto y las dependencias (qué se rompe si se modifica un archivo).",
     mutates: false,
@@ -523,6 +601,55 @@ window.JarvisLocalBridge.runCommand ||= async function(payload = {}) {
         source:
             result?.source ||
             "jarvis_local_bridge_client_v7"
+    };
+};
+
+window.JarvisLocalBridge.grepRepo ||= async function(payload = {}) {
+    const term =
+        payload.term ||
+        payload.query ||
+        "";
+
+    const response =
+        await fetch(
+            "http://localhost:3344/grep",
+            {
+                method:
+                    "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body:
+                    JSON.stringify({
+                        term,
+                        query:
+                            payload.query || term,
+                        cwd:
+                            payload.cwd || ".",
+                        maxFiles:
+                            payload.maxFiles || 800,
+                        maxFileSizeBytes:
+                            payload.maxFileSizeBytes || 512000,
+                        maxMatches:
+                            payload.maxMatches || 80,
+                        source:
+                            payload.source ||
+                            "jarvis_repo_grep_v7"
+                    })
+            }
+        );
+
+    const result =
+        await response.json();
+
+    return {
+        ...result,
+        httpStatus:
+            response.status,
+        source:
+            result?.source ||
+            "jarvis_local_bridge_grep_client_v7"
     };
 };
 

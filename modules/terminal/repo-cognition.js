@@ -1124,6 +1124,192 @@ function(targetFile = "") {
    ANALYZE REPO IMPACT
 ===================================================== */
 
+window.rehydrateRepoCognitionIndex =
+function() {
+    try {
+        window.__REPO_INDEX__ ||= {};
+        window.__REPO_COGNITION__ ||= {};
+        window.__REPO_DEP_GRAPH__ ||= {};
+
+        const structure =
+            window.__FULL_REPO_STRUCTURE__ || [];
+
+        for (
+            const file
+            of structure
+        ) {
+            if (
+                !file ||
+                file.endsWith("/")
+            ) {
+                continue;
+            }
+
+            if (
+                !window.__REPO_INDEX__[
+                    file
+                ]
+            ) {
+                window.__REPO_INDEX__[
+                    file
+                ] = {
+                    file,
+                    path:
+                        file,
+                    module:
+                        file.includes("jarvis")
+                            ? "jarvis"
+                            : file.includes("terminal")
+                                ? "terminal"
+                                : file.includes("repo")
+                                    ? "repo"
+                                    : "full_repo",
+                    type:
+                        file.includes("terminal")
+                            ? "operator_interface"
+                            : file.includes("runtime")
+                                ? "runtime"
+                                : "repo_runtime_node",
+                    governance:
+                        "SUPERVISED_PATCH",
+                    mutationMode:
+                        "SUPERVISED",
+                    critical:
+                        file === "gestia-terminal.html" ||
+                        file === "gestia-terminal.js" ||
+                        file.includes("gestia-core") ||
+                        file.includes("jarvis"),
+                    registeredAt:
+                        Date.now(),
+                    hydrationSource:
+                        "repo_cognition_rehydrate_v1"
+                };
+            }
+        }
+
+        if (
+            typeof window.buildRepoCognitionIndex === "function"
+        ) {
+            window.buildRepoCognitionIndex();
+        }
+
+        for (
+            const [
+                file,
+                meta
+            ]
+            of Object.entries(
+                window.__REPO_INDEX__ || {}
+            )
+        ) {
+            if (
+                !window.__REPO_COGNITION__[
+                    file
+                ]
+            ) {
+                const cognition =
+                    typeof window.classifyRepoFile === "function"
+                        ? window.classifyRepoFile(meta)
+                        : {
+                            engineType:
+                                "generic",
+                            runtimeRole:
+                                "support",
+                            governance:
+                                meta.governance || "NORMAL",
+                            riskLevel:
+                                meta.critical ? "HIGH" : "LOW",
+                            criticality:
+                                meta.critical ? 90 : 20
+                        };
+
+                window.__REPO_COGNITION__[
+                    file
+                ] = {
+                    file,
+                    path:
+                        meta.path || file,
+                    module:
+                        meta.module || "unknown",
+                    type:
+                        meta.type || "generic",
+                    critical:
+                        meta.critical === true,
+                    cognition
+                };
+            }
+
+            if (
+                !window.__REPO_DEP_GRAPH__[
+                    file
+                ]
+            ) {
+                window.__REPO_DEP_GRAPH__[
+                    file
+                ] = {
+                    file,
+                    path:
+                        meta.path || file,
+                    module:
+                        meta.module || "unknown",
+                    dependencies:
+                        [],
+                    totalDependencies:
+                        0,
+                    hydrationSource:
+                        "repo_cognition_rehydrate_v1"
+                };
+            }
+        }
+
+        console.log(
+            "🧠 [REPO_COGNITION_REHYDRATED]",
+            {
+                index:
+                    Object.keys(
+                        window.__REPO_INDEX__ || {}
+                    ).length,
+                cognition:
+                    Object.keys(
+                        window.__REPO_COGNITION__ || {}
+                    ).length,
+                graph:
+                    Object.keys(
+                        window.__REPO_DEP_GRAPH__ || {}
+                    ).length
+            }
+        );
+
+        return {
+            ok: true,
+            index:
+                Object.keys(
+                    window.__REPO_INDEX__ || {}
+                ).length,
+            cognition:
+                Object.keys(
+                    window.__REPO_COGNITION__ || {}
+                ).length,
+            graph:
+                Object.keys(
+                    window.__REPO_DEP_GRAPH__ || {}
+                ).length
+        };
+    }
+    catch(error) {
+        console.warn(
+            "⚠️ [REPO_COGNITION_REHYDRATE_FAIL]",
+            error
+        );
+
+        return {
+            ok: false,
+            error:
+                error?.message || String(error)
+        };
+    }
+};
+
 window.analyzeRepoImpact =
 function(config = {}) {
 
@@ -1142,6 +1328,12 @@ function(config = {}) {
             fileName
         );
 
+                if (
+            typeof window.rehydrateRepoCognitionIndex === "function"
+        ) {
+            window.rehydrateRepoCognitionIndex();
+        }
+        
         const cognitionIndex =
             window.__REPO_COGNITION__ || {};
 

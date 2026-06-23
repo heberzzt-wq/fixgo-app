@@ -85,6 +85,238 @@ export function assertWriteContent(content) {
     return true;
 }
 
+const GREP_ALLOWED_EXTENSIONS =
+    new Set([
+        ".js",
+        ".mjs",
+        ".cjs",
+        ".html",
+        ".css",
+        ".json",
+        ".md",
+        ".txt"
+    ]);
+
+const GREP_IGNORED_DIRS =
+    new Set([
+        "node_modules",
+        ".git",
+        "dist",
+        "build",
+        "coverage",
+        ".firebase",
+        ".next",
+        ".cache"
+    ]);
+
+function normalizeGrepTerm(term) {
+    if (
+        typeof term !== "string" ||
+        !term.trim()
+    ) {
+        throw new Error("GREP_TERM_REQUIRED");
+    }
+
+    const normalized =
+        term.trim();
+
+    if (
+        normalized.length < 2 ||
+        normalized.length > 160
+    ) {
+        throw new Error("GREP_TERM_INVALID_LENGTH");
+    }
+
+    return normalized;
+}
+
+function isAllowedGrepFile(filePath = "") {
+    const ext =
+        path.extname(filePath)
+            .toLowerCase();
+
+    return GREP_ALLOWED_EXTENSIONS.has(ext);
+}
+
+function walkRepoFiles(
+    dir,
+    root,
+    files = [],
+    limit = 800
+) {
+    if (
+        files.length >= limit
+    ) {
+        return files;
+    }
+
+    const entries =
+        fs.readdirSync(
+            dir,
+            {
+                withFileTypes: true
+            }
+        );
+
+    for (
+        const entry
+        of entries
+    ) {
+        if (
+            files.length >= limit
+        ) {
+            break;
+        }
+
+        if (
+            GREP_IGNORED_DIRS.has(entry.name)
+        ) {
+            continue;
+        }
+
+        const absolutePath =
+            path.join(
+                dir,
+                entry.name
+            );
+
+        const relativePath =
+            path.relative(
+                root,
+                absolutePath
+            ).replace(/\\/g, "/");
+
+        if (
+            entry.isDirectory()
+        ) {
+            walkRepoFiles(
+                absolutePath,
+                root,
+                files,
+                limit
+            );
+
+            continue;
+        }
+
+        if (
+            !entry.isFile() ||
+            !isAllowedGrepFile(absolutePath)
+        ) {
+            continue;
+        }
+
+        files.push({
+            absolutePath,
+            relativePath
+        });
+    }
+
+    return files;
+}
+
+export function grepRepo({
+    term,
+    cwd = ".",
+    maxFiles = 800,
+    maxFileSizeBytes = 512000,
+    maxMatches = 80,
+    root = DEFAULT_ROOT
+} = {}) {
+    const safeTerm =
+        normalizeGrepTerm(term);
+
+    const repoRoot =
+        resolveRepoPath(cwd, root);
+
+    const files =
+        walkRepoFiles(
+            repoRoot,
+            repoRoot,
+            [],
+            Number(maxFiles) || 800
+        );
+
+    const lowerTerm =
+        safeTerm.toLowerCase();
+
+    const matches =
+        [];
+
+    for (
+        const file
+        of files
+    ) {
+        if (
+            matches.length >= maxMatches
+        ) {
+            break;
+        }
+
+        const stat =
+            fs.statSync(file.absolutePath);
+
+        if (
+            stat.size > maxFileSizeBytes
+        ) {
+            continue;
+        }
+
+        const source =
+            fs.readFileSync(
+                file.absolutePath,
+                "utf8"
+            );
+
+        const lines =
+            source.split(/\r?\n/);
+
+        for (
+            let index = 0;
+            index < lines.length;
+            index++
+        ) {
+            if (
+                matches.length >= maxMatches
+            ) {
+                break;
+            }
+
+            const line =
+                lines[index];
+
+            if (
+                line.toLowerCase()
+                    .includes(lowerTerm)
+            ) {
+                matches.push({
+                    file:
+                        file.relativePath,
+                    line:
+                        index + 1,
+                    snippet:
+                        line.trim().slice(0, 240)
+                });
+            }
+        }
+    }
+
+    return {
+        ok: true,
+        term:
+            safeTerm,
+        totalFilesScanned:
+            files.length,
+        totalMatches:
+            matches.length,
+        matches,
+        source:
+            "jarvis_fs_bridge_grep_v1",
+        version:
+            JARVIS_FS_BRIDGE_VERSION
+    };
+}
+
 export function describeJarvisFsBridge() {
     return {
         ok: true,
@@ -117,6 +349,59 @@ export function createJarvisFsBridgeApp({
         });
     });
 
+        app.post("/grep", async (req, res) => {
+        try {
+            const {
+                term,
+                query,
+                cwd = ".",
+                maxFiles = 800,
+                maxFileSizeBytes = 512000,
+                maxMatches = 80
+            } = req.body || {};
+
+            const result =
+                grepRepo({
+                    term:
+                        term || query,
+                    cwd,
+                    maxFiles,
+                    maxFileSizeBytes,
+                    maxMatches,
+                    root
+                });
+
+            return res.json(result);
+        }
+        catch(error) {
+            const clientErrors =
+                new Set([
+                    "GREP_TERM_REQUIRED",
+                    "GREP_TERM_INVALID_LENGTH",
+                    "FILE_REQUIRED",
+                    "ABSOLUTE_PATH_NOT_ALLOWED",
+                    "PATH_OUTSIDE_REPO"
+                ]);
+
+            return res
+                .status(
+                    clientErrors.has(error.message)
+                        ? 400
+                        : 500
+                )
+                .json({
+                    ok: false,
+                    status:
+                        "GREP_FAILED",
+                    error:
+                        error.message,
+                    source:
+                        "jarvis_fs_bridge_grep_v1",
+                    version:
+                        JARVIS_FS_BRIDGE_VERSION
+                });
+        }
+    });
     app.post("/write", async (req, res) => {
         try {
             const {
