@@ -1572,9 +1572,26 @@ const title =
         .replace(/^Auditoría SIA7\s*/i, "")
         .trim();
 
-        const repoData =
+        const errorPayload =
+    firstObservation?.error ||
+    firstObservation?.response?.error ||
+    firstObservation?.data?.error ||
+    toolData?.error ||
+    null;
+
+const runtimeResult =
+    errorPayload?.context?.runtimeResult ||
+    firstObservation?.response?.error?.context?.runtimeResult ||
+    firstObservation?.data?.error?.context?.runtimeResult ||
+    null;
+
+const repoData =
     toolData?.data ||
     toolData?.result ||
+    firstObservation?.response?.data ||
+    firstObservation?.data?.response?.data ||
+    firstObservation?.data ||
+    runtimeResult ||
     toolData ||
     {};
 
@@ -1596,70 +1613,112 @@ const repoSummary =
             .filter(Boolean)
             .join("\n")
         : toolName === "repo.read"
-            ? [
-                `Archivo: ${
-                    repoData?.file ||
-                    repoData?.path ||
-                    toolData?.args?.file ||
-                    "ND"
-                }`,
-                "",
-                String(
-                    repoData?.content ||
-                    repoData?.text ||
-                    repoData?.source ||
-                    "Sin contenido disponible."
-                )
-                    .slice(0, 3000)
-            ]
-                .join("\n")
+    ? [
+        `Archivo: ${
+            repoData?.file ||
+            repoData?.path ||
+            repoData?.name ||
+            coreResult?.result?.toolCalls?.[0]?.args?.file ||
+            "ND"
+        }`,
+        "",
+        String(
+            repoData?.content ||
+            repoData?.text ||
+            repoData?.source ||
+            repoData?.raw ||
+            repoData?.data?.content ||
+            repoData?.data?.text ||
+            JSON.stringify(repoData, null, 2) ||
+            "Sin contenido disponible."
+        )
+            .slice(0, 3000)
+    ]
+        .join("\n")
             : toolName === "repo.search"
-                ? [
-                    `Búsqueda: ${
-                        repoData?.query ||
-                        repoData?.term ||
-                        toolData?.args?.query ||
-                        "ND"
-                    }`,
-                    `Resultados: ${
-                        repoData?.results?.length ||
-                        repoData?.matches?.length ||
-                        0
-                    }`,
-                    "",
-                    JSON.stringify(
-                        repoData?.results ||
-                        repoData?.matches ||
-                        repoData,
-                        null,
-                        2
-                    )
-                        .slice(0, 3000)
-                ]
-                    .join("\n")
+    ? errorPayload
+        ? [
+            "La búsqueda repo.search todavía no tiene búsqueda global por texto.",
+            "",
+            `Error: ${
+                errorPayload?.message ||
+                runtimeResult?.error ||
+                "UNKNOWN"
+            }`,
+            `Tool: repo.search`,
+            "",
+            "Siguiente ajuste técnico: conectar repo.search a búsqueda global real o crear repo.grep."
+        ]
+            .join("\n")
+        : [
+            `Búsqueda: ${
+                repoData?.query ||
+                repoData?.term ||
+                coreResult?.result?.toolCalls?.[0]?.args?.query ||
+                "ND"
+            }`,
+            `Resultados: ${
+                repoData?.results?.length ||
+                repoData?.matches?.length ||
+                0
+            }`,
+            "",
+            JSON.stringify(
+                repoData?.results ||
+                repoData?.matches ||
+                repoData,
+                null,
+                2
+            )
+                .slice(0, 3000)
+        ]
+            .join("\n")
                 : toolName === "repo.impact"
-                    ? [
-                        `Archivo: ${
-                            repoData?.file ||
-                            repoData?.target ||
-                            toolData?.args?.file ||
-                            "ND"
-                        }`,
-                        `Riesgo: ${
-                            repoData?.risk ||
-                            repoData?.riskLevel ||
-                            repoData?.status ||
-                            "ND"
-                        }`,
-                        "",
-                        JSON.stringify(
-                            repoData,
-                            null,
-                            2
-                        )
-                            .slice(0, 3000)
-                    ]
-                        .join("\n")
+    ? errorPayload
+        ? [
+            `Archivo: ${
+                runtimeResult?.file ||
+                coreResult?.result?.toolCalls?.[0]?.args?.file ||
+                "ND"
+            }`,
+            "Riesgo: no calculado",
+            "",
+            `Error: ${
+                errorPayload?.message ||
+                runtimeResult?.error ||
+                "UNKNOWN"
+            }`,
+            "",
+            runtimeResult?.available
+                ? `Índice disponible: ${runtimeResult.available.join(", ")}`
+                : "",
+            "",
+            "Siguiente ajuste técnico: rehidratar Repo Cognition Index antes de repo.impact."
+        ]
+            .filter(Boolean)
+            .join("\n")
+        : [
+            `Archivo: ${
+                repoData?.file ||
+                repoData?.target ||
+                coreResult?.result?.toolCalls?.[0]?.args?.file ||
+                "ND"
+            }`,
+            `Riesgo: ${
+                repoData?.risk ||
+                repoData?.riskLevel ||
+                repoData?.status ||
+                "ND"
+            }`,
+            "",
+            JSON.stringify(
+                repoData,
+                null,
+                2
+            )
+                .slice(0, 3000)
+        ]
+            .join("\n")
                     : "";
 
 const summary =
