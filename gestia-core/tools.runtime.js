@@ -274,6 +274,59 @@ JarvisToolRuntime.register({
                 .replace(/^\/+/, "")
                 .trim();
 
+                        if (
+            window.JarvisLocalBridge?.readFile
+        ) {
+            const bridgeRead =
+                await window.JarvisLocalBridge.readFile({
+                    file:
+                        normalizedFile,
+                    path:
+                        normalizedFile,
+                    maxBytes:
+                        args.maxBytes ||
+                        300000,
+                    source:
+                        "jarvis_repo_read_v7"
+                });
+
+            if (
+                bridgeRead?.ok === true &&
+                typeof bridgeRead.content === "string"
+            ) {
+                return {
+                    ok: true,
+                    file:
+                        normalizedFile,
+                    path:
+                        bridgeRead.path ||
+                        normalizedFile,
+                    content:
+                        bridgeRead.content,
+                    size:
+                        bridgeRead.size ||
+                        bridgeRead.content.length,
+                    source:
+                        bridgeRead.source ||
+                        "jarvis_local_bridge_read_client_v7",
+                    note:
+                        "CONTENT_AVAILABLE_FROM_LOCAL_BRIDGE",
+                    tool:
+                        "repo.read"
+                };
+            }
+
+            if (
+                bridgeRead?.ok === false &&
+                bridgeRead?.status !== "FILE_NOT_FOUND"
+            ) {
+                console.warn(
+                    "⚠️ [REPO_READ_BRIDGE_FAIL]",
+                    bridgeRead
+                );
+            }
+        }
+
         const {
             findRepoFile,
             loadRepoContext,
@@ -652,6 +705,72 @@ window.JarvisLocalBridge.grepRepo ||= async function(payload = {}) {
             "jarvis_local_bridge_grep_client_v7"
     };
 };
+
+
+window.JarvisLocalBridge.readFile ||= async function(payload = {}) {
+    const file =
+        payload.file ||
+        payload.path ||
+        "";
+
+    const response =
+        await fetch(
+            "http://localhost:3344/read",
+            {
+                method:
+                    "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body:
+                    JSON.stringify({
+                        file,
+                        path:
+                            payload.path || file,
+                        maxBytes:
+                            payload.maxBytes || 300000,
+                        source:
+                            payload.source ||
+                            "jarvis_repo_read_v7"
+                    })
+            }
+        );
+
+    const rawText =
+        await response.text();
+
+    let result =
+        null;
+
+    try {
+        result =
+            JSON.parse(rawText);
+    }
+    catch(error) {
+        result = {
+            ok: false,
+            status:
+                "INVALID_READ_RESPONSE",
+            error:
+                "READ_ENDPOINT_DID_NOT_RETURN_JSON",
+            raw:
+                rawText.slice(0, 500),
+            parseError:
+                error?.message || String(error)
+        };
+    }
+
+    return {
+        ...result,
+        httpStatus:
+            response.status,
+        source:
+            result?.source ||
+            "jarvis_local_bridge_read_client_v7"
+    };
+};
+
 
 JarvisToolRuntime.register({
     name: "tests.run",
