@@ -4,6 +4,125 @@
  * Rol: ejecutar tools y componer respuestas, no decidir intención.
  */
 
+/* ======================================================================================
+   JARVIS TOOL RESULT MEMORY V7
+   Guarda observaciones recientes de tools para respuesta inmediata sin re-ejecutar.
+====================================================================================== */
+
+window.__JARVIS_TOOL_MEMORY__ ||= {
+    version:
+        "7.0.0",
+    maxEntries:
+        25,
+    entries:
+        [],
+    last:
+        null
+};
+
+function rememberToolResult(
+    entry = {}
+) {
+    const memory =
+        window.__JARVIS_TOOL_MEMORY__;
+
+    const safeEntry =
+        {
+            id:
+                entry.id ||
+                crypto.randomUUID(),
+            tool:
+                entry.tool ||
+                "unknown",
+            args:
+                entry.args ||
+                {},
+            ok:
+                entry.ok === true,
+            status:
+                entry.status ||
+                "UNKNOWN",
+            data:
+                entry.data ||
+                null,
+            response:
+                entry.response ||
+                null,
+            observation:
+                entry.observation ||
+                null,
+            analysisId:
+                entry.analysisId ||
+                null,
+            tenantId:
+                entry.tenantId ||
+                null,
+            timestamp:
+                Date.now()
+        };
+
+    memory.entries.unshift(
+        safeEntry
+    );
+
+    memory.entries =
+        memory.entries.slice(
+            0,
+            memory.maxEntries
+        );
+
+    memory.last =
+        safeEntry;
+
+    console.info(
+        "🧠 [TOOL_MEMORY_SAVED]",
+        {
+            tool:
+                safeEntry.tool,
+            status:
+                safeEntry.status,
+            ok:
+                safeEntry.ok
+        }
+    );
+
+    return safeEntry;
+}
+
+function getLastToolResult(
+    toolName = null
+) {
+    const entries =
+        window.__JARVIS_TOOL_MEMORY__?.entries ||
+        [];
+
+    if (!toolName) {
+        return (
+            window.__JARVIS_TOOL_MEMORY__?.last ||
+            null
+        );
+    }
+
+    return (
+        entries.find(
+            item =>
+                item.tool === toolName
+        ) ||
+        null
+    );
+}
+
+window.JarvisToolMemory = {
+    remember:
+        rememberToolResult,
+    last:
+        getLastToolResult,
+    all:
+        () =>
+            window.__JARVIS_TOOL_MEMORY__?.entries ||
+            []
+};
+
 export const ToolsBridge = {
 
     async executeAndCompose(toolName, args = {}, context = {}) {
@@ -95,6 +214,26 @@ export const ToolsBridge = {
                     }
                 });
 
+                            rememberToolResult({
+                tool:
+                    toolName,
+                args,
+                ok:
+                    true,
+                status:
+                    "SUCCESS",
+                data:
+                    result.data,
+                response,
+                observation,
+                analysisId:
+                    context.analysisId ||
+                    null,
+                tenantId:
+                    context.tenantId ||
+                    null
+            });
+
             return window.ResponseComposer.composeAgentToolResult({
                 analysisId:
                     context.analysisId || null,
@@ -134,6 +273,28 @@ export const ToolsBridge = {
                         context.analysisId
                 }
             );
+
+                    rememberToolResult({
+            tool:
+                toolName,
+            args,
+            ok:
+                true,
+            status:
+                result?.data?.status ||
+                result?.status ||
+                "SUCCESS",
+            data:
+                result.data,
+            response,
+            observation,
+            analysisId:
+                context.analysisId ||
+                null,
+            tenantId:
+                context.tenantId ||
+                null
+        });
 
         return window.ResponseComposer.composeAgentToolResult({
             analysisId:
