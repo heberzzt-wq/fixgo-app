@@ -402,6 +402,139 @@ export function createJarvisFsBridgeApp({
                 });
         }
     });
+
+        app.post("/read", async (req, res) => {
+        try {
+            const {
+                file,
+                path: requestedPath,
+                maxBytes = 300000
+            } = req.body || {};
+
+            const targetFile =
+                file ||
+                requestedPath ||
+                "";
+
+            const safePath =
+                resolveRepoPath(
+                    targetFile,
+                    root
+                );
+
+            if (
+                !fs.existsSync(safePath)
+            ) {
+                return res.status(404).json({
+                    ok: false,
+                    status:
+                        "FILE_NOT_FOUND",
+                    error:
+                        "FILE_NOT_FOUND",
+                    file:
+                        targetFile,
+                    source:
+                        "jarvis_fs_bridge_read_v1",
+                    version:
+                        JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+
+            const stat =
+                fs.statSync(safePath);
+
+            if (
+                !stat.isFile()
+            ) {
+                return res.status(400).json({
+                    ok: false,
+                    status:
+                        "NOT_A_FILE",
+                    error:
+                        "NOT_A_FILE",
+                    file:
+                        targetFile,
+                    source:
+                        "jarvis_fs_bridge_read_v1",
+                    version:
+                        JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+
+            if (
+                stat.size > Number(maxBytes)
+            ) {
+                return res.status(413).json({
+                    ok: false,
+                    status:
+                        "FILE_TOO_LARGE",
+                    error:
+                        "FILE_TOO_LARGE",
+                    file:
+                        targetFile,
+                    size:
+                        stat.size,
+                    maxBytes:
+                        Number(maxBytes),
+                    source:
+                        "jarvis_fs_bridge_read_v1",
+                    version:
+                        JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+
+            const content =
+                fs.readFileSync(
+                    safePath,
+                    "utf8"
+                );
+
+            return res.json({
+                ok: true,
+                file:
+                    String(targetFile)
+                        .replace(/\\/g, "/"),
+                path:
+                    String(targetFile)
+                        .replace(/\\/g, "/"),
+                size:
+                    stat.size,
+                content,
+                source:
+                    "jarvis_fs_bridge_read_v1",
+                version:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+        catch(error) {
+            const clientErrors =
+                new Set([
+                    "FILE_REQUIRED",
+                    "ABSOLUTE_PATH_NOT_ALLOWED",
+                    "PATH_OUTSIDE_REPO"
+                ]);
+
+            return res
+                .status(
+                    clientErrors.has(error.message)
+                        ? 400
+                        : 500
+                )
+                .json({
+                    ok: false,
+                    status:
+                        "READ_FAILED",
+                    error:
+                        error.message,
+                    source:
+                        "jarvis_fs_bridge_read_v1",
+                    version:
+                        JARVIS_FS_BRIDGE_VERSION
+                });
+        }
+    });
+
+    
     app.post("/write", async (req, res) => {
         try {
             const {
