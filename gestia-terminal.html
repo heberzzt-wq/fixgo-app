@@ -1330,15 +1330,33 @@ window.hablarJarvis = async function(texto = "") {
 const cmd = comando.toLowerCase();
 
 /* =====================================================
-   TERMINAL TOOL MEMORY ANSWER V7
+   TERMINAL TOOL MEMORY ANSWER V7.1
    Responde desde memoria sin re-ejecutar tools
 ===================================================== */
 
+const normalizedMemoryQuestion =
+    String(comando || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
 const isToolMemoryQuestion =
-    /pasaron|paso|pasó|ultimo resultado|último resultado|que comando corriste|qué comando corriste|cuanto tardo|cuánto tardó|tests|pruebas/i
-        .test(comando) &&
-    /tests|pruebas|comando|resultado|tardo|tardó/i
-        .test(comando);
+    (
+        normalizedMemoryQuestion.includes("pasaron") ||
+        normalizedMemoryQuestion.includes("paso") ||
+        normalizedMemoryQuestion.includes("ultimo resultado") ||
+        normalizedMemoryQuestion.includes("que comando corriste") ||
+        normalizedMemoryQuestion.includes("cuanto tardo") ||
+        normalizedMemoryQuestion.includes("resultado")
+    ) &&
+    (
+        normalizedMemoryQuestion.includes("test") ||
+        normalizedMemoryQuestion.includes("tests") ||
+        normalizedMemoryQuestion.includes("prueba") ||
+        normalizedMemoryQuestion.includes("pruebas") ||
+        normalizedMemoryQuestion.includes("comando") ||
+        normalizedMemoryQuestion.includes("resultado")
+    );
 
 if (
     isToolMemoryQuestion &&
@@ -1350,6 +1368,18 @@ if (
         );
 
     if (lastTest) {
+        console.info(
+            "🧠 [TERMINAL_TOOL_MEMORY_ANSWER]",
+            {
+                command:
+                    comando,
+                tool:
+                    "tests.run",
+                status:
+                    lastTest.status
+            }
+        );
+
         const data =
             lastTest.data ||
             {};
@@ -1363,11 +1393,6 @@ if (
             data.npmCommand ||
             data.result?.command ||
             "npm test";
-
-        const duration =
-            data.result?.durationMs ||
-            data.result?.duration_ms ||
-            null;
 
         const stdout =
             data.result?.stdout ||
@@ -1404,11 +1429,8 @@ if (
                     ? `Fail: ${failMatch[1]}`
                     : "",
 
-                duration || durationMatch
-                    ? `Duración: ${
-                        duration ||
-                        durationMatch?.[1]
-                    } ms`
+                durationMatch
+                    ? `Duración: ${durationMatch[1]} ms`
                     : "",
 
                 `Memoria: ${
@@ -1434,7 +1456,6 @@ if (
         return;
     }
 }
-
 /* =====================================================
    TERMINAL CORE-FIRST V7
    Terminal → GestiaCore → Brain → Agent Loop → Tools
