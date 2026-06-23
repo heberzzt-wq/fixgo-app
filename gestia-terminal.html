@@ -1622,17 +1622,28 @@ const repoSummary =
             "ND"
         }`,
         "",
-        String(
-            repoData?.content ||
-            repoData?.text ||
-            repoData?.source ||
-            repoData?.raw ||
-            repoData?.data?.content ||
-            repoData?.data?.text ||
-            JSON.stringify(repoData, null, 2) ||
-            "Sin contenido disponible."
-        )
-            .slice(0, 3000)
+       String(
+    repoData?.content ||
+    repoData?.text ||
+    repoData?.source ||
+    repoData?.raw ||
+    repoData?.data?.content ||
+    repoData?.data?.text ||
+    (
+        repoData?.note === "FILE_FOUND_METADATA_ONLY"
+            ? [
+                `Archivo encontrado en índice del repo.`,
+                `Módulo: ${repoData?.metadata?.module || "ND"}`,
+                `Tipo: ${repoData?.metadata?.type || "ND"}`,
+                `Crítico: ${repoData?.metadata?.critical === true ? "sí" : "no"}`,
+                "",
+                "Contenido no disponible todavía en el índice actual."
+            ].join("\n")
+            : JSON.stringify(repoData, null, 2)
+    ) ||
+    "Sin contenido disponible."
+)
+    .slice(0, 3000)
     ]
         .join("\n")
             : toolName === "repo.search"
