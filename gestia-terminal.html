@@ -1565,9 +1565,16 @@ const title =
         )
         : "";
 
-            const summary =
-    auditText
-        ? auditText
+           const cleanAuditText =
+    String(
+        auditText || ""
+    )
+        .replace(/^Auditoría SIA7\s*/i, "")
+        .trim();
+
+const summary =
+    cleanAuditText
+        ? cleanAuditText
         : [
             `Estado: ${status}`,
             npmCommand
