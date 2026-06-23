@@ -1572,23 +1572,115 @@ const title =
         .replace(/^Auditoría SIA7\s*/i, "")
         .trim();
 
+        const repoData =
+    toolData?.data ||
+    toolData?.result ||
+    toolData ||
+    {};
+
+const repoSummary =
+    toolName === "repo.scan"
+        ? [
+            `Archivos detectados: ${
+                repoData?.files?.length ||
+                repoData?.totalFiles ||
+                repoData?.count ||
+                "ND"
+            }`,
+            `Módulos detectados: ${
+                repoData?.modules?.length ||
+                repoData?.totalModules ||
+                "ND"
+            }`
+        ]
+            .filter(Boolean)
+            .join("\n")
+        : toolName === "repo.read"
+            ? [
+                `Archivo: ${
+                    repoData?.file ||
+                    repoData?.path ||
+                    toolData?.args?.file ||
+                    "ND"
+                }`,
+                "",
+                String(
+                    repoData?.content ||
+                    repoData?.text ||
+                    repoData?.source ||
+                    "Sin contenido disponible."
+                )
+                    .slice(0, 3000)
+            ]
+                .join("\n")
+            : toolName === "repo.search"
+                ? [
+                    `Búsqueda: ${
+                        repoData?.query ||
+                        repoData?.term ||
+                        toolData?.args?.query ||
+                        "ND"
+                    }`,
+                    `Resultados: ${
+                        repoData?.results?.length ||
+                        repoData?.matches?.length ||
+                        0
+                    }`,
+                    "",
+                    JSON.stringify(
+                        repoData?.results ||
+                        repoData?.matches ||
+                        repoData,
+                        null,
+                        2
+                    )
+                        .slice(0, 3000)
+                ]
+                    .join("\n")
+                : toolName === "repo.impact"
+                    ? [
+                        `Archivo: ${
+                            repoData?.file ||
+                            repoData?.target ||
+                            toolData?.args?.file ||
+                            "ND"
+                        }`,
+                        `Riesgo: ${
+                            repoData?.risk ||
+                            repoData?.riskLevel ||
+                            repoData?.status ||
+                            "ND"
+                        }`,
+                        "",
+                        JSON.stringify(
+                            repoData,
+                            null,
+                            2
+                        )
+                            .slice(0, 3000)
+                    ]
+                        .join("\n")
+                    : "";
+
 const summary =
     cleanAuditText
         ? cleanAuditText
-        : [
-            `Estado: ${status}`,
-            npmCommand
-                ? `Comando: ${npmCommand}`
-                : "",
-            stdout
-                ? stdout
-                    .split("\n")
-                    .slice(-12)
-                    .join("\n")
-                : ""
-        ]
-            .filter(Boolean)
-            .join("\n\n");
+        : repoSummary
+            ? repoSummary
+            : [
+                `Estado: ${status}`,
+                npmCommand
+                    ? `Comando: ${npmCommand}`
+                    : "",
+                stdout
+                    ? stdout
+                        .split("\n")
+                        .slice(-12)
+                        .join("\n")
+                    : ""
+            ]
+                .filter(Boolean)
+                .join("\n\n");
 
             window.renderJarvisResponse?.(
                 title,
