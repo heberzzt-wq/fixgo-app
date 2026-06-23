@@ -1516,10 +1516,27 @@ if (
                     ?.data ||
                 firstObservation;
 
-            const title =
-                toolData?.tool === "tests.run"
-                    ? "Pruebas SIA7"
-                    : "Agent Loop SIA7";
+            const toolName =
+    firstObservation?.meta?.tool ||
+    firstObservation?.toolCalls?.[0]?.name ||
+    coreResult?.result?.toolCalls?.[0]?.name ||
+    toolData?.tool ||
+    "unknown";
+
+const title =
+    toolName === "tests.run"
+        ? "Pruebas SIA7"
+        : toolName === "repo.audit"
+            ? "Auditoría SIA7"
+            : toolName === "repo.scan"
+                ? "Escaneo Repo SIA7"
+                : toolName === "repo.read"
+                    ? "Lectura Repo SIA7"
+                    : toolName === "repo.search"
+                        ? "Búsqueda Repo SIA7"
+                        : toolName === "repo.impact"
+                            ? "Impacto Repo SIA7"
+                            : "Agent Loop SIA7";
 
             const status =
                 toolData?.status ||
@@ -1535,21 +1552,36 @@ if (
                 toolData?.result?.stdout ||
                 "";
 
+                const auditText =
+    toolName === "repo.audit"
+        ? (
+            firstObservation?.response?.response?.text ||
+            firstObservation?.response?.data?.response?.text ||
+            firstObservation?.data?.response?.text ||
+            firstObservation?.response?.text ||
+            toolData?.response?.text ||
+            toolData?.text ||
+            ""
+        )
+        : "";
+
             const summary =
-                [
-                    `Estado: ${status}`,
-                    npmCommand
-                        ? `Comando: ${npmCommand}`
-                        : "",
-                    stdout
-                        ? stdout
-                            .split("\n")
-                            .slice(-12)
-                            .join("\n")
-                        : ""
-                ]
-                    .filter(Boolean)
-                    .join("\n\n");
+    auditText
+        ? auditText
+        : [
+            `Estado: ${status}`,
+            npmCommand
+                ? `Comando: ${npmCommand}`
+                : "",
+            stdout
+                ? stdout
+                    .split("\n")
+                    .slice(-12)
+                    .join("\n")
+                : ""
+        ]
+            .filter(Boolean)
+            .join("\n\n");
 
             window.renderJarvisResponse?.(
                 title,
