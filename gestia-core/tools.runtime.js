@@ -282,20 +282,29 @@ JarvisToolRuntime.register({
             await import('/gestia-core/hubs/repo.hub.js');
 
         let found =
-            await findRepoFile({
-                file:
-                    normalizedFile,
-                path:
-                    normalizedFile,
-                target:
-                    normalizedFile
-            })
-                .catch(error => ({
-                    ok: false,
-                    error:
-                        error?.message ||
-                        String(error)
-                }));
+    null;
+
+try {
+    found =
+        await findRepoFile({
+            file:
+                normalizedFile,
+            path:
+                normalizedFile,
+            target:
+                normalizedFile
+        });
+}
+catch(error) {
+    found =
+        {
+            ok:
+                false,
+            error:
+                error?.message ||
+                String(error)
+        };
+}
 
         if (
             found &&
@@ -318,20 +327,29 @@ JarvisToolRuntime.register({
         }
 
         let contextResult =
-            await loadRepoContext({
-                file:
-                    normalizedFile,
-                path:
-                    normalizedFile,
-                target:
-                    normalizedFile
-            })
-                .catch(error => ({
-                    ok: false,
-                    error:
-                        error?.message ||
-                        String(error)
-                }));
+    null;
+
+try {
+    contextResult =
+        await loadRepoContext({
+            file:
+                normalizedFile,
+            path:
+                normalizedFile,
+            target:
+                normalizedFile
+        });
+}
+catch(error) {
+    contextResult =
+        {
+            ok:
+                false,
+            error:
+                error?.message ||
+                String(error)
+        };
+}
 
         if (
             contextResult &&
@@ -352,10 +370,17 @@ JarvisToolRuntime.register({
             };
         }
 
-        const scan =
-            await scanRepo({})
-                .catch(() => null);
+        let scan =
+    null;
 
+try {
+    scan =
+        await scanRepo({});
+}
+catch(error) {
+    scan =
+        null;
+}
         const matched =
             scan?.files?.find?.(
                 item =>
