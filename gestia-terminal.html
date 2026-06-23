@@ -1330,6 +1330,112 @@ window.hablarJarvis = async function(texto = "") {
 const cmd = comando.toLowerCase();
 
 /* =====================================================
+   TERMINAL TOOL MEMORY ANSWER V7
+   Responde desde memoria sin re-ejecutar tools
+===================================================== */
+
+const isToolMemoryQuestion =
+    /pasaron|paso|pasó|ultimo resultado|último resultado|que comando corriste|qué comando corriste|cuanto tardo|cuánto tardó|tests|pruebas/i
+        .test(comando) &&
+    /tests|pruebas|comando|resultado|tardo|tardó/i
+        .test(comando);
+
+if (
+    isToolMemoryQuestion &&
+    window.JarvisToolMemory?.last
+) {
+    const lastTest =
+        window.JarvisToolMemory.last(
+            "tests.run"
+        );
+
+    if (lastTest) {
+        const data =
+            lastTest.data ||
+            {};
+
+        const status =
+            data.status ||
+            lastTest.status ||
+            "UNKNOWN";
+
+        const npmCommand =
+            data.npmCommand ||
+            data.result?.command ||
+            "npm test";
+
+        const duration =
+            data.result?.durationMs ||
+            data.result?.duration_ms ||
+            null;
+
+        const stdout =
+            data.result?.stdout ||
+            "";
+
+        const passMatch =
+            stdout.match(
+                /ℹ pass\s+(\d+)/
+            );
+
+        const failMatch =
+            stdout.match(
+                /ℹ fail\s+(\d+)/
+            );
+
+        const durationMatch =
+            stdout.match(
+                /ℹ duration_ms\s+([0-9.]+)/
+            );
+
+        const summary =
+            [
+                status === "PASSED"
+                    ? "Sí, las pruebas pasaron correctamente."
+                    : `Último estado de pruebas: ${status}.`,
+
+                `Comando: ${npmCommand}`,
+
+                passMatch
+                    ? `Pass: ${passMatch[1]}`
+                    : "",
+
+                failMatch
+                    ? `Fail: ${failMatch[1]}`
+                    : "",
+
+                duration || durationMatch
+                    ? `Duración: ${
+                        duration ||
+                        durationMatch?.[1]
+                    } ms`
+                    : "",
+
+                `Memoria: ${
+                    new Date(
+                        lastTest.timestamp
+                    ).toLocaleString()
+                }`
+            ]
+                .filter(Boolean)
+                .join("\n");
+
+        window.renderJarvisResponse?.(
+            "Memoria de Pruebas SIA7",
+            summary,
+            status === "PASSED"
+                ? "success"
+                : "warning"
+        );
+
+        handled =
+            true;
+
+        return;
+    }
+}
+
+/* =====================================================
    TERMINAL CORE-FIRST V7
    Terminal → GestiaCore → Brain → Agent Loop → Tools
 ===================================================== */
