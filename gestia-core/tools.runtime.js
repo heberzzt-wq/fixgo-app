@@ -861,63 +861,231 @@ JarvisToolRuntime.register({
 // V7 PRODUCTION GRADE CONTRACT: repo.patchPreview
 JarvisToolRuntime.register({
     name: "repo.patchPreview",
-    description: "Genera un diff en memoria (dry-run) estricto. Requiere file, search y replace.",
-    mutates: false, 
-    requiresApproval: false, 
+    description: "Genera un diff en memoria (dry-run) estricto. Puede hidratar contenido local del archivo antes de validar search/replace.",
+    mutates: false,
+    requiresApproval: false,
     output: "REPO_PATCH_PREVIEW",
     inputSchema: {
         type: "object",
-        required: ["file", "search", "replace"],
+        required: ["file"],
         properties: {
-            file: { type: "string", description: "Ruta del archivo objetivo (ej. gestia-terminal.html)" },
-            search: { type: "string", description: "Bloque de código exacto a buscar en el archivo" },
-            replace: { type: "string", description: "Nuevo bloque de código que sustituirá a la búsqueda" },
-            dryRun: { type: "boolean", description: "Forzado a true internamente", default: true }
+            file: {
+                type: "string",
+                description: "Ruta del archivo objetivo (ej. gestia-terminal.html)"
+            },
+            search: {
+                type: "string",
+                description: "Bloque de código exacto a buscar en el archivo"
+            },
+            replace: {
+                type: "string",
+                description: "Nuevo bloque de código que sustituirá a la búsqueda"
+            },
+            intent: {
+                type: "string",
+                description: "Descripción humana del cambio deseado cuando todavía no hay search/replace exactos"
+            },
+            dryRun: {
+                type: "boolean",
+                description: "Forzado a true internamente",
+                default: true
+            }
         }
     },
-    execute: async (args, context) => {
-        // 1. Hard Validation del contrato
-        if (!args || typeof args !== 'object') {
-            return { 
-                ok: false, 
-                status: "CONTRACT_INVALID", 
-                error: "El payload de argumentos debe ser un objeto válido." 
-            };
-        }
-
-        const missing = ["file", "search", "replace"].filter(key => !(key in args) || !args[key]);
-
-        if (missing.length > 0) {
-            console.warn(`[RUNTIME_WARNING] Contrato inválido en repo.patchPreview. Faltan: ${missing.join(", ")}`);
+    execute: async (args = {}, context = {}) => {
+        // 1. Hard Validation del contrato base
+        if (
+            !args ||
+            typeof args !== "object"
+        ) {
             return {
                 ok: false,
-                status: "CONTRACT_INVALID",
-                error: `Faltan parámetros obligatorios en el contrato: ${missing.join(", ")}`,
-                receivedArgs: Object.keys(args)
+                status:
+                    "CONTRACT_INVALID",
+                error:
+                    "El payload de argumentos debe ser un objeto válido.",
+                tool:
+                    "repo.patchPreview"
             };
         }
 
-        // 2. Forzar modo seguro e inyectar el diff completo
-        const safeArgs = { 
-            ...args, 
-            dryRun: true 
+        const file =
+            args.file ||
+            args.path ||
+            args.target ||
+            "";
+
+        if (
+            !file ||
+            typeof file !== "string"
+        ) {
+            return {
+                ok: false,
+                status:
+                    "CONTRACT_INVALID",
+                error:
+                    "Falta parámetro obligatorio: file.",
+                receivedArgs:
+                    Object.keys(args),
+                tool:
+                    "repo.patchPreview"
+            };
+        }
+
+        const normalizedFile =
+            String(file)
+                .replace(/^\.\/+/, "")
+                .replace(/^\/+/, "")
+                .trim();
+
+        let hydratedContent =
+            null;
+
+        // 2. Hidratar contenido real por bridge local read-only
+        if (
+            window.JarvisLocalBridge?.readFile
+        ) {
+            const bridgeRead =
+                await window.JarvisLocalBridge.readFile({
+                    file:
+                        normalizedFile,
+                    path:
+                        normalizedFile,
+                    maxBytes:
+                        args.maxBytes ||
+                        300000,
+                    source:
+                        "jarvis_patch_preview_read_v7"
+                });
+
+            if (
+                bridgeRead?.ok === true &&
+                typeof bridgeRead.content === "string"
+            ) {
+                hydratedContent =
+                    bridgeRead.content;
+            }
+            else {
+                console.warn(
+                    "⚠️ [PATCH_PREVIEW_READ_FAIL]",
+                    bridgeRead
+                );
+            }
+        }
+
+        // 3. Si todavía no hay search/replace exactos, no inventar patch
+        const hasSearchReplace =
+            typeof args.search === "string" &&
+            args.search.length > 0 &&
+            typeof args.replace === "string";
+
+        if (
+            !hasSearchReplace
+        ) {
+            return {
+                ok: false,
+                status:
+                    "PATCH_PREVIEW_NEEDS_EXACT_BLOCK",
+                error:
+                    "Para generar un diff seguro necesito search y replace exactos. Ya hidraté el archivo para análisis, pero no voy a inventar un parche.",
+                file:
+                    normalizedFile,
+                contentAvailable:
+                    typeof hydratedContent === "string",
+                contentLength:
+                    hydratedContent?.length || 0,
+                preview:
+                    typeof hydratedContent === "string"
+                        ? hydratedContent.slice(0, 3000)
+                        : null,
+                next:
+                    "Usa repo.read o repo.grep para localizar el bloque exacto; después llama repo.patchPreview con file, search y replace.",
+                tool:
+                    "repo.patchPreview"
+            };
+        }
+
+        // 4. Validar que el bloque search exista en el contenido hidratado
+        if (
+            typeof hydratedContent === "string" &&
+            !hydratedContent.includes(args.search)
+        ) {
+            return {
+                ok: false,
+                status:
+                    "SEARCH_BLOCK_NOT_FOUND",
+                error:
+                    "El bloque search no existe exactamente en el archivo hidratado. No se genera diff.",
+                file:
+                    normalizedFile,
+                searchLength:
+                    args.search.length,
+                contentLength:
+                    hydratedContent.length,
+                suggestion:
+                    "Usa repo.grep o repo.read para copiar el bloque exacto antes de previsualizar el patch.",
+                tool:
+                    "repo.patchPreview"
+            };
+        }
+
+        // 5. Forzar modo seguro e inyectar el diff completo
+        const safeArgs = {
+            ...args,
+            file:
+                normalizedFile,
+            path:
+                normalizedFile,
+            dryRun:
+                true,
+            content:
+                hydratedContent ||
+                args.content ||
+                null
         };
 
-        // 3. Ejecución contra el Hub
-        const { generatePatch } = await import('/gestia-core/hubs/repo.hub.js');
-        const result = await generatePatch(safeArgs);
+        // 6. Ejecución contra el Hub
+        const {
+            generatePatch
+        } =
+            await import('/gestia-core/hubs/repo.hub.js');
 
-        // 4. Interceptar respuestas lógicas del hub que sean fallos en la práctica
-        if (result?.status === "SEARCH_REQUIRED" || result?.error) {
+        const result =
+            await generatePatch(safeArgs);
+
+        // 7. Interceptar respuestas lógicas del hub que sean fallos en la práctica
+        if (
+            result?.status === "SEARCH_REQUIRED" ||
+            result?.error
+        ) {
             return {
                 ok: false,
-                status: "PATCH_FAILED",
-                error: result.error || "El motor de patches rebotó la solicitud (SEARCH_REQUIRED o similar).",
-                details: result
+                status:
+                    "PATCH_FAILED",
+                error:
+                    result.error ||
+                    "El motor de patches rebotó la solicitud (SEARCH_REQUIRED o similar).",
+                details:
+                    result,
+                tool:
+                    "repo.patchPreview"
             };
         }
 
-        return result;
+        return {
+            ...result,
+            ok:
+                result?.ok !== false,
+            status:
+                result?.status ||
+                "PATCH_PREVIEW_READY",
+            file:
+                normalizedFile,
+            dryRun:
+                true,
+            tool:
+                "repo.patchPreview"
+        };
     }
 });
 
