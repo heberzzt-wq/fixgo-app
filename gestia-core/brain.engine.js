@@ -614,6 +614,28 @@ function buildToolCallsFromInput(
   const toolCalls =
     [];
 
+      const fileMatch =
+    text.match(
+      /([a-zA-Z0-9_./-]+\.(js|html|css|json|cjs|mjs|txt|md))/i
+    );
+
+  const quotedMatch =
+    String(input || "")
+      .match(
+        /["'“”‘’]([^"'“”‘’]{2,120})["'“”‘’]/
+      );
+
+  const searchTerm =
+    quotedMatch?.[1] ||
+    null;
+
+  const targetFile =
+    fileMatch?.[1]
+      ?.replace(/^\.\/+/, "")
+      ?.replace(/^\/+/, "")
+      ?.trim() ||
+    null;
+
   const wantsCiTest =
     /\b(ci:test|ci test|npm run ci:test|npm ci test|validacion completa|prueba completa|corre todo|ejecuta todo)\b/i
       .test(text);
@@ -656,9 +678,123 @@ function buildToolCallsFromInput(
     });
   }
 
-  return toolCalls;
-}
+    const wantsRepoAudit =
+    /\b(audita|auditar|audit|auditoria|auditoría|revisa repo|analiza repo|analiza el repo|estado del repo|diagnostico repo|diagnóstico repo)\b/i
+      .test(text);
 
+  const wantsRepoScan =
+    /\b(escanea|escanear|scan|scan repo|escanea repo|estructura del repo|mapa del repo|lista archivos|listar archivos)\b/i
+      .test(text);
+
+  const wantsRepoRead =
+    /\b(lee|leer|abre|abrir|muestra|mostrar|contenido de|ver archivo)\b/i
+      .test(text) &&
+    !!targetFile;
+
+  const wantsRepoSearch =
+    /\b(busca|buscar|search|encuentra|encontrar|localiza|localizar)\b/i
+      .test(text) &&
+    !!searchTerm;
+
+  const wantsRepoImpact =
+    /\b(impacto|impact|dependencias|dependents|rompe|afecta|riesgo de cambiar|que pasa si cambio|qué pasa si cambio)\b/i
+      .test(text) &&
+    !!targetFile;
+
+  if (wantsRepoAudit) {
+    toolCalls.push({
+      name:
+        "repo.audit",
+      args:
+        {},
+      reason:
+        "USER_REQUESTED_REPO_AUDIT",
+      mutates:
+        false
+    });
+  }
+
+  if (wantsRepoScan) {
+    toolCalls.push({
+      name:
+        "repo.scan",
+      args:
+        {},
+      reason:
+        "USER_REQUESTED_REPO_SCAN",
+      mutates:
+        false
+    });
+  }
+
+  if (wantsRepoRead) {
+    toolCalls.push({
+      name:
+        "repo.read",
+      args:
+        {
+          file:
+            targetFile
+        },
+      reason:
+        "USER_REQUESTED_REPO_READ",
+      mutates:
+        false
+    });
+  }
+
+  if (wantsRepoSearch) {
+    toolCalls.push({
+      name:
+        "repo.search",
+      args:
+        {
+          query:
+            searchTerm,
+          term:
+            searchTerm
+        },
+      reason:
+        "USER_REQUESTED_REPO_SEARCH",
+      mutates:
+        false
+    });
+  }
+
+  if (wantsRepoImpact) {
+    toolCalls.push({
+      name:
+        "repo.impact",
+      args:
+        {
+          file:
+            targetFile
+        },
+      reason:
+        "USER_REQUESTED_REPO_IMPACT",
+      mutates:
+        false
+    });
+  }
+
+   const seenTools =
+    new Set();
+
+  return toolCalls.filter(
+    call => {
+      const key =
+        `${call.name}:${JSON.stringify(call.args || {})}`;
+
+      if (seenTools.has(key)) {
+        return false;
+      }
+
+      seenTools.add(key);
+
+      return true;
+    }
+  );
+}
 /* ======================================================================================
    EXECUTION GRAPH EXPANDER
 ====================================================================================== */
