@@ -249,15 +249,164 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.read",
-    description: "Lee y extrae el contenido exacto de un archivo para el contexto del agente.",
+    description: "Lee y extrae metadatos/contenido disponible de un archivo para el contexto del agente.",
     mutates: false,
     requiresApproval: false,
     output: "REPO_FILE_CONTENT",
-    execute: async (args, context) => {
-        const { findRepoFile } = await import('/gestia-core/hubs/repo.hub.js');
-        return await findRepoFile(args);
+    execute: async (args = {}, context = {}) => {
+        const file =
+            args.file ||
+            args.path ||
+            args.target ||
+            "";
+
+        if (!file) {
+            return {
+                ok: false,
+                error: "FILE_REQUIRED",
+                tool: "repo.read"
+            };
+        }
+
+        const normalizedFile =
+            String(file)
+                .replace(/^\.\/+/, "")
+                .replace(/^\/+/, "")
+                .trim();
+
+        const {
+            findRepoFile,
+            loadRepoContext,
+            scanRepo
+        } =
+            await import('/gestia-core/hubs/repo.hub.js');
+
+        let found =
+            await findRepoFile({
+                file:
+                    normalizedFile,
+                path:
+                    normalizedFile,
+                target:
+                    normalizedFile
+            })
+                .catch(error => ({
+                    ok: false,
+                    error:
+                        error?.message ||
+                        String(error)
+                }));
+
+        if (
+            found &&
+            found.ok !== false &&
+            (
+                found.content ||
+                found.text ||
+                found.source ||
+                found.path ||
+                found.file ||
+                found.name
+            )
+        ) {
+            return {
+                ok: true,
+                file:
+                    normalizedFile,
+                ...found
+            };
+        }
+
+        let contextResult =
+            await loadRepoContext({
+                file:
+                    normalizedFile,
+                path:
+                    normalizedFile,
+                target:
+                    normalizedFile
+            })
+                .catch(error => ({
+                    ok: false,
+                    error:
+                        error?.message ||
+                        String(error)
+                }));
+
+        if (
+            contextResult &&
+            contextResult.ok !== false &&
+            (
+                contextResult.content ||
+                contextResult.text ||
+                contextResult.source ||
+                contextResult.path ||
+                contextResult.file
+            )
+        ) {
+            return {
+                ok: true,
+                file:
+                    normalizedFile,
+                ...contextResult
+            };
+        }
+
+        const scan =
+            await scanRepo({})
+                .catch(() => null);
+
+        const matched =
+            scan?.files?.find?.(
+                item =>
+                    item?.path === normalizedFile ||
+                    item?.file === normalizedFile ||
+                    item?.name === normalizedFile ||
+                    String(item?.path || item?.file || item?.name || "")
+                        .endsWith(`/${normalizedFile}`)
+            ) ||
+            null;
+
+        if (matched) {
+            return {
+                ok: true,
+                file:
+                    normalizedFile,
+                path:
+                    matched.path ||
+                    matched.file ||
+                    matched.name ||
+                    normalizedFile,
+                metadata:
+                    matched,
+                content:
+                    matched.content ||
+                    matched.text ||
+                    matched.source ||
+                    null,
+                note:
+                    matched.content ||
+                    matched.text ||
+                    matched.source
+                        ? "CONTENT_AVAILABLE_FROM_REPO_INDEX"
+                        : "FILE_FOUND_METADATA_ONLY"
+            };
+        }
+
+        return {
+            ok: false,
+            error:
+                "FILE_NOT_FOUND",
+            file:
+                normalizedFile,
+            found,
+            contextResult,
+            tool:
+                "repo.read"
+        };
     }
 });
+
 
 JarvisToolRuntime.register({
     name: "repo.search",
