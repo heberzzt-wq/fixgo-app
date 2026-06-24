@@ -2311,316 +2311,162 @@ if (
 window.__RUNTIME_AUTO_HYDRATION_BOUND__ =
     true;
 
-window.addEventListener(
-    "load",
+window.__RUNTIME_AUTO_HYDRATION_RUNNING__ =
+    false;
 
-    async function() {
+window.__RUNTIME_AUTO_HYDRATION_DONE__ =
+    false;
 
-        try {
-
-            console.log(
-                "🧠 [AUTO_REPO_HYDRATION]"
-            );
-
-            /* =================================================
-               INIT RUNTIME PERSISTENCE
-            ================================================= */
-
-            await initRuntimePersistence();
-
-            /* =================================================
-               BOOTSTRAP REPO COGNITION
-            ================================================= */
-
-
-            await bootstrapRepoCognition();
-
-await import(
-    "/gestia-core/repair-translator.engine.js?v=" +
-    Date.now()
-);
-
-console.log(
-    "🧠 [REPAIR_TRANSLATOR_LOADED]"
-);
-
-            await import(
-    "/gestia-core/repo/resource.registry.js?v=" +
-    Date.now()
-);
-
-console.log(
-    "🧠 [RESOURCE_REGISTRY_LOADED]"
-);
-
-
-
-            /* =================================================
-               BOOTSTRAP RUNTIME COGNITION
-            ================================================= */
-
-            await bootstrapRuntimeCognition();
-
-            /* =====================================================
-   HYBRID COGNITION RUNTIME EXPOSURE
-===================================================== */
-
-try {
-
-    console.log(
-        "🧠 [HYBRID_COGNITION_EXPOSURE]"
-    );
-
-    /* =================================================
-       LOAD BRAIN ENGINE
-    ================================================= */
-
-    const brainModule =
-
-        await import(
-            "/gestia-core/brain.engine.js"
-        );
-
-    console.log(
-        "✅ [BRAIN_ENGINE_RUNTIME]"
-    );
-
-    /* =================================================
-       LOAD SEMANTIC ENGINE
-    ================================================= */
-
-    const semanticModule =
-
-        await import(
-            "/gestia-core/semantic.engine.js"
-        );
-
-    console.log(
-        "✅ [SEMANTIC_ENGINE_RUNTIME]"
-    );
-
-    /* =================================================
-       LOAD GESTIA CORE
-    ================================================= */
-
-    const gestiaCoreModule =
-
-        await import(
-            "/gestia-core/gestia-core.js"
-        );
-
-    console.log(
-        "✅ [GESTIA_CORE_RUNTIME]"
-    );
-
-    /* =================================================
-       GLOBAL EXPOSURE
-    ================================================= */
-
-    const reasoningFn =
-
-        brainModule
-            ?.runCognitiveReasoning ||
-
-        brainModule
-            ?.invocarArquitectoIA ||
-
-        null;
+window.runRuntimeAutoHydration =
+async function(reason = "manual") {
 
     if (
-
-        reasoningFn
-
+        window.__RUNTIME_AUTO_HYDRATION_RUNNING__
     ) {
-
-        window.runCognitiveReasoning =
-            reasoningFn;
-
-        console.log(
-            "✅ [REASONING_EXPOSED]"
-        );
-    }
-
-    /* =================================================
-       SEMANTIC STATE
-    ================================================= */
-
-    const semanticStateFn =
-
-        semanticModule
-            ?.getSemanticCognitiveState ||
-
-        null;
-
-    if (
-
-        semanticStateFn
-
-    ) {
-
-        window.getSemanticCognitiveState =
-            semanticStateFn;
-
-        console.log(
-            "✅ [SEMANTIC_STATE_EXPOSED]"
-        );
-    }
-
-    /* =================================================
-       GESTIA CORE
-    ================================================= */
-
-    const GestiaCore =
-
-        gestiaCoreModule
-            ?.GestiaCore ||
-
-        gestiaCoreModule
-            ?.default ||
-
-        null;
-
-    if (
-
-        GestiaCore
-
-    ) {
-
-        window.GestiaCore =
-            GestiaCore;
-
-        console.log(
-            "✅ [GESTIA_CORE_EXPOSED]"
-        );
-    }
-
-    /* =================================================
-       COGNITIVE RUNTIME STATE
-    ================================================= */
-
-    window.__HYBRID_COGNITION_RUNTIME__ = {
-
-        online: true,
-
-        initializedAt:
-            Date.now(),
-
-        modules: {
-
-            brain:
-                !!brainModule,
-
-            semantic:
-                !!semanticModule,
-
-            core:
-                !!gestiaCoreModule
-        },
-
-        globals: {
-
-            GestiaCore:
-                !!window.GestiaCore,
-
-            reasoning:
-                !!window
-                    .runCognitiveReasoning,
-
-            semantic:
-                !!window
-                    .getSemanticCognitiveState
-        }
-    };
-
-    /* =================================================
-       COGNITIVE EVENT
-    ================================================= */
-
-    if (
-
-        typeof emitRuntimeEvent ===
-        "function"
-
-    ) {
-
-        await emitRuntimeEvent(
-
-            "cognition.hybrid.runtime.online",
-
+        console.warn(
+            "⚠️ [AUTO_REPO_HYDRATION_ALREADY_RUNNING]",
             {
-
-                runtime:
-                    "hybrid_cognition",
-
-                online:
-                    true,
-
-                timestamp:
-                    Date.now()
-            },
-
-            {
-
-                priority:
-                    "HIGH",
-
-                channel:
-                    "cognition"
+                reason
             }
         );
+
+        return {
+            ok: false,
+            status:
+                "AUTO_HYDRATION_ALREADY_RUNNING",
+            reason
+        };
     }
 
-    console.table({
+    if (
+        window.__RUNTIME_AUTO_HYDRATION_DONE__
+    ) {
+        console.info(
+            "🧠 [AUTO_REPO_HYDRATION_ALREADY_DONE]",
+            {
+                reason
+            }
+        );
 
-        GestiaCore:
-            !!window.GestiaCore,
-
-        reasoning:
-            !!window
-                .runCognitiveReasoning,
-
-        semantic:
-            !!window
-                .getSemanticCognitiveState
-    });
-
-    console.log(
-        "🚀 [HYBRID_COGNITION_RUNTIME] ONLINE"
-    );
-
-}
-
-catch(error) {
-
-    console.error(
-        "❌ [HYBRID_RUNTIME_EXPOSURE_FAIL]",
-        error
-    );
-
-    window
-        .__HYBRID_COGNITION_RUNTIME__ = {
-
-            online: false,
-
-            error:
-                error.message,
-
-            crashedAt:
-                Date.now()
+        return {
+            ok: true,
+            status:
+                "AUTO_HYDRATION_ALREADY_DONE",
+            reason
         };
+    }
+
+    window.__RUNTIME_AUTO_HYDRATION_RUNNING__ =
+        true;
+
+    try {
+
+        console.log(
+            "🧠 [AUTO_REPO_HYDRATION]",
+            {
+                reason,
+                readyState:
+                    document.readyState
+            }
+        );
+
+        /* =================================================
+           INIT RUNTIME PERSISTENCE
+        ================================================= */
+
+        await initRuntimePersistence();
+
+        /* =================================================
+           BOOTSTRAP REPO COGNITION
+        ================================================= */
+
+        await bootstrapRepoCognition();
+
+        await import(
+            "/gestia-core/repair-translator.engine.js?v=" +
+            Date.now()
+        );
+
+        console.log(
+            "🧠 [REPAIR_TRANSLATOR_LOADED]"
+        );
+
+        await import(
+            "/gestia-core/repo/resource.registry.js?v=" +
+            Date.now()
+        );
+
+        console.log(
+            "🧠 [RESOURCE_REGISTRY_LOADED]"
+        );
+
+        /* =================================================
+           BOOTSTRAP RUNTIME COGNITION
+        ================================================= */
+
+        await bootstrapRuntimeCognition();
+
+        window.__RUNTIME_AUTO_HYDRATION_DONE__ =
+            true;
+
+        return {
+            ok: true,
+            status:
+                "AUTO_HYDRATION_COMPLETE",
+            reason
+        };
+    }
+    catch(error) {
+        console.warn(
+            "⚠️ AUTO_HYDRATION_FAIL:",
+            error
+        );
+
+        return {
+            ok: false,
+            status:
+                "AUTO_HYDRATION_FAIL",
+            error:
+                error?.message || String(error),
+            reason
+        };
+    }
+    finally {
+        window.__RUNTIME_AUTO_HYDRATION_RUNNING__ =
+            false;
+    }
+};
+
+const scheduleRuntimeAutoHydration =
+function(reason) {
+    setTimeout(
+        () => {
+            window.runRuntimeAutoHydration?.(reason);
+        },
+        0
+    );
+};
+
+if (
+    document.readyState === "complete" ||
+    document.readyState === "interactive"
+) {
+    scheduleRuntimeAutoHydration(
+        "document_already_ready"
+    );
 }
-
-        }
-
-        catch(error) {
-
-            console.warn(
-                "⚠️ AUTO_HYDRATION_FAIL:",
-                error
+else {
+    window.addEventListener(
+        "load",
+        () => {
+            scheduleRuntimeAutoHydration(
+                "window_load"
             );
+        },
+        {
+            once: true
         }
-    },
-    { once: true }
-);
+    );
+}
 
 }
