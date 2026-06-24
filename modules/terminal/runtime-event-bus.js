@@ -43,10 +43,23 @@ async function() {
         await restoreRuntimeSnapshot();
 
         /* =================================================
-           START HEALTH SCANNER
-        ================================================= */
+   START HEALTH SCANNER
+================================================= */
 
-        startRuntimeHealthScanner();
+if (
+    typeof startRuntimeHealthScanner === "function"
+) {
+    startRuntimeHealthScanner();
+}
+else {
+    console.warn(
+        "⚠️ [HEALTH_SCANNER_SKIPPED]",
+        {
+            reason:
+                "startRuntimeHealthScanner no está definido"
+        }
+    );
+}
 
         /* =================================================
            START SNAPSHOT DAEMON

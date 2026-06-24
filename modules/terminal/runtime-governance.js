@@ -3387,14 +3387,36 @@ window.buildRuntimeRiskGraph();
    BUILD COGNITIVE LAYERS
 ================================================= */
 
-const layerMap =
+let layerMap =
+    {
+        ok:
+            true,
+        skipped:
+            true,
+        reason:
+            "BUILD_COGNITIVE_LAYER_MAP_UNAVAILABLE"
+    };
 
-    buildCognitiveLayerMap();
+if (
+    typeof buildCognitiveLayerMap === "function"
+) {
+    layerMap =
+        buildCognitiveLayerMap();
 
-if (!layerMap?.ok) {
+    if (!layerMap?.ok) {
 
-    throw new Error(
-        "LAYER_MAP_BUILD_FAILED"
+        throw new Error(
+            "LAYER_MAP_BUILD_FAILED"
+        );
+    }
+}
+else {
+    console.warn(
+        "⚠️ [LAYER_MAP_SKIPPED]",
+        {
+            reason:
+                "buildCognitiveLayerMap no está definido"
+        }
     );
 }
 
