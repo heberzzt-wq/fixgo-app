@@ -65,7 +65,20 @@ else {
            START SNAPSHOT DAEMON
         ================================================= */
 
-        await startSnapshotDaemon();
+        if (
+    typeof startSnapshotDaemon === "function"
+) {
+    await startSnapshotDaemon();
+}
+else {
+    console.warn(
+        "⚠️ [SNAPSHOT_DAEMON_SKIPPED]",
+        {
+            reason:
+                "startSnapshotDaemon no está definido"
+        }
+    );
+}
 
         console.log(
             "✅ [BOOT_HYDRATION_COMPLETED]"

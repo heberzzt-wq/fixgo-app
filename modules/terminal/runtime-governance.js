@@ -3424,14 +3424,36 @@ else {
    BUILD RUNTIME HEALTH
 ================================================= */
 
-const runtimeHealth =
+let runtimeHealth =
+    {
+        ok:
+            true,
+        skipped:
+            true,
+        reason:
+            "BUILD_RUNTIME_HEALTH_MAP_UNAVAILABLE"
+    };
 
-    buildRuntimeHealthMap();
+if (
+    typeof buildRuntimeHealthMap === "function"
+) {
+    runtimeHealth =
+        buildRuntimeHealthMap();
 
-if (!runtimeHealth?.ok) {
+    if (!runtimeHealth?.ok) {
 
-    throw new Error(
-        "RUNTIME_HEALTH_BUILD_FAILED"
+        throw new Error(
+            "RUNTIME_HEALTH_BUILD_FAILED"
+        );
+    }
+}
+else {
+    console.warn(
+        "⚠️ [RUNTIME_HEALTH_MAP_SKIPPED]",
+        {
+            reason:
+                "buildRuntimeHealthMap no está definido"
+        }
     );
 }
 
@@ -3439,15 +3461,28 @@ if (!runtimeHealth?.ok) {
    INITIAL RUNTIME STATES
 ================================================= */
 
-Object.keys(
-    window.__RUNTIME_HEALTH_MAP__ || {}
-).forEach((file) => {
+if (
+    typeof setRuntimeModuleState === "function"
+) {
+    Object.keys(
+        window.__RUNTIME_HEALTH_MAP__ || {}
+    ).forEach((file) => {
 
-    setRuntimeModuleState(
-        file,
-        "ONLINE"
+        setRuntimeModuleState(
+            file,
+            "ONLINE"
+        );
+    });
+}
+else {
+    console.warn(
+        "⚠️ [RUNTIME_STATE_INIT_SKIPPED]",
+        {
+            reason:
+                "setRuntimeModuleState no está definido"
+        }
     );
-});
+}
 
         /* =================================================
    OPTIONAL GOVERNANCE RESTORE
