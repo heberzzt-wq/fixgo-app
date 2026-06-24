@@ -532,21 +532,54 @@ if (
             };
         }
 
-        const transaction =
+        const governanceStoreName =
+    window.COGNITIVE_RUNTIME_DB?.STORE_NAME ||
+    window.__COGNITIVE_RUNTIME_DB__?.STORE_NAME ||
+    "runtime_state";
 
+if (
+    !window.cognitiveDB.objectStoreNames.contains(
+        governanceStoreName
+    )
+) {
+    console.warn(
+        "⚠️ [GOVERNANCE_STORE_NOT_FOUND]",
+        {
+            operation:
+                "save",
+            store:
+                governanceStoreName,
+            availableStores:
+                Array.from(
+                    window.cognitiveDB.objectStoreNames || []
+                )
+        }
+    );
+
+    return {
+        ok:
+            false,
+        status:
+            "GOVERNANCE_STORE_NOT_FOUND",
+        operation:
+            "save",
+        store:
+            governanceStoreName
+    };
+}
+
+const transaction =
     window.cognitiveDB
         .transaction(
             [
-                COGNITIVE_RUNTIME_DB
-                    .STORE_NAME
+                governanceStoreName
             ],
             "readwrite"
         );
 
-       const store =
+const store =
     transaction.objectStore(
-        COGNITIVE_RUNTIME_DB
-            .STORE_NAME
+        governanceStoreName
     );
         const payload = {
 
@@ -626,21 +659,54 @@ async function() {
             };
         }
 
-        const transaction =
+       const governanceStoreName =
+    window.COGNITIVE_RUNTIME_DB?.STORE_NAME ||
+    window.__COGNITIVE_RUNTIME_DB__?.STORE_NAME ||
+    "runtime_state";
 
+if (
+    !window.cognitiveDB.objectStoreNames.contains(
+        governanceStoreName
+    )
+) {
+    console.warn(
+        "⚠️ [GOVERNANCE_STORE_NOT_FOUND]",
+        {
+            operation:
+                "restore",
+            store:
+                governanceStoreName,
+            availableStores:
+                Array.from(
+                    window.cognitiveDB.objectStoreNames || []
+                )
+        }
+    );
+
+    return {
+        ok:
+            false,
+        status:
+            "GOVERNANCE_STORE_NOT_FOUND",
+        operation:
+            "restore",
+        store:
+            governanceStoreName
+    };
+}
+
+const transaction =
     window.cognitiveDB
         .transaction(
             [
-                COGNITIVE_RUNTIME_DB
-                    .STORE_NAME
+                governanceStoreName
             ],
             "readonly"
         );
 
 const store =
     transaction.objectStore(
-        COGNITIVE_RUNTIME_DB
-            .STORE_NAME
+        governanceStoreName
     );
 
         const request =
