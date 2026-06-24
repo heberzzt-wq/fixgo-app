@@ -535,7 +535,7 @@ if (
         const governanceStoreName =
     window.COGNITIVE_RUNTIME_DB?.STORE_NAME ||
     window.__COGNITIVE_RUNTIME_DB__?.STORE_NAME ||
-    "runtime_state";
+    "runtime_snapshots";
 
 if (
     !window.cognitiveDB.objectStoreNames.contains(
@@ -659,10 +659,10 @@ async function() {
             };
         }
 
-       const governanceStoreName =
+      const governanceStoreName =
     window.COGNITIVE_RUNTIME_DB?.STORE_NAME ||
     window.__COGNITIVE_RUNTIME_DB__?.STORE_NAME ||
-    "runtime_state";
+    "runtime_snapshots";
 
 if (
     !window.cognitiveDB.objectStoreNames.contains(
