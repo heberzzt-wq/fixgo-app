@@ -77,6 +77,8 @@ import {
     installLedgerModule
 } from "./modules/terminal/ledger.js";
 
+import "./modules/terminal/repo-bootstrap-index.js";
+
 import "./modules/terminal/runtime-repair-health.js?v=jarvis-runtime-macro-v2-20260618";
 
 const TERMINAL_RUNTIME_V2_VERSION =
@@ -1075,7 +1077,7 @@ async function(
    REPO BOOTSTRAP INDEX
 ===================================================== */
 
-await import("./modules/terminal/repo-bootstrap-index.js");
+
 
 await import("./modules/terminal/patch-workflow.js?v=jarvis-runtime-macro-v2-20260618");
 
