@@ -709,71 +709,180 @@ const store =
         governanceStoreName
     );
 
-        const request =
-            store.get(
-                "governance_log"
+        const directRequest =
+    store.get(
+        "governance_log"
+    );
+
+return await new Promise(
+    (resolve) => {
+
+        const restoreFromResult =
+        function(
+            result,
+            source = "unknown",
+            key = null
+        ) {
+
+            window
+                .__GOVERNANCE_LOG__ =
+
+                result
+                    .governanceLog || [];
+
+            console.log(
+                "♻️ [GOVERNANCE_LOG_RESTORED]",
+                {
+                    total:
+                        window
+                            .__GOVERNANCE_LOG__
+                            .length,
+                    source,
+                    key
+                }
             );
 
-        return await new Promise(
-            (resolve) => {
+            resolve({
 
-                request.onsuccess =
-                function() {
+                ok:
+                    true,
 
-                    const result =
-                        request.result;
+                total:
+                    window
+                        .__GOVERNANCE_LOG__
+                        .length,
+
+                source,
+
+                key
+            });
+        };
+
+        directRequest.onsuccess =
+        function() {
+
+            const directResult =
+                directRequest.result;
+
+            if (
+                directResult &&
+                Array.isArray(
+                    directResult.governanceLog
+                )
+            ) {
+
+                restoreFromResult(
+                    directResult,
+                    "direct_key",
+                    "governance_log"
+                );
+
+                return;
+            }
+
+            const cursorRequest =
+                store.openCursor();
+
+            let latestGovernanceResult =
+                null;
+
+            let latestGovernanceKey =
+                null;
+
+            cursorRequest.onsuccess =
+            function(event) {
+
+                const cursor =
+                    event.target.result;
+
+                if (
+                    !cursor
+                ) {
 
                     if (
-                        !result
+                        latestGovernanceResult
                     ) {
 
-                        console.warn(
-                            "⚠️ NO_GOVERNANCE_LOG_FOUND"
+                        restoreFromResult(
+                            latestGovernanceResult,
+                            "cursor_scan_latest",
+                            latestGovernanceKey
                         );
-
-                        resolve({
-                            ok: false
-                        });
 
                         return;
                     }
 
-                    window
-                        .__GOVERNANCE_LOG__ =
-
-                        result
-                            .governanceLog || [];
-
-                    console.log(
-                        "♻️ [GOVERNANCE_LOG_RESTORED]",
-                        window
-                            .__GOVERNANCE_LOG__
-                            .length
+                    console.warn(
+                        "⚠️ NO_GOVERNANCE_LOG_FOUND"
                     );
 
                     resolve({
-
-                        ok: true,
-
-                        total:
-                            window
-                                .__GOVERNANCE_LOG__
-                                .length
+                        ok:
+                            false,
+                        status:
+                            "NO_GOVERNANCE_LOG_FOUND"
                     });
-                };
 
-                request.onerror =
-                function() {
+                    return;
+                }
 
-                    resolve({
+                const value =
+                    cursor.value || {};
 
-                        ok: false,
+                const looksLikeGovernance =
+                    value.snapshotId === "governance_log" ||
+                    value.type === "governance_memory" ||
+                    Array.isArray(
+                        value.governanceLog
+                    );
 
-                        error:
-                            "RESTORE_FAILED"
-                    });
-                };
+                if (
+                    looksLikeGovernance
+                ) {
+
+                    if (
+                        !latestGovernanceResult ||
+                        (
+                            value.timestamp || 0
+                        ) >= (
+                            latestGovernanceResult.timestamp || 0
+                        )
+                    ) {
+
+                        latestGovernanceResult =
+                            value;
+
+                        latestGovernanceKey =
+                            cursor.key;
+                    }
+                }
+
+                cursor.continue();
+            };
+
+            cursorRequest.onerror =
+            function() {
+
+                resolve({
+                    ok:
+                        false,
+                    error:
+                        "RESTORE_CURSOR_FAILED"
+                });
+            };
+        };
+
+        directRequest.onerror =
+        function() {
+
+            resolve({
+                ok:
+                    false,
+                error:
+                    "RESTORE_DIRECT_FAILED"
             });
+        };
+    });
 
     }
 
