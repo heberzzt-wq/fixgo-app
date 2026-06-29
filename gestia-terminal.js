@@ -1077,6 +1077,8 @@ await import("./modules/terminal/repo-bootstrap-index.js");
 
 await import("./modules/terminal/patch-workflow.js?v=jarvis-runtime-macro-v2-20260618");
 
+await import("./modules/terminal/runtime-repair-health.js?v=jarvis-runtime-macro-v2-20260618");
+
 
 /* =====================================================
    MANUAL HYBRID DEPENDENCY LINKS
@@ -6610,10 +6612,7 @@ async function importTerminalBootModule(label, path) {
     }
 }
 
-await importTerminalBootModule(
-    "runtime_repair_health",
-    "./modules/terminal/runtime-repair-health.js?v=jarvis-runtime-macro-v2-20260618"
-);
+
 
 
 /* =====================================================================================
