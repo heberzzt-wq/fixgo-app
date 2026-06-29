@@ -1736,3 +1736,152 @@ function(fileName = "") {
         };
     }
 };
+/* =====================================================
+   COGNITIVE LAYER MAP BRIDGE V1
+   Safe alias for runtime boot compatibility.
+   Does not mutate governance.
+===================================================== */
+
+window.buildCognitiveLayerMap ||= function(options = {}) {
+    try {
+        window.__COGNITIVE_LAYER_MAP__ ||= {};
+
+        let source =
+            "none";
+
+        let hydrationResult =
+            null;
+
+        if (
+            typeof window.rehydrateRepoCognitionIndex === "function"
+        ) {
+            hydrationResult =
+                window.rehydrateRepoCognitionIndex();
+
+            source =
+                "rehydrateRepoCognitionIndex";
+        }
+
+        if (
+            !hydrationResult?.ok &&
+            typeof window.buildRepoCognitionIndex === "function"
+        ) {
+            hydrationResult =
+                window.buildRepoCognitionIndex();
+
+            source =
+                "buildRepoCognitionIndex";
+        }
+
+        const cognitionIndex =
+            window.__REPO_COGNITION__ || {};
+
+        const dependencyGraph =
+            window.__REPO_DEP_GRAPH__ || {};
+
+        const layerMap = {};
+
+        for (
+            const [
+                file,
+                node
+            ] of Object.entries(cognitionIndex)
+        ) {
+            const cognition =
+                node?.cognition || {};
+
+            const layer =
+                cognition.engineType ||
+                cognition.runtimeRole ||
+                node.type ||
+                "generic";
+
+            layerMap[layer] ||= {
+                layer,
+                files: [],
+                modules: {},
+                total: 0,
+                critical: 0,
+                dependencies: 0,
+                createdAt: Date.now()
+            };
+
+            layerMap[layer]
+                .files
+                .push(file);
+
+            layerMap[layer]
+                .modules[
+                    node.module || "unknown"
+                ] = true;
+
+            layerMap[layer].total++;
+
+            if (
+                node.critical === true ||
+                cognition.governance === "CRITICAL"
+            ) {
+                layerMap[layer].critical++;
+            }
+
+            layerMap[layer].dependencies +=
+                dependencyGraph?.[file]?.totalDependencies || 0;
+        }
+
+        for (
+            const layerNode
+            of Object.values(layerMap)
+        ) {
+            layerNode.modules =
+                Object.keys(
+                    layerNode.modules || {}
+                );
+        }
+
+        window.__COGNITIVE_LAYER_MAP__ =
+            layerMap;
+
+        if (
+            window.MODULE_CONTEXT
+        ) {
+            window.MODULE_CONTEXT.cognitiveLayerMap =
+                layerMap;
+
+            window.MODULE_CONTEXT.dependencyGraph ||=
+                dependencyGraph;
+        }
+
+        const result = {
+            ok: true,
+            source,
+            layers:
+                Object.keys(layerMap).length,
+            nodes:
+                Object.keys(cognitionIndex).length,
+            layerMap
+        };
+
+        console.log(
+            "✅ [LAYER_MAP_READY]",
+            result
+        );
+
+        return result;
+    }
+    catch(error) {
+        console.warn(
+            "⚠️ [LAYER_MAP_DEGRADED]",
+            {
+                reason:
+                    error?.message || String(error)
+            }
+        );
+
+        return {
+            ok: false,
+            degraded: true,
+            error:
+                error?.message || String(error)
+        };
+    }
+};
