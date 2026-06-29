@@ -1050,7 +1050,6 @@ await emitRuntimeEvent(
 console.log(
     "✅ [RUNTIME_SNAPSHOT_CREATED]",
     {
-
         snapshotId:
             snapshot.snapshotId,
 
@@ -1067,37 +1066,33 @@ console.log(
 
 setTimeout(() => {
     window.renderRuntimeBootTable?.({
-        source: "runtime_snapshot_created",
-        snapshotId,
-        runtimeStatus,
-        runtimeHealth
+        source:
+            "runtime_snapshot_created_timeout",
+
+        snapshotId:
+            snapshot.snapshotId,
+
+        runtimeStatus:
+            snapshot.runtimeStatus,
+
+        runtimeHealth:
+            snapshot.runtimeHealth
     });
 }, 250);
 
 window.renderRuntimeBootTable?.({
-    source: "runtime_snapshot_created",
-    snapshotId,
-    runtimeStatus,
-    runtimeHealth
-});
-
-return {
-
-    ok: true,
+    source:
+        "runtime_snapshot_created_direct",
 
     snapshotId:
         snapshot.snapshotId,
-
-    timestamp:
-        snapshot.timestamp,
 
     runtimeStatus:
         snapshot.runtimeStatus,
 
     runtimeHealth:
         snapshot.runtimeHealth
-
-    };
+});
 
 }
 
