@@ -717,46 +717,138 @@ const store =
 return await new Promise(
     (resolve) => {
 
-        const restoreFromResult =
-        function(
-            result,
-            source = "unknown",
-            key = null
-        ) {
 
-            window
-                .__GOVERNANCE_LOG__ =
+        const extractGovernanceCandidate =
+function(value = {}) {
 
-                result
-                    .governanceLog || [];
-
-            console.log(
-                "♻️ [GOVERNANCE_LOG_RESTORED]",
-                {
-                    total:
-                        window
-                            .__GOVERNANCE_LOG__
-                            .length,
-                    source,
-                    key
-                }
-            );
-
-            resolve({
-
-                ok:
-                    true,
-
-                total:
-                    window
-                        .__GOVERNANCE_LOG__
-                        .length,
-
-                source,
-
-                key
-            });
+    if (
+        value.snapshotId === "governance_log" &&
+        Array.isArray(value.governanceLog)
+    ) {
+        return {
+            kind: "canonical_governance_log",
+            governanceLog: value.governanceLog,
+            governance: null,
+            timestamp: value.timestamp || 0
         };
+    }
+
+    if (
+        value.type === "governance_memory" &&
+        Array.isArray(value.governanceLog)
+    ) {
+        return {
+            kind: "governance_memory",
+            governanceLog: value.governanceLog,
+            governance: null,
+            timestamp: value.timestamp || 0
+        };
+    }
+
+    if (
+        Array.isArray(value.governanceLog)
+    ) {
+        return {
+            kind: "direct_governance_log",
+            governanceLog: value.governanceLog,
+            governance: null,
+            timestamp: value.timestamp || 0
+        };
+    }
+
+    if (
+        value.documentType === "RUNTIME_SNAPSHOT" &&
+        value.governance &&
+        typeof value.governance === "object"
+    ) {
+        return {
+            kind: "runtime_snapshot_governance",
+            governanceLog:
+                Array.isArray(value.governance.governanceLog)
+                    ? value.governance.governanceLog
+                    : Array.isArray(value.governance.repairQueue)
+                        ? value.governance.repairQueue
+                        : [],
+            governance:
+                value.governance,
+            timestamp:
+                value.timestamp || 0
+        };
+    }
+
+    return null;
+};
+
+        const restoreFromResult =
+function(
+    candidate,
+    source = "unknown",
+    key = null
+) {
+
+    window
+        .__GOVERNANCE_LOG__ =
+
+        candidate
+            .governanceLog || [];
+
+    if (
+        candidate.governance &&
+        window.MODULE_CONTEXT
+    ) {
+        window.MODULE_CONTEXT.governance =
+            structuredClone(
+                candidate.governance
+            );
+    }
+
+    if (
+        candidate.governance &&
+        window.__MODULE_CONTEXT__
+    ) {
+        window.__MODULE_CONTEXT__.governance =
+            structuredClone(
+                candidate.governance
+            );
+    }
+
+    console.log(
+        "♻️ [GOVERNANCE_LOG_RESTORED]",
+        {
+            total:
+                window
+                    .__GOVERNANCE_LOG__
+                    .length,
+            source,
+            key,
+            kind:
+                candidate.kind,
+            restoredGovernanceObject:
+                !!candidate.governance
+        }
+    );
+
+    resolve({
+
+        ok:
+            true,
+
+        total:
+            window
+                .__GOVERNANCE_LOG__
+                .length,
+
+        source,
+
+        key,
+
+        kind:
+            candidate.kind,
+
+        restoredGovernanceObject:
+            !!candidate.governance
+    });
+};
 
         directRequest.onsuccess =
         function() {
@@ -827,37 +919,35 @@ return await new Promise(
                 }
 
                 const value =
-                    cursor.value || {};
+    cursor.value || {};
 
-                const looksLikeGovernance =
-                    value.snapshotId === "governance_log" ||
-                    value.type === "governance_memory" ||
-                    Array.isArray(
-                        value.governanceLog
-                    );
+const candidate =
+    extractGovernanceCandidate(
+        value
+    );
 
-                if (
-                    looksLikeGovernance
-                ) {
+if (
+    candidate
+) {
 
-                    if (
-                        !latestGovernanceResult ||
-                        (
-                            value.timestamp || 0
-                        ) >= (
-                            latestGovernanceResult.timestamp || 0
-                        )
-                    ) {
+    if (
+        !latestGovernanceResult ||
+        (
+            candidate.timestamp || 0
+        ) >= (
+            latestGovernanceResult.timestamp || 0
+        )
+    ) {
 
-                        latestGovernanceResult =
-                            value;
+        latestGovernanceResult =
+            candidate;
 
-                        latestGovernanceKey =
-                            cursor.key;
-                    }
-                }
+        latestGovernanceKey =
+            cursor.key;
+    }
+}
 
-                cursor.continue();
+cursor.continue();
             };
 
             cursorRequest.onerror =
