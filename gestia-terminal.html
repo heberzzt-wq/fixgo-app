@@ -1741,28 +1741,65 @@ const repoSummary =
         ]
             .filter(Boolean)
             .join("\n")
-        : [
-            `Archivo: ${
-                repoData?.file ||
-                repoData?.target ||
-                coreResult?.result?.toolCalls?.[0]?.args?.file ||
-                "ND"
-            }`,
-            `Riesgo: ${
-                repoData?.risk ||
-                repoData?.riskLevel ||
-                repoData?.status ||
-                "ND"
-            }`,
-            "",
-            JSON.stringify(
-                repoData,
-                null,
-                2
-            )
-                .slice(0, 3000)
-        ]
-            .join("\n")
+        : (() => {
+    const impactData =
+        repoData?.analysis ||
+        repoData?.data?.analysis ||
+        repoData?.result?.analysis ||
+        repoData;
+
+    return [
+        `Archivo: ${
+            impactData?.file ||
+            repoData?.file ||
+            repoData?.target ||
+            coreResult?.result?.toolCalls?.[0]?.args?.file ||
+            "ND"
+        }`,
+
+        `Riesgo: ${
+            impactData?.propagatedRisk ||
+            impactData?.risk ||
+            impactData?.riskLevel ||
+            impactData?.governance ||
+            repoData?.risk ||
+            repoData?.riskLevel ||
+            "ND"
+        }`,
+
+        `Acción: ${
+            impactData?.governanceAction ||
+            "ND"
+        }`,
+
+        `Criticidad: ${
+            impactData?.criticality ??
+            "ND"
+        }`,
+
+        `Dependencias: ${
+            impactData?.totalDependencies ??
+            impactData?.dependencies?.length ??
+            "ND"
+        }`,
+
+        `Impactados: ${
+            impactData?.totalImpacted ??
+            impactData?.impactedFiles?.length ??
+            "ND"
+        }`,
+
+        "",
+
+        JSON.stringify(
+            repoData,
+            null,
+            2
+        )
+            .slice(0, 3000)
+    ];
+})()
+    .join("\n")
                     : "";
 
 const summary =
