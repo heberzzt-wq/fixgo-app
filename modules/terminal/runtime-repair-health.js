@@ -219,7 +219,46 @@ domain:
     }
 };
 
+window.renderRuntimeBootTable ||= function(meta = {}) {
+    const rows =
+        Object.values(window.__RUNTIME_HEALTH_MAP__ || {})
+            .map(node => ({
+                file:
+                    node.file || node.id || "unknown",
+                status:
+                    node.status || node.state || "UNKNOWN",
+                health:
+                    node.health ?? null,
+                degraded:
+                    node.degraded === true,
+                isolated:
+                    node.isolated === true
+            }));
 
+    console.table(rows);
+
+    console.log(
+        "✅ [RUNTIME_BOOT_TABLE_READY]",
+        {
+            total:
+                rows.length,
+            online:
+                rows.filter(row => row.status === "ONLINE").length,
+            degraded:
+                rows.filter(row => row.degraded).length,
+            isolated:
+                rows.filter(row => row.isolated).length,
+            ...meta
+        }
+    );
+
+    return {
+        ok: true,
+        total:
+            rows.length,
+        rows
+    };
+};
 /* =====================================================================================
    RUNTIME HEALTH ENGINE V2
 ===================================================================================== */

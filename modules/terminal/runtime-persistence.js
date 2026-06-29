@@ -1065,6 +1065,13 @@ console.log(
     }
 );
 
+window.renderRuntimeBootTable?.({
+    source: "runtime_snapshot_created",
+    snapshotId,
+    runtimeStatus,
+    runtimeHealth
+});
+
 return {
 
     ok: true,
