@@ -129,6 +129,64 @@ import {
     SelfRepairSentinelV10
 } from "/gestia-core/self-repair.engine.js";
 
+window.__REPO_SOURCE_CACHE__ ||= {};
+
+window.loadRepoContext ||= async function(fileName = "") {
+    try {
+        const index =
+            window.__REPO_INDEX__ || {};
+
+        const meta =
+            index[fileName];
+
+        if (!meta?.path) {
+            return {
+                ok: false,
+                error: "FILE_NOT_REGISTERED",
+                file: fileName
+            };
+        }
+
+        if (window.__REPO_SOURCE_CACHE__[fileName]) {
+            return {
+                ok: true,
+                cached: true,
+                file: fileName,
+                source: window.__REPO_SOURCE_CACHE__[fileName]
+            };
+        }
+
+        const response =
+            await fetch(meta.path);
+
+        if (!response.ok) {
+            throw new Error(
+                `REPO_FETCH_FAILED:${response.status}`
+            );
+        }
+
+        const source =
+            await response.text();
+
+        window.__REPO_SOURCE_CACHE__[fileName] =
+            source;
+
+        return {
+            ok: true,
+            cached: false,
+            file: fileName,
+            source
+        };
+    }
+    catch(error) {
+        return {
+            ok: false,
+            error: error?.message || String(error),
+            file: fileName
+        };
+    }
+};
+
 /**
  * =====================================================
  * 🧠 SINAPSIS VISUAL (KERNEL V4 -> HUD)
@@ -1225,7 +1283,7 @@ window.findRepoFile = function(query = "") {
 
 window.__REPO_SOURCE_CACHE__ ||= {};
 
-window.loadRepoContext = async function(fileName = "") {
+window.loadRepoContext ||= async function(fileName = "") {
 
     try {
 
