@@ -316,6 +316,25 @@ window.classifyRepoFile = function(
 };
 
 /* =====================================================
+   BOOT LOG CONTROL
+===================================================== */
+
+window.__GESTIA_DEBUG_MODE__ ||= false;
+window.__GESTIA_VERBOSE_BOOT__ ||= false;
+
+window.gestiaBootLog ||= function(...args) {
+    if (window.__GESTIA_VERBOSE_BOOT__) {
+        console.log(...args);
+    }
+};
+
+window.gestiaBootWarn ||= function(...args) {
+    if (window.__GESTIA_VERBOSE_BOOT__) {
+        console.warn(...args);
+    }
+};
+
+/* =====================================================
    BUILD REPO COGNITION INDEX
 ===================================================== */
 
@@ -324,9 +343,9 @@ function() {
 
     try {
 
-        console.log(
-            "🧠 [REPO_COGNITION_BUILD]"
-        );
+        window.gestiaBootLog(
+    "🧠 [REPO_COGNITION_BUILD]"
+);
 
         window.__REPO_COGNITION__ = {};
 
@@ -448,10 +467,10 @@ for (
             }
         };
 
-        console.log(
-            "🧠 [SOVEREIGN_COGNITION_HYDRATED]",
-            hubName
-        );
+        window.gestiaBootLog(
+    "🧠 [SOVEREIGN_COGNITION_HYDRATED]",
+    hubName
+);
     }
 }
         console.log(
@@ -578,7 +597,7 @@ async function() {
 
             try {
 
-                console.log(
+               window.gestiaBootLog(
     "🧪 LOAD_REPO_CONTEXT_TYPE",
     file,
     typeof window.loadRepoContext
@@ -635,10 +654,10 @@ async function() {
                         imports.length
                 };
 
-                console.log(
-                    `🔗 [GRAPH_NODE]: ${file}`,
-                    imports.length
-                );
+                window.gestiaBootLog(
+    `🔗 [GRAPH_NODE]: ${file}`,
+    imports.length
+);
 
                 window.__MODULE_OWNERSHIP__ ||= {};
 
@@ -756,10 +775,10 @@ totalDependencies:
                 "authority_registry"
         };
 
-        console.log(
-            "🧠 [AUTHORITY_GRAPH_HYDRATED]",
-            moduleName
-        );
+        window.gestiaBootLog(
+    "🧠 [AUTHORITY_GRAPH_HYDRATED]",
+    moduleName
+);
 
         // =====================================================
 // 🧠 RUNTIME HEALTH REGISTRY HYDRATION
@@ -837,7 +856,7 @@ window.RUNTIME_HEALTH_MAP =
 
     window.__RUNTIME_HEALTH_MAP__;
 
-console.log(
+window.gestiaBootLog(
     "🧠 [RUNTIME_NODE_HYDRATED]",
     moduleName
 );
@@ -900,10 +919,10 @@ try {
                 Date.now()
         };
 
-        console.log(
-            "🧠 [ORCHESTRATOR_CONVERGED]",
-            moduleName
-        );
+        window.gestiaBootLog(
+    "🧠 [ORCHESTRATOR_CONVERGED]",
+    moduleName
+);
     }
 
 }
@@ -995,10 +1014,10 @@ try {
                     "dependency_graph"
             };
 
-            console.log(
-                "🧠 [FULL_GRAPH_CONVERGED]",
-                nodeName
-            );
+            window.gestiaBootLog(
+    "🧠 [FULL_GRAPH_CONVERGED]",
+    nodeName
+);
         }
     }
 
@@ -1323,10 +1342,10 @@ function(config = {}) {
 
             : config.file || "";
 
-        console.log(
-            "🧠 [REPO_IMPACT_ANALYSIS]",
-            fileName
-        );
+        window.gestiaBootLog(
+    "🧠 [REPO_IMPACT_ANALYSIS]",
+    fileName
+);
 
                 if (
             typeof window.rehydrateRepoCognitionIndex === "function"
@@ -1340,15 +1359,15 @@ function(config = {}) {
         const graphIndex =
             window.__REPO_DEP_GRAPH__ || {};
 
-        console.log(
-            "🧠 [COGNITION_KEYS]",
-            Object.keys(cognitionIndex)
-        );
+        window.gestiaBootLog(
+    "🧠 [COGNITION_KEYS]",
+    Object.keys(cognitionIndex)
+);
 
-        console.log(
-            "🧠 [GRAPH_KEYS]",
-            Object.keys(graphIndex)
-        );
+        window.gestiaBootLog(
+    "🧠 [GRAPH_KEYS]",
+    Object.keys(graphIndex)
+);
 
         const normalizedFile =
 
@@ -1365,10 +1384,10 @@ function(config = {}) {
                     );
                 });
 
-        console.log(
-            "🧠 [NORMALIZED_FILE]",
-            normalizedFile
-        );
+        window.gestiaBootLog(
+    "🧠 [NORMALIZED_FILE]",
+    normalizedFile
+);
 
         if (!normalizedFile) {
 
