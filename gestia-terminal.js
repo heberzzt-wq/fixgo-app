@@ -857,20 +857,25 @@ function(
                 directRequest.result;
 
             if (
-                directResult &&
-                Array.isArray(
-                    directResult.governanceLog
-                )
-            ) {
+    directResult &&
+    Array.isArray(
+        directResult.governanceLog
+    )
+) {
 
-                restoreFromResult(
-                    directResult,
-                    "direct_key",
-                    "governance_log"
-                );
+    const directCandidate =
+        extractGovernanceCandidate(
+            directResult
+        );
 
-                return;
-            }
+    restoreFromResult(
+        directCandidate,
+        "direct_key",
+        "governance_log"
+    );
+
+    return;
+}
 
             const cursorRequest =
                 store.openCursor();
