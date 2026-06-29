@@ -30,6 +30,56 @@ window.RuntimeRepairHealthV2 = {
     }
 };
 
+
+function ensureRepoCognitionHydratedForRuntimeMaps() {
+    try {
+        const repoIndexTotal =
+            Object.keys(window.__REPO_INDEX__ || {}).length;
+
+        const cognitionTotal =
+            Object.keys(window.__REPO_COGNITION__ || {}).length;
+
+        if (
+            repoIndexTotal > 0 &&
+            cognitionTotal < repoIndexTotal &&
+            typeof window.rehydrateRepoCognitionIndex === "function"
+        ) {
+            return window.rehydrateRepoCognitionIndex();
+        }
+
+        if (
+            repoIndexTotal > 0 &&
+            cognitionTotal < repoIndexTotal &&
+            typeof window.buildRepoCognitionIndex === "function"
+        ) {
+            return window.buildRepoCognitionIndex();
+        }
+
+        return {
+            ok: true,
+            skipped: true,
+            repoIndexTotal,
+            cognitionTotal
+        };
+    }
+    catch(error) {
+        console.warn(
+            "⚠️ [REPO_COGNITION_HYDRATION_GUARD_DEGRADED]",
+            {
+                reason:
+                    error?.message || String(error)
+            }
+        );
+
+        return {
+            ok: false,
+            degraded: true,
+            error:
+                error?.message || String(error)
+        };
+    }
+}
+
 /* =====================================================================================
    COGNITIVE LAYER MAPPER V2
 ===================================================================================== */
@@ -40,6 +90,8 @@ window.buildCognitiveLayerMap =
 function() {
 
     try {
+
+        ensureRepoCognitionHydratedForRuntimeMaps();
 
         console.log(
             "🧠 [COGNITIVE_LAYER_MAPPING]"
@@ -178,6 +230,8 @@ window.buildRuntimeHealthMap =
 function() {
 
     try {
+
+        ensureRepoCognitionHydratedForRuntimeMaps();
 
         console.log(
             "🩺 [RUNTIME_HEALTH_SCAN]"
