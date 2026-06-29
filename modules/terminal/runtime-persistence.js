@@ -1065,6 +1065,15 @@ console.log(
     }
 );
 
+setTimeout(() => {
+    window.renderRuntimeBootTable?.({
+        source: "runtime_snapshot_created",
+        snapshotId,
+        runtimeStatus,
+        runtimeHealth
+    });
+}, 250);
+
 window.renderRuntimeBootTable?.({
     source: "runtime_snapshot_created",
     snapshotId,

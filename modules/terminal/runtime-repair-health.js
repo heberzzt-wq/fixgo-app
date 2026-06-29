@@ -259,6 +259,45 @@ window.renderRuntimeBootTable ||= function(meta = {}) {
         rows
     };
 };
+
+if (!window.__RUNTIME_BOOT_TABLE_EVENT_BOUND__) {
+    window.__RUNTIME_BOOT_TABLE_EVENT_BOUND__ = true;
+
+    const renderBootTableAfterSnapshot = function(event) {
+        const detail =
+            event?.detail || {};
+
+        setTimeout(() => {
+            window.renderRuntimeBootTable?.({
+                source: "runtime_snapshot_created_event",
+                snapshotId:
+                    detail.snapshotId || null,
+                runtimeStatus:
+                    detail.runtimeStatus || null,
+                runtimeHealth:
+                    detail.runtimeHealth || null
+            });
+        }, 250);
+    };
+
+    window.addEventListener(
+        "runtime.snapshot.created",
+        renderBootTableAfterSnapshot
+    );
+
+    window.addEventListener(
+        "runtime:watchdog:ok",
+        function() {
+            setTimeout(() => {
+                window.renderRuntimeBootTable?.({
+                    source: "runtime_watchdog_ok_fallback"
+                });
+            }, 500);
+        }
+    );
+}
+
+
 /* =====================================================================================
    RUNTIME HEALTH ENGINE V2
 ===================================================================================== */
