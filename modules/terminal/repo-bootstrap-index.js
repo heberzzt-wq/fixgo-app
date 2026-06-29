@@ -3,7 +3,10 @@
 ===================================================== */
 
 window.__REPO_INDEX__ ||= {};
+window.__REPO_COGNITION__ ||= {};
+window.__REPO_DEP_GRAPH__ ||= {};
 window.__MODULE_OWNERSHIP__ ||= {};
+
 
 window.__REPO_INDEX__["gestia-terminal.js"] = {
     path: "gestia-terminal.js",
