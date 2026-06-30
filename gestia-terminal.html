@@ -1561,50 +1561,150 @@ if (
 
     
 
-const unwrapToolPayload =
+const findImpactAnalysis =
     function(payload = {}) {
-        return (
-            payload?.data?.data ||
-            payload?.response?.data?.data ||
-            payload?.data ||
-            payload?.response?.data ||
-            payload?.result?.data ||
-            payload?.result ||
-            payload
+        const candidates =
+            [
+                payload,
+                payload?.data,
+                payload?.data?.data,
+                payload?.response,
+                payload?.response?.data,
+                payload?.response?.data?.data,
+                payload?.result,
+                payload?.result?.data,
+                payload?.result?.data?.data,
+                payload?.result?.response,
+                payload?.result?.response?.data,
+                payload?.result?.response?.data?.data,
+                payload?.result?.observations?.[0],
+                payload?.result?.observations?.[0]?.data,
+                payload?.result?.observations?.[0]?.data?.data,
+                payload?.result?.observations?.[0]?.response,
+                payload?.result?.observations?.[0]?.response?.data,
+                payload?.result?.observations?.[0]?.response?.data?.data,
+                impactObservation,
+                impactObservation?.data,
+                impactObservation?.data?.data,
+                impactObservation?.response,
+                impactObservation?.response?.data,
+                impactObservation?.response?.data?.data
+            ]
+                .filter(Boolean);
+
+        for (const item of candidates) {
+            if (item?.analysis) {
+                return item.analysis;
+            }
+
+            if (
+                item?.file &&
+                (
+                    item?.propagatedRisk ||
+                    item?.governance ||
+                    item?.criticality ||
+                    item?.governanceAction
+                )
+            ) {
+                return item;
+            }
+        }
+
+        console.warn(
+            "⚠️ [COMBINED_IMPACT_UNWRAP_EMPTY]",
+            {
+                impactResult,
+                impactObservation,
+                candidates
+            }
         );
+
+        return {};
     };
 
-const impactRepoData =
-    unwrapToolPayload(
-        impactObservation
-    );
+const findReadContent =
+    function(payload = {}) {
+        const candidates =
+            [
+                payload,
+                payload?.data,
+                payload?.data?.data,
+                payload?.response,
+                payload?.response?.data,
+                payload?.response?.data?.data,
+                payload?.result,
+                payload?.result?.data,
+                payload?.result?.data?.data,
+                payload?.result?.response,
+                payload?.result?.response?.data,
+                payload?.result?.response?.data?.data,
+                payload?.result?.observations?.[0],
+                payload?.result?.observations?.[0]?.data,
+                payload?.result?.observations?.[0]?.data?.data,
+                payload?.result?.observations?.[0]?.response,
+                payload?.result?.observations?.[0]?.response?.data,
+                payload?.result?.observations?.[0]?.response?.data?.data,
+                readObservation,
+                readObservation?.data,
+                readObservation?.data?.data,
+                readObservation?.response,
+                readObservation?.response?.data,
+                readObservation?.response?.data?.data
+            ]
+                .filter(Boolean);
 
-const readRepoData =
-    unwrapToolPayload(
-        readObservation
-    );
+        for (const item of candidates) {
+            const value =
+                item?.content ||
+                item?.text ||
+                item?.raw ||
+                item?.sourceCode ||
+                item?.source ||
+                item?.data?.content ||
+                item?.data?.text ||
+                item?.data?.raw ||
+                item?.data?.source;
+
+            if (
+                typeof value === "string" &&
+                value.trim() &&
+                value !== "jarvis_fs_bridge_read_v1"
+            ) {
+                return value;
+            }
+        }
+
+        console.warn(
+            "⚠️ [COMBINED_READ_UNWRAP_EMPTY]",
+            {
+                readResult,
+                readObservation,
+                candidates
+            }
+        );
+
+        return "";
+    };
 
 const impactData =
-    impactRepoData?.analysis ||
-    impactRepoData?.data?.analysis ||
-    impactRepoData?.result?.analysis ||
-    impactRepoData?.data?.data?.analysis ||
-    impactRepoData;
-
-const readData =
-    readRepoData?.data ||
-    readRepoData?.result ||
-    readRepoData;
+    findImpactAnalysis(
+        impactResult
+    );
 
 const content =
-    String(
-        readData?.content ||
-        readData?.text ||
-        readData?.raw ||
-        readData?.data?.content ||
-        readData?.data?.text ||
-        ""
+    findReadContent(
+        readResult
     );
+
+console.log(
+    "🧪 [COMBINED_ANALYSIS_READY]",
+    {
+        targetFile,
+        impactData,
+        contentLength:
+            content.length
+    }
+);
 
     const summary =
         [
