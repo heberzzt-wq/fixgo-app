@@ -1497,6 +1497,76 @@ if (
                 }
             );
 
+            const extractDiagnoseSummary =
+    function(result = {}) {
+        const observations =
+            result?.result?.observations ||
+            result?.observations ||
+            result?.agentLoop?.observations ||
+            result?.result?.agentLoop?.observations ||
+            [];
+
+        const diagnoseObservation =
+            observations.find(item =>
+                item?.tool === "repo.diagnose" ||
+                item?.meta?.tool === "repo.diagnose" ||
+                item?.data?.tool === "repo.diagnose" ||
+                item?.response?.data?.tool === "repo.diagnose"
+            ) ||
+            null;
+
+        const candidates =
+            [
+                diagnoseObservation,
+                diagnoseObservation?.data,
+                diagnoseObservation?.data?.data,
+                diagnoseObservation?.response,
+                diagnoseObservation?.response?.data,
+                diagnoseObservation?.response?.data?.data,
+                diagnoseObservation?.observation,
+                diagnoseObservation?.observation?.data
+            ]
+                .filter(Boolean);
+
+        for (const item of candidates) {
+            if (
+                typeof item?.summary === "string" &&
+                item.summary.trim()
+            ) {
+                return item.summary;
+            }
+
+            if (
+                typeof item?.data?.summary === "string" &&
+                item.data.summary.trim()
+            ) {
+                return item.data.summary;
+            }
+        }
+
+        return "";
+    };
+
+const diagnoseSummary =
+    extractDiagnoseSummary(
+        coreResult
+    );
+
+if (
+    diagnoseSummary
+) {
+    window.renderJarvisResponse?.(
+        "Diagnóstico Repo SIA7",
+        diagnoseSummary,
+        "info"
+    );
+
+    handled =
+        true;
+
+    return;
+}
+
             const normalizedCombinedCommand =
     String(comando || "")
         .toLowerCase()
