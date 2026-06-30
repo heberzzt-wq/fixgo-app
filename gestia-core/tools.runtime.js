@@ -588,6 +588,679 @@ JarvisToolRuntime.register({
     }
 });
 
+
+JarvisToolRuntime.register({
+    name: "repo.diagnose",
+    description: "Diagnóstico forense read-only de un archivo real del repo. Clasifica tipo, señales, riesgos y siguientes acciones sin escribir.",
+    mutates: false,
+    requiresApproval: false,
+    output: "REPO_DIAGNOSE_RESULT",
+    inputSchema: {
+        type: "object",
+        required: ["file"],
+        properties: {
+            file: {
+                type: "string",
+                description: "Ruta del archivo objetivo."
+            },
+            mode: {
+                type: "string",
+                description: "diagnose, proposal, patch, patch_preview, verify o create_file."
+            },
+            rawInput: {
+                type: "string",
+                description: "Comando original del usuario."
+            },
+            searchTerm: {
+                type: "string",
+                description: "Término opcional para diagnóstico focalizado."
+            }
+        }
+    },
+    execute: async (args = {}, context = {}) => {
+        const file =
+            args.file ||
+            args.path ||
+            args.target ||
+            "";
+
+        if (
+            !file ||
+            typeof file !== "string"
+        ) {
+            return {
+                ok: false,
+                success: false,
+                status: "CONTRACT_INVALID",
+                error: "FILE_REQUIRED",
+                tool: "repo.diagnose"
+            };
+        }
+
+        const normalizedFile =
+            String(file)
+                .replace(/^\.\/+/, "")
+                .replace(/^\/+/, "")
+                .trim();
+
+        let content =
+            "";
+
+        let readSource =
+            "unavailable";
+
+        if (
+            window.JarvisLocalBridge?.readFile
+        ) {
+            const bridgeRead =
+                await window.JarvisLocalBridge.readFile({
+                    file:
+                        normalizedFile,
+                    path:
+                        normalizedFile,
+                    maxBytes:
+                        args.maxBytes ||
+                        300000,
+                    source:
+                        "jarvis_repo_diagnose_read_v1"
+                });
+
+            if (
+                bridgeRead?.ok === true &&
+                typeof bridgeRead.content === "string"
+            ) {
+                content =
+                    bridgeRead.content;
+
+                readSource =
+                    bridgeRead.source ||
+                    "jarvis_local_bridge_read";
+            }
+        }
+
+        if (
+            !content
+        ) {
+            try {
+                const {
+                    findRepoFile,
+                    loadRepoContext
+                } =
+                    await import('/gestia-core/hubs/repo.hub.js');
+
+                const found =
+                    await findRepoFile({
+                        file:
+                            normalizedFile,
+                        path:
+                            normalizedFile,
+                        target:
+                            normalizedFile
+                    })
+                        .catch(() => null);
+
+                const loaded =
+                    found?.content ||
+                    found?.source ||
+                    found?.text
+                        ? found
+                        : await loadRepoContext({
+                            file:
+                                normalizedFile,
+                            path:
+                                normalizedFile,
+                            target:
+                                normalizedFile
+                        })
+                            .catch(() => null);
+
+                const fallbackContent =
+                    loaded?.content ||
+                    loaded?.source ||
+                    loaded?.text ||
+                    "";
+
+                if (
+                    typeof fallbackContent === "string" &&
+                    fallbackContent.trim()
+                ) {
+                    content =
+                        fallbackContent;
+
+                    readSource =
+                        "repo_hub_fallback";
+                }
+            }
+            catch(error) {
+                console.warn(
+                    "⚠️ [REPO_DIAGNOSE_READ_FALLBACK_FAIL]",
+                    error
+                );
+            }
+        }
+
+        if (
+            typeof content !== "string" ||
+            !content.trim()
+        ) {
+            return {
+                ok: false,
+                success: false,
+                status: "CONTENT_UNAVAILABLE",
+                error: "No fue posible hidratar contenido real para diagnosticar.",
+                file:
+                    normalizedFile,
+                source:
+                    readSource,
+                tool:
+                    "repo.diagnose"
+            };
+        }
+
+        const lines =
+            content.split(/\r?\n/);
+
+        const trimmedLines =
+            lines.map(line => line.trim());
+
+        const importLines =
+            trimmedLines.filter(line =>
+                line.startsWith("import ")
+            );
+
+        const exportLines =
+            trimmedLines.filter(line =>
+                line.startsWith("export ") ||
+                line.includes("export {")
+            );
+
+        const functionMatches =
+            content.match(
+                /\b(function\s+[a-zA-Z0-9_$]+|const\s+[a-zA-Z0-9_$]+\s*=\s*(?:async\s*)?\(|async\s+function\s+[a-zA-Z0-9_$]+)/g
+            ) ||
+            [];
+
+        const hasHtmlTemplate =
+            /`[\s\S]*<\s*(div|section|button|form|main|article|header|footer|nav|table|ul|li|span|input|select|textarea)\b/i
+                .test(content) ||
+            /innerHTML\s*=|insertAdjacentHTML|createElement\s*\(/i
+                .test(content);
+
+        const hasTailwindOrClasses =
+            /class(Name)?\s*=|class\s*=|bg-|text-|grid|flex|rounded|shadow|p-\d|m-\d|gap-\d/i
+                .test(content);
+
+        const hasFirestore =
+            /\b(collection|doc|getDoc|getDocs|setDoc|updateDoc|addDoc|deleteDoc|runTransaction|query|where|onSnapshot)\s*\(/i
+                .test(content);
+
+        const hasRuntimeBridge =
+            /ToolsBridge|JarvisToolRuntime|ResponseComposer|window\./i
+                .test(content);
+
+        const hasRepoWrite =
+            /CODE_WRITE|SIA7_COMMIT|repoCommitWriteFile|writeRepoFile|repo_files|PATCH_SYSTEM_CORE/i
+                .test(content);
+
+        const hasGps =
+            /watchPosition|geolocation|coords|latitude|longitude|geofence|gps/i
+                .test(content);
+
+        const hasPatchPreview =
+            /patchPreview|search\s*:|replace\s*:|dryRun|generatePatch|applyPatch/i
+                .test(content);
+
+        const hasGenericUiPatch =
+            /\.tarjeta|\.card|\[class\*=['"]card['"]|UI_OPTIMIZATION|!important/i
+                .test(content);
+
+        const duplicateCaseNames =
+            [];
+
+        const caseMatches =
+            [...content.matchAll(/case\s+["'`]([^"'`]+)["'`]\s*:/g)]
+                .map(match => match[1]);
+
+        const caseCount =
+            caseMatches.reduce(
+                (acc, name) => {
+                    acc[name] =
+                        (acc[name] || 0) + 1;
+
+                    return acc;
+                },
+                {}
+            );
+
+        Object.entries(caseCount)
+            .forEach(([name, count]) => {
+                if (count > 1) {
+                    duplicateCaseNames.push({
+                        case:
+                            name,
+                        count
+                    });
+                }
+            });
+
+        const todoCount =
+            (
+                content.match(
+                    /\b(TODO|FIXME|HACK|TEMP|placeholder|stub)\b/gi
+                ) ||
+                []
+            ).length;
+
+        const typeSignals =
+            {
+                router:
+                    importLines.length > 0 &&
+                    exportLines.length > 0 &&
+                    functionMatches.length <= 1 &&
+                    !hasHtmlTemplate &&
+                    !hasFirestore,
+
+                uiPanel:
+                    hasHtmlTemplate ||
+                    hasTailwindOrClasses,
+
+                firebaseData:
+                    hasFirestore,
+
+                executor:
+                    hasRepoWrite ||
+                    duplicateCaseNames.length > 0,
+
+                bridge:
+                    hasRuntimeBridge,
+
+                gps:
+                    hasGps,
+
+                patchEngine:
+                    hasPatchPreview,
+
+                html:
+                    normalizedFile.endsWith(".html"),
+
+                css:
+                    normalizedFile.endsWith(".css"),
+
+                json:
+                    normalizedFile.endsWith(".json")
+            };
+
+        let fileType =
+            "generic";
+
+        if (typeSignals.router) {
+            fileType =
+                "router";
+        }
+        else if (typeSignals.executor) {
+            fileType =
+                "executor";
+        }
+        else if (typeSignals.patchEngine) {
+            fileType =
+                "patch_engine";
+        }
+        else if (typeSignals.firebaseData) {
+            fileType =
+                "firebase_data";
+        }
+        else if (typeSignals.gps) {
+            fileType =
+                "gps";
+        }
+        else if (typeSignals.uiPanel) {
+            fileType =
+                "ui_panel";
+        }
+        else if (typeSignals.bridge) {
+            fileType =
+                "runtime_bridge";
+        }
+        else if (typeSignals.html) {
+            fileType =
+                "html";
+        }
+        else if (typeSignals.css) {
+            fileType =
+                "css";
+        }
+        else if (typeSignals.json) {
+            fileType =
+                "json";
+        }
+
+        const findings =
+            [];
+
+        const recommendations =
+            [];
+
+        const nextActions =
+            [];
+
+        if (
+            fileType === "router"
+        ) {
+            findings.push({
+                id:
+                    "ROUTER_ONLY_NO_UI",
+                severity:
+                    "INFO",
+                title:
+                    "Archivo router sin UI directa",
+                detail:
+                    "El archivo importa y exporta módulos, pero no contiene tarjetas, templates visuales ni lógica de render.",
+                evidence:
+                    {
+                        imports:
+                            importLines.length,
+                        exports:
+                            exportLines.length,
+                        functions:
+                            functionMatches.length
+                    }
+            });
+
+            recommendations.push(
+                "No aplicar parches visuales en este archivo."
+            );
+
+            recommendations.push(
+                "Conservar imports y exports actuales porque conectan módulos principales."
+            );
+
+            nextActions.push(
+                "Si buscas diseño, tarjetas o layout, diagnosticar panel-cliente.js, panel-admin.js o panel-tecnico.js."
+            );
+        }
+
+        if (
+            hasHtmlTemplate
+        ) {
+            findings.push({
+                id:
+                    "UI_RENDERING_DETECTED",
+                severity:
+                    "MEDIUM",
+                title:
+                    "Renderizado UI detectado",
+                detail:
+                    "El archivo contiene HTML/template/render dinámico. El diagnóstico visual debe revisar estructura, cards, botones, estados y duplicación de clases.",
+                evidence:
+                    {
+                        hasHtmlTemplate:
+                            true,
+                        hasTailwindOrClasses
+                    }
+            });
+
+            recommendations.push(
+                "Separar lectura de datos, armado de estado y render UI cuando estén mezclados."
+            );
+
+            recommendations.push(
+                "Buscar cards sobredimensionadas revisando clases de padding, grid, flex, min-height y wrappers."
+            );
+        }
+
+        if (
+            hasFirestore
+        ) {
+            findings.push({
+                id:
+                    "FIRESTORE_OPS_DETECTED",
+                severity:
+                    "HIGH",
+                title:
+                    "Operaciones Firestore detectadas",
+                detail:
+                    "El archivo toca datos o listeners. Cualquier parche debe cuidar estados, permisos, listeners y transacciones.",
+                evidence:
+                    {
+                        firestore:
+                            true
+                    }
+            });
+
+            recommendations.push(
+                "No modificar queries, transacciones ni listeners sin prueba posterior."
+            );
+        }
+
+        if (
+            duplicateCaseNames.length > 0
+        ) {
+            findings.push({
+                id:
+                    "DUPLICATE_SWITCH_CASES",
+                severity:
+                    "HIGH",
+                title:
+                    "Cases duplicados en switch",
+                detail:
+                    "Existen cases repetidos. En un switch, los primeros pueden bloquear ramas posteriores y dejar lógica muerta.",
+                evidence:
+                    duplicateCaseNames
+            });
+
+            recommendations.push(
+                "Unificar cases duplicados antes de meter nuevas rutas de ejecución."
+            );
+        }
+
+        if (
+            hasGenericUiPatch
+        ) {
+            findings.push({
+                id:
+                    "GENERIC_UI_PATCH_PATTERN",
+                severity:
+                    "HIGH",
+                title:
+                    "Patrón de parche UI genérico detectado",
+                detail:
+                    "Se detectó CSS o lógica genérica tipo card/tarjeta/!important. Esto puede producir parches acordeonados sin analizar el layout real.",
+                evidence:
+                    {
+                        genericUiPatch:
+                            true
+                    }
+            });
+
+            recommendations.push(
+                "Bloquear este patrón como auto-write. Solo permitirlo como sugerencia temporal."
+            );
+        }
+
+        if (
+            hasRepoWrite
+        ) {
+            findings.push({
+                id:
+                    "REPO_WRITE_CAPABILITY",
+                severity:
+                    "CRITICAL",
+                title:
+                    "Capacidad de escritura repo detectada",
+                detail:
+                    "El archivo puede escribir o preparar cambios. Requiere dry-run, aprobación, no-op guard y validación antes de mutar.",
+                evidence:
+                    {
+                        repoWrite:
+                            true
+                    }
+            });
+
+            recommendations.push(
+                "Exigir aprobación explícita antes de cualquier CODE_WRITE o SIA7_COMMIT."
+            );
+        }
+
+        if (
+            todoCount > 0
+        ) {
+            findings.push({
+                id:
+                    "TODO_OR_STUB_MARKERS",
+                severity:
+                    "LOW",
+                title:
+                    "Marcadores temporales detectados",
+                detail:
+                    "Hay TODO/FIXME/HACK/TEMP/placeholder/stub en el archivo.",
+                evidence:
+                    {
+                        total:
+                            todoCount
+                    }
+            });
+        }
+
+        if (
+            findings.length === 0
+        ) {
+            findings.push({
+                id:
+                    "NO_HIGH_SIGNAL_FINDINGS",
+                severity:
+                    "INFO",
+                title:
+                    "Sin hallazgos críticos por heurística local",
+                detail:
+                    "No se detectaron patrones de riesgo altos con el diagnóstico local. Revisar impacto y pruebas antes de modificar.",
+                evidence:
+                    {
+                        imports:
+                            importLines.length,
+                        exports:
+                            exportLines.length,
+                        functions:
+                            functionMatches.length
+                    }
+            });
+
+            recommendations.push(
+                "Usar repo.impact y tests.run antes de cualquier cambio."
+            );
+        }
+
+        const shouldPatch =
+            args.mode === "patch" ||
+            args.mode === "patch_preview";
+
+        if (
+            shouldPatch &&
+            fileType === "router"
+        ) {
+            recommendations.push(
+                "Patch bloqueado a nivel diagnóstico: un router no debe recibir parche visual ni guard genérico si no hay bug concreto."
+            );
+
+            nextActions.push(
+                "Para parche visual real, ejecutar: Jarvis, diagnostica panel-cliente.js"
+            );
+        }
+
+        const riskScore =
+            findings.some(item => item.severity === "CRITICAL")
+                ? 100
+                : findings.some(item => item.severity === "HIGH")
+                    ? 85
+                    : findings.some(item => item.severity === "MEDIUM")
+                        ? 60
+                        : 25;
+
+        const risk =
+            riskScore >= 90
+                ? "CRITICAL"
+                : riskScore >= 75
+                    ? "HIGH"
+                    : riskScore >= 50
+                        ? "MEDIUM"
+                        : "LOW";
+
+        const summary =
+            [
+                `Diagnóstico Repo SIA7`,
+                `Archivo: ${normalizedFile}`,
+                `Tipo detectado: ${fileType}`,
+                `Riesgo local: ${risk}`,
+                `Líneas: ${lines.length}`,
+                `Imports: ${importLines.length}`,
+                `Exports: ${exportLines.length}`,
+                `Funciones detectadas: ${functionMatches.length}`,
+                ``,
+                `Hallazgos:`,
+                ...findings.map(
+                    finding =>
+                        `- [${finding.severity}] ${finding.title}: ${finding.detail}`
+                ),
+                ``,
+                `Recomendaciones:`,
+                ...(
+                    recommendations.length
+                        ? recommendations.map(item => `- ${item}`)
+                        : ["- Sin recomendación automática específica."]
+                ),
+                ``,
+                `Siguiente acción:`,
+                ...(
+                    nextActions.length
+                        ? nextActions.map(item => `- ${item}`)
+                        : ["- Ejecutar patchPreview solo con search/replace exacto."]
+                )
+            ]
+                .join("\n");
+
+        return {
+            ok:
+                true,
+            success:
+                true,
+            status:
+                "DIAGNOSE_READY",
+            tool:
+                "repo.diagnose",
+            file:
+                normalizedFile,
+            mode:
+                args.mode ||
+                "diagnose",
+            fileType,
+            risk,
+            riskScore,
+            source:
+                readSource,
+            metrics: {
+                lines:
+                    lines.length,
+                imports:
+                    importLines.length,
+                exports:
+                    exportLines.length,
+                functions:
+                    functionMatches.length,
+                hasHtmlTemplate,
+                hasTailwindOrClasses,
+                hasFirestore,
+                hasRepoWrite,
+                duplicateCases:
+                    duplicateCaseNames.length,
+                todoCount
+            },
+            findings,
+            recommendations,
+            nextActions,
+            summary
+        };
+    }
+});
+
 /* ==========================================
    JARVIS LOCAL BRIDGE CLIENT V7
 ========================================== */
