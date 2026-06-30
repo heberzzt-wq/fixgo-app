@@ -1559,31 +1559,50 @@ if (
     const readObservation =
         readResult?.result?.observations?.[0];
 
-    const impactRepoData =
-        impactObservation?.response?.data ||
-        impactObservation?.data?.response?.data ||
-        impactObservation?.data ||
-        {};
-
-    const readRepoData =
-        readObservation?.response?.data ||
-        readObservation?.data?.response?.data ||
-        readObservation?.data ||
-        {};
-
-    const impactData =
-        impactRepoData?.analysis ||
-        impactRepoData?.data?.analysis ||
-        impactRepoData?.result?.analysis ||
-        impactRepoData;
-
-    const content =
-        String(
-            readRepoData?.content ||
-            readRepoData?.text ||
-            readRepoData?.source ||
-            ""
+    const unwrapToolPayload =
+    function(payload = {}) {
+        return (
+            payload?.data?.data ||
+            payload?.response?.data?.data ||
+            payload?.data ||
+            payload?.response?.data ||
+            payload?.result?.data ||
+            payload?.result ||
+            payload
         );
+    };
+
+const impactRepoData =
+    unwrapToolPayload(
+        impactObservation
+    );
+
+const readRepoData =
+    unwrapToolPayload(
+        readObservation
+    );
+
+const impactData =
+    impactRepoData?.analysis ||
+    impactRepoData?.data?.analysis ||
+    impactRepoData?.result?.analysis ||
+    impactRepoData?.data?.data?.analysis ||
+    impactRepoData;
+
+const readData =
+    readRepoData?.data ||
+    readRepoData?.result ||
+    readRepoData;
+
+const content =
+    String(
+        readData?.content ||
+        readData?.text ||
+        readData?.raw ||
+        readData?.data?.content ||
+        readData?.data?.text ||
+        ""
+    );
 
     const summary =
         [
