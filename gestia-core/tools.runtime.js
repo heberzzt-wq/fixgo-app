@@ -1653,30 +1653,84 @@ JarvisToolRuntime.register({
             typeof args.replace === "string";
 
         if (
-            !hasSearchReplace
-        ) {
-            return {
-                ok: false,
-                status:
-                    "PATCH_PREVIEW_NEEDS_EXACT_BLOCK",
-                error:
-                    "Para generar un diff seguro necesito search y replace exactos. Ya hidraté el archivo para análisis, pero no voy a inventar un parche.",
-                file:
-                    normalizedFile,
-                contentAvailable:
-                    typeof hydratedContent === "string",
-                contentLength:
-                    hydratedContent?.length || 0,
-                preview:
-                    typeof hydratedContent === "string"
-                        ? hydratedContent.slice(0, 3000)
-                        : null,
-                next:
-                    "Usa repo.read o repo.grep para localizar el bloque exacto; después llama repo.patchPreview con file, search y replace.",
-                tool:
-                    "repo.patchPreview"
-            };
-        }
+    !hasSearchReplace
+) {
+    const previewLines =
+        typeof hydratedContent === "string"
+            ? hydratedContent
+                .split(/\r?\n/)
+                .slice(0, 80)
+                .join("\n")
+            : "";
+
+    const safeSummary =
+        [
+            "Patch Preview SIA7",
+            `Archivo: ${normalizedFile}`,
+            "Estado: BLOQUEADO_CON_SEGURIDAD",
+            "",
+            "Razón:",
+            "No se generó diff porque faltan bloques exactos search y replace.",
+            "",
+            "Regla:",
+            "Jarvis no debe inventar parches ni escribir cambios sin un bloque exacto encontrado en el archivo real.",
+            "",
+            "Contenido hidratado:",
+            typeof hydratedContent === "string"
+                ? `Sí, ${hydratedContent.length} caracteres`
+                : "No",
+            "",
+            "Siguiente paso correcto:",
+            "1. Ejecutar repo.diagnose para entender el archivo.",
+            "2. Ubicar el bloque exacto a modificar.",
+            "3. Generar search y replace exactos.",
+            "4. Ejecutar repo.patchPreview otra vez en dry-run.",
+            "5. Pedir aprobación antes de escribir.",
+            "",
+            "Vista previa del archivo:",
+            "```",
+            previewLines || "Sin preview disponible.",
+            "```"
+        ]
+            .join("\n");
+
+    return {
+        ok:
+            true,
+        success:
+            true,
+        status:
+            "PATCH_PREVIEW_NEEDS_EXACT_BLOCK",
+        blocked:
+            true,
+        safe:
+            true,
+        dryRun:
+            true,
+        error:
+            null,
+        reason:
+            "SEARCH_REPLACE_REQUIRED",
+        message:
+            "Para generar un diff seguro necesito search y replace exactos. Ya hidraté el archivo para análisis, pero no voy a inventar un parche.",
+        file:
+            normalizedFile,
+        contentAvailable:
+            typeof hydratedContent === "string",
+        contentLength:
+            hydratedContent?.length || 0,
+        preview:
+            typeof hydratedContent === "string"
+                ? hydratedContent.slice(0, 3000)
+                : null,
+        summary:
+            safeSummary,
+        next:
+            "Usa repo.diagnose, repo.grep o repo.read para localizar el bloque exacto; después llama repo.patchPreview con file, search y replace.",
+        tool:
+            "repo.patchPreview"
+    };
+}
 
         // 4. Validar que el bloque search exista en el contenido hidratado
         if (
