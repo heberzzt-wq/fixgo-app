@@ -1696,6 +1696,137 @@ const content =
         readResult
     );
 
+    const normalizedPatchCommand =
+    String(comando || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
+const wantsPatchRecommendation =
+    /(?:propone|proponer|sugiere|sugerir|recomienda|mejora|parche|patch|fix|arreglo)/i
+        .test(
+            normalizedPatchCommand
+        );
+
+const buildPatchRecommendation =
+    function() {
+        const risk =
+            impactData?.propagatedRisk ||
+            impactData?.governance ||
+            "ND";
+
+        const action =
+            impactData?.governanceAction ||
+            "ND";
+
+        const dependencies =
+            Array.isArray(
+                impactData?.dependencies
+            )
+                ? impactData.dependencies
+                : [];
+
+        const impactedFiles =
+            Array.isArray(
+                impactData?.impactedFiles
+            )
+                ? impactData.impactedFiles.map(
+                    item =>
+                        item?.file ||
+                        item
+                )
+                : [];
+
+        const isHighRisk =
+            risk === "CRITICAL" ||
+            risk === "HIGH" ||
+            action === "SUPERVISED_EXECUTION" ||
+            action === "REVIEW_REQUIRED";
+
+        const importLines =
+            String(content || "")
+                .split("\n")
+                .filter(line =>
+                    line.trim().startsWith("import ")
+                );
+
+        const exportLines =
+            String(content || "")
+                .split("\n")
+                .filter(line =>
+                    line.includes("export")
+                );
+
+        const recommendedScope =
+            [
+                "1. No compactar el archivo.",
+                "2. No mover imports existentes sin revisar dependencias.",
+                "3. Mantener exports públicos actuales.",
+                "4. Probar carga de panel Admin, Técnico y Cliente después del cambio.",
+                "5. Si el cambio toca rutas, imports o exports, ejecutar análisis de impacto otra vez."
+            ];
+
+        const suggestedPatch =
+            [
+                "// PATCH RECOMENDADO 21-D",
+                "// Modo seguro: comentario de guardia + validación no destructiva.",
+                "",
+                "console.info(",
+                "    \"🛡️ [APP_PANEL_ROUTER_GUARD]\",",
+                "    {",
+                "        router: \"app-panel.js\",",
+                "        admin: typeof iniciarPanelAdmin === \"function\",",
+                "        tecnico: typeof iniciarPanelTecnico === \"function\",",
+                "        cliente: typeof iniciarPanelCliente === \"function\"",
+                "    }",
+                ");"
+            ]
+                .join("\n");
+
+        return [
+            "Patch Recommendation Mode SIA7",
+            `Archivo: ${impactData?.file || targetFile}`,
+            `Riesgo: ${risk}`,
+            `Acción requerida: ${action}`,
+            `Criticidad: ${impactData?.criticality ?? "ND"}`,
+            "",
+            "Dependencias detectadas:",
+            dependencies.length
+                ? dependencies.map(item => `- ${item}`).join("\n")
+                : "- ND",
+            "",
+            "Archivos impactados:",
+            impactedFiles.length
+                ? impactedFiles.map(item => `- ${item}`).join("\n")
+                : "- ND",
+            "",
+            "Lectura técnica:",
+            `Imports detectados: ${importLines.length}`,
+            `Exports detectados: ${exportLines.length}`,
+            "",
+            "Regla de seguridad:",
+            isHighRisk
+                ? "Este archivo requiere revisión supervisada antes de modificar porque conecta módulos principales."
+                : "Este archivo puede modificarse con riesgo controlado, manteniendo prueba posterior.",
+            "",
+            "Alcance recomendado:",
+            recommendedScope.join("\n"),
+            "",
+            "Parche sugerido:",
+            "```js",
+            suggestedPatch,
+            "```",
+            "",
+            "Prueba posterior:",
+            `1. Jarvis, analiza ${targetFile}`,
+            "2. Abrir panel Admin",
+            "3. Abrir panel Técnico",
+            "4. Abrir panel Cliente",
+            "5. Confirmar que no hay errores de imports/exports en consola"
+        ]
+            .join("\n");
+    };
+
 console.log(
     "🧪 [COMBINED_ANALYSIS_READY]",
     {
@@ -1707,7 +1838,9 @@ console.log(
 );
 
     const summary =
-        [
+    wantsPatchRecommendation
+        ? buildPatchRecommendation()
+        : [
             `Archivo: ${impactData?.file || targetFile}`,
             `Riesgo: ${impactData?.propagatedRisk || impactData?.governance || "ND"}`,
             `Acción: ${impactData?.governanceAction || "ND"}`,
@@ -1732,13 +1865,15 @@ console.log(
             impactData?.propagatedRisk === "HIGH"
                 ? "No modificar sin revisión supervisada. Este archivo participa en flujo runtime o conecta módulos principales."
                 : "Puede revisarse con riesgo controlado, manteniendo validación posterior."
-        ]
+               ]
             .filter(Boolean)
             .join("\n");
 
     window.renderJarvisResponse?.(
-        "Análisis Compuesto SIA7",
-        summary,
+    wantsPatchRecommendation
+        ? "Patch Recommendation Mode SIA7"
+        : "Análisis Compuesto SIA7",
+    summary,
         impactData?.propagatedRisk === "CRITICAL"
             ? "warning"
             : "info"
