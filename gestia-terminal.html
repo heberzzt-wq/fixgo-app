@@ -1495,6 +1495,140 @@ if (
                 }
             );
 
+            const normalizedCombinedCommand =
+    String(comando || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
+const combinedRepoFileMatch =
+    normalizedCombinedCommand.match(
+        /(?:analiza|analizar|revisa|revision)\s+(?:impacto\s+de\s+)?([a-z0-9_.\-\/]+?\.(?:js|html|css|json|md|cjs|mjs))/i
+    );
+
+if (
+    combinedRepoFileMatch &&
+    window.ToolsBridge?.executeAndCompose
+) {
+    const targetFile =
+        combinedRepoFileMatch[1];
+
+    const impactResult =
+        await window.ToolsBridge.executeAndCompose(
+            "repo.impact",
+            {
+                file:
+                    targetFile
+            },
+            {
+                tenantId:
+                    window.session?.tenantId ||
+                    window.KernelHeberto?.session?.tenantId ||
+                    "UXMAL39",
+                analysisId:
+                    currentTraceId,
+                rawInput:
+                    comando
+            }
+        );
+
+    const readResult =
+        await window.ToolsBridge.executeAndCompose(
+            "repo.read",
+            {
+                file:
+                    targetFile,
+                maxBytes:
+                    300000
+            },
+            {
+                tenantId:
+                    window.session?.tenantId ||
+                    window.KernelHeberto?.session?.tenantId ||
+                    "UXMAL39",
+                analysisId:
+                    currentTraceId,
+                rawInput:
+                    comando
+            }
+        );
+
+    const impactObservation =
+        impactResult?.result?.observations?.[0];
+
+    const readObservation =
+        readResult?.result?.observations?.[0];
+
+    const impactRepoData =
+        impactObservation?.response?.data ||
+        impactObservation?.data?.response?.data ||
+        impactObservation?.data ||
+        {};
+
+    const readRepoData =
+        readObservation?.response?.data ||
+        readObservation?.data?.response?.data ||
+        readObservation?.data ||
+        {};
+
+    const impactData =
+        impactRepoData?.analysis ||
+        impactRepoData?.data?.analysis ||
+        impactRepoData?.result?.analysis ||
+        impactRepoData;
+
+    const content =
+        String(
+            readRepoData?.content ||
+            readRepoData?.text ||
+            readRepoData?.source ||
+            ""
+        );
+
+    const summary =
+        [
+            `Archivo: ${impactData?.file || targetFile}`,
+            `Riesgo: ${impactData?.propagatedRisk || impactData?.governance || "ND"}`,
+            `Acción: ${impactData?.governanceAction || "ND"}`,
+            `Criticidad: ${impactData?.criticality ?? "ND"}`,
+            `Dependencias: ${
+                impactData?.dependencies?.join(", ") ||
+                impactData?.totalDependencies ||
+                "ND"
+            }`,
+            `Impacta: ${
+                impactData?.impactedFiles?.map(item => item.file).join(", ") ||
+                "ND"
+            }`,
+            "",
+            "Lectura:",
+            content
+                ? content.slice(0, 1800)
+                : "Contenido no disponible.",
+            "",
+            "Recomendación:",
+            impactData?.propagatedRisk === "CRITICAL" ||
+            impactData?.propagatedRisk === "HIGH"
+                ? "No modificar sin revisión supervisada. Este archivo participa en flujo runtime o conecta módulos principales."
+                : "Puede revisarse con riesgo controlado, manteniendo validación posterior."
+        ]
+            .filter(Boolean)
+            .join("\n");
+
+    window.renderJarvisResponse?.(
+        "Análisis Compuesto SIA7",
+        summary,
+        impactData?.propagatedRisk === "CRITICAL"
+            ? "warning"
+            : "info"
+    );
+
+    handled =
+        true;
+
+    return;
+}
+
         if (
             coreResult?.type === "AGENT_TOOL_RESULT"
         ) {
