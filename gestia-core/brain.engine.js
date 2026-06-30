@@ -605,8 +605,11 @@ function buildToolCallsFromInput(
   input = "",
   contexto = {}
 ) {
+  const rawInput =
+    String(input || "");
+
   const text =
-    String(input || "")
+    rawInput
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
@@ -614,16 +617,15 @@ function buildToolCallsFromInput(
   const toolCalls =
     [];
 
-      const fileMatch =
+  const fileMatch =
     text.match(
       /([a-zA-Z0-9_./-]+\.(js|html|css|json|cjs|mjs|txt|md))/i
     );
 
   const quotedMatch =
-    String(input || "")
-      .match(
-        /["'“”‘’]([^"'“”‘’]{2,120})["'“”‘’]/
-      );
+    rawInput.match(
+      /["'“”‘’]([^"'“”‘’]{2,240})["'“”‘’]/
+    );
 
   const searchTerm =
     quotedMatch?.[1] ||
@@ -636,8 +638,40 @@ function buildToolCallsFromInput(
       ?.trim() ||
     null;
 
+  const hasTool =
+    function(toolName = "") {
+      return (
+        window?.JarvisToolRuntime?.has?.(
+          toolName
+        ) === true
+      );
+    };
+
+  const pushToolCall =
+    function({
+      name,
+      args = {},
+      reason = "CODEX_ROUTER",
+      mutates = false,
+      approved = false
+    }) {
+      if (!name) {
+        return;
+      }
+
+      toolCalls.push({
+        name,
+        args,
+        reason,
+        mutates:
+          mutates === true,
+        approved:
+          approved === true
+      });
+    };
+
   const wantsCiTest =
-    /\b(ci:test|ci test|npm run ci:test|npm ci test|validacion completa|prueba completa|corre todo|ejecuta todo)\b/i
+    /\b(ci:test|ci test|npm run ci:test|npm ci test|validacion completa|validación completa|prueba completa|corre todo|ejecuta todo)\b/i
       .test(text);
 
   const wantsSyntax =
@@ -648,12 +682,80 @@ function buildToolCallsFromInput(
     /\b(test|tests|prueba|pruebas|npm test|corre los tests|ejecuta tests|ejecuta pruebas|correr pruebas)\b/i
       .test(text);
 
+  const wantsRepoAudit =
+    /\b(audita|auditar|audit|auditoria|auditoría|revisa repo|analiza repo|analiza el repo|estado del repo|diagnostico repo|diagnóstico repo)\b/i
+      .test(text);
+
+  const wantsRepoScan =
+    /\b(escanea|escanear|scan|scan repo|escanea repo|estructura del repo|mapa del repo|lista archivos|listar archivos)\b/i
+      .test(text);
+
+  const wantsRepoRead =
+    /\b(lee|leer|abre|abrir|muestra|mostrar|contenido de|ver archivo)\b/i
+      .test(text) &&
+    !!targetFile;
+
+  const wantsRepoSearch =
+    /\b(busca|buscar|search|encuentra|encontrar|localiza|localizar)\b/i
+      .test(text) &&
+    !!searchTerm;
+
+  const wantsRepoImpact =
+    /\b(impacto|impact|dependencias|dependents|rompe|afecta|riesgo de cambiar|que pasa si cambio|qué pasa si cambio)\b/i
+      .test(text) &&
+    !!targetFile;
+
+  const wantsCodexDiagnose =
+    /\b(diagnostica|diagnosticar|diagnostico|diagnóstico|analiza profundo|analisis profundo|análisis profundo|forense|revision fina|revisión fina|revisa a fondo)\b/i
+      .test(text) &&
+    !!targetFile;
+
+  const wantsCodexProposal =
+    /\b(propone|proponer|sugiere|sugerir|recomienda|recomendar|mejora|mejorar|optimiza|optimizar)\b/i
+      .test(text) &&
+    !!targetFile;
+
+  const wantsPatchPreview =
+    /\b(previsualiza patch|preview patch|patch preview|diff|parche previo|simula parche|dry run|dry-run)\b/i
+      .test(text) &&
+    !!targetFile;
+
+  const wantsPatchAction =
+    /\b(parchea|parchear|patch|arregla|arreglar|fix|repara|reparar|corrige|corregir)\b/i
+      .test(text) &&
+    !!targetFile;
+
+  const wantsVerify =
+    /\b(verifica|verificar|valida|validar|comprueba|comprobar|revisa resultado|post check|post-check)\b/i
+      .test(text) &&
+    !!targetFile;
+
+  const wantsCreateFile =
+    /\b(crea archivo|crear archivo|nuevo archivo|genera archivo|generar archivo)\b/i
+      .test(text) &&
+    !!targetFile;
+
+  const codexMode =
+    wantsCodexDiagnose
+      ? "diagnose"
+      : wantsCodexProposal
+        ? "proposal"
+        : wantsPatchAction
+          ? "patch"
+          : wantsPatchPreview
+            ? "patch_preview"
+            : wantsVerify
+              ? "verify"
+              : wantsCreateFile
+                ? "create_file"
+                : null;
+
   if (
     wantsCiTest ||
     wantsSyntax ||
     wantsTests
   ) {
-    toolCalls.push({
+    pushToolCall({
       name:
         "tests.run",
       args:
@@ -678,31 +780,8 @@ function buildToolCallsFromInput(
     });
   }
 
-    const wantsRepoAudit =
-    /\b(audita|auditar|audit|auditoria|auditoría|revisa repo|analiza repo|analiza el repo|estado del repo|diagnostico repo|diagnóstico repo)\b/i
-      .test(text);
-
-  const wantsRepoScan =
-    /\b(escanea|escanear|scan|scan repo|escanea repo|estructura del repo|mapa del repo|lista archivos|listar archivos)\b/i
-      .test(text);
-
-  const wantsRepoRead =
-    /\b(lee|leer|abre|abrir|muestra|mostrar|contenido de|ver archivo)\b/i
-      .test(text) &&
-    !!targetFile;
-
-  const wantsRepoSearch =
-    /\b(busca|buscar|search|encuentra|encontrar|localiza|localizar)\b/i
-      .test(text) &&
-    !!searchTerm;
-
-  const wantsRepoImpact =
-    /\b(impacto|impact|dependencias|dependents|rompe|afecta|riesgo de cambiar|que pasa si cambio|qué pasa si cambio)\b/i
-      .test(text) &&
-    !!targetFile;
-
   if (wantsRepoAudit) {
-    toolCalls.push({
+    pushToolCall({
       name:
         "repo.audit",
       args:
@@ -715,7 +794,7 @@ function buildToolCallsFromInput(
   }
 
   if (wantsRepoScan) {
-    toolCalls.push({
+    pushToolCall({
       name:
         "repo.scan",
       args:
@@ -727,14 +806,153 @@ function buildToolCallsFromInput(
     });
   }
 
-  if (wantsRepoRead) {
-    toolCalls.push({
+  if (
+    codexMode &&
+    targetFile
+  ) {
+    pushToolCall({
       name:
         "repo.read",
       args:
         {
           file:
+            targetFile,
+          maxBytes:
+            300000
+        },
+      reason:
+        `CODEX_${codexMode.toUpperCase()}_READ`,
+      mutates:
+        false
+    });
+
+    pushToolCall({
+      name:
+        "repo.impact",
+      args:
+        {
+          file:
             targetFile
+        },
+      reason:
+        `CODEX_${codexMode.toUpperCase()}_IMPACT`,
+      mutates:
+        false
+    });
+
+    if (
+      hasTool(
+        "repo.diagnose"
+      )
+    ) {
+      pushToolCall({
+        name:
+          "repo.diagnose",
+        args:
+          {
+            file:
+              targetFile,
+            mode:
+              codexMode,
+            rawInput,
+            searchTerm
+          },
+        reason:
+          `CODEX_${codexMode.toUpperCase()}_DIAGNOSE`,
+        mutates:
+          false
+      });
+    }
+
+    if (
+      wantsPatchPreview ||
+      wantsPatchAction
+    ) {
+      pushToolCall({
+        name:
+          "repo.patchPreview",
+        args:
+          {
+            file:
+              targetFile,
+            intent:
+              rawInput,
+            dryRun:
+              true
+          },
+        reason:
+          wantsPatchAction
+            ? "CODEX_PATCH_DRY_RUN_BEFORE_WRITE"
+            : "CODEX_PATCH_PREVIEW",
+        mutates:
+          false
+      });
+    }
+
+    if (
+      wantsVerify
+    ) {
+      pushToolCall({
+        name:
+          "tests.run",
+        args:
+          {
+            command:
+              "check:syntax",
+            timeoutMs:
+              120000
+          },
+        reason:
+          "CODEX_VERIFY_SYNTAX",
+        mutates:
+          false
+      });
+
+      pushToolCall({
+        name:
+          "repo.read",
+        args:
+          {
+            file:
+              targetFile,
+            maxBytes:
+              300000
+          },
+        reason:
+          "CODEX_VERIFY_READ_BACK",
+        mutates:
+          false
+      });
+
+      pushToolCall({
+        name:
+          "repo.impact",
+        args:
+          {
+            file:
+              targetFile
+          },
+        reason:
+          "CODEX_VERIFY_IMPACT_BACK",
+        mutates:
+          false
+      });
+    }
+  }
+
+  if (
+    wantsRepoRead &&
+    !codexMode
+  ) {
+    pushToolCall({
+      name:
+        "repo.read",
+      args:
+        {
+          file:
+            targetFile,
+          maxBytes:
+            300000
         },
       reason:
         "USER_REQUESTED_REPO_READ",
@@ -743,8 +961,8 @@ function buildToolCallsFromInput(
     });
   }
 
-    if (wantsRepoSearch) {
-    toolCalls.push({
+  if (wantsRepoSearch) {
+    pushToolCall({
       name:
         "repo.grep",
       args:
@@ -763,8 +981,11 @@ function buildToolCallsFromInput(
     });
   }
 
-  if (wantsRepoImpact) {
-    toolCalls.push({
+  if (
+    wantsRepoImpact &&
+    !codexMode
+  ) {
+    pushToolCall({
       name:
         "repo.impact",
       args:
@@ -779,23 +1000,47 @@ function buildToolCallsFromInput(
     });
   }
 
-   const seenTools =
+  const seenTools =
     new Set();
 
-  return toolCalls.filter(
-    call => {
-      const key =
-        `${call.name}:${JSON.stringify(call.args || {})}`;
+  const dedupedToolCalls =
+    toolCalls.filter(
+      call => {
+        const key =
+          `${call.name}:${JSON.stringify(call.args || {})}`;
 
-      if (seenTools.has(key)) {
-        return false;
+        if (seenTools.has(key)) {
+          return false;
+        }
+
+        seenTools.add(key);
+
+        return true;
       }
+    );
 
-      seenTools.add(key);
+  if (
+    dedupedToolCalls.length > 0
+  ) {
+    emitBrainTelemetry(
+      "CODEX_TOOLCHAIN_READY",
+      {
+        mode:
+          codexMode ||
+          "standard",
+        file:
+          targetFile,
+        total:
+          dedupedToolCalls.length,
+        tools:
+          dedupedToolCalls.map(
+            call => call.name
+          )
+      }
+    );
+  }
 
-      return true;
-    }
-  );
+  return dedupedToolCalls;
 }
 /* ======================================================================================
    EXECUTION GRAPH EXPANDER
