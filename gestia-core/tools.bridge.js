@@ -338,6 +338,44 @@ export const ToolsBridge = {
 
             results.push(result);
 
+            const runtimePayload =
+    result?.runtimeResult ||
+    result?.data ||
+    result?.result ||
+    result?.response ||
+    result;
+
+const patchBlocked =
+    toolCall?.name === "repo.patchPreview" &&
+    (
+        runtimePayload?.blocked === true ||
+        runtimePayload?.status === "PATCH_PREVIEW_NEEDS_EXACT_BLOCK" ||
+        runtimePayload?.data?.blocked === true ||
+        runtimePayload?.data?.status === "PATCH_PREVIEW_NEEDS_EXACT_BLOCK"
+    );
+
+if (
+    patchBlocked
+) {
+    console.info(
+        "🛡️ [AGENT_LOOP_HALTED_AFTER_SAFE_PATCH_BLOCK]",
+        {
+            tool:
+                toolCall.name,
+            status:
+                runtimePayload?.status ||
+                runtimePayload?.data?.status ||
+                "PATCH_BLOCKED",
+            reason:
+                runtimePayload?.reason ||
+                runtimePayload?.data?.reason ||
+                "SEARCH_REPLACE_REQUIRED"
+        }
+    );
+
+    break;
+}
+
             if (result?.ok === false) {
                 break;
             }
