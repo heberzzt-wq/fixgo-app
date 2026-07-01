@@ -1476,7 +1476,40 @@ if (
             }
         );
 
-        
+                /* =====================================================
+           JARVIS CODEX V2 — TERMINAL CORE-FIRST INTERCEPT
+           Commit 23 Mega-Pack
+           Bloquea que approve/write caigan al Plan Preview viejo.
+        ===================================================== */
+
+        if (
+            window.JarvisCodexV2BrainRouter?.handleCodexV2Command &&
+            /^(jarvis,\s*)?(apruebo|aprobar|aprueba|escribe)\s+patch\s+/i.test(
+                String(comando || "").trim()
+            )
+        ) {
+            const codexV2Result =
+                await window.JarvisCodexV2BrainRouter.handleCodexV2Command(
+                    comando
+                );
+
+            if (
+                codexV2Result?.handled
+            ) {
+                window.renderJarvisResponse?.(
+                    codexV2Result.terminalType || "Jarvis Codex V2",
+                    codexV2Result,
+                    codexV2Result.ok === false || codexV2Result.blocked
+                        ? "warning"
+                        : "success"
+                );
+
+                handled =
+                    true;
+
+                return;
+            }
+        }
 
         const coreResult =
             await window.GestiaCore.procesarIntencion(
@@ -2988,7 +3021,7 @@ if (
                 return;
             }
         }
-        
+
         // Higiene de DOM (Control de memoria)
         const MAX_NODES = 100;
         while (outputContainer.children.length >= MAX_NODES) {
