@@ -1555,11 +1555,29 @@ const diagnoseSummary =
 if (
     diagnoseSummary
 ) {
-    window.renderJarvisResponse?.(
-        "Diagnóstico Repo SIA7",
-        diagnoseSummary,
-        "info"
-    );
+    const cleanDiagnoseSummary =
+        String(diagnoseSummary || "")
+            .replace(/^Diagnóstico Repo SIA7\s*/i, "")
+            .trim();
+
+    const diagnoseRenderKey =
+        `${currentTraceId || "trace"}::${cleanDiagnoseSummary}`;
+
+    window.__JARVIS_LAST_DIAGNOSE_RENDER_KEY__ ||=
+        "";
+
+    if (
+        window.__JARVIS_LAST_DIAGNOSE_RENDER_KEY__ !== diagnoseRenderKey
+    ) {
+        window.__JARVIS_LAST_DIAGNOSE_RENDER_KEY__ =
+            diagnoseRenderKey;
+
+        window.renderJarvisResponse?.(
+            "Diagnóstico Repo SIA7",
+            cleanDiagnoseSummary,
+            "info"
+        );
+    }
 
     handled =
         true;
