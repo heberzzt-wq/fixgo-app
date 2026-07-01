@@ -2950,6 +2950,45 @@ if (
         const outputContainer = document.getElementById('gestia-output');
         if (!outputContainer) return;
 
+
+                /* =====================================================
+           JARVIS CODEX V2 — PREMIUM CARD INTERCEPT
+           Commit 23 Mega-Pack
+           ===================================================== */
+        if (window.renderCodexV2Card) {
+            const codexHtml =
+                window.renderCodexV2Card(message);
+
+            if (codexHtml) {
+                const localTpl =
+                    document.createElement("template");
+
+                localTpl.innerHTML =
+                    codexHtml.trim();
+
+                outputContainer.appendChild(
+                    localTpl.content.firstElementChild
+                );
+
+                scheduleScroll(outputContainer);
+
+                window.logEvent({
+                    type:
+                        "CODEX_V2_CARD_RENDERED",
+                    level:
+                        "info",
+                    source:
+                        "renderer",
+                    payload: {
+                        title,
+                        type
+                    }
+                });
+
+                return;
+            }
+        }
+        
         // Higiene de DOM (Control de memoria)
         const MAX_NODES = 100;
         while (outputContainer.children.length >= MAX_NODES) {
@@ -3345,6 +3384,110 @@ window.showJarvis = function(msg = "Procesando...") {
 window.addEventListener("load", () => {
     window.showJarvis("Sistema listo");
 });
+
+/* ============================================================
+   JARVIS CODEX V2 — TERMINAL RENDER
+   Commit 23 Mega-Pack
+   ============================================================ */
+
+(function initJarvisCodexV2TerminalRender() {
+  if (window.__JARVIS_CODEX_V2_TERMINAL_RENDER__) return;
+  window.__JARVIS_CODEX_V2_TERMINAL_RENDER__ = true;
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function renderCodexV2Card(result) {
+    if (!result) return "";
+
+    const payload =
+      result.cloudReasoning ||
+      result.reasoning?.cloudReasoning ||
+      result;
+
+    if (!payload) return "";
+
+    if (payload.terminalType === "CODEX_V2_APPROVAL") {
+      return `
+        <div class="codex-card border border-emerald-500/40 rounded-xl p-4 my-3 bg-black/30">
+          <div class="font-bold text-emerald-300">PATCH APPROVAL</div>
+          <div class="text-sm mt-2">Archivo: <code>${escapeHtml(payload.file)}</code></div>
+          <div class="text-sm mt-1">Estado: ${payload.ok ? "Aprobado ✅" : "Bloqueado ⛔"}</div>
+          <div class="text-xs mt-2">Código: <code>${escapeHtml(payload.code || "")}</code></div>
+          ${
+            payload.nextCommand
+              ? `<div class="mt-3 text-xs">Siguiente comando:<br><code>${escapeHtml(payload.nextCommand)}</code></div>`
+              : ""
+          }
+        </div>
+      `;
+    }
+
+    if (payload.terminalType === "CODEX_V2_WRITE_BLOCKED") {
+      return `
+        <div class="codex-card border border-red-500/40 rounded-xl p-4 my-3 bg-black/30">
+          <div class="font-bold text-red-300">CODE_WRITE BLOCKED</div>
+          <div class="text-sm mt-2">Código: <code>${escapeHtml(payload.code)}</code></div>
+          <div class="text-sm mt-1">${escapeHtml(payload.message || "Escritura bloqueada por contrato seguro.")}</div>
+        </div>
+      `;
+    }
+
+    if (payload.terminalType === "CODEX_V2_WRITE_VERIFY") {
+      const writeOk =
+        payload.writeResult?.ok;
+
+      const verifyOk =
+        payload.verify?.ok;
+
+      return `
+        <div class="codex-card border border-cyan-500/40 rounded-xl p-4 my-3 bg-black/30">
+          <div class="font-bold text-cyan-300">CODEX V2 WRITE + VERIFY</div>
+          <div class="text-sm mt-2">Archivo: <code>${escapeHtml(payload.writeResult?.file || payload.verify?.file)}</code></div>
+          <div class="text-sm mt-1">Escritura: ${writeOk ? "OK ✅" : "Falló ⛔"}</div>
+          <div class="text-sm mt-1">Verificación: ${verifyOk ? "OK ✅" : "Falló ⛔"}</div>
+          <div class="text-sm mt-1">Syntax check: ${payload.verify?.syntax?.ok === false ? "Falló ⛔" : "OK ✅"}</div>
+          <div class="text-sm mt-1">Replace encontrado: ${payload.verify?.replaceFound ? "Sí ✅" : "No ⛔"}</div>
+          <div class="text-sm mt-1">Impact back: ${payload.verify?.impact?.ok === false ? "Falló ⛔" : "OK ✅"}</div>
+          <div class="text-xs mt-3">Resultado: <code>${escapeHtml(payload.verify?.code)}</code></div>
+        </div>
+      `;
+    }
+
+    if (payload.diffPreview && payload.requiresApproval) {
+      return `
+        <div class="codex-card border border-yellow-500/40 rounded-xl p-4 my-3 bg-black/30">
+          <div class="font-bold text-yellow-300">PATCH PREVIEW SAFE</div>
+          <div class="text-sm mt-2">Archivo objetivo: <code>${escapeHtml(payload.file)}</code></div>
+          <div class="text-sm mt-1">Riesgo: <code>${escapeHtml(payload.risk || "medium")}</code></div>
+          <div class="mt-3 text-xs whitespace-pre-wrap">${escapeHtml(payload.diffPreview)}</div>
+          <div class="mt-3 text-sm">Para aprobar:</div>
+          <code class="block mt-1 text-emerald-300">${escapeHtml(payload.approvalCommand)}</code>
+        </div>
+      `;
+    }
+
+    if (payload.code === "PATCH_BUILDER_BLOCKED_NO_EXACT_SEARCH_REPLACE") {
+      return `
+        <div class="codex-card border border-orange-500/40 rounded-xl p-4 my-3 bg-black/30">
+          <div class="font-bold text-orange-300">PATCH BUILDER BLOCKED</div>
+          <div class="text-sm mt-2">Código: <code>${escapeHtml(payload.code)}</code></div>
+          <div class="text-sm mt-1">${escapeHtml(payload.message || "No hay search/replace exacto para construir patch seguro.")}</div>
+        </div>
+      `;
+    }
+
+    return "";
+  }
+
+  window.renderCodexV2Card = renderCodexV2Card;
+})();
 </script>
 
 </body>

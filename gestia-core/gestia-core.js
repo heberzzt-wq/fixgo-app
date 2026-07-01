@@ -1086,3 +1086,52 @@ console.info(
     GestiaCore.version
 );
 
+/* ============================================================
+   JARVIS CODEX V2 — CORE STATUS
+   Commit 23 Mega-Pack
+   ============================================================ */
+
+(function initJarvisCodexV2CoreStatus() {
+  if (window.__JARVIS_CODEX_V2_CORE_STATUS__) return;
+  window.__JARVIS_CODEX_V2_CORE_STATUS__ = true;
+
+  window.getJarvisCodexV2Status = function getJarvisCodexV2Status() {
+    return {
+      mode:
+        "Jarvis Codex Mode V2",
+
+      read:
+        true,
+
+      diagnose:
+        true,
+
+      exactPatchBuilder:
+        Boolean(window.JarvisCodexV2?.patchPreviewExact),
+
+      approvedPatchContract:
+        Boolean(window.JarvisCodexV2?.approvePendingPatch),
+
+      safeCodeWrite:
+        Boolean(window.JarvisCodexV2?.safeCodeWrite),
+
+      postWriteVerify:
+        Boolean(window.JarvisCodexV2?.postWriteVerify),
+
+      brainRouter:
+        Boolean(window.JarvisCodexV2BrainRouter?.handleCodexV2Command),
+
+      terminalRender:
+        Boolean(window.renderCodexV2Card),
+
+      pendingPatch:
+        Boolean(window.JarvisCodexV2?.state?.pendingPatch),
+
+      approvedPatch:
+        Boolean(window.JarvisCodexV2?.state?.approvedPatch),
+
+      version:
+        "V2.0-commit-23-megapack"
+    };
+  };
+})();

@@ -2946,3 +2946,76 @@ if (
         "🧠 [RUNTIME_EXECUTOR_LINKED]"
     );
 }
+
+/* ============================================================
+   JARVIS CODEX V2 — OPERATION EXECUTOR GOVERNANCE
+   Commit 23 Mega-Pack
+   ============================================================ */
+
+(function initJarvisCodexV2ExecutorGovernance() {
+  if (window.__JARVIS_CODEX_V2_EXECUTOR_GUARD__) return;
+  window.__JARVIS_CODEX_V2_EXECUTOR_GUARD__ = true;
+
+  const oldExecute =
+    window.operationsExecutor?.execute ||
+    window.OperationsExecutor?.execute ||
+    null;
+
+  function isCodeWriteOperation(operation) {
+    const type = String(operation?.type || operation?.tool || operation?.name || "").toUpperCase();
+
+    return (
+      type === "CODE_WRITE" ||
+      type === "REPO_WRITE" ||
+      type === "WRITE_FILE" ||
+      type.includes("CODE_WRITE")
+    );
+  }
+
+  function block(reason, operation) {
+    return {
+      ok: false,
+      blocked: true,
+      code: reason,
+      operation,
+      message: `[${reason}] Escritura bloqueada por Jarvis Codex V2 Governance.`
+    };
+  }
+
+  async function guardedExecute(operation = {}) {
+    if (!isCodeWriteOperation(operation)) {
+      if (oldExecute) return await oldExecute.call(this, operation);
+
+      return {
+        ok: false,
+        blocked: true,
+        code: "EXECUTOR_NOT_AVAILABLE",
+        operation
+      };
+    }
+
+    const approved = window.JarvisCodexV2?.state?.approvedPatch;
+
+    if (!approved) {
+      return block("CODE_WRITE_BLOCKED_NO_APPROVED_PATCH", operation);
+    }
+
+    if (!approved.file || !approved.search || !approved.replace || approved.dryRun !== true) {
+      return block("CODE_WRITE_BLOCKED_INVALID_APPROVED_PATCH_CONTRACT", operation);
+    }
+
+    if (operation.file && operation.file !== approved.file) {
+      return block("CODE_WRITE_BLOCKED_FILE_MISMATCH", operation);
+    }
+
+    return await window.JarvisCodexV2.safeCodeWrite({
+      file: approved.file
+    });
+  }
+
+  window.operationsExecutor = window.operationsExecutor || {};
+  window.operationsExecutor.execute = guardedExecute;
+
+  window.OperationsExecutor = window.OperationsExecutor || {};
+  window.OperationsExecutor.execute = guardedExecute;
+})();

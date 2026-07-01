@@ -670,6 +670,123 @@ function buildToolCallsFromInput(
       });
     };
 
+    /* ============================================================
+   JARVIS CODEX V2 — EXACT PATCH PREVIEW ROUTE
+   Commit 23 Mega-Pack
+   ============================================================ */
+
+  const wantsCodexPatch =
+    /^jarvis,\s*parchea\s+(.+)$/i.test(rawInput.trim());
+
+  if (wantsCodexPatch) {
+    const patchMatch =
+      rawInput
+        .trim()
+        .match(/^jarvis,\s*parchea\s+(.+)$/i);
+
+    const file =
+      patchMatch?.[1]
+        ?.trim()
+        ?.replace(/^\.\/+/, "")
+        ?.replace(/^\/+/, "");
+
+    const codexPatch =
+      contexto?.codexPatch || null;
+
+    if (!file) {
+      pushToolCall({
+        name:
+          "repo.patchPreviewExact",
+
+        args: {
+          file:
+            "",
+          search:
+            "",
+          replace:
+            "",
+          dryRun:
+            true,
+          risk:
+            "blocked"
+        },
+
+        reason:
+          "PATCH_BUILDER_BLOCKED_NO_FILE",
+
+        mutates:
+          false,
+
+        approved:
+          false
+      });
+
+      return toolCalls;
+    }
+
+    if (
+      !codexPatch ||
+      !codexPatch.search ||
+      !codexPatch.replace
+    ) {
+      pushToolCall({
+        name:
+          "repo.patchPreviewExact",
+
+        args: {
+          file,
+          search:
+            "",
+          replace:
+            "",
+          dryRun:
+            true,
+          risk:
+            "blocked"
+        },
+
+        reason:
+          "PATCH_BUILDER_BLOCKED_NO_EXACT_SEARCH_REPLACE",
+
+        mutates:
+          false,
+
+        approved:
+          false
+      });
+
+      return toolCalls;
+    }
+
+    pushToolCall({
+      name:
+        "repo.patchPreviewExact",
+
+      args: {
+        file,
+        search:
+          codexPatch.search,
+        replace:
+          codexPatch.replace,
+        dryRun:
+          true,
+        risk:
+          codexPatch.risk || "medium"
+      },
+
+      reason:
+        "CODEX_V2_EXACT_PATCH_PREVIEW",
+
+      mutates:
+        false,
+
+      approved:
+        false
+    });
+
+    return toolCalls;
+  }
+
   const wantsCiTest =
     /\b(ci:test|ci test|npm run ci:test|npm ci test|validacion completa|validación completa|prueba completa|corre todo|ejecuta todo)\b/i
       .test(text);
@@ -938,6 +1055,98 @@ function buildToolCallsFromInput(
     });
   }
 }
+
+/* ============================================================
+   JARVIS CODEX V2 — BRAIN COMMAND ROUTER
+   Commit 23 Mega-Pack
+   ============================================================ */
+
+(function initJarvisCodexV2BrainRouter() {
+  if (window.__JARVIS_CODEX_V2_BRAIN_ROUTER__) return;
+  window.__JARVIS_CODEX_V2_BRAIN_ROUTER__ = true;
+
+  function parseApproveCommand(text) {
+    const input = String(text || "").trim();
+
+    const match = input.match(/^jarvis,\s*apruebo\s+patch\s+(.+)$/i);
+
+    if (!match) return null;
+
+    return {
+      intent: "APPROVE_PATCH",
+      file: match[1].trim()
+    };
+  }
+
+  function parseWriteCommand(text) {
+    const input = String(text || "").trim();
+
+    const match = input.match(/^jarvis,\s*escribe\s+patch\s+(.+)$/i);
+
+    if (!match) return null;
+
+    return {
+      intent: "WRITE_APPROVED_PATCH",
+      file: match[1].trim()
+    };
+  }
+
+  async function handleCodexV2Command(text) {
+    const approve = parseApproveCommand(text);
+
+    if (approve) {
+      const approval = window.JarvisCodexV2.approvePendingPatch({
+        file: approve.file
+      });
+
+      return {
+        handled: true,
+        terminalType: "CODEX_V2_APPROVAL",
+        ...approval,
+        nextCommand: approval.ok
+          ? `Jarvis, escribe patch ${approve.file}`
+          : null
+      };
+    }
+
+    const write = parseWriteCommand(text);
+
+    if (write) {
+      const writeResult = await window.JarvisCodexV2.safeCodeWrite({
+        file: write.file
+      });
+
+      if (!writeResult.ok) {
+        return {
+          handled: true,
+          terminalType: "CODEX_V2_WRITE_BLOCKED",
+          ...writeResult
+        };
+      }
+
+      const verify = await window.JarvisCodexV2.postWriteVerify({
+        file: write.file
+      });
+
+      return {
+        handled: true,
+        terminalType: "CODEX_V2_WRITE_VERIFY",
+        writeResult,
+        verify
+      };
+    }
+
+    return {
+      handled: false
+    };
+  }
+
+  window.JarvisCodexV2BrainRouter = {
+    parseApproveCommand,
+    parseWriteCommand,
+    handleCodexV2Command
+  };
+})();
 
     if (
       wantsVerify
@@ -1809,6 +2018,48 @@ export async function runCognitiveReasoning(
 
   try {
 
+    if (window.JarvisCodexV2BrainRouter?.handleCodexV2Command) {
+      const codexV2Result =
+        await window.JarvisCodexV2BrainRouter.handleCodexV2Command(input);
+
+      if (codexV2Result?.handled) {
+        return {
+          ok: true,
+          reasoning: {
+            reasoningId:
+              crypto.randomUUID(),
+
+            input,
+
+            semantic:
+              null,
+
+            inferences:
+              [],
+
+            strategicMode:
+              "CODEX_V2_DIRECT_COMMAND",
+
+            executionChain:
+              [],
+
+            toolCalls:
+              [],
+
+            semanticContext:
+              null,
+
+            cloudReasoning:
+              codexV2Result,
+
+            timestamp:
+              Date.now()
+          }
+        };
+      }
+    }
+
+
     emitBrainTelemetry(
 
       "COGNITIVE_REASONING_START",
@@ -2008,3 +2259,112 @@ console.log(
 
   "background:#2e1065;color:#c4b5fd;padding:4px 12px;border-radius:6px;font-weight:bold;"
 );
+
+/* ============================================================
+   JARVIS CODEX V2 — BRAIN COMMAND ROUTER
+   Commit 23 Mega-Pack
+   Safe additive block.
+   ============================================================ */
+
+(function initJarvisCodexV2BrainRouter() {
+  if (window.__JARVIS_CODEX_V2_BRAIN_ROUTER__) return;
+  window.__JARVIS_CODEX_V2_BRAIN_ROUTER__ = true;
+
+  function parseApproveCommand(text) {
+    const input = String(text || "").trim();
+    const match = input.match(/^jarvis,\s*apruebo\s+patch\s+(.+)$/i);
+
+    if (!match) return null;
+
+    return {
+      intent: "APPROVE_PATCH",
+      file: match[1].trim()
+    };
+  }
+
+  function parseWriteCommand(text) {
+    const input = String(text || "").trim();
+    const match = input.match(/^jarvis,\s*escribe\s+patch\s+(.+)$/i);
+
+    if (!match) return null;
+
+    return {
+      intent: "WRITE_APPROVED_PATCH",
+      file: match[1].trim()
+    };
+  }
+
+  async function handleCodexV2Command(text) {
+    const approve = parseApproveCommand(text);
+
+    if (approve) {
+      if (!window.JarvisCodexV2?.approvePendingPatch) {
+        return {
+          handled: true,
+          ok: false,
+          blocked: true,
+          code: "CODEX_V2_RUNTIME_NOT_READY"
+        };
+      }
+
+      const approval = window.JarvisCodexV2.approvePendingPatch({
+        file: approve.file
+      });
+
+      return {
+        handled: true,
+        terminalType: "CODEX_V2_APPROVAL",
+        ...approval,
+        nextCommand: approval.ok
+          ? `Jarvis, escribe patch ${approve.file}`
+          : null
+      };
+    }
+
+    const write = parseWriteCommand(text);
+
+    if (write) {
+      if (!window.JarvisCodexV2?.safeCodeWrite || !window.JarvisCodexV2?.postWriteVerify) {
+        return {
+          handled: true,
+          ok: false,
+          blocked: true,
+          code: "CODEX_V2_RUNTIME_NOT_READY"
+        };
+      }
+
+      const writeResult = await window.JarvisCodexV2.safeCodeWrite({
+        file: write.file
+      });
+
+      if (!writeResult.ok) {
+        return {
+          handled: true,
+          terminalType: "CODEX_V2_WRITE_BLOCKED",
+          ...writeResult
+        };
+      }
+
+      const verify = await window.JarvisCodexV2.postWriteVerify({
+        file: write.file
+      });
+
+      return {
+        handled: true,
+        terminalType: "CODEX_V2_WRITE_VERIFY",
+        writeResult,
+        verify
+      };
+    }
+
+    return {
+      handled: false
+    };
+  }
+
+  window.JarvisCodexV2BrainRouter = {
+    parseApproveCommand,
+    parseWriteCommand,
+    handleCodexV2Command
+  };
+})();

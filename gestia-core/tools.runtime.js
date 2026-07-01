@@ -1821,3 +1821,391 @@ window.JarvisToolRuntime = JarvisToolRuntime;
 console.info(
     "🧠 [JARVIS_TOOL_RUNTIME] ONLINE v7.0"
 );
+
+/* ============================================================
+   JARVIS CODEX V2 — APPROVED PATCH CONTRACT + SAFE CODE_WRITE
+   Commit 23 Mega-Pack
+   Safe additive runtime block.
+   ============================================================ */
+
+(function initJarvisCodexV2Runtime() {
+  if (window.__JARVIS_CODEX_V2_RUNTIME__) return;
+  window.__JARVIS_CODEX_V2_RUNTIME__ = true;
+
+  const CodexV2 = {
+    pendingPatch: null,
+    approvedPatch: null,
+    lastWriteResult: null,
+    lastVerifyResult: null
+  };
+
+  function nowIso() {
+    return new Date().toISOString();
+  }
+
+  function normalizeText(value) {
+    return String(value || "").replace(/\r\n/g, "\n");
+  }
+
+  function hasExactBlock(source, search) {
+    if (!source || !search) return false;
+    return normalizeText(source).includes(normalizeText(search));
+  }
+
+  function isDangerousPatch(patch) {
+    const search = normalizeText(patch?.search);
+    const replace = normalizeText(patch?.replace);
+    const joined = `${search}\n${replace}`;
+
+    const blockedReasons = [];
+
+    if (!patch?.file) blockedReasons.push("PATCH_WITHOUT_FILE");
+    if (!search.trim()) blockedReasons.push("PATCH_WITHOUT_EXACT_SEARCH");
+    if (!replace.trim()) blockedReasons.push("PATCH_WITHOUT_EXACT_REPLACE");
+
+    if (/function\s+e\s*\(/.test(joined)) {
+      blockedReasons.push("BLOCKED_MINIFIED_FUNCTION_E");
+    }
+
+    if (/UI_OPTIMIZATION/i.test(joined)) {
+      blockedReasons.push("BLOCKED_GENERIC_UI_OPTIMIZATION");
+    }
+
+    if (/(^|\n)\s*\.card\s*\{/.test(joined) || /(^|\n)\s*\.tarjeta\s*\{/.test(joined)) {
+      blockedReasons.push("BLOCKED_UNIVERSAL_CARD_CSS");
+    }
+
+    if (/querySelectorAll\(["'`](\.card|\.tarjeta)["'`]\)/.test(joined)) {
+      blockedReasons.push("BLOCKED_UNIVERSAL_CARD_SELECTOR");
+    }
+
+    return {
+      blocked: blockedReasons.length > 0,
+      reasons: blockedReasons
+    };
+  }
+
+  function buildDiffPreview(search, replace) {
+    const oldLines = normalizeText(search).split("\n");
+    const newLines = normalizeText(replace).split("\n");
+
+    return [
+      "```diff",
+      ...oldLines.map(line => `- ${line}`),
+      ...newLines.map(line => `+ ${line}`),
+      "```"
+    ].join("\n");
+  }
+
+  async function readRepoFile(file) {
+    if (!file) throw new Error("Missing file");
+
+    if (window.GestiaToolsRuntime?.repo?.read) {
+      const res = await window.GestiaToolsRuntime.repo.read({ file });
+      return res?.content || res?.data?.content || res?.text || "";
+    }
+
+    if (window.toolsRuntime?.repo?.read) {
+      const res = await window.toolsRuntime.repo.read({ file });
+      return res?.content || res?.data?.content || res?.text || "";
+    }
+
+    if (window.repo?.read) {
+      const res = await window.repo.read({ file });
+      return res?.content || res?.data?.content || res?.text || "";
+    }
+
+    throw new Error("repo.read runtime not available");
+  }
+
+  async function writeRepoFile(file, content) {
+    if (!file) throw new Error("Missing file");
+
+    if (window.GestiaToolsRuntime?.repo?.write) {
+      return await window.GestiaToolsRuntime.repo.write({ file, content });
+    }
+
+    if (window.toolsRuntime?.repo?.write) {
+      return await window.toolsRuntime.repo.write({ file, content });
+    }
+
+    if (window.repo?.write) {
+      return await window.repo.write({ file, content });
+    }
+
+    throw new Error("repo.write runtime not available");
+  }
+
+  async function runSyntaxCheck(file) {
+    try {
+      if (window.GestiaToolsRuntime?.tests?.run) {
+        return await window.GestiaToolsRuntime.tests.run({
+          mode: "check:syntax",
+          file
+        });
+      }
+
+      if (window.toolsRuntime?.tests?.run) {
+        return await window.toolsRuntime.tests.run({
+          mode: "check:syntax",
+          file
+        });
+      }
+
+      return {
+        ok: true,
+        skipped: true,
+        reason: "tests.run not available"
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: String(error?.message || error)
+      };
+    }
+  }
+
+  async function runImpact(file) {
+    try {
+      if (window.GestiaToolsRuntime?.repo?.impact) {
+        return await window.GestiaToolsRuntime.repo.impact({ file });
+      }
+
+      if (window.toolsRuntime?.repo?.impact) {
+        return await window.toolsRuntime.repo.impact({ file });
+      }
+
+      return {
+        ok: true,
+        skipped: true,
+        reason: "repo.impact not available"
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: String(error?.message || error)
+      };
+    }
+  }
+
+  async function patchPreviewExact(payload = {}) {
+    const file = payload.file;
+    const search = normalizeText(payload.search);
+    const replace = normalizeText(payload.replace);
+    const dryRun = payload.dryRun === true;
+
+    const danger = isDangerousPatch({ file, search, replace });
+
+    if (danger.blocked) {
+      CodexV2.pendingPatch = null;
+
+      return {
+        ok: false,
+        blocked: true,
+        code: "PATCH_PREVIEW_BLOCKED_BY_GOVERNANCE",
+        reasons: danger.reasons,
+        file,
+        createdAt: nowIso()
+      };
+    }
+
+    if (!dryRun) {
+      CodexV2.pendingPatch = null;
+
+      return {
+        ok: false,
+        blocked: true,
+        code: "PATCH_PREVIEW_REQUIRES_DRY_RUN_TRUE",
+        file,
+        createdAt: nowIso()
+      };
+    }
+
+    const source = await readRepoFile(file);
+
+    if (!hasExactBlock(source, search)) {
+      CodexV2.pendingPatch = null;
+
+      return {
+        ok: false,
+        blocked: true,
+        code: "EXACT_SEARCH_BLOCK_NOT_FOUND",
+        file,
+        createdAt: nowIso()
+      };
+    }
+
+    const preview = {
+      ok: true,
+      dryRun: true,
+      file,
+      search,
+      replace,
+      diffPreview: buildDiffPreview(search, replace),
+      risk: payload.risk || "medium",
+      requiresApproval: true,
+      approvalCommand: `Jarvis, apruebo patch ${file}`,
+      createdAt: nowIso()
+    };
+
+    CodexV2.pendingPatch = preview;
+    CodexV2.approvedPatch = null;
+
+    return preview;
+  }
+
+  function approvePendingPatch(payload = {}) {
+    const file = payload.file || CodexV2.pendingPatch?.file;
+
+    if (!CodexV2.pendingPatch) {
+      return {
+        ok: false,
+        blocked: true,
+        code: "NO_PENDING_PATCH_TO_APPROVE"
+      };
+    }
+
+    if (file !== CodexV2.pendingPatch.file) {
+      return {
+        ok: false,
+        blocked: true,
+        code: "APPROVAL_FILE_MISMATCH",
+        expected: CodexV2.pendingPatch.file,
+        received: file
+      };
+    }
+
+    CodexV2.approvedPatch = {
+      ...CodexV2.pendingPatch,
+      approved: true,
+      approvedAt: nowIso()
+    };
+
+    return {
+      ok: true,
+      code: "PATCH_APPROVED",
+      file,
+      approvedAt: CodexV2.approvedPatch.approvedAt
+    };
+  }
+
+  async function safeCodeWrite(payload = {}) {
+    const approved = CodexV2.approvedPatch;
+
+    if (!approved) {
+      return {
+        ok: false,
+        blocked: true,
+        code: "CODE_WRITE_BLOCKED_NO_APPROVED_PATCH"
+      };
+    }
+
+    if (payload.file && payload.file !== approved.file) {
+      return {
+        ok: false,
+        blocked: true,
+        code: "CODE_WRITE_FILE_MISMATCH",
+        expected: approved.file,
+        received: payload.file
+      };
+    }
+
+    const danger = isDangerousPatch(approved);
+
+    if (danger.blocked) {
+      return {
+        ok: false,
+        blocked: true,
+        code: "CODE_WRITE_BLOCKED_BY_GOVERNANCE",
+        reasons: danger.reasons
+      };
+    }
+
+    const before = await readRepoFile(approved.file);
+
+    if (!hasExactBlock(before, approved.search)) {
+      return {
+        ok: false,
+        blocked: true,
+        code: "CODE_WRITE_BLOCKED_EXACT_SEARCH_NOT_FOUND_AT_WRITE_TIME",
+        file: approved.file
+      };
+    }
+
+    const after = normalizeText(before).replace(
+      normalizeText(approved.search),
+      normalizeText(approved.replace)
+    );
+
+    if (after === normalizeText(before)) {
+      return {
+        ok: false,
+        blocked: true,
+        code: "CODE_WRITE_BLOCKED_NO_REAL_DIFF",
+        file: approved.file
+      };
+    }
+
+    const writeResult = await writeRepoFile(approved.file, after);
+
+    CodexV2.lastWriteResult = {
+      ok: true,
+      file: approved.file,
+      writeResult,
+      writtenAt: nowIso()
+    };
+
+    return CodexV2.lastWriteResult;
+  }
+
+  async function postWriteVerify(payload = {}) {
+    const approved = CodexV2.approvedPatch;
+    const file = payload.file || approved?.file;
+
+    if (!approved || !file) {
+      return {
+        ok: false,
+        blocked: true,
+        code: "VERIFY_BLOCKED_NO_APPROVED_PATCH"
+      };
+    }
+
+    const syntax = await runSyntaxCheck(file);
+    const readBack = await readRepoFile(file);
+    const impact = await runImpact(file);
+
+    const replaceFound = hasExactBlock(readBack, approved.replace);
+    const oldSearchGone = !hasExactBlock(readBack, approved.search);
+
+    const result = {
+      ok: Boolean(syntax?.ok !== false && replaceFound),
+      file,
+      syntax,
+      impact,
+      replaceFound,
+      oldSearchGone,
+      verifiedAt: nowIso(),
+      code: replaceFound
+        ? "POST_WRITE_VERIFY_OK"
+        : "POST_WRITE_VERIFY_FAILED_REPLACE_NOT_FOUND"
+    };
+
+    CodexV2.lastVerifyResult = result;
+
+    if (result.ok) {
+      CodexV2.pendingPatch = null;
+      CodexV2.approvedPatch = null;
+    }
+
+    return result;
+  }
+
+  window.JarvisCodexV2 = {
+    state: CodexV2,
+    patchPreviewExact,
+    approvePendingPatch,
+    safeCodeWrite,
+    postWriteVerify,
+    isDangerousPatch
+  };
+})();

@@ -403,3 +403,38 @@ window.JarvisToolsBridge = ToolsBridge;
 console.info(
     "🌉 [TOOLS_BRIDGE] ONLINE v7.0"
 );
+
+/* ============================================================
+   JARVIS CODEX V2 — TOOL BRIDGE
+   Commit 23 Mega-Pack
+   ============================================================ */
+
+(function initJarvisCodexV2Bridge() {
+  if (window.__JARVIS_CODEX_V2_BRIDGE__) return;
+  window.__JARVIS_CODEX_V2_BRIDGE__ = true;
+
+  function ensureCodexV2() {
+    if (!window.JarvisCodexV2) {
+      throw new Error("JarvisCodexV2 runtime not loaded");
+    }
+    return window.JarvisCodexV2;
+  }
+
+  window.JarvisToolsBridge = window.JarvisToolsBridge || {};
+
+  window.JarvisToolsBridge["repo.patchPreviewExact"] = async function repoPatchPreviewExact(payload) {
+    return await ensureCodexV2().patchPreviewExact(payload);
+  };
+
+  window.JarvisToolsBridge["repo.approvePatch"] = async function repoApprovePatch(payload) {
+    return ensureCodexV2().approvePendingPatch(payload);
+  };
+
+  window.JarvisToolsBridge["repo.codeWriteSafe"] = async function repoCodeWriteSafe(payload) {
+    return await ensureCodexV2().safeCodeWrite(payload);
+  };
+
+  window.JarvisToolsBridge["repo.postWriteVerify"] = async function repoPostWriteVerify(payload) {
+    return await ensureCodexV2().postWriteVerify(payload);
+  };
+})();
