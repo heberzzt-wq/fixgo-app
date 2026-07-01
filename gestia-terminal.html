@@ -1642,6 +1642,90 @@ if (
                     return "";
                 };
 
+                            const readFileFromGithubRaw =
+                async function(file = "") {
+                    const cleanFile =
+                        String(file || "")
+                            .trim()
+                            .replace(/^\.\/+/, "")
+                            .replace(/^\/+/, "");
+
+                    if (
+                        !cleanFile
+                    ) {
+                        return "";
+                    }
+
+                    const safePath =
+                        cleanFile
+                            .split("/")
+                            .map(part =>
+                                encodeURIComponent(part)
+                            )
+                            .join("/");
+
+                    const rawUrl =
+                        `https://raw.githubusercontent.com/heberzzt-wq/fixgo-app/v5.9-polish/${safePath}`;
+
+                    try {
+                        console.warn(
+                            "🧯 [CODEX_V2_READ_FALLBACK_GITHUB_RAW]",
+                            {
+                                file:
+                                    cleanFile,
+                                url:
+                                    rawUrl
+                            }
+                        );
+
+                        const response =
+                            await fetch(
+                                rawUrl,
+                                {
+                                    method:
+                                        "GET",
+                                    cache:
+                                        "no-store"
+                                }
+                            );
+
+                        if (
+                            !response.ok
+                        ) {
+                            console.warn(
+                                "⚠️ [CODEX_V2_GITHUB_RAW_READ_FAIL]",
+                                {
+                                    file:
+                                        cleanFile,
+                                    status:
+                                        response.status
+                                }
+                            );
+
+                            return "";
+                        }
+
+                        const text =
+                            await response.text();
+
+                        return typeof text === "string"
+                            ? text
+                            : "";
+                    }
+                    catch(error) {
+                        console.warn(
+                            "⚠️ [CODEX_V2_GITHUB_RAW_READ_ERROR]",
+                            {
+                                file:
+                                    cleanFile,
+                                error:
+                                    error?.message || String(error)
+                            }
+                        );
+
+                        return "";
+                    }
+                };
             const buildExactSafePatch =
                 function({
                     file,
@@ -1811,15 +1895,24 @@ if (
                     codexContext
                 );
 
-            const impactData =
+                        const impactData =
                 unwrapToolData(
                     impactResult
                 );
 
-            const content =
+            let content =
                 extractReadContent(
                     readResult
                 );
+
+            if (
+                !content
+            ) {
+                content =
+                    await readFileFromGithubRaw(
+                        targetFile
+                    );
+            }
 
             const exactPatch =
                 buildExactSafePatch({
@@ -1906,7 +1999,7 @@ if (
 
             return;
         }
-        
+
         const coreResult =
             await window.GestiaCore.procesarIntencion(
                 comando,
