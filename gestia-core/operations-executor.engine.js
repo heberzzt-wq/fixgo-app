@@ -628,6 +628,17 @@ const transactionRepoWrites =
                     ===================================================== */
                     case "ANALYSIS":
                     case "ANALYZE":
+
+                    console.info(
+    "🧠 [EXECUTOR_ANALYZE_ROUTE]",
+    {
+        route:
+            "ANALYZE_CANONICAL",
+        target,
+        hasPayload:
+            !!payload
+    }
+);
                     case "ANALYZE_UI":
                         retryBuffer.push({
                             type,
@@ -807,7 +818,18 @@ const transactionRepoWrites =
    ANALYZE FILE HYDRATION
 ===================================================== */
 
-case "ANALYZE":
+case "ANALYZE_HYDRATED":
+
+console.info(
+    "🧠 [EXECUTOR_ANALYZE_ROUTE]",
+    {
+        route:
+            "ANALYZE_HYDRATED_LEGACY",
+        target,
+        hasPayload:
+            !!payload
+    }
+);
 case "ANALYZE_UI":
 
     try {
@@ -906,7 +928,19 @@ case "ANALYZE_UI":
                         /* =====================================================
    ANALYZE / ANALYZE_UI CONSUMER
 ===================================================== */
-case "ANALYZE":
+case "ANALYZE_RESULT":
+
+
+console.info(
+    "🧠 [EXECUTOR_ANALYZE_ROUTE]",
+    {
+        route:
+            "ANALYZE_RESULT_LEGACY",
+        target,
+        hasPayload:
+            !!payload
+    }
+);
 case "ANALYZE_UI":
 
     retryBuffer.push({
