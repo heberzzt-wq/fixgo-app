@@ -350,17 +350,35 @@ export const ToolsBridge = {
                 runtimePayload || {}
             );
 
-        const patchBlocked =
-            call?.name === "repo.patchPreview" &&
+                        const patchBlocked =
+            (
+                call?.name === "repo.patchPreview" ||
+                call?.name === "repo.patchPreviewExact"
+            ) &&
             (
                 runtimePayload?.blocked === true ||
                 runtimePayload?.status === "PATCH_PREVIEW_NEEDS_EXACT_BLOCK" ||
+                runtimePayload?.code === "PATCH_BUILDER_BLOCKED_NO_EXACT_SEARCH_REPLACE" ||
+                runtimePayload?.code === "EXACT_SEARCH_BLOCK_NOT_FOUND" ||
+                runtimePayload?.code === "PATCH_PREVIEW_BLOCKED_BY_GOVERNANCE" ||
+
                 runtimePayload?.data?.blocked === true ||
                 runtimePayload?.data?.status === "PATCH_PREVIEW_NEEDS_EXACT_BLOCK" ||
+                runtimePayload?.data?.code === "PATCH_BUILDER_BLOCKED_NO_EXACT_SEARCH_REPLACE" ||
+                runtimePayload?.data?.code === "EXACT_SEARCH_BLOCK_NOT_FOUND" ||
+                runtimePayload?.data?.code === "PATCH_PREVIEW_BLOCKED_BY_GOVERNANCE" ||
+
                 runtimePayload?.runtimeResult?.blocked === true ||
                 runtimePayload?.runtimeResult?.status === "PATCH_PREVIEW_NEEDS_EXACT_BLOCK" ||
+                runtimePayload?.runtimeResult?.code === "PATCH_BUILDER_BLOCKED_NO_EXACT_SEARCH_REPLACE" ||
+                runtimePayload?.runtimeResult?.code === "EXACT_SEARCH_BLOCK_NOT_FOUND" ||
+                runtimePayload?.runtimeResult?.code === "PATCH_PREVIEW_BLOCKED_BY_GOVERNANCE" ||
+
                 runtimeText.includes("PATCH_PREVIEW_NEEDS_EXACT_BLOCK") ||
-                runtimeText.includes("SEARCH_REPLACE_REQUIRED")
+                runtimeText.includes("SEARCH_REPLACE_REQUIRED") ||
+                runtimeText.includes("PATCH_BUILDER_BLOCKED_NO_EXACT_SEARCH_REPLACE") ||
+                runtimeText.includes("EXACT_SEARCH_BLOCK_NOT_FOUND") ||
+                runtimeText.includes("PATCH_PREVIEW_BLOCKED_BY_GOVERNANCE")
             );
 
         if (

@@ -1511,6 +1511,402 @@ if (
             }
         }
 
+                /* =====================================================
+           JARVIS CODEX V2.1 — EXACT PATCH BUILDER HYDRATION
+           Commit 24
+           Flujo seguro:
+           Jarvis, parchea archivo.js
+           → repo.impact
+           → repo.read
+           → construir search/replace exacto desde contenido real
+           → repo.patchPreviewExact
+           → render Codex V2
+        ===================================================== */
+
+        if (
+            window.ToolsBridge?.executeAndCompose &&
+            window.JarvisCodexV2?.patchPreviewExact &&
+            /^jarvis,\s*parchea\s+([a-zA-Z0-9_.\-\/]+?\.(?:js|html|css|json|md|cjs|mjs|txt))$/i.test(
+                String(comando || "").trim()
+            )
+        ) {
+            const codexPatchMatch =
+                String(comando || "")
+                    .trim()
+                    .match(
+                        /^jarvis,\s*parchea\s+([a-zA-Z0-9_.\-\/]+?\.(?:js|html|css|json|md|cjs|mjs|txt))$/i
+                    );
+
+            const targetFile =
+                codexPatchMatch?.[1]
+                    ?.trim()
+                    ?.replace(/^\.\/+/, "")
+                    ?.replace(/^\/+/, "");
+
+            const codexContext = {
+                tenantId:
+                    window.session?.tenantId ||
+                    window.KernelHeberto?.session?.tenantId ||
+                    "UXMAL39",
+                analysisId:
+                    currentTraceId,
+                rawInput:
+                    comando,
+                source:
+                    "codex_v2_exact_patch_builder_commit_24"
+            };
+
+            const unwrapToolData =
+                function(payload = {}) {
+                    const candidates =
+                        [
+                            payload,
+                            payload?.data,
+                            payload?.data?.data,
+                            payload?.response,
+                            payload?.response?.data,
+                            payload?.response?.data?.data,
+                            payload?.result,
+                            payload?.result?.data,
+                            payload?.result?.data?.data,
+                            payload?.result?.response,
+                            payload?.result?.response?.data,
+                            payload?.result?.response?.data?.data,
+                            payload?.result?.observations?.[0],
+                            payload?.result?.observations?.[0]?.data,
+                            payload?.result?.observations?.[0]?.data?.data,
+                            payload?.result?.observations?.[0]?.response,
+                            payload?.result?.observations?.[0]?.response?.data,
+                            payload?.result?.observations?.[0]?.response?.data?.data
+                        ]
+                            .filter(Boolean);
+
+                    for (const item of candidates) {
+                        if (
+                            item &&
+                            typeof item === "object"
+                        ) {
+                            return item;
+                        }
+                    }
+
+                    return {};
+                };
+
+            const extractReadContent =
+                function(payload = {}) {
+                    const candidates =
+                        [
+                            payload,
+                            payload?.data,
+                            payload?.data?.data,
+                            payload?.response,
+                            payload?.response?.data,
+                            payload?.response?.data?.data,
+                            payload?.result,
+                            payload?.result?.data,
+                            payload?.result?.data?.data,
+                            payload?.result?.response,
+                            payload?.result?.response?.data,
+                            payload?.result?.response?.data?.data,
+                            payload?.result?.observations?.[0],
+                            payload?.result?.observations?.[0]?.data,
+                            payload?.result?.observations?.[0]?.data?.data,
+                            payload?.result?.observations?.[0]?.response,
+                            payload?.result?.observations?.[0]?.response?.data,
+                            payload?.result?.observations?.[0]?.response?.data?.data
+                        ]
+                            .filter(Boolean);
+
+                    for (const item of candidates) {
+                        const value =
+                            item?.content ||
+                            item?.text ||
+                            item?.raw ||
+                            item?.sourceCode ||
+                            item?.source ||
+                            item?.data?.content ||
+                            item?.data?.text ||
+                            item?.data?.raw ||
+                            item?.data?.source;
+
+                        if (
+                            typeof value === "string" &&
+                            value.trim() &&
+                            value !== "jarvis_fs_bridge_read_v1"
+                        ) {
+                            return value;
+                        }
+                    }
+
+                    return "";
+                };
+
+            const buildExactSafePatch =
+                function({
+                    file,
+                    content,
+                    impactData
+                }) {
+                    const source =
+                        String(content || "").replace(/\r\n/g, "\n");
+
+                    if (
+                        !file ||
+                        !source.trim()
+                    ) {
+                        return {
+                            ok:
+                                false,
+                            blocked:
+                                true,
+                            code:
+                                "EXACT_PATCH_BUILDER_BLOCKED_NO_SOURCE",
+                            message:
+                                "No puedo construir patch exacto sin contenido real hidratado por repo.read."
+                        };
+                    }
+
+                    if (
+                        source.includes("JARVIS_CODEX_V2_SAFE_PATCH_ANCHOR")
+                    ) {
+                        return {
+                            ok:
+                                false,
+                            blocked:
+                                true,
+                            code:
+                                "EXACT_PATCH_BUILDER_BLOCKED_ALREADY_PATCHED",
+                            message:
+                                "El archivo ya contiene el anchor seguro de Codex V2. No hay diff real nuevo."
+                        };
+                    }
+
+                    const lines =
+                        source.split("\n");
+
+                    const firstNonEmptyIndex =
+                        lines.findIndex(line =>
+                            line.trim()
+                        );
+
+                    if (
+                        firstNonEmptyIndex < 0
+                    ) {
+                        return {
+                            ok:
+                                false,
+                            blocked:
+                                true,
+                            code:
+                                "EXACT_PATCH_BUILDER_BLOCKED_EMPTY_FILE",
+                            message:
+                                "El archivo está vacío o no tiene un bloque exacto seguro para parchear."
+                        };
+                    }
+
+                    const searchStart =
+                        firstNonEmptyIndex;
+
+                    const searchEnd =
+                        Math.min(
+                            lines.length,
+                            searchStart + 8
+                        );
+
+                    const searchBlock =
+                        lines
+                            .slice(
+                                searchStart,
+                                searchEnd
+                            )
+                            .join("\n");
+
+                    if (
+                        !searchBlock.trim() ||
+                        source.indexOf(searchBlock) === -1
+                    ) {
+                        return {
+                            ok:
+                                false,
+                            blocked:
+                                true,
+                            code:
+                                "EXACT_PATCH_BUILDER_BLOCKED_ANCHOR_NOT_FOUND",
+                            message:
+                                "No encontré un bloque exacto estable para usar como search."
+                        };
+                    }
+
+                    const risk =
+                        impactData?.propagatedRisk ||
+                        impactData?.governance ||
+                        impactData?.risk ||
+                        "medium";
+
+                    const safeAnchor =
+                        [
+                            "/* JARVIS_CODEX_V2_SAFE_PATCH_ANCHOR",
+                            `   file: ${file}`,
+                            "   commit: 24",
+                            "   purpose: exact-search-replace hydration marker",
+                            "   note: non-executable governance marker",
+                            "*/"
+                        ]
+                            .join("\n");
+
+                    const replaceBlock =
+                        `${safeAnchor}\n${searchBlock}`;
+
+                    return {
+                        ok:
+                            true,
+                        file,
+                        search:
+                            searchBlock,
+                        replace:
+                            replaceBlock,
+                        dryRun:
+                            true,
+                        risk:
+                            String(risk || "medium").toLowerCase(),
+                        sourceLength:
+                            source.length,
+                        searchLength:
+                            searchBlock.length,
+                        replaceLength:
+                            replaceBlock.length
+                    };
+                };
+
+            console.info(
+                "🧠 [CODEX_V2_EXACT_PATCH_BUILDER_START]",
+                {
+                    file:
+                        targetFile,
+                    traceId:
+                        currentTraceId
+                }
+            );
+
+            const impactResult =
+                await window.ToolsBridge.executeAndCompose(
+                    "repo.impact",
+                    {
+                        file:
+                            targetFile
+                    },
+                    codexContext
+                );
+
+            const readResult =
+                await window.ToolsBridge.executeAndCompose(
+                    "repo.read",
+                    {
+                        file:
+                            targetFile,
+                        maxBytes:
+                            300000
+                    },
+                    codexContext
+                );
+
+            const impactData =
+                unwrapToolData(
+                    impactResult
+                );
+
+            const content =
+                extractReadContent(
+                    readResult
+                );
+
+            const exactPatch =
+                buildExactSafePatch({
+                    file:
+                        targetFile,
+                    content,
+                    impactData
+                });
+
+            if (
+                !exactPatch.ok
+            ) {
+                const blockedPayload = {
+                    ok:
+                        false,
+                    blocked:
+                        true,
+                    terminalType:
+                        "CODEX_V2_WRITE_BLOCKED",
+                    code:
+                        exactPatch.code ||
+                        "EXACT_PATCH_BUILDER_BLOCKED",
+                    message:
+                        exactPatch.message ||
+                        "No se pudo construir patch exacto seguro.",
+                    file:
+                        targetFile
+                };
+
+                window.renderJarvisResponse?.(
+                    "CODEX V2 PATCH BUILDER BLOCKED",
+                    blockedPayload,
+                    "warning"
+                );
+
+                handled =
+                    true;
+
+                return;
+            }
+
+            const preview =
+                await window.JarvisCodexV2.patchPreviewExact({
+                    file:
+                        exactPatch.file,
+                    search:
+                        exactPatch.search,
+                    replace:
+                        exactPatch.replace,
+                    dryRun:
+                        true,
+                    risk:
+                        exactPatch.risk
+                });
+
+            console.info(
+                "🧪 [CODEX_V2_EXACT_PATCH_PREVIEW]",
+                {
+                    file:
+                        targetFile,
+                    ok:
+                        preview?.ok,
+                    blocked:
+                        preview?.blocked,
+                    code:
+                        preview?.code,
+                    requiresApproval:
+                        preview?.requiresApproval
+                }
+            );
+
+            window.renderJarvisResponse?.(
+                preview?.ok
+                    ? "PATCH PREVIEW SAFE"
+                    : "CODEX V2 PATCH PREVIEW BLOCKED",
+                preview,
+                preview?.ok
+                    ? "success"
+                    : "warning"
+            );
+
+            handled =
+                true;
+
+            return;
+        }
+        
         const coreResult =
             await window.GestiaCore.procesarIntencion(
                 comando,
