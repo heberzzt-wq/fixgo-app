@@ -1897,25 +1897,212 @@ console.info(
     ].join("\n");
   }
 
-  async function readRepoFile(file) {
+    async function readRepoFile(file) {
     if (!file) throw new Error("Missing file");
 
-    if (window.GestiaToolsRuntime?.repo?.read) {
-      const res = await window.GestiaToolsRuntime.repo.read({ file });
-      return res?.content || res?.data?.content || res?.text || "";
+    const cleanFile =
+      String(file || "")
+        .trim()
+        .replace(/^\.\/+/, "")
+        .replace(/^\/+/, "");
+
+    async function readFromGithubRaw() {
+      const safePath =
+        cleanFile
+          .split("/")
+          .map(part =>
+            encodeURIComponent(part)
+          )
+          .join("/");
+
+      const rawUrl =
+        `https://raw.githubusercontent.com/heberzzt-wq/fixgo-app/v5.9-polish/${safePath}`;
+
+      console.warn(
+        "🧯 [CODEX_V2_RUNTIME_READ_FALLBACK_GITHUB_RAW]",
+        {
+          file:
+            cleanFile,
+          url:
+            rawUrl
+        }
+      );
+
+      const response =
+        await fetch(
+          rawUrl,
+          {
+            method:
+              "GET",
+            cache:
+              "no-store"
+          }
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          `GITHUB_RAW_READ_FAILED_${response.status}`
+        );
+      }
+
+      const text =
+        await response.text();
+
+      return typeof text === "string"
+        ? text
+        : "";
     }
 
-    if (window.toolsRuntime?.repo?.read) {
-      const res = await window.toolsRuntime.repo.read({ file });
-      return res?.content || res?.data?.content || res?.text || "";
+    try {
+      if (window.GestiaToolsRuntime?.repo?.read) {
+        const res =
+          await window.GestiaToolsRuntime.repo.read({
+            file:
+              cleanFile
+          });
+
+        const content =
+          res?.content ||
+          res?.data?.content ||
+          res?.text ||
+          "";
+
+        if (content) return content;
+      }
+    }
+    catch(error) {
+      console.warn(
+        "⚠️ [CODEX_V2_READ_GESTIA_RUNTIME_FAIL]",
+        error?.message || error
+      );
     }
 
-    if (window.repo?.read) {
-      const res = await window.repo.read({ file });
-      return res?.content || res?.data?.content || res?.text || "";
+    try {
+      if (window.toolsRuntime?.repo?.read) {
+        const res =
+          await window.toolsRuntime.repo.read({
+            file:
+              cleanFile
+          });
+
+        const content =
+          res?.content ||
+          res?.data?.content ||
+          res?.text ||
+          "";
+
+        if (content) return content;
+      }
+    }
+    catch(error) {
+      console.warn(
+        "⚠️ [CODEX_V2_READ_TOOLS_RUNTIME_FAIL]",
+        error?.message || error
+      );
     }
 
-    throw new Error("repo.read runtime not available");
+    try {
+      if (window.repo?.read) {
+        const res =
+          await window.repo.read({
+            file:
+              cleanFile
+          });
+
+        const content =
+          res?.content ||
+          res?.data?.content ||
+          res?.text ||
+          "";
+
+        if (content) return content;
+      }
+    }
+    catch(error) {
+      console.warn(
+        "⚠️ [CODEX_V2_READ_WINDOW_REPO_FAIL]",
+        error?.message || error
+      );
+    }
+
+    try {
+      if (window.ToolsBridge?.executeAndCompose) {
+        const bridgeResult =
+          await window.ToolsBridge.executeAndCompose(
+            "repo.read",
+            {
+              file:
+                cleanFile,
+              maxBytes:
+                300000
+            },
+            {
+              tenantId:
+                window.session?.tenantId ||
+                window.KernelHeberto?.session?.tenantId ||
+                "UXMAL39",
+              analysisId:
+                crypto.randomUUID(),
+              rawInput:
+                `codex_v2_runtime_read ${cleanFile}`,
+              source:
+                "codex_v2_runtime_read_fallback"
+            }
+          );
+
+        const candidates =
+          [
+            bridgeResult,
+            bridgeResult?.data,
+            bridgeResult?.data?.data,
+            bridgeResult?.response,
+            bridgeResult?.response?.data,
+            bridgeResult?.response?.data?.data,
+            bridgeResult?.result,
+            bridgeResult?.result?.data,
+            bridgeResult?.result?.data?.data,
+            bridgeResult?.result?.response,
+            bridgeResult?.result?.response?.data,
+            bridgeResult?.result?.response?.data?.data,
+            bridgeResult?.result?.observations?.[0],
+            bridgeResult?.result?.observations?.[0]?.data,
+            bridgeResult?.result?.observations?.[0]?.data?.data,
+            bridgeResult?.result?.observations?.[0]?.response,
+            bridgeResult?.result?.observations?.[0]?.response?.data,
+            bridgeResult?.result?.observations?.[0]?.response?.data?.data
+          ]
+            .filter(Boolean);
+
+        for (const item of candidates) {
+          const content =
+            item?.content ||
+            item?.text ||
+            item?.raw ||
+            item?.sourceCode ||
+            item?.source ||
+            item?.data?.content ||
+            item?.data?.text ||
+            item?.data?.raw ||
+            item?.data?.source;
+
+          if (
+            typeof content === "string" &&
+            content.trim() &&
+            content !== "jarvis_fs_bridge_read_v1"
+          ) {
+            return content;
+          }
+        }
+      }
+    }
+    catch(error) {
+      console.warn(
+        "⚠️ [CODEX_V2_READ_TOOLS_BRIDGE_FAIL]",
+        error?.message || error
+      );
+    }
+
+    return await readFromGithubRaw();
   }
 
   async function writeRepoFile(file, content) {
