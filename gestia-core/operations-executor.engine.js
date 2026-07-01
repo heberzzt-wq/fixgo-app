@@ -926,6 +926,47 @@ case "ANALYZE_UI":
                     case "UPDATE":
                         if (target.includes('.js') || target.includes('.html') || target.includes('.css')) {
                             
+
+                            if (
+    payload?.action === "UI_OPTIMIZATION" &&
+    !payload?.content &&
+    !payload?.patch
+) {
+    retryBuffer.push({
+        type,
+        target,
+        status:
+            "blocked",
+        blocked:
+            true,
+        reason:
+            "UNSAFE_GENERIC_UI_OPTIMIZATION",
+        result: {
+            blocked:
+                true,
+            message:
+                "Se bloqueo UI_OPTIMIZATION generico. Jarvis no debe inyectar CSS universal sin diagnostico, search y replace exactos.",
+            requiredFlow:
+                [
+                    "repo.read",
+                    "repo.impact",
+                    "repo.diagnose",
+                    "repo.patchPreview",
+                    "approval",
+                    "CODE_WRITE"
+                ]
+        }
+    });
+
+    emitirPulsoHUD(
+        opId,
+        "WRITE",
+        "BLOCKED",
+        "UNSAFE_GENERIC_UI_OPTIMIZATION"
+    );
+
+    break;
+}
                             window.JARVIS_SANDBOX_FILES ||= {};
                             let prevContent = window.JARVIS_SANDBOX_FILES[target]?.content || "// Archivo original";
                             let newContent = payload?.content;
@@ -1117,7 +1158,100 @@ if (
         }
     );
 }
+/* =====================================================
+   UNSAFE GENERATED CONTENT GUARD
+===================================================== */
 
+const unsafeGeneratedContentPatterns =
+    [
+        {
+            id:
+                "RANDOM_FUNCTION_E",
+            pattern:
+                /function\s+e\s*\(\s*\)\s*\{\s*return\s*\{\s*ok\s*:\s*true,\s*timestamp\s*:\s*Date\.now\s*\(\s*\)/s,
+            message:
+                "Bloqueado: funcion generica function e() detectada."
+        },
+        {
+            id:
+                "GENERIC_UI_CARD_PATCH",
+            pattern:
+                /(\.tarjeta\s*,\s*\.card|\[class\*=['"]card['"]|Compactando tarjetas|UI_OPTIMIZATION|INYECCI[ÓO]N JARVIS CODE SURGEON)/i,
+            message:
+                "Bloqueado: parche UI generico detectado."
+        },
+        {
+            id:
+                "IMPORTANT_SPAM_PATCH",
+            pattern:
+                /!important[\s\S]{0,300}!important[\s\S]{0,300}!important/i,
+            message:
+                "Bloqueado: uso excesivo de !important en parche generado."
+        }
+    ];
+
+const unsafeGeneratedContent =
+    typeof nextContent === "string"
+        ? unsafeGeneratedContentPatterns.find(item =>
+            item.pattern.test(
+                nextContent
+            )
+        )
+        : null;
+
+if (
+    unsafeGeneratedContent
+) {
+    console.warn(
+        "🛑 [UNSAFE_GENERATED_CONTENT_BLOCKED]",
+        {
+            file:
+                payload.file,
+            guard:
+                unsafeGeneratedContent.id,
+            message:
+                unsafeGeneratedContent.message
+        }
+    );
+
+    retryBuffer.push({
+        type,
+        target:
+            payload.file,
+        status:
+            "blocked",
+        blocked:
+            true,
+        reason:
+            unsafeGeneratedContent.id,
+        message:
+            unsafeGeneratedContent.message,
+        result: {
+            blocked:
+                true,
+            guard:
+                unsafeGeneratedContent.id,
+            requiredFlow:
+                [
+                    "repo.read",
+                    "repo.impact",
+                    "repo.diagnose",
+                    "repo.patchPreview con search/replace exactos",
+                    "approval",
+                    "syntax validation"
+                ]
+        }
+    });
+
+    emitirPulsoHUD(
+        opId,
+        "WRITE",
+        "BLOCKED",
+        unsafeGeneratedContent.id
+    );
+
+    break;
+}
 /* =====================================================
    CONTENT VALIDATION
 ===================================================== */
