@@ -865,29 +865,79 @@ function buildToolCallsFromInput(
     }
 
     if (
-      wantsPatchPreview ||
+  wantsPatchPreview ||
+  wantsPatchAction
+) {
+  pushToolCall({
+    name:
+      "repo.patchPreview",
+    args:
+      {
+        file:
+          targetFile,
+        intent:
+          rawInput,
+        dryRun:
+          true
+      },
+    reason:
       wantsPatchAction
-    ) {
-      pushToolCall({
-        name:
-          "repo.patchPreview",
-        args:
-          {
-            file:
-              targetFile,
-            intent:
-              rawInput,
-            dryRun:
-              true
-          },
-        reason:
-          wantsPatchAction
-            ? "CODEX_PATCH_DRY_RUN_BEFORE_WRITE"
-            : "CODEX_PATCH_PREVIEW",
-        mutates:
-          false
-      });
-    }
+        ? "CODEX_PATCH_DRY_RUN_BEFORE_WRITE"
+        : "CODEX_PATCH_PREVIEW",
+    mutates:
+      false
+  });
+
+  if (
+    wantsPatchAction
+  ) {
+    pushToolCall({
+      name:
+        "tests.run",
+      args:
+        {
+          command:
+            "check:syntax",
+          timeoutMs:
+            120000
+        },
+      reason:
+        "CODEX_POST_PATCH_VERIFY_SYNTAX",
+      mutates:
+        false
+    });
+
+    pushToolCall({
+      name:
+        "repo.read",
+      args:
+        {
+          file:
+            targetFile,
+          maxBytes:
+            300000
+        },
+      reason:
+        "CODEX_POST_PATCH_READ_BACK",
+      mutates:
+        false
+    });
+
+    pushToolCall({
+      name:
+        "repo.impact",
+      args:
+        {
+          file:
+            targetFile
+        },
+      reason:
+        "CODEX_POST_PATCH_IMPACT_BACK",
+      mutates:
+        false
+    });
+  }
+}
 
     if (
       wantsVerify
