@@ -322,75 +322,81 @@ export const ToolsBridge = {
     },
 
     async executeMany(toolCalls = [], context = {}) {
-        const results = [];
+    const results = [];
 
-        for (const call of toolCalls) {
-            const result =
-                await this.executeAndCompose(
-                    call.name,
-                    call.args || {},
-                    {
-                        ...context,
-                        approved:
-                            call.approved === true
-                    }
-                );
+    for (const call of toolCalls) {
+        const result =
+            await this.executeAndCompose(
+                call.name,
+                call.args || {},
+                {
+                    ...context,
+                    approved:
+                        call.approved === true
+                }
+            );
 
-            results.push(result);
+        results.push(result);
 
-            const runtimePayload =
-    result?.runtimeResult ||
-    result?.data ||
-    result?.result ||
-    result?.response ||
-    result;
+        const runtimePayload =
+            result?.runtimeResult ||
+            result?.data ||
+            result?.result ||
+            result?.response ||
+            result;
 
-const patchBlocked =
-    toolCall?.name === "repo.patchPreview" &&
-    (
-        runtimePayload?.blocked === true ||
-        runtimePayload?.status === "PATCH_PREVIEW_NEEDS_EXACT_BLOCK" ||
-        runtimePayload?.data?.blocked === true ||
-        runtimePayload?.data?.status === "PATCH_PREVIEW_NEEDS_EXACT_BLOCK"
-    );
+        const runtimeText =
+            JSON.stringify(
+                runtimePayload || {}
+            );
 
-if (
-    patchBlocked
-) {
-    console.info(
-        "🛡️ [AGENT_LOOP_HALTED_AFTER_SAFE_PATCH_BLOCK]",
-        {
-            tool:
-                toolCall.name,
-            status:
-                runtimePayload?.status ||
-                runtimePayload?.data?.status ||
-                "PATCH_BLOCKED",
-            reason:
-                runtimePayload?.reason ||
-                runtimePayload?.data?.reason ||
-                "SEARCH_REPLACE_REQUIRED"
-        }
-    );
+        const patchBlocked =
+            call?.name === "repo.patchPreview" &&
+            (
+                runtimePayload?.blocked === true ||
+                runtimePayload?.status === "PATCH_PREVIEW_NEEDS_EXACT_BLOCK" ||
+                runtimePayload?.data?.blocked === true ||
+                runtimePayload?.data?.status === "PATCH_PREVIEW_NEEDS_EXACT_BLOCK" ||
+                runtimePayload?.runtimeResult?.blocked === true ||
+                runtimePayload?.runtimeResult?.status === "PATCH_PREVIEW_NEEDS_EXACT_BLOCK" ||
+                runtimeText.includes("PATCH_PREVIEW_NEEDS_EXACT_BLOCK") ||
+                runtimeText.includes("SEARCH_REPLACE_REQUIRED")
+            );
 
-    break;
-}
+        if (
+            patchBlocked
+        ) {
+            console.info(
+                "🛡️ [AGENT_LOOP_HALTED_AFTER_SAFE_PATCH_BLOCK]",
+                {
+                    tool:
+                        call.name,
+                    status:
+                        "PATCH_PREVIEW_NEEDS_EXACT_BLOCK",
+                    reason:
+                        "SEARCH_REPLACE_REQUIRED",
+                    next:
+                        "No se ejecutan tests ni planner porque no hubo diff real."
+                }
+            );
 
-            if (result?.ok === false) {
-                break;
-            }
-
-            if (
-                result?.status === "PENDING_APPROVAL"
-            ) {
-                break;
-            }
+            break;
         }
 
-        return results;
+        if (result?.ok === false) {
+            break;
+        }
+
+        if (
+            result?.status === "PENDING_APPROVAL"
+        ) {
+            break;
+        }
     }
-};
 
+    return results;
+}
+};
 window.ToolsBridge = ToolsBridge;
 window.JarvisToolsBridge = ToolsBridge;
 
