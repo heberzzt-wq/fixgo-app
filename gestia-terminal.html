@@ -1483,34 +1483,71 @@ if (
         ===================================================== */
 
         if (
-            window.JarvisCodexV2BrainRouter?.handleCodexV2Command &&
-            /^(jarvis,\s*)?(apruebo|aprobar|aprueba|escribe)\s+patch\s+/i.test(
-                String(comando || "").trim()
-            )
+    window.JarvisCodexV2BrainRouter?.handleCodexV2Command &&
+    /^(jarvis,\s*)?(apruebo|aprobar|aprueba|escribe)\s+patch\s+/i.test(
+        String(comando || "").trim()
+    )
+) {
+    try {
+        const codexV2Result =
+            await window.JarvisCodexV2BrainRouter.handleCodexV2Command(
+                comando
+            );
+
+        if (
+            codexV2Result?.handled
         ) {
-            const codexV2Result =
-                await window.JarvisCodexV2BrainRouter.handleCodexV2Command(
-                    comando
-                );
+            window.renderJarvisResponse?.(
+                codexV2Result.terminalType || "Jarvis Codex V2",
+                codexV2Result,
+                codexV2Result.ok === false || codexV2Result.blocked
+                    ? "warning"
+                    : "success"
+            );
 
-            if (
-                codexV2Result?.handled
-            ) {
-                window.renderJarvisResponse?.(
-                    codexV2Result.terminalType || "Jarvis Codex V2",
-                    codexV2Result,
-                    codexV2Result.ok === false || codexV2Result.blocked
-                        ? "warning"
-                        : "success"
-                );
+            handled =
+                true;
 
-                handled =
-                    true;
-
-                return;
-            }
+            return;
         }
+    }
+    catch(error) {
+        const blockedWritePayload = {
+            ok:
+                false,
+            blocked:
+                true,
+            terminalType:
+                "CODEX_V2_WRITE_BLOCKED",
+            code:
+                error?.message === "repo.write runtime not available"
+                    ? "CODE_WRITE_BLOCKED_WRITE_RUNTIME_NOT_AVAILABLE"
+                    : "CODEX_V2_COMMAND_FAILED",
+            message:
+                error?.message === "repo.write runtime not available"
+                    ? "Escritura bloqueada: repo.write no está disponible. Levanta el bridge local localhost:3344 para escribir."
+                    : String(error?.message || error),
+            error:
+                String(error?.message || error)
+        };
 
+        console.warn(
+            "🛡️ [CODEX_V2_COMMAND_CONTAINED]",
+            blockedWritePayload
+        );
+
+        window.renderJarvisResponse?.(
+            "CODE_WRITE BLOCKED",
+            blockedWritePayload,
+            "warning"
+        );
+
+        handled =
+            true;
+
+        return;
+    }
+}
                 /* =====================================================
            JARVIS CODEX V2.1 — EXACT PATCH BUILDER HYDRATION
            Commit 24
