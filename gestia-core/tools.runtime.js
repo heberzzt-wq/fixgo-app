@@ -778,13 +778,8 @@ JarvisToolRuntime.register({
                 readBack?.content || "";
 
             const replaceFound =
-                typeof content === "string" &&
-                content.includes(replace);
-
-            const replaceContainsSearch =
-    search &&
-    replace &&
-    replace.includes(search);
+    typeof content === "string" &&
+    content.includes(replace);
 
 const replaceContainsSearch =
     search &&
@@ -807,25 +802,26 @@ const ok =
         oldSearchGone === null
     );
 
-            return {
-                ok,
-                success:
-                    ok,
-                status:
-                    ok
-                        ? "POST_WRITE_VERIFY_OK"
-                        : "POST_WRITE_VERIFY_FAILED",
-                file,
-                path:
-                    args.path || file,
-                replaceFound,
-                oldSearchGone,
-                contentLength:
-                    content.length,
-                readBack,
-                tool:
-                    "repo.postWriteVerify"
-            };
+return {
+    ok,
+    success:
+        ok,
+    status:
+        ok
+            ? "POST_WRITE_VERIFY_OK"
+            : "POST_WRITE_VERIFY_FAILED",
+    file,
+    path:
+        args.path || file,
+    replaceFound,
+    oldSearchGone,
+    replaceContainsSearch,
+    contentLength:
+        content.length,
+    readBack,
+    tool:
+        "repo.postWriteVerify"
+};
         }
 });
 JarvisToolRuntime.register({
