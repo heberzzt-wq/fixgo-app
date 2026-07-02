@@ -537,10 +537,12 @@ catch(error) {
             tool:
                 "repo.read"
         };
-    }
-});
+        }
+ });
+ 
+window.JarvisLocalBridge ||= {};
 
-window.JarvisLocalBridge.writeFile ||= async function(payload = {}) {
+ window.JarvisLocalBridge.writeFile ||= async function(payload = {}) {
     const file =
         payload.file ||
         payload.path ||
