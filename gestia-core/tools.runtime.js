@@ -786,6 +786,11 @@ JarvisToolRuntime.register({
     replace &&
     replace.includes(search);
 
+const replaceContainsSearch =
+    search &&
+    replace &&
+    replace.includes(search);
+
 const oldSearchGone =
     search
         ? (
@@ -814,7 +819,6 @@ const ok =
                 path:
                     args.path || file,
                 replaceFound,
-                replaceContainsSearch,
                 oldSearchGone,
                 contentLength:
                     content.length,
@@ -927,24 +931,36 @@ JarvisToolRuntime.register({
                     }
                 );
 
-            if (
-                preview?.ok !== true &&
-                preview?.success !== true
-            ) {
-                return {
-                    ok: false,
-                    success: false,
-                    status: "PATCH_PREVIEW_FAILED",
-                    error:
-                        preview?.error ||
-                        preview?.status ||
-                        "PATCH_PREVIEW_FAILED",
-                    file,
-                    path,
-                    preview,
-                    tool: "repo.safePatchApply"
-                };
-            }
+            const previewData =
+    preview?.data ||
+    preview ||
+    {};
+
+const previewReady =
+    preview?.ok === true ||
+    preview?.success === true ||
+    preview?.status === "COMPLETED" ||
+    preview?.status === "PATCH_PREVIEW_READY" ||
+    previewData?.status === "PATCH_PREVIEW_READY" ||
+    previewData?.status === "COMPLETED";
+
+if (previewReady !== true) {
+    return {
+        ok: false,
+        success: false,
+        status: "PATCH_PREVIEW_FAILED",
+        error:
+            previewData?.error ||
+            previewData?.status ||
+            preview?.error ||
+            preview?.status ||
+            "PATCH_PREVIEW_FAILED",
+        file,
+        path,
+        preview,
+        tool: "repo.safePatchApply"
+    };
+}
 
             const readBefore =
                 await JarvisToolRuntime.execute(
