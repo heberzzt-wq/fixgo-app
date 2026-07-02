@@ -63,10 +63,7 @@ export const JarvisToolRuntime = {
                 this._middleware.length
         };
 
-        if (typeof window !== "undefined") {
-    window.JarvisToolRuntime ||= JarvisToolRuntime;
-    window.JarvisTools ||= JarvisToolRuntime;
-}
+        
     },
 
     async execute(name, args = {}, context = {}) {
@@ -249,12 +246,15 @@ if (
         );
     }
 
-    window.JarvisToolRuntime =
-        JarvisToolRuntime;
+   window.JarvisToolRuntime =
+    JarvisToolRuntime;
 
-    window.toolsRuntime =
-        window.toolsRuntime ||
-        {};
+window.JarvisTools =
+    JarvisToolRuntime;
+
+window.toolsRuntime =
+    window.toolsRuntime ||
+    {};
 
     window.toolsRuntime.execute =
         JarvisToolRuntime.execute.bind(
