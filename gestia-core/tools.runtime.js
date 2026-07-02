@@ -814,7 +814,272 @@ JarvisToolRuntime.register({
             };
         }
 });
+JarvisToolRuntime.register({
+    name:
+        "repo.safePatchApply",
+    description:
+        "Ejecuta un patch seguro de punta a punta: preview, aprobación, escritura y verificación post-write.",
+    mutates:
+        true,
+    requiresApproval:
+        true,
+    output:
+        "SAFE_PATCH_APPLY_RESULT",
+    execute:
+        async (args = {}, context = {}) => {
+            const file =
+                args.file ||
+                args.path ||
+                "";
 
+            const path =
+                args.path ||
+                args.file ||
+                "";
+
+            const search =
+                args.search ||
+                "";
+
+            const replace =
+                args.replace ||
+                "";
+
+            if (!file || !path) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CONTRACT_INVALID",
+                    error: "FILE_REQUIRED",
+                    tool: "repo.safePatchApply"
+                };
+            }
+
+            if (!search) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CONTRACT_INVALID",
+                    error: "SEARCH_REQUIRED",
+                    file,
+                    path,
+                    tool: "repo.safePatchApply"
+                };
+            }
+
+            if (!replace) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CONTRACT_INVALID",
+                    error: "REPLACE_REQUIRED",
+                    file,
+                    path,
+                    tool: "repo.safePatchApply"
+                };
+            }
+
+            if (
+                context?.approved !== true &&
+                args?.approved !== true &&
+                args?.codexApproved !== true
+            ) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "PENDING_APPROVAL",
+                    error: "APPROVAL_REQUIRED: repo.safePatchApply",
+                    file,
+                    path,
+                    search,
+                    replace,
+                    mutates: true,
+                    requiresApproval: true,
+                    approvalCommand:
+                        `Jarvis, apruebo safe patch ${file}`,
+                    tool: "repo.safePatchApply"
+                };
+            }
+
+            const preview =
+                await JarvisToolRuntime.execute(
+                    "repo.patchPreview",
+                    {
+                        file,
+                        path,
+                        search,
+                        replace,
+                        dryRun: true
+                    },
+                    {
+                        ...context,
+                        approved: false
+                    }
+                );
+
+            if (
+                preview?.ok !== true &&
+                preview?.success !== true
+            ) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "PATCH_PREVIEW_FAILED",
+                    error:
+                        preview?.error ||
+                        preview?.status ||
+                        "PATCH_PREVIEW_FAILED",
+                    file,
+                    path,
+                    preview,
+                    tool: "repo.safePatchApply"
+                };
+            }
+
+            const readBefore =
+                await JarvisToolRuntime.execute(
+                    "repo.read",
+                    {
+                        file,
+                        path
+                    },
+                    context
+                );
+
+            const currentContent =
+                readBefore?.data?.content ||
+                readBefore?.content ||
+                "";
+
+            if (
+                typeof currentContent !== "string" ||
+                !currentContent.includes(search)
+            ) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "SEARCH_BLOCK_NOT_FOUND",
+                    error:
+                        "El bloque search no existe exactamente antes de escribir.",
+                    file,
+                    path,
+                    search,
+                    readBefore,
+                    tool: "repo.safePatchApply"
+                };
+            }
+
+            const nextContent =
+                currentContent.replace(
+                    search,
+                    replace
+                );
+
+            if (nextContent === currentContent) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "NO_DIFF",
+                    error:
+                        "El replace no produjo cambios reales.",
+                    file,
+                    path,
+                    tool: "repo.safePatchApply"
+                };
+            }
+
+            const writeResult =
+                await JarvisToolRuntime.execute(
+                    "repo.write",
+                    {
+                        file,
+                        path,
+                        content:
+                            nextContent,
+                        approved:
+                            true,
+                        codexApproved:
+                            true
+                    },
+                    {
+                        ...context,
+                        approved:
+                            true
+                    }
+                );
+
+            if (
+                writeResult?.ok !== true &&
+                writeResult?.success !== true
+            ) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "WRITE_FAILED",
+                    error:
+                        writeResult?.error ||
+                        writeResult?.status ||
+                        "WRITE_FAILED",
+                    file,
+                    path,
+                    preview,
+                    writeResult,
+                    tool: "repo.safePatchApply"
+                };
+            }
+
+            const verify =
+                await JarvisToolRuntime.execute(
+                    "repo.postWriteVerify",
+                    {
+                        file,
+                        path,
+                        search,
+                        replace
+                    },
+                    context
+                );
+
+            const verifyData =
+                verify?.data ||
+                verify ||
+                {};
+
+            const verified =
+                verifyData?.status === "POST_WRITE_VERIFY_OK" ||
+                verify?.status === "POST_WRITE_VERIFY_OK" ||
+                (
+                    verifyData?.replaceFound === true &&
+                    verifyData?.oldSearchGone === true
+                );
+
+            return {
+                ok:
+                    verified === true,
+                success:
+                    verified === true,
+                status:
+                    verified
+                        ? "SAFE_PATCH_APPLY_OK"
+                        : "SAFE_PATCH_APPLY_VERIFY_FAILED",
+                file,
+                path,
+                search,
+                replace,
+                beforeLength:
+                    currentContent.length,
+                afterLength:
+                    nextContent.length,
+                preview,
+                writeResult,
+                verify,
+                tool:
+                    "repo.safePatchApply",
+                source:
+                    "repo_safe_patch_apply_v1"
+            };
+        }
+});
 JarvisToolRuntime.register({
     name: "repo.search",
     description: "Busca patrones, expresiones o contexto dentro del código base.",
