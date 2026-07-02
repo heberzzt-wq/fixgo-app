@@ -706,6 +706,116 @@ JarvisToolRuntime.register({
 });
 
 JarvisToolRuntime.register({
+    name:
+        "repo.postWriteVerify",
+    description:
+        "Verifica que un patch aprobado haya quedado aplicado leyendo el archivo después de escribir.",
+    mutates:
+        false,
+    requiresApproval:
+        false,
+    output:
+        "POST_WRITE_VERIFY_RESULT",
+    execute:
+        async (args = {}, context = {}) => {
+            const file =
+                args.file ||
+                args.path ||
+                "";
+
+            const search =
+                args.search ||
+                "";
+
+            const replace =
+                args.replace ||
+                "";
+
+            if (!file) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CONTRACT_INVALID",
+                    error: "FILE_REQUIRED",
+                    tool: "repo.postWriteVerify"
+                };
+            }
+
+            if (!replace) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CONTRACT_INVALID",
+                    error: "REPLACE_REQUIRED",
+                    file,
+                    tool: "repo.postWriteVerify"
+                };
+            }
+
+            if (!window.JarvisLocalBridge?.readFile) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "LOCAL_BRIDGE_REQUIRED",
+                    error: "JarvisLocalBridge.readFile no está disponible.",
+                    file,
+                    tool: "repo.postWriteVerify"
+                };
+            }
+
+            const readBack =
+                await window.JarvisLocalBridge.readFile({
+                    file,
+                    path:
+                        args.path || file,
+                    maxBytes:
+                        args.maxBytes || 300000,
+                    source:
+                        "repo_post_write_verify_v1"
+                });
+
+            const content =
+                readBack?.content || "";
+
+            const replaceFound =
+                typeof content === "string" &&
+                content.includes(replace);
+
+            const oldSearchGone =
+                search
+                    ? !content.includes(search)
+                    : null;
+
+            const ok =
+                replaceFound === true &&
+                (
+                    oldSearchGone === true ||
+                    oldSearchGone === null
+                );
+
+            return {
+                ok,
+                success:
+                    ok,
+                status:
+                    ok
+                        ? "POST_WRITE_VERIFY_OK"
+                        : "POST_WRITE_VERIFY_FAILED",
+                file,
+                path:
+                    args.path || file,
+                replaceFound,
+                oldSearchGone,
+                contentLength:
+                    content.length,
+                readBack,
+                tool:
+                    "repo.postWriteVerify"
+            };
+        }
+});
+
+JarvisToolRuntime.register({
     name: "repo.search",
     description: "Busca patrones, expresiones o contexto dentro del código base.",
     mutates: false,

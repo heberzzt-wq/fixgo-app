@@ -6,7 +6,7 @@ function a() {
 
     return {
         ok: true,
-        timestamp: date.now()
+        timestamp: Date.now()
     };
 }
 
@@ -19,4 +19,3 @@ export function runtimelatency() {
 
 }
  /* fixgo_safe_edit_end */                                                                                                                                                                   
-
