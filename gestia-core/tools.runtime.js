@@ -268,6 +268,7 @@ JarvisToolRuntime.register({
             };
         }
 
+
         const normalizedFile =
             String(file)
                 .replace(/^\.\/+/, "")
@@ -485,6 +486,165 @@ catch(error) {
     }
 });
 
+window.JarvisLocalBridge.writeFile ||= async function(payload = {}) {
+    const file =
+        payload.file ||
+        payload.path ||
+        "";
+
+    const content =
+        typeof payload.content === "string"
+            ? payload.content
+            : "";
+
+    const dryRun =
+        payload.dryRun === true;
+
+    const response =
+        await fetch(
+            "http://localhost:3344/write",
+            {
+                method:
+                    "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body:
+                    JSON.stringify({
+                        file,
+                        path:
+                            payload.path || file,
+                        content,
+                        dryRun,
+                        source:
+                            payload.source ||
+                            "jarvis_repo_write_v7"
+                    })
+            }
+        );
+
+    const rawText =
+        await response.text();
+
+    let result =
+        null;
+
+    try {
+        result =
+            JSON.parse(rawText);
+    }
+    catch(error) {
+        result = {
+            ok:
+                false,
+            status:
+                "INVALID_WRITE_RESPONSE",
+            error:
+                "WRITE_ENDPOINT_DID_NOT_RETURN_JSON",
+            raw:
+                rawText.slice(0, 500),
+            parseError:
+                error?.message || String(error)
+        };
+    }
+
+    return {
+        ...result,
+        httpStatus:
+            response.status,
+        source:
+            result?.source ||
+            "jarvis_local_bridge_write_client_v7"
+    };
+};
+
+JarvisToolRuntime.register({
+    name:
+        "repo.write",
+    description:
+        "Escribe un archivo del repo mediante Jarvis Local FS Bridge. Requiere aprobación Codex V2.",
+    mutates:
+        true,
+    requiresApproval:
+        true,
+    output:
+        "REPO_WRITE_RESULT",
+    execute:
+        async (args = {}, context = {}) => {
+            if (
+                context?.approved !== true &&
+                args?.approved !== true &&
+                args?.codexApproved !== true
+            ) {
+                return {
+                    ok:
+                        false,
+                    status:
+                        "WRITE_REQUIRES_APPROVAL",
+                    error:
+                        "WRITE_REQUIRES_APPROVAL",
+                    file:
+                        args.file || args.path || "",
+                    source:
+                        "repo_write_runtime_v7"
+                };
+            }
+
+            if (
+                !window.JarvisLocalBridge?.writeFile
+            ) {
+                return {
+                    ok:
+                        false,
+                    status:
+                        "WRITE_BRIDGE_NOT_AVAILABLE",
+                    error:
+                        "WRITE_BRIDGE_NOT_AVAILABLE",
+                    file:
+                        args.file || args.path || "",
+                    source:
+                        "repo_write_runtime_v7"
+                };
+            }
+
+            const result =
+                await window.JarvisLocalBridge.writeFile({
+                    file:
+                        args.file || args.path || "",
+                    path:
+                        args.path || args.file || "",
+                    content:
+                        args.content || "",
+                    dryRun:
+                        args.dryRun === true,
+                    source:
+                        "repo_write_runtime_v7"
+                });
+
+            return {
+                ok:
+                    result?.ok === true,
+                status:
+                    result?.status ||
+                    (
+                        result?.ok === true
+                            ? "WRITE_COMPLETED"
+                            : "WRITE_FAILED"
+                    ),
+                file:
+                    args.file || args.path || "",
+                path:
+                    result?.path || args.path || args.file || "",
+                httpStatus:
+                    result?.httpStatus || null,
+                data:
+                    result,
+                source:
+                    "repo_write_runtime_v7"
+            };
+        }
+});
 
 JarvisToolRuntime.register({
     name: "repo.search",
@@ -1441,6 +1601,79 @@ window.JarvisLocalBridge.readFile ||= async function(payload = {}) {
         source:
             result?.source ||
             "jarvis_local_bridge_read_client_v7"
+    };
+};
+
+window.JarvisLocalBridge.writeFile ||= async function(payload = {}) {
+    const file =
+        payload.file ||
+        payload.path ||
+        "";
+
+    const content =
+        typeof payload.content === "string"
+            ? payload.content
+            : "";
+
+    const dryRun =
+        payload.dryRun === true;
+
+    const response =
+        await fetch(
+            "http://localhost:3344/write",
+            {
+                method:
+                    "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body:
+                    JSON.stringify({
+                        file,
+                        path:
+                            payload.path || file,
+                        content,
+                        dryRun,
+                        source:
+                            payload.source ||
+                            "jarvis_repo_write_v7"
+                    })
+            }
+        );
+
+    const rawText =
+        await response.text();
+
+    let result =
+        null;
+
+    try {
+        result =
+            JSON.parse(rawText);
+    }
+    catch(error) {
+        result = {
+            ok:
+                false,
+            status:
+                "INVALID_WRITE_RESPONSE",
+            error:
+                "WRITE_ENDPOINT_DID_NOT_RETURN_JSON",
+            raw:
+                rawText.slice(0, 500),
+            parseError:
+                error?.message || String(error)
+        };
+    }
+
+    return {
+        ...result,
+        httpStatus:
+            response.status,
+        source:
+            result?.source ||
+            "jarvis_local_bridge_write_client_v7"
     };
 };
 
