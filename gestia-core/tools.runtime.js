@@ -781,17 +781,26 @@ JarvisToolRuntime.register({
                 typeof content === "string" &&
                 content.includes(replace);
 
-            const oldSearchGone =
-                search
-                    ? !content.includes(search)
-                    : null;
+            const replaceContainsSearch =
+    search &&
+    replace &&
+    replace.includes(search);
 
-            const ok =
-                replaceFound === true &&
-                (
-                    oldSearchGone === true ||
-                    oldSearchGone === null
-                );
+const oldSearchGone =
+    search
+        ? (
+            replaceContainsSearch
+                ? null
+                : !content.includes(search)
+        )
+        : null;
+
+const ok =
+    replaceFound === true &&
+    (
+        oldSearchGone === true ||
+        oldSearchGone === null
+    );
 
             return {
                 ok,
@@ -805,6 +814,7 @@ JarvisToolRuntime.register({
                 path:
                     args.path || file,
                 replaceFound,
+                replaceContainsSearch,
                 oldSearchGone,
                 contentLength:
                     content.length,
