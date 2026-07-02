@@ -217,6 +217,60 @@ export const JarvisToolRuntime = {
     }
 };
 
+
+/* =====================================================
+   JARVIS TOOL RUNTIME — WINDOW SINGLETON SYNC
+   Commit 25.1
+   Evita que window.JarvisToolRuntime apunte a un runtime vacío.
+===================================================== */
+
+if (
+    typeof window !== "undefined"
+) {
+    if (
+        window.JarvisToolRuntime &&
+        window.JarvisToolRuntime !== JarvisToolRuntime &&
+        window.JarvisToolRuntime?._registry instanceof Map &&
+        window.JarvisToolRuntime._registry.size > 0 &&
+        JarvisToolRuntime._registry.size === 0
+    ) {
+        window.JarvisToolRuntime._registry.forEach(
+            (tool, name) => {
+                JarvisToolRuntime._registry.set(
+                    name,
+                    tool
+                );
+            }
+        );
+    }
+
+    window.JarvisToolRuntime =
+        JarvisToolRuntime;
+
+    window.toolsRuntime =
+        window.toolsRuntime ||
+        {};
+
+    window.toolsRuntime.execute =
+        JarvisToolRuntime.execute.bind(
+            JarvisToolRuntime
+        );
+
+    window.toolsRuntime.get =
+        JarvisToolRuntime.get.bind(
+            JarvisToolRuntime
+        );
+
+    window.toolsRuntime.has =
+        JarvisToolRuntime.has.bind(
+            JarvisToolRuntime
+        );
+
+    window.toolsRuntime.list =
+        JarvisToolRuntime.list.bind(
+            JarvisToolRuntime
+        );
+}
 // Registro de herramientas Read-Only iniciales
 JarvisToolRuntime.register({
     name: "repo.audit",
