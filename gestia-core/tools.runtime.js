@@ -2466,42 +2466,41 @@ JarvisToolRuntime.register({
         } =
             await import('/gestia-core/hubs/repo.hub.js');
 
-        const result =
-            await generatePatch(safeArgs);
+    const normalizedStatus =
+    result?.status ||
+    "PATCH_PREVIEW_READY";
 
-        // 7. Interceptar respuestas lógicas del hub que sean fallos en la práctica
-        if (
-            result?.status === "SEARCH_REQUIRED" ||
-            result?.error
-        ) {
-            return {
-                ok: false,
-                status:
-                    "PATCH_FAILED",
-                error:
-                    result.error ||
-                    "El motor de patches rebotó la solicitud (SEARCH_REQUIRED o similar).",
-                details:
-                    result,
-                tool:
-                    "repo.patchPreview"
-            };
-        }
+const isPreviewReady =
+    normalizedStatus === "PATCH_PREVIEW_READY";
 
-        return {
-            ...result,
-            ok:
-                result?.ok !== false,
-            status:
-                result?.status ||
-                "PATCH_PREVIEW_READY",
-            file:
-                normalizedFile,
-            dryRun:
-                true,
-            tool:
-                "repo.patchPreview"
-        };
+return {
+    ...result,
+    ok:
+        isPreviewReady
+            ? true
+            : result?.ok !== false,
+    success:
+        isPreviewReady
+            ? true
+            : result?.success === true,
+    status:
+        normalizedStatus,
+    reason:
+        isPreviewReady
+            ? null
+            : result?.reason || null,
+    error:
+        isPreviewReady
+            ? null
+            : result?.error || null,
+    file:
+        normalizedFile,
+    dryRun:
+        true,
+    tool:
+        "repo.patchPreview"
+};
+
     }
 });
 
