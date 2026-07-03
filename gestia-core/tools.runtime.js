@@ -824,6 +824,213 @@ return {
 };
         }
 });
+
+// Commit 33 - JARVIS CODEX V2: Snapshot Before Write
+JarvisToolRuntime.register({
+    name:
+        "repo.snapshotBeforeWrite",
+    description:
+        "Guarda un snapshot recuperable antes de cualquier escritura del repo. Base para rollback.",
+    mutates:
+        false,
+    requiresApproval:
+        false,
+    output:
+        "REPO_SNAPSHOT_BEFORE_WRITE_RESULT_V7",
+    execute:
+        async (args = {}, context = {}) => {
+            const file =
+                args.file ||
+                args.path ||
+                "";
+
+            const path =
+                args.path ||
+                args.file ||
+                "";
+
+            const content =
+                typeof args.content === "string"
+                    ? args.content
+                    : null;
+
+            if (!file || !path) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CONTRACT_INVALID",
+                    error: "FILE_REQUIRED",
+                    tool: "repo.snapshotBeforeWrite"
+                };
+            }
+
+            const hashString =
+                async value => {
+                    const text =
+                        String(value || "");
+
+                    if (
+                        window.crypto?.subtle &&
+                        window.TextEncoder
+                    ) {
+                        const bytes =
+                            new TextEncoder().encode(text);
+
+                        const digest =
+                            await window.crypto.subtle.digest(
+                                "SHA-256",
+                                bytes
+                            );
+
+                        return Array
+                            .from(new Uint8Array(digest))
+                            .map(byte => byte.toString(16).padStart(2, "0"))
+                            .join("");
+                    }
+
+                    let hash =
+                        0;
+
+                    for (let index = 0; index < text.length; index += 1) {
+                        hash =
+                            ((hash << 5) - hash) +
+                            text.charCodeAt(index);
+
+                        hash |= 0;
+                    }
+
+                    return `fallback-${Math.abs(hash)}`;
+                };
+
+            const beforeContent =
+                content !== null
+                    ? content
+                    : (
+                        await JarvisToolRuntime.execute(
+                            "repo.read",
+                            {
+                                file,
+                                path,
+                                maxBytes:
+                                    args.maxBytes || 1000000
+                            },
+                            context
+                        )
+                    )?.data?.content || "";
+
+            if (typeof beforeContent !== "string") {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "SNAPSHOT_READ_FAILED",
+                    error: "BEFORE_CONTENT_NOT_AVAILABLE",
+                    file,
+                    path,
+                    tool: "repo.snapshotBeforeWrite"
+                };
+            }
+
+            const beforeHash =
+                await hashString(beforeContent);
+
+            const snapshotId =
+                [
+                    "snap",
+                    Date.now(),
+                    Math.random().toString(36).slice(2, 10)
+                ].join("_");
+
+            const snapshot = {
+                id:
+                    snapshotId,
+                file,
+                path,
+                beforeContent,
+                beforeHash,
+                beforeLength:
+                    beforeContent.length,
+                timestamp:
+                    new Date().toISOString(),
+                riskLevel:
+                    args.riskLevel ||
+                    args.governanceRiskLevel ||
+                    null,
+                governanceStatus:
+                    args.governanceStatus || null,
+                intent:
+                    args.intent ||
+                    context?.intent ||
+                    null,
+                approval: {
+                    approved:
+                        args.approved === true ||
+                        context?.approved === true,
+                    codexApproved:
+                        args.codexApproved === true ||
+                        context?.codexApproved === true,
+                    doubleConfirm:
+                        args.doubleConfirm === true ||
+                        context?.doubleConfirm === true,
+                    reinforcedApproval:
+                        args.reinforcedApproval === true ||
+                        context?.reinforcedApproval === true
+                },
+                previewStatus:
+                    args.previewStatus || null,
+                source:
+                    "repo_snapshot_before_write_v7"
+            };
+
+            window.JarvisRepoSnapshots =
+                window.JarvisRepoSnapshots || [];
+
+            window.JarvisRepoSnapshots.push(snapshot);
+
+            window.JarvisLastRepoSnapshot =
+                snapshot;
+
+            const maxSnapshots =
+                Number(args.maxSnapshots || 25);
+
+            if (
+                Number.isFinite(maxSnapshots) &&
+                maxSnapshots > 0 &&
+                window.JarvisRepoSnapshots.length > maxSnapshots
+            ) {
+                window.JarvisRepoSnapshots =
+                    window.JarvisRepoSnapshots.slice(
+                        window.JarvisRepoSnapshots.length - maxSnapshots
+                    );
+            }
+
+            return {
+                ok: true,
+                success: true,
+                status: "SNAPSHOT_BEFORE_WRITE_OK",
+                snapshotId,
+                file,
+                path,
+                beforeHash,
+                beforeLength:
+                    beforeContent.length,
+                riskLevel:
+                    snapshot.riskLevel,
+                governanceStatus:
+                    snapshot.governanceStatus,
+                snapshotsCount:
+                    window.JarvisRepoSnapshots.length,
+                rollbackAvailable:
+                    true,
+                next:
+                    "Continuar con repo.write. Para revertir en Commit 34 se usara repo.rollbackLastPatch.",
+                tool:
+                    "repo.snapshotBeforeWrite",
+                source:
+                    "repo_snapshot_before_write_v7"
+            };
+        }
+});
+
 JarvisToolRuntime.register({
     name:
         "repo.safePatchApply",
@@ -1129,6 +1336,86 @@ if (previewReady !== true) {
                 };
             }
 
+            // Commit 33 - Snapshot antes de escribir
+            const snapshot =
+                await JarvisToolRuntime.execute(
+                    "repo.snapshotBeforeWrite",
+                    {
+                        file,
+                        path,
+                        content:
+                            currentContent,
+                        riskLevel:
+                            governanceData?.riskLevel ||
+                            args.riskLevel ||
+                            args.criticality ||
+                            args.level ||
+                            null,
+                        governanceRiskLevel:
+                            governanceData?.riskLevel ||
+                            args.riskLevel ||
+                            args.criticality ||
+                            args.level ||
+                            null,
+                        governanceStatus:
+                            governanceData?.status || null,
+                        intent:
+                            args.intent ||
+                            "safe patch apply snapshot before write",
+                        approved:
+                            true,
+                        codexApproved:
+                            true,
+                        doubleConfirm:
+                            args.doubleConfirm === true ||
+                            args.doubleConfirmed === true,
+                        reinforcedApproval:
+                            args.reinforcedApproval === true ||
+                            args.criticalApproval === true,
+                        previewStatus:
+                            previewData?.status ||
+                            preview?.status ||
+                            null,
+                        maxSnapshots:
+                            args.maxSnapshots || 25
+                    },
+                    {
+                        ...context,
+                        approved:
+                            true,
+                        codexApproved:
+                            true
+                    }
+                );
+
+            const snapshotData =
+                snapshot?.data ||
+                snapshot ||
+                {};
+
+            if (
+                snapshotData?.status !== "SNAPSHOT_BEFORE_WRITE_OK" &&
+                snapshot?.status !== "SNAPSHOT_BEFORE_WRITE_OK"
+            ) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "SNAPSHOT_BEFORE_WRITE_FAILED",
+                    error:
+                        snapshotData?.error ||
+                        snapshotData?.status ||
+                        snapshot?.error ||
+                        snapshot?.status ||
+                        "SNAPSHOT_BEFORE_WRITE_FAILED",
+                    file,
+                    path,
+                    governance,
+                    snapshot,
+                    tool:
+                        "repo.safePatchApply"
+                };
+            }
+
             const writeResult =
                 await JarvisToolRuntime.execute(
                     "repo.write",
@@ -1216,11 +1503,18 @@ if (previewReady !== true) {
                 governanceStatus:
                     governanceData?.status || null,
                 governanceRiskLevel:
-    governanceData?.riskLevel ||
-    args.riskLevel ||
-    args.criticality ||
-    args.level ||
-    null,
+                    governanceData?.riskLevel ||
+                    args.riskLevel ||
+                    args.criticality ||
+                    args.level ||
+                    null,
+                snapshot,
+                snapshotId:
+                    snapshotData?.snapshotId || null,
+                snapshotBeforeHash:
+                    snapshotData?.beforeHash || null,
+                rollbackAvailable:
+                    snapshotData?.rollbackAvailable === true,
                 writeResult,
                 verify,
                 tool:
