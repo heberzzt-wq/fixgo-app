@@ -1102,6 +1102,235 @@ if (previewReady !== true) {
             };
         }
 });
+
+// Commit 29 — JARVIS CODEX V2: Safe Patch Plan
+JarvisToolRuntime.register({
+    name:
+        "repo.safePatchPlan",
+    description:
+        "Genera un plan seguro antes de aplicar un patch: valida contrato, lee archivo, confirma search, calcula riesgo y prepara aprobación.",
+    mutates:
+        false,
+    requiresApproval:
+        false,
+    output:
+        "SAFE_PATCH_PLAN_RESULT",
+    execute:
+        async (args = {}, context = {}) => {
+            const file =
+                args.file ||
+                args.path ||
+                "";
+
+            const path =
+                args.path ||
+                args.file ||
+                "";
+
+            const search =
+                args.search ||
+                "";
+
+            const replace =
+                args.replace ||
+                "";
+
+            const intent =
+                args.intent ||
+                "";
+
+            if (!file || !path) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CONTRACT_INVALID",
+                    error: "FILE_REQUIRED",
+                    tool: "repo.safePatchPlan"
+                };
+            }
+
+            if (!search) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CONTRACT_INVALID",
+                    error: "SEARCH_REQUIRED",
+                    file,
+                    path,
+                    intent,
+                    tool: "repo.safePatchPlan"
+                };
+            }
+
+            if (typeof replace !== "string") {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CONTRACT_INVALID",
+                    error: "REPLACE_REQUIRED",
+                    file,
+                    path,
+                    search,
+                    intent,
+                    tool: "repo.safePatchPlan"
+                };
+            }
+
+            const readResult =
+                await JarvisToolRuntime.execute(
+                    "repo.read",
+                    {
+                        file,
+                        path,
+                        maxBytes:
+                            args.maxBytes || 300000
+                    },
+                    context
+                );
+
+            const readData =
+                readResult?.data ||
+                readResult ||
+                {};
+
+            const content =
+                readData?.content ||
+                "";
+
+            const searchFound =
+                typeof content === "string" &&
+                content.includes(search);
+
+            if (!searchFound) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "SEARCH_BLOCK_NOT_FOUND",
+                    error:
+                        "El bloque search no existe exactamente en el archivo. No se puede planear un patch seguro.",
+                    file,
+                    path,
+                    searchLength:
+                        search.length,
+                    contentLength:
+                        content.length || 0,
+                    suggestion:
+                        "Usa repo.read o repo.grep para copiar el bloque exacto antes de planear el patch.",
+                    readResult,
+                    tool:
+                        "repo.safePatchPlan"
+                };
+            }
+
+            const preview =
+                await JarvisToolRuntime.execute(
+                    "repo.patchPreview",
+                    {
+                        file,
+                        path,
+                        search,
+                        replace,
+                        dryRun: true
+                    },
+                    {
+                        ...context,
+                        approved: false
+                    }
+                );
+
+            const previewData =
+                preview?.data ||
+                preview ||
+                {};
+
+            const beforeLength =
+                content.length;
+
+            const afterLength =
+                content.replace(
+                    search,
+                    replace
+                ).length;
+
+            const delta =
+                afterLength - beforeLength;
+
+            const touchesRuntime =
+                String(file).includes("tools.runtime.js");
+
+            const largeChange =
+                Math.abs(delta) > 3000 ||
+                search.length > 3000 ||
+                replace.length > 3000;
+
+            const riskLevel =
+                touchesRuntime && largeChange
+                    ? "HIGH"
+                    : touchesRuntime
+                        ? "MEDIUM"
+                        : largeChange
+                            ? "MEDIUM"
+                            : "LOW";
+
+            const requiresApproval =
+                true;
+
+            const approvalCommand =
+                `Jarvis, apruebo safe patch ${file}`;
+
+            return {
+                ok: true,
+                success: true,
+                status: "SAFE_PATCH_PLAN_READY",
+                file,
+                path,
+                intent,
+                riskLevel,
+                requiresApproval,
+                approvalCommand,
+                searchFound,
+                searchLength:
+                    search.length,
+                replaceLength:
+                    replace.length,
+                beforeLength,
+                afterLength,
+                delta,
+                toolsAffected:
+                    touchesRuntime
+                        ? [
+                            "JarvisToolRuntime",
+                            "repo.safePatchApply",
+                            "repo.patchPreview",
+                            "repo.postWriteVerify"
+                        ]
+                        : [],
+                plan: {
+                    step1:
+                        "Revisar preview generado en dry-run.",
+                    step2:
+                        "Confirmar que el bloque search es exacto.",
+                    step3:
+                        "Pedir aprobación humana antes de escribir.",
+                    step4:
+                        "Ejecutar repo.safePatchApply con approved:true.",
+                    step5:
+                        "Verificar resultado con repo.postWriteVerify."
+                },
+                previewStatus:
+                    previewData?.status ||
+                    preview?.status ||
+                    null,
+                preview,
+                nextTool:
+                    "repo.safePatchApply",
+                tool:
+                    "repo.safePatchPlan",
+                source:
+                    "repo_safe_patch_plan_v1"
+            };
+        }
+});
 JarvisToolRuntime.register({
     name: "repo.search",
     description: "Busca patrones, expresiones o contexto dentro del código base.",
