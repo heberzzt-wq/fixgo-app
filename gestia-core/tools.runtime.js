@@ -911,6 +911,116 @@ JarvisToolRuntime.register({
                 };
             }
 
+            // Commit 32 - Governance real antes de escribir
+            const governance =
+                await JarvisToolRuntime.execute(
+                    "repo.governanceCheck",
+                    {
+                        file,
+                        path,
+                        search,
+                        replace,
+                        riskLevel:
+                            args.riskLevel ||
+                            args.criticality ||
+                            args.level ||
+                            null,
+                        approved:
+                            true,
+                        codexApproved:
+                            true,
+                        doubleConfirm:
+                            args.doubleConfirm === true ||
+                            args.doubleConfirmed === true,
+                        doubleConfirmed:
+                            args.doubleConfirmed === true ||
+                            args.doubleConfirm === true,
+                        reinforcedApproval:
+                            args.reinforcedApproval === true ||
+                            args.criticalApproval === true,
+                        criticalApproval:
+                            args.criticalApproval === true ||
+                            args.reinforcedApproval === true,
+                        intent:
+                            args.intent ||
+                            "safe patch apply governance gate v7",
+                        maxBytes:
+                            args.maxBytes || 300000
+                    },
+                    {
+                        ...context,
+                        approved:
+                            true,
+                        codexApproved:
+                            true,
+                        doubleConfirm:
+                            context?.doubleConfirm === true ||
+                            context?.doubleConfirmed === true ||
+                            args.doubleConfirm === true ||
+                            args.doubleConfirmed === true,
+                        doubleConfirmed:
+                            context?.doubleConfirmed === true ||
+                            context?.doubleConfirm === true ||
+                            args.doubleConfirmed === true ||
+                            args.doubleConfirm === true,
+                        reinforcedApproval:
+                            context?.reinforcedApproval === true ||
+                            context?.criticalApproval === true ||
+                            args.reinforcedApproval === true ||
+                            args.criticalApproval === true,
+                        criticalApproval:
+                            context?.criticalApproval === true ||
+                            context?.reinforcedApproval === true ||
+                            args.criticalApproval === true ||
+                            args.reinforcedApproval === true
+                    }
+                );
+
+            const governanceData =
+                governance?.data ||
+                governance ||
+                {};
+
+            const governanceWriteAllowed =
+                governanceData?.writeAllowed === true;
+
+            if (governanceWriteAllowed !== true) {
+                return {
+                    ok: false,
+                    success: false,
+                    status:
+                        governanceData?.status ||
+                        "GOVERNANCE_BLOCKED",
+                    error:
+                        "GOVERNANCE_WRITE_NOT_ALLOWED",
+                    file,
+                    path,
+                    search,
+                    replace,
+                    riskLevel:
+                        governanceData?.riskLevel || null,
+                    writeAllowed:
+                        false,
+                    governance,
+                    requiredControls:
+                        governanceData?.requiredControls || [],
+                    approvalCommand:
+                        governanceData?.approvalCommand ||
+                        `Jarvis, apruebo safe patch ${file}`,
+                    doubleConfirmCommand:
+                        governanceData?.doubleConfirmCommand ||
+                        `Jarvis, confirmo doble aprobacion ${file}`,
+                    criticalNote:
+                        governanceData?.criticalNote || null,
+                    next:
+                        governanceData?.next ||
+                        "Generar tarjeta UI de revision y elevar aprobacion segun nivel de riesgo.",
+                    tool:
+                        "repo.safePatchApply"
+                };
+            }
+
+
             const preview =
                 await JarvisToolRuntime.execute(
                     "repo.patchPreview",
@@ -1093,6 +1203,11 @@ if (previewReady !== true) {
                 afterLength:
                     nextContent.length,
                 preview,
+                governance,
+                governanceStatus:
+                    governanceData?.status || null,
+                governanceRiskLevel:
+                    governanceData?.riskLevel || null,
                 writeResult,
                 verify,
                 tool:
@@ -1571,8 +1686,15 @@ JarvisToolRuntime.register({
                 context?.reinforcedApproval === true ||
                 context?.criticalApproval === true;
 
+            const approved =
+                args.approved === true ||
+                args.codexApproved === true ||
+                context?.approved === true ||
+                context?.codexApproved === true;
+
             let decision =
                 null;
+
 
             if (normalizedRisk === "LOW") {
                 decision = {
@@ -1633,24 +1755,40 @@ JarvisToolRuntime.register({
                 };
             }
             else {
+                const criticalWriteAllowed =
+                    planReady === true &&
+                    impactReady === true &&
+                    approved === true &&
+                    doubleConfirm === true &&
+                    reinforcedApproval === true;
+
                 decision = {
                     status:
-                        "GOVERNANCE_BLOCKED_CRITICAL",
+                        criticalWriteAllowed
+                            ? "GOVERNANCE_APPROVED_CRITICAL_REINFORCED"
+                            : "GOVERNANCE_NEEDS_REINFORCED_APPROVAL",
                     writeAllowed:
-                        false,
+                        criticalWriteAllowed,
                     requiresApproval:
+                        true,
+                    requiresDoubleConfirmation:
                         true,
                     requiresReinforcedApproval:
                         true,
                     reinforcedApprovalReceived:
                         reinforcedApproval,
                     requiredControls: [
-                        "preview_only",
-                        "safe_patch_plan_only",
-                        "no_write"
+                        "preview",
+                        "safe_patch_plan",
+                        "impact_analysis",
+                        "human_approval",
+                        "double_confirmation",
+                        "reinforced_approval"
                     ],
                     reason:
-                        "CRITICAL queda bloqueado para escritura en Commit 31. Solo plan/preview."
+                        criticalWriteAllowed
+                            ? "CRITICAL autorizado con aprobacion reforzada. Snapshot/rollback se agregara en el siguiente commit."
+                            : "CRITICAL requiere approved:true, doubleConfirm:true y reinforcedApproval:true antes de escribir."
                 };
             }
 
@@ -1690,14 +1828,14 @@ JarvisToolRuntime.register({
                         : null,
                 criticalNote:
                     normalizedRisk === "CRITICAL"
-                        ? "En Commit 31 no se permite write CRITICAL. Usar solo repo.safePatchPlan o repo.patchPreview."
+                        ? "CRITICAL puede escribirse solo con approved:true, doubleConfirm:true y reinforcedApproval:true. Snapshot/rollback queda para Commit 33/34."
                         : null,
                 plan,
                 impact,
                 next:
                     decision.writeAllowed
-                        ? "Puede continuar a repo.safePatchApply con aprobación humana."
-                        : "No escribir. Generar plan/preview o elevar aprobación según governance.",
+                        ? "Puede continuar a repo.safePatchApply bajo el nivel de aprobacion requerido."
+                        : "No escribir todavia. Elevar aprobacion segun governance o generar tarjeta UI de revision.",
                 tool:
                     "repo.governanceCheck",
                 source:
