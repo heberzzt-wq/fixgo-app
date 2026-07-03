@@ -1331,6 +1331,380 @@ JarvisToolRuntime.register({
             };
         }
 });
+
+// Commit 31 — JARVIS CODEX V2: Governance Check V7
+JarvisToolRuntime.register({
+    name:
+        "repo.governanceCheck",
+    description:
+        "Evalúa el nivel crítico de un patch antes de permitir escritura: LOW, MEDIUM, HIGH o CRITICAL.",
+    mutates:
+        false,
+    requiresApproval:
+        false,
+    output:
+        "REPO_GOVERNANCE_CHECK_RESULT_V7",
+    inputSchema: {
+        type:
+            "object",
+        properties: {
+            file: {
+                type:
+                    "string",
+                description:
+                    "Archivo objetivo."
+            },
+            search: {
+                type:
+                    "string",
+                description:
+                    "Bloque exacto a buscar, opcional pero recomendado."
+            },
+            replace: {
+                type:
+                    "string",
+                description:
+                    "Bloque exacto de reemplazo, opcional pero recomendado."
+            },
+            riskLevel: {
+                type:
+                    "string",
+                description:
+                    "Nivel forzado opcional: LOW, MEDIUM, HIGH, CRITICAL."
+            },
+            doubleConfirm: {
+                type:
+                    "boolean",
+                description:
+                    "Confirmación doble para cambios HIGH."
+            },
+            reinforcedApproval: {
+                type:
+                    "boolean",
+                description:
+                    "Aprobación reforzada futura para CRITICAL. Por ahora no habilita escritura."
+            }
+        }
+    },
+    execute:
+        async (args = {}, context = {}) => {
+            const file =
+                args.file ||
+                args.path ||
+                "";
+
+            const path =
+                args.path ||
+                args.file ||
+                "";
+
+            const search =
+                typeof args.search === "string"
+                    ? args.search
+                    : "";
+
+            const replace =
+                typeof args.replace === "string"
+                    ? args.replace
+                    : "";
+
+            const hasPatchBlocks =
+                search.length > 0 &&
+                typeof replace === "string";
+
+            if (!file || !path) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CONTRACT_INVALID",
+                    error: "FILE_REQUIRED",
+                    tool: "repo.governanceCheck"
+                };
+            }
+
+            const normalizeRisk =
+                value => {
+                    const raw =
+                        String(value || "")
+                            .trim()
+                            .toUpperCase();
+
+                    if (
+                        raw === "CRITICAL" ||
+                        raw === "HIGH" ||
+                        raw === "MEDIUM" ||
+                        raw === "LOW"
+                    ) {
+                        return raw;
+                    }
+
+                    return null;
+                };
+
+            const riskFromScore =
+                score => {
+                    const numeric =
+                        Number(score);
+
+                    if (!Number.isFinite(numeric)) {
+                        return null;
+                    }
+
+                    if (numeric >= 90) {
+                        return "CRITICAL";
+                    }
+
+                    if (numeric >= 70) {
+                        return "HIGH";
+                    }
+
+                    if (numeric >= 40) {
+                        return "MEDIUM";
+                    }
+
+                    return "LOW";
+                };
+
+            let plan =
+                null;
+
+            if (hasPatchBlocks) {
+                plan =
+                    await JarvisToolRuntime.execute(
+                        "repo.safePatchPlan",
+                        {
+                            file,
+                            path,
+                            search,
+                            replace,
+                            intent:
+                                args.intent ||
+                                "governance check v7",
+                            maxBytes:
+                                args.maxBytes || 300000
+                        },
+                        {
+                            ...context,
+                            approved: false
+                        }
+                    );
+            }
+
+            const planData =
+                plan?.data ||
+                plan ||
+                {};
+
+            let impact =
+                null;
+
+            try {
+                impact =
+                    await JarvisToolRuntime.execute(
+                        "repo.impact",
+                        {
+                            file,
+                            path,
+                            target:
+                                file
+                        },
+                        context
+                    );
+            }
+            catch(error) {
+                impact = {
+                    ok: false,
+                    success: false,
+                    status: "IMPACT_UNAVAILABLE",
+                    error:
+                        error?.message || String(error)
+                };
+            }
+
+            const impactData =
+                impact?.data ||
+                impact ||
+                {};
+
+            const impactPolicy =
+                impactData?.policy ||
+                impactData?.impact?.policy ||
+                {};
+
+            const normalizedRisk =
+                normalizeRisk(args.riskLevel) ||
+                normalizeRisk(args.criticality) ||
+                normalizeRisk(args.level) ||
+                normalizeRisk(planData?.riskLevel) ||
+                normalizeRisk(impactData?.riskLevel) ||
+                normalizeRisk(impactData?.criticality) ||
+                normalizeRisk(impactData?.criticalityLevel) ||
+                normalizeRisk(impactPolicy?.riskLevel) ||
+                normalizeRisk(impactPolicy?.criticality) ||
+                riskFromScore(impactData?.propagatedScore) ||
+                riskFromScore(impactData?.score) ||
+                riskFromScore(impactPolicy?.propagatedScore) ||
+                "LOW";
+
+            const planReady =
+                planData?.status === "SAFE_PATCH_PLAN_READY" ||
+                plan?.status === "SAFE_PATCH_PLAN_READY" ||
+                hasPatchBlocks === false;
+
+            const impactReady =
+                impact?.ok === true ||
+                impact?.success === true ||
+                impact?.status === "COMPLETED" ||
+                impactData?.ok === true ||
+                impactData?.success === true ||
+                impactData?.status === "COMPLETED";
+
+            const doubleConfirm =
+                args.doubleConfirm === true ||
+                args.doubleConfirmed === true ||
+                context?.doubleConfirm === true ||
+                context?.doubleConfirmed === true;
+
+            const reinforcedApproval =
+                args.reinforcedApproval === true ||
+                args.criticalApproval === true ||
+                context?.reinforcedApproval === true ||
+                context?.criticalApproval === true;
+
+            let decision =
+                null;
+
+            if (normalizedRisk === "LOW") {
+                decision = {
+                    status:
+                        "GOVERNANCE_APPROVED",
+                    writeAllowed:
+                        true,
+                    requiresApproval:
+                        true,
+                    requiredControls: [
+                        "human_approval"
+                    ],
+                    reason:
+                        "LOW risk permite escritura con aprobación simple."
+                };
+            }
+            else if (normalizedRisk === "MEDIUM") {
+                decision = {
+                    status:
+                        planReady && impactReady
+                            ? "GOVERNANCE_APPROVED"
+                            : "GOVERNANCE_NEEDS_PLAN_AND_IMPACT",
+                    writeAllowed:
+                        planReady && impactReady,
+                    requiresApproval:
+                        true,
+                    requiredControls: [
+                        "preview",
+                        "safe_patch_plan",
+                        "impact_analysis",
+                        "human_approval"
+                    ],
+                    reason:
+                        "MEDIUM requiere preview, plan e impacto antes de escribir."
+                };
+            }
+            else if (normalizedRisk === "HIGH") {
+                decision = {
+                    status:
+                        planReady && impactReady && doubleConfirm
+                            ? "GOVERNANCE_APPROVED_HIGH"
+                            : "GOVERNANCE_NEEDS_DOUBLE_CONFIRMATION",
+                    writeAllowed:
+                        planReady && impactReady && doubleConfirm,
+                    requiresApproval:
+                        true,
+                    requiresDoubleConfirmation:
+                        true,
+                    requiredControls: [
+                        "preview",
+                        "safe_patch_plan",
+                        "impact_analysis",
+                        "human_approval",
+                        "double_confirmation"
+                    ],
+                    reason:
+                        "HIGH requiere confirmación doble antes de escribir."
+                };
+            }
+            else {
+                decision = {
+                    status:
+                        "GOVERNANCE_BLOCKED_CRITICAL",
+                    writeAllowed:
+                        false,
+                    requiresApproval:
+                        true,
+                    requiresReinforcedApproval:
+                        true,
+                    reinforcedApprovalReceived:
+                        reinforcedApproval,
+                    requiredControls: [
+                        "preview_only",
+                        "safe_patch_plan_only",
+                        "no_write"
+                    ],
+                    reason:
+                        "CRITICAL queda bloqueado para escritura en Commit 31. Solo plan/preview."
+                };
+            }
+
+            return {
+                ok:
+                    decision.writeAllowed === true ||
+                    decision.status === "GOVERNANCE_BLOCKED_CRITICAL",
+                success:
+                    decision.writeAllowed === true ||
+                    decision.status === "GOVERNANCE_BLOCKED_CRITICAL",
+                status:
+                    decision.status,
+                file,
+                path,
+                riskLevel:
+                    normalizedRisk,
+                writeAllowed:
+                    decision.writeAllowed,
+                requiresApproval:
+                    decision.requiresApproval === true,
+                requiresDoubleConfirmation:
+                    decision.requiresDoubleConfirmation === true,
+                requiresReinforcedApproval:
+                    decision.requiresReinforcedApproval === true,
+                requiredControls:
+                    decision.requiredControls,
+                reason:
+                    decision.reason,
+                planReady,
+                impactReady,
+                hasPatchBlocks,
+                approvalCommand:
+                    `Jarvis, apruebo governance ${normalizedRisk} ${file}`,
+                doubleConfirmCommand:
+                    normalizedRisk === "HIGH"
+                        ? `Jarvis, confirmo doble aprobación HIGH ${file}`
+                        : null,
+                criticalNote:
+                    normalizedRisk === "CRITICAL"
+                        ? "En Commit 31 no se permite write CRITICAL. Usar solo repo.safePatchPlan o repo.patchPreview."
+                        : null,
+                plan,
+                impact,
+                next:
+                    decision.writeAllowed
+                        ? "Puede continuar a repo.safePatchApply con aprobación humana."
+                        : "No escribir. Generar plan/preview o elevar aprobación según governance.",
+                tool:
+                    "repo.governanceCheck",
+                source:
+                    "repo_governance_check_v7"
+            };
+        }
+});
 JarvisToolRuntime.register({
     name: "repo.search",
     description: "Busca patrones, expresiones o contexto dentro del código base.",
