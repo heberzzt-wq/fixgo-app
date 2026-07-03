@@ -1031,6 +1031,334 @@ JarvisToolRuntime.register({
         }
 });
 
+// Commit 34 - JARVIS CODEX V2: Rollback Last Patch
+JarvisToolRuntime.register({
+    name:
+        "repo.rollbackLastPatch",
+    description:
+        "Restaura el ultimo snapshot guardado antes de una escritura del repo. Usa snapshots de repo.snapshotBeforeWrite.",
+    mutates:
+        true,
+    requiresApproval:
+        true,
+    output:
+        "REPO_ROLLBACK_LAST_PATCH_RESULT_V7",
+    execute:
+        async (args = {}, context = {}) => {
+            const approved =
+                args.approved === true ||
+                args.codexApproved === true ||
+                context?.approved === true ||
+                context?.codexApproved === true;
+
+            if (approved !== true) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "PENDING_APPROVAL",
+                    error: "APPROVAL_REQUIRED: repo.rollbackLastPatch",
+                    mutates: true,
+                    requiresApproval: true,
+                    approvalCommand:
+                        "Jarvis, apruebo rollback del ultimo patch",
+                    tool:
+                        "repo.rollbackLastPatch"
+                };
+            }
+
+            const snapshots =
+                Array.isArray(window.JarvisRepoSnapshots)
+                    ? window.JarvisRepoSnapshots
+                    : [];
+
+            const snapshotId =
+                args.snapshotId ||
+                args.id ||
+                null;
+
+            const fileFilter =
+                args.file ||
+                args.path ||
+                null;
+
+            let snapshot =
+                null;
+
+            if (snapshotId) {
+                snapshot =
+                    snapshots.find(item => item?.id === snapshotId) ||
+                    null;
+            }
+
+            if (!snapshot && fileFilter) {
+                snapshot =
+                    [...snapshots]
+                        .reverse()
+                        .find(item =>
+                            item?.file === fileFilter ||
+                            item?.path === fileFilter
+                        ) ||
+                    null;
+            }
+
+            if (!snapshot) {
+                snapshot =
+                    window.JarvisLastRepoSnapshot ||
+                    snapshots[snapshots.length - 1] ||
+                    null;
+            }
+
+            if (!snapshot) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "ROLLBACK_SNAPSHOT_NOT_FOUND",
+                    error:
+                        "No hay snapshot disponible para restaurar.",
+                    snapshotId,
+                    file:
+                        fileFilter,
+                    snapshotsCount:
+                        snapshots.length,
+                    tool:
+                        "repo.rollbackLastPatch"
+                };
+            }
+
+            const file =
+                snapshot.file;
+
+            const path =
+                snapshot.path ||
+                snapshot.file;
+
+            const beforeContent =
+                snapshot.beforeContent;
+
+            if (
+                !file ||
+                !path ||
+                typeof beforeContent !== "string"
+            ) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "ROLLBACK_SNAPSHOT_INVALID",
+                    error:
+                        "El snapshot no contiene file/path/beforeContent valido.",
+                    snapshot,
+                    tool:
+                        "repo.rollbackLastPatch"
+                };
+            }
+
+            const hashString =
+                async value => {
+                    const text =
+                        String(value || "");
+
+                    if (
+                        window.crypto?.subtle &&
+                        window.TextEncoder
+                    ) {
+                        const bytes =
+                            new TextEncoder().encode(text);
+
+                        const digest =
+                            await window.crypto.subtle.digest(
+                                "SHA-256",
+                                bytes
+                            );
+
+                        return Array
+                            .from(new Uint8Array(digest))
+                            .map(byte => byte.toString(16).padStart(2, "0"))
+                            .join("");
+                    }
+
+                    let hash =
+                        0;
+
+                    for (let index = 0; index < text.length; index += 1) {
+                        hash =
+                            ((hash << 5) - hash) +
+                            text.charCodeAt(index);
+
+                        hash |= 0;
+                    }
+
+                    return `fallback-${Math.abs(hash)}`;
+                };
+
+            const expectedHash =
+                snapshot.beforeHash ||
+                await hashString(beforeContent);
+
+            const readCurrent =
+                await JarvisToolRuntime.execute(
+                    "repo.read",
+                    {
+                        file,
+                        path,
+                        maxBytes:
+                            args.maxBytes || 1000000
+                    },
+                    context
+                );
+
+            const currentContent =
+                readCurrent?.data?.content ||
+                readCurrent?.content ||
+                "";
+
+            const currentHash =
+                await hashString(currentContent);
+
+            const alreadyRestored =
+                currentHash === expectedHash;
+
+            if (alreadyRestored === true) {
+                return {
+                    ok: true,
+                    success: true,
+                    status: "ROLLBACK_ALREADY_RESTORED",
+                    file,
+                    path,
+                    snapshotId:
+                        snapshot.id,
+                    beforeHash:
+                        expectedHash,
+                    currentHash,
+                    restored:
+                        false,
+                    reason:
+                        "El archivo ya coincide con el snapshot.",
+                    tool:
+                        "repo.rollbackLastPatch",
+                    source:
+                        "repo_rollback_last_patch_v7"
+                };
+            }
+
+            const writeResult =
+                await JarvisToolRuntime.execute(
+                    "repo.write",
+                    {
+                        file,
+                        path,
+                        content:
+                            beforeContent,
+                        approved:
+                            true,
+                        codexApproved:
+                            true
+                    },
+                    {
+                        ...context,
+                        approved:
+                            true,
+                        codexApproved:
+                            true
+                    }
+                );
+
+            if (
+                writeResult?.ok !== true &&
+                writeResult?.success !== true
+            ) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "ROLLBACK_WRITE_FAILED",
+                    error:
+                        writeResult?.error ||
+                        writeResult?.status ||
+                        "ROLLBACK_WRITE_FAILED",
+                    file,
+                    path,
+                    snapshotId:
+                        snapshot.id,
+                    writeResult,
+                    tool:
+                        "repo.rollbackLastPatch"
+                };
+            }
+
+            const readAfter =
+                await JarvisToolRuntime.execute(
+                    "repo.read",
+                    {
+                        file,
+                        path,
+                        maxBytes:
+                            args.maxBytes || 1000000
+                    },
+                    context
+                );
+
+            const afterContent =
+                readAfter?.data?.content ||
+                readAfter?.content ||
+                "";
+
+            const afterHash =
+                await hashString(afterContent);
+
+            const verified =
+                afterHash === expectedHash;
+
+            window.JarvisLastRollback =
+                {
+                    id:
+                        `rollback_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+                    snapshotId:
+                        snapshot.id,
+                    file,
+                    path,
+                    expectedHash,
+                    beforeRollbackHash:
+                        currentHash,
+                    afterHash,
+                    verified,
+                    timestamp:
+                        new Date().toISOString(),
+                    snapshot,
+                    source:
+                        "repo_rollback_last_patch_v7"
+                };
+
+            return {
+                ok:
+                    verified === true,
+                success:
+                    verified === true,
+                status:
+                    verified
+                        ? "ROLLBACK_LAST_PATCH_OK"
+                        : "ROLLBACK_VERIFY_FAILED",
+                file,
+                path,
+                snapshotId:
+                    snapshot.id,
+                restored:
+                    true,
+                verified,
+                beforeRollbackHash:
+                    currentHash,
+                expectedHash,
+                afterHash,
+                writeResult,
+                readAfter,
+                rollback:
+                    window.JarvisLastRollback,
+                tool:
+                    "repo.rollbackLastPatch",
+                source:
+                    "repo_rollback_last_patch_v7"
+            };
+        }
+});
+
 JarvisToolRuntime.register({
     name:
         "repo.safePatchApply",
@@ -1515,6 +1843,12 @@ if (previewReady !== true) {
                     snapshotData?.beforeHash || null,
                 rollbackAvailable:
                     snapshotData?.rollbackAvailable === true,
+                rollbackTool:
+                    "repo.rollbackLastPatch",
+                rollbackCommand:
+                    snapshotData?.snapshotId
+                        ? `JarvisToolRuntime.execute("repo.rollbackLastPatch", { snapshotId: "${snapshotData.snapshotId}", approved: true, codexApproved: true }, { approved: true })`
+                        : null,
                 writeResult,
                 verify,
                 tool:
