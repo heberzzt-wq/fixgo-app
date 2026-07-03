@@ -6,7 +6,7 @@ function a() {
 
     return {
         ok: true,
-        timestamp: Date.now()
+        timestamp: Date.now() + 1 + 1
     };
 }
 
