@@ -1218,27 +1218,31 @@ JarvisToolRuntime.register({
                 currentHash === expectedHash;
 
             if (alreadyRestored === true) {
-                return {
-                    ok: true,
-                    success: true,
-                    status: "ROLLBACK_ALREADY_RESTORED",
-                    file,
-                    path,
-                    snapshotId:
-                        snapshot.id,
-                    beforeHash:
-                        expectedHash,
-                    currentHash,
-                    restored:
-                        false,
-                    reason:
-                        "El archivo ya coincide con el snapshot.",
-                    tool:
-                        "repo.rollbackLastPatch",
-                    source:
-                        "repo_rollback_last_patch_v7"
-                };
-            }
+    return {
+        ok: true,
+        success: true,
+        status: "ROLLBACK_ALREADY_RESTORED",
+        file,
+        path,
+        snapshotId:
+            snapshot.id,
+        beforeHash:
+            expectedHash,
+        currentHash,
+        afterHash:
+            currentHash,
+        restored:
+            false,
+        verified:
+            true,
+        reason:
+            "El archivo ya coincide con el snapshot.",
+        tool:
+            "repo.rollbackLastPatch",
+        source:
+            "repo_rollback_last_patch_v7"
+    };
+}
 
             const writeResult =
                 await JarvisToolRuntime.execute(
