@@ -2449,6 +2449,398 @@ JarvisToolRuntime.register({
     }
 });
 
+// Commit 30 — JARVIS CODEX V2: Tests Codex Pipeline V7
+JarvisToolRuntime.register({
+    name:
+        "tests.codexPipeline",
+    description:
+        "Valida el pipeline Codex seguro: read, patchPreview, safePatchPlan, bloqueo sin aprobación y aplicación opcional con verificación.",
+    mutates:
+        false,
+    requiresApproval:
+        false,
+    output:
+        "CODEX_PIPELINE_TEST_RESULT_V7",
+    inputSchema: {
+        type:
+            "object",
+        properties: {
+            file: {
+                type:
+                    "string",
+                description:
+                    "Archivo sandbox a probar. Default: test-replace.js"
+            },
+            search: {
+                type:
+                    "string",
+                description:
+                    "Bloque exacto a buscar."
+            },
+            replace: {
+                type:
+                    "string",
+                description:
+                    "Bloque exacto de reemplazo."
+            },
+            mode: {
+                type:
+                    "string",
+                description:
+                    "dry = no escribe. apply = aplica con aprobación explícita.",
+                default:
+                    "dry"
+            },
+            approved: {
+                type:
+                    "boolean",
+                description:
+                    "Requerido para mode apply."
+            }
+        }
+    },
+    execute:
+        async (args = {}, context = {}) => {
+            const file =
+                args.file ||
+                args.path ||
+                "test-replace.js";
+
+            const path =
+                args.path ||
+                args.file ||
+                file;
+
+            const search =
+                typeof args.search === "string"
+                    ? args.search
+                    : "timestamp: Date.now()";
+
+            const replace =
+                typeof args.replace === "string"
+                    ? args.replace
+                    : "timestamp: Date.now() + 1";
+
+            const mode =
+                args.mode ||
+                "dry";
+
+            const approved =
+                args.approved === true ||
+                args.codexApproved === true ||
+                context?.approved === true;
+
+            const steps =
+                [];
+
+            const pushStep =
+                (name, result) => {
+                    const data =
+                        result?.data ||
+                        result ||
+                        {};
+
+                    const ok =
+                        result?.ok === true ||
+                        result?.success === true ||
+                        data?.ok === true ||
+                        data?.success === true ||
+                        result?.status === "COMPLETED" ||
+                        data?.status === "PATCH_PREVIEW_READY" ||
+                        data?.status === "SAFE_PATCH_PLAN_READY" ||
+                        data?.status === "POST_WRITE_VERIFY_OK" ||
+                        data?.status === "SAFE_PATCH_APPLY_OK" ||
+                        data?.status === "PENDING_APPROVAL";
+
+                    steps.push({
+                        name,
+                        ok,
+                        status:
+                            data?.status ||
+                            result?.status ||
+                            null,
+                        tool:
+                            data?.tool ||
+                            result?.tool ||
+                            null,
+                        result
+                    });
+
+                    return {
+                        ok,
+                        data
+                    };
+                };
+
+            if (
+                mode !== "dry" &&
+                mode !== "apply"
+            ) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CONTRACT_INVALID",
+                    error: "MODE_NOT_ALLOWED",
+                    allowedModes: [
+                        "dry",
+                        "apply"
+                    ],
+                    received:
+                        mode,
+                    tool:
+                        "tests.codexPipeline"
+                };
+            }
+
+            const read =
+                await JarvisToolRuntime.execute(
+                    "repo.read",
+                    {
+                        file,
+                        path,
+                        maxBytes:
+                            args.maxBytes || 300000
+                    },
+                    context
+                );
+
+            const readStep =
+                pushStep(
+                    "repo.read",
+                    read
+                );
+
+            const content =
+                readStep.data?.content ||
+                read?.content ||
+                "";
+
+            const searchFound =
+                typeof content === "string" &&
+                content.includes(search);
+
+            if (!searchFound) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CODEX_PIPELINE_FAILED",
+                    error: "SEARCH_NOT_FOUND_BEFORE_PIPELINE",
+                    file,
+                    path,
+                    search,
+                    searchLength:
+                        search.length,
+                    contentLength:
+                        content.length || 0,
+                    steps,
+                    tool:
+                        "tests.codexPipeline"
+                };
+            }
+
+            const preview =
+                await JarvisToolRuntime.execute(
+                    "repo.patchPreview",
+                    {
+                        file,
+                        path,
+                        search,
+                        replace,
+                        dryRun: true
+                    },
+                    {
+                        ...context,
+                        approved: false
+                    }
+                );
+
+            const previewStep =
+                pushStep(
+                    "repo.patchPreview",
+                    preview
+                );
+
+            const plan =
+                await JarvisToolRuntime.execute(
+                    "repo.safePatchPlan",
+                    {
+                        file,
+                        path,
+                        search,
+                        replace,
+                        intent:
+                            args.intent ||
+                            "validar pipeline codex v7",
+                        maxBytes:
+                            args.maxBytes || 300000
+                    },
+                    {
+                        ...context,
+                        approved: false
+                    }
+                );
+
+            const planStep =
+                pushStep(
+                    "repo.safePatchPlan",
+                    plan
+                );
+
+            const blockedApply =
+                await JarvisToolRuntime.execute(
+                    "repo.safePatchApply",
+                    {
+                        file,
+                        path,
+                        search,
+                        replace
+                    },
+                    {
+                        ...context,
+                        approved: false
+                    }
+                );
+
+            const blockedStep =
+                pushStep(
+                    "repo.safePatchApply.blocked",
+                    blockedApply
+                );
+
+            const blockedCorrectly =
+                blockedApply?.status === "PENDING_APPROVAL" ||
+                blockedApply?.data?.status === "PENDING_APPROVAL" ||
+                blockedApply?.error === "APPROVAL_REQUIRED: repo.safePatchApply" ||
+                blockedApply?.data?.error === "APPROVAL_REQUIRED: repo.safePatchApply";
+
+            let applyResult =
+                null;
+
+            let verifyResult =
+                null;
+
+            if (mode === "apply") {
+                if (approved !== true) {
+                    return {
+                        ok: false,
+                        success: false,
+                        status: "PENDING_APPROVAL",
+                        error: "APPROVAL_REQUIRED_FOR_CODEX_PIPELINE_APPLY",
+                        file,
+                        path,
+                        mode,
+                        steps,
+                        approvalCommand:
+                            `Jarvis, apruebo tests.codexPipeline apply ${file}`,
+                        tool:
+                            "tests.codexPipeline"
+                    };
+                }
+
+                applyResult =
+                    await JarvisToolRuntime.execute(
+                        "repo.safePatchApply",
+                        {
+                            file,
+                            path,
+                            search,
+                            replace,
+                            approved: true,
+                            codexApproved: true
+                        },
+                        {
+                            ...context,
+                            approved: true
+                        }
+                    );
+
+                pushStep(
+                    "repo.safePatchApply.approved",
+                    applyResult
+                );
+
+                verifyResult =
+                    await JarvisToolRuntime.execute(
+                        "repo.postWriteVerify",
+                        {
+                            file,
+                            path,
+                            search,
+                            replace
+                        },
+                        context
+                    );
+
+                pushStep(
+                    "repo.postWriteVerify",
+                    verifyResult
+                );
+            }
+
+            const requiredOk =
+                readStep.ok === true &&
+                previewStep.ok === true &&
+                planStep.ok === true &&
+                blockedCorrectly === true;
+
+            const applyOk =
+                mode === "dry"
+                    ? true
+                    : (
+                        applyResult?.data?.status === "SAFE_PATCH_APPLY_OK" ||
+                        applyResult?.status === "SAFE_PATCH_APPLY_OK" ||
+                        verifyResult?.data?.status === "POST_WRITE_VERIFY_OK" ||
+                        verifyResult?.status === "POST_WRITE_VERIFY_OK"
+                    );
+
+            const ok =
+                requiredOk === true &&
+                applyOk === true;
+
+            return {
+                ok,
+                success:
+                    ok,
+                status:
+                    ok
+                        ? "CODEX_PIPELINE_OK"
+                        : "CODEX_PIPELINE_FAILED",
+                mode,
+                file,
+                path,
+                search,
+                replace,
+                searchFound,
+                blockedCorrectly,
+                applied:
+                    mode === "apply" &&
+                    applyOk === true,
+                steps,
+                summary: {
+                    read:
+                        readStep.ok,
+                    preview:
+                        previewStep.ok,
+                    plan:
+                        planStep.ok,
+                    blockedWithoutApproval:
+                        blockedCorrectly,
+                    apply:
+                        mode === "dry"
+                            ? "SKIPPED_DRY_RUN"
+                            : applyOk
+                },
+                next:
+                    mode === "dry"
+                        ? "Si todo está OK, ejecutar con mode:'apply' y approved:true únicamente sobre sandbox LOW."
+                        : "Revisar verify y confirmar diff antes de pasar a governance.",
+                tool:
+                    "tests.codexPipeline",
+                source:
+                    "tests_codex_pipeline_v7"
+            };
+        }
+});
 // V7 PRODUCTION GRADE CONTRACT: repo.patchPreview
 JarvisToolRuntime.register({
     name: "repo.patchPreview",
