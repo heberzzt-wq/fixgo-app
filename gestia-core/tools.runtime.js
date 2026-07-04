@@ -1686,6 +1686,229 @@ JarvisToolRuntime.register({
         }
 });
 
+// Commit 39 - JARVIS CODEX V2: Compact/Clean UI
+const JarvisCompactUi =
+    window.JarvisCompactUi || {
+        state: {
+            reviewMinimized:
+                false,
+            queueMinimized:
+                false
+        },
+        toggle:
+            target => {
+                const key =
+                    target === "queue"
+                        ? "queueMinimized"
+                        : "reviewMinimized";
+
+                JarvisCompactUi.state[key] =
+                    !JarvisCompactUi.state[key];
+
+                JarvisCompactUi.apply();
+
+                return {
+                    ok: true,
+                    target,
+                    minimized:
+                        JarvisCompactUi.state[key]
+                };
+            },
+        closeCard:
+            cardId => {
+                const element =
+                    document.getElementById(`jarvis-review-card-${cardId}`);
+
+                if (element) {
+                    element.remove();
+                }
+
+                const card =
+                    (window.JarvisReviewCards || [])
+                        .find(item => item?.id === cardId);
+
+                if (card) {
+                    card.uiClosed =
+                        true;
+                    card.closedAt =
+                        new Date().toISOString();
+                }
+
+                return {
+                    ok: true,
+                    status: "UI_CARD_CLOSED",
+                    cardId
+                };
+            },
+        cleanClosed:
+            () => {
+                const closedStates =
+                    new Set([
+                        "REJECTED",
+                        "APPROVED",
+                        "EXECUTED",
+                        "CLOSED"
+                    ]);
+
+                let removed =
+                    0;
+
+                document
+                    .querySelectorAll("#jarvis-review-cards article")
+                    .forEach(element => {
+                        if (closedStates.has(element.dataset.state)) {
+                            element.remove();
+                            removed += 1;
+                        }
+                    });
+
+                return {
+                    ok: true,
+                    status: "UI_CLOSED_CARDS_CLEANED",
+                    removed
+                };
+            },
+        apply:
+            () => {
+                const reviewHost =
+                    document.getElementById("jarvis-review-cards");
+
+                if (reviewHost) {
+                    reviewHost.style.width =
+                        JarvisCompactUi.state.reviewMinimized
+                            ? "260px"
+                            : "360px";
+
+                    reviewHost.style.maxHeight =
+                        JarvisCompactUi.state.reviewMinimized
+                            ? "54px"
+                            : "64vh";
+
+                    reviewHost.style.overflow =
+                        JarvisCompactUi.state.reviewMinimized
+                            ? "hidden"
+                            : "auto";
+
+                    reviewHost
+                        .querySelectorAll("[data-role='review-body']")
+                        .forEach(node => {
+                            node.style.display =
+                                JarvisCompactUi.state.reviewMinimized
+                                    ? "none"
+                                    : "block";
+                        });
+                }
+
+                const queueHost =
+                    document.getElementById("jarvis-operator-queue");
+
+                if (queueHost) {
+                    queueHost.style.width =
+                        JarvisCompactUi.state.queueMinimized
+                            ? "260px"
+                            : "360px";
+
+                    queueHost.style.maxHeight =
+                        JarvisCompactUi.state.queueMinimized
+                            ? "54px"
+                            : "64vh";
+
+                    queueHost.style.overflow =
+                        JarvisCompactUi.state.queueMinimized
+                            ? "hidden"
+                            : "auto";
+
+                    queueHost
+                        .querySelectorAll("[data-role='queue-body']")
+                        .forEach(node => {
+                            node.style.display =
+                                JarvisCompactUi.state.queueMinimized
+                                    ? "none"
+                                    : "block";
+                        });
+                }
+
+                return {
+                    ok: true,
+                    status: "UI_COMPACT_APPLIED",
+                    state:
+                        JarvisCompactUi.state
+                };
+            }
+    };
+
+window.JarvisCompactUi =
+    JarvisCompactUi;
+
+JarvisToolRuntime.register({
+    name:
+        "repo.uiCompact",
+    description:
+        "Controla la UI compacta de Jarvis: minimizar review, minimizar queue, limpiar cards cerradas.",
+    mutates:
+        false,
+    requiresApproval:
+        false,
+    output:
+        "REPO_UI_COMPACT_RESULT_V7",
+    execute:
+        async (args = {}, context = {}) => {
+            const action =
+                args.action ||
+                "apply";
+
+            if (action === "toggleReview") {
+                return {
+                    ok: true,
+                    success: true,
+                    status: "UI_REVIEW_TOGGLED",
+                    ...JarvisCompactUi.toggle("review"),
+                    tool:
+                        "repo.uiCompact"
+                };
+            }
+
+            if (action === "toggleQueue") {
+                return {
+                    ok: true,
+                    success: true,
+                    status: "UI_QUEUE_TOGGLED",
+                    ...JarvisCompactUi.toggle("queue"),
+                    tool:
+                        "repo.uiCompact"
+                };
+            }
+
+            if (action === "cleanClosed") {
+                return {
+                    ok: true,
+                    success: true,
+                    ...JarvisCompactUi.cleanClosed(),
+                    tool:
+                        "repo.uiCompact"
+                };
+            }
+
+            if (action === "closeCard") {
+                return {
+                    ok: true,
+                    success: true,
+                    ...JarvisCompactUi.closeCard(args.cardId),
+                    tool:
+                        "repo.uiCompact"
+                };
+            }
+
+            return {
+                ok: true,
+                success: true,
+                ...JarvisCompactUi.apply(),
+                tool:
+                    "repo.uiCompact"
+            };
+        }
+});
+
 // Commit 35 - JARVIS CODEX V2: Review Cards / Approval Cards
 JarvisToolRuntime.register({
     name:
@@ -2017,9 +2240,9 @@ JarvisToolRuntime.register({
                         host.style.bottom =
                             "16px";
                         host.style.width =
-                            "420px";
+                            "360px";
                         host.style.maxHeight =
-                            "78vh";
+                            "64vh";
                         host.style.overflow =
                             "auto";
                         host.style.zIndex =
@@ -2034,9 +2257,78 @@ JarvisToolRuntime.register({
                             "system-ui, -apple-system, Segoe UI, sans-serif";
 
                         document.body.appendChild(host);
+
+                        const toolbar =
+                            document.createElement("div");
+
+                        toolbar.dataset.role =
+                            "review-toolbar";
+
+                        toolbar.style.cssText =
+                            "border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:8px 10px;background:rgba(2,6,23,.96);color:#e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;box-shadow:0 14px 30px rgba(0,0,0,.3);";
+
+                        toolbar.innerHTML =
+                            `
+                            <strong style="font-size:12px;">JARVIS REVIEW</strong>
+                            <div style="display:flex;gap:6px;">
+                                <button data-action="toggle-review" style="cursor:pointer;border:0;border-radius:8px;padding:5px 8px;background:#334155;color:white;font-size:11px;">Min</button>
+                                <button data-action="clean-review" style="cursor:pointer;border:0;border-radius:8px;padding:5px 8px;background:#475569;color:white;font-size:11px;">Limpiar</button>
+                            </div>
+                            `;
+
+                        toolbar
+                            .querySelector("[data-action='toggle-review']")
+                            ?.addEventListener("click", () => {
+                                window.JarvisCompactUi.toggle("review");
+                            });
+
+                        toolbar
+                            .querySelector("[data-action='clean-review']")
+                            ?.addEventListener("click", () => {
+                                window.JarvisCompactUi.cleanClosed();
+                            });
+
+                        host.appendChild(toolbar);
+                    }
+
+                     if (
+                        !host.querySelector("[data-role='review-toolbar']")
+                    ) {
+                        const toolbar =
+                            document.createElement("div");
+
+                        toolbar.dataset.role =
+                            "review-toolbar";
+
+                        toolbar.style.cssText =
+                            "border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:8px 10px;background:rgba(2,6,23,.96);color:#e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;box-shadow:0 14px 30px rgba(0,0,0,.3);";
+
+                        toolbar.innerHTML =
+                            `
+                            <strong style="font-size:12px;">JARVIS REVIEW</strong>
+                            <div style="display:flex;gap:6px;">
+                                <button data-action="toggle-review" style="cursor:pointer;border:0;border-radius:8px;padding:5px 8px;background:#334155;color:white;font-size:11px;">Min</button>
+                                <button data-action="clean-review" style="cursor:pointer;border:0;border-radius:8px;padding:5px 8px;background:#475569;color:white;font-size:11px;">Limpiar</button>
+                            </div>
+                            `;
+
+                        toolbar
+                            .querySelector("[data-action='toggle-review']")
+                            ?.addEventListener("click", () => {
+                                window.JarvisCompactUi.toggle("review");
+                            });
+
+                        toolbar
+                            .querySelector("[data-action='clean-review']")
+                            ?.addEventListener("click", () => {
+                                window.JarvisCompactUi.cleanClosed();
+                            });
+
+                        host.prepend(toolbar);
                     }
 
                     return host;
+
                 };
 
             const riskColor =
@@ -2082,13 +2374,18 @@ JarvisToolRuntime.register({
 
             element.innerHTML =
                 `
-                <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+                 <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
                     <div>
-                        <div style="font-size:13px;opacity:.8;">JARVIS REVIEW CARD</div>
-                        <strong style="font-size:15px;">${escapeHtml(card.title)}</strong>
+                        <div style="font-size:11px;opacity:.75;">JARVIS REVIEW CARD</div>
+                        <strong style="font-size:14px;">${escapeHtml(card.title)}</strong>
                     </div>
-                    <span data-role="state" style="font-size:11px;padding:4px 8px;border-radius:999px;background:#1f2937;">${escapeHtml(card.state)}</span>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <span data-role="state" style="font-size:10px;padding:4px 7px;border-radius:999px;background:#1f2937;">${escapeHtml(card.state)}</span>
+                        <button data-action="minimize-card" title="Minimizar" style="cursor:pointer;border:0;border-radius:8px;padding:4px 7px;background:#334155;color:white;font-size:11px;">_</button>
+                        <button data-action="close-card" title="Cerrar" style="cursor:pointer;border:0;border-radius:8px;padding:4px 7px;background:#7f1d1d;color:white;font-size:11px;">x</button>
+                    </div>
                 </div>
+                <div data-role="review-body">
 
                 <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
                     <span style="font-size:12px;padding:4px 8px;border-radius:999px;background:${riskColor};">Riesgo: ${escapeHtml(riskLevel)}</span>
@@ -2119,6 +2416,7 @@ JarvisToolRuntime.register({
                     <button data-action="approve-reinforced" style="cursor:pointer;border:0;border-radius:10px;padding:8px 10px;background:#dc2626;color:white;">Reforzar</button>
                     <button data-action="reject" style="cursor:pointer;border:0;border-radius:10px;padding:8px 10px;background:#475569;color:white;">Rechazar</button>
                     <button data-action="rollback" style="cursor:pointer;border:0;border-radius:10px;padding:8px 10px;background:#1d4ed8;color:white;">Rollback</button>
+                </div>
                 </div>
                 `;
 
@@ -2152,6 +2450,27 @@ JarvisToolRuntime.register({
                     if (card.snapshotId) {
                         window.JarvisApprovalCards.rollback(card.snapshotId);
                     }
+                });
+
+
+                element
+                .querySelector("[data-action='minimize-card']")
+                ?.addEventListener("click", () => {
+                    const body =
+                        element.querySelector("[data-role='review-body']");
+
+                    if (body) {
+                        body.style.display =
+                            body.style.display === "none"
+                                ? "block"
+                                : "none";
+                    }
+                });
+
+            element
+                .querySelector("[data-action='close-card']")
+                ?.addEventListener("click", () => {
+                    window.JarvisCompactUi.closeCard(card.id);
                 });
 
             host.prepend(element);
@@ -2259,9 +2578,9 @@ JarvisToolRuntime.register({
                         host.style.bottom =
                             "16px";
                         host.style.width =
-                            "430px";
+                            "360px";
                         host.style.maxHeight =
-                            "78vh";
+                            "64vh";
                         host.style.overflow =
                             "auto";
                         host.style.zIndex =
@@ -2314,8 +2633,13 @@ JarvisToolRuntime.register({
                                     <div style="font-size:13px;opacity:.8;">JARVIS CODEX OPERATOR QUEUE</div>
                                     <strong style="font-size:15px;">Cola de propuestas</strong>
                                 </div>
-                                <span style="font-size:11px;padding:4px 8px;border-radius:999px;background:#1f2937;">${queue.length} items</span>
+                                 <div style="display:flex;gap:6px;align-items:center;">
+                                     <span style="font-size:11px;padding:4px 8px;border-radius:999px;background:#1f2937;">${queue.length} items</span>
+                                     <button data-action="toggle-queue" style="cursor:pointer;border:0;border-radius:8px;padding:5px 8px;background:#334155;color:white;font-size:11px;">Min</button>
+                                 </div>
+
                             </div>
+                            <div data-role="queue-body">
                             <div style="margin-top:10px;font-size:12px;display:flex;gap:6px;flex-wrap:wrap;">
                                 <span style="padding:4px 8px;border-radius:999px;background:#334155;">Pending: ${pending}</span>
                                 <span style="padding:4px 8px;border-radius:999px;background:#14532d;">Approved: ${approved}</span>
@@ -2327,9 +2651,9 @@ JarvisToolRuntime.register({
                                 <button data-action="render" style="cursor:pointer;border:0;border-radius:10px;padding:8px 10px;background:#334155;color:white;">Render</button>
                                 <button data-action="clear-done" style="cursor:pointer;border:0;border-radius:10px;padding:8px 10px;background:#475569;color:white;">Limpiar cerrados</button>
                             </div>
+                        </div>
                         </article>
                         `;
-
                     host.querySelector("[data-action='approve-safe']")?.addEventListener("click", () => {
                         window.JarvisOperatorQueueApi.approveSafeBatch();
                     });
@@ -2340,6 +2664,11 @@ JarvisToolRuntime.register({
 
                     host.querySelector("[data-action='clear-done']")?.addEventListener("click", () => {
                         window.JarvisOperatorQueueApi.clearDone();
+                    });
+
+
+                     host.querySelector("[data-action='toggle-queue']")?.addEventListener("click", () => {
+                        window.JarvisCompactUi.toggle("queue");
                     });
 
                     for (const item of queue.slice().reverse()) {
@@ -2423,6 +2752,7 @@ JarvisToolRuntime.register({
                         host.appendChild(node);
                     }
 
+                                        window.JarvisCompactUi.apply();
                     return host;
                 };
 
