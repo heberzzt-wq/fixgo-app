@@ -2586,6 +2586,435 @@ JarvisToolRuntime.register({
         }
 });
 
+// Commit 37 - JARVIS CODEX V2: Git Workflow Tools
+const JarvisGitWorkflowBridge =
+    window.JarvisGitWorkflowBridge || {
+        endpoint:
+            "http://localhost:3344/git",
+        request:
+            async payload => {
+                const response =
+                    await fetch(
+                        "http://localhost:3344/git",
+                        {
+                            method:
+                                "POST",
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+                            body:
+                                JSON.stringify(payload || {})
+                        }
+                    );
+
+                const data =
+                    await response.json()
+                        .catch(() => ({
+                            ok: false,
+                            status: "GIT_BRIDGE_BAD_JSON"
+                        }));
+
+                return {
+                    ...data,
+                    httpOk:
+                        response.ok,
+                    httpStatus:
+                        response.status
+                };
+            }
+    };
+
+window.JarvisGitWorkflowBridge =
+    JarvisGitWorkflowBridge;
+
+JarvisToolRuntime.register({
+    name:
+        "repo.gitStatus",
+    description:
+        "Ejecuta git status --short --branch mediante Local FS Bridge.",
+    mutates:
+        false,
+    requiresApproval:
+        false,
+    output:
+        "REPO_GIT_STATUS_RESULT_V7",
+    execute:
+        async (args = {}, context = {}) => {
+            const result =
+                await JarvisGitWorkflowBridge.request({
+                    action:
+                        "status",
+                    cwd:
+                        args.cwd || ".",
+                    timeoutMs:
+                        args.timeoutMs || 120000
+                });
+
+            return {
+                ok:
+                    result.ok === true,
+                success:
+                    result.ok === true,
+                status:
+                    result.status || "GIT_STATUS_UNKNOWN",
+                stdout:
+                    result.stdout || "",
+                stderr:
+                    result.stderr || "",
+                command:
+                    result.command || "git status --short --branch",
+                branchLine:
+                    String(result.stdout || "")
+                        .split(/\r?\n/)
+                        .find(line => line.startsWith("##")) ||
+                    null,
+                changedFiles:
+                    String(result.stdout || "")
+                        .split(/\r?\n/)
+                        .filter(line => line && !line.startsWith("##")),
+                result,
+                tool:
+                    "repo.gitStatus",
+                source:
+                    "repo_git_status_v7"
+            };
+        }
+});
+
+JarvisToolRuntime.register({
+    name:
+        "repo.gitDiff",
+    description:
+        "Ejecuta git diff mediante Local FS Bridge.",
+    mutates:
+        false,
+    requiresApproval:
+        false,
+    output:
+        "REPO_GIT_DIFF_RESULT_V7",
+    execute:
+        async (args = {}, context = {}) => {
+            const action =
+                args.cached === true
+                    ? "diffCached"
+                    : "diff";
+
+            const result =
+                await JarvisGitWorkflowBridge.request({
+                    action,
+                    cwd:
+                        args.cwd || ".",
+                    timeoutMs:
+                        args.timeoutMs || 120000
+                });
+
+            const diff =
+                result.stdout || "";
+
+            return {
+                ok:
+                    result.ok === true,
+                success:
+                    result.ok === true,
+                status:
+                    result.status || "GIT_DIFF_UNKNOWN",
+                diff,
+                diffLength:
+                    diff.length,
+                hasDiff:
+                    diff.length > 0,
+                stderr:
+                    result.stderr || "",
+                command:
+                    result.command || "git diff",
+                result,
+                tool:
+                    "repo.gitDiff",
+                source:
+                    "repo_git_diff_v7"
+            };
+        }
+});
+
+JarvisToolRuntime.register({
+    name:
+        "repo.gitCommitPlan",
+    description:
+        "Genera un plan de commit con status y diff, sin mutar.",
+    mutates:
+        false,
+    requiresApproval:
+        false,
+    output:
+        "REPO_GIT_COMMIT_PLAN_RESULT_V7",
+    execute:
+        async (args = {}, context = {}) => {
+            const status =
+                await JarvisToolRuntime.execute(
+                    "repo.gitStatus",
+                    {
+                        cwd:
+                            args.cwd || "."
+                    },
+                    context
+                );
+
+            const diff =
+                await JarvisToolRuntime.execute(
+                    "repo.gitDiff",
+                    {
+                        cwd:
+                            args.cwd || "."
+                    },
+                    context
+                );
+
+            const changedFiles =
+                status?.data?.changedFiles ||
+                status?.changedFiles ||
+                [];
+
+            const suggestedMessage =
+                args.message ||
+                (
+                    changedFiles.some(line => line.includes("tools.runtime.js"))
+                        ? "Commit 37: add git workflow tools v7"
+                        : "Jarvis Codex: apply supervised repo changes"
+                );
+
+            return {
+                ok:
+                    true,
+                success:
+                    true,
+                status:
+                    "GIT_COMMIT_PLAN_READY",
+                suggestedMessage,
+                changedFiles,
+                hasDiff:
+                    diff?.data?.hasDiff === true ||
+                    diff?.hasDiff === true,
+                statusResult:
+                    status,
+                diffResult:
+                    diff,
+                approvalCommand:
+                    `Jarvis, apruebo git commit: ${suggestedMessage}`,
+                next:
+                    "Revisar status/diff. Si todo esta correcto ejecutar repo.gitCommit con approved:true.",
+                tool:
+                    "repo.gitCommitPlan",
+                source:
+                    "repo_git_commit_plan_v7"
+            };
+        }
+});
+
+JarvisToolRuntime.register({
+    name:
+        "repo.gitCommit",
+    description:
+        "Ejecuta git add + git commit mediante Local FS Bridge. Requiere aprobacion.",
+    mutates:
+        true,
+    requiresApproval:
+        true,
+    output:
+        "REPO_GIT_COMMIT_RESULT_V7",
+    execute:
+        async (args = {}, context = {}) => {
+            const approved =
+                args.approved === true ||
+                args.codexApproved === true ||
+                context?.approved === true ||
+                context?.codexApproved === true;
+
+            if (approved !== true) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "PENDING_APPROVAL",
+                    error: "APPROVAL_REQUIRED: repo.gitCommit",
+                    requiresApproval: true,
+                    mutates: true,
+                    approvalCommand:
+                        `Jarvis, apruebo git commit: ${args.message || "commit"}`,
+                    tool:
+                        "repo.gitCommit"
+                };
+            }
+
+            const files =
+                Array.isArray(args.files) && args.files.length > 0
+                    ? args.files
+                    : [
+                        "gestia-core/tools.runtime.js"
+                    ];
+
+            const message =
+                String(args.message || "").trim();
+
+            if (!message) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CONTRACT_INVALID",
+                    error: "COMMIT_MESSAGE_REQUIRED",
+                    tool:
+                        "repo.gitCommit"
+                };
+            }
+
+            const addResult =
+                await JarvisGitWorkflowBridge.request({
+                    action:
+                        "add",
+                    files,
+                    cwd:
+                        args.cwd || ".",
+                    approved:
+                        true,
+                    codexApproved:
+                        true,
+                    timeoutMs:
+                        args.timeoutMs || 120000
+                });
+
+            if (addResult.ok !== true) {
+                return {
+                    ok: false,
+                    success: false,
+                    status:
+                        addResult.status || "GIT_ADD_FAILED",
+                    error:
+                        addResult.error || addResult.stderr || "GIT_ADD_FAILED",
+                    addResult,
+                    tool:
+                        "repo.gitCommit"
+                };
+            }
+
+            const commitResult =
+                await JarvisGitWorkflowBridge.request({
+                    action:
+                        "commit",
+                    message,
+                    cwd:
+                        args.cwd || ".",
+                    approved:
+                        true,
+                    codexApproved:
+                        true,
+                    timeoutMs:
+                        args.timeoutMs || 120000
+                });
+
+            return {
+                ok:
+                    commitResult.ok === true,
+                success:
+                    commitResult.ok === true,
+                status:
+                    commitResult.status || "GIT_COMMIT_UNKNOWN",
+                files,
+                message,
+                addResult,
+                commitResult,
+                stdout:
+                    commitResult.stdout || "",
+                stderr:
+                    commitResult.stderr || "",
+                next:
+                    commitResult.ok
+                        ? "Commit creado. Puedes ejecutar repo.gitPush con aprobacion."
+                        : "Commit no creado. Revisar stderr.",
+                tool:
+                    "repo.gitCommit",
+                source:
+                    "repo_git_commit_v7"
+            };
+        }
+});
+
+JarvisToolRuntime.register({
+    name:
+        "repo.gitPush",
+    description:
+        "Ejecuta git push origin branch mediante Local FS Bridge. Requiere aprobacion.",
+    mutates:
+        true,
+    requiresApproval:
+        true,
+    output:
+        "REPO_GIT_PUSH_RESULT_V7",
+    execute:
+        async (args = {}, context = {}) => {
+            const approved =
+                args.approved === true ||
+                args.codexApproved === true ||
+                context?.approved === true ||
+                context?.codexApproved === true;
+
+            if (approved !== true) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "PENDING_APPROVAL",
+                    error: "APPROVAL_REQUIRED: repo.gitPush",
+                    requiresApproval: true,
+                    mutates: true,
+                    approvalCommand:
+                        `Jarvis, apruebo git push ${args.remote || "origin"} ${args.branch || "v5.9-polish"}`,
+                    tool:
+                        "repo.gitPush"
+                };
+            }
+
+            const remote =
+                args.remote || "origin";
+
+            const branch =
+                args.branch || "v5.9-polish";
+
+            const pushResult =
+                await JarvisGitWorkflowBridge.request({
+                    action:
+                        "push",
+                    remote,
+                    branch,
+                    cwd:
+                        args.cwd || ".",
+                    approved:
+                        true,
+                    codexApproved:
+                        true,
+                    timeoutMs:
+                        args.timeoutMs || 120000
+                });
+
+            return {
+                ok:
+                    pushResult.ok === true,
+                success:
+                    pushResult.ok === true,
+                status:
+                    pushResult.status || "GIT_PUSH_UNKNOWN",
+                remote,
+                branch,
+                stdout:
+                    pushResult.stdout || "",
+                stderr:
+                    pushResult.stderr || "",
+                pushResult,
+                tool:
+                    "repo.gitPush",
+                source:
+                    "repo_git_push_v7"
+            };
+        }
+});
+
 JarvisToolRuntime.register({
     name:
         "repo.safePatchApply",

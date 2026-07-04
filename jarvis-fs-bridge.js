@@ -329,6 +329,199 @@ export function describeJarvisFsBridge() {
     };
 }
 
+async function runGitWorkflowCommand({
+    args = [],
+    cwd = ".",
+    timeoutMs = 120000,
+    root = DEFAULT_ROOT,
+    source = "jarvis_fs_bridge_git_v7"
+} = {}) {
+    if (!Array.isArray(args)) {
+        throw new Error("GIT_ARGS_ARRAY_REQUIRED");
+    }
+
+    const safeArgs =
+        args.map(arg => String(arg));
+
+    const blockedTokens =
+        new Set([
+            ";",
+            "&&",
+            "||",
+            "|",
+            ">",
+            "<",
+            "`",
+            "$(",
+            "\n",
+            "\r"
+        ]);
+
+    for (const arg of safeArgs) {
+        for (const token of blockedTokens) {
+            if (arg.includes(token)) {
+                throw new Error("GIT_ARG_UNSAFE_TOKEN");
+            }
+        }
+    }
+
+    const safeCwd =
+        resolveRepoPath(cwd, root);
+
+    const { spawn } =
+        await import("child_process");
+
+    const startedAt =
+        Date.now();
+
+    return await new Promise(resolve => {
+        const child =
+            spawn(
+                "git",
+                safeArgs,
+                {
+                    cwd:
+                        safeCwd,
+                    shell:
+                        false,
+                    stdio:
+                        [
+                            "ignore",
+                            "pipe",
+                            "pipe"
+                        ],
+                    env:
+                        {
+                            ...process.env,
+                            GIT_TERMINAL_PROMPT:
+                                "0"
+                        }
+                }
+            );
+
+        let stdout =
+            "";
+
+        let stderr =
+            "";
+
+        let finished =
+            false;
+
+        const timer =
+            setTimeout(
+                () => {
+                    if (finished) {
+                        return;
+                    }
+
+                    finished =
+                        true;
+
+                    child.kill("SIGTERM");
+
+                    resolve({
+                        ok: false,
+                        status: "GIT_TIMEOUT",
+                        error: "GIT_COMMAND_TIMEOUT",
+                        command:
+                            ["git", ...safeArgs].join(" "),
+                        stdout,
+                        stderr,
+                        durationMs:
+                            Date.now() - startedAt,
+                        source,
+                        version:
+                            JARVIS_FS_BRIDGE_VERSION
+                    });
+                },
+                Number(timeoutMs) || 120000
+            );
+
+        child.stdout.on("data", chunk => {
+            stdout +=
+                chunk.toString();
+        });
+
+        child.stderr.on("data", chunk => {
+            stderr +=
+                chunk.toString();
+        });
+
+        child.on("error", error => {
+            if (finished) {
+                return;
+            }
+
+            finished =
+                true;
+
+            clearTimeout(timer);
+
+            resolve({
+                ok: false,
+                status: "GIT_SPAWN_FAILED",
+                error:
+                    error.message,
+                command:
+                    ["git", ...safeArgs].join(" "),
+                stdout,
+                stderr,
+                durationMs:
+                    Date.now() - startedAt,
+                source,
+                version:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
+        });
+
+        child.on("close", code => {
+            if (finished) {
+                return;
+            }
+
+            finished =
+                true;
+
+            clearTimeout(timer);
+
+            resolve({
+                ok:
+                    code === 0,
+                status:
+                    code === 0
+                        ? "GIT_OK"
+                        : "GIT_FAILED",
+                exitCode:
+                    code,
+                command:
+                    ["git", ...safeArgs].join(" "),
+                stdout,
+                stderr,
+                durationMs:
+                    Date.now() - startedAt,
+                source,
+                version:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
+        });
+    });
+}
+
+function normalizeGitFiles(files = []) {
+    if (!Array.isArray(files)) {
+        return [];
+    }
+
+    return files
+        .map(file => String(file || "").trim().replace(/\\/g, "/"))
+        .filter(Boolean)
+        .map(file => {
+            normalizeRelativePath(file);
+            return file;
+        });
+}
+
 export function createJarvisFsBridgeApp({
     root = DEFAULT_ROOT
 } = {}) {
@@ -807,6 +1000,303 @@ export function createJarvisFsBridgeApp({
         }
     });
 
+    app.post("/git", async (req, res) => {
+        try {
+            const {
+                action,
+                cwd = ".",
+                files = [],
+                message = "",
+                remote = "origin",
+                branch = "",
+                approved = false,
+                codexApproved = false,
+                timeoutMs = 120000
+            } = req.body || {};
+
+            const normalizedAction =
+                String(action || "").trim();
+
+            const approvedWrite =
+                approved === true ||
+                codexApproved === true;
+
+            let result =
+                null;
+
+            if (normalizedAction === "status") {
+                result =
+                    await runGitWorkflowCommand({
+                        args: [
+                            "status",
+                            "--short",
+                            "--branch"
+                        ],
+                        cwd,
+                        timeoutMs,
+                        root
+                    });
+
+                return res.json({
+                    ...result,
+                    action:
+                        "status",
+                    status:
+                        result.ok
+                            ? "GIT_STATUS_OK"
+                            : "GIT_STATUS_FAILED"
+                });
+            }
+
+            if (normalizedAction === "diff") {
+                result =
+                    await runGitWorkflowCommand({
+                        args: [
+                            "diff",
+                            "--"
+                        ],
+                        cwd,
+                        timeoutMs,
+                        root
+                    });
+
+                return res.json({
+                    ...result,
+                    action:
+                        "diff",
+                    status:
+                        result.ok
+                            ? "GIT_DIFF_OK"
+                            : "GIT_DIFF_FAILED"
+                });
+            }
+
+            if (normalizedAction === "diffCached") {
+                result =
+                    await runGitWorkflowCommand({
+                        args: [
+                            "diff",
+                            "--cached",
+                            "--"
+                        ],
+                        cwd,
+                        timeoutMs,
+                        root
+                    });
+
+                return res.json({
+                    ...result,
+                    action:
+                        "diffCached",
+                    status:
+                        result.ok
+                            ? "GIT_DIFF_CACHED_OK"
+                            : "GIT_DIFF_CACHED_FAILED"
+                });
+            }
+
+            if (normalizedAction === "add") {
+                if (approvedWrite !== true) {
+                    return res.status(403).json({
+                        ok: false,
+                        status: "GIT_APPROVAL_REQUIRED",
+                        error: "APPROVAL_REQUIRED: git add",
+                        action:
+                            normalizedAction,
+                        version:
+                            JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
+
+                const safeFiles =
+                    normalizeGitFiles(files);
+
+                if (safeFiles.length === 0) {
+                    return res.status(400).json({
+                        ok: false,
+                        status: "GIT_FILES_REQUIRED",
+                        error: "FILES_REQUIRED",
+                        action:
+                            normalizedAction,
+                        version:
+                            JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
+
+                result =
+                    await runGitWorkflowCommand({
+                        args: [
+                            "add",
+                            "--",
+                            ...safeFiles
+                        ],
+                        cwd,
+                        timeoutMs,
+                        root
+                    });
+
+                return res.json({
+                    ...result,
+                    action:
+                        "add",
+                    files:
+                        safeFiles,
+                    status:
+                        result.ok
+                            ? "GIT_ADD_OK"
+                            : "GIT_ADD_FAILED"
+                });
+            }
+
+            if (normalizedAction === "commit") {
+                if (approvedWrite !== true) {
+                    return res.status(403).json({
+                        ok: false,
+                        status: "GIT_APPROVAL_REQUIRED",
+                        error: "APPROVAL_REQUIRED: git commit",
+                        action:
+                            normalizedAction,
+                        version:
+                            JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
+
+                const commitMessage =
+                    String(message || "").trim();
+
+                if (
+                    commitMessage.length < 3 ||
+                    commitMessage.length > 180
+                ) {
+                    return res.status(400).json({
+                        ok: false,
+                        status: "GIT_COMMIT_MESSAGE_INVALID",
+                        error: "COMMIT_MESSAGE_INVALID",
+                        action:
+                            normalizedAction,
+                        version:
+                            JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
+
+                result =
+                    await runGitWorkflowCommand({
+                        args: [
+                            "commit",
+                            "-m",
+                            commitMessage
+                        ],
+                        cwd,
+                        timeoutMs,
+                        root
+                    });
+
+                return res.json({
+                    ...result,
+                    action:
+                        "commit",
+                    message:
+                        commitMessage,
+                    status:
+                        result.ok
+                            ? "GIT_COMMIT_OK"
+                            : "GIT_COMMIT_FAILED"
+                });
+            }
+
+            if (normalizedAction === "push") {
+                if (approvedWrite !== true) {
+                    return res.status(403).json({
+                        ok: false,
+                        status: "GIT_APPROVAL_REQUIRED",
+                        error: "APPROVAL_REQUIRED: git push",
+                        action:
+                            normalizedAction,
+                        version:
+                            JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
+
+                const safeRemote =
+                    String(remote || "origin").trim();
+
+                const safeBranch =
+                    String(branch || "").trim();
+
+                if (
+                    !/^[A-Za-z0-9._/-]+$/.test(safeRemote) ||
+                    !/^[A-Za-z0-9._/-]+$/.test(safeBranch)
+                ) {
+                    return res.status(400).json({
+                        ok: false,
+                        status: "GIT_PUSH_TARGET_INVALID",
+                        error: "PUSH_TARGET_INVALID",
+                        remote:
+                            safeRemote,
+                        branch:
+                            safeBranch,
+                        version:
+                            JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
+
+                result =
+                    await runGitWorkflowCommand({
+                        args: [
+                            "push",
+                            safeRemote,
+                            safeBranch
+                        ],
+                        cwd,
+                        timeoutMs,
+                        root
+                    });
+
+                return res.json({
+                    ...result,
+                    action:
+                        "push",
+                    remote:
+                        safeRemote,
+                    branch:
+                        safeBranch,
+                    status:
+                        result.ok
+                            ? "GIT_PUSH_OK"
+                            : "GIT_PUSH_FAILED"
+                });
+            }
+
+            return res.status(400).json({
+                ok: false,
+                status: "GIT_ACTION_NOT_ALLOWED",
+                error: "GIT_ACTION_NOT_ALLOWED",
+                action:
+                    normalizedAction,
+                allowedActions: [
+                    "status",
+                    "diff",
+                    "diffCached",
+                    "add",
+                    "commit",
+                    "push"
+                ],
+                version:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+        catch(error) {
+            return res.status(500).json({
+                ok: false,
+                status: "GIT_ENDPOINT_FAILED",
+                error:
+                    error.message,
+                version:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+    
     return app;
 }
 
