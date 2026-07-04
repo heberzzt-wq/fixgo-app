@@ -993,12 +993,19 @@ observarAuth(async (userAuth) => {
 
       if (snap.exists()) {
         userData = snap.data();
-        userRol = userData.rol || "cliente";
+        userRol = userData.rol || userData.role || null;
       }
 
     } catch (err) {
       console.error("❌ Perfil error:", err);
     }
+  }
+
+  if (!userRol) {
+    console.warn("⏳ Perfil sin rol confirmado. Manteniendo loader activo.");
+    hideUI();
+    showLoader("VALIDANDO PERFIL...");
+    return;
   }
 
   let rolBase = userRol;
