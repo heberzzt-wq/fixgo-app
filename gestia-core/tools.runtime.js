@@ -1869,6 +1869,722 @@ JarvisToolRuntime.register({
         }
 });
 
+// Commit 36 - JARVIS CODEX V2: Codex Operator Queue
+JarvisToolRuntime.register({
+    name:
+        "repo.operatorQueue",
+    description:
+        "Administra una cola visual de propuestas Codex: encolar, renderizar, aprobar, rechazar, aprobar por lote y limpiar.",
+    mutates:
+        false,
+    requiresApproval:
+        false,
+    output:
+        "REPO_OPERATOR_QUEUE_RESULT_V7",
+    execute:
+        async (args = {}, context = {}) => {
+            const action =
+                args.action ||
+                "render";
+
+            window.JarvisOperatorQueue =
+                window.JarvisOperatorQueue || [];
+
+            const queue =
+                window.JarvisOperatorQueue;
+
+            const findItem =
+                itemId => queue.find(item => item?.id === itemId) || null;
+
+            const updateBadge =
+                item => {
+                    const element =
+                        document.getElementById(`jarvis-queue-item-${item.id}`);
+
+                    if (!element) {
+                        return;
+                    }
+
+                    element.dataset.state =
+                        item.state;
+
+                    const badge =
+                        element.querySelector("[data-role='queue-state']");
+
+                    if (badge) {
+                        badge.textContent =
+                            item.state;
+                    }
+                };
+
+            const ensureHost =
+                () => {
+                    let host =
+                        document.getElementById("jarvis-operator-queue");
+
+                    if (!host) {
+                        host =
+                            document.createElement("section");
+
+                        host.id =
+                            "jarvis-operator-queue";
+
+                        host.style.position =
+                            "fixed";
+                        host.style.left =
+                            "16px";
+                        host.style.bottom =
+                            "16px";
+                        host.style.width =
+                            "430px";
+                        host.style.maxHeight =
+                            "78vh";
+                        host.style.overflow =
+                            "auto";
+                        host.style.zIndex =
+                            "99998";
+                        host.style.display =
+                            "flex";
+                        host.style.flexDirection =
+                            "column";
+                        host.style.gap =
+                            "10px";
+                        host.style.fontFamily =
+                            "system-ui, -apple-system, Segoe UI, sans-serif";
+
+                        document.body.appendChild(host);
+                    }
+
+                    return host;
+                };
+
+            const escapeHtml =
+                value => String(value ?? "")
+                    .replaceAll("&", "&amp;")
+                    .replaceAll("<", "&lt;")
+                    .replaceAll(">", "&gt;")
+                    .replaceAll(String.fromCharCode(34), "&quot;")
+                    .replaceAll("'", "&#039;");
+
+            const renderQueue =
+                () => {
+                    const host =
+                        ensureHost();
+
+                    const pending =
+                        queue.filter(item => item.state === "PENDING").length;
+
+                    const approved =
+                        queue.filter(item => item.state === "APPROVED").length;
+
+                    const rejected =
+                        queue.filter(item => item.state === "REJECTED").length;
+
+                    const executed =
+                        queue.filter(item => item.state === "EXECUTED").length;
+
+                    host.innerHTML =
+                        `
+                        <article style="border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:14px;background:rgba(2,6,23,.96);color:#e5e7eb;box-shadow:0 18px 40px rgba(0,0,0,.35);">
+                            <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+                                <div>
+                                    <div style="font-size:13px;opacity:.8;">JARVIS CODEX OPERATOR QUEUE</div>
+                                    <strong style="font-size:15px;">Cola de propuestas</strong>
+                                </div>
+                                <span style="font-size:11px;padding:4px 8px;border-radius:999px;background:#1f2937;">${queue.length} items</span>
+                            </div>
+                            <div style="margin-top:10px;font-size:12px;display:flex;gap:6px;flex-wrap:wrap;">
+                                <span style="padding:4px 8px;border-radius:999px;background:#334155;">Pending: ${pending}</span>
+                                <span style="padding:4px 8px;border-radius:999px;background:#14532d;">Approved: ${approved}</span>
+                                <span style="padding:4px 8px;border-radius:999px;background:#1d4ed8;">Executed: ${executed}</span>
+                                <span style="padding:4px 8px;border-radius:999px;background:#7f1d1d;">Rejected: ${rejected}</span>
+                            </div>
+                            <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+                                <button data-action="approve-safe" style="cursor:pointer;border:0;border-radius:10px;padding:8px 10px;background:#16a34a;color:white;">Aprobar LOW/MEDIUM</button>
+                                <button data-action="render" style="cursor:pointer;border:0;border-radius:10px;padding:8px 10px;background:#334155;color:white;">Render</button>
+                                <button data-action="clear-done" style="cursor:pointer;border:0;border-radius:10px;padding:8px 10px;background:#475569;color:white;">Limpiar cerrados</button>
+                            </div>
+                        </article>
+                        `;
+
+                    host.querySelector("[data-action='approve-safe']")?.addEventListener("click", () => {
+                        window.JarvisOperatorQueueApi.approveSafeBatch();
+                    });
+
+                    host.querySelector("[data-action='render']")?.addEventListener("click", () => {
+                        window.JarvisOperatorQueueApi.render();
+                    });
+
+                    host.querySelector("[data-action='clear-done']")?.addEventListener("click", () => {
+                        window.JarvisOperatorQueueApi.clearDone();
+                    });
+
+                    for (const item of queue.slice().reverse()) {
+                        const risk =
+                            String(item.riskLevel || "LOW").toUpperCase();
+
+                        const riskColor =
+                            risk === "CRITICAL"
+                                ? "#7f1d1d"
+                                : risk === "HIGH"
+                                    ? "#92400e"
+                                    : risk === "MEDIUM"
+                                        ? "#854d0e"
+                                        : "#14532d";
+
+                        const node =
+                            document.createElement("article");
+
+                        node.id =
+                            `jarvis-queue-item-${item.id}`;
+
+                        node.dataset.state =
+                            item.state;
+
+                        node.style.border =
+                            "1px solid rgba(255,255,255,.14)";
+                        node.style.borderRadius =
+                            "14px";
+                        node.style.padding =
+                            "12px";
+                        node.style.background =
+                            "rgba(15,23,42,.96)";
+                        node.style.color =
+                            "#e5e7eb";
+
+                        node.innerHTML =
+                            `
+                            <div style="display:flex;justify-content:space-between;gap:8px;">
+                                <strong style="font-size:13px;">${escapeHtml(item.file)}</strong>
+                                <span data-role="queue-state" style="font-size:11px;padding:3px 8px;border-radius:999px;background:#1f2937;">${escapeHtml(item.state)}</span>
+                            </div>
+                            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+                                <span style="font-size:11px;padding:3px 8px;border-radius:999px;background:${riskColor};">Riesgo: ${escapeHtml(risk)}</span>
+                                <span style="font-size:11px;padding:3px 8px;border-radius:999px;background:#334155;">${escapeHtml(item.intent || "operator queue")}</span>
+                            </div>
+                            <div style="margin-top:8px;font-size:12px;opacity:.9;">${escapeHtml(item.summary || "Cambio propuesto")}</div>
+                            <details style="margin-top:8px;">
+                                <summary style="cursor:pointer;font-size:12px;">Ver patch</summary>
+                                <pre style="white-space:pre-wrap;font-size:11px;background:#020617;padding:8px;border-radius:10px;max-height:120px;overflow:auto;">${escapeHtml(item.search || "")}</pre>
+                                <pre style="white-space:pre-wrap;font-size:11px;background:#020617;padding:8px;border-radius:10px;max-height:120px;overflow:auto;">${escapeHtml(item.replace || "")}</pre>
+                            </details>
+                            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                                <button data-action="card" style="cursor:pointer;border:0;border-radius:10px;padding:7px 9px;background:#2563eb;color:white;">Card</button>
+                                <button data-action="approve" style="cursor:pointer;border:0;border-radius:10px;padding:7px 9px;background:#16a34a;color:white;">Aprobar</button>
+                                <button data-action="double" style="cursor:pointer;border:0;border-radius:10px;padding:7px 9px;background:#ca8a04;color:white;">Doble</button>
+                                <button data-action="reinforced" style="cursor:pointer;border:0;border-radius:10px;padding:7px 9px;background:#dc2626;color:white;">Reforzar</button>
+                                <button data-action="reject" style="cursor:pointer;border:0;border-radius:10px;padding:7px 9px;background:#475569;color:white;">Rechazar</button>
+                            </div>
+                            `;
+
+                        node.querySelector("[data-action='card']")?.addEventListener("click", () => {
+                            window.JarvisOperatorQueueApi.card(item.id);
+                        });
+
+                        node.querySelector("[data-action='approve']")?.addEventListener("click", () => {
+                            window.JarvisOperatorQueueApi.approve(item.id, "simple");
+                        });
+
+                        node.querySelector("[data-action='double']")?.addEventListener("click", () => {
+                            window.JarvisOperatorQueueApi.approve(item.id, "double");
+                        });
+
+                        node.querySelector("[data-action='reinforced']")?.addEventListener("click", () => {
+                            window.JarvisOperatorQueueApi.approve(item.id, "reinforced");
+                        });
+
+                        node.querySelector("[data-action='reject']")?.addEventListener("click", () => {
+                            window.JarvisOperatorQueueApi.reject(item.id);
+                        });
+
+                        host.appendChild(node);
+                    }
+
+                    return host;
+                };
+
+            const enqueue =
+                itemArgs => {
+                    const item = {
+                        id:
+                            itemArgs.itemId ||
+                            [
+                                "queue",
+                                Date.now(),
+                                Math.random().toString(36).slice(2, 10)
+                            ].join("_"),
+                        file:
+                            itemArgs.file ||
+                            itemArgs.path ||
+                            "",
+                        path:
+                            itemArgs.path ||
+                            itemArgs.file ||
+                            "",
+                        search:
+                            itemArgs.search || "",
+                        replace:
+                            itemArgs.replace || "",
+                        riskLevel:
+                            itemArgs.riskLevel ||
+                            itemArgs.criticality ||
+                            "LOW",
+                        intent:
+                            itemArgs.intent ||
+                            context?.intent ||
+                            "operator queue proposal",
+                        summary:
+                            itemArgs.summary ||
+                            itemArgs.reason ||
+                            "Cambio propuesto por Jarvis.",
+                        targetTool:
+                            itemArgs.targetTool ||
+                            "repo.safePatchApply",
+                        targetArgs:
+                            itemArgs.targetArgs || null,
+                        createdAt:
+                            new Date().toISOString(),
+                        state:
+                            "PENDING",
+                        source:
+                            "repo_operator_queue_v7"
+                    };
+
+                    if (!item.file || !item.path) {
+                        return {
+                            ok: false,
+                            status: "CONTRACT_INVALID",
+                            error: "FILE_REQUIRED"
+                        };
+                    }
+
+                    queue.push(item);
+
+                    window.JarvisLastOperatorQueueItem =
+                        item;
+
+                    return {
+                        ok: true,
+                        status: "QUEUE_ITEM_ADDED",
+                        item
+                    };
+                };
+
+            window.JarvisOperatorQueueApi =
+                window.JarvisOperatorQueueApi || {};
+
+            window.JarvisOperatorQueueApi.find =
+                findItem;
+
+            window.JarvisOperatorQueueApi.render =
+                renderQueue;
+
+            window.JarvisOperatorQueueApi.enqueue =
+                proposal => {
+                    const result =
+                        enqueue(proposal || {});
+
+                    renderQueue();
+
+                    return result;
+                };
+
+            window.JarvisOperatorQueueApi.card =
+                async itemId => {
+                    const item =
+                        findItem(itemId);
+
+                    if (!item) {
+                        return {
+                            ok: false,
+                            status: "QUEUE_ITEM_NOT_FOUND",
+                            itemId
+                        };
+                    }
+
+                    const card =
+                        await JarvisToolRuntime.execute(
+                            "repo.reviewCard",
+                            {
+                                file:
+                                    item.file,
+                                path:
+                                    item.path,
+                                search:
+                                    item.search,
+                                replace:
+                                    item.replace,
+                                riskLevel:
+                                    item.riskLevel,
+                                status:
+                                    "QUEUE_REVIEW_REQUIRED",
+                                reason:
+                                    item.summary,
+                                targetTool:
+                                    item.targetTool,
+                                targetArgs:
+                                    item.targetArgs || {
+                                        file:
+                                            item.file,
+                                        path:
+                                            item.path,
+                                        search:
+                                            item.search,
+                                        replace:
+                                            item.replace,
+                                        riskLevel:
+                                            item.riskLevel
+                                    },
+                                intent:
+                                    item.intent
+                            },
+                            context
+                        );
+
+                    item.reviewCardId =
+                        card?.data?.cardId ||
+                        card?.cardId ||
+                        null;
+
+                    item.state =
+                        "CARD_READY";
+
+                    item.card =
+                        card;
+
+                    updateBadge(item);
+
+                    return card;
+                };
+
+            window.JarvisOperatorQueueApi.approve =
+                async (itemId, mode = "simple") => {
+                    const item =
+                        findItem(itemId);
+
+                    if (!item) {
+                        return {
+                            ok: false,
+                            status: "QUEUE_ITEM_NOT_FOUND",
+                            itemId
+                        };
+                    }
+
+                    item.state =
+                        "APPROVED";
+
+                    item.approvalMode =
+                        mode;
+
+                    item.approvedAt =
+                        new Date().toISOString();
+
+                    updateBadge(item);
+
+                    const doubleConfirm =
+                        mode === "double" ||
+                        mode === "reinforced" ||
+                        item.riskLevel === "HIGH" ||
+                        item.riskLevel === "CRITICAL";
+
+                    const reinforcedApproval =
+                        mode === "reinforced" ||
+                        item.riskLevel === "CRITICAL";
+
+                    const result =
+                        await JarvisToolRuntime.execute(
+                            item.targetTool || "repo.safePatchApply",
+                            {
+                                ...(item.targetArgs || {
+                                    file:
+                                        item.file,
+                                    path:
+                                        item.path,
+                                    search:
+                                        item.search,
+                                    replace:
+                                        item.replace,
+                                    riskLevel:
+                                        item.riskLevel
+                                }),
+                                approved:
+                                    true,
+                                codexApproved:
+                                    true,
+                                doubleConfirm,
+                                doubleConfirmed:
+                                    doubleConfirm,
+                                reinforcedApproval,
+                                criticalApproval:
+                                    reinforcedApproval
+                            },
+                            {
+                                approved:
+                                    true,
+                                codexApproved:
+                                    true,
+                                doubleConfirm,
+                                doubleConfirmed:
+                                    doubleConfirm,
+                                reinforcedApproval,
+                                criticalApproval:
+                                    reinforcedApproval
+                            }
+                        );
+
+                    item.lastResult =
+                        result;
+
+                    const resultData =
+                        result?.data ||
+                        result ||
+                        {};
+
+                    item.state =
+                        resultData?.status === "SAFE_PATCH_APPLY_OK" ||
+                        result?.status === "COMPLETED"
+                            ? "EXECUTED"
+                            : "APPROVED_NEEDS_REVIEW";
+
+                    updateBadge(item);
+
+                    renderQueue();
+
+                    return result;
+                };
+
+            window.JarvisOperatorQueueApi.reject =
+                itemId => {
+                    const item =
+                        findItem(itemId);
+
+                    if (!item) {
+                        return {
+                            ok: false,
+                            status: "QUEUE_ITEM_NOT_FOUND",
+                            itemId
+                        };
+                    }
+
+                    item.state =
+                        "REJECTED";
+
+                    item.rejectedAt =
+                        new Date().toISOString();
+
+                    updateBadge(item);
+
+                    renderQueue();
+
+                    return {
+                        ok: true,
+                        status: "QUEUE_ITEM_REJECTED",
+                        item
+                    };
+                };
+
+            window.JarvisOperatorQueueApi.approveSafeBatch =
+                async () => {
+                    const safeItems =
+                        queue.filter(item =>
+                            item.state === "PENDING" &&
+                            (
+                                String(item.riskLevel).toUpperCase() === "LOW" ||
+                                String(item.riskLevel).toUpperCase() === "MEDIUM"
+                            )
+                        );
+
+                    const results =
+                        [];
+
+                    for (const item of safeItems) {
+                        results.push(
+                            await window.JarvisOperatorQueueApi.approve(
+                                item.id,
+                                "simple"
+                            )
+                        );
+                    }
+
+                    renderQueue();
+
+                    return {
+                        ok: true,
+                        status: "QUEUE_SAFE_BATCH_DONE",
+                        count:
+                            results.length,
+                        results
+                    };
+                };
+
+            window.JarvisOperatorQueueApi.clearDone =
+                () => {
+                    window.JarvisOperatorQueue =
+                        queue.filter(item =>
+                            item.state !== "EXECUTED" &&
+                            item.state !== "REJECTED"
+                        );
+
+                    renderQueue();
+
+                    return {
+                        ok: true,
+                        status: "QUEUE_DONE_CLEARED",
+                        remaining:
+                            window.JarvisOperatorQueue.length
+                    };
+                };
+
+            if (action === "enqueue") {
+                const result =
+                    enqueue(args);
+
+                renderQueue();
+
+                return {
+                    ok:
+                        result.ok === true,
+                    success:
+                        result.ok === true,
+                    status:
+                        result.status,
+                    itemId:
+                        result.item?.id || null,
+                    item:
+                        result.item || null,
+                    queueLength:
+                        window.JarvisOperatorQueue.length,
+                    tool:
+                        "repo.operatorQueue",
+                    source:
+                        "repo_operator_queue_v7"
+                };
+            }
+
+            if (action === "card") {
+                const card =
+                    await window.JarvisOperatorQueueApi.card(
+                        args.itemId ||
+                        args.id
+                    );
+
+                return {
+                    ok:
+                        card?.ok === true ||
+                        card?.success === true ||
+                        card?.status === "COMPLETED",
+                    success:
+                        card?.ok === true ||
+                        card?.success === true ||
+                        card?.status === "COMPLETED",
+                    status:
+                        card?.data?.status ||
+                        card?.status ||
+                        "QUEUE_CARD_DONE",
+                    card,
+                    tool:
+                        "repo.operatorQueue"
+                };
+            }
+
+            if (action === "approve") {
+                const result =
+                    await window.JarvisOperatorQueueApi.approve(
+                        args.itemId ||
+                        args.id,
+                        args.mode || "simple"
+                    );
+
+                return {
+                    ok:
+                        result?.ok === true ||
+                        result?.success === true ||
+                        result?.status === "COMPLETED",
+                    success:
+                        result?.ok === true ||
+                        result?.success === true ||
+                        result?.status === "COMPLETED",
+                    status:
+                        result?.data?.status ||
+                        result?.status ||
+                        "QUEUE_APPROVE_DONE",
+                    result,
+                    tool:
+                        "repo.operatorQueue"
+                };
+            }
+
+            if (action === "reject") {
+                const result =
+                    window.JarvisOperatorQueueApi.reject(
+                        args.itemId ||
+                        args.id
+                    );
+
+                return {
+                    ok:
+                        result.ok === true,
+                    success:
+                        result.ok === true,
+                    status:
+                        result.status,
+                    result,
+                    tool:
+                        "repo.operatorQueue"
+                };
+            }
+
+            if (action === "approveSafeBatch") {
+                const result =
+                    await window.JarvisOperatorQueueApi.approveSafeBatch();
+
+                return {
+                    ok: true,
+                    success: true,
+                    status:
+                        result.status,
+                    result,
+                    tool:
+                        "repo.operatorQueue"
+                };
+            }
+
+            if (action === "clearDone") {
+                const result =
+                    window.JarvisOperatorQueueApi.clearDone();
+
+                return {
+                    ok: true,
+                    success: true,
+                    status:
+                        result.status,
+                    result,
+                    tool:
+                        "repo.operatorQueue"
+                };
+            }
+
+            renderQueue();
+
+            return {
+                ok: true,
+                success: true,
+                status: "OPERATOR_QUEUE_RENDERED",
+                queueLength:
+                    window.JarvisOperatorQueue.length,
+                pending:
+                    window.JarvisOperatorQueue.filter(item => item.state === "PENDING").length,
+                queue:
+                    window.JarvisOperatorQueue,
+                api:
+                    "window.JarvisOperatorQueueApi",
+                tool:
+                    "repo.operatorQueue",
+                source:
+                    "repo_operator_queue_v7"
+            };
+        }
+});
 
 JarvisToolRuntime.register({
     name:
