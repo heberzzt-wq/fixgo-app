@@ -1363,6 +1363,513 @@ JarvisToolRuntime.register({
         }
 });
 
+// Commit 35 - JARVIS CODEX V2: Review Cards / Approval Cards
+JarvisToolRuntime.register({
+    name:
+        "repo.reviewCard",
+    description:
+        "Genera una tarjeta visual de revision/aprobacion para cambios de repo: riesgo, preview, impacto, snapshot, aprobar, rechazar o rollback.",
+    mutates:
+        false,
+    requiresApproval:
+        false,
+    output:
+        "REPO_REVIEW_CARD_RESULT_V7",
+    execute:
+        async (args = {}, context = {}) => {
+            const file =
+                args.file ||
+                args.path ||
+                "";
+
+            const path =
+                args.path ||
+                args.file ||
+                "";
+
+            const riskLevel =
+                args.riskLevel ||
+                args.governanceRiskLevel ||
+                args.criticality ||
+                "LOW";
+
+            const status =
+                args.status ||
+                args.governanceStatus ||
+                "REVIEW_REQUIRED";
+
+            const cardId =
+                args.cardId ||
+                [
+                    "review",
+                    Date.now(),
+                    Math.random().toString(36).slice(2, 10)
+                ].join("_");
+
+            if (!file || !path) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "CONTRACT_INVALID",
+                    error: "FILE_REQUIRED",
+                    tool: "repo.reviewCard"
+                };
+            }
+
+            const escapeHtml =
+                value => String(value ?? "")
+                    .replaceAll("&", "&amp;")
+                    .replaceAll("<", "&lt;")
+                    .replaceAll(">", "&gt;")
+                    .replaceAll(String.fromCharCode(34), "&quot;")
+                    .replaceAll("'", "&#039;");
+
+            const normalizeSnippet =
+                value => {
+                    const text =
+                        String(value ?? "");
+
+                    return text.length > 900
+                        ? `${text.slice(0, 900)}\n...`
+                        : text;
+                };
+
+            const targetArgs = {
+                file,
+                path,
+                search:
+                    args.search || "",
+                replace:
+                    args.replace || "",
+                riskLevel,
+                approved:
+                    true,
+                codexApproved:
+                    true
+            };
+
+            const card = {
+                id:
+                    cardId,
+                file,
+                path,
+                status,
+                riskLevel,
+                title:
+                    args.title ||
+                    `Revision de cambio: ${file}`,
+                intent:
+                    args.intent ||
+                    context?.intent ||
+                    "repo review card",
+                summary:
+                    args.summary ||
+                    args.reason ||
+                    "Cambio pendiente de revision.",
+                requiredControls:
+                    args.requiredControls ||
+                    [],
+                search:
+                    normalizeSnippet(args.search || ""),
+                replace:
+                    normalizeSnippet(args.replace || ""),
+                previewStatus:
+                    args.previewStatus ||
+                    args.preview?.data?.status ||
+                    args.preview?.status ||
+                    null,
+                governanceStatus:
+                    args.governanceStatus ||
+                    args.governance?.data?.status ||
+                    args.governance?.status ||
+                    null,
+                snapshotId:
+                    args.snapshotId ||
+                    args.snapshot?.data?.snapshotId ||
+                    args.snapshot?.snapshotId ||
+                    null,
+                rollbackAvailable:
+                    args.rollbackAvailable === true ||
+                    Boolean(args.snapshotId),
+                targetTool:
+                    args.targetTool ||
+                    "repo.safePatchApply",
+                targetArgs:
+                    {
+                        ...targetArgs,
+                        ...(args.targetArgs || {})
+                    },
+                createdAt:
+                    new Date().toISOString(),
+                createdBy:
+                    "repo.reviewCard",
+                state:
+                    "PENDING_REVIEW"
+            };
+
+            window.JarvisReviewCards =
+                window.JarvisReviewCards || [];
+
+            window.JarvisReviewCards.push(card);
+
+            window.JarvisLastReviewCard =
+                card;
+
+            window.JarvisApprovalCards =
+                window.JarvisApprovalCards || {};
+
+            window.JarvisApprovalCards.find =
+                cardIdToFind => {
+                    return (window.JarvisReviewCards || [])
+                        .find(item => item?.id === cardIdToFind) ||
+                        null;
+                };
+
+            window.JarvisApprovalCards.reject =
+                cardIdToReject => {
+                    const found =
+                        window.JarvisApprovalCards.find(cardIdToReject);
+
+                    if (!found) {
+                        return {
+                            ok: false,
+                            status: "REVIEW_CARD_NOT_FOUND",
+                            cardId:
+                                cardIdToReject
+                        };
+                    }
+
+                    found.state =
+                        "REJECTED";
+
+                    found.rejectedAt =
+                        new Date().toISOString();
+
+                    const element =
+                        document.getElementById(`jarvis-review-card-${found.id}`);
+
+                    if (element) {
+                        element.dataset.state =
+                            "REJECTED";
+
+                        const badge =
+                            element.querySelector("[data-role='state']");
+
+                        if (badge) {
+                            badge.textContent =
+                                "REJECTED";
+                        }
+                    }
+
+                    return {
+                        ok: true,
+                        status: "REVIEW_CARD_REJECTED",
+                        card:
+                            found
+                    };
+                };
+
+            window.JarvisApprovalCards.approve =
+                async (cardIdToApprove, mode = "simple") => {
+                    const found =
+                        window.JarvisApprovalCards.find(cardIdToApprove);
+
+                    if (!found) {
+                        return {
+                            ok: false,
+                            status: "REVIEW_CARD_NOT_FOUND",
+                            cardId:
+                                cardIdToApprove
+                        };
+                    }
+
+                    const doubleConfirm =
+                        mode === "double" ||
+                        mode === "reinforced" ||
+                        found.riskLevel === "HIGH" ||
+                        found.riskLevel === "CRITICAL";
+
+                    const reinforcedApproval =
+                        mode === "reinforced" ||
+                        found.riskLevel === "CRITICAL";
+
+                    found.state =
+                        "APPROVED";
+
+                    found.approvedAt =
+                        new Date().toISOString();
+
+                    found.approvalMode =
+                        mode;
+
+                    const result =
+                        await JarvisToolRuntime.execute(
+                            found.targetTool || "repo.safePatchApply",
+                            {
+                                ...found.targetArgs,
+                                approved:
+                                    true,
+                                codexApproved:
+                                    true,
+                                doubleConfirm,
+                                doubleConfirmed:
+                                    doubleConfirm,
+                                reinforcedApproval,
+                                criticalApproval:
+                                    reinforcedApproval
+                            },
+                            {
+                                approved:
+                                    true,
+                                codexApproved:
+                                    true,
+                                doubleConfirm,
+                                doubleConfirmed:
+                                    doubleConfirm,
+                                reinforcedApproval,
+                                criticalApproval:
+                                    reinforcedApproval
+                            }
+                        );
+
+                    found.lastResult =
+                        result;
+
+                    const element =
+                        document.getElementById(`jarvis-review-card-${found.id}`);
+
+                    if (element) {
+                        element.dataset.state =
+                            "APPROVED";
+
+                        const badge =
+                            element.querySelector("[data-role='state']");
+
+                        if (badge) {
+                            badge.textContent =
+                                "APPROVED";
+                        }
+                    }
+
+                    return result;
+                };
+
+            window.JarvisApprovalCards.rollback =
+                async snapshotIdToRollback => {
+                    return await JarvisToolRuntime.execute(
+                        "repo.rollbackLastPatch",
+                        {
+                            snapshotId:
+                                snapshotIdToRollback,
+                            approved:
+                                true,
+                            codexApproved:
+                                true
+                        },
+                        {
+                            approved:
+                                true,
+                            codexApproved:
+                                true
+                        }
+                    );
+                };
+
+            const ensureHost =
+                () => {
+                    let host =
+                        document.getElementById("jarvis-review-cards");
+
+                    if (!host) {
+                        host =
+                            document.createElement("section");
+
+                        host.id =
+                            "jarvis-review-cards";
+
+                        host.style.position =
+                            "fixed";
+                        host.style.right =
+                            "16px";
+                        host.style.bottom =
+                            "16px";
+                        host.style.width =
+                            "420px";
+                        host.style.maxHeight =
+                            "78vh";
+                        host.style.overflow =
+                            "auto";
+                        host.style.zIndex =
+                            "99999";
+                        host.style.display =
+                            "flex";
+                        host.style.flexDirection =
+                            "column";
+                        host.style.gap =
+                            "12px";
+                        host.style.fontFamily =
+                            "system-ui, -apple-system, Segoe UI, sans-serif";
+
+                        document.body.appendChild(host);
+                    }
+
+                    return host;
+                };
+
+            const riskColor =
+                String(riskLevel).toUpperCase() === "CRITICAL"
+                    ? "#7f1d1d"
+                    : String(riskLevel).toUpperCase() === "HIGH"
+                        ? "#92400e"
+                        : String(riskLevel).toUpperCase() === "MEDIUM"
+                            ? "#854d0e"
+                            : "#14532d";
+
+            const host =
+                ensureHost();
+
+            const existing =
+                document.getElementById(`jarvis-review-card-${card.id}`);
+
+            if (existing) {
+                existing.remove();
+            }
+
+            const element =
+                document.createElement("article");
+
+            element.id =
+                `jarvis-review-card-${card.id}`;
+
+            element.dataset.state =
+                card.state;
+
+            element.style.border =
+                "1px solid rgba(255,255,255,0.16)";
+            element.style.borderRadius =
+                "16px";
+            element.style.padding =
+                "14px";
+            element.style.background =
+                "rgba(15,23,42,0.96)";
+            element.style.color =
+                "#e5e7eb";
+            element.style.boxShadow =
+                "0 18px 40px rgba(0,0,0,0.35)";
+
+            element.innerHTML =
+                `
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+                    <div>
+                        <div style="font-size:13px;opacity:.8;">JARVIS REVIEW CARD</div>
+                        <strong style="font-size:15px;">${escapeHtml(card.title)}</strong>
+                    </div>
+                    <span data-role="state" style="font-size:11px;padding:4px 8px;border-radius:999px;background:#1f2937;">${escapeHtml(card.state)}</span>
+                </div>
+
+                <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                    <span style="font-size:12px;padding:4px 8px;border-radius:999px;background:${riskColor};">Riesgo: ${escapeHtml(riskLevel)}</span>
+                    <span style="font-size:12px;padding:4px 8px;border-radius:999px;background:#334155;">${escapeHtml(status)}</span>
+                </div>
+
+                <div style="margin-top:10px;font-size:12px;line-height:1.45;">
+                    <div><b>Archivo:</b> ${escapeHtml(file)}</div>
+                    <div><b>Intent:</b> ${escapeHtml(card.intent)}</div>
+                    <div><b>Snapshot:</b> ${escapeHtml(card.snapshotId || "pendiente")}</div>
+                    <div><b>Preview:</b> ${escapeHtml(card.previewStatus || "pendiente")}</div>
+                    <div><b>Governance:</b> ${escapeHtml(card.governanceStatus || "pendiente")}</div>
+                </div>
+
+                <details style="margin-top:10px;">
+                    <summary style="cursor:pointer;font-size:12px;">Ver search / replace</summary>
+                    <div style="margin-top:8px;">
+                        <div style="font-size:11px;opacity:.8;">SEARCH</div>
+                        <pre style="white-space:pre-wrap;font-size:11px;background:#020617;padding:8px;border-radius:10px;max-height:120px;overflow:auto;">${escapeHtml(card.search)}</pre>
+                        <div style="font-size:11px;opacity:.8;">REPLACE</div>
+                        <pre style="white-space:pre-wrap;font-size:11px;background:#020617;padding:8px;border-radius:10px;max-height:120px;overflow:auto;">${escapeHtml(card.replace)}</pre>
+                    </div>
+                </details>
+
+                <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+                    <button data-action="approve-simple" style="cursor:pointer;border:0;border-radius:10px;padding:8px 10px;background:#16a34a;color:white;">Aprobar</button>
+                    <button data-action="approve-double" style="cursor:pointer;border:0;border-radius:10px;padding:8px 10px;background:#ca8a04;color:white;">Doble aprobar</button>
+                    <button data-action="approve-reinforced" style="cursor:pointer;border:0;border-radius:10px;padding:8px 10px;background:#dc2626;color:white;">Reforzar</button>
+                    <button data-action="reject" style="cursor:pointer;border:0;border-radius:10px;padding:8px 10px;background:#475569;color:white;">Rechazar</button>
+                    <button data-action="rollback" style="cursor:pointer;border:0;border-radius:10px;padding:8px 10px;background:#1d4ed8;color:white;">Rollback</button>
+                </div>
+                `;
+
+            element
+                .querySelector("[data-action='approve-simple']")
+                ?.addEventListener("click", () => {
+                    window.JarvisApprovalCards.approve(card.id, "simple");
+                });
+
+            element
+                .querySelector("[data-action='approve-double']")
+                ?.addEventListener("click", () => {
+                    window.JarvisApprovalCards.approve(card.id, "double");
+                });
+
+            element
+                .querySelector("[data-action='approve-reinforced']")
+                ?.addEventListener("click", () => {
+                    window.JarvisApprovalCards.approve(card.id, "reinforced");
+                });
+
+            element
+                .querySelector("[data-action='reject']")
+                ?.addEventListener("click", () => {
+                    window.JarvisApprovalCards.reject(card.id);
+                });
+
+            element
+                .querySelector("[data-action='rollback']")
+                ?.addEventListener("click", () => {
+                    if (card.snapshotId) {
+                        window.JarvisApprovalCards.rollback(card.snapshotId);
+                    }
+                });
+
+            host.prepend(element);
+
+            return {
+                ok: true,
+                success: true,
+                status: "REVIEW_CARD_READY",
+                cardId:
+                    card.id,
+                file,
+                path,
+                riskLevel,
+                reviewState:
+                    card.state,
+                domId:
+                    element.id,
+                approvalApi:
+                    "window.JarvisApprovalCards",
+                approveSimple:
+                    `window.JarvisApprovalCards.approve("${card.id}", "simple")`,
+                approveDouble:
+                    `window.JarvisApprovalCards.approve("${card.id}", "double")`,
+                approveReinforced:
+                    `window.JarvisApprovalCards.approve("${card.id}", "reinforced")`,
+                reject:
+                    `window.JarvisApprovalCards.reject("${card.id}")`,
+                rollback:
+                    card.snapshotId
+                        ? `window.JarvisApprovalCards.rollback("${card.snapshotId}")`
+                        : null,
+                card,
+                tool:
+                    "repo.reviewCard",
+                source:
+                    "repo_review_card_v7"
+            };
+        }
+});
+
+
 JarvisToolRuntime.register({
     name:
         "repo.safePatchApply",
@@ -1524,6 +2031,54 @@ JarvisToolRuntime.register({
                 governanceData?.writeAllowed === true;
 
             if (governanceWriteAllowed !== true) {
+                const reviewCard =
+                    await JarvisToolRuntime.execute(
+                        "repo.reviewCard",
+                        {
+                            file,
+                            path,
+                            search,
+                            replace,
+                            riskLevel:
+                                governanceData?.riskLevel ||
+                                args.riskLevel ||
+                                args.criticality ||
+                                args.level ||
+                                null,
+                            status:
+                                governanceData?.status ||
+                                "GOVERNANCE_BLOCKED",
+                            governanceStatus:
+                                governanceData?.status ||
+                                "GOVERNANCE_BLOCKED",
+                            governance,
+                            requiredControls:
+                                governanceData?.requiredControls || [],
+                            reason:
+                                governanceData?.reason ||
+                                governanceData?.error ||
+                                "Governance requiere revision antes de escribir.",
+                            targetTool:
+                                "repo.safePatchApply",
+                            targetArgs: {
+                                file,
+                                path,
+                                search,
+                                replace,
+                                riskLevel:
+                                    governanceData?.riskLevel ||
+                                    args.riskLevel ||
+                                    args.criticality ||
+                                    args.level ||
+                                    null
+                            },
+                            intent:
+                                args.intent ||
+                                "governance blocked review card"
+                        },
+                        context
+                    );
+
                 return {
                     ok: true,
 success: true,
@@ -1563,8 +2118,16 @@ governanceRiskLevel:
                     next:
                         governanceData?.next ||
                         "Generar tarjeta UI de revision y elevar aprobacion segun nivel de riesgo.",
+                    reviewCard,
+                    reviewCardId:
+                        reviewCard?.data?.cardId ||
+                        reviewCard?.cardId ||
+                        null,
+                    approvalApi:
+                        "window.JarvisApprovalCards",
                     tool:
                         "repo.safePatchApply"
+
                 };
             }
 
@@ -1813,7 +2376,57 @@ if (previewReady !== true) {
                     verifyData?.oldSearchGone === true
                 );
 
+            const reviewCard =
+                await JarvisToolRuntime.execute(
+                    "repo.reviewCard",
+                    {
+                        file,
+                        path,
+                        search,
+                        replace,
+                        riskLevel:
+                            governanceData?.riskLevel ||
+                            args.riskLevel ||
+                            args.criticality ||
+                            args.level ||
+                            null,
+                        status:
+                            verified
+                                ? "WRITE_VERIFIED"
+                                : "WRITE_VERIFY_FAILED",
+                        governanceStatus:
+                            governanceData?.status || null,
+                        previewStatus:
+                            previewData?.status ||
+                            preview?.status ||
+                            null,
+                        snapshotId:
+                            snapshotData?.snapshotId || null,
+                        rollbackAvailable:
+                            snapshotData?.rollbackAvailable === true,
+                        governance,
+                        snapshot,
+                        requiredControls:
+                            governanceData?.requiredControls || [],
+                        reason:
+                            verified
+                                ? "Cambio aplicado y verificado. Rollback disponible."
+                                : "Cambio aplicado pero verificacion fallo. Revisar y considerar rollback.",
+                        targetTool:
+                            "repo.rollbackLastPatch",
+                        targetArgs: {
+                            snapshotId:
+                                snapshotData?.snapshotId || null
+                        },
+                        intent:
+                            args.intent ||
+                            "post write review card"
+                    },
+                    context
+                );
+
             return {
+
                 ok:
                     verified === true,
                 success:
@@ -1847,14 +2460,22 @@ if (previewReady !== true) {
                     snapshotData?.beforeHash || null,
                 rollbackAvailable:
                     snapshotData?.rollbackAvailable === true,
-                rollbackTool:
+                 rollbackTool:
                     "repo.rollbackLastPatch",
                 rollbackCommand:
                     snapshotData?.snapshotId
                         ? `JarvisToolRuntime.execute("repo.rollbackLastPatch", { snapshotId: "${snapshotData.snapshotId}", approved: true, codexApproved: true }, { approved: true })`
                         : null,
+                reviewCard,
+                reviewCardId:
+                    reviewCard?.data?.cardId ||
+                    reviewCard?.cardId ||
+                    null,
+                approvalApi:
+                    "window.JarvisApprovalCards",
                 writeResult,
                 verify,
+
                 tool:
                     "repo.safePatchApply",
                 source:
