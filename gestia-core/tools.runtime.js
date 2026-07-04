@@ -825,6 +825,309 @@ return {
         }
 });
 
+// Commit 38 - JARVIS CODEX V2: Persistent Snapshot Store
+const JarvisPersistentSnapshotStore =
+    window.JarvisPersistentSnapshotStore || {
+        key:
+            "jarvis.repo.snapshots.v7",
+        lastKey:
+            "jarvis.repo.lastSnapshot.v7",
+        maxSnapshots:
+            25,
+        load:
+            () => {
+                try {
+                    const raw =
+                        localStorage.getItem("jarvis.repo.snapshots.v7");
+
+                    const parsed =
+                        raw
+                            ? JSON.parse(raw)
+                            : [];
+
+                    return Array.isArray(parsed)
+                        ? parsed
+                        : [];
+                }
+                catch(error) {
+                    console.warn("[JARVIS_SNAPSHOT_STORE_LOAD_FAILED]", error);
+
+                    return [];
+                }
+            },
+        save:
+            snapshots => {
+                try {
+                    const safeSnapshots =
+                        Array.isArray(snapshots)
+                            ? snapshots.slice(-25)
+                            : [];
+
+                    localStorage.setItem(
+                        "jarvis.repo.snapshots.v7",
+                        JSON.stringify(safeSnapshots)
+                    );
+
+                    const last =
+                        safeSnapshots[safeSnapshots.length - 1] ||
+                        null;
+
+                    if (last) {
+                        localStorage.setItem(
+                            "jarvis.repo.lastSnapshot.v7",
+                            JSON.stringify(last)
+                        );
+                    }
+
+                    return {
+                        ok: true,
+                        count:
+                            safeSnapshots.length,
+                        lastSnapshotId:
+                            last?.id || null
+                    };
+                }
+                catch(error) {
+                    console.warn("[JARVIS_SNAPSHOT_STORE_SAVE_FAILED]", error);
+
+                    return {
+                        ok: false,
+                        error:
+                            error.message
+                    };
+                }
+            },
+        hydrate:
+            () => {
+                const persisted =
+                    JarvisPersistentSnapshotStore.load();
+
+                const memory =
+                    Array.isArray(window.JarvisRepoSnapshots)
+                        ? window.JarvisRepoSnapshots
+                        : [];
+
+                const byId =
+                    new Map();
+
+                for (const snapshot of [...persisted, ...memory]) {
+                    if (snapshot?.id) {
+                        byId.set(snapshot.id, snapshot);
+                    }
+                }
+
+                const merged =
+                    [...byId.values()]
+                        .sort((a, b) =>
+                            String(a.timestamp || "").localeCompare(String(b.timestamp || ""))
+                        )
+                        .slice(-JarvisPersistentSnapshotStore.maxSnapshots);
+
+                window.JarvisRepoSnapshots =
+                    merged;
+
+                window.JarvisLastRepoSnapshot =
+                    merged[merged.length - 1] ||
+                    null;
+
+                JarvisPersistentSnapshotStore.save(merged);
+
+                return {
+                    ok: true,
+                    count:
+                        merged.length,
+                    lastSnapshotId:
+                        window.JarvisLastRepoSnapshot?.id || null
+                };
+            },
+        push:
+            snapshot => {
+                if (!snapshot?.id) {
+                    return {
+                        ok: false,
+                        error: "SNAPSHOT_ID_REQUIRED"
+                    };
+                }
+
+                JarvisPersistentSnapshotStore.hydrate();
+
+                window.JarvisRepoSnapshots =
+                    window.JarvisRepoSnapshots || [];
+
+                const filtered =
+                    window.JarvisRepoSnapshots
+                        .filter(item => item?.id !== snapshot.id);
+
+                filtered.push(snapshot);
+
+                window.JarvisRepoSnapshots =
+                    filtered.slice(-JarvisPersistentSnapshotStore.maxSnapshots);
+
+                window.JarvisLastRepoSnapshot =
+                    snapshot;
+
+                return JarvisPersistentSnapshotStore.save(
+                    window.JarvisRepoSnapshots
+                );
+            },
+        clear:
+            () => {
+                localStorage.removeItem("jarvis.repo.snapshots.v7");
+                localStorage.removeItem("jarvis.repo.lastSnapshot.v7");
+
+                window.JarvisRepoSnapshots =
+                    [];
+
+                window.JarvisLastRepoSnapshot =
+                    null;
+
+                return {
+                    ok: true,
+                    count: 0
+                };
+            }
+    };
+
+window.JarvisPersistentSnapshotStore =
+    JarvisPersistentSnapshotStore;
+
+JarvisPersistentSnapshotStore.hydrate();
+
+JarvisToolRuntime.register({
+    name:
+        "repo.snapshotStore",
+    description:
+        "Administra snapshots persistentes de Jarvis: listar, rehidratar, limpiar y exportar.",
+    mutates:
+        false,
+    requiresApproval:
+        false,
+    output:
+        "REPO_SNAPSHOT_STORE_RESULT_V7",
+    execute:
+        async (args = {}, context = {}) => {
+            const action =
+                args.action ||
+                "list";
+
+            if (action === "hydrate") {
+                const result =
+                    JarvisPersistentSnapshotStore.hydrate();
+
+                return {
+                    ok: true,
+                    success: true,
+                    status: "SNAPSHOT_STORE_HYDRATED",
+                    ...result,
+                    snapshots:
+                        window.JarvisRepoSnapshots || [],
+                    tool:
+                        "repo.snapshotStore",
+                    source:
+                        "repo_snapshot_store_v7"
+                };
+            }
+
+            if (action === "clear") {
+                const approved =
+                    args.approved === true ||
+                    args.codexApproved === true ||
+                    context?.approved === true ||
+                    context?.codexApproved === true;
+
+                if (approved !== true) {
+                    return {
+                        ok: false,
+                        success: false,
+                        status: "PENDING_APPROVAL",
+                        error: "APPROVAL_REQUIRED: snapshotStore.clear",
+                        tool:
+                            "repo.snapshotStore"
+                    };
+                }
+
+                const result =
+                    JarvisPersistentSnapshotStore.clear();
+
+                return {
+                    ok: true,
+                    success: true,
+                    status: "SNAPSHOT_STORE_CLEARED",
+                    ...result,
+                    tool:
+                        "repo.snapshotStore",
+                    source:
+                        "repo_snapshot_store_v7"
+                };
+            }
+
+            if (action === "export") {
+                JarvisPersistentSnapshotStore.hydrate();
+
+                const snapshots =
+                    window.JarvisRepoSnapshots || [];
+
+                return {
+                    ok: true,
+                    success: true,
+                    status: "SNAPSHOT_STORE_EXPORTED",
+                    count:
+                        snapshots.length,
+                    json:
+                        JSON.stringify(
+                            snapshots,
+                            null,
+                            2
+                        ),
+                    snapshots,
+                    tool:
+                        "repo.snapshotStore",
+                    source:
+                        "repo_snapshot_store_v7"
+                };
+            }
+
+            JarvisPersistentSnapshotStore.hydrate();
+
+            const snapshots =
+                window.JarvisRepoSnapshots || [];
+
+            return {
+                ok: true,
+                success: true,
+                status: "SNAPSHOT_STORE_LIST_READY",
+                count:
+                    snapshots.length,
+                lastSnapshotId:
+                    window.JarvisLastRepoSnapshot?.id || null,
+                snapshots:
+                    snapshots.map(item => ({
+                        id:
+                            item.id,
+                        file:
+                            item.file,
+                        path:
+                            item.path,
+                        beforeHash:
+                            item.beforeHash,
+                        beforeLength:
+                            item.beforeLength,
+                        timestamp:
+                            item.timestamp,
+                        riskLevel:
+                            item.riskLevel,
+                        governanceStatus:
+                            item.governanceStatus,
+                        source:
+                            item.source
+                    })),
+                tool:
+                    "repo.snapshotStore",
+                source:
+                    "repo_snapshot_store_v7"
+            };
+        }
+});
 // Commit 33 - JARVIS CODEX V2: Snapshot Before Write
 JarvisToolRuntime.register({
     name:
@@ -981,6 +1284,8 @@ JarvisToolRuntime.register({
                     "repo_snapshot_before_write_v7"
             };
 
+             JarvisPersistentSnapshotStore.hydrate();
+
             window.JarvisRepoSnapshots =
                 window.JarvisRepoSnapshots || [];
 
@@ -1003,6 +1308,13 @@ JarvisToolRuntime.register({
                     );
             }
 
+            JarvisPersistentSnapshotStore.maxSnapshots =
+                Number.isFinite(maxSnapshots) && maxSnapshots > 0
+                    ? maxSnapshots
+                    : 25;
+
+            const persistentSave =
+                JarvisPersistentSnapshotStore.push(snapshot);
             return {
                 ok: true,
                 success: true,
@@ -1019,8 +1331,13 @@ JarvisToolRuntime.register({
                     snapshot.governanceStatus,
                 snapshotsCount:
                     window.JarvisRepoSnapshots.length,
+                persistent:
+                    persistentSave?.ok === true,
+                persistentCount:
+                    persistentSave?.count || null,
                 rollbackAvailable:
                     true,
+
                 next:
                     "Continuar con repo.write. Para revertir en Commit 34 se usara repo.rollbackLastPatch.",
                 tool:
@@ -1065,6 +1382,8 @@ JarvisToolRuntime.register({
                         "repo.rollbackLastPatch"
                 };
             }
+
+            JarvisPersistentSnapshotStore.hydrate();
 
             const snapshots =
                 Array.isArray(window.JarvisRepoSnapshots)
@@ -1120,6 +1439,10 @@ JarvisToolRuntime.register({
                         fileFilter,
                     snapshotsCount:
                         snapshots.length,
+                    persistentCount:
+                        JarvisPersistentSnapshotStore.load().length,
+                    recoveryHint:
+                        "Ejecuta repo.snapshotStore action:'hydrate' o verifica que localStorage no haya sido limpiado.",
                     tool:
                         "repo.rollbackLastPatch"
                 };
