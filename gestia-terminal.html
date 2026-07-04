@@ -1330,6 +1330,171 @@ window.hablarJarvis = async function(texto = "") {
 const cmd = comando.toLowerCase();
 
 /* =====================================================
+   TERMINAL DIRECT TOOL ROUTER V7
+   Ejecuta repo.* y tests.* antes de memoria/interceptores
+===================================================== */
+
+const directToolInput =
+    String(comando || "")
+        .trim();
+
+const directToolMatch =
+    directToolInput.match(
+        /^(repo|tests)\.([a-zA-Z]+)(?:\s+(.+))?$/i
+    );
+
+if (directToolMatch) {
+    const directNamespace =
+        directToolMatch[1].toLowerCase();
+
+    const directAction =
+        directToolMatch[2];
+
+    const directArg =
+        String(directToolMatch[3] || "")
+            .trim();
+
+    const directKey =
+        `${directNamespace}.${directAction.toLowerCase()}`;
+
+    const directToolMap = {
+        "repo.grep": {
+            name: "repo.grep",
+            args: {
+                term: directArg,
+                maxMatches: 80
+            }
+        },
+        "repo.read": {
+            name: "repo.read",
+            args: {
+                file: directArg,
+                path: directArg,
+                maxBytes: 120000
+            }
+        },
+        "repo.gitstatus": {
+            name: "repo.gitStatus",
+            args: {}
+        },
+        "repo.gitdiff": {
+            name: "repo.gitDiff",
+            args: {}
+        },
+        "repo.gitpush": {
+            name: "repo.gitPush",
+            args: {}
+        },
+        "repo.audit": {
+            name: "repo.audit",
+            args: {}
+        },
+        "repo.scan": {
+            name: "repo.scan",
+            args: {}
+        },
+        "repo.search": {
+            name: "repo.search",
+            args: {
+                query: directArg,
+                term: directArg
+            }
+        },
+        "repo.impact": {
+            name: "repo.impact",
+            args: {
+                file: directArg,
+                path: directArg
+            }
+        },
+        "repo.diagnose": {
+            name: "repo.diagnose",
+            args: {
+                file: directArg,
+                path: directArg
+            }
+        },
+        "tests.run": {
+            name: "tests.run",
+            args: {}
+        }
+    };
+
+    const directTool =
+        directToolMap[directKey];
+
+    if (directTool) {
+        console.info(
+            "[DIRECT_TOOL_ROUTER]",
+            {
+                rawInput: comando,
+                tool: directTool.name,
+                args: directTool.args
+            }
+        );
+
+        window.renderJarvisResponse?.(
+            "[DIRECT_TOOL_ROUTER]",
+            `Ejecutando ${directTool.name}`,
+            "info"
+        );
+
+        if (!window.JarvisToolRuntime?.execute) {
+            window.renderJarvisResponse?.(
+                "[DIRECT_TOOL_ROUTER]",
+                "JarvisToolRuntime.execute no está disponible.",
+                "warning"
+            );
+
+            handled = true;
+            return;
+        }
+
+        const directContext = {
+            rawInput: comando,
+            analysisId: currentTraceId,
+            traceId: currentTraceId,
+            source: "terminal_direct_tool_router_v7",
+            tenantId:
+                window.session?.tenantId ||
+                window.KernelHeberto?.session?.tenantId ||
+                "UXMAL39",
+            userId:
+                window.session?.userId ||
+                window.KernelHeberto?.session?.uid ||
+                null,
+            approved:
+                /approved\s*:\s*true/i.test(comando),
+            codexApproved:
+                /codexApproved\s*:\s*true/i.test(comando)
+        };
+
+        const directResult =
+            await window.JarvisToolRuntime.execute(
+                directTool.name,
+                directTool.args,
+                directContext
+            );
+
+        const directPayload =
+            directResult?.data ||
+            directResult?.result ||
+            directResult;
+
+        window.renderJarvisResponse?.(
+            `[DIRECT_TOOL_ROUTER] ${directTool.name}`,
+            typeof directPayload === "string"
+                ? directPayload
+                : JSON.stringify(directPayload, null, 2).slice(0, 6000),
+            directResult?.ok === false ? "warning" : "success"
+        );
+
+        handled = true;
+        return;
+    }
+}
+
+/* =====================================================
    TERMINAL TOOL MEMORY ANSWER V7.1
    Responde desde memoria sin re-ejecutar tools
 ===================================================== */
