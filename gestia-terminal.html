@@ -1373,6 +1373,30 @@ if (directToolMatch) {
                 maxBytes: 120000
             }
         },
+                "repo.write": {
+            name: "repo.write",
+            args: Object.fromEntries(
+                String(directArg || "")
+                    .trim()
+                    .split(/\s+/)
+                    .map(part => {
+                        const index =
+                            part.indexOf("=");
+
+                        if (index === -1) {
+                            return [
+                                part,
+                                true
+                            ];
+                        }
+
+                        return [
+                            part.slice(0, index),
+                            part.slice(index + 1)
+                        ];
+                    })
+            )
+        },
         "repo.gitstatus": {
             name: "repo.gitStatus",
             args: {}
