@@ -867,6 +867,33 @@ function buildToolCallsFromInput(
                 ? "create_file"
                 : null;
 
+                  if (
+    codexMode === "create_file" &&
+    targetFile
+  ) {
+    pushToolCall({
+      name:
+        "repo.write",
+      args:
+        {
+          file:
+            targetFile,
+          content:
+            contexto?.newFileContent || "",
+          dryRun:
+            true
+        },
+      reason:
+        "CODEX_CREATE_FILE_DRY_RUN",
+      mutates:
+        false,
+      approved:
+        false
+    });
+
+    return toolCalls;
+  }
+  
   if (
     wantsCiTest ||
     wantsSyntax ||
