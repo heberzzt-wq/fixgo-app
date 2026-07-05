@@ -1337,7 +1337,128 @@ const cmd = comando.toLowerCase();
 const directToolInput =
     String(comando || "")
         .trim();
+if (/^repo\.write\s+/i.test(directToolInput)) {
+    const writeArg =
+        directToolInput.replace(/^repo\.write\s+/i, "").trim();
 
+    const writeArgs =
+        Object.fromEntries(
+            writeArg
+                .split(/\s+/)
+                .filter(Boolean)
+                .map(part => {
+                    const index =
+                        part.indexOf("=");
+
+                    if (index === -1) {
+                        return [
+                            part,
+                            true
+                        ];
+                    }
+
+                    const key =
+                        part.slice(0, index);
+
+                    let value =
+                        part.slice(index + 1);
+
+                    if (value === "true") {
+                        value =
+                            true;
+                    }
+
+                    if (value === "false") {
+                        value =
+                            false;
+                    }
+
+                    return [
+                        key,
+                        value
+                    ];
+                })
+        );
+
+    console.info(
+        "[DIRECT_TOOL_ROUTER]",
+        {
+            rawInput:
+                comando,
+            tool:
+                "repo.write",
+            args:
+                writeArgs
+        }
+    );
+
+    window.renderJarvisResponse?.(
+        "[DIRECT_TOOL_ROUTER]",
+        "Ejecutando repo.write",
+        "info"
+    );
+
+    if (!window.JarvisToolRuntime?.execute) {
+        window.renderJarvisResponse?.(
+            "[DIRECT_TOOL_ROUTER]",
+            "JarvisToolRuntime.execute no está disponible.",
+            "warning"
+        );
+
+        handled =
+            true;
+
+        return;
+    }
+
+    const writeContext = {
+        rawInput:
+            comando,
+        analysisId:
+            currentTraceId,
+        traceId:
+            currentTraceId,
+        source:
+            "terminal_direct_repo_write_interceptor_v7",
+        tenantId:
+            window.session?.tenantId ||
+            window.KernelHeberto?.session?.tenantId ||
+            "UXMAL39",
+        userId:
+            window.session?.userId ||
+            window.KernelHeberto?.session?.uid ||
+            null,
+        approved:
+            /approved\s*=?\s*true/i.test(comando),
+        codexApproved:
+            /codexApproved\s*=?\s*true/i.test(comando)
+    };
+
+    const writeResult =
+        await window.JarvisToolRuntime.execute(
+            "repo.write",
+            writeArgs,
+            writeContext
+        );
+
+    const writePayload =
+        writeResult?.data ||
+        writeResult?.result ||
+        writeResult;
+
+    window.renderJarvisResponse?.(
+        "[DIRECT_TOOL_ROUTER] repo.write",
+        typeof writePayload === "string"
+            ? writePayload
+            : JSON.stringify(writePayload, null, 2).slice(0, 6000),
+        writeResult?.ok === false ? "warning" : "success"
+    );
+
+    handled =
+        true;
+
+    return;
+}
 const directToolMatch =
     directToolInput.match(
         /^(repo|tests)\.([a-zA-Z]+)(?:\s+(.+))?$/i
