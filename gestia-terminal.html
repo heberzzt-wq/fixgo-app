@@ -1342,43 +1342,7 @@ if (/^repo\.write\s+/i.test(directToolInput)) {
         directToolInput.replace(/^repo\.write\s+/i, "").trim();
 
     const writeArgs =
-        Object.fromEntries(
-            writeArg
-                .split(/\s+/)
-                .filter(Boolean)
-                .map(part => {
-                    const index =
-                        part.indexOf("=");
-
-                    if (index === -1) {
-                        return [
-                            part,
-                            true
-                        ];
-                    }
-
-                    const key =
-                        part.slice(0, index);
-
-                    let value =
-                        part.slice(index + 1);
-
-                    if (value === "true") {
-                        value =
-                            true;
-                    }
-
-                    if (value === "false") {
-                        value =
-                            false;
-                    }
-
-                    return [
-                        key,
-                        value
-                    ];
-                })
-        );
+        parseDirectArgs(writeArg);
 
     console.info(
         "[DIRECT_TOOL_ROUTER]",
