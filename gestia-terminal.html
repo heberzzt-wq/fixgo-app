@@ -1564,6 +1564,56 @@ if (directToolMatch) {
                 path: directArg
             }
         },
+                "repo.snapshotbeforewrite": {
+            name: "repo.snapshotBeforeWrite",
+            args: Object.fromEntries(
+                String(directArg || "")
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .map(part => {
+                        const index =
+                            part.indexOf("=");
+
+                        if (index === -1) {
+                            return [
+                                part,
+                                true
+                            ];
+                        }
+
+                        return [
+                            part.slice(0, index),
+                            part.slice(index + 1)
+                        ];
+                    })
+            )
+        },
+        "repo.postwriteverify": {
+            name: "repo.postWriteVerify",
+            args: Object.fromEntries(
+                String(directArg || "")
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .map(part => {
+                        const index =
+                            part.indexOf("=");
+
+                        if (index === -1) {
+                            return [
+                                part,
+                                true
+                            ];
+                        }
+
+                        return [
+                            part.slice(0, index),
+                            part.slice(index + 1)
+                        ];
+                    })
+            )
+        },
         "tests.run": {
             name: "tests.run",
             args: {}
