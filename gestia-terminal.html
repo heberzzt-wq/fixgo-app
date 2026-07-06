@@ -1337,6 +1337,29 @@ const cmd = comando.toLowerCase();
 const directToolInput =
     String(comando || "")
         .trim();
+
+function parseDirectArgs(raw) {
+    const args = {};
+    const pattern = /([^\s=]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s]+)))?/g;
+    let match;
+
+    while ((match = pattern.exec(String(raw || "")))) {
+        const key = match[1];
+        let value =
+            match[2] ??
+            match[3] ??
+            match[4] ??
+            true;
+
+        if (value === "true") value = true;
+        if (value === "false") value = false;
+
+        args[key] = value;
+    }
+
+    return args;
+}
+
 if (/^repo\.write\s+/i.test(directToolInput)) {
     const writeArg =
         directToolInput.replace(/^repo\.write\s+/i, "").trim();
