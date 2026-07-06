@@ -1115,7 +1115,7 @@ function renderizarTareas(tareas) {
             borderClass = 'bg-blue-900/5 border-blue-500/50 shadow-[0_0_8px_rgba(59,130,246,0.05)]';
         }
 
-        div.className = `mb-2 p-3 rounded-xl border transition-all active:scale-95 flex justify-between items-center cursor-pointer ${borderClass}`;
+        div.className = `mb-1 p-2 rounded-lg border transition-all active:scale-95 flex justify-between items-center cursor-pointer ${borderClass}`;
 
         div.onclick = () => abrirHojaReporte(tarea.id);
 
@@ -1134,15 +1134,15 @@ function renderizarTareas(tareas) {
         else if (esInquilino) barraColor = 'bg-blue-500';
 
         div.innerHTML = `
-            <div class="flex items-center gap-3">
-                <div class="w-1 h-8 rounded-full ${barraColor}"></div>
+            <div class="flex items-center gap-2">
+                <div class="w-1 h-6 rounded-full ${barraColor}"></div>
                 
                 <div>
                     ${badgeHTML}
-                    <h4 class="text-sm font-black italic uppercase leading-tight ${esAlta ? 'text-red-500' : (esInquilino ? 'text-blue-400' : 'text-zinc-100')}">
+                    <h4 class="text-xs font-black italic uppercase leading-tight ${esAlta ? 'text-red-500' : (esInquilino ? 'text-blue-400' : 'text-zinc-100')}">
                         ${tarea.equipo || "MANTENIMIENTO"}
                     </h4>
-                    <p class="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 ${esAlta ? 'text-red-400' : (esInquilino ? 'text-blue-300' : 'text-emerald-500')}">
+                    <p class="text-[9px] font-bold uppercase tracking-wide flex items-center gap-1 ${esAlta ? 'text-red-400' : (esInquilino ? 'text-blue-300' : 'text-emerald-500')}">
                         <i class="fas ${esInquilino ? 'fa-building' : 'fa-map-marker-alt'} text-[9px]"></i> 
                         ${tarea.unidad ? `OFICINA: ${tarea.unidad}` : (tarea.ubicacion_especifica || 'General')}
                     </p>
@@ -1151,7 +1151,7 @@ function renderizarTareas(tareas) {
 
             <div class="text-right">
                 <i class="fas ${esAlta ? 'fa-exclamation-circle text-red-500' : 'fa-chevron-right text-zinc-700'} text-xs"></i>
-                <p class="text-[9px] font-bold text-zinc-600 mt-2">VER OT</p>
+                <p class="text-[8px] font-bold text-zinc-600 mt-1">VER OT</p>
             </div>
         `;
 
