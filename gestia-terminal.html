@@ -1411,6 +1411,10 @@ if (/^repo\.write\s+/i.test(directToolInput)) {
         return;
     }
 
+    const writeIsDryRun =
+    writeArgs?.dryRun === true ||
+    String(writeArgs?.dryRun).toLowerCase() === "true";
+
     const writeContext = {
         rawInput:
             comando,
@@ -1429,7 +1433,8 @@ if (/^repo\.write\s+/i.test(directToolInput)) {
             window.KernelHeberto?.session?.uid ||
             null,
         approved:
-            /approved\s*=?\s*true/i.test(comando),
+    writeIsDryRun === true ||
+    /approved\s*=?\s*true/i.test(comando),
         codexApproved:
             /codexApproved\s*=?\s*true/i.test(comando)
     };
