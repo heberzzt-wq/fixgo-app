@@ -1012,22 +1012,50 @@ function buildToolCallsFromInput(
   wantsPatchPreview ||
   wantsPatchAction
 ) {
-  pushToolCall({
-    name:
-      "repo.patchPreview",
-    args:
-      {
+
+  const exactPatchCandidate =
+  contexto?.codexPatch?.search &&
+  contexto?.codexPatch?.replace;
+
+const patchPreviewTool =
+  exactPatchCandidate
+    ? "repo.patchPreviewExact"
+    : "repo.patchPreview";
+
+    const patchPreviewArgs =
+  exactPatchCandidate
+    ? {
+        file:
+          targetFile,
+        search:
+          contexto.codexPatch.search,
+        replace:
+          contexto.codexPatch.replace,
+        dryRun:
+          true,
+        risk:
+          contexto.codexPatch.risk || "medium"
+      }
+    : {
         file:
           targetFile,
         intent:
           rawInput,
         dryRun:
           true
-      },
+      };
+    
+  pushToolCall({
+    name:
+      patchPreviewTool,
+    args:
+  patchPreviewArgs,
     reason:
-      wantsPatchAction
-        ? "CODEX_PATCH_DRY_RUN_BEFORE_WRITE"
-        : "CODEX_PATCH_PREVIEW",
+  patchPreviewTool === "repo.patchPreviewExact"
+    ? "CODEX_REUSED_EXACT_PATCH_ROUTE"
+    : wantsPatchAction
+      ? "CODEX_PATCH_DRY_RUN_BEFORE_WRITE"
+      : "CODEX_PATCH_PREVIEW",
     mutates:
       false
   });
