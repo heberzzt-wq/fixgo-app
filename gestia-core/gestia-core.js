@@ -181,7 +181,7 @@ const CORE_CONFIG = {
     }
 };
 import '/gestia-core/semantic.engine.js';
-import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-27';
+import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-28';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4126';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
@@ -208,6 +208,9 @@ const INFRASTRUCTURE_FILE_PATTERN =
 
 const UI_EVIDENCE_PATTERN =
     /\b(render|ui|layout|card|cards|tarjeta|tarjetas|template|html|class|clase|grid|flex|responsive|mobile|movil|móvil|expandible|expandibles)\b/i;
+
+const UI_LAYOUT_SIGNAL_PATTERN =
+    /\b(max-w-[^\s"'`<>]+|min-h-[^\s"'`<>]+|p[trblxy]?-[^\s"'`<>]+|gap-[^\s"'`<>]+|grid-cols-[^\s"'`<>]+|space-[xy]-[^\s"'`<>]+|rounded[^\s"'`<>]*|shadow[^\s"'`<>]*|w-full|h-full|flex|grid|card|tarjeta|overflow-[^\s"'`<>]+)\b/gi;
 
 function normalizeObservationFilePath(value = "") {
     const clean =
@@ -862,6 +865,259 @@ function extractImpactData(
         );
 }
 
+function extractReadData(
+    observations = []
+) {
+    return observations
+        .map(observation =>
+            getObservationRepoData(observation)
+        )
+        .filter(data =>
+            data?.tool === "repo.read" ||
+            typeof data?.content === "string" ||
+            typeof data?.text === "string" ||
+            typeof data?.source === "string"
+        );
+}
+
+function getReadContent(
+    readData = {}
+) {
+    return (
+        typeof readData?.content === "string"
+            ? readData.content
+            : typeof readData?.text === "string"
+                ? readData.text
+                : typeof readData?.source === "string"
+                    ? readData.source
+                    : ""
+    );
+}
+
+function getReadFile(
+    readData = {}
+) {
+    return normalizeObservationFilePath(
+        readData?.file ||
+        readData?.path ||
+        readData?.name ||
+        ""
+    );
+}
+
+function getCandidateReadData(
+    candidate = {},
+    observations = []
+) {
+    const reads =
+        extractReadData(
+            observations
+        );
+
+    return reads.find(readData =>
+        getReadFile(readData) === candidate?.file
+    ) ||
+    null;
+}
+
+function getEvidenceLineNumber(
+    evidence = {}
+) {
+    const value =
+        Number.parseInt(
+            evidence?.line,
+            10
+        );
+
+    return Number.isFinite(value) &&
+        value > 0
+        ? value
+        : null;
+}
+
+function findSnippetLineNumber(
+    lines = [],
+    snippet = ""
+) {
+    const normalizedSnippet =
+        normalizeObservationText(
+            snippet
+        )
+            .slice(0, 120)
+            .trim();
+
+    if (!normalizedSnippet) {
+        return null;
+    }
+
+    const index =
+        lines.findIndex(line =>
+            normalizeObservationText(line)
+                .includes(normalizedSnippet)
+        );
+
+    return index >= 0
+        ? index + 1
+        : null;
+}
+
+function extractLayoutSignalsFromLines(
+    lines = []
+) {
+    const signals =
+        new Set();
+
+    lines.forEach(line => {
+        const matches =
+            String(line || "")
+                .match(UI_LAYOUT_SIGNAL_PATTERN) ||
+            [];
+
+        matches.forEach(match =>
+            signals.add(match)
+        );
+    });
+
+    return [
+        ...signals
+    ]
+        .slice(0, 12);
+}
+
+function buildLineAnchoredDiagnosis({
+    candidate = null,
+    followUpObservations = []
+} = {}) {
+    if (!candidate) {
+        return {
+            sections:
+                [],
+            signals:
+                []
+        };
+    }
+
+    const readData =
+        getCandidateReadData(
+            candidate,
+            followUpObservations
+        );
+
+    const content =
+        getReadContent(
+            readData
+        );
+
+    const lines =
+        content
+            ? content.split(/\r?\n/)
+            : [];
+
+    const anchors =
+        candidate.evidence
+            .map(evidence => {
+                const directLine =
+                    getEvidenceLineNumber(
+                        evidence
+                    );
+
+                const fallbackLine =
+                    !directLine && lines.length
+                        ? findSnippetLineNumber(
+                            lines,
+                            evidence?.snippet ||
+                            evidence?.module ||
+                            ""
+                        )
+                        : null;
+
+                const line =
+                    directLine ||
+                    fallbackLine;
+
+                if (!line) {
+                    return null;
+                }
+
+                return {
+                    ...evidence,
+                    line
+                };
+            })
+            .filter(Boolean)
+            .filter((anchor, index, all) =>
+                all.findIndex(item =>
+                    item.line === anchor.line
+                ) === index
+            )
+            .sort((a, b) =>
+                a.line - b.line
+            )
+            .slice(0, 4);
+
+    const sections =
+        anchors.map(anchor => {
+            const start =
+                Math.max(
+                    1,
+                    anchor.line - 8
+                );
+
+            const end =
+                lines.length
+                    ? Math.min(
+                        lines.length,
+                        anchor.line + 14
+                    )
+                    : anchor.line;
+
+            const windowLines =
+                lines.length
+                    ? lines.slice(
+                        start - 1,
+                        end
+                    )
+                    : [
+                        anchor.snippet ||
+                        anchor.module ||
+                        ""
+                    ];
+
+            return {
+                file:
+                    candidate.file,
+                line:
+                    anchor.line,
+                start,
+                end,
+                snippet:
+                    anchor.snippet ||
+                    anchor.module ||
+                    "",
+                sourceTool:
+                    anchor.sourceTool ||
+                    "repo.grep",
+                signals:
+                    extractLayoutSignalsFromLines(
+                        windowLines
+                    )
+            };
+        });
+
+    return {
+        sections,
+        signals:
+            [
+                ...new Set(
+                    sections.flatMap(section =>
+                        section.signals
+                    )
+                )
+            ]
+                .slice(0, 16)
+    };
+}
+
 function extractFollowUpFailures(
     observations = []
 ) {
@@ -940,6 +1196,13 @@ function composeObservationDrivenFinalResponse({
             followUpObservations
         );
 
+    const anchoredDiagnosis =
+        buildLineAnchoredDiagnosis({
+            candidate:
+                topCandidate,
+            followUpObservations
+        });
+
     const failures =
         extractFollowUpFailures(
             followUpObservations
@@ -990,6 +1253,29 @@ function composeObservationDrivenFinalResponse({
                     .join("")
             );
 
+    const sectionLines =
+        anchoredDiagnosis.sections
+            .slice(0, 4)
+            .map(section =>
+                [
+                    `- ${section.file}:${section.line}`,
+                    ` (rango sugerido ${section.start}-${section.end})`,
+                    section.snippet
+                        ? ` ${String(section.snippet).slice(0, 180)}`
+                        : ""
+                ]
+                    .join("")
+            );
+
+    const layoutSignalLines =
+        anchoredDiagnosis.signals.length
+            ? [
+                `- Senales detectadas en la ventana: ${anchoredDiagnosis.signals.join(", ")}`
+            ]
+            : [
+                "- No se detectaron clases concretas de layout en la ventana leida; revisar el bloque HTML/template cercano antes de patch."
+            ];
+
     const recommendationLines =
         (
             topDiagnosis?.recommendations ||
@@ -1009,12 +1295,30 @@ function composeObservationDrivenFinalResponse({
         "ND";
 
     const cause =
-        topDiagnosis?.summary
+        anchoredDiagnosis.sections.length
+            ? [
+                `La evidencia se concentra en ${topCandidate?.file} alrededor de ${anchoredDiagnosis.sections
+                    .map(section => `L${section.line}`)
+                    .join(", ")}.`,
+                "Esas secciones vienen de repo.grep/repo.read y apuntan al render/generacion de tarjetas, no al diagnostico global del archivo.",
+                anchoredDiagnosis.signals.length
+                    ? `Las senales de layout encontradas (${anchoredDiagnosis.signals.slice(0, 8).join(", ")}) sugieren revisar padding, grid/flex, gaps, wrappers o limites de ancho/alto antes de proponer un reemplazo exacto.`
+                    : "La causa probable sigue en el bloque visual cercano; falta copiar el fragmento exacto para decidir el search/replace."
+            ]
+                .join("\n")
+            : topDiagnosis?.summary
             ? String(topDiagnosis.summary)
                 .split("\n")
                 .slice(0, 10)
                 .join("\n")
             : "Las coincidencias apuntan al archivo con mayor densidad de evidencia en repo.search/repo.grep. Se recomienda leer el bloque visual antes de proponer cualquier patch.";
+
+    const patchPreviewProposal =
+        topCandidate?.file && anchoredDiagnosis.sections.length
+            ? `repo.patchPreview file=${topCandidate.file} search="<bloque exacto alrededor de L${anchoredDiagnosis.sections[0].line}>" replace="<mismo bloque con layout compacto>" dryRun=true`
+            : topCandidate?.file
+                ? `repo.patchPreview file=${topCandidate.file} search="<bloque exacto leido con repo.read>" replace="<bloque ajustado>" dryRun=true`
+                : "repo.patchPreview file=<archivo> search=<bloque exacto> replace=<bloque ajustado> dryRun=true";
 
     const text =
         [
@@ -1038,6 +1342,14 @@ function composeObservationDrivenFinalResponse({
                 ? evidenceLines
                 : ["- Sin evidencia de busqueda materializada."]),
             "",
+            "Lineas/seccion probable:",
+            ...(sectionLines.length
+                ? sectionLines
+                : ["- Sin linea anclada disponible; usar repo.grep/repo.read antes de patch."]),
+            "",
+            "Senales de layout:",
+            ...layoutSignalLines,
+            "",
             "Causa probable:",
             cause,
             "",
@@ -1045,6 +1357,10 @@ function composeObservationDrivenFinalResponse({
             ...(recommendationLines.length
                 ? recommendationLines
                 : ["- Mantener investigacion read-only y abrir repo.read/repo.diagnose sobre el archivo probable antes de patch."]),
+            "- Si se decide parchear, usar solo search/replace exacto sobre la seccion anclada.",
+            "",
+            "PatchPreview seguro sugerido:",
+            `- ${patchPreviewProposal}`,
             "",
             "Seguridad:",
             "- No se modificaron archivos.",
