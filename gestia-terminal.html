@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4128"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4129"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -2564,6 +2564,34 @@ if (
                 }
             );
 
+            const preferredAgentFinalResponse =
+                coreResult?.result?.finalResponse ||
+                coreResult?.result?.followUp?.finalResponse ||
+                null;
+
+            const shouldPreferAgentFinalResponse =
+                coreResult?.type === "AGENT_TOOL_RESULT" &&
+                typeof preferredAgentFinalResponse?.text === "string" &&
+                preferredAgentFinalResponse.text.trim().length > 0;
+
+            if (
+                shouldPreferAgentFinalResponse
+            ) {
+                console.info(
+                    "🧠 [TERMINAL_AGENT_FINAL_RESPONSE_41_29]",
+                    {
+                        traceId:
+                            currentTraceId,
+                        title:
+                            preferredAgentFinalResponse?.title ||
+                            null,
+                        file:
+                            preferredAgentFinalResponse?.file ||
+                            null
+                    }
+                );
+            }
+
             const extractDiagnoseSummary =
     function(result = {}) {
         const observations =
@@ -2620,7 +2648,8 @@ const diagnoseSummary =
     );
 
 if (
-    diagnoseSummary
+    diagnoseSummary &&
+    !shouldPreferAgentFinalResponse
 ) {
     const cleanDiagnoseSummary =
         String(diagnoseSummary || "")
