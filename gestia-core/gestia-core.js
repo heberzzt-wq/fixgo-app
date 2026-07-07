@@ -181,8 +181,8 @@ const CORE_CONFIG = {
     }
 };
 import '/gestia-core/semantic.engine.js';
-import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-25';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4125';
+import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-26';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4126';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
 
@@ -199,6 +199,12 @@ const OBSERVATION_FOLLOW_UP_TOOLS =
 
 const WEAK_CORE_FILE_PATTERN =
     /(^|\/)(app-main|brain\.engine|gestia-core|tools\.runtime|tools\.bridge)\.(js|html|css|json|cjs|mjs|txt|md)$/i;
+
+const TEST_FIXTURE_FILE_PATTERN =
+    /(^|\/)(tests|__tests__|fixtures|mocks)\/|(\.test|\.spec)\.(js|cjs|mjs|ts|tsx)$/i;
+
+const INFRASTRUCTURE_FILE_PATTERN =
+    /(^|\/)(gestia-core\/jarvis\/.*bridge|.*bridge.*|.*runtime.*|.*kernel.*|tools\..*|brain\.engine|gestia-core)\.(js|html|css|json|cjs|mjs|txt|md)$/i;
 
 const UI_EVIDENCE_PATTERN =
     /\b(render|ui|layout|card|cards|tarjeta|tarjetas|template|html|class|clase|grid|flex|responsive|mobile|movil|móvil|expandible|expandibles)\b/i;
@@ -246,6 +252,33 @@ function extractObjectiveTerms(objective = "") {
             !["jarvis", "heberto", "gestia"].includes(term)
         )
         .slice(0, 12);
+}
+
+function isCandidateExplicitlyMentioned(
+    file = "",
+    objective = ""
+) {
+    const normalizedObjective =
+        normalizeObservationText(
+            objective
+        );
+
+    const normalizedFile =
+        normalizeObservationText(
+            file
+        );
+
+    const basename =
+        normalizedFile
+            .split("/")
+            .filter(Boolean)
+            .pop() ||
+        normalizedFile;
+
+    return (
+        normalizedObjective.includes(normalizedFile) ||
+        normalizedObjective.includes(basename)
+    );
 }
 
 function scoreObservationEvidence({
@@ -391,6 +424,10 @@ function collectObservationDrivenCandidates(
                         0,
                     directScore:
                         0,
+                    uiEvidenceHits:
+                        0,
+                    termDirectHits:
+                        0,
                     frequency:
                         0,
                     evidence:
@@ -402,6 +439,16 @@ function collectObservationDrivenCandidates(
 
             current.directScore +=
                 scoreMeta.directMatches || 0;
+
+            current.uiEvidenceHits +=
+                scoreMeta.uiEvidence
+                    ? 1
+                    : 0;
+
+            current.termDirectHits +=
+                scoreMeta.termDirect
+                    ? 1
+                    : 0;
 
             current.frequency +=
                 1;
@@ -559,6 +606,19 @@ function collectObservationDrivenCandidates(
         ...candidates.values()
     ]
         .map(candidate => {
+            const explicitlyMentioned =
+                isCandidateExplicitlyMentioned(
+                    candidate.file,
+                    objective
+                );
+
+            if (
+                TEST_FIXTURE_FILE_PATTERN.test(candidate.file) &&
+                !explicitlyMentioned
+            ) {
+                return null;
+            }
+
             const weakCorePenalty =
                 WEAK_CORE_FILE_PATTERN.test(
                     candidate.file
@@ -567,15 +627,27 @@ function collectObservationDrivenCandidates(
                     ? 40
                     : 0;
 
+            const infrastructurePenalty =
+                INFRASTRUCTURE_FILE_PATTERN.test(
+                    candidate.file
+                ) &&
+                !explicitlyMentioned &&
+                candidate.uiEvidenceHits < 2
+                    ? 90
+                    : 0;
+
             return {
                 ...candidate,
                 score:
                     candidate.score +
                     (candidate.frequency * 2) -
-                    weakCorePenalty,
-                weakCorePenalty
+                    weakCorePenalty -
+                    infrastructurePenalty,
+                weakCorePenalty,
+                infrastructurePenalty
             };
         })
+        .filter(Boolean)
         .filter(candidate =>
             candidate.score > 0 &&
             (
