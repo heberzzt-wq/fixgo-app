@@ -1115,7 +1115,7 @@ function renderizarTareas(tareas) {
             borderClass = 'bg-blue-900/5 border-blue-500/50 shadow-[0_0_8px_rgba(59,130,246,0.05)]';
         }
 
-        div.className = `mb-1 px-2 py-1.5 rounded-lg border transition-all active:scale-95 flex justify-between items-center cursor-pointer ${borderClass}`;
+        div.className = `mb-1 px-2 py-1 rounded-lg min-h-[44px] border transition-all active:scale-95 flex justify-between items-center cursor-pointer ${borderClass}`;
 
         div.onclick = () => abrirHojaReporte(tarea.id);
 
