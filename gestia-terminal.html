@@ -1453,7 +1453,7 @@ if (/^repo\.write\s+/i.test(directToolInput)) {
 }
 const directToolMatch =
     directToolInput.match(
-        /^(repo|tests)\.([a-zA-Z]+)(?:\s+(.+))?$/i
+        /^(repo|tests|codex)\.([a-zA-Z]+)(?:\s+(.+))?$/i
     );
 
 if (directToolMatch) {
