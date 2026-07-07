@@ -202,6 +202,77 @@ test("semantic tool planner keeps repo plans read-only and filters unsafe tools"
     assert.equal(plan.toolCalls[0].args.nested, undefined);
 });
 
+test("semantic tool planner replaces audit-only plans with focused discovery", () => {
+    const plan =
+        normalizeSemanticToolPlan(
+            {
+                intent: "REPO_INVESTIGATION",
+                objective: "Jarvis, las tarjetas ocupan mucho espacio en movil, revisa donde esta el problema sin modificar nada.",
+                confidence: 0.88,
+                toolCalls: [
+                    {
+                        name: "repo.audit",
+                        args: {}
+                    }
+                ]
+            },
+            {
+                fallbackObjective: "fallback",
+                maxToolCalls: 4
+            }
+        );
+
+    assert.equal(plan.intent, "REPO_INVESTIGATION");
+    assert.equal(plan.writeAllowed, false);
+    assert.equal(plan.requiresApprovalForWrite, true);
+    assert.equal(
+        plan.toolCalls.some(call => call.name === "repo.audit"),
+        false
+    );
+    assert.deepEqual(
+        plan.toolCalls.map(call => call.name).slice(0, 2),
+        [
+            "repo.search",
+            "repo.grep"
+        ]
+    );
+    assert.equal(plan.toolCalls[0].args.term, "tarjetas");
+    assert.equal(plan.toolCalls[1].args.term, "tarjetas");
+    assert.equal(plan.toolCalls[0].mutates, false);
+    assert.equal(plan.toolCalls[0].approved, false);
+});
+
+test("semantic tool planner replaces scan-only plans with focused discovery", () => {
+    const plan =
+        normalizeSemanticToolPlan(
+            {
+                intent: "REPO_INVESTIGATION",
+                objective: "Checa que parte del repo toca el render del terminal",
+                toolCalls: [
+                    {
+                        name: "repo.scan",
+                        args: {}
+                    }
+                ]
+            },
+            {
+                fallbackObjective: "fallback",
+                maxToolCalls: 3
+            }
+        );
+
+    assert.deepEqual(
+        plan.toolCalls.map(call => call.name),
+        [
+            "repo.search",
+            "repo.grep",
+            "repo.grep"
+        ]
+    );
+    assert.equal(plan.toolCalls[0].args.term, "render");
+    assert.equal(plan.toolCalls[1].args.term, "render");
+});
+
 test("semantic tool planner falls back to general response without tool calls", () => {
     const plan =
         normalizeSemanticToolPlan(

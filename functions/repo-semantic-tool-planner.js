@@ -1,7 +1,6 @@
 "use strict";
 
 const ALLOWED_SEMANTIC_REPO_TOOLS = new Set([
-    "repo.audit",
     "repo.scan",
     "repo.search",
     "repo.grep",
@@ -9,6 +8,21 @@ const ALLOWED_SEMANTIC_REPO_TOOLS = new Set([
     "repo.diagnose",
     "repo.impact"
 ]);
+
+const GENERIC_DISCOVERY_TOOLS =
+    new Set([
+        "repo.audit",
+        "repo.scan"
+    ]);
+
+const TARGETED_DISCOVERY_TOOLS =
+    new Set([
+        "repo.search",
+        "repo.grep",
+        "repo.read",
+        "repo.diagnose",
+        "repo.impact"
+    ]);
 
 function sanitizePlannerArgs(args = {}) {
     if (
@@ -58,6 +72,103 @@ function sanitizePlannerArgs(args = {}) {
     return cleanArgs;
 }
 
+function normalizePlannerText(value = "") {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/^\s*(jarvis|heberto|gestia)[,\s:;-]*/i, "")
+        .trim();
+}
+
+function extractFocusedTerms(objective = "") {
+    const cleaned =
+        normalizePlannerText(objective);
+
+    const tokens =
+        cleaned
+            .toLowerCase()
+            .match(/[a-z0-9_./-]{6,}/g) ||
+        cleaned
+            .toLowerCase()
+            .match(/[a-z0-9_./-]{4,}/g) ||
+        [];
+
+    return [
+        ...new Set(tokens)
+    ]
+        .slice(0, 4);
+}
+
+function makeToolCall(
+    name,
+    args = {},
+    reason = "AI_SEMANTIC_TOOL_PLANNER"
+) {
+    return {
+        name,
+        args:
+            sanitizePlannerArgs(args),
+        reason,
+        mutates:
+            false,
+        approved:
+            false
+    };
+}
+
+function buildFocusedDiscoveryCalls(
+    objective = "",
+    maxToolCalls = 8
+) {
+    const cleanObjective =
+        normalizePlannerText(objective);
+
+    if (!cleanObjective) {
+        return [];
+    }
+
+    const focusedTerms =
+        extractFocusedTerms(cleanObjective);
+
+    const primaryTerm =
+        focusedTerms[0] ||
+        cleanObjective;
+
+    const calls = [
+        makeToolCall(
+            "repo.search",
+            {
+                query:
+                    cleanObjective,
+                term:
+                    primaryTerm,
+                maxMatches:
+                    80
+            },
+            "AI_SEMANTIC_FOCUSED_DISCOVERY"
+        ),
+        ...focusedTerms.map(term =>
+            makeToolCall(
+                "repo.grep",
+                {
+                    term,
+                    maxMatches:
+                        80
+                },
+                "AI_SEMANTIC_FOCUSED_DISCOVERY"
+            )
+        )
+    ];
+
+    return calls.slice(
+        0,
+        Math.max(
+            1,
+            maxToolCalls
+        )
+    );
+}
+
 function normalizeSemanticToolPlan(
     parsedPlan = {},
     options = {}
@@ -70,9 +181,41 @@ function normalizeSemanticToolPlan(
             ? options.maxToolCalls
             : 8;
 
-    const safeToolCalls =
+    const rawToolCalls =
         Array.isArray(parsedPlan?.toolCalls)
             ? parsedPlan.toolCalls
+            : [];
+
+    const requestedGenericDiscovery =
+        rawToolCalls.some(call =>
+            GENERIC_DISCOVERY_TOOLS.has(
+                String(
+                    call?.name ||
+                    call?.tool ||
+                    ""
+                ).trim()
+            )
+        );
+
+    const requestedUnsafeOnly =
+        rawToolCalls.length > 0 &&
+        rawToolCalls.every(call => {
+            const name =
+                String(
+                    call?.name ||
+                    call?.tool ||
+                    ""
+                ).trim();
+
+            return (
+                !ALLOWED_SEMANTIC_REPO_TOOLS.has(name) &&
+                !GENERIC_DISCOVERY_TOOLS.has(name)
+            );
+        });
+
+    const safeToolCalls =
+        rawToolCalls.length > 0
+            ? rawToolCalls
                 .map(call => {
                     const name =
                         String(
@@ -82,39 +225,60 @@ function normalizeSemanticToolPlan(
                         ).trim();
 
                     if (
-                        !ALLOWED_SEMANTIC_REPO_TOOLS.has(name)
+                        !ALLOWED_SEMANTIC_REPO_TOOLS.has(name) ||
+                        name === "repo.audit"
                     ) {
                         return null;
                     }
 
-                    return {
+                    return makeToolCall(
                         name,
-                        args:
-                            sanitizePlannerArgs(
-                                call?.args || {}
-                            ),
-                        reason:
-                            "AI_SEMANTIC_TOOL_PLANNER",
-                        mutates:
-                            false,
-                        approved:
-                            false
-                    };
+                        call?.args || {}
+                    );
                 })
                 .filter(Boolean)
                 .slice(0, maxToolCalls)
             : [];
 
+    const targetedToolCalls =
+        safeToolCalls.filter(call =>
+            TARGETED_DISCOVERY_TOOLS.has(call.name)
+        );
+
+    const shouldBuildFocusedDiscovery =
+        !requestedUnsafeOnly &&
+        (
+            requestedGenericDiscovery ||
+            (
+                rawToolCalls.length === 0 &&
+                parsedPlan?.intent === "REPO_INVESTIGATION"
+            )
+        ) &&
+        targetedToolCalls.length === 0;
+
+    const finalToolCalls =
+        shouldBuildFocusedDiscovery
+            ? buildFocusedDiscoveryCalls(
+                parsedPlan?.objective ||
+                fallbackObjective,
+                maxToolCalls
+            )
+            : (
+                targetedToolCalls.length > 0
+                    ? targetedToolCalls.slice(0, maxToolCalls)
+                    : safeToolCalls
+            );
+
     return {
         intent:
-            safeToolCalls.length > 0
+            finalToolCalls.length > 0
                 ? (parsedPlan?.intent || "REPO_INVESTIGATION")
                 : (parsedPlan?.intent || "GENERAL_RESPONSE"),
         objective:
             parsedPlan?.objective ||
             fallbackObjective,
         toolCalls:
-            safeToolCalls,
+            finalToolCalls,
         writeAllowed:
             false,
         requiresApprovalForWrite:
@@ -128,6 +292,8 @@ function normalizeSemanticToolPlan(
 
 module.exports = {
     ALLOWED_SEMANTIC_REPO_TOOLS,
+    buildFocusedDiscoveryCalls,
+    extractFocusedTerms,
     normalizeSemanticToolPlan,
     sanitizePlannerArgs
 };

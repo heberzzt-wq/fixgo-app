@@ -1382,7 +1382,6 @@ const patchPreviewTool =
 
 const SEMANTIC_READ_ONLY_REPO_TOOLS =
   new Set([
-    "repo.audit",
     "repo.scan",
     "repo.search",
     "repo.grep",

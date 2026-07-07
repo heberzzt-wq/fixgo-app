@@ -4993,9 +4993,209 @@ JarvisToolRuntime.register({
     mutates: false,
     requiresApproval: false,
     output: "REPO_SEARCH_RESULT",
-    execute: async (args, context) => {
-        const { loadRepoContext } = await import('/gestia-core/hubs/repo.hub.js');
-        return await loadRepoContext(args);
+    execute: async (args = {}, context = {}) => {
+        const argObject =
+            args &&
+            typeof args === "object" &&
+            !Array.isArray(args)
+                ? args
+                : {};
+
+        const query =
+            String(
+                typeof args === "string"
+                    ? args
+                    : (
+                        argObject.query ||
+                        argObject.term ||
+                        argObject.search ||
+                        argObject.file ||
+                        argObject.path ||
+                        argObject.target ||
+                        ""
+                    )
+            )
+                .trim();
+
+        const bridgeTerm =
+            String(
+                argObject.term ||
+                argObject.search ||
+                query
+            )
+                .trim();
+
+        if (
+            !query &&
+            !bridgeTerm
+        ) {
+            return {
+                ok: false,
+                success: false,
+                status: "CONTRACT_INVALID",
+                error: "SEARCH_QUERY_REQUIRED",
+                tool: "repo.search"
+            };
+        }
+
+        const normalizeSearchText =
+            value =>
+                String(value || "")
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .toLowerCase();
+
+        const tokens =
+            [
+                ...new Set(
+                    normalizeSearchText(
+                        `${query} ${bridgeTerm}`
+                    )
+                        .match(/[a-z0-9_./-]{4,}/g) ||
+                    []
+                )
+            ]
+                .slice(0, 12);
+
+        const repoEntries =
+            Object.entries(
+                window.__REPO_INDEX__ || {}
+            );
+
+        const indexResults =
+            repoEntries
+                .map(([key, meta]) => {
+                    const haystack =
+                        normalizeSearchText(
+                            [
+                                key,
+                                meta?.path,
+                                meta?.module,
+                                meta?.type
+                            ]
+                                .filter(Boolean)
+                                .join(" ")
+                        );
+
+                    const score =
+                        tokens.reduce(
+                            (total, token) =>
+                                total +
+                                (
+                                    haystack.includes(token)
+                                        ? 1
+                                        : 0
+                                ),
+                            0
+                        ) +
+                        (
+                            haystack.includes(
+                                normalizeSearchText(query)
+                            )
+                                ? 2
+                                : 0
+                        );
+
+                    if (score <= 0) {
+                        return null;
+                    }
+
+                    return {
+                        file:
+                            key,
+                        path:
+                            meta?.path ||
+                            key,
+                        module:
+                            meta?.module ||
+                            null,
+                        type:
+                            meta?.type ||
+                            null,
+                        score
+                    };
+                })
+                .filter(Boolean)
+                .sort((a, b) =>
+                    b.score - a.score
+                )
+                .slice(0, 50);
+
+        let bridgeResult =
+            null;
+
+        let bridgeError =
+            null;
+
+        if (
+            bridgeTerm &&
+            window.JarvisLocalBridge?.grepRepo
+        ) {
+            try {
+                bridgeResult =
+                    await window.JarvisLocalBridge.grepRepo({
+                        term:
+                            bridgeTerm,
+                        query:
+                            bridgeTerm,
+                        cwd:
+                            argObject.cwd || ".",
+                        maxFiles:
+                            argObject.maxFiles || 800,
+                        maxFileSizeBytes:
+                            argObject.maxFileSizeBytes || 512000,
+                        maxMatches:
+                            argObject.maxMatches || 80,
+                        source:
+                            "jarvis_repo_search_bridge_v7"
+                    });
+            }
+            catch(error) {
+                bridgeError =
+                    error?.message ||
+                    String(error);
+            }
+        }
+
+        const matches =
+            bridgeResult?.matches ||
+            [];
+
+        return {
+            ok: true,
+            success: true,
+            status: "COMPLETED",
+            query,
+            term:
+                bridgeTerm,
+            tokens,
+            results:
+                indexResults,
+            totalResults:
+                indexResults.length,
+            matches,
+            totalMatches:
+                bridgeResult?.totalMatches ||
+                matches.length ||
+                0,
+            totalFilesScanned:
+                bridgeResult?.totalFilesScanned ||
+                0,
+            bridgeStatus:
+                bridgeResult
+                    ? (
+                        bridgeResult.ok === true
+                            ? "CONNECTED"
+                            : "FAILED"
+                    )
+                    : (
+                        bridgeError
+                            ? "FAILED"
+                            : "UNAVAILABLE"
+                    ),
+            bridgeError,
+            tool: "repo.search"
+        };
     }
 });
 

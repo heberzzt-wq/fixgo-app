@@ -1363,8 +1363,7 @@ Return only valid JSON:
     { "name": "repo.read", "args": { "file": string, "maxBytes": 300000 } },
     { "name": "repo.diagnose", "args": { "file": string, "mode": "diagnose", "rawInput": string } },
     { "name": "repo.impact", "args": { "file": string } },
-    { "name": "repo.scan", "args": {} },
-    { "name": "repo.audit", "args": {} }
+    { "name": "repo.scan", "args": {} }
   ],
   "writeAllowed": false,
   "requiresApprovalForWrite": true,
@@ -1375,7 +1374,9 @@ Rules:
 - Plan read-only investigation steps for codebase questions, UI complaints, architecture questions, approval-flow doubts, render tracing, and repair analysis.
 - Do not write, patch, approve, delete, deploy, or mutate state.
 - If a concrete file is mentioned, include repo.read and repo.diagnose for that file.
-- If the exact file is unknown, use repo.grep, repo.search, repo.scan, or repo.audit to discover evidence first.
+- If the exact file is unknown, use repo.search and repo.grep with focused evidence terms from the user's objective.
+- Do not use repo.audit in this planner. Full repo audits are handled only by explicit direct commands outside tool_planner.
+- Do not answer concrete UI, mobile, layout, render, flow, or code symptoms with repo.scan alone.
 - If the user is not asking about code, repo, debugging, UI, architecture, or repair, return GENERAL_RESPONSE with an empty toolCalls array.
 - Keep toolCalls short, ordered, and evidence-first.
 `;
