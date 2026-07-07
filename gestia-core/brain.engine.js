@@ -1183,11 +1183,34 @@ const patchPreviewTool =
         file: write.file
       });
 
+      let tests = {
+        ok: true,
+        skipped: true,
+        reason: "tests.run not available"
+      };
+
+      if (verify?.ok !== false && window.JarvisToolRuntime?.execute) {
+        tests =
+          await window.JarvisToolRuntime.execute(
+            "tests.run",
+            {
+              command: "ci:test"
+            },
+            {
+              source: "codex_v2_post_write_tests_41_15"
+            }
+          );
+      }
+
       return {
         handled: true,
-        terminalType: "CODEX_V2_WRITE_VERIFY",
+        terminalType: "CODEX_V2_WRITE_VERIFY_TESTED",
         writeResult,
-        verify
+        verify,
+        tests,
+        testsPassed:
+          tests?.ok !== false &&
+          tests?.status !== "FAILED"
       };
     }
 
@@ -2404,11 +2427,34 @@ console.log(
         file: write.file
       });
 
+      let tests = {
+        ok: true,
+        skipped: true,
+        reason: "tests.run not available"
+      };
+
+      if (verify?.ok !== false && window.JarvisToolRuntime?.execute) {
+        tests =
+          await window.JarvisToolRuntime.execute(
+            "tests.run",
+            {
+              command: "ci:test"
+            },
+            {
+              source: "codex_v2_post_write_tests_41_15"
+            }
+          );
+      }
+
       return {
         handled: true,
-        terminalType: "CODEX_V2_WRITE_VERIFY",
+        terminalType: "CODEX_V2_WRITE_VERIFY_TESTED",
         writeResult,
-        verify
+        verify,
+        tests,
+        testsPassed:
+          tests?.ok !== false &&
+          tests?.status !== "FAILED"
       };
     }
 

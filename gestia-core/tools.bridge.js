@@ -444,6 +444,10 @@ console.info(
     return await ensureCodexV2().patchPreviewExact(payload);
   };
 
+  window.JarvisToolsBridge["codex.patch"] = async function codexPatch(payload) {
+    return await ensureCodexV2().patchPreviewExact(payload);
+  };
+
   window.JarvisToolsBridge["repo.approvePatch"] = async function repoApprovePatch(payload) {
     return ensureCodexV2().approvePendingPatch(payload);
   };

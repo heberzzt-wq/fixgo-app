@@ -6819,6 +6819,134 @@ console.info(
    Safe additive runtime block.
    ============================================================ */
 
+
+/* ==========================================
+   CODEX V2 DIRECT PATCH ADAPTER - Commit 41.15
+========================================== */
+if (window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_15__) {
+    window.__JARVIS_CODEX_PATCH_TOOL_41_15__ = true;
+
+    async function runCodexPatchPreview(args = {}, context = {}) {
+        const dryRun =
+            args?.dryRun === true ||
+            String(args?.dryRun || "").toLowerCase() === "true";
+
+        const payload = {
+            file:
+                args.file || args.path || "",
+            path:
+                args.path || args.file || "",
+            search:
+                typeof args.search === "string"
+                    ? args.search
+                    : "",
+            replace:
+                typeof args.replace === "string"
+                    ? args.replace
+                    : "",
+            dryRun,
+            risk:
+                args.risk || "medium"
+        };
+
+        if (!payload.file || !payload.search || typeof payload.replace !== "string") {
+            return {
+                ok: false,
+                success: false,
+                status: "CONTRACT_INVALID",
+                error: "FILE_SEARCH_REPLACE_REQUIRED",
+                required: ["file", "search", "replace"],
+                tool:
+                    args.toolName || "codex.patch",
+                source:
+                    "codex_direct_patch_adapter_41_15"
+            };
+        }
+
+        if (dryRun !== true) {
+            return {
+                ok: false,
+                success: false,
+                status: "DRY_RUN_REQUIRED",
+                error: "CODEX_PATCH_REQUIRES_DRY_RUN_TRUE",
+                next:
+                    "Run again with dryRun=true to create a pending Codex patch.",
+                tool:
+                    args.toolName || "codex.patch",
+                source:
+                    "codex_direct_patch_adapter_41_15"
+            };
+        }
+
+        if (!window.JarvisCodexV2?.patchPreviewExact) {
+            return {
+                ok: false,
+                success: false,
+                status: "CODEX_V2_RUNTIME_NOT_READY",
+                error: "JarvisCodexV2.patchPreviewExact is not available",
+                tool:
+                    args.toolName || "codex.patch",
+                source:
+                    "codex_direct_patch_adapter_41_15"
+            };
+        }
+
+        const preview =
+            await window.JarvisCodexV2.patchPreviewExact(payload);
+
+        return {
+            ...preview,
+            ok:
+                preview?.ok === true,
+            success:
+                preview?.ok === true,
+            status:
+                preview?.ok
+                    ? "CODEX_PATCH_PREVIEW_OK"
+                    : "CODEX_PATCH_PREVIEW_BLOCKED",
+            file:
+                payload.file,
+            nextCommand:
+                preview?.ok
+                    ? `Jarvis, apruebo patch ${payload.file}`
+                    : null,
+            tool:
+                args.toolName || "codex.patch",
+            source:
+                "codex_direct_patch_adapter_41_15"
+        };
+    }
+
+    JarvisToolRuntime.register({
+        name: "codex.patch",
+        description: "Crea un pending patch Codex V2 desde file/search/replace exacto. Siempre requiere dryRun=true.",
+        mutates: false,
+        requiresApproval: false,
+        output: "CODEX_PATCH_PREVIEW",
+        execute: async (args = {}, context = {}) => {
+            return await runCodexPatchPreview({
+                ...args,
+                toolName: "codex.patch"
+            }, context);
+        }
+    });
+
+    JarvisToolRuntime.register({
+        name: "repo.patchPreviewExact",
+        description: "Alias runtime para Codex V2 patchPreviewExact con search/replace exacto.",
+        mutates: false,
+        requiresApproval: false,
+        output: "CODEX_PATCH_PREVIEW",
+        execute: async (args = {}, context = {}) => {
+            return await runCodexPatchPreview({
+                ...args,
+                toolName: "repo.patchPreviewExact"
+            }, context);
+        }
+    });
+}
+
+
 (function initJarvisCodexV2Runtime() {
   if (window.__JARVIS_CODEX_V2_RUNTIME__) return;
   window.__JARVIS_CODEX_V2_RUNTIME__ = true;
