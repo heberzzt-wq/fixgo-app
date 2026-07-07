@@ -7227,6 +7227,23 @@ if (window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_1
   async function writeRepoFile(file, content) {
     if (!file) throw new Error("Missing file");
 
+    
+    if (window.JarvisToolRuntime?.execute) {
+      return await window.JarvisToolRuntime.execute(
+        "repo.write",
+        {
+          file,
+          content,
+          approved: true
+        },
+        {
+          source: "codex_v2_write_repo_file_runtime_41_16",
+          approved: true,
+          file
+        }
+      );
+    }
+
     if (window.GestiaToolsRuntime?.repo?.write) {
       return await window.GestiaToolsRuntime.repo.write({ file, content });
     }
