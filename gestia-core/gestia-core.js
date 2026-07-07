@@ -181,7 +181,7 @@ const CORE_CONFIG = {
     }
 };
 import '/gestia-core/semantic.engine.js';
-import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-26';
+import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-27';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4126';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
@@ -204,7 +204,7 @@ const TEST_FIXTURE_FILE_PATTERN =
     /(^|\/)(tests|__tests__|fixtures|mocks)\/|(\.test|\.spec)\.(js|cjs|mjs|ts|tsx)$/i;
 
 const INFRASTRUCTURE_FILE_PATTERN =
-    /(^|\/)(gestia-core\/jarvis\/.*bridge|.*bridge.*|.*runtime.*|.*kernel.*|tools\..*|brain\.engine|gestia-core)\.(js|html|css|json|cjs|mjs|txt|md)$/i;
+    /(^|\/)(gestia-core\/jarvis\/.*|.*bridge.*|.*runtime.*|.*kernel.*|tools\..*|brain\.engine|gestia-core)\.(js|html|css|json|cjs|mjs|txt|md)$/i;
 
 const UI_EVIDENCE_PATTERN =
     /\b(render|ui|layout|card|cards|tarjeta|tarjetas|template|html|class|clase|grid|flex|responsive|mobile|movil|móvil|expandible|expandibles)\b/i;
@@ -602,7 +602,7 @@ function collectObservationDrivenCandidates(
         });
     });
 
-    return [
+    const scoredCandidates = [
         ...candidates.values()
     ]
         .map(candidate => {
@@ -612,8 +612,21 @@ function collectObservationDrivenCandidates(
                     objective
                 );
 
+            const isTestFixture =
+                TEST_FIXTURE_FILE_PATTERN.test(
+                    candidate.file
+                );
+
+            const isInfrastructure =
+                INFRASTRUCTURE_FILE_PATTERN.test(
+                    candidate.file
+                ) ||
+                WEAK_CORE_FILE_PATTERN.test(
+                    candidate.file
+                );
+
             if (
-                TEST_FIXTURE_FILE_PATTERN.test(candidate.file) &&
+                isTestFixture &&
                 !explicitlyMentioned
             ) {
                 return null;
@@ -628,11 +641,8 @@ function collectObservationDrivenCandidates(
                     : 0;
 
             const infrastructurePenalty =
-                INFRASTRUCTURE_FILE_PATTERN.test(
-                    candidate.file
-                ) &&
-                !explicitlyMentioned &&
-                candidate.uiEvidenceHits < 2
+                isInfrastructure &&
+                !explicitlyMentioned
                     ? 90
                     : 0;
 
@@ -643,6 +653,9 @@ function collectObservationDrivenCandidates(
                     (candidate.frequency * 2) -
                     weakCorePenalty -
                     infrastructurePenalty,
+                explicitlyMentioned,
+                isTestFixture,
+                isInfrastructure,
                 weakCorePenalty,
                 infrastructurePenalty
             };
@@ -654,7 +667,28 @@ function collectObservationDrivenCandidates(
                 candidate.directScore > 0 ||
                 candidate.frequency > 1
             )
-        )
+        );
+
+    const productSurfaceCandidates =
+        scoredCandidates.filter(candidate =>
+            !candidate.isInfrastructure &&
+            !candidate.isTestFixture &&
+            (
+                candidate.directScore > 0 ||
+                candidate.termDirectHits > 0 ||
+                candidate.uiEvidenceHits > 0
+            )
+        );
+
+    const selectableCandidates =
+        productSurfaceCandidates.length > 0
+            ? scoredCandidates.filter(candidate =>
+                !candidate.isInfrastructure &&
+                !candidate.isTestFixture
+            )
+            : scoredCandidates;
+
+    return selectableCandidates
         .sort((a, b) =>
             b.score - a.score
         )
@@ -781,7 +815,7 @@ async function executeObservationDrivenFollowUp(
                     approved:
                         false,
                     source:
-                        "observation_driven_follow_up_41_25"
+                        "observation_driven_follow_up_41_27"
                 }
             );
 
