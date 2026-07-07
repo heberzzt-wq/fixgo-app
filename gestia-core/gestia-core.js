@@ -181,7 +181,7 @@ const CORE_CONFIG = {
     }
 };
 import '/gestia-core/semantic.engine.js';
-import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-23';
+import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-24';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
@@ -189,6 +189,509 @@ import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
 // ======================================================================================
 // 🛰️ SECCIÓN 2: GESTIA CORE ORCHESTRATOR (KERNEL V16.0)
 // ======================================================================================
+
+const OBSERVATION_FOLLOW_UP_TOOLS =
+    new Set([
+        "repo.read",
+        "repo.diagnose",
+        "repo.impact"
+    ]);
+
+function normalizeObservationFilePath(value = "") {
+    const clean =
+        String(value || "")
+            .replace(/\\/g, "/")
+            .replace(/^\.\/+/, "")
+            .replace(/^\/+/, "")
+            .trim();
+
+    if (
+        !clean ||
+        clean.includes("..") ||
+        !/[a-zA-Z0-9_./-]+\.(js|html|css|json|cjs|mjs|txt|md)$/i.test(clean)
+    ) {
+        return "";
+    }
+
+    return clean;
+}
+
+function getObservationPayload(observation = {}) {
+    return (
+        observation?.response?.data ||
+        observation?.data?.response?.data ||
+        observation?.data?.data ||
+        observation?.data ||
+        observation?.response ||
+        observation ||
+        {}
+    );
+}
+
+function getObservationToolName(
+    observation = {},
+    toolCalls = [],
+    index = 0
+) {
+    const payload =
+        getObservationPayload(
+            observation
+        );
+
+    return (
+        observation?.meta?.tool ||
+        observation?.toolCalls?.[0]?.name ||
+        toolCalls?.[index]?.name ||
+        payload?.tool ||
+        "unknown"
+    );
+}
+
+function getObservationRepoData(observation = {}) {
+    const payload =
+        getObservationPayload(
+            observation
+        );
+
+    return (
+        payload?.data ||
+        payload?.result ||
+        payload ||
+        {}
+    );
+}
+
+function collectObservationDrivenCandidates(
+    observations = [],
+    toolCalls = []
+) {
+    const candidates =
+        new Map();
+
+    const addCandidate =
+        function(file, evidence = {}, weight = 1) {
+            const normalizedFile =
+                normalizeObservationFilePath(file);
+
+            if (!normalizedFile) {
+                return;
+            }
+
+            const current =
+                candidates.get(normalizedFile) || {
+                    file:
+                        normalizedFile,
+                    score:
+                        0,
+                    evidence:
+                        []
+                };
+
+            current.score +=
+                weight;
+
+            if (
+                evidence &&
+                current.evidence.length < 8
+            ) {
+                current.evidence.push({
+                    ...evidence,
+                    file:
+                        normalizedFile
+                });
+            }
+
+            candidates.set(
+                normalizedFile,
+                current
+            );
+        };
+
+    observations.forEach((observation, index) => {
+        const toolName =
+            getObservationToolName(
+                observation,
+                toolCalls,
+                index
+            );
+
+        if (
+            toolName !== "repo.grep" &&
+            toolName !== "repo.search"
+        ) {
+            return;
+        }
+
+        const repoData =
+            getObservationRepoData(
+                observation
+            );
+
+        const matches =
+            [
+                ...(repoData?.matches || []),
+                ...(repoData?.result?.matches || []),
+                ...(repoData?.data?.matches || [])
+            ];
+
+        matches.forEach(match => {
+            addCandidate(
+                match?.file ||
+                match?.path ||
+                match?.name,
+                {
+                    sourceTool:
+                        toolName,
+                    term:
+                        repoData?.term ||
+                        repoData?.query ||
+                        "",
+                    line:
+                        match?.line ||
+                        match?.lineNumber ||
+                        null,
+                    snippet:
+                        match?.snippet ||
+                        match?.text ||
+                        ""
+                },
+                4
+            );
+        });
+
+        const results =
+            [
+                ...(repoData?.results || []),
+                ...(repoData?.result?.results || []),
+                ...(repoData?.data?.results || [])
+            ];
+
+        results.forEach(result => {
+            addCandidate(
+                result?.file ||
+                result?.path ||
+                result?.name,
+                {
+                    sourceTool:
+                        toolName,
+                    term:
+                        repoData?.term ||
+                        repoData?.query ||
+                        "",
+                    module:
+                        result?.module ||
+                        null,
+                    type:
+                        result?.type ||
+                        null
+                },
+                Number(result?.score) > 0
+                    ? Number(result.score)
+                    : 2
+            );
+        });
+    });
+
+    return [
+        ...candidates.values()
+    ]
+        .sort((a, b) =>
+            b.score - a.score
+        )
+        .slice(0, 3);
+}
+
+function buildObservationDrivenFollowUpToolCalls({
+    observations = [],
+    toolCalls = [],
+    rawInput = ""
+} = {}) {
+    const candidates =
+        collectObservationDrivenCandidates(
+            observations,
+            toolCalls
+        );
+
+    const existing =
+        new Set(
+            toolCalls.map(call =>
+                `${call?.name}:${normalizeObservationFilePath(call?.args?.file || call?.args?.path || "")}`
+            )
+        );
+
+    const followUpToolCalls =
+        [];
+
+    candidates.forEach(candidate => {
+        [
+            {
+                name:
+                    "repo.read",
+                args: {
+                    file:
+                        candidate.file,
+                    path:
+                        candidate.file,
+                    maxBytes:
+                        180000
+                }
+            },
+            {
+                name:
+                    "repo.diagnose",
+                args: {
+                    file:
+                        candidate.file,
+                    path:
+                        candidate.file,
+                    mode:
+                        "diagnose",
+                    rawInput
+                }
+            },
+            {
+                name:
+                    "repo.impact",
+                args: {
+                    file:
+                        candidate.file,
+                    path:
+                        candidate.file
+                }
+            }
+        ]
+            .forEach(call => {
+                const key =
+                    `${call.name}:${candidate.file}`;
+
+                if (
+                    existing.has(key) ||
+                    !OBSERVATION_FOLLOW_UP_TOOLS.has(call.name)
+                ) {
+                    return;
+                }
+
+                existing.add(key);
+
+                followUpToolCalls.push({
+                    ...call,
+                    reason:
+                        "OBSERVATION_DRIVEN_FOLLOW_UP",
+                    mutates:
+                        false,
+                    approved:
+                        false
+                });
+            });
+    });
+
+    return {
+        candidates,
+        followUpToolCalls
+    };
+}
+
+async function executeObservationDrivenFollowUp(
+    followUpToolCalls = [],
+    context = {}
+) {
+    const observations =
+        [];
+
+    if (
+        !window.ToolsBridge?.executeAndCompose
+    ) {
+        return observations;
+    }
+
+    for (const call of followUpToolCalls) {
+        if (
+            !OBSERVATION_FOLLOW_UP_TOOLS.has(call?.name)
+        ) {
+            continue;
+        }
+
+        const result =
+            await window.ToolsBridge.executeAndCompose(
+                call.name,
+                call.args || {},
+                {
+                    ...context,
+                    approved:
+                        false,
+                    source:
+                        "observation_driven_follow_up_41_24"
+                }
+            );
+
+        observations.push(
+            result
+        );
+    }
+
+    return observations;
+}
+
+function extractDiagnosisData(
+    observations = []
+) {
+    return observations
+        .map(observation =>
+            getObservationRepoData(observation)
+        )
+        .filter(data =>
+            data?.tool === "repo.diagnose" ||
+            data?.fileType ||
+            data?.summary
+        );
+}
+
+function extractImpactData(
+    observations = []
+) {
+    return observations
+        .map(observation =>
+            getObservationRepoData(observation)
+        )
+        .filter(data =>
+            data?.tool === "repo.impact" ||
+            data?.analysis ||
+            data?.risk ||
+            data?.riskLevel
+        );
+}
+
+function composeObservationDrivenFinalResponse({
+    objective = "",
+    candidates = [],
+    followUpObservations = []
+} = {}) {
+    const topCandidate =
+        candidates[0] ||
+        null;
+
+    const diagnoses =
+        extractDiagnosisData(
+            followUpObservations
+        );
+
+    const impacts =
+        extractImpactData(
+            followUpObservations
+        );
+
+    const topDiagnosis =
+        diagnoses.find(item =>
+            item?.file === topCandidate?.file
+        ) ||
+        diagnoses[0] ||
+        null;
+
+    const topImpact =
+        impacts.find(item =>
+            item?.file === topCandidate?.file ||
+            item?.analysis?.file === topCandidate?.file
+        ) ||
+        impacts[0] ||
+        null;
+
+    const evidenceLines =
+        candidates
+            .flatMap(candidate =>
+                candidate.evidence.map(evidence => ({
+                    ...evidence,
+                    file:
+                        candidate.file
+                }))
+            )
+            .slice(0, 8)
+            .map(evidence =>
+                [
+                    `- ${evidence.file}`,
+                    evidence.line
+                        ? `:${evidence.line}`
+                        : "",
+                    evidence.snippet
+                        ? ` ${String(evidence.snippet).slice(0, 180)}`
+                        : evidence.module
+                            ? ` module=${evidence.module}`
+                            : ""
+                ]
+                    .join("")
+            );
+
+    const recommendationLines =
+        (
+            topDiagnosis?.recommendations ||
+            []
+        )
+            .slice(0, 4)
+            .map(item =>
+                `- ${item}`
+            );
+
+    const impactRisk =
+        topImpact?.analysis?.propagatedRisk ||
+        topImpact?.analysis?.risk ||
+        topImpact?.risk ||
+        topImpact?.riskLevel ||
+        topDiagnosis?.risk ||
+        "ND";
+
+    const cause =
+        topDiagnosis?.summary
+            ? String(topDiagnosis.summary)
+                .split("\n")
+                .slice(0, 10)
+                .join("\n")
+            : "Las coincidencias apuntan al archivo con mayor densidad de evidencia en repo.search/repo.grep. Se recomienda leer el bloque visual antes de proponer cualquier patch.";
+
+    const text =
+        [
+            `Objetivo: ${objective || "Investigacion repo read-only"}`,
+            `Archivo probable: ${topCandidate?.file || "ND"}`,
+            `Candidatos: ${
+                candidates.map(candidate => candidate.file).join(", ") ||
+                "ND"
+            }`,
+            `Riesgo/impacto: ${impactRisk}`,
+            "",
+            "Evidencia encontrada:",
+            ...(evidenceLines.length
+                ? evidenceLines
+                : ["- Sin evidencia de busqueda materializada."]),
+            "",
+            "Causa probable:",
+            cause,
+            "",
+            "Recomendacion:",
+            ...(recommendationLines.length
+                ? recommendationLines
+                : ["- Mantener investigacion read-only y abrir repo.read/repo.diagnose sobre el archivo probable antes de patch."]),
+            "",
+            "Seguridad:",
+            "- No se modificaron archivos.",
+            "- No se genero patch automatico.",
+            "- Cualquier escritura sigue requiriendo preview, aprobacion humana, safe write, verify y tests."
+        ]
+            .join("\n");
+
+    return {
+        title:
+            "Diagnostico Repo SIA7",
+        text,
+        file:
+            topCandidate?.file ||
+            null,
+        candidates,
+        risk:
+            impactRisk,
+        writeAllowed:
+            false,
+        patchGenerated:
+            false
+    };
+}
 
 export const GestiaCore = {
     version: "16.0.0-SUPREME",
@@ -502,18 +1005,99 @@ if (
             }
         );
 
+    const followUpPlan =
+        buildObservationDrivenFollowUpToolCalls({
+            observations:
+                toolObservations,
+            toolCalls:
+                propuesta.toolCalls,
+            rawInput:
+                inputRaw
+        });
+
+    let followUpObservations =
+        [];
+
+    if (
+        followUpPlan.followUpToolCalls.length > 0
+    ) {
+        this.emitirPulso(
+            "AGENT_LOOP",
+            "OBSERVATION_FOLLOW_UP_DETECTED",
+            `${followUpPlan.followUpToolCalls.length} tools`
+        );
+
+        followUpObservations =
+            await executeObservationDrivenFollowUp(
+                followUpPlan.followUpToolCalls,
+                {
+                    ...context,
+                    rawInput:
+                        inputRaw,
+                    tenantId,
+                    analysisId,
+                    rol,
+                    reasoning:
+                        propuesta.cognition ||
+                        propuesta.reasoning ||
+                        null
+                }
+            );
+    }
+
+    const allToolCalls =
+        [
+            ...propuesta.toolCalls,
+            ...followUpPlan.followUpToolCalls
+        ];
+
+    const allToolObservations =
+        [
+            ...toolObservations,
+            ...followUpObservations
+        ];
+
+    const finalResponse =
+        followUpPlan.followUpToolCalls.length > 0
+            ? composeObservationDrivenFinalResponse({
+                objective:
+                    propuesta?.reasoning?.input ||
+                    propuesta?.cognition?.input ||
+                    inputRaw,
+                candidates:
+                    followUpPlan.candidates,
+                followUpObservations
+            })
+            : null;
+
     propuesta.agentLoop =
         {
             version:
-                "7.0.0",
+                "7.1.0",
             mode:
                 "TOOL_PLAN",
             toolCalls:
-                propuesta.toolCalls,
+                allToolCalls,
             observations:
-                toolObservations,
+                allToolObservations,
+            followUp:
+                {
+                    mode:
+                        "OBSERVATION_DRIVEN_READ_ONLY",
+                    candidates:
+                        followUpPlan.candidates,
+                    toolCalls:
+                        followUpPlan.followUpToolCalls,
+                    observations:
+                        followUpObservations,
+                    writeAllowed:
+                        false,
+                    patchGenerated:
+                        false
+                },
+            finalResponse,
             verified:
-                toolObservations.every(
+                allToolObservations.every(
                     item =>
                         item?.ok !== false
                 )

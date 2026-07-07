@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4123"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4124"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -3202,8 +3202,23 @@ console.log(
                         ?.input ||
                     comando;
 
+                const finalResponse =
+                    coreResult
+                        ?.result
+                        ?.finalResponse ||
+                    coreResult
+                        ?.result
+                        ?.followUp
+                        ?.finalResponse ||
+                    null;
+
                 const multiToolSummary =
                     [
+                        ...(
+                            finalResponse?.text
+                                ? [finalResponse.text]
+                                : []
+                        ),
                         `Objetivo: ${plannerObjective}`,
                         `Herramientas: ${
                             agentToolCalls
