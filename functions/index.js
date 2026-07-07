@@ -1323,8 +1323,172 @@ exports.gestiaArchitectV5 = functions
         const prompt = bodyData.prompt || "";
         if (!prompt || prompt.trim().length < 3) throw new Error("PROMPT_INVALIDO");
 
+        const operationMode = String(
+          bodyData.modo_operacion ||
+          bodyData.mode ||
+          bodyData.contexto?.modo_operacion ||
+          bodyData.contexto?.plannerMode ||
+          bodyData.contexto?.mode ||
+          ""
+        ).toLowerCase();
+
         // 🔒 3. Idempotencia (Evitar doble gasto de tokens)
         const operationId = generateOperationId(prompt, tenantId);
+
+        if (operationMode === "tool_planner") {
+          const plannerModel = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash",
+            generationConfig: {
+              temperature: 0.05,
+              maxOutputTokens: 1800,
+              responseMimeType: "application/json"
+            }
+          });
+
+          const plannerInstruction = `
+You are Jarvis Codex repo investigation planner.
+
+Return only valid JSON:
+
+{
+  "intent": "REPO_INVESTIGATION" | "GENERAL_RESPONSE",
+  "objective": string,
+  "toolCalls": [
+    { "name": "repo.grep", "args": { "term": string, "maxMatches": 80 } },
+    { "name": "repo.search", "args": { "query": string, "term": string } },
+    { "name": "repo.read", "args": { "file": string, "maxBytes": 300000 } },
+    { "name": "repo.diagnose", "args": { "file": string, "mode": "diagnose", "rawInput": string } },
+    { "name": "repo.impact", "args": { "file": string } },
+    { "name": "repo.scan", "args": {} },
+    { "name": "repo.audit", "args": {} }
+  ],
+  "writeAllowed": false,
+  "requiresApprovalForWrite": true,
+  "confidence": number
+}
+
+Rules:
+- Plan read-only investigation steps for codebase questions, UI complaints, architecture questions, approval-flow doubts, render tracing, and repair analysis.
+- Do not write, patch, approve, delete, deploy, or mutate state.
+- If a concrete file is mentioned, include repo.read and repo.diagnose for that file.
+- If the exact file is unknown, use repo.grep, repo.search, repo.scan, or repo.audit to discover evidence first.
+- If the user is not asking about code, repo, debugging, UI, architecture, or repair, return GENERAL_RESPONSE with an empty toolCalls array.
+- Keep toolCalls short, ordered, and evidence-first.
+`;
+
+          const plannerResult = await plannerModel.generateContent(
+            `${plannerInstruction}\n\nUSER_INPUT:\n${prompt}`
+          );
+
+          let parsedPlan;
+
+          try {
+            parsedPlan = JSON.parse(plannerResult.response.text());
+          } catch {
+            parsedPlan = {
+              intent: "GENERAL_RESPONSE",
+              objective: prompt,
+              toolCalls: [],
+              writeAllowed: false,
+              requiresApprovalForWrite: true,
+              confidence: 0
+            };
+          }
+
+          const allowedPlannerTools = new Set([
+            "repo.audit",
+            "repo.scan",
+            "repo.search",
+            "repo.grep",
+            "repo.read",
+            "repo.diagnose",
+            "repo.impact"
+          ]);
+
+          const sanitizePlannerArgs = (args = {}) => {
+            if (!args || typeof args !== "object" || Array.isArray(args)) {
+              return {};
+            }
+
+            const cleanArgs = {};
+
+            Object.entries(args).slice(0, 20).forEach(([key, value]) => {
+              if (typeof key !== "string" || key.length > 80) {
+                return;
+              }
+
+              if (typeof value === "string") {
+                cleanArgs[key] = value.slice(0, 1200);
+                return;
+              }
+
+              if (typeof value === "number" && Number.isFinite(value)) {
+                cleanArgs[key] = value;
+                return;
+              }
+
+              if (typeof value === "boolean") {
+                cleanArgs[key] = value;
+              }
+            });
+
+            return cleanArgs;
+          };
+
+          const safeToolCalls = Array.isArray(parsedPlan?.toolCalls)
+            ? parsedPlan.toolCalls
+                .map(call => {
+                  const name = String(call?.name || call?.tool || "").trim();
+
+                  if (!allowedPlannerTools.has(name)) {
+                    return null;
+                  }
+
+                  return {
+                    name,
+                    args: sanitizePlannerArgs(call?.args || {}),
+                    reason: "AI_SEMANTIC_TOOL_PLANNER",
+                    mutates: false,
+                    approved: false
+                  };
+                })
+                .filter(Boolean)
+                .slice(0, 8)
+            : [];
+
+          const toolPlan = {
+            intent:
+              safeToolCalls.length > 0
+                ? (parsedPlan?.intent || "REPO_INVESTIGATION")
+                : (parsedPlan?.intent || "GENERAL_RESPONSE"),
+            objective:
+              parsedPlan?.objective ||
+              prompt,
+            toolCalls:
+              safeToolCalls,
+            writeAllowed:
+              false,
+            requiresApprovalForWrite:
+              true,
+            confidence:
+              typeof parsedPlan?.confidence === "number"
+                ? parsedPlan.confidence
+                : 0.5
+          };
+
+          await reportSentinelMetric("ia_tool_planner_success");
+
+          return res.status(200).json({
+            data: {
+              success: true,
+              toolPlan,
+              modulo_generado: toolPlan,
+              operationId,
+              traceId,
+              mode: "TOOL_PLANNER"
+            }
+          });
+        }
         const opRef = db.collection("gestia_operations").doc(operationId);
 
         const existing = await opRef.get();

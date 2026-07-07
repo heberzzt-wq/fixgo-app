@@ -1379,6 +1379,190 @@ const patchPreviewTool =
 
   return dedupedToolCalls;
 }
+
+const SEMANTIC_READ_ONLY_REPO_TOOLS =
+  new Set([
+    "repo.audit",
+    "repo.scan",
+    "repo.search",
+    "repo.grep",
+    "repo.read",
+    "repo.diagnose",
+    "repo.impact"
+  ]);
+
+function parseMaybeJsonPlan(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === "object") {
+    return value;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function extractCloudToolPlan(cloudReasoning = {}) {
+  const candidates = [
+    cloudReasoning?.toolPlan,
+    cloudReasoning?.plan,
+    cloudReasoning?.data?.toolPlan,
+    cloudReasoning?.data?.plan,
+    cloudReasoning?.data?.modulo_generado,
+    cloudReasoning?.data?.result,
+    cloudReasoning?.output,
+    cloudReasoning?.data?.output,
+    cloudReasoning
+  ];
+
+  for (const candidate of candidates) {
+    const parsed =
+      parseMaybeJsonPlan(candidate);
+
+    const plan =
+      parsed?.plan?.toolCalls
+        ? parsed.plan
+        : parsed;
+
+    if (
+      plan &&
+      Array.isArray(plan.toolCalls)
+    ) {
+      return plan;
+    }
+  }
+
+  return null;
+}
+
+function sanitizeSemanticToolArgs(args = {}) {
+  if (
+    !args ||
+    typeof args !== "object" ||
+    Array.isArray(args)
+  ) {
+    return {};
+  }
+
+  const cleanArgs = {};
+
+  Object
+    .entries(args)
+    .slice(0, 20)
+    .forEach(([key, value]) => {
+      if (
+        typeof key !== "string" ||
+        key.length > 80
+      ) {
+        return;
+      }
+
+      if (typeof value === "string") {
+        cleanArgs[key] =
+          value.slice(0, 1200);
+
+        return;
+      }
+
+      if (
+        typeof value === "number" &&
+        Number.isFinite(value)
+      ) {
+        cleanArgs[key] =
+          value;
+
+        return;
+      }
+
+      if (typeof value === "boolean") {
+        cleanArgs[key] =
+          value;
+      }
+    });
+
+  return cleanArgs;
+}
+
+function normalizeCloudToolPlan(
+  cloudReasoning = {},
+  fallbackObjective = ""
+) {
+  const plan =
+    extractCloudToolPlan(
+      cloudReasoning
+    );
+
+  if (!plan) {
+    return null;
+  }
+
+  const toolCalls =
+    plan.toolCalls
+      .map(call => {
+        const name =
+          String(
+            call?.name ||
+            call?.tool ||
+            ""
+          ).trim();
+
+        if (
+          !SEMANTIC_READ_ONLY_REPO_TOOLS.has(name)
+        ) {
+          return null;
+        }
+
+        return {
+          name,
+          args:
+            sanitizeSemanticToolArgs(
+              call?.args || {}
+            ),
+          reason:
+            "AI_SEMANTIC_TOOL_PLANNER",
+          mutates:
+            false,
+          approved:
+            false
+        };
+      })
+      .filter(Boolean);
+
+  if (
+    toolCalls.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    intent:
+      plan.intent ||
+      "REPO_INVESTIGATION",
+    objective:
+      plan.objective ||
+      fallbackObjective,
+    toolCalls,
+    writeAllowed:
+      false,
+    requiresApprovalForWrite:
+      true,
+    confidence:
+      typeof plan.confidence === "number"
+        ? plan.confidence
+        : null,
+    source:
+      "cloud_tool_planner"
+  };
+}
 /* ======================================================================================
    EXECUTION GRAPH EXPANDER
 ====================================================================================== */
@@ -2182,14 +2366,18 @@ export async function runCognitiveReasoning(
       contexto
     );
 
-        const toolCalls =
+        const localToolCalls =
       buildToolCallsFromInput(
         input,
         contexto
       );
 
-    const cloudReasoning =
-      await invocarArquitectoIA(
+    let cloudReasoning =
+      null;
+
+    try {
+      cloudReasoning =
+        await invocarArquitectoIA(
 
         input,
 
@@ -2198,15 +2386,49 @@ export async function runCognitiveReasoning(
           semantic,
           inferences,
           strategicMode:
-            toolCalls.length > 0
+            localToolCalls.length > 0
               ? "TOOL_PLAN"
               : strategicMode,
           executionChain,
-          toolCalls
+          toolCalls:
+            localToolCalls,
+          plannerMode:
+            "TOOL_PLANNER"
         },
 
-        crypto.randomUUID()
+        crypto.randomUUID(),
+        3200,
+        null,
+        "jarvis",
+        "tool_planner"
+        );
+    } catch(cloudPlannerError) {
+      console.warn(
+        "CLOUD_TOOL_PLANNER_FAIL",
+        cloudPlannerError
       );
+
+      emitBrainTelemetry(
+        "CLOUD_TOOL_PLANNER_FAIL",
+        {
+          error:
+            cloudPlannerError?.message ||
+            String(cloudPlannerError)
+        },
+        "WARNING"
+      );
+    }
+
+    const cloudToolPlan =
+      normalizeCloudToolPlan(
+        cloudReasoning,
+        input
+      );
+
+    const toolCalls =
+      cloudToolPlan?.toolCalls?.length > 0
+        ? cloudToolPlan.toolCalls
+        : localToolCalls;
 
     const reasoning = {
 
@@ -2231,6 +2453,8 @@ export async function runCognitiveReasoning(
       semanticContext,
 
       cloudReasoning,
+
+      cloudToolPlan,
 
       timestamp:
         Date.now()
