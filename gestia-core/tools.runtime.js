@@ -676,6 +676,77 @@ JarvisToolRuntime.register({
                 };
             }
 
+            let materializedContent =
+                args.content || "";
+
+            const hasSearchReplace =
+                typeof args.search === "string" &&
+                typeof args.replace === "string" &&
+                args.search.length > 0;
+
+            if (!materializedContent && hasSearchReplace) {
+                const readResult =
+                    await window.JarvisToolRuntime.execute(
+                        "repo.read",
+                        {
+                            file:
+                                args.file || args.path || "",
+                            path:
+                                args.path || args.file || ""
+                        },
+                        {
+                            ...context,
+                            source:
+                                "repo_write_materializer_v7"
+                        }
+                    );
+
+                const currentContent =
+                    readResult?.data?.content ||
+                    readResult?.result?.content ||
+                    readResult?.content ||
+                    "";
+
+                if (!currentContent.includes(args.search)) {
+                    return {
+                        ok:
+                            false,
+                        status:
+                            "WRITE_SEARCH_NOT_FOUND",
+                        error:
+                            "WRITE_SEARCH_NOT_FOUND",
+                        file:
+                            args.file || args.path || "",
+                        search:
+                            args.search,
+                        source:
+                            "repo_write_materializer_v7"
+                    };
+                }
+
+                materializedContent =
+                    currentContent.replace(args.search, args.replace);
+            }
+
+            if (isDryRun === true) {
+                return {
+                    ok:
+                        true,
+                    status:
+                        "WRITE_DRY_RUN_OK",
+                    file:
+                        args.file || args.path || "",
+                    dryRun:
+                        true,
+                    searchFound:
+                        hasSearchReplace ? true : null,
+                    wouldWrite:
+                        materializedContent.length,
+                    source:
+                        "repo_write_materializer_v7"
+                };
+            }
+
             const result =
                 await window.JarvisLocalBridge.writeFile({
                     file:
@@ -683,9 +754,9 @@ JarvisToolRuntime.register({
                     path:
                         args.path || args.file || "",
                     content:
-                        args.content || "",
+                        materializedContent,
                     dryRun:
-                        isDryRun === true,
+                        false,
                     source:
                         "repo_write_runtime_v7"
                 });
