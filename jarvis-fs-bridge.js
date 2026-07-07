@@ -5,7 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.0.0-local-fs-bridge";
+    "2.1.0-local-fs-bridge";
 
 export const JARVIS_FS_BRIDGE_POLICY = {
     authority: "full_repo_private_owner",
@@ -329,6 +329,120 @@ export function describeJarvisFsBridge() {
     };
 }
 
+export function normalizeReadLineRange({
+    startLine = null,
+    endLine = null,
+    fromLine = null,
+    toLine = null,
+    maxLines = 500
+} = {}) {
+    const parseLine =
+        function(value) {
+            const parsed =
+                Number.parseInt(
+                    value,
+                    10
+                );
+
+            return Number.isFinite(parsed) &&
+                parsed > 0
+                ? parsed
+                : null;
+        };
+
+    const start =
+        parseLine(startLine) ||
+        parseLine(fromLine);
+
+    const end =
+        parseLine(endLine) ||
+        parseLine(toLine);
+
+    if (
+        !start &&
+        !end
+    ) {
+        return null;
+    }
+
+    const normalizedStart =
+        start ||
+        1;
+
+    const normalizedEnd =
+        Math.max(
+            normalizedStart,
+            end ||
+            normalizedStart
+        );
+
+    return {
+        startLine:
+            normalizedStart,
+        endLine:
+            Math.min(
+                normalizedEnd,
+                normalizedStart +
+                Math.max(Number(maxLines) || 500, 1) -
+                1
+            )
+    };
+}
+
+export function applyReadLineRange(
+    content = "",
+    lineRange = null
+) {
+    const source =
+        String(content || "");
+
+    const lines =
+        source.split(/\r?\n/);
+
+    if (!lineRange) {
+        return {
+            content:
+                source,
+            partial:
+                false,
+            startLine:
+                1,
+            endLine:
+                lines.length,
+            totalLines:
+                lines.length
+        };
+    }
+
+    const startLine =
+        Math.min(
+            Math.max(Number(lineRange.startLine) || 1, 1),
+            Math.max(lines.length, 1)
+        );
+
+    const endLine =
+        Math.min(
+            Math.max(Number(lineRange.endLine) || startLine, startLine),
+            lines.length
+        );
+
+    return {
+        content:
+            lines
+                .slice(
+                    startLine - 1,
+                    endLine
+                )
+                .join("\n"),
+        partial:
+            true,
+        startLine,
+        endLine,
+        totalLines:
+            lines.length
+    };
+}
+
 async function runGitWorkflowCommand({
     args = [],
     cwd = ".",
@@ -601,8 +715,20 @@ export function createJarvisFsBridgeApp({
             const {
                 file,
                 path: requestedPath,
-                maxBytes = 300000
+                maxBytes = 300000,
+                startLine = null,
+                endLine = null,
+                fromLine = null,
+                toLine = null
             } = req.body || {};
+
+            const lineRange =
+                normalizeReadLineRange({
+                    startLine,
+                    endLine,
+                    fromLine,
+                    toLine
+                });
 
             const targetFile =
                 file ||
@@ -655,7 +781,8 @@ export function createJarvisFsBridgeApp({
             }
 
             if (
-                stat.size > Number(maxBytes)
+                stat.size > Number(maxBytes) &&
+                !lineRange
             ) {
                 return res.status(413).json({
                     ok: false,
@@ -676,11 +803,52 @@ export function createJarvisFsBridgeApp({
                 });
             }
 
-            const content =
+            const rawContent =
                 fs.readFileSync(
                     safePath,
                     "utf8"
                 );
+
+            const rangedRead =
+                applyReadLineRange(
+                    rawContent,
+                    lineRange
+                );
+
+            const content =
+                rangedRead.content;
+
+            const contentSize =
+                Buffer.byteLength(
+                    content,
+                    "utf8"
+                );
+
+            if (
+                contentSize > Number(maxBytes)
+            ) {
+                return res.status(413).json({
+                    ok: false,
+                    status:
+                        "FILE_TOO_LARGE",
+                    error:
+                        "FILE_TOO_LARGE",
+                    file:
+                        targetFile,
+                    size:
+                        contentSize,
+                    totalSize:
+                        stat.size,
+                    maxBytes:
+                        Number(maxBytes),
+                    lineRange:
+                        lineRange || null,
+                    source:
+                        "jarvis_fs_bridge_read_v1",
+                    version:
+                        JARVIS_FS_BRIDGE_VERSION
+                });
+            }
 
             return res.json({
                 ok: true,
@@ -691,8 +859,26 @@ export function createJarvisFsBridgeApp({
                     String(targetFile)
                         .replace(/\\/g, "/"),
                 size:
+                    contentSize,
+                totalSize:
                     stat.size,
                 content,
+                partial:
+                    rangedRead.partial,
+                startLine:
+                    rangedRead.startLine,
+                endLine:
+                    rangedRead.endLine,
+                totalLines:
+                    rangedRead.totalLines,
+                lineRange: {
+                    startLine:
+                        rangedRead.startLine,
+                    endLine:
+                        rangedRead.endLine,
+                    totalLines:
+                        rangedRead.totalLines
+                },
                 source:
                     "jarvis_fs_bridge_read_v1",
                 version:

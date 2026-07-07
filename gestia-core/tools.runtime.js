@@ -339,6 +339,121 @@ JarvisToolRuntime.register({
                 .replace(/^\/+/, "")
                 .trim();
 
+        const parseLineNumber =
+            function(value) {
+                const parsed =
+                    Number.parseInt(
+                        value,
+                        10
+                    );
+
+                return Number.isFinite(parsed) &&
+                    parsed > 0
+                    ? parsed
+                    : null;
+            };
+
+        const requestedStartLine =
+            parseLineNumber(
+                args.startLine ||
+                args.fromLine ||
+                args.lineStart
+            );
+
+        const requestedEndLine =
+            parseLineNumber(
+                args.endLine ||
+                args.toLine ||
+                args.lineEnd
+            );
+
+        const hasRequestedLineRange =
+            Boolean(
+                requestedStartLine ||
+                requestedEndLine
+            );
+
+        const requestedLineRange =
+            hasRequestedLineRange
+                ? {
+                    startLine:
+                        requestedStartLine ||
+                        1,
+                    endLine:
+                        Math.max(
+                            requestedStartLine || 1,
+                            requestedEndLine ||
+                            requestedStartLine ||
+                            1
+                        )
+                }
+                : null;
+
+        const applyRequestedLineRange =
+            function(result = {}) {
+                if (
+                    !requestedLineRange ||
+                    result?.partial === true ||
+                    result?.lineRange
+                ) {
+                    return result;
+                }
+
+                const content =
+                    typeof result?.content === "string"
+                        ? result.content
+                        : typeof result?.text === "string"
+                            ? result.text
+                            : "";
+
+                if (!content) {
+                    return result;
+                }
+
+                const lines =
+                    content.split(/\r?\n/);
+
+                const startLine =
+                    Math.min(
+                        requestedLineRange.startLine,
+                        Math.max(lines.length, 1)
+                    );
+
+                const endLine =
+                    Math.min(
+                        requestedLineRange.endLine,
+                        lines.length
+                    );
+
+                const rangedContent =
+                    lines
+                        .slice(
+                            startLine - 1,
+                            endLine
+                        )
+                        .join("\n");
+
+                return {
+                    ...result,
+                    content:
+                        rangedContent,
+                    size:
+                        rangedContent.length,
+                    partial:
+                        true,
+                    startLine,
+                    endLine,
+                    totalLines:
+                        lines.length,
+                    lineRange: {
+                        startLine,
+                        endLine,
+                        totalLines:
+                            lines.length
+                    }
+                };
+            };
+
                         if (
             window.JarvisLocalBridge?.readFile
         ) {
@@ -351,6 +466,7 @@ JarvisToolRuntime.register({
                     maxBytes:
                         args.maxBytes ||
                         300000,
+                    ...(requestedLineRange || {}),
                     source:
                         "jarvis_repo_read_v7"
                 });
@@ -359,7 +475,13 @@ JarvisToolRuntime.register({
                 bridgeRead?.ok === true &&
                 typeof bridgeRead.content === "string"
             ) {
+                const materializedBridgeRead =
+                    applyRequestedLineRange(
+                        bridgeRead
+                    );
+
                 return {
+                    ...materializedBridgeRead,
                     ok: true,
                     file:
                         normalizedFile,
@@ -367,10 +489,38 @@ JarvisToolRuntime.register({
                         bridgeRead.path ||
                         normalizedFile,
                     content:
-                        bridgeRead.content,
+                        materializedBridgeRead.content,
                     size:
+                        materializedBridgeRead.size ||
                         bridgeRead.size ||
                         bridgeRead.content.length,
+                    partial:
+                        materializedBridgeRead.partial === true ||
+                        Boolean(requestedLineRange),
+                    startLine:
+                        materializedBridgeRead.startLine ||
+                        requestedLineRange?.startLine ||
+                        null,
+                    endLine:
+                        materializedBridgeRead.endLine ||
+                        requestedLineRange?.endLine ||
+                        null,
+                    totalLines:
+                        materializedBridgeRead.totalLines ||
+                        materializedBridgeRead.lineRange?.totalLines ||
+                        null,
+                    lineRange:
+                        materializedBridgeRead.lineRange ||
+                        (
+                            requestedLineRange
+                                ? {
+                                    ...requestedLineRange,
+                                    totalLines:
+                                        materializedBridgeRead.totalLines ||
+                                        null
+                                }
+                                : null
+                        ),
                     source:
                         bridgeRead.source ||
                         "jarvis_local_bridge_read_client_v7",
@@ -440,7 +590,7 @@ catch(error) {
                 ok: true,
                 file:
                     normalizedFile,
-                ...found
+                ...applyRequestedLineRange(found)
             };
         }
 
@@ -484,7 +634,7 @@ catch(error) {
                 ok: true,
                 file:
                     normalizedFile,
-                ...contextResult
+                ...applyRequestedLineRange(contextResult)
             };
         }
 
@@ -523,9 +673,13 @@ catch(error) {
                 metadata:
                     matched,
                 content:
-                    matched.content ||
-                    matched.text ||
-                    matched.source ||
+                    applyRequestedLineRange({
+                        content:
+                            matched.content ||
+                            matched.text ||
+                            matched.source ||
+                            ""
+                    }).content ||
                     null,
                 note:
                     matched.content ||
@@ -6188,6 +6342,10 @@ window.JarvisLocalBridge.readFile ||= async function(payload = {}) {
                             payload.path || file,
                         maxBytes:
                             payload.maxBytes || 300000,
+                        startLine:
+                            payload.startLine || null,
+                        endLine:
+                            payload.endLine || null,
                         source:
                             payload.source ||
                             "jarvis_repo_read_v7"

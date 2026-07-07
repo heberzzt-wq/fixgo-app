@@ -3,8 +3,10 @@ import path from "node:path";
 import { test } from "node:test";
 
 import {
+    applyReadLineRange,
     assertWriteContent,
     describeJarvisFsBridge,
+    normalizeReadLineRange,
     resolveRepoPath
 } from "../jarvis-fs-bridge.js";
 
@@ -13,10 +15,41 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.0.0-local-fs-bridge");
+    assert.equal(description.version, "2.1.0-local-fs-bridge");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
+});
+
+test("Jarvis FS bridge V2 reads bounded line ranges", () => {
+    const lineRange =
+        normalizeReadLineRange({
+            startLine:
+                2,
+            endLine:
+                4
+        });
+
+    const result =
+        applyReadLineRange(
+            [
+                "line 1",
+                "line 2",
+                "line 3",
+                "line 4",
+                "line 5"
+            ].join("\n"),
+            lineRange
+        );
+
+    assert.equal(result.partial, true);
+    assert.equal(result.startLine, 2);
+    assert.equal(result.endLine, 4);
+    assert.equal(result.totalLines, 5);
+    assert.equal(
+        result.content,
+        "line 2\nline 3\nline 4"
+    );
 });
 
 test("Jarvis FS bridge V2 blocks empty write content", () => {
