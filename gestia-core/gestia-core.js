@@ -204,13 +204,22 @@ const TEST_FIXTURE_FILE_PATTERN =
     /(^|\/)(tests|__tests__|fixtures|mocks)\/|(\.test|\.spec)\.(js|cjs|mjs|ts|tsx)$/i;
 
 const INFRASTRUCTURE_FILE_PATTERN =
-    /(^|\/)(gestia-core\/jarvis\/.*|.*bridge.*|.*runtime.*|.*kernel.*|tools\..*|brain\.engine|gestia-core)\.(js|html|css|json|cjs|mjs|txt|md)$/i;
+    /(^|\/)(gestia-core\/jarvis\/.*|.*bridge.*|.*runtime.*|.*kernel.*|.*executor.*|.*engine.*|tools\..*|brain\.engine|gestia-core|functions\/index)\.(js|html|css|json|cjs|mjs|txt|md)$/i;
 
 const UI_EVIDENCE_PATTERN =
     /\b(render|ui|layout|card|cards|tarjeta|tarjetas|template|html|class|clase|grid|flex|responsive|mobile|movil|móvil|expandible|expandibles)\b/i;
 
 const UI_LAYOUT_SIGNAL_PATTERN =
     /\b(max-w-[^\s"'`<>]+|min-h-[^\s"'`<>]+|p[trblxy]?-[^\s"'`<>]+|gap-[^\s"'`<>]+|grid-cols-[^\s"'`<>]+|space-[xy]-[^\s"'`<>]+|rounded[^\s"'`<>]*|shadow[^\s"'`<>]*|w-full|h-full|flex|grid|card|tarjeta|overflow-[^\s"'`<>]+)\b/gi;
+
+const PRODUCT_UI_EVIDENCE_PATTERN =
+    /\b(render|generaci[oó]n\s+din[aá]mica|template|html|dom|panel|cliente|t[eé]cnico|componente|card\s+wrapper|tarjeta\s+tarea|tareas|class=|className=|grid|flex|gap-|p[trblxy]?-|px-|py-|max-w-|min-h-|rounded|w-full|space-y-)\b/i;
+
+const META_ENGINE_EVIDENCE_PATTERN =
+    /\b(generic_ui_card_patch|jarvis\s+code\s+surgeon|unsafegeneratedcontentpatterns|unsafe\s+generated\s+content|guard|policy|planner|executor|runtime|kernel|bridge|tool|tools|tests?|patch\s+engine|autopatch|patchpreview|code_write|sia7_commit|injection|inyecci[oó]n|ui_optimization)\b/i;
+
+const META_EXPLICIT_OBJECTIVE_PATTERN =
+    /\b(planner|executor|patch\s+engine|guard|policy|runtime|kernel|bridge|tool|tools|codex|autopatch|seguridad|security|write|safe\s+write|aprobaci[oó]n|approval)\b/i;
 
 const LOW_SIGNAL_EVIDENCE_TERMS =
     new Set([
@@ -344,9 +353,20 @@ function scoreObservationEvidence({
             snippet
         );
 
+    const productUiEvidence =
+        isProductUiEvidence(
+            snippet
+        );
+
+    const metaEngineEvidence =
+        isMetaEngineEvidence(
+            snippet
+        );
+
     const visualEvidence =
         uiEvidence ||
-        layoutEvidence;
+        layoutEvidence ||
+        productUiEvidence;
 
     const directMatches =
         objectiveTerms.filter(objectiveTerm =>
@@ -378,6 +398,11 @@ function scoreObservationEvidence({
             ? 24
             : 0;
 
+    const metaEnginePenalty =
+        metaEngineEvidence
+            ? 70
+            : 0;
+
     const score =
         baseWeight +
         (
@@ -389,6 +414,8 @@ function scoreObservationEvidence({
         (termDirect * 8) +
         (uiEvidence ? 6 : 0) +
         (layoutEvidence ? 10 : 0) +
+        (productUiEvidence ? 28 : 0) -
+        metaEnginePenalty +
         (
             hasSnippet
                 ? 2
@@ -404,6 +431,10 @@ function scoreObservationEvidence({
             uiEvidence === true,
         layoutEvidence:
             layoutEvidence === true,
+        productUiEvidence:
+            productUiEvidence === true,
+        metaEngineEvidence:
+            metaEngineEvidence === true,
         termDirect:
             termDirect === 1
     };
@@ -426,6 +457,62 @@ function hasLayoutSignal(
     return UI_LAYOUT_SIGNAL_PATTERN.test(
         String(value || "")
     );
+}
+
+function isProductUiEvidence(
+    value = ""
+) {
+    return PRODUCT_UI_EVIDENCE_PATTERN.test(
+        String(value || "")
+    );
+}
+
+function isMetaEngineEvidence(
+    value = ""
+) {
+    return META_ENGINE_EVIDENCE_PATTERN.test(
+        normalizeObservationText(value)
+    );
+}
+
+function objectiveExplicitlyTargetsMetaEngine(
+    objective = ""
+) {
+    return META_EXPLICIT_OBJECTIVE_PATTERN.test(
+        normalizeObservationText(objective)
+    );
+}
+
+function getCandidateMetaEvidenceHits(
+    candidate = {}
+) {
+    return (candidate.evidence || [])
+        .filter(evidence =>
+            evidence?.metaEngineEvidence === true ||
+            isMetaEngineEvidence(
+                evidence?.snippet ||
+                evidence?.module ||
+                evidence?.term ||
+                ""
+            )
+        )
+        .length;
+}
+
+function getCandidateProductUiEvidenceHits(
+    candidate = {}
+) {
+    return (candidate.evidence || [])
+        .filter(evidence =>
+            evidence?.productUiEvidence === true ||
+            isProductUiEvidence(
+                evidence?.snippet ||
+                evidence?.module ||
+                evidence?.term ||
+                ""
+            )
+        )
+        .length;
 }
 
 function getEvidenceAnchorScore(
@@ -453,6 +540,18 @@ function getEvidenceAnchorScore(
             snippet
         );
 
+    const productUiEvidence =
+        evidence?.productUiEvidence === true ||
+        isProductUiEvidence(
+            snippet
+        );
+
+    const metaEngineEvidence =
+        evidence?.metaEngineEvidence === true ||
+        isMetaEngineEvidence(
+            snippet
+        );
+
     const lowSignalTerm =
         isLowSignalEvidenceTerm(
             term
@@ -467,6 +566,8 @@ function getEvidenceAnchorScore(
         Number(evidence?.evidenceScore || 0) +
         (uiEvidence ? 36 : 0) +
         (layoutEvidence ? 28 : 0) +
+        (productUiEvidence ? 52 : 0) -
+        (metaEngineEvidence ? 140 : 0) +
         (evidence?.directMatches ? evidence.directMatches * 10 : 0) +
         (evidence?.termDirect ? 8 : 0) +
         (line ? 4 : 0) -
@@ -676,6 +777,10 @@ function collectObservationDrivenCandidates(
                         0,
                     layoutEvidenceHits:
                         0,
+                    productUiEvidenceHits:
+                        0,
+                    metaEngineEvidenceHits:
+                        0,
                     frequency:
                         0,
                     evidence:
@@ -695,6 +800,16 @@ function collectObservationDrivenCandidates(
 
             current.layoutEvidenceHits +=
                 scoreMeta.layoutEvidence
+                    ? 1
+                    : 0;
+
+            current.productUiEvidenceHits +=
+                scoreMeta.productUiEvidence
+                    ? 1
+                    : 0;
+
+            current.metaEngineEvidenceHits +=
+                scoreMeta.metaEngineEvidence
                     ? 1
                     : 0;
 
@@ -720,6 +835,10 @@ function collectObservationDrivenCandidates(
                         scoreMeta.uiEvidence === true,
                     layoutEvidence:
                         scoreMeta.layoutEvidence === true,
+                    productUiEvidence:
+                        scoreMeta.productUiEvidence === true,
+                    metaEngineEvidence:
+                        scoreMeta.metaEngineEvidence === true,
                     termDirect:
                         scoreMeta.termDirect === true,
                     file:
@@ -888,6 +1007,23 @@ function collectObservationDrivenCandidates(
                     candidate.file
                 );
 
+            const metaExplicitObjective =
+                objectiveExplicitlyTargetsMetaEngine(
+                    objective
+                );
+
+            const metaEvidenceHits =
+                candidate.metaEngineEvidenceHits ||
+                getCandidateMetaEvidenceHits(
+                    candidate
+                );
+
+            const productUiEvidenceHits =
+                candidate.productUiEvidenceHits ||
+                getCandidateProductUiEvidenceHits(
+                    candidate
+                );
+
             if (
                 isTestFixture &&
                 !explicitlyMentioned
@@ -905,8 +1041,21 @@ function collectObservationDrivenCandidates(
 
             const infrastructurePenalty =
                 isInfrastructure &&
-                !explicitlyMentioned
-                    ? 90
+                !explicitlyMentioned &&
+                !metaExplicitObjective
+                    ? 120
+                    : 0;
+
+            const metaEnginePenalty =
+                metaEvidenceHits > 0 &&
+                !explicitlyMentioned &&
+                !metaExplicitObjective
+                    ? 160 + (metaEvidenceHits * 35)
+                    : 0;
+
+            const productUiBonus =
+                productUiEvidenceHits > 0
+                    ? 80 + (productUiEvidenceHits * 30)
                     : 0;
 
             return {
@@ -918,12 +1067,19 @@ function collectObservationDrivenCandidates(
                     candidate.score +
                     (candidate.frequency * 2) -
                     weakCorePenalty -
-                    infrastructurePenalty,
+                    infrastructurePenalty -
+                    metaEnginePenalty +
+                    productUiBonus,
                 explicitlyMentioned,
                 isTestFixture,
                 isInfrastructure,
+                metaExplicitObjective,
+                metaEvidenceHits,
+                productUiEvidenceHits,
                 weakCorePenalty,
-                infrastructurePenalty
+                infrastructurePenalty,
+                metaEnginePenalty,
+                productUiBonus
             };
         })
         .filter(Boolean)
@@ -942,14 +1098,16 @@ function collectObservationDrivenCandidates(
             (
                 candidate.directScore > 0 ||
                 candidate.termDirectHits > 0 ||
-                candidate.uiEvidenceHits > 0
+                candidate.uiEvidenceHits > 0 ||
+                candidate.productUiEvidenceHits > 0
             )
         );
 
     const visualProductCandidates =
         productSurfaceCandidates.filter(candidate =>
             candidate.uiEvidenceHits > 0 ||
-            candidate.layoutEvidenceHits > 0
+            candidate.layoutEvidenceHits > 0 ||
+            candidate.productUiEvidenceHits > 0
         );
 
     const selectableCandidates =
@@ -1095,7 +1253,7 @@ async function executeObservationDrivenFollowUp(
                     approved:
                         false,
                     source:
-                        "observation_driven_follow_up_41_30"
+                        "observation_driven_follow_up_41_31"
                 }
             );
 
@@ -1595,6 +1753,17 @@ function composeObservationDrivenFinalResponse({
                 "- No se detectaron clases concretas de layout en la ventana leida; revisar el bloque HTML/template cercano antes de patch."
             ];
 
+    const metaCandidateLines =
+        candidates
+            .filter(candidate =>
+                candidate.metaEvidenceHits > 0 &&
+                !candidate.metaExplicitObjective
+            )
+            .slice(0, 3)
+            .map(candidate =>
+                `- ${candidate.file} fue tratado como evidencia meta de guard/engine, no como UI real.`
+            );
+
     const recommendationLines =
         (
             topDiagnosis?.recommendations ||
@@ -1671,6 +1840,13 @@ function composeObservationDrivenFinalResponse({
             "",
             "Senales de layout:",
             ...layoutSignalLines,
+            ...(metaCandidateLines.length
+                ? [
+                    "",
+                    "Evidencia meta descartada:",
+                    ...metaCandidateLines
+                ]
+                : []),
             "",
             "Causa probable:",
             cause,
