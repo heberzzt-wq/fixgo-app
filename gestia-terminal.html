@@ -4383,7 +4383,7 @@ window.addEventListener("load", () => {
       `;
     }
 
-    if (payload.terminalType === "CODEX_V2_WRITE_VERIFY") {
+    if (payload.terminalType === "CODEX_V2_WRITE_VERIFY" || payload.terminalType === "CODEX_V2_WRITE_VERIFY_TESTED") {
       const writeOk =
         payload.writeResult?.ok;
 
