@@ -5283,9 +5283,93 @@ JarvisToolRuntime.register({
     mutates: false,
     requiresApproval: false,
     output: "REPO_IMPACT_RESULT",
-    execute: async (args, context) => {
+    execute: async (args = {}, context = {}) => {
         const { analyzeRepoImpact } = await import('/gestia-core/hubs/repo.hub.js');
-        return await analyzeRepoImpact(args);
+
+        const requestedFile =
+            typeof args === "string"
+                ? args
+                : (
+                    args.file ||
+                    args.path ||
+                    args.target ||
+                    ""
+                );
+
+        const cleanFile =
+            String(requestedFile || "")
+                .replace(/\\/g, "/")
+                .replace(/^\.\/+/, "")
+                .replace(/^\/+/, "")
+                .trim();
+
+        const basename =
+            cleanFile
+                .split("/")
+                .filter(Boolean)
+                .pop() ||
+            cleanFile;
+
+        const attempts =
+            [
+                cleanFile,
+                basename
+            ]
+                .filter(Boolean)
+                .filter((item, index, list) =>
+                    list.indexOf(item) === index
+                );
+
+        let lastResult =
+            null;
+
+        for (const file of attempts) {
+            const result =
+                await analyzeRepoImpact({
+                    ...(
+                        typeof args === "object" &&
+                        !Array.isArray(args)
+                            ? args
+                            : {}
+                    ),
+                    file,
+                    path:
+                        file,
+                    requestedFile:
+                        cleanFile
+                });
+
+            if (result?.ok === true) {
+                return {
+                    ...result,
+                    requestedFile:
+                        cleanFile,
+                    resolvedFile:
+                        file,
+                    attemptedFiles:
+                        attempts,
+                    tool:
+                        "repo.impact"
+                };
+            }
+
+            lastResult =
+                result;
+        }
+
+        return {
+            ...(lastResult || {}),
+            ok:
+                false,
+            requestedFile:
+                cleanFile,
+            resolvedFile:
+                null,
+            attemptedFiles:
+                attempts,
+            tool:
+                "repo.impact"
+        };
     }
 });
 

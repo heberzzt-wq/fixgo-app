@@ -181,8 +181,8 @@ const CORE_CONFIG = {
     }
 };
 import '/gestia-core/semantic.engine.js';
-import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-24';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4123';
+import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-25';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4125';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
 
@@ -196,6 +196,12 @@ const OBSERVATION_FOLLOW_UP_TOOLS =
         "repo.diagnose",
         "repo.impact"
     ]);
+
+const WEAK_CORE_FILE_PATTERN =
+    /(^|\/)(app-main|brain\.engine|gestia-core|tools\.runtime|tools\.bridge)\.(js|html|css|json|cjs|mjs|txt|md)$/i;
+
+const UI_EVIDENCE_PATTERN =
+    /\b(render|ui|layout|card|cards|tarjeta|tarjetas|template|html|class|clase|grid|flex|responsive|mobile|movil|móvil|expandible|expandibles)\b/i;
 
 function normalizeObservationFilePath(value = "") {
     const clean =
@@ -214,6 +220,99 @@ function normalizeObservationFilePath(value = "") {
     }
 
     return clean;
+}
+
+function normalizeObservationText(value = "") {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/^\s*["'`]*\s*(jarvis|heberto|gestia)[,\s:;-]*/i, "")
+        .toLowerCase();
+}
+
+function extractObjectiveTerms(objective = "") {
+    const normalized =
+        normalizeObservationText(
+            objective
+        );
+
+    return [
+        ...new Set(
+            normalized.match(/[a-z0-9_./-]{5,}/g) ||
+            []
+        )
+    ]
+        .filter(term =>
+            !["jarvis", "heberto", "gestia"].includes(term)
+        )
+        .slice(0, 12);
+}
+
+function scoreObservationEvidence({
+    objectiveTerms = [],
+    term = "",
+    snippet = "",
+    sourceTool = "",
+    baseWeight = 0
+} = {}) {
+    const normalizedSnippet =
+        normalizeObservationText(
+            snippet
+        );
+
+    const normalizedTerm =
+        normalizeObservationText(
+            term
+        );
+
+    const directMatches =
+        objectiveTerms.filter(objectiveTerm =>
+            normalizedSnippet.includes(
+                objectiveTerm
+            )
+        );
+
+    const termDirect =
+        normalizedTerm &&
+        normalizedSnippet.includes(normalizedTerm)
+            ? 1
+            : 0;
+
+    const uiEvidence =
+        UI_EVIDENCE_PATTERN.test(
+            String(snippet || "")
+        )
+            ? 1
+            : 0;
+
+    const hasSnippet =
+        normalizedSnippet.trim().length > 0;
+
+    const score =
+        baseWeight +
+        (
+            sourceTool === "repo.grep"
+                ? 8
+                : 0.75
+        ) +
+        (directMatches.length * 12) +
+        (termDirect * 8) +
+        (uiEvidence * 6) +
+        (
+            hasSnippet
+                ? 2
+                : 0
+        );
+
+    return {
+        score,
+        directMatches:
+            directMatches.length,
+        uiEvidence:
+            uiEvidence === 1,
+        termDirect:
+            termDirect === 1
+    };
 }
 
 function getObservationPayload(observation = {}) {
@@ -240,6 +339,7 @@ function getObservationToolName(
 
     return (
         observation?.meta?.tool ||
+        observation?.followUpCall?.name ||
         observation?.toolCalls?.[0]?.name ||
         toolCalls?.[index]?.name ||
         payload?.tool ||
@@ -263,13 +363,19 @@ function getObservationRepoData(observation = {}) {
 
 function collectObservationDrivenCandidates(
     observations = [],
-    toolCalls = []
+    toolCalls = [],
+    objective = ""
 ) {
     const candidates =
         new Map();
 
+    const objectiveTerms =
+        extractObjectiveTerms(
+            objective
+        );
+
     const addCandidate =
-        function(file, evidence = {}, weight = 1) {
+        function(file, evidence = {}, scoreMeta = {}) {
             const normalizedFile =
                 normalizeObservationFilePath(file);
 
@@ -283,12 +389,22 @@ function collectObservationDrivenCandidates(
                         normalizedFile,
                     score:
                         0,
+                    directScore:
+                        0,
+                    frequency:
+                        0,
                     evidence:
                         []
                 };
 
             current.score +=
-                weight;
+                scoreMeta.score || 0;
+
+            current.directScore +=
+                scoreMeta.directMatches || 0;
+
+            current.frequency +=
+                1;
 
             if (
                 evidence &&
@@ -355,7 +471,26 @@ function collectObservationDrivenCandidates(
                         match?.text ||
                         ""
                 },
-                4
+                scoreObservationEvidence({
+                    objectiveTerms,
+                    term:
+                        repoData?.term ||
+                        repoData?.query ||
+                        "",
+                    snippet:
+                        [
+                            match?.snippet ||
+                            match?.text ||
+                            "",
+                            match?.line ||
+                            ""
+                        ]
+                            .join(" "),
+                    sourceTool:
+                        toolName,
+                    baseWeight:
+                        4
+                })
             );
         });
 
@@ -385,9 +520,37 @@ function collectObservationDrivenCandidates(
                         result?.type ||
                         null
                 },
-                Number(result?.score) > 0
-                    ? Number(result.score)
-                    : 2
+                scoreObservationEvidence({
+                    objectiveTerms,
+                    term:
+                        repoData?.term ||
+                        repoData?.query ||
+                        "",
+                    snippet:
+                        [
+                            result?.snippet ||
+                            result?.text ||
+                            "",
+                            result?.file ||
+                            result?.path ||
+                            result?.name ||
+                            "",
+                            result?.module ||
+                            "",
+                            result?.type ||
+                            ""
+                        ]
+                            .join(" "),
+                    sourceTool:
+                        toolName,
+                    baseWeight:
+                        Math.min(
+                            Number(result?.score) > 0
+                                ? Number(result.score)
+                                : 1,
+                            3
+                        )
+                })
             );
         });
     });
@@ -395,6 +558,31 @@ function collectObservationDrivenCandidates(
     return [
         ...candidates.values()
     ]
+        .map(candidate => {
+            const weakCorePenalty =
+                WEAK_CORE_FILE_PATTERN.test(
+                    candidate.file
+                ) &&
+                candidate.directScore < 2
+                    ? 40
+                    : 0;
+
+            return {
+                ...candidate,
+                score:
+                    candidate.score +
+                    (candidate.frequency * 2) -
+                    weakCorePenalty,
+                weakCorePenalty
+            };
+        })
+        .filter(candidate =>
+            candidate.score > 0 &&
+            (
+                candidate.directScore > 0 ||
+                candidate.frequency > 1
+            )
+        )
         .sort((a, b) =>
             b.score - a.score
         )
@@ -409,7 +597,8 @@ function buildObservationDrivenFollowUpToolCalls({
     const candidates =
         collectObservationDrivenCandidates(
             observations,
-            toolCalls
+            toolCalls,
+            rawInput
         );
 
     const existing =
@@ -520,13 +709,19 @@ async function executeObservationDrivenFollowUp(
                     approved:
                         false,
                     source:
-                        "observation_driven_follow_up_41_24"
+                        "observation_driven_follow_up_41_25"
                 }
             );
 
-        observations.push(
-            result
-        );
+        observations.push({
+            ...result,
+            followUpCall: {
+                name:
+                    call.name,
+                args:
+                    call.args || {}
+            }
+        });
     }
 
     return observations;
@@ -561,6 +756,65 @@ function extractImpactData(
         );
 }
 
+function extractFollowUpFailures(
+    observations = []
+) {
+    return observations
+        .map(observation => {
+            const error =
+                observation?.error ||
+                observation?.response?.error ||
+                observation?.data?.error ||
+                null;
+
+            if (!error) {
+                return null;
+            }
+
+            const tool =
+                error?.context?.tool ||
+                observation?.followUpCall?.name ||
+                observation?.meta?.tool ||
+                "unknown";
+
+            const runtimeResult =
+                error?.context?.runtimeResult ||
+                observation?.runtimeResult ||
+                {};
+
+            return {
+                tool,
+                file:
+                    observation?.followUpCall?.args?.file ||
+                    runtimeResult?.file ||
+                    runtimeResult?.requestedFile ||
+                    null,
+                message:
+                    error?.message ||
+                    runtimeResult?.error ||
+                    "UNKNOWN_TOOL_FAILURE",
+                code:
+                    error?.code ||
+                    runtimeResult?.error ||
+                    null
+            };
+        })
+        .filter(Boolean);
+}
+
+function isNonBlockingFollowUpFailure(
+    observation = {}
+) {
+    const failures =
+        extractFollowUpFailures([
+            observation
+        ]);
+
+    return failures.some(failure =>
+        failure.tool === "repo.impact"
+    );
+}
+
 function composeObservationDrivenFinalResponse({
     objective = "",
     candidates = [],
@@ -578,6 +832,16 @@ function composeObservationDrivenFinalResponse({
     const impacts =
         extractImpactData(
             followUpObservations
+        );
+
+    const failures =
+        extractFollowUpFailures(
+            followUpObservations
+        );
+
+    const impactFailures =
+        failures.filter(failure =>
+            failure.tool === "repo.impact"
         );
 
     const topDiagnosis =
@@ -655,6 +919,13 @@ function composeObservationDrivenFinalResponse({
                 "ND"
             }`,
             `Riesgo/impacto: ${impactRisk}`,
+            impactFailures.length
+                ? `Impact parcial: ${impactFailures
+                    .map(failure =>
+                        `impact no disponible para ${failure.file || "archivo"} (${failure.message})`
+                    )
+                    .join("; ")}`
+                : "",
             "",
             "Evidencia encontrada:",
             ...(evidenceLines.length
@@ -674,6 +945,9 @@ function composeObservationDrivenFinalResponse({
             "- No se genero patch automatico.",
             "- Cualquier escritura sigue requiriendo preview, aprobacion humana, safe write, verify y tests."
         ]
+            .filter(line =>
+                line !== ""
+            )
             .join("\n");
 
     return {
@@ -1099,7 +1373,8 @@ if (
             verified:
                 allToolObservations.every(
                     item =>
-                        item?.ok !== false
+                        item?.ok !== false ||
+                        isNonBlockingFollowUpFailure(item)
                 )
         };
 
