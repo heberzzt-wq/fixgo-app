@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4131"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4132"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -1846,11 +1846,103 @@ if (
    Terminal → GestiaCore → Brain → Agent Loop → Tools
 ===================================================== */
 
+const normalizeCasualGateText =
+    function(value = "") {
+        return String(value || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .trim();
+    };
+
+const isProtectedTerminalCommand =
+    function(value = "") {
+        const normalized =
+            normalizeCasualGateText(value);
+
+        return (
+            /^(repo|tests|codex)\./i.test(normalized) ||
+            /^(jarvis,\s*)?(apruebo|aprobar|aprueba|escribe)\s+patch\b/i.test(normalized)
+        );
+    };
+
+const hasTechnicalTerminalObjective =
+    function(value = "") {
+        const normalized =
+            normalizeCasualGateText(value);
+
+        return /\b(repo|archivo|codigo|code|bug|error|falla|problema|render|ui|ux|movil|mobile|tarjeta|tarjetas|terminal|patch|test|deploy|firebase|function|funcion|clase|css|html|layout|pantalla|boton|panel|flujo|aprobacion|planner|executor|runtime|kernel|bridge|tool|tools|grep|search|read|diagnose|impact|audita|auditar|analiza|analizar|revisa\s+(el|la|los|las|por\s+que|donde|dónde)|busca|encuentra|modifica|cambia|arregla|corrige|diagnostica)\b/i.test(normalized);
+    };
+
+const isCasualTerminalInput =
+    function(value = "") {
+        const normalized =
+            normalizeCasualGateText(value);
+
+        if (
+            !normalized ||
+            isProtectedTerminalCommand(value) ||
+            hasTechnicalTerminalObjective(value)
+        ) {
+            return false;
+        }
+
+        return (
+            /\b(buenos\s+dias|buenas\s+tardes|buenas\s+noches|hola|hey|que\s+onda|q\s+onda|jajaja|jeje|jaja|ando|cansad[oa]|me\s+canse|me\s+cans[eé]|se\s+me\s+antoja|tengo\s+ganas|vamos\s+por|salud|gracias|orale|arre)\b/i.test(normalized) ||
+            normalized.split(/\s+/).length <= 5
+        );
+    };
+
+const buildCasualTerminalResponse =
+    function(value = "") {
+        const normalized =
+            normalizeCasualGateText(value);
+
+        if (
+            /\b(se\s+me\s+antoja|tengo\s+ganas|vamos\s+por|salud)\b/i.test(normalized)
+        ) {
+            return "Buenas, arquitecto. Jajaja suena a buen plan; aqui sigo al pendiente cuando quieras seguirle.";
+        }
+
+        if (
+            /\b(cansad[oa]|me\s+canse|me\s+cans[eé])\b/i.test(normalized)
+        ) {
+            return "Te entiendo, arquitecto. Tomate un respiro; aqui me quedo listo para seguir cuando digas.";
+        }
+
+        return "Buenas, arquitecto. Aqui sigo al pendiente.";
+    };
+
 if (
     window.GestiaCore?.procesarIntencion &&
     !["arre", "confirmar", "ok"].includes(cmd)
 ) {
     try {
+        if (
+            isCasualTerminalInput(comando)
+        ) {
+            console.info(
+                "ðŸ§  [TERMINAL_CASUAL_NOOP_41_32]",
+                {
+                    command:
+                        comando,
+                    traceId:
+                        currentTraceId
+                }
+            );
+
+            window.renderJarvisResponse?.(
+                "Jarvis",
+                buildCasualTerminalResponse(comando),
+                "info"
+            );
+
+            handled =
+                true;
+
+            return;
+        }
+
         console.info(
             "🧠 [TERMINAL_CORE_FIRST]",
             {

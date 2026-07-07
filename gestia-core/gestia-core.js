@@ -181,7 +181,7 @@ const CORE_CONFIG = {
     }
 };
 import '/gestia-core/semantic.engine.js';
-import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-30';
+import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-32';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4130';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
@@ -213,10 +213,13 @@ const UI_LAYOUT_SIGNAL_PATTERN =
     /\b(max-w-[^\s"'`<>]+|min-h-[^\s"'`<>]+|p[trblxy]?-[^\s"'`<>]+|gap-[^\s"'`<>]+|grid-cols-[^\s"'`<>]+|space-[xy]-[^\s"'`<>]+|rounded[^\s"'`<>]*|shadow[^\s"'`<>]*|w-full|h-full|flex|grid|card|tarjeta|overflow-[^\s"'`<>]+)\b/gi;
 
 const PRODUCT_UI_EVIDENCE_PATTERN =
-    /\b(render|generaci[oó]n\s+din[aá]mica|template|html|dom|panel|cliente|t[eé]cnico|componente|card\s+wrapper|tarjeta\s+tarea|tareas|class=|className=|grid|flex|gap-|p[trblxy]?-|px-|py-|max-w-|min-h-|rounded|w-full|space-y-)\b/i;
+    /\b(render|generaci[oó]n\s+din[aá]mica|template|innerhtml|html|dom|document\.createelement|contenedor|appendchild|componente|card\s+wrapper|tarjeta\s+tarea|tareas|class=|classname=|classlist|grid|flex|gap-|p[trblxy]?-|px-|py-|max-w-|min-h-|rounded|w-full|space-y-)\b/i;
 
 const META_ENGINE_EVIDENCE_PATTERN =
     /\b(generic_ui_card_patch|jarvis\s+code\s+surgeon|unsafegeneratedcontentpatterns|unsafe\s+generated\s+content|guard|policy|planner|executor|runtime|kernel|bridge|tool|tools|tests?|patch\s+engine|autopatch|patchpreview|code_write|sia7_commit|injection|inyecci[oó]n|ui_optimization)\b/i;
+
+const WEAK_NOISE_EVIDENCE_PATTERN =
+    /\b(alert\s*\(|console\.(warn|error|log)|sin\s+espacios|revisa\s+(tu|la|los|las|el)|configuraci[oó]n|consola|conexi[oó]n|comprobante|ticket|servicio\s+terminado)\b/i;
 
 const META_EXPLICIT_OBJECTIVE_PATTERN =
     /\b(planner|executor|patch\s+engine|guard|policy|runtime|kernel|bridge|tool|tools|codex|autopatch|seguridad|security|write|safe\s+write|aprobaci[oó]n|approval)\b/i;
@@ -241,13 +244,13 @@ const ANCHORED_READ_CONTEXT_BEFORE =
     20;
 
 const ANCHORED_READ_CONTEXT_AFTER =
-    35;
+    95;
 
 const ANCHORED_READ_CLUSTER_DISTANCE =
     120;
 
 const ANCHORED_READ_MAX_LINES =
-    160;
+    220;
 
 function normalizeObservationFilePath(value = "") {
     const clean =
@@ -368,6 +371,11 @@ function scoreObservationEvidence({
         layoutEvidence ||
         productUiEvidence;
 
+    const weakNoiseEvidence =
+        isWeakNoiseEvidence(
+            snippet
+        );
+
     const directMatches =
         objectiveTerms.filter(objectiveTerm =>
             normalizedSnippet.includes(
@@ -403,6 +411,12 @@ function scoreObservationEvidence({
             ? 70
             : 0;
 
+    const weakNoisePenalty =
+        weakNoiseEvidence &&
+        !layoutEvidence
+            ? 95
+            : 0;
+
     const score =
         baseWeight +
         (
@@ -421,7 +435,8 @@ function scoreObservationEvidence({
                 ? 2
                 : 0
         ) -
-        lowSignalPenalty;
+        lowSignalPenalty -
+        weakNoisePenalty;
 
     return {
         score,
@@ -435,6 +450,8 @@ function scoreObservationEvidence({
             productUiEvidence === true,
         metaEngineEvidence:
             metaEngineEvidence === true,
+        weakNoiseEvidence:
+            weakNoiseEvidence === true,
         termDirect:
             termDirect === 1
     };
@@ -462,8 +479,18 @@ function hasLayoutSignal(
 function isProductUiEvidence(
     value = ""
 ) {
+    const text =
+        String(value || "");
+
+    if (
+        isWeakNoiseEvidence(text) &&
+        !hasLayoutSignal(text)
+    ) {
+        return false;
+    }
+
     return PRODUCT_UI_EVIDENCE_PATTERN.test(
-        String(value || "")
+        text
     );
 }
 
@@ -480,6 +507,14 @@ function objectiveExplicitlyTargetsMetaEngine(
 ) {
     return META_EXPLICIT_OBJECTIVE_PATTERN.test(
         normalizeObservationText(objective)
+    );
+}
+
+function isWeakNoiseEvidence(
+    value = ""
+) {
+    return WEAK_NOISE_EVIDENCE_PATTERN.test(
+        normalizeObservationText(value)
     );
 }
 
@@ -552,6 +587,12 @@ function getEvidenceAnchorScore(
             snippet
         );
 
+    const weakNoiseEvidence =
+        evidence?.weakNoiseEvidence === true ||
+        isWeakNoiseEvidence(
+            snippet
+        );
+
     const lowSignalTerm =
         isLowSignalEvidenceTerm(
             term
@@ -568,6 +609,7 @@ function getEvidenceAnchorScore(
         (layoutEvidence ? 28 : 0) +
         (productUiEvidence ? 52 : 0) -
         (metaEngineEvidence ? 140 : 0) +
+        (weakNoiseEvidence && !layoutEvidence ? -130 : 0) +
         (evidence?.directMatches ? evidence.directMatches * 10 : 0) +
         (evidence?.termDirect ? 8 : 0) +
         (line ? 4 : 0) -
@@ -626,11 +668,45 @@ function prioritizeCandidateEvidence(
         );
 }
 
+function selectPrimaryCandidateEvidence(
+    candidate = {}
+) {
+    const prioritized =
+        prioritizeCandidateEvidence(candidate)
+            .filter(evidence =>
+                evidence.anchorScore > 0
+            );
+
+    const productEvidence =
+        prioritized.filter(evidence =>
+            evidence.productUiEvidence === true ||
+            isProductUiEvidence(
+                evidence?.snippet ||
+                evidence?.module ||
+                ""
+            )
+        );
+
+    if (productEvidence.length > 0) {
+        return productEvidence;
+    }
+
+    const cleanEvidence =
+        prioritized.filter(evidence =>
+            evidence.weakNoiseEvidence !== true &&
+            evidence.metaEngineEvidence !== true
+        );
+
+    return cleanEvidence.length > 0
+        ? cleanEvidence
+        : prioritized;
+}
+
 function buildCandidateReadRange(
     candidate = {}
 ) {
     const anchors =
-        prioritizeCandidateEvidence(candidate)
+        selectPrimaryCandidateEvidence(candidate)
             .map(evidence => ({
                 evidence,
                 line:
@@ -781,6 +857,8 @@ function collectObservationDrivenCandidates(
                         0,
                     metaEngineEvidenceHits:
                         0,
+                    weakNoiseEvidenceHits:
+                        0,
                     frequency:
                         0,
                     evidence:
@@ -813,6 +891,11 @@ function collectObservationDrivenCandidates(
                     ? 1
                     : 0;
 
+            current.weakNoiseEvidenceHits +=
+                scoreMeta.weakNoiseEvidence
+                    ? 1
+                    : 0;
+
             current.termDirectHits +=
                 scoreMeta.termDirect
                     ? 1
@@ -839,6 +922,8 @@ function collectObservationDrivenCandidates(
                         scoreMeta.productUiEvidence === true,
                     metaEngineEvidence:
                         scoreMeta.metaEngineEvidence === true,
+                    weakNoiseEvidence:
+                        scoreMeta.weakNoiseEvidence === true,
                     termDirect:
                         scoreMeta.termDirect === true,
                     file:
@@ -1061,7 +1146,7 @@ function collectObservationDrivenCandidates(
             return {
                 ...candidate,
                 evidence:
-                    prioritizeCandidateEvidence(candidate)
+                    selectPrimaryCandidateEvidence(candidate)
                         .slice(0, 8),
                 score:
                     candidate.score +
@@ -1253,7 +1338,7 @@ async function executeObservationDrivenFollowUp(
                     approved:
                         false,
                     source:
-                        "observation_driven_follow_up_41_31"
+                        "observation_driven_follow_up_41_32"
                 }
             );
 
@@ -1472,7 +1557,7 @@ function buildLineAnchoredDiagnosis({
         );
 
     const anchors =
-        prioritizeCandidateEvidence(candidate)
+        selectPrimaryCandidateEvidence(candidate)
             .map(evidence => {
                 const directLine =
                     getEvidenceLineNumber(
@@ -1499,6 +1584,17 @@ function buildLineAnchoredDiagnosis({
                     return null;
                 }
 
+                if (
+                    lines.length &&
+                    readData?.partial === true &&
+                    (
+                        line < readStartLine ||
+                        line > readEndLine
+                    )
+                ) {
+                    return null;
+                }
+
                 return {
                     ...evidence,
                     line
@@ -1520,7 +1616,9 @@ function buildLineAnchoredDiagnosis({
         anchors.map(anchor => {
             const start =
                 Math.max(
-                    1,
+                    readData?.partial === true
+                        ? readStartLine
+                        : 1,
                     anchor.line - 8
                 );
 
@@ -1528,7 +1626,7 @@ function buildLineAnchoredDiagnosis({
                 lines.length
                     ? Math.min(
                         readEndLine,
-                        anchor.line + 14
+                        anchor.line + 80
                     )
                     : anchor.line;
 
@@ -1707,7 +1805,7 @@ function composeObservationDrivenFinalResponse({
     const evidenceLines =
         candidates
             .flatMap(candidate =>
-                prioritizeCandidateEvidence(candidate)
+                selectPrimaryCandidateEvidence(candidate)
                     .map(evidence => ({
                     ...evidence,
                     file:
