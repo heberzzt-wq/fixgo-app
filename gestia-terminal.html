@@ -144,15 +144,15 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260622"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4123"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
 src="/gestia-core/gestia.runtime.v7.js?v=jarvis-runtime-macro-v2-20260618">
 </script>
-<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260620"></script>
-<script type="module" src="/gestia-core/response.composer.js?v=jarvis-tools-v7-20260620"></script>
-<script type="module" src="/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260620"></script>
+<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4123"></script>
+<script type="module" src="/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123"></script>
+<script type="module" src="/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123"></script>
 <script type="module" src="/gestia-core/jarvis/jarvis.language.core.v5.js"></script>
 <script type="module" src="/gestia-core/jarvis/jarvis.context.memory.v6.js"></script>
 <script type="module" src="/gestia-core/repair-translator.engine.js?v=jarvis-runtime-macro-v2-20260618"></script>
@@ -3675,14 +3675,18 @@ return;
 
     try {
 
-        // 🔥 NUEVO INTERCEPTOR COGNITIVO UNIVERSAL
-const raw = String(comando || "").toLowerCase();
+        // Legacy audit route. Freeform diagnostics stay in Core.
+const raw =
+    String(comando || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
 
-const isReadOnlyConversationalAnalysis =
-    /analiza|análisis|analisis|revisa|audita|repo|sistema|módulos|modulos|dependencias|impacto|críticos|criticos/i
-        .test(comando);
+const isExplicitRepoAuditRequest =
+    /\b(audita|auditar|audit|auditoria)\b/i.test(raw) ||
+    /\b(estado|mapa|resumen)\s+(del\s+)?(repo|repositorio|sistema)\b/i.test(raw);
 
-if (isReadOnlyConversationalAnalysis) {
+if (isExplicitRepoAuditRequest) {
 
     if (window.ToolsBridge?.executeAndCompose) {
         console.info("🧠 [TERMINAL_TOOL_FIRST] repo.audit", {

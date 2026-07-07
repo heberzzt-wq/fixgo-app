@@ -181,10 +181,10 @@ const CORE_CONFIG = {
     }
 };
 import '/gestia-core/semantic.engine.js';
-import '/gestia-core/brain.engine.js';
-import '/gestia-core/tools.runtime.js';
-import '/gestia-core/response.composer.js';
-import '/gestia-core/tools.bridge.js';
+import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-23';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4123';
+import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
+import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
 
 // ======================================================================================
 // 🛰️ SECCIÓN 2: GESTIA CORE ORCHESTRATOR (KERNEL V16.0)

@@ -1390,6 +1390,169 @@ const SEMANTIC_READ_ONLY_REPO_TOOLS =
     "repo.impact"
   ]);
 
+const SEMANTIC_GENERIC_DISCOVERY_TOOLS =
+  new Set([
+    "repo.audit",
+    "repo.scan"
+  ]);
+
+const SEMANTIC_TARGETED_DISCOVERY_TOOLS =
+  new Set([
+    "repo.search",
+    "repo.grep",
+    "repo.read",
+    "repo.diagnose",
+    "repo.impact"
+  ]);
+
+const SEMANTIC_REPO_INVESTIGATION_CONCEPTS =
+  new Set([
+    "UI_DEBUG",
+    "PATCH_ANALYSIS",
+    "RUNTIME",
+    "PERFORMANCE",
+    "OPTIMIZATION",
+    "REPAIR",
+    "SYSTEM_ANALYSIS",
+    "ARCHITECTURE"
+  ]);
+
+function normalizeSemanticPlannerText(
+  value = ""
+) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/^\s*(jarvis|heberto|gestia)[,\s:;-]*/i, "")
+    .trim();
+}
+
+function extractSemanticFocusedTerms(
+  objective = ""
+) {
+  const cleaned =
+    normalizeSemanticPlannerText(
+      objective
+    );
+
+  const tokens =
+    cleaned
+      .toLowerCase()
+      .match(/[a-z0-9_./-]{6,}/g) ||
+    cleaned
+      .toLowerCase()
+      .match(/[a-z0-9_./-]{4,}/g) ||
+    [];
+
+  return [
+    ...new Set(tokens)
+  ]
+    .slice(0, 4);
+}
+
+function buildSemanticToolCall(
+  name,
+  args = {},
+  reason = "LOCAL_SEMANTIC_TOOL_PLANNER"
+) {
+  return {
+    name,
+    args:
+      sanitizeSemanticToolArgs(args),
+    reason,
+    mutates:
+      false,
+    approved:
+      false
+  };
+}
+
+function buildFocusedSemanticToolCalls(
+  objective = "",
+  maxToolCalls = 8
+) {
+  const cleanObjective =
+    normalizeSemanticPlannerText(
+      objective
+    );
+
+  if (!cleanObjective) {
+    return [];
+  }
+
+  const focusedTerms =
+    extractSemanticFocusedTerms(
+      cleanObjective
+    );
+
+  const primaryTerm =
+    focusedTerms[0] ||
+    cleanObjective;
+
+  const calls = [
+    buildSemanticToolCall(
+      "repo.search",
+      {
+        query:
+          cleanObjective,
+        term:
+          primaryTerm,
+        maxMatches:
+          80
+      },
+      "LOCAL_SEMANTIC_FOCUSED_DISCOVERY"
+    ),
+    ...focusedTerms.map(term =>
+      buildSemanticToolCall(
+        "repo.grep",
+        {
+          term,
+          maxMatches:
+            80
+        },
+        "LOCAL_SEMANTIC_FOCUSED_DISCOVERY"
+      )
+    )
+  ];
+
+  return calls.slice(
+    0,
+    Math.max(
+      1,
+      maxToolCalls
+    )
+  );
+}
+
+function isSemanticRepoInvestigation(
+  semantic = {},
+  input = ""
+) {
+  const concept =
+    semantic?.primaryConcept ||
+    semantic?.concept ||
+    "";
+
+  if (
+    SEMANTIC_REPO_INVESTIGATION_CONCEPTS.has(
+      concept
+    )
+  ) {
+    return true;
+  }
+
+  const concepts =
+    Array.isArray(semantic?.concepts)
+      ? semantic.concepts
+      : [];
+
+  return concepts.some(item =>
+    SEMANTIC_REPO_INVESTIGATION_CONCEPTS.has(
+      item?.concept
+    )
+  );
+}
+
 function parseMaybeJsonPlan(value) {
   if (!value) {
     return null;
@@ -1493,7 +1656,8 @@ function sanitizeSemanticToolArgs(args = {}) {
 
 function normalizeCloudToolPlan(
   cloudReasoning = {},
-  fallbackObjective = ""
+  fallbackObjective = "",
+  semantic = {}
 ) {
   const plan =
     extractCloudToolPlan(
@@ -1501,11 +1665,79 @@ function normalizeCloudToolPlan(
     );
 
   if (!plan) {
-    return null;
+    if (
+      !isSemanticRepoInvestigation(
+        semantic,
+        fallbackObjective
+      )
+    ) {
+      return null;
+    }
+
+    const focusedToolCalls =
+      buildFocusedSemanticToolCalls(
+        fallbackObjective
+      );
+
+    if (
+      focusedToolCalls.length === 0
+    ) {
+      return null;
+    }
+
+    return {
+      intent:
+        "REPO_INVESTIGATION",
+      objective:
+        fallbackObjective,
+      toolCalls:
+        focusedToolCalls,
+      writeAllowed:
+        false,
+      requiresApprovalForWrite:
+        true,
+      confidence:
+        semantic?.confidence ??
+        null,
+      source:
+        "local_semantic_tool_planner_fallback"
+    };
   }
 
+  const rawToolCalls =
+    Array.isArray(plan.toolCalls)
+      ? plan.toolCalls
+      : [];
+
+  const requestedGenericDiscovery =
+    rawToolCalls.some(call =>
+      SEMANTIC_GENERIC_DISCOVERY_TOOLS.has(
+        String(
+          call?.name ||
+          call?.tool ||
+          ""
+        ).trim()
+      )
+    );
+
+  const requestedUnsafeOnly =
+    rawToolCalls.length > 0 &&
+    rawToolCalls.every(call => {
+      const name =
+        String(
+          call?.name ||
+          call?.tool ||
+          ""
+        ).trim();
+
+      return (
+        !SEMANTIC_READ_ONLY_REPO_TOOLS.has(name) &&
+        !SEMANTIC_GENERIC_DISCOVERY_TOOLS.has(name)
+      );
+    });
+
   const toolCalls =
-    plan.toolCalls
+    rawToolCalls
       .map(call => {
         const name =
           String(
@@ -1515,29 +1747,52 @@ function normalizeCloudToolPlan(
           ).trim();
 
         if (
-          !SEMANTIC_READ_ONLY_REPO_TOOLS.has(name)
+          !SEMANTIC_READ_ONLY_REPO_TOOLS.has(name) ||
+          name === "repo.audit"
         ) {
           return null;
         }
 
-        return {
+        return buildSemanticToolCall(
           name,
-          args:
-            sanitizeSemanticToolArgs(
-              call?.args || {}
-            ),
-          reason:
-            "AI_SEMANTIC_TOOL_PLANNER",
-          mutates:
-            false,
-          approved:
-            false
-        };
+          call?.args || {},
+          "AI_SEMANTIC_TOOL_PLANNER"
+        );
       })
       .filter(Boolean);
 
+  const targetedToolCalls =
+    toolCalls.filter(call =>
+      SEMANTIC_TARGETED_DISCOVERY_TOOLS.has(
+        call.name
+      )
+    );
+
+  const shouldBuildFocusedDiscovery =
+    !requestedUnsafeOnly &&
+    (
+      requestedGenericDiscovery ||
+      (
+        rawToolCalls.length === 0 &&
+        plan?.intent === "REPO_INVESTIGATION"
+      )
+    ) &&
+    targetedToolCalls.length === 0;
+
+  const finalToolCalls =
+    shouldBuildFocusedDiscovery
+      ? buildFocusedSemanticToolCalls(
+        plan.objective ||
+        fallbackObjective
+      )
+      : (
+        targetedToolCalls.length > 0
+          ? targetedToolCalls
+          : toolCalls
+      );
+
   if (
-    toolCalls.length === 0
+    finalToolCalls.length === 0
   ) {
     return null;
   }
@@ -1549,7 +1804,8 @@ function normalizeCloudToolPlan(
     objective:
       plan.objective ||
       fallbackObjective,
-    toolCalls,
+    toolCalls:
+      finalToolCalls,
     writeAllowed:
       false,
     requiresApprovalForWrite:
@@ -2421,7 +2677,8 @@ export async function runCognitiveReasoning(
     const cloudToolPlan =
       normalizeCloudToolPlan(
         cloudReasoning,
-        input
+        input,
+        semantic
       );
 
     const toolCalls =
