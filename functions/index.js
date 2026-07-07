@@ -29,6 +29,10 @@ const {
 } = require("./repo-syntax-validator");
 
 const {
+    normalizeSemanticToolPlan
+} = require("./repo-semantic-tool-planner");
+
+const {
     understandServerIntentV7,
     toPublicIntentContract
 } = require("./jarvis-intent-runtime-v7.cjs");
@@ -1395,86 +1399,16 @@ Rules:
             };
           }
 
-          const allowedPlannerTools = new Set([
-            "repo.audit",
-            "repo.scan",
-            "repo.search",
-            "repo.grep",
-            "repo.read",
-            "repo.diagnose",
-            "repo.impact"
-          ]);
-
-          const sanitizePlannerArgs = (args = {}) => {
-            if (!args || typeof args !== "object" || Array.isArray(args)) {
-              return {};
-            }
-
-            const cleanArgs = {};
-
-            Object.entries(args).slice(0, 20).forEach(([key, value]) => {
-              if (typeof key !== "string" || key.length > 80) {
-                return;
+          const toolPlan =
+            normalizeSemanticToolPlan(
+              parsedPlan,
+              {
+                fallbackObjective:
+                  prompt,
+                maxToolCalls:
+                  8
               }
-
-              if (typeof value === "string") {
-                cleanArgs[key] = value.slice(0, 1200);
-                return;
-              }
-
-              if (typeof value === "number" && Number.isFinite(value)) {
-                cleanArgs[key] = value;
-                return;
-              }
-
-              if (typeof value === "boolean") {
-                cleanArgs[key] = value;
-              }
-            });
-
-            return cleanArgs;
-          };
-
-          const safeToolCalls = Array.isArray(parsedPlan?.toolCalls)
-            ? parsedPlan.toolCalls
-                .map(call => {
-                  const name = String(call?.name || call?.tool || "").trim();
-
-                  if (!allowedPlannerTools.has(name)) {
-                    return null;
-                  }
-
-                  return {
-                    name,
-                    args: sanitizePlannerArgs(call?.args || {}),
-                    reason: "AI_SEMANTIC_TOOL_PLANNER",
-                    mutates: false,
-                    approved: false
-                  };
-                })
-                .filter(Boolean)
-                .slice(0, 8)
-            : [];
-
-          const toolPlan = {
-            intent:
-              safeToolCalls.length > 0
-                ? (parsedPlan?.intent || "REPO_INVESTIGATION")
-                : (parsedPlan?.intent || "GENERAL_RESPONSE"),
-            objective:
-              parsedPlan?.objective ||
-              prompt,
-            toolCalls:
-              safeToolCalls,
-            writeAllowed:
-              false,
-            requiresApprovalForWrite:
-              true,
-            confidence:
-              typeof parsedPlan?.confidence === "number"
-                ? parsedPlan.confidence
-                : 0.5
-          };
+            );
 
           await reportSentinelMetric("ia_tool_planner_success");
 

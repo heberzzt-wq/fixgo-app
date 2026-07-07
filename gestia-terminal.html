@@ -3045,6 +3045,204 @@ console.log(
         if (
             coreResult?.type === "AGENT_TOOL_RESULT"
         ) {
+            const agentObservations =
+                coreResult
+                    ?.result
+                    ?.observations ||
+                [];
+
+            const agentToolCalls =
+                coreResult
+                    ?.result
+                    ?.toolCalls ||
+                [];
+
+            if (
+                agentObservations.length > 1
+            ) {
+                const getObservationPayload =
+                    function(observation = {}) {
+                        return (
+                            observation?.response?.data ||
+                            observation?.data?.response?.data ||
+                            observation?.data ||
+                            observation
+                        );
+                    };
+
+                const getObservationToolName =
+                    function(observation = {}, index = 0) {
+                        const payload =
+                            getObservationPayload(
+                                observation
+                            );
+
+                        return (
+                            observation?.meta?.tool ||
+                            observation?.toolCalls?.[0]?.name ||
+                            agentToolCalls?.[index]?.name ||
+                            payload?.tool ||
+                            "unknown"
+                        );
+                    };
+
+                const summarizeObservation =
+                    function(observation = {}, index = 0) {
+                        const toolName =
+                            getObservationToolName(
+                                observation,
+                                index
+                            );
+
+                        const payload =
+                            getObservationPayload(
+                                observation
+                            );
+
+                        const repoData =
+                            payload?.data ||
+                            payload?.result ||
+                            observation?.response?.data ||
+                            observation?.data?.response?.data ||
+                            observation?.data ||
+                            payload ||
+                            {};
+
+                        if (toolName === "repo.grep") {
+                            return [
+                                `repo.grep: ${repoData?.term || repoData?.query || "ND"}`,
+                                `Resultados: ${repoData?.totalMatches || repoData?.matches?.length || repoData?.result?.totalMatches || 0}`,
+                                ...(
+                                    repoData?.matches ||
+                                    repoData?.result?.matches ||
+                                    []
+                                )
+                                    .slice(0, 5)
+                                    .map(match =>
+                                        `${match.file}:${match.line} ${match.snippet}`
+                                    )
+                            ]
+                                .join("\n");
+                        }
+
+                        if (toolName === "repo.read") {
+                            return [
+                                `repo.read: ${repoData?.file || repoData?.path || agentToolCalls?.[index]?.args?.file || "ND"}`,
+                                String(
+                                    repoData?.content ||
+                                    repoData?.text ||
+                                    repoData?.source ||
+                                    ""
+                                )
+                                    .slice(0, 700)
+                            ]
+                                .filter(Boolean)
+                                .join("\n");
+                        }
+
+                        if (toolName === "repo.diagnose") {
+                            return [
+                                `repo.diagnose: ${repoData?.file || repoData?.path || agentToolCalls?.[index]?.args?.file || "ND"}`,
+                                repoData?.summary ||
+                                repoData?.diagnosis ||
+                                JSON.stringify(repoData, null, 2).slice(0, 700)
+                            ]
+                                .filter(Boolean)
+                                .join("\n");
+                        }
+
+                        if (toolName === "repo.impact") {
+                            const impactData =
+                                repoData?.analysis ||
+                                repoData?.data?.analysis ||
+                                repoData;
+
+                            return [
+                                `repo.impact: ${impactData?.file || repoData?.file || agentToolCalls?.[index]?.args?.file || "ND"}`,
+                                `Riesgo: ${impactData?.propagatedRisk || impactData?.risk || impactData?.riskLevel || "ND"}`,
+                                `Dependencias: ${impactData?.totalDependencies ?? impactData?.dependencies?.length ?? "ND"}`,
+                                `Impactados: ${impactData?.totalImpacted ?? impactData?.impactedFiles?.length ?? "ND"}`
+                            ]
+                                .join("\n");
+                        }
+
+                        if (toolName === "repo.scan") {
+                            return [
+                                "repo.scan",
+                                `Archivos: ${repoData?.files?.length || repoData?.totalFiles || repoData?.count || "ND"}`,
+                                `Modulos: ${repoData?.modules?.length || repoData?.totalModules || "ND"}`
+                            ]
+                                .join("\n");
+                        }
+
+                        if (toolName === "repo.search") {
+                            return [
+                                `repo.search: ${repoData?.query || repoData?.term || agentToolCalls?.[index]?.args?.query || "ND"}`,
+                                `Resultados: ${repoData?.results?.length || repoData?.matches?.length || 0}`
+                            ]
+                                .join("\n");
+                        }
+
+                        return [
+                            toolName,
+                            JSON.stringify(repoData, null, 2).slice(0, 700)
+                        ]
+                            .join("\n");
+                    };
+
+                const plannerObjective =
+                    coreResult
+                        ?.result
+                        ?.reasoning
+                        ?.cloudToolPlan
+                        ?.objective ||
+                    coreResult
+                        ?.result
+                        ?.reasoning
+                        ?.input ||
+                    comando;
+
+                const multiToolSummary =
+                    [
+                        `Objetivo: ${plannerObjective}`,
+                        `Herramientas: ${
+                            agentToolCalls
+                                .map(call => call.name)
+                                .filter(Boolean)
+                                .join(", ") ||
+                            agentObservations
+                                .map((item, index) =>
+                                    getObservationToolName(item, index)
+                                )
+                                .join(", ")
+                        }`,
+                        "",
+                        ...agentObservations
+                            .map((item, index) =>
+                                [
+                                    `Paso ${index + 1}`,
+                                    summarizeObservation(item, index)
+                                ]
+                                    .join("\n")
+                            )
+                    ]
+                        .join("\n\n")
+                        .slice(0, 8000);
+
+                window.renderJarvisResponse?.(
+                    "Agent Loop SIA7",
+                    multiToolSummary,
+                    coreResult?.status === "FAILED"
+                        ? "warning"
+                        : "info"
+                );
+
+                handled =
+                    true;
+
+                return;
+            }
+
             const firstObservation =
                 coreResult
                     ?.result

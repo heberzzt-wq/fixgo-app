@@ -9,6 +9,10 @@ const {
     validateRepoWriteSyntax
 } = require("../functions/repo-syntax-validator");
 
+const {
+    normalizeSemanticToolPlan
+} = require("../functions/repo-semantic-tool-planner");
+
 function makeAuthGate(decodedToken) {
     const admin = {
         auth() {
@@ -135,4 +139,91 @@ test("repo syntax validator V2 validates JS and blocks empty content", () => {
 
     assert.equal(skipped.ok, true);
     assert.equal(skipped.status, "skipped");
+});
+
+test("semantic tool planner keeps repo plans read-only and filters unsafe tools", () => {
+    const plan =
+        normalizeSemanticToolPlan(
+            {
+                intent: "REPO_INVESTIGATION",
+                objective: "Find terminal render path",
+                confidence: 0.91,
+                toolCalls: [
+                    {
+                        name: "repo.grep",
+                        args: {
+                            term: "render terminal",
+                            maxMatches: 80,
+                            nested: {
+                                drop: true
+                            }
+                        }
+                    },
+                    {
+                        name: "repo.write",
+                        args: {
+                            file: "gestia-terminal.html",
+                            content: "bad"
+                        }
+                    },
+                    {
+                        name: "tests.run",
+                        args: {
+                            command: "ci:test"
+                        }
+                    },
+                    {
+                        name: "repo.read",
+                        args: {
+                            file: "gestia-terminal.html",
+                            maxBytes: 300000
+                        }
+                    }
+                ]
+            },
+            {
+                fallbackObjective: "fallback"
+            }
+        );
+
+    assert.equal(plan.intent, "REPO_INVESTIGATION");
+    assert.equal(plan.writeAllowed, false);
+    assert.equal(plan.requiresApprovalForWrite, true);
+    assert.deepEqual(
+        plan.toolCalls.map(call => call.name),
+        [
+            "repo.grep",
+            "repo.read"
+        ]
+    );
+    assert.equal(plan.toolCalls[0].mutates, false);
+    assert.equal(plan.toolCalls[0].approved, false);
+    assert.equal(plan.toolCalls[0].args.term, "render terminal");
+    assert.equal(plan.toolCalls[0].args.nested, undefined);
+});
+
+test("semantic tool planner falls back to general response without tool calls", () => {
+    const plan =
+        normalizeSemanticToolPlan(
+            {
+                objective: "",
+                toolCalls: [
+                    {
+                        name: "repo.write",
+                        args: {
+                            file: "x.js"
+                        }
+                    }
+                ]
+            },
+            {
+                fallbackObjective: "hello"
+            }
+        );
+
+    assert.equal(plan.intent, "GENERAL_RESPONSE");
+    assert.equal(plan.objective, "hello");
+    assert.deepEqual(plan.toolCalls, []);
+    assert.equal(plan.writeAllowed, false);
+    assert.equal(plan.requiresApprovalForWrite, true);
 });
