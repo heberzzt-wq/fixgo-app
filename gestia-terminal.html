@@ -2478,11 +2478,18 @@ if (
                     window.__GESTIA_TERMINAL__ ||
                     window.KernelHeberto;
 
+                const delegatedLegacyTerminalInput =
+                    legacyTerminalInput
+                        .replace(/^(jarvis|heberto|gestia)[,\s]+/i, "")
+                        .trim();
+
                 console.info(
                     "[TERMINAL_LEGACY_REPO_BYPASS_41_19]",
                     {
                         command:
                             comando,
+                        delegatedCommand:
+                            delegatedLegacyTerminalInput,
                         traceId:
                             currentTraceId
                     }
@@ -2490,7 +2497,7 @@ if (
 
                 const legacyResult =
                     await legacyTerminal.execute(
-                        comando,
+                        delegatedLegacyTerminalInput || comando,
                         e,
                         {
                             simulate:
