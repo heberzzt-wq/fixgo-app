@@ -5835,6 +5835,92 @@ window.addEventListener("load", () => {
       .join(" ");
   }
 
+  const SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY =
+    "sia7:activePatchProposal:v1";
+
+  function buildSia7ActivePatchProposal(payload = {}) {
+    return {
+      version: "41.38",
+      file: payload.file || "",
+      lineRange: {
+        startLine:
+          payload.lineRange?.startLine || null,
+        endLine:
+          payload.lineRange?.endLine || null
+      },
+      search: payload.search || "",
+      replace: payload.replace || "",
+      fileRisk: payload.fileRisk || "ND",
+      patchRisk: payload.patchRisk || "LOW_DRY_RUN",
+      command: buildSia7PatchPreviewCommand(payload),
+      approvalCommand:
+        payload.approvalCommand ||
+        `Jarvis, apruebo patch ${payload.file || ""}`.trim(),
+      dryRun: true,
+      writeAllowed: false,
+      status: "PENDING_ADJUSTMENT_OR_APPROVAL",
+      updatedAt: Date.now()
+    };
+  }
+
+  function rememberSia7ActivePatchProposal(payload = {}) {
+    const proposal =
+      buildSia7ActivePatchProposal(payload);
+
+    window.__SIA7_ACTIVE_PATCH_PROPOSAL__ =
+      proposal;
+
+    try {
+      localStorage.setItem(
+        SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY,
+        JSON.stringify(proposal)
+      );
+    }
+    catch(error) {}
+
+    return proposal;
+  }
+
+  function readSia7ActivePatchProposal() {
+    if (window.__SIA7_ACTIVE_PATCH_PROPOSAL__) {
+      return window.__SIA7_ACTIVE_PATCH_PROPOSAL__;
+    }
+
+    try {
+      const raw =
+        localStorage.getItem(
+          SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY
+        );
+
+      if (!raw) return null;
+
+      const parsed =
+        JSON.parse(raw);
+
+      if (parsed?.file) {
+        window.__SIA7_ACTIVE_PATCH_PROPOSAL__ =
+          parsed;
+
+        return parsed;
+      }
+    }
+    catch(error) {}
+
+    return null;
+  }
+
+  function clearSia7ActivePatchProposal() {
+    window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ = null;
+    window.__SIA7_ACTIVE_PATCH_PROPOSAL__ = null;
+
+    try {
+      localStorage.removeItem(
+        SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY
+      );
+    }
+    catch(error) {}
+  }
+
   function setSia7TerminalInput(value = "") {
     const input =
       document.getElementById("gestia-input");
@@ -5867,7 +5953,9 @@ window.addEventListener("load", () => {
         button.getAttribute("data-sia7-proposal-action");
 
       const proposal =
-        window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ || {};
+        readSia7ActivePatchProposal() ||
+        window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ ||
+        {};
 
       const command =
         buildSia7PatchPreviewCommand(proposal);
@@ -5895,7 +5983,7 @@ window.addEventListener("load", () => {
       }
 
       if (action === "cancel-proposal") {
-        window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ = null;
+        clearSia7ActivePatchProposal();
         button.closest(".codex-card")?.remove();
 
         notifySia7ProposalAction(
@@ -5907,11 +5995,20 @@ window.addEventListener("load", () => {
       }
 
       if (action === "adjust-proposal") {
-        setSia7TerminalInput("Jarvis, ajusta la propuesta anterior: ");
+        rememberSia7ActivePatchProposal(proposal);
+
+        setSia7TerminalInput(
+          `Jarvis, ajusta la propuesta anterior para ${proposal.file || "el archivo"}: `
+        );
 
         notifySia7ProposalAction(
           "Ajuste preparado",
-          "Escribe el ajuste que quieres y envialo manualmente. No se modificaron archivos.",
+          [
+            "Escribe el ajuste que quieres y envialo manualmente.",
+            `Archivo: ${proposal.file || "ND"}`,
+            `Lineas: ${proposal.lineRange?.startLine || "ND"}-${proposal.lineRange?.endLine || "ND"}`,
+            "No se modificaron archivos."
+          ].join("\n"),
           "info"
         );
         return;
@@ -5955,6 +6052,8 @@ window.addEventListener("load", () => {
     if (payload.terminalType === "SIA7_VISUAL_PATCH_PROPOSAL") {
       window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ =
         payload;
+
+      rememberSia7ActivePatchProposal(payload);
 
       const evidence =
         Array.isArray(payload.evidence)
@@ -6031,6 +6130,10 @@ window.addEventListener("load", () => {
                   : `<div class="text-slate-400">Sin hints persistentes aplicados en esta respuesta.</div>`
               }
             </div>
+          </div>
+
+          <div class="mt-4 text-xs text-cyan-200/90">
+            Puedes ajustar esta propuesta antes de aprobarla.
           </div>
 
           <div class="mt-4 grid md:grid-cols-2 gap-3 text-xs">

@@ -938,6 +938,11 @@ test("terminal renders visual patch proposal card without direct write execution
 
     assert.match(terminal, /SIA7_VISUAL_PATCH_PROPOSAL/);
     assert.match(terminal, /filterSia7ProposalLearningHints/);
+    assert.match(terminal, /sia7:activePatchProposal:v1/);
+    assert.match(terminal, /__SIA7_ACTIVE_PATCH_PROPOSAL__/);
+    assert.match(terminal, /rememberSia7ActivePatchProposal/);
+    assert.match(terminal, /readSia7ActivePatchProposal/);
+    assert.match(terminal, /clearSia7ActivePatchProposal/);
     assert.match(terminal, /seen\.has\(key\)/);
     assert.match(terminal, /diagnosis === "casual_input_noop"/);
     assert.match(terminal, /Propuesta visual SIA7/);
@@ -953,8 +958,10 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /data-sia7-proposal-action="cancel-proposal"/);
     assert.match(terminal, /data-sia7-proposal-action="adjust-proposal"/);
     assert.match(terminal, /data-sia7-proposal-action="prepare-safe-write-approval"/);
-    assert.match(terminal, /Jarvis, ajusta la propuesta anterior:/);
+    assert.match(terminal, /Jarvis, ajusta la propuesta anterior para/);
+    assert.match(terminal, /Puedes ajustar esta propuesta antes de aprobarla/);
     assert.match(terminal, /Propuesta cancelada, no se escribieron archivos/);
+    assert.match(terminal, /localStorage\.removeItem\(\s*SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY\s*\)/);
     assert.match(terminal, /No se ejecuto repo\.safePatchApply ni repo\.write/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /dryRun=true/);
