@@ -3912,12 +3912,26 @@ if (
             }
         }
 
-        const activePatchProposal =
-            readTerminalActivePatchProposal();
+                const activePatchProposal =
+            terminalBrainRoute?.mode === "PROPOSAL_ADJUSTMENT"
+                ? (
+                    typeof readSia7ActivePatchProposal === "function"
+                        ? readSia7ActivePatchProposal()
+                        : null
+                ) ||
+                window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ ||
+                readTerminalActivePatchProposal()
+                : readTerminalActivePatchProposal();
+
+        const shouldBuildProposalAdjustmentInput =
+            activePatchProposal?.file &&
+            (
+                terminalBrainRoute?.mode === "PROPOSAL_ADJUSTMENT" ||
+                isSia7ProposalAdjustmentInput(comando)
+            );
 
         const coreInput =
-            activePatchProposal?.file &&
-            isSia7ProposalAdjustmentInput(comando)
+            shouldBuildProposalAdjustmentInput
                 ? buildSia7ProposalAdjustmentInput(
                     comando,
                     activePatchProposal
