@@ -6546,10 +6546,29 @@ if (
       const action =
         button.getAttribute("data-sia7-proposal-action");
 
+            const proposalCard =
+        button.closest?.("[data-sia7-visual-patch-proposal='true']");
+
+      const proposalFileFromCard =
+        proposalCard?.getAttribute?.("data-sia7-proposal-file") ||
+        "";
+
+      const activeVisualProposal =
+        window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ || null;
+
+      const activeMemoryProposal =
+        readSia7ActivePatchProposal() || null;
+
       const proposal =
-        readSia7ActivePatchProposal() ||
-        window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ ||
-        {};
+        proposalFileFromCard &&
+        activeVisualProposal?.file === proposalFileFromCard
+          ? activeVisualProposal
+          : proposalFileFromCard &&
+            activeMemoryProposal?.file === proposalFileFromCard
+              ? activeMemoryProposal
+              : activeVisualProposal ||
+                activeMemoryProposal ||
+                {};
 
       const command =
         buildSia7PatchPreviewCommand(proposal);
