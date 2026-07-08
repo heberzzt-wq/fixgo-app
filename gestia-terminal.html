@@ -6314,6 +6314,88 @@ if (
 
   ensureSia7ProposalActionHandlers();
 
+    function tokenizeSia7PatchText(value = "") {
+    return String(value || "")
+      .split(/(\s+)/)
+      .filter(token => token && !/^\s+$/.test(token));
+  }
+
+  function buildSia7MiniDiffHtml(search = "", replace = "") {
+    const searchTokens =
+      tokenizeSia7PatchText(search);
+
+    const replaceTokens =
+      tokenizeSia7PatchText(replace);
+
+    if (!searchTokens.length && !replaceTokens.length) {
+      return "";
+    }
+
+    const replaceSet =
+      new Set(replaceTokens);
+
+    const searchSet =
+      new Set(searchTokens);
+
+    const removedTokens =
+      searchTokens
+        .filter(token => !replaceSet.has(token))
+        .slice(0, 24);
+
+    const addedTokens =
+      replaceTokens
+        .filter(token => !searchSet.has(token))
+        .slice(0, 24);
+
+    if (!removedTokens.length && !addedTokens.length) {
+      return `
+        <div class="mt-4 rounded-lg border border-slate-700 bg-slate-950/50 p-3 text-xs text-slate-300">
+          <div class="font-semibold text-slate-100 mb-2">Mini diff visual</div>
+          <div>No se detectaron diferencias simples por token.</div>
+        </div>
+      `;
+    }
+
+    const removedHtml =
+      removedTokens.length
+        ? removedTokens
+            .map(token => `<span class="inline-block rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-200">- ${escapeHtml(token)}</span>`)
+            .join(" ")
+        : `<span class="text-slate-500">Sin removidos detectados.</span>`;
+
+    const addedHtml =
+      addedTokens.length
+        ? addedTokens
+            .map(token => `<span class="inline-block rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-emerald-200">+ ${escapeHtml(token)}</span>`)
+            .join(" ")
+        : `<span class="text-slate-500">Sin agregados detectados.</span>`;
+
+    return `
+      <div class="mt-4 rounded-lg border border-slate-700 bg-slate-950/50 p-3 text-xs">
+        <div class="flex items-center justify-between gap-2 mb-3">
+          <div class="font-semibold text-slate-100">Mini diff visual</div>
+          <div class="text-[10px] uppercase tracking-[0.18em] text-cyan-300">dryRun</div>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <div class="mb-1 text-red-200 font-semibold">Removido</div>
+            <div class="flex flex-wrap gap-1.5">${removedHtml}</div>
+          </div>
+
+          <div>
+            <div class="mb-1 text-emerald-200 font-semibold">Agregado</div>
+            <div class="flex flex-wrap gap-1.5">${addedHtml}</div>
+          </div>
+        </div>
+
+        <div class="mt-3 text-[11px] text-slate-400">
+          Vista previa visual solamente. No ejecuta escritura.
+        </div>
+      </div>
+    `;
+  }
+
   function renderCodexV2Card(result) {
     if (!result) return "";
 
@@ -6444,7 +6526,9 @@ if (
               <pre class="max-h-44 overflow-auto rounded-lg border border-slate-700 bg-slate-950/70 p-3 whitespace-pre-wrap">${escapeHtml(payload.replace || "ND")}</pre>
             </div>
           </div>
-
+          
+          ${miniDiffHtml}
+          
           <div class="mt-4 flex flex-wrap gap-2 text-xs">
             <button type="button" data-sia7-proposal-action="copy-patch-preview" class="px-3 py-2 rounded-lg border border-cyan-500/40 text-cyan-200 bg-cyan-500/10">Copiar patchPreview</button>
             <button type="button" data-sia7-proposal-action="prepare-safe-write-approval" class="px-3 py-2 rounded-lg border border-emerald-500/40 text-emerald-200 bg-emerald-500/10" title="No ejecuta escritura directa; usa el comando de aprobación existente.">Aprobar safe write</button>
