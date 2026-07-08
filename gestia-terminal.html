@@ -1916,6 +1916,153 @@ const buildCasualTerminalResponse =
 const LAST_PATCH_PREVIEW_STORAGE_KEY =
     "jarvis:lastPatchPreviewCandidate:v1";
 
+const SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY =
+    "sia7:activePatchProposal:v1";
+
+const SIA7_ACTIVE_PATCH_PROPOSAL_MAX_AGE_MS =
+    1000 * 60 * 60 * 2;
+
+const SIA7_PROPOSAL_ADJUSTMENT_MAX_AGE_MS =
+    1000 * 60 * 5;
+
+const rememberTerminalProposalAdjustment =
+    function(proposal = {}, traceId = "") {
+        if (!proposal?.file) {
+            return;
+        }
+
+        window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__ =
+            {
+                file:
+                    proposal.file,
+                traceId,
+                startedAt:
+                    Date.now()
+            };
+    };
+
+const isFreshTerminalActivePatchProposal =
+    function(proposal = {}) {
+        if (
+            !proposal?.file ||
+            !proposal?.search ||
+            !proposal?.replace
+        ) {
+            return false;
+        }
+
+        const updatedAt =
+            Number(proposal.updatedAt || proposal.createdAt || 0);
+
+        if (!updatedAt) {
+            return true;
+        }
+
+        return Date.now() - updatedAt <=
+            SIA7_ACTIVE_PATCH_PROPOSAL_MAX_AGE_MS;
+    };
+
+const clearTerminalActivePatchProposal =
+    function() {
+        window.__SIA7_ACTIVE_PATCH_PROPOSAL__ =
+            null;
+
+        try {
+            localStorage.removeItem(
+                SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY
+            );
+        }
+        catch(error) {}
+    };
+
+const readTerminalActivePatchProposal =
+    function() {
+        if (
+            window.__SIA7_ACTIVE_PATCH_PROPOSAL__?.file &&
+            isFreshTerminalActivePatchProposal(
+                window.__SIA7_ACTIVE_PATCH_PROPOSAL__
+            )
+        ) {
+            return window.__SIA7_ACTIVE_PATCH_PROPOSAL__;
+        }
+
+        if (window.__SIA7_ACTIVE_PATCH_PROPOSAL__) {
+            clearTerminalActivePatchProposal();
+        }
+
+        try {
+            const raw =
+                localStorage.getItem(
+                    SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY
+                );
+
+            if (!raw) {
+                return null;
+            }
+
+            const parsed =
+                JSON.parse(raw);
+
+            if (
+                parsed?.file &&
+                isFreshTerminalActivePatchProposal(parsed)
+            ) {
+                window.__SIA7_ACTIVE_PATCH_PROPOSAL__ =
+                    parsed;
+
+                return parsed;
+            }
+
+            if (parsed?.file) {
+                clearTerminalActivePatchProposal();
+            }
+        }
+        catch(error) {}
+
+        return null;
+    };
+
+const isSia7ProposalAdjustmentInput =
+    function(value = "") {
+        if (
+            isProtectedTerminalCommand(value)
+        ) {
+            return false;
+        }
+
+        return /\b(ajusta|ajustar|cambia|cambiar|modifica|modificar|reduce|reducir|menos|mas|más|agresivo|padding|max-width|ancho|compacta|compactar)\b/i.test(
+            normalizeCasualGateText(value)
+        );
+    };
+
+const buildSia7ProposalAdjustmentInput =
+    function(input = "", proposal = {}) {
+        if (!proposal?.file) {
+            return input;
+        }
+
+        return [
+            input,
+            "",
+            "Contexto SIA7 de propuesta activa (no escribir archivos):",
+            `file: ${proposal.file}`,
+            `lineas: ${proposal.lineRange?.startLine || "ND"}-${proposal.lineRange?.endLine || "ND"}`,
+            `riesgoArchivo: ${proposal.fileRisk || "ND"}`,
+            `riesgoPatch: ${proposal.patchRisk || "ND"}`,
+            "searchExacto:",
+            proposal.search || "ND",
+            "replaceActual:",
+            proposal.replace || "ND",
+            "",
+            "Reglas:",
+            "- Mantener dryRun=true.",
+            "- No llamar repo.write.",
+            "- No llamar repo.safePatchApply.",
+            "- Ajustar solo la propuesta/replace y devolver patchPreview seguro."
+        ]
+            .join("\n");
+    };
+
 const countUnescapedPatchCharacter =
     function(value = "", character = "") {
         let count =
@@ -3458,9 +3605,40 @@ if (
             }
         }
 
+        const activePatchProposal =
+            readTerminalActivePatchProposal();
+
+        const coreInput =
+            activePatchProposal?.file &&
+            isSia7ProposalAdjustmentInput(comando)
+                ? buildSia7ProposalAdjustmentInput(
+                    comando,
+                    activePatchProposal
+                )
+                : comando;
+
+        if (
+            coreInput !== comando
+        ) {
+            rememberTerminalProposalAdjustment(
+                activePatchProposal,
+                currentTraceId
+            );
+
+            console.info(
+                "[SIA7_PROPOSAL_ADJUSTMENT_CONTEXT_41_39]",
+                {
+                    file:
+                        activePatchProposal.file,
+                    traceId:
+                        currentTraceId
+                }
+            );
+        }
+
         const coreResult =
             await window.GestiaCore.procesarIntencion(
-                comando,
+                coreInput,
                 {
                     tenantId:
                         window.session?.tenantId ||
@@ -3473,7 +3651,9 @@ if (
                     source:
                         "gestia_terminal_core_first_v7",
                     traceId:
-                        currentTraceId
+                        currentTraceId,
+                    proposalAdjustmentContext:
+                        activePatchProposal || null
                 }
             );
 
@@ -5319,9 +5499,43 @@ if (
                 localTpl.innerHTML =
                     codexHtml.trim();
 
-                outputContainer.appendChild(
-                    localTpl.content.firstElementChild
-                );
+                const cardElement =
+                    localTpl.content.firstElementChild;
+
+                let replacedExistingSia7Proposal =
+                    false;
+
+                if (
+                    cardElement?.getAttribute?.("data-sia7-adjusted") === "true"
+                ) {
+                    const proposalFile =
+                        cardElement.getAttribute(
+                            "data-sia7-proposal-file"
+                        );
+
+                    const previousProposal =
+                        Array
+                            .from(
+                                outputContainer.querySelectorAll(
+                                    "[data-sia7-visual-patch-proposal='true']"
+                                )
+                            )
+                            .reverse()
+                            .find(item =>
+                                item.getAttribute("data-sia7-proposal-file") ===
+                                proposalFile
+                            );
+
+                    if (previousProposal) {
+                        previousProposal.replaceWith(cardElement);
+                        replacedExistingSia7Proposal =
+                            true;
+                    }
+                }
+
+                if (!replacedExistingSia7Proposal) {
+                    outputContainer.appendChild(cardElement);
+                }
 
                 scheduleScroll(outputContainer);
 
@@ -5334,7 +5548,8 @@ if (
                         "renderer",
                     payload: {
                         title,
-                        type
+                        type,
+                        replacedExistingSia7Proposal
                     }
                 });
 
@@ -5838,6 +6053,23 @@ window.addEventListener("load", () => {
   const SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY =
     "sia7:activePatchProposal:v1";
 
+  const SIA7_ACTIVE_PATCH_PROPOSAL_MAX_AGE_MS =
+    1000 * 60 * 60 * 2;
+
+  function isFreshSia7ActivePatchProposal(proposal = {}) {
+    if (!proposal.file || !proposal.search || !proposal.replace) {
+      return false;
+    }
+
+    const updatedAt =
+      Number(proposal.updatedAt || proposal.createdAt || 0);
+
+    if (!updatedAt) return true;
+
+    return Date.now() - updatedAt <=
+      SIA7_ACTIVE_PATCH_PROPOSAL_MAX_AGE_MS;
+  }
+
   function buildSia7ActivePatchProposal(payload = {}) {
     return {
       version: "41.38",
@@ -5882,8 +6114,17 @@ window.addEventListener("load", () => {
   }
 
   function readSia7ActivePatchProposal() {
-    if (window.__SIA7_ACTIVE_PATCH_PROPOSAL__) {
+    if (
+      window.__SIA7_ACTIVE_PATCH_PROPOSAL__ &&
+      isFreshSia7ActivePatchProposal(
+        window.__SIA7_ACTIVE_PATCH_PROPOSAL__
+      )
+    ) {
       return window.__SIA7_ACTIVE_PATCH_PROPOSAL__;
+    }
+
+    if (window.__SIA7_ACTIVE_PATCH_PROPOSAL__) {
+      clearSia7ActivePatchProposal();
     }
 
     try {
@@ -5897,11 +6138,18 @@ window.addEventListener("load", () => {
       const parsed =
         JSON.parse(raw);
 
-      if (parsed?.file) {
+      if (
+        parsed?.file &&
+        isFreshSia7ActivePatchProposal(parsed)
+      ) {
         window.__SIA7_ACTIVE_PATCH_PROPOSAL__ =
           parsed;
 
         return parsed;
+      }
+
+      if (parsed?.file) {
+        clearSia7ActivePatchProposal();
       }
     }
     catch(error) {}
@@ -5937,6 +6185,27 @@ window.addEventListener("load", () => {
     if (typeof window.renderJarvisResponse === "function") {
       window.renderJarvisResponse(title, message, type);
     }
+  }
+
+  function readSia7ProposalAdjustmentInFlight(payload = {}) {
+    const state =
+      window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__;
+
+    if (!state?.startedAt) return null;
+
+    if (
+      Date.now() - Number(state.startedAt) >
+      SIA7_PROPOSAL_ADJUSTMENT_MAX_AGE_MS
+    ) {
+      window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__ = null;
+      return null;
+    }
+
+    if (state.file && payload.file && state.file !== payload.file) {
+      return null;
+    }
+
+    return state;
   }
 
   function ensureSia7ProposalActionHandlers() {
@@ -6050,10 +6319,17 @@ window.addEventListener("load", () => {
     if (!payload) return "";
 
     if (payload.terminalType === "SIA7_VISUAL_PATCH_PROPOSAL") {
+      const adjustmentInFlight =
+        readSia7ProposalAdjustmentInFlight(payload);
+
       window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ =
         payload;
 
       rememberSia7ActivePatchProposal(payload);
+
+      if (adjustmentInFlight) {
+        window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__ = null;
+      }
 
       const evidence =
         Array.isArray(payload.evidence)
@@ -6076,15 +6352,31 @@ window.addEventListener("load", () => {
       const patchPreviewCommand =
         buildSia7PatchPreviewCommand(payload);
 
+      const proposalTitle =
+        adjustmentInFlight
+          ? "Propuesta visual SIA7 ajustada"
+          : "Propuesta visual SIA7";
+
+      const adjustmentNotice =
+        adjustmentInFlight
+          ? `
+            <div class="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+              Ajuste supervisado aplicado sobre la propuesta activa. Sigue en dryRun y sin escritura.
+            </div>
+          `
+          : "";
+
       return `
-        <div class="codex-card border border-cyan-500/40 rounded-xl p-4 my-3 bg-black/30">
+        <div class="codex-card border border-cyan-500/40 rounded-xl p-4 my-3 bg-black/30" data-sia7-visual-patch-proposal="true" data-sia7-proposal-file="${escapeHtml(payload.file || "")}" data-sia7-adjusted="${adjustmentInFlight ? "true" : "false"}">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div class="text-[11px] uppercase tracking-[0.18em] text-cyan-300/80">Propuesta visual SIA7</div>
+              <div class="text-[11px] uppercase tracking-[0.18em] text-cyan-300/80">${escapeHtml(proposalTitle)}</div>
               <div class="font-bold text-cyan-200 mt-1">${escapeHtml(payload.file || "ND")}</div>
             </div>
             <div class="text-xs rounded-full border border-emerald-500/40 text-emerald-200 px-3 py-1">dryRun / sin escritura</div>
           </div>
+
+          ${adjustmentNotice}
 
           <div class="grid md:grid-cols-3 gap-3 mt-4 text-xs">
             <div class="border border-slate-700 rounded-lg p-3">
