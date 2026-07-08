@@ -916,7 +916,10 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.ok(coreFirstIndex > followUpIndex);
     assert.match(terminal, /LAST_PATCH_PREVIEW_MEMORY_SAVED_41_34/);
     assert.match(terminal, /TERMINAL_LEARNING_RECORD_FAILED_41_35/);
-    assert.match(terminal, /CASUAL_GATE/);
+    assert.match(terminal, /TERMINAL_BRAIN_ROUTER/);
+    assert.match(terminal, /CASUAL_NOOP/);
+    assert.match(terminal, /writeAllowed:\s*false/);
+    assert.match(terminal, /approvalRequiredForWrite:\s*true/);
     assert.match(terminal, /FOLLOW_UP_MEMORY/);
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
