@@ -937,6 +937,9 @@ test("terminal renders visual patch proposal card without direct write execution
         );
 
     assert.match(terminal, /SIA7_VISUAL_PATCH_PROPOSAL/);
+    assert.match(terminal, /filterSia7ProposalLearningHints/);
+    assert.match(terminal, /seen\.has\(key\)/);
+    assert.match(terminal, /diagnosis === "casual_input_noop"/);
     assert.match(terminal, /Propuesta visual SIA7/);
     assert.match(terminal, /dryRun \/ sin escritura/);
     assert.match(terminal, /Riesgo archivo/);
@@ -945,6 +948,16 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /Search exacto/);
     assert.match(terminal, /Replace candidato/);
     assert.match(terminal, /Comando de aprobación preparado, no ejecutado/);
+    assert.match(terminal, /Comando patchPreview/);
+    assert.match(terminal, /data-sia7-proposal-action="copy-patch-preview"/);
+    assert.match(terminal, /data-sia7-proposal-action="cancel-proposal"/);
+    assert.match(terminal, /data-sia7-proposal-action="adjust-proposal"/);
+    assert.match(terminal, /data-sia7-proposal-action="prepare-safe-write-approval"/);
+    assert.match(terminal, /Jarvis, ajusta la propuesta anterior:/);
+    assert.match(terminal, /Propuesta cancelada, no se escribieron archivos/);
+    assert.match(terminal, /No se ejecuto repo\.safePatchApply ni repo\.write/);
+    assert.match(terminal, /repo\.patchPreview/);
+    assert.match(terminal, /dryRun=true/);
     assert.match(terminal, /Aprobar safe write/);
     assert.doesNotMatch(terminal, /Aprobar safe write[^<]*<\/button>\s*<script/i);
     assert.doesNotMatch(terminal, /SIA7_VISUAL_PATCH_PROPOSAL[\s\S]{0,3000}repo\.safePatchApply\s*\(/);

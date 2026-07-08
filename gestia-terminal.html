@@ -5756,6 +5756,192 @@ window.addEventListener("load", () => {
       .replaceAll("'", "&#039;");
   }
 
+  function normalizeSia7LearningText(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  }
+
+  function filterSia7ProposalLearningHints(items = []) {
+    const allowed =
+      new Set([
+        "follow_up_memory",
+        "patch_preview_safety",
+        "candidate_ranking",
+        "patch_preview_validation",
+        "tool_selection"
+      ]);
+
+    const seen =
+      new Set();
+
+    return (Array.isArray(items) ? items : [])
+      .filter(item => {
+        const diagnosis =
+          normalizeSia7LearningText(
+            item?.lesson?.diagnosis ||
+            item?.category ||
+            item?.reason ||
+            ""
+          );
+
+        if (
+          diagnosis === "casual_input_noop" ||
+          item?.category === "casual_gate"
+        ) {
+          return false;
+        }
+
+        return (
+          allowed.has(diagnosis) ||
+          allowed.has(normalizeSia7LearningText(item?.category || "")) ||
+          allowed.has(normalizeSia7LearningText(item?.reason || ""))
+        );
+      })
+      .filter(item => {
+        const key =
+          [
+            normalizeSia7LearningText(item?.category || ""),
+            normalizeSia7LearningText(item?.lesson?.diagnosis || item?.reason || ""),
+            normalizeSia7LearningText(item?.lesson?.avoid || item?.fixRule || "")
+          ]
+            .join("|");
+
+        if (seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
+      });
+  }
+
+  function quoteSia7CommandArg(value = "") {
+    return JSON.stringify(String(value || ""));
+  }
+
+  function buildSia7PatchPreviewCommand(payload = {}) {
+    if (payload.command) return payload.command;
+
+    return [
+      "repo.patchPreview",
+      `file=${quoteSia7CommandArg(payload.file || "")}`,
+      `search=${quoteSia7CommandArg(payload.search || "")}`,
+      `replace=${quoteSia7CommandArg(payload.replace || "")}`,
+      "dryRun=true"
+    ]
+      .join(" ");
+  }
+
+  function setSia7TerminalInput(value = "") {
+    const input =
+      document.getElementById("gestia-input");
+
+    if (!input) return false;
+
+    input.value = value;
+    input.focus();
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
+  }
+
+  function notifySia7ProposalAction(title, message, type = "info") {
+    if (typeof window.renderJarvisResponse === "function") {
+      window.renderJarvisResponse(title, message, type);
+    }
+  }
+
+  function ensureSia7ProposalActionHandlers() {
+    if (window.__SIA7_PROPOSAL_ACTIONS_READY__) return;
+    window.__SIA7_PROPOSAL_ACTIONS_READY__ = true;
+
+    document.addEventListener("click", async event => {
+      const button =
+        event.target.closest?.("[data-sia7-proposal-action]");
+
+      if (!button) return;
+
+      const action =
+        button.getAttribute("data-sia7-proposal-action");
+
+      const proposal =
+        window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ || {};
+
+      const command =
+        buildSia7PatchPreviewCommand(proposal);
+
+      if (action === "copy-patch-preview") {
+        try {
+          await navigator.clipboard?.writeText(command);
+        }
+        catch(error) {
+          setSia7TerminalInput(command);
+        }
+
+        notifySia7ProposalAction(
+          "PatchPreview copiado",
+          [
+            "Comando patchPreview preparado en modo dryRun.",
+            "",
+            command,
+            "",
+            "No se escribieron archivos."
+          ].join("\n"),
+          "success"
+        );
+        return;
+      }
+
+      if (action === "cancel-proposal") {
+        window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ = null;
+        button.closest(".codex-card")?.remove();
+
+        notifySia7ProposalAction(
+          "Propuesta cancelada",
+          "Propuesta cancelada, no se escribieron archivos.",
+          "warning"
+        );
+        return;
+      }
+
+      if (action === "adjust-proposal") {
+        setSia7TerminalInput("Jarvis, ajusta la propuesta anterior: ");
+
+        notifySia7ProposalAction(
+          "Ajuste preparado",
+          "Escribe el ajuste que quieres y envialo manualmente. No se modificaron archivos.",
+          "info"
+        );
+        return;
+      }
+
+      if (action === "prepare-safe-write-approval") {
+        const approvalCommand =
+          proposal.approvalCommand ||
+          `Jarvis, apruebo patch ${proposal.file || ""}`.trim();
+
+        setSia7TerminalInput(approvalCommand);
+
+        notifySia7ProposalAction(
+          "Confirmacion requerida",
+          [
+            "Comando de aprobacion preparado en la terminal.",
+            "Revisalo y envialo manualmente si quieres continuar.",
+            "",
+            approvalCommand,
+            "",
+            "No se ejecuto repo.safePatchApply ni repo.write."
+          ].join("\n"),
+          "warning"
+        );
+      }
+    });
+  }
+
+  ensureSia7ProposalActionHandlers();
+
   function renderCodexV2Card(result) {
     if (!result) return "";
 
@@ -5767,15 +5953,17 @@ window.addEventListener("load", () => {
     if (!payload) return "";
 
     if (payload.terminalType === "SIA7_VISUAL_PATCH_PROPOSAL") {
+      window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ =
+        payload;
+
       const evidence =
         Array.isArray(payload.evidence)
           ? payload.evidence.slice(0, 4)
           : [];
 
       const learningUsed =
-        Array.isArray(payload.learningUsed)
-          ? payload.learningUsed.slice(0, 3)
-          : [];
+        filterSia7ProposalLearningHints(payload.learningUsed)
+          .slice(0, 3);
 
       const range =
         payload.lineRange?.startLine && payload.lineRange?.endLine
@@ -5785,6 +5973,9 @@ window.addEventListener("load", () => {
       const approvalCommand =
         payload.approvalCommand ||
         `Jarvis, apruebo patch ${payload.file || ""}`.trim();
+
+      const patchPreviewCommand =
+        buildSia7PatchPreviewCommand(payload);
 
       return `
         <div class="codex-card border border-cyan-500/40 rounded-xl p-4 my-3 bg-black/30">
@@ -5854,9 +6045,15 @@ window.addEventListener("load", () => {
           </div>
 
           <div class="mt-4 flex flex-wrap gap-2 text-xs">
-            <button type="button" class="px-3 py-2 rounded-lg border border-emerald-500/40 text-emerald-200 bg-emerald-500/10" title="No ejecuta escritura directa; usa el comando de aprobación existente.">Aprobar safe write</button>
-            <button type="button" class="px-3 py-2 rounded-lg border border-amber-500/40 text-amber-200 bg-amber-500/10">Ajustar propuesta</button>
-            <button type="button" class="px-3 py-2 rounded-lg border border-slate-600 text-slate-200 bg-slate-800/60">Cancelar</button>
+            <button type="button" data-sia7-proposal-action="copy-patch-preview" class="px-3 py-2 rounded-lg border border-cyan-500/40 text-cyan-200 bg-cyan-500/10">Copiar patchPreview</button>
+            <button type="button" data-sia7-proposal-action="prepare-safe-write-approval" class="px-3 py-2 rounded-lg border border-emerald-500/40 text-emerald-200 bg-emerald-500/10" title="No ejecuta escritura directa; usa el comando de aprobación existente.">Aprobar safe write</button>
+            <button type="button" data-sia7-proposal-action="adjust-proposal" class="px-3 py-2 rounded-lg border border-amber-500/40 text-amber-200 bg-amber-500/10">Ajustar propuesta</button>
+            <button type="button" data-sia7-proposal-action="cancel-proposal" class="px-3 py-2 rounded-lg border border-slate-600 text-slate-200 bg-slate-800/60">Cancelar</button>
+          </div>
+
+          <div class="mt-3 text-xs text-slate-400">
+            Comando patchPreview:
+            <code class="block mt-1 text-cyan-300 whitespace-pre-wrap">${escapeHtml(patchPreviewCommand)}</code>
           </div>
 
           <div class="mt-3 text-xs text-slate-400">
