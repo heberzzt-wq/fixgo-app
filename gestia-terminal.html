@@ -6440,6 +6440,12 @@ if (
       const patchPreviewCommand =
         buildSia7PatchPreviewCommand(payload);
 
+              const miniDiffHtml =
+        buildSia7MiniDiffHtml(
+          payload.search || "",
+          payload.replace || ""
+        );
+
       const proposalTitle =
         adjustmentInFlight
           ? "Propuesta visual SIA7 ajustada"
@@ -6528,7 +6534,7 @@ if (
           </div>
           
           ${miniDiffHtml}
-          
+
           <div class="mt-4 flex flex-wrap gap-2 text-xs">
             <button type="button" data-sia7-proposal-action="copy-patch-preview" class="px-3 py-2 rounded-lg border border-cyan-500/40 text-cyan-200 bg-cyan-500/10">Copiar patchPreview</button>
             <button type="button" data-sia7-proposal-action="prepare-safe-write-approval" class="px-3 py-2 rounded-lg border border-emerald-500/40 text-emerald-200 bg-emerald-500/10" title="No ejecuta escritura directa; usa el comando de aprobación existente.">Aprobar safe write</button>
