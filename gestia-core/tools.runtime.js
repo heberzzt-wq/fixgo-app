@@ -224,6 +224,198 @@ export const JarvisToolRuntime = {
     }
 };
 
+function countUnescapedCharacter(
+    value = "",
+    character = ""
+) {
+    let count =
+        0;
+
+    const text =
+        String(value || "");
+
+    for (
+        let index = 0;
+        index < text.length;
+        index += 1
+    ) {
+        if (
+            text[index] === character &&
+            text[index - 1] !== "\\"
+        ) {
+            count += 1;
+        }
+    }
+
+    return count;
+}
+
+function hasBalancedSquareBrackets(
+    value = ""
+) {
+    const text =
+        String(value || "");
+
+    let depth =
+        0;
+
+    for (const char of text) {
+        if (char === "[") {
+            depth += 1;
+        }
+
+        if (char === "]") {
+            depth -= 1;
+        }
+
+        if (depth < 0) {
+            return false;
+        }
+    }
+
+    return depth === 0;
+}
+
+function hasClosedTemplatePlaceholders(
+    value = ""
+) {
+    const text =
+        String(value || "");
+
+    let index =
+        0;
+
+    while (index < text.length) {
+        const start =
+            text.indexOf(
+                "${",
+                index
+            );
+
+        if (start < 0) {
+            return true;
+        }
+
+        const end =
+            text.indexOf(
+                "}",
+                start + 2
+            );
+
+        if (end < 0) {
+            return false;
+        }
+
+        index =
+            end + 1;
+    }
+
+    return true;
+}
+
+function countTemplatePlaceholders(
+    value = ""
+) {
+    return (
+        String(value || "")
+            .match(/\$\{/g) ||
+        []
+    )
+        .length;
+}
+
+function validatePatchPreviewRewrite(
+    search = "",
+    replace = ""
+) {
+    const issues =
+        [];
+
+    const searchText =
+        String(search || "");
+
+    const replaceText =
+        String(replace || "");
+
+    if (!searchText.trim()) {
+        issues.push(
+            "SEARCH_REQUIRED"
+        );
+    }
+
+    if (!replaceText.trim()) {
+        issues.push(
+            "REPLACE_REQUIRED"
+        );
+    }
+
+    if (
+        /\b(?:p[trblxy]?|gap)-\d+(?:\.\d+){2,}(?=$|[\s"'`<>;])/i.test(
+            replaceText
+        )
+    ) {
+        issues.push(
+            "INVALID_TAILWIND_DECIMAL_CLASS"
+        );
+    }
+
+    if (
+        /\b(?:[a-z]+:)*scale-\d+(?:\.\d+)+(?=$|[\s"'`<>;])/i.test(
+            replaceText
+        )
+    ) {
+        issues.push(
+            "INVALID_SCALE_CLASS"
+        );
+    }
+
+    if (
+        !hasBalancedSquareBrackets(
+            replaceText
+        )
+    ) {
+        issues.push(
+            "UNBALANCED_SQUARE_BRACKETS"
+        );
+    }
+
+    if (
+        countUnescapedCharacter(
+            replaceText,
+            "`"
+        ) % 2 !== 0
+    ) {
+        issues.push(
+            "UNBALANCED_BACKTICKS"
+        );
+    }
+
+    if (
+        !hasClosedTemplatePlaceholders(
+            replaceText
+        )
+    ) {
+        issues.push(
+            "BROKEN_TEMPLATE_PLACEHOLDER"
+        );
+    }
+
+    if (
+        countTemplatePlaceholders(searchText) !==
+        countTemplatePlaceholders(replaceText)
+    ) {
+        issues.push(
+            "TEMPLATE_PLACEHOLDER_COUNT_CHANGED"
+        );
+    }
+
+    return {
+        ok:
+            issues.length === 0,
+        issues
+    };
+}
+
 
 /* =====================================================
    JARVIS TOOL RUNTIME — WINDOW SINGLETON SYNC
@@ -7060,7 +7252,7 @@ JarvisToolRuntime.register({
             args.search.length > 0 &&
             typeof args.replace === "string";
 
-        if (
+if (
     !hasSearchReplace
 ) {
     const previewLines =
@@ -7139,6 +7331,41 @@ JarvisToolRuntime.register({
             "repo.patchPreview"
     };
 }
+
+        const rewriteValidation =
+            validatePatchPreviewRewrite(
+                args.search,
+                args.replace
+            );
+
+        if (
+            rewriteValidation.ok !== true
+        ) {
+            return {
+                ok:
+                    false,
+                success:
+                    false,
+                status:
+                    "PATCH_PREVIEW_BLOCKED_INVALID_REWRITE",
+                blocked:
+                    true,
+                safe:
+                    true,
+                dryRun:
+                    true,
+                error:
+                    "Detecte replace inseguro/invalido; necesito regenerar el replace antes del preview.",
+                reason:
+                    "UNSAFE_REPLACE",
+                issues:
+                    rewriteValidation.issues,
+                file:
+                    normalizedFile,
+                tool:
+                    "repo.patchPreview"
+            };
+        }
 
         // 4. Validar que el bloque search exista en el contenido hidratado
         if (

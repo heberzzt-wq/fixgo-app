@@ -182,7 +182,7 @@ const CORE_CONFIG = {
 };
 import '/gestia-core/semantic.engine.js';
 import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-32';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4130';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4134';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
 
@@ -260,6 +260,9 @@ const PRIMARY_CONFIDENT_MIN_SCORE_RATIO =
 
 const PATCH_PREVIEW_BLOCK_MAX_LINES =
     18;
+
+const TAILWIND_CLASS_END_PATTERN =
+    "(?=$|[\\s\"'`<>;])";
 
 function normalizeObservationFilePath(value = "") {
     const clean =
@@ -1761,37 +1764,249 @@ function buildCompactLayoutReplacement(
 
     replacement =
         replacement.replace(
-            /\bmax-w-\[([^\]]+)\]/g,
+            new RegExp(
+                "\\bmax-w-\\[([^\\]]+)\\]" +
+                TAILWIND_CLASS_END_PATTERN,
+                "g"
+            ),
             "max-w-full sm:max-w-[$1]"
         );
 
     replacement =
         replacement.replace(
-            /\bpy-1\.5\b/g,
+            new RegExp(
+                "\\bpy-1\\.5" +
+                TAILWIND_CLASS_END_PATTERN,
+                "g"
+            ),
             "py-1"
         );
 
     replacement =
         replacement.replace(
-            /\bpy-2\b/g,
+            new RegExp(
+                "\\bpy-2" +
+                TAILWIND_CLASS_END_PATTERN,
+                "g"
+            ),
             "py-1.5"
         );
 
     replacement =
         replacement.replace(
-            /\brounded-lg\b/g,
+            new RegExp(
+                "\\brounded-lg" +
+                TAILWIND_CLASS_END_PATTERN,
+                "g"
+            ),
             "rounded-md"
         );
 
     replacement =
         replacement.replace(
-            /\bactive:scale-95\b/g,
+            new RegExp(
+                "\\bactive:scale-95" +
+                TAILWIND_CLASS_END_PATTERN,
+                "g"
+            ),
             "active:scale-[0.98]"
         );
 
     return replacement !== search
         ? replacement
         : "";
+}
+
+function countUnescapedCharacter(
+    value = "",
+    character = ""
+) {
+    let count =
+        0;
+
+    const text =
+        String(value || "");
+
+    for (
+        let index = 0;
+        index < text.length;
+        index += 1
+    ) {
+        if (
+            text[index] === character &&
+            text[index - 1] !== "\\"
+        ) {
+            count += 1;
+        }
+    }
+
+    return count;
+}
+
+function hasBalancedSquareBrackets(
+    value = ""
+) {
+    const text =
+        String(value || "");
+
+    let depth =
+        0;
+
+    for (const char of text) {
+        if (char === "[") {
+            depth += 1;
+        }
+
+        if (char === "]") {
+            depth -= 1;
+        }
+
+        if (depth < 0) {
+            return false;
+        }
+    }
+
+    return depth === 0;
+}
+
+function hasClosedTemplatePlaceholders(
+    value = ""
+) {
+    const text =
+        String(value || "");
+
+    let index =
+        0;
+
+    while (index < text.length) {
+        const start =
+            text.indexOf(
+                "${",
+                index
+            );
+
+        if (start < 0) {
+            return true;
+        }
+
+        const end =
+            text.indexOf(
+                "}",
+                start + 2
+            );
+
+        if (end < 0) {
+            return false;
+        }
+
+        index =
+            end + 1;
+    }
+
+    return true;
+}
+
+function countTemplatePlaceholders(
+    value = ""
+) {
+    return (
+        String(value || "")
+            .match(/\$\{/g) ||
+        []
+    )
+        .length;
+}
+
+function validatePatchPreviewRewrite({
+    search = "",
+    replace = ""
+} = {}) {
+    const issues =
+        [];
+
+    const searchText =
+        String(search || "");
+
+    const replaceText =
+        String(replace || "");
+
+    if (!searchText.trim()) {
+        issues.push(
+            "SEARCH_REQUIRED"
+        );
+    }
+
+    if (!replaceText.trim()) {
+        issues.push(
+            "REPLACE_REQUIRED"
+        );
+    }
+
+    if (
+        /\b(?:p[trblxy]?|gap)-\d+(?:\.\d+){2,}(?=$|[\s"'`<>;])/i.test(
+            replaceText
+        )
+    ) {
+        issues.push(
+            "INVALID_TAILWIND_DECIMAL_CLASS"
+        );
+    }
+
+    if (
+        /\b(?:[a-z]+:)*scale-\d+(?:\.\d+)+(?=$|[\s"'`<>;])/i.test(
+            replaceText
+        )
+    ) {
+        issues.push(
+            "INVALID_SCALE_CLASS"
+        );
+    }
+
+    if (
+        !hasBalancedSquareBrackets(
+            replaceText
+        )
+    ) {
+        issues.push(
+            "UNBALANCED_SQUARE_BRACKETS"
+        );
+    }
+
+    if (
+        countUnescapedCharacter(
+            replaceText,
+            "`"
+        ) % 2 !== 0
+    ) {
+        issues.push(
+            "UNBALANCED_BACKTICKS"
+        );
+    }
+
+    if (
+        !hasClosedTemplatePlaceholders(
+            replaceText
+        )
+    ) {
+        issues.push(
+            "BROKEN_TEMPLATE_PLACEHOLDER"
+        );
+    }
+
+    if (
+        countTemplatePlaceholders(searchText) !==
+        countTemplatePlaceholders(replaceText)
+    ) {
+        issues.push(
+            "TEMPLATE_PLACEHOLDER_COUNT_CHANGED"
+        );
+    }
+
+    return {
+        ok:
+            issues.length === 0,
+        issues
+    };
 }
 
 function quotePatchPreviewValue(
@@ -1883,6 +2098,13 @@ function extractPatchPreviewCandidateFromRead({
                     return null;
                 }
 
+                const validation =
+                    validatePatchPreviewRewrite({
+                        search:
+                            block.search,
+                        replace
+                    });
+
                 const signals =
                     extractLayoutSignalsFromLines([
                         block.search
@@ -1918,6 +2140,7 @@ function extractPatchPreviewCandidateFromRead({
                 return {
                     ...block,
                     replace,
+                    validation,
                     signals,
                     score
                 };
@@ -1933,6 +2156,36 @@ function extractPatchPreviewCandidateFromRead({
 
     if (!best) {
         return null;
+    }
+
+    if (
+        best.validation?.ok !== true
+    ) {
+        return {
+            file:
+                candidate.file,
+            search:
+                best.search,
+            replace:
+                best.replace,
+            startLine:
+                best.startLine,
+            endLine:
+                best.endLine,
+            signals:
+                best.signals,
+            blocked:
+                true,
+            invalid:
+                true,
+            reason:
+                "UNSAFE_REPLACE",
+            issues:
+                best.validation?.issues ||
+                [],
+            message:
+                "Detecte replace inseguro/invalido; necesito regenerar el replace antes del preview."
+        };
     }
 
     return {
@@ -2252,6 +2505,16 @@ function composeObservationDrivenFinalResponse({
             followUpObservations
         });
 
+    const safePatchPreviewCandidate =
+        patchPreviewCandidate?.blocked === true
+            ? null
+            : patchPreviewCandidate;
+
+    const blockedPatchPreviewCandidate =
+        patchPreviewCandidate?.blocked === true
+            ? patchPreviewCandidate
+            : null;
+
     const failures =
         extractFollowUpFailures(
             followUpObservations
@@ -2394,20 +2657,29 @@ function composeObservationDrivenFinalResponse({
             : "Las coincidencias apuntan al archivo con mayor densidad de evidencia en repo.search/repo.grep. Se recomienda leer el bloque visual antes de proponer cualquier patch.";
 
     const patchPreviewProposal =
-        patchPreviewCandidate?.command ||
+        safePatchPreviewCandidate?.command ||
         (
+            blockedPatchPreviewCandidate
+                ? "Detecte replace inseguro/invalido; necesito regenerar el replace antes del preview."
+                :
             topCandidate?.file
                 ? "No construyo patchPreview exacto todavia: necesito leer una ventana mas amplia o ubicar un bloque className/class/innerHTML con layout antes de proponer search/replace."
                 : "No construyo patchPreview: falta archivo probable y bloque exacto."
         );
 
     const patchPreviewDetailLines =
-        patchPreviewCandidate
+        safePatchPreviewCandidate
             ? [
-                `- Bloque exacto candidato: ${patchPreviewCandidate.file}:${patchPreviewCandidate.startLine}-${patchPreviewCandidate.endLine}`,
-                `- Senales en bloque: ${patchPreviewCandidate.signals.join(", ") || "ND"}`,
-                `- Search exacto: ${patchPreviewCandidate.search}`,
-                `- Replace candidato: ${patchPreviewCandidate.replace}`
+                `- Bloque exacto candidato: ${safePatchPreviewCandidate.file}:${safePatchPreviewCandidate.startLine}-${safePatchPreviewCandidate.endLine}`,
+                `- Senales en bloque: ${safePatchPreviewCandidate.signals.join(", ") || "ND"}`,
+                `- Search exacto: ${safePatchPreviewCandidate.search}`,
+                `- Replace candidato: ${safePatchPreviewCandidate.replace}`
+            ]
+            : blockedPatchPreviewCandidate
+            ? [
+                `- Bloque rechazado: ${blockedPatchPreviewCandidate.file}:${blockedPatchPreviewCandidate.startLine}-${blockedPatchPreviewCandidate.endLine}`,
+                `- Motivos: ${(blockedPatchPreviewCandidate.issues || []).join(", ") || "UNSAFE_REPLACE"}`,
+                "- No se sugirio patchPreview porque el replace no paso validacion."
             ]
             : [
                 "- Sin bloque exacto suficiente; no se invento search/replace."
@@ -2495,7 +2767,10 @@ function composeObservationDrivenFinalResponse({
         primaryConfidence,
         lineAnchoredDiagnosis:
             anchoredDiagnosis,
-        patchPreviewCandidate,
+        patchPreviewCandidate:
+            safePatchPreviewCandidate,
+        patchPreviewBlocked:
+            blockedPatchPreviewCandidate,
         risk:
             impactRisk,
         writeAllowed:
@@ -2913,6 +3188,9 @@ if (
                         null,
                     patchPreviewCandidate:
                         finalResponse?.patchPreviewCandidate ||
+                        null,
+                    patchPreviewBlocked:
+                        finalResponse?.patchPreviewBlocked ||
                         null,
                     writeAllowed:
                         false,

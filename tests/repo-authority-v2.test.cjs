@@ -105,7 +105,9 @@ function loadGestiaCoreAgentLoopHelpers() {
 module.exports = {
     assessPrimaryCandidateConfidence,
     buildObservationDrivenFollowUpToolCalls,
-    composeObservationDrivenFinalResponse
+    composeObservationDrivenFinalResponse,
+    buildCompactLayoutReplacement,
+    validatePatchPreviewRewrite
 };`,
         sandbox,
         {
@@ -760,4 +762,73 @@ test("agent loop does not invent patchPreview when exact block is missing", () =
     assert.match(finalResponse.text, /No construyo patchPreview exacto todavia/);
     assert.doesNotMatch(finalResponse.text, /search="<bloque exacto/);
     assert.doesNotMatch(finalResponse.text, /replace="<layout compacto/);
+});
+
+test("agent loop patchPreview rewrite validator blocks malformed Tailwind classes", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+
+    const invalid =
+        helpers.validatePatchPreviewRewrite({
+            search:
+                "div.className = `py-2.5 active:scale-95 ${borderClass}`;",
+            replace:
+                "div.className = `py-1.5.5 active:scale-95.5 ${borderClass}`;"
+        });
+
+    assert.equal(invalid.ok, false);
+    assert.ok(invalid.issues.includes("INVALID_TAILWIND_DECIMAL_CLASS"));
+    assert.ok(invalid.issues.includes("INVALID_SCALE_CLASS"));
+
+    const unbalanced =
+        helpers.validatePatchPreviewRewrite({
+            search:
+                "div.className = `max-w-[680px] ${borderClass}`;",
+            replace:
+                "div.className = `max-w-[680px ${borderClass}`;"
+        });
+
+    assert.equal(unbalanced.ok, false);
+    assert.ok(unbalanced.issues.includes("UNBALANCED_SQUARE_BRACKETS"));
+});
+
+test("agent loop compact replacement does not corrupt decimal Tailwind classes", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+
+    const replacement =
+        helpers.buildCompactLayoutReplacement(
+            'class="flex py-2.5 px-2 rounded-lg active:scale-95 max-w-[680px]"'
+        );
+
+    assert.doesNotMatch(replacement, /py-1\.5\.5/);
+    assert.match(replacement, /py-2\.5/);
+    assert.match(replacement, /rounded-md/);
+    assert.match(replacement, /active:scale-\[0\.98\]/);
+    assert.match(replacement, /max-w-full sm:max-w-\[680px\]/);
+});
+
+test("terminal has natural patchPreview follow-up memory gate before core planner", () => {
+    const terminal =
+        fs.readFileSync(
+            path.join(
+                __dirname,
+                "..",
+                "gestia-terminal.html"
+            ),
+            "utf8"
+        );
+
+    const followUpIndex =
+        terminal.indexOf("TERMINAL_LAST_PATCH_PREVIEW_FOLLOW_UP_41_34");
+
+    const coreFirstIndex =
+        terminal.indexOf("[TERMINAL_CORE_FIRST]");
+
+    assert.ok(followUpIndex > 0);
+    assert.ok(coreFirstIndex > followUpIndex);
+    assert.match(terminal, /LAST_PATCH_PREVIEW_MEMORY_SAVED_41_34/);
+    assert.match(terminal, /No tengo una propuesta previa activa/);
+    assert.match(terminal, /repo\.patchPreview/);
+    assert.match(terminal, /approved:\s*false/);
 });

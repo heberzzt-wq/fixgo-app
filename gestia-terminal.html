@@ -144,13 +144,13 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4133"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4134"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
 src="/gestia-core/gestia.runtime.v7.js?v=jarvis-runtime-macro-v2-20260618">
 </script>
-<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4130"></script>
+<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4134"></script>
 <script type="module" src="/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123"></script>
 <script type="module" src="/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123"></script>
 <script type="module" src="/gestia-core/jarvis/jarvis.language.core.v5.js"></script>
@@ -1913,6 +1913,413 @@ const buildCasualTerminalResponse =
         return "Buenas, arquitecto. Aqui sigo al pendiente.";
     };
 
+const LAST_PATCH_PREVIEW_STORAGE_KEY =
+    "jarvis:lastPatchPreviewCandidate:v1";
+
+const countUnescapedPatchCharacter =
+    function(value = "", character = "") {
+        let count =
+            0;
+
+        const text =
+            String(value || "");
+
+        for (
+            let index = 0;
+            index < text.length;
+            index += 1
+        ) {
+            if (
+                text[index] === character &&
+                text[index - 1] !== "\\"
+            ) {
+                count += 1;
+            }
+        }
+
+        return count;
+    };
+
+const hasBalancedPatchSquareBrackets =
+    function(value = "") {
+        let depth =
+            0;
+
+        for (const char of String(value || "")) {
+            if (char === "[") {
+                depth += 1;
+            }
+
+            if (char === "]") {
+                depth -= 1;
+            }
+
+            if (depth < 0) {
+                return false;
+            }
+        }
+
+        return depth === 0;
+    };
+
+const hasClosedPatchTemplatePlaceholders =
+    function(value = "") {
+        const text =
+            String(value || "");
+
+        let index =
+            0;
+
+        while (index < text.length) {
+            const start =
+                text.indexOf(
+                    "${",
+                    index
+                );
+
+            if (start < 0) {
+                return true;
+            }
+
+            const end =
+                text.indexOf(
+                    "}",
+                    start + 2
+                );
+
+            if (end < 0) {
+                return false;
+            }
+
+            index =
+                end + 1;
+        }
+
+        return true;
+    };
+
+const countPatchTemplatePlaceholders =
+    function(value = "") {
+        return (
+            String(value || "")
+                .match(/\$\{/g) ||
+            []
+        )
+            .length;
+    };
+
+const validatePatchPreviewRewriteForTerminal =
+    function({
+        search = "",
+        replace = ""
+    } = {}) {
+        const issues =
+            [];
+
+        const searchText =
+            String(search || "");
+
+        const replaceText =
+            String(replace || "");
+
+        if (!searchText.trim()) {
+            issues.push("SEARCH_REQUIRED");
+        }
+
+        if (!replaceText.trim()) {
+            issues.push("REPLACE_REQUIRED");
+        }
+
+        if (
+            /\b(?:p[trblxy]?|gap)-\d+(?:\.\d+){2,}(?=$|[\s"'`<>;])/i.test(
+                replaceText
+            )
+        ) {
+            issues.push("INVALID_TAILWIND_DECIMAL_CLASS");
+        }
+
+        if (
+            /\b(?:[a-z]+:)*scale-\d+(?:\.\d+)+(?=$|[\s"'`<>;])/i.test(
+                replaceText
+            )
+        ) {
+            issues.push("INVALID_SCALE_CLASS");
+        }
+
+        if (
+            !hasBalancedPatchSquareBrackets(
+                replaceText
+            )
+        ) {
+            issues.push("UNBALANCED_SQUARE_BRACKETS");
+        }
+
+        if (
+            countUnescapedPatchCharacter(
+                replaceText,
+                "`"
+            ) % 2 !== 0
+        ) {
+            issues.push("UNBALANCED_BACKTICKS");
+        }
+
+        if (
+            !hasClosedPatchTemplatePlaceholders(
+                replaceText
+            )
+        ) {
+            issues.push("BROKEN_TEMPLATE_PLACEHOLDER");
+        }
+
+        if (
+            countPatchTemplatePlaceholders(searchText) !==
+            countPatchTemplatePlaceholders(replaceText)
+        ) {
+            issues.push("TEMPLATE_PLACEHOLDER_COUNT_CHANGED");
+        }
+
+        return {
+            ok:
+                issues.length === 0,
+            issues
+        };
+    };
+
+const readLastPatchPreviewCandidate =
+    function() {
+        if (
+            window.__JARVIS_LAST_PATCH_PREVIEW_CANDIDATE__?.patchPreviewCandidate
+        ) {
+            return window.__JARVIS_LAST_PATCH_PREVIEW_CANDIDATE__;
+        }
+
+        try {
+            const raw =
+                localStorage.getItem(
+                    LAST_PATCH_PREVIEW_STORAGE_KEY
+                );
+
+            if (!raw) {
+                return null;
+            }
+
+            const parsed =
+                JSON.parse(raw);
+
+            if (
+                parsed?.patchPreviewCandidate
+            ) {
+                window.__JARVIS_LAST_PATCH_PREVIEW_CANDIDATE__ =
+                    parsed;
+
+                return parsed;
+            }
+        }
+        catch(error) {
+            console.warn(
+                "[LAST_PATCH_PREVIEW_MEMORY_READ_FAILED]",
+                error
+            );
+        }
+
+        return null;
+    };
+
+const rememberLastPatchPreviewCandidate =
+    function({
+        objective = "",
+        finalResponse = {},
+        patchPreviewCandidate = null,
+        traceId = ""
+    } = {}) {
+        if (
+            !patchPreviewCandidate?.file ||
+            typeof patchPreviewCandidate?.search !== "string" ||
+            typeof patchPreviewCandidate?.replace !== "string"
+        ) {
+            return null;
+        }
+
+        const validation =
+            validatePatchPreviewRewriteForTerminal({
+                search:
+                    patchPreviewCandidate.search,
+                replace:
+                    patchPreviewCandidate.replace
+            });
+
+        if (
+            validation.ok !== true
+        ) {
+            console.warn(
+                "[LAST_PATCH_PREVIEW_MEMORY_REJECTED_41_34]",
+                {
+                    file:
+                        patchPreviewCandidate.file,
+                    issues:
+                        validation.issues
+                }
+            );
+
+            return null;
+        }
+
+        const memory = {
+            version:
+                "41.34",
+            objective,
+            primaryFile:
+                patchPreviewCandidate.file,
+            candidateMode:
+                finalResponse?.primaryConfidence?.mode ||
+                "UNKNOWN",
+            patchPreviewCommand:
+                patchPreviewCandidate.command ||
+                "",
+            searchExact:
+                patchPreviewCandidate.search,
+            replaceCandidate:
+                patchPreviewCandidate.replace,
+            lineRange: {
+                startLine:
+                    patchPreviewCandidate.startLine ||
+                    null,
+                endLine:
+                    patchPreviewCandidate.endLine ||
+                    null
+            },
+            evidence:
+                finalResponse?.lineAnchoredDiagnosis?.sections ||
+                [],
+            patchPreviewCandidate: {
+                ...patchPreviewCandidate,
+                dryRun:
+                    true
+            },
+            writeAllowed:
+                false,
+            timestamp:
+                Date.now(),
+            traceId
+        };
+
+        window.__JARVIS_LAST_PATCH_PREVIEW_CANDIDATE__ =
+            memory;
+
+        try {
+            localStorage.setItem(
+                LAST_PATCH_PREVIEW_STORAGE_KEY,
+                JSON.stringify(memory)
+            );
+        }
+        catch(error) {
+            console.warn(
+                "[LAST_PATCH_PREVIEW_MEMORY_SAVE_FAILED]",
+                error
+            );
+        }
+
+        console.info(
+            "[LAST_PATCH_PREVIEW_MEMORY_SAVED_41_34]",
+            {
+                file:
+                    memory.primaryFile,
+                candidateMode:
+                    memory.candidateMode,
+                traceId:
+                    memory.traceId
+            }
+        );
+
+        return memory;
+    };
+
+const isNaturalPatchPreviewFollowUp =
+    function(value = "") {
+        if (
+            isProtectedTerminalCommand(value)
+        ) {
+            return false;
+        }
+
+        const normalized =
+            normalizeCasualGateText(value);
+
+        const previewIntent =
+            /\b(vista\s+previa|preview|dry\s*run|dryrun|patchpreview|patch\s*preview|previsuali[sz]a|valid[ao]r?|valida|validar)\b/i.test(
+                normalized
+            );
+
+        const previousReference =
+            /\b(ultimo|ultima|anterior|previo|previa|acabas|acabamos|propusiste|propuesto|dijiste|recomendaste|ese|eso|ajuste|cambio|propuesta|bloque)\b/i.test(
+                normalized
+            );
+
+        const noWriteIntent =
+            /\b(no\s+escrib|sin\s+escribir|no\s+modifi|sin\s+modificar|no\s+apliques|solo|solamente|unicamente|dry\s*run|dryrun)\b/i.test(
+                normalized
+            );
+
+        const executionVerb =
+            /\b(aplica|aplicar|ejecuta|ejecutar|corre|correr|prueba|probar|hazlo|dale|validar|valida)\b/i.test(
+                normalized
+            );
+
+        return (
+            previewIntent &&
+            (
+                previousReference ||
+                noWriteIntent ||
+                executionVerb
+            )
+        );
+    };
+
+const buildPatchPreviewFollowUpText =
+    function({
+        memory = {},
+        previewPayload = null,
+        executed = false
+    } = {}) {
+        const candidate =
+            memory.patchPreviewCandidate ||
+            {};
+
+        const status =
+            previewPayload?.status ||
+            previewPayload?.data?.status ||
+            previewPayload?.response?.data?.status ||
+            "READY";
+
+        return [
+            "PatchPreview SIA7",
+            `Archivo: ${memory.primaryFile || candidate.file || "ND"}`,
+            `Modo: ${memory.candidateMode || "LAST_PATCH_PREVIEW"}`,
+            `Estado: ${executed ? status : "COMANDO_LISTO"}`,
+            "",
+            "Search exacto:",
+            candidate.search ||
+                memory.searchExact ||
+                "ND",
+            "",
+            "Replace candidato:",
+            candidate.replace ||
+                memory.replaceCandidate ||
+                "ND",
+            "",
+            "Comando:",
+            candidate.command ||
+                memory.patchPreviewCommand ||
+                "repo.patchPreview file=<archivo> search=<exacto> replace=<exacto> dryRun=true",
+            "",
+            "Seguridad:",
+            "- No se escribieron archivos.",
+            "- No se aprobo escritura.",
+            "- El flujo sigue siendo preview -> aprobacion humana -> safe write -> verify -> tests."
+        ]
+            .join("\n");
+    };
+
 if (
     window.GestiaCore?.procesarIntencion &&
     !["arre", "confirmar", "ok"].includes(cmd)
@@ -1935,6 +2342,181 @@ if (
                 "Jarvis",
                 buildCasualTerminalResponse(comando),
                 "info"
+            );
+
+            handled =
+                true;
+
+            return;
+        }
+
+        if (
+            isNaturalPatchPreviewFollowUp(comando)
+        ) {
+            const lastPatchPreviewMemory =
+                readLastPatchPreviewCandidate();
+
+            if (
+                !lastPatchPreviewMemory?.patchPreviewCandidate
+            ) {
+                window.renderJarvisResponse?.(
+                    "PatchPreview SIA7",
+                    "No tengo una propuesta previa activa. Primero necesito diagnosticar o generar un patchPreviewCandidate.",
+                    "warning"
+                );
+
+                handled =
+                    true;
+
+                return;
+            }
+
+            const candidate =
+                lastPatchPreviewMemory.patchPreviewCandidate;
+
+            const validation =
+                validatePatchPreviewRewriteForTerminal({
+                    search:
+                        candidate.search ||
+                        lastPatchPreviewMemory.searchExact,
+                    replace:
+                        candidate.replace ||
+                        lastPatchPreviewMemory.replaceCandidate
+                });
+
+            if (
+                validation.ok !== true
+            ) {
+                console.warn(
+                    "[TERMINAL_LAST_PATCH_PREVIEW_INVALID_41_34]",
+                    {
+                        file:
+                            lastPatchPreviewMemory.primaryFile,
+                        issues:
+                            validation.issues,
+                        traceId:
+                            currentTraceId
+                    }
+                );
+
+                window.renderJarvisResponse?.(
+                    "PatchPreview SIA7",
+                    [
+                        "Detecte replace inseguro/invalido; necesito regenerar el replace antes del preview.",
+                        "",
+                        `Archivo: ${lastPatchPreviewMemory.primaryFile || candidate.file || "ND"}`,
+                        `Motivos: ${validation.issues.join(", ") || "UNSAFE_REPLACE"}`,
+                        "",
+                        "No se ejecuto repo.search, repo.grep ni escritura."
+                    ]
+                        .join("\n"),
+                    "warning"
+                );
+
+                handled =
+                    true;
+
+                return;
+            }
+
+            const previewArgs = {
+                file:
+                    candidate.file ||
+                    lastPatchPreviewMemory.primaryFile,
+                path:
+                    candidate.file ||
+                    lastPatchPreviewMemory.primaryFile,
+                search:
+                    candidate.search ||
+                    lastPatchPreviewMemory.searchExact,
+                replace:
+                    candidate.replace ||
+                    lastPatchPreviewMemory.replaceCandidate,
+                dryRun:
+                    true
+            };
+
+            const previewContext = {
+                rawInput:
+                    comando,
+                analysisId:
+                    currentTraceId,
+                traceId:
+                    currentTraceId,
+                source:
+                    "terminal_last_patch_preview_follow_up_41_34",
+                tenantId:
+                    window.session?.tenantId ||
+                    window.KernelHeberto?.session?.tenantId ||
+                    "UXMAL39",
+                userId:
+                    window.session?.userId ||
+                    window.KernelHeberto?.session?.uid ||
+                    null,
+                approved:
+                    false,
+                codexApproved:
+                    false
+            };
+
+            console.info(
+                "[TERMINAL_LAST_PATCH_PREVIEW_FOLLOW_UP_41_34]",
+                {
+                    file:
+                        previewArgs.file,
+                    traceId:
+                        currentTraceId,
+                    dryRun:
+                        true
+                }
+            );
+
+            let previewResult =
+                null;
+
+            if (
+                window.ToolsBridge?.executeAndCompose
+            ) {
+                previewResult =
+                    await window.ToolsBridge.executeAndCompose(
+                        "repo.patchPreview",
+                        previewArgs,
+                        previewContext
+                    );
+            }
+            else if (
+                window.JarvisToolRuntime?.execute
+            ) {
+                previewResult =
+                    await window.JarvisToolRuntime.execute(
+                        "repo.patchPreview",
+                        previewArgs,
+                        previewContext
+                    );
+            }
+
+            const previewPayload =
+                previewResult?.runtimeResult ||
+                previewResult?.data ||
+                previewResult?.response?.data ||
+                previewResult?.result ||
+                previewResult ||
+                null;
+
+            window.renderJarvisResponse?.(
+                previewPayload?.ok === false
+                    ? "PatchPreview SIA7 bloqueado"
+                    : "PatchPreview SIA7",
+                buildPatchPreviewFollowUpText({
+                    memory:
+                        lastPatchPreviewMemory,
+                    previewPayload,
+                    executed:
+                        Boolean(previewResult)
+                }),
+                previewPayload?.ok === false
+                    ? "warning"
+                    : "success"
             );
 
             handled =
@@ -3341,6 +3923,19 @@ console.log(
                         ?.followUp
                         ?.patchPreviewCandidate ||
                     null;
+
+                if (
+                    patchPreviewCandidate
+                ) {
+                    rememberLastPatchPreviewCandidate({
+                        objective:
+                            plannerObjective,
+                        finalResponse,
+                        patchPreviewCandidate,
+                        traceId:
+                            currentTraceId
+                    });
+                }
 
                 const patchPreviewCandidateText =
                     patchPreviewCandidate?.command &&
