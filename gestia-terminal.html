@@ -6259,6 +6259,8 @@ if (
 
       if (action === "cancel-proposal") {
         clearSia7ActivePatchProposal();
+        window.__SIA7_SAFE_WRITE_CONFIRM_PENDING__ = null;
+        
         button.closest(".codex-card")?.remove();
 
         notifySia7ProposalAction(
@@ -6266,6 +6268,7 @@ if (
           "Propuesta cancelada, no se escribieron archivos.",
           "warning"
         );
+                
         return;
       }
 
@@ -6289,25 +6292,93 @@ if (
         return;
       }
 
-      if (action === "prepare-safe-write-approval") {
+            if (action === "prepare-safe-write-approval") {
         const approvalCommand =
           proposal.approvalCommand ||
           `Jarvis, apruebo patch ${proposal.file || ""}`.trim();
 
+        const safeWriteFile =
+          proposal.file || "ND";
+
+        const safeWriteSearch =
+          proposal.search || "";
+
+        const safeWriteReplace =
+          proposal.replace || "";
+
+        const safeWriteFingerprint =
+          [
+            safeWriteFile,
+            safeWriteSearch,
+            safeWriteReplace,
+            approvalCommand
+          ].join("::");
+
+        const pendingSafeWrite =
+          window.__SIA7_SAFE_WRITE_CONFIRM_PENDING__;
+
+        const pendingIsFresh =
+          pendingSafeWrite?.createdAt &&
+          Date.now() - Number(pendingSafeWrite.createdAt) < 1000 * 60 * 5;
+
+        const pendingMatches =
+          pendingIsFresh &&
+          pendingSafeWrite?.fingerprint === safeWriteFingerprint;
+
+        if (!pendingMatches) {
+          window.__SIA7_SAFE_WRITE_CONFIRM_PENDING__ =
+            {
+              file:
+                safeWriteFile,
+              fingerprint:
+                safeWriteFingerprint,
+              approvalCommand,
+              createdAt:
+                Date.now()
+            };
+
+          notifySia7ProposalAction(
+            "Confirmacion segura SIA7",
+            [
+              "Primera confirmacion registrada.",
+              "Revisa archivo, riesgo, Search exacto, Replace candidato y Mini diff visual antes de continuar.",
+              "",
+              `Archivo: ${safeWriteFile}`,
+              `Riesgo archivo: ${proposal.risk?.file || proposal.fileRisk || proposal.riskFile || "ND"}`,
+              `Riesgo patch: ${proposal.risk?.patch || proposal.patchRisk || proposal.riskPatch || "ND"}`,
+              "",
+              "Para preparar el comando final, vuelve a presionar Aprobar safe write.",
+              "",
+              "No se preparo comando en input.",
+              "No se ejecuto repo.safePatchApply ni repo.write."
+            ].join("\n"),
+            "warning"
+          );
+
+          return;
+        }
+
+        window.__SIA7_SAFE_WRITE_CONFIRM_PENDING__ =
+          null;
+
         setSia7TerminalInput(approvalCommand);
 
         notifySia7ProposalAction(
-          "Confirmacion requerida",
+          "Comando preparado",
           [
+            "Segunda confirmacion recibida.",
             "Comando de aprobacion preparado en la terminal.",
             "Revisalo y envialo manualmente si quieres continuar.",
             "",
             approvalCommand,
             "",
-            "No se ejecuto repo.safePatchApply ni repo.write."
+            "No se ejecuto repo.safePatchApply ni repo.write.",
+            "No se enviara automaticamente."
           ].join("\n"),
           "warning"
         );
+
+        return;
       }
     });
   }
