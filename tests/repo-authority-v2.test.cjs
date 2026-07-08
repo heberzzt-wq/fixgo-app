@@ -1,7 +1,10 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { test } = require("node:test");
+const vm = require("node:vm");
 
 const repoWriteAuthFactory = require("../functions/repo-write-auth");
 const {
@@ -12,6 +15,107 @@ const {
 const {
     normalizeSemanticToolPlan
 } = require("../functions/repo-semantic-tool-planner");
+
+function stripBrowserImports(source) {
+    const lines =
+        source.split(/\r?\n/);
+
+    const kept =
+        [];
+
+    let skippingImport =
+        false;
+
+    for (const line of lines) {
+        const trimmed =
+            line.trim();
+
+        if (skippingImport) {
+            if (trimmed.endsWith(";")) {
+                skippingImport =
+                    false;
+            }
+
+            continue;
+        }
+
+        if (trimmed.startsWith("import ")) {
+            if (!trimmed.endsWith(";")) {
+                skippingImport =
+                    true;
+            }
+
+            continue;
+        }
+
+        kept.push(line);
+    }
+
+    return kept.join("\n");
+}
+
+function loadGestiaCoreAgentLoopHelpers() {
+    const sourcePath =
+        path.join(
+            __dirname,
+            "..",
+            "gestia-core",
+            "gestia-core.js"
+        );
+
+    const source =
+        stripBrowserImports(
+            fs.readFileSync(sourcePath, "utf8")
+        )
+            .replace(
+                "export const GestiaCore =",
+                "const GestiaCore ="
+            );
+
+    const sandbox = {
+        module: {
+            exports: {}
+        },
+        exports: {},
+        window: {
+            dispatchEvent() {}
+        },
+        CustomEvent: function CustomEvent(type, init) {
+            return {
+                type,
+                detail:
+                    init?.detail || null
+            };
+        },
+        console: {
+            info() {},
+            warn() {},
+            error() {},
+            log() {}
+        },
+        crypto: {
+            randomUUID() {
+                return "00000000-0000-4000-8000-000000000000";
+            }
+        }
+    };
+
+    vm.runInNewContext(
+        `${source}
+module.exports = {
+    assessPrimaryCandidateConfidence,
+    buildObservationDrivenFollowUpToolCalls,
+    composeObservationDrivenFinalResponse
+};`,
+        sandbox,
+        {
+            filename:
+                sourcePath
+        }
+    );
+
+    return sandbox.module.exports;
+}
 
 function makeAuthGate(decodedToken) {
     const admin = {
@@ -297,4 +401,363 @@ test("semantic tool planner falls back to general response without tool calls", 
     assert.deepEqual(plan.toolCalls, []);
     assert.equal(plan.writeAllowed, false);
     assert.equal(plan.requiresApprovalForWrite, true);
+});
+
+test("agent loop follow-up focuses a strong product UI primary candidate", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+
+    const objective =
+        "Jarvis, las tarjetas ocupan mucho espacio en movil, revisa donde esta el problema sin modificar nada.";
+
+    const followUpPlan =
+        helpers.buildObservationDrivenFollowUpToolCalls({
+            rawInput:
+                objective,
+            toolCalls: [
+                {
+                    name:
+                        "repo.grep",
+                    args: {
+                        term:
+                            "tarjetas"
+                    }
+                }
+            ],
+            observations: [
+                {
+                    meta: {
+                        tool:
+                            "repo.grep"
+                    },
+                    response: {
+                        data: {
+                            tool:
+                                "repo.grep",
+                            term:
+                                "tarjetas",
+                            matches: [
+                                {
+                                    file:
+                                        "app-bi.js",
+                                    line:
+                                        188,
+                                    snippet:
+                                        '<p class="text-[10px] text-zinc-500 font-bold mt-1">Tarjetas y Retenciones</p>'
+                                },
+                                {
+                                    file:
+                                        "app-tecnico-b2b.js",
+                                    line:
+                                        1054,
+                                    snippet:
+                                        "RENDER TARJETAS TAREAS (V5.32 - B2B TENANT UPGRADE)"
+                                },
+                                {
+                                    file:
+                                        "app-tecnico-b2b.js",
+                                    line:
+                                        1093,
+                                    snippet:
+                                        "// 3. GENERACION DINAMICA DE TARJETAS"
+                                },
+                                {
+                                    file:
+                                        "cliente.html",
+                                    line:
+                                        29,
+                                    snippet:
+                                        "/* NUEVO: ESTILOS PARA TARJETAS EXPANSIBLES */"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    meta: {
+                        tool:
+                            "repo.grep"
+                    },
+                    response: {
+                        data: {
+                            tool:
+                                "repo.grep",
+                            term:
+                                "espacio",
+                            matches: [
+                                {
+                                    file:
+                                        "app-tecnico-b2b.js",
+                                    line:
+                                        713,
+                                    snippet:
+                                        "Garantizamos match con el despacho del Admin y sin espacios"
+                                },
+                                {
+                                    file:
+                                        "functions/index.js",
+                                    line:
+                                        1859,
+                                    snippet:
+                                        "Gestion de espacios comunes con prevencion de traslapes"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        });
+
+    assert.equal(followUpPlan.candidates[0].file, "app-tecnico-b2b.js");
+    assert.equal(followUpPlan.primaryConfidence.mode, "PRIMARY_CONFIDENT");
+    assert.deepEqual(
+        Array.from(
+            followUpPlan.followUpCandidates,
+            candidate => candidate.file
+        ),
+        [
+            "app-tecnico-b2b.js"
+        ]
+    );
+    assert.deepEqual(
+        Array.from(
+            followUpPlan.followUpToolCalls,
+            call => `${call.name}:${call.args.file}`
+        ),
+        [
+            "repo.read:app-tecnico-b2b.js",
+            "repo.diagnose:app-tecnico-b2b.js",
+            "repo.impact:app-tecnico-b2b.js"
+        ]
+    );
+});
+
+test("agent loop extracts exact patchPreview candidate from anchored read", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+
+    const candidate =
+        {
+            file:
+                "app-tecnico-b2b.js",
+            score:
+                300,
+            productUiEvidenceHits:
+                2,
+            isInfrastructure:
+                false,
+            isTestFixture:
+                false,
+            evidence: [
+                {
+                    file:
+                        "app-tecnico-b2b.js",
+                    line:
+                        1054,
+                    snippet:
+                        "RENDER TARJETAS TAREAS (V5.32 - B2B TENANT UPGRADE)",
+                    productUiEvidence:
+                        true,
+                    uiEvidence:
+                        true,
+                    evidenceScore:
+                        90,
+                    directMatches:
+                        1,
+                    termDirect:
+                        true
+                },
+                {
+                    file:
+                        "app-tecnico-b2b.js",
+                    line:
+                        1093,
+                    snippet:
+                        "// 3. GENERACION DINAMICA DE TARJETAS",
+                    productUiEvidence:
+                        true,
+                    uiEvidence:
+                        true,
+                    evidenceScore:
+                        90,
+                    directMatches:
+                        1,
+                    termDirect:
+                        true
+                }
+            ]
+        };
+
+    const secondary =
+        {
+            file:
+                "app-bi.js",
+            score:
+                120,
+            productUiEvidenceHits:
+                1,
+            isInfrastructure:
+                false,
+            isTestFixture:
+                false,
+            evidence: [
+                {
+                    file:
+                        "app-bi.js",
+                    line:
+                        188,
+                    snippet:
+                        '<p class="text-[10px] text-zinc-500 font-bold mt-1">Tarjetas y Retenciones</p>',
+                    productUiEvidence:
+                        true,
+                    uiEvidence:
+                        true,
+                    evidenceScore:
+                        50
+                }
+            ]
+        };
+
+    const primaryConfidence =
+        helpers.assessPrimaryCandidateConfidence([
+            candidate,
+            secondary
+        ]);
+
+    const finalResponse =
+        helpers.composeObservationDrivenFinalResponse({
+            objective:
+                "Jarvis, las tarjetas ocupan mucho espacio en movil.",
+            candidates: [
+                candidate,
+                secondary
+            ],
+            primaryConfidence,
+            followUpObservations: [
+                {
+                    response: {
+                        data: {
+                            tool:
+                                "repo.read",
+                            file:
+                                "app-tecnico-b2b.js",
+                            partial:
+                                true,
+                            startLine:
+                                1046,
+                            endLine:
+                                1134,
+                            content:
+                                [
+                                    "/* RENDER TARJETAS TAREAS */",
+                                    "function renderizarTareas(tareas) {",
+                                    "    const div = document.createElement(\"div\");",
+                                    "    div.className = `mb-1 px-2 py-1.5 rounded-lg w-full max-w-[680px] mx-auto border transition-all active:scale-95 flex justify-between items-center cursor-pointer ${borderClass}`;",
+                                    "    div.innerHTML = `<div class=\"flex items-center gap-2\"></div>`;",
+                                    "}"
+                                ]
+                                    .join("\n")
+                        }
+                    }
+                },
+                {
+                    response: {
+                        data: {
+                            tool:
+                                "repo.diagnose",
+                            file:
+                                "app-tecnico-b2b.js",
+                            risk:
+                                "HIGH",
+                            recommendations: [
+                                "Buscar cards sobredimensionadas revisando clases de padding, grid, flex, min-height y wrappers."
+                            ]
+                        }
+                    }
+                }
+            ]
+        });
+
+    assert.equal(finalResponse.patchPreviewCandidate.file, "app-tecnico-b2b.js");
+    assert.match(finalResponse.patchPreviewCandidate.search, /div\.className = `/);
+    assert.match(finalResponse.patchPreviewCandidate.replace, /max-w-full sm:max-w-\[680px\]/);
+    assert.match(finalResponse.patchPreviewCandidate.replace, /py-1/);
+    assert.match(finalResponse.text, /PRIMARY_CONFIDENT/);
+    assert.doesNotMatch(finalResponse.text, /<bloque exacto/);
+    assert.doesNotMatch(finalResponse.text, /Tarjetas y Retenciones/);
+});
+
+test("agent loop does not invent patchPreview when exact block is missing", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+
+    const candidate =
+        {
+            file:
+                "app-tecnico-b2b.js",
+            score:
+                250,
+            productUiEvidenceHits:
+                1,
+            isInfrastructure:
+                false,
+            isTestFixture:
+                false,
+            evidence: [
+                {
+                    file:
+                        "app-tecnico-b2b.js",
+                    line:
+                        1093,
+                    snippet:
+                        "// 3. GENERACION DINAMICA DE TARJETAS",
+                    productUiEvidence:
+                        true,
+                    uiEvidence:
+                        true,
+                    evidenceScore:
+                        80
+                }
+            ]
+        };
+
+    const finalResponse =
+        helpers.composeObservationDrivenFinalResponse({
+            objective:
+                "Jarvis, revisa tarjetas sin modificar nada.",
+            candidates: [
+                candidate
+            ],
+            primaryConfidence: {
+                mode:
+                    "PRIMARY_CONFIDENT",
+                confident:
+                    true
+            },
+            followUpObservations: [
+                {
+                    response: {
+                        data: {
+                            tool:
+                                "repo.read",
+                            file:
+                                "app-tecnico-b2b.js",
+                            partial:
+                                true,
+                            startLine:
+                                1085,
+                            endLine:
+                                1173,
+                            content:
+                                "function renderizarTareas(tareas) {\n    return tareas.length;\n}"
+                        }
+                    }
+                }
+            ]
+        });
+
+    assert.equal(finalResponse.patchPreviewCandidate, null);
+    assert.match(finalResponse.text, /No construyo patchPreview exacto todavia/);
+    assert.doesNotMatch(finalResponse.text, /search="<bloque exacto/);
+    assert.doesNotMatch(finalResponse.text, /replace="<layout compacto/);
 });

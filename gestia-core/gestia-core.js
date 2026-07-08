@@ -252,6 +252,15 @@ const ANCHORED_READ_CLUSTER_DISTANCE =
 const ANCHORED_READ_MAX_LINES =
     220;
 
+const PRIMARY_CONFIDENT_MIN_SCORE_GAP =
+    60;
+
+const PRIMARY_CONFIDENT_MIN_SCORE_RATIO =
+    1.3;
+
+const PATCH_PREVIEW_BLOCK_MAX_LINES =
+    18;
+
 function normalizeObservationFilePath(value = "") {
     const clean =
         String(value || "")
@@ -771,6 +780,118 @@ function buildCandidateReadRange(
     };
 }
 
+function getStrongCandidateEvidence(
+    candidate = {}
+) {
+    return selectPrimaryCandidateEvidence(candidate)
+        .filter(evidence =>
+            getEvidenceLineNumber(evidence) &&
+            getEvidenceAnchorScore(evidence) >= 60 &&
+            (
+                evidence.productUiEvidence === true ||
+                evidence.layoutEvidence === true ||
+                evidence.uiEvidence === true ||
+                isProductUiEvidence(
+                    evidence?.snippet ||
+                    evidence?.module ||
+                    ""
+                )
+            )
+        );
+}
+
+function assessPrimaryCandidateConfidence(
+    candidates = []
+) {
+    const primary =
+        candidates[0] ||
+        null;
+
+    if (!primary) {
+        return {
+            mode:
+                "NO_CANDIDATE",
+            confident:
+                false,
+            primaryFile:
+                null,
+            scoreGap:
+                0,
+            scoreRatio:
+                0,
+            strongEvidenceCount:
+                0
+        };
+    }
+
+    const secondary =
+        candidates[1] ||
+        null;
+
+    const strongEvidence =
+        getStrongCandidateEvidence(
+            primary
+        );
+
+    const primaryScore =
+        Number(primary.score || 0);
+
+    const secondaryScore =
+        Number(secondary?.score || 0);
+
+    const scoreGap =
+        primaryScore - secondaryScore;
+
+    const scoreRatio =
+        secondaryScore > 0
+            ? primaryScore / secondaryScore
+            : Number.POSITIVE_INFINITY;
+
+    const scoreSeparation =
+        !secondary ||
+        scoreGap >= PRIMARY_CONFIDENT_MIN_SCORE_GAP ||
+        scoreRatio >= PRIMARY_CONFIDENT_MIN_SCORE_RATIO ||
+        strongEvidence.length >= 2;
+
+    const productEvidence =
+        primary.productUiEvidenceHits > 0 ||
+        strongEvidence.some(evidence =>
+            evidence.productUiEvidence === true ||
+            isProductUiEvidence(
+                evidence?.snippet ||
+                evidence?.module ||
+                ""
+            )
+        );
+
+    const confident =
+        !primary.isInfrastructure &&
+        !primary.isTestFixture &&
+        productEvidence &&
+        strongEvidence.length > 0 &&
+        scoreSeparation;
+
+    return {
+        mode:
+            confident
+                ? "PRIMARY_CONFIDENT"
+                : "MULTI_CANDIDATE",
+        confident,
+        primaryFile:
+            primary.file ||
+            null,
+        scoreGap,
+        scoreRatio:
+            Number.isFinite(scoreRatio)
+                ? Number(scoreRatio.toFixed(2))
+                : "INF",
+        primaryScore,
+        secondaryScore,
+        strongEvidenceCount:
+            strongEvidence.length
+    };
+}
+
 function getObservationPayload(observation = {}) {
     return (
         observation?.response?.data ||
@@ -1224,6 +1345,16 @@ function buildObservationDrivenFollowUpToolCalls({
             rawInput
         );
 
+    const primaryConfidence =
+        assessPrimaryCandidateConfidence(
+            candidates
+        );
+
+    const followUpCandidates =
+        primaryConfidence.confident
+            ? candidates.slice(0, 1)
+            : candidates;
+
     const existing =
         new Set(
             toolCalls.map(call =>
@@ -1234,7 +1365,7 @@ function buildObservationDrivenFollowUpToolCalls({
     const followUpToolCalls =
         [];
 
-    candidates.forEach(candidate => {
+    followUpCandidates.forEach(candidate => {
         const readRange =
             buildCandidateReadRange(
                 candidate
@@ -1305,6 +1436,8 @@ function buildObservationDrivenFollowUpToolCalls({
 
     return {
         candidates,
+        followUpCandidates,
+        primaryConfidence,
         followUpToolCalls
     };
 }
@@ -1338,7 +1471,7 @@ async function executeObservationDrivenFollowUp(
                     approved:
                         false,
                     source:
-                        "observation_driven_follow_up_41_32"
+                        "observation_driven_follow_up_41_33"
                 }
             );
 
@@ -1504,6 +1637,334 @@ function extractLayoutSignalsFromLines(
         .slice(0, 12);
 }
 
+function getReadLineWindow(
+    readData = {},
+    lines = []
+) {
+    const startLine =
+        Number.parseInt(
+            readData?.startLine ||
+            readData?.lineRange?.startLine ||
+            1,
+            10
+        ) || 1;
+
+    const endLine =
+        Number.parseInt(
+            readData?.endLine ||
+            readData?.lineRange?.endLine ||
+            (
+                startLine +
+                Math.max(lines.length - 1, 0)
+            ),
+            10
+        ) ||
+        (
+            startLine +
+            Math.max(lines.length - 1, 0)
+        );
+
+    return {
+        startLine,
+        endLine
+    };
+}
+
+function lineLooksLikePatchPreviewBlock(
+    line = ""
+) {
+    const text =
+        String(line || "");
+
+    return (
+        /(^|[.\s])className\s*=|\bclass\s*=|\binnerHTML\s*=|\.classList\b/i.test(text) &&
+        hasLayoutSignal(text)
+    );
+}
+
+function captureExactPatchBlock(
+    entries = [],
+    index = 0
+) {
+    const first =
+        entries[index];
+
+    if (!first) {
+        return null;
+    }
+
+    const blockEntries =
+        [
+            first
+        ];
+
+    const firstText =
+        String(first.text || "");
+
+    if (
+        /[`'"]/.test(firstText) &&
+        !/[;}]\s*$/.test(firstText.trim()) &&
+        !firstText.includes("</")
+    ) {
+        for (
+            let cursor = index + 1;
+            cursor < entries.length &&
+            blockEntries.length < PATCH_PREVIEW_BLOCK_MAX_LINES;
+            cursor += 1
+        ) {
+            blockEntries.push(
+                entries[cursor]
+            );
+
+            if (
+                /;\s*$/.test(
+                    String(entries[cursor]?.text || "")
+                )
+            ) {
+                break;
+            }
+        }
+    }
+
+    const search =
+        blockEntries
+            .map((entry, entryIndex) =>
+                entryIndex === 0
+                    ? String(entry.text || "").trim()
+                    : String(entry.text || "").trimEnd()
+            )
+            .join("\n")
+            .trimEnd();
+
+    if (
+        !search ||
+        !hasLayoutSignal(search)
+    ) {
+        return null;
+    }
+
+    return {
+        search,
+        startLine:
+            first.number,
+        endLine:
+            blockEntries[blockEntries.length - 1]?.number ||
+            first.number
+    };
+}
+
+function buildCompactLayoutReplacement(
+    search = ""
+) {
+    let replacement =
+        String(search || "");
+
+    replacement =
+        replacement.replace(
+            /\bmax-w-\[([^\]]+)\]/g,
+            "max-w-full sm:max-w-[$1]"
+        );
+
+    replacement =
+        replacement.replace(
+            /\bpy-1\.5\b/g,
+            "py-1"
+        );
+
+    replacement =
+        replacement.replace(
+            /\bpy-2\b/g,
+            "py-1.5"
+        );
+
+    replacement =
+        replacement.replace(
+            /\brounded-lg\b/g,
+            "rounded-md"
+        );
+
+    replacement =
+        replacement.replace(
+            /\bactive:scale-95\b/g,
+            "active:scale-[0.98]"
+        );
+
+    return replacement !== search
+        ? replacement
+        : "";
+}
+
+function quotePatchPreviewValue(
+    value = ""
+) {
+    return JSON.stringify(
+        String(value || "")
+    );
+}
+
+function extractPatchPreviewCandidateFromRead({
+    candidate = null,
+    anchoredDiagnosis = {},
+    followUpObservations = []
+} = {}) {
+    if (!candidate) {
+        return null;
+    }
+
+    const readData =
+        getCandidateReadData(
+            candidate,
+            followUpObservations
+        );
+
+    const content =
+        getReadContent(
+            readData
+        );
+
+    if (!content) {
+        return null;
+    }
+
+    const lines =
+        content.split(/\r?\n/);
+
+    const readWindow =
+        getReadLineWindow(
+            readData,
+            lines
+        );
+
+    const entries =
+        lines.map((line, index) => ({
+            number:
+                readWindow.startLine + index,
+            text:
+                line
+        }));
+
+    const anchorLines =
+        (
+            anchoredDiagnosis.sections ||
+            []
+        )
+            .map(section =>
+                Number(section?.line || 0)
+            )
+            .filter(Boolean);
+
+    const ranked =
+        entries
+            .map((entry, index) => {
+                if (
+                    !lineLooksLikePatchPreviewBlock(
+                        entry.text
+                    )
+                ) {
+                    return null;
+                }
+
+                const block =
+                    captureExactPatchBlock(
+                        entries,
+                        index
+                    );
+
+                if (!block) {
+                    return null;
+                }
+
+                const replace =
+                    buildCompactLayoutReplacement(
+                        block.search
+                    );
+
+                if (!replace) {
+                    return null;
+                }
+
+                const signals =
+                    extractLayoutSignalsFromLines([
+                        block.search
+                    ]);
+
+                const nearestAnchorDistance =
+                    anchorLines.length
+                        ? Math.min(
+                            ...anchorLines.map(line =>
+                                Math.abs(line - entry.number)
+                            )
+                        )
+                        : 0;
+
+                const score =
+                    (signals.length * 12) +
+                    (
+                        /className\s*=/i.test(
+                            block.search
+                        )
+                            ? 70
+                            : 0
+                    ) +
+                    (
+                        /innerHTML\s*=/i.test(
+                            block.search
+                        )
+                            ? 25
+                            : 0
+                    ) -
+                    Math.min(nearestAnchorDistance, 80);
+
+                return {
+                    ...block,
+                    replace,
+                    signals,
+                    score
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) =>
+                b.score - a.score
+            );
+
+    const best =
+        ranked[0] ||
+        null;
+
+    if (!best) {
+        return null;
+    }
+
+    return {
+        file:
+            candidate.file,
+        search:
+            best.search,
+        replace:
+            best.replace,
+        startLine:
+            best.startLine,
+        endLine:
+            best.endLine,
+        signals:
+            best.signals,
+        source:
+            "repo.read",
+        reason:
+            "EXACT_LAYOUT_BLOCK_FROM_REPO_READ",
+        confidence:
+            "CANDIDATE_EXACT_BLOCK",
+        command:
+            [
+                `repo.patchPreview file=${candidate.file}`,
+                `search=${quotePatchPreviewValue(best.search)}`,
+                `replace=${quotePatchPreviewValue(best.replace)}`,
+                "dryRun=true"
+            ]
+                .join(" ")
+    };
+}
+
 function buildLineAnchoredDiagnosis({
     candidate = null,
     followUpObservations = []
@@ -1564,14 +2025,19 @@ function buildLineAnchoredDiagnosis({
                         evidence
                     );
 
-                const fallbackLine =
+                const localFallbackLine =
                     !directLine && lines.length
                         ? findSnippetLineNumber(
                             lines,
                             evidence?.snippet ||
                             evidence?.module ||
                             ""
-                        ) +
+                        )
+                        : null;
+
+                const fallbackLine =
+                    localFallbackLine
+                        ? localFallbackLine +
                         readStartLine -
                         1
                         : null;
@@ -1754,7 +2220,8 @@ function isNonBlockingFollowUpFailure(
 function composeObservationDrivenFinalResponse({
     objective = "",
     candidates = [],
-    followUpObservations = []
+    followUpObservations = [],
+    primaryConfidence = null
 } = {}) {
     const topCandidate =
         candidates[0] ||
@@ -1774,6 +2241,14 @@ function composeObservationDrivenFinalResponse({
         buildLineAnchoredDiagnosis({
             candidate:
                 topCandidate,
+            followUpObservations
+        });
+
+    const patchPreviewCandidate =
+        extractPatchPreviewCandidateFromRead({
+            candidate:
+                topCandidate,
+            anchoredDiagnosis,
             followUpObservations
         });
 
@@ -1802,8 +2277,18 @@ function composeObservationDrivenFinalResponse({
         impacts[0] ||
         null;
 
+    const primaryFocused =
+        primaryConfidence?.confident === true;
+
+    const evidenceSourceCandidates =
+        primaryFocused && topCandidate
+            ? [
+                topCandidate
+            ]
+            : candidates;
+
     const evidenceLines =
-        candidates
+        evidenceSourceCandidates
             .flatMap(candidate =>
                 selectPrimaryCandidateEvidence(candidate)
                     .map(evidence => ({
@@ -1827,6 +2312,15 @@ function composeObservationDrivenFinalResponse({
                 ]
                     .join("")
             );
+
+    const secondaryConsideredLines =
+        primaryFocused
+            ? candidates
+                .slice(1)
+                .map(candidate =>
+                    `- ${candidate.file} considerado como secundario; no se ejecuto follow-up profundo porque ${topCandidate?.file} quedo PRIMARY_CONFIDENT.`
+                )
+            : [];
 
     const sectionLines =
         anchoredDiagnosis.sections
@@ -1900,14 +2394,24 @@ function composeObservationDrivenFinalResponse({
             : "Las coincidencias apuntan al archivo con mayor densidad de evidencia en repo.search/repo.grep. Se recomienda leer el bloque visual antes de proponer cualquier patch.";
 
     const patchPreviewProposal =
-        topCandidate?.file && anchoredDiagnosis.sections.length
-            ? `repo.patchPreview file=${topCandidate.file} search="<bloque exacto alrededor de L${anchoredDiagnosis.sections
-                .map(section => section.line)
-                .sort((a, b) => a - b)
-                .join("-")}>" replace="<layout compacto>" dryRun=true`
-            : topCandidate?.file
-                ? `repo.patchPreview file=${topCandidate.file} search="<bloque exacto leido con repo.read>" replace="<bloque ajustado>" dryRun=true`
-                : "repo.patchPreview file=<archivo> search=<bloque exacto> replace=<bloque ajustado> dryRun=true";
+        patchPreviewCandidate?.command ||
+        (
+            topCandidate?.file
+                ? "No construyo patchPreview exacto todavia: necesito leer una ventana mas amplia o ubicar un bloque className/class/innerHTML con layout antes de proponer search/replace."
+                : "No construyo patchPreview: falta archivo probable y bloque exacto."
+        );
+
+    const patchPreviewDetailLines =
+        patchPreviewCandidate
+            ? [
+                `- Bloque exacto candidato: ${patchPreviewCandidate.file}:${patchPreviewCandidate.startLine}-${patchPreviewCandidate.endLine}`,
+                `- Senales en bloque: ${patchPreviewCandidate.signals.join(", ") || "ND"}`,
+                `- Search exacto: ${patchPreviewCandidate.search}`,
+                `- Replace candidato: ${patchPreviewCandidate.replace}`
+            ]
+            : [
+                "- Sin bloque exacto suficiente; no se invento search/replace."
+            ];
 
     const text =
         [
@@ -1916,6 +2420,10 @@ function composeObservationDrivenFinalResponse({
             `Candidatos: ${
                 candidates.map(candidate => candidate.file).join(", ") ||
                 "ND"
+            }`,
+            `Modo candidato: ${
+                primaryConfidence?.mode ||
+                "MULTI_CANDIDATE"
             }`,
             `Riesgo/impacto: ${impactRisk}`,
             impactFailures.length
@@ -1930,6 +2438,13 @@ function composeObservationDrivenFinalResponse({
             ...(evidenceLines.length
                 ? evidenceLines
                 : ["- Sin evidencia de busqueda materializada."]),
+            ...(secondaryConsideredLines.length
+                ? [
+                    "",
+                    "Candidatos secundarios considerados:",
+                    ...secondaryConsideredLines
+                ]
+                : []),
             "",
             "Lineas/seccion probable:",
             ...(sectionLines.length
@@ -1957,6 +2472,7 @@ function composeObservationDrivenFinalResponse({
             "",
             "PatchPreview seguro sugerido:",
             `- ${patchPreviewProposal}`,
+            ...patchPreviewDetailLines,
             "",
             "Seguridad:",
             "- No se modificaron archivos.",
@@ -1976,6 +2492,10 @@ function composeObservationDrivenFinalResponse({
             topCandidate?.file ||
             null,
         candidates,
+        primaryConfidence,
+        lineAnchoredDiagnosis:
+            anchoredDiagnosis,
+        patchPreviewCandidate,
         risk:
             impactRisk,
         writeAllowed:
@@ -2358,7 +2878,9 @@ if (
                     inputRaw,
                 candidates:
                     followUpPlan.candidates,
-                followUpObservations
+                followUpObservations,
+                primaryConfidence:
+                    followUpPlan.primaryConfidence
             })
             : null;
 
@@ -2378,10 +2900,20 @@ if (
                         "OBSERVATION_DRIVEN_READ_ONLY",
                     candidates:
                         followUpPlan.candidates,
+                    followUpCandidates:
+                        followUpPlan.followUpCandidates,
+                    primaryConfidence:
+                        followUpPlan.primaryConfidence,
                     toolCalls:
                         followUpPlan.followUpToolCalls,
                     observations:
                         followUpObservations,
+                    lineAnchoredDiagnosis:
+                        finalResponse?.lineAnchoredDiagnosis ||
+                        null,
+                    patchPreviewCandidate:
+                        finalResponse?.patchPreviewCandidate ||
+                        null,
                     writeAllowed:
                         false,
                     patchGenerated:

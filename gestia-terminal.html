@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4132"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4133"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -3333,11 +3333,43 @@ console.log(
                         ?.finalResponse ||
                     null;
 
+                const patchPreviewCandidate =
+                    finalResponse
+                        ?.patchPreviewCandidate ||
+                    coreResult
+                        ?.result
+                        ?.followUp
+                        ?.patchPreviewCandidate ||
+                    null;
+
+                const patchPreviewCandidateText =
+                    patchPreviewCandidate?.command &&
+                    !String(finalResponse?.text || "")
+                        .includes(patchPreviewCandidate.command)
+                        ? [
+                            "PatchPreview seguro sugerido:",
+                            `- ${patchPreviewCandidate.command}`,
+                            patchPreviewCandidate.search
+                                ? `- Search exacto: ${patchPreviewCandidate.search}`
+                                : "",
+                            patchPreviewCandidate.replace
+                                ? `- Replace candidato: ${patchPreviewCandidate.replace}`
+                                : ""
+                        ]
+                            .filter(Boolean)
+                            .join("\n")
+                        : "";
+
                 const multiToolSummary =
                     [
                         ...(
                             finalResponse?.text
                                 ? [finalResponse.text]
+                                : []
+                        ),
+                        ...(
+                            patchPreviewCandidateText
+                                ? [patchPreviewCandidateText]
                                 : []
                         ),
                         `Objetivo: ${plannerObjective}`,
