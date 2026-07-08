@@ -1923,7 +1923,9 @@ const SIA7_ACTIVE_PATCH_PROPOSAL_MAX_AGE_MS =
     1000 * 60 * 60 * 2;
 
 const SIA7_PROPOSAL_ADJUSTMENT_MAX_AGE_MS =
-    1000 * 60 * 5;
+    1000 * 60 * 60 * 2;
+window.SIA7_PROPOSAL_ADJUSTMENT_MAX_AGE_MS =
+    SIA7_PROPOSAL_ADJUSTMENT_MAX_AGE_MS;
 
 const rememberTerminalProposalAdjustment =
     function(proposal = {}, traceId = "") {
@@ -6193,13 +6195,17 @@ window.addEventListener("load", () => {
 
     if (!state?.startedAt) return null;
 
-    if (
-      Date.now() - Number(state.startedAt) >
-      SIA7_PROPOSAL_ADJUSTMENT_MAX_AGE_MS
-    ) {
-      window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__ = null;
-      return null;
-    }
+    const adjustmentMaxAgeMs =
+  Number(window.SIA7_PROPOSAL_ADJUSTMENT_MAX_AGE_MS) ||
+  1000 * 60 * 5;
+
+if (
+  Date.now() - Number(state.startedAt) >
+  adjustmentMaxAgeMs
+) {
+  window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__ = null;
+  return null;
+}
 
     if (state.file && payload.file && state.file !== payload.file) {
       return null;
