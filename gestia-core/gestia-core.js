@@ -182,7 +182,8 @@ const CORE_CONFIG = {
 };
 import '/gestia-core/semantic.engine.js';
 import '/gestia-core/brain.engine.js?v=semantic-tool-fallback-41-32';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4134';
+import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4135';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
 
@@ -264,6 +265,9 @@ const PATCH_PREVIEW_BLOCK_MAX_LINES =
 const TAILWIND_CLASS_END_PATTERN =
     "(?=$|[\\s\"'`<>;])";
 
+const AGENT_LOOP_LEARNING_COMMIT =
+    "41.35";
+
 function normalizeObservationFilePath(value = "") {
     const clean =
         String(value || "")
@@ -289,6 +293,371 @@ function normalizeObservationText(value = "") {
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/^\s*["'`]*\s*(jarvis|heberto|gestia)[,\s:;-]*/i, "")
         .toLowerCase();
+}
+
+function getJarvisAutonomyEngine() {
+    const browserRoot =
+        typeof window !== "undefined"
+            ? window
+            : {};
+
+    const globalRoot =
+        typeof globalThis !== "undefined"
+            ? globalThis
+            : {};
+
+    return (
+        browserRoot.JarvisAutonomyEngine ||
+        globalRoot.JarvisAutonomyEngine ||
+        null
+    );
+}
+
+function learningField(value = "", max = 500) {
+    return String(value || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, max);
+}
+
+function recordAgentLoopLearningIncident(input = {}) {
+    const engine =
+        getJarvisAutonomyEngine();
+
+    if (
+        !engine ||
+        typeof engine.record !== "function"
+    ) {
+        return {
+            ok:
+                false,
+            skipped:
+                true,
+            reason:
+                "JARVIS_AUTONOMY_ENGINE_MISSING"
+        };
+    }
+
+    try {
+        return engine.record({
+            type:
+                "LEARNING_INCIDENT",
+            category:
+                input.category ||
+                "REPO_INVESTIGATION",
+            status:
+                input.status ||
+                "success",
+            stage:
+                input.stage ||
+                "agent_loop",
+            operation:
+                input.operation ||
+                input.category ||
+                "REPO_INVESTIGATION",
+            file:
+                input.file ||
+                "",
+            reason:
+                input.reason ||
+                input.category ||
+                "AGENT_LOOP_LEARNING",
+            issue:
+                input.issue ||
+                "",
+            symptom:
+                learningField(
+                    input.symptom ||
+                    input.objective ||
+                    input.rawInput ||
+                    ""
+                ),
+            wrongBehavior:
+                learningField(
+                    input.wrongBehavior ||
+                    ""
+                ),
+            fixRule:
+                learningField(
+                    input.fixRule ||
+                    ""
+                ),
+            relatedCommit:
+                input.relatedCommit ||
+                AGENT_LOOP_LEARNING_COMMIT,
+            sourceTraceId:
+                input.sourceTraceId ||
+                input.traceId ||
+                "",
+            confidence:
+                typeof input.confidence === "number"
+                    ? input.confidence
+                    : null,
+            context: {
+                ...(input.context || {}),
+                learningPolicy: {
+                    proposalAutonomy:
+                        true,
+                    writeAllowed:
+                        false,
+                    writeAuthorization:
+                        false,
+                    approvalRequiredForWrite:
+                        true
+                }
+            }
+        });
+    }
+    catch(error) {
+        console.warn(
+            "[AGENT_LOOP_LEARNING_RECORD_FAILED]",
+            error
+        );
+
+        return {
+            ok:
+                false,
+            error:
+                error?.message ||
+                String(error)
+        };
+    }
+}
+
+function recallAgentLoopLearningHints(input = {}) {
+    const engine =
+        getJarvisAutonomyEngine();
+
+    const empty = {
+        ok:
+            false,
+        source:
+            "jarvis_autonomy_learning_v2",
+        total:
+            0,
+        lessons:
+            [],
+        proposalAutonomy:
+            true,
+        writeAllowed:
+            false,
+        writeAuthorization:
+            false,
+        approvalRequiredForWrite:
+            true
+    };
+
+    if (
+        !engine ||
+        typeof engine.recall !== "function"
+    ) {
+        return {
+            ...empty,
+            skipped:
+                true,
+            reason:
+                "JARVIS_AUTONOMY_ENGINE_MISSING"
+        };
+    }
+
+    try {
+        const categories =
+            [
+                input.category,
+                input.operation,
+                "REPO_INVESTIGATION",
+                "FOLLOW_UP_MEMORY",
+                "PATCH_PREVIEW_VALIDATION",
+                "CASUAL_GATE",
+                "CANDIDATE_RANKING",
+                "PATCH_PREVIEW_SAFETY",
+                "TOOL_SELECTION"
+            ]
+                .filter(Boolean)
+                .filter((item, index, list) =>
+                    list.indexOf(item) === index
+                );
+
+        const lessonsByKey =
+            new Map();
+
+        let query =
+            null;
+
+        categories.forEach(category => {
+            const recalled =
+                engine.recall({
+                    type:
+                        "LEARNING_INCIDENT",
+                    category,
+                    status:
+                        "query",
+                    stage:
+                        input.stage ||
+                        "agent_loop_preplan",
+                    operation:
+                        input.operation ||
+                        category ||
+                        "REPO_INVESTIGATION",
+                    file:
+                        input.file ||
+                        "",
+                    reason:
+                        input.reason ||
+                        category ||
+                        "AGENT_LOOP_PREPLAN",
+                    issue:
+                        input.issue ||
+                        "",
+                    symptom:
+                        learningField(
+                            input.rawInput ||
+                            input.objective ||
+                            ""
+                        ),
+                    sourceTraceId:
+                        input.sourceTraceId ||
+                        "",
+                    limit:
+                        input.limit ||
+                        5,
+                    context: {
+                        source:
+                            "agent_loop_learning_41_35"
+                    }
+                });
+
+            query ||=
+                recalled?.query ||
+                null;
+
+            (recalled?.lessons || []).forEach(item => {
+                const key =
+                    item?.signature ||
+                    [
+                        item?.category,
+                        item?.reason,
+                        item?.stage,
+                        item?.operation,
+                        item?.lesson?.diagnosis
+                    ]
+                        .filter(Boolean)
+                        .join(":");
+
+                if (!key) {
+                    return;
+                }
+
+                const current =
+                    lessonsByKey.get(key);
+
+                if (
+                    !current ||
+                    (item?.matchScore || 0) > (current?.matchScore || 0)
+                ) {
+                    lessonsByKey.set(
+                        key,
+                        item
+                    );
+                }
+            });
+        });
+
+        const lessons =
+            Array.from(
+                lessonsByKey.values()
+            )
+                .sort((a, b) =>
+                    (b?.matchScore || 0) -
+                    (a?.matchScore || 0)
+                )
+                .slice(0, input.limit || 5);
+
+        return {
+            ...empty,
+            ok:
+                true,
+            total:
+                lessons.length,
+            lessons,
+            query:
+                query
+        };
+    }
+    catch(error) {
+        console.warn(
+            "[AGENT_LOOP_LEARNING_RECALL_FAILED]",
+            error
+        );
+
+        return {
+            ...empty,
+            error:
+                error?.message ||
+                String(error)
+        };
+    }
+}
+
+function learningHintsText(learningHints = {}) {
+    return normalizeObservationText(
+        (learningHints?.lessons || [])
+            .map(item => [
+                item?.category,
+                item?.reason,
+                item?.issue,
+                item?.lesson?.diagnosis,
+                item?.lesson?.nextAction,
+                item?.lesson?.avoid,
+                item?.fixRule
+            ]
+                .filter(Boolean)
+                .join(" "))
+            .join(" ")
+    );
+}
+
+function scoreCandidateWithLearningHints(
+    candidate = {},
+    learningHints = {}
+) {
+    const hints =
+        learningHintsText(
+            learningHints
+        );
+
+    if (!hints) {
+        return 0;
+    }
+
+    let score =
+        0;
+
+    if (
+        candidate.productUiEvidenceHits > 0 &&
+        /product_ui|ui_real|evidencia_de_ui|candidate_ranking/.test(hints)
+    ) {
+        score +=
+            20;
+    }
+
+    if (
+        candidate.metaEngineEvidenceHits > 0 &&
+        /meta_engine|guard|runtime|engine|candidate_ranking/.test(hints)
+    ) {
+        score -=
+            35;
+    }
+
+    if (
+        candidate.isInfrastructure &&
+        /product_ui|meta_engine|candidate_ranking/.test(hints)
+    ) {
+        score -=
+            25;
+    }
+
+    return score;
 }
 
 function extractObjectiveTerms(objective = "") {
@@ -944,7 +1313,8 @@ function getObservationRepoData(observation = {}) {
 function collectObservationDrivenCandidates(
     observations = [],
     toolCalls = [],
-    objective = ""
+    objective = "",
+    learningHints = {}
 ) {
     const candidates =
         new Map();
@@ -1267,6 +1637,17 @@ function collectObservationDrivenCandidates(
                     ? 80 + (productUiEvidenceHits * 30)
                     : 0;
 
+            const learningScore =
+                scoreCandidateWithLearningHints(
+                    {
+                        ...candidate,
+                        isInfrastructure,
+                        metaEvidenceHits,
+                        productUiEvidenceHits
+                    },
+                    learningHints
+                );
+
             return {
                 ...candidate,
                 evidence:
@@ -1278,7 +1659,8 @@ function collectObservationDrivenCandidates(
                     weakCorePenalty -
                     infrastructurePenalty -
                     metaEnginePenalty +
-                    productUiBonus,
+                    productUiBonus +
+                    learningScore,
                 explicitlyMentioned,
                 isTestFixture,
                 isInfrastructure,
@@ -1288,7 +1670,8 @@ function collectObservationDrivenCandidates(
                 weakCorePenalty,
                 infrastructurePenalty,
                 metaEnginePenalty,
-                productUiBonus
+                productUiBonus,
+                learningScore
             };
         })
         .filter(Boolean)
@@ -1339,13 +1722,15 @@ function collectObservationDrivenCandidates(
 function buildObservationDrivenFollowUpToolCalls({
     observations = [],
     toolCalls = [],
-    rawInput = ""
+    rawInput = "",
+    learningHints = {}
 } = {}) {
     const candidates =
         collectObservationDrivenCandidates(
             observations,
             toolCalls,
-            rawInput
+            rawInput,
+            learningHints
         );
 
     const primaryConfidence =
@@ -2474,7 +2859,8 @@ function composeObservationDrivenFinalResponse({
     objective = "",
     candidates = [],
     followUpObservations = [],
-    primaryConfidence = null
+    primaryConfidence = null,
+    learningHints = {}
 } = {}) {
     const topCandidate =
         candidates[0] ||
@@ -2685,6 +3071,19 @@ function composeObservationDrivenFinalResponse({
                 "- Sin bloque exacto suficiente; no se invento search/replace."
             ];
 
+    const learningHintLines =
+        (learningHints?.lessons || [])
+            .slice(0, 3)
+            .map(item =>
+                [
+                    `- ${item?.lesson?.diagnosis || item?.category || item?.reason || "learning_hint"}`,
+                    item?.lesson?.avoid
+                        ? `: ${item.lesson.avoid}`
+                        : ""
+                ]
+                    .join("")
+            );
+
     const text =
         [
             `Objetivo: ${objective || "Investigacion repo read-only"}`,
@@ -2745,6 +3144,13 @@ function composeObservationDrivenFinalResponse({
             "PatchPreview seguro sugerido:",
             `- ${patchPreviewProposal}`,
             ...patchPreviewDetailLines,
+            ...(learningHintLines.length
+                ? [
+                    "",
+                    "Aprendizaje usado:",
+                    ...learningHintLines
+                ]
+                : []),
             "",
             "Seguridad:",
             "- No se modificaron archivos.",
@@ -2771,6 +3177,8 @@ function composeObservationDrivenFinalResponse({
             safePatchPreviewCandidate,
         patchPreviewBlocked:
             blockedPatchPreviewCandidate,
+        learningHints:
+            learningHints?.lessons || [],
         risk:
             impactRisk,
         writeAllowed:
@@ -2896,6 +3304,28 @@ export const GestiaCore = {
 
                 let propuesta = null;
 
+                const agentLearningHints =
+                    recallAgentLoopLearningHints({
+                        rawInput:
+                            inputRaw,
+                        category:
+                            "REPO_INVESTIGATION",
+                        stage:
+                            "agent_loop_preplan",
+                        operation:
+                            "REPO_INVESTIGATION",
+                        issue:
+                            "semantic_tool_planning",
+                        sourceTraceId:
+                            analysisId
+                    });
+
+                this.emitirPulso(
+                    "LEARNING",
+                    "AUTONOMY_HINTS",
+                    `${agentLearningHints.total || 0} lessons`
+                );
+
                 /**
                  * =====================================================================================
                  * V7.5 HYBRID COGNITION
@@ -2921,7 +3351,19 @@ export const GestiaCore = {
 
                                     tenantId,
                                     analysisId,
-                                    rol
+                                    rol,
+                                    learningHints:
+                                        agentLearningHints,
+                                    learningPolicy: {
+                                        proposalAutonomy:
+                                            true,
+                                        writeAllowed:
+                                            false,
+                                        writeAuthorization:
+                                            false,
+                                        approvalRequiredForWrite:
+                                            true
+                                    }
                                 }
                             );
 
@@ -3042,7 +3484,11 @@ export const GestiaCore = {
                             input_original:
                                 inputRaw,
 
-                            context
+                            context: {
+                                ...context,
+                                learningHints:
+                                    agentLearningHints
+                            }
                         });
                 }
 
@@ -3085,6 +3531,8 @@ if (
                 tenantId,
                 analysisId,
                 rol,
+                learningHints:
+                    agentLearningHints,
                 reasoning:
                     propuesta.cognition ||
                     propuesta.reasoning ||
@@ -3099,7 +3547,9 @@ if (
             toolCalls:
                 propuesta.toolCalls,
             rawInput:
-                inputRaw
+                inputRaw,
+            learningHints:
+                agentLearningHints
         });
 
     let followUpObservations =
@@ -3124,6 +3574,8 @@ if (
                     tenantId,
                     analysisId,
                     rol,
+                    learningHints:
+                        agentLearningHints,
                     reasoning:
                         propuesta.cognition ||
                         propuesta.reasoning ||
@@ -3155,9 +3607,135 @@ if (
                     followUpPlan.candidates,
                 followUpObservations,
                 primaryConfidence:
-                    followUpPlan.primaryConfidence
+                    followUpPlan.primaryConfidence,
+                learningHints:
+                    agentLearningHints
             })
             : null;
+
+    if (
+        followUpPlan.primaryConfidence?.confident === true &&
+        followUpPlan.candidates?.[0]
+    ) {
+        recordAgentLoopLearningIncident({
+            category:
+                "CANDIDATE_RANKING",
+            status:
+                "success",
+            stage:
+                "agent_loop_follow_up",
+            operation:
+                "CANDIDATE_RANKING",
+            file:
+                followUpPlan.candidates[0].file,
+            reason:
+                followUpPlan.candidates[0].productUiEvidenceHits > 0
+                    ? "PRIMARY_CONFIDENT_PRODUCT_UI_EVIDENCE"
+                    : "PRIMARY_CONFIDENT_OBSERVATION_EVIDENCE",
+            symptom:
+                inputRaw,
+            fixRule:
+                "Prefer product UI evidence over meta engine, guard, runtime or test matches unless the objective explicitly targets those systems.",
+            sourceTraceId:
+                analysisId,
+            confidence:
+                0.9,
+            context: {
+                candidates:
+                    followUpPlan.candidates
+                        .slice(0, 3)
+                        .map(candidate => candidate.file),
+                learningHints:
+                    agentLearningHints.total || 0
+            }
+        });
+    }
+
+    if (
+        finalResponse?.patchPreviewCandidate
+    ) {
+        recordAgentLoopLearningIncident({
+            category:
+                "PATCH_PREVIEW_SAFETY",
+            status:
+                "success",
+            stage:
+                "agent_loop_patch_preview",
+            operation:
+                "PATCH_PREVIEW_PROPOSAL",
+            file:
+                finalResponse.patchPreviewCandidate.file,
+            reason:
+                "EXACT_BLOCK_PATCH_PREVIEW_CANDIDATE",
+            symptom:
+                inputRaw,
+            fixRule:
+                "Use exact search/replace from repo.read to paint patch previews; never write until human approval.",
+            sourceTraceId:
+                analysisId,
+            confidence:
+                0.94
+        });
+    }
+    else if (
+        finalResponse?.patchPreviewBlocked
+    ) {
+        recordAgentLoopLearningIncident({
+            category:
+                "PATCH_PREVIEW_VALIDATION",
+            status:
+                "blocked",
+            stage:
+                "agent_loop_patch_preview",
+            operation:
+                "PATCH_PREVIEW_PROPOSAL",
+            file:
+                finalResponse.patchPreviewBlocked.file,
+            reason:
+                (
+                    finalResponse.patchPreviewBlocked.issues ||
+                    ["UNSAFE_REPLACE"]
+                )
+                    .join("_"),
+            symptom:
+                inputRaw,
+            wrongBehavior:
+                "Generated replacement failed local safety validation.",
+            fixRule:
+                "Regenerate replace before showing preview when Tailwind classes, brackets, backticks or placeholders are invalid.",
+            sourceTraceId:
+                analysisId,
+            confidence:
+                0.97
+        });
+    }
+    else if (
+        followUpPlan.candidates?.length > 0 &&
+        followUpPlan.followUpToolCalls.length > 0
+    ) {
+        recordAgentLoopLearningIncident({
+            category:
+                "PATCH_PREVIEW_SAFETY",
+            status:
+                "blocked",
+            stage:
+                "agent_loop_patch_preview",
+            operation:
+                "PATCH_PREVIEW_PROPOSAL",
+            file:
+                followUpPlan.candidates[0].file,
+            reason:
+                "EXACT_BLOCK_REQUIRED",
+            symptom:
+                inputRaw,
+            fixRule:
+                "Read a wider anchored range and extract an exact block before proposing patchPreview.",
+            sourceTraceId:
+                analysisId,
+            confidence:
+                0.86
+        });
+    }
 
     propuesta.agentLoop =
         {
@@ -3196,6 +3774,21 @@ if (
                         false,
                     patchGenerated:
                         false
+                },
+            learning:
+                {
+                    source:
+                        "jarvis_autonomy_learning_v2",
+                    proposalAutonomy:
+                        true,
+                    writeAllowed:
+                        false,
+                    writeAuthorization:
+                        false,
+                    approvalRequiredForWrite:
+                        true,
+                    hints:
+                        agentLearningHints.lessons || []
                 },
             finalResponse,
             verified:

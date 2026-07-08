@@ -100,6 +100,89 @@ test("autonomy keeps bounded memory snapshots", () => {
     assert.ok(Object.keys(snapshot.patterns).length <= 80);
 });
 
+test("autonomy learns agent loop incidents as technical proposal guidance", () => {
+    resetAutonomyLearning();
+
+    const invalidPreview =
+        recordAutonomyEvent({
+            type:
+                "LEARNING_INCIDENT",
+            category:
+                "PATCH_PREVIEW_VALIDATION",
+            status:
+                "blocked",
+            stage:
+                "terminal_patch_preview_follow_up",
+            operation:
+                "PATCH_PREVIEW_DRY_RUN",
+            file:
+                "app-tecnico-b2b.js",
+            reason:
+                "INVALID_TAILWIND_DECIMAL_CLASS",
+            symptom:
+                "Jarvis, aplica en preview el ajuste anterior.",
+            wrongBehavior:
+                "Generated py-1.5.5 in a replace candidate.",
+            fixRule:
+                "Regenerate replace before preview when Tailwind classes are invalid.",
+            relatedCommit:
+                "41.35",
+            sourceTraceId:
+                "trace-test"
+        });
+
+    assert.equal(invalidPreview.ok, true);
+    assert.equal(invalidPreview.learned, true);
+    assert.equal(invalidPreview.lesson.diagnosis, "patch_preview_validation_failed");
+
+    recordAutonomyEvent({
+        type:
+            "LEARNING_INCIDENT",
+        category:
+            "FOLLOW_UP_MEMORY",
+        status:
+            "success",
+        stage:
+            "terminal_patch_preview_follow_up",
+        operation:
+            "PATCH_PREVIEW_DRY_RUN",
+        file:
+            "app-tecnico-b2b.js",
+        reason:
+            "LAST_PATCH_PREVIEW_CANDIDATE_REUSED",
+        fixRule:
+            "Reuse the stored candidate for natural dry-run follow-ups."
+    });
+
+    const recalled =
+        recallAutonomyLessons({
+            type:
+                "LEARNING_INCIDENT",
+            category:
+                "PATCH_PREVIEW_VALIDATION",
+            stage:
+                "terminal_patch_preview_follow_up",
+            operation:
+                "PATCH_PREVIEW_DRY_RUN",
+            file:
+                "app-tecnico-b2b.js",
+            reason:
+                "INVALID_TAILWIND_DECIMAL_CLASS"
+        });
+
+    assert.ok(recalled.total >= 1);
+
+    const validationLesson =
+        recalled.lessons.find(item =>
+            item.category === "patch_preview_validation"
+        );
+
+    assert.ok(validationLesson);
+    assert.equal(validationLesson.fixRule, "Regenerate replace before preview when Tailwind classes are invalid.");
+    assert.equal(validationLesson.relatedCommit, "41.35");
+    assert.match(validationLesson.lesson.avoid, /Tailwind/i);
+});
+
 test("autonomy exposes V2 learning contract", () => {
     const description =
         describeAutonomyLearning();
@@ -109,4 +192,6 @@ test("autonomy exposes V2 learning contract", () => {
     assert.equal(description.storageKey, "jarvis_autonomy_learning_v2");
     assert.ok(description.legacyStorageKeys.includes("jarvis_autonomy_learning_v1"));
     assert.ok(description.capabilities.includes("failure_pattern_learning"));
+    assert.ok(description.capabilities.includes("agent_loop_learning_hints"));
+    assert.ok(description.capabilities.includes("patch_preview_safety_learning"));
 });

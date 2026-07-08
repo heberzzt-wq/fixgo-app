@@ -416,6 +416,85 @@ function validatePatchPreviewRewrite(
     };
 }
 
+function recordToolRuntimeLearningIncident(input = {}) {
+    try {
+        const engine =
+            typeof window !== "undefined"
+                ? window.JarvisAutonomyEngine
+                : null;
+
+        if (
+            !engine ||
+            typeof engine.record !== "function"
+        ) {
+            return null;
+        }
+
+        return engine.record({
+            type:
+                "LEARNING_INCIDENT",
+            category:
+                input.category ||
+                "PATCH_PREVIEW_SAFETY",
+            status:
+                input.status ||
+                "blocked",
+            stage:
+                input.stage ||
+                "tool_runtime_patch_preview",
+            operation:
+                input.operation ||
+                "repo.patchPreview",
+            file:
+                input.file ||
+                "",
+            reason:
+                input.reason ||
+                "PATCH_PREVIEW_BLOCKED",
+            symptom:
+                input.symptom ||
+                "",
+            wrongBehavior:
+                input.wrongBehavior ||
+                "",
+            fixRule:
+                input.fixRule ||
+                "Keep patchPreview dry-run and require exact safe search/replace before approval.",
+            relatedCommit:
+                "41.35",
+            sourceTraceId:
+                input.sourceTraceId ||
+                input.traceId ||
+                "",
+            confidence:
+                typeof input.confidence === "number"
+                    ? input.confidence
+                    : 0.95,
+            context: {
+                ...(input.context || {}),
+                learningPolicy: {
+                    proposalAutonomy:
+                        true,
+                    writeAllowed:
+                        false,
+                    writeAuthorization:
+                        false,
+                    approvalRequiredForWrite:
+                        true
+                }
+            }
+        });
+    }
+    catch(error) {
+        console.warn(
+            "[TOOL_RUNTIME_LEARNING_RECORD_FAILED_41_35]",
+            error
+        );
+    }
+
+    return null;
+}
+
 
 /* =====================================================
    JARVIS TOOL RUNTIME — WINDOW SINGLETON SYNC
@@ -7294,6 +7373,33 @@ if (
         ]
             .join("\n");
 
+    recordToolRuntimeLearningIncident({
+        category:
+            "PATCH_PREVIEW_SAFETY",
+        status:
+            "blocked",
+        stage:
+            "tool_runtime_patch_preview",
+        operation:
+            "repo.patchPreview",
+        file:
+            normalizedFile,
+        reason:
+            "SEARCH_REPLACE_REQUIRED",
+        symptom:
+            context?.rawInput ||
+            args.intent ||
+            "",
+        wrongBehavior:
+            "PatchPreview was requested without exact search/replace.",
+        fixRule:
+            "Hydrate/read the file and extract exact blocks before showing preview.",
+        sourceTraceId:
+            context?.traceId ||
+            context?.analysisId ||
+            ""
+    });
+
     return {
         ok:
             true,
@@ -7341,6 +7447,34 @@ if (
         if (
             rewriteValidation.ok !== true
         ) {
+            recordToolRuntimeLearningIncident({
+                category:
+                    "PATCH_PREVIEW_VALIDATION",
+                status:
+                    "blocked",
+                stage:
+                    "tool_runtime_patch_preview",
+                operation:
+                    "repo.patchPreview",
+                file:
+                    normalizedFile,
+                reason:
+                    rewriteValidation.issues.join("_") ||
+                    "UNSAFE_REPLACE",
+                symptom:
+                    context?.rawInput ||
+                    args.intent ||
+                    "",
+                wrongBehavior:
+                    "PatchPreview replace failed runtime validation.",
+                fixRule:
+                    "Regenerate replace before preview when Tailwind classes, brackets, backticks or placeholders are invalid.",
+                sourceTraceId:
+                    context?.traceId ||
+                    context?.analysisId ||
+                    ""
+            });
+
             return {
                 ok:
                     false,
@@ -7372,6 +7506,33 @@ if (
             typeof hydratedContent === "string" &&
             !hydratedContent.includes(args.search)
         ) {
+            recordToolRuntimeLearningIncident({
+                category:
+                    "PATCH_PREVIEW_SAFETY",
+                status:
+                    "blocked",
+                stage:
+                    "tool_runtime_patch_preview",
+                operation:
+                    "repo.patchPreview",
+                file:
+                    normalizedFile,
+                reason:
+                    "SEARCH_BLOCK_NOT_FOUND",
+                symptom:
+                    context?.rawInput ||
+                    args.intent ||
+                    "",
+                wrongBehavior:
+                    "PatchPreview search block did not match hydrated repo content.",
+                fixRule:
+                    "Read/copy the exact current block before preview; never alter search manually.",
+                sourceTraceId:
+                    context?.traceId ||
+                    context?.analysisId ||
+                    ""
+            });
+
             return {
                 ok: false,
                 status:

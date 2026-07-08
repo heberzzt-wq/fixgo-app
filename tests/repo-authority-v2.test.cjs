@@ -54,7 +54,7 @@ function stripBrowserImports(source) {
     return kept.join("\n");
 }
 
-function loadGestiaCoreAgentLoopHelpers() {
+function loadGestiaCoreAgentLoopHelpers(options = {}) {
     const sourcePath =
         path.join(
             __dirname,
@@ -78,7 +78,9 @@ function loadGestiaCoreAgentLoopHelpers() {
         },
         exports: {},
         window: {
-            dispatchEvent() {}
+            dispatchEvent() {},
+            JarvisAutonomyEngine:
+                options.autonomyEngine || null
         },
         CustomEvent: function CustomEvent(type, init) {
             return {
@@ -107,7 +109,9 @@ module.exports = {
     buildObservationDrivenFollowUpToolCalls,
     composeObservationDrivenFinalResponse,
     buildCompactLayoutReplacement,
-    validatePatchPreviewRewrite
+    validatePatchPreviewRewrite,
+    recallAgentLoopLearningHints,
+    recordAgentLoopLearningIncident
 };`,
         sandbox,
         {
@@ -534,6 +538,89 @@ test("agent loop follow-up focuses a strong product UI primary candidate", () =>
     );
 });
 
+test("agent loop learning hints are advisory and do not authorize writes", () => {
+    const events =
+        [];
+
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers({
+            autonomyEngine: {
+                recall() {
+                    return {
+                        ok:
+                            true,
+                        total:
+                            1,
+                        lessons: [
+                            {
+                                category:
+                                    "candidate_ranking",
+                                reason:
+                                    "PRIMARY_CONFIDENT_PRODUCT_UI_EVIDENCE",
+                                lesson: {
+                                    diagnosis:
+                                        "candidate_ranking_product_ui",
+                                    avoid:
+                                        "No promover archivos meta como UI real."
+                                }
+                            }
+                        ]
+                    };
+                },
+                record(event) {
+                    events.push(event);
+                    return {
+                        ok:
+                            true,
+                        learned:
+                            true
+                    };
+                }
+            }
+        });
+
+    const hints =
+        helpers.recallAgentLoopLearningHints({
+            rawInput:
+                "Jarvis revisa un problema visual sin modificar nada",
+            category:
+                "CANDIDATE_RANKING",
+            stage:
+                "agent_loop_preplan",
+            operation:
+                "REPO_INVESTIGATION"
+        });
+
+    assert.equal(hints.ok, true);
+    assert.equal(hints.proposalAutonomy, true);
+    assert.equal(hints.writeAllowed, false);
+    assert.equal(hints.writeAuthorization, false);
+    assert.equal(hints.approvalRequiredForWrite, true);
+    assert.equal(hints.lessons.length, 1);
+
+    const recorded =
+        helpers.recordAgentLoopLearningIncident({
+            category:
+                "PATCH_PREVIEW_SAFETY",
+            status:
+                "success",
+            stage:
+                "agent_loop_patch_preview",
+            operation:
+                "PATCH_PREVIEW_PROPOSAL",
+            file:
+                "app-tecnico-b2b.js",
+            reason:
+                "EXACT_BLOCK_PATCH_PREVIEW_CANDIDATE"
+        });
+
+    assert.equal(recorded.ok, true);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].context.learningPolicy.writeAllowed, false);
+    assert.equal(events[0].context.learningPolicy.writeAuthorization, false);
+    assert.equal(events[0].context.learningPolicy.approvalRequiredForWrite, true);
+});
+
 test("agent loop extracts exact patchPreview candidate from anchored read", () => {
     const helpers =
         loadGestiaCoreAgentLoopHelpers();
@@ -828,7 +915,12 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.ok(followUpIndex > 0);
     assert.ok(coreFirstIndex > followUpIndex);
     assert.match(terminal, /LAST_PATCH_PREVIEW_MEMORY_SAVED_41_34/);
+    assert.match(terminal, /TERMINAL_LEARNING_RECORD_FAILED_41_35/);
+    assert.match(terminal, /CASUAL_GATE/);
+    assert.match(terminal, /FOLLOW_UP_MEMORY/);
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
+    assert.match(terminal, /agent-loop-v7-20260707-4135/);
+    assert.match(terminal, /jarvis-tools-v7-20260707-4135/);
 });

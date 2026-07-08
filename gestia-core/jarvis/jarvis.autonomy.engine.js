@@ -140,7 +140,10 @@ export function describeAutonomyLearning() {
             [...LEGACY_STORAGE_KEYS],
         capabilities: [
             "failure_pattern_learning",
+            "agent_loop_learning_hints",
+            "proposal_autonomy_advisory",
             "blocked_operation_recall",
+            "patch_preview_safety_learning",
             "safe_zone_legacy_advisory",
             "bounded_local_memory",
             "next_action_recommendation"
@@ -187,12 +190,18 @@ export function recordAutonomyEvent(input = {}) {
                 firstSeenAt: event.at,
                 lastSeenAt: event.at,
                 count: 0,
+                type: event.type,
+                category: event.category,
                 status: event.status,
                 reason: event.reason,
                 stage: event.stage,
                 file: event.file,
                 operation: event.operation,
                 issue: event.issue,
+                symptom: event.symptom,
+                wrongBehavior: event.wrongBehavior,
+                fixRule: event.fixRule,
+                relatedCommit: event.relatedCommit,
                 lesson,
                 examples: []
             };
@@ -205,12 +214,24 @@ export function recordAutonomyEvent(input = {}) {
         existing.file = event.file || existing.file;
         existing.operation = event.operation || existing.operation;
         existing.issue = event.issue || existing.issue;
+        existing.type = event.type || existing.type;
+        existing.category = event.category || existing.category;
+        existing.symptom = event.symptom || existing.symptom;
+        existing.wrongBehavior = event.wrongBehavior || existing.wrongBehavior;
+        existing.fixRule = event.fixRule || existing.fixRule;
+        existing.relatedCommit = event.relatedCommit || existing.relatedCommit;
         existing.lesson = lesson || existing.lesson;
         existing.examples.unshift({
             at: event.at,
+            category: event.category,
             file: event.file,
             stage: event.stage,
             reason: event.reason,
+            symptom: event.symptom,
+            wrongBehavior: event.wrongBehavior,
+            fixRule: event.fixRule,
+            relatedCommit: event.relatedCommit,
+            sourceTraceId: event.sourceTraceId,
             errorMessage: event.errorMessage,
             scanRisk: event.scanRisk,
             flags: event.flags
@@ -269,6 +290,12 @@ export function recallAutonomyLessons(input = {}) {
             stage: pattern.stage,
             reason: pattern.reason,
             issue: pattern.issue,
+            type: pattern.type,
+            category: pattern.category,
+            symptom: pattern.symptom,
+            wrongBehavior: pattern.wrongBehavior,
+            fixRule: pattern.fixRule,
+            relatedCommit: pattern.relatedCommit,
             lesson: pattern.lesson,
             lastSeenAt: pattern.lastSeenAt
         }))
@@ -317,6 +344,15 @@ function normalizeEvent(input = {}) {
             ""
         );
 
+    const category =
+        normalizeToken(
+            input.category ||
+            input.learningCategory ||
+            input.type ||
+            input.operation ||
+            ""
+        );
+
     const errorMessage =
         String(
             input.errorMessage ||
@@ -340,12 +376,19 @@ function normalizeEvent(input = {}) {
 
     return {
         at: now(),
+        type: normalizeToken(input.type || "learning_incident"),
+        category,
         status: normalizeStatus(input.status || "unknown"),
         stage: normalizeToken(input.stage || input.phase || "unknown"),
         operation: normalizeToken(input.operation || input.type || planner?.planType || "unknown"),
         file,
         reason,
         issue: normalizeToken(input.issue || planner?.issue || ""),
+        symptom: truncateText(input.symptom || input.objective || input.rawInput || "", 500),
+        wrongBehavior: truncateText(input.wrongBehavior || "", 500),
+        fixRule: truncateText(input.fixRule || input.lessonRule || "", 500),
+        relatedCommit: truncateText(input.relatedCommit || input.commit || "", 80),
+        sourceTraceId: truncateText(input.sourceTraceId || input.traceId || input.analysisId || "", 120),
         errorMessage,
         scanRisk: scan?.risk || null,
         flags,
@@ -393,8 +436,16 @@ function normalizeToken(value = "") {
         .replace(/^_+|_+$/g, "");
 }
 
+function truncateText(value = "", max = 500) {
+    return String(value || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, max);
+}
+
 function buildSignature(event = {}) {
     const parts = [
+        event.category || "",
         event.reason || event.status || "unknown",
         event.stage || "unknown",
         event.operation || "unknown",
@@ -425,8 +476,63 @@ function hashString(value = "") {
 
 function buildLesson(event = {}) {
     const reason = event.reason || "";
+    const category = event.category || "";
     const flags = event.flags || [];
     const findings = event.findings || [];
+
+    if (category === "follow_up_memory" || reason.includes("last_patch_preview_candidate")) {
+        return {
+            diagnosis: "follow_up_memory",
+            nextAction: "Usar el ultimo patchPreviewCandidate cuando el usuario pida vista previa del ajuste anterior.",
+            avoid: "No reinvestigar ni elegir otro archivo si existe propuesta previa valida y el usuario pide dry-run.",
+            confidence: 0.95
+        };
+    }
+
+    if (category === "patch_preview_validation" || reason.includes("invalid_tailwind") || reason.includes("unsafe_replace")) {
+        return {
+            diagnosis: "patch_preview_validation_failed",
+            nextAction: "Regenerar replace y validar clases, brackets, backticks y placeholders antes del preview.",
+            avoid: "No mostrar ni ejecutar patchPreview con clases Tailwind invalidas o template literals rotos.",
+            confidence: 0.97
+        };
+    }
+
+    if (category === "casual_gate" || reason.includes("casual_input_noop")) {
+        return {
+            diagnosis: "casual_input_noop",
+            nextAction: "Responder conversacionalmente cuando no exista objetivo tecnico u operativo claro.",
+            avoid: "No ejecutar Agent Loop, repo.search ni repo.grep para charla casual.",
+            confidence: 0.92
+        };
+    }
+
+    if (category === "candidate_ranking" || reason.includes("product_ui") || reason.includes("meta_engine")) {
+        return {
+            diagnosis: "candidate_ranking_product_ui",
+            nextAction: "Priorizar evidencia de UI real de producto sobre coincidencias en engines, guards, runtimes o tests.",
+            avoid: "No promover archivos meta/engine como principal salvo que el objetivo mencione planner, runtime, guard o seguridad.",
+            confidence: 0.9
+        };
+    }
+
+    if (category === "patch_preview_safety" || reason.includes("exact_block") || reason.includes("search_replace_required")) {
+        return {
+            diagnosis: "exact_patch_block_required",
+            nextAction: "Leer el rango anclado y extraer search/replace exacto antes de proponer preview.",
+            avoid: "No inventar search/replace ni generar diff sin bloque real encontrado en el repo.",
+            confidence: 0.96
+        };
+    }
+
+    if (category === "tool_selection" || reason.includes("audit_collapse")) {
+        return {
+            diagnosis: "audit_collapse_prevented",
+            nextAction: "Para sintomas concretos usar repo.search/repo.grep/repo.read/repo.diagnose antes de una respuesta final.",
+            avoid: "No caer en repo.audit generico cuando el usuario describe un problema localizado.",
+            confidence: 0.88
+        };
+    }
 
     if (reason.includes("empty") || findings.includes("EMPTY_SOURCE") || flags.includes("EMPTY_SOURCE")) {
         return {
@@ -485,6 +591,7 @@ function scorePattern(pattern = {}, query = {}) {
     let score = 0;
 
     if (pattern.signature === buildSignature(query)) score += 10;
+    if (pattern.category && query.category && pattern.category === query.category) score += 5;
     if (pattern.reason && pattern.reason === query.reason) score += 5;
     if (pattern.file && query.file && pattern.file === query.file) score += 4;
     if (pattern.stage && pattern.stage === query.stage) score += 3;

@@ -144,13 +144,13 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4134"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4135"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
 src="/gestia-core/gestia.runtime.v7.js?v=jarvis-runtime-macro-v2-20260618">
 </script>
-<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4134"></script>
+<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4135"></script>
 <script type="module" src="/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123"></script>
 <script type="module" src="/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123"></script>
 <script type="module" src="/gestia-core/jarvis/jarvis.language.core.v5.js"></script>
@@ -2125,6 +2125,87 @@ const readLastPatchPreviewCandidate =
         return null;
     };
 
+const recordTerminalLearningIncident =
+    function(input = {}) {
+        try {
+            const engine =
+                window.JarvisAutonomyEngine;
+
+            if (
+                !engine ||
+                typeof engine.record !== "function"
+            ) {
+                return null;
+            }
+
+            return engine.record({
+                type:
+                    "LEARNING_INCIDENT",
+                category:
+                    input.category ||
+                    "TERMINAL",
+                status:
+                    input.status ||
+                    "success",
+                stage:
+                    input.stage ||
+                    "terminal",
+                operation:
+                    input.operation ||
+                    input.category ||
+                    "TERMINAL",
+                file:
+                    input.file ||
+                    "",
+                reason:
+                    input.reason ||
+                    input.category ||
+                    "TERMINAL_LEARNING",
+                symptom:
+                    input.symptom ||
+                    input.rawInput ||
+                    "",
+                wrongBehavior:
+                    input.wrongBehavior ||
+                    "",
+                fixRule:
+                    input.fixRule ||
+                    "",
+                relatedCommit:
+                    "41.35",
+                sourceTraceId:
+                    input.sourceTraceId ||
+                    input.traceId ||
+                    "",
+                confidence:
+                    typeof input.confidence === "number"
+                        ? input.confidence
+                        : null,
+                context: {
+                    ...(input.context || {}),
+                    learningPolicy: {
+                        proposalAutonomy:
+                            true,
+                        writeAllowed:
+                            false,
+                        writeAuthorization:
+                            false,
+                        approvalRequiredForWrite:
+                            true
+                    }
+                }
+            });
+        }
+        catch(error) {
+            console.warn(
+                "[TERMINAL_LEARNING_RECORD_FAILED_41_35]",
+                error
+            );
+        }
+
+        return null;
+    };
+
 const rememberLastPatchPreviewCandidate =
     function({
         objective = "",
@@ -2160,6 +2241,32 @@ const rememberLastPatchPreviewCandidate =
                         validation.issues
                 }
             );
+
+            recordTerminalLearningIncident({
+                category:
+                    "PATCH_PREVIEW_VALIDATION",
+                status:
+                    "blocked",
+                stage:
+                    "terminal_patch_preview_memory",
+                operation:
+                    "PATCH_PREVIEW_CANDIDATE_STORE",
+                file:
+                    patchPreviewCandidate.file,
+                reason:
+                    validation.issues.join("_") ||
+                    "UNSAFE_REPLACE",
+                symptom:
+                    objective,
+                wrongBehavior:
+                    "Rejected unsafe patchPreviewCandidate before storing operational memory.",
+                fixRule:
+                    "Regenerate replace before storing a preview candidate if validation fails.",
+                sourceTraceId:
+                    traceId,
+                confidence:
+                    0.97
+            });
 
             return null;
         }
@@ -2230,6 +2337,29 @@ const rememberLastPatchPreviewCandidate =
                     memory.traceId
             }
         );
+
+        recordTerminalLearningIncident({
+            category:
+                "FOLLOW_UP_MEMORY",
+            status:
+                "success",
+            stage:
+                "terminal_patch_preview_memory",
+            operation:
+                "PATCH_PREVIEW_CANDIDATE_STORE",
+            file:
+                memory.primaryFile,
+            reason:
+                "LAST_PATCH_PREVIEW_CANDIDATE_STORED",
+            symptom:
+                objective,
+            fixRule:
+                "Reuse the stored candidate for natural dry-run follow-ups instead of reinvestigating.",
+            sourceTraceId:
+                traceId,
+            confidence:
+                0.93
+        });
 
         return memory;
     };
@@ -2338,6 +2468,27 @@ if (
                 }
             );
 
+            recordTerminalLearningIncident({
+                category:
+                    "CASUAL_GATE",
+                status:
+                    "success",
+                stage:
+                    "terminal_casual_gate",
+                operation:
+                    "CASUAL_GATE",
+                reason:
+                    "CASUAL_INPUT_NOOP",
+                symptom:
+                    comando,
+                fixRule:
+                    "Answer casually without Agent Loop or repo tools when there is no clear technical objective.",
+                sourceTraceId:
+                    currentTraceId,
+                confidence:
+                    0.9
+            });
+
             window.renderJarvisResponse?.(
                 "Jarvis",
                 buildCasualTerminalResponse(comando),
@@ -2359,6 +2510,29 @@ if (
             if (
                 !lastPatchPreviewMemory?.patchPreviewCandidate
             ) {
+                recordTerminalLearningIncident({
+                    category:
+                        "FOLLOW_UP_MEMORY",
+                    status:
+                        "blocked",
+                    stage:
+                        "terminal_patch_preview_follow_up",
+                    operation:
+                        "PATCH_PREVIEW_DRY_RUN",
+                    reason:
+                        "LAST_PATCH_PREVIEW_CANDIDATE_MISSING",
+                    symptom:
+                        comando,
+                    wrongBehavior:
+                        "User requested previous preview but no active patchPreviewCandidate existed.",
+                    fixRule:
+                        "Ask for diagnosis or patchPreviewCandidate before executing a natural dry-run follow-up.",
+                    sourceTraceId:
+                        currentTraceId,
+                    confidence:
+                        0.9
+                });
+
                 window.renderJarvisResponse?.(
                     "PatchPreview SIA7",
                     "No tengo una propuesta previa activa. Primero necesito diagnosticar o generar un patchPreviewCandidate.",
@@ -2398,6 +2572,34 @@ if (
                             currentTraceId
                     }
                 );
+
+                recordTerminalLearningIncident({
+                    category:
+                        "PATCH_PREVIEW_VALIDATION",
+                    status:
+                        "blocked",
+                    stage:
+                        "terminal_patch_preview_follow_up",
+                    operation:
+                        "PATCH_PREVIEW_DRY_RUN",
+                    file:
+                        lastPatchPreviewMemory.primaryFile ||
+                        candidate.file ||
+                        "",
+                    reason:
+                        validation.issues.join("_") ||
+                        "UNSAFE_REPLACE",
+                    symptom:
+                        comando,
+                    wrongBehavior:
+                        "Natural follow-up found invalid stored replace before preview.",
+                    fixRule:
+                        "Regenerate replace and keep dry-run blocked until validation passes.",
+                    sourceTraceId:
+                        currentTraceId,
+                    confidence:
+                        0.97
+                });
 
                 window.renderJarvisResponse?.(
                     "PatchPreview SIA7",
@@ -2502,6 +2704,43 @@ if (
                 previewResult?.result ||
                 previewResult ||
                 null;
+
+            recordTerminalLearningIncident({
+                category:
+                    "FOLLOW_UP_MEMORY",
+                status:
+                    previewPayload?.ok === false
+                        ? "blocked"
+                        : "success",
+                stage:
+                    "terminal_patch_preview_follow_up",
+                operation:
+                    "PATCH_PREVIEW_DRY_RUN",
+                file:
+                    previewArgs.file,
+                reason:
+                    previewPayload?.ok === false
+                        ? (
+                            previewPayload?.status ||
+                            previewPayload?.reason ||
+                            "PATCH_PREVIEW_DRY_RUN_BLOCKED"
+                        )
+                        : "LAST_PATCH_PREVIEW_CANDIDATE_REUSED",
+                symptom:
+                    comando,
+                fixRule:
+                    "Use stored patchPreviewCandidate for natural dry-run follow-ups and keep approved=false.",
+                sourceTraceId:
+                    currentTraceId,
+                confidence:
+                    0.93,
+                context: {
+                    dryRun:
+                        true,
+                    approved:
+                        false
+                }
+            });
 
             window.renderJarvisResponse?.(
                 previewPayload?.ok === false
