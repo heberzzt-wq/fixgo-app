@@ -4194,6 +4194,85 @@ console.log(
                             .join("\n")
                         : "";
 
+                const visualPatchProposal =
+                    patchPreviewCandidate
+                        ? {
+                            terminalType:
+                                "SIA7_VISUAL_PATCH_PROPOSAL",
+                            title:
+                                "Propuesta visual SIA7",
+                            objective:
+                                plannerObjective,
+                            file:
+                                patchPreviewCandidate.file ||
+                                finalResponse?.file ||
+                                "ND",
+                            lineRange: {
+                                startLine:
+                                    patchPreviewCandidate.startLine ||
+                                    finalResponse
+                                        ?.lineAnchoredDiagnosis
+                                        ?.sections
+                                        ?.[0]
+                                        ?.start ||
+                                    null,
+                                endLine:
+                                    patchPreviewCandidate.endLine ||
+                                    finalResponse
+                                        ?.lineAnchoredDiagnosis
+                                        ?.sections
+                                        ?.[0]
+                                        ?.end ||
+                                    null
+                            },
+                            evidence:
+                                finalResponse
+                                    ?.lineAnchoredDiagnosis
+                                    ?.sections ||
+                                [],
+                            cause:
+                                finalResponse?.text
+                                    ?.split("Causa probable:")
+                                    ?.[1]
+                                    ?.split("Recomendacion:")
+                                    ?.[0]
+                                    ?.trim() ||
+                                "Ver diagnostico detallado del Agent Loop.",
+                            fileRisk:
+                                finalResponse?.risk ||
+                                "ND",
+                            patchRisk:
+                                patchPreviewCandidate?.blocked
+                                    ? "BLOCKED"
+                                    : "LOW_DRY_RUN",
+                            learningUsed:
+                                finalResponse?.learningHints ||
+                                coreResult?.result?.learning?.hints ||
+                                [],
+                            search:
+                                patchPreviewCandidate.search ||
+                                "",
+                            replace:
+                                patchPreviewCandidate.replace ||
+                                "",
+                            command:
+                                patchPreviewCandidate.command ||
+                                "",
+                            approvalCommand:
+                                `Jarvis, apruebo patch ${patchPreviewCandidate.file || ""}`.trim(),
+                            adjustCommand:
+                                "Jarvis, ajusta propuesta sin escribir archivos",
+                            cancelCommand:
+                                "Cancelar propuesta",
+                            dryRun:
+                                true,
+                            writeAllowed:
+                                false,
+                            status:
+                                "DRY_RUN_READY_NO_WRITE"
+                        }
+                        : null;
+
                 const multiToolSummary =
                     [
                         ...(
@@ -4232,8 +4311,11 @@ console.log(
                         .slice(0, 8000);
 
                 window.renderJarvisResponse?.(
-                    "Agent Loop SIA7",
-                    multiToolSummary,
+                    visualPatchProposal
+                        ? "Propuesta visual SIA7"
+                        : "Agent Loop SIA7",
+                    visualPatchProposal ||
+                        multiToolSummary,
                     coreResult?.status === "FAILED"
                         ? "warning"
                         : "info"
@@ -5683,6 +5765,107 @@ window.addEventListener("load", () => {
       result;
 
     if (!payload) return "";
+
+    if (payload.terminalType === "SIA7_VISUAL_PATCH_PROPOSAL") {
+      const evidence =
+        Array.isArray(payload.evidence)
+          ? payload.evidence.slice(0, 4)
+          : [];
+
+      const learningUsed =
+        Array.isArray(payload.learningUsed)
+          ? payload.learningUsed.slice(0, 3)
+          : [];
+
+      const range =
+        payload.lineRange?.startLine && payload.lineRange?.endLine
+          ? `${payload.lineRange.startLine}-${payload.lineRange.endLine}`
+          : "ND";
+
+      const approvalCommand =
+        payload.approvalCommand ||
+        `Jarvis, apruebo patch ${payload.file || ""}`.trim();
+
+      return `
+        <div class="codex-card border border-cyan-500/40 rounded-xl p-4 my-3 bg-black/30">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div class="text-[11px] uppercase tracking-[0.18em] text-cyan-300/80">Propuesta visual SIA7</div>
+              <div class="font-bold text-cyan-200 mt-1">${escapeHtml(payload.file || "ND")}</div>
+            </div>
+            <div class="text-xs rounded-full border border-emerald-500/40 text-emerald-200 px-3 py-1">dryRun / sin escritura</div>
+          </div>
+
+          <div class="grid md:grid-cols-3 gap-3 mt-4 text-xs">
+            <div class="border border-slate-700 rounded-lg p-3">
+              <div class="text-slate-400">Líneas</div>
+              <div class="text-slate-100 font-mono mt-1">${escapeHtml(range)}</div>
+            </div>
+            <div class="border border-slate-700 rounded-lg p-3">
+              <div class="text-slate-400">Riesgo archivo</div>
+              <div class="text-slate-100 font-mono mt-1">${escapeHtml(payload.fileRisk || "ND")}</div>
+            </div>
+            <div class="border border-slate-700 rounded-lg p-3">
+              <div class="text-slate-400">Riesgo patch</div>
+              <div class="text-slate-100 font-mono mt-1">${escapeHtml(payload.patchRisk || "LOW_DRY_RUN")}</div>
+            </div>
+          </div>
+
+          <div class="mt-4 text-sm">
+            <div class="font-semibold text-slate-100">Evidencia</div>
+            <div class="mt-2 space-y-1 text-xs text-slate-300">
+              ${
+                evidence.length
+                  ? evidence.map(item =>
+                      `<div><code>${escapeHtml(item.file || payload.file || "ND")}:${escapeHtml(item.line || item.start || "ND")}</code> ${escapeHtml(item.snippet || "")}</div>`
+                    ).join("")
+                  : `<div class="text-slate-400">Sin evidencia anclada disponible.</div>`
+              }
+            </div>
+          </div>
+
+          <div class="mt-4 text-sm">
+            <div class="font-semibold text-slate-100">Causa probable</div>
+            <div class="mt-2 text-xs text-slate-300 whitespace-pre-wrap">${escapeHtml(payload.cause || "Ver diagnóstico detallado del Agent Loop.")}</div>
+          </div>
+
+          <div class="mt-4 text-sm">
+            <div class="font-semibold text-slate-100">Aprendizaje usado</div>
+            <div class="mt-2 space-y-1 text-xs text-slate-300">
+              ${
+                learningUsed.length
+                  ? learningUsed.map(item =>
+                      `<div><code>${escapeHtml(item.lesson?.diagnosis || item.category || item.reason || "learning_hint")}</code> ${escapeHtml(item.lesson?.avoid || item.fixRule || "")}</div>`
+                    ).join("")
+                  : `<div class="text-slate-400">Sin hints persistentes aplicados en esta respuesta.</div>`
+              }
+            </div>
+          </div>
+
+          <div class="mt-4 grid md:grid-cols-2 gap-3 text-xs">
+            <div>
+              <div class="font-semibold text-slate-100 mb-2">Search exacto</div>
+              <pre class="max-h-44 overflow-auto rounded-lg border border-slate-700 bg-slate-950/70 p-3 whitespace-pre-wrap">${escapeHtml(payload.search || "ND")}</pre>
+            </div>
+            <div>
+              <div class="font-semibold text-slate-100 mb-2">Replace candidato</div>
+              <pre class="max-h-44 overflow-auto rounded-lg border border-slate-700 bg-slate-950/70 p-3 whitespace-pre-wrap">${escapeHtml(payload.replace || "ND")}</pre>
+            </div>
+          </div>
+
+          <div class="mt-4 flex flex-wrap gap-2 text-xs">
+            <button type="button" class="px-3 py-2 rounded-lg border border-emerald-500/40 text-emerald-200 bg-emerald-500/10" title="No ejecuta escritura directa; usa el comando de aprobación existente.">Aprobar safe write</button>
+            <button type="button" class="px-3 py-2 rounded-lg border border-amber-500/40 text-amber-200 bg-amber-500/10">Ajustar propuesta</button>
+            <button type="button" class="px-3 py-2 rounded-lg border border-slate-600 text-slate-200 bg-slate-800/60">Cancelar</button>
+          </div>
+
+          <div class="mt-3 text-xs text-slate-400">
+            Comando de aprobación preparado, no ejecutado:
+            <code class="block mt-1 text-emerald-300 whitespace-pre-wrap">${escapeHtml(approvalCommand)}</code>
+          </div>
+        </div>
+      `;
+    }
 
     if (payload.terminalType === "CODEX_V2_APPROVAL") {
       return `

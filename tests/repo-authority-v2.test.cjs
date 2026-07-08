@@ -924,3 +924,29 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /agent-loop-v7-20260707-4135/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4135/);
 });
+
+test("terminal renders visual patch proposal card without direct write execution", () => {
+    const terminal =
+        fs.readFileSync(
+            path.join(
+                __dirname,
+                "..",
+                "gestia-terminal.html"
+            ),
+            "utf8"
+        );
+
+    assert.match(terminal, /SIA7_VISUAL_PATCH_PROPOSAL/);
+    assert.match(terminal, /Propuesta visual SIA7/);
+    assert.match(terminal, /dryRun \/ sin escritura/);
+    assert.match(terminal, /Riesgo archivo/);
+    assert.match(terminal, /Riesgo patch/);
+    assert.match(terminal, /Aprendizaje usado/);
+    assert.match(terminal, /Search exacto/);
+    assert.match(terminal, /Replace candidato/);
+    assert.match(terminal, /Comando de aprobación preparado, no ejecutado/);
+    assert.match(terminal, /Aprobar safe write/);
+    assert.doesNotMatch(terminal, /Aprobar safe write[^<]*<\/button>\s*<script/i);
+    assert.doesNotMatch(terminal, /SIA7_VISUAL_PATCH_PROPOSAL[\s\S]{0,3000}repo\.safePatchApply\s*\(/);
+    assert.doesNotMatch(terminal, /SIA7_VISUAL_PATCH_PROPOSAL[\s\S]{0,3000}repo\.write\s*\(/);
+});
