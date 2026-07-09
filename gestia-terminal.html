@@ -3912,16 +3912,45 @@ if (
             }
         }
 
-                const activePatchProposal =
+                        const adjustmentTargetFile =
+            window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__?.file ||
+            "";
+
+        const activeVisualPatchProposal =
+            window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ || null;
+
+        const activeSia7PatchProposal =
+            typeof readSia7ActivePatchProposal === "function"
+                ? readSia7ActivePatchProposal()
+                : null;
+
+        const activeLegacyPatchProposal =
+            readTerminalActivePatchProposal();
+
+        const activePatchProposal =
             terminalBrainRoute?.mode === "PROPOSAL_ADJUSTMENT"
                 ? (
-                    typeof readSia7ActivePatchProposal === "function"
-                        ? readSia7ActivePatchProposal()
+                    adjustmentTargetFile &&
+                    activeVisualPatchProposal?.file === adjustmentTargetFile
+                        ? activeVisualPatchProposal
                         : null
                 ) ||
-                window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ ||
-                readTerminalActivePatchProposal()
-                : readTerminalActivePatchProposal();
+                (
+                    adjustmentTargetFile &&
+                    activeSia7PatchProposal?.file === adjustmentTargetFile
+                        ? activeSia7PatchProposal
+                        : null
+                ) ||
+                (
+                    adjustmentTargetFile &&
+                    activeLegacyPatchProposal?.file === adjustmentTargetFile
+                        ? activeLegacyPatchProposal
+                        : null
+                ) ||
+                activeVisualPatchProposal ||
+                activeSia7PatchProposal ||
+                activeLegacyPatchProposal
+                : activeLegacyPatchProposal;
 
         const shouldBuildProposalAdjustmentInput =
             activePatchProposal?.file &&
