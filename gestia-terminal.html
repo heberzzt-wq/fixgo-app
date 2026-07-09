@@ -3228,6 +3228,112 @@ if (
             }
         );
 
+                const sia7ApprovalMatch =
+            String(comando || "")
+                .trim()
+                .match(
+                    /^(?:jarvis,\s*)?(?:apruebo|aprobar|aprueba|escribe)\s+patch\s+([a-zA-Z0-9_.\-\/]+)$/i
+                );
+
+        if (
+            sia7ApprovalMatch &&
+            window.ToolsBridge?.executeAndCompose
+        ) {
+            const approvalFile =
+                sia7ApprovalMatch[1]
+                    ?.trim()
+                    ?.replace(/^\.\/+/, "")
+                    ?.replace(/^\/+/, "");
+
+            const approvalProposal =
+                getSia7ApprovalProposalForFile(
+                    approvalFile
+                );
+
+            if (
+                approvalProposal?.file &&
+                approvalProposal?.search &&
+                approvalProposal?.replace
+            ) {
+                const approvalArgs =
+                    buildSia7SafePatchApprovalPayload(
+                        approvalProposal,
+                        currentTraceId
+                    );
+
+                console.info(
+                    "[SIA7_VISUAL_PATCH_APPROVAL_HYDRATED_41_42_9]",
+                    {
+                        file:
+                            approvalArgs.file,
+                        traceId:
+                            currentTraceId,
+                        source:
+                            approvalArgs.source
+                    }
+                );
+
+                const approvalResult =
+                    await window.ToolsBridge.executeAndCompose(
+                        "repo.safePatchApply",
+                        approvalArgs,
+                        {
+                            rawInput:
+                                comando,
+                            analysisId:
+                                currentTraceId,
+                            traceId:
+                                currentTraceId,
+                            source:
+                                "terminal_sia7_visual_patch_approval_41_42_9",
+                            approved:
+                                true,
+                            codexApproved:
+                                true,
+                            humanApproved:
+                                true
+                        }
+                    );
+
+                window.renderJarvisResponse?.(
+                    "PATCH APPROVAL",
+                    {
+                        terminalType:
+                            "CODEX_V2_APPROVAL",
+                        ok:
+                            approvalResult?.ok !== false,
+                        blocked:
+                            approvalResult?.blocked === true,
+                        file:
+                            approvalArgs.file,
+                        code:
+                            approvalResult?.code ||
+                            approvalResult?.data?.code ||
+                            "SIA7_VISUAL_PATCH_APPROVAL_APPLIED",
+                        result:
+                            approvalResult
+                    },
+                    approvalResult?.ok === false || approvalResult?.blocked
+                        ? "warning"
+                        : "success"
+                );
+
+                handled =
+                    true;
+
+                return;
+            }
+
+            console.warn(
+                "[SIA7_VISUAL_PATCH_APPROVAL_MISSING_41_42_9]",
+                {
+                    file:
+                        approvalFile,
+                    traceId:
+                        currentTraceId
+                }
+            );
+        }
                 /* =====================================================
            JARVIS CODEX V2 — TERMINAL CORE-FIRST INTERCEPT
            Commit 23 Mega-Pack
@@ -6597,6 +6703,66 @@ window.addEventListener("load", () => {
     if (typeof window.renderJarvisResponse === "function") {
       window.renderJarvisResponse(title, message, type);
     }
+  }
+
+    function getSia7ApprovalProposalForFile(file = "") {
+    const normalizedFile =
+      String(file || "")
+        .trim()
+        .replace(/^\.\/+/, "")
+        .replace(/^\/+/, "");
+
+    const candidates =
+      [
+        window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ || null,
+        typeof readSia7ActivePatchProposal === "function"
+          ? readSia7ActivePatchProposal()
+          : null,
+        typeof readTerminalActivePatchProposal === "function"
+          ? readTerminalActivePatchProposal()
+          : null
+      ]
+        .filter(Boolean);
+
+    return candidates.find(proposal =>
+      proposal?.file &&
+      proposal?.search &&
+      proposal?.replace &&
+      String(proposal.file)
+        .trim()
+        .replace(/^\.\/+/, "")
+        .replace(/^\/+/, "") === normalizedFile
+    ) || null;
+  }
+
+  function buildSia7SafePatchApprovalPayload(proposal = {}, traceId = "") {
+    return {
+      file:
+        proposal.file || "",
+      path:
+        proposal.file || "",
+      search:
+        proposal.search || "",
+      replace:
+        proposal.replace || "",
+      dryRun:
+        false,
+      approved:
+        true,
+      codexApproved:
+        true,
+      humanApproved:
+        true,
+      source:
+        "sia7_visual_patch_approval_hydration_41_42_9",
+      traceId,
+      lineRange:
+        proposal.lineRange || null,
+      fileRisk:
+        proposal.fileRisk || proposal.risk?.file || "ND",
+      patchRisk:
+        proposal.patchRisk || proposal.risk?.patch || "LOW_DRY_RUN"
+    };
   }
 
   function readSia7ProposalAdjustmentInFlight(payload = {}) {
