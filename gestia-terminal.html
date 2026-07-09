@@ -2834,6 +2834,180 @@ const buildPatchPreviewFollowUpText =
             .join("\n");
     };
 
+    const sia7TopLevelApprovalMatch =
+    String(comando || "")
+        .trim()
+        .match(
+            /^(?:jarvis,\s*)?(?:apruebo|aprobar|aprueba|escribe)\s+patch\s+([a-zA-Z0-9_.\-\/]+)\s*$/i
+        );
+
+if (sia7TopLevelApprovalMatch) {
+    const approvalFile =
+        sia7TopLevelApprovalMatch[1]
+            ?.trim()
+            ?.replace(/^\.\/+/, "")
+            ?.replace(/^\/+/, "");
+
+    const approvalProposal =
+        typeof getSia7ApprovalProposalForFile === "function"
+            ? getSia7ApprovalProposalForFile(approvalFile)
+            : null;
+
+    if (
+        !approvalProposal?.file ||
+        !approvalProposal?.search ||
+        !approvalProposal?.replace
+    ) {
+        console.warn(
+            "[SIA7_TOP_LEVEL_PATCH_AUTHORITY_41_43_1]",
+            {
+                file:
+                    approvalFile,
+                status:
+                    "blocked",
+                reason:
+                    "ACTIVE_SIA7_PATCH_PROPOSAL_MISSING",
+                traceId:
+                    currentTraceId
+            }
+        );
+
+        window.renderJarvisResponse?.(
+            "PATCH APPROVAL",
+            {
+                terminalType:
+                    "CODEX_V2_APPROVAL",
+                ok:
+                    false,
+                blocked:
+                    true,
+                file:
+                    approvalFile || "",
+                code:
+                    "ACTIVE_SIA7_PATCH_PROPOSAL_MISSING",
+                message:
+                    "Comando de patch contenido por SIA7. No existe propuesta activa con search/replace para este archivo. No se enviará a Plan Preview ni a rutas legacy."
+            },
+            "warning"
+        );
+
+        handled =
+            true;
+
+        return;
+    }
+
+    if (!window.ToolsBridge?.executeAndCompose) {
+        console.warn(
+            "[SIA7_TOP_LEVEL_PATCH_AUTHORITY_41_43_1]",
+            {
+                file:
+                    approvalFile,
+                status:
+                    "blocked",
+                reason:
+                    "TOOLS_BRIDGE_NOT_READY",
+                traceId:
+                    currentTraceId
+            }
+        );
+
+        window.renderJarvisResponse?.(
+            "PATCH APPROVAL",
+            {
+                terminalType:
+                    "CODEX_V2_APPROVAL",
+                ok:
+                    false,
+                blocked:
+                    true,
+                file:
+                    approvalFile || "",
+                code:
+                    "TOOLS_BRIDGE_NOT_READY",
+                message:
+                    "Comando de patch contenido por SIA7. Bridge no disponible; no se ejecutó safePatchApply y no se enviará a Plan Preview."
+            },
+            "warning"
+        );
+
+        handled =
+            true;
+
+        return;
+    }
+
+    const approvalArgs =
+        buildSia7SafePatchApprovalPayload(
+            approvalProposal,
+            currentTraceId
+        );
+
+    console.info(
+        "[SIA7_TOP_LEVEL_PATCH_AUTHORITY_41_43_1]",
+        {
+            file:
+                approvalArgs.file,
+            status:
+                "hydrated",
+            traceId:
+                currentTraceId,
+            source:
+                approvalArgs.source
+        }
+    );
+
+    const approvalResult =
+        await window.ToolsBridge.executeAndCompose(
+            "repo.safePatchApply",
+            approvalArgs,
+            {
+                rawInput:
+                    comando,
+                analysisId:
+                    currentTraceId,
+                traceId:
+                    currentTraceId,
+                source:
+                    "terminal_sia7_top_level_patch_authority_41_43_1",
+                approved:
+                    true,
+                codexApproved:
+                    true,
+                humanApproved:
+                    true
+            }
+        );
+
+    window.renderJarvisResponse?.(
+        "PATCH APPROVAL",
+        {
+            terminalType:
+                "CODEX_V2_APPROVAL",
+            ok:
+                approvalResult?.ok !== false,
+            blocked:
+                approvalResult?.blocked === true,
+            file:
+                approvalArgs.file,
+            code:
+                approvalResult?.code ||
+                approvalResult?.data?.code ||
+                "SIA7_PATCH_APPROVAL_APPLIED_BY_TOP_LEVEL_AUTHORITY",
+            result:
+                approvalResult
+        },
+        approvalResult?.ok === false || approvalResult?.blocked
+            ? "warning"
+            : "success"
+    );
+
+    handled =
+        true;
+
+    return;
+}
+
 if (
     window.GestiaCore?.procesarIntencion &&
     !["arre", "confirmar", "ok"].includes(cmd)
