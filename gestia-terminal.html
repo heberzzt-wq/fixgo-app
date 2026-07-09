@@ -6848,6 +6848,45 @@ if (
       const adjustmentInFlight =
         readSia7ProposalAdjustmentInFlight(payload);
 
+              const adjustmentTargetFile =
+        window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__?.file ||
+        "";
+
+      if (
+        adjustmentTargetFile &&
+        payload.file &&
+        payload.file !== adjustmentTargetFile
+      ) {
+        console.warn(
+          "[SIA7_CROSS_FILE_ADJUSTMENT_BLOCKED_41_42_4]",
+          {
+            expectedFile:
+              adjustmentTargetFile,
+            receivedFile:
+              payload.file,
+            terminalType:
+              payload.terminalType
+          }
+        );
+
+        notifySia7ProposalAction(
+          "Ajuste bloqueado",
+          [
+            "El agente intento cambiar de archivo durante un ajuste supervisado.",
+            "",
+            `Archivo esperado: ${adjustmentTargetFile}`,
+            `Archivo recibido: ${payload.file}`,
+            "",
+            "No se renderizo la propuesta contaminada.",
+            "No se ejecuto repo.write.",
+            "No se ejecuto repo.safePatchApply."
+          ].join("\n"),
+          "warning"
+        );
+
+        return "";
+      }
+
       window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ =
         payload;
 
