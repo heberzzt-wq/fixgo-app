@@ -3976,12 +3976,47 @@ if (
             activePatchProposal?.file &&
             terminalBrainRoute?.mode === "PROPOSAL_ADJUSTMENT";
 
+                const lockedAdjustmentFile =
+            shouldBuildProposalAdjustmentInput
+                ? (
+                    window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__?.lockedFile ||
+                    window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__?.file ||
+                    activePatchProposal?.file ||
+                    ""
+                )
+                : "";
+
+        const proposalAdjustmentChainLock =
+            shouldBuildProposalAdjustmentInput
+                ? [
+                    "",
+                    "SIA7_CHAIN_OF_COMMAND_LOCK_41_42_6:",
+                    `targetFile=${lockedAdjustmentFile}`,
+                    "Regla obligatoria:",
+                    "- No puedes cambiar targetFile.",
+                    "- No puedes proponer otro archivo.",
+                    "- No puedes usar gestia-terminal.html como destino si targetFile es otro archivo.",
+                    "- No ejecutes diagnostico libre para reelegir archivo.",
+                    "- No reemplaces la propuesta activa por otra de distinto archivo.",
+                    "- Solo puedes ajustar search/replace de la propuesta activa.",
+                    "- Si no puedes ajustar ese mismo archivo, responde bloqueado sin proponer otro archivo.",
+                    "",
+                    "Propuesta activa bloqueada:",
+                    `file=${activePatchProposal?.file || ""}`,
+                    `search=${activePatchProposal?.search || ""}`,
+                    `replace=${activePatchProposal?.replace || ""}`
+                ].join("\n")
+                : "";
+
         const coreInput =
             shouldBuildProposalAdjustmentInput
-                ? buildSia7ProposalAdjustmentInput(
-                    comando,
-                    activePatchProposal
-                )
+                ? [
+                    buildSia7ProposalAdjustmentInput(
+                        comando,
+                        activePatchProposal
+                    ),
+                    proposalAdjustmentChainLock
+                ].join("\n")
                 : comando;
 
         if (
@@ -4019,8 +4054,18 @@ if (
                         "gestia_terminal_core_first_v7",
                     traceId:
                         currentTraceId,
-                    proposalAdjustmentContext:
-                        activePatchProposal || null
+                                        proposalAdjustmentContext:
+                        shouldBuildProposalAdjustmentInput
+                            ? {
+                                ...activePatchProposal,
+                                lockedFile:
+                                    lockedAdjustmentFile,
+                                chainOfCommandLock:
+                                    true,
+                                source:
+                                    "terminal_adjustment_chain_lock_41_42_6"
+                            }
+                            : null
                 }
             );
 
@@ -6656,8 +6701,38 @@ if (
         return;
       }
 
-      if (action === "adjust-proposal") {
+            if (action === "adjust-proposal") {
         rememberSia7ActivePatchProposal(proposal);
+
+        window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__ =
+          {
+            file:
+              proposal.file || "",
+            lockedFile:
+              proposal.file || "",
+            search:
+              proposal.search || "",
+            replace:
+              proposal.replace || "",
+            lineRange:
+              proposal.lineRange || null,
+            source:
+              "adjust_proposal_button_41_42_6",
+            startedAt:
+              Date.now()
+          };
+
+        console.info(
+          "[SIA7_CHAIN_OF_COMMAND_LOCKED_41_42_6]",
+          {
+            file:
+              proposal.file || "",
+            lineRange:
+              proposal.lineRange || null,
+            source:
+              "adjust_proposal_button"
+          }
+        );
 
         setSia7TerminalInput(
           `Jarvis, ajusta la propuesta anterior para ${proposal.file || "el archivo"}: `
