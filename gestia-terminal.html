@@ -3235,10 +3235,7 @@ if (
                     /^(?:jarvis,\s*)?(?:apruebo|aprobar|aprueba|escribe)\s+patch\s+([a-zA-Z0-9_.\-\/]+)$/i
                 );
 
-        if (
-            sia7ApprovalMatch &&
-            window.ToolsBridge?.executeAndCompose
-        ) {
+                if (sia7ApprovalMatch) {
             const approvalFile =
                 sia7ApprovalMatch[1]
                     ?.trim()
@@ -3251,49 +3248,23 @@ if (
                 );
 
             if (
-                approvalProposal?.file &&
-                approvalProposal?.search &&
-                approvalProposal?.replace
+                !approvalProposal?.file ||
+                !approvalProposal?.search ||
+                !approvalProposal?.replace
             ) {
-                const approvalArgs =
-                    buildSia7SafePatchApprovalPayload(
-                        approvalProposal,
-                        currentTraceId
-                    );
-
-                console.info(
-                    "[SIA7_VISUAL_PATCH_APPROVAL_HYDRATED_41_42_9]",
+                console.warn(
+                    "[SIA7_CODEX_PATCH_AUTHORITY_41_43_0]",
                     {
                         file:
-                            approvalArgs.file,
+                            approvalFile,
+                        status:
+                            "blocked",
+                        reason:
+                            "ACTIVE_SIA7_PATCH_PROPOSAL_MISSING",
                         traceId:
-                            currentTraceId,
-                        source:
-                            approvalArgs.source
+                            currentTraceId
                     }
                 );
-
-                const approvalResult =
-                    await window.ToolsBridge.executeAndCompose(
-                        "repo.safePatchApply",
-                        approvalArgs,
-                        {
-                            rawInput:
-                                comando,
-                            analysisId:
-                                currentTraceId,
-                            traceId:
-                                currentTraceId,
-                            source:
-                                "terminal_sia7_visual_patch_approval_41_42_9",
-                            approved:
-                                true,
-                            codexApproved:
-                                true,
-                            humanApproved:
-                                true
-                        }
-                    );
 
                 window.renderJarvisResponse?.(
                     "PATCH APPROVAL",
@@ -3301,21 +3272,17 @@ if (
                         terminalType:
                             "CODEX_V2_APPROVAL",
                         ok:
-                            approvalResult?.ok !== false,
+                            false,
                         blocked:
-                            approvalResult?.blocked === true,
+                            true,
                         file:
-                            approvalArgs.file,
+                            approvalFile || "",
                         code:
-                            approvalResult?.code ||
-                            approvalResult?.data?.code ||
-                            "SIA7_VISUAL_PATCH_APPROVAL_APPLIED",
-                        result:
-                            approvalResult
+                            "ACTIVE_SIA7_PATCH_PROPOSAL_MISSING",
+                        message:
+                            "No encontré propuesta visual SIA7 activa con search/replace para este archivo. El comando queda contenido por SIA7 y no se enviará a CodexV2 viejo ni a Plan Preview."
                     },
-                    approvalResult?.ok === false || approvalResult?.blocked
-                        ? "warning"
-                        : "success"
+                    "warning"
                 );
 
                 handled =
@@ -3324,15 +3291,115 @@ if (
                 return;
             }
 
-            console.warn(
-                "[SIA7_VISUAL_PATCH_APPROVAL_MISSING_41_42_9]",
+            if (!window.ToolsBridge?.executeAndCompose) {
+                console.warn(
+                    "[SIA7_CODEX_PATCH_AUTHORITY_41_43_0]",
+                    {
+                        file:
+                            approvalFile,
+                        status:
+                            "blocked",
+                        reason:
+                            "TOOLS_BRIDGE_NOT_READY",
+                        traceId:
+                            currentTraceId
+                    }
+                );
+
+                window.renderJarvisResponse?.(
+                    "PATCH APPROVAL",
+                    {
+                        terminalType:
+                            "CODEX_V2_APPROVAL",
+                        ok:
+                            false,
+                        blocked:
+                            true,
+                        file:
+                            approvalFile || "",
+                        code:
+                            "TOOLS_BRIDGE_NOT_READY",
+                        message:
+                            "Bridge de herramientas no disponible. No se ejecutó repo.safePatchApply y el comando no se enviará a rutas legacy."
+                    },
+                    "warning"
+                );
+
+                handled =
+                    true;
+
+                return;
+            }
+
+            const approvalArgs =
+                buildSia7SafePatchApprovalPayload(
+                    approvalProposal,
+                    currentTraceId
+                );
+
+            console.info(
+                "[SIA7_CODEX_PATCH_AUTHORITY_41_43_0]",
                 {
                     file:
-                        approvalFile,
+                        approvalArgs.file,
+                    status:
+                        "hydrated",
                     traceId:
-                        currentTraceId
+                        currentTraceId,
+                    source:
+                        approvalArgs.source
                 }
             );
+
+            const approvalResult =
+                await window.ToolsBridge.executeAndCompose(
+                    "repo.safePatchApply",
+                    approvalArgs,
+                    {
+                        rawInput:
+                            comando,
+                        analysisId:
+                            currentTraceId,
+                        traceId:
+                            currentTraceId,
+                        source:
+                            "terminal_sia7_codex_patch_authority_41_43_0",
+                        approved:
+                            true,
+                        codexApproved:
+                            true,
+                        humanApproved:
+                            true
+                    }
+                );
+
+            window.renderJarvisResponse?.(
+                "PATCH APPROVAL",
+                {
+                    terminalType:
+                        "CODEX_V2_APPROVAL",
+                    ok:
+                        approvalResult?.ok !== false,
+                    blocked:
+                        approvalResult?.blocked === true,
+                    file:
+                        approvalArgs.file,
+                    code:
+                        approvalResult?.code ||
+                        approvalResult?.data?.code ||
+                        "SIA7_PATCH_APPROVAL_APPLIED_BY_AUTHORITY",
+                    result:
+                        approvalResult
+                },
+                approvalResult?.ok === false || approvalResult?.blocked
+                    ? "warning"
+                    : "success"
+            );
+
+            handled =
+                true;
+
+            return;
         }
                 /* =====================================================
            JARVIS CODEX V2 — TERMINAL CORE-FIRST INTERCEPT
