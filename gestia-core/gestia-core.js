@@ -1801,6 +1801,30 @@ function buildObservationDrivenFollowUpToolCalls({
         );
     }
 
+        const lockedPrimaryConfidence =
+        lockedAdjustmentFile
+            ? {
+                mode:
+                    "CHAIN_LOCKED_SINGLE",
+                confident:
+                    true,
+                primaryFile:
+                    lockedAdjustmentFile,
+                scoreGap:
+                    "LOCKED",
+                scoreRatio:
+                    "LOCKED",
+                primaryScore:
+                    9999,
+                secondaryScore:
+                    0,
+                strongEvidenceCount:
+                    candidates[0]?.evidence?.length || 1,
+                chainOfCommandLock:
+                    true
+            }
+            : null;
+
     const primaryConfidence =
         assessPrimaryCandidateConfidence(
             candidates
@@ -1890,10 +1914,12 @@ function buildObservationDrivenFollowUpToolCalls({
             });
     });
 
-    return {
+        return {
         candidates,
         followUpCandidates,
-        primaryConfidence,
+        primaryConfidence:
+            lockedPrimaryConfidence ||
+            primaryConfidence,
         followUpToolCalls
     };
 }
