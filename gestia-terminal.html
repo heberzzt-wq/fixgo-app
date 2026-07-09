@@ -3912,6 +3912,26 @@ if (
             }
         }
 
+                if (
+            terminalBrainRoute?.mode !== "PROPOSAL_ADJUSTMENT" &&
+            window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__
+        ) {
+            console.info(
+                "[SIA7_STALE_ADJUSTMENT_CONTEXT_CLEARED_41_42_5]",
+                {
+                    mode:
+                        terminalBrainRoute?.mode,
+                    staleFile:
+                        window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__?.file,
+                    traceId:
+                        currentTraceId
+                }
+            );
+
+            window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__ =
+                null;
+        }
+
                         const adjustmentTargetFile =
             window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__?.file ||
             "";
@@ -3952,12 +3972,9 @@ if (
                 activeLegacyPatchProposal
                 : activeLegacyPatchProposal;
 
-        const shouldBuildProposalAdjustmentInput =
+                const shouldBuildProposalAdjustmentInput =
             activePatchProposal?.file &&
-            (
-                terminalBrainRoute?.mode === "PROPOSAL_ADJUSTMENT" ||
-                isSia7ProposalAdjustmentInput(comando)
-            );
+            terminalBrainRoute?.mode === "PROPOSAL_ADJUSTMENT";
 
         const coreInput =
             shouldBuildProposalAdjustmentInput
