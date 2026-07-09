@@ -1723,15 +1723,83 @@ function buildObservationDrivenFollowUpToolCalls({
     observations = [],
     toolCalls = [],
     rawInput = "",
-    learningHints = {}
+    learningHints = {},
+    proposalAdjustmentContext = null
 } = {}) {
-    const candidates =
+    const lockedAdjustmentFile =
+        proposalAdjustmentContext?.chainOfCommandLock
+            ? normalizeObservationFilePath(
+                proposalAdjustmentContext.lockedFile ||
+                proposalAdjustmentContext.file ||
+                ""
+            )
+            : "";
+
+    const collectedCandidates =
         collectObservationDrivenCandidates(
             observations,
             toolCalls,
             rawInput,
             learningHints
         );
+
+    const candidates =
+        lockedAdjustmentFile
+            ? collectedCandidates
+                .filter(candidate =>
+                    normalizeObservationFilePath(candidate?.file || "") ===
+                    lockedAdjustmentFile
+                )
+            : collectedCandidates;
+
+    if (
+        lockedAdjustmentFile &&
+        collectedCandidates.length > 0 &&
+        candidates.length === 0
+    ) {
+        candidates.push({
+            file:
+                lockedAdjustmentFile,
+            score:
+                9999,
+            directScore:
+                9999,
+            frequency:
+                1,
+            evidence:
+                [
+                    {
+                        sourceTool:
+                            "proposalAdjustmentContext",
+                        snippet:
+                            "Archivo bloqueado por cadena de mando SIA7.",
+                        line:
+                            proposalAdjustmentContext?.lineRange?.startLine ||
+                            null
+                    }
+                ],
+            explicitlyMentioned:
+                true,
+            chainOfCommandLocked:
+                true,
+            source:
+                "SIA7_CHAIN_OF_COMMAND_LOCK_41_42_7"
+        });
+    }
+
+    if (lockedAdjustmentFile) {
+        console.info(
+            "[SIA7_AGENT_LOOP_CANDIDATES_LOCKED_41_42_7]",
+            {
+                lockedFile:
+                    lockedAdjustmentFile,
+                before:
+                    collectedCandidates.map(candidate => candidate.file),
+                after:
+                    candidates.map(candidate => candidate.file)
+            }
+        );
+    }
 
     const primaryConfidence =
         assessPrimaryCandidateConfidence(
@@ -2860,11 +2928,66 @@ function composeObservationDrivenFinalResponse({
     candidates = [],
     followUpObservations = [],
     primaryConfidence = null,
-    learningHints = {}
+    learningHints = {},
+    proposalAdjustmentContext = null
 } = {}) {
     const topCandidate =
         candidates[0] ||
         null;
+
+            const lockedAdjustmentFile =
+        proposalAdjustmentContext?.chainOfCommandLock
+            ? normalizeObservationFilePath(
+                proposalAdjustmentContext.lockedFile ||
+                proposalAdjustmentContext.file ||
+                ""
+            )
+            : "";
+
+    if (
+        lockedAdjustmentFile &&
+        topCandidate?.file &&
+        normalizeObservationFilePath(topCandidate.file) !== lockedAdjustmentFile
+    ) {
+        console.warn(
+            "[SIA7_AGENT_LOOP_TOP_CANDIDATE_LOCK_VIOLATION_41_42_7]",
+            {
+                lockedFile:
+                    lockedAdjustmentFile,
+                receivedFile:
+                    topCandidate.file
+            }
+        );
+
+        return {
+            title:
+                "Ajuste bloqueado por cadena de mando SIA7",
+            text:
+                [
+                    "El Agent Loop intento cambiar el archivo objetivo durante un ajuste supervisado.",
+                    "",
+                    `Archivo bloqueado: ${lockedAdjustmentFile}`,
+                    `Archivo recibido: ${topCandidate.file}`,
+                    "",
+                    "No se genero patch automatico.",
+                    "No se escribieron archivos."
+                ].join("\n"),
+            file:
+                lockedAdjustmentFile,
+            patchPreviewBlocked: {
+                file:
+                    lockedAdjustmentFile,
+                issues:
+                    [
+                        "CHAIN_OF_COMMAND_FILE_MISMATCH"
+                    ]
+            },
+            writeAllowed:
+                false,
+            patchGenerated:
+                false
+        };
+    }
 
     const diagnoses =
         extractDiagnosisData(
@@ -3540,7 +3663,7 @@ if (
             }
         );
 
-    const followUpPlan =
+        const followUpPlan =
         buildObservationDrivenFollowUpToolCalls({
             observations:
                 toolObservations,
@@ -3549,7 +3672,9 @@ if (
             rawInput:
                 inputRaw,
             learningHints:
-                agentLearningHints
+                agentLearningHints,
+            proposalAdjustmentContext:
+                context.proposalAdjustmentContext || null
         });
 
     let followUpObservations =
@@ -3598,7 +3723,7 @@ if (
 
     const finalResponse =
         followUpPlan.followUpToolCalls.length > 0
-            ? composeObservationDrivenFinalResponse({
+                       ? composeObservationDrivenFinalResponse({
                 objective:
                     propuesta?.reasoning?.input ||
                     propuesta?.cognition?.input ||
@@ -3609,7 +3734,9 @@ if (
                 primaryConfidence:
                     followUpPlan.primaryConfidence,
                 learningHints:
-                    agentLearningHints
+                    agentLearningHints,
+                proposalAdjustmentContext:
+                    context.proposalAdjustmentContext || null
             })
             : null;
 
