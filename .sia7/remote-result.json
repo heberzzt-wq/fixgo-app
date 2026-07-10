@@ -1,13 +1,13 @@
 {
-  "jobId": "sia7-terminal-semantic-line1-20260710-01",
-  "completedAt": "2026-07-10T16:00:41.099Z",
+  "jobId": "sia7-terminal-semantic-line2-20260710-01",
+  "completedAt": "2026-07-10T16:01:56.132Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "gestia-terminal.html",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 256272,
-  "bytesAfter": 256273,
+  "bytesBefore": 256273,
+  "bytesAfter": 256239,
   "source": "sia7_github_worker_exact_patch_v1"
 }
