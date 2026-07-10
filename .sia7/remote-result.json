@@ -1,26 +1,6 @@
 {
-  "jobId": "sia7-read-router-immediate-exit-anchor-20260710-01",
-  "completedAt": "2026-07-10T19:27:28.889Z",
-  "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/read",
-  "payload": {
-    "ok": true,
-    "file": "gestia-terminal.html",
-    "path": "gestia-terminal.html",
-    "size": 2382,
-    "totalSize": 257965,
-    "content": "\nif (\n    window.GestiaCore?.procesarIntencion &&\n    ![\"arre\", \"confirmar\", \"ok\"].includes(cmd)\n) {\n    try {\n                const terminalBrainRoute =\n            await routeTerminalNaturalIntent(\n                comando,\n                {\n                    activePatchProposal:\n                        window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ ||\n                        null,\n                    lastPatchPreview:\n                        readLastPatchPreviewCandidate?.() ||\n                        null,\n                    traceId:\n                        currentTraceId\n                }\n            );\n\n        console.info(\n            \"[TERMINAL_BRAIN_ROUTER_41_42]\",\n            {\n                command:\n                    comando,\n                mode:\n                    terminalBrainRoute?.mode,\n                confidence:\n                    terminalBrainRoute?.confidence,\n                reason:\n                    terminalBrainRoute?.reason,\n                writeAllowed:\n                    terminalBrainRoute?.writeAllowed,\n                approvalRequiredForWrite:\n                    terminalBrainRoute?.approvalRequiredForWrite,\n                traceId:\n                    currentTraceId\n            }\n        );\n\n        if (\n            terminalBrainRoute?.mode === \"CASUAL_NOOP\"\n        ) {\n            recordTerminalLearningIncident({\n                category:\n                    \"TERMINAL_BRAIN_ROUTER\",\n                status:\n                    \"success\",\n                stage:\n                    \"terminal_brain_router\",\n                operation:\n                    \"CASUAL_NOOP\",\n                reason:\n                    terminalBrainRoute.reason ||\n                    \"CASUAL_WITHOUT_ACTIVE_FLOW\",\n                symptom:\n                    comando,\n                fixRule:\n                    \"Use contextual terminal routing before casual response; do not use repo tools when there is no active flow or technical objective.\",\n                sourceTraceId:\n                    currentTraceId,\n                confidence:\n                    terminalBrainRoute.confidence || 0.8\n            });\n\n            window.renderJarvisResponse?.(\n                \"Jarvis\",\n                buildCasualTerminalResponse(comando),\n                \"info\"\n            );\n\n            handled =\n                true;\n\n            return;",
-    "partial": true,
-    "startLine": 3010,
-    "endLine": 3085,
-    "totalLines": 7761,
-    "lineRange": {
-      "startLine": 3010,
-      "endLine": 3085,
-      "totalLines": 7761
-    },
-    "source": "jarvis_fs_bridge_read_v1",
-    "version": "2.1.0-local-fs-bridge"
-  }
+  "jobId": "sia7-immediate-semantic-diagnosis-exit-20260710-01",
+  "completedAt": "2026-07-10T19:28:04.286Z",
+  "ok": false,
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1"
 }
