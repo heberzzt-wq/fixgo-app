@@ -1,9 +1,11 @@
 {
-  "jobId": "sia7-read-41.43.2-pending-approval-helper-20260709-2312",
-  "endpoint": "/read",
-  "body": {
+  "jobId": "sia7-dryrun-41.43.2-persist-pending-approval-20260709-2315",
+  "operation": "patch",
+  "patch": {
     "file": "gestia-terminal.html",
-    "startLine": 6905,
-    "endLine": 6965
+    "dryRun": true,
+    "expectedMatches": 1,
+    "search": "          window.__SIA7_SAFE_WRITE_CONFIRM_PENDING__ =\n            {\n              file:\n                safeWriteFile,\n              fingerprint:\n                safeWriteFingerprint,\n              approvalCommand,\n              createdAt:\n                Date.now()\n            };",
+    "replace": "          window.__SIA7_SAFE_WRITE_CONFIRM_PENDING__ =\n            {\n              file:\n                safeWriteFile,\n              fingerprint:\n                safeWriteFingerprint,\n              approvalCommand,\n              createdAt:\n                Date.now()\n            };\n\n          rememberSia7PendingPatchApproval({\n            ...proposal,\n            file:\n              safeWriteFile,\n            search:\n              safeWriteSearch,\n            replace:\n              safeWriteReplace,\n            fingerprint:\n              safeWriteFingerprint,\n            approvalCommand\n          });"
   }
 }
