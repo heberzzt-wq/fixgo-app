@@ -1,6 +1,26 @@
 {
-  "jobId": "sia7-terminal-semantic-diagnosis-20260710-02",
-  "completedAt": "2026-07-10T15:56:20.190Z",
-  "ok": false,
-  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1"
+  "jobId": "sia7-terminal-read-local-block-20260710-01",
+  "completedAt": "2026-07-10T15:59:05.683Z",
+  "ok": true,
+  "httpStatus": 200,
+  "endpoint": "/read",
+  "payload": {
+    "ok": true,
+    "file": "gestia-terminal.html",
+    "path": "gestia-terminal.html",
+    "size": 659,
+    "totalSize": 256272,
+    "content": "\n        // Legacy audit route. Freeform diagnostics stay in Core.\nconst raw =\n    String(comando || \"\")\n        .toLowerCase()\n        .normalize(\"NFD\")\n        .replace(/[\\u0300-\\u036f]/g, \"\");\n\nconst isExplicitRepoAuditRequest =\n    /\\b(audita|auditar|audit|auditoria)\\b/i.test(raw) ||\n    /\\b(estado|mapa|resumen)\\s+(del\\s+)?(repo|repositorio|sistema)\\b/i.test(raw);\n\nif (isExplicitRepoAuditRequest) {\n\n    if (window.ToolsBridge?.executeAndCompose) {\n        console.info(\"🧠 [TERMINAL_TOOL_FIRST] repo.audit\", {\n            rawInput: comando\n        });\n\n        const toolResult = await window.ToolsBridge.executeAndCompose(\n            \"repo.audit\",",
+    "partial": true,
+    "startLine": 5700,
+    "endLine": 5720,
+    "totalLines": 7709,
+    "lineRange": {
+      "startLine": 5700,
+      "endLine": 5720,
+      "totalLines": 7709
+    },
+    "source": "jarvis_fs_bridge_read_v1",
+    "version": "2.1.0-local-fs-bridge"
+  }
 }
