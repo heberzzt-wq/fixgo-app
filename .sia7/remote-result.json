@@ -1,20 +1,6 @@
 {
-  "jobId": "sia7-git-commit-41.43.2-20260709-2355",
-  "completedAt": "2026-07-10T15:30:11.607Z",
+  "jobId": "sia7-terminal-semantic-diagnosis-20260710-01",
+  "completedAt": "2026-07-10T15:53:40.188Z",
   "ok": false,
-  "httpStatus": 200,
-  "endpoint": "/git",
-  "payload": {
-    "ok": false,
-    "status": "GIT_COMMIT_FAILED",
-    "exitCode": 1,
-    "command": "git commit -m 41.43.2 persist pending patch approval and allow restricted test runner",
-    "stdout": "On branch v5.9-polish\nYour branch is behind 'origin/v5.9-polish' by 7 commits, and can be fast-forwarded.\n  (use \"git pull\" to update your local branch)\n\nnothing to commit, working tree clean\n",
-    "stderr": "",
-    "durationMs": 607,
-    "source": "jarvis_fs_bridge_git_v7",
-    "version": "2.1.0-local-fs-bridge",
-    "action": "commit",
-    "message": "41.43.2 persist pending patch approval and allow restricted test runner"
-  }
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1"
 }
