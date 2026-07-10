@@ -1,9 +1,9 @@
 {
-  "jobId": "sia7-dryrun-worker-allow-run-41.43.2-20260709-2335",
-  "completedAt": "2026-07-10T04:27:05.818Z",
+  "jobId": "sia7-apply-worker-allow-run-41.43.2-20260709-2338",
+  "completedAt": "2026-07-10T04:28:55.933Z",
   "ok": true,
   "operation": "patch",
-  "dryRun": true,
+  "dryRun": false,
   "file": "jarvis-github-worker.js",
   "matchCount": 1,
   "expectedMatches": 1,
