@@ -1,9 +1,10 @@
 {
-  "jobId": "sia7-dryrun-worker-allow-run-41.43.2-20260709-2335",
+  "jobId": "sia7-apply-worker-allow-run-41.43.2-20260709-2338",
   "operation": "patch",
+  "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
-    "dryRun": true,
+    "dryRun": false,
     "expectedMatches": 1,
     "search": "    const allowed = new Set([\"/health\", \"/read\", \"/grep\", \"/git\"]);",
     "replace": "    const allowed = new Set([\"/health\", \"/read\", \"/grep\", \"/git\", \"/run\"]);"
