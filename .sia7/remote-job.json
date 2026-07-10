@@ -1,7 +1,11 @@
 {
-  "jobId": "sia7-git-diff-41.43.2-20260709-2332",
-  "endpoint": "/git",
-  "body": {
-    "action": "diff"
+  "jobId": "sia7-dryrun-worker-allow-run-41.43.2-20260709-2335",
+  "operation": "patch",
+  "patch": {
+    "file": "jarvis-github-worker.js",
+    "dryRun": true,
+    "expectedMatches": 1,
+    "search": "    const allowed = new Set([\"/health\", \"/read\", \"/grep\", \"/git\"]);",
+    "replace": "    const allowed = new Set([\"/health\", \"/read\", \"/grep\", \"/git\", \"/run\"]);"
   }
 }
