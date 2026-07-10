@@ -1,9 +1,9 @@
 {
-  "jobId": "sia7-dryrun-41.43.2-persist-pending-approval-20260709-2315",
-  "completedAt": "2026-07-10T04:11:50.782Z",
+  "jobId": "sia7-apply-41.43.2-persist-pending-approval-20260709-2318",
+  "completedAt": "2026-07-10T04:13:20.610Z",
   "ok": true,
   "operation": "patch",
-  "dryRun": true,
+  "dryRun": false,
   "file": "gestia-terminal.html",
   "matchCount": 1,
   "expectedMatches": 1,
