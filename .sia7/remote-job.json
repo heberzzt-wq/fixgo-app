@@ -1,9 +1,9 @@
 {
-  "jobId": "sia7-run-npm-test-41.43.2-20260709-2345",
-  "endpoint": "/run",
+  "jobId": "sia7-git-add-41.43.2-20260709-2350",
+  "endpoint": "/git",
   "body": {
-    "command": "npm test",
-    "timeoutMs": 120000,
-    "source": "sia7_checkpoint_41_43_2"
+    "action": "add",
+    "files": ["gestia-terminal.html", "jarvis-github-worker.js"],
+    "approved": true
   }
 }
