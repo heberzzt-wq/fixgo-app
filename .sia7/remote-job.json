@@ -1,11 +1,11 @@
 {
-  "jobId": "sia7-terminal-verify-semantic-block-20260710-01",
+  "jobId": "sia7-terminal-semantic-ci-20260710-01",
   "operation": "bridge",
-  "endpoint": "/read",
+  "endpoint": "/run",
   "body": {
-    "file": "gestia-terminal.html",
-    "startLine": 5705,
-    "endLine": 5716,
-    "maxBytes": 8000
+    "command": "npm run ci:test",
+    "cwd": ".",
+    "timeoutMs": 120000,
+    "source": "sia7_terminal_semantic_diagnosis_ci"
   }
 }
