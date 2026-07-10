@@ -138,7 +138,7 @@ export function analyzeIntent(rawInput = "") {
       INTENCIONES
   ===================================================== */
 
-  if (has(text, ["analiza", "revisa", "audita", "checa"])) {
+  if (has(text, ["analiza", "analizar", "revisa", "audita", "checa"])) {
     result.intent = "ANALYZE";
     result.action = "inspect";
     result.confidence += 30;
@@ -163,6 +163,36 @@ export function analyzeIntent(rawInput = "") {
   }
 
   /* =====================================================
+      REPO GLOBAL READ-ONLY
+      Nunca debe caer a SIMULATION / PLAN PREVIEW.
+  ===================================================== */
+
+  const wantsRepoAnalysis =
+    result.intent === "ANALYZE" &&
+    has(text, [
+      "repo",
+      "repositorio",
+      "repository",
+      "proyecto completo",
+      "codigo completo",
+      "código completo"
+    ]);
+
+  if (wantsRepoAnalysis) {
+    result.targetFile = "repo.hub";
+    result.module = "repo";
+    result.action = "inspect_repo";
+    result.confidence += 50;
+    result.tags.push("repo_analysis", "read_only");
+    result.suggestions.push(
+      "Listar estructura del repositorio",
+      "Buscar rutas y dependencias relevantes",
+      "Leer evidencia antes de proponer cambios",
+      "No generar Plan Preview sin solicitud de cambio"
+    );
+  }
+
+  /* =====================================================
       SCANNER AUTÓNOMO DE ARCHIVOS
   ===================================================== */
 
@@ -184,7 +214,7 @@ export function analyzeIntent(rawInput = "") {
 
   result.matches = ranked.slice(0, 5);
 
-  if (ranked.length > 0) {
+  if (!result.targetFile && ranked.length > 0) {
     result.targetFile = ranked[0].file;
     result.module = cleanName(ranked[0].file);
     result.confidence += Math.min(ranked[0].score, 50);
@@ -205,7 +235,7 @@ export function analyzeIntent(rawInput = "") {
       SUGERENCIAS
   ===================================================== */
 
-  if (result.intent === "ANALYZE") {
+  if (result.intent === "ANALYZE" && !wantsRepoAnalysis) {
     result.suggestions.push("Leer archivo objetivo");
     result.suggestions.push("Buscar listeners duplicados");
     result.suggestions.push("Revisar dependencias");
