@@ -1,11 +1,11 @@
 {
-  "jobId": "sia7-terminal-semantic-line1-20260710-01",
+  "jobId": "sia7-terminal-semantic-line2-20260710-01",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "gestia-terminal.html",
-    "search": "    /\\b(audita|auditar|audit|auditoria)\\b/i.test(raw) ||",
-    "replace": "    terminalBrainRoute?.mode === \"TECHNICAL_DIAGNOSIS\" &&",
+    "search": "    /\\b(estado|mapa|resumen)\\s+(del\\s+)?(repo|repositorio|sistema)\\b/i.test(raw);",
+    "replace": "    terminalBrainRoute?.writeAllowed === false;",
     "expectedMatches": 1,
     "dryRun": false,
     "humanApproved": true
