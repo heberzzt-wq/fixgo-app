@@ -1,13 +1,11 @@
 {
-  "jobId": "sia7-semantic-analysis-enum-gate-20260710-01",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "gestia-terminal.html",
-    "search": "            terminalBrainRoute?.mode === \"TECHNICAL_DIAGNOSIS\" &&",
-    "replace": "            [\"ANALYSIS\", \"TECHNICAL_DIAGNOSIS\", \"REPO_ANALYSIS\"].includes(\n                terminalBrainRoute?.mode\n            ) &&",
-    "expectedMatches": 1,
-    "dryRun": false,
-    "humanApproved": true
+  "jobId": "sia7-semantic-analysis-enum-ci-20260710-01",
+  "operation": "bridge",
+  "endpoint": "/run",
+  "body": {
+    "command": "npm run ci:test",
+    "cwd": ".",
+    "timeoutMs": 180000,
+    "source": "sia7_semantic_analysis_enum_ci"
   }
 }
