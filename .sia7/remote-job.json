@@ -1,13 +1,12 @@
 {
-  "jobId": "sia7-terminal-semantic-git-add-20260710-01",
+  "jobId": "sia7-terminal-commit-20260710-02",
   "operation": "bridge",
   "endpoint": "/git",
   "body": {
-    "action": "add",
+    "action": "commit",
     "cwd": ".",
-    "files": ["gestia-terminal.html"],
+    "message": "terminal semantic diagnosis fix",
     "approved": true,
-    "codexApproved": true,
     "timeoutMs": 120000
   }
 }
