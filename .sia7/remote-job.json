@@ -1,11 +1,11 @@
 {
-  "jobId": "sia7-read-exact-core-call-gate-20260710-01",
+  "jobId": "sia7-read-semantic-gate-placement-20260710-01",
   "operation": "bridge",
   "endpoint": "/read",
   "body": {
     "file": "gestia-terminal.html",
-    "startLine": 4330,
-    "endLine": 4415,
-    "maxBytes": 20000
+    "startLine": 4250,
+    "endLine": 4350,
+    "maxBytes": 22000
   }
 }
