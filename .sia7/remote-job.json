@@ -1,12 +1,12 @@
 {
-  "jobId": "sia7-temporary-hosting-deploy-script-20260710-01",
+  "jobId": "sia7-restore-ci-after-blocked-deploy-20260710-01",
   "operation": "patch",
   "humanApproved": true,
   "body": {
     "file": "package.json",
-    "search": "    \"ci:test\": \"npm run check:syntax && npm test\"",
-    "replace": "    \"ci:test\": \"firebase deploy --only hosting\"",
+    "search": "    \"ci:test\": \"firebase deploy --only hosting\"",
+    "replace": "    \"ci:test\": \"npm run check:syntax && npm test\"",
     "expectedMatches": 1,
-    "source": "sia7_temporary_hosting_deploy_script"
+    "source": "sia7_restore_ci_after_blocked_deploy"
   }
 }
