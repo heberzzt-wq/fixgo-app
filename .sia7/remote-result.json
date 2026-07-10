@@ -1,26 +1,13 @@
 {
-  "jobId": "sia7-read-service-worker-fetch-handler-20260710-01",
-  "completedAt": "2026-07-10T20:44:41.219Z",
+  "jobId": "sia7-live-marker-script-20260710-01",
+  "completedAt": "2026-07-10T20:53:17.324Z",
   "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/read",
-  "payload": {
-    "ok": true,
-    "file": "sw.js",
-    "path": "sw.js",
-    "size": 2534,
-    "totalSize": 8658,
-    "content": "\n  self.clients.claim(); // Toma control de la PWA instalada inmediatamente\n\n});\n\n/**\n * UPDATE FORZADO\n */\n\nself.addEventListener('message', (event) => {\n\n  if (event.data === 'SKIP_WAITING') {\n    self.skipWaiting();\n  }\n\n});\n\n/**\n * FETCH (Estrategia: Network-First con Bypass de Vercel)\n */\n\nself.addEventListener('fetch', (event) => {\n\n  const url = event.request.url;\n  const requestURL =\n    new URL(url);\n  const requestPath =\n    requestURL.pathname;\n  const isRuntimeAsset =\n    event.request.destination === 'document' ||\n    event.request.destination === 'script' ||\n    event.request.destination === 'worker' ||\n    requestPath.endsWith('.html') ||\n    requestPath.endsWith('.js') ||\n    requestPath.endsWith('.mjs');\n\n  // No intervenir en llamadas de sistema de Google\n  if (\n    url.includes('gstatic.com') ||\n    url.includes('googleapis.com') ||\n    url.includes('google-analytics')\n  ) {\n    return;\n  }\n\n  event.respondWith(\n\n    fetch(event.request)\n\n      .then(response => {\n\n        // Si por alguna razón el navegador intenta ir a Vercel, entregamos el index de Firebase\n        if (response.url.includes('vercel.app')) {\n            console.log('[Gestia SW] Detectado rastro de Vercel, forzando Firebase');\n            return caches.match('./index.html');\n        }\n\n        if (\n  event.request.method === 'GET' &&\n  response.status === 200 &&\n  !isRuntimeAsset\n) {\n\n  const protocolo =\n    requestURL.protocol;\n\n  const protocoloPermitido = [\n\n    'http:',\n    'https:'\n\n  ].includes(protocolo);\n\n  if (protocoloPermitido) {\n\n    const clone =\n      response.clone();\n\n    caches.open(CACHE_NAME)\n\n      .then(cache => {\n\n        return cache.put(\n          event.request,\n          clone\n        );\n\n      })\n\n      .catch(cacheError => {\n\n        console.warn(\n          '[Gestia SW] Cache omitido:',\n          cacheError?.message\n        );\n\n      });\n  }\n}\n        return response;\n\n      })\n\n      .catch(() => {\n\n        return caches.match(event.request)\n          .then(response => {\n\n            return response || new Response(\n              'Gestia: Modo Offline - Revisa tu conexión',\n              { \n                status: 404,\n                headers: { 'Content-Type': 'text/plain' }\n              }\n            );\n\n          });\n\n      })\n\n  );\n\n});\n\n/**\n * ======================================================\n * FIN DEL SERVICE WORKER\n * Gestia Premium V6.2 - Blindaje Firebase Activo\n * Lead Architect: Heberto Mendoza\n * ======================================================\n */\n",
-    "partial": true,
-    "startLine": 260,
-    "endLine": 391,
-    "totalLines": 391,
-    "lineRange": {
-      "startLine": 260,
-      "endLine": 391,
-      "totalLines": 391
-    },
-    "source": "jarvis_fs_bridge_read_v1",
-    "version": "2.1.0-local-fs-bridge"
-  }
+  "operation": "patch",
+  "dryRun": false,
+  "file": "package.json",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 3323,
+  "bytesAfter": 3710,
+  "source": "sia7_github_worker_exact_patch_v1"
 }
