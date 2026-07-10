@@ -1,11 +1,13 @@
 {
-  "jobId": "sia7-read-earlier-terminal-routing-20260710-01",
-  "operation": "bridge",
-  "endpoint": "/read",
-  "body": {
+  "jobId": "sia7-semantic-analysis-enum-gate-20260710-01",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
     "file": "gestia-terminal.html",
-    "startLine": 3400,
-    "endLine": 3925,
-    "maxBytes": 50000
+    "search": "            terminalBrainRoute?.mode === \"TECHNICAL_DIAGNOSIS\" &&",
+    "replace": "            [\"ANALYSIS\", \"TECHNICAL_DIAGNOSIS\", \"REPO_ANALYSIS\"].includes(\n                terminalBrainRoute?.mode\n            ) &&",
+    "expectedMatches": 1,
+    "dryRun": false,
+    "humanApproved": true
   }
 }
