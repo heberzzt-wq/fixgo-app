@@ -1,12 +1,11 @@
 {
-  "jobId": "sia7-restore-ci-after-blocked-deploy-20260710-01",
-  "operation": "patch",
-  "humanApproved": true,
+  "jobId": "sia7-real-ci-after-restore-20260710-02",
+  "operation": "bridge",
+  "endpoint": "/run",
   "body": {
-    "file": "package.json",
-    "search": "    \"ci:test\": \"firebase deploy --only hosting\"",
-    "replace": "    \"ci:test\": \"npm run check:syntax && npm test\"",
-    "expectedMatches": 1,
-    "source": "sia7_restore_ci_after_blocked_deploy"
+    "command": "npm run ci:test",
+    "cwd": ".",
+    "timeoutMs": 120000,
+    "source": "sia7_real_ci_after_restore_02"
   }
 }
