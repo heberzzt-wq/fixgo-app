@@ -1,13 +1,18 @@
 {
-  "jobId": "sia7-live-marker-script-20260710-01",
-  "completedAt": "2026-07-10T20:53:17.324Z",
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "package.json",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 3323,
-  "bytesAfter": 3710,
-  "source": "sia7_github_worker_exact_patch_v1"
+  "jobId": "sia7-live-marker-run-20260710-01",
+  "completedAt": "2026-07-10T20:53:45.056Z",
+  "ok": false,
+  "httpStatus": 200,
+  "endpoint": "/run",
+  "payload": {
+    "ok": false,
+    "status": "FAILED",
+    "exitCode": 1,
+    "command": "npm run ci:test",
+    "stdout": "",
+    "stderr": "npm error code EJSONPARSE\nnpm error JSON.parse Invalid package.json: JSONParseError: Expected ',' or '}' after property value in JSON at position 3132 (line 8 column 26) while parsing near \"...ci:test\\\": \\\"node -e \\\"fetch('https://fixgo...\"\nnpm error JSON.parse Failed to parse JSON data.\nnpm error JSON.parse Note: package.json must be actual JSON, not just JavaScript.\nnpm error A complete log of this run can be found in: C:\\Users\\heber\\AppData\\Local\\npm-cache\\_logs\\2026-07-10T20_53_44_628Z-debug-0.log\n",
+    "durationMs": 3152,
+    "source": "sia7_live_marker_verification",
+    "version": "2.1.0-local-fs-bridge"
+  }
 }
