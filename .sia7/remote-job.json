@@ -1,5 +1,9 @@
 {
-  "jobId": "sia7-remote-health-20260709-2158",
-  "endpoint": "/health",
-  "body": {}
+  "jobId": "sia7-read-41.43.2-safe-write-block-20260709-2205",
+  "endpoint": "/read",
+  "body": {
+    "file": "gestia-terminal.html",
+    "startLine": 7160,
+    "endLine": 7245
+  }
 }
