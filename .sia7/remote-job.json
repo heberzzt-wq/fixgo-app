@@ -1,11 +1,11 @@
 {
-  "jobId": "sia7-read-semantic-gate-placement-20260710-01",
+  "jobId": "sia7-read-router-immediate-exit-anchor-20260710-01",
   "operation": "bridge",
   "endpoint": "/read",
   "body": {
     "file": "gestia-terminal.html",
-    "startLine": 4250,
-    "endLine": 4350,
-    "maxBytes": 22000
+    "startLine": 3010,
+    "endLine": 3085,
+    "maxBytes": 18000
   }
 }
