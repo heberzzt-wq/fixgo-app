@@ -1,19 +1,26 @@
 {
-  "jobId": "sia7-live-marker-direct-check-20260710-01",
-  "completedAt": "2026-07-10T21:32:51.048Z",
-  "ok": false,
-  "httpStatus": 400,
-  "endpoint": "/run",
+  "jobId": "sia7-read-firebase-config-20260710-01",
+  "completedAt": "2026-07-10T21:37:26.022Z",
+  "ok": true,
+  "httpStatus": 200,
+  "endpoint": "/read",
   "payload": {
-    "ok": false,
-    "status": "COMMAND_NOT_ALLOWED",
-    "error": "COMMAND_NOT_ALLOWED",
-    "command": "node -e \"fetch('https://fixgo-44e4d.web.app/gestia-terminal.html?ts='+Date.now(),{cache:'no-store'}).then(r=>r.text()).then(t=>{const marker='TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT_41_43_5';console.log(JSON.stringify({marker:t.includes(marker),bytes:t.length,index:t.indexOf(marker),url:'https://fixgo-44e4d.web.app/gestia-terminal.html'}));process.exit(t.includes(marker)?0:2)}).catch(e=>{console.error(e);process.exit(1)})\"",
-    "allowedCommands": [
-      "npm run check:syntax",
-      "npm test",
-      "npm run ci:test"
-    ],
+    "ok": true,
+    "file": "firebase.json",
+    "path": "firebase.json",
+    "size": 3089,
+    "totalSize": 3089,
+    "content": "{\r\n  \"functions\": [\r\n    {\r\n      \"source\": \"functions\",\r\n      \"codebase\": \"default\",\r\n      \"ignore\": [\r\n        \"node_modules\",\r\n        \".git\",\r\n        \"firebase-debug.log\",\r\n        \"firebase-adminsdk-*.json\",\r\n        \"serviceAccountKey.json\"\r\n      ]\r\n    }\r\n  ],\r\n  \"hosting\": {\r\n    \"site\": \"fixgo-44e4d\",\r\n    \"public\": \".\",\r\n\r\n      \"ignore\": [\r\n        \"firebase.json\",\r\n        \"**/.*\",\r\n        \"**/node_modules/**\",\r\n        \"node_modules/**\",\r\n        \"functions/**\",\r\n        \"tests/**\",\r\n        \"repo_sandbox/**\",\r\n        \"build/**\",\r\n        \".gradle/**\",\r\n        \".firebase/**\",\r\n        \".vscode/**\",\r\n        \"package.json\",\r\n        \"package-lock.json\",\r\n        \"build.gradle\",\r\n        \"settings.gradle\",\r\n        \"gradle.properties\",\r\n        \"gradle/**\",\r\n        \"gradlew\",\r\n        \"gradlew.bat\",\r\n        \"vercel.json\",\r\n        \"activos_uxmal39.json\",\r\n        \"mantenimiento_edificio.json\",\r\n        \"android.keystore\",\r\n        \"*.keystore\",\r\n        \"*.jks\",\r\n        \"*.pem\",\r\n        \"*.key\",\r\n        \"*.p12\",\r\n        \"*.apk\",\r\n        \"*.aab\",\r\n        \"*.idsig\",\r\n        \"serviceAccountKey.json\",\r\n        \"firebase-adminsdk-*.json\",\r\n        \"google-services.json\",\r\n        \"GoogleService-Info.plist\",\r\n        \"*.md\"\r\n      ],\r\n\r\n    \"cleanUrls\": false,\r\n    \"trailingSlash\": false,\r\n\r\n    \"rewrites\": [\r\n  {\r\n    \"source\": \"/api/**\",\r\n    \"function\": \"api\"\r\n  }\r\n],\r\n\r\n    \"headers\": [\r\n      {\r\n        \"source\": \"**/*.html\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"no-cache, no-store, must-revalidate\"\r\n          }\r\n        ]\r\n      },\r\n\r\n      {\r\n        \"source\": \"/gestia-core/**\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"no-cache, no-store, must-revalidate\"\r\n          }\r\n        ]\r\n      },\r\n\r\n      {\r\n        \"source\": \"/modules/**\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"no-cache, no-store, must-revalidate\"\r\n          }\r\n        ]\r\n      },\r\n\r\n      {\r\n        \"source\": \"/assets/**\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"public,max-age=3600\"\r\n          }\r\n        ]\r\n      },\r\n\r\n      {\r\n        \"source\": \"/sw.js\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"no-cache, no-store, must-revalidate\"\r\n          },\r\n          {\r\n            \"key\": \"Service-Worker-Allowed\",\r\n            \"value\": \"/\"\r\n          }\r\n        ]\r\n      },\r\n\r\n      {\r\n        \"source\": \"/manifest.json\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"no-cache, no-store, must-revalidate\"\r\n          },\r\n          {\r\n            \"key\": \"Content-Type\",\r\n            \"value\": \"application/manifest+json\"\r\n          }\r\n        ]\r\n      },\r\n\r\n      {\r\n        \"source\": \"**/*.js\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"no-cache\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  }\r\n}\r\n",
+    "partial": false,
+    "startLine": 1,
+    "endLine": 149,
+    "totalLines": 149,
+    "lineRange": {
+      "startLine": 1,
+      "endLine": 149,
+      "totalLines": 149
+    },
+    "source": "jarvis_fs_bridge_read_v1",
     "version": "2.1.0-local-fs-bridge"
   }
 }
