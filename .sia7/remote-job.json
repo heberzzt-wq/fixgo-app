@@ -1,10 +1,13 @@
 {
-  "jobId": "sia7-terminal-semantic-git-diff-20260710-01",
+  "jobId": "sia7-terminal-semantic-git-add-20260710-01",
   "operation": "bridge",
   "endpoint": "/git",
   "body": {
-    "action": "diff",
+    "action": "add",
     "cwd": ".",
+    "files": ["gestia-terminal.html"],
+    "approved": true,
+    "codexApproved": true,
     "timeoutMs": 120000
   }
 }
