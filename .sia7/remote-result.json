@@ -1,19 +1,19 @@
 {
-  "jobId": "sia7-git-status-41.43.2-20260709-2330",
-  "completedAt": "2026-07-10T04:25:12.249Z",
+  "jobId": "sia7-git-diff-41.43.2-20260709-2332",
+  "completedAt": "2026-07-10T04:25:52.055Z",
   "ok": true,
   "httpStatus": 200,
   "endpoint": "/git",
   "payload": {
     "ok": true,
-    "status": "GIT_STATUS_OK",
+    "status": "GIT_DIFF_OK",
     "exitCode": 0,
-    "command": "git status --short --branch",
-    "stdout": "## v5.9-polish...origin/v5.9-polish\n M gestia-terminal.html\n",
+    "command": "git diff --",
+    "stdout": "diff --git a/gestia-terminal.html b/gestia-terminal.html\nindex 5cc53320..fb6c4e02 100644\n--- a/gestia-terminal.html\n+++ b/gestia-terminal.html\n@@ -7286,6 +7286,19 @@ if (\n                 Date.now()\n             };\n \n+          rememberSia7PendingPatchApproval({\n+            ...proposal,\n+            file:\n+              safeWriteFile,\n+            search:\n+              safeWriteSearch,\n+            replace:\n+              safeWriteReplace,\n+            fingerprint:\n+              safeWriteFingerprint,\n+            approvalCommand\n+          });\n+\n           notifySia7ProposalAction(\n             \"Confirmacion segura SIA7\",\n             [\n",
     "stderr": "",
-    "durationMs": 173,
+    "durationMs": 460,
     "source": "jarvis_fs_bridge_git_v7",
     "version": "2.1.0-local-fs-bridge",
-    "action": "status"
+    "action": "diff"
   }
 }
