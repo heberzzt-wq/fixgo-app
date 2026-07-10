@@ -1,13 +1,26 @@
 {
-  "jobId": "sia7-terminal-semantic-line2-20260710-01",
-  "completedAt": "2026-07-10T16:01:56.132Z",
+  "jobId": "sia7-terminal-verify-semantic-block-20260710-01",
+  "completedAt": "2026-07-10T16:03:01.099Z",
   "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "gestia-terminal.html",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 256273,
-  "bytesAfter": 256239,
-  "source": "sia7_github_worker_exact_patch_v1"
+  "httpStatus": 200,
+  "endpoint": "/read",
+  "payload": {
+    "ok": true,
+    "file": "gestia-terminal.html",
+    "path": "gestia-terminal.html",
+    "size": 388,
+    "totalSize": 256239,
+    "content": "        .normalize(\"NFD\")\n        .replace(/[\\u0300-\\u036f]/g, \"\");\n\nconst isExplicitRepoAuditRequest =\n    terminalBrainRoute?.mode === \"TECHNICAL_DIAGNOSIS\" &&\n    terminalBrainRoute?.writeAllowed === false;\n\nif (isExplicitRepoAuditRequest) {\n\n    if (window.ToolsBridge?.executeAndCompose) {\n        console.info(\"🧠 [TERMINAL_TOOL_FIRST] repo.audit\", {\n            rawInput: comando",
+    "partial": true,
+    "startLine": 5705,
+    "endLine": 5716,
+    "totalLines": 7709,
+    "lineRange": {
+      "startLine": 5705,
+      "endLine": 5716,
+      "totalLines": 7709
+    },
+    "source": "jarvis_fs_bridge_read_v1",
+    "version": "2.1.0-local-fs-bridge"
+  }
 }
