@@ -1,13 +1,13 @@
 {
-  "jobId": "sia7-temporary-hosting-deploy-script-20260710-01",
-  "completedAt": "2026-07-10T22:01:08.247Z",
+  "jobId": "sia7-restore-ci-after-blocked-deploy-20260710-01",
+  "completedAt": "2026-07-10T22:29:21.287Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "package.json",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 3323,
-  "bytesAfter": 3321,
+  "bytesBefore": 3321,
+  "bytesAfter": 3323,
   "source": "sia7_github_worker_exact_patch_v1"
 }
