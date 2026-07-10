@@ -1,13 +1,19 @@
 {
-  "jobId": "sia7-restore-package-after-immediate-diagnosis-20260710-01",
-  "completedAt": "2026-07-10T20:34:45.290Z",
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "package.json",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 3325,
-  "bytesAfter": 3323,
-  "source": "sia7_github_worker_exact_patch_v1"
+  "jobId": "sia7-verify-live-immediate-marker-20260710-01",
+  "completedAt": "2026-07-10T20:43:26.362Z",
+  "ok": false,
+  "httpStatus": 400,
+  "endpoint": "/run",
+  "payload": {
+    "ok": false,
+    "status": "COMMAND_NOT_ALLOWED",
+    "error": "COMMAND_NOT_ALLOWED",
+    "command": "node -e \"fetch('https://fixgo-44e4d.web.app/gestia-terminal.html?ts='+Date.now(),{cache:'no-store'}).then(r=>r.text()).then(t=>{console.log(JSON.stringify({status:t.includes('TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT_41_43_5'),bytes:t.length,index:t.indexOf('TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT_41_43_5')}))}).catch(e=>{console.error(e);process.exit(1)})\"",
+    "allowedCommands": [
+      "npm run check:syntax",
+      "npm test",
+      "npm run ci:test"
+    ],
+    "version": "2.1.0-local-fs-bridge"
+  }
 }
