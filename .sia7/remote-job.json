@@ -1,13 +1,11 @@
 {
-  "jobId": "sia7-precore-hosting-script-20260710-01",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "package.json",
-    "search": "npm run check:syntax && npm test",
-    "replace": "firebase.cmd deploy --only hosting",
-    "expectedMatches": 1,
-    "dryRun": false,
-    "humanApproved": true
+  "jobId": "sia7-precore-hosting-deploy-20260710-01",
+  "operation": "bridge",
+  "endpoint": "/run",
+  "body": {
+    "command": "npm run ci:test",
+    "cwd": ".",
+    "timeoutMs": 600000,
+    "source": "sia7_precore_diagnosis_hosting_deploy"
   }
 }
