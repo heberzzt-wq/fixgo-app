@@ -1,9 +1,9 @@
 {
-  "jobId": "sia7-read-41.43.2-approval-command-20260709-2302",
-  "endpoint": "/read",
+  "jobId": "sia7-grep-41.43.2-pending-approval-helper-20260709-2310",
+  "endpoint": "/grep",
   "body": {
-    "file": "gestia-terminal.html",
-    "startLine": 7240,
-    "endLine": 7325
+    "query": "rememberSia7PendingPatchApproval",
+    "include": ["gestia-terminal.html"],
+    "maxResults": 20
   }
 }
