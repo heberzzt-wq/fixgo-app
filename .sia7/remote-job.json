@@ -1,12 +1,9 @@
 {
-  "jobId": "sia7-apply-41.43.2-persist-pending-approval-20260709-2318",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
+  "jobId": "sia7-verify-41.43.2-persist-pending-approval-20260709-2322",
+  "endpoint": "/read",
+  "body": {
     "file": "gestia-terminal.html",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "          window.__SIA7_SAFE_WRITE_CONFIRM_PENDING__ =\n            {\n              file:\n                safeWriteFile,\n              fingerprint:\n                safeWriteFingerprint,\n              approvalCommand,\n              createdAt:\n                Date.now()\n            };",
-    "replace": "          window.__SIA7_SAFE_WRITE_CONFIRM_PENDING__ =\n            {\n              file:\n                safeWriteFile,\n              fingerprint:\n                safeWriteFingerprint,\n              approvalCommand,\n              createdAt:\n                Date.now()\n            };\n\n          rememberSia7PendingPatchApproval({\n            ...proposal,\n            file:\n              safeWriteFile,\n            search:\n              safeWriteSearch,\n            replace:\n              safeWriteReplace,\n            fingerprint:\n              safeWriteFingerprint,\n            approvalCommand\n          });"
+    "startLine": 7270,
+    "endLine": 7315
   }
 }
