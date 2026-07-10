@@ -1,13 +1,26 @@
 {
-  "jobId": "sia7-restore-package-after-hosting-20260710-01",
-  "completedAt": "2026-07-10T17:57:44.830Z",
+  "jobId": "sia7-read-local-pre-core-gate-20260710-01",
+  "completedAt": "2026-07-10T18:06:25.617Z",
   "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "package.json",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 3325,
-  "bytesAfter": 3323,
-  "source": "sia7_github_worker_exact_patch_v1"
+  "httpStatus": 200,
+  "endpoint": "/read",
+  "payload": {
+    "ok": true,
+    "file": "gestia-terminal.html",
+    "path": "gestia-terminal.html",
+    "size": 3373,
+    "totalSize": 256239,
+    "content": "                    \"Jarvis Repo Kernel\",\n                    typeof legacyPayload === \"string\"\n                        ? legacyPayload\n                        : JSON.stringify(legacyPayload, null, 2).slice(0, 6000),\n                    legacyResult?.ok === false\n                        ? \"warning\"\n                        : \"info\"\n                );\n\n                handled =\n                    true;\n\n                return;\n            }\n            catch(legacyBypassError) {\n                console.warn(\n                    \"[TERMINAL_LEGACY_REPO_BYPASS_41_19_FALLBACK_CORE]\",\n                    legacyBypassError\n                );\n            }\n        }\n\n                if (\n            terminalBrainRoute?.mode !== \"PROPOSAL_ADJUSTMENT\" &&\n            window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__\n        ) {\n            console.info(\n                \"[SIA7_STALE_ADJUSTMENT_CONTEXT_CLEARED_41_42_5]\",\n                {\n                    mode:\n                        terminalBrainRoute?.mode,\n                    staleFile:\n                        window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__?.file,\n                    traceId:\n                        currentTraceId\n                }\n            );\n\n            window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__ =\n                null;\n        }\n\n                        const adjustmentTargetFile =\n            window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__?.file ||\n            \"\";\n\n        const activeVisualPatchProposal =\n            window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ || null;\n\n        const activeSia7PatchProposal =\n            typeof readSia7ActivePatchProposal === \"function\"\n                ? readSia7ActivePatchProposal()\n                : null;\n\n        const activeLegacyPatchProposal =\n            readTerminalActivePatchProposal();\n\n        const activePatchProposal =\n            terminalBrainRoute?.mode === \"PROPOSAL_ADJUSTMENT\"\n                ? (\n                    adjustmentTargetFile &&\n                    activeVisualPatchProposal?.file === adjustmentTargetFile\n                        ? activeVisualPatchProposal\n                        : null\n                ) ||\n                (\n                    adjustmentTargetFile &&\n                    activeSia7PatchProposal?.file === adjustmentTargetFile\n                        ? activeSia7PatchProposal\n                        : null\n                ) ||\n                (\n                    adjustmentTargetFile &&\n                    activeLegacyPatchProposal?.file === adjustmentTargetFile\n                        ? activeLegacyPatchProposal\n                        : null\n                ) ||\n                activeVisualPatchProposal ||\n                activeSia7PatchProposal ||\n                activeLegacyPatchProposal\n                : activeLegacyPatchProposal;\n\n                const shouldBuildProposalAdjustmentInput =\n            activePatchProposal?.file &&\n            terminalBrainRoute?.mode === \"PROPOSAL_ADJUSTMENT\";\n\n                const lockedAdjustmentFile =\n            shouldBuildProposalAdjustmentInput\n                ? (\n                    window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__?.lockedFile ||\n                    window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__?.file ||\n                    activePatchProposal?.file ||\n                    \"\"\n                )\n                : \"\";\n",
+    "partial": true,
+    "startLine": 4240,
+    "endLine": 4335,
+    "totalLines": 7709,
+    "lineRange": {
+      "startLine": 4240,
+      "endLine": 4335,
+      "totalLines": 7709
+    },
+    "source": "jarvis_fs_bridge_read_v1",
+    "version": "2.1.0-local-fs-bridge"
+  }
 }
