@@ -1,11 +1,11 @@
 {
-  "jobId": "sia7-real-ci-after-package-restore-20260710-01",
+  "jobId": "sia7-live-marker-direct-check-20260710-01",
   "operation": "bridge",
   "endpoint": "/run",
   "body": {
-    "command": "npm run ci:test",
+    "command": "node -e \"fetch('https://fixgo-44e4d.web.app/gestia-terminal.html?ts='+Date.now(),{cache:'no-store'}).then(r=>r.text()).then(t=>{const marker='TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT_41_43_5';console.log(JSON.stringify({marker:t.includes(marker),bytes:t.length,index:t.indexOf(marker),url:'https://fixgo-44e4d.web.app/gestia-terminal.html'}));process.exit(t.includes(marker)?0:2)}).catch(e=>{console.error(e);process.exit(1)})\"",
     "cwd": ".",
-    "timeoutMs": 120000,
-    "source": "sia7_real_ci_after_package_restore"
+    "timeoutMs": 60000,
+    "source": "sia7_live_marker_direct_check"
   }
 }
