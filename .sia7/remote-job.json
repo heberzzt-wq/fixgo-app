@@ -1,12 +1,9 @@
 {
-  "jobId": "sia7-apply-worker-allow-run-41.43.2-20260709-2338",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "jarvis-github-worker.js",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    const allowed = new Set([\"/health\", \"/read\", \"/grep\", \"/git\"]);",
-    "replace": "    const allowed = new Set([\"/health\", \"/read\", \"/grep\", \"/git\", \"/run\"]);"
+  "jobId": "sia7-run-check-syntax-41.43.2-20260709-2342",
+  "endpoint": "/run",
+  "body": {
+    "command": "npm run check:syntax",
+    "timeoutMs": 120000,
+    "source": "sia7_checkpoint_41_43_2"
   }
 }
