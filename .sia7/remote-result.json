@@ -1,26 +1,22 @@
 {
-  "jobId": "sia7-read-41.43.2-approval-command-20260709-2302",
-  "completedAt": "2026-07-10T04:09:40.102Z",
+  "jobId": "sia7-grep-41.43.2-pending-approval-helper-20260709-2310",
+  "completedAt": "2026-07-10T04:10:20.633Z",
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/read",
+  "endpoint": "/grep",
   "payload": {
     "ok": true,
-    "file": "gestia-terminal.html",
-    "path": "gestia-terminal.html",
-    "size": 2692,
-    "totalSize": 248239,
-    "content": "        );\n        return;\n      }\n\n            if (action === \"prepare-safe-write-approval\") {\n        const approvalCommand =\n          proposal.approvalCommand ||\n          `Jarvis, apruebo patch ${proposal.file || \"\"}`.trim();\n\n        const safeWriteFile =\n          proposal.file || \"ND\";\n\n        const safeWriteSearch =\n          proposal.search || \"\";\n\n        const safeWriteReplace =\n          proposal.replace || \"\";\n\n        const safeWriteFingerprint =\n          [\n            safeWriteFile,\n            safeWriteSearch,\n            safeWriteReplace,\n            approvalCommand\n          ].join(\"::\");\n\n        const pendingSafeWrite =\n          window.__SIA7_SAFE_WRITE_CONFIRM_PENDING__;\n\n        const pendingIsFresh =\n          pendingSafeWrite?.createdAt &&\n          Date.now() - Number(pendingSafeWrite.createdAt) < 1000 * 60 * 5;\n\n        const pendingMatches =\n          pendingIsFresh &&\n          pendingSafeWrite?.fingerprint === safeWriteFingerprint;\n\n        if (!pendingMatches) {\n          window.__SIA7_SAFE_WRITE_CONFIRM_PENDING__ =\n            {\n              file:\n                safeWriteFile,\n              fingerprint:\n                safeWriteFingerprint,\n              approvalCommand,\n              createdAt:\n                Date.now()\n            };\n\n          notifySia7ProposalAction(\n            \"Confirmacion segura SIA7\",\n            [\n              \"Primera confirmacion registrada.\",\n              \"Revisa archivo, riesgo, Search exacto, Replace candidato y Mini diff visual antes de continuar.\",\n              \"\",\n              `Archivo: ${safeWriteFile}`,\n              `Riesgo archivo: ${proposal.risk?.file || proposal.fileRisk || proposal.riskFile || \"ND\"}`,\n              `Riesgo patch: ${proposal.risk?.patch || proposal.patchRisk || proposal.riskPatch || \"ND\"}`,\n              \"\",\n              \"Para preparar el comando final, vuelve a presionar Aprobar safe write.\",\n              \"\",\n              \"No se preparo comando en input.\",\n              \"No se ejecuto repo.safePatchApply ni repo.write.\"\n            ].join(\"\\n\"),\n            \"warning\"\n          );\n\n          return;\n        }\n\n        window.__SIA7_SAFE_WRITE_CONFIRM_PENDING__ =\n          null;\n\n        setSia7TerminalInput(approvalCommand);\n\n        notifySia7ProposalAction(\n          \"Comando preparado\",\n          [\n            \"Segunda confirmacion recibida.\",\n            \"Comando de aprobacion preparado en la terminal.\",\n            \"Revisalo y envialo manualmente si quieres continuar.\",\n            \"\",\n            approvalCommand,\n            \"\",\n            \"No se ejecuto repo.safePatchApply ni repo.write.\",\n            \"No se enviara automaticamente.\"",
-    "partial": true,
-    "startLine": 7240,
-    "endLine": 7325,
-    "totalLines": 7696,
-    "lineRange": {
-      "startLine": 7240,
-      "endLine": 7325,
-      "totalLines": 7696
-    },
-    "source": "jarvis_fs_bridge_read_v1",
+    "term": "rememberSia7PendingPatchApproval",
+    "totalFilesScanned": 167,
+    "totalMatches": 1,
+    "matches": [
+      {
+        "file": "gestia-terminal.html",
+        "line": 6922,
+        "snippet": "function rememberSia7PendingPatchApproval(payload = {}) {"
+      }
+    ],
+    "source": "jarvis_fs_bridge_grep_v1",
     "version": "2.1.0-local-fs-bridge"
   }
 }
