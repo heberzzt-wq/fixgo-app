@@ -1,19 +1,13 @@
 {
-  "jobId": "sia7-final-status-20260710-01",
-  "completedAt": "2026-07-10T16:44:20.797Z",
+  "jobId": "sia7-hosting-deploy-script-20260710-02",
+  "completedAt": "2026-07-10T16:50:55.654Z",
   "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/git",
-  "payload": {
-    "ok": true,
-    "status": "GIT_STATUS_OK",
-    "exitCode": 0,
-    "command": "git status --short --branch",
-    "stdout": "## v5.9-polish...origin/v5.9-polish [behind 1]\n M gestia-terminal.html\n",
-    "stderr": "",
-    "durationMs": 324,
-    "source": "jarvis_fs_bridge_git_v7",
-    "version": "2.1.0-local-fs-bridge",
-    "action": "status"
-  }
+  "operation": "patch",
+  "dryRun": false,
+  "file": "package.json",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 3323,
+  "bytesAfter": 3357,
+  "source": "sia7_github_worker_exact_patch_v1"
 }
