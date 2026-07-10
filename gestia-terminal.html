@@ -7286,6 +7286,19 @@ if (
                 Date.now()
             };
 
+          rememberSia7PendingPatchApproval({
+            ...proposal,
+            file:
+              safeWriteFile,
+            search:
+              safeWriteSearch,
+            replace:
+              safeWriteReplace,
+            fingerprint:
+              safeWriteFingerprint,
+            approvalCommand
+          });
+
           notifySia7ProposalAction(
             "Confirmacion segura SIA7",
             [

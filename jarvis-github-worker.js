@@ -153,7 +153,7 @@ async function publishRemoteResult(result = {}) {
 
 function normalizeEndpoint(value = "") {
     const endpoint = String(value || "").trim();
-    const allowed = new Set(["/health", "/read", "/grep", "/git"]);
+    const allowed = new Set(["/health", "/read", "/grep", "/git", "/run"]);
 
     if (!allowed.has(endpoint)) {
         throw new Error("WORKER_ENDPOINT_NOT_ALLOWED");
