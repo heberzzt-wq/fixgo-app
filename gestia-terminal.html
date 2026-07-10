@@ -6812,6 +6812,9 @@ window.addEventListener("load", () => {
   const SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY =
     "sia7:activePatchProposal:v1";
 
+  const SIA7_PENDING_PATCH_APPROVAL_STORAGE_KEY =
+    "sia7:pendingPatchApproval:v1";
+
   const SIA7_ACTIVE_PATCH_PROPOSAL_MAX_AGE_MS =
     1000 * 60 * 60 * 2;
 
@@ -6916,6 +6919,82 @@ window.addEventListener("load", () => {
     return null;
   }
 
+    function rememberSia7PendingPatchApproval(payload = {}) {
+    const proposal =
+      buildSia7ActivePatchProposal(payload);
+
+    const pendingApproval =
+      {
+        ...proposal,
+        fingerprint:
+          payload.fingerprint || "",
+        approvalCommand:
+          payload.approvalCommand ||
+          proposal.approvalCommand,
+        status:
+          "PENDING_SAFE_WRITE_APPROVAL",
+        createdAt:
+          Date.now(),
+        updatedAt:
+          Date.now()
+      };
+
+    window.__SIA7_PENDING_PATCH_APPROVAL__ =
+      pendingApproval;
+
+    try {
+      localStorage.setItem(
+        SIA7_PENDING_PATCH_APPROVAL_STORAGE_KEY,
+        JSON.stringify(pendingApproval)
+      );
+    }
+    catch(error) {}
+
+    return pendingApproval;
+  }
+
+  function readSia7PendingPatchApproval() {
+    const current =
+      window.__SIA7_PENDING_PATCH_APPROVAL__;
+
+    if (
+      current?.file &&
+      current?.search &&
+      current?.replace &&
+      isFreshSia7ActivePatchProposal(current)
+    ) {
+      return current;
+    }
+
+    try {
+      const raw =
+        localStorage.getItem(
+          SIA7_PENDING_PATCH_APPROVAL_STORAGE_KEY
+        );
+
+      if (!raw) return null;
+
+      const parsed =
+        JSON.parse(raw);
+
+      if (
+        parsed?.file &&
+        parsed?.search &&
+        parsed?.replace &&
+        isFreshSia7ActivePatchProposal(parsed)
+      ) {
+        window.__SIA7_PENDING_PATCH_APPROVAL__ =
+          parsed;
+
+        return parsed;
+      }
+    }
+    catch(error) {}
+
+    return null;
+  }
+
+
   function clearSia7ActivePatchProposal() {
     window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ = null;
     window.__SIA7_ACTIVE_PATCH_PROPOSAL__ = null;
@@ -6953,8 +7032,12 @@ window.addEventListener("load", () => {
         .replace(/^\.\/+/, "")
         .replace(/^\/+/, "");
 
-    const candidates =
+        const candidates =
       [
+        typeof readSia7PendingPatchApproval === "function"
+          ? readSia7PendingPatchApproval()
+          : null,
+        window.__SIA7_PENDING_PATCH_APPROVAL__ || null,
         window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ || null,
         typeof readSia7ActivePatchProposal === "function"
           ? readSia7ActivePatchProposal()

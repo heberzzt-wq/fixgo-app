@@ -1,0 +1,19 @@
+{
+  "jobId": "sia7-remote-health-20260709-2158",
+  "completedAt": "2026-07-10T03:11:35.293Z",
+  "ok": true,
+  "httpStatus": 200,
+  "endpoint": "/health",
+  "payload": {
+    "ok": true,
+    "version": "2.1.0-local-fs-bridge",
+    "policy": {
+      "authority": "full_repo_private_owner",
+      "safeZone": "advisory",
+      "rootContainment": true,
+      "emptyWrites": "blocked",
+      "failureMode": "closed"
+    },
+    "root": "C:\\Users\\heber\\Desktop\\play-store-Gestia\\fixgo-app-main"
+  }
+}
