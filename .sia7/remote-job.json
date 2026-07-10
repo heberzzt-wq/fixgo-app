@@ -1,13 +1,11 @@
 {
-  "jobId": "sia7-restore-package-after-precore-deploy-20260710-01",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "package.json",
-    "search": "firebase.cmd deploy --only hosting",
-    "replace": "npm run check:syntax && npm test",
-    "expectedMatches": 1,
-    "dryRun": false,
-    "humanApproved": true
+  "jobId": "sia7-read-terminal-brain-route-20260710-01",
+  "operation": "bridge",
+  "endpoint": "/read",
+  "body": {
+    "file": "gestia-terminal.html",
+    "startLine": 3920,
+    "endLine": 4250,
+    "maxBytes": 30000
   }
 }
