@@ -1,11 +1,11 @@
 {
-  "jobId": "sia7-read-terminal-brain-route-20260710-01",
+  "jobId": "sia7-read-earlier-terminal-routing-20260710-01",
   "operation": "bridge",
   "endpoint": "/read",
   "body": {
     "file": "gestia-terminal.html",
-    "startLine": 3920,
-    "endLine": 4250,
-    "maxBytes": 30000
+    "startLine": 3400,
+    "endLine": 3925,
+    "maxBytes": 50000
   }
 }
