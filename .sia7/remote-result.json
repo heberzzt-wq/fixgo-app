@@ -1,19 +1,19 @@
 {
-  "jobId": "sia7-terminal-semantic-git-status-20260710-01",
-  "completedAt": "2026-07-10T16:13:07.470Z",
+  "jobId": "sia7-terminal-semantic-git-diff-20260710-01",
+  "completedAt": "2026-07-10T16:17:12.832Z",
   "ok": true,
   "httpStatus": 200,
   "endpoint": "/git",
   "payload": {
     "ok": true,
-    "status": "GIT_STATUS_OK",
+    "status": "GIT_DIFF_OK",
     "exitCode": 0,
-    "command": "git status --short --branch",
-    "stdout": "## v5.9-polish...origin/v5.9-polish [behind 1]\n M gestia-terminal.html\n",
+    "command": "git diff --",
+    "stdout": "diff --git a/gestia-terminal.html b/gestia-terminal.html\nindex fb6c4e02..00273d86 100644\n--- a/gestia-terminal.html\n+++ b/gestia-terminal.html\n@@ -5706,8 +5706,8 @@ const raw =\n         .replace(/[\\u0300-\\u036f]/g, \"\");\n \n const isExplicitRepoAuditRequest =\n-    /\\b(audita|auditar|audit|auditoria)\\b/i.test(raw) ||\n-    /\\b(estado|mapa|resumen)\\s+(del\\s+)?(repo|repositorio|sistema)\\b/i.test(raw);\n+    terminalBrainRoute?.mode === \"TECHNICAL_DIAGNOSIS\" &&\n+    terminalBrainRoute?.writeAllowed === false;\n \n if (isExplicitRepoAuditRequest) {\n \n",
     "stderr": "",
-    "durationMs": 464,
+    "durationMs": 571,
     "source": "jarvis_fs_bridge_git_v7",
     "version": "2.1.0-local-fs-bridge",
-    "action": "status"
+    "action": "diff"
   }
 }
