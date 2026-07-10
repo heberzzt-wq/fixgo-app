@@ -1,6 +1,13 @@
 {
-  "jobId": "sia7-restore-package-ci-test-20260710-01",
-  "completedAt": "2026-07-10T21:27:09.940Z",
-  "ok": false,
-  "error": "PATCH_HUMAN_APPROVAL_REQUIRED"
+  "jobId": "sia7-restore-package-ci-test-approved-20260710-02",
+  "completedAt": "2026-07-10T21:29:50.846Z",
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": "package.json",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 3710,
+  "bytesAfter": 3323,
+  "source": "sia7_github_worker_exact_patch_v1"
 }
