@@ -1,26 +1,19 @@
 {
-  "jobId": "sia7-verify-41.43.2-persist-pending-approval-20260709-2322",
-  "completedAt": "2026-07-10T04:16:46.334Z",
+  "jobId": "sia7-git-status-41.43.2-20260709-2330",
+  "completedAt": "2026-07-10T04:18:16.739Z",
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/read",
+  "endpoint": "/git",
   "payload": {
     "ok": true,
-    "file": "gestia-terminal.html",
-    "path": "gestia-terminal.html",
-    "size": 1647,
-    "totalSize": 256272,
-    "content": "          pendingSafeWrite?.createdAt &&\n          Date.now() - Number(pendingSafeWrite.createdAt) < 1000 * 60 * 5;\n\n        const pendingMatches =\n          pendingIsFresh &&\n          pendingSafeWrite?.fingerprint === safeWriteFingerprint;\n\n        if (!pendingMatches) {\n          window.__SIA7_SAFE_WRITE_CONFIRM_PENDING__ =\n            {\n              file:\n                safeWriteFile,\n              fingerprint:\n                safeWriteFingerprint,\n              approvalCommand,\n              createdAt:\n                Date.now()\n            };\n\n          rememberSia7PendingPatchApproval({\n            ...proposal,\n            file:\n              safeWriteFile,\n            search:\n              safeWriteSearch,\n            replace:\n              safeWriteReplace,\n            fingerprint:\n              safeWriteFingerprint,\n            approvalCommand\n          });\n\n          notifySia7ProposalAction(\n            \"Confirmacion segura SIA7\",\n            [\n              \"Primera confirmacion registrada.\",\n              \"Revisa archivo, riesgo, Search exacto, Replace candidato y Mini diff visual antes de continuar.\",\n              \"\",\n              `Archivo: ${safeWriteFile}`,\n              `Riesgo archivo: ${proposal.risk?.file || proposal.fileRisk || proposal.riskFile || \"ND\"}`,\n              `Riesgo patch: ${proposal.risk?.patch || proposal.patchRisk || proposal.riskPatch || \"ND\"}`,\n              \"\",\n              \"Para preparar el comando final, vuelve a presionar Aprobar safe write.\",\n              \"\",\n              \"No se preparo comando en input.\",\n              \"No se ejecuto repo.safePatchApply ni repo.write.\"",
-    "partial": true,
-    "startLine": 7270,
-    "endLine": 7315,
-    "totalLines": 7709,
-    "lineRange": {
-      "startLine": 7270,
-      "endLine": 7315,
-      "totalLines": 7709
-    },
-    "source": "jarvis_fs_bridge_read_v1",
-    "version": "2.1.0-local-fs-bridge"
+    "status": "GIT_STATUS_OK",
+    "exitCode": 0,
+    "command": "git status --short --branch",
+    "stdout": "## v5.9-polish...origin/v5.9-polish [behind 1]\n M gestia-terminal.html\n",
+    "stderr": "",
+    "durationMs": 593,
+    "source": "jarvis_fs_bridge_git_v7",
+    "version": "2.1.0-local-fs-bridge",
+    "action": "status"
   }
 }
