@@ -1,12 +1,13 @@
 {
-  "jobId": "sia7-terminal-commit-20260710-02",
-  "operation": "bridge",
-  "endpoint": "/git",
-  "body": {
-    "action": "commit",
-    "cwd": ".",
-    "message": "terminal semantic diagnosis fix",
-    "approved": true,
-    "timeoutMs": 120000
+  "jobId": "sia7-hosting-deploy-script-20260710-01",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
+    "file": "package.json",
+    "search": "\"ci:test\": \"npm run check:syntax && npm test\"",
+    "replace": "\"ci:test\": \"npm run check:syntax && npm test && firebase deploy --only hosting\"",
+    "expectedMatches": 1,
+    "dryRun": false,
+    "humanApproved": true
   }
 }
