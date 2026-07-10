@@ -1,9 +1,13 @@
 {
-  "jobId": "sia7-git-commit-41.43.2-20260709-2355",
-  "endpoint": "/git",
-  "body": {
-    "action": "commit",
-    "message": "41.43.2 persist pending patch approval and allow restricted test runner",
-    "approved": true
+  "jobId": "sia7-terminal-semantic-diagnosis-20260710-01",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
+    "file": "gestia-terminal.html",
+    "search": "        // Legacy audit route. Freeform diagnostics stay in Core.\nconst raw =\n    String(comando || \"\")\n        .toLowerCase()\n        .normalize(\"NFD\")\n        .replace(/[\\u0300-\\u036f]/g, \"\");\n\nconst isExplicitRepoAuditRequest =\n    /\\b(audita|auditar|audit|auditoria)\\b/i.test(raw) ||\n    /\\b(estado|mapa|resumen)\\s+(del\\s+)?(repo|repositorio|sistema)\\b/i.test(raw);",
+    "replace": "        // Semantic diagnosis route. Respect the brain decision; no keyword dictionary.\nconst raw =\n    String(comando || \"\")\n        .toLowerCase()\n        .normalize(\"NFD\")\n        .replace(/[\\u0300-\\u036f]/g, \"\");\n\nconst isExplicitRepoAuditRequest =\n    terminalBrainRoute?.mode === \"TECHNICAL_DIAGNOSIS\" &&\n    terminalBrainRoute?.writeAllowed === false;",
+    "expectedMatches": 1,
+    "dryRun": false,
+    "humanApproved": true
   }
 }
