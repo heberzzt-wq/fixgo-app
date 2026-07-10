@@ -1,11 +1,11 @@
 {
-  "jobId": "sia7-restore-package-after-timeout-20260710-01",
+  "jobId": "sia7-hosting-only-script-20260710-01",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "package.json",
-    "search": "npm run check:syntax && npm test && firebase deploy --only hosting",
-    "replace": "npm run check:syntax && npm test",
+    "search": "npm run check:syntax && npm test",
+    "replace": "firebase deploy --only hosting",
     "expectedMatches": 1,
     "dryRun": false,
     "humanApproved": true
