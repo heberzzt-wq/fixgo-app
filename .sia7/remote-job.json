@@ -1,11 +1,12 @@
 {
-  "jobId": "sia7-hosting-deploy-run-20260710-01",
-  "operation": "bridge",
-  "endpoint": "/run",
+  "jobId": "sia7-fix-windows-firebase-cli-20260710-01",
+  "operation": "patch",
+  "humanApproved": true,
   "body": {
-    "command": "npm run ci:test",
-    "cwd": ".",
-    "timeoutMs": 120000,
-    "source": "sia7_hosting_deploy_run"
+    "file": "package.json",
+    "search": "    \"ci:test\": \"firebase deploy --only hosting\"",
+    "replace": "    \"ci:test\": \"firebase.cmd deploy --only hosting\"",
+    "expectedMatches": 1,
+    "source": "sia7_fix_windows_firebase_cli_resolution"
   }
 }
