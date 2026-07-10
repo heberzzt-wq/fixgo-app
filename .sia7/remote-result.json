@@ -1,6 +1,6 @@
 {
   "jobId": "sia7-git-status-41.43.2-20260709-2330",
-  "completedAt": "2026-07-10T04:18:16.739Z",
+  "completedAt": "2026-07-10T04:25:12.249Z",
   "ok": true,
   "httpStatus": 200,
   "endpoint": "/git",
@@ -9,9 +9,9 @@
     "status": "GIT_STATUS_OK",
     "exitCode": 0,
     "command": "git status --short --branch",
-    "stdout": "## v5.9-polish...origin/v5.9-polish [behind 1]\n M gestia-terminal.html\n",
+    "stdout": "## v5.9-polish...origin/v5.9-polish\n M gestia-terminal.html\n",
     "stderr": "",
-    "durationMs": 593,
+    "durationMs": 173,
     "source": "jarvis_fs_bridge_git_v7",
     "version": "2.1.0-local-fs-bridge",
     "action": "status"
