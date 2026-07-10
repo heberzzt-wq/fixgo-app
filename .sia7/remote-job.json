@@ -1,9 +1,9 @@
 {
-  "jobId": "sia7-terminal-semantic-git-status-20260710-01",
+  "jobId": "sia7-terminal-semantic-git-diff-20260710-01",
   "operation": "bridge",
   "endpoint": "/git",
   "body": {
-    "action": "status",
+    "action": "diff",
     "cwd": ".",
     "timeoutMs": 120000
   }
