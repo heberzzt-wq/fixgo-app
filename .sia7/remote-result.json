@@ -1,19 +1,13 @@
 {
-  "jobId": "sia7-hosting-deploy-run-20260710-01",
-  "completedAt": "2026-07-10T23:39:16.681Z",
-  "ok": false,
-  "httpStatus": 408,
-  "endpoint": "/run",
-  "payload": {
-    "ok": false,
-    "status": "TIMEOUT",
-    "error": "COMMAND_TIMEOUT",
-    "command": "npm run ci:test",
-    "timeoutMs": 120000,
-    "stdout": "\n> gestia-premium@1.0.0 ci:test\n> firebase deploy --only hosting\n\n",
-    "stderr": "",
-    "durationMs": 120167,
-    "source": "sia7_hosting_deploy_run",
-    "version": "2.1.0-local-fs-bridge"
-  }
+  "jobId": "sia7-fix-windows-firebase-cli-20260710-01",
+  "completedAt": "2026-07-10T23:55:48.544Z",
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": "package.json",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 3321,
+  "bytesAfter": 3325,
+  "source": "sia7_github_worker_exact_patch_v1"
 }
