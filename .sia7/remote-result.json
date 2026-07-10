@@ -1,20 +1,13 @@
 {
-  "jobId": "sia7-terminal-commit-20260710-02",
-  "completedAt": "2026-07-10T16:25:28.539Z",
-  "ok": false,
-  "httpStatus": 200,
-  "endpoint": "/git",
-  "payload": {
-    "ok": false,
-    "status": "GIT_COMMIT_FAILED",
-    "exitCode": 1,
-    "command": "git commit -m terminal semantic diagnosis fix",
-    "stdout": "On branch v5.9-polish\nYour branch is behind 'origin/v5.9-polish' by 1 commit, and can be fast-forwarded.\n  (use \"git pull\" to update your local branch)\n\nChanges not staged for commit:\n  (use \"git add <file>...\" to update what will be committed)\n  (use \"git restore <file>...\" to discard changes in working directory)\n\tmodified:   gestia-terminal.html\n\nno changes added to commit (use \"git add\" and/or \"git commit -a\")\n",
-    "stderr": "",
-    "durationMs": 318,
-    "source": "jarvis_fs_bridge_git_v7",
-    "version": "2.1.0-local-fs-bridge",
-    "action": "commit",
-    "message": "terminal semantic diagnosis fix"
-  }
+  "jobId": "sia7-hosting-deploy-script-20260710-01",
+  "completedAt": "2026-07-10T16:27:58.349Z",
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": "package.json",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 3323,
+  "bytesAfter": 3357,
+  "source": "sia7_github_worker_exact_patch_v1"
 }
