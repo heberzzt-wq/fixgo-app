@@ -8,7 +8,7 @@
     "ci:test": "npm run check:syntax && npm test"
   },
   "dependencies": {
-    "cors": "^5.2.1",
+    "cors": "^2.8.6",
     "express": "^5.2.1",
     "firebase-admin": "^13.10.0"
   },
