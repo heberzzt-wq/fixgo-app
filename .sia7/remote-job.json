@@ -1,13 +1,11 @@
 {
-  "jobId": "sia7-immediate-semantic-diagnosis-exit-20260710-02",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "gestia-terminal.html",
-    "search": "            terminalBrainRoute?.mode === \"CASUAL_NOOP\"",
-    "replace": "            terminalBrainRoute?.mode === \"TECHNICAL_DIAGNOSIS\" &&\n            terminalBrainRoute?.writeAllowed === false\n        ) {\n            let diagnosisReport =\n                \"Diagnóstico técnico completado.\";\n\n            try {\n                const diagnosisResult =\n                    await window.ToolsBridge?.executeAndCompose?.(\n                        \"repo.audit\",\n                        {},\n                        {\n                            rawInput: comando,\n                            analysisId:\n                                currentTraceId ||\n                                `terminal_${Date.now()}`\n                        }\n                    );\n\n                const diagnosisResponse =\n                    diagnosisResult?.response ||\n                    diagnosisResult?.data?.response ||\n                    diagnosisResult;\n\n                diagnosisReport =\n                    String(\n                        diagnosisResponse?.report ||\n                        diagnosisResponse?.text ||\n                        diagnosisResponse?.message ||\n                        diagnosisReport\n                    )\n                        .replace(/^Diagnóstico Repo SIA7\\s*/i, \"\")\n                        .trim();\n            }\n            catch (diagnosisError) {\n                console.warn(\n                    \"[TERMINAL_IMMEDIATE_DIAGNOSIS_TOOL_FAIL_41_43_5]\",\n                    diagnosisError\n                );\n            }\n\n            window.renderJarvisResponse?.(\n                \"Diagnóstico Repo SIA7\",\n                diagnosisReport,\n                \"info\"\n            );\n\n            console.info(\n                \"[TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT_41_43_5]\",\n                {\n                    traceId: currentTraceId,\n                    mode: terminalBrainRoute.mode,\n                    writeAllowed: terminalBrainRoute.writeAllowed\n                }\n            );\n\n            handled = true;\n            return;\n        }\n\n        if (\n            terminalBrainRoute?.mode === \"CASUAL_NOOP\"",
-    "expectedMatches": 1,
-    "dryRun": false,
-    "humanApproved": true
+  "jobId": "sia7-immediate-diagnosis-ci-20260710-01",
+  "operation": "bridge",
+  "endpoint": "/run",
+  "body": {
+    "command": "npm run ci:test",
+    "cwd": ".",
+    "timeoutMs": 180000,
+    "source": "sia7_immediate_diagnosis_ci"
   }
 }
