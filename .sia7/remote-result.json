@@ -1,23 +1,20 @@
 {
-  "jobId": "sia7-git-add-41.43.2-20260709-2350",
-  "completedAt": "2026-07-10T04:42:11.942Z",
-  "ok": true,
+  "jobId": "sia7-git-commit-41.43.2-20260709-2355",
+  "completedAt": "2026-07-10T04:43:36.028Z",
+  "ok": false,
   "httpStatus": 200,
   "endpoint": "/git",
   "payload": {
-    "ok": true,
-    "status": "GIT_ADD_OK",
-    "exitCode": 0,
-    "command": "git add -- gestia-terminal.html jarvis-github-worker.js",
-    "stdout": "",
+    "ok": false,
+    "status": "GIT_COMMIT_FAILED",
+    "exitCode": 1,
+    "command": "git commit -m 41.43.2 persist pending patch approval and allow restricted test runner",
+    "stdout": "On branch v5.9-polish\nYour branch is behind 'origin/v5.9-polish' by 1 commit, and can be fast-forwarded.\n  (use \"git pull\" to update your local branch)\n\nChanges not staged for commit:\n  (use \"git add <file>...\" to update what will be committed)\n  (use \"git restore <file>...\" to discard changes in working directory)\n\tmodified:   gestia-terminal.html\n\tmodified:   jarvis-github-worker.js\n\nno changes added to commit (use \"git add\" and/or \"git commit -a\")\n",
     "stderr": "",
-    "durationMs": 283,
+    "durationMs": 650,
     "source": "jarvis_fs_bridge_git_v7",
     "version": "2.1.0-local-fs-bridge",
-    "action": "add",
-    "files": [
-      "gestia-terminal.html",
-      "jarvis-github-worker.js"
-    ]
+    "action": "commit",
+    "message": "41.43.2 persist pending patch approval and allow restricted test runner"
   }
 }
