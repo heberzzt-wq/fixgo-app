@@ -1,9 +1,9 @@
 {
-  "jobId": "sia7-read-41.43.2-safe-write-block-20260709-2258",
+  "jobId": "sia7-read-41.43.2-approval-command-20260709-2302",
   "endpoint": "/read",
   "body": {
     "file": "gestia-terminal.html",
-    "startLine": 7160,
-    "endLine": 7245
+    "startLine": 7240,
+    "endLine": 7325
   }
 }
