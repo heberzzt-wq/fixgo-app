@@ -1,11 +1,11 @@
 {
-  "jobId": "sia7-verify-live-immediate-marker-20260710-01",
+  "jobId": "sia7-read-service-worker-cache-policy-20260710-01",
   "operation": "bridge",
-  "endpoint": "/run",
+  "endpoint": "/read",
   "body": {
-    "command": "node -e \"fetch('https://fixgo-44e4d.web.app/gestia-terminal.html?ts='+Date.now(),{cache:'no-store'}).then(r=>r.text()).then(t=>{console.log(JSON.stringify({status:t.includes('TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT_41_43_5'),bytes:t.length,index:t.indexOf('TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT_41_43_5')}))}).catch(e=>{console.error(e);process.exit(1)})\"",
-    "cwd": ".",
-    "timeoutMs": 60000,
-    "source": "sia7_verify_live_immediate_marker"
+    "file": "sw.js",
+    "startLine": 1,
+    "endLine": 260,
+    "maxBytes": 30000
   }
 }
