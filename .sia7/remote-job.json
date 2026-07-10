@@ -1,13 +1,11 @@
 {
-  "jobId": "sia7-restore-package-after-immediate-diagnosis-20260710-01",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "package.json",
-    "search": "firebase.cmd deploy --only hosting",
-    "replace": "npm run check:syntax && npm test",
-    "expectedMatches": 1,
-    "dryRun": false,
-    "humanApproved": true
+  "jobId": "sia7-verify-live-immediate-marker-20260710-01",
+  "operation": "bridge",
+  "endpoint": "/run",
+  "body": {
+    "command": "node -e \"fetch('https://fixgo-44e4d.web.app/gestia-terminal.html?ts='+Date.now(),{cache:'no-store'}).then(r=>r.text()).then(t=>{console.log(JSON.stringify({status:t.includes('TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT_41_43_5'),bytes:t.length,index:t.indexOf('TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT_41_43_5')}))}).catch(e=>{console.error(e);process.exit(1)})\"",
+    "cwd": ".",
+    "timeoutMs": 60000,
+    "source": "sia7_verify_live_immediate_marker"
   }
 }
