@@ -18,6 +18,10 @@ const JOB_PATH =
     process.env.SIA7_JOB_PATH ||
     ".sia7/remote-job.json";
 
+const RESULT_PATH =
+    process.env.SIA7_RESULT_PATH ||
+    ".sia7/remote-result.json";
+
 const POLL_MS =
     Number(process.env.SIA7_POLL_MS) ||
     5000;
@@ -56,21 +60,11 @@ function runGit(args = []) {
         });
 
         child.on("error", error => {
-            resolve({
-                ok: false,
-                error: error.message,
-                stdout,
-                stderr
-            });
+            resolve({ ok: false, error: error.message, stdout, stderr });
         });
 
         child.on("close", code => {
-            resolve({
-                ok: code === 0,
-                code,
-                stdout,
-                stderr
-            });
+            resolve({ ok: code === 0, code, stdout, stderr });
         });
     });
 }
@@ -81,10 +75,7 @@ function resolveRepoFile(file = "") {
             .trim()
             .replace(/\\/g, "/");
 
-    if (!normalized) {
-        throw new Error("PATCH_FILE_REQUIRED");
-    }
-
+    if (!normalized) throw new Error("PATCH_FILE_REQUIRED");
     if (path.isAbsolute(normalized)) {
         throw new Error("PATCH_ABSOLUTE_PATH_NOT_ALLOWED");
     }
@@ -99,10 +90,7 @@ function resolveRepoFile(file = "") {
         throw new Error("PATCH_PATH_OUTSIDE_REPO");
     }
 
-    return {
-        normalized,
-        target
-    };
+    return { normalized, target };
 }
 
 function countExactMatches(source = "", search = "") {
@@ -123,12 +111,7 @@ function countExactMatches(source = "", search = "") {
 
 async function readRemoteJob() {
     const fetchResult =
-        await runGit([
-            "fetch",
-            "--quiet",
-            REMOTE,
-            BRANCH
-        ]);
+        await runGit(["fetch", "--quiet", REMOTE, BRANCH]);
 
     if (!fetchResult.ok) {
         throw new Error(
@@ -142,11 +125,58 @@ async function readRemoteJob() {
             `${REMOTE}/${BRANCH}:${JOB_PATH}`
         ]);
 
-    if (!showResult.ok) {
-        return null;
+    if (!showResult.ok) return null;
+    return JSON.parse(showResult.stdout);
+}
+
+async function publishRemoteResult(result = {}) {
+    const resultFile =
+        path.resolve(REPO_ROOT, RESULT_PATH);
+
+    fs.mkdirSync(path.dirname(resultFile), { recursive: true });
+    fs.writeFileSync(
+        resultFile,
+        JSON.stringify(result, null, 2) + "\n",
+        "utf8"
+    );
+
+    const addResult =
+        await runGit(["add", "--", RESULT_PATH]);
+
+    if (!addResult.ok) {
+        throw new Error(
+            `RESULT_GIT_ADD_FAILED: ${addResult.stderr || addResult.error || "unknown"}`
+        );
     }
 
-    return JSON.parse(showResult.stdout);
+    const commitResult =
+        await runGit([
+            "commit",
+            "-m",
+            `SIA7 result ${String(result.jobId || "unknown").slice(0, 80)}`
+        ]);
+
+    if (!commitResult.ok) {
+        const noChange =
+            `${commitResult.stdout}\n${commitResult.stderr}`
+                .toLowerCase()
+                .includes("nothing to commit");
+
+        if (!noChange) {
+            throw new Error(
+                `RESULT_GIT_COMMIT_FAILED: ${commitResult.stderr || commitResult.error || "unknown"}`
+            );
+        }
+    }
+
+    const pushResult =
+        await runGit(["push", REMOTE, BRANCH]);
+
+    if (!pushResult.ok) {
+        throw new Error(
+            `RESULT_GIT_PUSH_FAILED: ${pushResult.stderr || pushResult.error || "unknown"}`
+        );
+    }
 }
 
 function normalizeEndpoint(value = "") {
@@ -154,12 +184,7 @@ function normalizeEndpoint(value = "") {
         String(value || "").trim();
 
     const allowed =
-        new Set([
-            "/health",
-            "/read",
-            "/grep",
-            "/git"
-        ]);
+        new Set(["/health", "/read", "/grep", "/git"]);
 
     if (!allowed.has(endpoint)) {
         throw new Error("WORKER_ENDPOINT_NOT_ALLOWED");
@@ -173,25 +198,20 @@ async function executeBridgeJob(job = {}) {
         normalizeEndpoint(job.endpoint || "/health");
 
     const method =
-        endpoint === "/health"
-            ? "GET"
-            : "POST";
+        endpoint === "/health" ? "GET" : "POST";
 
     const response =
-        await fetch(
-            `${BRIDGE_URL}${endpoint}`,
-            {
-                method,
-                headers:
-                    method === "POST"
-                        ? { "content-type": "application/json" }
-                        : undefined,
-                body:
-                    method === "POST"
-                        ? JSON.stringify(job.body || {})
-                        : undefined
-            }
-        );
+        await fetch(`${BRIDGE_URL}${endpoint}`, {
+            method,
+            headers:
+                method === "POST"
+                    ? { "content-type": "application/json" }
+                    : undefined,
+            body:
+                method === "POST"
+                    ? JSON.stringify(job.body || {})
+                    : undefined
+        });
 
     const payload =
         await response.json();
@@ -232,9 +252,7 @@ function executePatchJob(job = {}) {
     const replace =
         String(patch.replace || "");
 
-    if (!search) {
-        throw new Error("PATCH_SEARCH_REQUIRED");
-    }
+    if (!search) throw new Error("PATCH_SEARCH_REQUIRED");
 
     const source =
         fs.readFileSync(target, "utf8");
@@ -254,9 +272,7 @@ function executePatchJob(job = {}) {
     const next =
         source.replace(search, replace);
 
-    if (next === source) {
-        throw new Error("PATCH_NO_CHANGE");
-    }
+    if (next === source) throw new Error("PATCH_NO_CHANGE");
 
     if (!dryRun) {
         fs.writeFileSync(target, next, "utf8");
@@ -290,41 +306,77 @@ async function pollOnce() {
     if (polling) return;
     polling = true;
 
-    try {
-        const job =
-            await readRemoteJob();
+    let currentJob = null;
 
-        if (!job?.jobId || job.jobId === lastJobId) {
+    try {
+        currentJob = await readRemoteJob();
+
+        if (
+            !currentJob?.jobId ||
+            currentJob.jobId === lastJobId
+        ) {
             return;
         }
 
-        lastJobId = job.jobId;
+        lastJobId = currentJob.jobId;
 
         console.log(
             "[SIA7_REMOTE_JOB_RECEIVED]",
             JSON.stringify({
-                jobId: job.jobId,
-                operation: job.operation || "bridge",
-                endpoint: job.endpoint || null
+                jobId: currentJob.jobId,
+                operation: currentJob.operation || "bridge",
+                endpoint: currentJob.endpoint || null
             })
         );
 
-        const result =
-            await executeJob(job);
+        const executionResult =
+            await executeJob(currentJob);
+
+        const result = {
+            jobId: currentJob.jobId,
+            completedAt: new Date().toISOString(),
+            ...executionResult
+        };
 
         console.log(
             "[SIA7_REMOTE_JOB_RESULT]",
+            JSON.stringify(result)
+        );
+
+        await publishRemoteResult(result);
+
+        console.log(
+            "[SIA7_REMOTE_RESULT_PUBLISHED]",
             JSON.stringify({
-                jobId: job.jobId,
-                ...result
+                jobId: currentJob.jobId,
+                path: RESULT_PATH
             })
         );
     }
     catch(error) {
+        const failure = {
+            jobId: currentJob?.jobId || null,
+            completedAt: new Date().toISOString(),
+            ok: false,
+            error: error.message
+        };
+
         console.error(
             "[SIA7_REMOTE_WORKER_ERROR]",
             error.message
         );
+
+        if (currentJob?.jobId) {
+            try {
+                await publishRemoteResult(failure);
+            }
+            catch(publishError) {
+                console.error(
+                    "[SIA7_REMOTE_RESULT_PUBLISH_ERROR]",
+                    publishError.message
+                );
+            }
+        }
     }
     finally {
         polling = false;
