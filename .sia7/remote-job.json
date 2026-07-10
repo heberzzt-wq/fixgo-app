@@ -1,11 +1,13 @@
 {
-  "jobId": "sia7-terminal-read-local-block-20260710-01",
-  "operation": "bridge",
-  "endpoint": "/read",
-  "body": {
+  "jobId": "sia7-terminal-semantic-line1-20260710-01",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
     "file": "gestia-terminal.html",
-    "startLine": 5700,
-    "endLine": 5720,
-    "maxBytes": 12000
+    "search": "    /\\b(audita|auditar|audit|auditoria)\\b/i.test(raw) ||",
+    "replace": "    terminalBrainRoute?.mode === \"TECHNICAL_DIAGNOSIS\" &&",
+    "expectedMatches": 1,
+    "dryRun": false,
+    "humanApproved": true
   }
 }
