@@ -1,11 +1,10 @@
 {
-  "jobId": "sia7-semantic-enum-hosting-deploy-20260710-01",
+  "jobId": "sia7-grep-terminal-natural-router-20260710-01",
   "operation": "bridge",
-  "endpoint": "/run",
+  "endpoint": "/grep",
   "body": {
-    "command": "npm run ci:test",
-    "cwd": ".",
-    "timeoutMs": 600000,
-    "source": "sia7_semantic_enum_hosting_deploy"
+    "query": "routeTerminalNaturalIntent",
+    "path": "gestia-terminal.html",
+    "maxResults": 20
   }
 }
