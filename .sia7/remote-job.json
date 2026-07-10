@@ -1,9 +1,7 @@
 {
-  "jobId": "sia7-verify-41.43.2-persist-pending-approval-20260709-2322",
-  "endpoint": "/read",
+  "jobId": "sia7-git-status-41.43.2-20260709-2330",
+  "endpoint": "/git",
   "body": {
-    "file": "gestia-terminal.html",
-    "startLine": 7270,
-    "endLine": 7315
+    "action": "status"
   }
 }
