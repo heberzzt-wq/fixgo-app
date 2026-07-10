@@ -1,9 +1,9 @@
 {
-  "jobId": "sia7-git-add-41.43.2-20260709-2350",
+  "jobId": "sia7-git-commit-41.43.2-20260709-2355",
   "endpoint": "/git",
   "body": {
-    "action": "add",
-    "files": ["gestia-terminal.html", "jarvis-github-worker.js"],
+    "action": "commit",
+    "message": "41.43.2 persist pending patch approval and allow restricted test runner",
     "approved": true
   }
 }
