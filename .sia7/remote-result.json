@@ -1,26 +1,13 @@
 {
-  "jobId": "sia7-read-firebase-config-20260710-01",
-  "completedAt": "2026-07-10T21:37:26.022Z",
+  "jobId": "sia7-temporary-hosting-deploy-script-20260710-01",
+  "completedAt": "2026-07-10T22:01:08.247Z",
   "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/read",
-  "payload": {
-    "ok": true,
-    "file": "firebase.json",
-    "path": "firebase.json",
-    "size": 3089,
-    "totalSize": 3089,
-    "content": "{\r\n  \"functions\": [\r\n    {\r\n      \"source\": \"functions\",\r\n      \"codebase\": \"default\",\r\n      \"ignore\": [\r\n        \"node_modules\",\r\n        \".git\",\r\n        \"firebase-debug.log\",\r\n        \"firebase-adminsdk-*.json\",\r\n        \"serviceAccountKey.json\"\r\n      ]\r\n    }\r\n  ],\r\n  \"hosting\": {\r\n    \"site\": \"fixgo-44e4d\",\r\n    \"public\": \".\",\r\n\r\n      \"ignore\": [\r\n        \"firebase.json\",\r\n        \"**/.*\",\r\n        \"**/node_modules/**\",\r\n        \"node_modules/**\",\r\n        \"functions/**\",\r\n        \"tests/**\",\r\n        \"repo_sandbox/**\",\r\n        \"build/**\",\r\n        \".gradle/**\",\r\n        \".firebase/**\",\r\n        \".vscode/**\",\r\n        \"package.json\",\r\n        \"package-lock.json\",\r\n        \"build.gradle\",\r\n        \"settings.gradle\",\r\n        \"gradle.properties\",\r\n        \"gradle/**\",\r\n        \"gradlew\",\r\n        \"gradlew.bat\",\r\n        \"vercel.json\",\r\n        \"activos_uxmal39.json\",\r\n        \"mantenimiento_edificio.json\",\r\n        \"android.keystore\",\r\n        \"*.keystore\",\r\n        \"*.jks\",\r\n        \"*.pem\",\r\n        \"*.key\",\r\n        \"*.p12\",\r\n        \"*.apk\",\r\n        \"*.aab\",\r\n        \"*.idsig\",\r\n        \"serviceAccountKey.json\",\r\n        \"firebase-adminsdk-*.json\",\r\n        \"google-services.json\",\r\n        \"GoogleService-Info.plist\",\r\n        \"*.md\"\r\n      ],\r\n\r\n    \"cleanUrls\": false,\r\n    \"trailingSlash\": false,\r\n\r\n    \"rewrites\": [\r\n  {\r\n    \"source\": \"/api/**\",\r\n    \"function\": \"api\"\r\n  }\r\n],\r\n\r\n    \"headers\": [\r\n      {\r\n        \"source\": \"**/*.html\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"no-cache, no-store, must-revalidate\"\r\n          }\r\n        ]\r\n      },\r\n\r\n      {\r\n        \"source\": \"/gestia-core/**\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"no-cache, no-store, must-revalidate\"\r\n          }\r\n        ]\r\n      },\r\n\r\n      {\r\n        \"source\": \"/modules/**\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"no-cache, no-store, must-revalidate\"\r\n          }\r\n        ]\r\n      },\r\n\r\n      {\r\n        \"source\": \"/assets/**\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"public,max-age=3600\"\r\n          }\r\n        ]\r\n      },\r\n\r\n      {\r\n        \"source\": \"/sw.js\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"no-cache, no-store, must-revalidate\"\r\n          },\r\n          {\r\n            \"key\": \"Service-Worker-Allowed\",\r\n            \"value\": \"/\"\r\n          }\r\n        ]\r\n      },\r\n\r\n      {\r\n        \"source\": \"/manifest.json\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"no-cache, no-store, must-revalidate\"\r\n          },\r\n          {\r\n            \"key\": \"Content-Type\",\r\n            \"value\": \"application/manifest+json\"\r\n          }\r\n        ]\r\n      },\r\n\r\n      {\r\n        \"source\": \"**/*.js\",\r\n        \"headers\": [\r\n          {\r\n            \"key\": \"Cache-Control\",\r\n            \"value\": \"no-cache\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  }\r\n}\r\n",
-    "partial": false,
-    "startLine": 1,
-    "endLine": 149,
-    "totalLines": 149,
-    "lineRange": {
-      "startLine": 1,
-      "endLine": 149,
-      "totalLines": 149
-    },
-    "source": "jarvis_fs_bridge_read_v1",
-    "version": "2.1.0-local-fs-bridge"
-  }
+  "operation": "patch",
+  "dryRun": false,
+  "file": "package.json",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 3323,
+  "bytesAfter": 3321,
+  "source": "sia7_github_worker_exact_patch_v1"
 }
