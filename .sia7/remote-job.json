@@ -1,11 +1,10 @@
 {
-  "jobId": "sia7-terminal-semantic-ci-20260710-01",
+  "jobId": "sia7-terminal-semantic-git-status-20260710-01",
   "operation": "bridge",
-  "endpoint": "/run",
+  "endpoint": "/git",
   "body": {
-    "command": "npm run ci:test",
+    "action": "status",
     "cwd": ".",
-    "timeoutMs": 120000,
-    "source": "sia7_terminal_semantic_diagnosis_ci"
+    "timeoutMs": 120000
   }
 }
