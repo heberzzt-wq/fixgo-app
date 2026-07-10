@@ -1,6 +1,13 @@
 {
-  "jobId": "sia7-hosting-only-deploy-20260710-01",
-  "completedAt": "2026-07-10T17:46:31.311Z",
-  "ok": false,
-  "error": "fetch failed"
+  "jobId": "sia7-firebase-cmd-fix-20260710-01",
+  "completedAt": "2026-07-10T17:49:54.016Z",
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": "package.json",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 3321,
+  "bytesAfter": 3325,
+  "source": "sia7_github_worker_exact_patch_v1"
 }
