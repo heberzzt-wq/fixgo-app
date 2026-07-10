@@ -1,12 +1,11 @@
 {
-  "jobId": "sia7-restore-package-ci-test-approved-20260710-02",
-  "operation": "patch",
-  "humanApproved": true,
+  "jobId": "sia7-real-ci-after-package-restore-20260710-01",
+  "operation": "bridge",
+  "endpoint": "/run",
   "body": {
-    "file": "package.json",
-    "search": "    \"ci:test\": \"node -e \"fetch('https://fixgo-44e4d.web.app/gestia-terminal.html?ts='+Date.now(),{cache:'no-store'}).then(r=>r.text()).then(t=>{console.log(JSON.stringify({marker:t.includes('TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT_41_43_5'),bytes:t.length,index:t.indexOf('TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT_41_43_5')}));process.exit(t.includes('TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT_41_43_5')?0:2)}).catch(e=>{console.error(e);process.exit(1)})\"\"",
-    "replace": "    \"ci:test\": \"npm run check:syntax && npm test\"",
-    "expectedMatches": 1,
-    "source": "sia7_restore_package_ci_test_approved"
+    "command": "npm run ci:test",
+    "cwd": ".",
+    "timeoutMs": 120000,
+    "source": "sia7_real_ci_after_package_restore"
   }
 }
