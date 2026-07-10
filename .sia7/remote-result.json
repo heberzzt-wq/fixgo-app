@@ -1,22 +1,26 @@
 {
-  "jobId": "sia7-grep-41.43.2-pending-approval-helper-20260709-2310",
-  "completedAt": "2026-07-10T04:10:20.633Z",
+  "jobId": "sia7-read-41.43.2-pending-approval-helper-20260709-2312",
+  "completedAt": "2026-07-10T04:10:50.726Z",
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/grep",
+  "endpoint": "/read",
   "payload": {
     "ok": true,
-    "term": "rememberSia7PendingPatchApproval",
-    "totalFilesScanned": 167,
-    "totalMatches": 1,
-    "matches": [
-      {
-        "file": "gestia-terminal.html",
-        "line": 6922,
-        "snippet": "function rememberSia7PendingPatchApproval(payload = {}) {"
-      }
-    ],
-    "source": "jarvis_fs_bridge_grep_v1",
+    "file": "gestia-terminal.html",
+    "path": "gestia-terminal.html",
+    "size": 1281,
+    "totalSize": 248239,
+    "content": "        isFreshSia7ActivePatchProposal(parsed)\n      ) {\n        window.__SIA7_ACTIVE_PATCH_PROPOSAL__ =\n          parsed;\n\n        return parsed;\n      }\n\n      if (parsed?.file) {\n        clearSia7ActivePatchProposal();\n      }\n    }\n    catch(error) {}\n\n    return null;\n  }\n\n    function rememberSia7PendingPatchApproval(payload = {}) {\n    const proposal =\n      buildSia7ActivePatchProposal(payload);\n\n    const pendingApproval =\n      {\n        ...proposal,\n        fingerprint:\n          payload.fingerprint || \"\",\n        approvalCommand:\n          payload.approvalCommand ||\n          proposal.approvalCommand,\n        status:\n          \"PENDING_SAFE_WRITE_APPROVAL\",\n        createdAt:\n          Date.now(),\n        updatedAt:\n          Date.now()\n      };\n\n    window.__SIA7_PENDING_PATCH_APPROVAL__ =\n      pendingApproval;\n\n    try {\n      localStorage.setItem(\n        SIA7_PENDING_PATCH_APPROVAL_STORAGE_KEY,\n        JSON.stringify(pendingApproval)\n      );\n    }\n    catch(error) {}\n\n    return pendingApproval;\n  }\n\n  function readSia7PendingPatchApproval() {\n    const current =\n      window.__SIA7_PENDING_PATCH_APPROVAL__;\n\n    if (\n      current?.file &&\n      current?.search &&\n      current?.replace &&\n      isFreshSia7ActivePatchProposal(current)\n    ) {",
+    "partial": true,
+    "startLine": 6905,
+    "endLine": 6965,
+    "totalLines": 7696,
+    "lineRange": {
+      "startLine": 6905,
+      "endLine": 6965,
+      "totalLines": 7696
+    },
+    "source": "jarvis_fs_bridge_read_v1",
     "version": "2.1.0-local-fs-bridge"
   }
 }
