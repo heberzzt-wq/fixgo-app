@@ -1,7 +1,7 @@
 {
-  "jobId": "sia7-git-status-41.43.2-20260709-2330",
+  "jobId": "sia7-git-diff-41.43.2-20260709-2332",
   "endpoint": "/git",
   "body": {
-    "action": "status"
+    "action": "diff"
   }
 }
