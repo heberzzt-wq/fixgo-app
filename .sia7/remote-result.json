@@ -1,6 +1,18 @@
 {
-  "jobId": "sia7-apply-worker-allow-run-41.43.2-20260709-2338",
-  "completedAt": "2026-07-10T04:29:38.868Z",
-  "ok": false,
-  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1"
+  "jobId": "sia7-run-check-syntax-41.43.2-20260709-2342",
+  "completedAt": "2026-07-10T04:30:39.133Z",
+  "ok": true,
+  "httpStatus": 200,
+  "endpoint": "/run",
+  "payload": {
+    "ok": true,
+    "status": "PASSED",
+    "exitCode": 0,
+    "command": "npm run check:syntax",
+    "stdout": "\n> gestia-premium@1.0.0 check:syntax\n> node --check gestia-core/jarvis/jarvis.intent.runtime.v7.js && node --check gestia-core/jarvis/jarvis.marketing.engine.js && node --check gestia-core/jarvis/jarvis.business.engine.js && node --check gestia-core/jarvis/jarvis.company.registry.js && node --check gestia-core/jarvis/jarvis-nlu-bridge.js && node --check gestia-core/jarvis/jarvis.cognition.engine.js && node --check gestia-core/jarvis/jarvis.bridge.v4.js && node --check gestia-core/jarvis/jarvis.vision.engine.js && node --check gestia-core/jarvis/jarvis.scanner.engine.js && node --check gestia-core/jarvis/jarvis.autofix.engine.js && node --check gestia-core/jarvis/jarvis.autopatch.engine.js && node --check gestia-core/jarvis/jarvis.autonomy.engine.js && node --check gestia-core/hubs/analysis.hub.js && node --check gestia-core/hubs/execution.hub.js && node --check gestia-core/hubs/repo.hub.js && node --check gestia-core/hubs/security.hub.js && node --check gestia-core/authority/authority.registry.js && node --check gestia-core/jarvis.kernel.js && node --check gestia-core/repo/repo.cognition.index.js && node --check gestia-core/repo/resource.registry.js && node --check gestia-core/gestia.runtime.v7.js && node --check gestia-core/syntax-validator.engine.js && node --check gestia-core/jarvis/jarvis.orchestrator.js && node --check modules/terminal/patch-workflow.js && node --check modules/terminal/repo-cognition.js && node --check modules/terminal/runtime-governance.js && node --check modules/terminal/runtime-persistence.js && node --check modules/terminal/runtime-event-bus.js && node --check modules/terminal/runtime-repair-health.js && node --check modules/terminal/runtime-intelligence.js && node --check modules/terminal/runtime-platform.js && node --check modules/terminal/runtime-daemons.js && node --check modules/terminal/runtime-snapshot-daemon.js && node --check functions/index.js && node --check functions/jarvis-intent-runtime-v7.cjs && node --check functions/repo-write-auth.js && node --check functions/repo-syntax-validator.js && node --check functions/repo-semantic-tool-planner.js && node --check gestia-core/operations-executor.engine.js && node --check gestia-core/plans.engine.js && node --check gestia-core/intent.engine.js && node --check gestia-terminal.js && node --check jarvis-fs-bridge.js && node --check sw.js && node --check test-runtime.js\n\n",
+    "stderr": "",
+    "durationMs": 31898,
+    "source": "sia7_checkpoint_41_43_2",
+    "version": "2.1.0-local-fs-bridge"
+  }
 }
