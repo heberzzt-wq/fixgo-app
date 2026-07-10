@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 
 const BRIDGE_URL =
     process.env.JARVIS_FS_BRIDGE_URL ||
@@ -20,6 +22,9 @@ const POLL_MS =
     Number(process.env.SIA7_POLL_MS) ||
     5000;
 
+const REPO_ROOT =
+    path.resolve(process.cwd());
+
 let lastJobId = "";
 let polling = false;
 
@@ -29,7 +34,7 @@ function runGit(args = []) {
             "git",
             args,
             {
-                cwd: process.cwd(),
+                cwd: REPO_ROOT,
                 shell: false,
                 stdio: ["ignore", "pipe", "pipe"],
                 env: {
@@ -68,6 +73,52 @@ function runGit(args = []) {
             });
         });
     });
+}
+
+function resolveRepoFile(file = "") {
+    const normalized =
+        String(file || "")
+            .trim()
+            .replace(/\\/g, "/");
+
+    if (!normalized) {
+        throw new Error("PATCH_FILE_REQUIRED");
+    }
+
+    if (path.isAbsolute(normalized)) {
+        throw new Error("PATCH_ABSOLUTE_PATH_NOT_ALLOWED");
+    }
+
+    const target =
+        path.resolve(REPO_ROOT, normalized);
+
+    if (
+        target !== REPO_ROOT &&
+        !target.startsWith(REPO_ROOT + path.sep)
+    ) {
+        throw new Error("PATCH_PATH_OUTSIDE_REPO");
+    }
+
+    return {
+        normalized,
+        target
+    };
+}
+
+function countExactMatches(source = "", search = "") {
+    if (!search) return 0;
+
+    let count = 0;
+    let offset = 0;
+
+    while (offset <= source.length) {
+        const index = source.indexOf(search, offset);
+        if (index === -1) break;
+        count += 1;
+        offset = index + Math.max(search.length, 1);
+    }
+
+    return count;
 }
 
 async function readRemoteJob() {
@@ -117,7 +168,7 @@ function normalizeEndpoint(value = "") {
     return endpoint;
 }
 
-async function executeJob(job = {}) {
+async function executeBridgeJob(job = {}) {
     const endpoint =
         normalizeEndpoint(job.endpoint || "/health");
 
@@ -153,6 +204,88 @@ async function executeJob(job = {}) {
     };
 }
 
+function executePatchJob(job = {}) {
+    const patch =
+        job.patch || job.body || {};
+
+    const dryRun =
+        patch.dryRun === true;
+
+    if (
+        !dryRun &&
+        job.humanApproved !== true &&
+        patch.humanApproved !== true
+    ) {
+        throw new Error("PATCH_HUMAN_APPROVAL_REQUIRED");
+    }
+
+    const { normalized, target } =
+        resolveRepoFile(patch.file);
+
+    if (!fs.existsSync(target)) {
+        throw new Error("PATCH_FILE_NOT_FOUND");
+    }
+
+    const search =
+        String(patch.search || "");
+
+    const replace =
+        String(patch.replace || "");
+
+    if (!search) {
+        throw new Error("PATCH_SEARCH_REQUIRED");
+    }
+
+    const source =
+        fs.readFileSync(target, "utf8");
+
+    const matchCount =
+        countExactMatches(source, search);
+
+    const expectedMatches =
+        Number(patch.expectedMatches || 1);
+
+    if (matchCount !== expectedMatches) {
+        throw new Error(
+            `PATCH_MATCH_COUNT_MISMATCH:${matchCount}:${expectedMatches}`
+        );
+    }
+
+    const next =
+        source.replace(search, replace);
+
+    if (next === source) {
+        throw new Error("PATCH_NO_CHANGE");
+    }
+
+    if (!dryRun) {
+        fs.writeFileSync(target, next, "utf8");
+    }
+
+    return {
+        ok: true,
+        operation: "patch",
+        dryRun,
+        file: normalized,
+        matchCount,
+        expectedMatches,
+        bytesBefore: Buffer.byteLength(source, "utf8"),
+        bytesAfter: Buffer.byteLength(next, "utf8"),
+        source: "sia7_github_worker_exact_patch_v1"
+    };
+}
+
+async function executeJob(job = {}) {
+    const operation =
+        String(job.operation || "bridge").trim();
+
+    if (operation === "patch") {
+        return executePatchJob(job);
+    }
+
+    return await executeBridgeJob(job);
+}
+
 async function pollOnce() {
     if (polling) return;
     polling = true;
@@ -171,7 +304,8 @@ async function pollOnce() {
             "[SIA7_REMOTE_JOB_RECEIVED]",
             JSON.stringify({
                 jobId: job.jobId,
-                endpoint: job.endpoint || "/health"
+                operation: job.operation || "bridge",
+                endpoint: job.endpoint || null
             })
         );
 
