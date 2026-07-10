@@ -1,13 +1,11 @@
 {
-  "jobId": "sia7-hosting-deploy-script-20260710-02",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "package.json",
-    "search": "npm run check:syntax && npm test",
-    "replace": "npm run check:syntax && npm test && firebase deploy --only hosting",
-    "expectedMatches": 1,
-    "dryRun": false,
-    "humanApproved": true
+  "jobId": "sia7-terminal-hosting-deploy-20260710-02",
+  "operation": "bridge",
+  "endpoint": "/run",
+  "body": {
+    "command": "npm run ci:test",
+    "cwd": ".",
+    "timeoutMs": 180000,
+    "source": "sia7_terminal_semantic_hosting_deploy_confirmed"
   }
 }
