@@ -1,13 +1,11 @@
 {
-  "jobId": "sia7-terminal-semantic-line2-20260710-01",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
+  "jobId": "sia7-terminal-verify-semantic-block-20260710-01",
+  "operation": "bridge",
+  "endpoint": "/read",
+  "body": {
     "file": "gestia-terminal.html",
-    "search": "    /\\b(estado|mapa|resumen)\\s+(del\\s+)?(repo|repositorio|sistema)\\b/i.test(raw);",
-    "replace": "    terminalBrainRoute?.writeAllowed === false;",
-    "expectedMatches": 1,
-    "dryRun": false,
-    "humanApproved": true
+    "startLine": 5705,
+    "endLine": 5716,
+    "maxBytes": 8000
   }
 }
