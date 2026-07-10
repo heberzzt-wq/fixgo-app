@@ -1,11 +1,13 @@
 {
-  "jobId": "sia7-immediate-diagnosis-ci-20260710-01",
-  "operation": "bridge",
-  "endpoint": "/run",
-  "body": {
-    "command": "npm run ci:test",
-    "cwd": ".",
-    "timeoutMs": 180000,
-    "source": "sia7_immediate_diagnosis_ci"
+  "jobId": "sia7-restore-package-after-immediate-diagnosis-20260710-01",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
+    "file": "package.json",
+    "search": "firebase.cmd deploy --only hosting",
+    "replace": "npm run check:syntax && npm test",
+    "expectedMatches": 1,
+    "dryRun": false,
+    "humanApproved": true
   }
 }
