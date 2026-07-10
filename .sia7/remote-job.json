@@ -1,11 +1,9 @@
 {
-  "jobId": "sia7-live-marker-run-20260710-01",
+  "jobId": "sia7-read-local-package-20260710-01",
   "operation": "bridge",
-  "endpoint": "/run",
+  "endpoint": "/read",
   "body": {
-    "command": "npm run ci:test",
-    "cwd": ".",
-    "timeoutMs": 60000,
-    "source": "sia7_live_marker_verification"
+    "path": "package.json",
+    "source": "sia7_package_restore_forensics"
   }
 }
