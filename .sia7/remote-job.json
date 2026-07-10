@@ -1,11 +1,11 @@
 {
-  "jobId": "sia7-read-service-worker-cache-policy-20260710-01",
+  "jobId": "sia7-read-service-worker-fetch-handler-20260710-01",
   "operation": "bridge",
   "endpoint": "/read",
   "body": {
     "file": "sw.js",
-    "startLine": 1,
-    "endLine": 260,
-    "maxBytes": 30000
+    "startLine": 260,
+    "endLine": 391,
+    "maxBytes": 20000
   }
 }
