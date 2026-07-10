@@ -1,11 +1,13 @@
 {
-  "jobId": "sia7-read-local-pre-core-gate-20260710-01",
-  "operation": "bridge",
-  "endpoint": "/read",
-  "body": {
+  "jobId": "sia7-precore-technical-diagnosis-gate-20260710-01",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
     "file": "gestia-terminal.html",
-    "startLine": 4240,
-    "endLine": 4335,
-    "maxBytes": 20000
+    "search": "            window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__ =\n                null;\n        }\n\n                        const adjustmentTargetFile =",
+    "replace": "            window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__ =\n                null;\n        }\n\n        if (\n            terminalBrainRoute?.mode === \"TECHNICAL_DIAGNOSIS\" &&\n            terminalBrainRoute?.writeAllowed === false\n        ) {\n            const diagnosisResult =\n                await window.ToolsBridge?.executeAndCompose?.(\n                    \"repo.audit\",\n                    {},\n                    {\n                        rawInput: comando,\n                        analysisId:\n                            currentTraceId ||\n                            `terminal_${Date.now()}`\n                    }\n                );\n\n            const diagnosisResponse =\n                diagnosisResult?.response ||\n                diagnosisResult?.data?.response ||\n                diagnosisResult;\n\n            const diagnosisReport =\n                String(\n                    diagnosisResponse?.report ||\n                    diagnosisResponse?.text ||\n                    diagnosisResponse?.message ||\n                    \"Diagnóstico técnico completado.\"\n                )\n                    .replace(/^Diagnóstico Repo SIA7\\s*/i, \"\")\n                    .trim();\n\n            window.renderJarvisResponse?.(\n                \"Diagnóstico Repo SIA7\",\n                diagnosisReport,\n                \"info\"\n            );\n\n            console.info(\n                \"[TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS_41_43_4]\",\n                {\n                    traceId: currentTraceId,\n                    mode: terminalBrainRoute.mode,\n                    writeAllowed: terminalBrainRoute.writeAllowed\n                }\n            );\n\n            handled = true;\n            return;\n        }\n\n                        const adjustmentTargetFile =",
+    "expectedMatches": 1,
+    "dryRun": false,
+    "humanApproved": true
   }
 }
