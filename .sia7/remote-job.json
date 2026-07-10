@@ -1,8 +1,8 @@
 {
-  "jobId": "sia7-run-check-syntax-41.43.2-20260709-2342",
+  "jobId": "sia7-run-npm-test-41.43.2-20260709-2345",
   "endpoint": "/run",
   "body": {
-    "command": "npm run check:syntax",
+    "command": "npm test",
     "timeoutMs": 120000,
     "source": "sia7_checkpoint_41_43_2"
   }
