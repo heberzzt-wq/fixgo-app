@@ -1,13 +1,11 @@
 {
-  "jobId": "sia7-terminal-semantic-diagnosis-20260710-02",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
+  "jobId": "sia7-terminal-read-local-block-20260710-01",
+  "operation": "bridge",
+  "endpoint": "/read",
+  "body": {
     "file": "gestia-terminal.html",
-    "search": "const isExplicitRepoAuditRequest =\n    /\\b(audita|auditar|audit|auditoria)\\b/i.test(raw) ||\n    /\\b(estado|mapa|resumen)\\s+(del\\s+)?(repo|repositorio|sistema)\\b/i.test(raw);",
-    "replace": "const isExplicitRepoAuditRequest =\n    terminalBrainRoute?.mode === \"TECHNICAL_DIAGNOSIS\" &&\n    terminalBrainRoute?.writeAllowed === false;",
-    "expectedMatches": 1,
-    "dryRun": false,
-    "humanApproved": true
+    "startLine": 5700,
+    "endLine": 5720,
+    "maxBytes": 12000
   }
 }
