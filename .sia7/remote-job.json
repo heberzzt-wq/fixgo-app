@@ -1,13 +1,10 @@
 {
-  "jobId": "sia7-restore-package-20260710-02",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "package.json",
-    "search": "npm run check:syntax && npm test && firebase deploy --only hosting",
-    "replace": "npm run check:syntax && npm test",
-    "expectedMatches": 1,
-    "dryRun": false,
-    "humanApproved": true
+  "jobId": "sia7-final-status-20260710-01",
+  "operation": "bridge",
+  "endpoint": "/git",
+  "body": {
+    "action": "status",
+    "cwd": ".",
+    "timeoutMs": 120000
   }
 }
