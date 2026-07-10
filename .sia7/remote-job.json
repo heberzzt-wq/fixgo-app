@@ -1,10 +1,11 @@
 {
-  "jobId": "sia7-grep-terminal-natural-router-20260710-01",
+  "jobId": "sia7-read-exact-core-call-gate-20260710-01",
   "operation": "bridge",
-  "endpoint": "/grep",
+  "endpoint": "/read",
   "body": {
-    "query": "routeTerminalNaturalIntent",
-    "path": "gestia-terminal.html",
-    "maxResults": 20
+    "file": "gestia-terminal.html",
+    "startLine": 4330,
+    "endLine": 4415,
+    "maxBytes": 20000
   }
 }
