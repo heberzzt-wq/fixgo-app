@@ -34,6 +34,12 @@ from "./jarvis/jarvis.memory.js";
 
 import {
 
+  analyzeIntent
+
+} from "./jarvis/jarvis.vision.engine.js";
+
+import {
+
   runCommandCenter,
   runSentinel,
   runLiveQuery,
@@ -1524,6 +1530,96 @@ function buildFocusedSemanticToolCalls(
   );
 }
 
+function resolveRepoHubVisionIntent(
+  input = ""
+) {
+  try {
+    const vision =
+      analyzeIntent(input);
+
+    if (
+      vision?.targetFile === "repo.hub" &&
+      vision?.action === "inspect_repo" &&
+      Array.isArray(vision?.tags) &&
+      vision.tags.includes("read_only")
+    ) {
+      return vision;
+    }
+  } catch(error) {
+    console.warn(
+      "REPO_HUB_VISION_INTENT_FAIL",
+      error
+    );
+  }
+
+  return null;
+}
+
+function buildRepoHubGlobalAnalysisPlan(
+  objective = "",
+  vision = null
+) {
+  if (!vision) {
+    return null;
+  }
+
+  const cleanObjective =
+    normalizeSemanticPlannerText(
+      objective
+    );
+
+  return {
+    intent:
+      "REPO_GLOBAL_ANALYSIS",
+    objective:
+      cleanObjective ||
+      objective,
+    targetFile:
+      "repo.hub",
+    module:
+      "repo",
+    action:
+      "inspect_repo",
+    toolCalls: [
+      buildSemanticToolCall(
+        "repo.scan",
+        {
+          scope:
+            "repo",
+          maxFiles:
+            5000
+        },
+        "REPO_HUB_GLOBAL_ANALYSIS"
+      ),
+      buildSemanticToolCall(
+        "repo.search",
+        {
+          query:
+            cleanObjective ||
+            objective,
+          maxMatches:
+            120
+        },
+        "REPO_HUB_GLOBAL_ANALYSIS"
+      )
+    ],
+    writeAllowed:
+      false,
+    writeAuthorization:
+      false,
+    requiresApprovalForWrite:
+      true,
+    patchPreviewAllowed:
+      false,
+    renderPatchPreview:
+      false,
+    confidence:
+      vision.confidence || null,
+    source:
+      "repo_hub_vision_intent"
+  };
+}
+
 function isSemanticRepoInvestigation(
   semantic = {},
   input = ""
@@ -2621,6 +2717,17 @@ export async function runCognitiveReasoning(
       contexto
     );
 
+    const repoHubVisionIntent =
+      resolveRepoHubVisionIntent(
+        input
+      );
+
+    const repoHubGlobalPlan =
+      buildRepoHubGlobalAnalysisPlan(
+        input,
+        repoHubVisionIntent
+      );
+
         const localToolCalls =
       buildToolCallsFromInput(
         input,
@@ -2630,7 +2737,8 @@ export async function runCognitiveReasoning(
     let cloudReasoning =
       null;
 
-    try {
+    if (!repoHubGlobalPlan) {
+      try {
       cloudReasoning =
         await invocarArquitectoIA(
 
@@ -2657,7 +2765,7 @@ export async function runCognitiveReasoning(
         "jarvis",
         "tool_planner"
         );
-    } catch(cloudPlannerError) {
+      } catch(cloudPlannerError) {
       console.warn(
         "CLOUD_TOOL_PLANNER_FAIL",
         cloudPlannerError
@@ -2672,14 +2780,16 @@ export async function runCognitiveReasoning(
         },
         "WARNING"
       );
+      }
     }
 
     const cloudToolPlan =
+      repoHubGlobalPlan ||
       normalizeCloudToolPlan(
-        cloudReasoning,
-        input,
-        semantic
-      );
+          cloudReasoning,
+          input,
+          semantic
+        );
 
     const toolCalls =
       cloudToolPlan?.toolCalls?.length > 0
@@ -2696,6 +2806,9 @@ export async function runCognitiveReasoning(
       semantic,
 
       inferences,
+
+      visionIntent:
+        repoHubVisionIntent,
 
             strategicMode:
         toolCalls.length > 0

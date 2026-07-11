@@ -918,6 +918,9 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /TERMINAL_LEARNING_RECORD_FAILED_41_35/);
     assert.match(terminal, /TERMINAL_BRAIN_ROUTER/);
     assert.match(terminal, /CASUAL_NOOP/);
+    assert.match(terminal, /BRAIN_DELEGATED/);
+    assert.match(terminal, /secondary_signals_only_core_delegated/);
+    assert.match(terminal, /no_semantic_result_core_delegated/);
     assert.match(terminal, /writeAllowed:\s*false/);
     assert.match(terminal, /approvalRequiredForWrite:\s*true/);
     assert.match(terminal, /FOLLOW_UP_MEMORY/);
@@ -926,6 +929,18 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /approved:\s*false/);
     assert.match(terminal, /agent-loop-v7-20260707-4135/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4135/);
+    assert.doesNotMatch(terminal, /TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT/);
+    assert.doesNotMatch(terminal, /TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS/);
+    assert.doesNotMatch(
+        terminal,
+        /terminalBrainRoute\?\.mode\s*===\s*"TECHNICAL_DIAGNOSIS"[\s\S]{0,500}"repo\.audit"/
+    );
+    assert.doesNotMatch(terminal, /TERMINAL_GLOBAL_REPO_AUDIT_41_44/);
+    assert.doesNotMatch(terminal, /isExactGlobalRepoAuditCommand/);
+    assert.doesNotMatch(terminal, /new Set\(\[\s*"analiza repo"/);
+    assert.doesNotMatch(terminal, /if\s*\(\s*signals\.looksCasual\s*\)/);
+    assert.doesNotMatch(terminal, /casual_without_active_flow/);
+    assert.match(terminal, /const isExplicitRepoAuditRequest =\s*false;/);
 });
 
 test("terminal renders visual patch proposal card without direct write execution", () => {
@@ -993,4 +1008,60 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.doesNotMatch(terminal, /Aprobar safe write[^<]*<\/button>\s*<script/i);
     assert.doesNotMatch(terminal, /SIA7_VISUAL_PATCH_PROPOSAL[\s\S]{0,3000}repo\.safePatchApply\s*\(/);
     assert.doesNotMatch(terminal, /SIA7_VISUAL_PATCH_PROPOSAL[\s\S]{0,3000}repo\.write\s*\(/);
+});
+
+test("terminal keeps natural repository analysis in the brain route", () => {
+    const terminal =
+        fs.readFileSync(
+            path.join(
+                __dirname,
+                "..",
+                "gestia-terminal.html"
+            ),
+            "utf8"
+        );
+
+    const routerIndex =
+        terminal.indexOf("routeTerminalNaturalIntent");
+
+    const coreCallIndex =
+        terminal.indexOf("await window.GestiaCore.procesarIntencion");
+
+    assert.ok(routerIndex > 0);
+    assert.ok(coreCallIndex > routerIndex);
+    assert.match(terminal, /GestiaCore\.analizarIntencionLigera/);
+    assert.match(terminal, /BRAIN_DELEGATED/);
+    assert.match(terminal, /Delegate natural technical input to GestiaCore cognitive reasoning/);
+    assert.match(terminal, /Delegate freeform natural input to GestiaCore cognitive reasoning/);
+    assert.doesNotMatch(terminal, /terminal_global_repo_audit_41_44/);
+    assert.doesNotMatch(terminal, /isExactGlobalRepoAuditCommand/);
+    assert.doesNotMatch(terminal, /ANÁLISIS GLOBAL DEL REPOSITORIO SIA7/);
+    assert.doesNotMatch(terminal, /legacyRepoBypassEnabled[\s\S]{0,200}\(\?:analiza\|analizar\)/);
+});
+
+test("brain protects repo hub analysis from visual patch proposal drift", () => {
+    const brain =
+        fs.readFileSync(
+            path.join(
+                __dirname,
+                "..",
+                "gestia-core",
+                "brain.engine.js"
+            ),
+            "utf8"
+        );
+
+    assert.match(brain, /import\s*\{[\s\S]*analyzeIntent[\s\S]*\}\s*from\s*"\.\/jarvis\/jarvis\.vision\.engine\.js"/);
+    assert.match(brain, /resolveRepoHubVisionIntent/);
+    assert.match(brain, /buildRepoHubGlobalAnalysisPlan/);
+    assert.match(brain, /targetFile:\s*"repo\.hub"/);
+    assert.match(brain, /intent:\s*"REPO_GLOBAL_ANALYSIS"/);
+    assert.match(brain, /action:\s*"inspect_repo"/);
+    assert.match(brain, /patchPreviewAllowed:\s*false/);
+    assert.match(brain, /renderPatchPreview:\s*false/);
+    assert.match(brain, /writeAllowed:\s*false/);
+    assert.match(brain, /writeAuthorization:\s*false/);
+    assert.match(brain, /repoHubGlobalPlan\s*\|\|\s*normalizeCloudToolPlan/);
+    assert.match(brain, /if\s*\(!repoHubGlobalPlan\)\s*\{[\s\S]{0,180}invocarArquitectoIA/);
+    assert.match(brain, /visionIntent:\s*repoHubVisionIntent/);
 });

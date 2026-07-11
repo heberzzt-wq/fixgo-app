@@ -2223,40 +2223,33 @@ const decideTerminalModeFromContext =
         ) {
             return buildTerminalBrainRoute({
                 mode:
-                    "TECHNICAL_DIAGNOSIS",
+                    "BRAIN_DELEGATED",
                 confidence:
-                    0.85,
+                    0.6,
                 objective:
-                    "Diagnose technical request before proposing any write.",
+                    "Delegate natural technical input to GestiaCore cognitive reasoning.",
                 useAgentLoop:
                     true,
                 useRepoTools:
-                    true,
+                    false,
                 renderCard:
-                    true,
+                    false,
                 reason:
-                    "technical_context_signals"
-            });
-        }
-
-        if (signals.looksCasual) {
-            return buildTerminalBrainRoute({
-                mode:
-                    "CASUAL_NOOP",
-                confidence:
-                    0.8,
-                reason:
-                    "casual_without_active_flow"
+                    "secondary_signals_only_core_delegated"
             });
         }
 
         return buildTerminalBrainRoute({
             mode:
-                "CLARIFY",
+                "BRAIN_DELEGATED",
             confidence:
-                0.55,
+                0.5,
+            objective:
+                "Delegate freeform natural input to GestiaCore cognitive reasoning.",
+            useAgentLoop:
+                true,
             reason:
-                "insufficient_context_for_terminal_mode"
+                "no_semantic_result_core_delegated"
         });
     };
 
@@ -5706,8 +5699,7 @@ const raw =
         .replace(/[\u0300-\u036f]/g, "");
 
 const isExplicitRepoAuditRequest =
-    /\b(audita|auditar|audit|auditoria)\b/i.test(raw) ||
-    /\b(estado|mapa|resumen)\s+(del\s+)?(repo|repositorio|sistema)\b/i.test(raw);
+    false;
 
 if (isExplicitRepoAuditRequest) {
 
