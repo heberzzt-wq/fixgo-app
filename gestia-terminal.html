@@ -4925,20 +4925,30 @@ console.log(
         if (
             coreResult?.type === "AGENT_TOOL_RESULT"
         ) {
-            const agentObservations =
+            const agentLoopResult =
                 coreResult
                     ?.result
+                    ?.agentLoop ||
+                coreResult
+                    ?.result ||
+                coreResult
+                    ?.agentLoop ||
+                {};
+
+            const agentObservations =
+                agentLoopResult
                     ?.observations ||
                 [];
 
             const agentToolCalls =
-                coreResult
-                    ?.result
+                agentLoopResult
                     ?.toolCalls ||
                 [];
 
             if (
-                agentObservations.length > 1
+                agentObservations.length > 0 ||
+                agentToolCalls.length > 0 ||
+                agentLoopResult?.finalResponse?.text
             ) {
                 const getObservationPayload =
                     function(observation = {}) {
@@ -5071,43 +5081,49 @@ console.log(
                     };
 
                 const plannerObjective =
-                    coreResult
-                        ?.result
+                    agentLoopResult
                         ?.reasoning
                         ?.cloudToolPlan
                         ?.objective ||
                     coreResult
-                        ?.result
+                        ?.reasoning
+                        ?.cloudToolPlan
+                        ?.objective ||
+                    agentLoopResult
+                        ?.reasoning
+                        ?.input ||
+                    coreResult
                         ?.reasoning
                         ?.input ||
                     comando;
 
                 const finalResponse =
-                    coreResult
-                        ?.result
+                    agentLoopResult
                         ?.finalResponse ||
-                    coreResult
-                        ?.result
+                    agentLoopResult
                         ?.followUp
                         ?.finalResponse ||
                     null;
 
-                const suppressPatchSurface =
-                    coreResult
-                        ?.result
+                const cloudToolPlan =
+                    agentLoopResult
                         ?.reasoning
-                        ?.cloudToolPlan
-                        ?.patchPreviewAllowed === false ||
+                        ?.cloudToolPlan ||
                     coreResult
-                        ?.result
                         ?.reasoning
-                        ?.cloudToolPlan
-                        ?.renderPatchPreview === false ||
-                    coreResult
-                        ?.result
-                        ?.reasoning
-                        ?.cloudToolPlan
+                        ?.cloudToolPlan ||
+                    null;
+
+                const isRepoGlobalAnalysis =
+                    cloudToolPlan
                         ?.intent === "REPO_GLOBAL_ANALYSIS";
+
+                const suppressPatchSurface =
+                    cloudToolPlan
+                        ?.patchPreviewAllowed === false ||
+                    cloudToolPlan
+                        ?.renderPatchPreview === false ||
+                    isRepoGlobalAnalysis;
 
                 if (
                     suppressPatchSurface &&
@@ -5121,10 +5137,7 @@ console.log(
                             traceId:
                                 currentTraceId,
                             intent:
-                                coreResult
-                                    ?.result
-                                    ?.reasoning
-                                    ?.cloudToolPlan
+                                cloudToolPlan
                                     ?.intent
                         }
                     );
@@ -5133,8 +5146,7 @@ console.log(
                 const patchPreviewBlocked =
                     finalResponse
                         ?.patchPreviewBlocked ||
-                    coreResult
-                        ?.result
+                    agentLoopResult
                         ?.followUp
                         ?.patchPreviewBlocked ||
                     null;
@@ -5165,8 +5177,7 @@ console.log(
                         : (
                             finalResponse
                                 ?.patchPreviewCandidate ||
-                            coreResult
-                                ?.result
+                            agentLoopResult
                                 ?.followUp
                                 ?.patchPreviewCandidate ||
                             null
@@ -5257,7 +5268,7 @@ console.log(
                                     : "LOW_DRY_RUN",
                             learningUsed:
                                 finalResponse?.learningHints ||
-                                coreResult?.result?.learning?.hints ||
+                                agentLoopResult?.learning?.hints ||
                                 [],
                             search:
                                 patchPreviewCandidate.search ||
@@ -5285,6 +5296,15 @@ console.log(
 
                 const multiToolSummary =
                     [
+                        ...(
+                            isRepoGlobalAnalysis
+                                ? [
+                                    "Análisis global read-only completado.",
+                                    "No se generó patchPreview y no se escribieron archivos.",
+                                    "El resultado viene del Brain Router + Agent Loop; las herramientas ejecutadas quedan abajo."
+                                ]
+                                : []
+                        ),
                         ...(
                             finalResponse?.text
                                 ? [finalResponse.text]
