@@ -5089,8 +5089,37 @@ console.log(
                     );
                 }
 
+                const patchPreviewBlocked =
+                    finalResponse
+                        ?.patchPreviewBlocked ||
+                    coreResult
+                        ?.result
+                        ?.followUp
+                        ?.patchPreviewBlocked ||
+                    null;
+
+                if (
+                    patchPreviewBlocked &&
+                    typeof window.__SIA7_CLEAR_ACTIVE_PATCH_PROPOSAL__ === "function"
+                ) {
+                    window.__SIA7_CLEAR_ACTIVE_PATCH_PROPOSAL__();
+
+                    console.warn(
+                        "[SIA7_PATCH_SURFACE_CLEARED_BY_BLOCKED_PREVIEW_41_51]",
+                        {
+                            traceId:
+                                currentTraceId,
+                            file:
+                                patchPreviewBlocked.file,
+                            issues:
+                                patchPreviewBlocked.issues || []
+                        }
+                    );
+                }
+
                 const patchPreviewCandidate =
-                    suppressPatchSurface
+                    suppressPatchSurface ||
+                    patchPreviewBlocked
                         ? null
                         : (
                             finalResponse
@@ -5134,7 +5163,8 @@ console.log(
                         : "";
 
                 const visualPatchProposal =
-                    patchPreviewCandidate
+                    patchPreviewCandidate &&
+                    !patchPreviewBlocked
                         ? {
                             terminalType:
                                 "SIA7_VISUAL_PATCH_PROPOSAL",
