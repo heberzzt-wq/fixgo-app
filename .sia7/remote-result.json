@@ -1,26 +1,132 @@
 {
-  "jobId": "sia7-read-semantic-resolver-contract-20260711-01",
-  "completedAt": "2026-07-11T21:56:07.746Z",
+  "jobId": "sia7-grep-semantic-engine-local-wiring-20260711-01",
+  "completedAt": "2026-07-11T21:56:59.488Z",
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/read",
+  "endpoint": "/grep",
   "payload": {
     "ok": true,
-    "file": "gestia-core/semantic.engine.js",
-    "path": "gestia-core/semantic.engine.js",
-    "size": 7059,
-    "totalSize": 19388,
-    "content": "/**\n * ======================================================================================\n * GESTIAPREMIUM 2026\n * SEMANTIC COGNITIVE MATRIX V7\n * THE COGNITIVE SOVEREIGN CORE\n * ======================================================================================\n * IDENTIDAD:\n * Motor de comprensión semántica, contexto cognitivo,\n * relaciones conceptuales, interpretación humana\n * y ensamblador dinámico de conciencia runtime.\n *\n * NIVEL:\n * JARVIS OPERATOR INTELLIGENCE\n * ======================================================================================\n */\n\nimport { db } from '/firebase.js';\n\nimport {\n\n    collection,\n    getDocs,\n    query,\n    limit,\n    where\n\n} from \"https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js\";\n\n/* ======================================================================================\n   GLOBAL COGNITIVE MATRIX\n====================================================================================== */\n\nwindow.__SEMANTIC_COGNITIVE_MATRIX__ =\nwindow.__SEMANTIC_COGNITIVE_MATRIX__ || {\n\n    initialized: true,\n\n    cognitionLevel: \"V7\",\n\n    semanticGraph: {},\n\n    runtimeAwareness: {\n\n        health: 100,\n\n        federation: \"STABLE\",\n\n        cognition: \"ONLINE\",\n\n        topology: \"CONNECTED\"\n    },\n\n    activeContextWindow: [],\n\n    semanticMemory: {},\n\n    emotionalMemory: {},\n\n    operatorPatterns: {},\n\n    contextualAssociations: {},\n\n    fuzzyRelations: {},\n\n    learningIndex: {},\n\n    semanticTelemetry: [],\n\n    conceptClusters: {},\n\n    activeObjectives: [],\n\n    lastSemanticResolution: null\n};\n\n/* ======================================================================================\n   SEMANTIC CACHE\n====================================================================================== */\n\nconst SEMANTIC_CACHE =\nnew Map();\n\nconst pendingSyncs =\nnew Map();\n\n/* ======================================================================================\n   CONFIGURATION\n====================================================================================== */\n\nconst TTL_SEMANTICO =\n10 * 60 * 1000;\n\nconst DEFAULT_CONTEXT =\n\"GLOBAL_SYSTEM\";\n\n/* ======================================================================================\n   STOPWORDS\n====================================================================================== */\n\nconst STOPWORDS =\nnew Set([\n\n    \"para\",\n    \"con\",\n    \"los\",\n    \"las\",\n    \"del\",\n    \"que\",\n    \"por\",\n    \"una\",\n    \"uno\",\n    \"como\",\n    \"mas\",\n    \"sin\",\n    \"sobre\",\n    \"este\",\n    \"esta\",\n    \"todos\",\n    \"todas\",\n    \"hacer\",\n    \"crear\",\n    \"borrar\",\n    \"modificar\",\n    \"actualizar\",\n    \"quiero\",\n    \"necesito\",\n    \"favor\",\n    \"oye\",\n    \"jarvis\"\n]);\n\n/* ======================================================================================\n   CONCEPT CLUSTERS\n====================================================================================== */\n\nconst CONCEPT_CLUSTERS = {\n\n    DASHBOARD: [\n\n        \"dashboard\",\n        \"panel\",\n        \"hud\",\n        \"ui\",\n        \"interfaz\",\n        \"pantalla\",\n        \"vista\",\n        \"monitor\"\n    ],\n\n    PERFORMANCE: [\n\n        \"lento\",\n        \"trabado\",\n        \"raro\",\n        \"tronado\",\n        \"pesado\",\n        \"bug\",\n        \"falla\",\n        \"crash\"\n    ],\n\n    VOICE: [\n\n        \"voz\",\n        \"speech\",\n        \"hablar\",\n        \"escuchar\",\n        \"audio\",\n        \"microfono\"\n    ],\n\n    MEMORY: [\n\n        \"memoria\",\n        \"contexto\",\n        \"historial\",\n        \"recuerdo\",\n        \"persistencia\"\n    ],\n\n    RUNTIME: [\n\n        \"runtime\",\n        \"kernel\",\n        \"core\",\n        \"motor\",\n        \"daemon\"\n    ],\n\n    FEDERATION: [\n\n        \"federation\",\n        \"cluster\",\n        \"nodos\",\n        \"sync\",\n        \"federado\"\n    ],\n\n    UI_DEBUG: [\n\n    \"ui\",\n    \"layout\",\n    \"css\",\n    \"tarjetas\",\n    \"card\",\n    \"cards\",\n    \"responsive\",\n    \"sobredimensionadas\",\n    \"desbordado\",\n    \"overflow\",\n    \"grid\",\n    \"flex\",\n    \"pantalla\",\n    \"visual\"\n],\n\nPATCH_ANALYSIS: [\n\n    \"patch\",\n    \"propuesta\",\n    \"simulacion\",\n    \"impacto\",\n    \"analiza\",\n    \"detectar\",\n    \"corregir\",\n    \"arreglar\",\n    \"fix\",\n    \"solucion\"\n],\n\nSUPERVISED_EXECUTION: [\n\n    \"supervisado\",\n    \"aprobacion\",\n    \"espera\",\n    \"no ejecutes\",\n    \"proposal\",\n    \"arre\",\n    \"cancelar\"\n]\n};\n\n/* ======================================================================================\n   HUMAN SEMANTICS\n====================================================================================== */\n\nconst HUMAN_SEMANTICS = {\n\n    urgency: /\\b(ya|ahorita|de una|rapidito|en corto|chingatelo)\\b/i,\n\n    frustration: /\\b(no sirve|mal|wtf|bug|falla|tronado|raro)\\b/i,\n\n    approval: /\\b(arre|chingon|perfecto|excelente|jalo)\\b/i,\n\n    confusion: /\\b(no entendi|como|que pedo|explica)\\b/i\n};\n\n/* ======================================================================================\n   TELEMETRY\n====================================================================================== */\n\nfunction emitSemanticTelemetry(\n\n    type,\n    payload = {},\n    severity = \"INFO\"\n\n) {\n\n    const event = {\n\n        type,\n        payload,\n        severity,\n        timestamp: Date.now()\n    };\n\n    console.log(\n\n        `%c🧠 [SEMANTIC:${type}]`,\n        \"color:#67e8f9;font-weight:bold;\",\n        payload\n    );\n\n    window.__SEMANTIC_COGNITIVE_MATRIX__\n        .semanticTelemetry\n        .push(event);\n\n    window.dispatchEvent(\n\n        new CustomEvent(\n            \"semantic-cognitive-event\",\n            {\n                detail: event\n            }\n        )\n    );\n}\n\n/* ======================================================================================\n   NORMALIZATION\n====================================================================================== */\n\nfunction normalize(text = \"\") {\n\n    return String(text)\n        .toLowerCase()\n        .normalize(\"NFD\")\n        .replace(/[\\u0300-\\u036f]/g, \"\")\n        .replace(/[^\\w\\s]/g, \"\")\n        .trim();\n}\n\n/* ======================================================================================\n   TOKENIZATION\n====================================================================================== */\n\nfunction tokenize(text = \"\") {\n\n    return normalize(text)\n        .split(/\\s+/)\n        .filter(Boolean)\n        .filter(w =>\n            !STOPWORDS.has(w)\n        );\n}\n\n/* ======================================================================================\n   FUZZY SEMANTIC DETECTION\n====================================================================================== */\n\nfunction detectFuzzyMeaning(tokens = []) {\n\n    const meanings = [];\n\n    Object.entries(CONCEPT_CLUSTERS)\n        .forEach(([concept, words]) => {\n\n            let score = 0;\n\n            tokens.forEach(token => {\n\n                if (\n                    words.includes(token)\n                ) {\n\n                    score++;\n                }\n            });\n\n            if (score > 0) {\n\n                meanings.push({\n\n                    concept,\n                    score\n                });\n            }\n        });\n",
-    "partial": true,
-    "startLine": 1,
-    "endLine": 360,
-    "totalLines": 1001,
-    "lineRange": {
-      "startLine": 1,
-      "endLine": 360,
-      "totalLines": 1001
-    },
-    "source": "jarvis_fs_bridge_read_v1",
+    "term": "semantic.engine.js",
+    "totalFilesScanned": 173,
+    "totalMatches": 23,
+    "matches": [
+      {
+        "file": ".sia7/remote-job.json",
+        "line": 6,
+        "snippet": "\"file\": \"gestia-core/semantic.engine.js\","
+      },
+      {
+        "file": ".sia7/remote-job.json",
+        "line": 7,
+        "snippet": "\"path\": \"gestia-core/semantic.engine.js\","
+      },
+      {
+        "file": ".sia7/remote-result.json",
+        "line": 9,
+        "snippet": "\"file\": \"gestia-core/semantic.engine.js\","
+      },
+      {
+        "file": ".sia7/remote-result.json",
+        "line": 10,
+        "snippet": "\"path\": \"gestia-core/semantic.engine.js\","
+      },
+      {
+        "file": "gestia-core/brain.engine.js",
+        "line": 30,
+        "snippet": "} from \"./semantic.engine.js\";"
+      },
+      {
+        "file": "gestia-core/cognitive.bootstrap.js",
+        "line": 102,
+        "snippet": "\"./semantic.engine.js\""
+      },
+      {
+        "file": "gestia-core/gestia-core.js",
+        "line": 183,
+        "snippet": "import '/gestia-core/semantic.engine.js';"
+      },
+      {
+        "file": "gestia-core/hubs/analysis.hub.js",
+        "line": 49,
+        "snippet": "from \"../semantic.engine.js\";"
+      },
+      {
+        "file": "gestia-core/jarvis/jarvis.business.engine.js",
+        "line": 91,
+        "snippet": "\"semantic.engine.js\""
+      },
+      {
+        "file": "gestia-core/jarvis/jarvis.orchestrator.js",
+        "line": 122,
+        "snippet": "\"semantic.engine.js\""
+      },
+      {
+        "file": "gestia-core/jarvis/jarvis.orchestrator.js",
+        "line": 1206,
+        "snippet": "\"semantic.engine.js\": {"
+      },
+      {
+        "file": "gestia-core/jarvis/jarvis.vision.engine.js",
+        "line": 28,
+        "snippet": "\"semantic.engine.js\","
+      },
+      {
+        "file": "gestia-core/repo/repo.cognition.index.js",
+        "line": 327,
+        "snippet": "\"semantic.engine.js\","
+      },
+      {
+        "file": "gestia-core/self-repair.engine.js",
+        "line": 193,
+        "snippet": "archivo_origen: \"semantic.engine.js\""
+      },
+      {
+        "file": "gestia-terminal.js",
+        "line": 60,
+        "snippet": "} from \"/gestia-core/semantic.engine.js\";"
+      },
+      {
+        "file": "gestia-terminal.js",
+        "line": 1155,
+        "snippet": "\"semantic.engine.js\","
+      },
+      {
+        "file": "gestia-terminal.js",
+        "line": 1193,
+        "snippet": "window.__REPO_INDEX__[\"semantic.engine.js\"];"
+      },
+      {
+        "file": "gestia-terminal.js",
+        "line": 5152,
+        "snippet": "cognition: \"brain.engine.js + semantic.engine.js\""
+      },
+      {
+        "file": "modules/terminal/repo-bootstrap-index.js",
+        "line": 1025,
+        "snippet": "window.__REPO_INDEX__[\"semantic.engine.js\"] = {"
+      },
+      {
+        "file": "modules/terminal/repo-bootstrap-index.js",
+        "line": 1028,
+        "snippet": "\"gestia-core/semantic.engine.js\","
+      },
+      {
+        "file": "modules/terminal/repo-bootstrap-index.js",
+        "line": 1245,
+        "snippet": "window.__REPO_INDEX__[\"semantic.engine.js\"] = {"
+      },
+      {
+        "file": "modules/terminal/repo-bootstrap-index.js",
+        "line": 1248,
+        "snippet": "\"gestia-core/semantic.engine.js\","
+      },
+      {
+        "file": "modules/terminal/runtime-governance.js",
+        "line": 3354,
+        "snippet": "\"/gestia-core/semantic.engine.js\""
+      }
+    ],
+    "source": "jarvis_fs_bridge_grep_v1",
     "version": "2.1.0-local-fs-bridge"
   }
 }
