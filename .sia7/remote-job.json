@@ -1,13 +1,12 @@
 {
-  "jobId": "sia7-read-local-test-tail-global-audit-20260711-01",
-  "operation": "bridge",
-  "endpoint": "/read",
+  "jobId": "sia7-add-global-repo-audit-regression-20260711-01",
+  "operation": "patch",
+  "humanApproved": true,
   "body": {
     "file": "tests/repo-authority-v2.test.cjs",
-    "path": "tests/repo-authority-v2.test.cjs",
-    "startLine": 900,
-    "endLine": 1100,
-    "maxBytes": 120000,
-    "source": "sia7_read_local_test_tail_global_audit"
+    "search": "    assert.match(terminal, /handled\\s*=\\s*true;[\\s\\S]{0,120}return;/);\n});\n",
+    "replace": "    assert.match(terminal, /handled\\s*=\\s*true;[\\s\\S]{0,120}return;/);\n});\n\ntest(\"terminal performs deterministic global repository audit before GestiaCore\", () => {\n    const terminal =\n        fs.readFileSync(\n            path.join(\n                __dirname,\n                \"..\",\n                \"gestia-terminal.html\"\n            ),\n            \"utf8\"\n        );\n\n    const auditIndex =\n        terminal.indexOf(\"TERMINAL_GLOBAL_REPO_AUDIT_41_44\");\n\n    const coreCallIndex =\n        terminal.indexOf(\"await window.GestiaCore.procesarIntencion\");\n\n    assert.ok(auditIndex > 0);\n    assert.ok(coreCallIndex > auditIndex);\n    assert.match(terminal, /isExactGlobalRepoAuditCommand/);\n    assert.match(terminal, /terminal_global_repo_audit_41_44/);\n    assert.match(terminal, /\\\"repo\\.audit\\\"/);\n    assert.match(terminal, /ANÁLISIS GLOBAL DEL REPOSITORIO SIA7/);\n    assert.match(terminal, /Archivos detectados/);\n    assert.match(terminal, /Módulos detectados/);\n    assert.match(terminal, /Funciones detectadas/);\n    assert.match(terminal, /Flotilla/);\n    assert.match(terminal, /Grafo incompleto/);\n    assert.match(terminal, /Falsa lectura de impacto/);\n    assert.match(terminal, /handled = true;[\\s\\S]{0,80}return;/);\n});\n",
+    "expectedMatches": 1,
+    "source": "sia7_global_repo_audit_regression_41_44"
   }
 }
