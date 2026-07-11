@@ -1,12 +1,11 @@
 {
-  "jobId": "sia7-add-global-repo-bypass-regression-test-20260711-01",
-  "operation": "patch",
-  "humanApproved": true,
+  "jobId": "sia7-ci-after-global-repo-bypass-regression-test-20260711-01",
+  "operation": "bridge",
+  "endpoint": "/run",
   "body": {
-    "file": "tests/repo-authority-v2.test.cjs",
-    "search": "    assert.doesNotMatch(terminal, /SIA7_VISUAL_PATCH_PROPOSAL[\\s\\S]{0,3000}repo\\.write\\s*\\(/);\n});",
-    "replace": "    assert.doesNotMatch(terminal, /SIA7_VISUAL_PATCH_PROPOSAL[\\s\\S]{0,3000}repo\\.write\\s*\\(/);\n});\n\ntest(\"terminal routes exact global repo analysis before GestiaCore\", () => {\n    const terminal =\n        fs.readFileSync(\n            path.join(\n                __dirname,\n                \"..\",\n                \"gestia-terminal.html\"\n            ),\n            \"utf8\"\n        );\n\n    const bypassIndex =\n        terminal.indexOf(\"TERMINAL_LEGACY_REPO_BYPASS_41_19\");\n\n    const coreCallIndex =\n        terminal.indexOf(\"await window.GestiaCore.procesarIntencion\");\n\n    assert.ok(bypassIndex > 0);\n    assert.ok(coreCallIndex > bypassIndex);\n    assert.match(\n        terminal,\n        /\\(\\?:analiza\\|analizar\\)\\\\s\\+\\(\\?:el\\\\s\\+\\)\\?\\(\\?:repo\\|repositorio\\)/\n    );\n    assert.match(terminal, /hasLegacyHumanRepoAction/);\n    assert.match(terminal, /hasLegacyRepoTarget/);\n    assert.match(terminal, /handled\\s*=\\s*true;[\\s\\S]{0,120}return;/);\n});",
-    "expectedMatches": 1,
-    "source": "sia7_global_repo_bypass_regression_test"
+    "command": "npm run ci:test",
+    "cwd": ".",
+    "timeoutMs": 120000,
+    "source": "sia7_ci_after_global_repo_bypass_regression_test"
   }
 }
