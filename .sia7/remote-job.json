@@ -1,12 +1,13 @@
 {
-  "jobId": "sia7-restore-ci-after-global-repo-audit-deploy-20260711-01",
-  "operation": "patch",
-  "humanApproved": true,
+  "jobId": "sia7-read-local-global-audit-guard-20260711-01",
+  "operation": "bridge",
+  "endpoint": "/read",
   "body": {
-    "file": "package.json",
-    "search": "    \"ci:test\": \"firebase.cmd deploy --only hosting\"",
-    "replace": "    \"ci:test\": \"npm run check:syntax && npm test\"",
-    "expectedMatches": 1,
-    "source": "sia7_restore_ci_after_global_repo_audit_deploy"
+    "file": "gestia-terminal.html",
+    "path": "gestia-terminal.html",
+    "startLine": 3360,
+    "endLine": 3485,
+    "maxBytes": 300000,
+    "source": "sia7_read_local_global_audit_guard"
   }
 }
