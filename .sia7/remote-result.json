@@ -1,22 +1,26 @@
 {
-  "jobId": "sia7-grep-semantic-runtime-entrypoints-20260711-01",
-  "completedAt": "2026-07-11T21:49:06.918Z",
+  "jobId": "sia7-read-semantic-engine-entrypoint-20260711-01",
+  "completedAt": "2026-07-11T21:52:56.052Z",
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/grep",
+  "endpoint": "/read",
   "payload": {
     "ok": true,
-    "term": "SEMANTIC_ANALYSIS_START",
-    "totalFilesScanned": 173,
-    "totalMatches": 1,
-    "matches": [
-      {
-        "file": "gestia-core/semantic.engine.js",
-        "line": 792,
-        "snippet": "\"SEMANTIC_ANALYSIS_START\","
-      }
-    ],
-    "source": "jarvis_fs_bridge_grep_v1",
+    "file": "gestia-core/semantic.engine.js",
+    "path": "gestia-core/semantic.engine.js",
+    "size": 2961,
+    "totalSize": 19388,
+    "content": "${semantic.primaryConcept}\n`;\n\n    context +=\n`\nSEMANTIC_STATE:\n${semantic.semanticState}\n`;\n\n    context +=\n`\nEMOTIONAL_STATE:\n${JSON.stringify(\n    semantic.emotional\n)}\n`;\n\n    context +=\n`\nCONCEPT_RELATIONS:\n`;\n\n    semantic.associations\n        .forEach(a => {\n\n            context +=\n`\n- ${a.token} -> ${a.concept}\n`;\n        });\n\n    context +=\n`\nRUNTIME_MODULES:\n`;\n\n    modules.forEach(m => {\n\n        context +=\n`\n- ${m.id}\n  NAME: ${m.name}\n  SCHEMA: ${m.schema.join(\", \")}\n`;\n    });\n\n    context +=\n`\n--- END_MATRIX ---\n`;\n\n    return context;\n}\n\n/* ======================================================================================\n   MAIN SEMANTIC ENGINE\n====================================================================================== */\n\nexport async function\nsincronizarCorralSemantico(\n\n    inputCEO = \"\",\n\n    tenantId =\n    DEFAULT_CONTEXT\n\n) {\n\n    try {\n\n        emitSemanticTelemetry(\n\n            \"SEMANTIC_ANALYSIS_START\",\n\n            {\n                inputCEO\n            }\n        );\n\n        const semantic =\n            resolveSemanticIntent(\n                inputCEO\n            );\n\n        const modules =\n            await fetchRuntimeModules(\n                tenantId\n            );\n\n        const cognitiveContext =\n            assembleCognitiveContext(\n\n                semantic,\n                modules\n            );\n\n        window.__SEMANTIC_COGNITIVE_MATRIX__\n            .lastSemanticResolution = {\n\n            semantic,\n            modules,\n            cognitiveContext,\n\n            timestamp:\n                Date.now()\n        };\n\n        emitSemanticTelemetry(\n\n            \"SEMANTIC_ANALYSIS_COMPLETE\",\n\n            {\n\n                concept:\n                    semantic.primaryConcept,\n\n                confidence:\n                    semantic.confidence\n            },\n\n            \"SUCCESS\"\n        );\n\n        return cognitiveContext;\n\n    }\n\n    catch(error) {\n\n        console.error(\n\n            \"SEMANTIC_COGNITIVE_MATRIX_FAIL\",\n            error\n        );\n\n        emitSemanticTelemetry(\n\n            \"SEMANTIC_CRASH\",\n\n            {\n                error:\n                    error.message\n            },\n\n            \"ERROR\"\n        );\n\n        return `\nSEMANTIC_ENGINE_FAIL:\nRuntime operating in degraded cognition mode.\n        `.trim();\n    }\n}\n\n/* ======================================================================================\n   SEMANTIC MEMORY ACCESS\n====================================================================================== */\n\nexport function\ngetSemanticCognitiveState() {\n\n    return {\n\n        ok: true,\n\n        ...(window.__SEMANTIC_COGNITIVE_MATRIX__)\n    };\n}\n\n/* ======================================================================================\n   CACHE INVALIDATION\n====================================================================================== */\n\nexport function\ninvalidateSemanticCache(\n\n    tenantId = null\n\n) {\n\n    if (tenantId) {",
+    "partial": true,
+    "startLine": 720,
+    "endLine": 900,
+    "totalLines": 1001,
+    "lineRange": {
+      "startLine": 720,
+      "endLine": 900,
+      "totalLines": 1001
+    },
+    "source": "jarvis_fs_bridge_read_v1",
     "version": "2.1.0-local-fs-bridge"
   }
 }
