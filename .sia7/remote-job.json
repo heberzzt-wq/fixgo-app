@@ -1,12 +1,11 @@
 {
-  "jobId": "sia7-enable-exact-global-repo-bypass-20260711-03",
-  "operation": "patch",
-  "humanApproved": true,
+  "jobId": "sia7-ci-after-global-repo-bypass-20260711-01",
+  "operation": "bridge",
+  "endpoint": "/run",
   "body": {
-    "file": "gestia-terminal.html",
-    "search": "window.__GESTIA_ENABLE_LEGACY_REPO_BYPASS__ === true;",
-    "replace": "window.__GESTIA_ENABLE_LEGACY_REPO_BYPASS__ === true ||\n            /^(?:jarvis[,\\s]+|heberto[,\\s]+|gestia[,\\s]+)?(?:analiza|analizar)\\s+(?:el\\s+)?(?:repo|repositorio)$/i.test(\n                normalizedLegacyTerminalInput\n            );",
-    "expectedMatches": 1,
-    "source": "sia7_enable_exact_global_repo_bypass_41_43_6_literal_anchor"
+    "command": "npm run ci:test",
+    "cwd": ".",
+    "timeoutMs": 120000,
+    "source": "sia7_ci_after_global_repo_bypass"
   }
 }
