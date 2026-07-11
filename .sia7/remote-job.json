@@ -1,11 +1,12 @@
 {
-  "jobId": "sia7-hosting-deploy-global-repo-audit-20260711-01",
-  "operation": "bridge",
-  "endpoint": "/run",
+  "jobId": "sia7-restore-ci-after-global-repo-audit-deploy-20260711-01",
+  "operation": "patch",
+  "humanApproved": true,
   "body": {
-    "command": "npm run ci:test",
-    "cwd": ".",
-    "timeoutMs": 120000,
-    "source": "sia7_hosting_deploy_global_repo_audit"
+    "file": "package.json",
+    "search": "    \"ci:test\": \"firebase.cmd deploy --only hosting\"",
+    "replace": "    \"ci:test\": \"npm run check:syntax && npm test\"",
+    "expectedMatches": 1,
+    "source": "sia7_restore_ci_after_global_repo_audit_deploy"
   }
 }
