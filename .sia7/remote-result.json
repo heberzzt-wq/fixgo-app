@@ -1,13 +1,27 @@
 {
-  "jobId": "sia7-harden-global-repo-audit-command-match-20260711-01",
-  "completedAt": "2026-07-11T21:37:15.452Z",
+  "jobId": "sia7-grep-light-intent-global-audit-20260711-01",
+  "completedAt": "2026-07-11T21:39:41.100Z",
   "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "gestia-terminal.html",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 270124,
-  "bytesAfter": 270990,
-  "source": "sia7_github_worker_exact_patch_v1"
+  "httpStatus": 200,
+  "endpoint": "/grep",
+  "payload": {
+    "ok": true,
+    "term": "analizarIntencionLigera",
+    "totalFilesScanned": 173,
+    "totalMatches": 2,
+    "matches": [
+      {
+        "file": "gestia-terminal.html",
+        "line": 2287,
+        "snippet": "typeof window.GestiaCore?.analizarIntencionLigera === \"function\""
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 2288,
+        "snippet": "? await window.GestiaCore.analizarIntencionLigera("
+      }
+    ],
+    "source": "jarvis_fs_bridge_grep_v1",
+    "version": "2.1.0-local-fs-bridge"
+  }
 }
