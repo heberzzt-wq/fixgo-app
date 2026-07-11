@@ -1,12 +1,11 @@
 {
-  "jobId": "sia7-restore-ci-after-global-repo-bypass-deploy-20260711-01",
-  "operation": "patch",
-  "humanApproved": true,
+  "jobId": "sia7-final-ci-after-global-repo-bypass-deploy-20260711-02",
+  "operation": "bridge",
+  "endpoint": "/run",
   "body": {
-    "file": "package.json",
-    "search": "    \"ci:test\": \"firebase.cmd deploy --only hosting\"",
-    "replace": "    \"ci:test\": \"npm run check:syntax && npm test\"",
-    "expectedMatches": 1,
-    "source": "sia7_restore_ci_after_global_repo_bypass_deploy"
+    "command": "npm run ci:test",
+    "cwd": ".",
+    "timeoutMs": 120000,
+    "source": "sia7_final_ci_after_global_repo_bypass_deploy"
   }
 }
