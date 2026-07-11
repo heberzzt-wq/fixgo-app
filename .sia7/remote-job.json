@@ -1,13 +1,12 @@
 {
-  "jobId": "sia7-read-global-audit-and-router-region-20260711-01",
+  "jobId": "sia7-grep-semantic-runtime-entrypoints-20260711-01",
   "operation": "bridge",
-  "endpoint": "/read",
+  "endpoint": "/grep",
   "body": {
-    "file": "gestia-terminal.html",
-    "path": "gestia-terminal.html",
-    "startLine": 3360,
-    "endLine": 3700,
-    "maxBytes": 300000,
-    "source": "sia7_read_global_audit_and_router_region"
+    "term": "SEMANTIC_ANALYSIS_START",
+    "cwd": ".",
+    "maxFiles": 800,
+    "maxMatches": 80,
+    "source": "sia7_grep_semantic_runtime_entrypoints"
   }
 }
