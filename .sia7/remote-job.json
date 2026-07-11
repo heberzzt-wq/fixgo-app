@@ -1,12 +1,13 @@
 {
-  "jobId": "sia7-grep-semantic-runtime-entrypoints-20260711-01",
+  "jobId": "sia7-read-semantic-engine-entrypoint-20260711-01",
   "operation": "bridge",
-  "endpoint": "/grep",
+  "endpoint": "/read",
   "body": {
-    "term": "SEMANTIC_ANALYSIS_START",
-    "cwd": ".",
-    "maxFiles": 800,
-    "maxMatches": 80,
-    "source": "sia7_grep_semantic_runtime_entrypoints"
+    "file": "gestia-core/semantic.engine.js",
+    "path": "gestia-core/semantic.engine.js",
+    "startLine": 720,
+    "endLine": 900,
+    "maxBytes": 300000,
+    "source": "sia7_read_semantic_engine_entrypoint"
   }
 }
