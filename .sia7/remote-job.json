@@ -1,12 +1,12 @@
 {
-  "jobId": "sia7-harden-global-repo-audit-command-match-20260711-01",
-  "operation": "patch",
-  "humanApproved": true,
+  "jobId": "sia7-grep-light-intent-global-audit-20260711-01",
+  "operation": "bridge",
+  "endpoint": "/grep",
   "body": {
-    "file": "gestia-terminal.html",
-    "search": "                const normalizedGlobalRepoAuditCommand =\r\n            normalizeCasualGateText(comando);\r\n\r\n        const isExactGlobalRepoAuditCommand =\r\n            /^(?:jarvis[\\s,]+|heberto[\\s,]+|gestia[\\s,]+)?(?:analiza|analizar|audita|auditar|revisa|revisar)\\s+(?:el\\s+)?(?:repo|repositorio)$/.test(\r\n                normalizedGlobalRepoAuditCommand\r\n            );",
-    "replace": "                const normalizedGlobalRepoAuditCommand =\n            normalizeCasualGateText(comando)\n                .replace(/\\s+/g, \" \")\n                .replace(/^(?:jarvis|heberto|gestia)[,\\s]+/, \"\")\n                .trim();\n\n        const isExactGlobalRepoAuditCommand =\n            new Set([\n                \"analiza repo\",\n                \"analiza el repo\",\n                \"analiza repositorio\",\n                \"analiza el repositorio\",\n                \"analizar repo\",\n                \"analizar el repo\",\n                \"analizar repositorio\",\n                \"analizar el repositorio\",\n                \"audita repo\",\n                \"audita el repo\",\n                \"audita repositorio\",\n                \"audita el repositorio\",\n                \"auditar repo\",\n                \"auditar el repo\",\n                \"auditar repositorio\",\n                \"auditar el repositorio\",\n                \"revisa repo\",\n                \"revisa el repo\",\n                \"revisa repositorio\",\n                \"revisa el repositorio\",\n                \"revisar repo\",\n                \"revisar el repo\",\n                \"revisar repositorio\",\n                \"revisar el repositorio\"\n            ]).has(normalizedGlobalRepoAuditCommand);",
-    "expectedMatches": 1,
-    "source": "sia7_harden_global_repo_audit_command_match_41_44_1"
+    "term": "analizarIntencionLigera",
+    "cwd": ".",
+    "maxFiles": 800,
+    "maxMatches": 80,
+    "source": "sia7_grep_light_intent_global_audit"
   }
 }
