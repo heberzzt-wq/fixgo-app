@@ -5059,8 +5059,8 @@ console.log(
                         if (toolName === "repo.scan") {
                             return [
                                 "repo.scan",
-                                `Archivos: ${repoData?.files?.length || repoData?.totalFiles || repoData?.count || "ND"}`,
-                                `Modulos: ${repoData?.modules?.length || repoData?.totalModules || "ND"}`
+                                `Archivos: ${repoData?.files?.length || repoData?.totalFiles || repoData?.total || repoData?.count || "ND"}`,
+                                `Modulos: ${repoData?.modules?.length || repoData?.totalModules || new Set((repoData?.files || []).map(file => file.module).filter(Boolean)).size || "ND"}`
                             ]
                                 .join("\n");
                         }
@@ -5076,6 +5076,255 @@ console.log(
                         return [
                             toolName,
                             JSON.stringify(repoData, null, 2).slice(0, 700)
+                        ]
+                            .join("\n");
+                    };
+
+                const getObservationRepoData =
+                    function(observation = {}) {
+                        const payload =
+                            getObservationPayload(
+                                observation
+                            );
+
+                        return (
+                            payload?.data ||
+                            payload?.result ||
+                            observation?.response?.data ||
+                            observation?.data?.response?.data ||
+                            observation?.data ||
+                            payload ||
+                            {}
+                        );
+                    };
+
+                const formatSia7GlobalList =
+                    function(items = [], emptyText = "") {
+                        return items.length
+                            ? items
+                                .map(item => `- ${item}`)
+                                .join("\n")
+                            : `- ${emptyText}`;
+                    };
+
+                const buildBrainGlobalRepoAnalysisSummary =
+                    function() {
+                        const scanObservation =
+                            agentObservations.find((item, index) =>
+                                getObservationToolName(item, index) === "repo.scan"
+                            ) ||
+                            null;
+
+                        const searchObservation =
+                            agentObservations.find((item, index) =>
+                                getObservationToolName(item, index) === "repo.search"
+                            ) ||
+                            null;
+
+                        const scanData =
+                            getObservationRepoData(scanObservation);
+
+                        const searchData =
+                            getObservationRepoData(searchObservation);
+
+                        const files =
+                            Array.isArray(scanData?.files)
+                                ? scanData.files
+                                : Array.isArray(scanData?.result?.files)
+                                    ? scanData.result.files
+                                    : [];
+
+                        const moduleNames =
+                            [
+                                ...new Set(
+                                    [
+                                        ...files
+                                            .map(file => file.module)
+                                            .filter(Boolean),
+                                        ...(
+                                            Array.isArray(scanData?.modules)
+                                                ? scanData.modules
+                                                : []
+                                        )
+                                            .map(module =>
+                                                typeof module === "string"
+                                                    ? module
+                                                    : module?.module ||
+                                                      module?.name ||
+                                                      ""
+                                            )
+                                            .filter(Boolean)
+                                    ]
+                                )
+                            ];
+
+                        const moduleReports =
+                            moduleNames.map(moduleName => {
+                                const inspected =
+                                    window.inspectModule?.(moduleName) ||
+                                    {};
+
+                                const risk =
+                                    window.evaluateModuleRisk?.(moduleName) ||
+                                    {};
+
+                                const dependencies =
+                                    window.validateModuleDependencies?.(moduleName) ||
+                                    {};
+
+                                return {
+                                    module:
+                                        moduleName,
+                                    critical:
+                                        files.some(file =>
+                                            file.module === moduleName &&
+                                            file.critical === true
+                                        ),
+                                    inspectRisks:
+                                        inspected.risks || [],
+                                    risks:
+                                        risk.risks || [],
+                                    missingDependencies:
+                                        dependencies.missingDependencies || []
+                                };
+                            });
+
+                        const criticalFiles =
+                            files
+                                .filter(file => file.critical === true)
+                                .slice(0, 12);
+
+                        const criticalModules =
+                            moduleReports
+                                .filter(item => item.critical)
+                                .slice(0, 12);
+
+                        const riskyModules =
+                            moduleReports
+                                .filter(item =>
+                                    item.inspectRisks.length ||
+                                    item.risks.length
+                                )
+                                .slice(0, 12);
+
+                        const modulesWithMissingDeps =
+                            moduleReports
+                                .filter(item =>
+                                    item.missingDependencies.length
+                                )
+                                .slice(0, 12);
+
+                        const typeCounts =
+                            files.reduce((acc, file) => {
+                                const type =
+                                    file.type ||
+                                    "sin_tipo";
+
+                                acc[type] =
+                                    (acc[type] || 0) + 1;
+
+                                return acc;
+                            }, {});
+
+                        const typeLines =
+                            Object.entries(typeCounts)
+                                .sort((a, b) => b[1] - a[1])
+                                .slice(0, 8)
+                                .map(([type, count]) => `${type}: ${count}`);
+
+                        const searchMatches =
+                            searchData?.results ||
+                            searchData?.matches ||
+                            [];
+
+                        const totalFiles =
+                            files.length ||
+                            scanData?.totalFiles ||
+                            scanData?.total ||
+                            scanData?.count ||
+                            "ND";
+
+                        const totalModules =
+                            moduleNames.length ||
+                            scanData?.totalModules ||
+                            "ND";
+
+                        return [
+                            "Diagnostico global SIA7 read-only",
+                            "",
+                            "El Brain Router ejecuto analisis global sin abrir superficie de patch.",
+                            `Archivos indexados: ${totalFiles}`,
+                            `Modulos detectados: ${totalModules}`,
+                            "",
+                            "Que se ve mal o delicado:",
+                            formatSia7GlobalList(
+                                [
+                                    criticalFiles.length
+                                        ? `${criticalFiles.length} archivos marcados como criticos en el indice.`
+                                        : "",
+                                    riskyModules.length
+                                        ? `${riskyModules.length} modulos reportan riesgos por analizadores cargados.`
+                                        : "",
+                                    modulesWithMissingDeps.length
+                                        ? `${modulesWithMissingDeps.length} modulos tienen dependencias faltantes.`
+                                        : "",
+                                    searchMatches.length
+                                        ? `La busqueda semantica devolvio ${searchMatches.length} coincidencias para el objetivo.`
+                                        : "repo.search no aporto suficiente evidencia para diagnostico profundo."
+                                ]
+                                    .filter(Boolean),
+                                "No se detectaron anomalias estructurales con las herramientas actuales."
+                            ),
+                            "",
+                            "Modulos criticos principales:",
+                            formatSia7GlobalList(
+                                criticalModules.map(item => item.module),
+                                "Sin modulos criticos marcados por el indice."
+                            ),
+                            "",
+                            "Riesgos de modulos:",
+                            formatSia7GlobalList(
+                                riskyModules.map(item => {
+                                    const risks =
+                                        [
+                                            ...item.inspectRisks,
+                                            ...item.risks.map(risk =>
+                                                risk.code ||
+                                                risk.level ||
+                                                "RISK"
+                                            )
+                                        ];
+
+                                    return `${item.module}: ${risks.join(", ")}`;
+                                }),
+                                "Sin riesgos activos reportados por los analizadores cargados."
+                            ),
+                            "",
+                            "Dependencias faltantes:",
+                            formatSia7GlobalList(
+                                modulesWithMissingDeps.map(item =>
+                                    `${item.module}: ${item.missingDependencies.join(", ")}`
+                                ),
+                                "No se reportaron dependencias faltantes."
+                            ),
+                            "",
+                            "Archivos criticos a revisar primero:",
+                            formatSia7GlobalList(
+                                criticalFiles.map(file =>
+                                    `${file.file} (${file.module || "sin modulo"} / ${file.type || "sin tipo"})`
+                                ),
+                                "Sin archivos criticos destacados."
+                            ),
+                            "",
+                            "Distribucion por tipo:",
+                            formatSia7GlobalList(
+                                typeLines,
+                                "Sin clasificacion por tipo disponible."
+                            ),
+                            "",
+                            "Siguiente paso recomendado:",
+                            "- Pedir diagnostico focal por modulo o archivo critico para bajar de mapa global a evidencia por lineas.",
+                            "- Mantener read-only hasta generar patchPreview exacto y aprobacion humana."
                         ]
                             .join("\n");
                     };
@@ -5299,9 +5548,7 @@ console.log(
                         ...(
                             isRepoGlobalAnalysis
                                 ? [
-                                    "Análisis global read-only completado.",
-                                    "No se generó patchPreview y no se escribieron archivos.",
-                                    "El resultado viene del Brain Router + Agent Loop; las herramientas ejecutadas quedan abajo."
+                                    buildBrainGlobalRepoAnalysisSummary()
                                 ]
                                 : []
                         ),
