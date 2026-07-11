@@ -1,13 +1,13 @@
 {
-  "jobId": "sia7-read-semantic-engine-entrypoint-20260711-01",
+  "jobId": "sia7-read-semantic-resolver-contract-20260711-01",
   "operation": "bridge",
   "endpoint": "/read",
   "body": {
     "file": "gestia-core/semantic.engine.js",
     "path": "gestia-core/semantic.engine.js",
-    "startLine": 720,
-    "endLine": 900,
+    "startLine": 1,
+    "endLine": 360,
     "maxBytes": 300000,
-    "source": "sia7_read_semantic_engine_entrypoint"
+    "source": "sia7_read_semantic_resolver_contract"
   }
 }
