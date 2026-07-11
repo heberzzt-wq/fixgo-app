@@ -1,11 +1,8 @@
 {
-  "jobId": "sia7-final-ci-after-repo-bypass-regression-deploy-20260711-01",
-  "operation": "bridge",
-  "endpoint": "/run",
+  "jobId": "sia7-global-repo-audit-route-20260711-01",
+  "operation": "patch",
+  "humanApproved": true,
   "body": {
-    "command": "npm run ci:test",
-    "cwd": ".",
-    "timeoutMs": 120000,
-    "source": "sia7_final_ci_after_repo_bypass_regression_deploy"
-  }
-}
+    "file": "gestia-terminal.html",
+    "search": "if (\n    window.GestiaCore?.procesarIntencion &&\n    ![\"arre\", \"confirmar\", \"ok\"].includes(cmd)\n) {",
+    "replace": "const normalizedGlobalRepoAuditCommand =\n    normalizeCasualGateText(comando);\n\nconst isExact
