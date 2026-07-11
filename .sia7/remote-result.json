@@ -1,18 +1,13 @@
 {
-  "jobId": "sia7-hosting-deploy-run-windows-cli-20260710-02",
-  "completedAt": "2026-07-11T00:29:52.761Z",
+  "jobId": "sia7-restore-ci-after-successful-deploy-20260711-01",
+  "completedAt": "2026-07-11T00:44:49.583Z",
   "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/run",
-  "payload": {
-    "ok": true,
-    "status": "PASSED",
-    "exitCode": 0,
-    "command": "npm run ci:test",
-    "stdout": "\n> gestia-premium@1.0.0 ci:test\n> firebase.cmd deploy --only hosting\n\n\r\n\u001b[1m\u001b[37m===\u001b[39m Deploying to 'fixgo-44e4d'...\u001b[22m\r\n\r\n\u001b[36m\u001b[1mi \u001b[22m\u001b[39m deploying \u001b[1mhosting\u001b[22m\r\n\u001b[36m\u001b[1mi  hosting[fixgo-44e4d]:\u001b[22m\u001b[39m beginning deploy...\r\n\u001b[36m\u001b[1mi  hosting[fixgo-44e4d]:\u001b[22m\u001b[39m found 361 files in \u001b[1m.\u001b[22m\r\n\u001b[36m\u001b[1mi  hosting:\u001b[22m\u001b[39m adding files to version [0/361] (\u001b[1m\u001b[32m0%\u001b[39m\u001b[22m)\r\n\u001b[36m\u001b[1mi  hosting:\u001b[22m\u001b[39m adding files to version [0/361] (\u001b[1m\u001b[32m0%\u001b[39m\u001b[22m)\r\n\u001b[36m\u001b[1mi  hosting:\u001b[22m\u001b[39m uploading new files [0/166] (\u001b[1m\u001b[32m0%\u001b[39m\u001b[22m)\r\n\u001b[36m\u001b[1mi  hosting:\u001b[22m\u001b[39m uploading new files [0/166] (\u001b[1m\u001b[32m0%\u001b[39m\u001b[22m)\r\n\u001b[36m\u001b[1mi  hosting:\u001b[22m\u001b[39m upload complete\r\n\u001b[32m\u001b[1m+  hosting[fixgo-44e4d]:\u001b[22m\u001b[39m file upload complete\r\n\u001b[36m\u001b[1mi  hosting[fixgo-44e4d]:\u001b[22m\u001b[39m finalizing version...\r\n\u001b[32m\u001b[1m+  hosting[fixgo-44e4d]:\u001b[22m\u001b[39m version finalized\r\n\u001b[36m\u001b[1mi  hosting[fixgo-44e4d]:\u001b[22m\u001b[39m releasing new version...\r\n\u001b[32m\u001b[1m+  hosting[fixgo-44e4d]:\u001b[22m\u001b[39m release complete\r\n\r\n\u001b[32m\u001b[1m+ \u001b[22m\u001b[39m \u001b[1m\u001b[4mDeploy complete!\u001b[24m\u001b[22m\r\n\r\n\u001b[1mProject Console:\u001b[22m https://console.firebase.google.com/project/fixgo-44e4d/overview\r\n\u001b[1mHosting URL:\u001b[22m https://fixgo-44e4d.web.app\r\n",
-    "stderr": "",
-    "durationMs": 29665,
-    "source": "sia7_hosting_deploy_run_windows_cli",
-    "version": "2.1.0-local-fs-bridge"
-  }
+  "operation": "patch",
+  "dryRun": false,
+  "file": "package.json",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 3325,
+  "bytesAfter": 3323,
+  "source": "sia7_github_worker_exact_patch_v1"
 }
