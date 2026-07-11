@@ -973,6 +973,14 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /!proposal\?\.search/);
     assert.match(terminal, /!proposal\?\.replace/);
     assert.match(terminal, /buildSia7ProposalAdjustmentInput/);
+    assert.match(terminal, /buildSia7ProposalAdjustmentPromptPrefix/);
+    assert.match(terminal, /isControlledSia7ProposalAdjustmentInput/);
+    assert.match(terminal, /hasProposalAdjustmentRequest/);
+    assert.match(terminal, /controlled_adjustment_prompt_from_visual_card/);
+    assert.doesNotMatch(
+        terminal,
+        /if\s*\(\s*state\.hasActivePatchProposal\s*\)\s*\{[\s\S]{0,300}PROPOSAL_ADJUSTMENT/
+    );
     assert.match(terminal, /proposalAdjustmentContext/);
     assert.match(terminal, /SIA7_PROPOSAL_ADJUSTMENT_CONTEXT_41_39/);
     assert.match(terminal, /Contexto SIA7 de propuesta activa/);
@@ -1022,6 +1030,8 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /SIA7_PATCH_SURFACE_CLEARED_BY_BLOCKED_PREVIEW_41_51/);
     assert.match(terminal, /patchPreviewBlocked/);
     assert.match(terminal, /patchPreviewCandidate\s*&&\s*!patchPreviewBlocked/);
+    assert.match(terminal, /SIA7_BLOCKED_VISUAL_PROPOSAL_RENDER_SUPPRESSED_41_52/);
+    assert.match(terminal, /data-sia7-blocked-patch-proposal="true"/);
     assert.match(terminal, /querySelectorAll\("\[data-sia7-visual-patch-proposal='true'\]"\)/);
     assert.match(terminal, /__SIA7_PENDING_PATCH_APPROVAL__\s*=\s*null/);
 });

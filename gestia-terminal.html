@@ -2072,6 +2072,37 @@ const buildSia7ProposalAdjustmentInput =
             .join("\n");
     };
 
+const buildSia7ProposalAdjustmentPromptPrefix =
+    function(file = "") {
+        return `Jarvis, ajusta la propuesta anterior para ${file || "el archivo"}:`;
+    };
+
+const isControlledSia7ProposalAdjustmentInput =
+    function(input = "", adjustmentState = {}) {
+        if (!adjustmentState?.startedAt) {
+            return false;
+        }
+
+        const expectedPrefix =
+            String(
+                adjustmentState.inputPrefix ||
+                buildSia7ProposalAdjustmentPromptPrefix(
+                    adjustmentState.file ||
+                    adjustmentState.lockedFile ||
+                    ""
+                )
+            )
+                .trim();
+
+        if (!expectedPrefix) {
+            return false;
+        }
+
+        return String(input || "")
+            .trim()
+            .startsWith(expectedPrefix);
+    };
+
     const collectTerminalSecondarySignals =
     function(value = "") {
         return {};
@@ -2166,25 +2197,6 @@ const decideTerminalModeFromContext =
             });
         }
 
-        if (state.hasActivePatchProposal) {
-            return buildTerminalBrainRoute({
-                mode:
-                    "PROPOSAL_ADJUSTMENT",
-                confidence:
-                    0.9,
-                objective:
-                    "Adjust active visual patch proposal using current proposal context.",
-                useAgentLoop:
-                    true,
-                useRepoTools:
-                    false,
-                renderCard:
-                    true,
-                reason:
-                    "active_proposal_context_owned_by_brain"
-            });
-        }
-
         if (semantic?.mode) {
             return buildTerminalBrainRoute({
                 mode:
@@ -2206,6 +2218,25 @@ const decideTerminalModeFromContext =
             });
         }
 
+        if (state.hasProposalAdjustmentRequest) {
+            return buildTerminalBrainRoute({
+                mode:
+                    "PROPOSAL_ADJUSTMENT",
+                confidence:
+                    0.9,
+                objective:
+                    "Adjust active visual patch proposal using current proposal context.",
+                useAgentLoop:
+                    true,
+                useRepoTools:
+                    false,
+                renderCard:
+                    true,
+                reason:
+                    "controlled_adjustment_prompt_from_visual_card"
+            });
+        }
+
         return buildTerminalBrainRoute({
             mode:
                 "BRAIN_DELEGATED",
@@ -2222,6 +2253,10 @@ const decideTerminalModeFromContext =
 
 const routeTerminalNaturalIntent =
     async function(input = "", context = {}) {
+        const proposalAdjustmentInFlight =
+            window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__ ||
+            null;
+
         const state =
             {
                 hasActivePatchProposal:
@@ -2234,6 +2269,12 @@ const routeTerminalNaturalIntent =
                     Boolean(window.__SIA7_SAFE_WRITE_CONFIRM_PENDING__),
                 protectedCommand:
                     isProtectedTerminalCommand(input),
+                proposalAdjustmentInFlight,
+                hasProposalAdjustmentRequest:
+                    isControlledSia7ProposalAdjustmentInput(
+                        input,
+                        proposalAdjustmentInFlight
+                    ),
                 traceId:
                     context.traceId || "",
                 source:
@@ -7231,8 +7272,13 @@ if (
         return;
       }
 
-            if (action === "adjust-proposal") {
+      if (action === "adjust-proposal") {
         rememberSia7ActivePatchProposal(proposal);
+
+        const adjustmentInputPrefix =
+          buildSia7ProposalAdjustmentPromptPrefix(
+            proposal.file || "el archivo"
+          );
 
         window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__ =
           {
@@ -7246,6 +7292,8 @@ if (
               proposal.replace || "",
             lineRange:
               proposal.lineRange || null,
+            inputPrefix:
+              adjustmentInputPrefix,
             source:
               "adjust_proposal_button_41_42_6",
             startedAt:
@@ -7265,7 +7313,7 @@ if (
         );
 
         setSia7TerminalInput(
-          `Jarvis, ajusta la propuesta anterior para ${proposal.file || "el archivo"}: `
+          `${adjustmentInputPrefix} `
         );
 
         notifySia7ProposalAction(
@@ -7480,6 +7528,66 @@ if (
     if (!payload) return "";
 
     if (payload.terminalType === "SIA7_VISUAL_PATCH_PROPOSAL") {
+      const payloadEvidenceForBlock =
+        Array.isArray(payload.evidence)
+          ? payload.evidence
+          : [];
+
+      const payloadBlockedByChainOfCommand =
+        Boolean(
+          payload.patchPreviewBlocked ||
+          payload.blocked === true ||
+          payload.patchRisk === "BLOCKED" ||
+          payload.status === "BLOCKED"
+        ) ||
+        payloadEvidenceForBlock.some(item => {
+          const text =
+            [
+              item?.snippet,
+              item?.reason,
+              item?.message,
+              item?.code
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase();
+
+          return (
+            text.includes("archivo bloqueado") &&
+            text.includes("cadena de mando")
+          ) ||
+          text.includes("chain_of_command");
+        });
+
+      if (payloadBlockedByChainOfCommand) {
+        clearSia7ActivePatchProposal();
+        window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ =
+          null;
+
+        console.warn(
+          "[SIA7_BLOCKED_VISUAL_PROPOSAL_RENDER_SUPPRESSED_41_52]",
+          {
+            file:
+              payload.file || "",
+            patchRisk:
+              payload.patchRisk || "",
+            status:
+              payload.status || "",
+            terminalType:
+              payload.terminalType
+          }
+        );
+
+        return `
+          <div class="codex-card border border-amber-500/40 rounded-xl p-4 my-3 bg-black/30" data-sia7-blocked-patch-proposal="true">
+            <div class="text-[11px] uppercase tracking-[0.18em] text-amber-300/80">Propuesta bloqueada SIA7</div>
+            <div class="font-bold text-amber-100 mt-1">${escapeHtml(payload.file || "ND")}</div>
+            <div class="mt-3 text-sm text-amber-100">El ajuste fue bloqueado por cadena de mando. No se prepararon botones de escritura.</div>
+            <div class="mt-2 text-xs text-slate-300">No se ejecutó repo.write. No se ejecutó repo.safePatchApply. La propuesta activa fue limpiada.</div>
+          </div>
+        `;
+      }
+
       const adjustmentInFlight =
         readSia7ProposalAdjustmentInFlight(payload);
 
