@@ -1,12 +1,13 @@
 {
-  "jobId": "sia7-grep-light-intent-global-audit-20260711-01",
+  "jobId": "sia7-read-global-audit-and-router-region-20260711-01",
   "operation": "bridge",
-  "endpoint": "/grep",
+  "endpoint": "/read",
   "body": {
-    "term": "analizarIntencionLigera",
-    "cwd": ".",
-    "maxFiles": 800,
-    "maxMatches": 80,
-    "source": "sia7_grep_light_intent_global_audit"
+    "file": "gestia-terminal.html",
+    "path": "gestia-terminal.html",
+    "startLine": 3360,
+    "endLine": 3700,
+    "maxBytes": 300000,
+    "source": "sia7_read_global_audit_and_router_region"
   }
 }
