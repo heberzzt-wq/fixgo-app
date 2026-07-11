@@ -1,11 +1,12 @@
 {
-  "jobId": "sia7-hosting-deploy-after-repo-bypass-regression-20260711-01",
-  "operation": "bridge",
-  "endpoint": "/run",
+  "jobId": "sia7-restore-ci-after-repo-bypass-regression-deploy-20260711-01",
+  "operation": "patch",
+  "humanApproved": true,
   "body": {
-    "command": "npm run ci:test",
-    "cwd": ".",
-    "timeoutMs": 180000,
-    "source": "sia7_hosting_deploy_after_repo_bypass_regression"
+    "file": "package.json",
+    "search": "    \"ci:test\": \"firebase.cmd deploy --only hosting\"",
+    "replace": "    \"ci:test\": \"npm run check:syntax && npm test\"",
+    "expectedMatches": 1,
+    "source": "sia7_restore_ci_after_repo_bypass_regression_deploy"
   }
 }
