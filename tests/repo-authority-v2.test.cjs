@@ -1016,6 +1016,11 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /cloudToolPlan[\s\S]{0,120}patchPreviewAllowed\s*===\s*false/);
     assert.match(terminal, /cloudToolPlan[\s\S]{0,160}renderPatchPreview\s*===\s*false/);
     assert.match(terminal, /cloudToolPlan[\s\S]{0,180}intent\s*===\s*"REPO_GLOBAL_ANALYSIS"/);
+    assert.match(terminal, /suppressPatchSurface/);
+    assert.match(terminal, /__SIA7_CLEAR_ACTIVE_PATCH_PROPOSAL__/);
+    assert.match(terminal, /SIA7_PATCH_SURFACE_CLEARED_BY_BRAIN_PLAN_41_50/);
+    assert.match(terminal, /querySelectorAll\("\[data-sia7-visual-patch-proposal='true'\]"\)/);
+    assert.match(terminal, /__SIA7_PENDING_PATCH_APPROVAL__\s*=\s*null/);
 });
 
 test("terminal keeps natural repository analysis in the brain route", () => {

@@ -1966,7 +1966,11 @@ const isFreshTerminalActivePatchProposal =
 
 const clearTerminalActivePatchProposal =
     function() {
+        window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ =
+            null;
         window.__SIA7_ACTIVE_PATCH_PROPOSAL__ =
+            null;
+        window.__SIA7_PENDING_PATCH_APPROVAL__ =
             null;
 
         try {
@@ -1976,6 +1980,9 @@ const clearTerminalActivePatchProposal =
         }
         catch(error) {}
     };
+
+window.__SIA7_CLEAR_ACTIVE_PATCH_PROPOSAL__ =
+    clearTerminalActivePatchProposal;
 
 const readTerminalActivePatchProposal =
     function() {
@@ -5044,7 +5051,7 @@ console.log(
                         ?.finalResponse ||
                     null;
 
-                const patchPreviewCandidate =
+                const suppressPatchSurface =
                     coreResult
                         ?.result
                         ?.reasoning
@@ -5059,7 +5066,31 @@ console.log(
                         ?.result
                         ?.reasoning
                         ?.cloudToolPlan
-                        ?.intent === "REPO_GLOBAL_ANALYSIS"
+                        ?.intent === "REPO_GLOBAL_ANALYSIS";
+
+                if (
+                    suppressPatchSurface &&
+                    typeof window.__SIA7_CLEAR_ACTIVE_PATCH_PROPOSAL__ === "function"
+                ) {
+                    window.__SIA7_CLEAR_ACTIVE_PATCH_PROPOSAL__();
+
+                    console.info(
+                        "[SIA7_PATCH_SURFACE_CLEARED_BY_BRAIN_PLAN_41_50]",
+                        {
+                            traceId:
+                                currentTraceId,
+                            intent:
+                                coreResult
+                                    ?.result
+                                    ?.reasoning
+                                    ?.cloudToolPlan
+                                    ?.intent
+                        }
+                    );
+                }
+
+                const patchPreviewCandidate =
+                    suppressPatchSurface
                         ? null
                         : (
                             finalResponse
@@ -6966,6 +6997,7 @@ window.addEventListener("load", () => {
   function clearSia7ActivePatchProposal() {
     window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ = null;
     window.__SIA7_ACTIVE_PATCH_PROPOSAL__ = null;
+    window.__SIA7_PENDING_PATCH_APPROVAL__ = null;
 
     try {
       localStorage.removeItem(
@@ -6973,7 +7005,17 @@ window.addEventListener("load", () => {
       );
     }
     catch(error) {}
+
+    try {
+      document
+        .querySelectorAll("[data-sia7-visual-patch-proposal='true']")
+        .forEach(card => card.remove());
+    }
+    catch(error) {}
   }
+
+  window.__SIA7_CLEAR_ACTIVE_PATCH_PROPOSAL__ =
+    clearSia7ActivePatchProposal;
 
   function setSia7TerminalInput(value = "") {
     const input =
