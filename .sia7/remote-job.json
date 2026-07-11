@@ -1,13 +1,13 @@
 {
-  "jobId": "sia7-read-local-core-first-anchor-20260711-01",
+  "jobId": "sia7-read-local-core-first-anchor-20260711-02",
   "operation": "bridge",
   "endpoint": "/read",
   "body": {
     "file": "gestia-terminal.html",
     "path": "gestia-terminal.html",
-    "startLine": 3300,
-    "endLine": 3450,
+    "startLine": 3440,
+    "endLine": 3580,
     "maxBytes": 300000,
-    "source": "sia7_read_local_core_first_anchor"
+    "source": "sia7_read_local_core_first_anchor_next"
   }
 }
