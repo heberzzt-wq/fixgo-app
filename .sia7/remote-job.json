@@ -1,13 +1,12 @@
 {
-  "jobId": "sia7-read-semantic-resolver-contract-20260711-01",
+  "jobId": "sia7-grep-semantic-engine-local-wiring-20260711-01",
   "operation": "bridge",
-  "endpoint": "/read",
+  "endpoint": "/grep",
   "body": {
-    "file": "gestia-core/semantic.engine.js",
-    "path": "gestia-core/semantic.engine.js",
-    "startLine": 1,
-    "endLine": 360,
-    "maxBytes": 300000,
-    "source": "sia7_read_semantic_resolver_contract"
+    "term": "semantic.engine.js",
+    "cwd": ".",
+    "maxFiles": 800,
+    "maxMatches": 100,
+    "source": "sia7_grep_semantic_engine_local_wiring"
   }
 }
