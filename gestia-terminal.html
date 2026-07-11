@@ -2067,6 +2067,8 @@ const buildSia7ProposalAdjustmentInput =
 
     const collectTerminalSecondarySignals =
     function(value = "") {
+        return {};
+
         const normalized =
             normalizeCasualGateText(value);
 
@@ -2115,8 +2117,7 @@ const decideTerminalModeFromContext =
     function({
         input = "",
         state = {},
-        semantic = null,
-        signals = {}
+        semantic = null
     } = {}) {
         const normalized =
             normalizeCasualGateText(input);
@@ -2145,21 +2146,6 @@ const decideTerminalModeFromContext =
             });
         }
 
-        if (
-            signals.mentionsWrite &&
-            !state.hasPatchPreview &&
-            !state.hasActivePatchProposal
-        ) {
-            return buildTerminalBrainRoute({
-                mode:
-                    "BLOCKED_UNSAFE",
-                confidence:
-                    0.9,
-                reason:
-                    "write_intent_without_preview_or_active_proposal"
-            });
-        }
-
         if (state.hasSafeWritePending) {
             return buildTerminalBrainRoute({
                 mode:
@@ -2173,10 +2159,7 @@ const decideTerminalModeFromContext =
             });
         }
 
-        if (
-            state.hasActivePatchProposal &&
-            signals.mentionsAdjustment
-        ) {
+        if (state.hasActivePatchProposal) {
             return buildTerminalBrainRoute({
                 mode:
                     "PROPOSAL_ADJUSTMENT",
@@ -2191,7 +2174,7 @@ const decideTerminalModeFromContext =
                 renderCard:
                     true,
                 reason:
-                    "active_proposal_with_adjustment_signal"
+                    "active_proposal_context_owned_by_brain"
             });
         }
 
@@ -2213,29 +2196,6 @@ const decideTerminalModeFromContext =
                     Boolean(semantic.prepareCommand),
                 reason:
                     semantic.reason || "semantic_light_intent"
-            });
-        }
-
-        if (
-            signals.mentionsRepo ||
-            signals.mentionsPatch ||
-            hasTechnicalTerminalObjective(input)
-        ) {
-            return buildTerminalBrainRoute({
-                mode:
-                    "BRAIN_DELEGATED",
-                confidence:
-                    0.6,
-                objective:
-                    "Delegate natural technical input to GestiaCore cognitive reasoning.",
-                useAgentLoop:
-                    true,
-                useRepoTools:
-                    false,
-                renderCard:
-                    false,
-                reason:
-                    "secondary_signals_only_core_delegated"
             });
         }
 
@@ -2273,9 +2233,6 @@ const routeTerminalNaturalIntent =
                     "terminal_brain_router_41_42"
             };
 
-        const signals =
-            collectTerminalSecondarySignals(input);
-
         const semantic =
             typeof window.GestiaCore?.analizarIntencionLigera === "function"
                 ? await window.GestiaCore.analizarIntencionLigera(
@@ -2288,8 +2245,7 @@ const routeTerminalNaturalIntent =
         return decideTerminalModeFromContext({
             input,
             state,
-            semantic,
-            signals
+            semantic
         });
     };
 
@@ -2743,6 +2699,8 @@ const rememberLastPatchPreviewCandidate =
 
 const isNaturalPatchPreviewFollowUp =
     function(value = "") {
+        return false;
+
         if (
             isProtectedTerminalCommand(value)
         ) {
@@ -4394,6 +4352,9 @@ if (
                         "gestia_terminal_core_first_v7",
                     traceId:
                         currentTraceId,
+                    naturalIntentAuthority:
+                        "brain",
+                    terminalBrainRoute,
                                         proposalAdjustmentContext:
                         shouldBuildProposalAdjustmentInput
                             ? {
@@ -4734,10 +4695,7 @@ const content =
         .replace(/[\u0300-\u036f]/g, "");
 
 const wantsPatchRecommendation =
-    /(?:propone|proponer|sugiere|sugerir|recomienda|mejora|parche|patch|fix|arreglo)/i
-        .test(
-            normalizedPatchCommand
-        );
+    false;
 
 const buildPatchRecommendation =
     function() {

@@ -919,8 +919,8 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /TERMINAL_BRAIN_ROUTER/);
     assert.match(terminal, /CASUAL_NOOP/);
     assert.match(terminal, /BRAIN_DELEGATED/);
-    assert.match(terminal, /secondary_signals_only_core_delegated/);
     assert.match(terminal, /no_semantic_result_core_delegated/);
+    assert.match(terminal, /naturalIntentAuthority:\s*"brain"/);
     assert.match(terminal, /writeAllowed:\s*false/);
     assert.match(terminal, /approvalRequiredForWrite:\s*true/);
     assert.match(terminal, /FOLLOW_UP_MEMORY/);
@@ -940,6 +940,11 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.doesNotMatch(terminal, /new Set\(\[\s*"analiza repo"/);
     assert.doesNotMatch(terminal, /if\s*\(\s*signals\.looksCasual\s*\)/);
     assert.doesNotMatch(terminal, /casual_without_active_flow/);
+    assert.doesNotMatch(terminal, /signals\.mentionsWrite/);
+    assert.doesNotMatch(terminal, /signals\.mentionsRepo/);
+    assert.doesNotMatch(terminal, /signals\.mentionsPatch/);
+    assert.doesNotMatch(terminal, /signals\.mentionsAdjustment/);
+    assert.doesNotMatch(terminal, /secondary_signals_only_core_delegated/);
     assert.match(terminal, /const isExplicitRepoAuditRequest =\s*false;/);
 });
 
@@ -1031,7 +1036,6 @@ test("terminal keeps natural repository analysis in the brain route", () => {
     assert.ok(coreCallIndex > routerIndex);
     assert.match(terminal, /GestiaCore\.analizarIntencionLigera/);
     assert.match(terminal, /BRAIN_DELEGATED/);
-    assert.match(terminal, /Delegate natural technical input to GestiaCore cognitive reasoning/);
     assert.match(terminal, /Delegate freeform natural input to GestiaCore cognitive reasoning/);
     assert.doesNotMatch(terminal, /terminal_global_repo_audit_41_44/);
     assert.doesNotMatch(terminal, /isExactGlobalRepoAuditCommand/);
@@ -1064,4 +1068,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(brain, /repoHubGlobalPlan\s*\|\|\s*normalizeCloudToolPlan/);
     assert.match(brain, /if\s*\(!repoHubGlobalPlan\)\s*\{[\s\S]{0,180}invocarArquitectoIA/);
     assert.match(brain, /visionIntent:\s*repoHubVisionIntent/);
+    assert.match(brain, /shouldUseLegacyRegexToolDetector/);
+    assert.match(brain, /contexto\?\.naturalIntentAuthority\s*!==\s*"brain"/);
+    assert.match(brain, /shouldUseLegacyRegexToolDetector[\s\S]{0,120}buildToolCallsFromInput/);
 });

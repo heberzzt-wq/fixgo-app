@@ -2728,11 +2728,16 @@ export async function runCognitiveReasoning(
         repoHubVisionIntent
       );
 
+    const shouldUseLegacyRegexToolDetector =
+      contexto?.naturalIntentAuthority !== "brain";
+
         const localToolCalls =
-      buildToolCallsFromInput(
-        input,
-        contexto
-      );
+      shouldUseLegacyRegexToolDetector
+        ? buildToolCallsFromInput(
+            input,
+            contexto
+          )
+        : [];
 
     let cloudReasoning =
       null;
