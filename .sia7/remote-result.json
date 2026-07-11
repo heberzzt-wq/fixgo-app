@@ -1,13 +1,26 @@
 {
-  "jobId": "sia7-global-repo-audit-route-20260711-05",
-  "completedAt": "2026-07-11T20:12:17.625Z",
+  "jobId": "sia7-read-local-test-tail-global-audit-20260711-01",
+  "completedAt": "2026-07-11T20:12:47.552Z",
   "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "gestia-terminal.html",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 260216,
-  "bytesAfter": 269903,
-  "source": "sia7_github_worker_exact_patch_v1"
+  "httpStatus": 200,
+  "endpoint": "/read",
+  "payload": {
+    "ok": true,
+    "file": "tests/repo-authority-v2.test.cjs",
+    "path": "tests/repo-authority-v2.test.cjs",
+    "size": 5846,
+    "totalSize": 35002,
+    "content": "        fs.readFileSync(\n            path.join(\n                __dirname,\n                \"..\",\n                \"gestia-terminal.html\"\n            ),\n            \"utf8\"\n        );\n\n    const followUpIndex =\n        terminal.indexOf(\"TERMINAL_LAST_PATCH_PREVIEW_FOLLOW_UP_41_34\");\n\n    const coreFirstIndex =\n        terminal.indexOf(\"[TERMINAL_CORE_FIRST]\");\n\n    assert.ok(followUpIndex > 0);\n    assert.ok(coreFirstIndex > followUpIndex);\n    assert.match(terminal, /LAST_PATCH_PREVIEW_MEMORY_SAVED_41_34/);\n    assert.match(terminal, /TERMINAL_LEARNING_RECORD_FAILED_41_35/);\n    assert.match(terminal, /TERMINAL_BRAIN_ROUTER/);\n    assert.match(terminal, /CASUAL_NOOP/);\n    assert.match(terminal, /writeAllowed:\\s*false/);\n    assert.match(terminal, /approvalRequiredForWrite:\\s*true/);\n    assert.match(terminal, /FOLLOW_UP_MEMORY/);\n    assert.match(terminal, /No tengo una propuesta previa activa/);\n    assert.match(terminal, /repo\\.patchPreview/);\n    assert.match(terminal, /approved:\\s*false/);\n    assert.match(terminal, /agent-loop-v7-20260707-4135/);\n    assert.match(terminal, /jarvis-tools-v7-20260707-4135/);\n});\n\ntest(\"terminal renders visual patch proposal card without direct write execution\", () => {\n    const terminal =\n        fs.readFileSync(\n            path.join(\n                __dirname,\n                \"..\",\n                \"gestia-terminal.html\"\n            ),\n            \"utf8\"\n        );\n\n    assert.match(terminal, /SIA7_VISUAL_PATCH_PROPOSAL/);\n    assert.match(terminal, /filterSia7ProposalLearningHints/);\n    assert.match(terminal, /sia7:activePatchProposal:v1/);\n    assert.match(terminal, /__SIA7_ACTIVE_PATCH_PROPOSAL__/);\n    assert.match(terminal, /readTerminalActivePatchProposal/);\n    assert.match(terminal, /SIA7_ACTIVE_PATCH_PROPOSAL_MAX_AGE_MS/);\n    assert.match(terminal, /SIA7_PROPOSAL_ADJUSTMENT_MAX_AGE_MS/);\n    assert.match(terminal, /isFreshTerminalActivePatchProposal/);\n    assert.match(terminal, /clearTerminalActivePatchProposal/);\n    assert.match(terminal, /rememberTerminalProposalAdjustment/);\n    assert.match(terminal, /__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__/);\n    assert.match(terminal, /!proposal\\?\\.search/);\n    assert.match(terminal, /!proposal\\?\\.replace/);\n    assert.match(terminal, /buildSia7ProposalAdjustmentInput/);\n    assert.match(terminal, /proposalAdjustmentContext/);\n    assert.match(terminal, /SIA7_PROPOSAL_ADJUSTMENT_CONTEXT_41_39/);\n    assert.match(terminal, /Contexto SIA7 de propuesta activa/);\n    assert.match(terminal, /rememberSia7ActivePatchProposal/);\n    assert.match(terminal, /readSia7ActivePatchProposal/);\n    assert.match(terminal, /isFreshSia7ActivePatchProposal/);\n    assert.match(terminal, /clearSia7ActivePatchProposal/);\n    assert.match(terminal, /readSia7ProposalAdjustmentInFlight/);\n    assert.match(terminal, /Propuesta visual SIA7 ajustada/);\n    assert.match(terminal, /Ajuste supervisado aplicado sobre la propuesta activa/);\n    assert.match(terminal, /data-sia7-visual-patch-proposal=\"true\"/);\n    assert.match(terminal, /data-sia7-adjusted=\"\\$\\{adjustmentInFlight \\? \"true\" : \"false\"\\}\"/);\n    assert.match(terminal, /replacedExistingSia7Proposal/);\n    assert.match(terminal, /previousProposal\\.replaceWith\\(cardElement\\)/);\n    assert.match(terminal, /seen\\.has\\(key\\)/);\n    assert.match(terminal, /diagnosis === \"casual_input_noop\"/);\n    assert.match(terminal, /Propuesta visual SIA7/);\n    assert.match(terminal, /dryRun \\/ sin escritura/);\n    assert.match(terminal, /Riesgo archivo/);\n    assert.match(terminal, /Riesgo patch/);\n    assert.match(terminal, /Aprendizaje usado/);\n    assert.match(terminal, /Search exacto/);\n    assert.match(terminal, /Replace candidato/);\n    assert.match(terminal, /Comando de aprobación preparado, no ejecutado/);\n    assert.match(terminal, /Comando patchPreview/);\n    assert.match(terminal, /data-sia7-proposal-action=\"copy-patch-preview\"/);\n    assert.match(terminal, /data-sia7-proposal-action=\"cancel-proposal\"/);\n    assert.match(terminal, /data-sia7-proposal-action=\"adjust-proposal\"/);\n    assert.match(terminal, /data-sia7-proposal-action=\"prepare-safe-write-approval\"/);\n    assert.match(terminal, /Jarvis, ajusta la propuesta anterior para/);\n    assert.match(terminal, /Puedes ajustar esta propuesta antes de aprobarla/);\n    assert.match(terminal, /Propuesta cancelada, no se escribieron archivos/);\n    assert.match(terminal, /localStorage\\.removeItem\\(\\s*SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY\\s*\\)/);\n    assert.match(terminal, /No se ejecuto repo\\.safePatchApply ni repo\\.write/);\n    assert.match(terminal, /repo\\.patchPreview/);\n    assert.match(terminal, /dryRun=true/);\n    assert.match(terminal, /Aprobar safe write/);\n    assert.doesNotMatch(terminal, /Aprobar safe write[^<]*<\\/button>\\s*<script/i);\n    assert.doesNotMatch(terminal, /SIA7_VISUAL_PATCH_PROPOSAL[\\s\\S]{0,3000}repo\\.safePatchApply\\s*\\(/);\n    assert.doesNotMatch(terminal, /SIA7_VISUAL_PATCH_PROPOSAL[\\s\\S]{0,3000}repo\\.write\\s*\\(/);\n});\n\ntest(\"terminal routes exact global repo analysis before GestiaCore\", () => {\n    const terminal =\n        fs.readFileSync(\n            path.join(\n                __dirname,\n                \"..\",\n                \"gestia-terminal.html\"\n            ),\n            \"utf8\"\n        );\n\n    const bypassIndex =\n        terminal.indexOf(\"TERMINAL_LEGACY_REPO_BYPASS_41_19\");\n\n    const coreCallIndex =\n        terminal.indexOf(\"await window.GestiaCore.procesarIntencion\");\n\n    assert.ok(bypassIndex > 0);\n    assert.ok(coreCallIndex > bypassIndex);\n    assert.match(\n        terminal,\n        /\\(\\?:analiza\\|analizar\\)\\\\s\\+\\(\\?:el\\\\s\\+\\)\\?\\(\\?:repo\\|repositorio\\)/\n    );\n    assert.match(terminal, /hasLegacyHumanRepoAction/);\n    assert.match(terminal, /hasLegacyRepoTarget/);\n    assert.match(terminal, /handled\\s*=\\s*true;[\\s\\S]{0,120}return;/);\n});\n",
+    "partial": true,
+    "startLine": 900,
+    "endLine": 1025,
+    "totalLines": 1025,
+    "lineRange": {
+      "startLine": 900,
+      "endLine": 1025,
+      "totalLines": 1025
+    },
+    "source": "jarvis_fs_bridge_read_v1",
+    "version": "2.1.0-local-fs-bridge"
+  }
 }
