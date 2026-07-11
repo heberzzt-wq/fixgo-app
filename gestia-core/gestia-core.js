@@ -2955,7 +2955,8 @@ function composeObservationDrivenFinalResponse({
     followUpObservations = [],
     primaryConfidence = null,
     learningHints = {},
-    proposalAdjustmentContext = null
+    proposalAdjustmentContext = null,
+    patchPreviewAllowed = true
 } = {}) {
     const topCandidate =
         candidates[0] ||
@@ -3033,12 +3034,14 @@ function composeObservationDrivenFinalResponse({
         });
 
     const patchPreviewCandidate =
-        extractPatchPreviewCandidateFromRead({
-            candidate:
-                topCandidate,
-            anchoredDiagnosis,
-            followUpObservations
-        });
+        patchPreviewAllowed
+            ? extractPatchPreviewCandidateFromRead({
+                candidate:
+                    topCandidate,
+                anchoredDiagnosis,
+                followUpObservations
+            })
+            : null;
 
     const safePatchPreviewCandidate =
         patchPreviewCandidate?.blocked === true
@@ -3192,6 +3195,9 @@ function composeObservationDrivenFinalResponse({
             : "Las coincidencias apuntan al archivo con mayor densidad de evidencia en repo.search/repo.grep. Se recomienda leer el bloque visual antes de proponer cualquier patch.";
 
     const patchPreviewProposal =
+        patchPreviewAllowed === false
+            ? "PatchPreview deshabilitado por el plan cognitivo; esta respuesta es analisis read-only sin propuesta de escritura."
+            :
         safePatchPreviewCandidate?.command ||
         (
             blockedPatchPreviewCandidate
@@ -3203,7 +3209,12 @@ function composeObservationDrivenFinalResponse({
         );
 
     const patchPreviewDetailLines =
-        safePatchPreviewCandidate
+        patchPreviewAllowed === false
+            ? [
+                "- No se genero search/replace porque el plan prohibe preview de patch.",
+                "- Para modificar archivos, solicita una propuesta concreta despues del analisis."
+            ]
+            : safePatchPreviewCandidate
             ? [
                 `- Bloque exacto candidato: ${safePatchPreviewCandidate.file}:${safePatchPreviewCandidate.startLine}-${safePatchPreviewCandidate.endLine}`,
                 `- Senales en bloque: ${safePatchPreviewCandidate.signals.join(", ") || "ND"}`,
@@ -3232,6 +3243,16 @@ function composeObservationDrivenFinalResponse({
                 ]
                     .join("")
             );
+
+    const patchPreviewHeading =
+        patchPreviewAllowed === false
+            ? "PatchPreview:"
+            : "PatchPreview seguro sugerido:";
+
+    const patchSafetyRecommendation =
+        patchPreviewAllowed === false
+            ? "- No preparar patch hasta que el usuario pida una propuesta concreta sobre archivos/rangos especificos."
+            : "- Si se decide parchear, usar solo search/replace exacto sobre la seccion anclada.";
 
     const text =
         [
@@ -3288,9 +3309,9 @@ function composeObservationDrivenFinalResponse({
             ...(recommendationLines.length
                 ? recommendationLines
                 : ["- Mantener investigacion read-only y abrir repo.read/repo.diagnose sobre el archivo probable antes de patch."]),
-            "- Si se decide parchear, usar solo search/replace exacto sobre la seccion anclada.",
+            patchSafetyRecommendation,
             "",
-            "PatchPreview seguro sugerido:",
+            patchPreviewHeading,
             `- ${patchPreviewProposal}`,
             ...patchPreviewDetailLines,
             ...(learningHintLines.length
@@ -3747,6 +3768,11 @@ if (
             ...followUpObservations
         ];
 
+    const patchPreviewAllowedByPlan =
+        propuesta?.reasoning?.cloudToolPlan?.patchPreviewAllowed !== false &&
+        propuesta?.reasoning?.cloudToolPlan?.renderPatchPreview !== false &&
+        propuesta?.reasoning?.cloudToolPlan?.intent !== "REPO_GLOBAL_ANALYSIS";
+
     const finalResponse =
         followUpPlan.followUpToolCalls.length > 0
                        ? composeObservationDrivenFinalResponse({
@@ -3762,7 +3788,9 @@ if (
                 learningHints:
                     agentLearningHints,
                 proposalAdjustmentContext:
-                    context.proposalAdjustmentContext || null
+                    context.proposalAdjustmentContext || null,
+                patchPreviewAllowed:
+                    patchPreviewAllowedByPlan
             })
             : null;
 
@@ -3863,6 +3891,7 @@ if (
         });
     }
     else if (
+        patchPreviewAllowedByPlan !== false &&
         followUpPlan.candidates?.length > 0 &&
         followUpPlan.followUpToolCalls.length > 0
     ) {

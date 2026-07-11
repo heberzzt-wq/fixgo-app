@@ -5045,13 +5045,31 @@ console.log(
                     null;
 
                 const patchPreviewCandidate =
-                    finalResponse
-                        ?.patchPreviewCandidate ||
                     coreResult
                         ?.result
-                        ?.followUp
-                        ?.patchPreviewCandidate ||
-                    null;
+                        ?.reasoning
+                        ?.cloudToolPlan
+                        ?.patchPreviewAllowed === false ||
+                    coreResult
+                        ?.result
+                        ?.reasoning
+                        ?.cloudToolPlan
+                        ?.renderPatchPreview === false ||
+                    coreResult
+                        ?.result
+                        ?.reasoning
+                        ?.cloudToolPlan
+                        ?.intent === "REPO_GLOBAL_ANALYSIS"
+                        ? null
+                        : (
+                            finalResponse
+                                ?.patchPreviewCandidate ||
+                            coreResult
+                                ?.result
+                                ?.followUp
+                                ?.patchPreviewCandidate ||
+                            null
+                        );
 
                 if (
                     patchPreviewCandidate

@@ -1013,6 +1013,9 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.doesNotMatch(terminal, /Aprobar safe write[^<]*<\/button>\s*<script/i);
     assert.doesNotMatch(terminal, /SIA7_VISUAL_PATCH_PROPOSAL[\s\S]{0,3000}repo\.safePatchApply\s*\(/);
     assert.doesNotMatch(terminal, /SIA7_VISUAL_PATCH_PROPOSAL[\s\S]{0,3000}repo\.write\s*\(/);
+    assert.match(terminal, /cloudToolPlan[\s\S]{0,120}patchPreviewAllowed\s*===\s*false/);
+    assert.match(terminal, /cloudToolPlan[\s\S]{0,160}renderPatchPreview\s*===\s*false/);
+    assert.match(terminal, /cloudToolPlan[\s\S]{0,180}intent\s*===\s*"REPO_GLOBAL_ANALYSIS"/);
 });
 
 test("terminal keeps natural repository analysis in the brain route", () => {
@@ -1071,4 +1074,24 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(brain, /shouldUseLegacyRegexToolDetector/);
     assert.match(brain, /contexto\?\.naturalIntentAuthority\s*!==\s*"brain"/);
     assert.match(brain, /shouldUseLegacyRegexToolDetector[\s\S]{0,120}buildToolCallsFromInput/);
+
+    const core =
+        fs.readFileSync(
+            path.join(
+                __dirname,
+                "..",
+                "gestia-core",
+                "gestia-core.js"
+            ),
+            "utf8"
+        );
+
+    assert.match(core, /patchPreviewAllowedByPlan/);
+    assert.match(core, /cloudToolPlan\?\.patchPreviewAllowed\s*!==\s*false/);
+    assert.match(core, /cloudToolPlan\?\.renderPatchPreview\s*!==\s*false/);
+    assert.match(core, /cloudToolPlan\?\.intent\s*!==\s*"REPO_GLOBAL_ANALYSIS"/);
+    assert.match(core, /patchPreviewAllowed:\s*patchPreviewAllowedByPlan/);
+    assert.match(core, /patchPreviewAllowed\s*=\s*true/);
+    assert.match(core, /patchPreviewAllowed\s*\?\s*extractPatchPreviewCandidateFromRead/);
+    assert.match(core, /PatchPreview deshabilitado por el plan cognitivo/);
 });
