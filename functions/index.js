@@ -65,6 +65,21 @@ const repoWriteIdempotencyFactory =
 const app = express();
 const corsHandler = cors({ origin: true });
 
+function applyArchitectCorsHeaders(req, res) {
+    const origin =
+        req.headers.origin ||
+        "https://fixgo-44e4d.web.app";
+
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Vary", "Origin");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set(
+        "Access-Control-Allow-Headers",
+        "Authorization, Content-Type, X-Requested-With"
+    );
+    res.set("Access-Control-Max-Age", "3600");
+}
+
 // Webhook primero para preservar el rawBody necesario para la firma de Stripe
 app.post("/stripe-webhook", express.raw({ type: 'application/json' }));
 
@@ -1303,6 +1318,11 @@ exports.validarCierreIA = functions.https.onCall(async (data, context) => {
 exports.gestiaArchitectV5 = functions
   .runWith({ timeoutSeconds: 540, memory: "1GB" })
   .https.onRequest((req, res) => {
+    applyArchitectCorsHeaders(req, res);
+
+    if (req.method === "OPTIONS") {
+      return res.status(204).send("");
+    }
 
     // 🛡️ 0. Lazy-load core (Despertar motor Sentinel)
     initCore();

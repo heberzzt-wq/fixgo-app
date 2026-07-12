@@ -1134,3 +1134,40 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(core, /patchPreviewAllowed\s*\?\s*extractPatchPreviewCandidateFromRead/);
     assert.match(core, /PatchPreview deshabilitado por el plan cognitivo/);
 });
+
+test("gestiaArchitectV5 exposes CORS preflight before firewall", () => {
+    const functionsIndex =
+        fs.readFileSync(
+            path.join(
+                __dirname,
+                "..",
+                "functions",
+                "index.js"
+            ),
+            "utf8"
+        );
+
+    const architectIndex =
+        functionsIndex.indexOf("exports.gestiaArchitectV5");
+
+    const initCoreIndex =
+        functionsIndex.indexOf("initCore();", architectIndex);
+
+    const firewallIndex =
+        functionsIndex.indexOf("firewallV5(req)", architectIndex);
+
+    const corsIndex =
+        functionsIndex.indexOf("applyArchitectCorsHeaders(req, res)", architectIndex);
+
+    const optionsIndex =
+        functionsIndex.indexOf('req.method === "OPTIONS"', architectIndex);
+
+    assert.ok(architectIndex > 0);
+    assert.ok(corsIndex > architectIndex);
+    assert.ok(optionsIndex > corsIndex);
+    assert.ok(initCoreIndex > optionsIndex);
+    assert.ok(firewallIndex > optionsIndex);
+    assert.match(functionsIndex, /Access-Control-Allow-Origin/);
+    assert.match(functionsIndex, /Authorization, Content-Type, X-Requested-With/);
+    assert.match(functionsIndex, /Access-Control-Allow-Methods/);
+});
