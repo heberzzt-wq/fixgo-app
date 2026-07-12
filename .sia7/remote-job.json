@@ -1,11 +1,13 @@
 {
-  "jobId": "sia7-dryrun-global-learning-dedupe-20260712-08",
+  "jobId": "sia7-apply-global-learning-dedupe-20260712-09",
   "operation": "patch",
+  "humanApproved": true,
   "patch": {
     "file": "gestia-core/gestia-core.js",
     "search": "    const learningLines =\n        (learningHints?.lessons || [])\n            .slice(0, 3)\n            .map(item =>\n                `- ${item?.category || item?.reason || item?.lesson?.diagnosis || \"learning_hint\"}`\n            );",
     "replace": "    const learningLines =\n        [\n            ...new Map(\n                (learningHints?.lessons || [])\n                    .map(item => {\n                        const label =\n                            item?.category ||\n                            item?.reason ||\n                            item?.lesson?.diagnosis ||\n                            \"learning_hint\";\n\n                        return [\n                            String(label)\n                                .trim()\n                                .toLowerCase(),\n                            `- ${label}`\n                        ];\n                    })\n            )\n                .values()\n        ]\n            .slice(0, 3);",
     "expectedMatches": 1,
-    "dryRun": true
+    "dryRun": false,
+    "humanApproved": true
   }
 }
