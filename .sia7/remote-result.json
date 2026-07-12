@@ -1,9 +1,9 @@
 {
-  "jobId": "sia7-dryrun-global-render-dedupe-20260712-05",
-  "completedAt": "2026-07-12T15:53:28.313Z",
+  "jobId": "sia7-apply-global-render-dedupe-20260712-06b",
+  "completedAt": "2026-07-12T16:02:44.056Z",
   "ok": true,
   "operation": "patch",
-  "dryRun": true,
+  "dryRun": false,
   "file": "gestia-terminal.html",
   "matchCount": 1,
   "expectedMatches": 1,
