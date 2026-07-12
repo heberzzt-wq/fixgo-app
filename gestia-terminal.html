@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4171"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4172"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -6338,81 +6338,7 @@ return;
 
     try {
 
-        // Legacy audit route. Freeform diagnostics stay in Core.
-const raw =
-    String(comando || "")
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
-
-const isExplicitRepoAuditRequest =
-    false;
-
-if (isExplicitRepoAuditRequest) {
-
-    if (window.ToolsBridge?.executeAndCompose) {
-        console.info("🧠 [TERMINAL_TOOL_FIRST] repo.audit", {
-            rawInput: comando
-        });
-
-        const toolResult = await window.ToolsBridge.executeAndCompose(
-            "repo.audit",
-            {},
-            {
-                rawInput: comando,
-                analysisId:
-                    window.currentTraceId ||
-                    `terminal_${Date.now()}`
-            }
-        );
-
-        if (
-            toolResult?.ok === true &&
-            toolResult?.type === "AGENT_TOOL_RESULT"
-        ) {
-            const response =
-    toolResult.response ||
-    toolResult.data?.response ||
-    toolResult;
-
-const cleanReport =
-    String(
-        response?.report ||
-        response?.text ||
-        response?.message ||
-        "Auditoría completada."
-    )
-        .replace(/^Auditoría SIA7\s*/i, "")
-        .trim();
-
-window.renderJarvisResponse?.(
-    "Auditoría SIA7",
-    cleanReport,
-    "info"
-);
-
-            handled = true;
-            return;
-        }
-    }
-
-    console.warn("🧠 [TERMINAL_READ_ONLY_BYPASS]", comando);
-
-    if (window.KernelHeberto?.execute) {
-        const res = await window.KernelHeberto.execute(comando, e);
-
-        window.renderJarvisResponse?.(
-            "Auditoría SIA7",
-            res?.report || res?.message || String(res),
-            "info"
-        );
-
-        handled = true;
-        return;
-    }
-}
-
-console.log("🧠 [UNIVERSAL COGNITION PLAN FROM TERMINAL]");
+        console.log("🧠 [UNIVERSAL COGNITION PLAN FROM TERMINAL]");
 
 /* =====================================================
            TERMINAL ORIGINAL TARGET TRACE
