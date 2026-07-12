@@ -1,21 +1,21 @@
-/**
+﻿/**
  * ======================================================================================
  * GESTIAPREMIUM 2026
  * BRAIN ENGINE V7.5
  * HYBRID COGNITIVE REASONING CORE
  * ======================================================================================
  * IDENTIDAD:
- * Núcleo híbrido de razonamiento autónomo.
+ * NÃºcleo hÃ­brido de razonamiento autÃ³nomo.
  * Combina:
  *
- * ✔ Cognición local
- * ✔ Contexto runtime
- * ✔ IA externa
- * ✔ Memoria viva
- * ✔ Planeación operativa
- * ✔ Inferencia semántica
- * ✔ Telemetría cognitiva
- * ✔ Orquestación runtime
+ * âœ” CogniciÃ³n local
+ * âœ” Contexto runtime
+ * âœ” IA externa
+ * âœ” Memoria viva
+ * âœ” PlaneaciÃ³n operativa
+ * âœ” Inferencia semÃ¡ntica
+ * âœ” TelemetrÃ­a cognitiva
+ * âœ” OrquestaciÃ³n runtime
  *
  * ======================================================================================
  */
@@ -191,7 +191,7 @@ function emitBrainTelemetry(
 
   console.log(
 
-    `%c🧠 [BRAIN:${type}]`,
+    `%cðŸ§  [BRAIN:${type}]`,
 
     "color:#a78bfa;font-weight:bold;",
 
@@ -656,7 +656,7 @@ function buildToolCallsFromInput(
 
   const quotedMatch =
     rawInput.match(
-      /["'“”‘’]([^"'“”‘’]{2,240})["'“”‘’]/
+      /["'â€œâ€â€˜â€™]([^"'â€œâ€â€˜â€™]{2,240})["'â€œâ€â€˜â€™]/
     );
 
   const searchTerm =
@@ -703,7 +703,7 @@ function buildToolCallsFromInput(
     };
 
     /* ============================================================
-   JARVIS CODEX V2 — EXACT PATCH PREVIEW ROUTE
+   JARVIS CODEX V2 â€” EXACT PATCH PREVIEW ROUTE
    Commit 23 Mega-Pack
    ============================================================ */
 
@@ -820,7 +820,7 @@ function buildToolCallsFromInput(
   }
 
   const wantsCiTest =
-    /\b(ci:test|ci test|npm run ci:test|npm ci test|validacion completa|validación completa|prueba completa|corre todo|ejecuta todo)\b/i
+    /\b(ci:test|ci test|npm run ci:test|npm ci test|validacion completa|validaciÃ³n completa|prueba completa|corre todo|ejecuta todo)\b/i
       .test(text);
 
   const wantsSyntax =
@@ -832,7 +832,7 @@ function buildToolCallsFromInput(
       .test(text);
 
   const wantsRepoAudit =
-    /\b(audita|auditar|audit|auditoria|auditoría|revisa repo|analiza repo|analiza el repo|estado del repo|diagnostico repo|diagnóstico repo)\b/i
+    /\b(audita|auditar|audit|auditoria|auditorÃ­a|revisa repo|analiza repo|analiza el repo|estado del repo|diagnostico repo|diagnÃ³stico repo)\b/i
       .test(text);
 
   const wantsRepoScan =
@@ -850,12 +850,12 @@ function buildToolCallsFromInput(
     !!searchTerm;
 
   const wantsRepoImpact =
-    /\b(impacto|impact|dependencias|dependents|rompe|afecta|riesgo de cambiar|que pasa si cambio|qué pasa si cambio)\b/i
+    /\b(impacto|impact|dependencias|dependents|rompe|afecta|riesgo de cambiar|que pasa si cambio|quÃ© pasa si cambio)\b/i
       .test(text) &&
     !!targetFile;
 
   const wantsCodexDiagnose =
-    /\b(diagnostica|diagnosticar|diagnostico|diagnóstico|analiza profundo|analisis profundo|análisis profundo|forense|revision fina|revisión fina|revisa a fondo)\b/i
+    /\b(diagnostica|diagnosticar|diagnostico|diagnÃ³stico|analiza profundo|analisis profundo|anÃ¡lisis profundo|forense|revision fina|revisiÃ³n fina|revisa a fondo)\b/i
       .test(text) &&
     !!targetFile;
 
@@ -1142,121 +1142,6 @@ const patchPreviewTool =
     });
   }
 }
-
-/* ============================================================
-   JARVIS CODEX V2 — BRAIN COMMAND ROUTER
-   Commit 23 Mega-Pack
-   ============================================================ */
-
-(function initJarvisCodexV2BrainRouter() {
-  if (window.__JARVIS_CODEX_V2_BRAIN_ROUTER__) return;
-  window.__JARVIS_CODEX_V2_BRAIN_ROUTER__ = true;
-
-  function parseApproveCommand(text) {
-    const input = String(text || "").trim();
-
-    const match = input.match(/^jarvis,\s*apruebo\s+patch\s+(.+)$/i);
-
-    if (!match) return null;
-
-    return {
-      intent: "APPROVE_PATCH",
-      file: match[1].trim()
-    };
-  }
-
-  function parseWriteCommand(text) {
-    const input = String(text || "").trim();
-
-    const match = input.match(/^jarvis,\s*escribe\s+patch\s+(.+)$/i);
-
-    if (!match) return null;
-
-    return {
-      intent: "WRITE_APPROVED_PATCH",
-      file: match[1].trim()
-    };
-  }
-
-  async function handleCodexV2Command(text) {
-    const approve = parseApproveCommand(text);
-
-    if (approve) {
-      const approval = window.JarvisCodexV2.approvePendingPatch({
-        file: approve.file
-      });
-
-      return {
-        handled: true,
-        terminalType: "CODEX_V2_APPROVAL",
-        ...approval,
-        nextCommand: approval.ok
-          ? `Jarvis, escribe patch ${approve.file}`
-          : null
-      };
-    }
-
-    const write = parseWriteCommand(text);
-
-    if (write) {
-      const writeResult = await window.JarvisCodexV2.safeCodeWrite({
-        file: write.file
-      });
-
-      if (!writeResult.ok) {
-        return {
-          handled: true,
-          terminalType: "CODEX_V2_WRITE_BLOCKED",
-          ...writeResult
-        };
-      }
-
-      const verify = await window.JarvisCodexV2.postWriteVerify({
-        file: write.file
-      });
-
-      let tests = {
-        ok: true,
-        skipped: true,
-        reason: "tests.run not available"
-      };
-
-      if (verify?.ok !== false && window.JarvisToolRuntime?.execute) {
-        tests =
-          await window.JarvisToolRuntime.execute(
-            "tests.run",
-            {
-              command: "ci:test"
-            },
-            {
-              source: "codex_v2_post_write_tests_41_15"
-            }
-          );
-      }
-
-      return {
-        handled: true,
-        terminalType: "CODEX_V2_WRITE_VERIFY_TESTED",
-        writeResult,
-        verify,
-        tests,
-        testsPassed:
-          tests?.ok !== false &&
-          tests?.status !== "FAILED"
-      };
-    }
-
-    return {
-      handled: false
-    };
-  }
-
-  window.JarvisCodexV2BrainRouter = {
-    parseApproveCommand,
-    parseWriteCommand,
-    handleCodexV2Command
-  };
-})();
 
     if (
       wantsVerify
@@ -2995,13 +2880,12 @@ getCognitiveBrainState;
 
 console.log(
 
-  "%c🧠 BRAIN ENGINE V7.5 HYBRID COGNITION ONLINE",
+  "%cðŸ§  BRAIN ENGINE V7.5 HYBRID COGNITION ONLINE",
 
   "background:#2e1065;color:#c4b5fd;padding:4px 12px;border-radius:6px;font-weight:bold;"
 );
 
 /* ============================================================
-   JARVIS CODEX V2 — BRAIN COMMAND ROUTER
    Commit 23 Mega-Pack
    Safe additive block.
    ============================================================ */

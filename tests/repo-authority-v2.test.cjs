@@ -1016,7 +1016,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4178/);
+    assert.match(terminal, /agent-loop-v7-20260707-4179/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4158/);
     assert.match(terminal, /terminalBrainRoute\?\.mode\s*===\s*"PATCH_PROPOSAL"/);
     assert.match(terminal, /terminalBrainRoute\?\.useLastPatchPreview\s*===\s*true/);
@@ -1219,6 +1219,11 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
         );
 
     assert.match(brain, /import\s*\{[\s\S]*analyzeIntent[\s\S]*\}\s*from\s*"\.\/jarvis\/jarvis\.vision\.engine\.js\?v=repo-global-analysis-41-59"/);
+    assert.equal(
+        (brain.match(/function initJarvisCodexV2BrainRouter/g) || []).length,
+        1
+    );
+    assert.match(brain, /CODEX_V2_RUNTIME_NOT_READY/);
     assert.match(brain, /resolveRepoHubVisionIntent/);
     assert.match(brain, /buildRepoHubGlobalAnalysisPlan/);
     assert.match(brain, /targetFile:\s*"repo\.hub"/);
@@ -1251,7 +1256,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     );
 
     assert.match(core, /patchPreviewAllowedByPlan/);
-    assert.match(core, /brain\.engine\.js\?v=brain-authority-41-69/);
+    assert.match(core, /brain\.engine\.js\?v=brain-authority-41-79/);
     assert.doesNotMatch(core, /brain\.engine\.js\?v=cloud-planner-fail-fast-41-62/);
     assert.match(core, /async analizarIntencionLigera/);
     assert.match(core, /sincronizarCorralSemantico/);

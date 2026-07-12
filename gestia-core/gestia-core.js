@@ -187,7 +187,7 @@ import {
 import {
     analyzeIntent as analyzeVisionIntent
 } from '/gestia-core/jarvis/jarvis.vision.engine.js?v=repo-global-analysis-41-59';
-import '/gestia-core/brain.engine.js?v=brain-authority-41-69';
+import '/gestia-core/brain.engine.js?v=brain-authority-41-79';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4158';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
