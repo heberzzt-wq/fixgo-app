@@ -1,19 +1,19 @@
 {
-  "jobId": "sia7-health-brain-router-followup-20260712-01",
-  "completedAt": "2026-07-12T15:47:53.229Z",
+  "jobId": "sia7-git-status-brain-router-followup-20260712-02",
+  "completedAt": "2026-07-12T15:48:23.734Z",
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/health",
+  "endpoint": "/git",
   "payload": {
     "ok": true,
+    "status": "GIT_STATUS_OK",
+    "exitCode": 0,
+    "command": "git status --short --branch",
+    "stdout": "## v5.9-polish...origin/v5.9-polish [behind 1]\n",
+    "stderr": "",
+    "durationMs": 915,
+    "source": "jarvis_fs_bridge_git_v7",
     "version": "2.1.0-local-fs-bridge",
-    "policy": {
-      "authority": "full_repo_private_owner",
-      "safeZone": "advisory",
-      "rootContainment": true,
-      "emptyWrites": "blocked",
-      "failureMode": "closed"
-    },
-    "root": "C:\\Users\\heber\\Desktop\\play-store-Gestia\\fixgo-app-main"
+    "action": "status"
   }
 }
