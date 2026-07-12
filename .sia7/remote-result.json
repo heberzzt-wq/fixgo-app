@@ -1,19 +1,72 @@
 {
-  "jobId": "sia7-git-status-brain-router-followup-20260712-02",
-  "completedAt": "2026-07-12T15:48:23.734Z",
+  "jobId": "sia7-grep-submit-bindings-20260712-03",
+  "completedAt": "2026-07-12T15:50:38.207Z",
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/git",
+  "endpoint": "/grep",
   "payload": {
     "ok": true,
-    "status": "GIT_STATUS_OK",
-    "exitCode": 0,
-    "command": "git status --short --branch",
-    "stdout": "## v5.9-polish...origin/v5.9-polish [behind 1]\n",
-    "stderr": "",
-    "durationMs": 915,
-    "source": "jarvis_fs_bridge_git_v7",
-    "version": "2.1.0-local-fs-bridge",
-    "action": "status"
+    "term": "addEventListener(\"submit\"",
+    "totalFilesScanned": 173,
+    "totalMatches": 11,
+    "matches": [
+      {
+        "file": "app-inquilino.js",
+        "line": 218,
+        "snippet": "document.getElementById(\"formReporteB2B\").addEventListener(\"submit\", async (e) => {"
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 1298,
+        "snippet": "form.addEventListener(\"submit\", async function (e) {"
+      },
+      {
+        "file": "modulo-flotilla.js",
+        "line": 78,
+        "snippet": "document.getElementById(\"formAltaFlotilla\").addEventListener(\"submit\", async (e) => {"
+      },
+      {
+        "file": "modulo-flotilla.js",
+        "line": 229,
+        "snippet": "document.getElementById(\"formNuevaBitacora\").addEventListener(\"submit\", async (e) => {"
+      },
+      {
+        "file": "modulo-flotilla.js",
+        "line": 348,
+        "snippet": "document.getElementById(\"formNuevoOperador\").addEventListener(\"submit\", async (e) => {"
+      },
+      {
+        "file": "panel-b2b-admin.js",
+        "line": 1152,
+        "snippet": "document.getElementById(\"formAltaPersonal\").addEventListener(\"submit\", async (e) => {"
+      },
+      {
+        "file": "panel-b2b-admin.js",
+        "line": 1210,
+        "snippet": "document.getElementById(\"formTicketB2B\").addEventListener(\"submit\", async (e) => {"
+      },
+      {
+        "file": "panel-b2b-admin.js",
+        "line": 1363,
+        "snippet": "document.getElementById(\"formGenerarQR\").addEventListener(\"submit\", async (e) => {"
+      },
+      {
+        "file": "panel-b2b-admin.js",
+        "line": 1588,
+        "snippet": "document.getElementById(\"formComunicadoB2B\").addEventListener(\"submit\", async (e) => {"
+      },
+      {
+        "file": "panel-cliente.js",
+        "line": 285,
+        "snippet": "el.form.addEventListener(\"submit\", async (e) => {"
+      },
+      {
+        "file": "terminal-chofer.js",
+        "line": 178,
+        "snippet": "document.getElementById(\"formReporte\").addEventListener(\"submit\", async (e) => {"
+      }
+    ],
+    "source": "jarvis_fs_bridge_grep_v1",
+    "version": "2.1.0-local-fs-bridge"
   }
 }
