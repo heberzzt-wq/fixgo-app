@@ -1,11 +1,11 @@
 {
-  "jobId": "sia7-dryrun-worker-remove-post-sync-20260712-19",
+  "jobId": "sia7-dryrun-worker-remove-post-sync-line-20260712-20",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
-    "search": "async function publishRemoteResult(result = {}) {\n    await syncLocalBranch();\n\n    const resultFile = path.resolve(REPO_ROOT, RESULT_PATH);",
-    "replace": "async function publishRemoteResult(result = {}) {\n    const resultFile = path.resolve(REPO_ROOT, RESULT_PATH);",
+    "search": "    await syncLocalBranch();\n",
+    "replace": "",
     "expectedMatches": 1,
     "dryRun": true,
     "humanApproved": true
