@@ -3364,6 +3364,218 @@ function composeObservationDrivenFinalResponse({
     };
 }
 
+function composeRepoGlobalAnalysisFinalResponse({
+    objective = "",
+    toolCalls = [],
+    observations = [],
+    learningHints = {}
+} = {}) {
+    const scanObservation =
+        observations.find((item, index) =>
+            getObservationToolName(item, toolCalls, index) === "repo.scan"
+        ) ||
+        null;
+
+    const searchObservation =
+        observations.find((item, index) =>
+            getObservationToolName(item, toolCalls, index) === "repo.search"
+        ) ||
+        null;
+
+    const scanData =
+        getObservationRepoData(scanObservation);
+
+    const searchData =
+        getObservationRepoData(searchObservation);
+
+    const files =
+        [
+            ...(Array.isArray(scanData?.files) ? scanData.files : []),
+            ...(Array.isArray(scanData?.result?.files) ? scanData.result.files : []),
+            ...(Array.isArray(scanData?.data?.files) ? scanData.data.files : [])
+        ];
+
+    const modules =
+        [
+            ...(Array.isArray(scanData?.modules) ? scanData.modules : []),
+            ...(Array.isArray(scanData?.result?.modules) ? scanData.result.modules : []),
+            ...(Array.isArray(scanData?.data?.modules) ? scanData.data.modules : [])
+        ];
+
+    const moduleNames =
+        [
+            ...new Set(
+                [
+                    ...files
+                        .map(file => file?.module)
+                        .filter(Boolean),
+                    ...modules
+                        .map(module =>
+                            typeof module === "string"
+                                ? module
+                                : module?.module ||
+                                  module?.name ||
+                                  ""
+                        )
+                        .filter(Boolean)
+                ]
+            )
+        ];
+
+    const searchMatches =
+        [
+            ...(Array.isArray(searchData?.results) ? searchData.results : []),
+            ...(Array.isArray(searchData?.matches) ? searchData.matches : []),
+            ...(Array.isArray(searchData?.result?.results) ? searchData.result.results : []),
+            ...(Array.isArray(searchData?.result?.matches) ? searchData.result.matches : []),
+            ...(Array.isArray(searchData?.data?.results) ? searchData.data.results : []),
+            ...(Array.isArray(searchData?.data?.matches) ? searchData.data.matches : [])
+        ];
+
+    const criticalFiles =
+        files
+            .filter(file =>
+                file?.critical === true ||
+                String(file?.risk || file?.riskLevel || "").toUpperCase() === "HIGH" ||
+                String(file?.risk || file?.riskLevel || "").toUpperCase() === "CRITICAL"
+            )
+            .slice(0, 12);
+
+    const typeCounts =
+        files.reduce((acc, file) => {
+            const type =
+                file?.type ||
+                "sin_tipo";
+
+            acc[type] =
+                (acc[type] || 0) + 1;
+
+            return acc;
+        }, {});
+
+    const typeLines =
+        Object.entries(typeCounts)
+            .sort((a, b) =>
+                b[1] - a[1]
+            )
+            .slice(0, 8)
+            .map(([type, count]) =>
+                `- ${type}: ${count}`
+            );
+
+    const totalFiles =
+        files.length ||
+        scanData?.totalFiles ||
+        scanData?.total ||
+        scanData?.count ||
+        scanData?.result?.totalFiles ||
+        scanData?.data?.totalFiles ||
+        "ND";
+
+    const totalModules =
+        moduleNames.length ||
+        scanData?.totalModules ||
+        scanData?.result?.totalModules ||
+        scanData?.data?.totalModules ||
+        "ND";
+
+    const criticalFileLines =
+        criticalFiles.length
+            ? criticalFiles.map(file =>
+                `- ${file.file || file.path || file.name || "archivo"} (${file.module || "sin modulo"} / ${file.type || "sin tipo"} / ${file.risk || file.riskLevel || "critico"})`
+            )
+            : [
+                "- Sin archivos criticos marcados por el indice actual."
+            ];
+
+    const searchEvidenceLines =
+        searchMatches.length
+            ? searchMatches
+                .slice(0, 8)
+                .map(match =>
+                    `- ${match.file || match.path || match.name || "resultado"}${match.line ? `:${match.line}` : ""} ${String(match.snippet || match.text || match.module || match.type || "").slice(0, 160)}`
+                )
+            : [
+                "- repo.search no devolvio evidencia suficiente para bajar a archivo."
+            ];
+
+    const learningLines =
+        (learningHints?.lessons || [])
+            .slice(0, 3)
+            .map(item =>
+                `- ${item?.category || item?.reason || item?.lesson?.diagnosis || "learning_hint"}`
+            );
+
+    const text =
+        [
+            `Objetivo: ${objective || "Analisis global del repositorio"}`,
+            "Modo: REPO_GLOBAL_ANALYSIS read-only",
+            `Archivos indexados: ${totalFiles}`,
+            `Modulos detectados: ${totalModules}`,
+            "",
+            "Que encontre:",
+            `- El cerebro ejecuto ${toolCalls.map(call => call?.name).filter(Boolean).join(", ") || "herramientas read-only"}.`,
+            `- La busqueda semantica devolvio ${searchMatches.length} coincidencias para el objetivo.`,
+            `- El indice marca ${criticalFiles.length} archivos delicados o criticos para revisar primero.`,
+            "",
+            "Archivos criticos a revisar primero:",
+            ...criticalFileLines,
+            "",
+            "Evidencia de busqueda:",
+            ...searchEvidenceLines,
+            "",
+            "Distribucion por tipo:",
+            ...(typeLines.length ? typeLines : ["- Sin clasificacion por tipo disponible."]),
+            "",
+            "Siguiente paso recomendado:",
+            "- Elegir un modulo o archivo critico y correr diagnostico anclado por lineas antes de proponer patch.",
+            "- Si el objetivo es reparar, primero generar patchPreview exacto en dryRun.",
+            "",
+            "Seguridad:",
+            "- No se escribieron archivos.",
+            "- No se genero patch automatico.",
+            "- La escritura sigue bloqueada por preview, aprobacion humana, safe write, verify y tests.",
+            ...(learningLines.length
+                ? [
+                    "",
+                    "Aprendizaje usado:",
+                    ...learningLines
+                ]
+                : [])
+        ]
+            .join("\n");
+
+    return {
+        title:
+            "Diagnostico global SIA7 read-only",
+        text,
+        intent:
+            "REPO_GLOBAL_ANALYSIS",
+        file:
+            null,
+        candidates:
+            [],
+        lineAnchoredDiagnosis:
+            null,
+        patchPreviewCandidate:
+            null,
+        patchPreviewBlocked:
+            null,
+        learningHints:
+            learningHints?.lessons || [],
+        risk:
+            criticalFiles.length > 0
+                ? "REVIEW_REQUIRED"
+                : "READ_ONLY_MAP",
+        writeAllowed:
+            false,
+        patchGenerated:
+            false,
+        suppressPatchSurface:
+            true
+    };
+}
+
 export const GestiaCore = {
     version: "16.0.0-SUPREME",
     async analizarIntencionLigera(inputRaw = "", state = {}) {
@@ -3917,12 +4129,53 @@ if (
             ...followUpObservations
         ];
 
-    const patchPreviewAllowedByPlan =
-        propuesta?.reasoning?.cloudToolPlan?.patchPreviewAllowed !== false &&
-        propuesta?.reasoning?.cloudToolPlan?.renderPatchPreview !== false &&
-        propuesta?.reasoning?.cloudToolPlan?.intent !== "REPO_GLOBAL_ANALYSIS";
+    const cloudToolPlan =
+        propuesta?.reasoning?.cloudToolPlan ||
+        propuesta?.cognition?.cloudToolPlan ||
+        null;
 
-    const finalResponse =
+    const isRepoGlobalAnalysisPlan =
+        cloudToolPlan?.intent === "REPO_GLOBAL_ANALYSIS";
+
+    const hasRepoSurveyTools =
+        allToolCalls.some(call =>
+            call?.name === "repo.scan"
+        ) &&
+        allToolCalls.some(call =>
+            call?.name === "repo.search" ||
+            call?.name === "repo.grep" ||
+            call?.name === "repo.scan"
+        );
+
+    const hasLineAnchoredInvestigationTools =
+        allToolCalls.some(call =>
+            call?.name === "repo.read" ||
+            call?.name === "repo.diagnose" ||
+            call?.name === "repo.impact"
+        );
+
+    const hasPatchOrWriteTools =
+        allToolCalls.some(call =>
+            call?.name === "repo.patchPreview" ||
+            call?.name === "repo.safePatchApply" ||
+            call?.name === "repo.write" ||
+            call?.name === "codex.patch"
+        );
+
+    const isReadOnlyRepoSurveyPlan =
+        isRepoGlobalAnalysisPlan ||
+        (
+            hasRepoSurveyTools &&
+            !hasLineAnchoredInvestigationTools &&
+            !hasPatchOrWriteTools
+        );
+
+    const patchPreviewAllowedByPlan =
+        cloudToolPlan?.patchPreviewAllowed !== false &&
+        cloudToolPlan?.renderPatchPreview !== false &&
+        !isRepoGlobalAnalysisPlan;
+
+    const observationDrivenFinalResponse =
         followUpPlan.followUpToolCalls.length > 0
                        ? composeObservationDrivenFinalResponse({
                 objective:
@@ -3942,6 +4195,29 @@ if (
                     patchPreviewAllowedByPlan
             })
             : null;
+
+    const globalAnalysisFinalResponse =
+        !observationDrivenFinalResponse &&
+        isReadOnlyRepoSurveyPlan
+            ? composeRepoGlobalAnalysisFinalResponse({
+                objective:
+                    cloudToolPlan?.objective ||
+                    propuesta?.reasoning?.input ||
+                    propuesta?.cognition?.input ||
+                    inputRaw,
+                toolCalls:
+                    allToolCalls,
+                observations:
+                    allToolObservations,
+                learningHints:
+                    agentLearningHints
+            })
+            : null;
+
+    const finalResponse =
+        observationDrivenFinalResponse ||
+        globalAnalysisFinalResponse ||
+        null;
 
     if (
         followUpPlan.primaryConfidence?.confident === true &&

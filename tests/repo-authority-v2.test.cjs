@@ -108,6 +108,7 @@ module.exports = {
     assessPrimaryCandidateConfidence,
     buildObservationDrivenFollowUpToolCalls,
     composeObservationDrivenFinalResponse,
+    composeRepoGlobalAnalysisFinalResponse,
     buildCompactLayoutReplacement,
     validatePatchPreviewRewrite,
     recallAgentLoopLearningHints,
@@ -851,6 +852,94 @@ test("agent loop does not invent patchPreview when exact block is missing", () =
     assert.doesNotMatch(finalResponse.text, /replace="<layout compacto/);
 });
 
+test("agent loop composes read-only final response for global repo analysis", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+
+    const finalResponse =
+        helpers.composeRepoGlobalAnalysisFinalResponse({
+            objective:
+                "Jarvis, analiza el repo completo y dime que esta mal",
+            toolCalls: [
+                {
+                    name:
+                        "repo.scan"
+                },
+                {
+                    name:
+                        "repo.search"
+                }
+            ],
+            observations: [
+                {
+                    response: {
+                        data: {
+                            tool:
+                                "repo.scan",
+                            files: [
+                                {
+                                    file:
+                                        "app-main.js",
+                                    module:
+                                        "main_controller",
+                                    type:
+                                        "firebase_data",
+                                    critical:
+                                        true
+                                },
+                                {
+                                    file:
+                                        "panel-admin.js",
+                                    module:
+                                        "admin_control_center",
+                                    type:
+                                        "ui_orchestration"
+                                }
+                            ],
+                            modules: [
+                                "main_controller",
+                                "admin_control_center"
+                            ],
+                            totalFiles:
+                                2,
+                            totalModules:
+                                2
+                        }
+                    }
+                },
+                {
+                    response: {
+                        data: {
+                            tool:
+                                "repo.search",
+                            query:
+                                "analiza repo completo",
+                            results: [
+                                {
+                                    file:
+                                        "app-main.js",
+                                    module:
+                                        "main_controller",
+                                    type:
+                                        "firebase_data"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        });
+
+    assert.equal(finalResponse.intent, "REPO_GLOBAL_ANALYSIS");
+    assert.equal(finalResponse.writeAllowed, false);
+    assert.equal(finalResponse.patchPreviewCandidate, null);
+    assert.equal(finalResponse.suppressPatchSurface, true);
+    assert.match(finalResponse.text, /Modo: REPO_GLOBAL_ANALYSIS read-only/);
+    assert.match(finalResponse.text, /Archivos indexados: 2/);
+    assert.match(finalResponse.text, /app-main\.js/);
+    assert.match(finalResponse.text, /No se escribieron archivos/);
+});
+
 test("agent loop patchPreview rewrite validator blocks malformed Tailwind classes", () => {
     const helpers =
         loadGestiaCoreAgentLoopHelpers();
@@ -927,7 +1016,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4175/);
+    assert.match(terminal, /agent-loop-v7-20260707-4176/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4158/);
     assert.doesNotMatch(terminal, /TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT/);
     assert.doesNotMatch(terminal, /TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS/);
@@ -1178,7 +1267,10 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(core, /propuesta\.agentLoop\s*=[\s\S]{0,160}reasoning:\s*[\s\S]{0,120}propuesta\.reasoning/);
     assert.match(core, /cloudToolPlan\?\.patchPreviewAllowed\s*!==\s*false/);
     assert.match(core, /cloudToolPlan\?\.renderPatchPreview\s*!==\s*false/);
-    assert.match(core, /cloudToolPlan\?\.intent\s*!==\s*"REPO_GLOBAL_ANALYSIS"/);
+    assert.match(core, /const isRepoGlobalAnalysisPlan\s*=/);
+    assert.match(core, /cloudToolPlan\?\.intent\s*===\s*"REPO_GLOBAL_ANALYSIS"/);
+    assert.match(core, /!\s*isRepoGlobalAnalysisPlan/);
+    assert.match(core, /composeRepoGlobalAnalysisFinalResponse/);
     assert.match(core, /patchPreviewAllowed:\s*patchPreviewAllowedByPlan/);
     assert.match(core, /patchPreviewAllowed\s*=\s*true/);
     assert.match(core, /patchPreviewAllowed\s*\?\s*extractPatchPreviewCandidateFromRead/);
