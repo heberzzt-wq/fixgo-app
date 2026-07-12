@@ -111,7 +111,7 @@ async function syncLocalBranch() {
 }
 
 async function publishRemoteResult(result = {}) {
-    await syncLocalBranch();
+    
 
     const resultFile = path.resolve(REPO_ROOT, RESULT_PATH);
     fs.mkdirSync(path.dirname(resultFile), { recursive: true });
@@ -274,6 +274,8 @@ async function pollOnce() {
                 endpoint: currentJob.endpoint || null
             })
         );
+
+        await syncLocalBranch();
 
         const executionResult = await executeJob(currentJob);
         const result = {
