@@ -1,10 +1,10 @@
 {
-  "jobId": "sia7-run-ci-after-worker-sync-fix-20260712-29",
+  "jobId": "sia7-run-ci-after-worker-sync-fix-retry-20260712-30",
   "operation": "bridge",
   "endpoint": "/run",
   "body": {
     "command": "npm run ci:test",
     "cwd": ".",
-    "source": "sia7_worker_sync_order_ci"
+    "source": "sia7_worker_sync_order_ci_retry"
   }
 }
