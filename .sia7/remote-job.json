@@ -1,8 +1,10 @@
 {
-  "jobId": "sia7-health-brain-router-followup-20260712-01",
+  "jobId": "sia7-git-status-brain-router-followup-20260712-02",
   "operation": "bridge",
-  "endpoint": "/health",
+  "endpoint": "/git",
   "body": {
+    "action": "status",
+    "cwd": ".",
     "source": "sia7_brain_router_followup_forensics"
   }
 }
