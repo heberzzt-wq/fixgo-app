@@ -1016,8 +1016,11 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4176/);
+    assert.match(terminal, /agent-loop-v7-20260707-4177/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4158/);
+    assert.match(terminal, /terminalBrainRoute\?\.mode\s*===\s*"PATCH_PROPOSAL"/);
+    assert.match(terminal, /terminalBrainRoute\?\.useLastPatchPreview\s*===\s*true/);
+    assert.doesNotMatch(terminal, /if\s*\(\s*isNaturalPatchPreviewFollowUp\(comando\)\s*\)/);
     assert.doesNotMatch(terminal, /TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT/);
     assert.doesNotMatch(terminal, /TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS/);
     assert.doesNotMatch(
@@ -1254,6 +1257,9 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(core, /sincronizarCorralSemantico/);
     assert.match(core, /getSemanticCognitiveState/);
     assert.match(core, /analyzeVisionIntent/);
+    assert.match(core, /mode:\s*"PATCH_PROPOSAL"/);
+    assert.match(core, /useLastPatchPreview:\s*true/);
+    assert.match(core, /semantic_patch_preview_follow_up_with_active_candidate/);
     assert.match(core, /semantic_and_vision_general_without_active_flow/);
     assert.match(core, /const brainAuthorityMode\s*=/);
     assert.match(core, /context\?\.naturalIntentAuthority\s*===\s*"brain"/);

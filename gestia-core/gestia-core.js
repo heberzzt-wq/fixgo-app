@@ -3645,6 +3645,67 @@ export const GestiaCore = {
                 state?.proposalAdjustmentInFlight
             );
 
+        const semanticConceptNames =
+            Array.isArray(semantic.concepts)
+                ? semantic.concepts
+                    .map(item => item?.concept)
+                    .filter(Boolean)
+                : [];
+
+        const semanticHasPatchPreviewConcept =
+            [
+                semantic.primaryConcept,
+                semantic.concept,
+                ...semanticConceptNames
+            ]
+                .filter(Boolean)
+                .some(concept =>
+                    [
+                        "PATCH_ANALYSIS",
+                        "SUPERVISED_EXECUTION"
+                    ]
+                        .includes(concept)
+                );
+
+        const visionHasPatchPreviewAction =
+            [
+                vision.action,
+                vision.intent
+            ]
+                .filter(Boolean)
+                .some(value =>
+                    [
+                        "patch",
+                        "fix",
+                        "UPDATE",
+                        "REPAIR"
+                    ]
+                        .includes(value)
+                );
+
+        if (
+            state?.hasPatchPreview &&
+            (
+                semanticHasPatchPreviewConcept ||
+                visionHasPatchPreviewAction
+            )
+        ) {
+            return {
+                mode: "PATCH_PROPOSAL",
+                confidence: 0.88,
+                objective: "Reuse active patchPreviewCandidate for supervised dry-run preview.",
+                useAgentLoop: false,
+                useRepoTools: false,
+                renderCard: true,
+                prepareCommand: true,
+                writeAllowed: false,
+                writeAuthorization: false,
+                approvalRequiredForWrite: true,
+                useLastPatchPreview: true,
+                reason: "semantic_patch_preview_follow_up_with_active_candidate"
+            };
+        }
+
         if (
             !hasActiveTechnicalFlow &&
             !semanticHasOperationalConcept &&
