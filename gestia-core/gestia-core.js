@@ -3683,8 +3683,17 @@ export const GestiaCore = {
                         .includes(value)
                 );
 
+        const visionTargetsRepoHubAnalysis =
+            vision.targetFile === "repo.hub" ||
+            vision.action === "inspect_repo" ||
+            (
+                Array.isArray(vision.tags) &&
+                vision.tags.includes("repo_analysis")
+            );
+
         if (
             state?.hasPatchPreview &&
+            !visionTargetsRepoHubAnalysis &&
             (
                 semanticHasPatchPreviewConcept ||
                 visionHasPatchPreviewAction
