@@ -1016,7 +1016,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4184/);
+    assert.match(terminal, /agent-loop-v7-20260707-4185/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4180/);
     assert.match(terminal, /terminalBrainRoute\?\.mode\s*===\s*"PATCH_PROPOSAL"/);
     assert.match(terminal, /terminalBrainRoute\?\.useLastPatchPreview\s*===\s*true/);
@@ -1052,12 +1052,15 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.doesNotMatch(terminal, /__JARVIS_ENABLE_LEGACY_COMBINED_REPO_FILE_ROUTE__/);
     assert.doesNotMatch(terminal, /legacyCombinedRepoFileRouteEnabled/);
     assert.doesNotMatch(terminal, /combinedRepoFileMatch/);
-    assert.match(terminal, /__GESTIA_ENABLE_LEGACY_KERNEL_FALLBACK__\s*===\s*true/);
-    assert.match(terminal, /__GESTIA_ENABLE_LEGACY_CONVERSATIONAL_FALLBACK__\s*===\s*true/);
-    assert.match(terminal, /__GESTIA_ENABLE_LEGACY_UNIVERSAL_PLAN__\s*===\s*true/);
-    assert.match(terminal, /legacyUniversalPlanEnabled[\s\S]{0,160}UNIVERSAL COGNITION PLAN FROM TERMINAL/);
-    assert.match(terminal, /__GESTIA_ENABLE_LEGACY_SHORT_PLAN_APPROVAL__\s*===\s*true/);
-    assert.match(terminal, /Confirmacion corta contenida por SIA7/);
+    assert.doesNotMatch(terminal, /__GESTIA_ENABLE_LEGACY_KERNEL_FALLBACK__/);
+    assert.doesNotMatch(terminal, /__GESTIA_ENABLE_LEGACY_CONVERSATIONAL_FALLBACK__/);
+    assert.doesNotMatch(terminal, /__GESTIA_ENABLE_LEGACY_UNIVERSAL_PLAN__/);
+    assert.doesNotMatch(terminal, /legacyUniversalPlanEnabled/);
+    assert.doesNotMatch(terminal, /UNIVERSAL COGNITION PLAN FROM TERMINAL/);
+    assert.doesNotMatch(terminal, /__GESTIA_ENABLE_LEGACY_SHORT_PLAN_APPROVAL__/);
+    assert.doesNotMatch(terminal, /legacyKernelFallbackEnabled/);
+    assert.doesNotMatch(terminal, /legacyConversationalFallbackEnabled/);
+    assert.doesNotMatch(terminal, /Confirmacion corta contenida por SIA7/);
     assert.match(terminal, /No ejecute rutas legacy de KernelHeberto ni IA conversacional antigua/);
 });
 
