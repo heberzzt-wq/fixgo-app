@@ -1,10 +1,10 @@
 {
-  "jobId": "sia7-git-diff-cached-41-91-1-20260712-15",
+  "jobId": "sia7-git-status-after-autostash-41-91-1-20260712-16",
   "operation": "bridge",
   "endpoint": "/git",
   "body": {
-    "action": "diffCached",
+    "action": "status",
     "cwd": ".",
-    "source": "sia7_checkpoint_41_91_1_verify_staged_diff"
+    "source": "sia7_checkpoint_41_91_1_status_after_empty_cached_diff"
   }
 }
