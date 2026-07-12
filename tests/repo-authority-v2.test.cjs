@@ -1016,7 +1016,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4183/);
+    assert.match(terminal, /agent-loop-v7-20260707-4184/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4180/);
     assert.match(terminal, /terminalBrainRoute\?\.mode\s*===\s*"PATCH_PROPOSAL"/);
     assert.match(terminal, /terminalBrainRoute\?\.useLastPatchPreview\s*===\s*true/);
@@ -1047,7 +1047,8 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.doesNotMatch(terminal, /isExplicitRepoAuditRequest/);
     assert.doesNotMatch(terminal, /TERMINAL_READ_ONLY_BYPASS/);
     assert.doesNotMatch(terminal, /TERMINAL_TOOL_FIRST/);
-    assert.match(terminal, /__JARVIS_ENABLE_LEGACY_EXACT_PATCH_BUILDER__\s*===\s*true/);
+    assert.doesNotMatch(terminal, /__JARVIS_ENABLE_LEGACY_EXACT_PATCH_BUILDER__/);
+    assert.doesNotMatch(terminal, /legacyExactPatchBuilderEnabled/);
     assert.doesNotMatch(terminal, /__JARVIS_ENABLE_LEGACY_COMBINED_REPO_FILE_ROUTE__/);
     assert.doesNotMatch(terminal, /legacyCombinedRepoFileRouteEnabled/);
     assert.doesNotMatch(terminal, /combinedRepoFileMatch/);
@@ -1204,7 +1205,8 @@ test("terminal keeps natural repository analysis in the brain route", () => {
     assert.doesNotMatch(terminal, /isExactGlobalRepoAuditCommand/);
     assert.doesNotMatch(terminal, /ANÁLISIS GLOBAL DEL REPOSITORIO SIA7/);
     assert.doesNotMatch(terminal, /legacyRepoBypassEnabled/);
-    assert.match(terminal, /__JARVIS_ENABLE_LEGACY_EXACT_PATCH_BUILDER__\s*===\s*true/);
+    assert.doesNotMatch(terminal, /__JARVIS_ENABLE_LEGACY_EXACT_PATCH_BUILDER__/);
+    assert.doesNotMatch(terminal, /legacyExactPatchBuilderEnabled/);
     assert.doesNotMatch(terminal, /__JARVIS_ENABLE_LEGACY_COMBINED_REPO_FILE_ROUTE__/);
     assert.doesNotMatch(terminal, /legacyCombinedRepoFileRouteEnabled/);
     assert.doesNotMatch(terminal, /combinedRepoFileMatch/);
