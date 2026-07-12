@@ -36,7 +36,7 @@ import {
 
   analyzeIntent
 
-} from "./jarvis/jarvis.vision.engine.js";
+} from "./jarvis/jarvis.vision.engine.js?v=repo-global-analysis-41-59";
 
 import {
 

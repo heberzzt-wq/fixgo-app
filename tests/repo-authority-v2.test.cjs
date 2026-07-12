@@ -927,7 +927,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4158/);
+    assert.match(terminal, /agent-loop-v7-20260707-4159/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4158/);
     assert.doesNotMatch(terminal, /TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT/);
     assert.doesNotMatch(terminal, /TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS/);
@@ -1083,7 +1083,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
             "utf8"
         );
 
-    assert.match(brain, /import\s*\{[\s\S]*analyzeIntent[\s\S]*\}\s*from\s*"\.\/jarvis\/jarvis\.vision\.engine\.js"/);
+    assert.match(brain, /import\s*\{[\s\S]*analyzeIntent[\s\S]*\}\s*from\s*"\.\/jarvis\/jarvis\.vision\.engine\.js\?v=repo-global-analysis-41-59"/);
     assert.match(brain, /resolveRepoHubVisionIntent/);
     assert.match(brain, /buildRepoHubGlobalAnalysisPlan/);
     assert.match(brain, /targetFile:\s*"repo\.hub"/);
@@ -1112,6 +1112,8 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
         );
 
     assert.match(core, /patchPreviewAllowedByPlan/);
+    assert.match(core, /brain\.engine\.js\?v=repo-global-analysis-41-59/);
+    assert.doesNotMatch(core, /semantic-tool-fallback-41-32/);
     assert.match(core, /jarvis-tools-v7-20260707-4158/);
     assert.doesNotMatch(core, /jarvis-tools-v7-20260707-4135/);
     assert.match(core, /reasoning:\s*reasoning/);
