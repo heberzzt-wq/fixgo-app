@@ -1,13 +1,19 @@
 {
-  "jobId": "sia7-apply-global-learning-dedupe-20260712-09",
-  "completedAt": "2026-07-12T16:13:55.277Z",
+  "jobId": "sia7-verify-checkpoint-41-91-1-diff-20260712-10",
+  "completedAt": "2026-07-12T16:46:13.388Z",
   "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "gestia-core/gestia-core.js",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 147590,
-  "bytesAfter": 148061,
-  "source": "sia7_github_worker_exact_patch_v1"
+  "httpStatus": 200,
+  "endpoint": "/git",
+  "payload": {
+    "ok": true,
+    "status": "GIT_DIFF_OK",
+    "exitCode": 0,
+    "command": "git diff --",
+    "stdout": "diff --git a/gestia-core/gestia-core.js b/gestia-core/gestia-core.js\nindex 62b97c17..12205a18 100644\n--- a/gestia-core/gestia-core.js\n+++ b/gestia-core/gestia-core.js\n@@ -3500,11 +3500,27 @@ function composeRepoGlobalAnalysisFinalResponse({\n             ];\n \n     const learningLines =\n-        (learningHints?.lessons || [])\n-            .slice(0, 3)\n-            .map(item =>\n-                `- ${item?.category || item?.reason || item?.lesson?.diagnosis || \"learning_hint\"}`\n-            );\n+        [\n+            ...new Map(\n+                (learningHints?.lessons || [])\n+                    .map(item => {\n+                        const label =\n+                            item?.category ||\n+                            item?.reason ||\n+                            item?.lesson?.diagnosis ||\n+                            \"learning_hint\";\n+\n+                        return [\n+                            String(label)\n+                                .trim()\n+                                .toLowerCase(),\n+                            `- ${label}`\n+                        ];\n+                    })\n+            )\n+                .values()\n+        ]\n+            .slice(0, 3);\n \n     const text =\n         [\ndiff --git a/gestia-terminal.html b/gestia-terminal.html\nindex 5013d03f..b0596b3c 100644\n--- a/gestia-terminal.html\n+++ b/gestia-terminal.html\n@@ -4740,7 +4740,8 @@ if (\n                                 : []\n                         ),\n                         ...(\n-                            finalResponse?.text\n+                            finalResponse?.text &&\n+                            !isRepoGlobalAnalysis\n                                 ? [finalResponse.text]\n                                 : []\n                         ),\n",
+    "stderr": "",
+    "durationMs": 503,
+    "source": "jarvis_fs_bridge_git_v7",
+    "version": "2.1.0-local-fs-bridge",
+    "action": "diff"
+  }
 }
