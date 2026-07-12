@@ -1,11 +1,11 @@
 {
-  "jobId": "sia7-run-npm-test-41-91-1-20260712-11",
+  "jobId": "sia7-run-ci-test-41-91-1-20260712-12",
   "operation": "bridge",
   "endpoint": "/run",
   "body": {
-    "command": "npm test",
+    "command": "npm run ci:test",
     "cwd": ".",
     "timeoutMs": 120000,
-    "source": "sia7_checkpoint_41_91_1_npm_test"
+    "source": "sia7_checkpoint_41_91_1_ci_test"
   }
 }
