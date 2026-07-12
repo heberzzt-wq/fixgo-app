@@ -1,11 +1,13 @@
 {
-  "jobId": "sia7-read-worker-publish-flow-20260712-18",
-  "operation": "bridge",
-  "endpoint": "/read",
-  "body": {
+  "jobId": "sia7-dryrun-worker-remove-post-sync-20260712-19",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
     "file": "jarvis-github-worker.js",
-    "startLine": 99,
-    "endLine": 165,
-    "maxBytes": 20000
+    "search": "async function publishRemoteResult(result = {}) {\n    await syncLocalBranch();\n\n    const resultFile = path.resolve(REPO_ROOT, RESULT_PATH);",
+    "replace": "async function publishRemoteResult(result = {}) {\n    const resultFile = path.resolve(REPO_ROOT, RESULT_PATH);",
+    "expectedMatches": 1,
+    "dryRun": true,
+    "humanApproved": true
   }
 }
