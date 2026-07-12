@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4164"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4165"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -3700,7 +3700,11 @@ if (
            → render Codex V2
         ===================================================== */
 
+        const legacyExactPatchBuilderEnabled =
+            window.__JARVIS_ENABLE_LEGACY_EXACT_PATCH_BUILDER__ === true;
+
         if (
+            legacyExactPatchBuilderEnabled &&
             window.ToolsBridge?.executeAndCompose &&
             window.JarvisCodexV2?.patchPreviewExact &&
             /^jarvis,\s*parchea\s+([a-zA-Z0-9_.\-\/]+?\.(?:js|html|css|json|md|cjs|mjs|txt))$/i.test(
@@ -4577,16 +4581,24 @@ if (
     return;
 }
 
+            const legacyCombinedRepoFileRouteEnabled =
+    window.__JARVIS_ENABLE_LEGACY_COMBINED_REPO_FILE_ROUTE__ === true &&
+    terminalBrainRoute?.mode !== "BRAIN_DELEGATED";
+
             const normalizedCombinedCommand =
-    String(comando || "")
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
+    legacyCombinedRepoFileRouteEnabled
+        ? String(comando || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+        : "";
 
 const combinedRepoFileMatch =
-    normalizedCombinedCommand.match(
-        /(?:analiza|analizar|revisa|revision)\s+(?:impacto\s+de\s+)?([a-z0-9_.\-\/]+?\.(?:js|html|css|json|md|cjs|mjs))/i
-    );
+    legacyCombinedRepoFileRouteEnabled
+        ? normalizedCombinedCommand.match(
+            /(?:analiza|analizar|revisa|revision)\s+(?:impacto\s+de\s+)?([a-z0-9_.\-\/]+?\.(?:js|html|css|json|md|cjs|mjs))/i
+        )
+        : null;
 
 if (
     combinedRepoFileMatch &&

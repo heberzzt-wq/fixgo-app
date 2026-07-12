@@ -927,7 +927,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4164/);
+    assert.match(terminal, /agent-loop-v7-20260707-4165/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4158/);
     assert.doesNotMatch(terminal, /TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT/);
     assert.doesNotMatch(terminal, /TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS/);
@@ -946,6 +946,10 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.doesNotMatch(terminal, /signals\.mentionsAdjustment/);
     assert.doesNotMatch(terminal, /secondary_signals_only_core_delegated/);
     assert.match(terminal, /const isExplicitRepoAuditRequest =\s*false;/);
+    assert.match(terminal, /__JARVIS_ENABLE_LEGACY_EXACT_PATCH_BUILDER__\s*===\s*true/);
+    assert.match(terminal, /__JARVIS_ENABLE_LEGACY_COMBINED_REPO_FILE_ROUTE__\s*===\s*true/);
+    assert.match(terminal, /legacyCombinedRepoFileRouteEnabled[\s\S]{0,160}terminalBrainRoute\?\.mode\s*!==\s*"BRAIN_DELEGATED"/);
+    assert.match(terminal, /const combinedRepoFileMatch\s*=[\s\S]{0,120}legacyCombinedRepoFileRouteEnabled\s*\?/);
 });
 
 test("terminal renders visual patch proposal card without direct write execution", () => {
@@ -1088,6 +1092,10 @@ test("terminal keeps natural repository analysis in the brain route", () => {
     assert.doesNotMatch(terminal, /isExactGlobalRepoAuditCommand/);
     assert.doesNotMatch(terminal, /ANÁLISIS GLOBAL DEL REPOSITORIO SIA7/);
     assert.doesNotMatch(terminal, /legacyRepoBypassEnabled[\s\S]{0,200}\(\?:analiza\|analizar\)/);
+    assert.match(terminal, /__JARVIS_ENABLE_LEGACY_EXACT_PATCH_BUILDER__\s*===\s*true/);
+    assert.match(terminal, /__JARVIS_ENABLE_LEGACY_COMBINED_REPO_FILE_ROUTE__\s*===\s*true/);
+    assert.match(terminal, /legacyCombinedRepoFileRouteEnabled[\s\S]{0,160}terminalBrainRoute\?\.mode\s*!==\s*"BRAIN_DELEGATED"/);
+    assert.match(terminal, /const combinedRepoFileMatch\s*=[\s\S]{0,120}legacyCombinedRepoFileRouteEnabled\s*\?/);
 });
 
 test("brain protects repo hub analysis from visual patch proposal drift", () => {
