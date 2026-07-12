@@ -1,6 +1,32 @@
 {
-  "jobId": "sia7-dryrun-worker-remove-post-sync-line-20260712-20",
-  "completedAt": "2026-07-12T20:40:05.023Z",
-  "ok": false,
-  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1"
+  "jobId": "sia7-grep-worker-sync-local-20260712-21",
+  "completedAt": "2026-07-12T20:42:15.887Z",
+  "ok": true,
+  "httpStatus": 200,
+  "endpoint": "/grep",
+  "payload": {
+    "ok": true,
+    "term": "syncLocalBranch",
+    "totalFilesScanned": 173,
+    "totalMatches": 3,
+    "matches": [
+      {
+        "file": ".sia7/remote-job.json",
+        "line": 7,
+        "snippet": "\"search\": \"    await syncLocalBranch();\\n\","
+      },
+      {
+        "file": "jarvis-github-worker.js",
+        "line": 97,
+        "snippet": "async function syncLocalBranch() {"
+      },
+      {
+        "file": "jarvis-github-worker.js",
+        "line": 114,
+        "snippet": "await syncLocalBranch();"
+      }
+    ],
+    "source": "jarvis_fs_bridge_grep_v1",
+    "version": "2.1.0-local-fs-bridge"
+  }
 }
