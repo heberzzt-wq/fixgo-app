@@ -1,6 +1,26 @@
 {
-  "jobId": "sia7-dryrun-worker-sync-before-job-20260712-17b",
-  "completedAt": "2026-07-12T19:56:21.022Z",
-  "ok": false,
-  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1"
+  "jobId": "sia7-read-worker-publish-flow-20260712-18",
+  "completedAt": "2026-07-12T19:56:47.358Z",
+  "ok": true,
+  "httpStatus": 200,
+  "endpoint": "/read",
+  "payload": {
+    "ok": true,
+    "file": "jarvis-github-worker.js",
+    "path": "jarvis-github-worker.js",
+    "size": 1839,
+    "totalSize": 9106,
+    "content": "        \"pull\",\n        \"--rebase\",\n        \"--autostash\",\n        REMOTE,\n        BRANCH\n    ]);\n\n    if (!syncResult.ok) {\n        throw new Error(\n            `RESULT_SYNC_FAILED: ${syncResult.stderr || syncResult.error || \"unknown\"}`\n        );\n    }\n}\n\nasync function publishRemoteResult(result = {}) {\n    await syncLocalBranch();\n\n    const resultFile = path.resolve(REPO_ROOT, RESULT_PATH);\n    fs.mkdirSync(path.dirname(resultFile), { recursive: true });\n    fs.writeFileSync(\n        resultFile,\n        JSON.stringify(result, null, 2) + \"\\n\",\n        \"utf8\"\n    );\n\n    const addResult = await runGit([\"add\", \"--\", RESULT_PATH]);\n    if (!addResult.ok) {\n        throw new Error(\n            `RESULT_GIT_ADD_FAILED: ${addResult.stderr || addResult.error || \"unknown\"}`\n        );\n    }\n\n    const commitResult = await runGit([\n        \"commit\",\n        \"-m\",\n        `SIA7 result ${String(result.jobId || \"unknown\").slice(0, 80)}`\n    ]);\n\n    if (!commitResult.ok) {\n        const output = `${commitResult.stdout}\\n${commitResult.stderr}`.toLowerCase();\n        if (!output.includes(\"nothing to commit\")) {\n            throw new Error(\n                `RESULT_GIT_COMMIT_FAILED: ${commitResult.stderr || commitResult.error || \"unknown\"}`\n            );\n        }\n    }\n\n    const pushResult = await runGit([\"push\", REMOTE, BRANCH]);\n    if (!pushResult.ok) {\n        throw new Error(\n            `RESULT_GIT_PUSH_FAILED: ${pushResult.stderr || pushResult.error || \"unknown\"}`\n        );\n    }\n}\n\nfunction normalizeEndpoint(value = \"\") {\n    const endpoint = String(value || \"\").trim();\n    const allowed = new Set([\"/health\", \"/read\", \"/grep\", \"/git\", \"/run\"]);\n\n    if (!allowed.has(endpoint)) {\n        throw new Error(\"WORKER_ENDPOINT_NOT_ALLOWED\");\n    }\n\n    return endpoint;\n}\n\nasync function executeBridgeJob(job = {}) {",
+    "partial": true,
+    "startLine": 99,
+    "endLine": 165,
+    "totalLines": 326,
+    "lineRange": {
+      "startLine": 99,
+      "endLine": 165,
+      "totalLines": 326
+    },
+    "source": "jarvis_fs_bridge_read_v1",
+    "version": "2.1.0-local-fs-bridge"
+  }
 }
