@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4166"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4167"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -1905,33 +1905,6 @@ const isProtectedTerminalCommand =
         return (
             /^(repo|tests|codex)\./i.test(normalized) ||
             /^(jarvis,\s*)?(apruebo|aprobar|aprueba|escribe)\s+patch\b/i.test(normalized)
-        );
-    };
-
-const hasTechnicalTerminalObjective =
-    function(value = "") {
-        const normalized =
-            normalizeCasualGateText(value);
-
-        return /\b(repo|archivo|codigo|code|bug|error|falla|problema|render|ui|ux|movil|mobile|tarjeta|tarjetas|terminal|patch|test|deploy|firebase|function|funcion|clase|css|html|layout|pantalla|boton|panel|flujo|aprobacion|planner|executor|runtime|kernel|bridge|tool|tools|grep|search|read|diagnose|impact|audita|auditar|analiza|analizar|revisa\s+(el|la|los|las|por\s+que|donde|dónde)|busca|encuentra|modifica|cambia|arregla|corrige|diagnostica)\b/i.test(normalized);
-    };
-
-const isCasualTerminalInput =
-    function(value = "") {
-        const normalized =
-            normalizeCasualGateText(value);
-
-        if (
-            !normalized ||
-            isProtectedTerminalCommand(value) ||
-            hasTechnicalTerminalObjective(value)
-        ) {
-            return false;
-        }
-
-        return (
-            /\b(buenos\s+dias|buenas\s+tardes|buenas\s+noches|hola|hey|que\s+onda|q\s+onda|jajaja|jeje|jaja|ando|cansad[oa]|me\s+canse|me\s+cans[eé]|se\s+me\s+antoja|tengo\s+ganas|vamos\s+por|salud|gracias|orale|arre)\b/i.test(normalized) ||
-            normalized.split(/\s+/).length <= 5
         );
     };
 
