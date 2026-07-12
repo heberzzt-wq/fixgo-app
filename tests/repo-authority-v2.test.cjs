@@ -1109,6 +1109,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
         );
 
     assert.match(core, /patchPreviewAllowedByPlan/);
+    assert.match(core, /reasoning:\s*reasoning/);
     assert.match(core, /cloudToolPlan\?\.patchPreviewAllowed\s*!==\s*false/);
     assert.match(core, /cloudToolPlan\?\.renderPatchPreview\s*!==\s*false/);
     assert.match(core, /cloudToolPlan\?\.intent\s*!==\s*"REPO_GLOBAL_ANALYSIS"/);

@@ -3548,6 +3548,9 @@ export const GestiaCore = {
                             cognition:
                                 reasoning,
 
+                            reasoning:
+                                reasoning,
+
                             strategicMode:
                                 reasoning?.strategicMode ||
 
