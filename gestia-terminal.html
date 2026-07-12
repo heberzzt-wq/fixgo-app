@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4165"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4166"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -2019,6 +2019,13 @@ const clearTerminalActivePatchProposal =
             localStorage.removeItem(
                 SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY
             );
+        }
+        catch(error) {}
+
+        try {
+            document
+                .querySelectorAll("[data-sia7-visual-patch-proposal='true']")
+                .forEach(card => card.remove());
         }
         catch(error) {}
     };
@@ -5605,9 +5612,54 @@ console.log(
                         ?.cloudToolPlan ||
                     null;
 
+                const agentToolNamesForRouting =
+                    agentToolCalls
+                        .map(call => call.name)
+                        .filter(Boolean);
+
+                const usesRepoSurveyTools =
+                    agentToolNamesForRouting.includes("repo.scan") &&
+                    agentToolNamesForRouting.some(name =>
+                        name === "repo.search" ||
+                        name === "repo.grep" ||
+                        name === "repo.scan"
+                    );
+
+                const usesRepoPatchOrWriteTool =
+                    agentToolNamesForRouting.some(name =>
+                        name === "repo.patchPreview" ||
+                        name === "repo.safePatchApply" ||
+                        name === "repo.write" ||
+                        name === "codex.patch"
+                    );
+
+                const usesLineAnchoredInvestigationTool =
+                    agentToolNamesForRouting.some(name =>
+                        name === "repo.read" ||
+                        name === "repo.diagnose" ||
+                        name === "repo.impact"
+                    );
+
+                const hasPatchPreviewCandidateInPlan =
+                    Boolean(
+                        agentLoopResult
+                            ?.finalResponse
+                            ?.patchPreviewCandidate ||
+                        agentLoopResult
+                            ?.followUp
+                            ?.patchPreviewCandidate
+                    );
+
+                const isReadOnlyRepoSurveyPlan =
+                    usesRepoSurveyTools &&
+                    !usesRepoPatchOrWriteTool &&
+                    !usesLineAnchoredInvestigationTool &&
+                    !hasPatchPreviewCandidateInPlan;
+
                 const isRepoGlobalAnalysis =
                     cloudToolPlan
-                        ?.intent === "REPO_GLOBAL_ANALYSIS";
+                        ?.intent === "REPO_GLOBAL_ANALYSIS" ||
+                    isReadOnlyRepoSurveyPlan;
 
                 const suppressPatchSurface =
                     cloudToolPlan
@@ -5629,7 +5681,9 @@ console.log(
                                 currentTraceId,
                             intent:
                                 cloudToolPlan
-                                    ?.intent
+                                    ?.intent,
+                            readOnlyRepoSurveyPlan:
+                                isReadOnlyRepoSurveyPlan
                         }
                     );
                 }

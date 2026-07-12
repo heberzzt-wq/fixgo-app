@@ -927,7 +927,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4165/);
+    assert.match(terminal, /agent-loop-v7-20260707-4166/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4158/);
     assert.doesNotMatch(terminal, /TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT/);
     assert.doesNotMatch(terminal, /TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS/);
@@ -1038,6 +1038,9 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /cloudToolPlan[\s\S]{0,120}patchPreviewAllowed\s*===\s*false/);
     assert.match(terminal, /cloudToolPlan[\s\S]{0,160}renderPatchPreview\s*===\s*false/);
     assert.match(terminal, /cloudToolPlan[\s\S]{0,180}intent\s*===\s*"REPO_GLOBAL_ANALYSIS"/);
+    assert.match(terminal, /const isReadOnlyRepoSurveyPlan\s*=/);
+    assert.match(terminal, /usesRepoSurveyTools[\s\S]{0,180}!usesRepoPatchOrWriteTool[\s\S]{0,180}!usesLineAnchoredInvestigationTool/);
+    assert.match(terminal, /isRepoGlobalAnalysis[\s\S]{0,140}isReadOnlyRepoSurveyPlan/);
     assert.match(terminal, /buildBrainGlobalRepoAnalysisSummary/);
     assert.match(terminal, /hasLoadedRuntimeModules/);
     assert.match(terminal, /MODULE_CONTEXT[\s\S]{0,80}\?\.loaded/);
@@ -1063,6 +1066,7 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /SIA7_BLOCKED_VISUAL_PROPOSAL_RENDER_SUPPRESSED_41_52/);
     assert.match(terminal, /data-sia7-blocked-patch-proposal="true"/);
     assert.match(terminal, /querySelectorAll\("\[data-sia7-visual-patch-proposal='true'\]"\)/);
+    assert.match(terminal, /readOnlyRepoSurveyPlan:\s*isReadOnlyRepoSurveyPlan/);
     assert.match(terminal, /__SIA7_PENDING_PATCH_APPROVAL__\s*=\s*null/);
 });
 
