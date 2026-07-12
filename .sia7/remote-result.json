@@ -1,13 +1,13 @@
 {
-  "jobId": "sia7-apply-worker-remove-post-sync-token-20260712-25",
-  "completedAt": "2026-07-12T20:59:01.608Z",
+  "jobId": "sia7-dryrun-worker-sync-before-execute-20260712-26",
+  "completedAt": "2026-07-12T20:59:36.752Z",
   "ok": true,
   "operation": "patch",
-  "dryRun": false,
+  "dryRun": true,
   "file": "jarvis-github-worker.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 9106,
-  "bytesAfter": 9082,
+  "bytesBefore": 9082,
+  "bytesAfter": 9116,
   "source": "sia7_github_worker_exact_patch_v1"
 }
