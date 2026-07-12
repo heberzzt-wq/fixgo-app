@@ -139,6 +139,32 @@ const BRAIN_CONFIG = {
   MAX_ARRAY: 80
 };
 
+function isNonRetryableCloudFetchError(error = {}) {
+  const message =
+    String(
+      error?.message ||
+      error ||
+      ""
+    )
+      .toLowerCase();
+
+  const name =
+    String(
+      error?.name ||
+      ""
+    )
+      .toLowerCase();
+
+  return (
+    name === "typeerror" &&
+    (
+      message.includes("failed to fetch") ||
+      message.includes("networkerror") ||
+      message.includes("load failed")
+    )
+  );
+}
+
 /* ======================================================================================
    TELEMETRY
 ====================================================================================== */
@@ -2557,6 +2583,44 @@ export async function invocarArquitectoIA(
       clearTimeout(timer);
 
       lastError = err;
+
+      if (
+        isNonRetryableCloudFetchError(err)
+      ) {
+        breaker.count =
+          Math.max(
+            breaker.count,
+            3
+          );
+
+        breaker.openUntil =
+          Date.now() +
+          BRAIN_CONFIG
+            .BREAKER_COOLDOWN_MS;
+
+        TENANT_BREAKERS
+          .set(
+            tenantId,
+            breaker
+          );
+
+        emitBrainTelemetry(
+          "CLOUD_COGNITION_FAIL_FAST",
+          {
+            operationId,
+            error:
+              String(
+                err?.message ||
+                err
+              ),
+            fallback:
+              "local_semantic_tool_planner"
+          },
+          "WARNING"
+        );
+
+        break;
+      }
 
       if (
 

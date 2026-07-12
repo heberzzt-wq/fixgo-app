@@ -181,7 +181,7 @@ const CORE_CONFIG = {
     }
 };
 import '/gestia-core/semantic.engine.js';
-import '/gestia-core/brain.engine.js?v=repo-global-analysis-41-59';
+import '/gestia-core/brain.engine.js?v=cloud-planner-fail-fast-41-62';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4158';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
