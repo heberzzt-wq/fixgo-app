@@ -1,11 +1,11 @@
 {
-  "jobId": "sia7-grep-worker-sync-local-20260712-21",
+  "jobId": "sia7-read-worker-sync-call-bytes-20260712-22",
   "operation": "bridge",
-  "endpoint": "/grep",
+  "endpoint": "/read",
   "body": {
-    "term": "syncLocalBranch",
-    "cwd": ".",
-    "maxMatches": 20,
-    "source": "sia7_worker_sync_forensics"
+    "file": "jarvis-github-worker.js",
+    "startLine": 108,
+    "endLine": 118,
+    "maxBytes": 12000
   }
 }
