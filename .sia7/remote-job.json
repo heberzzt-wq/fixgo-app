@@ -1,5 +1,5 @@
 {
-  "jobId": "sia7-dryrun-worker-remove-post-sync-token-20260712-24",
+  "jobId": "sia7-apply-worker-remove-post-sync-token-20260712-25",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
@@ -7,7 +7,7 @@
     "search": "await syncLocalBranch();",
     "replace": "",
     "expectedMatches": 1,
-    "dryRun": true,
+    "dryRun": false,
     "humanApproved": true
   }
 }
