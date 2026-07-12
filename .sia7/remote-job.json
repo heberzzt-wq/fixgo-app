@@ -1,11 +1,10 @@
 {
-  "jobId": "sia7-run-ci-test-41-91-1-20260712-12",
+  "jobId": "sia7-git-status-41-91-1-20260712-13",
   "operation": "bridge",
-  "endpoint": "/run",
+  "endpoint": "/git",
   "body": {
-    "command": "npm run ci:test",
+    "action": "status",
     "cwd": ".",
-    "timeoutMs": 120000,
-    "source": "sia7_checkpoint_41_91_1_ci_test"
+    "source": "sia7_checkpoint_41_91_1_predeploy_status"
   }
 }
