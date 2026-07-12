@@ -1,23 +1,19 @@
 {
-  "jobId": "sia7-git-add-41-91-1-20260712-14",
-  "completedAt": "2026-07-12T18:09:17.887Z",
+  "jobId": "sia7-git-diff-cached-41-91-1-20260712-15",
+  "completedAt": "2026-07-12T18:22:17.806Z",
   "ok": true,
   "httpStatus": 200,
   "endpoint": "/git",
   "payload": {
     "ok": true,
-    "status": "GIT_ADD_OK",
+    "status": "GIT_DIFF_CACHED_OK",
     "exitCode": 0,
-    "command": "git add -- gestia-terminal.html gestia-core/gestia-core.js",
+    "command": "git diff --cached --",
     "stdout": "",
     "stderr": "",
-    "durationMs": 443,
+    "durationMs": 579,
     "source": "jarvis_fs_bridge_git_v7",
     "version": "2.1.0-local-fs-bridge",
-    "action": "add",
-    "files": [
-      "gestia-terminal.html",
-      "gestia-core/gestia-core.js"
-    ]
+    "action": "diffCached"
   }
 }
