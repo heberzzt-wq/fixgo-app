@@ -1015,6 +1015,9 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /Propuesta cancelada, no se escribieron archivos/);
     assert.match(terminal, /localStorage\.removeItem\(\s*SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY\s*\)/);
     assert.match(terminal, /No se ejecuto repo\.safePatchApply ni repo\.write/);
+    assert.match(terminal, /repo\.write directo queda bloqueado por cadena de mando SIA7/);
+    assert.match(terminal, /Ejecutando repo\.write dryRun/);
+    assert.doesNotMatch(terminal, /terminal_direct_repo_write_interceptor_v7[\s\S]{0,500}approved:\s*[\s\S]{0,80}approved\\s\*\=\?\s\*true/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /dryRun=true/);
     assert.match(terminal, /Aprobar safe write/);

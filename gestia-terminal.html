@@ -1379,12 +1379,6 @@ if (/^repo\.write\s+/i.test(directToolInput)) {
         }
     );
 
-    window.renderJarvisResponse?.(
-        "[DIRECT_TOOL_ROUTER]",
-        "Ejecutando repo.write",
-        "info"
-    );
-
     if (!window.JarvisToolRuntime?.execute) {
         window.renderJarvisResponse?.(
             "[DIRECT_TOOL_ROUTER]",
@@ -1401,6 +1395,31 @@ if (/^repo\.write\s+/i.test(directToolInput)) {
     const writeIsDryRun =
     writeArgs?.dryRun === true ||
     String(writeArgs?.dryRun).toLowerCase() === "true";
+
+    if (writeIsDryRun !== true) {
+        window.renderJarvisResponse?.(
+            "[DIRECT_TOOL_ROUTER] repo.write bloqueado",
+            [
+                "repo.write directo queda bloqueado por cadena de mando SIA7.",
+                "Usa repo.patchPreview dryRun=true, aprobacion humana y repo.safePatchApply.",
+                "",
+                "No se ejecuto repo.write.",
+                "No se ejecuto repo.safePatchApply."
+            ].join("\n"),
+            "warning"
+        );
+
+        handled =
+            true;
+
+        return;
+    }
+
+    window.renderJarvisResponse?.(
+        "[DIRECT_TOOL_ROUTER]",
+        "Ejecutando repo.write dryRun",
+        "info"
+    );
 
     const writeContext = {
         rawInput:
@@ -1420,10 +1439,9 @@ if (/^repo\.write\s+/i.test(directToolInput)) {
             window.KernelHeberto?.session?.uid ||
             null,
         approved:
-    writeIsDryRun === true ||
-    /approved\s*=?\s*true/i.test(comando),
+            false,
         codexApproved:
-            /codexApproved\s*=?\s*true/i.test(comando)
+            false
     };
 
     const writeResult =
