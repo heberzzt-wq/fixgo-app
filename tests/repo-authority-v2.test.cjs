@@ -1016,8 +1016,8 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4189/);
-    assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4189/);
+    assert.match(terminal, /agent-loop-v7-20260707-4190/);
+    assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
     assert.doesNotMatch(terminal, /window\.KernelHeberto\?\.execute/);
@@ -1310,6 +1310,8 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.ok(executeCoreAuthorityIndex < legacySearchInterceptorIndex);
     assert.match(legacyKernel, /naturalIntentAuthority:\s*"brain"/);
     assert.match(legacyKernel, /type:\s*"BRAIN_AUTHORITY_REQUIRED"/);
+    assert.match(legacyKernel, /type:\s*"BRAIN_AUTHORITY_EMPTY_CORE_RESULT"/);
+    assert.match(legacyKernel, /No se reintentó por rutas legacy/);
     assert.doesNotMatch(legacyKernel, /window\.runJarvis\s*=/);
     assert.doesNotMatch(legacyKernel, /window\.testJarvis\s*=/);
     assert.doesNotMatch(core, /jarvis-tools-v7-20260707-4135/);

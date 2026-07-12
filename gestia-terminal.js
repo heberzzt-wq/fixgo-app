@@ -4437,7 +4437,20 @@ if (!isStructured) {
                     window.JarvisToolRuntime.list?.() || []
             });
 
-        return coreResult?.response || coreResult;
+        if (coreResult) {
+            return coreResult?.response || coreResult;
+        }
+
+        return {
+            ok: false,
+            blocked: true,
+            type: "BRAIN_AUTHORITY_EMPTY_CORE_RESULT",
+            report:
+                "Orden contenida: GestiaCore no produjo respuesta ejecutable. No se reintentó por rutas legacy.",
+            writeAllowed: false,
+            writeAuthorization: false,
+            approvalRequiredForWrite: true
+        };
     }
 
     return {
