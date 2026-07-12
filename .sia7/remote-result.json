@@ -1,132 +1,19 @@
 {
-  "jobId": "sia7-grep-semantic-engine-local-wiring-20260711-01",
-  "completedAt": "2026-07-11T21:56:59.488Z",
+  "jobId": "sia7-health-brain-router-followup-20260712-01",
+  "completedAt": "2026-07-12T15:47:53.229Z",
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/grep",
+  "endpoint": "/health",
   "payload": {
     "ok": true,
-    "term": "semantic.engine.js",
-    "totalFilesScanned": 173,
-    "totalMatches": 23,
-    "matches": [
-      {
-        "file": ".sia7/remote-job.json",
-        "line": 6,
-        "snippet": "\"file\": \"gestia-core/semantic.engine.js\","
-      },
-      {
-        "file": ".sia7/remote-job.json",
-        "line": 7,
-        "snippet": "\"path\": \"gestia-core/semantic.engine.js\","
-      },
-      {
-        "file": ".sia7/remote-result.json",
-        "line": 9,
-        "snippet": "\"file\": \"gestia-core/semantic.engine.js\","
-      },
-      {
-        "file": ".sia7/remote-result.json",
-        "line": 10,
-        "snippet": "\"path\": \"gestia-core/semantic.engine.js\","
-      },
-      {
-        "file": "gestia-core/brain.engine.js",
-        "line": 30,
-        "snippet": "} from \"./semantic.engine.js\";"
-      },
-      {
-        "file": "gestia-core/cognitive.bootstrap.js",
-        "line": 102,
-        "snippet": "\"./semantic.engine.js\""
-      },
-      {
-        "file": "gestia-core/gestia-core.js",
-        "line": 183,
-        "snippet": "import '/gestia-core/semantic.engine.js';"
-      },
-      {
-        "file": "gestia-core/hubs/analysis.hub.js",
-        "line": 49,
-        "snippet": "from \"../semantic.engine.js\";"
-      },
-      {
-        "file": "gestia-core/jarvis/jarvis.business.engine.js",
-        "line": 91,
-        "snippet": "\"semantic.engine.js\""
-      },
-      {
-        "file": "gestia-core/jarvis/jarvis.orchestrator.js",
-        "line": 122,
-        "snippet": "\"semantic.engine.js\""
-      },
-      {
-        "file": "gestia-core/jarvis/jarvis.orchestrator.js",
-        "line": 1206,
-        "snippet": "\"semantic.engine.js\": {"
-      },
-      {
-        "file": "gestia-core/jarvis/jarvis.vision.engine.js",
-        "line": 28,
-        "snippet": "\"semantic.engine.js\","
-      },
-      {
-        "file": "gestia-core/repo/repo.cognition.index.js",
-        "line": 327,
-        "snippet": "\"semantic.engine.js\","
-      },
-      {
-        "file": "gestia-core/self-repair.engine.js",
-        "line": 193,
-        "snippet": "archivo_origen: \"semantic.engine.js\""
-      },
-      {
-        "file": "gestia-terminal.js",
-        "line": 60,
-        "snippet": "} from \"/gestia-core/semantic.engine.js\";"
-      },
-      {
-        "file": "gestia-terminal.js",
-        "line": 1155,
-        "snippet": "\"semantic.engine.js\","
-      },
-      {
-        "file": "gestia-terminal.js",
-        "line": 1193,
-        "snippet": "window.__REPO_INDEX__[\"semantic.engine.js\"];"
-      },
-      {
-        "file": "gestia-terminal.js",
-        "line": 5152,
-        "snippet": "cognition: \"brain.engine.js + semantic.engine.js\""
-      },
-      {
-        "file": "modules/terminal/repo-bootstrap-index.js",
-        "line": 1025,
-        "snippet": "window.__REPO_INDEX__[\"semantic.engine.js\"] = {"
-      },
-      {
-        "file": "modules/terminal/repo-bootstrap-index.js",
-        "line": 1028,
-        "snippet": "\"gestia-core/semantic.engine.js\","
-      },
-      {
-        "file": "modules/terminal/repo-bootstrap-index.js",
-        "line": 1245,
-        "snippet": "window.__REPO_INDEX__[\"semantic.engine.js\"] = {"
-      },
-      {
-        "file": "modules/terminal/repo-bootstrap-index.js",
-        "line": 1248,
-        "snippet": "\"gestia-core/semantic.engine.js\","
-      },
-      {
-        "file": "modules/terminal/runtime-governance.js",
-        "line": 3354,
-        "snippet": "\"/gestia-core/semantic.engine.js\""
-      }
-    ],
-    "source": "jarvis_fs_bridge_grep_v1",
-    "version": "2.1.0-local-fs-bridge"
+    "version": "2.1.0-local-fs-bridge",
+    "policy": {
+      "authority": "full_repo_private_owner",
+      "safeZone": "advisory",
+      "rootContainment": true,
+      "emptyWrites": "blocked",
+      "failureMode": "closed"
+    },
+    "root": "C:\\Users\\heber\\Desktop\\play-store-Gestia\\fixgo-app-main"
   }
 }
