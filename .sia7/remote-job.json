@@ -1,5 +1,5 @@
 {
-  "jobId": "sia7-dryrun-worker-sync-before-execute-20260712-26",
+  "jobId": "sia7-apply-worker-sync-before-execute-20260712-27",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
@@ -7,7 +7,7 @@
     "search": "const executionResult = await executeJob(currentJob);",
     "replace": "await syncLocalBranch();\n\n        const executionResult = await executeJob(currentJob);",
     "expectedMatches": 1,
-    "dryRun": true,
+    "dryRun": false,
     "humanApproved": true
   }
 }
