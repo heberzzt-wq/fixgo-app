@@ -3740,6 +3740,59 @@ export const GestiaCore = {
                     !propuesta
 
                 ) {
+                    const brainAuthorityMode =
+                        context?.naturalIntentAuthority === "brain";
+
+                    if (brainAuthorityMode) {
+                        atomicState.isHalted =
+                            true;
+
+                        atomicState.haltReason =
+                            "BRAIN_AUTHORITY_NO_LEGACY_FALLBACK";
+
+                        propuesta = {
+                            analysis_id:
+                                analysisId,
+                            cognition: {
+                                strategicMode:
+                                    "PROTECTIVE",
+                                reason:
+                                    "BRAIN_AUTHORITY_NO_LEGACY_FALLBACK",
+                                writeAllowed:
+                                    false,
+                                writeAuthorization:
+                                    false,
+                                approvalRequiredForWrite:
+                                    true
+                            },
+                            reasoning: {
+                                strategicMode:
+                                    "PROTECTIVE",
+                                reason:
+                                    "BRAIN_AUTHORITY_NO_LEGACY_FALLBACK",
+                                writeAllowed:
+                                    false,
+                                writeAuthorization:
+                                    false,
+                                approvalRequiredForWrite:
+                                    true
+                            },
+                            strategicMode:
+                                "PROTECTIVE",
+                            semantic:
+                                {},
+                            inferences:
+                                [],
+                            executionChain:
+                                [],
+                            toolCalls:
+                                [],
+                            changes:
+                                []
+                        };
+
+                        return;
+                    }
 
                     propuesta =
                         generarPropuesta({
