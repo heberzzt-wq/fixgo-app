@@ -1,8 +1,13 @@
 {
-  "jobId": "sia7-dryrun-worker-atomic-git-publish-20260712-17",
+  "jobId": "sia7-dryrun-worker-sync-before-job-20260712-17b",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
-    "search": "async function executeJob(job = {}) {\n    const operation = String(job.operation || \"bridge\").trim();\n\n    if (operation === \"patch\") {\n        return executePatchJob(job);\n    }\n\n    return await executeBridgeJob(job);\n}",
-    "replace
+    "search": "async function publishRemoteResult(result = {}) {\n    await syncLocalBranch();\n",
+    "replace": "async function publishRemoteResult(result = {}) {\n",
+    "expectedMatches": 1,
+    "dryRun": true,
+    "humanApproved": true
+  }
+}
