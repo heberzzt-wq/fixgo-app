@@ -1,12 +1,11 @@
 {
-  "jobId": "sia7-grep-architect-function-20260712-04",
-  "operation": "bridge",
-  "endpoint": "/grep",
-  "body": {
-    "term": "exports.gestiaArchitectV5",
-    "cwd": ".",
-    "maxFiles": 800,
-    "maxMatches": 20,
-    "source": "sia7_brain_router_followup_forensics"
+  "jobId": "sia7-dryrun-global-render-dedupe-20260712-05",
+  "operation": "patch",
+  "patch": {
+    "file": "gestia-terminal.html",
+    "search": "                        ...(\n                            finalResponse?.text\n                                ? [finalResponse.text]\n                                : []\n                        ),",
+    "replace": "                        ...(\n                            finalResponse?.text &&\n                            !isRepoGlobalAnalysis\n                                ? [finalResponse.text]\n                                : []\n                        ),",
+    "expectedMatches": 1,
+    "dryRun": true
   }
 }
