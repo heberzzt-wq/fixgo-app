@@ -1,11 +1,10 @@
 {
-  "jobId": "sia7-diff-worker-sync-order-20260712-28",
+  "jobId": "sia7-run-ci-after-worker-sync-fix-20260712-29",
   "operation": "bridge",
-  "endpoint": "/git",
+  "endpoint": "/run",
   "body": {
-    "action": "diff",
+    "command": "npm run ci:test",
     "cwd": ".",
-    "files": ["jarvis-github-worker.js"],
-    "source": "sia7_worker_sync_order_verify"
+    "source": "sia7_worker_sync_order_ci"
   }
 }
