@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4172"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4173"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -6338,6 +6338,10 @@ return;
 
     try {
 
+        const legacyUniversalPlanEnabled =
+            window.__GESTIA_ENABLE_LEGACY_UNIVERSAL_PLAN__ === true;
+
+        if (legacyUniversalPlanEnabled) {
         console.log("🧠 [UNIVERSAL COGNITION PLAN FROM TERMINAL]");
 
 /* =====================================================
@@ -6599,6 +6603,8 @@ if (
     return;
 }
 
+
+        }
 
         }
 
