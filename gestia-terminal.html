@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4163"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4164"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -1662,12 +1662,34 @@ if (directToolMatch) {
         directToolMap[directKey];
 
     if (directTool) {
+        const stripDirectApprovalFlags =
+            function(args = {}) {
+                const clone =
+                    {
+                        ...(args || {})
+                    };
+
+                delete clone.approved;
+                delete clone.codexApproved;
+                delete clone.humanApproved;
+                delete clone.doubleConfirm;
+                delete clone.reinforcedApproval;
+
+                return clone;
+            };
+
+        const directArgs =
+            stripDirectApprovalFlags(
+                directTool.args
+            );
+
         console.info(
             "[DIRECT_TOOL_ROUTER]",
             {
                 rawInput: comando,
                 tool: directTool.name,
-                args: directTool.args
+                args: directArgs,
+                approvalFlagsStripped: true
             }
         );
 
@@ -1702,15 +1724,17 @@ if (directToolMatch) {
                 window.KernelHeberto?.session?.uid ||
                 null,
             approved:
-                /approved\s*:\s*true/i.test(comando),
+                false,
             codexApproved:
-                /codexApproved\s*:\s*true/i.test(comando)
+                false,
+            humanApproved:
+                false
         };
 
         const directResult =
             await window.JarvisToolRuntime.execute(
                 directTool.name,
-                directTool.args,
+                directArgs,
                 directContext
             );
 

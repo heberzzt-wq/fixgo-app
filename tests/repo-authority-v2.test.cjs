@@ -927,7 +927,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4163/);
+    assert.match(terminal, /agent-loop-v7-20260707-4164/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4158/);
     assert.doesNotMatch(terminal, /TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT/);
     assert.doesNotMatch(terminal, /TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS/);
@@ -1017,6 +1017,13 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /No se ejecuto repo\.safePatchApply ni repo\.write/);
     assert.match(terminal, /repo\.write directo queda bloqueado por cadena de mando SIA7/);
     assert.match(terminal, /Ejecutando repo\.write dryRun/);
+    assert.match(terminal, /stripDirectApprovalFlags/);
+    assert.match(terminal, /approvalFlagsStripped:\s*true/);
+    assert.match(terminal, /const directContext = \{[\s\S]{0,900}source:\s*"terminal_direct_tool_router_v7"[\s\S]{0,900}approved:\s*false/);
+    assert.match(terminal, /const directContext = \{[\s\S]{0,900}source:\s*"terminal_direct_tool_router_v7"[\s\S]{0,900}codexApproved:\s*false/);
+    assert.match(terminal, /const directContext = \{[\s\S]{0,900}source:\s*"terminal_direct_tool_router_v7"[\s\S]{0,900}humanApproved:\s*false/);
+    assert.doesNotMatch(terminal, /terminal_direct_tool_router_v7[\s\S]{0,500}approved:\s*\/approved/);
+    assert.doesNotMatch(terminal, /terminal_direct_tool_router_v7[\s\S]{0,500}codexApproved:\s*\/codexApproved/);
     assert.doesNotMatch(terminal, /terminal_direct_repo_write_interceptor_v7[\s\S]{0,500}approved:\s*[\s\S]{0,80}approved\\s\*\=\?\s\*true/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /dryRun=true/);
