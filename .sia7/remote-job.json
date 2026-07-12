@@ -1,12 +1,8 @@
 {
-  "jobId": "sia7-grep-semantic-engine-local-wiring-20260711-01",
+  "jobId": "sia7-health-brain-router-followup-20260712-01",
   "operation": "bridge",
-  "endpoint": "/grep",
+  "endpoint": "/health",
   "body": {
-    "term": "semantic.engine.js",
-    "cwd": ".",
-    "maxFiles": 800,
-    "maxMatches": 100,
-    "source": "sia7_grep_semantic_engine_local_wiring"
+    "source": "sia7_brain_router_followup_forensics"
   }
 }
