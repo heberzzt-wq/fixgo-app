@@ -1016,8 +1016,8 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4179/);
-    assert.match(terminal, /jarvis-tools-v7-20260707-4158/);
+    assert.match(terminal, /agent-loop-v7-20260707-4180/);
+    assert.match(terminal, /jarvis-tools-v7-20260707-4180/);
     assert.match(terminal, /terminalBrainRoute\?\.mode\s*===\s*"PATCH_PROPOSAL"/);
     assert.match(terminal, /terminalBrainRoute\?\.useLastPatchPreview\s*===\s*true/);
     assert.doesNotMatch(terminal, /if\s*\(\s*isNaturalPatchPreviewFollowUp\(comando\)\s*\)/);
@@ -1273,7 +1273,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(core, /BRAIN_AUTHORITY_NO_LEGACY_FALLBACK/);
     assert.match(core, /brainAuthorityMode[\s\S]{0,500}atomicState\.isHalted/);
     assert.doesNotMatch(core, /semantic-tool-fallback-41-32/);
-    assert.match(core, /jarvis-tools-v7-20260707-4158/);
+    assert.match(core, /jarvis-tools-v7-20260707-4180/);
     assert.doesNotMatch(core, /jarvis-tools-v7-20260707-4135/);
     assert.match(core, /reasoning:\s*reasoning/);
     assert.match(core, /atomicState\.agentResult\?\.reasoning/);
@@ -1288,6 +1288,26 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(core, /patchPreviewAllowed\s*=\s*true/);
     assert.match(core, /patchPreviewAllowed\s*\?\s*extractPatchPreviewCandidateFromRead/);
     assert.match(core, /PatchPreview deshabilitado por el plan cognitivo/);
+});
+
+test("Codex V2 write path fails closed without governed repo.write runtime", () => {
+    const toolsRuntime =
+        fs.readFileSync(
+            path.join(
+                __dirname,
+                "..",
+                "gestia-core",
+                "tools.runtime.js"
+            ),
+            "utf8"
+        );
+
+    assert.match(toolsRuntime, /async function writeRepoFile/);
+    assert.match(toolsRuntime, /JarvisToolRuntime\.execute\(\s*"repo\.write"/);
+    assert.match(toolsRuntime, /throw new Error\("repo\.write runtime not available"\)/);
+    assert.doesNotMatch(toolsRuntime, /GestiaToolsRuntime\?\.repo\?\.write/);
+    assert.doesNotMatch(toolsRuntime, /toolsRuntime\?\.repo\?\.write/);
+    assert.doesNotMatch(toolsRuntime, /window\.repo\?\.write/);
 });
 
 test("gestiaArchitectV5 exposes CORS preflight before firewall", () => {

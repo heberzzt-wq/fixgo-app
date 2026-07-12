@@ -8074,18 +8074,6 @@ if (window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_1
       );
     }
 
-    if (window.GestiaToolsRuntime?.repo?.write) {
-      return await window.GestiaToolsRuntime.repo.write({ file, content });
-    }
-
-    if (window.toolsRuntime?.repo?.write) {
-      return await window.toolsRuntime.repo.write({ file, content });
-    }
-
-    if (window.repo?.write) {
-      return await window.repo.write({ file, content });
-    }
-
     throw new Error("repo.write runtime not available");
   }
 
