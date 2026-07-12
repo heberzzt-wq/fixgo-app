@@ -1,13 +1,19 @@
 {
-  "jobId": "sia7-apply-worker-sync-before-execute-20260712-27",
-  "completedAt": "2026-07-12T21:00:01.854Z",
+  "jobId": "sia7-diff-worker-sync-order-20260712-28",
+  "completedAt": "2026-07-12T21:00:42.848Z",
   "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "jarvis-github-worker.js",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 9082,
-  "bytesAfter": 9116,
-  "source": "sia7_github_worker_exact_patch_v1"
+  "httpStatus": 200,
+  "endpoint": "/git",
+  "payload": {
+    "ok": true,
+    "status": "GIT_DIFF_OK",
+    "exitCode": 0,
+    "command": "git diff --",
+    "stdout": "diff --git a/jarvis-github-worker.js b/jarvis-github-worker.js\nindex 3cbcf464..4008c696 100644\n--- a/jarvis-github-worker.js\n+++ b/jarvis-github-worker.js\n@@ -111,7 +111,7 @@ async function syncLocalBranch() {\n }\n \n async function publishRemoteResult(result = {}) {\n-    await syncLocalBranch();\n+    \n \n     const resultFile = path.resolve(REPO_ROOT, RESULT_PATH);\n     fs.mkdirSync(path.dirname(resultFile), { recursive: true });\n@@ -275,6 +275,8 @@ async function pollOnce() {\n             })\n         );\n \n+        await syncLocalBranch();\n+\n         const executionResult = await executeJob(currentJob);\n         const result = {\n             jobId: currentJob.jobId,\n",
+    "stderr": "",
+    "durationMs": 736,
+    "source": "jarvis_fs_bridge_git_v7",
+    "version": "2.1.0-local-fs-bridge",
+    "action": "diff"
+  }
 }
