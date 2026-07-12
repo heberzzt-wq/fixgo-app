@@ -1,32 +1,26 @@
 {
-  "jobId": "sia7-grep-worker-sync-local-20260712-21",
-  "completedAt": "2026-07-12T20:42:15.887Z",
+  "jobId": "sia7-read-worker-sync-call-bytes-20260712-22",
+  "completedAt": "2026-07-12T20:44:05.330Z",
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/grep",
+  "endpoint": "/read",
   "payload": {
     "ok": true,
-    "term": "syncLocalBranch",
-    "totalFilesScanned": 173,
-    "totalMatches": 3,
-    "matches": [
-      {
-        "file": ".sia7/remote-job.json",
-        "line": 7,
-        "snippet": "\"search\": \"    await syncLocalBranch();\\n\","
-      },
-      {
-        "file": "jarvis-github-worker.js",
-        "line": 97,
-        "snippet": "async function syncLocalBranch() {"
-      },
-      {
-        "file": "jarvis-github-worker.js",
-        "line": 114,
-        "snippet": "await syncLocalBranch();"
-      }
-    ],
-    "source": "jarvis_fs_bridge_grep_v1",
+    "file": "jarvis-github-worker.js",
+    "path": "jarvis-github-worker.js",
+    "size": 335,
+    "totalSize": 9106,
+    "content": "            `RESULT_SYNC_FAILED: ${syncResult.stderr || syncResult.error || \"unknown\"}`\n        );\n    }\n}\n\nasync function publishRemoteResult(result = {}) {\n    await syncLocalBranch();\n\n    const resultFile = path.resolve(REPO_ROOT, RESULT_PATH);\n    fs.mkdirSync(path.dirname(resultFile), { recursive: true });\n    fs.writeFileSync(",
+    "partial": true,
+    "startLine": 108,
+    "endLine": 118,
+    "totalLines": 326,
+    "lineRange": {
+      "startLine": 108,
+      "endLine": 118,
+      "totalLines": 326
+    },
+    "source": "jarvis_fs_bridge_read_v1",
     "version": "2.1.0-local-fs-bridge"
   }
 }
