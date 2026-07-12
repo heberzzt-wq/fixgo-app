@@ -1,15 +1,10 @@
 {
-  "jobId": "sia7-git-add-41-91-1-20260712-14",
+  "jobId": "sia7-git-diff-cached-41-91-1-20260712-15",
   "operation": "bridge",
   "endpoint": "/git",
   "body": {
-    "action": "add",
+    "action": "diffCached",
     "cwd": ".",
-    "files": [
-      "gestia-terminal.html",
-      "gestia-core/gestia-core.js"
-    ],
-    "approved": true,
-    "source": "sia7_checkpoint_41_91_1_stage_exact_scope"
+    "source": "sia7_checkpoint_41_91_1_verify_staged_diff"
   }
 }
