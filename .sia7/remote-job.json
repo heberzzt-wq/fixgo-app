@@ -1,13 +1,13 @@
 {
-  "jobId": "sia7-apply-worker-remove-post-sync-token-20260712-25",
+  "jobId": "sia7-dryrun-worker-sync-before-execute-20260712-26",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
-    "search": "await syncLocalBranch();",
-    "replace": "",
+    "search": "const executionResult = await executeJob(currentJob);",
+    "replace": "await syncLocalBranch();\n\n        const executionResult = await executeJob(currentJob);",
     "expectedMatches": 1,
-    "dryRun": false,
+    "dryRun": true,
     "humanApproved": true
   }
 }
