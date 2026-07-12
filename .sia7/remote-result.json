@@ -1,32 +1,13 @@
 {
-  "jobId": "sia7-grep-architect-function-20260712-04",
-  "completedAt": "2026-07-12T15:51:33.221Z",
+  "jobId": "sia7-dryrun-global-render-dedupe-20260712-05",
+  "completedAt": "2026-07-12T15:53:28.313Z",
   "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/grep",
-  "payload": {
-    "ok": true,
-    "term": "exports.gestiaArchitectV5",
-    "totalFilesScanned": 173,
-    "totalMatches": 3,
-    "matches": [
-      {
-        "file": "functions/index.js",
-        "line": 1318,
-        "snippet": "exports.gestiaArchitectV5 = functions"
-      },
-      {
-        "file": "functions/index.js",
-        "line": 1597,
-        "snippet": "exports.generarModuloIA = exports.gestiaArchitectV5;"
-      },
-      {
-        "file": "tests/repo-authority-v2.test.cjs",
-        "line": 1366,
-        "snippet": "functionsIndex.indexOf(\"exports.gestiaArchitectV5\");"
-      }
-    ],
-    "source": "jarvis_fs_bridge_grep_v1",
-    "version": "2.1.0-local-fs-bridge"
-  }
+  "operation": "patch",
+  "dryRun": true,
+  "file": "gestia-terminal.html",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 233096,
+  "bytesAfter": 233149,
+  "source": "sia7_github_worker_exact_patch_v1"
 }
