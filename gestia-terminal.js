@@ -6599,38 +6599,7 @@ catch(authWatcherError) {
    DEBUG
 ===================================================== */
 
-window.testJarvis =
-    async () => {
-
-        const ctx = {
-            userId:
-                window
-                    .KernelHeberto
-                    ?.session?.uid,
-            tenantId:
-                window
-                    .KernelHeberto
-                    ?.session
-                    ?.tenantId
-        };
-
-        const res =
-            await runJarvis(
-                "revisa pagos y luego abre camaras",
-                ctx
-            );
-
-        console.log(
-            "🧠 TEST",
-            res
-        );
-
-        window.lastJarvis =
-            res;
-    };
-
-window.runJarvis =
-    runJarvis;
+// Legacy runJarvis debug globals intentionally not exposed.
 // Fuerza la actualización del HUD azul cuando el Kernel hable
 JarvisMemory?.subscribe?.((type, payload) => {
     if (type === 'PUSH_HISTORY' && payload?.role === 'assistant') {
