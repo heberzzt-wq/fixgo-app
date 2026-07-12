@@ -180,7 +180,13 @@ const CORE_CONFIG = {
         LOCK_TIMEOUT_MS: 45000 // 45 segundos para concurrencia paralela
     }
 };
-import '/gestia-core/semantic.engine.js';
+import {
+    sincronizarCorralSemantico,
+    getSemanticCognitiveState
+} from '/gestia-core/semantic.engine.js';
+import {
+    analyzeIntent as analyzeVisionIntent
+} from '/gestia-core/jarvis/jarvis.vision.engine.js?v=repo-global-analysis-41-59';
 import '/gestia-core/brain.engine.js?v=brain-authority-41-69';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4158';
@@ -3360,6 +3366,93 @@ function composeObservationDrivenFinalResponse({
 
 export const GestiaCore = {
     version: "16.0.0-SUPREME",
+    async analizarIntencionLigera(inputRaw = "", state = {}) {
+        if (state?.hasProposalAdjustmentRequest) {
+            return {
+                mode: "PROPOSAL_ADJUSTMENT",
+                confidence: 0.9,
+                objective: "Adjust active visual patch proposal using current proposal context.",
+                useAgentLoop: true,
+                useRepoTools: false,
+                renderCard: true,
+                prepareCommand: false,
+                reason: "controlled_adjustment_state_from_brain_router"
+            };
+        }
+
+        if (
+            state?.protectedCommand ||
+            state?.hasSafeWritePending
+        ) {
+            return null;
+        }
+
+        try {
+            await sincronizarCorralSemantico(
+                inputRaw
+            );
+        } catch(error) {
+            console.warn(
+                "GESTIA_CORE_LIGHT_SEMANTIC_FAIL",
+                error
+            );
+        }
+
+        const semantic =
+            getSemanticCognitiveState()
+                ?.lastSemanticResolution
+                ?.semantic ||
+            {};
+
+        const vision =
+            analyzeVisionIntent(
+                inputRaw
+            ) ||
+            {};
+
+        const semanticHasOperationalConcept =
+            Array.isArray(semantic.concepts) &&
+            semantic.concepts.length > 0 &&
+            semantic.primaryConcept !== "GENERAL";
+
+        const visionHasOperationalIntent =
+            Boolean(
+                vision.targetFile ||
+                vision.action ||
+                (
+                    vision.intent &&
+                    vision.intent !== "UNKNOWN"
+                )
+            );
+
+        const hasActiveTechnicalFlow =
+            Boolean(
+                state?.hasActivePatchProposal ||
+                state?.hasLastPatchPreview ||
+                state?.hasPatchPreview ||
+                state?.proposalAdjustmentInFlight
+            );
+
+        if (
+            !hasActiveTechnicalFlow &&
+            !semanticHasOperationalConcept &&
+            !visionHasOperationalIntent
+        ) {
+            return {
+                mode: "CASUAL_NOOP",
+                confidence: 0.82,
+                objective: "",
+                useAgentLoop: false,
+                useRepoTools: false,
+                renderCard: false,
+                prepareCommand: false,
+                reason: "semantic_and_vision_general_without_active_flow"
+            };
+        }
+
+        return null;
+    },
+
     // Helper de seguridad para identificar planes Read-Only
     isReadOnlyPlan(changes) {
         return !changes || changes.length === 0;
