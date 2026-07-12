@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4180"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4181"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -2053,19 +2053,6 @@ const readTerminalActivePatchProposal =
         return null;
     };
 
-const isSia7ProposalAdjustmentInput =
-    function(value = "") {
-        if (
-            isProtectedTerminalCommand(value)
-        ) {
-            return false;
-        }
-
-        return /\b(ajusta|ajustar|cambia|cambiar|modifica|modificar|reduce|reducir|menos|mas|más|agresivo|padding|max-width|ancho|compacta|compactar)\b/i.test(
-            normalizeCasualGateText(value)
-        );
-    };
-
 const buildSia7ProposalAdjustmentInput =
     function(input = "", proposal = {}) {
         if (!proposal?.file) {
@@ -2744,49 +2731,6 @@ const rememberLastPatchPreviewCandidate =
         });
 
         return memory;
-    };
-
-const isNaturalPatchPreviewFollowUp =
-    function(value = "") {
-        return false;
-
-        if (
-            isProtectedTerminalCommand(value)
-        ) {
-            return false;
-        }
-
-        const normalized =
-            normalizeCasualGateText(value);
-
-        const previewIntent =
-            /\b(vista\s+previa|preview|dry\s*run|dryrun|patchpreview|patch\s*preview|previsuali[sz]a|valid[ao]r?|valida|validar)\b/i.test(
-                normalized
-            );
-
-        const previousReference =
-            /\b(ultimo|ultima|anterior|previo|previa|acabas|acabamos|propusiste|propuesto|dijiste|recomendaste|ese|eso|ajuste|cambio|propuesta|bloque)\b/i.test(
-                normalized
-            );
-
-        const noWriteIntent =
-            /\b(no\s+escrib|sin\s+escribir|no\s+modifi|sin\s+modificar|no\s+apliques|solo|solamente|unicamente|dry\s*run|dryrun)\b/i.test(
-                normalized
-            );
-
-        const executionVerb =
-            /\b(aplica|aplicar|ejecuta|ejecutar|corre|correr|prueba|probar|hazlo|dale|validar|valida)\b/i.test(
-                normalized
-            );
-
-        return (
-            previewIntent &&
-            (
-                previousReference ||
-                noWriteIntent ||
-                executionVerb
-            )
-        );
     };
 
 const buildPatchPreviewFollowUpText =
