@@ -5347,6 +5347,180 @@ console.log(
                             .join("\n");
                     };
 
+                const buildSia7BrainVoiceBriefing =
+                    function({
+                        isRepoGlobalAnalysis = false,
+                        finalResponse = null,
+                        visualPatchProposal = null,
+                        patchPreviewCandidate = null,
+                        patchPreviewBlocked = null,
+                        cloudToolPlan = null
+                    } = {}) {
+                        const scanObservation =
+                            agentObservations.find((item, index) =>
+                                getObservationToolName(item, index) === "repo.scan"
+                            ) ||
+                            null;
+
+                        const searchObservation =
+                            agentObservations.find((item, index) =>
+                                getObservationToolName(item, index) === "repo.search"
+                            ) ||
+                            null;
+
+                        const scanData =
+                            getObservationRepoData(scanObservation);
+
+                        const searchData =
+                            getObservationRepoData(searchObservation);
+
+                        const files =
+                            Array.isArray(scanData?.files)
+                                ? scanData.files
+                                : Array.isArray(scanData?.result?.files)
+                                    ? scanData.result.files
+                                    : [];
+
+                        const moduleNames =
+                            [
+                                ...new Set(
+                                    files
+                                        .map(file => file.module)
+                                        .filter(Boolean)
+                                )
+                            ];
+
+                        const totalFiles =
+                            files.length ||
+                            scanData?.totalFiles ||
+                            scanData?.total ||
+                            scanData?.count ||
+                            null;
+
+                        const totalModules =
+                            moduleNames.length ||
+                            scanData?.totalModules ||
+                            null;
+
+                        const criticalFiles =
+                            files
+                                .filter(file => file.critical === true)
+                                .slice(0, 3)
+                                .map(file => file.file)
+                                .filter(Boolean);
+
+                        const searchMatches =
+                            searchData?.results ||
+                            searchData?.matches ||
+                            [];
+
+                        const primaryFile =
+                            visualPatchProposal?.file ||
+                            patchPreviewCandidate?.file ||
+                            finalResponse?.file ||
+                            null;
+
+                        const lineRange =
+                            visualPatchProposal?.lineRange?.startLine &&
+                            visualPatchProposal?.lineRange?.endLine
+                                ? `${visualPatchProposal.lineRange.startLine} a ${visualPatchProposal.lineRange.endLine}`
+                                : finalResponse
+                                    ?.lineAnchoredDiagnosis
+                                    ?.sections
+                                    ?.[0]
+                                    ?.start
+                                    ? `${finalResponse.lineAnchoredDiagnosis.sections[0].start} a ${finalResponse.lineAnchoredDiagnosis.sections[0].end}`
+                                    : null;
+
+                        const toolNames =
+                            agentToolCalls
+                                .map(call => call.name)
+                                .filter(Boolean);
+
+                        if (patchPreviewBlocked) {
+                            return [
+                                "Termine la evaluacion y bloquee la propuesta por seguridad.",
+                                patchPreviewBlocked.file
+                                    ? `El archivo observado fue ${patchPreviewBlocked.file}.`
+                                    : "",
+                                "No escribi archivos ni prepare una aprobacion automatica.",
+                                "Necesito regenerar una propuesta segura antes de continuar."
+                            ]
+                                .filter(Boolean)
+                                .join(" ");
+                        }
+
+                        if (visualPatchProposal || patchPreviewCandidate) {
+                            return [
+                                "Termine el diagnostico tecnico.",
+                                primaryFile
+                                    ? `El archivo principal es ${primaryFile}.`
+                                    : "",
+                                lineRange
+                                    ? `La evidencia fuerte esta entre las lineas ${lineRange}.`
+                                    : "",
+                                "Deje una propuesta visual en modo vista previa para que la revises.",
+                                "No escribi archivos; la escritura sigue esperando aprobacion humana."
+                            ]
+                                .filter(Boolean)
+                                .join(" ");
+                        }
+
+                        if (isRepoGlobalAnalysis) {
+                            return [
+                                "Termine el analisis global del repositorio.",
+                                totalFiles
+                                    ? `Revise ${totalFiles} archivos.`
+                                    : "",
+                                totalModules
+                                    ? `Detecte ${totalModules} modulos.`
+                                    : "",
+                                criticalFiles.length
+                                    ? `Los primeros focos a revisar son ${criticalFiles.join(", ")}.`
+                                    : "",
+                                searchMatches.length
+                                    ? `Tambien encontre ${searchMatches.length} coincidencias relacionadas con la orden.`
+                                    : "La busqueda no dio evidencia profunda suficiente; conviene bajar a un modulo o archivo.",
+                                "No abri superficie de patch ni escribi archivos."
+                            ]
+                                .filter(Boolean)
+                                .join(" ");
+                        }
+
+                        if (finalResponse?.file || finalResponse?.risk) {
+                            return [
+                                "Termine la investigacion.",
+                                finalResponse.file
+                                    ? `El archivo probable es ${finalResponse.file}.`
+                                    : "",
+                                finalResponse.risk
+                                    ? `El riesgo local aparece como ${finalResponse.risk}.`
+                                    : "",
+                                "La respuesta en pantalla trae la evidencia detallada.",
+                                "No escribi archivos."
+                            ]
+                                .filter(Boolean)
+                                .join(" ");
+                        }
+
+                        if (toolNames.length || cloudToolPlan?.intent) {
+                            return [
+                                "Termine la orden con el cerebro activo.",
+                                toolNames.length
+                                    ? `Use ${toolNames.length} herramientas de lectura.`
+                                    : "",
+                                cloudToolPlan?.intent
+                                    ? `La intencion resuelta fue ${cloudToolPlan.intent}.`
+                                    : "",
+                                "No escribi archivos."
+                            ]
+                                .filter(Boolean)
+                                .join(" ");
+                        }
+
+                        return "";
+                    };
+
                 const plannerObjective =
                     agentLoopResult
                         ?.reasoning
@@ -5615,6 +5789,60 @@ console.log(
                         ? "warning"
                         : "info"
                 );
+
+                const brainVoiceBriefing =
+                    buildSia7BrainVoiceBriefing({
+                        isRepoGlobalAnalysis,
+                        finalResponse,
+                        visualPatchProposal,
+                        patchPreviewCandidate,
+                        patchPreviewBlocked,
+                        cloudToolPlan
+                    });
+
+                const brainVoiceKey =
+                    [
+                        currentTraceId || "trace",
+                        cloudToolPlan?.intent || "agent_loop",
+                        visualPatchProposal?.file ||
+                        patchPreviewCandidate?.file ||
+                        finalResponse?.file ||
+                        "repo"
+                    ]
+                        .join("::");
+
+                if (
+                    brainVoiceBriefing &&
+                    window.__SIA7_LAST_BRAIN_VOICE_KEY__ !== brainVoiceKey &&
+                    typeof window.hablarJarvis === "function"
+                ) {
+                    window.__SIA7_LAST_BRAIN_VOICE_KEY__ =
+                        brainVoiceKey;
+
+                    console.info(
+                        "[SIA7_BRAIN_VOICE_BRIEFING_41_60]",
+                        {
+                            traceId:
+                                currentTraceId,
+                            intent:
+                                cloudToolPlan?.intent ||
+                                null,
+                            file:
+                                visualPatchProposal?.file ||
+                                patchPreviewCandidate?.file ||
+                                finalResponse?.file ||
+                                null,
+                            speaksScreenText:
+                                false,
+                            writeAllowed:
+                                false
+                        }
+                    );
+
+                    window.hablarJarvis(
+                        brainVoiceBriefing
+                    );
+                }
 
                 handled =
                     true;

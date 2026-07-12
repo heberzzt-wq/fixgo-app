@@ -1037,6 +1037,13 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /SIA7_PATCH_SURFACE_CLEARED_BY_BLOCKED_PREVIEW_41_51/);
     assert.match(terminal, /patchPreviewBlocked/);
     assert.match(terminal, /patchPreviewCandidate\s*&&\s*!patchPreviewBlocked/);
+    assert.match(terminal, /buildSia7BrainVoiceBriefing/);
+    assert.match(terminal, /SIA7_BRAIN_VOICE_BRIEFING_41_60/);
+    assert.match(terminal, /speaksScreenText:\s*false/);
+    assert.match(terminal, /window\.hablarJarvis\(\s*brainVoiceBriefing\s*\)/);
+    assert.match(terminal, /Deje una propuesta visual en modo vista previa/);
+    assert.match(terminal, /Termine el analisis global del repositorio/);
+    assert.match(terminal, /No escribi archivos/);
     assert.match(terminal, /SIA7_BLOCKED_VISUAL_PROPOSAL_RENDER_SUPPRESSED_41_52/);
     assert.match(terminal, /data-sia7-blocked-patch-proposal="true"/);
     assert.match(terminal, /querySelectorAll\("\[data-sia7-visual-patch-proposal='true'\]"\)/);
