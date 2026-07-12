@@ -1,19 +1,23 @@
 {
-  "jobId": "sia7-git-status-41-91-1-20260712-13",
-  "completedAt": "2026-07-12T17:43:44.310Z",
+  "jobId": "sia7-git-add-41-91-1-20260712-14",
+  "completedAt": "2026-07-12T18:09:17.887Z",
   "ok": true,
   "httpStatus": 200,
   "endpoint": "/git",
   "payload": {
     "ok": true,
-    "status": "GIT_STATUS_OK",
+    "status": "GIT_ADD_OK",
     "exitCode": 0,
-    "command": "git status --short --branch",
-    "stdout": "## v5.9-polish...origin/v5.9-polish [behind 1]\n M gestia-core/gestia-core.js\n M gestia-terminal.html\n",
+    "command": "git add -- gestia-terminal.html gestia-core/gestia-core.js",
+    "stdout": "",
     "stderr": "",
-    "durationMs": 447,
+    "durationMs": 443,
     "source": "jarvis_fs_bridge_git_v7",
     "version": "2.1.0-local-fs-bridge",
-    "action": "status"
+    "action": "add",
+    "files": [
+      "gestia-terminal.html",
+      "gestia-core/gestia-core.js"
+    ]
   }
 }
