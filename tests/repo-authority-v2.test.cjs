@@ -927,8 +927,8 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4135/);
-    assert.match(terminal, /jarvis-tools-v7-20260707-4135/);
+    assert.match(terminal, /agent-loop-v7-20260707-4158/);
+    assert.match(terminal, /jarvis-tools-v7-20260707-4158/);
     assert.doesNotMatch(terminal, /TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT/);
     assert.doesNotMatch(terminal, /TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS/);
     assert.doesNotMatch(
@@ -1112,6 +1112,8 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
         );
 
     assert.match(core, /patchPreviewAllowedByPlan/);
+    assert.match(core, /jarvis-tools-v7-20260707-4158/);
+    assert.doesNotMatch(core, /jarvis-tools-v7-20260707-4135/);
     assert.match(core, /reasoning:\s*reasoning/);
     assert.match(core, /atomicState\.agentResult\?\.reasoning/);
     assert.match(core, /propuesta\.agentLoop\s*=[\s\S]{0,160}reasoning:\s*[\s\S]{0,120}propuesta\.reasoning/);
