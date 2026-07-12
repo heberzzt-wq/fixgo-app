@@ -1,10 +1,15 @@
 {
-  "jobId": "sia7-git-status-41-91-1-20260712-13",
+  "jobId": "sia7-git-add-41-91-1-20260712-14",
   "operation": "bridge",
   "endpoint": "/git",
   "body": {
-    "action": "status",
+    "action": "add",
     "cwd": ".",
-    "source": "sia7_checkpoint_41_91_1_predeploy_status"
+    "files": [
+      "gestia-terminal.html",
+      "gestia-core/gestia-core.js"
+    ],
+    "approved": true,
+    "source": "sia7_checkpoint_41_91_1_stage_exact_scope"
   }
 }
