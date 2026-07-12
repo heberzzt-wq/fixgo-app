@@ -1,10 +1,11 @@
 {
-  "jobId": "sia7-verify-checkpoint-41-91-1-diff-20260712-10",
+  "jobId": "sia7-run-npm-test-41-91-1-20260712-11",
   "operation": "bridge",
-  "endpoint": "/git",
+  "endpoint": "/run",
   "body": {
-    "action": "diff",
+    "command": "npm test",
     "cwd": ".",
-    "source": "sia7_checkpoint_41_91_1_combined_diff"
+    "timeoutMs": 120000,
+    "source": "sia7_checkpoint_41_91_1_npm_test"
   }
 }
