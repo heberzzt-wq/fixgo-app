@@ -1,10 +1,8 @@
 {
-  "jobId": "sia7-run-ci-after-worker-sync-fix-retry-20260712-30",
-  "operation": "bridge",
-  "endpoint": "/run",
-  "body": {
-    "command": "npm run ci:test",
-    "cwd": ".",
-    "source": "sia7_worker_sync_order_ci_retry"
-  }
-}
+  "jobId": "sia7-4192-dryrun-insert-sovereign-composer-20260712-31",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
+    "file": "gestia-core/gestia-core.js",
+    "search": "export const GestiaCore = {",
+    "replace": "function composeSia7SovereignResponse({\n    input = \"\",\n    brainPlan = null,\n    agentLoopResponse = null,\n    toolCalls = [],\n    observations = []\n} = {}) {\n    if (!agentLoopResponse) {\n        return null;\n    }\n\n    return {\
