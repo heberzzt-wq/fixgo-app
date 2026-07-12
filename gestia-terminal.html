@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4169"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4170"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -2125,28 +2125,7 @@ const isControlledSia7ProposalAdjustmentInput =
             .startsWith(expectedPrefix);
     };
 
-    const collectTerminalSecondarySignals =
-    function(value = "") {
-        return {};
-
-        const normalized =
-            normalizeCasualGateText(value);
-
-        return {
-            looksCasual:
-                /\b(buenos|buenas|hola|hey|jaja|jeje|gracias|salud|arre|pap[aá]|pariente|tecat[eé])\b/i.test(normalized),
-            mentionsPatch:
-                /\b(patch|parche|propuesta|preview|patchpreview|diff)\b/i.test(normalized),
-            mentionsWrite:
-                /\b(escribe|aplica|aplicar|modifica|modificar|write|safe\s*write)\b/i.test(normalized),
-            mentionsRepo:
-                /\b(repo|archivo|codigo|c[oó]digo|bug|error|falla|test|deploy|firebase|terminal|bridge)\b/i.test(normalized),
-            mentionsAdjustment:
-                /\b(ajusta|ajustar|reduce|reducir|padding|max-width|ancho|compacta|compactar|menos|mas|m[aá]s|agresivo)\b/i.test(normalized)
-        };
-    };
-
-const buildTerminalBrainRoute =
+    const buildTerminalBrainRoute =
     function(overrides = {}) {
         return {
             mode:

@@ -927,7 +927,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4169/);
+    assert.match(terminal, /agent-loop-v7-20260707-4170/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4158/);
     assert.doesNotMatch(terminal, /TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT/);
     assert.doesNotMatch(terminal, /TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS/);
@@ -945,6 +945,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.doesNotMatch(terminal, /signals\.mentionsPatch/);
     assert.doesNotMatch(terminal, /signals\.mentionsAdjustment/);
     assert.doesNotMatch(terminal, /secondary_signals_only_core_delegated/);
+    assert.doesNotMatch(terminal, /collectTerminalSecondarySignals/);
     assert.doesNotMatch(terminal, /hasTechnicalTerminalObjective/);
     assert.doesNotMatch(terminal, /isCasualTerminalInput/);
     assert.match(terminal, /const isExplicitRepoAuditRequest =\s*false;/);
