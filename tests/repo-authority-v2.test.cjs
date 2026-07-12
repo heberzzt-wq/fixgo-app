@@ -927,7 +927,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4162/);
+    assert.match(terminal, /agent-loop-v7-20260707-4163/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4158/);
     assert.doesNotMatch(terminal, /TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT/);
     assert.doesNotMatch(terminal, /TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS/);
@@ -1028,6 +1028,11 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /cloudToolPlan[\s\S]{0,160}renderPatchPreview\s*===\s*false/);
     assert.match(terminal, /cloudToolPlan[\s\S]{0,180}intent\s*===\s*"REPO_GLOBAL_ANALYSIS"/);
     assert.match(terminal, /buildBrainGlobalRepoAnalysisSummary/);
+    assert.match(terminal, /hasLoadedRuntimeModules/);
+    assert.match(terminal, /MODULE_CONTEXT[\s\S]{0,80}\?\.loaded/);
+    assert.match(terminal, /hasLoadedRuntimeModules[\s\S]{0,180}window\.inspectModule/);
+    assert.match(terminal, /hasLoadedRuntimeModules[\s\S]{0,260}window\.evaluateModuleRisk/);
+    assert.match(terminal, /hasLoadedRuntimeModules[\s\S]{0,340}window\.validateModuleDependencies/);
     assert.match(terminal, /Diagnostico global SIA7 read-only/);
     assert.match(terminal, /Que se ve mal o delicado/);
     assert.match(terminal, /Archivos criticos a revisar primero/);
