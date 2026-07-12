@@ -1016,7 +1016,10 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4186/);
+    assert.match(terminal, /agent-loop-v7-20260707-4187/);
+    assert.match(terminal, /isTerminalBrainRuntimeReady/);
+    assert.doesNotMatch(terminal, /function isKernelSessionReady/);
+    assert.doesNotMatch(terminal, /window\.KernelHeberto\?\.execute/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4180/);
     assert.match(terminal, /terminalBrainRoute\?\.mode\s*===\s*"PATCH_PROPOSAL"/);
     assert.match(terminal, /terminalBrainRoute\?\.useLastPatchPreview\s*===\s*true/);

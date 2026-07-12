@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4186"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4187"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -168,16 +168,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnGenerate = document.getElementById("btn-generate");
 
-function isKernelSessionReady() {
+function isTerminalBrainRuntimeReady() {
     try {
-        return !!window.KernelHeberto?.execute;
+        return !!(
+            window.GestiaCore?.procesarIntencion ||
+            window.GestiaCore?.analizarIntencionLigera ||
+            window.JarvisToolRuntime?.execute ||
+            window.ToolsBridge?.execute
+        );
     } catch {
         return false;
     }
 }
 
 function syncTerminalAuthGate() {
-    const ready = isKernelSessionReady();
+    const ready = isTerminalBrainRuntimeReady();
 
     if (textarea) {
         textarea.disabled = !ready;
