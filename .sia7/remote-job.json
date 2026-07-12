@@ -1,13 +1,11 @@
 {
-  "jobId": "sia7-dryrun-worker-remove-post-sync-line-20260712-20",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "jarvis-github-worker.js",
-    "search": "    await syncLocalBranch();\n",
-    "replace": "",
-    "expectedMatches": 1,
-    "dryRun": true,
-    "humanApproved": true
+  "jobId": "sia7-grep-worker-sync-local-20260712-21",
+  "operation": "bridge",
+  "endpoint": "/grep",
+  "body": {
+    "term": "syncLocalBranch",
+    "cwd": ".",
+    "maxMatches": 20,
+    "source": "sia7_worker_sync_forensics"
   }
 }
