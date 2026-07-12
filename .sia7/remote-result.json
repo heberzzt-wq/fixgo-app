@@ -1,19 +1,13 @@
 {
-  "jobId": "sia7-verify-global-render-diff-20260712-07",
-  "completedAt": "2026-07-12T16:05:54.813Z",
+  "jobId": "sia7-dryrun-global-learning-dedupe-20260712-08",
+  "completedAt": "2026-07-12T16:06:49.319Z",
   "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/git",
-  "payload": {
-    "ok": true,
-    "status": "GIT_DIFF_OK",
-    "exitCode": 0,
-    "command": "git diff --",
-    "stdout": "diff --git a/gestia-terminal.html b/gestia-terminal.html\nindex 5013d03f..b0596b3c 100644\n--- a/gestia-terminal.html\n+++ b/gestia-terminal.html\n@@ -4740,7 +4740,8 @@ if (\n                                 : []\n                         ),\n                         ...(\n-                            finalResponse?.text\n+                            finalResponse?.text &&\n+                            !isRepoGlobalAnalysis\n                                 ? [finalResponse.text]\n                                 : []\n                         ),\n",
-    "stderr": "",
-    "durationMs": 530,
-    "source": "jarvis_fs_bridge_git_v7",
-    "version": "2.1.0-local-fs-bridge",
-    "action": "diff"
-  }
+  "operation": "patch",
+  "dryRun": true,
+  "file": "gestia-core/gestia-core.js",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 147590,
+  "bytesAfter": 148061,
+  "source": "sia7_github_worker_exact_patch_v1"
 }
