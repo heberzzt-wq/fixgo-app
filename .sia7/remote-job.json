@@ -1,10 +1,12 @@
 {
-  "jobId": "sia7-git-status-brain-router-followup-20260712-02",
+  "jobId": "sia7-grep-submit-bindings-20260712-03",
   "operation": "bridge",
-  "endpoint": "/git",
+  "endpoint": "/grep",
   "body": {
-    "action": "status",
+    "term": "addEventListener(\"submit\"",
     "cwd": ".",
+    "maxFiles": 800,
+    "maxMatches": 100,
     "source": "sia7_brain_router_followup_forensics"
   }
 }
