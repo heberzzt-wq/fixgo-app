@@ -1,19 +1,6 @@
 {
-  "jobId": "sia7-git-status-after-autostash-41-91-1-20260712-16",
-  "completedAt": "2026-07-12T18:28:23.744Z",
-  "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/git",
-  "payload": {
-    "ok": true,
-    "status": "GIT_STATUS_OK",
-    "exitCode": 0,
-    "command": "git status --short --branch",
-    "stdout": "## v5.9-polish...origin/v5.9-polish [behind 1]\n M gestia-core/gestia-core.js\n M gestia-terminal.html\n",
-    "stderr": "",
-    "durationMs": 391,
-    "source": "jarvis_fs_bridge_git_v7",
-    "version": "2.1.0-local-fs-bridge",
-    "action": "status"
-  }
+  "jobId": "sia7-dryrun-worker-sync-before-job-20260712-17b",
+  "completedAt": "2026-07-12T19:56:21.022Z",
+  "ok": false,
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1"
 }
