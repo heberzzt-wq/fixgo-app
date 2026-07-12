@@ -1,13 +1,11 @@
 {
-  "jobId": "sia7-apply-worker-sync-before-execute-20260712-27",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "jarvis-github-worker.js",
-    "search": "const executionResult = await executeJob(currentJob);",
-    "replace": "await syncLocalBranch();\n\n        const executionResult = await executeJob(currentJob);",
-    "expectedMatches": 1,
-    "dryRun": false,
-    "humanApproved": true
+  "jobId": "sia7-diff-worker-sync-order-20260712-28",
+  "operation": "bridge",
+  "endpoint": "/git",
+  "body": {
+    "action": "diff",
+    "cwd": ".",
+    "files": ["jarvis-github-worker.js"],
+    "source": "sia7_worker_sync_order_verify"
   }
 }
