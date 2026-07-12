@@ -1,26 +1,6 @@
 {
-  "jobId": "sia7-read-worker-sync-call-bytes-20260712-22",
-  "completedAt": "2026-07-12T20:44:05.330Z",
-  "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/read",
-  "payload": {
-    "ok": true,
-    "file": "jarvis-github-worker.js",
-    "path": "jarvis-github-worker.js",
-    "size": 335,
-    "totalSize": 9106,
-    "content": "            `RESULT_SYNC_FAILED: ${syncResult.stderr || syncResult.error || \"unknown\"}`\n        );\n    }\n}\n\nasync function publishRemoteResult(result = {}) {\n    await syncLocalBranch();\n\n    const resultFile = path.resolve(REPO_ROOT, RESULT_PATH);\n    fs.mkdirSync(path.dirname(resultFile), { recursive: true });\n    fs.writeFileSync(",
-    "partial": true,
-    "startLine": 108,
-    "endLine": 118,
-    "totalLines": 326,
-    "lineRange": {
-      "startLine": 108,
-      "endLine": 118,
-      "totalLines": 326
-    },
-    "source": "jarvis_fs_bridge_read_v1",
-    "version": "2.1.0-local-fs-bridge"
-  }
+  "jobId": "sia7-dryrun-worker-remove-post-sync-context-20260712-23",
+  "completedAt": "2026-07-12T20:56:01.270Z",
+  "ok": false,
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1"
 }
