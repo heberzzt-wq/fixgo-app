@@ -1,12 +1,12 @@
 {
-  "jobId": "sia7-grep-submit-bindings-20260712-03",
+  "jobId": "sia7-grep-architect-function-20260712-04",
   "operation": "bridge",
   "endpoint": "/grep",
   "body": {
-    "term": "addEventListener(\"submit\"",
+    "term": "exports.gestiaArchitectV5",
     "cwd": ".",
     "maxFiles": 800,
-    "maxMatches": 100,
+    "maxMatches": 20,
     "source": "sia7_brain_router_followup_forensics"
   }
 }
