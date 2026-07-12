@@ -927,7 +927,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4167/);
+    assert.match(terminal, /agent-loop-v7-20260707-4168/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4158/);
     assert.doesNotMatch(terminal, /TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT/);
     assert.doesNotMatch(terminal, /TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS/);
@@ -952,6 +952,9 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /__JARVIS_ENABLE_LEGACY_COMBINED_REPO_FILE_ROUTE__\s*===\s*true/);
     assert.match(terminal, /legacyCombinedRepoFileRouteEnabled[\s\S]{0,160}terminalBrainRoute\?\.mode\s*!==\s*"BRAIN_DELEGATED"/);
     assert.match(terminal, /const combinedRepoFileMatch\s*=[\s\S]{0,120}legacyCombinedRepoFileRouteEnabled\s*\?/);
+    assert.match(terminal, /__GESTIA_ENABLE_LEGACY_KERNEL_FALLBACK__\s*===\s*true/);
+    assert.match(terminal, /__GESTIA_ENABLE_LEGACY_CONVERSATIONAL_FALLBACK__\s*===\s*true/);
+    assert.match(terminal, /No ejecute rutas legacy de KernelHeberto ni IA conversacional antigua/);
 });
 
 test("terminal renders visual patch proposal card without direct write execution", () => {

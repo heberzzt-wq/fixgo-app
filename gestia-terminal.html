@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4167"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4168"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -6704,8 +6704,11 @@ if (
     }
 
 }
-                // 2. Kernel Local (Heberto Core)
-                if (!handled) {
+                // 2. Kernel Local (Heberto Core) - legacy opt-in only.
+                const legacyKernelFallbackEnabled =
+                    window.__GESTIA_ENABLE_LEGACY_KERNEL_FALLBACK__ === true;
+
+                if (!handled && legacyKernelFallbackEnabled) {
                     try {
                         if (window.KernelHeberto?.execute) {
                             const res = await window.KernelHeberto.execute(comando, e);
@@ -6733,8 +6736,15 @@ if (
 }
                 }
 
-                // 3. IA (SIA7 Conversacional)
-                if (!handled && !window.__LAST_EXECUTION__) {
+                // 3. IA (SIA7 Conversacional) - legacy opt-in only.
+                const legacyConversationalFallbackEnabled =
+                    window.__GESTIA_ENABLE_LEGACY_CONVERSATIONAL_FALLBACK__ === true;
+
+                if (
+                    !handled &&
+                    legacyConversationalFallbackEnabled &&
+                    !window.__LAST_EXECUTION__
+                ) {
                     const respuestaIA = await window.consultarCerebroIA(comando);
                     
                     // Al haber iniciado el trace arriba, renderJarvisResponse capturará el ID correcto
@@ -6743,6 +6753,21 @@ if (
                     }
                     
                     if (window.hablarJarvis) window.hablarJarvis(respuestaIA);
+                }
+
+                if (!handled) {
+                    window.renderJarvisResponse?.(
+                        "Brain Router SIA7",
+                        [
+                            "No ejecute rutas legacy de KernelHeberto ni IA conversacional antigua.",
+                            "La orden quedo contenida para que el Brain Router sea la autoridad principal.",
+                            "Pide una aclaracion o reformula el objetivo tecnico para reentrar por GestiaCore."
+                        ].join("\n"),
+                        "warning"
+                    );
+
+                    handled =
+                        true;
                 }
 
             } catch (error) {
