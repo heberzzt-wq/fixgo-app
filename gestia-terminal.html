@@ -4740,7 +4740,8 @@ if (
                                 : []
                         ),
                         ...(
-                            finalResponse?.text
+                            finalResponse?.text &&
+                            !isRepoGlobalAnalysis
                                 ? [finalResponse.text]
                                 : []
                         ),

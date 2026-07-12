@@ -3500,11 +3500,27 @@ function composeRepoGlobalAnalysisFinalResponse({
             ];
 
     const learningLines =
-        (learningHints?.lessons || [])
-            .slice(0, 3)
-            .map(item =>
-                `- ${item?.category || item?.reason || item?.lesson?.diagnosis || "learning_hint"}`
-            );
+        [
+            ...new Map(
+                (learningHints?.lessons || [])
+                    .map(item => {
+                        const label =
+                            item?.category ||
+                            item?.reason ||
+                            item?.lesson?.diagnosis ||
+                            "learning_hint";
+
+                        return [
+                            String(label)
+                                .trim()
+                                .toLowerCase(),
+                            `- ${label}`
+                        ];
+                    })
+            )
+                .values()
+        ]
+            .slice(0, 3);
 
     const text =
         [
