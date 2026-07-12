@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4181"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4182"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -4083,129 +4083,6 @@ if (
                 true;
 
             return;
-        }
-
-        const legacyTerminalInput =
-            String(comando || "")
-                .trim();
-
-        const normalizedLegacyTerminalInput =
-            legacyTerminalInput
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "");
-
-        const isProtectedLegacyTerminalRoute =
-            /^(repo|tests|codex)\.[a-zA-Z]+(?:\s+|$)/i.test(
-                legacyTerminalInput
-            ) ||
-            /^(jarvis,\s*)?(apruebo|aprobar|aprueba|escribe)\s+patch\s+/i.test(
-                legacyTerminalInput
-            );
-
-        const hasLegacyHumanRepoAction =
-            /\b(busca|buscar|buscame|encuentra|encontrar|find|search|revisa|revisar|analiza|analizar|audita|auditar|scan|escanea|escanear|diagnostica|diagnosticar|diagnostico|impacto|dependencias)\b/i.test(
-                normalizedLegacyTerminalInput
-            );
-
-        const hasLegacyRepoTarget =
-            /\b(repo|repositorio|codigo|code|archivo|archivos|modulo|modulos|dependencia|dependencias|impacto)\b/i.test(
-                normalizedLegacyTerminalInput
-            ) ||
-            /[a-z0-9_.\-\/]+?\.(?:js|html|css|json|md|cjs|mjs|txt)\b/i.test(
-                normalizedLegacyTerminalInput
-            );
-
-        const startsAsLegacyJarvisCommand =
-            /^(jarvis|heberto|gestia)[,\s]+/i.test(
-                normalizedLegacyTerminalInput
-            );
-
-        const legacyRepoBypassEnabled =
-            window.__GESTIA_ENABLE_LEGACY_REPO_BYPASS__ === true;
-
-        const shouldBypassCoreToLegacyTerminal =
-            legacyRepoBypassEnabled &&
-            !isProtectedLegacyTerminalRoute &&
-            hasLegacyHumanRepoAction &&
-            (
-                hasLegacyRepoTarget ||
-                startsAsLegacyJarvisCommand
-            );
-
-        if (
-            shouldBypassCoreToLegacyTerminal &&
-            (
-                window.__GESTIA_TERMINAL__?.execute ||
-                window.KernelHeberto?.execute
-            )
-        ) {
-            try {
-                const legacyTerminal =
-                    window.__GESTIA_TERMINAL__ ||
-                    window.KernelHeberto;
-
-                const delegatedLegacyTerminalInput =
-                    legacyTerminalInput
-                        .replace(/^(jarvis|heberto|gestia)[,\s]+/i, "")
-                        .trim();
-
-                console.info(
-                    "[TERMINAL_LEGACY_REPO_BYPASS_41_19]",
-                    {
-                        command:
-                            comando,
-                        delegatedCommand:
-                            delegatedLegacyTerminalInput,
-                        traceId:
-                            currentTraceId
-                    }
-                );
-
-                const legacyResult =
-                    await legacyTerminal.execute(
-                        delegatedLegacyTerminalInput || comando,
-                        e,
-                        {
-                            simulate:
-                                false,
-                            source:
-                                "terminal_legacy_repo_bypass_41_19",
-                            traceId:
-                                currentTraceId
-                        }
-                    );
-
-                const legacyPayload =
-                    legacyResult?.report ||
-                    legacyResult?.text ||
-                    legacyResult?.message ||
-                    legacyResult?.response?.report ||
-                    legacyResult?.response?.text ||
-                    legacyResult?.response?.message ||
-                    legacyResult;
-
-                window.renderJarvisResponse?.(
-                    "Jarvis Repo Kernel",
-                    typeof legacyPayload === "string"
-                        ? legacyPayload
-                        : JSON.stringify(legacyPayload, null, 2).slice(0, 6000),
-                    legacyResult?.ok === false
-                        ? "warning"
-                        : "info"
-                );
-
-                handled =
-                    true;
-
-                return;
-            }
-            catch(legacyBypassError) {
-                console.warn(
-                    "[TERMINAL_LEGACY_REPO_BYPASS_41_19_FALLBACK_CORE]",
-                    legacyBypassError
-                );
-            }
         }
 
                 if (

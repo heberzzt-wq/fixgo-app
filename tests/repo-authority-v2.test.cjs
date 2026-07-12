@@ -1016,13 +1016,15 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4181/);
+    assert.match(terminal, /agent-loop-v7-20260707-4182/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4180/);
     assert.match(terminal, /terminalBrainRoute\?\.mode\s*===\s*"PATCH_PROPOSAL"/);
     assert.match(terminal, /terminalBrainRoute\?\.useLastPatchPreview\s*===\s*true/);
     assert.doesNotMatch(terminal, /if\s*\(\s*isNaturalPatchPreviewFollowUp\(comando\)\s*\)/);
     assert.doesNotMatch(terminal, /isNaturalPatchPreviewFollowUp/);
     assert.doesNotMatch(terminal, /isSia7ProposalAdjustmentInput/);
+    assert.doesNotMatch(terminal, /__GESTIA_ENABLE_LEGACY_REPO_BYPASS__/);
+    assert.doesNotMatch(terminal, /TERMINAL_LEGACY_REPO_BYPASS_41_19/);
     assert.doesNotMatch(terminal, /TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT/);
     assert.doesNotMatch(terminal, /TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS/);
     assert.doesNotMatch(
@@ -1201,7 +1203,7 @@ test("terminal keeps natural repository analysis in the brain route", () => {
     assert.doesNotMatch(terminal, /terminal_global_repo_audit_41_44/);
     assert.doesNotMatch(terminal, /isExactGlobalRepoAuditCommand/);
     assert.doesNotMatch(terminal, /ANÁLISIS GLOBAL DEL REPOSITORIO SIA7/);
-    assert.doesNotMatch(terminal, /legacyRepoBypassEnabled[\s\S]{0,200}\(\?:analiza\|analizar\)/);
+    assert.doesNotMatch(terminal, /legacyRepoBypassEnabled/);
     assert.match(terminal, /__JARVIS_ENABLE_LEGACY_EXACT_PATCH_BUILDER__\s*===\s*true/);
     assert.match(terminal, /__JARVIS_ENABLE_LEGACY_COMBINED_REPO_FILE_ROUTE__\s*===\s*true/);
     assert.match(terminal, /legacyCombinedRepoFileRouteEnabled[\s\S]{0,160}terminalBrainRoute\?\.mode\s*!==\s*"BRAIN_DELEGATED"/);
