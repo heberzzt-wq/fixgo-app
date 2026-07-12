@@ -1016,7 +1016,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4185/);
+    assert.match(terminal, /agent-loop-v7-20260707-4186/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4180/);
     assert.match(terminal, /terminalBrainRoute\?\.mode\s*===\s*"PATCH_PROPOSAL"/);
     assert.match(terminal, /terminalBrainRoute\?\.useLastPatchPreview\s*===\s*true/);
@@ -1245,9 +1245,10 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(brain, /repoHubGlobalPlan\s*\|\|\s*normalizeCloudToolPlan/);
     assert.match(brain, /if\s*\(!repoHubGlobalPlan\)\s*\{[\s\S]{0,180}invocarArquitectoIA/);
     assert.match(brain, /visionIntent:\s*repoHubVisionIntent/);
-    assert.match(brain, /shouldUseLegacyRegexToolDetector/);
-    assert.match(brain, /contexto\?\.naturalIntentAuthority\s*!==\s*"brain"/);
-    assert.match(brain, /shouldUseLegacyRegexToolDetector[\s\S]{0,120}buildToolCallsFromInput/);
+    assert.doesNotMatch(brain, /shouldUseLegacyRegexToolDetector/);
+    assert.doesNotMatch(brain, /buildToolCallsFromInput/);
+    assert.match(brain, /const plannerSeedToolCalls\s*=/);
+    assert.match(brain, /toolCalls:\s*plannerSeedToolCalls/);
     assert.match(brain, /isNonRetryableCloudFetchError/);
     assert.match(brain, /CLOUD_COGNITION_FAIL_FAST/);
     assert.match(brain, /fallback:\s*"local_semantic_tool_planner"/);
@@ -1265,7 +1266,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     );
 
     assert.match(core, /patchPreviewAllowedByPlan/);
-    assert.match(core, /brain\.engine\.js\?v=brain-authority-41-79/);
+    assert.match(core, /brain\.engine\.js\?v=brain-authority-41-86/);
     assert.doesNotMatch(core, /brain\.engine\.js\?v=cloud-planner-fail-fast-41-62/);
     assert.match(core, /async analizarIntencionLigera/);
     assert.match(core, /sincronizarCorralSemantico/);
