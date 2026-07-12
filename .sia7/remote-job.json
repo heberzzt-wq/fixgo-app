@@ -1,10 +1,8 @@
 {
-  "jobId": "sia7-git-status-after-autostash-41-91-1-20260712-16",
-  "operation": "bridge",
-  "endpoint": "/git",
-  "body": {
-    "action": "status",
-    "cwd": ".",
-    "source": "sia7_checkpoint_41_91_1_status_after_empty_cached_diff"
-  }
-}
+  "jobId": "sia7-dryrun-worker-atomic-git-publish-20260712-17",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
+    "file": "jarvis-github-worker.js",
+    "search": "async function executeJob(job = {}) {\n    const operation = String(job.operation || \"bridge\").trim();\n\n    if (operation === \"patch\") {\n        return executePatchJob(job);\n    }\n\n    return await executeBridgeJob(job);\n}",
+    "replace
