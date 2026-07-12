@@ -3928,6 +3928,10 @@ if (
                 "7.1.0",
             mode:
                 "TOOL_PLAN",
+            reasoning:
+                propuesta.reasoning ||
+                propuesta.cognition ||
+                null,
             toolCalls:
                 allToolCalls,
             observations:
@@ -4266,6 +4270,8 @@ const cambiosFinales =
                         result:
                             atomicState.agentResult,
                         reasoning:
+                            atomicState.agentResult?.reasoning ||
+                            atomicState.proposal?.reasoning ||
                             atomicState.proposal?.cognition ||
                             null,
                         executionChain:
