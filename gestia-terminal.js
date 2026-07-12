@@ -4411,6 +4411,46 @@ if (isStructured) {
 
     cmd = rawInput.toLowerCase();
 }
+
+if (!isStructured) {
+    const core =
+        window.GestiaCore ||
+        window.SIA7_CORE;
+
+    if (
+        core?.procesarIntencion &&
+        window.ToolsBridge &&
+        window.JarvisToolRuntime
+    ) {
+        console.log("🧠 [GESTIA_TERMINAL_EXECUTE_CORE_AUTHORITY]", { rawInput });
+
+        const coreResult =
+            await core.procesarIntencion(rawInput, {
+                rawInput,
+                channel: "terminal",
+                entrypoint: "gestia-terminal-legacy-kernel",
+                naturalIntentAuthority: "brain",
+                writeAllowed: false,
+                writeAuthorization: false,
+                approvalRequiredForWrite: true,
+                availableTools:
+                    window.JarvisToolRuntime.list?.() || []
+            });
+
+        return coreResult?.response || coreResult;
+    }
+
+    return {
+        ok: false,
+        blocked: true,
+        type: "BRAIN_AUTHORITY_REQUIRED",
+        report:
+            "Orden contenida: GestiaTerminal legacy no ejecuta lenguaje natural sin GestiaCore/Brain Router.",
+        writeAllowed: false,
+        writeAuthorization: false,
+        approvalRequiredForWrite: true
+    };
+}
 /* =====================================================
    🔥 INSERTAR AQUÍ (ANTES DE BLOQUEO)
 ===================================================== */

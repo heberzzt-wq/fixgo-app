@@ -1016,7 +1016,8 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4187/);
+    assert.match(terminal, /agent-loop-v7-20260707-4188/);
+    assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4188/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
     assert.doesNotMatch(terminal, /window\.KernelHeberto\?\.execute/);
@@ -1287,6 +1288,28 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(core, /brainAuthorityMode[\s\S]{0,500}atomicState\.isHalted/);
     assert.doesNotMatch(core, /semantic-tool-fallback-41-32/);
     assert.match(core, /jarvis-tools-v7-20260707-4180/);
+
+    const legacyKernel =
+        fs.readFileSync(
+            path.join(
+                __dirname,
+                "..",
+                "gestia-terminal.js"
+            ),
+            "utf8"
+        );
+
+    const executeCoreAuthorityIndex =
+        legacyKernel.indexOf("GESTIA_TERMINAL_EXECUTE_CORE_AUTHORITY");
+
+    const legacySearchInterceptorIndex =
+        legacyKernel.indexOf("REPO SEARCH INTERCEPTOR");
+
+    assert.ok(executeCoreAuthorityIndex > -1);
+    assert.ok(legacySearchInterceptorIndex > -1);
+    assert.ok(executeCoreAuthorityIndex < legacySearchInterceptorIndex);
+    assert.match(legacyKernel, /naturalIntentAuthority:\s*"brain"/);
+    assert.match(legacyKernel, /type:\s*"BRAIN_AUTHORITY_REQUIRED"/);
     assert.doesNotMatch(core, /jarvis-tools-v7-20260707-4135/);
     assert.match(core, /reasoning:\s*reasoning/);
     assert.match(core, /atomicState\.agentResult\?\.reasoning/);
