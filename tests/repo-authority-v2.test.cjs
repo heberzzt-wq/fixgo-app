@@ -927,7 +927,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /agent-loop-v7-20260707-4173/);
+    assert.match(terminal, /agent-loop-v7-20260707-4174/);
     assert.match(terminal, /jarvis-tools-v7-20260707-4158/);
     assert.doesNotMatch(terminal, /TERMINAL_IMMEDIATE_DIAGNOSIS_EXIT/);
     assert.doesNotMatch(terminal, /TERMINAL_SEMANTIC_DIAGNOSIS_BYPASS/);
@@ -959,6 +959,8 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /__GESTIA_ENABLE_LEGACY_CONVERSATIONAL_FALLBACK__\s*===\s*true/);
     assert.match(terminal, /__GESTIA_ENABLE_LEGACY_UNIVERSAL_PLAN__\s*===\s*true/);
     assert.match(terminal, /legacyUniversalPlanEnabled[\s\S]{0,160}UNIVERSAL COGNITION PLAN FROM TERMINAL/);
+    assert.match(terminal, /__GESTIA_ENABLE_LEGACY_SHORT_PLAN_APPROVAL__\s*===\s*true/);
+    assert.match(terminal, /Confirmacion corta contenida por SIA7/);
     assert.match(terminal, /No ejecute rutas legacy de KernelHeberto ni IA conversacional antigua/);
 });
 

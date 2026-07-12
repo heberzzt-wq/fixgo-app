@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4173"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=agent-loop-v7-20260707-4174"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260618"></script>
 <script
 type="module"
@@ -6255,6 +6255,26 @@ const summary =
 if (["arre", "confirmar", "ok"].includes(cmd)) {
 
     console.log("🟢 [APPROVAL INTERCEPTED TERMINAL]:", cmd);
+
+    const legacyShortPlanApprovalEnabled =
+        window.__GESTIA_ENABLE_LEGACY_SHORT_PLAN_APPROVAL__ === true;
+
+    if (!legacyShortPlanApprovalEnabled) {
+        window.renderJarvisResponse?.(
+            "Plan Approval Contenido",
+            [
+                "Confirmacion corta contenida por SIA7.",
+                "No aprobe planes legacy con arre/confirmar/ok.",
+                "Para escribir usa la cadena explicita: propuesta visual, patchPreview y Jarvis, apruebo patch archivo."
+            ].join("\n"),
+            "warning"
+        );
+
+        handled =
+            true;
+
+        return;
+    }
 
     const lastPlanId = window.lastPlanId;
 
