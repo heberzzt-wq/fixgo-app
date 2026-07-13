@@ -2015,6 +2015,46 @@ const buildCasualTerminalResponse =
         const normalized =
             normalizeCasualGateText(value);
 
+        const localExplanations = [
+            {
+                pattern: /\bapi\b/i,
+                response: "Una API es un puente con reglas definidas que permite que dos aplicaciones intercambien datos y ejecuten funciones de forma segura."
+            },
+            {
+                pattern: /\b(repositorio|repo)\b/i,
+                response: "Un repositorio es el espacio donde se guarda el código, su historial de cambios y la colaboración del proyecto."
+            },
+            {
+                pattern: /\bbase de datos\b/i,
+                response: "Una base de datos organiza y conserva información para que una aplicación pueda consultarla y actualizarla de manera controlada."
+            },
+            {
+                pattern: /\bfirebase\b/i,
+                response: "Firebase es una plataforma de Google que ofrece servicios para aplicaciones, como autenticación, base de datos, funciones y hosting."
+            },
+            {
+                pattern: /\bgithub\b/i,
+                response: "GitHub aloja repositorios Git y facilita revisar, compartir y publicar cambios de código en equipo."
+            },
+            {
+                pattern: /\b(inteligencia artificial|ia)\b/i,
+                response: "La inteligencia artificial permite que un sistema analice información y produzca decisiones o respuestas a partir de patrones y modelos."
+            }
+        ];
+
+        if (
+            /\b(que es|como funciona|explica(?:me)?|define|significa)\b/i.test(normalized)
+        ) {
+            const localExplanation =
+                localExplanations.find(item =>
+                    item.pattern.test(normalized)
+                );
+
+            if (localExplanation) {
+                return localExplanation.response;
+            }
+        }
+
         if (
             /\b(tecate|cerveza|cheve|chelita)\b/i.test(normalized)
         ) {

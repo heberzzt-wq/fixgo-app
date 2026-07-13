@@ -142,6 +142,7 @@ test("general semantic intent stays casual and speaks through the terminal", () 
         "a new explanatory question must outrank stale patch state"
     );
     assert.match(terminal, /canAnswerCasualTerminalLocally/);
+    assert.match(terminal, /Una API es un puente con reglas definidas/);
     assert.match(terminal, /await window\.consultarCerebroIA\(comando\)/);
     assert.match(terminal, /await window\.hablarJarvis\?\.\(\s*casualResponse/);
     assert.match(terminal, /window\.showJarvis\?\.\(\s*"Sistema listo"/);
