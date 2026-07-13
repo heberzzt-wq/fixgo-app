@@ -18,6 +18,32 @@ import {
 
 const VERSION = "1.0.0-sia7-multifunction-tools";
 
+function buildConversationResponse(instruction = "") {
+    const normalized =
+        String(instruction || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase();
+
+    if (/\b(tecate|cerveza|cheve|chelita)\b/i.test(normalized)) {
+        return "¡Buenos días, pariente! Una Tecate bien fría suena buena; nomás con calma si vas a manejar. ¿Qué armamos hoy?";
+    }
+
+    if (/\b(buenos dias|buen dia)\b/i.test(normalized)) {
+        return "¡Buenos días, pariente! Jarvis está activo y listo. ¿Qué armamos hoy?";
+    }
+
+    if (/\b(buenas tardes)\b/i.test(normalized)) {
+        return "¡Buenas tardes, pariente! Jarvis está activo y listo. ¿Qué hacemos?";
+    }
+
+    if (/\b(buenas noches)\b/i.test(normalized)) {
+        return "¡Buenas noches, pariente! Jarvis está en línea. ¿En qué te apoyo?";
+    }
+
+    return "Aquí estoy, pariente. Jarvis está activo y listo para ayudarte.";
+}
+
 function clean(value, fallback = "") {
     return typeof value === "string" && value.trim()
         ? value.trim()
@@ -85,6 +111,28 @@ export function registerJarvisMultifunctionTools(runtime) {
     }
 
     const registrations = [
+        register(runtime, {
+            name: "conversation.respond",
+            description: "Responde saludos y conversación casual localmente cuando la cognición cloud no está disponible.",
+            output: "SIA7_CONVERSATION_RESPONSE",
+            inputSchema: {
+                prompt: "string"
+            },
+            execute: async (args = {}, context = {}) => {
+                const instruction =
+                    resolveInstruction(args, context);
+
+                return {
+                    ok: true,
+                    engine: "jarvis_local_conversation",
+                    message:
+                        buildConversationResponse(instruction),
+                    instruction,
+                    localFallback: true,
+                    readOnly: true
+                };
+            }
+        }),
         register(runtime, {
             name: "system.capabilities",
             description: "Describe las herramientas activas de SIA7 agrupadas por dominio y su politica de aprobacion.",
@@ -267,6 +315,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         version: VERSION,
         registrations,
         tools: [
+            "conversation.respond",
             "system.capabilities",
             "system.health",
             "business.assist",
@@ -282,6 +331,7 @@ export function describeJarvisMultifunctionTools() {
         ok: true,
         version: VERSION,
         domains: [
+            "conversation",
             "system",
             "business",
             "marketing",
@@ -292,4 +342,3 @@ export function describeJarvisMultifunctionTools() {
         derivedWritesRequireApproval: true
     };
 }
-

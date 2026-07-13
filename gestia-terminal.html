@@ -929,6 +929,12 @@ window.hablarJarvis = async function(texto = "") {
 
         speechSynthesis.cancel();
 
+        if (speechSynthesis.paused) {
+            speechSynthesis.resume();
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 60));
+
         const utterance =
             new SpeechSynthesisUtterance(
                 cleanText
@@ -962,6 +968,8 @@ window.hablarJarvis = async function(texto = "") {
 
         utterance.onstart = () => {
 
+            utterance.__jarvisStarted = true;
+
             console.log(
                 "🧠 [JARVIS_VOICE_START]"
             );
@@ -973,6 +981,10 @@ window.hablarJarvis = async function(texto = "") {
 
         utterance.onend = () => {
 
+            if (window.__JARVIS_TTS_ACTIVE_UTTERANCE__ === utterance) {
+                window.__JARVIS_TTS_ACTIVE_UTTERANCE__ = null;
+            }
+
             console.log(
                 "🧠 [JARVIS_VOICE_END]"
             );
@@ -980,15 +992,36 @@ window.hablarJarvis = async function(texto = "") {
 
         utterance.onerror = (err) => {
 
+            if (window.__JARVIS_TTS_ACTIVE_UTTERANCE__ === utterance) {
+                window.__JARVIS_TTS_ACTIVE_UTTERANCE__ = null;
+            }
+
             console.warn(
                 "⚠️ [JARVIS_VOICE_ERROR]",
                 err
             );
         };
 
+        window.__JARVIS_TTS_ACTIVE_UTTERANCE__ = utterance;
+
         speechSynthesis.speak(
             utterance
         );
+
+        console.info("[JARVIS_VOICE_QUEUED]", {
+            length: cleanText.length,
+            voice: voz?.name || "browser-default"
+        });
+
+        setTimeout(() => {
+            if (
+                window.__JARVIS_TTS_ACTIVE_UTTERANCE__ === utterance &&
+                !utterance.__jarvisStarted
+            ) {
+                speechSynthesis.resume();
+                console.info("[JARVIS_VOICE_WATCHDOG_RESUME]");
+            }
+        }, 900);
 
         return true;
 
@@ -1001,6 +1034,20 @@ window.hablarJarvis = async function(texto = "") {
             err
         );
 
+        return false;
+    }
+};
+
+window.unlockJarvisVoice = function() {
+    if (!("speechSynthesis" in window)) return false;
+
+    try {
+        speechSynthesis.getVoices();
+        speechSynthesis.resume();
+        window.__JARVIS_VOICE_UNLOCKED__ = true;
+        return true;
+    } catch (error) {
+        console.warn("[JARVIS_VOICE_UNLOCK_FAIL]", error);
         return false;
     }
 };
@@ -1298,6 +1345,8 @@ window.hablarJarvis = async function(texto = "") {
         form.addEventListener("submit", async function (e) {
             e.preventDefault();
 
+            window.unlockJarvisVoice?.();
+
             const comando = textarea.value.trim();
 
             window.showJarvisPersistent?.("analizando comando...");
@@ -1552,6 +1601,12 @@ if (directToolMatch) {
         "system.capabilities": {
             name: "system.capabilities",
             args: {}
+        },
+        "conversation.respond": {
+            name: "conversation.respond",
+            args: {
+                prompt: directArg
+            }
         },
         "system.health": {
             name: "system.health",
@@ -4061,6 +4116,13 @@ if (
                                 .join("\n");
                         }
 
+                        if (toolName === "conversation.respond") {
+                            return String(
+                                repoData?.message ||
+                                "Aquí estoy, pariente."
+                            );
+                        }
+
                         return [
                             toolName,
                             JSON.stringify(repoData, null, 2).slice(0, 700)
@@ -4085,6 +4147,31 @@ if (
                             {}
                         );
                     };
+
+                const conversationObservation =
+                    agentObservations.find((item, index) =>
+                        getObservationToolName(item, index) === "conversation.respond"
+                    ) || null;
+
+                if (conversationObservation) {
+                    const conversationData =
+                        getObservationRepoData(conversationObservation);
+                    const conversationText =
+                        String(
+                            conversationData?.message ||
+                            "Aquí estoy, pariente."
+                        ).trim();
+
+                    window.renderJarvisResponse?.(
+                        "Jarvis",
+                        conversationText,
+                        "success"
+                    );
+                    await window.hablarJarvis?.(conversationText);
+
+                    handled = true;
+                    return;
+                }
 
                 const formatSia7GlobalList =
                     function(items = [], emptyText = "") {

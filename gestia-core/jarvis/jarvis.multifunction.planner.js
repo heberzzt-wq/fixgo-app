@@ -34,6 +34,20 @@ export function buildJarvisMultifunctionToolCalls(
     const calls = [];
 
     if (
+        /\b(hola|buenos dias|buen dia|buenas tardes|buenas noches|que tal|como estas|tecate|cerveza|cheve|chelita)\b/i.test(normalized)
+    ) {
+        calls.push(
+            makeCall(
+                "conversation.respond",
+                {
+                    prompt: raw
+                },
+                "LOCAL_MULTIFUNCTION_CONVERSATION"
+            )
+        );
+    }
+
+    if (
         /\b(que puedes hacer|capacidades|herramientas disponibles|lista de herramientas|multifuncional)\b/i.test(normalized)
     ) {
         calls.push(
@@ -142,6 +156,7 @@ export function describeJarvisMultifunctionPlanner() {
         maximumToolCalls: 3,
         mutates: false,
         domains: [
+            "conversation",
             "system",
             "business",
             "marketing",
@@ -150,4 +165,3 @@ export function describeJarvisMultifunctionPlanner() {
         ]
     };
 }
-

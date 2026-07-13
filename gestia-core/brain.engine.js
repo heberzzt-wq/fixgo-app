@@ -648,6 +648,7 @@ const SEMANTIC_READ_ONLY_REPO_TOOLS =
 
 const SEMANTIC_READ_ONLY_MULTIFUNCTION_TOOLS =
   new Set([
+    "conversation.respond",
     "system.capabilities",
     "system.health",
     "business.assist",
@@ -2041,7 +2042,10 @@ export async function runCognitiveReasoning(
     let cloudReasoning =
       null;
 
-    if (!repoHubGlobalPlan) {
+    if (
+      !repoHubGlobalPlan &&
+      plannerSeedToolCalls.length === 0
+    ) {
       try {
       cloudReasoning =
         await invocarArquitectoIA(

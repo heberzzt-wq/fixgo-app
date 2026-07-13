@@ -49,7 +49,7 @@ function createRuntime() {
     };
 }
 
-test("multifunction pack registers six read-only domains", () => {
+test("multifunction pack registers seven read-only tools", () => {
     const runtime =
         createRuntime();
 
@@ -58,6 +58,7 @@ test("multifunction pack registers six read-only domains", () => {
 
     assert.equal(result.ok, true);
     assert.deepEqual(result.tools, [
+        "conversation.respond",
         "system.capabilities",
         "system.health",
         "business.assist",
@@ -70,6 +71,46 @@ test("multifunction pack registers six read-only domains", () => {
         runtime.list().every(tool => tool.mutates === false),
         true
     );
+});
+
+test("Jarvis answers casual greetings locally when cloud cognition is unavailable", async () => {
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+
+    const result = await runtime.execute(
+        "conversation.respond",
+        {
+            prompt: "buenos dias jarvis, se me antoja una tecate"
+        }
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.localFallback, true);
+    assert.match(result.message, /Buenos días, pariente/i);
+    assert.match(result.message, /Tecate/i);
+
+    const calls = buildJarvisMultifunctionToolCalls(
+        "buenos dias jarvis, se me antoja una tecate"
+    );
+
+    assert.equal(calls[0]?.name, "conversation.respond");
+    assert.equal(calls[0]?.mutates, false);
+});
+
+test("terminal unlocks, queues and recovers Jarvis speech", () => {
+    const terminal = fs.readFileSync(
+        path.join(
+            __dirname,
+            "..",
+            "gestia-terminal.html"
+        ),
+        "utf8"
+    );
+
+    assert.match(terminal, /window\.unlockJarvisVoice/);
+    assert.match(terminal, /JARVIS_VOICE_QUEUED/);
+    assert.match(terminal, /JARVIS_VOICE_WATCHDOG_RESUME/);
+    assert.match(terminal, /__JARVIS_TTS_ACTIVE_UTTERANCE__/);
 });
 
 test("multifunction tools create marketing and page proposals without write authority", async () => {
@@ -190,6 +231,7 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(brain, /buildJarvisMultifunctionToolCalls/);
     assert.match(brain, /plannerSeedToolCalls\s*=\s*buildJarvisMultifunctionToolCalls/);
+    assert.match(brain, /plannerSeedToolCalls\.length\s*===\s*0/);
 });
 
 test("multifunction descriptor remains approval-bound", () => {
