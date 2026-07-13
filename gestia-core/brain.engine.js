@@ -34,9 +34,10 @@ from "./jarvis/jarvis.memory.js";
 
 import {
 
-  buildJarvisMultifunctionToolCalls
+  buildJarvisMultifunctionToolCalls,
+  isJarvisTechnicalDiagnosticRequest
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.1-20260713";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.2-20260713";
 
 import {
 
@@ -884,6 +885,114 @@ function buildRepoHubGlobalAnalysisPlan(
       vision.confidence || null,
     source:
       "repo_hub_vision_intent"
+  };
+}
+
+function inferTechnicalDiagnosticFiles(
+  objective = "",
+  vision = null
+) {
+  const normalized =
+    normalizeSemanticPlannerText(objective)
+      .toLowerCase();
+
+  const files = [
+    ...(
+      normalized.match(
+        /\b[a-z0-9_-]+\.(?:js|mjs|cjs|html|css|json)\b/g
+      ) || []
+    )
+  ];
+
+  const add = file => {
+    if (file && !files.includes(file)) {
+      files.push(file);
+    }
+  };
+
+  if (/\btecnico\s+b2b\b/.test(normalized)) {
+    add("tecnico-b2b.html");
+    add("app-tecnico-b2b.js");
+  }
+
+  if (/\bcliente(?:\s+html)?\b/.test(normalized)) {
+    add("cliente.html");
+  }
+
+  if (/\b(login|sesion|auth|autentica)/.test(normalized)) {
+    add("app-login.js");
+    add("firebase.js");
+  }
+
+  if (/\b(redireccion|redirige|manda|admin|ceo|terminal)\b/.test(normalized)) {
+    add("firebase.js");
+    add("app-main.js");
+  }
+
+  if (
+    vision?.targetFile &&
+    vision.targetFile !== "repo.hub"
+  ) {
+    add(vision.targetFile);
+  }
+
+  return files.slice(0, 3);
+}
+
+function buildLocalTechnicalInvestigationPlan(
+  objective = "",
+  vision = null
+) {
+  if (!isJarvisTechnicalDiagnosticRequest(objective)) {
+    return null;
+  }
+
+  const cleanObjective =
+    normalizeSemanticPlannerText(objective);
+
+  const files =
+    inferTechnicalDiagnosticFiles(
+      cleanObjective,
+      vision
+    );
+
+  const toolCalls = [
+    buildSemanticToolCall(
+      "repo.search",
+      {
+        query: cleanObjective,
+        maxMatches: 120
+      },
+      "LOCAL_TECHNICAL_INVESTIGATION"
+    )
+  ];
+
+  for (const file of files) {
+    toolCalls.push(
+      buildSemanticToolCall(
+        "repo.read",
+        { file },
+        "LOCAL_TECHNICAL_INVESTIGATION"
+      ),
+      buildSemanticToolCall(
+        "repo.diagnose",
+        { file },
+        "LOCAL_TECHNICAL_INVESTIGATION"
+      )
+    );
+  }
+
+  return {
+    intent: "REPO_INVESTIGATION",
+    objective: cleanObjective || objective,
+    targetFiles: files,
+    toolCalls: toolCalls.slice(0, 8),
+    writeAllowed: false,
+    patchPreviewAllowed: false,
+    renderPatchPreview: false,
+    requiresApprovalForWrite: true,
+    confidence: vision?.confidence || null,
+    source: "local_technical_investigation"
   };
 }
 
@@ -2047,6 +2156,15 @@ export async function runCognitiveReasoning(
             repoHubVisionIntent
           );
 
+    const localTechnicalPlan =
+      plannerHasOperationalToolCalls ||
+      repoHubGlobalPlan
+        ? null
+        : buildLocalTechnicalInvestigationPlan(
+            input,
+            analyzeIntent(input)
+          );
+
     let cloudReasoning =
       null;
 
@@ -2056,7 +2174,7 @@ export async function runCognitiveReasoning(
     ) {
       try {
       cloudReasoning =
-        await invocarArquitectoIA(
+        localTechnicalPlan || await invocarArquitectoIA(
 
         input,
 
@@ -2096,15 +2214,19 @@ export async function runCognitiveReasoning(
       }
     }
 
+    const fallbackCloudToolPlan =
+      repoHubGlobalPlan ||
+      normalizeCloudToolPlan(
+        cloudReasoning,
+        input,
+        semantic
+      );
+
     const cloudToolPlan =
       plannerHasOperationalToolCalls
         ? null
-        : repoHubGlobalPlan ||
-          normalizeCloudToolPlan(
-            cloudReasoning,
-            input,
-            semantic
-          );
+        : localTechnicalPlan ||
+          fallbackCloudToolPlan;
 
     const toolCalls =
       cloudToolPlan?.toolCalls?.length > 0

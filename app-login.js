@@ -57,59 +57,42 @@ onAuthStateChanged(
             const snap =
                 await getDoc(ref);
 
-            let role =
-                "cliente";
+            let profile = {};
 
             if (snap.exists()) {
 
-                role =
-                    snap.data()?.rol ||
-                    "cliente";
+                profile =
+                    snap.data() || {};
             }
+
+            const role = String(
+                profile.rol ||
+                profile.role ||
+                (
+                    user.email?.toLowerCase() ===
+                    "hebertoh-m@hotmail.com"
+                        ? "admin"
+                        : ""
+                )
+            ).toLowerCase().trim();
 
             console.log(
                 "🧠 [LOGIN_ROLE]",
                 role
             );
 
-            if (
-                role === "admin"
-            ) {
-
-                window.location.href =
-                    "admin.html";
-
+            if (!role) {
+                console.warn(
+                    "⚠️ [LOGIN_ROLE_PENDING] Perfil sin rol confirmado"
+                );
                 return;
             }
 
-            if (
-
-                role === "tecnico" ||
-
-                role === "tecnico_gp" ||
-
-                role === "tecnico_interno"
-
-            ) {
-
-                window.location.href =
-                    "tecnico.html";
-
-                return;
-            }
-
-            if (
-                role === "b2b_admin"
-            ) {
-
-                window.location.href =
-                    "panel-b2b-admin.html";
-
-                return;
-            }
-
-            window.location.href =
-                "cliente.html";
+            FirebaseCore.verificarYRedireccionar({
+                ...user,
+                ...profile,
+                rol: role
+            });
 
         }
 

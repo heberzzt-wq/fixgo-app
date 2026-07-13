@@ -192,7 +192,19 @@ if (window.__SIA7_ROUTER_LOCK__) {
 
     if (role === "admin") {
 
-        if (pageClean !== "admin") {
+        const adminSurfaces = [
+            "admin",
+            "ceo",
+            "gestia-terminal",
+            "gestia-modulo",
+            "noc"
+        ];
+
+        const isAdminSurface = adminSurfaces.some(surface =>
+            pageClean.includes(surface)
+        );
+
+        if (!isAdminSurface) {
 
             console.log("🛡️ Admin detectado → Redirigiendo a admin.html");
 
@@ -231,7 +243,7 @@ if (window.__SIA7_ROUTER_LOCK__) {
     // ======================================================
     // Jessica y Administradores de Edificio
     
-    const adminB2BRoles = ["admin_b2b", "asistente_admin"];
+    const adminB2BRoles = ["admin_b2b", "b2b_admin", "asistente_admin"];
 
     if (adminB2BRoles.includes(role)) {
 

@@ -11,7 +11,8 @@ import {
 
 import {
     buildJarvisMultifunctionToolCalls,
-    describeJarvisMultifunctionPlanner
+    describeJarvisMultifunctionPlanner,
+    isJarvisTechnicalDiagnosticRequest
 } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 
 const __dirname =
@@ -334,6 +335,35 @@ test("multifunction planner does not turn explanatory questions into work orders
     );
 });
 
+test("technical diagnostics outrank business keywords without requiring the word repo", () => {
+    const prompts = [
+        "Jarvis, reviza tecnico b2b y cliente html y dime como esta la configuracion y que puede fallar",
+        "Jarvis, investiga por que al iniciar sesion en admin primero me manda a cliente y despues de segundos me manda a admin",
+        "Jarvis, investiga por que cuando estoy en terminal regreso a CEO pero despues de unos segundos se sale a admin",
+        "Jarvis, revisa app-login.js y busca por que redirige al panel equivocado"
+    ];
+
+    for (const prompt of prompts) {
+        assert.equal(
+            isJarvisTechnicalDiagnosticRequest(prompt),
+            true,
+            prompt
+        );
+        assert.deepEqual(
+            buildJarvisMultifunctionToolCalls(prompt),
+            [],
+            `business fallback must not capture: ${prompt}`
+        );
+    }
+
+    assert.deepEqual(
+        buildJarvisMultifunctionToolCalls(
+            "Jarvis, dame un resumen del cliente"
+        ).map(call => call.name),
+        ["business.assist"]
+    );
+});
+
 test("brain seeds natural multifunction requests into the tested planner", () => {
     const brain =
         fs.readFileSync(
@@ -353,6 +383,10 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
     assert.match(brain, /call\.name\s*!==\s*"conversation\.respond"/);
     assert.match(brain, /plannerHasOperationalToolCalls\s*\?\s*null\s*:\s*buildRepoHubGlobalAnalysisPlan/);
     assert.match(brain, /const cloudToolPlan\s*=\s*plannerHasOperationalToolCalls\s*\?\s*null/);
+    assert.match(brain, /buildLocalTechnicalInvestigationPlan/);
+    assert.match(brain, /local_technical_investigation/);
+    assert.match(brain, /patchPreviewAllowed:\s*false/);
+    assert.match(brain, /renderPatchPreview:\s*false/);
 
     const analysisHub = fs.readFileSync(
         path.join(
@@ -367,7 +401,7 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(
         analysisHub,
-        /brain\.engine\.js\?v=mixed-intent-v2-20260713-multifunction-planner-v1\.1/
+        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.2/
     );
 });
 

@@ -1,4 +1,4 @@
-const VERSION = "1.1.0-sia7-multifunction-planner";
+const VERSION = "1.2.0-sia7-multifunction-planner";
 
 function normalize(value = "") {
     return String(value || "")
@@ -23,6 +23,23 @@ function makeCall(name, args = {}, reason = "LOCAL_MULTIFUNCTION_PLANNER") {
     };
 }
 
+export function isJarvisTechnicalDiagnosticRequest(input = "") {
+    const normalized = normalize(input);
+
+    if (!normalized) return false;
+
+    const hasDiagnosticVerb =
+        /\b(analiza|analizar|revisa|revisar|audita|auditar|investiga|investigar|diagnostica|diagnosticar|busca|buscar|verifica|verificar|checa|checar)\b/i.test(normalized);
+
+    if (!hasDiagnosticVerb) return false;
+
+    const hasTechnicalEvidence =
+        /\b(repo|repositorio|codigo|archivo|configuracion|runtime|router|ruta|redireccion|redirige|sesion|login|auth|firebase|firestore|terminal|ceo|admin|html|javascript|css|bug|error|falla|fallar|segundos)\b/i.test(normalized) ||
+        /[a-z0-9_-]+\.(?:js|mjs|cjs|html|css|json)\b/i.test(normalized);
+
+    return hasTechnicalEvidence;
+}
+
 export function buildJarvisMultifunctionToolCalls(
     input = "",
     context = {}
@@ -36,6 +53,9 @@ export function buildJarvisMultifunctionToolCalls(
     if (!normalized) return [];
 
     const calls = [];
+
+    const isTechnicalDiagnostic =
+        isJarvisTechnicalDiagnosticRequest(normalized);
 
     const hasExplicitOperationalRequest =
         /\b(crea|crear|haz|hacer|prepara|preparar|disena|disenar|arma|construye|construir|desarrolla|desarrollar|genera|generar|analiza|analizar|analice|revisa|revisar|revise|extrae|extraer|resume|resumir|planifica|planificar|redacta|redactar|propone|proponer)\b/i.test(normalized);
@@ -146,6 +166,7 @@ export function buildJarvisMultifunctionToolCalls(
     if (
         calls.length === 0 &&
         !isExplanatoryQuestion &&
+        !isTechnicalDiagnostic &&
         /\b(flotilla|tecnico|cliente|inquilino|empresa|reporte operativo|resumen empresarial)\b/i.test(normalized)
     ) {
         calls.push(

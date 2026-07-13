@@ -187,7 +187,7 @@ import {
 import {
     analyzeIntent as analyzeVisionIntent
 } from '/gestia-core/jarvis/jarvis.vision.engine.js?v=typo-normalization-v1-20260713';
-import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-multifunction-planner-v1.1';
+import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.2.1';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4180';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
