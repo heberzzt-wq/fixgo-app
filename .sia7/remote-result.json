@@ -1,13 +1,13 @@
 {
-  "jobId": "sia7-4192-apply-main-title-comma-20260713-38",
-  "completedAt": "2026-07-13T14:09:46.873Z",
+  "jobId": "sia7-4192-dryrun-fallback-title-semicolon-20260713-39",
+  "completedAt": "2026-07-13T14:48:30.911Z",
   "ok": true,
   "operation": "patch",
-  "dryRun": false,
+  "dryRun": true,
   "file": "gestia-terminal.html",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 240057,
-  "bytesAfter": 240046,
+  "bytesBefore": 240046,
+  "bytesAfter": 240035,
   "source": "sia7_github_worker_exact_patch_v1"
 }
