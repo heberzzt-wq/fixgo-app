@@ -157,6 +157,11 @@ test("general semantic intent stays casual and speaks through the terminal", () 
     );
     assert.match(terminal, /canAnswerCasualTerminalLocally/);
     assert.match(terminal, /Una API es un puente con reglas definidas/);
+    assert.match(terminal, /El marketing digital usa canales como redes sociales/);
+    assert.match(terminal, /Una landing es una página enfocada en una sola campaña/);
+    assert.match(terminal, /Responsive significa que una interfaz adapta su distribución/);
+    assert.match(terminal, /Una flotilla es el conjunto de vehículos/);
+    assert.match(terminal, /findLocalTerminalExplanation\(value\)/);
     assert.match(terminal, /await window\.consultarCerebroIA\(comando\)/);
     assert.match(terminal, /await window\.hablarJarvis\?\.\(\s*casualResponse/);
     assert.match(terminal, /window\.showJarvis\?\.\(\s*"Sistema listo"/);
@@ -266,6 +271,69 @@ test("multifunction planner routes natural requests into bounded read-only tools
     );
 });
 
+test("multifunction planner preserves mixed commands with common Spanish typos", () => {
+    const calls =
+        buildJarvisMultifunctionToolCalls(
+            "Jarvis, analisa este PDF y crea una landing responsive"
+        );
+
+    assert.deepEqual(
+        calls.map(call => call.name),
+        [
+            "page.plan",
+            "media.analyze"
+        ]
+    );
+
+    assert.equal(
+        calls.every(call => call.mutates === false),
+        true
+    );
+
+    assert.deepEqual(
+        buildJarvisMultifunctionToolCalls(
+            "Jarvis, reviza el sistema y dime si esta sano"
+        ).map(call => call.name),
+        [
+            "system.health"
+        ]
+    );
+});
+
+test("multifunction planner does not turn explanatory questions into work orders", () => {
+    assert.deepEqual(
+        buildJarvisMultifunctionToolCalls(
+            "Que es marketing digital y para que sirve?"
+        ),
+        []
+    );
+
+    assert.deepEqual(
+        buildJarvisMultifunctionToolCalls(
+            "Explicame que es una flotilla"
+        ),
+        []
+    );
+
+    assert.deepEqual(
+        buildJarvisMultifunctionToolCalls(
+            "Explicame marketing y crea una campana para Instagram"
+        ).map(call => call.name),
+        [
+            "marketing.plan"
+        ]
+    );
+
+    assert.deepEqual(
+        buildJarvisMultifunctionToolCalls(
+            "Explicame marketing y haz una campana para TikTok"
+        ).map(call => call.name),
+        [
+            "marketing.plan"
+        ]
+    );
+});
+
 test("brain seeds natural multifunction requests into the tested planner", () => {
     const brain =
         fs.readFileSync(
@@ -281,6 +349,26 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
     assert.match(brain, /buildJarvisMultifunctionToolCalls/);
     assert.match(brain, /plannerSeedToolCalls\s*=\s*buildJarvisMultifunctionToolCalls/);
     assert.match(brain, /plannerSeedToolCalls\.length\s*===\s*0/);
+    assert.match(brain, /plannerHasOperationalToolCalls/);
+    assert.match(brain, /call\.name\s*!==\s*"conversation\.respond"/);
+    assert.match(brain, /plannerHasOperationalToolCalls\s*\?\s*null\s*:\s*buildRepoHubGlobalAnalysisPlan/);
+    assert.match(brain, /const cloudToolPlan\s*=\s*plannerHasOperationalToolCalls\s*\?\s*null/);
+
+    const analysisHub = fs.readFileSync(
+        path.join(
+            __dirname,
+            "..",
+            "gestia-core",
+            "hubs",
+            "analysis.hub.js"
+        ),
+        "utf8"
+    );
+
+    assert.match(
+        analysisHub,
+        /brain\.engine\.js\?v=mixed-intent-v2-20260713-multifunction-planner-v1\.1/
+    );
 });
 
 test("multifunction descriptor remains approval-bound", () => {

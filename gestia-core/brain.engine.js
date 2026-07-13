@@ -36,7 +36,7 @@ import {
 
   buildJarvisMultifunctionToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1-20260713";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.1-20260713";
 
 import {
 
@@ -2027,17 +2027,25 @@ export async function runCognitiveReasoning(
         input
       );
 
-    const repoHubGlobalPlan =
-      buildRepoHubGlobalAnalysisPlan(
-        input,
-        repoHubVisionIntent
-      );
-
     const plannerSeedToolCalls =
       buildJarvisMultifunctionToolCalls(
         input,
         contexto
       );
+
+    const plannerHasOperationalToolCalls =
+      plannerSeedToolCalls.some(call =>
+        call?.name &&
+        call.name !== "conversation.respond"
+      );
+
+    const repoHubGlobalPlan =
+      plannerHasOperationalToolCalls
+        ? null
+        : buildRepoHubGlobalAnalysisPlan(
+            input,
+            repoHubVisionIntent
+          );
 
     let cloudReasoning =
       null;
@@ -2089,12 +2097,14 @@ export async function runCognitiveReasoning(
     }
 
     const cloudToolPlan =
-      repoHubGlobalPlan ||
-      normalizeCloudToolPlan(
-          cloudReasoning,
-          input,
-          semantic
-        );
+      plannerHasOperationalToolCalls
+        ? null
+        : repoHubGlobalPlan ||
+          normalizeCloudToolPlan(
+            cloudReasoning,
+            input,
+            semantic
+          );
 
     const toolCalls =
       cloudToolPlan?.toolCalls?.length > 0

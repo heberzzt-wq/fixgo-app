@@ -115,7 +115,7 @@ import {
   invocarArquitectoIA
 
 } from
-"./gestia-core/brain.engine.js";
+"./gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-multifunction-planner-v1.1";
 // =====================================================
 // 🧠 FORTRESS KERNEL + AUTOHEAL V7.1
 // =====================================================

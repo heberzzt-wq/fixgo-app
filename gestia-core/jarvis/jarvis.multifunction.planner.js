@@ -1,4 +1,4 @@
-const VERSION = "1.0.0-sia7-multifunction-planner";
+const VERSION = "1.1.0-sia7-multifunction-planner";
 
 function normalize(value = "") {
     return String(value || "")
@@ -6,6 +6,10 @@ function normalize(value = "") {
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/^\s*(jarvis|heberto|gestia)[,\s:;-]*/i, "")
         .toLowerCase()
+        .replace(/\banalisa\b/g, "analiza")
+        .replace(/\banalisar\b/g, "analizar")
+        .replace(/\breviza\b/g, "revisa")
+        .replace(/\brevizar\b/g, "revisar")
         .trim();
 }
 
@@ -32,6 +36,13 @@ export function buildJarvisMultifunctionToolCalls(
     if (!normalized) return [];
 
     const calls = [];
+
+    const hasExplicitOperationalRequest =
+        /\b(crea|crear|haz|hacer|prepara|preparar|disena|disenar|arma|construye|construir|desarrolla|desarrollar|genera|generar|analiza|analizar|analice|revisa|revisar|revise|extrae|extraer|resume|resumir|planifica|planificar|redacta|redactar|propone|proponer)\b/i.test(normalized);
+
+    const isExplanatoryQuestion =
+        /\b(que es|como funciona|explica(?:me)?|define|que significa|para que sirve)\b/i.test(normalized) &&
+        !hasExplicitOperationalRequest;
 
     if (
         /\b(hola|buenos dias|buen dia|buenas tardes|buenas noches|que tal|como estas|tecate|cerveza|cheve|chelita)\b/i.test(normalized)
@@ -94,6 +105,7 @@ export function buildJarvisMultifunctionToolCalls(
     }
 
     if (
+        !isExplanatoryQuestion &&
         /\b(marketing|campana|publicidad|contenido|redes sociales|flyer|reel|tiktok|instagram|facebook|embudo|copies|calendario de contenido)\b/i.test(normalized)
     ) {
         calls.push(
@@ -114,7 +126,7 @@ export function buildJarvisMultifunctionToolCalls(
     }
 
     if (
-        /\b(analiza|revisa|extrae|resume)\b[\s\S]{0,80}\b(pdf|imagen|foto|documento)\b/i.test(normalized)
+        /\b(analiza|analizar|analice|revisa|revisar|revise|extrae|extraer|resume|resumir)\b[\s\S]{0,80}\b(pdf|imagen|foto|documento)\b/i.test(normalized)
     ) {
         calls.push(
             makeCall(
@@ -133,6 +145,7 @@ export function buildJarvisMultifunctionToolCalls(
 
     if (
         calls.length === 0 &&
+        !isExplanatoryQuestion &&
         /\b(flotilla|tecnico|cliente|inquilino|empresa|reporte operativo|resumen empresarial)\b/i.test(normalized)
     ) {
         calls.push(

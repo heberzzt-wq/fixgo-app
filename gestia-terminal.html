@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=mixed-intent-v2-20260713-4260"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=mixed-intent-v2-20260713-4260-multifunction-planner-v1.1.1"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260707-4190"></script>
 <script
 type="module"
@@ -2010,10 +2010,16 @@ const isProtectedTerminalCommand =
         );
     };
 
-const buildCasualTerminalResponse =
+const findLocalTerminalExplanation =
     function(value = "") {
         const normalized =
             normalizeCasualGateText(value);
+
+        if (
+            !/\b(que es|como funciona|explica(?:me)?|define|significa|para que sirve)\b/i.test(normalized)
+        ) {
+            return "";
+        }
 
         const localExplanations = [
             {
@@ -2039,20 +2045,43 @@ const buildCasualTerminalResponse =
             {
                 pattern: /\b(inteligencia artificial|ia)\b/i,
                 response: "La inteligencia artificial permite que un sistema analice información y produzca decisiones o respuestas a partir de patrones y modelos."
+            },
+            {
+                pattern: /\bmarketing(?: digital)?\b/i,
+                response: "El marketing digital usa canales como redes sociales, buscadores, correo y páginas web para atraer personas, comunicar valor y convertir interés en clientes medibles."
+            },
+            {
+                pattern: /\b(landing|pagina de aterrizaje)\b/i,
+                response: "Una landing es una página enfocada en una sola campaña u objetivo, con un mensaje claro y una llamada a la acción como registrarse, pedir información o comprar."
+            },
+            {
+                pattern: /\bresponsive\b/i,
+                response: "Responsive significa que una interfaz adapta su distribución, tamaños y controles para funcionar correctamente en celular, tableta y computadora."
+            },
+            {
+                pattern: /\bflotilla\b/i,
+                response: "Una flotilla es el conjunto de vehículos que una organización administra, incluyendo ubicación, mantenimiento, combustible, operadores y disponibilidad."
             }
         ];
 
-        if (
-            /\b(que es|como funciona|explica(?:me)?|define|significa)\b/i.test(normalized)
-        ) {
-            const localExplanation =
-                localExplanations.find(item =>
-                    item.pattern.test(normalized)
-                );
+        const localExplanation =
+            localExplanations.find(item =>
+                item.pattern.test(normalized)
+            );
 
-            if (localExplanation) {
-                return localExplanation.response;
-            }
+        return localExplanation?.response || "";
+    };
+
+const buildCasualTerminalResponse =
+    function(value = "") {
+        const normalized =
+            normalizeCasualGateText(value);
+
+        const localExplanation =
+            findLocalTerminalExplanation(value);
+
+        if (localExplanation) {
+            return localExplanation;
         }
 
         if (
@@ -2087,7 +2116,10 @@ const canAnswerCasualTerminalLocally =
         const normalized =
             normalizeCasualGateText(value);
 
-        return /\b(hola|buenos dias|buen dia|buenas tardes|buenas noches|gracias|se me antoja|tengo ganas|vamos por|salud|cansad[oa]|me canse)\b/i.test(normalized);
+        return Boolean(
+            findLocalTerminalExplanation(value)
+        ) ||
+            /\b(hola|buenos dias|buen dia|buenas tardes|buenas noches|gracias|se me antoja|tengo ganas|vamos por|salud|cansad[oa]|me canse)\b/i.test(normalized);
     };
 
 const isUsableConversationalCloudResponse =
