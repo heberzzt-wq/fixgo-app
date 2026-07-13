@@ -1,6 +1,32 @@
 {
-  "jobId": "sia7-4192-dryrun-visible-title-20260713-34",
-  "completedAt": "2026-07-13T01:19:54.461Z",
-  "ok": false,
-  "error": "PATCH_MATCH_COUNT_MISMATCH:2:1"
+  "jobId": "sia7-4192-grep-agent-loop-title-20260713-35",
+  "completedAt": "2026-07-13T01:21:20.033Z",
+  "ok": true,
+  "httpStatus": 200,
+  "endpoint": "/grep",
+  "payload": {
+    "ok": true,
+    "term": "Agent Loop SIA7",
+    "totalFilesScanned": 173,
+    "totalMatches": 3,
+    "matches": [
+      {
+        "file": ".sia7/remote-job.json",
+        "line": 1,
+        "snippet": "{\"jobId\":\"sia7-4192-grep-agent-loop-title-20260713-35\",\"operation\":\"bridge\",\"endpoint\":\"/grep\",\"body\":{\"term\":\"Agent Loop SIA7\",\"cwd\":\".\",\"maxMatches\":20}}"
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 4781,
+        "snippet": ": \"Agent Loop SIA7\","
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 4887,
+        "snippet": ": \"Agent Loop SIA7\";"
+      }
+    ],
+    "source": "jarvis_fs_bridge_grep_v1",
+    "version": "2.1.0-local-fs-bridge"
+  }
 }
