@@ -280,7 +280,12 @@
     </div>
 
     <script type="module">
-        import { auth, observarAuth, signOut, doc, setDoc, db, getDoc } from '/firebase.js';
+        import {
+            auth,
+            observarAuth,
+            signOut,
+            verificarYRedireccionar
+        } from '/firebase.js';
 
         const loadingState = document.getElementById('loadingState');
         const guestOptions = document.getElementById('guestOptions');
@@ -296,12 +301,11 @@
             console.log('📱 PWA lista para instalar');
         });
 
-        observarAuth(async (user) => {
+        observarAuth((user) => {
             loadingState.classList.add('hidden');
 
             if (user) {
-                const docSnap = await getDoc(doc(db, "users", user.uid));
-                const userData = docSnap.exists() ? docSnap.data() : user;
+                const userData = user;
 
                 guestOptions.classList.add('hidden');
                 userOptions.classList.remove('hidden');
@@ -310,41 +314,30 @@
                 if(displayName.includes(' ')) displayName = displayName.split(' ')[0];
                 userNameDisplay.textContent = displayName;
 
-                btnDashboard.onclick = async () => {
+                btnDashboard.onclick = () => {
                     const textoOriginal = btnDashboard.innerHTML;
                     btnDashboard.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENTRANDO...';
                     btnDashboard.disabled = true;
 
                     try {
-                        const rol = userData.rol;
-                        console.log("🛡️ GESTIAPREMIUM ROUTER: Acceso para rol ->", rol);
+                        const routeDecision =
+                            verificarYRedireccionar(userData);
 
-                        if (rol === 'tecnico') {
-                            window.location.href = 'tecnico.html';
-                        } 
-                        else if (rol === 'admin' || rol === 'ADMIN') {
-                            window.location.href = 'admin.html';
-                        } 
-                        else if (rol === 'admin_b2b' || rol === 'asistente_admin' || rol === 'seguridad_24_7') {
-                            window.location.href = 'panel-b2b-admin.html';
-                        } 
-                        else if (rol === 'inquilino_b2b') {
-                            window.location.href = 'app-inquilino.html';
-                        }
-                        else if (rol === 'cliente') {
-                            window.location.href = 'cliente.html';
-                        } 
-                        else {
-                            const esTecnico = confirm("⚠️ Rol no definido.\n\n¿Deseas registrarte como TÉCNICO?");
-                            const rolElegido = esTecnico ? 'tecnico' : 'cliente';
-                            await setDoc(doc(db, "users", user.uid), {
-                                uid: user.uid, email: user.email, rol: rolElegido, nombre: user.displayName || "Usuario", estado: "pendiente", fechaRegistro: new Date()
-                            }, { merge: true });
-                            window.location.href = esTecnico ? 'tecnico.html' : 'cliente.html';
+                        console.log(
+                            "[INDEX_ROLE_AUTHORITY_DECISION]",
+                            routeDecision
+                        );
+
+                        if (!routeDecision.redirect) {
+                            throw new Error(
+                                routeDecision.reason === "role_unresolved"
+                                    ? "Tu perfil todavía no tiene un rol confirmado."
+                                    : "Tu rol no tiene una superficie registrada."
+                            );
                         }
                     } catch (error) {
                         console.error("Error de ruteo:", error);
-                        alert("Error de conexión al validar perfil.");
+                        alert(error.message || "Error de conexión al validar perfil.");
                         btnDashboard.innerHTML = textoOriginal;
                         btnDashboard.disabled = false;
                     }

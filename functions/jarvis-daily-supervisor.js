@@ -27,6 +27,11 @@ const DEFAULT_PROBES = Object.freeze([
             "resolveGestiaRouteDecision",
             "[ROLE_AUTHORITY_REDIRECT]",
             "window.location.replace"
+        ],
+        forbiddenMarkers: [
+            "verificarYRedireccionarLegacy",
+            "shouldSkipLegacyRouting",
+            "__SIA7_ROUTER_LOCK__"
         ]
     },
     {
@@ -136,7 +141,12 @@ async function runProbe({
         const missingMarkers = probe.markers.filter(marker =>
             !body.includes(marker)
         );
-        const ok = response.ok && missingMarkers.length === 0;
+        const unexpectedMarkers = (probe.forbiddenMarkers || [])
+            .filter(marker => body.includes(marker));
+        const ok =
+            response.ok &&
+            missingMarkers.length === 0 &&
+            unexpectedMarkers.length === 0;
 
         return {
             id: probe.id,
@@ -145,6 +155,7 @@ async function runProbe({
             httpStatus: response.status,
             latencyMs: Date.now() - startedAt,
             missingMarkers,
+            unexpectedMarkers,
             severity: ok ? "OK" : "HIGH"
         };
     } catch (error) {
@@ -155,6 +166,7 @@ async function runProbe({
             httpStatus: null,
             latencyMs: Date.now() - startedAt,
             missingMarkers: [],
+            unexpectedMarkers: [],
             severity: "HIGH",
             error: sanitizeError(error)
         };
@@ -262,7 +274,7 @@ async function runDailyJarvisSupervision({
     const report = {
         reportId: key,
         traceId,
-        version: "2.0.0-daily-read-only",
+        version: "2.1.0-daily-read-only-contract-regression",
         status: summary.status,
         score: summary.score,
         summary,
@@ -274,6 +286,7 @@ async function runDailyJarvisSupervision({
                 path: check.path,
                 severity: check.severity,
                 missingMarkers: check.missingMarkers,
+                unexpectedMarkers: check.unexpectedMarkers,
                 error: check.error || null
             })),
         failureDomains: actionPlan.failureDomains,

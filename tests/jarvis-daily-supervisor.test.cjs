@@ -80,7 +80,10 @@ test("daily supervisor writes one idempotent read-only report and health heartbe
     });
 
     assert.equal(report.status, "HEALTHY");
-    assert.equal(report.version, "2.0.0-daily-read-only");
+    assert.equal(
+        report.version,
+        "2.1.0-daily-read-only-contract-regression"
+    );
     assert.equal(report.score, 100);
     assert.equal(report.summary.failed, 0);
     assert.equal(report.policy.autoPatch, false);
@@ -122,6 +125,36 @@ test("daily supervisor reports missing contracts without attempting repair", asy
     assert.deepEqual(report.failureDomains, ["jarvis_runtime"]);
     assert.match(report.recommendations[0], /orden real en Terminal/);
     assert.equal(report.policy.humanApprovalRequired, true);
+});
+
+test("daily supervisor rejects a deployed legacy router marker", async () => {
+    const db = createFirestoreMock();
+    const canonicalProbe = DEFAULT_PROBES.find(
+        probe => probe.id === "canonical_role_router"
+    );
+    const body = [
+        ...canonicalProbe.markers,
+        "verificarYRedireccionarLegacy"
+    ].join("\n");
+
+    const report = await runDailyJarvisSupervision({
+        db,
+        admin: adminMock,
+        fetchImpl: async () => ({
+            ok: true,
+            status: 200,
+            text: async () => body
+        }),
+        probes: [canonicalProbe],
+        now: new Date("2026-07-13T09:15:00.000Z")
+    });
+
+    assert.equal(report.status, "CRITICAL");
+    assert.deepEqual(
+        report.findings[0].unexpectedMarkers,
+        ["verificarYRedireccionarLegacy"]
+    );
+    assert.deepEqual(report.failureDomains, ["auth_routing"]);
 });
 
 test("supervision helpers and latest report contract stay deterministic", async () => {

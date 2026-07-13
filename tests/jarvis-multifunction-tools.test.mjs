@@ -680,6 +680,10 @@ test("role authority produces deterministic route decisions for every main role"
         path.join(__dirname, "..", "ceo.html"),
         "utf8"
     );
+    const index = fs.readFileSync(
+        path.join(__dirname, "..", "index.html"),
+        "utf8"
+    );
 
     assert.match(appMain, /resolveGestiaRouteDecision/);
     assert.match(appMain, /APP_MAIN_ROLE_AUTHORITY_REDIRECT/);
@@ -688,8 +692,18 @@ test("role authority produces deterministic route decisions for every main role"
         /return go\(RUTAS\.(?:admin|tecnico|cliente|residencial)\)/
     );
     assert.doesNotMatch(appMain, /const adminSurfaces\s*=/);
+    assert.doesNotMatch(firebase, /verificarYRedireccionarLegacy/);
+    assert.doesNotMatch(firebase, /shouldSkipLegacyRouting/);
+    assert.doesNotMatch(firebase, /__SIA7_ROUTER_LOCK__/);
     assert.match(ceo, /class="gestia-auth-pending"/);
     assert.match(ceo, /verificarYRedireccionar\(userAuth\)/);
+    assert.match(index, /verificarYRedireccionar\(userData\)/);
+    assert.match(index, /INDEX_ROLE_AUTHORITY_DECISION/);
+    assert.doesNotMatch(
+        index,
+        /if \(rol === ['"](?:tecnico|admin|cliente)['"]\)/
+    );
+    assert.doesNotMatch(index, /const rolElegido\s*=/);
 });
 
 test("repo diagnosis separates structural file type from secondary capabilities", () => {
