@@ -539,6 +539,74 @@ test("agent loop follow-up focuses a strong product UI primary candidate", () =>
     );
 });
 
+test("agent loop preserves short B2B qualifiers when ranking repo candidates", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+
+    const followUpPlan =
+        helpers.buildObservationDrivenFollowUpToolCalls({
+            rawInput:
+                "Jarvis, revisa tecnico b2b y dime que configuracion puede fallar, sin modificar nada",
+            toolCalls: [
+                {
+                    name:
+                        "repo.search",
+                    args: {
+                        term:
+                            "tecnico"
+                    }
+                }
+            ],
+            observations: [
+                {
+                    meta: {
+                        tool:
+                            "repo.search"
+                    },
+                    response: {
+                        data: {
+                            tool:
+                                "repo.search",
+                            query:
+                                "tecnico",
+                            results: [
+                                {
+                                    file:
+                                        "tecnico.html",
+                                    module:
+                                        "technician_portal",
+                                    type:
+                                        "html_application",
+                                    score:
+                                        2
+                                },
+                                {
+                                    file:
+                                        "tecnico-b2b.html",
+                                    module:
+                                        "technician_b2b_portal",
+                                    type:
+                                        "html_application",
+                                    score:
+                                        2
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        });
+
+    assert.equal(
+        followUpPlan.candidates[0].file,
+        "tecnico-b2b.html"
+    );
+    assert.ok(
+        followUpPlan.candidates[0].directScore >
+        followUpPlan.candidates[1].directScore
+    );
+});
+
 test("agent loop learning hints are advisory and do not authorize writes", () => {
     const events =
         [];

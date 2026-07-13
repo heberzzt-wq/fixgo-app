@@ -666,6 +666,21 @@ function scoreCandidateWithLearningHints(
     return score;
 }
 
+const SHORT_OBJECTIVE_QUALIFIER_TERMS =
+    new Set([
+        "api",
+        "b2b",
+        "ceo",
+        "gps",
+        "ios",
+        "noc",
+        "pwa",
+        "qr",
+        "saas",
+        "ui",
+        "ux"
+    ]);
+
 function extractObjectiveTerms(objective = "") {
     const normalized =
         normalizeObservationText(
@@ -674,12 +689,16 @@ function extractObjectiveTerms(objective = "") {
 
     return [
         ...new Set(
-            normalized.match(/[a-z0-9_./-]{5,}/g) ||
+            normalized.match(/[a-z0-9_./-]{2,}/g) ||
             []
         )
     ]
         .filter(term =>
-            !["jarvis", "heberto", "gestia"].includes(term)
+            !["jarvis", "heberto", "gestia"].includes(term) &&
+            (
+                term.length >= 5 ||
+                SHORT_OBJECTIVE_QUALIFIER_TERMS.has(term)
+            )
         )
         .slice(0, 12);
 }
