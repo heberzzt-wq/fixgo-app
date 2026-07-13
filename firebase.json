@@ -19,6 +19,9 @@
       "ignore": [
         "firebase.json",
         "**/.*",
+        ".git/**",
+        ".github/**",
+        ".sia7/**",
         "**/node_modules/**",
         "node_modules/**",
         "functions/**",
