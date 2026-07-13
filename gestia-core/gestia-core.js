@@ -3670,13 +3670,21 @@ export const GestiaCore = {
         const normalizedLightInput =
             normalizeObservationText(inputRaw);
 
+        const hasExplicitOperationalRequest =
+            /\b(crea|crear|genera|generar|construye|construir|modifica|modificar|actualiza|actualizar|repara|reparar|implementa|implementar|ejecuta|ejecutar|despliega|desplegar|anali[sz](?:a|ar|e)?|revi[sz](?:a|ar|e)?|busca|buscar|escanea|escanear|elimina|eliminar|escribe|aprobar|aprueba)\b/i.test(
+                normalizedLightInput
+            );
+
+        const isExplicitCasualSocialRequest =
+            /\b(hola|buenos dias|buen dia|buenas tardes|buenas noches|gracias|se me antoja|tengo ganas|vamos por|salud|cansad[oa]|me canse)\b/i.test(
+                normalizedLightInput
+            );
+
         const isConversationalQuestion =
             /\b(que es|quien es|como funciona|explica(?:me)?|dime|cuenta(?:me)?|define|significa)\b/i.test(
                 normalizedLightInput
             ) &&
-            !/\b(crea|crear|genera|generar|construye|construir|modifica|modificar|actualiza|actualizar|repara|reparar|implementa|implementar|ejecuta|ejecutar|despliega|desplegar|analiza|analizar|revisa|revisar|busca|buscar|escanea|escanear|elimina|eliminar|escribe|aprobar|aprueba)\b/i.test(
-                normalizedLightInput
-            );
+            !hasExplicitOperationalRequest;
 
         const semanticConceptNames =
             Array.isArray(semantic.concepts)
@@ -3724,7 +3732,13 @@ export const GestiaCore = {
                 vision.tags.includes("repo_analysis")
             );
 
-        if (isConversationalQuestion) {
+        if (
+            isConversationalQuestion ||
+            (
+                isExplicitCasualSocialRequest &&
+                !hasExplicitOperationalRequest
+            )
+        ) {
             return {
                 mode: "CASUAL_NOOP",
                 confidence: 0.9,
@@ -3733,7 +3747,9 @@ export const GestiaCore = {
                 useRepoTools: false,
                 renderCard: false,
                 prepareCommand: false,
-                reason: "conversational_question_without_operational_verb"
+                reason: isConversationalQuestion
+                    ? "conversational_question_without_operational_verb"
+                    : "explicit_social_request_without_operational_verb"
             };
         }
 
@@ -3763,6 +3779,7 @@ export const GestiaCore = {
 
         if (
             !hasActiveTechnicalFlow &&
+            !hasExplicitOperationalRequest &&
             !semanticHasOperationalConcept &&
             !visionHasOperationalIntent
         ) {

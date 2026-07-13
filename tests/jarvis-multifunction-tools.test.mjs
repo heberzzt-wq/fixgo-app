@@ -135,7 +135,11 @@ test("general semantic intent stays casual and speaks through the terminal", () 
     assert.match(core, /semantic\.primaryConcept\s*\|\|\s*semantic\.concept/);
     assert.match(core, /semanticPrimaryConcept\s*!==\s*"GENERAL"/);
     assert.match(core, /isConversationalQuestion/);
+    assert.match(core, /hasExplicitOperationalRequest/);
+    assert.match(core, /anali\[sz\]/);
+    assert.match(core, /isExplicitCasualSocialRequest/);
     assert.match(core, /conversational_question_without_operational_verb/);
+    assert.match(core, /explicit_social_request_without_operational_verb/);
     assert.ok(
         core.indexOf("if (isConversationalQuestion)") <
             core.indexOf("state?.hasPatchPreview &&"),
