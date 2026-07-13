@@ -1,9 +1,9 @@
 {
-  "jobId": "sia7-4192-dryrun-fallback-title-semicolon-20260713-39",
-  "completedAt": "2026-07-13T14:48:30.911Z",
+  "jobId": "sia7-4192-apply-fallback-title-semicolon-20260713-40",
+  "completedAt": "2026-07-13T14:54:37.868Z",
   "ok": true,
   "operation": "patch",
-  "dryRun": true,
+  "dryRun": false,
   "file": "gestia-terminal.html",
   "matchCount": 1,
   "expectedMatches": 1,
