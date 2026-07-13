@@ -136,6 +136,11 @@ test("general semantic intent stays casual and speaks through the terminal", () 
     assert.match(core, /semanticPrimaryConcept\s*!==\s*"GENERAL"/);
     assert.match(core, /isConversationalQuestion/);
     assert.match(core, /conversational_question_without_operational_verb/);
+    assert.ok(
+        core.indexOf("if (isConversationalQuestion)") <
+            core.indexOf("state?.hasPatchPreview &&"),
+        "a new explanatory question must outrank stale patch state"
+    );
     assert.match(terminal, /canAnswerCasualTerminalLocally/);
     assert.match(terminal, /await window\.consultarCerebroIA\(comando\)/);
     assert.match(terminal, /await window\.hablarJarvis\?\.\(\s*casualResponse/);

@@ -3724,6 +3724,19 @@ export const GestiaCore = {
                 vision.tags.includes("repo_analysis")
             );
 
+        if (isConversationalQuestion) {
+            return {
+                mode: "CASUAL_NOOP",
+                confidence: 0.9,
+                objective: "",
+                useAgentLoop: false,
+                useRepoTools: false,
+                renderCard: false,
+                prepareCommand: false,
+                reason: "conversational_question_without_operational_verb"
+            };
+        }
+
         if (
             state?.hasPatchPreview &&
             !visionTargetsRepoHubAnalysis &&
@@ -3745,22 +3758,6 @@ export const GestiaCore = {
                 approvalRequiredForWrite: true,
                 useLastPatchPreview: true,
                 reason: "semantic_patch_preview_follow_up_with_active_candidate"
-            };
-        }
-
-        if (
-            !hasActiveTechnicalFlow &&
-            isConversationalQuestion
-        ) {
-            return {
-                mode: "CASUAL_NOOP",
-                confidence: 0.9,
-                objective: "",
-                useAgentLoop: false,
-                useRepoTools: false,
-                renderCard: false,
-                prepareCommand: false,
-                reason: "conversational_question_without_operational_verb"
             };
         }
 
