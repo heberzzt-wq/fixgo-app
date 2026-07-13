@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=mixed-intent-v2-20260713-4260-technical-diagnostics-v1-multifunction-planner-v1.4-capability-forensics-v2"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=mixed-intent-v2-20260713-4260-technical-diagnostics-v1-multifunction-planner-v1.4-forensic-output-v3"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260707-4190"></script>
 <script
 type="module"
@@ -1420,6 +1420,82 @@ function parseDirectArgs(raw) {
     return args;
 }
 
+function formatTerminalToolPayload(toolName = "", payload = {}) {
+    const name = String(toolName || "");
+
+    if (name === "system.health") {
+        return [
+            `Estado: ${payload?.status || "UNKNOWN"}`,
+            `Bridge: ${payload?.runtime?.bridgeStatus || payload?.bridge?.status || "UNKNOWN"}`,
+            `Herramientas: ${payload?.runtime?.registeredTools ?? "ND"}`,
+            `Conectividad: ${payload?.environment?.online === false ? "OFFLINE" : "ONLINE"}`,
+            payload?.failures?.length
+                ? `Fallas: ${payload.failures.join(", ")}`
+                : "Fallas: ninguna"
+        ].join("\n");
+    }
+
+    if (name === "system.forensics") {
+        const capabilities = Array.isArray(payload?.capabilities)
+            ? payload.capabilities
+            : [];
+
+        return [
+            `Preparacion real: ${payload?.readinessScore ?? "ND"}/100`,
+            `Paridad Codex: ${payload?.parity?.canClaimParity === true ? "SI" : "NO"}`,
+            `Listas: ${payload?.summary?.READY ?? capabilities.filter(item => item?.status === "READY").length}`,
+            `Parciales: ${payload?.summary?.PARTIAL ?? capabilities.filter(item => item?.status === "PARTIAL").length}`,
+            `No disponibles: ${payload?.summary?.NOT_AVAILABLE ?? capabilities.filter(item => item?.status === "NOT_AVAILABLE").length}`,
+            "",
+            "Capacidades:",
+            ...capabilities.map(item => `- ${item.id}: ${item.status}`),
+            ...(payload?.priorities?.length
+                ? [
+                    "",
+                    "Siguientes mejoras:",
+                    ...payload.priorities.map(item => `- ${item}`)
+                ]
+                : [])
+        ].join("\n");
+    }
+
+    if (name === "tests.run") {
+        const stdout = String(payload?.result?.stdout || payload?.stdout || "");
+        const passed = stdout.match(/(?:ℹ|#)\s*pass\s+(\d+)/i)?.[1] || "ND";
+        const failed = stdout.match(/(?:ℹ|#)\s*fail\s+(\d+)/i)?.[1] || "ND";
+
+        return [
+            `Pruebas: ${payload?.status || (payload?.ok ? "PASSED" : "FAILED")}`,
+            `Comando: ${payload?.npmCommand || payload?.command || payload?.result?.command || "ND"}`,
+            `Aprobadas: ${passed}`,
+            `Fallidas: ${failed}`,
+            `Duracion: ${payload?.result?.durationMs ?? payload?.durationMs ?? "ND"} ms`
+        ].join("\n");
+    }
+
+    if (name === "repo.gitStatus") {
+        return [
+            `Estado Git: ${payload?.status || "UNKNOWN"}`,
+            `Rama: ${payload?.branchLine || "ND"}`,
+            `Archivos modificados: ${payload?.changedFiles?.length || 0}`,
+            ...(payload?.changedFiles || []).slice(0, 10).map(file => `- ${file}`)
+        ].join("\n");
+    }
+
+    if (typeof payload === "string") return payload;
+
+    const serialized = JSON.stringify(payload, null, 2);
+
+    if (serialized.length <= 12000) return serialized;
+
+    const boundary = serialized.lastIndexOf("\n", 11800);
+
+    return [
+        serialized.slice(0, boundary > 0 ? boundary : 11800),
+        "... salida recortada; solicita un diagnostico focal para ver mas detalle."
+    ].join("\n");
+}
+
 if (/^repo\.write\s+/i.test(directToolInput)) {
     const writeArg =
         directToolInput.replace(/^repo\.write\s+/i, "").trim();
@@ -1518,9 +1594,7 @@ if (/^repo\.write\s+/i.test(directToolInput)) {
 
     window.renderJarvisResponse?.(
         "[DIRECT_TOOL_ROUTER] repo.write",
-        typeof writePayload === "string"
-            ? writePayload
-            : JSON.stringify(writePayload, null, 2).slice(0, 20000),
+        formatTerminalToolPayload("repo.write", writePayload),
         writeResult?.ok === false ? "warning" : "success"
     );
 
@@ -1851,9 +1925,7 @@ if (directToolMatch) {
 
         window.renderJarvisResponse?.(
             `[DIRECT_TOOL_ROUTER] ${directTool.name}`,
-            typeof directPayload === "string"
-                ? directPayload
-                : JSON.stringify(directPayload, null, 2).slice(0, 20000),
+            formatTerminalToolPayload(directTool.name, directPayload),
             directResult?.ok === false ? "warning" : "success"
         );
 
@@ -4260,6 +4332,20 @@ if (
                             );
                         }
 
+                        if (
+                            [
+                                "system.health",
+                                "system.forensics",
+                                "tests.run",
+                                "repo.gitStatus"
+                            ].includes(toolName)
+                        ) {
+                            return formatTerminalToolPayload(
+                                toolName,
+                                repoData
+                            );
+                        }
+
                         return [
                             toolName,
                             JSON.stringify(repoData, null, 2).slice(0, 700)
@@ -4290,7 +4376,15 @@ if (
                         getObservationToolName(item, index) === "conversation.respond"
                     ) || null;
 
-                if (conversationObservation) {
+                const hasOperationalObservation =
+                    agentObservations.some((item, index) =>
+                        getObservationToolName(item, index) !== "conversation.respond"
+                    );
+
+                if (
+                    conversationObservation &&
+                    !hasOperationalObservation
+                ) {
                     const conversationData =
                         getObservationRepoData(conversationObservation);
                     const conversationText =
@@ -5023,17 +5117,30 @@ if (
                                 .join(", ")
                         }`,
                         "",
-                        ...agentObservations
-                            .map((item, index) =>
-                                [
-                                    `Paso ${index + 1}`,
-                                    summarizeObservation(item, index)
+                        ...(
+                            finalResponse?.text
+                                ? [
+                                    "Evidencia ejecutada:",
+                                    ...agentObservations
+                                        .map((item, index) =>
+                                            `- ${getObservationToolName(item, index)}`
+                                        )
+                                        .filter((name, index, items) =>
+                                            items.indexOf(name) === index
+                                        )
                                 ]
-                                    .join("\n")
-                            )
+                                : agentObservations
+                                    .map((item, index) =>
+                                        [
+                                            `Paso ${index + 1}`,
+                                            summarizeObservation(item, index)
+                                        ]
+                                            .join("\n")
+                                    )
+                        )
                     ]
                         .join("\n\n")
-                        .slice(0, 8000);
+                        .slice(0, 12000);
 
                 window.renderJarvisResponse?.(
                     visualPatchProposal

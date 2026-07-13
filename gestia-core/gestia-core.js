@@ -3238,7 +3238,27 @@ function composeObservationDrivenFinalResponse({
             ];
 
     const learningHintLines =
-        (learningHints?.lessons || [])
+        [
+            ...new Map(
+                (learningHints?.lessons || [])
+                    .map(item => {
+                        const diagnosis =
+                            item?.lesson?.diagnosis ||
+                            item?.category ||
+                            item?.reason ||
+                            "learning_hint";
+
+                        const avoid =
+                            item?.lesson?.avoid ||
+                            "";
+
+                        return [
+                            `${String(diagnosis).trim().toLowerCase()}::${String(avoid).trim().toLowerCase()}`,
+                            item
+                        ];
+                    })
+            ).values()
+        ]
             .slice(0, 3)
             .map(item =>
                 [
@@ -4317,7 +4337,10 @@ if (
                     inputRaw,
                 candidates:
                     followUpPlan.candidates,
-                followUpObservations,
+                followUpObservations: [
+                    ...toolObservations,
+                    ...followUpObservations
+                ],
                 primaryConfidence:
                     followUpPlan.primaryConfidence,
                 learningHints:

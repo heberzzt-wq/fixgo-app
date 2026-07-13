@@ -194,8 +194,11 @@ test("terminal direct router exposes every registered multifunction namespace", 
     );
     assert.match(
         terminal,
-        /slice\(0, 20000\)/
+        /formatTerminalToolPayload/
     );
+    assert.match(terminal, /Preparacion real:/);
+    assert.match(terminal, /Aprobadas:/);
+    assert.match(terminal, /Estado Git:/);
 });
 
 test("browser runtime fails closed on bridge identity and avoids dead cloud planner", () => {
@@ -446,6 +449,34 @@ test("multifunction planner preserves mixed commands with common Spanish typos",
             "system.health"
         ]
     );
+});
+
+test("terminal preserves operational tools when a mixed command also contains a greeting", () => {
+    const terminal = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-terminal.html"),
+        "utf8"
+    );
+
+    assert.match(terminal, /const hasOperationalObservation\s*=/);
+    assert.match(
+        terminal,
+        /conversationObservation\s*&&\s*!hasOperationalObservation/
+    );
+    assert.match(terminal, /Evidencia ejecutada:/);
+    assert.doesNotMatch(terminal, /\.slice\(0, 8000\)/);
+});
+
+test("technical final response correlates initial and follow-up observations", () => {
+    const core = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-core", "gestia-core.js"),
+        "utf8"
+    );
+
+    assert.match(
+        core,
+        /followUpObservations:\s*\[\s*\.\.\.toolObservations,\s*\.\.\.followUpObservations\s*\]/
+    );
+    assert.match(core, /new Map\([\s\S]{0,700}learningHints\?\.lessons/);
 });
 
 test("multifunction planner exposes the daily supervision report", () => {
