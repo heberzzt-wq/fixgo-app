@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="gestia-auth-pending">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,6 +12,11 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://js.stripe.com/v3/"></script>
     <style>
+        html.gestia-auth-pending body > :not(#fortressLoader) {
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
         body { background-color: #000000; font-family: 'Inter', sans-serif; }
         .uber-card { background-color: #121212; border: 1px solid rgba(255,255,255,0.1); }
         .service-card { transition: all 0.3s ease; cursor: pointer; }

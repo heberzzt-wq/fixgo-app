@@ -530,6 +530,34 @@ test("runtime role authority never invents a temporary client role", () => {
     );
 });
 
+test("private surfaces stay covered until authentication and role settle", () => {
+    const appMain = fs.readFileSync(
+        path.join(__dirname, "..", "app-main.js"),
+        "utf8"
+    );
+
+    assert.match(appMain, /function isCurrentSurfacePublic\(\)/);
+    assert.match(appMain, /classList\s*\.add\("gestia-auth-pending"\)/);
+    assert.match(appMain, /classList\s*\.remove\("gestia-auth-pending"\)/);
+    assert.match(
+        appMain,
+        /if \(isCurrentSurfacePublic\(\)\) \{[\s\S]{0,160}revealUI\(\);[\s\S]{0,120}else \{[\s\S]{0,120}VALIDANDO PERFIL/
+    );
+
+    for (const file of ["admin.html", "cliente.html", "tecnico.html"]) {
+        const surface = fs.readFileSync(
+            path.join(__dirname, "..", file),
+            "utf8"
+        );
+
+        assert.match(surface, /<html[^>]+class="gestia-auth-pending"/);
+        assert.match(
+            surface,
+            /html\.gestia-auth-pending body > :not\(#fortressLoader\)/
+        );
+    }
+});
+
 test("repo diagnosis separates structural file type from secondary capabilities", () => {
     const toolsRuntime = fs.readFileSync(
         path.join(__dirname, "..", "gestia-core", "tools.runtime.js"),

@@ -163,6 +163,20 @@ const RUTAS = {
   cliente: "cliente.html",
   residencial: "residencial.html"
 };
+
+function isCurrentSurfacePublic() {
+  const pathname =
+    window.location.pathname;
+
+  const currentFile =
+    pathname.substring(
+      pathname.lastIndexOf("/") + 1
+    ) || "/";
+
+  return RUTAS.publicas.includes(
+    currentFile
+  );
+}
 /* =====================================================
    🧠 SIA7 SURFACE REGISTRATION
 ===================================================== */
@@ -318,6 +332,10 @@ function revealUI() {
 
   if (!document.body) return;
 
+  document.documentElement
+    .classList
+    .remove("gestia-auth-pending");
+
   document.body.style.visibility =
     "visible";
 
@@ -332,14 +350,9 @@ function hideUI() {
 
   if (!document.body) return;
 
-  document.body.style.visibility =
-    "hidden";
-
-  document.body.style.opacity =
-    "0";
-
-  document.body.style.pointerEvents =
-    "none";
+  document.documentElement
+    .classList
+    .add("gestia-auth-pending");
 
 }
 function go(url) {
@@ -665,16 +678,25 @@ window.addEventListener(
 
       if (!document.body) return;
 
-      const hidden =
+      const pending =
+        document.documentElement
+          .classList
+          .contains("gestia-auth-pending");
 
-        document.body.style.visibility ===
-        "hidden";
-
-      if (hidden) {
+      if (
+        pending &&
+        isCurrentSurfacePublic()
+      ) {
 
         revealUI();
 
         hideLoader();
+      }
+
+      else if (pending) {
+        showLoader(
+          "VALIDANDO SESIÃ“N Y ROL..."
+        );
       }
 
     }, 5000);
@@ -753,20 +775,14 @@ if (fortressBoot) {
 
     fortressBoot.remove();
 }
-if (
-    typeof hideLoader ===
-    "function"
-) {
-
-    hideLoader();
+if (isCurrentSurfacePublic()) {
+  hideLoader();
+  revealUI();
 }
-
-if (
-    typeof revealUI ===
-    "function"
-) {
-
-    revealUI();
+else {
+  showLoader(
+    "VALIDANDO PERFIL..."
+  );
 }
 
 /* ==========================================
