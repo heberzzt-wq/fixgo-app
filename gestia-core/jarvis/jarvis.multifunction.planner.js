@@ -1,4 +1,4 @@
-const VERSION = "1.3.0-sia7-multifunction-planner";
+const VERSION = "1.4.0-sia7-capability-forensics";
 
 function normalize(value = "") {
     return String(value || "")
@@ -64,6 +64,23 @@ export function buildJarvisMultifunctionToolCalls(
         /\b(que es|como funciona|explica(?:me)?|define|que significa|para que sirve)\b/i.test(normalized) &&
         !hasExplicitOperationalRequest;
 
+    const isCapabilityForensicsRequest =
+        /\b(analisis forense|auditoria forense|capacidades reales|limitaciones|paridad|nivel codex|a tu altura|que te falta|actuadores)\b/i.test(normalized) ||
+        (
+            /\b(puedes|sabes|tienes|controla|controlar|busca|buscar|genera|generar|envia|enviar|delega|delegar|automatiza|automatizar)\b/i.test(normalized) &&
+            /\b(chrome|navegador|internet|web|fuentes|imagen|imagenes|correo|email|calendario|subagentes|agentes|automatizacion|conectores)\b/i.test(normalized)
+        );
+
+    if (isCapabilityForensicsRequest) {
+        calls.push(
+            makeCall(
+                "system.forensics",
+                {},
+                "LOCAL_MULTIFUNCTION_CAPABILITY_FORENSICS"
+            )
+        );
+    }
+
     if (
         /\b(hola|buenos dias|buen dia|buenas tardes|buenas noches|que tal|como estas|tecate|cerveza|cheve|chelita)\b/i.test(normalized)
     ) {
@@ -79,6 +96,7 @@ export function buildJarvisMultifunctionToolCalls(
     }
 
     if (
+        !isCapabilityForensicsRequest &&
         /\b(que puedes hacer|capacidades|herramientas disponibles|lista de herramientas|multifuncional)\b/i.test(normalized)
     ) {
         calls.push(

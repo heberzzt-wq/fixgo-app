@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v1.1-supervision-20260713";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v1.2-capability-forensics-20260713";
 
 export const JarvisToolRuntime = {
     _registry: new Map(),
@@ -1230,7 +1230,7 @@ JarvisToolRuntime.register({
         mutates:
         true,
     requiresApproval:
-        false,
+        true,
     output:
         "REPO_WRITE_RESULT",
     execute:
@@ -1238,11 +1238,9 @@ JarvisToolRuntime.register({
                         const isDryRun =
                 args?.dryRun === true ||
                 String(args?.dryRun).toLowerCase() === "true";
-                        if (
+            if (
                 isDryRun !== true &&
-                context?.approved !== true &&
-                args?.approved !== true &&
-                args?.codexApproved !== true
+                context?.approved !== true
             ) {
                 return {
                     ok:

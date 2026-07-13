@@ -16,7 +16,211 @@ import {
     describeMediaIngestion
 } from "./jarvis.media.ingestion.js";
 
-const VERSION = "1.1.0-sia7-multifunction-tools";
+const VERSION = "1.2.0-sia7-capability-forensics";
+
+const CAPABILITY_WEIGHTS = {
+    READY: 1,
+    PARTIAL: 0.5,
+    NOT_AVAILABLE: 0
+};
+
+function toolNames(runtime) {
+    return new Set(
+        (runtime.list?.() || [])
+            .map(tool => String(tool?.name || ""))
+            .filter(Boolean)
+    );
+}
+
+function hasEvery(tools, required = []) {
+    return required.every(name => tools.has(name));
+}
+
+function hasNamespace(tools, namespaces = []) {
+    return [...tools].some(name =>
+        namespaces.some(namespace =>
+            name === namespace || name.startsWith(`${namespace}.`)
+        )
+    );
+}
+
+async function buildCapabilityForensics(runtime) {
+    const tools = toolNames(runtime);
+    const bridge =
+        typeof globalThis?.JarvisLocalBridge?.verifyIdentity === "function"
+            ? await globalThis.JarvisLocalBridge.verifyIdentity({ force: true })
+            : {
+                ok: false,
+                status: "BRIDGE_CLIENT_UNAVAILABLE"
+            };
+
+    const speechAvailable =
+        typeof globalThis?.speechSynthesis !== "undefined" ||
+        typeof globalThis?.window?.speechSynthesis !== "undefined";
+
+    const capabilities = [
+        {
+            id: "repo_engineering",
+            status:
+                bridge.ok === true && hasEvery(tools, [
+                    "repo.read",
+                    "repo.grep",
+                    "repo.diagnose",
+                    "repo.write"
+                ])
+                    ? "READY"
+                    : "NOT_AVAILABLE",
+            evidence: {
+                bridge: bridge.status || "UNKNOWN",
+                requiredTools: ["repo.read", "repo.grep", "repo.diagnose", "repo.write"]
+            }
+        },
+        {
+            id: "tests_and_git",
+            status:
+                bridge.ok === true && hasEvery(tools, ["tests.run", "repo.gitStatus"])
+                    ? "READY"
+                    : "NOT_AVAILABLE",
+            evidence: {
+                bridge: bridge.status || "UNKNOWN",
+                requiredTools: ["tests.run", "repo.gitStatus"]
+            }
+        },
+        {
+            id: "conversation_and_voice",
+            status:
+                tools.has("conversation.respond") && speechAvailable
+                    ? "READY"
+                    : tools.has("conversation.respond")
+                        ? "PARTIAL"
+                        : "NOT_AVAILABLE",
+            evidence: {
+                conversationTool: tools.has("conversation.respond"),
+                speechSynthesis: speechAvailable
+            }
+        },
+        {
+            id: "business_and_marketing",
+            status:
+                hasEvery(tools, ["business.assist", "marketing.plan", "page.plan"])
+                    ? "READY"
+                    : hasNamespace(tools, ["business", "marketing", "page"])
+                        ? "PARTIAL"
+                        : "NOT_AVAILABLE",
+            evidence: {
+                requiredTools: ["business.assist", "marketing.plan", "page.plan"]
+            }
+        },
+        {
+            id: "media_and_documents",
+            status: tools.has("media.analyze") ? "PARTIAL" : "NOT_AVAILABLE",
+            evidence: {
+                extractedContentAnalysis: tools.has("media.analyze"),
+                nativeDocumentEditing: false
+            }
+        },
+        {
+            id: "daily_supervision",
+            status: tools.has("system.supervision") ? "PARTIAL" : "NOT_AVAILABLE",
+            evidence: {
+                statusTool: tools.has("system.supervision"),
+                schedulerRequiresExternalInfrastructure: true
+            }
+        },
+        {
+            id: "browser_control",
+            status: hasNamespace(tools, ["browser", "chrome"]) ? "READY" : "NOT_AVAILABLE",
+            evidence: {
+                actuatorRegistered: hasNamespace(tools, ["browser", "chrome"])
+            }
+        },
+        {
+            id: "web_research",
+            status: hasNamespace(tools, ["web", "search"]) ? "READY" : "NOT_AVAILABLE",
+            evidence: {
+                actuatorRegistered: hasNamespace(tools, ["web", "search"])
+            }
+        },
+        {
+            id: "image_generation",
+            status: hasNamespace(tools, ["image", "imagegen"]) ? "READY" : "NOT_AVAILABLE",
+            evidence: {
+                actuatorRegistered: hasNamespace(tools, ["image", "imagegen"])
+            }
+        },
+        {
+            id: "connectors_and_multi_agent",
+            status:
+                hasNamespace(tools, ["connector", "agent", "mail", "calendar"])
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            evidence: {
+                connectorsRegistered: hasNamespace(tools, ["connector", "mail", "calendar"]),
+                agentDelegationRegistered: hasNamespace(tools, ["agent"])
+            }
+        }
+    ];
+
+    const achieved = capabilities.reduce(
+        (sum, capability) => sum + CAPABILITY_WEIGHTS[capability.status],
+        0
+    );
+    const readinessScore = Math.round((achieved / capabilities.length) * 100);
+    const gaps = capabilities
+        .filter(capability => capability.status !== "READY")
+        .map(capability => ({
+            id: capability.id,
+            status: capability.status
+        }));
+    const statusCounts = capabilities.reduce((counts, capability) => {
+        counts[capability.status] += 1;
+        return counts;
+    }, {
+        READY: 0,
+        PARTIAL: 0,
+        NOT_AVAILABLE: 0
+    });
+    const gapIds = new Set(gaps.map(gap => gap.id));
+    const priorityByCapability = {
+        media_and_documents: "Conectar edicion documental nativa.",
+        daily_supervision: "Completar la infraestructura externa del scheduler diario.",
+        browser_control: "Conectar un actuador de navegador verificable.",
+        web_research: "Conectar investigacion web con fuentes y citas.",
+        image_generation: "Conectar generacion y edicion de imagenes.",
+        connectors_and_multi_agent: "Conectar integraciones externas y delegacion multiagente.",
+        repo_engineering: "Restaurar bridge y herramientas de ingenieria del repo.",
+        tests_and_git: "Restaurar ejecucion de pruebas y diagnostico Git.",
+        conversation_and_voice: "Restaurar conversacion y salida de voz.",
+        business_and_marketing: "Restaurar motores de negocio, marketing y paginas."
+    };
+
+    return {
+        ok: true,
+        engine: "jarvis_capability_forensics",
+        version: VERSION,
+        readinessScore,
+        summary: {
+            total: capabilities.length,
+            ...statusCounts
+        },
+        parity: {
+            target: "CODEX_ASSISTANT",
+            canClaimParity: gaps.length === 0,
+            policy: "EVIDENCE_ONLY"
+        },
+        capabilities,
+        gaps,
+        priorities: Object.entries(priorityByCapability)
+            .filter(([id]) => gapIds.has(id))
+            .map(([, priority]) => priority),
+        runtime: {
+            registeredTools: tools.size,
+            bridge
+        },
+        readOnly: true,
+        checkedAt: new Date().toISOString()
+    };
+}
 
 const LOCAL_SUPERVISION_PROBES = [
     {
@@ -283,6 +487,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                         return acc;
                     }, {});
 
+                const forensics =
+                    await buildCapabilityForensics(runtime);
+
                 return {
                     ok: true,
                     engine: "jarvis_multifunction_tools",
@@ -290,12 +497,24 @@ export function registerJarvisMultifunctionTools(runtime) {
                     totalTools: tools.length,
                     groups,
                     tools,
+                    readiness: {
+                        score: forensics.readinessScore,
+                        parity: forensics.parity,
+                        gaps: forensics.gaps
+                    },
                     policy: {
                         readOnlyByDefault: true,
                         mutatingToolsRequireApproval: true
                     }
                 };
             }
+        }),
+        register(runtime, {
+            name: "system.forensics",
+            description: "Audita capacidades operativas reales, actuadores, evidencia, brechas y paridad sin exagerar funciones.",
+            output: "SIA7_CAPABILITY_FORENSICS",
+            execute: async () =>
+                await buildCapabilityForensics(runtime)
         }),
         register(runtime, {
             name: "system.health",
@@ -496,6 +715,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         tools: [
             "conversation.respond",
             "system.capabilities",
+            "system.forensics",
             "system.health",
             "system.supervision",
             "business.assist",

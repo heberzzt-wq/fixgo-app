@@ -50,7 +50,7 @@ function createRuntime() {
     };
 }
 
-test("multifunction pack registers eight read-only tools", () => {
+test("multifunction pack registers nine read-only tools", () => {
     const runtime =
         createRuntime();
 
@@ -61,6 +61,7 @@ test("multifunction pack registers eight read-only tools", () => {
     assert.deepEqual(result.tools, [
         "conversation.respond",
         "system.capabilities",
+        "system.forensics",
         "system.health",
         "system.supervision",
         "business.assist",
@@ -73,6 +74,45 @@ test("multifunction pack registers eight read-only tools", () => {
         runtime.list().every(tool => tool.mutates === false),
         true
     );
+});
+
+test("capability forensics reports evidence-backed gaps without claiming Codex parity", async () => {
+    const previousBridge = globalThis.JarvisLocalBridge;
+    globalThis.JarvisLocalBridge = {
+        verifyIdentity: async () => ({
+            ok: true,
+            status: "BRIDGE_IDENTITY_OK",
+            bridgeRoot: "C:/repo"
+        })
+    };
+
+    try {
+        const runtime = createRuntime();
+        registerJarvisMultifunctionTools(runtime);
+
+        const result = await runtime.execute("system.forensics");
+
+        assert.equal(result.ok, true);
+        assert.equal(result.parity.canClaimParity, false);
+        assert.equal(result.parity.policy, "EVIDENCE_ONLY");
+        assert.ok(result.readinessScore >= 0 && result.readinessScore <= 100);
+        assert.equal(
+            result.capabilities.find(item => item.id === "browser_control")?.status,
+            "NOT_AVAILABLE"
+        );
+        assert.equal(
+            result.capabilities.find(item => item.id === "web_research")?.status,
+            "NOT_AVAILABLE"
+        );
+        assert.ok(result.gaps.some(item => item.id === "image_generation"));
+
+        const capabilities = await runtime.execute("system.capabilities");
+        assert.equal(capabilities.readiness.parity.canClaimParity, false);
+        assert.ok(Array.isArray(capabilities.readiness.gaps));
+    }
+    finally {
+        globalThis.JarvisLocalBridge = previousBridge;
+    }
 });
 
 test("Jarvis answers casual greetings locally when cloud cognition is unavailable", async () => {
@@ -194,6 +234,14 @@ test("browser runtime fails closed on bridge identity and avoids dead cloud plan
     assert.match(
         brain,
         /TOOL_PLANNER_ENABLED:\s*false/
+    );
+    assert.match(
+        toolsRuntime,
+        /name:\s*\n\s*"repo\.write"[\s\S]{0,260}requiresApproval:\s*\n\s*true/
+    );
+    assert.doesNotMatch(
+        toolsRuntime,
+        /isDryRun !== true &&[\s\S]{0,140}args\?\.approved/
     );
 });
 
@@ -409,6 +457,22 @@ test("multifunction planner exposes the daily supervision report", () => {
     );
 });
 
+test("multifunction planner routes capability boundary questions to forensics", () => {
+    const prompts = [
+        "Jarvis, corre un analisis forense de tus capacidades reales",
+        "Jarvis, que te falta para estar a nivel Codex",
+        "Puedes controlar Chrome, buscar internet, generar imagenes y delegar subagentes?"
+    ];
+
+    for (const prompt of prompts) {
+        assert.deepEqual(
+            buildJarvisMultifunctionToolCalls(prompt).map(call => call.name),
+            ["system.forensics"],
+            prompt
+        );
+    }
+});
+
 test("multifunction planner does not turn explanatory questions into work orders", () => {
     assert.deepEqual(
         buildJarvisMultifunctionToolCalls(
@@ -509,7 +573,7 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(
         analysisHub,
-        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.3-supervision-v1-forensic-identity-v1/
+        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.4-capability-forensics-v2/
     );
 });
 

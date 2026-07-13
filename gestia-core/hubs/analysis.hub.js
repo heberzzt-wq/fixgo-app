@@ -58,7 +58,7 @@ export {
 
 }
 
-from "../brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.3-supervision-v1-forensic-identity-v1";
+from "../brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.4-capability-forensics-v2";
 
 /* =====================================================
    SCANNER FABRIC
