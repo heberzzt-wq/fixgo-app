@@ -581,64 +581,9 @@ if (existing) {
 outputElement.scrollTop = outputElement.scrollHeight;
 };
 
-    window.renderJarvisResponse = function(title, message, type = "info") {
-    const output = document.getElementById("gestia-output");
-    if (!output) return;
-
-    // 🔥 SIA7: Filtro Blindado (No importa si viene como objeto o como texto)
-    let isAudit = false;
-    let auditData = "";
-
-    // Si 'message' ya es un objeto, lo usamos directo. Si es texto, intentamos parsearlo.
-    const data = (typeof message === 'object') ? message : (function() {
-        try { return JSON.parse(message); } catch(e) { return message; }
-    })();
-
-    if (data && data.isReadOnly) {
-        isAudit = true;
-        auditData = data.analysis || "Sin detalles.";
-    }
-
-    const displayMessage = isAudit ? 
-        `🕵️ Auditoría completada: ${auditData} Todo se ve en orden. No encontré inconsistencias. ¿Deseas realizar algún ajuste o procedemos con el flujo?` : 
-        (typeof message === 'object' ? JSON.stringify(message, null, 2) : message);
-        
-    const finalType = isAudit ? "success" : type;
-
-    const colors = {
-        info: "border-slate-700",
-        success: "border-emerald-500",
-        warning: "border-yellow-500",
-        error: "border-red-500"
-    };
-
-    const icon = {
-        info: "fa-circle-info",
-        success: "fa-circle-check",
-        warning: "fa-triangle-exclamation",
-        error: "fa-circle-xmark"
-    };
-
-    const html = `
-        <div id="ledger-ui-block" class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
-            <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border ${colors[finalType] || colors.info}">
-                <i class="fa-solid ${icon[finalType] || icon.info} text-white text-sm"></i>
-            </div>
-            <div class="bg-gestia-panel border ${colors[finalType] || colors.info} p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
-                <h3 class="font-semibold text-white mb-2 text-sm uppercase tracking-wider">${isAudit ? 'ANÁLISIS DE SISTEMA' : title}</h3>
-                <p class="text-slate-300 text-sm whitespace-pre-line font-mono">${displayMessage}</p>
-            </div>
-        </div>
-    `;
-
-    const existing = document.getElementById("ledger-ui-block");
-    if (existing) {
-        existing.outerHTML = html;
-    } else {
-        output.insertAdjacentHTML("beforeend", html);
-    }
-    output.scrollTop = output.scrollHeight;
-};
+    // El renderer premium se instala una sola vez al completar el bootstrap.
+    // Los módulos cargados durante el parseo son diferidos, por lo que no se
+    // necesita una segunda implementación global con semántica distinta.
     // 3. EL ADAPTADOR GLOBAL (Orquestador con Control de Idempotencia Total)
     window.renderResponse = (payload, alreadyNormalized = false) => {
         if (!payload) return;
@@ -4904,10 +4849,18 @@ if (
                         .join("\n\n")
                         .slice(0, 12000);
 
-                window.renderJarvisResponse?.(
+                const multiToolTitle =
                     visualPatchProposal
                         ? "Propuesta visual SIA7"
-                        : "SIA7",
+                        : finalResponse?.title ||
+                            (
+                                isRepoGlobalAnalysis
+                                    ? "Análisis del repositorio"
+                                    : "Resultado de Jarvis"
+                            );
+
+                window.renderJarvisResponse?.(
+                    multiToolTitle,
                     visualPatchProposal ||
                         multiToolSummary,
                     coreResult?.status === "FAILED"
@@ -5587,6 +5540,7 @@ const summary =
             return sanitizer.innerHTML;
         };
 
+        const safeTitle = escapeHTML(String(title || "Jarvis"));
         const safeMessage = escapeHTML(String(message)).split("\n").join("<br>");
 
         const responseHtml = `
@@ -5595,7 +5549,7 @@ const summary =
                     <i class="fa-solid ${current.icon} text-white text-sm"></i>
                 </div>
                 <div class="bg-gestia-panel border ${current.border} p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
-                    <h3 class="font-semibold text-white mb-3 text-lg">${title}</h3>
+                    <h3 class="font-semibold text-white mb-3 text-lg">${safeTitle}</h3>
                     <div class="text-slate-300 text-sm leading-relaxed font-mono">
                         ${safeMessage}
                     </div>

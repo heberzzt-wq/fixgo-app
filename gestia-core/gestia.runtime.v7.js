@@ -13,7 +13,8 @@ console.log(
 ========================================================= */
 
 import {
-    resolveGestiaRole
+    resolveGestiaRole,
+    resolveGestiaRouteDecision
 }
 from "./auth/role-authority.js?v=role-authority-v3-single-navigation-20260713";
 
@@ -1685,79 +1686,20 @@ console.log(
 );
 
 /* =========================================================
-   SURFACE REGISTRY
+   PUBLIC SURFACES
+
+   Las rutas privadas pertenecen exclusivamente a
+   role-authority.js. Mantener otra tabla por rol aqui fue la
+   causa de redirecciones tardias y decisiones contradictorias.
 ========================================================= */
 
-window.GestiaRuntime.routes = {
-
-    admin: {
-
-        home:
-            "/admin.html",
-
-        allowed: [
-
-            "/admin.html",
-
-            "/gestia-terminal.html",
-
-            "/noc.html",
-
-            "/ceo.html"
-        ]
-    },
-
-    tecnico: {
-
-        home:
-            "/tecnico.html",
-
-        allowed: [
-
-            "/tecnico.html",
-
-            "/tecnico-b2b.html"
-        ]
-    },
-
-    cliente: {
-
-        home:
-            "/cliente.html",
-
-        allowed: [
-
-            "/cliente.html",
-
-            "/cliente-b2b.html"
-        ]
-    },
-
-    b2b_admin: {
-
-        home:
-            "/panel-b2b-admin.html",
-
-        allowed: [
-
-            "/panel-b2b-admin.html"
-        ]
-    },
-
-    public: {
-
-        allowed: [
-
-            "/",
-
-            "/index.html",
-
-            "/login.html",
-
-            "/registro.html"
-        ]
-    }
-};
+const GESTIA_PUBLIC_SURFACES =
+    Object.freeze([
+        "/",
+        "/index.html",
+        "/login.html",
+        "/registro.html"
+    ]);
 
 /* =========================================================
    CURRENT SURFACE
@@ -1776,69 +1718,52 @@ window.GestiaRuntime.getCurrentSurface =
 window.GestiaRuntime.isPublicSurface =
     function(pathname) {
 
-        return window
-
-            .GestiaRuntime
-
-            .routes
-
-            .public
-
-            .allowed
-
+        return GESTIA_PUBLIC_SURFACES
             .includes(pathname);
     };
 
 /* =========================================================
-   ROLE ROUTE RESOLUTION
+   CANONICAL ROLE ROUTE DECISION
 ========================================================= */
 
-window.GestiaRuntime.resolveHomeRoute =
-    function(role) {
+window.GestiaRuntime.resolveCanonicalRouteDecision =
+    function(pathname = window.location.pathname) {
 
-        const registry =
+        const metadata =
+            window.GestiaRuntime.getState(
+                "user.metadata"
+            ) || {};
 
-            window
-                .GestiaRuntime
-                .routes
-                [role];
+        const role =
+            window.GestiaRuntime.getState(
+                "user.role"
+            );
 
-        if (!registry) {
+        const roleReal =
+            window.GestiaRuntime.getState(
+                "user.roleReal"
+            );
 
-            return null;
-        }
-
-        return registry.home;
-    };
-
-/* =========================================================
-   ACCESS VALIDATION
-========================================================= */
-
-window.GestiaRuntime.validateSurfaceAccess =
-    function(
-
-        role,
-
-        pathname
-
-    ) {
-
-        const registry =
-
-            window
-                .GestiaRuntime
-                .routes
-                [role];
-
-        if (!registry) {
-
-            return false;
-        }
-
-        return registry.allowed.includes(
-            pathname
-        );
+        return resolveGestiaRouteDecision({
+            user: {
+                email:
+                    window.GestiaRuntime.getState(
+                        "user.email"
+                    ),
+                role,
+                rol: role
+            },
+            metadata: {
+                ...metadata,
+                role,
+                rol: role,
+                roleReal,
+                rol_real: roleReal
+            },
+            pathname,
+            search:
+                window.location.search
+        });
     };
 
 /* =========================================================
@@ -2086,83 +2011,33 @@ window.GestiaRuntime.guardSurface =
             }
 
             /* =============================================
-               LOGIN SURFACE
+               CANONICAL ACCESS DECISION
+
+               El Runtime observa la misma decision que
+               firebase.js, app-main.js y app-login.js. No
+               mantiene homes ni listas privadas paralelas.
             ============================================= */
 
-            if (
-
-                authenticated &&
-
-                (
-                    pathname === "/login.html" ||
-
-                    pathname === "/registro.html"
-                )
-
-            ) {
-
-                const home =
-
-                    window
-                        .GestiaRuntime
-                        .resolveHomeRoute(
-                            role
-                        );
-
-                await window
-
-                    .GestiaRuntime
-
-                    .redirect(
-
-                        home,
-
-                        "session_active"
-                    );
-
-                return;
-            }
-
-            /* =============================================
-               ACCESS VALIDATION
-            ============================================= */
-
-            const allowed =
-
-                window
-                    .GestiaRuntime
-                    .validateSurfaceAccess(
-
-                        role,
-
+            const routeDecision =
+                window.GestiaRuntime
+                    .resolveCanonicalRouteDecision(
                         pathname
                     );
 
             if (
-
-                !allowed &&
-
-                !isPublic
-
+                routeDecision.redirect &&
+                routeDecision.target
             ) {
-
-                const home =
-
-                    window
-                        .GestiaRuntime
-                        .resolveHomeRoute(
-                            role
-                        );
+                const target =
+                    routeDecision.target.startsWith("/")
+                        ? routeDecision.target
+                        : `/${routeDecision.target}`;
 
                 await window
-
                     .GestiaRuntime
-
                     .redirect(
-
-                        home,
-
-                        "surface_protection"
+                        target,
+                        routeDecision.reason
                     );
 
                 return;
@@ -2194,7 +2069,10 @@ window.GestiaRuntime.guardSurface =
 
                     role,
 
-                    pathname
+                    pathname,
+
+                    authorityReason:
+                        routeDecision.reason
                 }
             );
 

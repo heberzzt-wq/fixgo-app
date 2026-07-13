@@ -44,6 +44,20 @@ const DEFAULT_PROBES = Object.freeze([
         ]
     },
     {
+        id: "runtime_role_router",
+        path: "/gestia-core/gestia.runtime.v7.js",
+        markers: [
+            "resolveGestiaRouteDecision",
+            "resolveCanonicalRouteDecision",
+            "routeDecision.reason"
+        ],
+        forbiddenMarkers: [
+            "GestiaRuntime.routes =",
+            "resolveHomeRoute",
+            "validateSurfaceAccess"
+        ]
+    },
+    {
         id: "private_surface_gate",
         path: "/cliente.html",
         markers: [
@@ -85,6 +99,18 @@ const DEFAULT_PROBES = Object.freeze([
             "Diagnóstico técnico",
             "Que puede fallar:",
             "Estado: analisis read-only"
+        ]
+    },
+    {
+        id: "terminal_response_renderer",
+        path: "/gestia-terminal.html",
+        markers: [
+            "const multiToolTitle",
+            "finalResponse?.title",
+            "const safeTitle"
+        ],
+        forbiddenMarkers: [
+            "window.renderJarvisResponse = function"
         ]
     },
     {
@@ -208,11 +234,13 @@ const SUPERVISION_DOMAIN_BY_PROBE = Object.freeze({
     login_central_router: "auth_routing",
     canonical_role_router: "auth_routing",
     role_authority_contract: "auth_routing",
+    runtime_role_router: "auth_routing",
     private_surface_gate: "auth_routing",
     semantic_diagnostics_contract: "repo_diagnostics",
     technical_intent_priority: "jarvis_cognition",
     technical_read_only_plan: "jarvis_cognition",
     technical_response_clarity: "jarvis_cognition",
+    terminal_response_renderer: "jarvis_cognition",
     runtime_health_module: "runtime_health"
 });
 

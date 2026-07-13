@@ -528,7 +528,12 @@ test("runtime role authority never invents a temporary client role", () => {
     );
     assert.match(runtime, /\[AUTH_ROLE_UNRESOLVED\]/);
     assert.match(runtime, /\[SURFACE_GUARD_ROLE_PENDING\]/);
-    assert.match(runtime, /if \(!registry\) \{[\s\S]{0,80}return null;/);
+    assert.match(runtime, /resolveGestiaRouteDecision/);
+    assert.match(runtime, /resolveCanonicalRouteDecision/);
+    assert.match(runtime, /routeDecision\.reason/);
+    assert.doesNotMatch(runtime, /GestiaRuntime\.routes\s*=/);
+    assert.doesNotMatch(runtime, /resolveHomeRoute/);
+    assert.doesNotMatch(runtime, /validateSurfaceAccess/);
     assert.doesNotMatch(
         runtime,
         /let role\s*=\s*"cliente";[\s\S]{0,80}let roleReal\s*=\s*"cliente";/
@@ -704,6 +709,23 @@ test("role authority produces deterministic route decisions for every main role"
         /if \(rol === ['"](?:tecnico|admin|cliente)['"]\)/
     );
     assert.doesNotMatch(index, /const rolElegido\s*=/);
+});
+
+test("Terminal uses one premium response renderer and preserves semantic titles", () => {
+    const terminal = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-terminal.html"),
+        "utf8"
+    );
+
+    assert.equal(
+        (terminal.match(/window\.renderJarvisResponse\s*=(?!=)/g) || []).length,
+        1
+    );
+    assert.match(terminal, /const multiToolTitle\s*=/);
+    assert.match(terminal, /finalResponse\?\.title/);
+    assert.match(terminal, /const safeTitle\s*=\s*escapeHTML/);
+    assert.match(terminal, /\$\{safeTitle\}<\/h3>/);
+    assert.doesNotMatch(terminal, /window\.renderJarvisResponse = function/);
 });
 
 test("repo diagnosis separates structural file type from secondary capabilities", () => {
