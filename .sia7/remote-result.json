@@ -1,19 +1,6 @@
 {
-  "jobId": "sia7-recover-valid-queue-20260712-33",
-  "completedAt": "2026-07-13T00:41:21.326Z",
-  "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/health",
-  "payload": {
-    "ok": true,
-    "version": "2.1.0-local-fs-bridge",
-    "policy": {
-      "authority": "full_repo_private_owner",
-      "safeZone": "advisory",
-      "rootContainment": true,
-      "emptyWrites": "blocked",
-      "failureMode": "closed"
-    },
-    "root": "C:\\Users\\heber\\Desktop\\play-store-Gestia\\fixgo-app-main"
-  }
+  "jobId": "sia7-4192-dryrun-visible-title-20260713-34",
+  "completedAt": "2026-07-13T01:19:54.461Z",
+  "ok": false,
+  "error": "PATCH_MATCH_COUNT_MISMATCH:2:1"
 }
