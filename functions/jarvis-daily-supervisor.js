@@ -182,6 +182,53 @@ function summarizeChecks(checks = []) {
     };
 }
 
+const SUPERVISION_DOMAIN_BY_PROBE = Object.freeze({
+    terminal_runtime: "jarvis_runtime",
+    login_central_router: "auth_routing",
+    canonical_role_router: "auth_routing",
+    role_authority_contract: "auth_routing",
+    private_surface_gate: "auth_routing",
+    semantic_diagnostics_contract: "repo_diagnostics",
+    technical_intent_priority: "jarvis_cognition",
+    technical_read_only_plan: "jarvis_cognition",
+    runtime_health_module: "runtime_health"
+});
+
+function buildSupervisionRecommendations(checks = []) {
+    const failedDomains = new Set(
+        checks
+            .filter(check => !check.ok)
+            .map(check => SUPERVISION_DOMAIN_BY_PROBE[check.id] || "unknown")
+    );
+
+    const recommendations = [];
+
+    if (failedDomains.has("auth_routing")) {
+        recommendations.push("Revisar role-authority, app-login y firebase.js antes de validar redirecciones por rol.");
+    }
+
+    if (failedDomains.has("jarvis_runtime") || failedDomains.has("jarvis_cognition")) {
+        recommendations.push("Probar una orden real en Terminal y confirmar router, respuesta final y consola sin errores.");
+    }
+
+    if (failedDomains.has("repo_diagnostics")) {
+        recommendations.push("Ejecutar diagnostico read-only con evidencia por archivo y lineas antes de preparar un patch.");
+    }
+
+    if (failedDomains.has("runtime_health")) {
+        recommendations.push("Revisar runtime-health y latencia de modulos antes de declarar el sistema estable.");
+    }
+
+    if (failedDomains.has("unknown")) {
+        recommendations.push("Revisar el probe fallido y su contrato desplegado antes de intentar una reparacion.");
+    }
+
+    return {
+        failureDomains: [...failedDomains],
+        recommendations
+    };
+}
+
 async function runDailyJarvisSupervision({
     db,
     admin,
@@ -211,6 +258,7 @@ async function runDailyJarvisSupervision({
     );
 
     const summary = summarizeChecks(checks);
+    const actionPlan = buildSupervisionRecommendations(checks);
     const report = {
         reportId: key,
         traceId,
@@ -228,6 +276,8 @@ async function runDailyJarvisSupervision({
                 missingMarkers: check.missingMarkers,
                 error: check.error || null
             })),
+        failureDomains: actionPlan.failureDomains,
+        recommendations: actionPlan.recommendations,
         policy: {
             readOnlyAudit: true,
             autoPatch: false,
@@ -248,7 +298,7 @@ async function runDailyJarvisSupervision({
         .doc(key)
         .set({
             jarvis_supervision_runs:
-                admin.firestore.FieldValue.increment(1),
+                1,
             jarvis_supervision_last_status: summary.status,
             jarvis_supervision_last_score: summary.score,
             jarvis_supervision_last_trace: traceId,
@@ -285,6 +335,7 @@ module.exports = {
     DEFAULT_PROBES,
     dateKey,
     summarizeChecks,
+    buildSupervisionRecommendations,
     runDailyJarvisSupervision,
     getLatestJarvisSupervisionReport
 };

@@ -224,18 +224,22 @@ async function buildCapabilityForensics(runtime) {
 
 const LOCAL_SUPERVISION_PROBES = [
     {
+        id: "login_central_router",
         path: "/app-login.js",
         markers: ["FirebaseCore.verificarYRedireccionar"]
     },
     {
+        id: "canonical_role_router",
         path: "/firebase.js",
         markers: ["gestia-terminal", "b2b_admin"]
     },
     {
+        id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: ["isJarvisTechnicalDiagnosticRequest", "system.supervision"]
     },
     {
+        id: "runtime_health_module",
         path: "/runtime-health.js",
         markers: ["runtimeLatency", "getRuntimeHealthSnapshot"]
     }
@@ -255,6 +259,7 @@ async function runLocalDailySupervision() {
             );
 
             checks.push({
+                id: probe.id,
                 path: probe.path,
                 ok: response.ok && missingMarkers.length === 0,
                 httpStatus: response.status,
@@ -262,6 +267,7 @@ async function runLocalDailySupervision() {
             });
         } catch (error) {
             checks.push({
+                id: probe.id,
                 path: probe.path,
                 ok: false,
                 httpStatus: null,
@@ -273,6 +279,25 @@ async function runLocalDailySupervision() {
 
     const failed = checks.filter(check => !check.ok);
     const score = Math.max(0, 100 - (failed.length * 25));
+    const authRoutingFailed = failed.some(check =>
+        ["login_central_router", "canonical_role_router"].includes(check.id)
+    );
+    const failureDomains = [
+        ...(authRoutingFailed ? ["auth_routing"] : []),
+        ...(failed.some(check => check.id === "technical_intent_priority") ? ["jarvis_cognition"] : []),
+        ...(failed.some(check => check.id === "runtime_health_module") ? ["runtime_health"] : [])
+    ];
+    const recommendations = [
+        ...(authRoutingFailed
+            ? ["Revisar role-authority, app-login y firebase.js antes de validar redirecciones por rol."]
+            : []),
+        ...(failureDomains.includes("jarvis_cognition")
+            ? ["Probar una orden real en Terminal y confirmar router, respuesta final y consola sin errores."]
+            : []),
+        ...(failureDomains.includes("runtime_health")
+            ? ["Revisar runtime-health y latencia de modulos antes de declarar el sistema estable."]
+            : [])
+    ];
 
     return {
         ok: true,
@@ -284,6 +309,8 @@ async function runLocalDailySupervision() {
             failed: failed.length
         },
         findings: failed,
+        failureDomains,
+        recommendations,
         checks,
         checkedAt: new Date().toISOString(),
         source: "JARVIS_LOCAL_SUPERVISION_FALLBACK",
@@ -345,7 +372,7 @@ async function fetchDailySupervisionStatus() {
             ...localStatus,
             cloudReportAvailable: false,
             cloudError: error?.message || String(error),
-            message: "Supervisión local completada; el scheduler cloud está pendiente de habilitar facturación/App Engine."
+            message: "Supervisión local completada; el reporte cloud no estuvo disponible. Revisa cloudError para conocer la causa."
         };
     }
 }

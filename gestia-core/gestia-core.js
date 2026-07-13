@@ -189,7 +189,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.vision.engine.js?v=typo-normalization-v2-read-only-negation-20260713';
 import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.4-global-forensics-v3-ranked';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-semantic-diagnostics-v4-forensic-lines';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-semantic-diagnostics-v5-supervision-actions';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
 

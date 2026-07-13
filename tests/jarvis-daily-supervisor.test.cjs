@@ -7,6 +7,7 @@ const {
     DEFAULT_PROBES,
     dateKey,
     summarizeChecks,
+    buildSupervisionRecommendations,
     runDailyJarvisSupervision,
     getLatestJarvisSupervisionReport
 } = require("../functions/jarvis-daily-supervisor");
@@ -84,6 +85,8 @@ test("daily supervisor writes one idempotent read-only report and health heartbe
     assert.equal(report.summary.failed, 0);
     assert.equal(report.policy.autoPatch, false);
     assert.equal(report.policy.codeWrite, false);
+    assert.deepEqual(report.failureDomains, []);
+    assert.deepEqual(report.recommendations, []);
     assert.equal(db.writes.length, 2);
     assert.deepEqual(
         db.writes.map(write => `${write.name}/${write.id}`),
@@ -91,6 +94,11 @@ test("daily supervisor writes one idempotent read-only report and health heartbe
             "jarvis_supervision_reports/2026-07-13",
             "gestia_system_health/2026-07-13"
         ]
+    );
+    assert.equal(
+        db.writes.find(write => write.name === "gestia_system_health")
+            .data.jarvis_supervision_runs,
+        1
     );
 });
 
@@ -111,6 +119,8 @@ test("daily supervisor reports missing contracts without attempting repair", asy
     assert.equal(report.status, "CRITICAL");
     assert.equal(report.summary.failed, 1);
     assert.equal(report.findings.length, 1);
+    assert.deepEqual(report.failureDomains, ["jarvis_runtime"]);
+    assert.match(report.recommendations[0], /orden real en Terminal/);
     assert.equal(report.policy.humanApprovalRequired, true);
 });
 
@@ -130,6 +140,14 @@ test("supervision helpers and latest report contract stay deterministic", async 
     assert.ok(DEFAULT_PROBES.some(probe => probe.id === "role_authority_contract"));
     assert.ok(DEFAULT_PROBES.some(probe => probe.id === "private_surface_gate"));
     assert.ok(DEFAULT_PROBES.some(probe => probe.id === "semantic_diagnostics_contract"));
+
+    assert.deepEqual(
+        buildSupervisionRecommendations([
+            { id: "login_central_router", ok: false },
+            { id: "runtime_health_module", ok: false }
+        ]).failureDomains,
+        ["auth_routing", "runtime_health"]
+    );
 
     const latest = await getLatestJarvisSupervisionReport({
         db: createFirestoreMock()
@@ -160,6 +178,7 @@ test("functions and client registry expose the supervisor safely", () => {
     assert.match(functionsIndex, /schedule\("15 4 \* \* \*"\)/);
     assert.match(functionsIndex, /timeZone\("America\/Cancun"\)/);
     assert.match(functionsIndex, /exports\.jarvisSupervisionStatus/);
+    assert.match(functionsIndex, /recommendations: report\.recommendations/);
     assert.match(registry, /"jarvis_supervision_reports"/);
     assert.doesNotMatch(firestoreEngine, /collection\(db, "tickets"\)/);
     assert.match(firestoreEngine, /collection\(db, "support_tickets"\)/);

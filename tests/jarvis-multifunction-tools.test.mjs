@@ -830,5 +830,5 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /semantic-diagnostics-v4-forensic-lines/);
+    assert.match(core, /semantic-diagnostics-v5-supervision-actions/);
 });

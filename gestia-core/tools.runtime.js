@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v1.2-capability-forensics-20260713";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v1.3-supervision-actions-20260713";
 
 export const JarvisToolRuntime = {
     _registry: new Map(),
