@@ -2010,6 +2010,12 @@ const buildCasualTerminalResponse =
             normalizeCasualGateText(value);
 
         if (
+            /\b(tecate|cerveza|cheve|chelita)\b/i.test(normalized)
+        ) {
+            return "¡Buenos días, pariente! Una Tecate bien fría suena buena; nomás con calma si vas a manejar. ¿Qué armamos hoy?";
+        }
+
+        if (
             /\b(se\s+me\s+antoja|tengo\s+ganas|vamos\s+por|salud)\b/i.test(normalized)
         ) {
             return "Buenas, arquitecto. Jajaja suena a buen plan; aqui sigo al pendiente cuando quieras seguirle.";
@@ -2021,7 +2027,32 @@ const buildCasualTerminalResponse =
             return "Te entiendo, arquitecto. Tomate un respiro; aqui me quedo listo para seguir cuando digas.";
         }
 
+        if (
+            /\b(hola|buenos dias|buen dia|buenas tardes|buenas noches)\b/i.test(normalized)
+        ) {
+            return "¡Buenos días, pariente! Jarvis está activo y listo. ¿Qué armamos hoy?";
+        }
+
         return "Buenas, arquitecto. Aqui sigo al pendiente.";
+    };
+
+const canAnswerCasualTerminalLocally =
+    function(value = "") {
+        const normalized =
+            normalizeCasualGateText(value);
+
+        return /\b(hola|buenos dias|buen dia|buenas tardes|buenas noches|gracias|se me antoja|tengo ganas|vamos por|salud|cansad[oa]|me canse)\b/i.test(normalized);
+    };
+
+const isUsableConversationalCloudResponse =
+    function(value = "") {
+        const text =
+            String(value || "").trim();
+
+        return Boolean(text) &&
+            !/^(Fallo de rafaga|Conexion interrumpida|Tiempo de respuesta excedido|El bunker no respondio|Rafaga recibida|Nucleo en silencio)/i.test(
+                normalizeCasualGateText(text)
+            );
     };
 
 const LAST_PATCH_PREVIEW_STORAGE_KEY =
@@ -3113,10 +3144,34 @@ if (
                     terminalBrainRoute.confidence || 0.8
             });
 
+            let casualResponse =
+                buildCasualTerminalResponse(comando);
+
+            if (
+                !canAnswerCasualTerminalLocally(comando) &&
+                typeof window.consultarCerebroIA === "function"
+            ) {
+                const cloudCasualResponse =
+                    await window.consultarCerebroIA(comando);
+
+                if (
+                    isUsableConversationalCloudResponse(
+                        cloudCasualResponse
+                    )
+                ) {
+                    casualResponse =
+                        cloudCasualResponse;
+                }
+            }
+
             window.renderJarvisResponse?.(
                 "Jarvis",
-                buildCasualTerminalResponse(comando),
+                casualResponse,
                 "info"
+            );
+
+            await window.hablarJarvis?.(
+                casualResponse
             );
 
             handled =

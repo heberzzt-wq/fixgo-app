@@ -3638,10 +3638,16 @@ export const GestiaCore = {
             ) ||
             {};
 
+        const semanticPrimaryConcept =
+            semantic.primaryConcept ||
+            semantic.concept ||
+            semantic.concepts?.[0]?.concept ||
+            "GENERAL";
+
         const semanticHasOperationalConcept =
             Array.isArray(semantic.concepts) &&
             semantic.concepts.length > 0 &&
-            semantic.primaryConcept !== "GENERAL";
+            semanticPrimaryConcept !== "GENERAL";
 
         const visionHasOperationalIntent =
             Boolean(

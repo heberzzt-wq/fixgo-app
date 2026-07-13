@@ -113,6 +113,32 @@ test("terminal unlocks, queues and recovers Jarvis speech", () => {
     assert.match(terminal, /__JARVIS_TTS_ACTIVE_UTTERANCE__/);
 });
 
+test("general semantic intent stays casual and speaks through the terminal", () => {
+    const core = fs.readFileSync(
+        path.join(
+            __dirname,
+            "..",
+            "gestia-core",
+            "gestia-core.js"
+        ),
+        "utf8"
+    );
+    const terminal = fs.readFileSync(
+        path.join(
+            __dirname,
+            "..",
+            "gestia-terminal.html"
+        ),
+        "utf8"
+    );
+
+    assert.match(core, /semantic\.primaryConcept\s*\|\|\s*semantic\.concept/);
+    assert.match(core, /semanticPrimaryConcept\s*!==\s*"GENERAL"/);
+    assert.match(terminal, /canAnswerCasualTerminalLocally/);
+    assert.match(terminal, /await window\.consultarCerebroIA\(comando\)/);
+    assert.match(terminal, /await window\.hablarJarvis\?\.\(\s*casualResponse/);
+});
+
 test("multifunction tools create marketing and page proposals without write authority", async () => {
     const runtime =
         createRuntime();

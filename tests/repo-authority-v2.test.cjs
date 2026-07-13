@@ -1247,7 +1247,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(brain, /writeAllowed:\s*false/);
     assert.match(brain, /writeAuthorization:\s*false/);
     assert.match(brain, /repoHubGlobalPlan\s*\|\|\s*normalizeCloudToolPlan/);
-    assert.match(brain, /if\s*\(!repoHubGlobalPlan\)\s*\{[\s\S]{0,180}invocarArquitectoIA/);
+    assert.match(brain, /if\s*\(\s*!repoHubGlobalPlan\s*&&\s*plannerSeedToolCalls\.length\s*===\s*0\s*\)\s*\{[\s\S]{0,180}invocarArquitectoIA/);
     assert.match(brain, /visionIntent:\s*repoHubVisionIntent/);
     assert.doesNotMatch(brain, /shouldUseLegacyRegexToolDetector/);
     assert.doesNotMatch(brain, /buildToolCallsFromInput/);
