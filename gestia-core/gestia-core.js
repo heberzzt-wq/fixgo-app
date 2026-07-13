@@ -3667,6 +3667,17 @@ export const GestiaCore = {
                 state?.proposalAdjustmentInFlight
             );
 
+        const normalizedLightInput =
+            normalizeObservationText(inputRaw);
+
+        const isConversationalQuestion =
+            /\b(que es|quien es|como funciona|explica(?:me)?|dime|cuenta(?:me)?|define|significa)\b/i.test(
+                normalizedLightInput
+            ) &&
+            !/\b(crea|crear|genera|generar|construye|construir|modifica|modificar|actualiza|actualizar|repara|reparar|implementa|implementar|ejecuta|ejecutar|despliega|desplegar|analiza|analizar|revisa|revisar|busca|buscar|escanea|escanear|elimina|eliminar|escribe|aprobar|aprueba)\b/i.test(
+                normalizedLightInput
+            );
+
         const semanticConceptNames =
             Array.isArray(semantic.concepts)
                 ? semantic.concepts
@@ -3734,6 +3745,22 @@ export const GestiaCore = {
                 approvalRequiredForWrite: true,
                 useLastPatchPreview: true,
                 reason: "semantic_patch_preview_follow_up_with_active_candidate"
+            };
+        }
+
+        if (
+            !hasActiveTechnicalFlow &&
+            isConversationalQuestion
+        ) {
+            return {
+                mode: "CASUAL_NOOP",
+                confidence: 0.9,
+                objective: "",
+                useAgentLoop: false,
+                useRepoTools: false,
+                renderCard: false,
+                prepareCommand: false,
+                reason: "conversational_question_without_operational_verb"
             };
         }
 

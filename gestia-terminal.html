@@ -988,6 +988,9 @@ window.hablarJarvis = async function(texto = "") {
             console.log(
                 "🧠 [JARVIS_VOICE_END]"
             );
+            window.showJarvis?.(
+                "Sistema listo"
+            );
         };
 
         utterance.onerror = (err) => {
@@ -999,6 +1002,9 @@ window.hablarJarvis = async function(texto = "") {
             console.warn(
                 "⚠️ [JARVIS_VOICE_ERROR]",
                 err
+            );
+            window.showJarvis?.(
+                "Voz no disponible"
             );
         };
 
