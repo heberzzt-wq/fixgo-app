@@ -3318,8 +3318,59 @@ function composeObservationDrivenFinalResponse({
             ? "- No preparar patch hasta que el usuario pida una propuesta concreta sobre archivos/rangos especificos."
             : "- Si se decide parchear, usar solo search/replace exacto sobre la seccion anclada.";
 
-    const text =
+    const executiveFindingLines =
+        (topDiagnosis?.findings || [])
+            .filter(finding =>
+                String(finding?.severity || "INFO").toUpperCase() !== "INFO"
+            )
+            .slice(0, 3)
+            .map(finding =>
+                `- [${finding.severity || "MEDIUM"}] ${finding.title || finding.id || "Hallazgo"}: ${finding.detail || "Sin detalle adicional."}`
+            );
+
+    const executiveEvidenceLines =
         [
+            ...evidenceLines.slice(0, 4),
+            ...sectionLines.slice(0, 2)
+        ];
+
+    const readOnlyText =
+        [
+            `Diagnostico: ${topCandidate?.file || "sin archivo confirmado"}`,
+            `Riesgo: ${impactRisk}`,
+            candidates.length > 1
+                ? `Alternativas revisadas: ${candidates.slice(1).map(candidate => candidate.file).join(", ")}`
+                : "",
+            "",
+            "Que puede fallar:",
+            ...(executiveFindingLines.length
+                ? executiveFindingLines
+                : [cause]),
+            "",
+            "Evidencia:",
+            ...(executiveEvidenceLines.length
+                ? executiveEvidenceLines
+                : ["- Todavia no hay evidencia suficiente para afirmar una causa concreta."]),
+            "",
+            "Que revisar primero:",
+            ...(recommendationLines.length
+                ? recommendationLines.slice(0, 3)
+                : ["- Abrir el bloque relevante con repo.read y confirmar la configuracion antes de proponer cambios."]),
+            ...(impactFailures.length
+                ? [`- Impacto parcial no disponible: ${impactFailures.map(failure => failure.file || "archivo").join(", ")}.`]
+                : []),
+            "",
+            "Estado: analisis read-only; no se modificaron archivos ni se genero un patch."
+        ]
+            .filter((line, index, lines) =>
+                line !== "" || lines[index - 1] !== ""
+            )
+            .join("\n");
+
+    const text =
+        patchPreviewAllowed === false
+            ? readOnlyText
+            : [
             `Objetivo: ${objective || "Investigacion repo read-only"}`,
             `Archivo probable: ${topCandidate?.file || "ND"}`,
             `Candidatos: ${
@@ -3398,7 +3449,9 @@ function composeObservationDrivenFinalResponse({
 
     return {
         title:
-            "Diagnostico Repo SIA7",
+            patchPreviewAllowed === false
+                ? "Diagnóstico técnico"
+                : "Diagnostico Repo SIA7",
         text,
         file:
             topCandidate?.file ||

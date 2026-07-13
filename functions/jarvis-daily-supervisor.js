@@ -79,6 +79,15 @@ const DEFAULT_PROBES = Object.freeze([
         ]
     },
     {
+        id: "technical_response_clarity",
+        path: "/gestia-core/gestia-core.js",
+        markers: [
+            "Diagnóstico técnico",
+            "Que puede fallar:",
+            "Estado: analisis read-only"
+        ]
+    },
+    {
         id: "runtime_health_module",
         path: "/runtime-health.js",
         markers: [
@@ -203,6 +212,7 @@ const SUPERVISION_DOMAIN_BY_PROBE = Object.freeze({
     semantic_diagnostics_contract: "repo_diagnostics",
     technical_intent_priority: "jarvis_cognition",
     technical_read_only_plan: "jarvis_cognition",
+    technical_response_clarity: "jarvis_cognition",
     runtime_health_module: "runtime_health"
 });
 

@@ -920,6 +920,104 @@ test("agent loop does not invent patchPreview when exact block is missing", () =
     assert.doesNotMatch(finalResponse.text, /replace="<layout compacto/);
 });
 
+test("read-only technical response leads with findings and hides internal telemetry", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+    const candidate = {
+        file:
+            "tecnico-b2b.html",
+        score:
+            180,
+        directScore:
+            2,
+        frequency:
+            1,
+        evidence: [
+            {
+                file:
+                    "tecnico-b2b.html",
+                module:
+                    "seguridad_accesos_b2b",
+                evidenceScore:
+                    40
+            }
+        ]
+    };
+
+    const finalResponse =
+        helpers.composeObservationDrivenFinalResponse({
+            objective:
+                "Jarvis, revisa tecnico b2b y dime que configuracion puede fallar, sin modificar nada",
+            candidates: [
+                candidate,
+                {
+                    file:
+                        "tecnico.html",
+                    score:
+                        120,
+                    evidence:
+                        []
+                }
+            ],
+            primaryConfidence: {
+                mode:
+                    "MULTI_CANDIDATE",
+                confident:
+                    false
+            },
+            patchPreviewAllowed:
+                false,
+            learningHints: {
+                lessons: [
+                    {
+                        category:
+                            "internal_learning_hint"
+                    }
+                ]
+            },
+            followUpObservations: [
+                {
+                    response: {
+                        data: {
+                            tool:
+                                "repo.diagnose",
+                            file:
+                                "tecnico-b2b.html",
+                            risk:
+                                "HIGH",
+                            findings: [
+                                {
+                                    severity:
+                                        "HIGH",
+                                    title:
+                                        "Configuracion B2B ambigua",
+                                    detail:
+                                        "El modulo declarado no coincide con el portal tecnico esperado."
+                                }
+                            ],
+                            recommendations: [
+                                "Confirmar module y permisos antes de modificar el portal."
+                            ]
+                        }
+                    }
+                }
+            ]
+        });
+
+    assert.equal(finalResponse.title, "Diagnóstico técnico");
+    assert.match(finalResponse.text, /^Diagnostico: tecnico-b2b\.html/m);
+    assert.match(finalResponse.text, /Que puede fallar:/);
+    assert.match(finalResponse.text, /Configuracion B2B ambigua/);
+    assert.match(finalResponse.text, /Evidencia:/);
+    assert.match(finalResponse.text, /Que revisar primero:/);
+    assert.match(finalResponse.text, /Estado: analisis read-only/);
+    assert.doesNotMatch(finalResponse.text, /Modo candidato:/);
+    assert.doesNotMatch(finalResponse.text, /PatchPreview:/);
+    assert.doesNotMatch(finalResponse.text, /Aprendizaje usado:/);
+    assert.equal(finalResponse.learningHints.length, 1);
+    assert.equal(finalResponse.candidates.length, 2);
+});
+
 test("agent loop composes read-only final response for global repo analysis", () => {
     const helpers =
         loadGestiaCoreAgentLoopHelpers();
