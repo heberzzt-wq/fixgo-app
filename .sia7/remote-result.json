@@ -1,9 +1,9 @@
 {
-  "jobId": "sia7-4192-dryrun-main-title-comma-20260713-37",
-  "completedAt": "2026-07-13T01:48:17.213Z",
+  "jobId": "sia7-4192-apply-main-title-comma-20260713-38",
+  "completedAt": "2026-07-13T14:09:46.873Z",
   "ok": true,
   "operation": "patch",
-  "dryRun": true,
+  "dryRun": false,
   "file": "gestia-terminal.html",
   "matchCount": 1,
   "expectedMatches": 1,
