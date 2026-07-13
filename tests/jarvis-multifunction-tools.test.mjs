@@ -463,6 +463,11 @@ test("terminal preserves operational tools when a mixed command also contains a 
         /conversationObservation\s*&&\s*!hasOperationalObservation/
     );
     assert.match(terminal, /Evidencia ejecutada:/);
+    assert.match(
+        terminal,
+        /finalResponse\?\.text\s*\?\s*\[\]\s*:\s*\[/
+    );
+    assert.match(terminal, /new Set\(/);
     assert.doesNotMatch(terminal, /\.slice\(0, 8000\)/);
 });
 

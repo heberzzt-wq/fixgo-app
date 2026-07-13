@@ -5104,18 +5104,24 @@ if (
                                 ? [patchPreviewCandidateText]
                                 : []
                         ),
-                        `Objetivo: ${plannerObjective}`,
-                        `Herramientas: ${
-                            agentToolCalls
-                                .map(call => call.name)
-                                .filter(Boolean)
-                                .join(", ") ||
-                            agentObservations
-                                .map((item, index) =>
-                                    getObservationToolName(item, index)
-                                )
-                                .join(", ")
-                        }`,
+                        ...(
+                            finalResponse?.text
+                                ? []
+                                : [
+                                    `Objetivo: ${plannerObjective}`,
+                                    `Herramientas: ${[
+                                        ...new Set(
+                                            (
+                                                agentToolCalls.length
+                                                    ? agentToolCalls.map(call => call.name)
+                                                    : agentObservations.map((item, index) =>
+                                                        getObservationToolName(item, index)
+                                                    )
+                                            ).filter(Boolean)
+                                        )
+                                    ].join(", ")}`
+                                ]
+                        ),
                         "",
                         ...(
                             finalResponse?.text
