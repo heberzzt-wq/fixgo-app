@@ -1386,3 +1386,31 @@ test("gestiaArchitectV5 exposes CORS preflight before firewall", () => {
     assert.match(functionsIndex, /Authorization, Content-Type, X-Requested-With/);
     assert.match(functionsIndex, /Access-Control-Allow-Methods/);
 });
+
+test("SIA7 public diagnostics no longer expose the internal Agent Loop label", () => {
+    const terminal =
+        fs.readFileSync(
+            path.join(__dirname, "..", "gestia-terminal.html"),
+            "utf8"
+        );
+
+    assert.doesNotMatch(terminal, /Agent Loop SIA7/);
+    assert.doesNotMatch(terminal, /diagn[oó]stico detallado del Agent Loop/i);
+    assert.match(terminal, /diagnostico detallado de SIA7/i);
+    assert.match(terminal, /diagnóstico detallado de SIA7/i);
+});
+
+test("SIA7 GitHub worker commits an applied patch together with its result", () => {
+    const worker =
+        fs.readFileSync(
+            path.join(__dirname, "..", "jarvis-github-worker.js"),
+            "utf8"
+        );
+
+    assert.match(worker, /const stagePaths = \[RESULT_PATH\]/);
+    assert.match(worker, /result\.operation === "patch"/);
+    assert.match(worker, /result\.dryRun === false/);
+    assert.match(worker, /stagePaths\.push\(normalized\)/);
+    assert.match(worker, /runGit\(\["add", "--", \.\.\.stagePaths\]\)/);
+    assert.match(worker, /committedFiles:/);
+});

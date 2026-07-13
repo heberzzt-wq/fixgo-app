@@ -111,17 +111,33 @@ async function syncLocalBranch() {
 }
 
 async function publishRemoteResult(result = {}) {
-    
+    const stagePaths = [RESULT_PATH];
+
+    if (
+        result.operation === "patch" &&
+        result.dryRun === false &&
+        result.file
+    ) {
+        const { normalized } = resolveRepoFile(result.file);
+        stagePaths.push(normalized);
+    }
+
+    const publishPayload = {
+        ...result,
+        committedFiles: [
+            ...stagePaths
+        ]
+    };
 
     const resultFile = path.resolve(REPO_ROOT, RESULT_PATH);
     fs.mkdirSync(path.dirname(resultFile), { recursive: true });
     fs.writeFileSync(
         resultFile,
-        JSON.stringify(result, null, 2) + "\n",
+        JSON.stringify(publishPayload, null, 2) + "\n",
         "utf8"
     );
 
-    const addResult = await runGit(["add", "--", RESULT_PATH]);
+    const addResult = await runGit(["add", "--", ...stagePaths]);
     if (!addResult.ok) {
         throw new Error(
             `RESULT_GIT_ADD_FAILED: ${addResult.stderr || addResult.error || "unknown"}`

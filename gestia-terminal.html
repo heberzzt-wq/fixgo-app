@@ -4694,7 +4694,7 @@ if (
                                     ?.split("Recomendacion:")
                                     ?.[0]
                                     ?.trim() ||
-                                "Ver diagnostico detallado del Agent Loop.",
+                                "Ver diagnostico detallado de SIA7.",
                             fileRisk:
                                 finalResponse?.risk ||
                                 "ND",
@@ -4778,7 +4778,7 @@ if (
                 window.renderJarvisResponse?.(
                     visualPatchProposal
                         ? "Propuesta visual SIA7"
-                        : "Agent Loop SIA7",
+                        : "SIA7",
                     visualPatchProposal ||
                         multiToolSummary,
                     coreResult?.status === "FAILED"
@@ -6774,7 +6774,7 @@ if (
 
           <div class="mt-4 text-sm">
             <div class="font-semibold text-slate-100">Causa probable</div>
-            <div class="mt-2 text-xs text-slate-300 whitespace-pre-wrap">${escapeHtml(payload.cause || "Ver diagnóstico detallado del Agent Loop.")}</div>
+            <div class="mt-2 text-xs text-slate-300 whitespace-pre-wrap">${escapeHtml(payload.cause || "Ver diagnóstico detallado de SIA7.")}</div>
           </div>
 
           <div class="mt-4 text-sm">
