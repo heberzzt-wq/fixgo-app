@@ -1287,7 +1287,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(core, /BRAIN_AUTHORITY_NO_LEGACY_FALLBACK/);
     assert.match(core, /brainAuthorityMode[\s\S]{0,500}atomicState\.isHalted/);
     assert.doesNotMatch(core, /semantic-tool-fallback-41-32/);
-    assert.match(core, /jarvis-tools-v7-20260713-semantic-diagnostics-v2/);
+    assert.match(core, /jarvis-tools-v7-20260713-semantic-diagnostics-v3-path-resolution/);
 
     const legacyKernel =
         fs.readFileSync(

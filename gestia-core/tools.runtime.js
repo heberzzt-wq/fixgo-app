@@ -5678,6 +5678,9 @@ JarvisToolRuntime.register({
 
                     return {
                         file:
+                            meta?.path ||
+                            key,
+                        name:
                             key,
                         path:
                             meta?.path ||
@@ -6004,6 +6007,29 @@ JarvisToolRuntime.register({
                 .replace(/^\/+/, "")
                 .trim();
 
+        const indexedFile =
+            window.__REPO_INDEX__?.[normalizedFile] ||
+            Object.values(window.__REPO_INDEX__ || {})
+                .find(meta => {
+                    const indexedPath =
+                        String(meta?.path || "")
+                            .replace(/^\.\/+/, "")
+                            .replace(/^\/+/, "")
+                            .trim();
+
+                    return (
+                        indexedPath === normalizedFile ||
+                        indexedPath.split("/").pop() === normalizedFile
+                    );
+                }) ||
+            null;
+
+        const resolvedFile =
+            String(indexedFile?.path || normalizedFile)
+                .replace(/^\.\/+/, "")
+                .replace(/^\/+/, "")
+                .trim();
+
         let content =
             "";
 
@@ -6016,9 +6042,9 @@ JarvisToolRuntime.register({
             const bridgeRead =
                 await window.JarvisLocalBridge.readFile({
                     file:
-                        normalizedFile,
+                        resolvedFile,
                     path:
-                        normalizedFile,
+                        resolvedFile,
                     maxBytes:
                         args.maxBytes ||
                         300000,
@@ -6052,11 +6078,11 @@ JarvisToolRuntime.register({
                 const found =
                     await findRepoFile({
                         file:
-                            normalizedFile,
+                            resolvedFile,
                         path:
-                            normalizedFile,
+                            resolvedFile,
                         target:
-                            normalizedFile
+                            resolvedFile
                     })
                         .catch(() => null);
 
@@ -6067,11 +6093,11 @@ JarvisToolRuntime.register({
                         ? found
                         : await loadRepoContext({
                             file:
-                                normalizedFile,
+                                resolvedFile,
                             path:
-                                normalizedFile,
+                                resolvedFile,
                             target:
-                                normalizedFile
+                                resolvedFile
                         })
                             .catch(() => null);
 
@@ -6110,7 +6136,10 @@ JarvisToolRuntime.register({
                 status: "CONTENT_UNAVAILABLE",
                 error: "No fue posible hidratar contenido real para diagnosticar.",
                 file:
+                    resolvedFile,
+                requestedFile:
                     normalizedFile,
+                resolvedFile,
                 source:
                     readSource,
                 tool:
@@ -6595,7 +6624,7 @@ JarvisToolRuntime.register({
         const summary =
             [
                 `Diagnóstico Repo SIA7`,
-                `Archivo: ${normalizedFile}`,
+                `Archivo: ${resolvedFile}`,
                 `Tipo principal: ${fileType}`,
                 `Capacidades: ${capabilities.join(", ") || "ninguna especial"}`,
                 `Riesgo local: ${risk}`,
@@ -6636,7 +6665,10 @@ JarvisToolRuntime.register({
             tool:
                 "repo.diagnose",
             file:
+                resolvedFile,
+            requestedFile:
                 normalizedFile,
+            resolvedFile,
             mode:
                 args.mode ||
                 "diagnose",

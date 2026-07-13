@@ -807,3 +807,23 @@ test("terminal ledger stays compact and escapes persisted labels", () => {
     assert.match(ledger, /hadPreviousLedger && hasNewLedgerEvent/);
     assert.doesNotMatch(ledger, /\$\{planId\}\s*<\/div>/);
 });
+
+test("repo diagnostics resolve indexed basenames to real repository paths", () => {
+    const toolsRuntime = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-core", "tools.runtime.js"),
+        "utf8"
+    );
+
+    assert.match(toolsRuntime, /file:\s*meta\?\.path\s*\|\|\s*key/);
+    assert.match(toolsRuntime, /window\.__REPO_INDEX__\?\.\[normalizedFile\]/);
+    assert.match(toolsRuntime, /indexedPath\.split\("\/"\)\.pop\(\) === normalizedFile/);
+    assert.match(toolsRuntime, /const resolvedFile\s*=\s*String\(indexedFile\?\.path \|\| normalizedFile\)/);
+    assert.match(toolsRuntime, /requestedFile:\s*normalizedFile,\s*resolvedFile/);
+
+    const core = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-core", "gestia-core.js"),
+        "utf8"
+    );
+
+    assert.match(core, /semantic-diagnostics-v3-path-resolution/);
+});
