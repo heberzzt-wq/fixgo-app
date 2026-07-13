@@ -187,7 +187,7 @@ import {
 import {
     analyzeIntent as analyzeVisionIntent
 } from '/gestia-core/jarvis/jarvis.vision.engine.js?v=typo-normalization-v2-read-only-negation-20260713';
-import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.4-global-forensics-v2';
+import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.4-global-forensics-v3-ranked';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-semantic-diagnostics-v4-forensic-lines';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
@@ -3519,7 +3519,7 @@ function composeRepoGlobalAnalysisFinalResponse({
             )
         );
 
-    const criticalFiles =
+    const indexedCriticalFiles =
         files
             .filter(file =>
                 file?.critical === true ||
@@ -3527,6 +3527,56 @@ function composeRepoGlobalAnalysisFinalResponse({
                 String(file?.risk || file?.riskLevel || "").toUpperCase() === "CRITICAL"
             )
             .slice(0, requestedFindingLimit);
+
+    const severityWeight = {
+        CRITICAL: 4,
+        HIGH: 3,
+        MEDIUM: 2,
+        LOW: 1,
+        INFO: 0
+    };
+
+    const rankedForensicFindings =
+        forensicData
+            .map(diagnosis => {
+                const finding =
+                    [...(diagnosis?.findings || [])]
+                        .sort((a, b) =>
+                            (severityWeight[String(b?.severity || "INFO").toUpperCase()] || 0) -
+                            (severityWeight[String(a?.severity || "INFO").toUpperCase()] || 0)
+                        )[0] ||
+                    null;
+
+                return {
+                    diagnosis,
+                    finding,
+                    weight:
+                        severityWeight[String(finding?.severity || diagnosis?.risk || "INFO").toUpperCase()] || 0
+                };
+            })
+            .filter(item => item.finding && item.weight > 0)
+            .sort((a, b) => b.weight - a.weight)
+            .slice(0, requestedFindingLimit);
+
+    const criticalFiles =
+        rankedForensicFindings.length
+            ? rankedForensicFindings.map(item => ({
+                file:
+                    item.diagnosis?.resolvedFile ||
+                    item.diagnosis?.file ||
+                    "archivo",
+                module:
+                    item.diagnosis?.module ||
+                    "diagnostico",
+                type:
+                    item.diagnosis?.type ||
+                    "forense",
+                risk:
+                    item.finding?.severity ||
+                    item.diagnosis?.risk ||
+                    "HIGH"
+            }))
+            : indexedCriticalFiles;
 
     const typeCounts =
         files.reduce((acc, file) => {
@@ -3586,24 +3636,9 @@ function composeRepoGlobalAnalysisFinalResponse({
                 "- repo.search no devolvio evidencia suficiente para bajar a archivo."
             ];
 
-    const severityWeight = {
-        CRITICAL: 4,
-        HIGH: 3,
-        MEDIUM: 2,
-        LOW: 1,
-        INFO: 0
-    };
-
     const forensicEvidenceLines =
-        forensicData.length
-            ? forensicData.map(diagnosis => {
-                const finding =
-                    [...(diagnosis?.findings || [])]
-                        .sort((a, b) =>
-                            (severityWeight[String(b?.severity || "INFO").toUpperCase()] || 0) -
-                            (severityWeight[String(a?.severity || "INFO").toUpperCase()] || 0)
-                        )[0] ||
-                    null;
+        rankedForensicFindings.length
+            ? rankedForensicFindings.map(({ diagnosis, finding }) => {
 
                 const lines =
                     finding?.evidence?.lines ||
@@ -3650,6 +3685,18 @@ function composeRepoGlobalAnalysisFinalResponse({
         ]
             .slice(0, 3);
 
+    const executedToolNames =
+        [
+            ...new Set(
+                toolCalls
+                    .map(call => call?.name)
+                    .filter(Boolean)
+            )
+        ];
+
+    const diagnosedFileCount =
+        toolCalls.filter(call => call?.name === "repo.diagnose").length;
+
     const text =
         [
             `Objetivo: ${objective || "Analisis global del repositorio"}`,
@@ -3658,11 +3705,11 @@ function composeRepoGlobalAnalysisFinalResponse({
             `Modulos detectados: ${totalModules}`,
             "",
             "Que encontre:",
-            `- El cerebro ejecuto ${toolCalls.map(call => call?.name).filter(Boolean).join(", ") || "herramientas read-only"}.`,
+            `- El cerebro ejecuto ${executedToolNames.join(", ") || "herramientas read-only"}${diagnosedFileCount ? ` sobre ${diagnosedFileCount} archivos` : ""}.`,
             `- La busqueda semantica devolvio ${searchMatches.length} coincidencias para el objetivo.`,
-            `- El indice marca ${criticalFiles.length} archivos delicados o criticos para revisar primero.`,
+            `- El diagnostico priorizo ${criticalFiles.length} hallazgos sustantivos para revisar primero.`,
             "",
-            "Archivos criticos a revisar primero:",
+            "Archivos con hallazgos prioritarios:",
             ...criticalFileLines,
             "",
             "Evidencia forense por archivo:",

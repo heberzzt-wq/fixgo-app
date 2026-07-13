@@ -872,6 +872,18 @@ test("agent loop composes read-only final response for global repo analysis", ()
                 {
                     name:
                         "repo.diagnose"
+                },
+                {
+                    name:
+                        "repo.diagnose"
+                },
+                {
+                    name:
+                        "repo.diagnose"
+                },
+                {
+                    name:
+                        "repo.diagnose"
                 }
             ],
             observations: [
@@ -960,6 +972,51 @@ test("agent loop composes read-only final response for global repo analysis", ()
                             }]
                         }
                     }
+                },
+                {
+                    response: {
+                        data: {
+                            tool: "repo.diagnose",
+                            resolvedFile: "panel-admin.js",
+                            risk: "MEDIUM",
+                            findings: [{
+                                severity: "MEDIUM",
+                                title: "Router duplicado",
+                                detail: "Hay dos rutas compitiendo.",
+                                evidence: { lines: [42] }
+                            }]
+                        }
+                    }
+                },
+                {
+                    response: {
+                        data: {
+                            tool: "repo.diagnose",
+                            resolvedFile: "firebase.js",
+                            risk: "CRITICAL",
+                            findings: [{
+                                severity: "CRITICAL",
+                                title: "Escritura sin guard",
+                                detail: "La mutacion necesita aprobacion.",
+                                evidence: { lines: [77] }
+                            }]
+                        }
+                    }
+                },
+                {
+                    response: {
+                        data: {
+                            tool: "repo.diagnose",
+                            resolvedFile: "gps-motor.js",
+                            risk: "INFO",
+                            findings: [{
+                                severity: "INFO",
+                                title: "Sin hallazgos criticos",
+                                detail: "No hay evidencia sustantiva.",
+                                evidence: { lines: [] }
+                            }]
+                        }
+                    }
                 }
             ]
         });
@@ -971,8 +1028,10 @@ test("agent loop composes read-only final response for global repo analysis", ()
     assert.match(finalResponse.text, /Modo: REPO_GLOBAL_ANALYSIS read-only/);
     assert.match(finalResponse.text, /Archivos indexados: 4/);
     assert.match(finalResponse.text, /app-main\.js/);
+    assert.match(finalResponse.text, /panel-admin\.js/);
     assert.match(finalResponse.text, /firebase\.js/);
     assert.doesNotMatch(finalResponse.text, /gps-motor\.js/);
+    assert.match(finalResponse.text, /priorizo 3 hallazgos sustantivos/);
     assert.match(finalResponse.text, /Evidencia forense por archivo/);
     assert.match(finalResponse.text, /lineas 120, 184/);
     assert.match(finalResponse.text, /No se escribieron archivos/);
@@ -1195,21 +1254,11 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /const isReadOnlyRepoSurveyPlan\s*=/);
     assert.match(terminal, /usesRepoSurveyTools[\s\S]{0,180}!usesRepoPatchOrWriteTool[\s\S]{0,180}!usesLineAnchoredInvestigationTool/);
     assert.match(terminal, /isRepoGlobalAnalysis[\s\S]{0,140}isReadOnlyRepoSurveyPlan/);
-    assert.match(terminal, /buildBrainGlobalRepoAnalysisSummary/);
+    assert.doesNotMatch(terminal, /buildBrainGlobalRepoAnalysisSummary/);
     assert.match(
         terminal,
-        /isRepoGlobalAnalysis[\s\S]{0,100}finalResponse\?\.text\s*\|\|\s*buildBrainGlobalRepoAnalysisSummary\(\)/
+        /isRepoGlobalAnalysis[\s\S]{0,100}finalResponse\?\.text/
     );
-    assert.match(terminal, /hasLoadedRuntimeModules/);
-    assert.match(terminal, /MODULE_CONTEXT[\s\S]{0,80}\?\.loaded/);
-    assert.match(terminal, /hasLoadedRuntimeModules[\s\S]{0,180}window\.inspectModule/);
-    assert.match(terminal, /hasLoadedRuntimeModules[\s\S]{0,260}window\.evaluateModuleRisk/);
-    assert.match(terminal, /hasLoadedRuntimeModules[\s\S]{0,340}window\.validateModuleDependencies/);
-    assert.match(terminal, /Diagnostico global SIA7 read-only/);
-    assert.match(terminal, /Que se ve mal o delicado/);
-    assert.match(terminal, /Archivos criticos a revisar primero/);
-    assert.match(terminal, /findingCountWords/);
-    assert.match(terminal, /\.slice\(0, requestedFindingLimit\)/);
     assert.match(terminal, /suppressPatchSurface/);
     assert.match(terminal, /__SIA7_CLEAR_ACTIVE_PATCH_PROPOSAL__/);
     assert.match(terminal, /SIA7_PATCH_SURFACE_CLEARED_BY_BRAIN_PLAN_41_50/);

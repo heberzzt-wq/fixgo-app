@@ -865,11 +865,14 @@ function buildRepoHubGlobalAnalysisPlan(
       )
     );
 
-  const criticalEvidenceFiles = [
+  const forensicCandidateFiles = [
     "gestia-terminal.js",
     "gestia-core/operations-executor.engine.js",
-    "gestia-core/plans.engine.js"
-  ].slice(0, requestedEvidenceCount);
+    "gestia-core/plans.engine.js",
+    "gestia-core/tools.runtime.js",
+    "gestia-core/brain.engine.js",
+    "gestia-core/gestia-core.js"
+  ].slice(0, requestedEvidenceCount + 3);
 
   return {
     intent:
@@ -905,7 +908,7 @@ function buildRepoHubGlobalAnalysisPlan(
         },
         "REPO_HUB_GLOBAL_ANALYSIS"
       ),
-      ...criticalEvidenceFiles.map(file =>
+      ...forensicCandidateFiles.map(file =>
         buildSemanticToolCall(
           "repo.diagnose",
           {
@@ -928,7 +931,7 @@ function buildRepoHubGlobalAnalysisPlan(
     renderPatchPreview:
       false,
     requestedEvidenceCount,
-    criticalEvidenceFiles,
+    forensicCandidateFiles,
     confidence:
       vision.confidence || null,
     source:

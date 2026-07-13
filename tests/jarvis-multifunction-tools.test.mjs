@@ -760,7 +760,8 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
     assert.match(brain, /patchPreviewAllowed:\s*false/);
     assert.match(brain, /renderPatchPreview:\s*false/);
     assert.match(brain, /REPO_HUB_GLOBAL_FORENSIC_EVIDENCE/);
-    assert.match(brain, /criticalEvidenceFiles\.map/);
+    assert.match(brain, /forensicCandidateFiles\.map/);
+    assert.match(brain, /requestedEvidenceCount \+ 3/);
 
     const analysisHub = fs.readFileSync(
         path.join(
@@ -775,7 +776,7 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(
         analysisHub,
-        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.4-global-forensics-v2/
+        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.4-global-forensics-v3-ranked/
     );
 });
 
