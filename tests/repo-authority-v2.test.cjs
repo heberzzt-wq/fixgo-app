@@ -868,6 +868,10 @@ test("agent loop composes read-only final response for global repo analysis", ()
                 {
                     name:
                         "repo.search"
+                },
+                {
+                    name:
+                        "repo.diagnose"
                 }
             ],
             observations: [
@@ -938,6 +942,24 @@ test("agent loop composes read-only final response for global repo analysis", ()
                             ]
                         }
                     }
+                },
+                {
+                    response: {
+                        data: {
+                            tool: "repo.diagnose",
+                            file: "app-main.js",
+                            resolvedFile: "app-main.js",
+                            risk: "HIGH",
+                            findings: [{
+                                severity: "HIGH",
+                                title: "Operaciones Firestore detectadas",
+                                detail: "El archivo toca listeners y datos.",
+                                evidence: {
+                                    lines: [120, 184]
+                                }
+                            }]
+                        }
+                    }
                 }
             ]
         });
@@ -951,6 +973,8 @@ test("agent loop composes read-only final response for global repo analysis", ()
     assert.match(finalResponse.text, /app-main\.js/);
     assert.match(finalResponse.text, /firebase\.js/);
     assert.doesNotMatch(finalResponse.text, /gps-motor\.js/);
+    assert.match(finalResponse.text, /Evidencia forense por archivo/);
+    assert.match(finalResponse.text, /lineas 120, 184/);
     assert.match(finalResponse.text, /No se escribieron archivos/);
 });
 
@@ -1172,6 +1196,10 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /usesRepoSurveyTools[\s\S]{0,180}!usesRepoPatchOrWriteTool[\s\S]{0,180}!usesLineAnchoredInvestigationTool/);
     assert.match(terminal, /isRepoGlobalAnalysis[\s\S]{0,140}isReadOnlyRepoSurveyPlan/);
     assert.match(terminal, /buildBrainGlobalRepoAnalysisSummary/);
+    assert.match(
+        terminal,
+        /isRepoGlobalAnalysis[\s\S]{0,100}finalResponse\?\.text\s*\|\|\s*buildBrainGlobalRepoAnalysisSummary\(\)/
+    );
     assert.match(terminal, /hasLoadedRuntimeModules/);
     assert.match(terminal, /MODULE_CONTEXT[\s\S]{0,80}\?\.loaded/);
     assert.match(terminal, /hasLoadedRuntimeModules[\s\S]{0,180}window\.inspectModule/);
@@ -1303,7 +1331,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(core, /BRAIN_AUTHORITY_NO_LEGACY_FALLBACK/);
     assert.match(core, /brainAuthorityMode[\s\S]{0,500}atomicState\.isHalted/);
     assert.doesNotMatch(core, /semantic-tool-fallback-41-32/);
-    assert.match(core, /jarvis-tools-v7-20260713-semantic-diagnostics-v3-path-resolution/);
+    assert.match(core, /jarvis-tools-v7-20260713-semantic-diagnostics-v4-forensic-lines/);
 
     const legacyKernel =
         fs.readFileSync(

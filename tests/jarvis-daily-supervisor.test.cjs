@@ -166,3 +166,26 @@ test("functions and client registry expose the supervisor safely", () => {
     assert.match(runtimeHealth, /export async function runtimeLatency/);
     assert.doesNotMatch(runtimeHealth, /SIA7 REPAIR PLACEHOLDER/);
 });
+
+test("functions runtime stays on the supported Node 22 contract", () => {
+    const functionsPackage = JSON.parse(
+        fs.readFileSync(
+            path.join(__dirname, "..", "functions", "package.json"),
+            "utf8"
+        )
+    );
+    const lock = JSON.parse(
+        fs.readFileSync(
+            path.join(__dirname, "..", "functions", "package-lock.json"),
+            "utf8"
+        )
+    );
+
+    assert.equal(functionsPackage.engines.node, "22");
+    assert.equal(lock.packages[""].engines.node, "22");
+    assert.equal(
+        lock.packages["node_modules/firebase-functions"].version,
+        "7.2.5"
+    );
+    assert.match(functionsPackage.dependencies["firebase-admin"], /^\^13\./);
+});

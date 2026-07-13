@@ -6241,6 +6241,29 @@ JarvisToolRuntime.register({
                 []
             ).length;
 
+        const findingLinePatterns = {
+            ROUTER_ONLY_NO_UI: /^\s*(?:import|export)\b/i,
+            UI_RENDERING_DETECTED: /innerHTML\s*=|insertAdjacentHTML|createElement\s*\(|<\s*(?:div|section|button|form|main|article|header|footer|nav|table|ul|li|span|input|select|textarea)\b/i,
+            FIRESTORE_OPS_DETECTED: /\b(?:collection|doc|getDoc|getDocs|setDoc|updateDoc|addDoc|deleteDoc|runTransaction|query|where|onSnapshot)\s*\(/i,
+            GEOLOCATION_CAPABILITY_DETECTED: /watchPosition|geolocation|coords|latitude|longitude|geofence|gps/i,
+            DUPLICATE_SWITCH_CASES: /case\s+["'`][^"'`]+["'`]\s*:/i,
+            GENERIC_UI_PATCH_PATTERN: /\.tarjeta|\.card|\[class\*=['"]card['"]|UI_OPTIMIZATION|!important/i,
+            REPO_WRITE_CAPABILITY: /CODE_WRITE|SIA7_COMMIT|repoCommitWriteFile|writeRepoFile|repo_files|PATCH_SYSTEM_CORE/i,
+            TODO_OR_STUB_MARKERS: /\b(?:TODO|FIXME|HACK|TEMP|placeholder|stub)\b/i
+        };
+
+        const findEvidenceLines = pattern =>
+            pattern
+                ? lines
+                    .map((line, index) =>
+                        pattern.test(line)
+                            ? index + 1
+                            : null
+                    )
+                    .filter(Boolean)
+                    .slice(0, 3)
+                : [];
+
         const typeSignals =
             {
                 router:
@@ -6585,6 +6608,27 @@ JarvisToolRuntime.register({
                 "Usar repo.impact y tests.run antes de cualquier cambio."
             );
         }
+
+        findings.forEach(finding => {
+            const evidenceLines =
+                findEvidenceLines(
+                    findingLinePatterns[finding.id]
+                );
+
+            if (!evidenceLines.length) {
+                return;
+            }
+
+            finding.evidence = Array.isArray(finding.evidence)
+                ? {
+                    matches: finding.evidence,
+                    lines: evidenceLines
+                }
+                : {
+                    ...(finding.evidence || {}),
+                    lines: evidenceLines
+                };
+        });
 
         const shouldPatch =
             args.mode === "patch" ||

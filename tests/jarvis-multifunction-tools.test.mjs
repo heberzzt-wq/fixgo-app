@@ -759,6 +759,8 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
     assert.match(brain, /local_technical_investigation/);
     assert.match(brain, /patchPreviewAllowed:\s*false/);
     assert.match(brain, /renderPatchPreview:\s*false/);
+    assert.match(brain, /REPO_HUB_GLOBAL_FORENSIC_EVIDENCE/);
+    assert.match(brain, /criticalEvidenceFiles\.map/);
 
     const analysisHub = fs.readFileSync(
         path.join(
@@ -773,7 +775,7 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(
         analysisHub,
-        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.4-capability-forensics-v2/
+        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.4-global-forensics-v2/
     );
 });
 
@@ -819,11 +821,13 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
     assert.match(toolsRuntime, /indexedPath\.split\("\/"\)\.pop\(\) === normalizedFile/);
     assert.match(toolsRuntime, /const resolvedFile\s*=\s*String\(indexedFile\?\.path \|\| normalizedFile\)/);
     assert.match(toolsRuntime, /requestedFile:\s*normalizedFile,\s*resolvedFile/);
+    assert.match(toolsRuntime, /const findingLinePatterns\s*=\s*\{/);
+    assert.match(toolsRuntime, /finding\.evidence[\s\S]{0,300}lines:\s*evidenceLines/);
 
     const core = fs.readFileSync(
         path.join(__dirname, "..", "gestia-core", "gestia-core.js"),
         "utf8"
     );
 
-    assert.match(core, /semantic-diagnostics-v3-path-resolution/);
+    assert.match(core, /semantic-diagnostics-v4-forensic-lines/);
 });

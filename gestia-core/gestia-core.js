@@ -187,9 +187,9 @@ import {
 import {
     analyzeIntent as analyzeVisionIntent
 } from '/gestia-core/jarvis/jarvis.vision.engine.js?v=typo-normalization-v2-read-only-negation-20260713';
-import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.4-capability-forensics-v2';
+import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.4-global-forensics-v2';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-semantic-diagnostics-v3-path-resolution';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-semantic-diagnostics-v4-forensic-lines';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
 
@@ -3427,6 +3427,20 @@ function composeRepoGlobalAnalysisFinalResponse({
     const searchData =
         getObservationRepoData(searchObservation);
 
+    const forensicData =
+        observations
+            .map((item, index) => ({
+                toolName:
+                    getObservationToolName(item, toolCalls, index),
+                data:
+                    getObservationRepoData(item)
+            }))
+            .filter(item =>
+                item.toolName === "repo.diagnose" &&
+                item.data
+            )
+            .map(item => item.data);
+
     const files =
         [
             ...(Array.isArray(scanData?.files) ? scanData.files : []),
@@ -3572,6 +3586,47 @@ function composeRepoGlobalAnalysisFinalResponse({
                 "- repo.search no devolvio evidencia suficiente para bajar a archivo."
             ];
 
+    const severityWeight = {
+        CRITICAL: 4,
+        HIGH: 3,
+        MEDIUM: 2,
+        LOW: 1,
+        INFO: 0
+    };
+
+    const forensicEvidenceLines =
+        forensicData.length
+            ? forensicData.map(diagnosis => {
+                const finding =
+                    [...(diagnosis?.findings || [])]
+                        .sort((a, b) =>
+                            (severityWeight[String(b?.severity || "INFO").toUpperCase()] || 0) -
+                            (severityWeight[String(a?.severity || "INFO").toUpperCase()] || 0)
+                        )[0] ||
+                    null;
+
+                const lines =
+                    finding?.evidence?.lines ||
+                    [];
+
+                return [
+                    `- ${diagnosis?.resolvedFile || diagnosis?.file || "archivo"}`,
+                    `[${finding?.severity || diagnosis?.risk || "INFO"}]`,
+                    finding?.title || "Diagnostico completado",
+                    lines.length
+                        ? `(lineas ${lines.join(", ")})`
+                        : "(sin linea anclada)",
+                    finding?.detail
+                        ? `— ${finding.detail}`
+                        : ""
+                ]
+                    .filter(Boolean)
+                    .join(" ");
+            })
+            : [
+                "- No hubo diagnosticos de archivo disponibles en esta ejecucion."
+            ];
+
     const learningLines =
         [
             ...new Map(
@@ -3609,6 +3664,9 @@ function composeRepoGlobalAnalysisFinalResponse({
             "",
             "Archivos criticos a revisar primero:",
             ...criticalFileLines,
+            "",
+            "Evidencia forense por archivo:",
+            ...forensicEvidenceLines,
             "",
             "Evidencia de busqueda:",
             ...searchEvidenceLines,

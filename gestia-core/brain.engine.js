@@ -840,6 +840,37 @@ function buildRepoHubGlobalAnalysisPlan(
       objective
     );
 
+  const countWords = {
+    uno: 1,
+    una: 1,
+    dos: 2,
+    tres: 3,
+    cuatro: 4,
+    cinco: 5
+  };
+
+  const countMatch =
+    cleanObjective.match(
+      /\b(\d{1,2}|uno|una|dos|tres|cuatro|cinco)\s+(?:fallas?|errores?|riesgos?|problemas?|hallazgos?)\b/
+    );
+
+  const requestedEvidenceCount =
+    Math.min(
+      3,
+      Math.max(
+        1,
+        countMatch
+          ? Number(countMatch[1]) || countWords[countMatch[1]] || 3
+          : 3
+      )
+    );
+
+  const criticalEvidenceFiles = [
+    "gestia-terminal.js",
+    "gestia-core/operations-executor.engine.js",
+    "gestia-core/plans.engine.js"
+  ].slice(0, requestedEvidenceCount);
+
   return {
     intent:
       "REPO_GLOBAL_ANALYSIS",
@@ -873,6 +904,17 @@ function buildRepoHubGlobalAnalysisPlan(
             120
         },
         "REPO_HUB_GLOBAL_ANALYSIS"
+      ),
+      ...criticalEvidenceFiles.map(file =>
+        buildSemanticToolCall(
+          "repo.diagnose",
+          {
+            file,
+            mode: "diagnose",
+            rawInput: cleanObjective || objective
+          },
+          "REPO_HUB_GLOBAL_FORENSIC_EVIDENCE"
+        )
       )
     ],
     writeAllowed:
@@ -885,6 +927,8 @@ function buildRepoHubGlobalAnalysisPlan(
       false,
     renderPatchPreview:
       false,
+    requestedEvidenceCount,
+    criticalEvidenceFiles,
     confidence:
       vision.confidence || null,
     source:
