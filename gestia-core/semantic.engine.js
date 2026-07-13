@@ -308,6 +308,10 @@ function normalize(text = "") {
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^\w\s]/g, "")
+        .replace(/\banalisa\b/g, "analiza")
+        .replace(/\banalisar\b/g, "analizar")
+        .replace(/\breviza\b/g, "revisa")
+        .replace(/\brevizar\b/g, "revisar")
         .trim();
 }
 

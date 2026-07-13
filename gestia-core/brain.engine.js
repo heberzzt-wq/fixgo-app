@@ -27,7 +27,7 @@ import {
   sincronizarCorralSemantico,
   getSemanticCognitiveState
 
-} from "./semantic.engine.js";
+} from "./semantic.engine.js?v=typo-normalization-v1-20260713";
 
 import { JarvisMemory }
 from "./jarvis/jarvis.memory.js";
@@ -42,7 +42,7 @@ import {
 
   analyzeIntent
 
-} from "./jarvis/jarvis.vision.engine.js?v=repo-global-analysis-41-59";
+} from "./jarvis/jarvis.vision.engine.js?v=typo-normalization-v1-20260713";
 
 import {
 

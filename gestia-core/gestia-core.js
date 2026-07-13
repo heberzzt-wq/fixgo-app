@@ -183,11 +183,11 @@ const CORE_CONFIG = {
 import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
-} from '/gestia-core/semantic.engine.js';
+} from '/gestia-core/semantic.engine.js?v=typo-normalization-v1-20260713';
 import {
     analyzeIntent as analyzeVisionIntent
-} from '/gestia-core/jarvis/jarvis.vision.engine.js?v=repo-global-analysis-41-59';
-import '/gestia-core/brain.engine.js?v=brain-authority-41-86';
+} from '/gestia-core/jarvis/jarvis.vision.engine.js?v=typo-normalization-v1-20260713';
+import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260713';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4180';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';

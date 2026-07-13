@@ -1016,7 +1016,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /mixed-intent-v1-20260713-4250/);
+    assert.match(terminal, /mixed-intent-v2-20260713-4260/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
@@ -1231,7 +1231,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
             "utf8"
         );
 
-    assert.match(brain, /import\s*\{[\s\S]*analyzeIntent[\s\S]*\}\s*from\s*"\.\/jarvis\/jarvis\.vision\.engine\.js\?v=repo-global-analysis-41-59"/);
+    assert.match(brain, /import\s*\{[\s\S]*analyzeIntent[\s\S]*\}\s*from\s*"\.\/jarvis\/jarvis\.vision\.engine\.js\?v=typo-normalization-v1-20260713"/);
     assert.equal(
         (brain.match(/function initJarvisCodexV2BrainRouter/g) || []).length,
         1
@@ -1270,7 +1270,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     );
 
     assert.match(core, /patchPreviewAllowedByPlan/);
-    assert.match(core, /brain\.engine\.js\?v=brain-authority-41-86/);
+    assert.match(core, /brain\.engine\.js\?v=mixed-intent-v2-20260713/);
     assert.doesNotMatch(core, /brain\.engine\.js\?v=cloud-planner-fail-fast-41-62/);
     assert.match(core, /async analizarIntencionLigera/);
     assert.match(core, /sincronizarCorralSemantico/);

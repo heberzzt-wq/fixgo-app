@@ -274,7 +274,11 @@ function normalize(str = "") {
     .toLowerCase()
     .trim()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\banalisa\b/g, "analiza")
+    .replace(/\banalisar\b/g, "analizar")
+    .replace(/\breviza\b/g, "revisa")
+    .replace(/\brevizar\b/g, "revisar");
 }
 
 function has(text, arr = []) {

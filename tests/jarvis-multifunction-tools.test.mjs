@@ -106,7 +106,6 @@ test("terminal unlocks, queues and recovers Jarvis speech", () => {
         ),
         "utf8"
     );
-
     assert.match(terminal, /window\.unlockJarvisVoice/);
     assert.match(terminal, /JARVIS_VOICE_QUEUED/);
     assert.match(terminal, /JARVIS_VOICE_WATCHDOG_RESUME/);
@@ -131,12 +130,23 @@ test("general semantic intent stays casual and speaks through the terminal", () 
         ),
         "utf8"
     );
+    const semantic = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-core", "semantic.engine.js"),
+        "utf8"
+    );
+    const vision = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-core", "jarvis", "jarvis.vision.engine.js"),
+        "utf8"
+    );
 
     assert.match(core, /semantic\.primaryConcept\s*\|\|\s*semantic\.concept/);
     assert.match(core, /semanticPrimaryConcept\s*!==\s*"GENERAL"/);
     assert.match(core, /isConversationalQuestion/);
     assert.match(core, /hasExplicitOperationalRequest/);
     assert.match(core, /anali\[sz\]/);
+    assert.match(core, /typo-normalization-v1-20260713/);
+    assert.match(semantic, /replace\(\/\\banalisa\\b\/g, "analiza"\)/);
+    assert.match(vision, /replace\(\/\\banalisa\\b\/g, "analiza"\)/);
     assert.match(core, /isExplicitCasualSocialRequest/);
     assert.match(core, /conversational_question_without_operational_verb/);
     assert.match(core, /explicit_social_request_without_operational_verb/);
