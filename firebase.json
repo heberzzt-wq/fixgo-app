@@ -18,6 +18,7 @@
 
       "ignore": [
         "firebase.json",
+        "firebase.cmd",
         "**/.*",
         ".git/**",
         ".github/**",
