@@ -43,7 +43,7 @@ import {
 
   analyzeIntent
 
-} from "./jarvis/jarvis.vision.engine.js?v=typo-normalization-v1-20260713";
+} from "./jarvis/jarvis.vision.engine.js?v=typo-normalization-v2-read-only-negation-20260713";
 
 import {
 

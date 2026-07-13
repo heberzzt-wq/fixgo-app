@@ -150,7 +150,14 @@ export function analyzeIntent(rawInput = "") {
     result.confidence += 30;
   }
 
-  if (has(text, ["actualiza", "modifica", "cambia", "mejora", "optimiza"])) {
+  const deniesMutation =
+    /\b(?:sin|no)\s+(?:modificar|modifica|cambiar|cambia|actualizar|actualiza|reparar|repara|corregir|corrige|escribir|escribe|tocar|aplicar)\b/i
+      .test(text);
+
+  if (
+    !deniesMutation &&
+    has(text, ["actualiza", "modifica", "cambia", "mejora", "optimiza"])
+  ) {
     result.intent = "UPDATE";
     result.action = "patch";
     result.confidence += 30;
@@ -184,6 +191,9 @@ export function analyzeIntent(rawInput = "") {
     result.action = "inspect_repo";
     result.confidence += 50;
     result.tags.push("repo_analysis", "read_only");
+    if (deniesMutation) {
+      result.tags.push("mutation_denied");
+    }
     result.suggestions.push(
       "Listar estructura del repositorio",
       "Buscar rutas y dependencias relevantes",

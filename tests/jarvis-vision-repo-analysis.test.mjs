@@ -21,3 +21,15 @@ test("repository analysis does not get replaced by ranked file matches", () => {
     assert.equal(result.module, "repo");
     assert.equal(result.action, "inspect_repo");
 });
+
+test("read-only negation cannot be misclassified as an update", () => {
+    const result = analyzeIntent(
+        "Jarvis, analisa el repo y dime las tres fallas mas importantes sin modificar nada"
+    );
+
+    assert.equal(result.intent, "ANALYZE");
+    assert.equal(result.targetFile, "repo.hub");
+    assert.equal(result.action, "inspect_repo");
+    assert.ok(result.tags.includes("read_only"));
+    assert.ok(result.tags.includes("mutation_denied"));
+});

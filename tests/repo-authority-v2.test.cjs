@@ -1231,7 +1231,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
             "utf8"
         );
 
-    assert.match(brain, /import\s*\{[\s\S]*analyzeIntent[\s\S]*\}\s*from\s*"\.\/jarvis\/jarvis\.vision\.engine\.js\?v=typo-normalization-v1-20260713"/);
+    assert.match(brain, /import\s*\{[\s\S]*analyzeIntent[\s\S]*\}\s*from\s*"\.\/jarvis\/jarvis\.vision\.engine\.js\?v=typo-normalization-v2-read-only-negation-20260713"/);
     assert.equal(
         (brain.match(/function initJarvisCodexV2BrainRouter/g) || []).length,
         1
