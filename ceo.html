@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="gestia-auth-pending">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        html.gestia-auth-pending body > :not(#fortressLoader) { visibility: hidden !important; }
         body { background-color: #09090b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         .animate-fade-in { animation: fadeIn 0.5s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -14,6 +15,11 @@
     </style>
 </head>
 <body class="text-white antialiased pb-10 h-screen overflow-x-hidden animate-fade-in">
+
+    <div id="fortressLoader" class="fixed inset-0 z-[999999] bg-zinc-950 text-blue-400 flex flex-col items-center justify-center gap-3">
+        <i class="fas fa-circle-notch fa-spin text-3xl"></i>
+        <p class="text-[10px] font-black uppercase tracking-[0.25em]">Validando acceso CEO</p>
+    </div>
 
     <header class="p-5 border-b border-zinc-800 bg-black sticky top-0 z-50">
         <div class="flex justify-between items-center">
@@ -93,7 +99,7 @@
 
     
 <script type="module">
-        import { db, collection, query, where, orderBy, onSnapshot, limit, auth, observarAuth } from "./firebase.js";
+        import { db, collection, query, where, orderBy, onSnapshot, limit, auth, observarAuth, verificarYRedireccionar } from "./firebase.js";
 
         // Formatear fecha en cabecera
         const opcionesFecha = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
@@ -101,7 +107,18 @@
 
         // 🔥 INYECCIÓN DE SEGURIDAD: Esperar autenticación antes de consultar
         observarAuth((userAuth) => {
-            if (!userAuth || userAuth.email !== "hebertoh-m@hotmail.com") {
+            if (!userAuth) {
+                window.location.replace("login.html");
+                return;
+            }
+
+            const routeDecision = verificarYRedireccionar(userAuth);
+
+            if (routeDecision.redirect) {
+                return;
+            }
+
+            if (routeDecision.role !== "admin") {
                 // Si no está logueado o no es el CEO, no cargamos nada
                 document.getElementById('contenedorAlertas').innerHTML = `
                     <div class="p-4 bg-red-900/10 border border-red-900/30 rounded-xl text-center shadow-inner">
@@ -111,6 +128,9 @@
                     </div>`;
                 return;
             }
+
+            document.documentElement.classList.remove("gestia-auth-pending");
+            document.getElementById("fortressLoader")?.remove();
 
             console.log("👑 Credenciales CEO validadas. Iniciando lectura segura de Firebase...");
 

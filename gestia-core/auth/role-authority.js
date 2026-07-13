@@ -7,7 +7,8 @@ const ROLE_ALIASES =
         client: "cliente",
         tecnico_gp: "tecnico",
         tecnico_interno: "tecnico",
-        admin_b2b: "b2b_admin"
+        admin_b2b: "b2b_admin",
+        asistente_admin: "b2b_admin"
     });
 
 export function resolveGestiaRole(
@@ -62,7 +63,7 @@ export function resolveGestiaRole(
 
 export function describeGestiaRoleAuthority() {
     return {
-        version: "2.0.0-role-authority",
+        version: "3.0.0-single-navigation-authority",
         masterIdentity: GESTIA_MASTER_EMAIL,
         aliases: {
             ...ROLE_ALIASES
@@ -211,9 +212,9 @@ export function resolveGestiaRouteDecision({
                 : redirect("app-inquilino.html", "saas_client_surface_protection");
         }
 
-        return ["login", "registro", "index"].includes(page)
-            ? redirect("cliente.html", "client_entry_redirect")
-            : stay("client_surface_allowed");
+        return page === "cliente"
+            ? stay("client_surface_allowed")
+            : redirect("cliente.html", "client_surface_protection");
     }
 
     return stay("role_without_registered_route");

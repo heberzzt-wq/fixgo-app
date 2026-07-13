@@ -34,8 +34,9 @@ import {
 } from "./firebase.js";
 
 import {
-  resolveGestiaRole
-} from "./gestia-core/auth/role-authority.js?v=role-authority-v2-20260713";
+  resolveGestiaRole,
+  resolveGestiaRouteDecision
+} from "./gestia-core/auth/role-authority.js?v=role-authority-v3-single-navigation-20260713";
 
 /* =====================================================
    FIRESTORE EXTENSIONS
@@ -95,7 +96,7 @@ import {
    COGNITIVE RUNTIME BOOTSTRAP
 ===================================================== */
 
-import "./gestia-core/gestia.runtime.v7.js?v=role-authority-v2-20260713";
+import "./gestia-core/gestia.runtime.v7.js?v=role-authority-v3-single-navigation-20260713";
 
 
 /* =====================================================
@@ -157,11 +158,7 @@ console.log("🧠 Brain Engine conectado a app-main");
 const MASTER_EMAIL = "hebertoh-m@hotmail.com";
 
 const RUTAS = {
-  publicas: ["index.html", "login.html", "registro.html", "/"],
-  admin: "admin.html",
-  tecnico: "tecnico.html",
-  cliente: "cliente.html",
-  residencial: "residencial.html"
+  publicas: ["index.html", "login.html", "registro.html", "/"]
 };
 
 function isCurrentSurfacePublic() {
@@ -950,31 +947,6 @@ Esperando autorización.`;
   }, 5000);
 
 })();
-/* =====================================================
-   SIA7 RUNTIME ROUTING GUARD
-===================================================== */
-
-window.__GESTIA_SURFACE_LOCK__ =
-    window.__GESTIA_SURFACE_LOCK__ || false;
-
-function lockSurfaceRouting() {
-
-    window.__GESTIA_SURFACE_LOCK__ = true;
-}
-
-function unlockSurfaceRouting() {
-
-    setTimeout(() => {
-
-        window.__GESTIA_SURFACE_LOCK__ = false;
-
-    }, 1200);
-}
-
-function isSurfaceRoutingLocked() {
-
-    return window.__GESTIA_SURFACE_LOCK__ === true;
-}
 // =====================================================
 // 🔥 AUTH CORE
 // =====================================================
@@ -1001,24 +973,15 @@ observarAuth(async (userAuth) => {
   }
 
   let userRol = null;
-  let userData = {};
+  const userData = {
+    ...userAuth
+  };
 
   if (isMaster(userAuth)) {
     userRol = "admin";
     console.log("👑 MASTER MODE ACTIVE");
   } else {
-    try {
-      const ref = doc(db, "users", userAuth.uid);
-      const snap = await getDoc(ref);
-
-      if (snap.exists()) {
-        userData = snap.data();
-        userRol = userData.rol || userData.role || null;
-      }
-
-    } catch (err) {
-      console.error("❌ Perfil error:", err);
-    }
+    userRol = userData.rol || userData.role || null;
   }
 
   if (!userRol) {
@@ -1081,79 +1044,39 @@ observarAuth(async (userAuth) => {
     delete window.analyzeIntent;
   }
 
-  const adminSurfaces = [
+  const routeDecision =
+    resolveGestiaRouteDecision({
+      user: userAuth,
+      metadata: {
+        ...userData,
+        rol: userAuth.rol,
+        role: userAuth.rol,
+        roleReal: userAuth.rol_real
+      },
+      pathname: pathActual,
+      search: window.location.search
+    });
 
-    "admin",
+  if (routeDecision.redirect && routeDecision.target) {
+    hideUI();
+    showLoader("ABRIENDO PANEL AUTORIZADO...");
 
-    "ceo",
+    console.log("[APP_MAIN_ROLE_AUTHORITY_REDIRECT]", {
+      role: routeDecision.role,
+      from: routeDecision.page,
+      to: routeDecision.target,
+      reason: routeDecision.reason
+    });
 
-    "gestia-terminal",
+    return go(routeDecision.target);
+  }
 
-    "gestia-modulo",
-
-    "noc"
-
-];
-
-const isAdminSurface =
-
-    adminSurfaces.some(
-
-        surface =>
-
-            pathActual.includes(surface)
-    );
-
-if (
-
-    userAuth.rol === "admin" &&
-
-    !isAdminSurface
-
-) {
-    /* ============================================
-       SIA7 SURFACE GUARD
-    ============================================ */
-
-    if (
-
-        isSurfaceRoutingLocked()
-
-    ) {
-
-        console.warn(
-
-            "🛡️ [SIA7] Redirect bloqueado temporalmente"
-        );
-
-    }
-
-    else {
-
-        lockSurfaceRouting();
-
-        window.__SIA7_ROUTER_LOCK__ = true;
-
-        return go(RUTAS.admin);
-    }
-}
-
-
-
-  if (
-    userAuth.rol === "tecnico" &&
-    !pathActual.includes("tecnico")
-  ) return go(RUTAS.tecnico);
-
-  if (
-    userAuth.rol === "cliente" &&
-    !pathActual.includes("cliente")
-  ) return go(RUTAS.cliente);
-
-  if (
-    userAuth.rol_real === "b2b_admin" &&
-    !pathActual.includes("residencial")
-  ) return go(RUTAS.residencial);
+  if (routeDecision.reason === "role_without_registered_route") {
+    hideUI();
+    showLoader("ROL SIN SUPERFICIE AUTORIZADA");
+    console.error("[APP_MAIN_ROLE_AUTHORITY_DENY]", routeDecision);
+    return;
+  }
 
   revealUI();
   hideLoader();

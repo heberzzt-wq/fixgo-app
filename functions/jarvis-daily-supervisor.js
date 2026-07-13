@@ -33,7 +33,7 @@ const DEFAULT_PROBES = Object.freeze([
         id: "role_authority_contract",
         path: "/gestia-core/auth/role-authority.js",
         markers: [
-            "2.0.0-role-authority",
+            "3.0.0-single-navigation-authority",
             "resolveGestiaRouteDecision",
             "no_temporary_client_role"
         ]

@@ -9,7 +9,7 @@ from "./firebase.js";
 import {
     resolveGestiaRole
 }
-from "./gestia-core/auth/role-authority.js?v=role-authority-v2-20260713";
+from "./gestia-core/auth/role-authority.js?v=role-authority-v3-single-navigation-20260713";
 
 const auth =
     FirebaseCore.auth;

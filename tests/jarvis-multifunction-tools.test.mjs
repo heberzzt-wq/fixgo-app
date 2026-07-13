@@ -522,6 +522,10 @@ test("runtime role authority never invents a temporary client role", () => {
         resolveGestiaRole({}, { rol: "tecnico_gp" }).role,
         "tecnico"
     );
+    assert.equal(
+        resolveGestiaRole({}, { rol: "asistente_admin" }).role,
+        "b2b_admin"
+    );
     assert.match(runtime, /\[AUTH_ROLE_UNRESOLVED\]/);
     assert.match(runtime, /\[SURFACE_GUARD_ROLE_PENDING\]/);
     assert.match(runtime, /if \(!registry\) \{[\s\S]{0,80}return null;/);
@@ -545,7 +549,7 @@ test("private surfaces stay covered until authentication and role settle", () =>
         /if \(isCurrentSurfacePublic\(\)\) \{[\s\S]{0,160}revealUI\(\);[\s\S]{0,120}else \{[\s\S]{0,120}VALIDANDO PERFIL/
     );
 
-    for (const file of ["admin.html", "cliente.html", "tecnico.html"]) {
+    for (const file of ["admin.html", "cliente.html", "tecnico.html", "ceo.html"]) {
         const surface = fs.readFileSync(
             path.join(__dirname, "..", file),
             "utf8"
@@ -609,6 +613,49 @@ test("role authority produces deterministic route decisions for every main role"
         "role_unresolved"
     );
 
+    assert.equal(
+        resolveGestiaRouteDecision({
+            metadata: {
+                rol: "cliente"
+            },
+            pathname: "/admin.html"
+        }).target,
+        "cliente.html"
+    );
+
+    const adminLoginDecision =
+        resolveGestiaRouteDecision({
+            user: {
+                email: "hebertoh-m@hotmail.com"
+            },
+            pathname: "/login.html"
+        });
+
+    const adminLandingDecision =
+        resolveGestiaRouteDecision({
+            user: {
+                email: "hebertoh-m@hotmail.com"
+            },
+            pathname: `/${adminLoginDecision.target}`
+        });
+
+    assert.equal(adminLoginDecision.target, "admin.html");
+    assert.equal(adminLandingDecision.redirect, false);
+    assert.notEqual(adminLoginDecision.target, "cliente.html");
+
+    for (const pathname of ["/gestia-terminal.html", "/ceo.html"]) {
+        assert.equal(
+            resolveGestiaRouteDecision({
+                user: {
+                    email: "hebertoh-m@hotmail.com"
+                },
+                pathname
+            }).redirect,
+            false,
+            pathname
+        );
+    }
+
     const firebase = fs.readFileSync(
         path.join(__dirname, "..", "firebase.js"),
         "utf8"
@@ -617,6 +664,32 @@ test("role authority produces deterministic route decisions for every main role"
     assert.match(firebase, /resolveGestiaRouteDecision/);
     assert.match(firebase, /\[ROLE_AUTHORITY_REDIRECT\]/);
     assert.match(firebase, /window\.location\.replace/);
+
+    const observerSection = firebase.slice(
+        firebase.indexOf("export function observarAuth"),
+        firebase.indexOf("export async function validarClaveB2B")
+    );
+
+    assert.doesNotMatch(observerSection, /verificarYRedireccionar\(/);
+
+    const appMain = fs.readFileSync(
+        path.join(__dirname, "..", "app-main.js"),
+        "utf8"
+    );
+    const ceo = fs.readFileSync(
+        path.join(__dirname, "..", "ceo.html"),
+        "utf8"
+    );
+
+    assert.match(appMain, /resolveGestiaRouteDecision/);
+    assert.match(appMain, /APP_MAIN_ROLE_AUTHORITY_REDIRECT/);
+    assert.doesNotMatch(
+        appMain,
+        /return go\(RUTAS\.(?:admin|tecnico|cliente|residencial)\)/
+    );
+    assert.doesNotMatch(appMain, /const adminSurfaces\s*=/);
+    assert.match(ceo, /class="gestia-auth-pending"/);
+    assert.match(ceo, /verificarYRedireccionar\(userAuth\)/);
 });
 
 test("repo diagnosis separates structural file type from secondary capabilities", () => {

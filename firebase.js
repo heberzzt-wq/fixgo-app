@@ -15,7 +15,7 @@ import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-s
 import {
     resolveGestiaRole,
     resolveGestiaRouteDecision
-} from "./gestia-core/auth/role-authority.js?v=role-authority-v2-20260713";
+} from "./gestia-core/auth/role-authority.js?v=role-authority-v3-single-navigation-20260713";
 
 import { 
     getAuth, 
@@ -464,8 +464,6 @@ export function observarAuth(callback) {
                 }
 
                 console.log("💎 Perfil Identificado:", finalUser.rol);
-
-                verificarYRedireccionar(finalUser);
 
                 callback(finalUser);
 
