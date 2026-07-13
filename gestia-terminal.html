@@ -144,7 +144,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=mixed-intent-v2-20260713-4260-technical-diagnostics-v1-multifunction-planner-v1.4-forensic-output-v4-finding-limits"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=mixed-intent-v2-20260713-4260-technical-diagnostics-v1-multifunction-planner-v1.4-forensic-output-v5-terminal-finding-limits"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260707-4190"></script>
 <script
 type="module"
@@ -4415,6 +4415,40 @@ if (
 
                 const buildBrainGlobalRepoAnalysisSummary =
                     function() {
+                        const findingCountWords = {
+                            uno: 1,
+                            una: 1,
+                            dos: 2,
+                            tres: 3,
+                            cuatro: 4,
+                            cinco: 5,
+                            seis: 6,
+                            siete: 7,
+                            ocho: 8,
+                            nueve: 9,
+                            diez: 10
+                        };
+
+                        const findingCountMatch =
+                            String(comando || "")
+                                .toLowerCase()
+                                .match(/\b(\d{1,2}|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s+(?:fallas?|errores?|riesgos?|problemas?|hallazgos?)\b/);
+
+                        const requestedFindingLimit =
+                            Math.min(
+                                12,
+                                Math.max(
+                                    1,
+                                    findingCountMatch
+                                        ? (
+                                            Number(findingCountMatch[1]) ||
+                                            findingCountWords[findingCountMatch[1]] ||
+                                            12
+                                        )
+                                        : 12
+                                )
+                            );
+
                         const scanObservation =
                             agentObservations.find((item, index) =>
                                 getObservationToolName(item, index) === "repo.scan"
@@ -4512,12 +4546,12 @@ if (
                         const criticalFiles =
                             files
                                 .filter(file => file.critical === true)
-                                .slice(0, 12);
+                                .slice(0, requestedFindingLimit);
 
                         const criticalModules =
                             moduleReports
                                 .filter(item => item.critical)
-                                .slice(0, 12);
+                                .slice(0, requestedFindingLimit);
 
                         const riskyModules =
                             moduleReports
@@ -4525,14 +4559,14 @@ if (
                                     item.inspectRisks.length ||
                                     item.risks.length
                                 )
-                                .slice(0, 12);
+                                .slice(0, requestedFindingLimit);
 
                         const modulesWithMissingDeps =
                             moduleReports
                                 .filter(item =>
                                     item.missingDependencies.length
                                 )
-                                .slice(0, 12);
+                                .slice(0, requestedFindingLimit);
 
                         const typeCounts =
                             files.reduce((acc, file) => {

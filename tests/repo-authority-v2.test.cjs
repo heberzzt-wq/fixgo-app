@@ -1180,6 +1180,8 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /Diagnostico global SIA7 read-only/);
     assert.match(terminal, /Que se ve mal o delicado/);
     assert.match(terminal, /Archivos criticos a revisar primero/);
+    assert.match(terminal, /findingCountWords/);
+    assert.match(terminal, /\.slice\(0, requestedFindingLimit\)/);
     assert.match(terminal, /suppressPatchSurface/);
     assert.match(terminal, /__SIA7_CLEAR_ACTIVE_PATCH_PROPOSAL__/);
     assert.match(terminal, /SIA7_PATCH_SURFACE_CLEARED_BY_BRAIN_PLAN_41_50/);
