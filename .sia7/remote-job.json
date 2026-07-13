@@ -1,1 +1,1 @@
-{"jobId":"sia7-4192-dryrun-fallback-title-semicolon-20260713-39","operation":"patch","humanApproved":true,"patch":{"file":"gestia-terminal.html","search":": \"Agent Loop SIA7\";","replace":": \"SIA7\";","expectedMatches":1,"dryRun":true}}
+{"jobId":"sia7-4192-apply-fallback-title-semicolon-20260713-40","operation":"patch","humanApproved":true,"patch":{"file":"gestia-terminal.html","search":": \"Agent Loop SIA7\";","replace":": \"SIA7\";","expectedMatches":1,"dryRun":false}}
