@@ -859,7 +859,7 @@ test("agent loop composes read-only final response for global repo analysis", ()
     const finalResponse =
         helpers.composeRepoGlobalAnalysisFinalResponse({
             objective:
-                "Jarvis, analiza el repo completo y dime que esta mal",
+                "Jarvis, analiza el repo completo y dime las tres fallas mas importantes",
             toolCalls: [
                 {
                     name:
@@ -892,8 +892,20 @@ test("agent loop composes read-only final response for global repo analysis", ()
                                         "panel-admin.js",
                                     module:
                                         "admin_control_center",
-                                    type:
-                                        "ui_orchestration"
+                                    type: "ui_orchestration",
+                                    critical: true
+                                },
+                                {
+                                    file: "firebase.js",
+                                    module: "firebase_core",
+                                    type: "infrastructure_runtime",
+                                    critical: true
+                                },
+                                {
+                                    file: "gps-motor.js",
+                                    module: "field_tracking",
+                                    type: "telemetry_runtime",
+                                    critical: true
                                 }
                             ],
                             modules: [
@@ -901,7 +913,7 @@ test("agent loop composes read-only final response for global repo analysis", ()
                                 "admin_control_center"
                             ],
                             totalFiles:
-                                2,
+                                4,
                             totalModules:
                                 2
                         }
@@ -935,8 +947,10 @@ test("agent loop composes read-only final response for global repo analysis", ()
     assert.equal(finalResponse.patchPreviewCandidate, null);
     assert.equal(finalResponse.suppressPatchSurface, true);
     assert.match(finalResponse.text, /Modo: REPO_GLOBAL_ANALYSIS read-only/);
-    assert.match(finalResponse.text, /Archivos indexados: 2/);
+    assert.match(finalResponse.text, /Archivos indexados: 4/);
     assert.match(finalResponse.text, /app-main\.js/);
+    assert.match(finalResponse.text, /firebase\.js/);
+    assert.doesNotMatch(finalResponse.text, /gps-motor\.js/);
     assert.match(finalResponse.text, /No se escribieron archivos/);
 });
 

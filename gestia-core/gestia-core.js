@@ -3471,6 +3471,40 @@ function composeRepoGlobalAnalysisFinalResponse({
             ...(Array.isArray(searchData?.data?.matches) ? searchData.data.matches : [])
         ];
 
+    const findingCountWords = {
+        uno: 1,
+        una: 1,
+        dos: 2,
+        tres: 3,
+        cuatro: 4,
+        cinco: 5,
+        seis: 6,
+        siete: 7,
+        ocho: 8,
+        nueve: 9,
+        diez: 10
+    };
+
+    const findingCountMatch =
+        String(objective || "")
+            .toLowerCase()
+            .match(/\b(\d{1,2}|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s+(?:fallas?|errores?|riesgos?|problemas?|hallazgos?)\b/);
+
+    const requestedFindingLimit =
+        Math.min(
+            12,
+            Math.max(
+                1,
+                findingCountMatch
+                    ? (
+                        Number(findingCountMatch[1]) ||
+                        findingCountWords[findingCountMatch[1]] ||
+                        12
+                    )
+                    : 12
+            )
+        );
+
     const criticalFiles =
         files
             .filter(file =>
@@ -3478,7 +3512,7 @@ function composeRepoGlobalAnalysisFinalResponse({
                 String(file?.risk || file?.riskLevel || "").toUpperCase() === "HIGH" ||
                 String(file?.risk || file?.riskLevel || "").toUpperCase() === "CRITICAL"
             )
-            .slice(0, 12);
+            .slice(0, requestedFindingLimit);
 
     const typeCounts =
         files.reduce((acc, file) => {
