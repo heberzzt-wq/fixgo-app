@@ -3,6 +3,7 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { execFileSync } from "child_process";
 
 export const JARVIS_FS_BRIDGE_VERSION =
     "2.1.0-local-fs-bridge";
@@ -23,6 +24,116 @@ const DEFAULT_ROOT =
         process.env.FIXGO_REPO_ROOT ||
         process.cwd()
     );
+
+const RUNTIME_CONTRACT_FILE =
+    "jarvis-runtime-contract.json";
+
+export function readJarvisRuntimeContract(
+    root = DEFAULT_ROOT
+) {
+    try {
+        const contractPath =
+            path.join(
+                path.resolve(root),
+                RUNTIME_CONTRACT_FILE
+            );
+
+        const contract =
+            JSON.parse(
+                fs.readFileSync(
+                    contractPath,
+                    "utf8"
+                )
+            );
+
+        return {
+            ok: true,
+            projectId:
+                String(contract.projectId || ""),
+            branch:
+                String(contract.branch || ""),
+            releaseId:
+                String(contract.releaseId || ""),
+            contractPath
+        };
+    }
+    catch(error) {
+        return {
+            ok: false,
+            status: "RUNTIME_CONTRACT_MISSING",
+            error:
+                error?.message || String(error),
+            projectId: "",
+            branch: "",
+            releaseId: ""
+        };
+    }
+}
+
+function readGitIdentity(
+    root = DEFAULT_ROOT
+) {
+    const run = args => {
+        try {
+            return execFileSync(
+                "git",
+                args,
+                {
+                    cwd:
+                        path.resolve(root),
+                    encoding:
+                        "utf8",
+                    stdio: [
+                        "ignore",
+                        "pipe",
+                        "ignore"
+                    ]
+                }
+            ).trim();
+        }
+        catch {
+            return "";
+        }
+    };
+
+    return {
+        root:
+            run(["rev-parse", "--show-toplevel"]),
+        branch:
+            run(["branch", "--show-current"]),
+        head:
+            run(["rev-parse", "HEAD"]),
+        remote:
+            run(["remote", "get-url", "origin"])
+    };
+}
+
+export function describeJarvisBridgeIdentity(
+    root = DEFAULT_ROOT
+) {
+    const contract =
+        readJarvisRuntimeContract(root);
+
+    const git =
+        readGitIdentity(root);
+
+    const compatible =
+        contract.ok === true &&
+        Boolean(git.root) &&
+        contract.branch === git.branch;
+
+    return {
+        ok: compatible,
+        status:
+            compatible
+                ? "BRIDGE_IDENTITY_OK"
+                : "BRIDGE_IDENTITY_INVALID",
+        root:
+            path.resolve(root),
+        contract,
+        git
+    };
+}
 
 function normalizeRelativePath(file) {
     if (
@@ -649,11 +760,60 @@ export function createJarvisFsBridgeApp({
     }));
 
     app.get("/health", (req, res) => {
+        const identity =
+            describeJarvisBridgeIdentity(root);
+
         res.json({
             ...describeJarvisFsBridge(),
             root:
-                path.resolve(root)
+                path.resolve(root),
+            identity
         });
+    });
+
+    app.use((req, res, next) => {
+        if (req.method !== "POST") {
+            return next();
+        }
+
+        const identity =
+            describeJarvisBridgeIdentity(root);
+
+        if (identity.ok !== true) {
+            return res.status(503).json({
+                ok: false,
+                status: "BRIDGE_IDENTITY_INVALID",
+                error: "BRIDGE_IDENTITY_INVALID",
+                identity,
+                version:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+
+        const expectedReleaseId =
+            String(
+                req.get("X-Jarvis-Release-Id") ||
+                ""
+            );
+
+        if (
+            !expectedReleaseId ||
+            expectedReleaseId !== identity.contract.releaseId
+        ) {
+            return res.status(409).json({
+                ok: false,
+                status: "BRIDGE_RELEASE_MISMATCH",
+                error: "BRIDGE_RELEASE_MISMATCH",
+                expectedReleaseId,
+                actualReleaseId:
+                    identity.contract.releaseId,
+                identity,
+                version:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+
+        return next();
     });
 
         app.post("/grep", async (req, res) => {

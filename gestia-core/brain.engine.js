@@ -133,6 +133,8 @@ const BRAIN_CONFIG = {
   ENDPOINT:
     "https://us-central1-fixgo-44e4d.cloudfunctions.net/gestiaArchitectV5",
 
+  TOOL_PLANNER_ENABLED: false,
+
   FETCH_TIMEOUT_MS: 35000,
 
   MAX_RETRIES: 2,
@@ -2175,7 +2177,10 @@ export async function runCognitiveReasoning(
     ) {
       try {
       cloudReasoning =
-        localTechnicalPlan || await invocarArquitectoIA(
+        localTechnicalPlan ||
+        (
+          BRAIN_CONFIG.TOOL_PLANNER_ENABLED === true
+            ? await invocarArquitectoIA(
 
         input,
 
@@ -2196,6 +2201,8 @@ export async function runCognitiveReasoning(
         null,
         "jarvis",
         "tool_planner"
+        )
+            : null
         );
       } catch(cloudPlannerError) {
       console.warn(

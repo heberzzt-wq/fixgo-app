@@ -99,6 +99,104 @@ test("Jarvis answers casual greetings locally when cloud cognition is unavailabl
     assert.equal(calls[0]?.mutates, false);
 });
 
+test("system health reports a real bridge identity mismatch as degraded", async () => {
+    const previousBridge =
+        globalThis.JarvisLocalBridge;
+
+    globalThis.JarvisLocalBridge = {
+        verifyIdentity: async () => ({
+            ok: false,
+            status: "BRIDGE_IDENTITY_MISMATCH",
+            bridgeRoot: "C:/wrong/repo"
+        })
+    };
+
+    try {
+        const runtime = createRuntime();
+        registerJarvisMultifunctionTools(runtime);
+
+        const result =
+            await runtime.execute(
+                "system.health"
+            );
+
+        assert.equal(result.ok, false);
+        assert.equal(result.status, "DEGRADED");
+        assert.ok(
+            result.failures.includes(
+                "BRIDGE_IDENTITY_MISMATCH"
+            )
+        );
+        assert.equal(
+            result.runtime.bridgeRoot,
+            "C:/wrong/repo"
+        );
+    }
+    finally {
+        globalThis.JarvisLocalBridge =
+            previousBridge;
+    }
+});
+
+test("terminal direct router exposes every registered multifunction namespace", () => {
+    const terminal = fs.readFileSync(
+        path.join(
+            __dirname,
+            "..",
+            "gestia-terminal.html"
+        ),
+        "utf8"
+    );
+
+    assert.match(
+        terminal,
+        /repo\|tests\|codex\|system\|conversation\|business\|marketing\|page\|media/
+    );
+    assert.match(
+        terminal,
+        /slice\(0, 20000\)/
+    );
+});
+
+test("browser runtime fails closed on bridge identity and avoids dead cloud planner", () => {
+    const toolsRuntime = fs.readFileSync(
+        path.join(
+            __dirname,
+            "..",
+            "gestia-core",
+            "tools.runtime.js"
+        ),
+        "utf8"
+    );
+
+    const brain = fs.readFileSync(
+        path.join(
+            __dirname,
+            "..",
+            "gestia-core",
+            "brain.engine.js"
+        ),
+        "utf8"
+    );
+
+    assert.match(
+        toolsRuntime,
+        /BRIDGE_IDENTITY_MISMATCH/
+    );
+    assert.match(
+        toolsRuntime,
+        /"X-Jarvis-Release-Id"/
+    );
+    assert.match(
+        toolsRuntime,
+        /args\.script \|\|\s*"test"/
+    );
+    assert.match(
+        brain,
+        /TOOL_PLANNER_ENABLED:\s*false/
+    );
+});
+
 test("terminal unlocks, queues and recovers Jarvis speech", () => {
     const terminal = fs.readFileSync(
         path.join(
@@ -411,7 +509,7 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(
         analysisHub,
-        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.3-supervision-v1/
+        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.3-supervision-v1-forensic-identity-v1/
     );
 });
 

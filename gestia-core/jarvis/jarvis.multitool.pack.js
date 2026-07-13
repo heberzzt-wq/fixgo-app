@@ -301,30 +301,74 @@ export function registerJarvisMultifunctionTools(runtime) {
             name: "system.health",
             description: "Entrega un diagnostico read-only del runtime, bridge, memoria y conectividad del navegador.",
             output: "SIA7_SYSTEM_HEALTH",
-            execute: async () => ({
-                ok: true,
-                engine: "jarvis_multifunction_tools",
-                version: VERSION,
-                status: "ONLINE",
-                runtime: {
-                    registeredTools:
-                        runtime.list?.().length || 0,
-                    bridgeAvailable:
-                        typeof globalThis?.JarvisToolsBridge !== "undefined",
-                    responseComposerAvailable:
-                        typeof globalThis?.ResponseComposer !== "undefined"
-                },
-                environment: {
-                    online:
-                        typeof navigator !== "undefined"
-                            ? navigator.onLine === true
-                            : null,
-                    memoryEntries:
-                        globalThis?.JarvisToolMemory?.all?.().length || 0
-                },
-                readOnly: true,
-                checkedAt: Date.now()
-            })
+            execute: async () => {
+                const registeredTools =
+                    runtime.list?.().length || 0;
+
+                const online =
+                    typeof navigator !== "undefined"
+                        ? navigator.onLine === true
+                        : null;
+
+                const bridge =
+                    typeof globalThis?.JarvisLocalBridge?.verifyIdentity === "function"
+                        ? await globalThis.JarvisLocalBridge.verifyIdentity({
+                            force: true
+                        })
+                        : {
+                            ok: false,
+                            status: "BRIDGE_CLIENT_UNAVAILABLE"
+                        };
+
+                const failures = [];
+
+                if (registeredTools === 0) {
+                    failures.push("TOOL_RUNTIME_EMPTY");
+                }
+
+                if (bridge.ok !== true) {
+                    failures.push(bridge.status || "BRIDGE_UNAVAILABLE");
+                }
+
+                if (online === false) {
+                    failures.push("BROWSER_OFFLINE");
+                }
+
+                const status =
+                    failures.length === 0
+                        ? "ONLINE"
+                        : registeredTools > 0
+                            ? "DEGRADED"
+                            : "OFFLINE";
+
+                return {
+                    ok:
+                        status === "ONLINE",
+                    engine: "jarvis_multifunction_tools",
+                    version: VERSION,
+                    status,
+                    failures,
+                    runtime: {
+                        registeredTools,
+                        bridgeAvailable:
+                            bridge.ok === true,
+                        bridgeStatus:
+                            bridge.status || "UNKNOWN",
+                        bridgeRoot:
+                            bridge.bridgeRoot || null,
+                        responseComposerAvailable:
+                            typeof globalThis?.ResponseComposer !== "undefined"
+                    },
+                    bridge,
+                    environment: {
+                        online,
+                        memoryEntries:
+                            globalThis?.JarvisToolMemory?.all?.().length || 0
+                    },
+                    readOnly: true,
+                    checkedAt: Date.now()
+                };
+            }
         }),
         register(runtime, {
             name: "system.supervision",

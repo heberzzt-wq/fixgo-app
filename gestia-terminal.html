@@ -150,7 +150,7 @@ fetch("/gestia-terminal.js")
 type="module"
 src="/gestia-core/gestia.runtime.v7.js?v=jarvis-runtime-macro-v2-20260618">
 </script>
-<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260707-4180"></script>
+<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-forensic-identity-v1"></script>
 <script type="module" src="/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123"></script>
 <script type="module" src="/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123"></script>
 <script type="module" src="/gestia-core/jarvis/jarvis.language.core.v5.js"></script>
@@ -1520,7 +1520,7 @@ if (/^repo\.write\s+/i.test(directToolInput)) {
         "[DIRECT_TOOL_ROUTER] repo.write",
         typeof writePayload === "string"
             ? writePayload
-            : JSON.stringify(writePayload, null, 2).slice(0, 6000),
+            : JSON.stringify(writePayload, null, 2).slice(0, 20000),
         writeResult?.ok === false ? "warning" : "success"
     );
 
@@ -1531,7 +1531,7 @@ if (/^repo\.write\s+/i.test(directToolInput)) {
 }
 const directToolMatch =
     directToolInput.match(
-        /^(repo|tests|codex)\.([a-zA-Z]+)(?:\s+(.+))?$/i
+        /^(repo|tests|codex|system|conversation|business|marketing|page|media)\.([a-zA-Z]+)(?:\s+(.+))?$/i
     );
 
 if (directToolMatch) {
@@ -1849,7 +1849,7 @@ if (directToolMatch) {
             `[DIRECT_TOOL_ROUTER] ${directTool.name}`,
             typeof directPayload === "string"
                 ? directPayload
-                : JSON.stringify(directPayload, null, 2).slice(0, 6000),
+                : JSON.stringify(directPayload, null, 2).slice(0, 20000),
             directResult?.ok === false ? "warning" : "success"
         );
 
@@ -2005,7 +2005,7 @@ const isProtectedTerminalCommand =
             normalizeCasualGateText(value);
 
         return (
-            /^(repo|tests|codex)\./i.test(normalized) ||
+            /^(repo|tests|codex|system|conversation|business|marketing|page|media)\./i.test(normalized) ||
             /^(jarvis,\s*)?(apruebo|aprobar|aprueba|escribe)\s+patch\b/i.test(normalized)
         );
     };

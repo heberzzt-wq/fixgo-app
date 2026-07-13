@@ -984,6 +984,201 @@ catch(error) {
     }
 });
 window.JarvisLocalBridge ||= {};
+window.JarvisLocalBridge.verifyIdentity ||= async function({
+    force = false
+} = {}) {
+    const now =
+        Date.now();
+
+    const cached =
+        window.JarvisLocalBridge.__identityCache;
+
+    if (
+        force !== true &&
+        cached?.checkedAt &&
+        now - cached.checkedAt < 10000
+    ) {
+        return cached;
+    }
+
+    try {
+        const [expectedResponse, bridgeResponse] =
+            await Promise.all([
+                fetch(
+                    "/jarvis-runtime-contract.json",
+                    {
+                        cache: "no-store"
+                    }
+                ),
+                fetch(
+                    "http://localhost:3344/health",
+                    {
+                        cache: "no-store"
+                    }
+                )
+            ]);
+
+        const expected =
+            await expectedResponse.json();
+
+        const bridgeHealth =
+            await bridgeResponse.json();
+
+        const actual =
+            bridgeHealth?.identity || null;
+
+        const compatible =
+            expectedResponse.ok === true &&
+            bridgeResponse.ok === true &&
+            actual?.ok === true &&
+            actual?.contract?.projectId === expected.projectId &&
+            actual?.contract?.releaseId === expected.releaseId &&
+            actual?.contract?.branch === expected.branch &&
+            actual?.git?.branch === expected.branch;
+
+        const result = {
+            ok: compatible,
+            status:
+                compatible
+                    ? "BRIDGE_IDENTITY_OK"
+                    : "BRIDGE_IDENTITY_MISMATCH",
+            expected,
+            actual,
+            bridgeRoot:
+                bridgeHealth?.root ||
+                actual?.root ||
+                null,
+            checkedAt: now
+        };
+
+        window.JarvisLocalBridge.__identityCache =
+            result;
+
+        return result;
+    }
+    catch(error) {
+        const result = {
+            ok: false,
+            status: "BRIDGE_UNREACHABLE",
+            error:
+                error?.message || String(error),
+            checkedAt: now
+        };
+
+        window.JarvisLocalBridge.__identityCache =
+            result;
+
+        return result;
+    }
+};
+
+window.JarvisLocalBridge.requestJson ||= async function(
+    path,
+    payload = {},
+    options = {}
+) {
+    const identity =
+        await window.JarvisLocalBridge.verifyIdentity({
+            force:
+                options.forceIdentityCheck === true
+        });
+
+    if (identity.ok !== true) {
+        return {
+            ...identity,
+            ok: false,
+            success: false,
+            error:
+                identity.status,
+            path
+        };
+    }
+
+    const timeoutMs =
+        Math.max(
+            5000,
+            Number(options.timeoutMs || payload.timeoutMs || 30000)
+        );
+
+    const controller =
+        new AbortController();
+
+    const timer =
+        setTimeout(
+            () => controller.abort(),
+            timeoutMs
+        );
+
+    try {
+        const response =
+            await fetch(
+                `http://localhost:3344${path}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Jarvis-Release-Id":
+                            identity.expected.releaseId
+                    },
+                    body:
+                        JSON.stringify(payload || {}),
+                    signal:
+                        controller.signal
+                }
+            );
+
+        const rawText =
+            await response.text();
+
+        let result;
+
+        try {
+            result =
+                JSON.parse(rawText);
+        }
+        catch(error) {
+            result = {
+                ok: false,
+                status: "BRIDGE_BAD_JSON",
+                error: "BRIDGE_ENDPOINT_DID_NOT_RETURN_JSON",
+                raw:
+                    rawText.slice(0, 1000),
+                parseError:
+                    error?.message || String(error)
+            };
+        }
+
+        return {
+            ...result,
+            httpOk:
+                response.ok,
+            httpStatus:
+                response.status,
+            bridgeIdentity:
+                identity
+        };
+    }
+    catch(error) {
+        return {
+            ok: false,
+            success: false,
+            status:
+                error?.name === "AbortError"
+                    ? "BRIDGE_REQUEST_TIMEOUT"
+                    : "BRIDGE_REQUEST_FAILED",
+            error:
+                error?.message || String(error),
+            timeoutMs,
+            path,
+            bridgeIdentity:
+                identity
+        };
+    }
+    finally {
+        clearTimeout(timer);
+    }
+};
+
 window.JarvisLocalBridge.writeFile ||= async function(payload = {}) {
     const file =
         payload.file ||
@@ -998,59 +1193,29 @@ window.JarvisLocalBridge.writeFile ||= async function(payload = {}) {
     const dryRun =
         payload.dryRun === true;
 
-    const response =
-        await fetch(
-            "http://localhost:3344/write",
+    const result =
+        await window.JarvisLocalBridge.requestJson(
+            "/write",
             {
-                method:
-                    "POST",
-                headers: {
-                    "Content-Type":
-                        "application/json"
-                },
-                body:
-                    JSON.stringify({
-                        file,
-                        path:
-                            payload.path || file,
-                        content,
-                        dryRun,
-                        source:
-                            payload.source ||
-                            "jarvis_repo_write_v7"
-                    })
+                file,
+                path:
+                    payload.path || file,
+                content,
+                dryRun,
+                source:
+                    payload.source ||
+                    "jarvis_repo_write_v7"
+            },
+            {
+                timeoutMs:
+                    payload.timeoutMs || 30000
             }
         );
-
-    const rawText =
-        await response.text();
-
-    let result =
-        null;
-
-    try {
-        result =
-            JSON.parse(rawText);
-    }
-    catch(error) {
-        result = {
-            ok:
-                false,
-            status:
-                "INVALID_WRITE_RESPONSE",
-            error:
-                "WRITE_ENDPOINT_DID_NOT_RETURN_JSON",
-            raw:
-                rawText.slice(0, 500),
-            parseError:
-                error?.message || String(error)
-        };
-    }
 
     return {
         ...result,
         httpStatus:
-            response.status,
+            result?.httpStatus || null,
         source:
             result?.source ||
             "jarvis_local_bridge_write_client_v7"
@@ -3760,35 +3925,14 @@ const JarvisGitWorkflowBridge =
             "http://localhost:3344/git",
         request:
             async payload => {
-                const response =
-                    await fetch(
-                        "http://localhost:3344/git",
-                        {
-                            method:
-                                "POST",
-                            headers: {
-                                "Content-Type":
-                                    "application/json"
-                            },
-                            body:
-                                JSON.stringify(payload || {})
-                        }
-                    );
-
-                const data =
-                    await response.json()
-                        .catch(() => ({
-                            ok: false,
-                            status: "GIT_BRIDGE_BAD_JSON"
-                        }));
-
-                return {
-                    ...data,
-                    httpOk:
-                        response.ok,
-                    httpStatus:
-                        response.status
-                };
+                return await window.JarvisLocalBridge.requestJson(
+                    "/git",
+                    payload || {},
+                    {
+                        timeoutMs:
+                            Number(payload?.timeoutMs || 120000) + 5000
+                    }
+                );
             }
     };
 
@@ -6511,38 +6655,34 @@ window.JarvisLocalBridge.runCommand ||= async function(payload = {}) {
         };
     }
 
-    const response =
-        await fetch(
-            "http://localhost:3344/run",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type":
-                        "application/json"
-                },
-                body:
-                    JSON.stringify({
-                        command,
-                        cwd:
-                            payload.cwd ||
-                            ".",
-                        timeoutMs:
-                            payload.timeoutMs ||
-                            120000,
-                        source:
-                            payload.source ||
-                            "jarvis_tests_run_v7"
-                    })
-            }
-        );
+    const commandTimeoutMs =
+        payload.timeoutMs ||
+        120000;
 
     const result =
-        await response.json();
+        await window.JarvisLocalBridge.requestJson(
+            "/run",
+            {
+                command,
+                cwd:
+                    payload.cwd ||
+                    ".",
+                timeoutMs:
+                    commandTimeoutMs,
+                source:
+                    payload.source ||
+                    "jarvis_tests_run_v7"
+            },
+            {
+                timeoutMs:
+                    Number(commandTimeoutMs) + 5000
+            }
+        );
 
     return {
         ...result,
         httpStatus:
-            response.status,
+            result?.httpStatus || null,
         source:
             result?.source ||
             "jarvis_local_bridge_client_v7"
@@ -6555,43 +6695,31 @@ window.JarvisLocalBridge.grepRepo ||= async function(payload = {}) {
         payload.query ||
         "";
 
-    const response =
-        await fetch(
-            "http://localhost:3344/grep",
+    const result =
+        await window.JarvisLocalBridge.requestJson(
+            "/grep",
             {
-                method:
-                    "POST",
-                headers: {
-                    "Content-Type":
-                        "application/json"
-                },
-                body:
-                    JSON.stringify({
-                        term,
-                        query:
-                            payload.query || term,
-                        cwd:
-                            payload.cwd || ".",
-                        maxFiles:
-                            payload.maxFiles || 800,
-                        maxFileSizeBytes:
-                            payload.maxFileSizeBytes || 512000,
-                        maxMatches:
-                            payload.maxMatches || 80,
-                        source:
-                            payload.source ||
-                            "jarvis_repo_grep_v7"
-                    })
+                term,
+                query:
+                    payload.query || term,
+                cwd:
+                    payload.cwd || ".",
+                maxFiles:
+                    payload.maxFiles || 800,
+                maxFileSizeBytes:
+                    payload.maxFileSizeBytes || 512000,
+                maxMatches:
+                    payload.maxMatches || 80,
+                source:
+                    payload.source ||
+                    "jarvis_repo_grep_v7"
             }
         );
-
-    const result =
-        await response.json();
 
     return {
         ...result,
         httpStatus:
-            response.status,
+            result?.httpStatus || null,
         source:
             result?.source ||
             "jarvis_local_bridge_grep_client_v7"
@@ -6605,62 +6733,29 @@ window.JarvisLocalBridge.readFile ||= async function(payload = {}) {
         payload.path ||
         "";
 
-    const response =
-        await fetch(
-            "http://localhost:3344/read",
+    const result =
+        await window.JarvisLocalBridge.requestJson(
+            "/read",
             {
-                method:
-                    "POST",
-                headers: {
-                    "Content-Type":
-                        "application/json"
-                },
-                body:
-                    JSON.stringify({
-                        file,
-                        path:
-                            payload.path || file,
-                        maxBytes:
-                            payload.maxBytes || 300000,
-                        startLine:
-                            payload.startLine || null,
-                        endLine:
-                            payload.endLine || null,
-                        source:
-                            payload.source ||
-                            "jarvis_repo_read_v7"
-                    })
+                file,
+                path:
+                    payload.path || file,
+                maxBytes:
+                    payload.maxBytes || 300000,
+                startLine:
+                    payload.startLine || null,
+                endLine:
+                    payload.endLine || null,
+                source:
+                    payload.source ||
+                    "jarvis_repo_read_v7"
             }
         );
-
-    const rawText =
-        await response.text();
-
-    let result =
-        null;
-
-    try {
-        result =
-            JSON.parse(rawText);
-    }
-    catch(error) {
-        result = {
-            ok: false,
-            status:
-                "INVALID_READ_RESPONSE",
-            error:
-                "READ_ENDPOINT_DID_NOT_RETURN_JSON",
-            raw:
-                rawText.slice(0, 500),
-            parseError:
-                error?.message || String(error)
-        };
-    }
 
     return {
         ...result,
         httpStatus:
-            response.status,
+            result?.httpStatus || null,
         source:
             result?.source ||
             "jarvis_local_bridge_read_client_v7"
@@ -6681,59 +6776,29 @@ window.JarvisLocalBridge.writeFile ||= async function(payload = {}) {
     const dryRun =
         payload.dryRun === true;
 
-    const response =
-        await fetch(
-            "http://localhost:3344/write",
+    const result =
+        await window.JarvisLocalBridge.requestJson(
+            "/write",
             {
-                method:
-                    "POST",
-                headers: {
-                    "Content-Type":
-                        "application/json"
-                },
-                body:
-                    JSON.stringify({
-                        file,
-                        path:
-                            payload.path || file,
-                        content,
-                        dryRun,
-                        source:
-                            payload.source ||
-                            "jarvis_repo_write_v7"
-                    })
+                file,
+                path:
+                    payload.path || file,
+                content,
+                dryRun,
+                source:
+                    payload.source ||
+                    "jarvis_repo_write_v7"
+            },
+            {
+                timeoutMs:
+                    payload.timeoutMs || 30000
             }
         );
-
-    const rawText =
-        await response.text();
-
-    let result =
-        null;
-
-    try {
-        result =
-            JSON.parse(rawText);
-    }
-    catch(error) {
-        result = {
-            ok:
-                false,
-            status:
-                "INVALID_WRITE_RESPONSE",
-            error:
-                "WRITE_ENDPOINT_DID_NOT_RETURN_JSON",
-            raw:
-                rawText.slice(0, 500),
-            parseError:
-                error?.message || String(error)
-        };
-    }
 
     return {
         ...result,
         httpStatus:
-            response.status,
+            result?.httpStatus || null,
         source:
             result?.source ||
             "jarvis_local_bridge_write_client_v7"
@@ -6751,7 +6816,7 @@ JarvisToolRuntime.register({
         const command =
             args.command ||
             args.script ||
-            "ci:test";
+            "test";
 
         const allowedCommands =
             new Set([
@@ -6817,7 +6882,7 @@ JarvisToolRuntime.register({
             status:
                 result?.ok === true
                     ? "PASSED"
-                    : "FAILED",
+                    : result?.status || "FAILED",
             command,
             npmCommand,
             result,

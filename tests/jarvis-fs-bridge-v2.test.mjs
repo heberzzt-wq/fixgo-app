@@ -7,6 +7,7 @@ import {
     assertWriteContent,
     describeJarvisFsBridge,
     normalizeReadLineRange,
+    readJarvisRuntimeContract,
     resolveRepoPath
 } from "../jarvis-fs-bridge.js";
 
@@ -19,6 +20,21 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
+});
+
+test("Jarvis FS bridge loads the release identity contract", () => {
+    const contract =
+        readJarvisRuntimeContract(
+            process.cwd()
+        );
+
+    assert.equal(contract.ok, true);
+    assert.equal(contract.projectId, "fixgo-app");
+    assert.equal(contract.branch, "v5.9-polish");
+    assert.match(
+        contract.releaseId,
+        /^v5\.9-polish-forensic-/
+    );
 });
 
 test("Jarvis FS bridge V2 reads bounded line ranges", () => {
