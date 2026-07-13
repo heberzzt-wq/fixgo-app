@@ -3,6 +3,10 @@
  * Arquitectura: Singleton Registry + Middleware Chain + Error Boundary
  */
 
+import {
+    registerJarvisMultifunctionTools
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v1-20260713";
+
 export const JarvisToolRuntime = {
     _registry: new Map(),
     _middleware: [],
@@ -552,6 +556,11 @@ window.toolsRuntime =
             JarvisToolRuntime
         );
 }
+
+registerJarvisMultifunctionTools(
+    JarvisToolRuntime
+);
+
 // Registro de herramientas Read-Only iniciales
 JarvisToolRuntime.register({
     name: "repo.audit",

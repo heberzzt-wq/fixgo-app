@@ -34,6 +34,12 @@ from "./jarvis/jarvis.memory.js";
 
 import {
 
+  buildJarvisMultifunctionToolCalls
+
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1-20260713";
+
+import {
+
   analyzeIntent
 
 } from "./jarvis/jarvis.vision.engine.js?v=repo-global-analysis-41-59";
@@ -640,6 +646,22 @@ const SEMANTIC_READ_ONLY_REPO_TOOLS =
     "repo.impact"
   ]);
 
+const SEMANTIC_READ_ONLY_MULTIFUNCTION_TOOLS =
+  new Set([
+    "system.capabilities",
+    "system.health",
+    "business.assist",
+    "marketing.plan",
+    "page.plan",
+    "media.analyze"
+  ]);
+
+const SEMANTIC_READ_ONLY_TOOLS =
+  new Set([
+    ...SEMANTIC_READ_ONLY_REPO_TOOLS,
+    ...SEMANTIC_READ_ONLY_MULTIFUNCTION_TOOLS
+  ]);
+
 const SEMANTIC_GENERIC_DISCOVERY_TOOLS =
   new Set([
     "repo.audit",
@@ -1071,7 +1093,7 @@ function normalizeCloudToolPlan(
         ).trim();
 
       return (
-        !SEMANTIC_READ_ONLY_REPO_TOOLS.has(name) &&
+        !SEMANTIC_READ_ONLY_TOOLS.has(name) &&
         !SEMANTIC_GENERIC_DISCOVERY_TOOLS.has(name)
       );
     });
@@ -1087,7 +1109,7 @@ function normalizeCloudToolPlan(
           ).trim();
 
         if (
-          !SEMANTIC_READ_ONLY_REPO_TOOLS.has(name) ||
+          !SEMANTIC_READ_ONLY_TOOLS.has(name) ||
           name === "repo.audit"
         ) {
           return null;
@@ -2011,7 +2033,10 @@ export async function runCognitiveReasoning(
       );
 
     const plannerSeedToolCalls =
-      [];
+      buildJarvisMultifunctionToolCalls(
+        input,
+        contexto
+      );
 
     let cloudReasoning =
       null;

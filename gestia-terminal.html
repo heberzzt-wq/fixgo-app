@@ -1549,6 +1549,42 @@ if (directToolMatch) {
             name: "repo.audit",
             args: {}
         },
+        "system.capabilities": {
+            name: "system.capabilities",
+            args: {}
+        },
+        "system.health": {
+            name: "system.health",
+            args: {}
+        },
+        "business.assist": {
+            name: "business.assist",
+            args: {
+                prompt: directArg
+            }
+        },
+        "marketing.plan": {
+            name: "marketing.plan",
+            args: {
+                prompt: directArg
+            }
+        },
+        "page.plan": {
+            name: "page.plan",
+            args: {
+                prompt: directArg,
+                pageName:
+                    directArg ||
+                    "pagina-oficial"
+            }
+        },
+        "media.analyze": {
+            name: "media.analyze",
+            args: parseDirectArgs(
+                directArg ||
+                ""
+            )
+        },
         "repo.scan": {
             name: "repo.scan",
             args: {}
