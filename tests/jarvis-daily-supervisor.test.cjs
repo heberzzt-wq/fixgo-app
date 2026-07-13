@@ -79,6 +79,7 @@ test("daily supervisor writes one idempotent read-only report and health heartbe
     });
 
     assert.equal(report.status, "HEALTHY");
+    assert.equal(report.version, "2.0.0-daily-read-only");
     assert.equal(report.score, 100);
     assert.equal(report.summary.failed, 0);
     assert.equal(report.policy.autoPatch, false);
@@ -107,7 +108,7 @@ test("daily supervisor reports missing contracts without attempting repair", asy
         now: new Date("2026-07-13T09:15:00.000Z")
     });
 
-    assert.equal(report.status, "DEGRADED");
+    assert.equal(report.status, "CRITICAL");
     assert.equal(report.summary.failed, 1);
     assert.equal(report.findings.length, 1);
     assert.equal(report.policy.humanApprovalRequired, true);
@@ -121,10 +122,14 @@ test("supervision helpers and latest report contract stay deterministic", async 
             total: 2,
             passed: 1,
             failed: 1,
-            score: 80,
-            status: "DEGRADED"
+            score: 50,
+            status: "CRITICAL"
         }
     );
+
+    assert.ok(DEFAULT_PROBES.some(probe => probe.id === "role_authority_contract"));
+    assert.ok(DEFAULT_PROBES.some(probe => probe.id === "private_surface_gate"));
+    assert.ok(DEFAULT_PROBES.some(probe => probe.id === "semantic_diagnostics_contract"));
 
     const latest = await getLatestJarvisSupervisionReport({
         db: createFirestoreMock()

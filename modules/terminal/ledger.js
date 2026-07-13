@@ -255,6 +255,18 @@ async function fetchLedgerUI() {
 /* 🔥 MEMORIA PARA DETECTAR NUEVOS (VA AQUÍ) */
 let lastLedgerIds = new Set();
 
+function escapeLedgerHtml(value = "") {
+    const entities = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+    };
+
+    return String(value).replace(/[&<>"']/g, character => entities[character]);
+}
+
 function renderLedgerUI(items = []) {
 
     const output = document.getElementById("gestia-output");
@@ -286,9 +298,16 @@ function renderLedgerUI(items = []) {
     const currentIds = new Set(
         items.map(i => i.opId || i.timestamp || JSON.stringify(i))
     );
+    const groupedEntries = Object.entries(grouped).slice(0, 5);
+    const hadPreviousLedger = lastLedgerIds.size > 0;
+    const hasNewLedgerEvent = [...currentIds]
+        .some(id => !lastLedgerIds.has(id));
 
     const html = `
-        <div id="ledger-ui-block" class="max-w-4xl mx-auto w-full">
+        <details id="ledger-ui-block" class="max-w-4xl mx-auto w-full">
+            <summary class="cursor-pointer text-xs text-slate-400 hover:text-blue-300">
+                Actividad reciente · ${groupedEntries.length} planes · ${items.length} eventos
+            </summary>
             <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
 
                 <h3 class="text-sm text-blue-400 font-bold mb-4">
@@ -297,28 +316,29 @@ function renderLedgerUI(items = []) {
 
                 <div class="space-y-3 text-xs font-mono">
 
-                    ${Object.entries(grouped).map(([planId, events]) => `
+                    ${groupedEntries.map(([planId, events]) => `
                         <div class="border border-slate-700 rounded-lg p-3">
 
                             <div class="text-slate-400 mb-2">
-                                ${planId}
+                                ${escapeLedgerHtml(planId)}
                             </div>
 
                             <div class="ml-3 space-y-1">
                                 ${events.map(e => {
                                     const id = e.opId || e.timestamp || JSON.stringify(e);
                                     const isNew = !lastLedgerIds.has(id);
+                                    const eventType = String(e.type || "PLAN_EVENT");
 
                                     return `
                                         <div class="${isNew ? 'bg-emerald-500/20 rounded px-1 transition-all duration-700' : ''}">
                                             <span class="${
-                                                e.type === "PLAN_EXECUTED"
+                                                eventType === "PLAN_EXECUTED"
                                                     ? "text-emerald-400"
-                                                    : e.type === "PLAN_APPROVED"
+                                                    : eventType === "PLAN_APPROVED"
                                                     ? "text-blue-400"
                                                     : "text-slate-400"
                                             }">
-                                                ├─ ${e.type.replace("PLAN_", "")}
+                                                ├─ ${escapeLedgerHtml(eventType.replace("PLAN_", ""))}
                                             </span>
                                         </div>
                                     `;
@@ -331,7 +351,7 @@ function renderLedgerUI(items = []) {
                 </div>
 
             </div>
-        </div>
+        </details>
     `;
 
     // 🔁 reemplazo controlado (no duplicar)
@@ -343,7 +363,9 @@ function renderLedgerUI(items = []) {
         output.insertAdjacentHTML("beforeend", html);
     }
 
-    output.scrollTop = output.scrollHeight;
+    if (hadPreviousLedger && hasNewLedgerEvent) {
+        output.scrollTop = output.scrollHeight;
+    }
 
     // 🔥 guardar estado para detectar nuevos en siguiente render
     lastLedgerIds = currentIds;

@@ -16,16 +16,43 @@ const DEFAULT_PROBES = Object.freeze([
         path: "/app-login.js",
         markers: [
             "FirebaseCore.verificarYRedireccionar",
+            "resolveGestiaRole",
             "LOGIN_ROLE_PENDING"
         ]
     },
     {
-        id: "admin_surface_router",
+        id: "canonical_role_router",
         path: "/firebase.js",
         markers: [
-            "gestia-terminal",
-            "gestia-modulo",
-            "b2b_admin"
+            "resolveGestiaRouteDecision",
+            "[ROLE_AUTHORITY_REDIRECT]",
+            "window.location.replace"
+        ]
+    },
+    {
+        id: "role_authority_contract",
+        path: "/gestia-core/auth/role-authority.js",
+        markers: [
+            "2.0.0-role-authority",
+            "resolveGestiaRouteDecision",
+            "no_temporary_client_role"
+        ]
+    },
+    {
+        id: "private_surface_gate",
+        path: "/cliente.html",
+        markers: [
+            "gestia-auth-pending",
+            "fortressLoader"
+        ]
+    },
+    {
+        id: "semantic_diagnostics_contract",
+        path: "/gestia-core/tools.runtime.js",
+        markers: [
+            "Tipo principal",
+            "Capacidades:",
+            "GEOLOCATION_CAPABILITY_DETECTED"
         ]
     },
     {
@@ -137,7 +164,9 @@ async function runProbe({
 function summarizeChecks(checks = []) {
     const passed = checks.filter(check => check.ok).length;
     const failed = checks.length - passed;
-    const score = Math.max(0, 100 - (failed * 20));
+    const score = checks.length
+        ? Math.round((passed / checks.length) * 100)
+        : 0;
 
     return {
         total: checks.length,
@@ -172,22 +201,20 @@ async function runDailyJarvisSupervision({
 
     const key = dateKey(now);
     const traceId = `jarvis_supervision_${key}`;
-    const checks = [];
-
-    for (const probe of probes) {
-        checks.push(await runProbe({
+    const checks = await Promise.all(
+        probes.map(probe => runProbe({
             probe,
             baseUrl,
             fetchImpl,
             timeoutMs
-        }));
-    }
+        }))
+    );
 
     const summary = summarizeChecks(checks);
     const report = {
         reportId: key,
         traceId,
-        version: "1.0.0-daily-read-only",
+        version: "2.0.0-daily-read-only",
         status: summary.status,
         score: summary.score,
         summary,

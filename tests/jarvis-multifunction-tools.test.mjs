@@ -16,7 +16,8 @@ import {
 } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 
 import {
-    resolveGestiaRole
+    resolveGestiaRole,
+    resolveGestiaRouteDecision
 } from "../gestia-core/auth/role-authority.js";
 
 const __dirname =
@@ -558,6 +559,66 @@ test("private surfaces stay covered until authentication and role settle", () =>
     }
 });
 
+test("role authority produces deterministic route decisions for every main role", () => {
+    assert.deepEqual(
+        resolveGestiaRouteDecision({
+            user: {
+                email: "hebertoh-m@hotmail.com"
+            },
+            pathname: "/cliente.html"
+        }).target,
+        "admin.html"
+    );
+
+    assert.equal(
+        resolveGestiaRouteDecision({
+            metadata: {
+                rol: "admin"
+            },
+            pathname: "/ceo.html"
+        }).redirect,
+        false
+    );
+
+    assert.equal(
+        resolveGestiaRouteDecision({
+            metadata: {
+                rol: "tecnico_gp",
+                sub_type: "saas"
+            },
+            pathname: "/cliente.html"
+        }).target,
+        "tecnico-b2b.html"
+    );
+
+    assert.equal(
+        resolveGestiaRouteDecision({
+            metadata: {
+                rol: "admin_b2b"
+            },
+            pathname: "/login.html"
+        }).target,
+        "panel-b2b-admin.html"
+    );
+
+    assert.equal(
+        resolveGestiaRouteDecision({
+            metadata: {},
+            pathname: "/login.html"
+        }).reason,
+        "role_unresolved"
+    );
+
+    const firebase = fs.readFileSync(
+        path.join(__dirname, "..", "firebase.js"),
+        "utf8"
+    );
+
+    assert.match(firebase, /resolveGestiaRouteDecision/);
+    assert.match(firebase, /\[ROLE_AUTHORITY_REDIRECT\]/);
+    assert.match(firebase, /window\.location\.replace/);
+});
+
 test("repo diagnosis separates structural file type from secondary capabilities", () => {
     const toolsRuntime = fs.readFileSync(
         path.join(__dirname, "..", "gestia-core", "tools.runtime.js"),
@@ -730,4 +791,19 @@ test("multifunction descriptor remains approval-bound", () => {
 
     assert.equal(planner.mutates, false);
     assert.equal(planner.maximumToolCalls, 3);
+});
+
+test("terminal ledger stays compact and escapes persisted labels", () => {
+    const ledger = fs.readFileSync(
+        path.join(__dirname, "..", "modules", "terminal", "ledger.js"),
+        "utf8"
+    );
+
+    assert.match(ledger, /function escapeLedgerHtml/);
+    assert.match(ledger, /Object\.entries\(grouped\)\.slice\(0, 5\)/);
+    assert.match(ledger, /<details id="ledger-ui-block"/);
+    assert.match(ledger, /escapeLedgerHtml\(planId\)/);
+    assert.match(ledger, /escapeLedgerHtml\(eventType\.replace/);
+    assert.match(ledger, /hadPreviousLedger && hasNewLedgerEvent/);
+    assert.doesNotMatch(ledger, /\$\{planId\}\s*<\/div>/);
 });

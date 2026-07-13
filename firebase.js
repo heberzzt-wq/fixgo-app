@@ -13,7 +13,8 @@ import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebase
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 import {
-    resolveGestiaRole
+    resolveGestiaRole,
+    resolveGestiaRouteDecision
 } from "./gestia-core/auth/role-authority.js?v=role-authority-v2-20260713";
 
 import { 
@@ -144,7 +145,7 @@ function shouldSkipLegacyRouting() {
 // 🔥 ENRUTADOR DE TRÁFICO INTELIGENTE (VERSIÓN ROBUSTA V5.30)
 // ======================================================
 
-export function verificarYRedireccionar(user) {
+function verificarYRedireccionarLegacy(user) {
 
     if (!user || typeof window === "undefined") return;
 
@@ -343,6 +344,61 @@ if (window.__SIA7_ROUTER_LOCK__) {
 // ======================================================
 // 🧠 OBSERVADOR DE SESIÓN (MANTENIENDO LÓGICA DE MIGRACIÓN)
 // ======================================================
+
+export function verificarYRedireccionar(user) {
+    if (
+        !user ||
+        typeof window === "undefined"
+    ) {
+        return {
+            redirect: false,
+            target: null,
+            reason: "missing_user_or_window"
+        };
+    }
+
+    if (
+        window.__SIA7_ROUTER_LOCK__ ||
+        shouldSkipLegacyRouting()
+    ) {
+        return {
+            redirect: false,
+            target: null,
+            reason: "routing_authority_locked"
+        };
+    }
+
+    const decision =
+        resolveGestiaRouteDecision({
+            user,
+            metadata: user,
+            pathname: window.location.pathname,
+            search: window.location.search
+        });
+
+    if (
+        decision.redirect &&
+        decision.target
+    ) {
+        window.__SIA7_SURFACE_TRANSITION__ = true;
+
+        console.log(
+            "[ROLE_AUTHORITY_REDIRECT]",
+            {
+                role: decision.role,
+                from: decision.page,
+                to: decision.target,
+                reason: decision.reason
+            }
+        );
+
+        window.location.replace(
+            decision.target
+        );
+    }
+
+    return decision;
+}
 
 export function observarAuth(callback) {
 
