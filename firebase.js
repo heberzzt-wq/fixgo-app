@@ -12,6 +12,9 @@
 import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+import {
+    resolveGestiaRole
+} from "./gestia-core/auth/role-authority.js?v=role-authority-v2-20260713";
 
 import { 
     getAuth, 
@@ -168,7 +171,15 @@ if (window.__SIA7_ROUTER_LOCK__) {
     // ✨ NORMALIZACIÓN V5.30: Eliminamos el .html para comparar "limpio"
     const pageClean = currentPage.replace(".html", "").toLowerCase();
 
-    let role = (user.rol || user.role || "").toLowerCase();
+    const roleResolution =
+        resolveGestiaRole(
+            user,
+            user
+        );
+
+    let role =
+        roleResolution.role ||
+        "";
 
     // 🔧 PARCHE B2B / SaaS
     const subType = (

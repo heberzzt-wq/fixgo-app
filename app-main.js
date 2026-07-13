@@ -33,6 +33,10 @@ import {
 
 } from "./firebase.js";
 
+import {
+  resolveGestiaRole
+} from "./gestia-core/auth/role-authority.js?v=role-authority-v2-20260713";
+
 /* =====================================================
    FIRESTORE EXTENSIONS
 ===================================================== */
@@ -91,7 +95,7 @@ import {
    COGNITIVE RUNTIME BOOTSTRAP
 ===================================================== */
 
-import "./gestia-core/gestia.runtime.v7.js";
+import "./gestia-core/gestia.runtime.v7.js?v=role-authority-v2-20260713";
 
 
 /* =====================================================
@@ -1008,17 +1012,21 @@ observarAuth(async (userAuth) => {
     return;
   }
 
-  let rolBase = userRol;
+  const roleResolution =
+    resolveGestiaRole(
+      userAuth,
+      {
+        ...userData,
+        rol: userRol
+      }
+    );
 
-  if (userRol === "b2c")
-    rolBase = "cliente";
+  const rolBase =
+    roleResolution.role;
 
-  if (
-    userRol === "tecnico_gp" ||
-    userRol === "tecnico_interno"
-  ) rolBase = "tecnico";
-
-  userAuth.rol_real = userRol;
+  userAuth.rol_real =
+    roleResolution.roleReal ||
+    userRol;
   userAuth.rol = rolBase;
   userAuth.nombre =
     userData.nombre || userAuth.email;

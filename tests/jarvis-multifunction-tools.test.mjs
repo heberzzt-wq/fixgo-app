@@ -15,6 +15,10 @@ import {
     isJarvisTechnicalDiagnosticRequest
 } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 
+import {
+    resolveGestiaRole
+} from "../gestia-core/auth/role-authority.js";
+
 const __dirname =
     path.dirname(
         fileURLToPath(import.meta.url)
@@ -482,6 +486,77 @@ test("technical final response correlates initial and follow-up observations", (
         /followUpObservations:\s*\[\s*\.\.\.toolObservations,\s*\.\.\.followUpObservations\s*\]/
     );
     assert.match(core, /new Map\([\s\S]{0,700}learningHints\?\.lessons/);
+});
+
+test("runtime role authority never invents a temporary client role", () => {
+    const runtime = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-core", "gestia.runtime.v7.js"),
+        "utf8"
+    );
+
+    assert.deepEqual(
+        resolveGestiaRole(
+            {
+                email: "HEBERTOH-M@HOTMAIL.COM"
+            },
+            {}
+        ),
+        {
+            role: "admin",
+            roleReal: "admin",
+            source: "master_identity",
+            resolved: true
+        }
+    );
+    assert.equal(
+        resolveGestiaRole(
+            {
+                email: "sin-perfil@example.com"
+            },
+            {}
+        ).role,
+        null
+    );
+    assert.equal(
+        resolveGestiaRole({}, { rol: "tecnico_gp" }).role,
+        "tecnico"
+    );
+    assert.match(runtime, /\[AUTH_ROLE_UNRESOLVED\]/);
+    assert.match(runtime, /\[SURFACE_GUARD_ROLE_PENDING\]/);
+    assert.match(runtime, /if \(!registry\) \{[\s\S]{0,80}return null;/);
+    assert.doesNotMatch(
+        runtime,
+        /let role\s*=\s*"cliente";[\s\S]{0,80}let roleReal\s*=\s*"cliente";/
+    );
+});
+
+test("repo diagnosis separates structural file type from secondary capabilities", () => {
+    const toolsRuntime = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-core", "tools.runtime.js"),
+        "utf8"
+    );
+
+    assert.match(
+        toolsRuntime,
+        /if \(typeSignals\.html\) \{[\s\S]{0,100}"html_application"/
+    );
+    assert.match(toolsRuntime, /"geolocation"/);
+    assert.match(toolsRuntime, /GEOLOCATION_CAPABILITY_DETECTED/);
+    assert.match(toolsRuntime, /Tipo principal:/);
+    assert.match(toolsRuntime, /Capacidades:/);
+    assert.doesNotMatch(toolsRuntime, /Tipo detectado: \$\{fileType\}/);
+
+    const core = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-core", "gestia-core.js"),
+        "utf8"
+    );
+
+    assert.match(core, /const structuredDiagnosisCause\s*=/);
+    assert.match(core, /topDiagnosis\.findings\?\.length/);
+    assert.doesNotMatch(
+        core,
+        /String\(topDiagnosis\.summary\)[\s\S]{0,100}\.slice\(0, 10\)/
+    );
 });
 
 test("multifunction planner exposes the daily supervision report", () => {

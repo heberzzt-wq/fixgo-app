@@ -6,6 +6,11 @@
 import * as FirebaseCore
 from "./firebase.js";
 
+import {
+    resolveGestiaRole
+}
+from "./gestia-core/auth/role-authority.js?v=role-authority-v2-20260713";
+
 const auth =
     FirebaseCore.auth;
 
@@ -65,16 +70,14 @@ onAuthStateChanged(
                     snap.data() || {};
             }
 
-            const role = String(
-                profile.rol ||
-                profile.role ||
-                (
-                    user.email?.toLowerCase() ===
-                    "hebertoh-m@hotmail.com"
-                        ? "admin"
-                        : ""
-                )
-            ).toLowerCase().trim();
+            const roleResolution =
+                resolveGestiaRole(
+                    user,
+                    profile
+                );
+
+            const role =
+                roleResolution.role;
 
             console.log(
                 "🧠 [LOGIN_ROLE]",

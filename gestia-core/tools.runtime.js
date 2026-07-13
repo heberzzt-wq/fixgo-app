@@ -6251,10 +6251,45 @@ JarvisToolRuntime.register({
                     normalizedFile.endsWith(".json")
             };
 
+        const capabilities =
+            [
+                typeSignals.uiPanel
+                    ? "ui_rendering"
+                    : "",
+                typeSignals.firebaseData
+                    ? "firestore_data"
+                    : "",
+                typeSignals.gps
+                    ? "geolocation"
+                    : "",
+                typeSignals.bridge
+                    ? "runtime_bridge"
+                    : "",
+                typeSignals.patchEngine
+                    ? "patch_preview"
+                    : "",
+                typeSignals.executor
+                    ? "repo_execution"
+                    : ""
+            ]
+                .filter(Boolean);
+
         let fileType =
             "generic";
 
-        if (typeSignals.router) {
+        if (typeSignals.html) {
+            fileType =
+                "html_application";
+        }
+        else if (typeSignals.css) {
+            fileType =
+                "css_stylesheet";
+        }
+        else if (typeSignals.json) {
+            fileType =
+                "json_document";
+        }
+        else if (typeSignals.router) {
             fileType =
                 "router";
         }
@@ -6272,7 +6307,7 @@ JarvisToolRuntime.register({
         }
         else if (typeSignals.gps) {
             fileType =
-                "gps";
+                "geolocation_module";
         }
         else if (typeSignals.uiPanel) {
             fileType =
@@ -6281,18 +6316,6 @@ JarvisToolRuntime.register({
         else if (typeSignals.bridge) {
             fileType =
                 "runtime_bridge";
-        }
-        else if (typeSignals.html) {
-            fileType =
-                "html";
-        }
-        else if (typeSignals.css) {
-            fileType =
-                "css";
-        }
-        else if (typeSignals.json) {
-            fileType =
-                "json";
         }
 
         const findings =
@@ -6390,6 +6413,30 @@ JarvisToolRuntime.register({
 
             recommendations.push(
                 "No modificar queries, transacciones ni listeners sin prueba posterior."
+            );
+        }
+
+        if (
+            hasGps
+        ) {
+            findings.push({
+                id:
+                    "GEOLOCATION_CAPABILITY_DETECTED",
+                severity:
+                    "INFO",
+                title:
+                    "Capacidad de geolocalizacion detectada",
+                detail:
+                    "El archivo usa senales GPS/geolocation. Esto es una capacidad secundaria y no reemplaza el tipo estructural del archivo.",
+                evidence:
+                    {
+                        geolocation:
+                            true
+                    }
+            });
+
+            recommendations.push(
+                "Validar permisos, estados de rechazo y limpieza de watchers antes de modificar la geolocalizacion."
             );
         }
 
@@ -6549,7 +6596,8 @@ JarvisToolRuntime.register({
             [
                 `Diagnóstico Repo SIA7`,
                 `Archivo: ${normalizedFile}`,
-                `Tipo detectado: ${fileType}`,
+                `Tipo principal: ${fileType}`,
+                `Capacidades: ${capabilities.join(", ") || "ninguna especial"}`,
                 `Riesgo local: ${risk}`,
                 `Líneas: ${lines.length}`,
                 `Imports: ${importLines.length}`,
@@ -6593,6 +6641,7 @@ JarvisToolRuntime.register({
                 args.mode ||
                 "diagnose",
             fileType,
+            capabilities,
             risk,
             riskScore,
             source:

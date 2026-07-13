@@ -12,6 +12,11 @@ console.log(
    RUNTIME VERSION
 ========================================================= */
 
+import {
+    resolveGestiaRole
+}
+from "./auth/role-authority.js?v=role-authority-v2-20260713";
+
 const GESTIA_RUNTIME_VERSION =
     "7.0.0";
 
@@ -1221,6 +1226,14 @@ window.GestiaRuntime.services.auth = {
         null
 };
 
+window.GestiaRuntime.resolveAuthenticatedRole =
+    function(user = {}, metadata = {}) {
+        return resolveGestiaRole(
+            user,
+            metadata
+        );
+    };
+
 /* =========================================================
    SESSION RESTORE
 ========================================================= */
@@ -1280,10 +1293,10 @@ window.GestiaRuntime.restoreSession =
             ============================================= */
 
             let role =
-                "cliente";
+                null;
 
             let roleReal =
-                "cliente";
+                null;
 
             let tenantId =
                 "GLOBAL_SYSTEM";
@@ -1296,15 +1309,6 @@ window.GestiaRuntime.restoreSession =
                 metadata =
                     snap.data();
 
-                role =
-
-                    metadata?.rol ||
-
-                    "cliente";
-
-                roleReal =
-                    role;
-
                 tenantId =
 
                     metadata?.tenantId ||
@@ -1316,24 +1320,29 @@ window.GestiaRuntime.restoreSession =
                NORMALIZATION
             ============================================= */
 
-            if (
+            const resolvedRole =
+                window.GestiaRuntime
+                    .resolveAuthenticatedRole(
+                        user,
+                        metadata
+                    );
 
-                role === "tecnico_gp" ||
+            role =
+                resolvedRole.role;
 
-                role === "tecnico_interno"
+            roleReal =
+                resolvedRole.roleReal;
 
-            ) {
-
-                role =
-                    "tecnico";
-            }
-
-            if (
-                role === "b2c"
-            ) {
-
-                role =
-                    "cliente";
+            if (!role) {
+                window.GestiaRuntime.log(
+                    "[AUTH_ROLE_UNRESOLVED]",
+                    {
+                        uid: user.uid,
+                        email: user.email,
+                        source: resolvedRole.source
+                    },
+                    "WARNING"
+                );
             }
 
             /* =============================================
@@ -1796,7 +1805,7 @@ window.GestiaRuntime.resolveHomeRoute =
 
         if (!registry) {
 
-            return "/cliente.html";
+            return null;
         }
 
         return registry.home;
@@ -2060,6 +2069,21 @@ window.GestiaRuntime.guardSurface =
                     .getState(
                         "user.role"
                     );
+
+            if (
+                authenticated &&
+                !role
+            ) {
+                window.GestiaRuntime.log(
+                    "[SURFACE_GUARD_ROLE_PENDING]",
+                    {
+                        pathname
+                    },
+                    "WARNING"
+                );
+
+                return;
+            }
 
             /* =============================================
                LOGIN SURFACE

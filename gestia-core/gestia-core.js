@@ -189,7 +189,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.vision.engine.js?v=typo-normalization-v1-20260713';
 import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.4-capability-forensics-v2';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-capability-forensics-v2';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-semantic-diagnostics-v2';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
 
@@ -3181,6 +3181,28 @@ function composeObservationDrivenFinalResponse({
         topDiagnosis?.risk ||
         "ND";
 
+    const structuredDiagnosisCause =
+        topDiagnosis
+            ? [
+                "Diagnostico Repo SIA7",
+                `Archivo: ${topDiagnosis.file || topCandidate?.file || "ND"}`,
+                `Tipo principal: ${topDiagnosis.fileType || "generic"}`,
+                `Capacidades: ${(topDiagnosis.capabilities || []).join(", ") || "ninguna especial"}`,
+                `Riesgo local: ${topDiagnosis.risk || "ND"}`,
+                "Hallazgos:",
+                ...(
+                    topDiagnosis.findings?.length
+                        ? topDiagnosis.findings
+                            .slice(0, 4)
+                            .map(finding =>
+                                `- [${finding.severity || "INFO"}] ${finding.title || finding.id || "Hallazgo"}: ${finding.detail || "Sin detalle adicional."}`
+                            )
+                        : ["- Sin hallazgos de alta senal por heuristica local."]
+                )
+            ]
+                .join("\n")
+            : "";
+
     const cause =
         anchoredDiagnosis.sections.length
             ? [
@@ -3193,11 +3215,8 @@ function composeObservationDrivenFinalResponse({
                     : "La causa probable sigue en el bloque visual cercano; falta copiar el fragmento exacto para decidir el search/replace."
             ]
                 .join("\n")
-            : topDiagnosis?.summary
-            ? String(topDiagnosis.summary)
-                .split("\n")
-                .slice(0, 10)
-                .join("\n")
+            : structuredDiagnosisCause
+            ? structuredDiagnosisCause
             : "Las coincidencias apuntan al archivo con mayor densidad de evidencia en repo.search/repo.grep. Se recomienda leer el bloque visual antes de proponer cualquier patch.";
 
     const patchPreviewProposal =
